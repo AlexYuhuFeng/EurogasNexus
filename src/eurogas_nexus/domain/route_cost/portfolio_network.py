@@ -12,7 +12,10 @@ The composition contract is deliberately strict:
 - route capacity comes from PostgreSQL-owned route-candidate legs, never from
   the API client;
 - market and tariff amounts are converted to GBP/MWh as-of the requested gas
-  day; unsupported units block rather than approximate.
+  day; unsupported units block rather than approximate;
+- a capacity-tariff basis is never converted into a fake energy fee: it blocks
+  with ``TARIFF_CAPACITY_BILLING_REQUIRED`` until an explicit capacity-billing
+  basis is composed.
 
 Optimization reuses the residual shared-capacity network-flow engine. Final
 flows are decomposed into source-to-sale paths so each upstream contract
@@ -56,6 +59,18 @@ _SUPPORTED_CAPACITY_PRODUCTS = {
     "WITHIN_DAY",
 }
 _SUPPORTED_FIRMNESS = {"FIRM", "INTERRUPTIBLE", "BACKHAUL", "OFF_PEAK"}
+# Capacity-tariff bases price booked capacity over time, not delivered energy.
+# They must be computed by the exact capacity-billing primitive with an explicit
+# booked capacity, billing window and billed energy; multiplying the rate by 10
+# and calling it GBP/MWh is not a valid energy-price conversion. Compare the
+# normalized (whitespace-free, upper-case) units declared by that primitive.
+_CAPACITY_TARIFF_UNITS = frozenset(
+    {
+        "EUR/(MWH/H)/H",
+        "GBP/(MWH/H)/H",
+        "P/(KWH/H)/H",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1224,6 +1239,12 @@ def _route_cost_gbp_mwh(
     return round(cost_gbp, 4), _unique(cost_refs), _unique(cost_blockers), _unique(warnings)
 
 
+def _is_capacity_tariff_unit(compact_unit: str) -> bool:
+    """Whether a normalized unit is a capacity basis rather than an energy price."""
+
+    return compact_unit in _CAPACITY_TARIFF_UNITS
+
+
 def _money_to_gbp_mwh(
     value: float,
     currency: str | None,
@@ -1232,26 +1253,24 @@ def _money_to_gbp_mwh(
     fx_rows: Sequence[FxObservationFact],
     asof_date: date,
 ) -> tuple[float | None, dict[str, Any], str | None]:
-    """Convert an amount to GBP/MWh with as-of FX provenance."""
+    """Convert an energy amount to GBP/MWh with as-of FX provenance.
+
+    Capacity-tariff bases (``p/(kWh/h)/h`` and the EUR/GBP per-capacity-hour
+    forms) are refused before any FX or arithmetic step. A capacity charge
+    cannot be expressed as an energy fee without an explicit booked capacity,
+    billing window, billed energy and utilization basis; those belong to the
+    shared exact capacity-billing primitive. This function deliberately keeps
+    no capacity-to-energy shortcut.
+    """
 
     currency_code = _normalise_code(currency)
     compact_unit = re.sub(r"\s+", "", (unit or "")).upper()
-    if not compact_unit.endswith("/MWH") and compact_unit != "P/(KWH/H)/H":
+    if _is_capacity_tariff_unit(compact_unit):
+        return None, {}, "TARIFF_CAPACITY_BILLING_REQUIRED"
+    if not compact_unit.endswith("/MWH"):
         return None, {}, f"TARIFF_UNIT_UNSUPPORTED:{unit}"
 
     if currency_code == "GBP":
-        if compact_unit == "P/(KWH/H)/H":
-            # pence per kWh is a standard UK capacity-tariff basis:
-            # p/kWh * 1000 kWh/MWh / 100 pence per GBP = GBP/MWh * 10.
-            return (
-                round(value * 10.0, 4),
-                {
-                    "fx_converted_from": None,
-                    "unit_conversion": "P/(KWH/H)/H->GBP/MWH",
-                    "assumption": "1 p/kWh = 10 GBP/MWh (explicit unit conversion).",
-                },
-                None,
-            )
         return round(value, 4), {}, None
 
     fx_rate_inputs = _fx_rate_inputs_as_of(fx_rows, asof_date)

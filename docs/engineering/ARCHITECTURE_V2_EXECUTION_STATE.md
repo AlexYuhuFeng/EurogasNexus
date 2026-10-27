@@ -2,6 +2,40 @@
 
 ## 2026-10-27 — fresh Windows recovery and acceptance continuation
 
+2026-10-28 integration update: reviewed tariff-date selection pushed8b1edad;
+cost JSON missing/zero/atomicity fix9b3a893; retained EEX decimal consumption
+0b73bed; GIE SDK payload parity and ALSI explicit-energy-unit fix9c006ac;
+central LNG semantic vocabulary/control-code ownership676796c. Each is a
+replacement implementation, not recovered original cloud source.
+
+Independent new evidence: exact-price/parser/cost selection147pass; GIE source/
+transport/SDK selection117pass; tariff/SDK combined38pass including strict date
+coercion refusal; LNG ontology/new+legacy/reference selection215pass. Full
+contract rerun571pass after centralizing semantic enums and making the markdown
+escape fixture use a simulated repository inside its own scratch directory.
+Ruff passes on reviewed changed Python modules.
+
+Capacity and LNG API/typed SDK plus actual existing-workspace Web forms are now
+implemented. Root real HTTP: capacity9checks and LNG8checks, distinct synthetic
+ANALYST/VIEWER/anonymous identities, no added commercial grants. Actual browser
+LNG EN/zh-CN golden550EUR margin/482.5EUR NPV and7consumed/3loss/10reduction,
+Ctrl+Enter, success focus,390/1440px overflow, draft invalidation and conservation
+refusal pass. Capacity browser23h golden/refusal/edit invalidation, shortcut,
+success focus and390px overflow pass. Visual inspection found and fixed bare
+capacity form wrapping and ensured LNG success scroll reveals the monetary
+summary. Full Web988pass/3existing skips; TypeScript/production build pass
+(build will be refreshed for final source). Measured public surface189paths/
+203operations; both endpoints have real Web reachability, no gap exemption.
+
+Linux native preparation: Ubuntu24.04 dependencies installed; pinnedRust1.94.0
+locked cargo check passes. Node24.13.1 archive SHA checked; desktop CLI2.11.2
+installed from committed lockfile in separate dependency cache with zero audit
+findings. These are prerequisites, not final bundle/installed acceptance.
+Next: continue actual tariff-date consumer propagation (bounded DeepSeek worker
+active), source/strategy/context adoption, durable acceptance scripts, full
+API/SDK and final committed-source backend/SDK/native artifacts. All production
+provider rights/certification, issuer/security/signing/customer gates stay open.
+
 Latest independently verified checkpoint: DeepSeek reconstructed LNG economics-only
 and explicit energy-stage accounting, preserving the strict legacy readiness path
 and sharing one monetary/cash composer. Root reviewed conservation precision,

@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { PortfolioResourceDTO, UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
+import { LngEconomicsPanel } from "@/components/LngEconomicsPanel";
+import { useLngEconomicsOnly } from "@/app/model/useLngEconomicsOnly";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import {
   contractValidationIssueKeys,
@@ -63,7 +65,7 @@ export type { ContractDraft };
 
 type Translate = (key: string) => string;
 /** The resource-contract sub-views. Owned by the workspace, which also hosts the save action. */
-export type ContractTaskView = "source" | "terms" | "impact" | "library";
+export type ContractTaskView = "source" | "terms" | "impact" | "lng_economics" | "library";
 type ClauseView = "agreement" | "product" | "delivery" | "quantity" | "costs" | "capacity" | "settlement" | "restrictions";
 
 interface ContractWorkbenchProps {
@@ -160,6 +162,10 @@ export function ContractWorkbench({
     : "n/a";
   const stagedStatus = contract.document_status || "MANUAL_DRAFT";
   const selectedReadOnlyName = selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name ?? selectedResourceId;
+  // The selected term is context for the LNG sandbox, never an authoritative source of its facts.
+  // Changing the selection invalidates a result computed against the previous term while keeping
+  // the operator's typed draft.
+  const lngEconomics = useLngEconomicsOnly(selectedResourceId ?? "");
 
   const validationIssues = useMemo(
     () => contractValidationIssueKeys(contract).map((key) => t(key)),
@@ -170,7 +176,9 @@ export function ContractWorkbench({
   const saveStatus = t(saveState.statusKey);
   const taskTabs: Array<[ContractTaskView, string]> = [
     ["source", t("contracts.view.source")], ["terms", t("contracts.view.terms")],
-    ["impact", t("contracts.view.impact")], ["library", t("contracts.view.library")],
+    ["impact", t("contracts.view.impact")],
+    ["lng_economics", t("contracts.view.lng_economics")],
+    ["library", t("contracts.view.library")],
   ];
   const clauseTabs: Array<[ClauseView, string]> = [
     ["agreement", t("contracts.agreement")], ["product", t("contracts.product_term")],
@@ -316,6 +324,17 @@ export function ContractWorkbench({
             </section>
           <section className="contract-content-band"><div className="section-heading"><span className="eyebrow">{t("portfolio.scope.register")}</span><strong>{portfolioResources.length} {t(portfolioResources.length === 1 ? "contracts.resource_singular" : "home.resources")}</strong></div><div className="contract-definition-list"><div><span>{t("portfolio.scope.quantity")}</span><strong>{formatQuantity(totalPoolVolume)}</strong></div><div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.early_cash_value_gbp_mwh) : "n/a"}</strong></div><div><span>{t("result.net_margin")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.net_margin_gbp_mwh) : "n/a"}</strong></div></div></section>
         </div>
+      )}
+
+      {taskView === "lng_economics" && (
+        <LngEconomicsPanel
+          t={t}
+          lngEconomics={lngEconomics}
+          selectedContractId={selectedResourceId}
+          selectedContractName={
+            selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name ?? null
+          }
+        />
       )}
 
       {taskView === "library" && (

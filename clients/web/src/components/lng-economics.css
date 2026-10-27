@@ -1,0 +1,131 @@
+/* The LNG economics-only sandbox reuses the commercial workbench's panels and field grid.
+   Only the row/table layout is local: exact backend strings must have room to wrap instead of
+   being clipped or reformatted. */
+.lng-economics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.lng-economics-panel fieldset.lng-economics-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas);
+}
+
+.lng-economics-panel fieldset.lng-economics-section > legend {
+  padding: 0 var(--space-1);
+  font-weight: 650;
+}
+
+.lng-economics-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--eg-hairline-strong);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+}
+
+.lng-economics-context > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.lng-economics-context p {
+  flex: 1 1 260px;
+  margin: 0;
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+}
+
+.lng-economics-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: var(--space-1) 0;
+  padding: var(--space-2);
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+}
+
+.lng-economics-row > legend {
+  padding: 0 var(--space-1);
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+  font-weight: 650;
+}
+
+.lng-economics-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.lng-economics-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.lng-economics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.lng-economics-table caption {
+  padding-bottom: var(--space-1);
+  color: var(--eg-muted);
+  text-align: left;
+}
+
+.lng-economics-table th,
+.lng-economics-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--eg-hairline);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.lng-economics-table th {
+  color: var(--eg-muted);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.lng-economics-table td small {
+  display: block;
+  color: var(--eg-muted);
+}
+
+.lng-economics-result:focus {
+  outline: 2px solid var(--eg-link);
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .lng-economics-context,
+  .lng-economics-context > div {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+.lng-economics-result {
+  scroll-margin-top: var(--space-4, 16px);
+}

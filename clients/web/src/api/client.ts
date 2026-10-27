@@ -2282,6 +2282,282 @@ export interface CashValuationMetaDTO extends ApiMeta {
 }
 
 /**
+ * The shared capacity-billing research primitive (`POST /api/research/capacity-billing`).
+ *
+ * One explicitly supplied capacity tariff over one explicit UTC billing window. Every numeric
+ * input is an **exact decimal string on the wire in both directions**; the client never converts
+ * one to `number`, never parses one and never performs financial arithmetic. The backend engine
+ * (`domain/research/capacity_billing.py`) remains the sole owner of the formulas, bounds, rounding
+ * and stable refusal codes.
+ *
+ * The request carries no `decision_context` claim. The backend's sandbox gate refuses a
+ * `RUNTIME_DECISION` claim before validation and this model forbids the field as an unknown
+ * property, so the only correct composition is to send no context claim at all; the response's
+ * `meta.decision_context` is what labels the run `SANDBOX_SCENARIO`.
+ *
+ * `billed_capacity_energy_mwh` is deliberately an input. The engine verifies it against booked
+ * capacity and the exact UTC duration by integer cross-multiplication; the client must never infer
+ * or derive it from the billing window, and must never send a default tariff, FX, market price or
+ * source-verification claim.
+ */
+export interface CapacityBillingRequestDTO {
+  /** Caller-supplied scenario identifier; never resolved to a persisted entity. */
+  scenario_id: string;
+  /** Caller-supplied tariff identifier; never looked up. */
+  tariff_id: string;
+  /** Exact decimal string in `tariff_unit`; never a `number`. */
+  tariff_rate: string;
+  /** Explicit currency the tariff unit requires. */
+  currency: string;
+  /** Explicit capacity unit, e.g. `EUR/(MWh/h)/h`. */
+  tariff_unit: string;
+  /** Exact decimal string of booked capacity in MWh/h; never a `number`. */
+  booked_capacity_mwh_per_h: string;
+  /** Exact decimal string of delivered energy in MWh; never a `number`. */
+  delivered_energy_mwh: string;
+  /** Exact decimal string of billed capacity energy in MWh; never inferred by the client. */
+  billed_capacity_energy_mwh: string;
+  /** ISO-8601 timestamp with an explicit UTC offset. */
+  billing_start: string;
+  /** ISO-8601 timestamp with an explicit UTC offset. */
+  billing_end: string;
+  /** Mandatory caller-supplied provenance references; the backend does not verify them. */
+  source_references: string[];
+}
+
+/** Raw explicit basis the engine retained, with exact strings and integer microseconds. */
+export interface CapacityBillingBasisDTO {
+  tariff_rate: string;
+  tariff_unit: string;
+  booked_capacity_mwh_per_h: string;
+  billed_capacity_energy_mwh: string;
+  delivered_energy_mwh: string;
+  billing_start_utc: string;
+  billing_end_utc: string;
+  duration_microseconds: number;
+}
+
+/** One engine result as the route serialized it: Decimals are exact strings, timestamps ISO UTC. */
+export interface CapacityBillingResultDTO {
+  research_only: boolean;
+  human_review_required: boolean;
+  model_version: string;
+  scenario_id: string;
+  tariff_id: string;
+  currency: string;
+  tariff_unit: string;
+  tariff_rate: string;
+  booked_capacity_mwh_per_h: string;
+  billed_capacity_energy_mwh: string;
+  delivered_energy_mwh: string;
+  billing_start: string;
+  billing_end: string;
+  duration_microseconds: number;
+  duration_hours: string;
+  total_cost: string;
+  cost_per_delivered_mwh: string;
+  basis: CapacityBillingBasisDTO;
+  provenance: string[];
+  source_references: string[];
+  assumptions: string[];
+  warnings: string[];
+  lineage: string[];
+  physical_readiness: string;
+}
+
+/**
+ * The sandbox envelope of the capacity-billing route.
+ *
+ * It states the boundary explicitly: caller-supplied, unverified references, no booked rights,
+ * physical readiness not assessed, no customer approval, and `SANDBOX_SCENARIO` as the only
+ * decision context this route can ever carry.
+ */
+export interface CapacityBillingMetaDTO extends ApiMeta {
+  decision_context: "SANDBOX_SCENARIO";
+  caller_supplied: true;
+  references_verified: false;
+  booked_rights_established: false;
+  physical_readiness: string;
+  customer_approval: false;
+  source_references: string[];
+  warnings: string[];
+}
+
+/**
+ * The LNG economics-only research composition (`POST /api/research/lng-economics-only`).
+ *
+ * Explicit caller-supplied EUR cash amounts, an explicit ordered MWh energy-stage chain and
+ * explicit per-payment-date discount factors. Every numeric input is an **exact decimal string on
+ * the wire in both directions**; the client never converts one to `number`, never parses one and
+ * never performs financial or energy arithmetic. The backend composition owns every formula,
+ * conservation identity, rounding step and stable refusal code.
+ *
+ * The request carries no readiness scenario, no `decision_context` claim and no `model_version`.
+ * The response's `physical_readiness` is only the backend's own value (`NOT_ASSESSED` here), and
+ * `readiness_assessed` is only ever the backend's boolean - the surface never infers either.
+ */
+export interface LngEconomicsOnlyDiscountFactorDTO {
+  /** Cash date the factor discounts, `YYYY-MM-DD`. */
+  payment_date: string;
+  /** Exact decimal string; never a `number` and never inferred from a curve. */
+  factor: string;
+  curve_reference: string;
+  source_reference: string;
+  as_of: string;
+}
+
+export interface LngEconomicsOnlyDownstreamCostDTO {
+  cost_id: string;
+  /** The shared cash-flow leg vocabulary, e.g. `regas`, `shipping` or `other`. */
+  category: string;
+  /** Exact nonnegative EUR total as a decimal string. */
+  amount_eur: string;
+  payment_date: string;
+  source_reference: string;
+  /** `invoiced_cash`, `in_kind` or `unknown`; only invoiced cash is accepted. */
+  charge_basis: string;
+}
+
+export interface LngEconomicsOnlyEnergyStageDTO {
+  stage_id: string;
+  /** `cargo_transfer`, `shipping`, `storage`, `regasification` or `other`. */
+  kind: string;
+  input_energy_mwh: string;
+  output_energy_mwh: string;
+  consumed_energy_mwh: string;
+  physical_loss_energy_mwh: string;
+  source_references: string[];
+}
+
+export interface LngEconomicsOnlyRequestDTO {
+  contract_id: string;
+  cargo_id: string;
+  terminal_id: string;
+  resource_id: string;
+  valuation_date: string;
+  /** Only `EUR` is supported by the current engine. */
+  reporting_currency: string;
+  energy_basis_reference: string;
+  /** Only `MWh` is supported; no volume or heat-unit conversion is performed. */
+  energy_unit: string;
+  purchased_energy_mwh: string;
+  delivered_energy_mwh: string;
+  purchase_unit_price_eur_per_mwh: string;
+  sale_unit_price_eur_per_mwh: string;
+  purchase_price_source_reference: string;
+  sale_price_source_reference: string;
+  /** `FOB` or `DES`; any other value is refused by the engine. */
+  purchase_basis: string;
+  purchase_included_cost_items: string[];
+  cost_scope_statement: string;
+  purchase_payment_date: string;
+  sale_payment_date: string;
+  downstream_costs: LngEconomicsOnlyDownstreamCostDTO[];
+  energy_stages: LngEconomicsOnlyEnergyStageDTO[];
+  discount_factors: LngEconomicsOnlyDiscountFactorDTO[];
+}
+
+/** The exact ordered energy balance the backend composed from the declared stages. */
+export interface LngEconomicsEnergyBalanceDTO {
+  model_version: string;
+  purchased_energy_mwh: string;
+  delivered_energy_mwh: string;
+  energy_basis_reference: string;
+  energy_unit: string;
+  total_consumed_energy_mwh: string;
+  physical_loss_energy_mwh: string;
+  total_reduction_energy_mwh: string;
+  stage_count: number;
+  stages: LngEconomicsOnlyEnergyStageDTO[];
+  warnings: string[];
+  source_references: string[];
+  research_only: boolean;
+  human_review_required: boolean;
+}
+
+/** The embedded shared cash valuation, with every Decimal serialized as an exact string. */
+export interface LngEconomicsCashValuationDTO {
+  model_version: string;
+  contract_id: string;
+  cargo_id: string;
+  terminal_id: string;
+  resource_id: string;
+  valuation_date: string;
+  reporting_currency: string;
+  leg_valuations: CashValuationLegValuationDTO[];
+  total_undiscounted_cash_reporting_ccy: string;
+  net_present_value_reporting_ccy: string;
+  assumptions: string[];
+  warnings: string[];
+  source_references: string[];
+  lineage: string[];
+  research_only: boolean;
+  human_review_required: boolean;
+}
+
+/** One economics-only result as the route serialized it. */
+export interface LngEconomicsOnlyResultDTO {
+  research_only: boolean;
+  human_review_required: boolean;
+  model_version: string;
+  action: string;
+  contract_id: string;
+  cargo_id: string;
+  terminal_id: string;
+  resource_id: string;
+  valuation_date: string;
+  reporting_currency: string;
+  energy_basis_reference: string;
+  energy_unit: string;
+  purchased_energy_mwh: string;
+  delivered_energy_mwh: string;
+  total_consumed_energy_mwh: string;
+  physical_loss_energy_mwh: string;
+  total_reduction_energy_mwh: string;
+  purchase_basis: string;
+  purchase_included_cost_items: string[];
+  cost_scope_statement: string;
+  purchase_unit_price_eur_per_mwh: string;
+  sale_unit_price_eur_per_mwh: string;
+  unit_netback_eur_per_purchased_mwh: string;
+  sale_basis_eur_per_delivered_mwh: string;
+  purchase_outlay_eur: string;
+  sale_proceeds_eur: string;
+  total_downstream_costs_eur: string;
+  cargo_margin_eur: string;
+  margin_reconciliation_gap_eur: string;
+  margin_reconciliation_tolerance_eur: string;
+  net_present_value_eur: string;
+  total_undiscounted_cash_eur: string;
+  cash_valuation: LngEconomicsCashValuationDTO;
+  energy_balance: LngEconomicsEnergyBalanceDTO;
+  physical_readiness: string;
+  readiness_assessed: boolean;
+  assumptions: string[];
+  warnings: string[];
+  source_references: string[];
+  lineage: string[];
+}
+
+/**
+ * The sandbox envelope of the LNG economics-only route.
+ *
+ * Caller-supplied and unverified, no customer approval, no physical readiness assessment and
+ * `SANDBOX_SCENARIO` as the only decision context this route can carry. A profitable result is
+ * never delivery feasibility, terminal/slot/storage rights or nomination authority.
+ */
+export interface LngEconomicsOnlyMetaDTO extends ApiMeta {
+  decision_context: "SANDBOX_SCENARIO";
+  caller_supplied: true;
+  references_verified: false;
+  physical_readiness: string;
+  readiness_assessed: boolean;
+  customer_approval: false;
+  source_references: string[];
+  warnings: string[];
+}
+
+/**
  * The desk's optimisation assessments (register C14/D8).
  *
  * `POST /api/optimization/nomination-window` and `POST /api/optimization/storage-dispatch` are
@@ -3379,6 +3655,42 @@ export const api = {
    */
   cashValuation: (body: CashValuationRequestDTO, options?: ApiRequestOptions) =>
     post<CashValuationResultDTO, CashValuationMetaDTO>("/research/cash-valuation", body, options),
+
+  /**
+   * Bill one explicit capacity tariff through the shared backend engine (transport only).
+   *
+   * The body travels exactly as composed: every decimal is the caller's own string, every
+   * timestamp is the caller's own aware ISO-8601 text, and no `decision_context` claim is sent.
+   * The backend owns the arithmetic, the exact billed-energy cross-multiplication, the unit and
+   * currency rules, the UTC duration and every stable refusal code. A refusal rejects with the
+   * standard `ApiError` carrying the typed `detail` (`capacity_billing_input_invalid` /
+   * `capacity_billing_refused` and the engine's codes); nothing is persisted and the client does
+   * no parsing, conversion or arithmetic here.
+   */
+  capacityBilling: (body: CapacityBillingRequestDTO, options?: ApiRequestOptions) =>
+    post<CapacityBillingResultDTO, CapacityBillingMetaDTO>(
+      "/research/capacity-billing",
+      body,
+      options,
+    ),
+
+  /**
+   * Compose explicit LNG economics without assessing physical readiness (transport only).
+   *
+   * The body travels exactly as composed: every price, quantity, cost, stage amount and discount
+   * factor is the caller's own string, and no `decision_context` or `model_version` claim is sent.
+   * The backend composition owns the money and energy arithmetic, conservation, chain adjacency,
+   * discount coverage and every stable refusal code. A refusal rejects with the standard
+   * `ApiError` carrying the typed `detail` (`lng_economics_only_input_invalid` /
+   * `lng_economics_only_refused` and the engine's codes); nothing is persisted and no client
+   * parsing, conversion or arithmetic happens here.
+   */
+  lngEconomicsOnly: (body: LngEconomicsOnlyRequestDTO, options?: ApiRequestOptions) =>
+    post<LngEconomicsOnlyResultDTO, LngEconomicsOnlyMetaDTO>(
+      "/research/lng-economics-only",
+      body,
+      options,
+    ),
 
   /**
    * The two desk assessments, and the run record that makes them checkable (register C14/D8).

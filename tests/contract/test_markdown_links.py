@@ -36,9 +36,13 @@ def test_relative_link_resolving_outside_repository_is_reported(
 ) -> None:
     """Relative links that escape the repository root get a distinct reason."""
     module = _load_checker()
-    nested = tmp_path / "nested"
-    nested.mkdir()
-    outside_target = module.ROOT.parent / "eurogas-nexus-outside-target.md"
+    # Keep both sides inside the test-owned scratch directory while the target
+    # still escapes the simulated repository boundary. Never write beside checkout.
+    fixture_root = tmp_path / "repo"
+    nested = fixture_root / "nested"
+    nested.mkdir(parents=True)
+    monkeypatch.setattr(module, "ROOT", fixture_root)
+    outside_target = tmp_path / "outside-target.md"
     link_target = os.path.relpath(outside_target, nested)
     source = nested / "outside-link.md"
     source.write_text(f"[outside]({link_target})\n", encoding="utf-8")

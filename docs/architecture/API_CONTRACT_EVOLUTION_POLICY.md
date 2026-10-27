@@ -219,3 +219,19 @@ records. HTTP producers bind this from the active named identity; display
 `principal` remains attribution and an optional narrowing filter. Name-only legacy
 jobs have no read/cancel grant until independently verified ownership is assigned.
 A principal-name/ID collision cannot grant access.
+
+## 2026-10-27 additive capacity billing contract
+
+`POST /api/research/capacity-billing` adds a sandbox-only, authenticated research
+calculation with strict decimal-string amounts and explicit aware billing times.
+The shared domain engine owns arithmetic; typed SDK and Web consumers must not
+recompute it. It establishes neither booked rights nor physical readiness.
+Existing routes and authorization remain unchanged. See
+[capacity billing capability](CAPACITY_BILLING_CAPABILITY.md) and
+[delivery reconstruction plan](../engineering/DELIVERY_RECOVERY_EXECPLAN.md).
+Public census: 189 paths / 203 operations.
+
+`POST /api/research/lng-economics-only` is likewise additive and sandbox-only.
+It requires explicit ordered energy stages, charged cost bases and dated cash
+inputs. Readiness remains NOT_ASSESSED; API and SDK delegate to the shared domain
+composition. See [LNG capability](LNG_ECONOMICS_ONLY_CAPABILITY.md).

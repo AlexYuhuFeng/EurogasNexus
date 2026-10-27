@@ -13,7 +13,7 @@ validate this checkout or recover unpublished work.
   `f9f4df7`, `5aec4d7`, `069b76f`, `01a9dd9`, `b611127`, `8d870fd`.
   This proves absence from the local object database, not destruction of the old
   workspace or impossibility of recovery elsewhere.
-- Named unpublished files are absent: `lngEconomicsModel.ts`,
+- At the initial audit, named unpublished files were absent: `lngEconomicsModel.ts`,
   `LngEconomicsPanel.tsx`, `lng-economics.css`, `lngEconomics.test.ts`,
   `eex_ngp_capture.py`, `inspect_eex_ngp_capture.py`, `test_eex_ngp_capture.py`.
   Changes reported for API client, ContractWorkbench and EEX source contract
@@ -34,7 +34,7 @@ lockfile; no lockfile mutation was needed for the baseline.
 | Check | Current evidence | Limit |
 | --- | --- | --- |
 | LNG cargo/cash, regas readiness, EEX CSV | 174 passed | Existing primitives only; missing work is not covered |
-| Web regression | 950 passed, 3 skipped | No fresh authenticated browser/native acceptance |
+| Web regression | 950 passed, 3 skipped; subsequent synthetic browser sweep 96 checks, 16 workspaces, EN/zh-CN, three viewports | Bounded read/render and deterministic agent flow only; full persona/native acceptance remains open |
 | Web dependency audit | Initial 2 high findings remediated: Vite 8.1.6 and source-map-js 1.2.2; final npm 12 clean install reports zero findings | Audit is time-bound; final artifact checks remain required |
 | Repository Ruff | Initial 2 import-order errors corrected; all checks pass | No numerical implementation changed |
 | Web production build | TypeScript and Vite production build pass | Existing ineffective-dynamic-import warning remains |
@@ -111,16 +111,16 @@ Use DeepSeek max reasoning for subsequent bounded implementation requests.
 
 | Gate | Required evidence | State / next action |
 | --- | --- | --- |
-| Missing progress | Recovered objects/files and provenance, or explicitly reviewed replacement diffs | Open; investigate available recovery sources before reconstructing |
+| Missing progress | Recovered objects/files and provenance, or explicitly reviewed replacement diffs | Original commits absent; reviewed replacements pushed through abbe274, additional route/UI/context work open |
 | DeepSeek implementation | Secure api.deepseek.com credential binding and successful bounded worker request | Available; first implementation reviewed and validated; subsequent tasks use max reasoning |
 | Dependency safety | Reviewed compatible patches; lockfile installs, build, tests and clean vulnerability audit | Current Web remediation verified; final release artifact scans remain open |
-| LNG economics workflow | Exact-decimal domain/API/SDK parity, consumption/loss distinction, explicit discount factors, NOT_ASSESSED physical readiness; actual Web failure/race/permission/keyboard acceptance | Missing reported newer implementation; inspect existing contracts before replacing |
-| EEX capture | Dry-run byte/hash/decimal inspection and negative fixtures; no invented timezone, canonical timestamp or executable quote | Missing reported inspection seam; preserve entitlement/certification gates |
-| Terminal reference | Versioned reviewed official facts, units, applicability and offline change candidates | Missing reported checkpoint; no invented operator values |
+| LNG economics workflow | Exact-decimal domain/API/SDK parity, consumption/loss distinction, explicit discount factors, NOT_ASSESSED physical readiness; actual Web failure/race/permission/keyboard acceptance | Reconstructed core pushed; core/adjacent selection192pass, new API/SDK/census selection33pass. Real HTTP and Web remain open |
+| EEX capture | Dry-run byte/hash/decimal inspection and negative fixtures; no invented timezone, canonical timestamp or executable quote | Reconstructed inspector/CLI pushed5d7bf12; combined capture/parser/reference selection97pass. Production download/persistence and provenance gates open |
+| Terminal reference | Versioned reviewed official facts, units, applicability and offline change candidates | Contract/comparison and five sources/seven CANDIDATE facts pushed; reviewed/effective facts and runtime consumer adoption remain open |
 | Pipeline/portfolio/research/review workflows | Populated complete persona journeys with quantity/cost/calendar/evidence lineage and explicit unsupported capabilities | Outstanding per acceptance 22 and business/role requirements; tests alone do not close |
 | Final artifacts | Build from final committed source, SHA/digest binding, installed backend/SDK/native checks and same-source CI | Open; old artifacts exclude subsequent changes |
 | Release/customer gates | Applicable provider rights/certification, real issuer, production recovery, platform signing and practitioner acceptance | External evidence unverified; synthetic tests cannot substitute |
-| Progress delivery | Reviewed commit and non-force push to main, preserving one worktree | Authorized; pending coherent reviewed change |
+| Progress delivery | Reviewed commit and non-force push to main, preserving one worktree | Periodic pushes completed through abbe274; subsequent coherent checkpoints continue |
 
 No source activation, grant change, external product AI enablement, trading,
 nomination, settlement or regional transport is authorized by a test failure.
@@ -132,3 +132,37 @@ baseline and production Web build; record exact failures. Establish secure DeepS
 access for bounded implementation. Review and remediate fresh dependency/lint
 findings, then recover or explicitly reconstruct missing progress in dependency
 order. Keep the full delivery gate register open until evidence closes each gate.
+
+## Current reconstruction verification update
+
+Capacity domain/API/SDK/portfolio:86pass, plus real loopback HTTP with dedicated
+synthetic PostgreSQL identities: anonymous401, VIEWER403, ANALYST23h/25h/pence200;
+invalid numeric JSON, inconsistent billing and runtime context422; source SDK200.
+No commercial data grants were added. Web integration is in progress.
+
+Broader domain/unit/ingestion/security run:2175pass,2fail. Both failures were the
+security script's stale187-path census after two declared additive endpoints;
+updated exact count189 and reran both security acceptance tests:2pass. This is
+not a claim that a new full run or external security review passed. New LNG API,
+SDK and surface-count selection:33pass after correcting a test's incorrect
+assumption that the shared cash primitive pads original leg coefficients.
+
+[Per-source census](../../data/SOURCE_TO_CONSUMER_DELIVERY_CENSUS_20261027.md)
+now traces all24 registered sources. It identifies real HTTP code only for ECB,
+ENTSOG and GIE, provider/license/configuration gates and mock/catalog/manual
+paths elsewhere. Typed GIE SDK payload mismatch is being repaired. No source is
+claimed live accepted from mock or fixture tests. Linux prerequisites and pinned
+Rust1.94.0 installed; locked Linux cargo check passed. Native bundle and installed
+workflow evidence remain open.
+
+## 2026-10-28 workflow integration checkpoint
+
+Full contract rerun571pass. Semantic LNG vocabularies now live in canonical
+ontology; only reference lifecycle/error codes carry explicit ownership review.
+Capacity/LNG forms are mounted in existing Routes/Contracts workflows. Actual
+LNG browser EN/zh-CN golden, shortcut, success focus,390/1440px overflow,
+edit invalidation and conservation refusal pass. Capacity browser golden,
+shortcut/focus/mobile overflow and refusal pass. New measured public surface:
+189paths/203operations, both endpoints reached by real Web transport. No
+machine-only exemption was added. Final native installed acceptance, source
+adoption and full persona/business release gates remain open.

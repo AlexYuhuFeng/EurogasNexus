@@ -6,7 +6,9 @@ import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
 import { routeCostDraftForRoute } from "@/app/model/routeCostModel";
 import { useRouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
 import { PortfolioContextStrip } from "@/components/PortfolioContextStrip";
+import { CapacityBillingPanel } from "@/components/CapacityBillingPanel";
 import type { AppController } from "@/app/hooks/useAppController";
+import { useCapacityBilling } from "@/app/model/useCapacityBilling";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import {
   contractSaveState,
@@ -204,6 +206,10 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   // Costing a route and valuing its netback is the Routes task's own compute; its draft lives here
   // so the header's action and the panel it acts on read one readiness rule (slice D).
   const routeCost = useRouteCostWhatIf();
+  // The capacity-billing sandbox is the route-cost task's second, explicitly separate compute. It
+  // owns its form and result lifecycle so a refusal or a draft change cannot leave a route-cost
+  // figure standing in for a capacity calculation.
+  const capacityBilling = useCapacityBilling();
 
   useEffect(() => {
     setTask(portfolioTaskFromLocation(window.location.search));
@@ -332,6 +338,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
                 )
               }
             />
+            <CapacityBillingPanel t={t} capacityBilling={capacityBilling} />
           </>
         )}
         {task === "exposure" && (

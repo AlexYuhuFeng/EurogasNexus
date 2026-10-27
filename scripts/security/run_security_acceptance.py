@@ -73,7 +73,7 @@ def _checks() -> list[dict]:
     # evolution policy in the same change.
     # Five reviewed paths: strategy sharing, own group catalogue, group collection,
     # group metadata, and membership management. Public remains authenticated.
-    check("public_surface_bounded", len(paths) == 187, f"public paths={len(paths)}")
+    check("public_surface_bounded", len(paths) == 189, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

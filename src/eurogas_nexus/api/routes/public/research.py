@@ -11,10 +11,16 @@ transmitted as exact decimal *strings*, and responses serialize every Decimal
 as an exact string with ISO dates (no binary-float step anywhere). The route
 never resolves, infers or entitles a supplied reference, never persists, and
 never claims customer approval.
+
+``/api/research/capacity-billing`` follows the same exact-wire convention for
+one explicitly supplied capacity tariff and UTC billing window. It maps only to
+``domain/research/capacity_billing.py``, keeps the original basis and exact
+duration microseconds, and never converts a capacity charge into an energy fee,
+claims booked rights or asserts physical readiness.
 """
 
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -35,6 +41,13 @@ from eurogas_nexus.domain.research.backtest import (
     BacktestInput,
     compute_backtest,
 )
+from eurogas_nexus.domain.research.capacity_billing import (
+    CAPACITY_BILLING_MODEL_VERSION,
+    CapacityBillingError,
+    CapacityBillingInput,
+    CapacityBillingResult,
+    compute_capacity_billing,
+)
 from eurogas_nexus.domain.research.cash_valuation import (
     CASH_VALUATION_MODEL_VERSION,
     CashFlowLegCategory,
@@ -49,6 +62,22 @@ from eurogas_nexus.domain.research.cash_valuation import (
 from eurogas_nexus.domain.research.feasibility import (
     FeasibilityInput,
     check_feasibility,
+)
+from eurogas_nexus.domain.research.lng_cargo_economics import (
+    LNG_ECONOMICS_ONLY_MODEL_VERSION,
+    LngDownstreamChargeBasis,
+    LngEconomicsOnlyCostInput,
+    LngEconomicsOnlyError,
+    LngEconomicsOnlyInput,
+    LngEconomicsOnlyResult,
+    compute_lng_economics_only,
+)
+from eurogas_nexus.domain.research.lng_cash_valuation import (
+    LngCashDiscountFactorInput,
+)
+from eurogas_nexus.domain.research.lng_energy_balance import (
+    LngEnergyStage,
+    LngEnergyStageKind,
 )
 from eurogas_nexus.domain.research.monitoring import (
     MonitoringInput,
@@ -436,6 +465,204 @@ class CashValuationRequest(BaseModel):
     model_version: str = Field(default=CASH_VALUATION_MODEL_VERSION, max_length=64)
 
 
+# --- Shared capacity-billing wire contract ------------------------------------
+#
+# One explicitly supplied capacity tariff over one explicit UTC billing window.
+# Every numeric input travels as an exact decimal string and is parsed with the
+# same plain-decimal grammar as the cash-valuation contract, so a JSON number
+# (already rounded through a binary float) is never accepted. The shared
+# ``domain/research/capacity_billing.py`` primitive remains the single owner of
+# the exact rational arithmetic, bounds and stable refusal codes; this module
+# only reads the wire syntax and maps the typed input/result.
+
+
+class CapacityBillingRequest(BaseModel):
+    """Sandbox capacity-billing request with an explicit, caller-supplied basis.
+
+    Attributes:
+        scenario_id: Caller-supplied scenario identifier. It is never resolved
+            to a persisted entity.
+        tariff_id: Caller-supplied tariff identifier. It is never looked up.
+        tariff_rate: Exact decimal string of the rate in ``tariff_unit``.
+        currency: Currency the tariff unit requires (``EUR`` or ``GBP``).
+        tariff_unit: Explicit capacity unit: ``EUR/(MWh/h)/h``,
+            ``GBP/(MWh/h)/h`` or ``p/(kWh/h)/h``.
+        booked_capacity_mwh_per_h: Exact decimal string of booked capacity.
+        delivered_energy_mwh: Exact decimal string of delivered energy.
+        billed_capacity_energy_mwh: Exact decimal string of billed capacity
+            energy; the engine verifies it against booked capacity * duration.
+        billing_start: ISO-8601 timestamp with an explicit UTC offset.
+        billing_end: ISO-8601 timestamp with an explicit UTC offset.
+        source_references: Mandatory caller-supplied provenance references.
+        model_version: Engine model version; an unsupported value is refused by
+            the engine with its stable code.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenario_id: str = Field(max_length=128)
+    tariff_id: str = Field(max_length=128)
+    tariff_rate: str = Field(max_length=64)
+    currency: str = Field(max_length=8)
+    tariff_unit: str = Field(max_length=32)
+    booked_capacity_mwh_per_h: str = Field(max_length=64)
+    delivered_energy_mwh: str = Field(max_length=64)
+    billed_capacity_energy_mwh: str = Field(max_length=64)
+    billing_start: str = Field(max_length=64)
+    billing_end: str = Field(max_length=64)
+    source_references: list[str] = Field(max_length=64)
+    model_version: str = Field(default=CAPACITY_BILLING_MODEL_VERSION, max_length=64)
+
+
+# --- Shared LNG economics-only wire contract ----------------------------------
+#
+# The economics-only composition takes explicit cash amounts and an explicit
+# ordered energy-stage chain, and never assesses physical readiness. Every amount
+# travels as an exact decimal string and every date as ``YYYY-MM-DD``; the shared
+# ``domain/research/lng_cargo_economics.py`` composition remains the single owner
+# of the formulas, bounds and stable refusal codes. This module only reads the
+# wire syntax, maps the declared vocabularies and serializes the typed result.
+
+
+class LngEconomicsOnlyDiscountFactorRequest(BaseModel):
+    """One explicit discount factor supplied for one payment date.
+
+    Attributes:
+        payment_date: Cash date the factor discounts, as ``YYYY-MM-DD``.
+        factor: Exact decimal string; explicit, never inferred from a curve.
+        curve_reference: Mandatory curve reference the factor came from.
+        source_reference: Mandatory provenance of the factor.
+        as_of: Factor date as ``YYYY-MM-DD``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    payment_date: str = Field(max_length=32)
+    factor: str = Field(max_length=64)
+    curve_reference: str = Field(max_length=256)
+    source_reference: str = Field(max_length=256)
+    as_of: str = Field(max_length=32)
+
+
+class LngEconomicsOnlyDownstreamCostRequest(BaseModel):
+    """One explicitly invoiced downstream cash cost.
+
+    Attributes:
+        cost_id: Unique item id within the request; duplicates are refused.
+        category: Cost category from the shared cash-leg vocabulary.
+        amount_eur: Exact decimal string of the nonnegative EUR total.
+        payment_date: Cash date as ``YYYY-MM-DD``.
+        source_reference: Mandatory provenance of the invoiced amount.
+        charge_basis: Declared charge nature; only ``invoiced_cash`` is a cash
+            expense. ``in_kind`` and ``unknown`` are refused by the engine.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    cost_id: str = Field(max_length=128)
+    category: str = Field(max_length=64)
+    amount_eur: str = Field(max_length=64)
+    payment_date: str = Field(max_length=32)
+    source_reference: str = Field(max_length=256)
+    charge_basis: str = Field(max_length=32)
+
+
+class LngEconomicsOnlyEnergyStageRequest(BaseModel):
+    """One explicit stage of the ordered LNG cargo energy chain.
+
+    Attributes:
+        stage_id: Unique stage id within the chain; duplicates are refused.
+        kind: Declared stage kind (``shipping``, ``storage``,
+            ``regasification``, ``cargo_transfer`` or ``other``).
+        input_energy_mwh: Exact decimal string of the positive stage input.
+        output_energy_mwh: Exact decimal string of the positive stage output.
+        consumed_energy_mwh: Exact decimal string of nonnegative consumed
+            energy.
+        physical_loss_energy_mwh: Exact decimal string of nonnegative physical
+            loss.
+        source_references: Mandatory provenance references for the stage.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage_id: str = Field(max_length=128)
+    kind: str = Field(max_length=64)
+    input_energy_mwh: str = Field(max_length=64)
+    output_energy_mwh: str = Field(max_length=64)
+    consumed_energy_mwh: str = Field(max_length=64)
+    physical_loss_energy_mwh: str = Field(max_length=64)
+    source_references: list[str] = Field(max_length=64)
+
+
+class LngEconomicsOnlyRequest(BaseModel):
+    """Sandbox economics-only request with explicit cash and energy stages.
+
+    The business references and every amount are caller-supplied and never
+    resolved. The request deliberately carries no readiness scenario and no
+    authority claim: the path never calls the regas readiness assessor.
+
+    Attributes:
+        contract_id / cargo_id / terminal_id / resource_id: Caller-supplied
+            references; never looked up or entitled.
+        valuation_date: Valuation date as ``YYYY-MM-DD``.
+        reporting_currency: Explicit reporting currency; only ``EUR`` is
+            supported.
+        energy_basis_reference: Mandatory declared energy-basis reference.
+        energy_unit: Explicit energy unit; only ``MWh`` is supported.
+        purchased_energy_mwh: Exact decimal string of purchased energy.
+        delivered_energy_mwh: Exact decimal string of delivered energy.
+        purchase_unit_price_eur_per_mwh: Exact signed decimal string.
+        sale_unit_price_eur_per_mwh: Exact signed decimal string.
+        purchase_price_source_reference: Mandatory purchase-price provenance.
+        sale_price_source_reference: Mandatory sale-price provenance.
+        purchase_basis: Explicit purchase basis, exactly ``FOB`` or ``DES``.
+        purchase_included_cost_items: Categories already included in the
+            purchase price; itemizing them again is refused.
+        cost_scope_statement: Mandatory statement of the cost scope.
+        purchase_payment_date: Purchase cash date as ``YYYY-MM-DD``.
+        sale_payment_date: Sale cash date as ``YYYY-MM-DD``.
+        downstream_costs: Explicitly invoiced downstream cash costs.
+        energy_stages: Ordered explicit energy stages; never inferred.
+        discount_factors: Explicit per-payment-date discount factors.
+        model_version: Engine model version; an unsupported value is refused
+            with the engine's stable code.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_id: str = Field(max_length=128)
+    cargo_id: str = Field(max_length=128)
+    terminal_id: str = Field(max_length=128)
+    resource_id: str = Field(max_length=128)
+    valuation_date: str = Field(max_length=32)
+    reporting_currency: str = Field(max_length=8)
+    energy_basis_reference: str = Field(max_length=256)
+    energy_unit: str = Field(max_length=32)
+    purchased_energy_mwh: str = Field(max_length=64)
+    delivered_energy_mwh: str = Field(max_length=64)
+    purchase_unit_price_eur_per_mwh: str = Field(max_length=64)
+    sale_unit_price_eur_per_mwh: str = Field(max_length=64)
+    purchase_price_source_reference: str = Field(max_length=256)
+    sale_price_source_reference: str = Field(max_length=256)
+    purchase_basis: str = Field(max_length=8)
+    purchase_included_cost_items: list[str] = Field(max_length=64)
+    cost_scope_statement: str = Field(max_length=1000)
+    purchase_payment_date: str = Field(max_length=32)
+    sale_payment_date: str = Field(max_length=32)
+    downstream_costs: list[LngEconomicsOnlyDownstreamCostRequest] = Field(
+        max_length=256
+    )
+    energy_stages: list[LngEconomicsOnlyEnergyStageRequest] = Field(
+        max_length=256
+    )
+    discount_factors: list[LngEconomicsOnlyDiscountFactorRequest] = Field(
+        max_length=256
+    )
+    model_version: str = Field(
+        default=LNG_ECONOMICS_ONLY_MODEL_VERSION, max_length=64
+    )
+
+
 # --- Endpoints ---------------------------------------------------------------
 
 
@@ -647,6 +874,126 @@ def post_cash_valuation(body: CashValuationRequest, request: Request) -> dict:
             list(exc.violations),
         ) from exc
     return _cash_valuation_envelope(result)
+
+
+@router.post("/capacity-billing")
+def post_capacity_billing(body: CapacityBillingRequest, request: Request) -> dict:
+    """Bill one explicitly supplied capacity tariff through the shared engine.
+
+    Sandbox-only adaptation of ``domain/research/capacity_billing.py``: the
+    tariff, booked capacity, delivered energy, billed capacity energy, UTC
+    billing window and provenance are all caller-supplied and never resolved,
+    looked up or inferred. Every numeric input arrives as an exact decimal
+    string and every Decimal in the result is serialized as an exact string.
+    The route performs no financial arithmetic of its own: the shared engine
+    owns the formulas, bounds, rounding and stable refusal codes. It never
+    persists anything, calls a provider or establishes booked rights,
+    deliverability, invoice authority or physical readiness.
+
+    Args:
+        body: The sandbox request; see :class:`CapacityBillingRequest`.
+        request: The incoming request (shared route signature; the sandbox
+            dependency has already labelled its decision context).
+
+    Returns:
+        ``{"data": ..., "meta": ...}`` with exact string decimals, ISO UTC
+        timestamps, the original explicit basis, exact duration microseconds,
+        research/human-review flags and ``physical_readiness="NOT_ASSESSED"``.
+
+    Raises:
+        HTTPException: 422 ``capacity_billing_input_invalid`` when the request
+            text cannot be read as the declared exact contract; 422
+            ``capacity_billing_refused`` when the shared engine refuses the
+            supplied inputs (stable engine codes in ``detail.codes``).
+    """
+
+    violations: list[tuple[str, str]] = []
+    input_ = _capacity_billing_input(body, violations)
+    if violations:
+        raise _capacity_billing_refusal(
+            "capacity_billing_input_invalid",
+            (
+                "The request text is not the declared exact capacity-billing"
+                " contract; nothing was computed."
+            ),
+            violations,
+        )
+    try:
+        result = compute_capacity_billing(input_)
+    except CapacityBillingError as exc:
+        raise _capacity_billing_refusal(
+            "capacity_billing_refused",
+            (
+                "The shared capacity-billing engine refused the supplied inputs;"
+                " nothing was computed."
+            ),
+            list(exc.violations),
+        ) from exc
+    return _capacity_billing_envelope(result)
+
+
+@router.post("/lng-economics-only")
+def post_lng_economics_only(
+    body: LngEconomicsOnlyRequest, request: Request
+) -> dict:
+    """Compose explicit LNG economics without assessing physical readiness.
+
+    Sandbox-only adaptation of ``domain/research/lng_cargo_economics.py``: the
+    ordered energy-stage chain, invoiced downstream cash costs, signed prices,
+    references and provenance are caller-supplied and never resolved, inferred
+    or validated against a persisted entity. Every numeric input arrives as an
+    exact decimal string and every amount in the response is serialized as an
+    exact string. The domain composition owns all formulas, bounds, cash-leg
+    construction and stable refusal codes; this route performs no financial
+    arithmetic.
+
+    The economics-only path never calls the regas readiness assessor and never
+    fabricates terminal, slot, storage, TSO or nomination evidence. Its response
+    explicitly reports ``physical_readiness='NOT_ASSESSED'`` and
+    ``readiness_assessed=False``, with research-only and human-review metadata.
+    It never persists anything, calls a provider or establishes delivery
+    feasibility, booked rights or customer approval.
+
+    Args:
+        body: The sandbox request; see :class:`LngEconomicsOnlyRequest`.
+        request: The incoming request (shared route signature; the sandbox
+            dependency has already labelled its decision context).
+
+    Returns:
+        ``{"data": ..., "meta": ...}`` with exact string decimals, ISO dates,
+        the mapped ordered energy chain, the embedded cash valuation and
+        explicit not-assessed readiness metadata.
+
+    Raises:
+        HTTPException: 422 ``lng_economics_only_input_invalid`` when the request
+            text cannot be read as the declared exact contract; 422
+            ``lng_economics_only_refused`` when the shared composition refuses
+            the supplied inputs (stable domain codes in ``detail.codes``).
+    """
+
+    violations: list[tuple[str, str]] = []
+    input_ = _lng_economics_only_input(body, violations)
+    if violations:
+        raise _lng_economics_only_refusal(
+            "lng_economics_only_input_invalid",
+            (
+                "The request text is not the declared exact LNG economics-only"
+                " contract; nothing was computed."
+            ),
+            violations,
+        )
+    try:
+        result = compute_lng_economics_only(input_)
+    except LngEconomicsOnlyError as exc:
+        raise _lng_economics_only_refusal(
+            "lng_economics_only_refused",
+            (
+                "The shared LNG economics-only composition refused the supplied"
+                " inputs; nothing was computed."
+            ),
+            list(exc.violations),
+        ) from exc
+    return _lng_economics_only_envelope(result)
 
 
 # --- Helpers -----------------------------------------------------------------
@@ -1032,6 +1379,554 @@ def _cash_valuation_envelope(result: CashValuationResult) -> dict:
             "decision_context": SANDBOX_SCENARIO,
             "caller_supplied": True,
             "references_verified": False,
+            "customer_approval": False,
+            "source_references": source_references,
+            "warnings": warnings,
+        },
+    }
+
+
+# --- Capacity billing helpers -------------------------------------------------
+
+# The billing window is a pair of explicit ISO-8601 timestamps. The shape check
+# accepts an optional explicit offset and then refuses naive values, so the
+# exact UTC duration always comes from an aware instant rather than a local
+# wall-clock subtraction. Fractional seconds are capped at microseconds, the
+# precision the shared engine retains.
+_ISO_DATETIME_PATTERN = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?\Z"
+)
+
+
+def _aware_datetime(
+    text: str, label: str, violations: list[tuple[str, str]]
+) -> datetime | None:
+    """Parse one ISO-8601 timestamp and require an explicit UTC offset."""
+
+    if not _ISO_DATETIME_PATTERN.match(text):
+        violations.append(
+            (
+                "DATETIME_STRING_INVALID",
+                f"{label}={text!r} must be an ISO-8601 timestamp such as"
+                " '2026-01-01T00:00:00+00:00'",
+            )
+        )
+        return None
+    try:
+        value = datetime.fromisoformat(text)
+    except ValueError:
+        violations.append(
+            ("DATETIME_STRING_INVALID", f"{label}={text!r} is not a valid timestamp")
+        )
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        violations.append(
+            (
+                "DATETIME_AWARENESS_REQUIRED",
+                f"{label}={text!r} must include an explicit UTC offset; a naive"
+                " time has no well-defined UTC duration",
+            )
+        )
+        return None
+    return value
+
+
+def _capacity_billing_input(
+    body: CapacityBillingRequest, violations: list[tuple[str, str]]
+) -> CapacityBillingInput:
+    """Translate the wire contract into the shared engine's typed input.
+
+    Only wire syntax is checked here: plain decimal text and aware ISO-8601
+    timestamps. Every semantic rule - bounds, identifier shape, provenance,
+    unit/currency agreement, duration and the exact billed-energy
+    cross-multiplication - stays in the shared engine and is reported through
+    its stable codes. Values that failed to parse are irrelevant because the
+    caller refuses the request when ``violations`` is non-empty.
+    """
+
+    return CapacityBillingInput(
+        scenario_id=body.scenario_id,
+        tariff_id=body.tariff_id,
+        tariff_rate=_exact_decimal(body.tariff_rate, "tariff_rate", violations),
+        currency=body.currency,
+        tariff_unit=body.tariff_unit,
+        booked_capacity_mwh_per_h=_exact_decimal(
+            body.booked_capacity_mwh_per_h,
+            "booked_capacity_mwh_per_h",
+            violations,
+        ),
+        delivered_energy_mwh=_exact_decimal(
+            body.delivered_energy_mwh,
+            "delivered_energy_mwh",
+            violations,
+        ),
+        billed_capacity_energy_mwh=_exact_decimal(
+            body.billed_capacity_energy_mwh,
+            "billed_capacity_energy_mwh",
+            violations,
+        ),
+        billing_start=_aware_datetime(
+            body.billing_start, "billing_start", violations
+        ),
+        billing_end=_aware_datetime(body.billing_end, "billing_end", violations),
+        source_references=tuple(body.source_references),
+        model_version=body.model_version,
+    )
+
+
+def _capacity_billing_refusal(
+    code: str, message: str, violations: list[tuple[str, str]]
+) -> HTTPException:
+    """Build the stable typed refusal shared by both refusal stages."""
+
+    return HTTPException(
+        status_code=422,
+        detail={
+            "code": code,
+            "message": message,
+            "codes": [violation_code for violation_code, _ in violations],
+            "violations": [
+                {"code": violation_code, "detail": detail}
+                for violation_code, detail in violations
+            ],
+            "research_only": True,
+            "human_review_required": True,
+        },
+    )
+
+
+def _capacity_billing_envelope(result: CapacityBillingResult) -> dict:
+    """Serialize one engine result with exact strings and explicit metadata.
+
+    Decimals are emitted as exact fixed-point strings, timestamps as ISO UTC
+    offsets and duration as exact integer microseconds, so no JSON encoder ever
+    converts a value to a binary float. The metadata states the boundary out
+    loud: the basis is caller-supplied and unverified, no booked right or
+    physical readiness is established, the output is research with mandatory
+    human review and it is not customer approval.
+    """
+
+    basis = result.basis
+    source_references = list(result.source_references)
+    warnings = list(result.warnings)
+    data = {
+        "research_only": result.research_only,
+        "human_review_required": result.human_review_required,
+        "model_version": result.model_version,
+        "scenario_id": result.scenario_id,
+        "tariff_id": result.tariff_id,
+        "currency": result.currency,
+        "tariff_unit": result.tariff_unit,
+        "tariff_rate": _decimal_string(result.tariff_rate),
+        "booked_capacity_mwh_per_h": _decimal_string(
+            result.booked_capacity_mwh_per_h
+        ),
+        "billed_capacity_energy_mwh": _decimal_string(
+            result.billed_capacity_energy_mwh
+        ),
+        "delivered_energy_mwh": _decimal_string(result.delivered_energy_mwh),
+        "billing_start": result.billing_start.isoformat(),
+        "billing_end": result.billing_end.isoformat(),
+        "duration_microseconds": basis.duration_microseconds,
+        "duration_hours": _decimal_string(result.duration_hours),
+        "total_cost": _decimal_string(result.total_cost),
+        "cost_per_delivered_mwh": _decimal_string(result.cost_per_delivered_mwh),
+        "basis": {
+            "tariff_rate": _decimal_string(basis.tariff_rate),
+            "tariff_unit": basis.tariff_unit,
+            "booked_capacity_mwh_per_h": _decimal_string(
+                basis.booked_capacity_mwh_per_h
+            ),
+            "billed_capacity_energy_mwh": _decimal_string(
+                basis.billed_capacity_energy_mwh
+            ),
+            "delivered_energy_mwh": _decimal_string(basis.delivered_energy_mwh),
+            "billing_start_utc": basis.billing_start_utc.isoformat(),
+            "billing_end_utc": basis.billing_end_utc.isoformat(),
+            "duration_microseconds": basis.duration_microseconds,
+        },
+        "provenance": list(result.provenance),
+        "source_references": source_references,
+        "assumptions": list(result.assumptions),
+        "warnings": warnings,
+        "lineage": list(result.lineage),
+        "physical_readiness": result.physical_readiness,
+    }
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "decision_context": SANDBOX_SCENARIO,
+            "caller_supplied": True,
+            "references_verified": False,
+            "booked_rights_established": False,
+            "physical_readiness": result.physical_readiness,
+            "customer_approval": False,
+            "source_references": source_references,
+            "warnings": warnings,
+        },
+    }
+
+
+# --- LNG economics-only helpers ----------------------------------------------
+
+
+def _declared_enum(enum_type: type, value: str) -> object:
+    """Map a declared wire token to its domain enum, leaving unknown text intact.
+
+    Unknown text is deliberately passed through unchanged so the shared domain
+    composition reports its own stable refusal code (for example
+    ``COST_CATEGORY_INVALID`` or ``STAGE_KIND_INVALID``) instead of this module
+    inventing a parallel vocabulary or refusal.
+    """
+
+    try:
+        return enum_type(value)
+    except ValueError:
+        return value
+
+
+def _lng_economics_only_input(
+    body: LngEconomicsOnlyRequest, violations: list[tuple[str, str]]
+) -> LngEconomicsOnlyInput:
+    """Translate the wire contract into the shared composition's typed input.
+
+    Only wire syntax is read here: plain decimal text, ISO calendar-date text
+    and the declared enum tokens. Every semantic rule - references, magnitudes,
+    conservation, chain adjacency, charged-basis acceptance, duplicate/in-kind
+    double charging, dates, discount coverage and cash-leg construction - stays
+    in the shared domain composition and is reported through its stable codes.
+    Values that failed to parse are irrelevant because the caller refuses the
+    request when ``violations`` is non-empty.
+    """
+
+    downstream_costs = tuple(
+        LngEconomicsOnlyCostInput(
+            cost_id=cost.cost_id,
+            category=_declared_enum(CashFlowLegCategory, cost.category),
+            amount_eur=_exact_decimal(
+                cost.amount_eur, f"downstream_costs[{position}].amount_eur", violations
+            ),
+            payment_date=_calendar_date(
+                cost.payment_date,
+                f"downstream_costs[{position}].payment_date",
+                violations,
+            ),
+            source_reference=cost.source_reference,
+            charge_basis=_declared_enum(
+                LngDownstreamChargeBasis, cost.charge_basis
+            ),
+        )
+        for position, cost in enumerate(body.downstream_costs)
+    )
+    energy_stages = tuple(
+        LngEnergyStage(
+            stage_id=stage.stage_id,
+            kind=_declared_enum(LngEnergyStageKind, stage.kind),
+            input_energy_mwh=_exact_decimal(
+                stage.input_energy_mwh,
+                f"energy_stages[{position}].input_energy_mwh",
+                violations,
+            ),
+            output_energy_mwh=_exact_decimal(
+                stage.output_energy_mwh,
+                f"energy_stages[{position}].output_energy_mwh",
+                violations,
+            ),
+            consumed_energy_mwh=_exact_decimal(
+                stage.consumed_energy_mwh,
+                f"energy_stages[{position}].consumed_energy_mwh",
+                violations,
+            ),
+            physical_loss_energy_mwh=_exact_decimal(
+                stage.physical_loss_energy_mwh,
+                f"energy_stages[{position}].physical_loss_energy_mwh",
+                violations,
+            ),
+            source_references=tuple(stage.source_references),
+        )
+        for position, stage in enumerate(body.energy_stages)
+    )
+    discount_factors = tuple(
+        LngCashDiscountFactorInput(
+            payment_date=_calendar_date(
+                item.payment_date,
+                f"discount_factors[{position}].payment_date",
+                violations,
+            ),
+            factor=_exact_decimal(
+                item.factor, f"discount_factors[{position}].factor", violations
+            ),
+            curve_reference=item.curve_reference,
+            source_reference=item.source_reference,
+            as_of=_calendar_date(
+                item.as_of, f"discount_factors[{position}].as_of", violations
+            ),
+        )
+        for position, item in enumerate(body.discount_factors)
+    )
+
+    return LngEconomicsOnlyInput(
+        contract_id=body.contract_id,
+        cargo_id=body.cargo_id,
+        terminal_id=body.terminal_id,
+        resource_id=body.resource_id,
+        valuation_date=_calendar_date(
+            body.valuation_date, "valuation_date", violations
+        ),
+        reporting_currency=body.reporting_currency,
+        energy_basis_reference=body.energy_basis_reference,
+        energy_unit=body.energy_unit,
+        purchased_energy_mwh=_exact_decimal(
+            body.purchased_energy_mwh, "purchased_energy_mwh", violations
+        ),
+        delivered_energy_mwh=_exact_decimal(
+            body.delivered_energy_mwh, "delivered_energy_mwh", violations
+        ),
+        purchase_unit_price_eur_per_mwh=_exact_decimal(
+            body.purchase_unit_price_eur_per_mwh,
+            "purchase_unit_price_eur_per_mwh",
+            violations,
+        ),
+        sale_unit_price_eur_per_mwh=_exact_decimal(
+            body.sale_unit_price_eur_per_mwh,
+            "sale_unit_price_eur_per_mwh",
+            violations,
+        ),
+        purchase_price_source_reference=body.purchase_price_source_reference,
+        sale_price_source_reference=body.sale_price_source_reference,
+        purchase_basis=body.purchase_basis,
+        purchase_included_cost_items=tuple(
+            _declared_enum(CashFlowLegCategory, item)
+            for item in body.purchase_included_cost_items
+        ),
+        cost_scope_statement=body.cost_scope_statement,
+        purchase_payment_date=_calendar_date(
+            body.purchase_payment_date, "purchase_payment_date", violations
+        ),
+        sale_payment_date=_calendar_date(
+            body.sale_payment_date, "sale_payment_date", violations
+        ),
+        downstream_costs=downstream_costs,
+        energy_stages=energy_stages,
+        discount_factors=discount_factors,
+        model_version=body.model_version,
+    )
+
+
+def _lng_economics_only_refusal(
+    code: str, message: str, violations: list[tuple[str, str]]
+) -> HTTPException:
+    """Build the stable typed refusal shared by both refusal stages."""
+
+    return HTTPException(
+        status_code=422,
+        detail={
+            "code": code,
+            "message": message,
+            "codes": [violation_code for violation_code, _ in violations],
+            "violations": [
+                {"code": violation_code, "detail": detail}
+                for violation_code, detail in violations
+            ],
+            "research_only": True,
+            "human_review_required": True,
+        },
+    )
+
+
+def _lng_cash_leg_payload(leg) -> dict:
+    """Serialize one embedded cash-valuation leg with exact strings."""
+
+    return {
+        "leg_id": leg.leg_id,
+        "category": leg.category.value,
+        "payment_date": leg.payment_date.isoformat(),
+        "currency": leg.currency,
+        "signed_amount": _decimal_string(leg.signed_amount),
+        "cash_amount_reporting_ccy": _decimal_string(
+            leg.cash_amount_reporting_ccy
+        ),
+        "present_value_reporting_ccy": _decimal_string(
+            leg.present_value_reporting_ccy
+        ),
+        "discount_factor": _decimal_string(leg.discount_factor),
+        "discount_curve_reference": leg.discount_curve_reference,
+        "discount_source_reference": leg.discount_source_reference,
+        "discount_as_of": leg.discount_as_of.isoformat(),
+        "source_reference": leg.source_reference,
+        "fx_rate_reporting_per_leg": _decimal_string(
+            leg.fx_rate_reporting_per_leg
+        ),
+        "fx_source_reference": leg.fx_source_reference,
+        "fx_as_of": leg.fx_as_of.isoformat() if leg.fx_as_of is not None else None,
+        "description": leg.description,
+    }
+
+
+def _lng_cash_valuation_payload(result) -> dict:
+    """Serialize the embedded bounded cash-valuation result exactly."""
+
+    return {
+        "model_version": result.model_version,
+        "contract_id": result.contract_id,
+        "cargo_id": result.cargo_id,
+        "terminal_id": result.terminal_id,
+        "resource_id": result.resource_id,
+        "valuation_date": result.valuation_date.isoformat(),
+        "reporting_currency": result.reporting_currency,
+        "leg_valuations": [
+            _lng_cash_leg_payload(leg) for leg in result.leg_valuations
+        ],
+        "total_undiscounted_cash_reporting_ccy": _decimal_string(
+            result.total_undiscounted_cash_reporting_ccy
+        ),
+        "net_present_value_reporting_ccy": _decimal_string(
+            result.net_present_value_reporting_ccy
+        ),
+        "assumptions": list(result.assumptions),
+        "warnings": list(result.warnings),
+        "source_references": list(result.source_references),
+        "lineage": list(result.lineage),
+        "research_only": result.research_only,
+        "human_review_required": result.human_review_required,
+    }
+
+
+def _lng_energy_stage_payload(stage) -> dict:
+    """Serialize one explicit energy stage with exact strings."""
+
+    return {
+        "stage_id": stage.stage_id,
+        "kind": stage.kind.value,
+        "input_energy_mwh": _decimal_string(stage.input_energy_mwh),
+        "output_energy_mwh": _decimal_string(stage.output_energy_mwh),
+        "consumed_energy_mwh": _decimal_string(stage.consumed_energy_mwh),
+        "physical_loss_energy_mwh": _decimal_string(
+            stage.physical_loss_energy_mwh
+        ),
+        "source_references": list(stage.source_references),
+    }
+
+
+def _lng_energy_balance_payload(result) -> dict:
+    """Serialize the explicit ordered energy balance exactly."""
+
+    return {
+        "model_version": result.model_version,
+        "purchased_energy_mwh": _decimal_string(result.purchased_energy_mwh),
+        "delivered_energy_mwh": _decimal_string(result.delivered_energy_mwh),
+        "energy_basis_reference": result.energy_basis_reference,
+        "energy_unit": result.energy_unit,
+        "total_consumed_energy_mwh": _decimal_string(
+            result.total_consumed_energy_mwh
+        ),
+        "physical_loss_energy_mwh": _decimal_string(
+            result.physical_loss_energy_mwh
+        ),
+        "total_reduction_energy_mwh": _decimal_string(
+            result.total_reduction_energy_mwh
+        ),
+        "stage_count": result.stage_count,
+        "stages": [
+            _lng_energy_stage_payload(stage) for stage in result.stages
+        ],
+        "warnings": list(result.warnings),
+        "source_references": list(result.source_references),
+        "research_only": result.research_only,
+        "human_review_required": result.human_review_required,
+    }
+
+
+def _lng_economics_only_envelope(result: LngEconomicsOnlyResult) -> dict:
+    """Serialize one economics-only result with exact strings and boundaries.
+
+    Decimals are emitted as exact fixed-point strings and dates as ISO dates, so
+    no JSON encoder ever converts a value to a binary float. The metadata states
+    the boundary out loud: every input is caller-supplied and unverified, no
+    physical readiness was assessed, and the output is research with mandatory
+    human review, not customer approval or delivery feasibility.
+    """
+
+    source_references = list(result.source_references)
+    warnings = list(result.warnings)
+    data = {
+        "research_only": result.research_only,
+        "human_review_required": result.human_review_required,
+        "model_version": result.model_version,
+        "action": ActionKind.COMPUTE_CASH_FLOW.value,
+        "contract_id": result.contract_id,
+        "cargo_id": result.cargo_id,
+        "terminal_id": result.terminal_id,
+        "resource_id": result.resource_id,
+        "valuation_date": result.valuation_date.isoformat(),
+        "reporting_currency": result.reporting_currency,
+        "energy_basis_reference": result.energy_basis_reference,
+        "energy_unit": result.energy_unit,
+        "purchased_energy_mwh": _decimal_string(result.purchased_energy_mwh),
+        "delivered_energy_mwh": _decimal_string(result.delivered_energy_mwh),
+        "total_consumed_energy_mwh": _decimal_string(
+            result.total_consumed_energy_mwh
+        ),
+        "physical_loss_energy_mwh": _decimal_string(
+            result.physical_loss_energy_mwh
+        ),
+        "total_reduction_energy_mwh": _decimal_string(
+            result.total_reduction_energy_mwh
+        ),
+        "purchase_basis": result.purchase_basis,
+        "purchase_included_cost_items": [
+            item.value for item in result.purchase_included_cost_items
+        ],
+        "cost_scope_statement": result.cost_scope_statement,
+        "purchase_unit_price_eur_per_mwh": _decimal_string(
+            result.purchase_unit_price_eur_per_mwh
+        ),
+        "sale_unit_price_eur_per_mwh": _decimal_string(
+            result.sale_unit_price_eur_per_mwh
+        ),
+        "unit_netback_eur_per_purchased_mwh": _decimal_string(
+            result.unit_netback_eur_per_purchased_mwh
+        ),
+        "sale_basis_eur_per_delivered_mwh": _decimal_string(
+            result.sale_basis_eur_per_delivered_mwh
+        ),
+        "purchase_outlay_eur": _decimal_string(result.purchase_outlay_eur),
+        "sale_proceeds_eur": _decimal_string(result.sale_proceeds_eur),
+        "total_downstream_costs_eur": _decimal_string(
+            result.total_downstream_costs_eur
+        ),
+        "cargo_margin_eur": _decimal_string(result.cargo_margin_eur),
+        "margin_reconciliation_gap_eur": _decimal_string(
+            result.margin_reconciliation_gap_eur
+        ),
+        "margin_reconciliation_tolerance_eur": _decimal_string(
+            result.margin_reconciliation_tolerance_eur
+        ),
+        "net_present_value_eur": _decimal_string(result.net_present_value_eur),
+        "total_undiscounted_cash_eur": _decimal_string(
+            result.total_undiscounted_cash_eur
+        ),
+        "cash_valuation": _lng_cash_valuation_payload(result.cash_valuation),
+        "energy_balance": _lng_energy_balance_payload(result.energy_balance),
+        "physical_readiness": result.physical_readiness,
+        "readiness_assessed": result.readiness_assessed,
+        "assumptions": list(result.assumptions),
+        "warnings": warnings,
+        "source_references": source_references,
+        "lineage": list(result.lineage),
+    }
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "decision_context": SANDBOX_SCENARIO,
+            "caller_supplied": True,
+            "references_verified": False,
+            "physical_readiness": result.physical_readiness,
+            "readiness_assessed": result.readiness_assessed,
             "customer_approval": False,
             "source_references": source_references,
             "warnings": warnings,

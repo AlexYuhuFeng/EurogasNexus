@@ -163,6 +163,9 @@ function harnessServer(): Promise<ViteDevServer> {
     logLevel: "silent",
     server: { middlewareMode: true },
     appType: "custom",
+    // The harness also loads TSX modules for render-level tests. State the JSX runtime explicitly
+    // so the test server does not depend on a framework plugin being present.
+    esbuild: { jsx: "automatic", jsxImportSource: "react" },
     resolve: { alias: { "@": path.join(WEB_ROOT, "src") } },
     plugins: [
       {

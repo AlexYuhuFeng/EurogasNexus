@@ -124,6 +124,8 @@ PINNED_PUBLIC_PATHS = {
     "/api/research/targets/{target_id}",
     "/api/research/backtest",
     "/api/research/cash-valuation",
+    "/api/research/capacity-billing",
+    "/api/research/lng-economics-only",
     "/api/research/feasibility",
     "/api/research/monitoring",
     "/api/research/netback",

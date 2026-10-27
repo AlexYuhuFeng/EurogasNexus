@@ -3,6 +3,14 @@
 from pydantic import BaseModel, Field
 
 from eurogas_nexus_sdk import _http
+from eurogas_nexus_sdk.capacity_billing import (
+    CapacityBillingRequest,
+    CapacityBillingResult,
+)
+from eurogas_nexus_sdk.lng_economics_only import (
+    LngEconomicsOnlyRequest,
+    LngEconomicsOnlyResult,
+)
 
 
 class RouteCostResult(BaseModel):
@@ -297,3 +305,91 @@ def evaluate_shadow_run(base_url: str, **kwargs) -> ShadowRunResult:
     """
 
     return ShadowRunResult(**_post(f"{base_url}/api/research/shadow-run", kwargs)["data"])
+
+
+def calculate_capacity_billing(
+    base_url: str,
+    request: CapacityBillingRequest | None = None,
+    **kwargs,
+) -> CapacityBillingResult:
+    """Calculate one exact capacity charge through the research endpoint.
+
+    The SDK performs no financial arithmetic: it posts the typed request to
+    ``POST /api/research/capacity-billing`` and parses the returned exact
+    strings, timestamps, model version and original basis. A refusal (422)
+    propagates as the existing ``httpx.HTTPStatusError`` from ``_post``; the
+    response body keeps the backend's stable refusal codes.
+
+    Args:
+        base_url: Base URL of the backend server.
+        request: Optional typed request. When omitted, the keyword fields are
+            validated into :class:`CapacityBillingRequest`.
+        **kwargs: Request fields used only when ``request`` is omitted.
+
+    Returns:
+        Typed capacity-billing result with exact decimal strings.
+
+    Raises:
+        TypeError: When both a typed request and keyword request fields are
+            supplied.
+        httpx.HTTPStatusError: When the backend refuses the request.
+    """
+
+    if request is not None:
+        if kwargs:
+            raise TypeError("pass either request or keyword fields, not both")
+        body = request
+    else:
+        body = CapacityBillingRequest(**kwargs)
+    data = _post(
+        f"{base_url}/api/research/capacity-billing",
+        body.model_dump(mode="json"),
+    )["data"]
+    return CapacityBillingResult(**data)
+
+
+def calculate_lng_economics_only(
+    base_url: str,
+    request: LngEconomicsOnlyRequest | None = None,
+    **kwargs,
+) -> LngEconomicsOnlyResult:
+    """Compose explicit LNG economics through the research endpoint.
+
+    The SDK performs no financial or energy arithmetic: it posts the typed
+    request to ``POST /api/research/lng-economics-only`` and parses the returned
+    exact decimal strings, ISO dates, ordered energy chain, embedded cash
+    valuation and explicit ``NOT_ASSESSED`` readiness metadata. A refusal (422)
+    propagates as the existing ``httpx.HTTPStatusError`` from ``_post``; the
+    response body keeps the backend's stable domain refusal codes.
+
+    Args:
+        base_url: Base URL of the backend server.
+        request: Optional typed request. When omitted, the keyword fields are
+            validated into :class:`LngEconomicsOnlyRequest`.
+        **kwargs: Request fields used only when ``request`` is omitted.
+
+    Returns:
+        Typed economics-only result with exact decimal strings.
+
+    Raises:
+        TypeError: When both a typed request and keyword request fields are
+            supplied.
+        httpx.HTTPStatusError: When the backend refuses the request.
+    """
+
+    if request is not None:
+        if kwargs:
+            raise TypeError("pass either request or keyword fields, not both")
+        body = request
+    else:
+        body = LngEconomicsOnlyRequest(**kwargs)
+    data = _post(
+        f"{base_url}/api/research/lng-economics-only",
+        body.model_dump(mode="json"),
+    )["data"]
+    return LngEconomicsOnlyResult(**data)
+
+
+# The capability name used by the domain primitive is also exposed here so a
+# caller can select either the SDK's action-style name or the domain's verb.
+compute_lng_economics_only = calculate_lng_economics_only

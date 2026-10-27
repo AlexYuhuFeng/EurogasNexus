@@ -181,3 +181,15 @@ preserved strict path. The legacy golden test file is unchanged.
 - No persistence, audit record, provider lookup, FX conversion, volume
   conversion, market-price lookup or discount-curve construction.
 - No trade execution, order entry, nomination or settlement semantics.
+
+## Subsequent API/SDK/Web integration evidence
+
+The additive sandbox route `POST /api/research/lng-economics-only` and typed SDK
+now consume this single domain authority. Existing Contracts workbench includes
+an EN/zh-CN form with explicit stage, cost and discount rows and exact readback.
+Independent API/SDK/census selection:33pass; source SDK and distinct-role real
+HTTP golden/refusals pass. Actual EN/zh-CN browser golden (margin550 EUR,
+NPV482.5 EUR, consumed7MWh/loss3MWh/reduction10MWh), Ctrl+Enter, success focus,
+390/1440px overflow, edit invalidation and conservation refusal pass. These are
+labelled synthetic inputs, not live provider, booked-right or native acceptance.
+Full Web regression after integration:988pass/3existing skips; TypeScript pass.

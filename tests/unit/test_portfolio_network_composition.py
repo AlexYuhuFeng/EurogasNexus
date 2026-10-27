@@ -20,6 +20,7 @@ from eurogas_nexus.domain.route_cost.portfolio_network import (
     compose_portfolio_network,
     optimize_composed_portfolio_network,
 )
+from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
 
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 GAS_DAY = date(2026, 1, 1)
@@ -89,8 +90,42 @@ def _bbl_route(capacity_mwh: float = 2000.0) -> RouteCandidateFact:
     )
 
 
-def _market(target: str, *, hours_old: float = 1.0) -> MarketObservationFact:
-    observed = NOW - timedelta(hours=hours_old)
+def _iuk_route(capacity_mwh: float = 2000.0) -> RouteCandidateFact:
+    """Synthetic route priced by the published IUK capacity tariff row."""
+
+    return RouteCandidateFact(
+        route_id="iuk-route",
+        route_name="IUK Bacton entry to NBP",
+        start_point_name="TTF",
+        target_point_name="NBP",
+        business_model="CROSS_BORDER_TRANSFER",
+        route_legs=(
+            RouteLegFact(
+                leg_id="iuk-bacton-entry",
+                country="GB",
+                tso="Interconnector UK",
+                market_area="IUK",
+                point_name="IUK Bacton Entry",
+                direction="ENTRY",
+                capacity_product="ANNUAL",
+                firmness="FIRM",
+                gas_year="2026/27",
+                available_capacity_mwh_per_day=capacity_mwh,
+            ),
+        ),
+        required_tso_access=("Interconnector UK",),
+        source_systems=("public_route_template", "IUK"),
+    )
+
+
+def _market(
+    target: str,
+    *,
+    hours_old: float = 1.0,
+    gas_day: date = GAS_DAY,
+    now_utc: datetime = NOW,
+) -> MarketObservationFact:
+    observed = now_utc - timedelta(hours=hours_old)
     return MarketObservationFact(
         observation_id=f"market-{target.lower()}",
         market_venue="EEX",
@@ -98,8 +133,8 @@ def _market(target: str, *, hours_old: float = 1.0) -> MarketObservationFact:
         price=32.0,
         unit="EUR/MWh",
         currency="EUR",
-        period_start_utc=GAS_DAY - timedelta(days=1),
-        period_end_utc=GAS_DAY + timedelta(days=1),
+        period_start_utc=gas_day - timedelta(days=1),
+        period_end_utc=gas_day + timedelta(days=1),
         observed_at_utc=observed,
         source_system="EEX_Sim",
         source_reference="simulated:test",
@@ -110,7 +145,9 @@ def _market(target: str, *, hours_old: float = 1.0) -> MarketObservationFact:
     )
 
 
-def _fx() -> list[FxObservationFact]:
+def _fx(
+    *, gas_day: date = GAS_DAY, now_utc: datetime = NOW
+) -> list[FxObservationFact]:
     return [
         FxObservationFact(
             observation_id="fx-eur-gbp",
@@ -118,8 +155,8 @@ def _fx() -> list[FxObservationFact]:
             base_currency="EUR",
             quote_currency="GBP",
             rate=0.85,
-            value_date="2026-01-01",
-            observed_at_utc=NOW,
+            value_date=gas_day.isoformat(),
+            observed_at_utc=now_utc,
             source_system="ECB",
             source_reference="ecb:eurofxref",
         )
@@ -142,25 +179,35 @@ def _compose(
     *,
     contracts: list[ContractFact] | None = None,
     routes: list[RouteCandidateFact] | None = None,
+    tariffs: list[CapacityTariff] | None = None,
     market: list[MarketObservationFact] | None = None,
     fx: list[FxObservationFact] | None = None,
     access: list[CompanyTsoAccessFact] | None = None,
+    gas_day: date = GAS_DAY,
+    now_utc: datetime = NOW,
     max_age_hours: float = 72.0,
 ):
     return compose_portfolio_network(
         contracts=contracts if contracts is not None else _contracts("NBP", "TTF"),
         routes=routes if routes is not None else [_local_route(), _bbl_route()],
         nodes=_nodes(),
-        tariffs=TARIFFS,
+        tariffs=tariffs if tariffs is not None else TARIFFS,
         access_rows=access if access is not None else _access(),
         market_rows=(
             market
             if market is not None
-            else [_market("TTF"), _market("NBP")]
+            else [
+                _market("TTF", gas_day=gas_day, now_utc=now_utc),
+                _market("NBP", gas_day=gas_day, now_utc=now_utc),
+            ]
         ),
-        fx_rows=fx if fx is not None else _fx(),
-        gas_day=GAS_DAY,
-        now_utc=NOW,
+        fx_rows=(
+            fx
+            if fx is not None
+            else _fx(gas_day=gas_day, now_utc=now_utc)
+        ),
+        gas_day=gas_day,
+        now_utc=now_utc,
         max_market_price_age_hours=max_age_hours,
     )
 
@@ -398,5 +445,51 @@ def test_unsupported_product_or_firmness_fails_explicitly() -> None:
 def test_blocked_composition_never_reaches_solver() -> None:
     composition = _compose(routes=[_local_route(), _bbl_route()], access=[])
 
+    with pytest.raises(ValueError, match="composition is blocked"):
+        optimize_composed_portfolio_network(composition)
+
+
+def test_capacity_tariff_without_explicit_billing_basis_blocks_before_optimization() -> None:
+    """A p/(kWh/h)/h tariff must never become a fabricated GBP/MWh energy fee.
+
+    The IUK row is a real published capacity tariff expressed per booked
+    capacity-hour. The composition has no explicit booked-capacity / billing
+    window / billed-energy basis, so it must fail closed at conversion time and
+    the blocked snapshot must never reach the optimizer.
+    """
+
+    gas_day = date(2026, 6, 1)
+    now_utc = datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    iuk_tariffs = [
+        tariff
+        for tariff in TARIFFS
+        if tariff.tariff_id == "iuk-2026-27-uk-be-bacton-entry-annual-firm"
+    ]
+    assert len(iuk_tariffs) == 1
+
+    composition = _compose(
+        routes=[_local_route(), _iuk_route()],
+        tariffs=iuk_tariffs,
+        access=[
+            *_access(),
+            CompanyTsoAccessFact(
+                tso="Interconnector UK",
+                status="ACTIVE",
+                valid_from_utc=datetime(2025, 1, 1, tzinfo=UTC),
+                source_reference="synthetic-test-access",
+            ),
+        ],
+        gas_day=gas_day,
+        now_utc=now_utc,
+    )
+
+    expected_blocker = (
+        "ROUTE_COST_CONVERSION_BLOCKED:"
+        "TARIFF_CAPACITY_BILLING_REQUIRED:iuk-route"
+    )
+    assert composition.is_complete is False
+    assert expected_blocker in composition.blockers
+    assert composition.edges == ()
+    assert [option.option_id for option in composition.sale_options] == ["route:local-ttf"]
     with pytest.raises(ValueError, match="composition is blocked"):
         optimize_composed_portfolio_network(composition)
