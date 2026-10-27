@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from urllib.parse import urlencode
 
 from pydantic import BaseModel, Field
@@ -27,6 +28,9 @@ class RouteCostTariff(BaseModel):
         tariff_value: Tariff amount in ``currency`` per ``unit``.
         currency: ISO currency code of the tariff value.
         unit: Pricing unit (e.g. EUR/MWh/d).
+        effective_from: First day the source row applies (inclusive).
+        effective_to: Last day the source row applies (inclusive), or None
+            when the source declares no end.
         tariff_status: Publication status of the tariff row.
         source_refs: References to the documents backing this row.
     """
@@ -45,6 +49,8 @@ class RouteCostTariff(BaseModel):
     tariff_value: float
     currency: str
     unit: str
+    effective_from: date | None = None
+    effective_to: date | None = None
     tariff_status: str
     source_refs: list[str] = Field(default_factory=list)
 
@@ -79,6 +85,9 @@ class RouteCostResult(BaseModel):
 
     Attributes:
         scenario_id: Identifier of the scenario the cost was computed for.
+        tariff_applicability_date: Explicit date the caller declared for tariff
+            selection, or None when the legacy path did not assess
+            applicability. Never inferred by the SDK.
         status: Overall computation status (e.g. ``COMPLETE``/``PARTIAL``).
         total_cost: Total route cost; None when no leg could be priced.
         currency: ISO currency code of the total cost.
@@ -97,6 +106,7 @@ class RouteCostResult(BaseModel):
     """
 
     scenario_id: str
+    tariff_applicability_date: date | None = None
     # 状态用字符串而非枚举：状态值由后端契约定义并会随业务演进扩展，
     # 用枚举会让 SDK 在遇到未知新状态时校验失败，字符串保持向前兼容。
     status: str
@@ -343,19 +353,41 @@ def fetch_route_candidates(base_url: str) -> list[dict]:
     return data["route_candidates"]
 
 
-def calculate_route_cost(base_url: str, **kwargs) -> RouteCostResult:
+def calculate_route_cost(
+    base_url: str,
+    *,
+    tariff_applicability_date: date | str | None = None,
+    **kwargs,
+) -> RouteCostResult:
     """Compute the cost of a route from the given scenario inputs.
 
     Args:
         base_url: Base URL of the backend server.
+        tariff_applicability_date: Explicit calendar date the selected tariffs
+            must cover. A ``date`` is serialized as an ISO ``YYYY-MM-DD``
+            string; an already-serialized string is forwarded unchanged. When
+            omitted, the backend uses its disclosed legacy path and reports
+            that applicability was not assessed.
         **kwargs: Scenario fields forwarded to the route-cost API.
 
     Returns:
         Computed route cost with breakdown, access and warning summary.
+
+    Raises:
+        TypeError: From the HTTP JSON serializer when a non-JSON-serializable
+            scenario value (for example a raw ``datetime``) is passed.
     """
 
     # 请求体以 **kwargs 原样透传：字段由后端 pydantic schema 定义并校验，
-    # SDK 不重复声明，避免字段清单双份维护导致漂移。
+    # SDK 不重复声明，避免字段清单双份维护导致漂移。The explicit date is the
+    # one exception: it needs ISO serialization, and declaring it here makes the
+    # carrier discoverable instead of relying on an undocumented kwarg.
+    if tariff_applicability_date is not None:
+        kwargs["tariff_applicability_date"] = (
+            tariff_applicability_date.isoformat()
+            if isinstance(tariff_applicability_date, date)
+            else tariff_applicability_date
+        )
     data = _post(f"{base_url}/api/route-cost/calculate", kwargs)["data"]
     return RouteCostResult(**data)
 

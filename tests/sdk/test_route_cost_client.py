@@ -1,5 +1,7 @@
 """SDK route-cost client surface tests."""
 
+from datetime import date
+
 import httpx
 
 
@@ -88,3 +90,58 @@ def test_route_cost_sdk_uses_backend_api_only(monkeypatch) -> None:
     assert captured["url"] == "http://testserver/api/route-cost/recommend"
     assert result.request_id == "sdk-route"
     assert result.allocations[0].route_id == "local-ttf-sale"
+
+
+def test_calculate_route_cost_serializes_explicit_applicability_date(monkeypatch) -> None:
+    from eurogas_nexus_sdk.route_cost import calculate_route_cost
+
+    captured: dict[str, object] = {}
+
+    def fake_post(url: str, json: dict, timeout: int) -> httpx.Response:
+        captured["url"] = url
+        captured["json"] = json
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", url),
+            json={
+                "data": {
+                    "scenario_id": "sdk-dated-route",
+                    "tariff_applicability_date": "2026-01-31",
+                    "status": "SUCCESS",
+                    "total_cost": 2.0,
+                    "currency": "EUR",
+                    "unit": "EUR/MWh",
+                    "cost_breakdown": [],
+                    "used_tariff_documents": [],
+                    "missing_inputs": [],
+                    "warnings": [],
+                    "tariff_status_summary": {"FINAL": 1},
+                    "required_tso_access": [],
+                    "company_accessible_tsos": None,
+                    "inaccessible_tsos": [],
+                    "research_only": True,
+                    "human_review_required": False,
+                },
+                "meta": {
+                    "research_only": True,
+                    "human_review_required": True,
+                    "source_references": ["runtime-postgresql"],
+                    "warnings": [],
+                },
+            },
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    result = calculate_route_cost(
+        "http://testserver",
+        scenario_id="sdk-dated-route",
+        tariff_applicability_date=date(2026, 1, 31),
+    )
+
+    assert captured["url"] == "http://testserver/api/route-cost/calculate"
+    assert captured["json"] == {
+        "scenario_id": "sdk-dated-route",
+        "tariff_applicability_date": "2026-01-31",
+    }
+    assert result.tariff_applicability_date == date(2026, 1, 31)

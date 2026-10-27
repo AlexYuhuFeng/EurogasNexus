@@ -3,6 +3,12 @@
 路由成本计算的唯一入口：按显式费率腿（TSO leg）逐腿选择费率、校验
 金额三元组（amount/currency/unit，Semantic Kernel v1 守卫）、汇总同币种
 同单位的组件；不做单位换算、不含交易语义——口径不兼容时显式阻断。
+
+An explicit ``tariff_applicability_date`` is threaded into every leg
+selection. A declared date that is out of period, ambiguous, inverted or
+duplicated blocks the route with leg-specific codes and no substitute charge.
+Without a declared date the legacy selection is preserved but the result
+discloses ``TARIFF_APPLICABILITY_NOT_ASSESSED`` and requires human review.
 """
 
 from __future__ import annotations
@@ -19,7 +25,11 @@ from eurogas_nexus.domain.route_cost.schemas import (
     RouteTariffLeg,
 )
 from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
-from eurogas_nexus.domain.route_cost.tariff_selection import select_latest_tariff
+from eurogas_nexus.domain.route_cost.tariff_selection import (
+    APPLICABILITY_FAILURE_CODES,
+    TARIFF_MISSING,
+    select_latest_tariff,
+)
 
 
 def calculate_route_cost(
@@ -36,8 +46,12 @@ def calculate_route_cost(
 
     Returns:
         A RouteCostResult with total cost, currency/unit, cost breakdown,
-        used documents, missing inputs, warnings and TSO access state.
-        Without any tariff legs the result is BLOCKED (legs are mandatory).
+        used documents, missing inputs, warnings, the explicitly declared
+        applicability date (or None) and TSO access state. Without any tariff
+        legs the result is BLOCKED (legs are mandatory). An explicit date that
+        cannot resolve to exactly one authoritative row per leg blocks the
+        route with leg-specific missing inputs and no partial total; without a
+        date the legacy path is disclosed as not assessed.
 
     Raises:
         No exceptions; failures are reported in the result.
@@ -47,6 +61,7 @@ def calculate_route_cost(
         # 无显式费率腿：无法计算，直接 BLOCKED（禁止凭空估算）。
         return RouteCostResult(
             scenario_id=scenario.scenario_id,
+            tariff_applicability_date=scenario.tariff_applicability_date,
             status="BLOCKED",
             total_cost=None,
             currency=None,
@@ -78,6 +93,7 @@ def _calculate_tariff_legs(
     used_documents: set[str] = set()
     tariff_statuses: Counter[str] = Counter()
     human_review_required = False
+    applicability_blocked = False
     inaccessible_tsos = _inaccessible_tsos(
         scenario.required_tso_access,
         scenario.company_accessible_tsos,
@@ -92,12 +108,18 @@ def _calculate_tariff_legs(
         warnings.extend(selection.warnings)
         human_review_required = human_review_required or selection.human_review_required
         if selection.selected_tariff is None:
-            missing_code = f"TARIFF_MISSING:{leg.leg_id}"
-            missing_inputs.append(missing_code)
+            selection_codes = selection.missing_inputs or [TARIFF_MISSING]
+            if any(code in APPLICABILITY_FAILURE_CODES for code in selection_codes):
+                # A declared applicability date that cannot resolve to exactly
+                # one authoritative row blocks the whole route. A partial sum
+                # would quietly drop a known leg charge.
+                applicability_blocked = True
+            missing_codes = [f"{code}:{leg.leg_id}" for code in selection_codes]
+            missing_inputs.extend(missing_codes)
             components.append(
                 RouteCostComponent(
                     component_type=leg.component_type,
-                    missing_input=missing_code,
+                    missing_input=missing_codes[0],
                 )
             )
             continue
@@ -132,11 +154,21 @@ def _calculate_tariff_legs(
         has_priced_components = any(component.amount is not None for component in components)
         status = "PARTIAL" if has_priced_components else "BLOCKED"
         human_review_required = True
+    if applicability_blocked:
+        # No substitute charge and no partial route total when the declared
+        # date could not be verified: the route is explicitly blocked.
+        status = "BLOCKED"
+        total_cost = None
+        currency = None
+        unit = None
+        warnings.append("ROUTE_BLOCKED_BY_TARIFF_APPLICABILITY")
+        human_review_required = True
     if inaccessible_tsos:
         status = "BLOCKED"
 
     return RouteCostResult(
         scenario_id=scenario.scenario_id,
+        tariff_applicability_date=scenario.tariff_applicability_date,
         status=status,
         total_cost=total_cost,
         currency=currency,
@@ -162,7 +194,9 @@ def _select_tariff_for_leg(
     """Select the best tariff for one leg (market-area filtered).
 
     单腿费率选择：先按市场区过滤候选集（若腿声明了市场区），再走
-    精确匹配选择器；腿级参数缺省回退到场景级参数。
+    精确匹配选择器；腿级参数缺省回退到场景级参数。The scenario's explicit
+    ``tariff_applicability_date`` is passed through unchanged; no date is
+    inferred from ``created_at``, the clock or the gas year.
     """
 
     eligible_tariffs = tariffs
@@ -179,6 +213,7 @@ def _select_tariff_for_leg(
         gas_year=leg.gas_year or scenario.gas_year,
         capacity_product=leg.capacity_product or scenario.capacity_product,
         firmness=leg.firmness or scenario.firmness,
+        applicability_date=scenario.tariff_applicability_date,
     )
 
 

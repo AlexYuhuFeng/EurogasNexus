@@ -1,12 +1,21 @@
 """European route-cost API tests."""
 
+from datetime import date
+
 from fastapi.testclient import TestClient
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.api.routes.public import route_cost as route_cost_routes
+from eurogas_nexus.domain.route_cost.enums import (
+    CapacityProduct,
+    Firmness,
+    TariffDirection,
+    TariffStatus,
+)
 from eurogas_nexus.domain.route_cost.european_public_tariffs import (
     published_european_corridor_tariffs,
 )
+from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
 
 
 def test_get_tso_tariffs_returns_empty_when_runtime_db_is_not_configured() -> None:
@@ -235,3 +244,161 @@ def test_recommend_route_allocation_selects_local_sale_when_reroute_is_worse(
         ("cheap-nbp-route", 20.0),
         ("local-ttf-sale", 80.0),
     ]
+
+
+def _dated_tariff(
+    *,
+    tariff_id: str,
+    effective_from: date,
+    effective_to: date | None,
+    tariff_value: float,
+    tariff_status: TariffStatus = TariffStatus.FINAL,
+) -> CapacityTariff:
+    """One synthetic BBL row for API request-carrier tests."""
+
+    return CapacityTariff(
+        tariff_id=tariff_id,
+        document_id=f"doc-{tariff_id}",
+        country="NL",
+        tso="BBL Company",
+        market_area="BBL",
+        gas_year="2025+",
+        point_id="bbl-forward-nl-gb",
+        source_point_name="BBL Forward Flow NL to GB",
+        direction=TariffDirection.EXIT,
+        capacity_product=CapacityProduct.ANNUAL,
+        firmness=Firmness.FIRM,
+        tariff_value=tariff_value,
+        currency="EUR",
+        unit="EUR/MWh",
+        effective_from=effective_from,
+        effective_to=effective_to,
+        tariff_status=tariff_status,
+        source_table="synthetic API applicability table",
+        source_refs=["test:synthetic-api-tariff"],
+        manual_review_required=False,
+    )
+
+
+def _dated_route_body(*, applicability_date: str | None) -> dict:
+    """Route-cost request body with one explicit BBL leg."""
+
+    body = {
+        "scenario_id": "api-applicability",
+        "source_resource_type": "PIPELINE_IMPORT",
+        "start_point_id": "TTF",
+        "target_hub_or_point_id": "NBP",
+        "business_model": "CROSS_BORDER_TRANSFER",
+        "delivery_mode": "BORDER_TRANSFER",
+        "gas_year": "2025+",
+        "capacity_product": "ANNUAL",
+        "firmness": "FIRM",
+        "required_tso_access": ["BBL Company"],
+        "company_accessible_tsos": ["BBL Company"],
+        "tariff_legs": [
+            {
+                "leg_id": "bbl-forward",
+                "country": "NL",
+                "tso": "BBL Company",
+                "market_area": "BBL",
+                "point_name": "BBL Forward Flow NL to GB",
+                "direction": "EXIT",
+            }
+        ],
+    }
+    if applicability_date is not None:
+        body["tariff_applicability_date"] = applicability_date
+    return body
+
+
+def test_calculate_accepts_explicit_tariff_applicability_date(monkeypatch) -> None:
+    tariffs = [
+        _dated_tariff(
+            tariff_id="feb",
+            effective_from=date(2026, 2, 1),
+            effective_to=date(2026, 2, 28),
+            tariff_value=3.0,
+        ),
+        _dated_tariff(
+            tariff_id="jan",
+            effective_from=date(2026, 1, 1),
+            effective_to=date(2026, 1, 31),
+            tariff_value=2.0,
+        ),
+    ]
+    monkeypatch.setattr(
+        route_cost_routes,
+        "_load_tariffs",
+        lambda: (tariffs, "runtime-postgresql", []),
+    )
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/calculate",
+        json=_dated_route_body(applicability_date="2026-01-31"),
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "SUCCESS"
+    assert data["tariff_applicability_date"] == "2026-01-31"
+    assert data["total_cost"] == 2.0
+    assert data["cost_breakdown"][0]["tariff_id"] == "jan"
+
+
+def test_calculate_explicit_out_of_period_blocks_with_leg_code(monkeypatch) -> None:
+    tariffs = [
+        _dated_tariff(
+            tariff_id="jan",
+            effective_from=date(2026, 1, 1),
+            effective_to=date(2026, 1, 31),
+            tariff_value=2.0,
+        )
+    ]
+    monkeypatch.setattr(
+        route_cost_routes,
+        "_load_tariffs",
+        lambda: (tariffs, "runtime-postgresql", []),
+    )
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/calculate",
+        json=_dated_route_body(applicability_date="2026-02-15"),
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "BLOCKED"
+    assert data["total_cost"] is None
+    assert data["missing_inputs"] == ["TARIFF_NOT_EFFECTIVE_ON_DATE:bbl-forward"]
+    assert data["cost_breakdown"][0]["tariff_id"] is None
+
+
+def test_calculate_without_date_discloses_applicability_not_assessed(monkeypatch) -> None:
+    tariffs = [
+        _dated_tariff(
+            tariff_id="jan",
+            effective_from=date(2026, 1, 1),
+            effective_to=date(2026, 1, 31),
+            tariff_value=2.0,
+        )
+    ]
+    monkeypatch.setattr(
+        route_cost_routes,
+        "_load_tariffs",
+        lambda: (tariffs, "runtime-postgresql", []),
+    )
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/calculate",
+        json=_dated_route_body(applicability_date=None),
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "SUCCESS"
+    assert data["tariff_applicability_date"] is None
+    assert data["human_review_required"] is True
+    assert "TARIFF_APPLICABILITY_NOT_ASSESSED" in data["warnings"]

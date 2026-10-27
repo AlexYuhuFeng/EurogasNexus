@@ -6,9 +6,9 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from eurogas_nexus.domain.route_cost.enums import (
     BusinessModel,
@@ -60,6 +60,10 @@ class RouteCostScenario(BaseModel):
         business_model: Commercial model.
         delivery_mode: Delivery mode, or None.
         gas_year: Gas year of the valuation.
+        tariff_applicability_date: Explicit calendar date the selected tariffs
+            must cover, or None. When None, tariff applicability is not
+            assessed and the result discloses that limitation. It is never
+            inferred from ``created_at``, the current clock or the gas year.
         flow_quantity: Flow quantity, or None.
         flow_unit: Flow unit, or None.
         capacity_product: Capacity product requested.
@@ -69,7 +73,8 @@ class RouteCostScenario(BaseModel):
         required_tso_access: TSO access codes required.
         company_accessible_tsos: Company's accessible TSOs, or None.
         tariff_legs: Explicit tariff legs of the route.
-        created_at: Scenario creation time.
+        created_at: Scenario creation time. It is audit metadata only and is
+            never used as a tariff applicability date.
         research_only: Always True — decision support only.
     """
 
@@ -80,6 +85,7 @@ class RouteCostScenario(BaseModel):
     business_model: BusinessModel
     delivery_mode: DeliveryMode | None = None
     gas_year: str
+    tariff_applicability_date: date | None = None
     flow_quantity: float | None = None
     flow_unit: str | None = None
     capacity_product: CapacityProduct
@@ -91,6 +97,20 @@ class RouteCostScenario(BaseModel):
     tariff_legs: list[RouteTariffLeg] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     research_only: bool = True
+
+
+    @field_validator("tariff_applicability_date", mode="before")
+    @classmethod
+    def _explicit_calendar_date(cls, value: object) -> object:
+        """Refuse timestamp/numeric coercion into an asserted applicability date."""
+
+        if value is None or (isinstance(value, date) and not isinstance(value, datetime)):
+            return value
+        if isinstance(value, str) and len(value) == 10:
+            parsed = date.fromisoformat(value)
+            if parsed.isoformat() == value:
+                return value
+        raise ValueError("tariff_applicability_date must be an explicit YYYY-MM-DD date")
 
 
 class CapacityRequirement(BaseModel):
@@ -144,6 +164,9 @@ class RouteCostResult(BaseModel):
 
     Attributes:
         scenario_id: Owning scenario.
+        tariff_applicability_date: The explicit date the caller declared, or
+            None when the caller supplied none. None means applicability was
+            not assessed; it never means "current" or "scene created".
         status: SUCCESS / PARTIAL / BLOCKED.
         total_cost: Summed cost when computable, or None.
         currency: Uniform currency of the sum, or None.
@@ -161,6 +184,7 @@ class RouteCostResult(BaseModel):
     """
 
     scenario_id: str
+    tariff_applicability_date: date | None = None
     status: str
     total_cost: float | None = None
     currency: str | None = None

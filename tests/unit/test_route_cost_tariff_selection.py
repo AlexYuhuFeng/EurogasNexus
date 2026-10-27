@@ -1,5 +1,7 @@
 """Tariff selection tests for European route-cost modelling."""
 
+from datetime import date
+
 from eurogas_nexus.domain.route_cost.enums import (
     CapacityProduct,
     Firmness,
@@ -24,6 +26,7 @@ def test_selects_final_bbl_forward_flow_tariff() -> None:
         gas_year="2025+",
         capacity_product=CapacityProduct.ANNUAL,
         firmness=Firmness.FIRM,
+        applicability_date=date(2026, 1, 15),
     )
 
     assert selection.status == "SELECTED"
@@ -31,6 +34,7 @@ def test_selects_final_bbl_forward_flow_tariff() -> None:
     assert selection.selected_tariff.tariff_value == 1.0
     assert selection.selected_tariff.tariff_status is TariffStatus.FINAL
     assert selection.human_review_required is False
+    assert selection.warnings == []
 
 
 def test_selects_final_iuk_annual_firm_tariff() -> None:
@@ -45,6 +49,7 @@ def test_selects_final_iuk_annual_firm_tariff() -> None:
         gas_year="2026/27",
         capacity_product=CapacityProduct.ANNUAL,
         firmness=Firmness.FIRM,
+        applicability_date=date(2026, 6, 15),
     )
 
     assert selection.status == "SELECTED"
@@ -66,6 +71,7 @@ def test_selection_never_substitutes_another_gas_year() -> None:
         gas_year="2030/31",
         capacity_product=CapacityProduct.ANNUAL,
         firmness=Firmness.FIRM,
+        applicability_date=date(2030, 6, 15),
     )
 
     assert selection.status == "MISSING"
