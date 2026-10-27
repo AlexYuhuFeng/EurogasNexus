@@ -1,9 +1,18 @@
 # Build-only dependencies required by the pyproject build-system and by the
 # release dependency-scan job. Kept separate so the runtime image does not
 # carry setuptools/wheel or scanner tooling.
-setuptools>=68
+
+# 84.0.0 is affected by GHSA-xmj3-9gf7-h52w; fixed in 84.1.0.
+setuptools>=84.1.0
 wheel>=0.42
 pip-audit==2.10.1
+
+# pip-audit -> cachecontrol transitives. They are build/scan-only, but the
+# installed-environment CVE audit sees them, so enforce reviewed patched floors.
+# filelock 3.32.6: CVE-2026-112940, CVE-2026-112913, CVE-2026-112907; fixed 4.2.1.
+filelock>=4.2.1
+# msgpack 1.2.2: CVE-2026-114613; fixed 1.2.3.
+msgpack>=1.2.3
 
 # Keep build-side HTTPS trust on the same patched baseline as runtime.
 certifi>=2026.10.19
