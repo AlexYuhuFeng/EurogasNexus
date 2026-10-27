@@ -17,6 +17,7 @@ the operator posture in section 4, which the Source Center already serves.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -320,6 +321,30 @@ def get_analysis_snapshot(session: Session, snapshot_id: str) -> dict[str, Any] 
 
     row = session.get(AnalysisSnapshotRecord, snapshot_id)
     return analysis_snapshot_payload(row) if row is not None else None
+
+
+def get_existing_analysis_snapshot_ids(
+    session: Session, snapshot_ids: Iterable[str]
+) -> set[str]:
+    """Return the candidate snapshot ids that name a persisted snapshot.
+
+    Args:
+        session: Active SQLAlchemy session.
+        snapshot_ids: Candidate reproducibility references; duplicates are ignored.
+
+    Returns:
+        The ids that exist. An empty candidate collection performs no query.
+    """
+
+    unique_ids = {snapshot_id for snapshot_id in snapshot_ids if snapshot_id}
+    if not unique_ids:
+        return set()
+    rows = (
+        session.query(AnalysisSnapshotRecord.snapshot_id)
+        .filter(AnalysisSnapshotRecord.snapshot_id.in_(unique_ids))
+        .all()
+    )
+    return {row[0] for row in rows}
 
 
 def list_analysis_snapshots(

@@ -1,5 +1,33 @@
 # Architecture V2 Execution State
 
+## 2026-10-28 — connected costs and durable workflow verification
+
+Tariff business-date propagation and missing-cost refusal pushed5216b69. Actual
+portfolio gas_day flows into tariff selection/resource-pool/recommendation and
+intraday scanning; missing input stays null, explicit zero stays zero, canonical
+GBP/MWh is carried without EUR substitution. Caller references remain unverified.
+Connected bridge Python82pass; complete API/SDK618pass. Full Web996pass/3existing
+skips, TypeScript and production build pass. Known chunk-size/dynamic-import
+warnings remain visible.
+
+Durable economics acceptance pushed02593cd: actual PostgreSQL-backed Chromium
+203checks, EN/zh-CN1440/390px, eight axe runs with zero violations; installed
+checkpoint SDK six actual HTTP checks. Root script tests9Python/7Nodepass.
+Keyboard-focusable LNG scroll regions fix a real mobile axe failure. Vite ignores
+only atomic-editor hidden .tmpdir staging paths; an actual exclusive file-lock
+probe leaves Vite serving200. Final source-bound artifact rebuild remains open.
+
+Remote09e8ac9 CI: browser/PG/Web/Python CVE locks and environment pass; validate
+three failures identified (stale Review probe contract and wrong-principal test
+fixture), Rust license gate refuses two r-efi triple-license declarations. These
+remain failures until corrected/reviewed and CI reruns; no gate disabled. Bounded
+DeepSeek workers implement review test corrections, native build-only evidence,
+and draft a reviewed-license-choice proposal. Root reviews and tests each.
+
+Decision case/pack batching root selection30pass with actual SQL query counters,
+Ruffpass. Analysis snapshot row binding/history/access/replay remains an explicit
+architecture gap; drafts are not accepted implementation or customer evidence.
+
 ## 2026-10-27 — fresh Windows recovery and acceptance continuation
 
 CI recovery checkpoint: GitHub a8af2b7 revealed five build-tool vulnerabilities;

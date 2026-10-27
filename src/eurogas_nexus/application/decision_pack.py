@@ -102,7 +102,9 @@ def load_decision_pack(
     """
 
     from eurogas_nexus.db.repositories.audit import list_audit_events_for_resource
-    from eurogas_nexus.db.repositories.data_platform import get_analysis_snapshot
+    from eurogas_nexus.db.repositories.data_platform import (
+        get_existing_analysis_snapshot_ids,
+    )
     from eurogas_nexus.db.repositories.decision import get_decision_case
 
     resolved_case = case if case is not None else get_decision_case(session, case_id)
@@ -113,11 +115,7 @@ def load_decision_pack(
         for item in (resolved_case.get("evidence") or [])
         if item.get("snapshot_id")
     }
-    resolvable = {
-        snapshot_id
-        for snapshot_id in cited
-        if get_analysis_snapshot(session, snapshot_id) is not None
-    }
+    resolvable = get_existing_analysis_snapshot_ids(session, cited)
     audit_events = list_audit_events_for_resource(session, f"decision_case:{case_id}")
     return build_decision_pack(
         resolved_case, resolvable_snapshots=resolvable, audit_events=audit_events

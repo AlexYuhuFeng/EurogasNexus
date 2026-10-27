@@ -98,7 +98,11 @@ def list_decision_cases(
     status: str | None = None,
     limit: int = 50,
 ) -> list[dict]:
-    """List cases newest first, as compact summaries."""
+    """List cases newest first, as compact summaries.
+
+    The selected page is read first, then every decision record for those cases
+    in one further query. Ordering, status filtering and the limit are unchanged.
+    """
 
     query = session.query(DecisionCaseRecord)
     if status:
@@ -108,7 +112,7 @@ def list_decision_cases(
         .limit(max(1, min(limit, 200)))
         .all()
     )
-    return [case_summary(_to_domain(session, row)) for row in rows]
+    return [case_summary(domain) for domain in _to_domains(session, rows)]
 
 
 def get_decision_case(session: Session, case_id: str) -> dict | None:
@@ -324,13 +328,44 @@ def decision_case_payload(session: Session, row: DecisionCaseRecord) -> dict:
     }
 
 
-def _to_domain(session: Session, row: DecisionCaseRecord) -> DecisionCase:
+def _to_domains(
+    session: Session, rows: list[DecisionCaseRecord]
+) -> list[DecisionCase]:
+    """Map selected case rows, loading all their records in one query."""
+
+    if not rows:
+        return []
+    case_ids = [row.case_id for row in rows]
     records = (
         session.query(DecisionCaseDecisionRecord)
-        .filter(DecisionCaseDecisionRecord.case_id == row.case_id)
+        .filter(DecisionCaseDecisionRecord.case_id.in_(case_ids))
         .order_by(DecisionCaseDecisionRecord.recorded_at_utc.asc())
         .all()
     )
+    records_by_case: dict[str, list[DecisionCaseDecisionRecord]] = {
+        case_id: [] for case_id in case_ids
+    }
+    for record in records:
+        records_by_case[record.case_id].append(record)
+    return [
+        _to_domain(session, row, records=records_by_case[row.case_id])
+        for row in rows
+    ]
+
+
+def _to_domain(
+    session: Session,
+    row: DecisionCaseRecord,
+    *,
+    records: list[DecisionCaseDecisionRecord] | None = None,
+) -> DecisionCase:
+    if records is None:
+        records = (
+            session.query(DecisionCaseDecisionRecord)
+            .filter(DecisionCaseDecisionRecord.case_id == row.case_id)
+            .order_by(DecisionCaseDecisionRecord.recorded_at_utc.asc())
+            .all()
+        )
     return DecisionCase(
         case_id=row.case_id,
         objective=row.objective,
