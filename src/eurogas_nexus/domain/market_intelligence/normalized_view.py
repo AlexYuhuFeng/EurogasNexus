@@ -19,7 +19,10 @@ value-identical:
 - ``build_normalized_market_view`` builds the latest-rate graph once and reuses
   it for every row, and ``normalize_observation`` builds it only for a row that
   is actually converted; the graph is a pure function of the rate list, so both
-  are cost changes only - the values are the per-row reference path's.
+  are cost changes only - the values are the per-row reference path's;
+- an EEX TTF NGP row with validated retained exact metadata uses that ``Decimal``
+  before the GBP conversion; ordinary non-EEX rows keep the legacy float path,
+  and a missing/invalid exact claim is explicit rather than a silent fallback.
 
 本模块是市场视图规范化的后端唯一契约：客户端不得自行重实现 FX 换算与
 hub/tenor 抽取，避免前后端口径漂移（审计项对应前端 marketPriceNormalization
@@ -32,10 +35,24 @@ import re
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Context, Decimal, localcontext
 from typing import Any
+
+from eurogas_nexus.domain.market_intelligence.source_price import (
+    STATUS_EXACT,
+    STATUS_INVALID,
+    STATUS_MISSING,
+    SourcePrice,
+    resolve_source_price,
+)
 
 TARGET_CURRENCY = "GBP"
 MAX_CONVERSION_DEPTH = 3
+
+#: Explicit local context for exact-price conversion. FX rates are still float
+#: inputs (the rate graph is unchanged), so this bounds the intermediate work
+#: without inheriting a caller's precision, traps or exponent range.
+_DECIMAL_CONVERSION_CONTEXT = Context(prec=500, Emax=999_999, Emin=-999_999)
 
 #: Latest-rate adjacency built by :func:`latest_fx_edges` (currency -> edges).
 RateGraph = dict[str, list[tuple[str, float]]]
@@ -72,7 +89,12 @@ class MarketObservationInput:
         unit: Unit string (gas-price detection source).
         observed_at_utc: Observation time (ISO).
         period_start_utc: Period start (ISO).
-        metadata_json: Metadata dict (hub/tenor overrides).
+        metadata_json: Metadata dict (hub/tenor overrides and retained exact
+            source evidence).
+        source_system: Row-level source system, used to scope exact authority.
+        source_reference: Row-level source reference, used to scope exact
+            authority.
+        source_record_id: Row-level source record id, retained for provenance.
     """
 
     market_venue: str
@@ -83,6 +105,9 @@ class MarketObservationInput:
     observed_at_utc: str | None = None
     period_start_utc: str | None = None
     metadata_json: dict[str, Any] = field(default_factory=dict)
+    source_system: str | None = None
+    source_reference: str | None = None
+    source_record_id: str | None = None
 
 
 def normalized_currency(value: str | None) -> str:
@@ -321,6 +346,154 @@ def is_gas_price_observation(observation: MarketObservationInput) -> bool:
     return "MWH" in unit and len(normalized_currency(observation.currency)) == 3
 
 
+def _source_price_fields(source_price: SourcePrice) -> dict[str, Any]:
+    """Project one validated source-price result into normalized row fields."""
+
+    return {
+        "source_price_status": source_price.status,
+        "source_price_exact": source_price.exact_text,
+        "source_price_raw": source_price.raw_text,
+        "source_price_volume_mwh_exact": source_price.volume_exact_text,
+        "source_price_volume_raw": source_price.volume_raw_text,
+        "source_price_volume_status": source_price.volume_status,
+        "source_price_provenance": source_price.price_provenance,
+        "source_price_issue": source_price.issue_code,
+        "source_price_issue_detail": source_price.issue_detail,
+        "source_price_source_system": source_price.source_system,
+        "source_price_source_reference": source_price.source_reference,
+        "source_price_source_dataset": source_price.source_dataset,
+        "price_float_provenance": source_price.price_float_provenance,
+        "price_semantics": source_price.price_semantics,
+        "executable_quote": source_price.executable_quote,
+    }
+
+
+def _convert_decimal_with_edges(
+    value: Decimal,
+    source_currency: str,
+    target_currency: str,
+    edges: RateGraph,
+) -> Decimal | None:
+    """Convert an exact source decimal across the existing latest-rate graph.
+
+    The graph, breadth-first order, three-edge bound and "first path to the
+    target wins" rule are the same as :func:`convert_with_edges`; only the
+    arithmetic is Decimal. Each float FX rate enters as its exact binary value
+    through ``Decimal.from_float``; the result is still labelled an
+    approximation because the rate itself is a float, never an exact FX claim.
+    A local context keeps a hostile ambient Decimal context from changing or
+    trapping the calculation.
+    """
+
+    source = normalized_currency(source_currency)
+    target = normalized_currency(target_currency)
+    if not source or not target:
+        return None
+    if source == target:
+        return value
+
+    queue: deque[tuple[str, Decimal, int]] = deque([(source, value, 0)])
+    visited = {source}
+    try:
+        with localcontext(_DECIMAL_CONVERSION_CONTEXT):
+            while queue:
+                current, converted, depth = queue.popleft()
+                if depth >= MAX_CONVERSION_DEPTH:
+                    continue
+                for currency, multiplier in edges.get(current, []):
+                    if not _is_positive_finite(multiplier):
+                        continue
+                    next_value = converted * Decimal.from_float(float(multiplier))
+                    if not next_value.is_finite():
+                        continue
+                    if currency == target:
+                        return next_value
+                    if currency in visited:
+                        continue
+                    visited.add(currency)
+                    queue.append((currency, next_value, depth + 1))
+    except (ArithmeticError, ValueError, TypeError):
+        return None
+    return None
+
+
+def _finite_float(value: Decimal | None) -> float | None:
+    """Convert a finite Decimal to a finite float, or None."""
+
+    if value is None:
+        return None
+    try:
+        converted = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return converted if _is_finite_number(converted) else None
+
+
+def _row_price(
+    observation: MarketObservationInput,
+    *,
+    gas_price: bool,
+    edges: RateGraph,
+) -> tuple[SourcePrice, float | None, str | None, str]:
+    """Resolve one row's price exactly when the retained metadata permits it.
+
+    Returns:
+        ``(source_price, price_gbp_mwh, price_gbp_mwh_exact, provenance)``.
+        A missing or invalid EEX exact claim yields ``None`` for the normalized
+        price rather than a silent float fallback; the source-price issue is
+        carried separately on the row.
+    """
+
+    source_price = resolve_source_price(
+        source_system=observation.source_system,
+        source_reference=observation.source_reference,
+        numeric_price=observation.price,
+        metadata=observation.metadata_json,
+        unit=observation.unit,
+        currency=observation.currency,
+    )
+
+    if source_price.status == STATUS_EXACT and source_price.exact_decimal is not None:
+        if not gas_price:
+            return source_price, None, None, "exact_source_decimal_not_a_gas_price"
+        exact_gbp = _convert_decimal_with_edges(
+            source_price.exact_decimal,
+            observation.currency,
+            TARGET_CURRENCY,
+            edges,
+        )
+        converted = _finite_float(exact_gbp)
+        if converted is None:
+            return source_price, None, None, "exact_source_decimal_conversion_unavailable"
+        if normalized_currency(observation.currency) == TARGET_CURRENCY:
+            return (
+                source_price,
+                converted,
+                str(exact_gbp),
+                "exact_source_decimal_same_currency",
+            )
+        return (
+            source_price,
+            converted,
+            None,
+            "exact_source_decimal_times_float_fx_approximation",
+        )
+    if source_price.status == STATUS_MISSING:
+        return source_price, None, None, "exact_source_decimal_missing"
+    if source_price.status == STATUS_INVALID:
+        return source_price, None, None, "refused_invalid_claimed_exact_decimal"
+
+    if not gas_price:
+        return source_price, None, None, "not_converted_non_gas"
+    converted = convert_with_edges(
+        observation.price,
+        observation.currency,
+        TARGET_CURRENCY,
+        edges,
+    )
+    return source_price, converted, None, "legacy_float_approximation"
+
+
 def normalize_observation(
     observation: MarketObservationInput,
     rates: list[FxRateInput],
@@ -341,7 +514,9 @@ def normalize_observation(
 
     Returns:
         Normalized row dict with all original fields plus ``hub``,
-        ``tenor``, ``is_gas_price`` and ``price_gbp_mwh``.
+        ``tenor``, ``is_gas_price``, ``price_gbp_mwh`` and the exact
+        source-price/provenance fields. A missing or invalid EEX exact claim
+        leaves ``price_gbp_mwh`` None rather than silently using its float.
     """
 
     if not is_gas_price_observation(observation):
@@ -366,14 +541,14 @@ def normalize_observation_with_edges(
 
     Returns:
         Normalized row dict with all original fields plus ``hub``,
-        ``tenor``, ``is_gas_price`` and ``price_gbp_mwh``.
+        ``tenor``, ``is_gas_price``, ``price_gbp_mwh`` and the exact
+        source-price/provenance fields. A missing or invalid EEX exact claim
+        leaves ``price_gbp_mwh`` None rather than silently using its float.
     """
 
     gas_price = is_gas_price_observation(observation)
-    price_gbp_mwh = (
-        convert_with_edges(observation.price, observation.currency, TARGET_CURRENCY, edges)
-        if gas_price
-        else None
+    source_price, price_gbp_mwh, price_gbp_mwh_exact, price_gbp_mwh_provenance = (
+        _row_price(observation, gas_price=gas_price, edges=edges)
     )
     return {
         "market_venue": observation.market_venue,
@@ -383,10 +558,17 @@ def normalize_observation_with_edges(
         "currency": observation.currency,
         "observed_at_utc": observation.observed_at_utc,
         "period_start_utc": observation.period_start_utc,
+        "source_system": observation.source_system,
+        "source_reference": observation.source_reference,
+        "source_record_id": observation.source_record_id,
+        "metadata_json": observation.metadata_json,
         "hub": observation_hub(observation),
         "tenor": observation_tenor(observation),
         "is_gas_price": gas_price,
         "price_gbp_mwh": price_gbp_mwh,
+        "price_gbp_mwh_exact": price_gbp_mwh_exact,
+        "price_gbp_mwh_provenance": price_gbp_mwh_provenance,
+        **_source_price_fields(source_price),
     }
 
 
@@ -417,11 +599,18 @@ def build_normalized_market_view(
     for observation in observations:
         row = normalize_observation_with_edges(observation, edges)
         if row["is_gas_price"] and row["price_gbp_mwh"] is None:
-            warnings.append(
-                f"FX conversion unavailable for observation "
-                f"{observation.market_venue}/{observation.product} "
-                f"({observation.currency}->{TARGET_CURRENCY})."
-            )
+            issue = row.get("source_price_issue")
+            if issue:
+                warnings.append(
+                    f"Exact source price unavailable for observation "
+                    f"{observation.market_venue}/{observation.product}: {issue}."
+                )
+            else:
+                warnings.append(
+                    f"FX conversion unavailable for observation "
+                    f"{observation.market_venue}/{observation.product} "
+                    f"({observation.currency}->{TARGET_CURRENCY})."
+                )
         rows.append(row)
     return {"rows": rows, "warnings": warnings}
 

@@ -203,6 +203,9 @@ def list_normalized_market_view(
             observed_at_utc=_iso(row.observed_at_utc),
             period_start_utc=_iso(row.period_start_utc),
             metadata_json=row.metadata_json or {},
+            source_system=row.source_system,
+            source_reference=row.source_reference,
+            source_record_id=row.source_record_id,
         )
         for row in observation_rows
     ]
