@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -17,10 +18,12 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     AgentResearchBudgetRecord,
     CanonicalEntityRecord,
+    IdentityPrincipalRecord,
     MarketObservationRecord,
     SeriesDefinitionRecord,
 )
 from eurogas_nexus.db.repositories import agents
+from eurogas_nexus.db.repositories.identity import create_identity_api_key
 from eurogas_nexus.domain.agents.contracts import AgentInvocationContext
 
 
@@ -116,6 +119,47 @@ def _run(session, **kwargs):
         objective="Does NBP trade at a premium to TTF?",
         **kwargs,
     )
+
+
+def _seed_named_analyst_identity(session) -> str:
+    """Create the run owner as a named active identity and return its bearer key.
+
+    A review pack is private to the principal that produced it, so the review
+    decision route only accepts a confirmation from that same authenticated
+    principal. The replay route additionally requires a named active identity.
+    The orchestrator fixture creates the run under ``analyst-1`` without an
+    identity row, so the API client had no way to authenticate as the owner:
+    the deployment-token compatibility callers resolved to
+    ``service:public-api`` and the route correctly refused the foreign target
+    with 404. This seeds only the fixture identity the run already names; the
+    route still enforces ownership, role and the named-identity contract.
+    """
+
+    now = datetime.now(UTC)
+    session.add(
+        IdentityPrincipalRecord(
+            principal_id="analyst-1",
+            principal_type="USER",
+            name="analyst-1",
+            display_name="Analyst One",
+            role="ANALYST",
+            roles=["ANALYST"],
+            identity_source="LOCAL",
+            status="ACTIVE",
+            data_scopes=["*"],
+            created_at_utc=now,
+            updated_at_utc=now,
+        )
+    )
+    session.flush()
+    _, bearer = create_identity_api_key(
+        session,
+        "analyst-1",
+        display_name="ci-review-regression",
+        scopes=["*"],
+        created_by="test",
+    )
+    return bearer
 
 
 def test_objective_to_plan_to_review_without_strategy(session) -> None:
@@ -251,12 +295,23 @@ def test_review_pack_confirmation_through_review_decision_api(
 
     outcome = _run(session, strategy_generation_allowed=True)
     assert outcome.review_pack_id
+    # The review routes resolve the target through the authenticated principal, and the pack is
+    # private to the analyst who produced it. Seed that same named identity and present its key,
+    # with the deployment token the suite uses for the public-auth gate, instead of relying on the
+    # deployment-token compatibility principal (which owns no review pack and is refused 404).
+    analyst_bearer = _seed_named_analyst_identity(session)
     session.commit()
 
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
-    client = TestClient(create_app())
+    client = TestClient(
+        create_app(),
+        headers={
+            "X-Eurogas-Api-Key": os.environ["EUROGAS_NEXUS_PUBLIC_API_TOKEN"],
+            "X-Eurogas-Identity": analyst_bearer,
+        },
+    )
 
     decision = client.post(
         "/api/review/decisions",
@@ -269,7 +324,11 @@ def test_review_pack_confirmation_through_review_decision_api(
         },
     )
     assert decision.status_code == 200
-    assert decision.json()["data"]["entity_type"] == "agent_review_pack"
+    recorded = decision.json()["data"]
+    assert recorded["entity_type"] == "agent_review_pack"
+    # The body's actor claim is never the recorded actor: the authenticated owner is.
+    assert recorded["actor"] == "analyst-1"
+    assert "ACTOR_CLAIM_IGNORED:trader-a" in decision.json()["meta"]["warnings"]
 
     replay = client.get(f"/api/agent/runs/{outcome.run_id}/replay")
     assert replay.status_code == 200

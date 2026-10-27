@@ -51,6 +51,16 @@ SLICE_KEY = re.compile(r'"([a-z_]+)"')
 RECORD_SELECTOR = re.compile(r'\[data-record="(?P<kind>[a-z-]+)"\]')
 EMPTY_SELECTOR = re.compile(r'\[data-empty-state="(?P<marker>[a-z-]+)"\]')
 
+#: The Review workspace's own projection, the slice its history renders, and the repository row
+#: that slice's ids come from.
+REVIEW_PROJECTION = "/api/projections/review-context"
+REVIEW_CONTEXT_BUILDER = (
+    ROOT / "src" / "eurogas_nexus" / "application" / "projections" / "review_context.py"
+)
+REVIEW_DECISION_REPOSITORY = (
+    ROOT / "src" / "eurogas_nexus" / "db" / "repositories" / "review.py"
+)
+
 #: The projection the portfolio surfaces read, and the client lane that performs the read.
 PORTFOLIO_PROJECTION = "/api/projections/portfolio-snapshot"
 PORTFOLIO_SNAPSHOT_MODEL = (
@@ -67,6 +77,7 @@ WORKSPACE_COMPONENTS: dict[str, tuple[Path, ...]] = {
     "contracts": (WEB_SRC / "PortfolioWorkspace.tsx", WEB_SRC / "ContractWorkbench.tsx"),
     "glossary": (WEB_SRC / "GlossaryWiki.tsx",),
     "orders": (WEB_SRC / "MarketPositioningWorkspace.tsx",),
+    "review": (WEB_SRC / "ReviewWorkspace.tsx",),
     "sources": (WEB_SRC / "SourceCenter.tsx",),
 }
 
@@ -256,10 +267,14 @@ def test_every_scoped_read_declares_its_own_rows_and_record_id() -> None:
         "contracts",
         "glossary",
         "orders",
+        "review",
         "sources",
-    }, "exactly the contracts, glossary, orders and sources surfaces declare the scoped comparison"
-    assert len(groups) == 5, (
-        "contracts, glossary and sources declare one group each, orders declares two"
+    }, (
+        "exactly the contracts, glossary, orders, review and sources surfaces declare the "
+        "scoped comparison"
+    )
+    assert len(groups) == 6, (
+        "contracts, glossary, review and sources declare one group each, orders declares two"
     )
 
     for workspace, group in groups:
@@ -277,11 +292,17 @@ def test_every_scoped_read_declares_its_own_rows_and_record_id() -> None:
             assert EMPTY_SELECTOR.fullmatch(str(empty)), (
                 f"{where} declares '{empty}' as its empty state, which is not a declared marker"
             )
-        slice_keys = _portfolio_slice_keys()
         if str(group["rowsPath"]).startswith("data.slices."):
+            if workspace == "review":
+                slice_keys = _review_slice_keys()
+            else:
+                assert workspace == "orders", (
+                    f"{where} reads a projection slice from a workspace this test does not "
+                    "bind"
+                )
+                slice_keys = _portfolio_slice_keys()
             assert str(group["rowsPath"]).split(".")[2] in slice_keys, (
-                f"{where} reads slice '{group['rowsPath']}' the portfolio projection does not "
-                "declare"
+                f"{where} reads slice '{group['rowsPath']}' the projection does not declare"
             )
 
     markers = [group["emptySelector"] for _, group in groups if group.get("emptySelector")]
@@ -354,6 +375,64 @@ def test_the_scoped_groups_compare_ids_the_backend_actually_serves() -> None:
         assert re.search(rf"^    {field}: str$", domain, re.MULTILINE), (
             f"the served model declares no {field} for the group to compare"
         )
+
+
+def test_the_review_probe_compares_the_decision_ids_the_projection_serves() -> None:
+    """The Review workspace's history rows are compared with its own projection slice.
+
+    The sweep reads the same ``/api/projections/review-context`` payload the Review workspace
+    batch reads and compares the ``data.slices.decisions`` rows with the history's
+    ``data-record="review-decision"`` rows by each decision's own ``decision_id``. The comparison
+    is only evidence if the projection serves that slice through the same repository read the
+    review route uses, every served row carries the id verbatim, and the component renders that
+    exact id and its empty-state marker. Nothing on this surface is compared with page copy or
+    with an unrelated unavailable-evidence sentence.
+    """
+
+    probes = _declared_probes()
+    assert probes["review"] == REVIEW_PROJECTION
+    assert REVIEW_PROJECTION in _served_get_paths()
+    assert f'"{REVIEW_PROJECTION.removeprefix("/api")}"' in WEB_CLIENT.read_text(
+        encoding="utf-8"
+    )
+
+    review_groups = [group for workspace, group in _declared_groups() if workspace == "review"]
+    assert len(review_groups) == 1, "the review surface declares one scoped comparison"
+    group = review_groups[0]
+    assert group["rowsPath"] == "data.slices.decisions"
+    assert group["recordIdField"] == "decision_id"
+    assert group["rowSelectors"] == ['[data-record="review-decision"]']
+    assert group["emptySelector"] == '[data-empty-state="review-decisions"]'
+    assert group.get("rowLimit") == 12, "the group mirrors the history's own bound"
+
+    builder = REVIEW_CONTEXT_BUILDER.read_text(encoding="utf-8")
+    assert '"decisions": projection_slice(' in builder, (
+        "the projection serves the decisions slice the group reads"
+    )
+    assert "rows=decisions" in builder, (
+        "the decisions slice's rows are the repository rows, not a summary"
+    )
+    assert "list_review_decisions(" in builder, (
+        "the projection composes the slice through the review route's own read"
+    )
+    repository = REVIEW_DECISION_REPOSITORY.read_text(encoding="utf-8")
+    assert '"decision_id": row.decision_id' in repository, (
+        "the served decision row carries the id the group compares"
+    )
+
+    component = _workspace_sources("review")
+    assert "reviewDecisions.slice(0, 12)" in component, (
+        "the rendered history is bounded by the bound the group declares"
+    )
+    assert 'data-record="review-decision"' in component, (
+        "the review history renders the record kind the group selects"
+    )
+    assert "data-record-id={row.decision_id}" in component, (
+        "the history renders each decision's own id as its record id"
+    )
+    assert 'data-empty-state="review-decisions"' in component, (
+        "the history renders the empty state the group selects"
+    )
 
 
 def test_the_glossary_probe_compares_the_term_ids_the_route_serves() -> None:
@@ -454,6 +533,22 @@ def test_the_sources_probe_compares_the_registry_ids_the_catalog_renders() -> No
     # so the check never matches a localized label.
     assert "data-source-category={category}" in component, (
         "the category filter carries the category code, not only its label"
+    )
+
+
+def _review_slice_keys() -> set[str]:
+    match = re.search(
+        r"slices: dict\[str, dict\[str, Any\]\] = \{(?P<body>.*?)\n    \}",
+        REVIEW_CONTEXT_BUILDER.read_text(encoding="utf-8"),
+        re.DOTALL,
+    )
+    assert match, "the review projection still declares its slices"
+    return set(
+        re.findall(
+            r'^\s{8}"(?P<key>[a-z_]+)": projection_slice\(',
+            match.group("body"),
+            re.MULTILINE,
+        )
     )
 
 
