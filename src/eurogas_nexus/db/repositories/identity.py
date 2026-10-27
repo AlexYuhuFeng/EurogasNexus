@@ -172,6 +172,7 @@ def rotate_identity_api_key(
     *,
     display_name: str = "rotated",
     expires_at_utc: datetime | None = None,
+    created_by: str | None = None,
     now_utc: datetime | None = None,
 ) -> tuple[IdentityApiKeyRecord, str] | None:
     """Revoke an existing key and issue a replacement; old key stops working."""
@@ -187,7 +188,9 @@ def rotate_identity_api_key(
         session,
         principal_id,
         display_name=display_name,
-        expires_at_utc=expires_at_utc,
+        expires_at_utc=old.expires_at_utc if expires_at_utc is None else expires_at_utc,
+        scopes=list(old.scopes or []),
+        created_by=created_by,
         now_utc=now,
     )
 

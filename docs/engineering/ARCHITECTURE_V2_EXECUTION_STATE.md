@@ -33,6 +33,14 @@ Web/SDK/source-to-consumer acceptance and final-source artifact rebuilds.
 Full delivery goal remains active; customer/provider/signing/production gates
 remain unproven. Regional exchange remains disabled and deferred.
 
+Follow-up: fresh PostgreSQL migration through0041 succeeded; the five existing
+PostgreSQL integration modules passed21tests. DeepSeek max reconstructed missing
+key-rotation scope/default-expiry preservation and validated-operator attribution;
+repository/API/security regression30pass, Ruffpass. Capacity billing reconstruction
+is in progress with DeepSeek max; no capacity patch accepted yet. All missing
+checkpoint IDs also fail GitHub commit lookup. Continue reconstruction rather
+than claiming historical source or acceptance restored.
+
 Last updated: 2026-10-13
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 

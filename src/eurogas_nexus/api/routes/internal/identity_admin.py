@@ -198,6 +198,7 @@ def post_identity_key_rotate(
                 key_id,
                 display_name=body.display_name,
                 expires_at_utc=body.expires_at_utc,
+                created_by=operator,
             )
             if rotated is None:
                 raise IdentityAuthError(

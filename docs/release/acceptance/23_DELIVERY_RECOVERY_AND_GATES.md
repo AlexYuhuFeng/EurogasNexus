@@ -89,6 +89,20 @@ secret. Official image digest:
 Migration and populated business acceptance are pending. No historical containers
 or volumes were restarted or overwritten.
 
+Subsequent fresh migration through `0041_job_owner_identity` succeeded. The
+repository's PostgreSQL smoke, monitoring acknowledgement, research entitlement,
+contract revision and payment-terms integration selection passed **21 tests**.
+This proves those bounded contracts against the new isolated database, not a
+populated trader/researcher/reviewer acceptance journey.
+
+DeepSeek max implementation reconstructed the missing identity rotation fix:
+preserve the original key's attenuation scopes and default expiry, honor an
+explicit expiry override, and attribute the new key to the validated internal
+operator. Independent repository/API/security selection: **30 passed**, Ruff
+passed. Original cloud code was not recovered; this is a reviewed replacement.
+GitHub's commit API also reports no commit found for all seven reported local
+checkpoint IDs (including `1091a8d`).
+
 Owner further requires reconstructing all missing completed-but-unpushed work,
 all required source-to-consumer integrations, and user acceptance readiness.
 Use DeepSeek max reasoning for subsequent bounded implementation requests.
