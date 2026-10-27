@@ -12,7 +12,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const HARNESS = new URL("../../../scripts/uat/browser_workflow_smoke.mjs", import.meta.url);
-const source = readFileSync(HARNESS, "utf8");
+// Marker parsing is semantic; Git/editor CRLF must not change the gate.
+const source = readFileSync(HARNESS, "utf8").replace(/\r\n/g, "\n");
 
 function block(startMarker: string, endMarker: string): string {
   const start = source.indexOf(startMarker);

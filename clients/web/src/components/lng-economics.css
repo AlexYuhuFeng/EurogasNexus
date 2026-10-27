@@ -129,3 +129,8 @@
 .lng-economics-result {
   scroll-margin-top: var(--space-4, 16px);
 }
+
+.lng-economics-table-wrap:focus-visible {
+  outline: 2px solid var(--eg-link, #005fcc);
+  outline-offset: 2px;
+}

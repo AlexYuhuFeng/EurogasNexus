@@ -1007,7 +1007,8 @@ export function LngEconomicsPanel({
 
             <div className="route-cost-issues">
               <strong>{t("contracts.lng_economics.cash_legs")}</strong>
-              <div className="lng-economics-table-wrap">
+              <div className="lng-economics-table-wrap" tabIndex={0} role="region"
+                aria-label={t("contracts.lng_economics.cash_legs")}>
                 <table className="lng-economics-table">
                   <caption>{t("contracts.lng_economics.cash_legs_caption")}</caption>
                   <thead>
@@ -1047,7 +1048,8 @@ export function LngEconomicsPanel({
 
             <div className="route-cost-issues">
               <strong>{t("contracts.lng_economics.stage_chain")}</strong>
-              <div className="lng-economics-table-wrap">
+              <div className="lng-economics-table-wrap" tabIndex={0} role="region"
+                aria-label={t("contracts.lng_economics.stage_chain")}>
                 <table className="lng-economics-table">
                   <caption>{t("contracts.lng_economics.stage_chain_caption")}</caption>
                   <thead>

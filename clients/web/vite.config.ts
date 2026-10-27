@@ -9,6 +9,11 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    watch: {
+      // Atomic editors briefly lock their hidden staging directory on Windows.
+      // Watch the final source file, without opening those transient artifacts.
+      ignored: [/[\\/]\.[^\\/]+\.tmpdir(?:[\\/]|$)/],
+    },
     proxy: {
       "/api": "http://127.0.0.1:8000",
     },
