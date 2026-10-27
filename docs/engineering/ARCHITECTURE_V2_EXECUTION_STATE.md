@@ -41,6 +41,25 @@ is in progress with DeepSeek max; no capacity patch accepted yet. All missing
 checkpoint IDs also fail GitHub commit lookup. Continue reconstruction rather
 than claiming historical source or acceptance restored.
 
+Owner model selection: use **DeepSeek-V4.1-Flash-1017**, max effort. Official
+DeepSeek October17 changelog maps that version to API id `deepseek-flash`;
+authenticated model discovery confirms max effort support. The local development
+harness now pins that API id (product provider settings remain untouched). A Pro
+review request issued before this steering was canceled, and the capacity review
+was reissued on the specified Flash model. Initial Flash capacity output required
+JSON-container repair for inspection; it is a candidate only, not installed code.
+Independent review identified precision/bounds and fractional-hour consistency
+concerns; corrected implementation/test output is pending. Separate Flash max
+EEX local capture-inspection reconstruction is pending; no production source
+activation or download permission is inferred.
+
+Official terminal publications are now reachable from this machine. Five raw
+page captures were hashed and preserved in ignored local evidence. Reviewed
+research candidates in `docs/data/LNG_TERMINAL_RESEARCH_CANDIDATES_20261027.md`
+preserve original units, the Gate evaporation denominator, Grain's two distinct
+capacity claims and unknown effective dates. No official fuel retention rate or
+physical readiness was invented; these candidates are not automatic model inputs.
+
 Last updated: 2026-10-13
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
