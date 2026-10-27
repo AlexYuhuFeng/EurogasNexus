@@ -2,6 +2,25 @@
 
 ## 2026-10-27 — fresh Windows recovery and acceptance continuation
 
+Accepted replacement slice: official local Harness workers completed the missing
+EEX byte-preserving local capture inspector/CLI and LNG terminal-reference
+contract/offline comparison. Root reviewed the actual implementations and ran
+combined capture/parser/terminal/regas selection:97pass, Ruffpass. EEX worker also
+reported306ingestion/import-boundary passes; terminal worker43focused/adjacent
+passes and repository-local markdown link pass. No live source integration or
+browser delivery acceptance is inferred. Current empty official manifest is a
+contract starting point; researched candidates still need structured insertion
+and applicability review. Source activation and canonical EEX publication remain
+prohibited without their existing independent gates. Core/CLI files are new
+implementations, not restored original cloud files.
+
+Foreground loopback API(:8000, managed handle21508) and Web(:3000, handle27879)
+now run; readiness and Web HTTP both200. This safer managed launch succeeded
+after the background launch was rejected. PostgreSQL-backed synthetic browser
+fixtures are ready, Chromium installation completed. Actual workflow sweep and
+distinct-role acceptance remain next. Capacity API/SDK worker is still active;
+its writes are separate from this accepted capture/reference checkpoint.
+
 Latest integration checkpoint: local installed DeepSeek Harness0.2.1-rc.2 is
 verified with headless Flash1017/max. Owner explicitly authorizes multiple
 DeepSeek workers; disjoint EEX capture, terminal-reference and capacity API/SDK

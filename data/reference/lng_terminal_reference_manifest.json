@@ -1,0 +1,7 @@
+{
+  "facts": [],
+  "model_version": "lng-terminal-reference-model/1",
+  "notes": "Empty informational reference manifest. Researched operator-publication candidates await separate structured promotion and review; this file asserts no official fact, right, booking, technical availability or readiness.",
+  "schema_version": "eurogas.lng-terminal-reference/1",
+  "sources": []
+}
