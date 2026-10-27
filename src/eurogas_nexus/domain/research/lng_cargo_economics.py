@@ -79,9 +79,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import ROUND_HALF_EVEN, Context, Decimal, DecimalException, localcontext
-from enum import StrEnum
 from typing import Literal, Protocol, cast
 
+# Canonical definitions (one authority) are re-exported for import compatibility.
+from eurogas_nexus.domain.ontology.vocabulary import LngDownstreamChargeBasis
 from eurogas_nexus.domain.research.lng_cash_valuation import (
     LNG_CASH_VALUATION_MODEL_VERSION,
     MAX_ABS_CASH_AMOUNT,
@@ -260,19 +261,6 @@ class LngCargoDownstreamCostInput:
     amount_eur: Decimal
     payment_date: date
     source_reference: str
-
-
-class LngDownstreamChargeBasis(StrEnum):
-    """Declared nature of one economics-only downstream charge.
-
-    Only ``INVOICED_CASH`` may become a cash expense. ``IN_KIND`` and
-    ``UNKNOWN`` are explicit declarations that must not be silently monetized;
-    in-kind energy belongs in the explicit energy stages instead.
-    """
-
-    INVOICED_CASH = "invoiced_cash"
-    IN_KIND = "in_kind"
-    UNKNOWN = "unknown"
 
 
 @dataclass(frozen=True)

@@ -66,6 +66,18 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.dataops.contracts:SourceCalendar",
     "eurogas_nexus.domain.dataops.contracts:SourceClass",
     "eurogas_nexus.domain.operations.errors:OperationalErrorCategory",
+    # Reviewed LNG reference-contract control codes (2026-10-27). These four are
+    # the terminal-reference contract's review, lookup, error and source-change
+    # lifecycle states, not gas/energy semantics; their reviewed owner remains
+    # domain/route_cost/lng_terminal_reference.py as
+    # docs/architecture/LNG_VOCABULARY_OWNERSHIP.md records. The semantic LNG
+    # vocabularies (LngEnergyStageKind, LngDownstreamChargeBasis, QuantityBasis
+    # and FactParameter) are deliberately not listed here: they live in
+    # domain/ontology/vocabulary.py.
+    "eurogas_nexus.domain.route_cost.lng_terminal_reference:FactReviewStatus",
+    "eurogas_nexus.domain.route_cost.lng_terminal_reference:LngFactLookupStatus",
+    "eurogas_nexus.domain.route_cost.lng_terminal_reference:LngReferenceErrorCode",
+    "eurogas_nexus.domain.route_cost.lng_terminal_reference:SourceChangeStatus",
     # CR-14 / P13 research-data ontology review. These enums are part of the
     # executable research ontology owned by domain/research/ontology.py and
     # its companion semantic modules. They deliberately use StrEnum so API

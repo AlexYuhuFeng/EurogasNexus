@@ -43,7 +43,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from decimal import ROUND_HALF_EVEN, Context, Decimal, DecimalException, localcontext
-from enum import StrEnum
+
+# Canonical definition (one authority) is re-exported for import compatibility.
+from eurogas_nexus.domain.ontology.vocabulary import LngEnergyStageKind
 
 LNG_ENERGY_BALANCE_MODEL_VERSION = "lng-energy-balance/v1"
 
@@ -67,16 +69,6 @@ _BASELINE_WARNINGS: tuple[str, ...] = (
     "EXPLICIT_ENERGY_STAGES_ONLY_NO_VOLUME_OR_FX_CONVERSION",
     "CONSUMED_ENERGY_AND_PHYSICAL_LOSS_DISCLOSED_SEPARATELY_NOT_MONETIZED",
 )
-
-
-class LngEnergyStageKind(StrEnum):
-    """Declared kind of one explicit LNG cargo energy stage."""
-
-    CARGO_TRANSFER = "cargo_transfer"
-    SHIPPING = "shipping"
-    STORAGE = "storage"
-    REGASIFICATION = "regasification"
-    OTHER = "other"
 
 
 class LngEnergyBalanceError(ValueError):

@@ -161,6 +161,70 @@ class AuctionTiming(StrEnum):
 CAPACITY_PRODUCT_EXTENSIONS: frozenset[str] = frozenset({"WEEKLY"})
 
 
+# --- LNG cargo and terminal semantics --------------------------------------
+#
+# These are gas/energy stage and measurement semantics, so their reviewed home
+# is this canonical ontology vocabulary. The original research and terminal
+# modules re-export these exact classes so existing imports, API/SDK contracts
+# and model-version strings remain unchanged. Reference-contract control codes
+# (review, lookup, error and source-change status) deliberately stay with the
+# terminal-reference contract; see docs/architecture/LNG_VOCABULARY_OWNERSHIP.md.
+
+
+class LngEnergyStageKind(StrEnum):
+    """Declared kind of one explicit LNG cargo energy stage."""
+
+    CARGO_TRANSFER = "cargo_transfer"
+    SHIPPING = "shipping"
+    STORAGE = "storage"
+    REGASIFICATION = "regasification"
+    OTHER = "other"
+
+
+class LngDownstreamChargeBasis(StrEnum):
+    """Declared nature of one economics-only downstream charge.
+
+    Only ``INVOICED_CASH`` may become a cash expense. ``IN_KIND`` and
+    ``UNKNOWN`` are explicit declarations that must not be silently monetized;
+    in-kind energy belongs in the explicit energy stages instead.
+    """
+
+    INVOICED_CASH = "invoiced_cash"
+    IN_KIND = "in_kind"
+    UNKNOWN = "unknown"
+
+
+class QuantityBasis(StrEnum):
+    """Distinct measurement bases. No member is converted into another."""
+
+    LIQUID_LNG_M3_PER_HOUR = "LIQUID_LNG_M3_PER_HOUR"
+    ACTUAL_GAS_M3_PER_HOUR = "ACTUAL_GAS_M3_PER_HOUR"
+    NORMAL_GAS_NM3_PER_HOUR = "NORMAL_GAS_NM3_PER_HOUR"
+    ENERGY_MWH_PER_HOUR = "ENERGY_MWH_PER_HOUR"
+    ENERGY_GWH_PER_DAY = "ENERGY_GWH_PER_DAY"
+    DURATION_HOURS = "DURATION_HOURS"
+    TANK_CAPACITY_PERCENT_PER_DAY = "TANK_CAPACITY_PERCENT_PER_DAY"
+    CARGO_ENERGY_PERCENT = "CARGO_ENERGY_PERCENT"
+    MONEY_PER_ENERGY = "MONEY_PER_ENERGY"
+
+
+class FactParameter(StrEnum):
+    """Terminal fact parameters with deliberately narrow basis compatibility."""
+
+    VESSEL_UNLOADING_MAX_RATE = "VESSEL_UNLOADING_MAX_RATE"
+    VESSEL_UNLOADING_RATE = "VESSEL_UNLOADING_RATE"
+    UNLOADING_RATE = "UNLOADING_RATE"
+    SENDOUT_CAPACITY = "SENDOUT_CAPACITY"
+    MINIMUM_SENDOUT_RATE = "MINIMUM_SENDOUT_RATE"
+    REGASIFICATION_CAPACITY = "REGASIFICATION_CAPACITY"
+    TANK_EVAPORATION_RATE = "TANK_EVAPORATION_RATE"
+    EVAPORATION_RATE = "EVAPORATION_RATE"
+    CARGO_ENERGY_LOSS_RATE = "CARGO_ENERGY_LOSS_RATE"
+    RETAINED_FUEL_RATE = "RETAINED_FUEL_RATE"
+    VESSEL_DISCHARGE_DURATION = "VESSEL_DISCHARGE_DURATION"
+    TERMINAL_FEE = "TERMINAL_FEE"
+
+
 # --- Contract payment-term vocabulary (S2a declared-rule representation) ----
 #
 # Parent design review for the S2a unit: explicit payment terms are evidence

@@ -37,6 +37,9 @@ from pydantic import (
     model_validator,
 )
 
+# Canonical definitions (one authority) are re-exported for import compatibility.
+from eurogas_nexus.domain.ontology.vocabulary import FactParameter, QuantityBasis
+
 MANIFEST_SCHEMA_VERSION = "eurogas.lng-terminal-reference/1"
 MANIFEST_MODEL_VERSION = "lng-terminal-reference-model/1"
 EMPTY_MANIFEST_NOTE = (
@@ -102,37 +105,6 @@ class FactReviewStatus(StrEnum):
 
     CANDIDATE = "CANDIDATE"
     REVIEWED = "REVIEWED"
-
-
-class QuantityBasis(StrEnum):
-    """Distinct measurement bases. No member is converted into another."""
-
-    LIQUID_LNG_M3_PER_HOUR = "LIQUID_LNG_M3_PER_HOUR"
-    ACTUAL_GAS_M3_PER_HOUR = "ACTUAL_GAS_M3_PER_HOUR"
-    NORMAL_GAS_NM3_PER_HOUR = "NORMAL_GAS_NM3_PER_HOUR"
-    ENERGY_MWH_PER_HOUR = "ENERGY_MWH_PER_HOUR"
-    ENERGY_GWH_PER_DAY = "ENERGY_GWH_PER_DAY"
-    DURATION_HOURS = "DURATION_HOURS"
-    TANK_CAPACITY_PERCENT_PER_DAY = "TANK_CAPACITY_PERCENT_PER_DAY"
-    CARGO_ENERGY_PERCENT = "CARGO_ENERGY_PERCENT"
-    MONEY_PER_ENERGY = "MONEY_PER_ENERGY"
-
-
-class FactParameter(StrEnum):
-    """Terminal fact parameters with deliberately narrow basis compatibility."""
-
-    VESSEL_UNLOADING_MAX_RATE = "VESSEL_UNLOADING_MAX_RATE"
-    VESSEL_UNLOADING_RATE = "VESSEL_UNLOADING_RATE"
-    UNLOADING_RATE = "UNLOADING_RATE"
-    SENDOUT_CAPACITY = "SENDOUT_CAPACITY"
-    MINIMUM_SENDOUT_RATE = "MINIMUM_SENDOUT_RATE"
-    REGASIFICATION_CAPACITY = "REGASIFICATION_CAPACITY"
-    TANK_EVAPORATION_RATE = "TANK_EVAPORATION_RATE"
-    EVAPORATION_RATE = "EVAPORATION_RATE"
-    CARGO_ENERGY_LOSS_RATE = "CARGO_ENERGY_LOSS_RATE"
-    RETAINED_FUEL_RATE = "RETAINED_FUEL_RATE"
-    VESSEL_DISCHARGE_DURATION = "VESSEL_DISCHARGE_DURATION"
-    TERMINAL_FEE = "TERMINAL_FEE"
 
 
 _SENDOUT_BASES = frozenset(
