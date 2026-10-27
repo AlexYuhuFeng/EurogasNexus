@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -308,7 +307,8 @@ def test_review_pack_confirmation_through_review_decision_api(
     client = TestClient(
         create_app(),
         headers={
-            "X-Eurogas-Api-Key": os.environ["EUROGAS_NEXUS_PUBLIC_API_TOKEN"],
+            # tests/conftest.py pins this deployment token for the development-profile suite.
+            "X-Eurogas-Api-Key": "test-public-api-token",
             "X-Eurogas-Identity": analyst_bearer,
         },
     )
