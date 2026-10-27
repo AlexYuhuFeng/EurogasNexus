@@ -1,0 +1,101 @@
+# Delivery recovery and current gates — 2026-10-27
+
+Disposition: **not ready for delivery**. This fresh Windows checkout is not the
+previous cloud workspace. Historical acceptance counts and artifact hashes do not
+validate this checkout or recover unpublished work.
+
+## Source and recovery evidence
+
+- Initial HEAD: `35a587b6bc3397d8f8c80281c6214178edcf5840`, clean `main`, matching
+  `origin/main`; `git worktree list` shows one worktree.
+- `git ls-remote --heads origin` advertises only `main` at that SHA.
+- `git cat-file -e <id>^{commit}` fails for all six owner-reported checkpoints:
+  `f9f4df7`, `5aec4d7`, `069b76f`, `01a9dd9`, `b611127`, `8d870fd`.
+  This proves absence from the local object database, not destruction of the old
+  workspace or impossibility of recovery elsewhere.
+- Named unpublished files are absent: `lngEconomicsModel.ts`,
+  `LngEconomicsPanel.tsx`, `lng-economics.css`, `lngEconomics.test.ts`,
+  `eex_ngp_capture.py`, `inspect_eex_ngp_capture.py`, `test_eex_ngp_capture.py`.
+  Changes reported for API client, ContractWorkbench and EEX source contract
+  cannot be recovered merely because older files with those names exist.
+- Existing LNG cargo/cash research primitives and EEX CSV parser are present.
+  They are not evidence of the missing economics-only API/SDK/domain, terminal
+  reference versioning, exact-price consumer work or capture-inspection seam.
+- No old environment was reset, recreated, restarted or deleted. No restoration
+  is claimed. No old cloud workspace access has been established here.
+
+## Fresh verification
+
+Python dependencies installed into an ignored local `.venv` using
+`pip install --require-hashes -r requirements.lock` (Python 3.12, Windows amd64).
+Web dependencies installed with `npm ci --ignore-scripts` from the committed
+lockfile; no lockfile mutation was needed for the baseline.
+
+| Check | Current evidence | Limit |
+| --- | --- | --- |
+| LNG cargo/cash, regas readiness, EEX CSV | 174 passed | Existing primitives only; missing work is not covered |
+| Web regression | 950 passed, 3 skipped | No fresh authenticated browser/native acceptance |
+| Web dependency audit | 2 high-severity vulnerable packages: Vite and source-map-js | Remediation and re-audit required |
+| Repository Ruff | 2 import-order errors | Correction and rerun required |
+| Web production build | TypeScript and Vite production build pass | Existing ineffective-dynamic-import warning remains |
+| Linux container runtime | WSL installed; Ubuntu 24.04 verified at WSL version 2; Docker responds `linux x86_64` | Infrastructure available; container/native acceptance still required |
+
+Raw local logs: `.local-runtime/delivery-20261027/` (ignored, not release artifacts).
+
+## Original conversation reconciliation
+
+Read the development and owner-direction turns of **Set up EurogasNexus**
+(`01a13fff-db43-7100-b06c-b6aa8d520050`, host `durable`) through the conversation
+reader. Its final environment-recovery reports confirm that push never completed;
+conversation descriptions are requirements/history, not recovered source.
+
+The missing-work audit must extend beyond the final six checkpoint IDs. Earlier
+unpublished work described capacity billing with explicit utilization and 23/25-hour
+intervals, tariff applicability, route/UI integration, LNG transport contracts,
+snapshot-reference resolvability and API-key rotation preserving scope/expiry.
+The original conversation also names unpublished checkpoint `1091a8d`.
+Compare actual implementations before treating any of these as delivered.
+
+Preserved owner requirements include physical route netback (0.10 EUR/MWh spread
+less 5 EUR/MWh transport must be -4.90), full versus incremental capacity cost,
+paper/futures hedge legs and basis risk, statistical research with out-of-sample
+validation, LNG stage energy conservation, typed data handoffs, role-specific
+charts and risk analytics, Windows/Linux Ctrl-first native efficiency, and
+complete populated persona workflows. Preserve existing rigorous foundations;
+the candidate redesign is not permission for a wholesale rewrite.
+
+Owner clarified that functional acceptance comes before EU/China/Canada/Singapore
+regional transport. Synthetic testing is authorized, but cannot close real
+provider, production issuer, signing or customer/practitioner gates.
+
+Owner reiterated periodic reviewed GitHub pushes and DeepSeek implementation.
+DeepSeek access remains pending secure local configuration; no product AI
+provider was enabled. WSL installation and Ubuntu setup completed without reboot;
+Docker has no pre-existing containers in the inspected daemon. WSL reported a
+localhost-proxy/NAT warning, so Linux network connectivity needs its own check.
+
+## Delivery gate register
+
+| Gate | Required evidence | State / next action |
+| --- | --- | --- |
+| Missing progress | Recovered objects/files and provenance, or explicitly reviewed replacement diffs | Open; investigate available recovery sources before reconstructing |
+| DeepSeek implementation | Secure api.deepseek.com credential binding and successful bounded worker request | No process/user/machine environment binding found; never store credentials in source or evidence |
+| Dependency safety | Reviewed compatible patches; lockfile installs, build, tests and clean vulnerability audit | Open; fresh audit contradicts historical zero-findings evidence |
+| LNG economics workflow | Exact-decimal domain/API/SDK parity, consumption/loss distinction, explicit discount factors, NOT_ASSESSED physical readiness; actual Web failure/race/permission/keyboard acceptance | Missing reported newer implementation; inspect existing contracts before replacing |
+| EEX capture | Dry-run byte/hash/decimal inspection and negative fixtures; no invented timezone, canonical timestamp or executable quote | Missing reported inspection seam; preserve entitlement/certification gates |
+| Terminal reference | Versioned reviewed official facts, units, applicability and offline change candidates | Missing reported checkpoint; no invented operator values |
+| Pipeline/portfolio/research/review workflows | Populated complete persona journeys with quantity/cost/calendar/evidence lineage and explicit unsupported capabilities | Outstanding per acceptance 22 and business/role requirements; tests alone do not close |
+| Final artifacts | Build from final committed source, SHA/digest binding, installed backend/SDK/native checks and same-source CI | Open; old artifacts exclude subsequent changes |
+| Release/customer gates | Applicable provider rights/certification, real issuer, production recovery, platform signing and practitioner acceptance | External evidence unverified; synthetic tests cannot substitute |
+| Progress delivery | Reviewed commit and non-force push to main, preserving one worktree | Authorized; pending coherent reviewed change |
+
+No source activation, grant change, external product AI enablement, trading,
+nomination, settlement or regional transport is authorized by a test failure.
+
+## Resume
+
+Inspect current Git status and running verification handles. Finish API/SDK/contract
+baseline and production Web build; record exact failures. Establish secure DeepSeek
+access for bounded implementation. Review and remediate fresh dependency/lint
+findings, then recover or explicitly reconstruct missing progress in dependency
+order. Keep the full delivery gate register open until evidence closes each gate.
