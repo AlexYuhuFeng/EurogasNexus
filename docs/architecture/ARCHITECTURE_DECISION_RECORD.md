@@ -387,3 +387,24 @@ Review record:
   the Wave 1 contracts with their focused tests.
 - The professional trader/product-owner review of the resulting interaction
   grammar remains an open UAT gate; this record does not claim it.
+
+## Decision 16: Reviewed Cargo License Choices
+
+Accepted2026-10-28 under the autonomous execution policy, following
+[RFC-0002](../engineering/RFC-0002-REVIEWED-CARGO-LICENSE-CHOICES.md). The root
+architecture/integration review verified the exact r-efi5.3.0/6.0.0 archives
+against Cargo.lock and their complete AUTHORS texts. Select MIT for these
+exact identities only, with validated archive checksum, exact declared license
+expression, retained original text hash and actual Cargo-resolved text hash.
+
+The dependency gate retains its strict default, full-graph coverage and all
+unknown/malformed/restricted failure cases. This supplements the dependency
+policy's explicit-review provision; it does not reinterpret arbitrary OR/AND/
+WITH expressions. Future identity/version/text changes require a new reviewed
+record. SBOM and notices must preserve upstream expression, choice and full text.
+
+No separate legal clearance, signed release or customer acceptance is claimed.
+Implementation and its negative tests remain necessary before CI may pass.
+Rollback removes the reviewed choices and restores the current refusal. No
+source license, dependency version, registry, permission or product boundary
+changes. Existing decisions remain unchanged.
