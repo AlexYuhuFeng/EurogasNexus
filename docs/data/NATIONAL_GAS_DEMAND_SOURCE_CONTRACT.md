@@ -118,3 +118,23 @@ both downloads inserted zero rows and classified all eleven as duplicates.
 Native units remained `mscm`; publication UTC remained unresolved and
 availability used local receipt. This proves this bounded capture and database
 replay, without claiming historical forecast accuracy or production activation.
+
+## 2026-10-29 REST publication-time evidence
+
+Root independently queried the official keyless REST publication-time endpoint:
+`https://api.nationalgas.com/operationaldata/v1/publications/publishedtime`.
+The two-day PUBOB637 request with `latestValue=N` returned HTTP200 and17 revisions,
+including exact decimal strings and offset-bearing `applicableAt`,
+`generatedTimeStamp` and `createdDate`. Captured response SHA256:
+`11f52e0e9d61d740a5d412a8abb5068d2ba7d4f41f65fe88f66855db9c50a5d2`.
+This supports a separate REST adapter; it does not retroactively establish the
+CSV wall-clock timezone or historic local receipt. Provider-declared publication
+and actual receipt must remain distinct evidence bases.
+
+The [official REST documentation](https://data.nationalgas.com/apis/rest-apis)
+states SOAP was decommissioned in June2026. Do not invest in the older SOAP
+endpoint as the historical-data recovery path. The
+[official transition guide](https://www.nationalgas.com/sites/default/files/documents/Gas%20Data%20Portal%20SOAP%20to%20REST%20API%20-%20Transition%20Guide.pdf)
+documents publication-time and gas-day queries with explicit date-time offsets.
+REST implementation, persistence reconciliation and historical training admission
+remain pending; this capture alone does not validate a demand model.
