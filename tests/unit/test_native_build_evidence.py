@@ -19,9 +19,15 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "native-acceptance.yml"
+CALLERS = (
+    ROOT / ".github" / "workflows" / "ci.yml",
+    ROOT / ".github" / "workflows" / "ci-manual.yml",
+)
+REUSABLE_CALL = "./.github/workflows/native-acceptance.yml"
 CANONICAL = {"python": "3.11.12", "node": "24.13.1", "rust": "1.94.0"}
 SOURCE_SHA = "a" * 40
 REPOSITORY = "AlexYuhuFeng/EurogasNexus"
@@ -143,6 +149,7 @@ def _invoke(
     expected: dict[str, str] | None = None,
     stage_dir: str | None = None,
     output: str | None = None,
+    event_name: str = "workflow_dispatch",
     mutate=None,
 ):
     repo = _make_repo(tmp_path, platform)
@@ -171,7 +178,7 @@ def _invoke(
         run_id="1234567890",
         run_attempt="1",
         ref="refs/heads/main",
-        event_name="workflow_dispatch",
+        event_name=event_name,
         repository=REPOSITORY,
         git_runner=git_runner or _git_runner(),
         version_runner=version_runner or _version_runner(),
@@ -179,14 +186,33 @@ def _invoke(
     return repo, stage, evidence
 
 
-def test_workflow_is_manual_read_only_and_has_no_publish_surface() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
+def _load_workflow(path: Path) -> dict:
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert isinstance(document, dict), path
+    return document
 
-    assert "workflow_dispatch:" in text
+
+def _triggers(document: dict) -> dict:
+    # PyYAML resolves the unquoted YAML 1.1 key `on` to the boolean True.
+    triggers = document.get("on", document.get(True))
+    assert isinstance(triggers, dict), "workflow must declare triggers"
+    return triggers
+
+
+def test_native_workflow_is_reusable_and_manually_dispatchable_read_only() -> None:
+    document = _load_workflow(WORKFLOW)
+    triggers = _triggers(document)
+
+    assert set(triggers) == {"workflow_call", "workflow_dispatch"}
+    assert triggers["workflow_call"] in (None, {})
+    assert triggers["workflow_dispatch"] in (None, {})
+    assert document["permissions"] == {"contents": "read"}
+
+    text = WORKFLOW.read_text(encoding="utf-8")
     assert "inputs:" not in text
     assert "secrets." not in text
+    assert "secrets:" not in text
     assert "environment:" not in text
-    assert "permissions:\n  contents: read" in text
     for forbidden in (
         "contents: write",
         "packages: write",
@@ -200,26 +226,131 @@ def test_workflow_is_manual_read_only_and_has_no_publish_surface() -> None:
     ):
         assert forbidden not in text
 
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("uses:"):
-            reference = stripped.split("@", 1)[1].split()[0]
-            assert re.fullmatch(r"[0-9a-f]{40}", reference), stripped
+    for job in document["jobs"].values():
+        assert "permissions" not in job
+        assert "environment" not in job
+        assert "secrets" not in job
+        for step in job.get("steps", []):
+            if "uses" in step:
+                reference = step["uses"].split("@", 1)[1]
+                assert re.fullmatch(r"[0-9a-f]{40}", reference), step["uses"]
 
-    assert "windows-2025" in text
-    assert "ubuntu-24.04-arm" in text
-    assert "bundle: nsis" in text
-    assert "bundle: deb" in text
-    assert "bash scripts/ci/install_linux_tauri_dependencies.sh" in text
-    assert "if: runner.os != 'Windows'" in text
-    assert "if: runner.os == 'Windows'" in text
-    assert "pwsh -File scripts/ci/install_windows_canonical_python.ps1" in text
-    assert "cargo check --manifest-path src-tauri/Cargo.toml --locked" in text
-    assert "npm run build -- --bundles ${{ matrix.bundle }} -- --locked" in text
-    assert "python scripts/ci/check_toolchain_versions.py" in text
-    assert "npm ci" in text
-    assert "write_native_build_evidence.py" in text
-    assert "eurogas-nexus-unsigned-native-acceptance" in text
+
+def test_native_workflow_pins_the_authoritative_matrix() -> None:
+    document = _load_workflow(WORKFLOW)
+    assert list(document["jobs"]) == ["native-build"]
+    job = document["jobs"]["native-build"]
+    matrix = job["strategy"]["matrix"]["include"]
+
+    assert [entry["artifact_label"] for entry in matrix] == [
+        "windows-x64",
+        "linux-x64",
+        "linux-arm64",
+    ]
+    expected = {
+        "windows-x64": (
+            "windows-2025",
+            "nsis",
+            "clients/desktop/src-tauri/target/release/bundle/nsis/*.exe",
+            "clients/desktop/src-tauri/target/release/eurogas-nexus-desktop.exe",
+        ),
+        "linux-x64": (
+            "ubuntu-24.04",
+            "deb",
+            "clients/desktop/src-tauri/target/release/bundle/deb/*.deb",
+            "clients/desktop/src-tauri/target/release/eurogas-nexus-desktop",
+        ),
+        "linux-arm64": (
+            "ubuntu-24.04-arm",
+            "deb",
+            "clients/desktop/src-tauri/target/release/bundle/deb/*.deb",
+            "clients/desktop/src-tauri/target/release/eurogas-nexus-desktop",
+        ),
+    }
+    for entry in matrix:
+        runner, bundle, package_glob, portable_source = expected[
+            entry["artifact_label"]
+        ]
+        assert entry["os"] == runner
+        assert entry["bundle"] == bundle
+        assert entry["package_glob"] == package_glob
+        assert entry["portable_source"] == portable_source
+
+
+def test_native_workflow_keeps_canonical_fallback_and_one_locked_build() -> None:
+    document = _load_workflow(WORKFLOW)
+    steps = document["jobs"]["native-build"]["steps"]
+    by_name = {step.get("name"): step for step in steps}
+
+    setup = by_name["Set up Python"]
+    assert setup["if"] == "runner.os != 'Windows'"
+    assert setup["with"]["python-version"] == "${{ env.PYTHON_VERSION }}"
+    assert setup["uses"].startswith("actions/setup-python@")
+
+    windows = by_name["Install verified canonical Python (Windows)"]
+    assert windows["if"] == "runner.os == 'Windows'"
+    assert windows["run"] == "pwsh -File scripts/ci/install_windows_canonical_python.ps1"
+
+    commands = "\n".join(step.get("run", "") for step in steps)
+    assert "python scripts/ci/check_toolchain_versions.py" in commands
+    assert "cargo check --manifest-path src-tauri/Cargo.toml --locked" in commands
+    assert "npm run build -- --bundles ${{ matrix.bundle }} -- --locked" in commands
+    assert "write_native_build_evidence.py" in commands
+    assert "cargo build" not in commands
+
+    uploads = [step for step in steps if "upload-artifact" in step.get("uses", "")]
+    assert len(uploads) == 1
+    assert "eurogas-nexus-unsigned-native-acceptance" in uploads[0]["with"]["name"]
+
+
+@pytest.mark.parametrize("caller", CALLERS, ids=["ci", "ci-manual"])
+def test_native_callers_delegate_to_the_single_reusable_workflow(caller: Path) -> None:
+    document = _load_workflow(caller)
+    jobs = document["jobs"]
+
+    assert document["permissions"] == {"contents": "read"}
+    job = jobs["desktop-client-build"]
+    assert job["uses"] == REUSABLE_CALL
+    assert set(job) == {"name", "uses"}
+    assert (caller.parents[2] / REUSABLE_CALL).resolve() == WORKFLOW.resolve()
+    assert "workflow_call" in _triggers(_load_workflow(WORKFLOW))
+
+    text = caller.read_text(encoding="utf-8")
+    assert "secrets: inherit" not in text
+    for forbidden in (
+        "contents: write",
+        "packages: write",
+        "id-token: write",
+        "gh release",
+        "npm publish",
+        "docker/login-action",
+        "attest-build-provenance",
+        "git tag",
+        "git push",
+    ):
+        assert forbidden not in text
+
+    for name, other in jobs.items():
+        assert "strategy" not in other, name
+        commands = "\n".join(step.get("run", "") for step in other.get("steps", []))
+        assert "cargo build" not in commands, name
+        assert "cargo check" not in commands, name
+        assert "--bundles" not in commands, name
+        assert "tauri build" not in commands, name
+        assert "write_native_build_evidence" not in commands, name
+
+
+def test_ci_workflow_runs_the_native_pipeline_on_push_main_and_pull_request() -> None:
+    triggers = _triggers(_load_workflow(CALLERS[0]))
+
+    assert set(triggers) == {"pull_request", "push"}
+    assert triggers["push"] == {"branches": ["main"]}
+
+
+def test_manual_ci_workflow_stays_manual_only() -> None:
+    triggers = _triggers(_load_workflow(CALLERS[1]))
+
+    assert set(triggers) == {"workflow_dispatch"}
 
 
 def test_portable_binary_preserves_tauri_production_embedding() -> None:
@@ -306,6 +437,22 @@ def test_evidence_binds_actual_artifacts_source_toolchain_and_locks(tmp_path: Pa
     for line in lines:
         digest, relative = line.split("  ", 1)
         assert digest == _sha(repo / stage / relative)
+
+
+@pytest.mark.parametrize("event_name", ["workflow_dispatch", "push", "pull_request"])
+def test_supported_trigger_events_are_recorded(
+    tmp_path: Path, event_name: str
+) -> None:
+    _repo, _stage, evidence = _invoke(tmp_path, event_name=event_name)
+
+    assert evidence["workflow"]["event_name"] == event_name
+
+
+def test_unsupported_trigger_events_are_refused_before_staging(tmp_path: Path) -> None:
+    with pytest.raises(native.EvidenceError, match="only valid for"):
+        _invoke(tmp_path, event_name="schedule")
+
+    assert not (tmp_path / "repo" / "artifacts").exists()
 
 
 def test_missing_package_output_is_refused(tmp_path: Path) -> None:

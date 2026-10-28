@@ -1,7 +1,9 @@
 name: Native build-only acceptance
 
-# Manual, read-only build acceptance. This workflow creates unsigned, unreviewed
-# internal artifacts for one immutable dispatched commit. It is deliberately
+# Read-only build acceptance. This workflow is the single native desktop pipeline:
+# ordinary CI (push main and pull request) and manual CI call it as a reusable
+# workflow, and an operator can still dispatch it directly. It creates unsigned,
+# unreviewed internal artifacts for one immutable commit. It is deliberately
 # separate from release.yml: it has no release, tag, package/registry, attestation,
 # deployment or publishing jobs and no write permission.
 #
@@ -11,6 +13,7 @@ name: Native build-only acceptance
 # signing remain separate gates (see docs/release/acceptance/26_NATIVE_BUILD_ACCEPTANCE.md).
 
 on:
+  workflow_call:
   workflow_dispatch:
 
 permissions:

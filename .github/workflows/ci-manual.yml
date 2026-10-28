@@ -89,3 +89,9 @@ jobs:
           name: eurogas-nexus-web-manual
           path: clients/web/dist
           if-no-files-found: error
+
+  desktop-client-build:
+    # Same reusable native pipeline as ordinary CI. No matrix, env, secrets or
+    # build steps are copied here; the called workflow is the single definition.
+    name: Native desktop build (Windows x64, Linux x64/ARM64)
+    uses: ./.github/workflows/native-acceptance.yml

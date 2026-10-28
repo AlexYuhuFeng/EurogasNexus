@@ -17,7 +17,9 @@ It deliberately:
   checksum file beside them;
 * measures the installed Python, Node and Rust versions without a shell, refuses
   drift from the canonical declarations, and records canonical, expected and
-  actual values beside the lock/build-input hashes; and
+  actual values beside the lock/build-input hashes;
+* accepts only the reviewed trigger events (direct/manual dispatch, plus the
+  ordinary-CI push and pull request callers) and records the actual event; and
 * states plainly that the result is unsigned, unreviewed and build-only. It is
   not a customer release and no installed native UI was launched.
 """
@@ -47,6 +49,10 @@ EVIDENCE_DIRECTORY = "evidence"
 EVIDENCE_FILENAME = "native-build-evidence.json"
 CHECKSUMS_FILENAME = "checksums.sha256"
 NATIVE_WORKFLOW = ".github/workflows/native-acceptance.yml"
+# The shared workflow can observe these events: direct dispatch and manual CI
+# report workflow_dispatch; ordinary CI reports push or pull_request. Anything
+# else is refused rather than admitted as an unreviewed trigger path.
+SUPPORTED_EVENT_NAMES = frozenset({"workflow_dispatch", "push", "pull_request"})
 
 LOCK_FILES = (
     "requirements.lock",
@@ -530,8 +536,11 @@ def build_evidence(
     _validate_run_field(run_id, "run id", r"[0-9]{1,20}", 20)
     _validate_run_field(run_attempt, "run attempt", r"[0-9]{1,20}", 20)
     _validate_run_field(ref, "workflow ref", r"refs/[A-Za-z0-9._/@+-]{1,190}", 200)
-    if event_name != "workflow_dispatch":
-        raise EvidenceError("native acceptance evidence is only valid for workflow_dispatch")
+    if event_name not in SUPPORTED_EVENT_NAMES:
+        raise EvidenceError(
+            "native acceptance evidence is only valid for workflow_dispatch, push "
+            "or pull_request"
+        )
     _validate_run_field(
         repository,
         "repository",

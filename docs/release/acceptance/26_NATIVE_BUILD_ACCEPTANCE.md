@@ -1,8 +1,8 @@
 # Native build-only acceptance workflow
 
-Status: **implemented; portable production-embedding regression corrected in
-source pending redispatch; Windows Python fallback verified; unsigned, unreviewed,
-build-only.**
+Status: **implemented as the single reusable native desktop pipeline for ordinary
+CI, manual CI and direct manual dispatch; unsigned, unreviewed, build-only. Hosted
+caller-triggered hosted evidence remains pending; 47 focused root tests passed.**
 
 This document describes `.github/workflows/native-acceptance.yml` and
 `scripts/uat/write_native_build_evidence.py`. It does not assert that a hosted run
@@ -11,12 +11,15 @@ that any artifact is signed or customer-ready.
 
 ## Why this workflow exists
 
-The authoritative desktop matrix is already defined by the release workflow:
-Windows x64 NSIS, Linux x64 DEB and Linux ARM64 DEB. The ordinary CI desktop job
-runs only for pull requests, so a pushed `main` commit or a manual CI run does not
-produce native packages. This workflow adds a manual **build-only** path for one
-exact committed source revision without turning CI or release policy into a
-publishing path.
+The CI and manual-CI native desktop matrix is defined once, in this workflow:
+Windows x64 NSIS, Linux x64 DEB and Linux ARM64 DEB. Ordinary CI previously
+duplicated that matrix in `ci.yml` and ran it only for pull requests, so a pushed
+`main` commit or a manual CI run did not produce native packages, and two copies
+of the same build could drift. This workflow is now the one CI/manual
+implementation: `ci.yml` calls it on push to `main` and on pull requests,
+`ci-manual.yml` calls it on manual CI, and an operator can still dispatch it
+directly. It remains a **build-only** path for one exact committed source
+revision; it does not turn CI or release policy into a publishing path.
 
 It is intentionally separate from [release.yml](../../../.github/workflows/release.yml):
 
@@ -28,20 +31,44 @@ It is intentionally separate from [release.yml](../../../.github/workflows/relea
 
 ## Trigger and source identity
 
-The only trigger is `workflow_dispatch` and it declares no inputs. The job checks
-out `github.sha` directly, with persisted credentials disabled, so a dispatch from
-a moving branch still builds the commit that was dispatched. The evidence writer
-then independently runs local `git rev-parse HEAD` and refuses the run when HEAD
-differs from `github.sha`, when tracked files changed after the build, or when the
-worktree is not a repository. Untracked and ignored generated outputs (the Cargo
-target tree, the Web `dist` and the evidence directory) are intentionally not
-treated as source changes: the check is
-`git status --porcelain=v1 --untracked-files=no`.
+The workflow declares exactly two triggers and no inputs:
+
+- `workflow_call`, for the two same-repository callers described below; and
+- `workflow_dispatch`, so the existing manual dispatch path keeps working.
+
+It has no direct `push`, `pull_request` or `schedule` trigger. The callers are:
+
+| Caller | Trigger | Job |
+| --- | --- | --- |
+| `ci.yml` | push to `main` and every pull request | `desktop-client-build` |
+| `ci-manual.yml` | `workflow_dispatch` | `desktop-client-build` |
+
+Both callers use `uses: ./.github/workflows/native-acceptance.yml`, with no
+`secrets: inherit`, no copied `env`, no caller matrix and no caller build steps.
+The job ID `desktop-client-build` is retained in both callers for external
+references. This is a job-ID-preserving wiring change, not a release-gate change:
+desktop packaging is deliberately absent from
+`scripts/release/policy/stable_gate_policy.json` `ci_acceptance.required_jobs`, and
+the existing G5 desktop packaging gate and its dry-run producer are unchanged.
+
+The evidence writer accepts exactly the event names this shared workflow can
+observe: `workflow_dispatch` (direct dispatch or manual CI), and `push` /
+`pull_request` (ordinary CI). It records the actual event and refuses any other
+event before staging, so a future unreviewed caller trigger fails closed.
+
+Whatever the trigger, the job checks out `github.sha` directly, with persisted
+credentials disabled, so a dispatch or pull request from a moving branch still
+builds the commit that started the run. The evidence writer then independently
+runs local `git rev-parse HEAD` and refuses the run when HEAD differs from
+`github.sha`, when tracked files changed after the build, or when the worktree is
+not a repository. Untracked and ignored generated outputs (the Cargo target tree,
+the Web `dist` and the evidence directory) are intentionally not treated as source
+changes: the check is `git status --porcelain=v1 --untracked-files=no`.
 
 ## Authoritative platforms and commands
 
-The matrix copies the release desktop job's OS, bundle, pinned actions, pinned
-toolchain, lockfiles and Linux dependency script:
+The matrix is declared once here. It keeps the release desktop job's OS, bundle,
+pinned actions, pinned toolchain, lockfiles and Linux dependency script:
 
 | Platform | Runner | Bundle | Package output | Portable output |
 | --- | --- | --- | --- | --- |
@@ -55,7 +82,7 @@ Canonical toolchain declarations are mirrored in the workflow:
 - Node `24.13.1` (`.nvmrc`); and
 - Rust `1.94.0` (`rust-toolchain.toml`).
 
-`scripts/ci/check_toolchain_versions.py` scans every workflow, so this new file is
+`scripts/ci/check_toolchain_versions.py` scans every workflow, so this file is
 part of the existing drift gate rather than a parallel version source. The
 workflow also runs `python scripts/ci/check_toolchain_versions.py` after setting
 up Python, so declaration drift fails before dependencies or build outputs exist.
@@ -83,6 +110,30 @@ Cargo builds; a release profile alone does not enable it.
 No version, action permission, test suite, license gate or security gate is
 weakened. The workflow does not run release validation, and it cannot promote
 anything.
+
+## Reusable-call boundary
+
+The reusable workflow is the only place that owns the desktop runner matrix, the
+Cargo lock check, the Tauri bundle build and the evidence step. Each caller job is
+deliberately thin: a display `name` and the local `uses` reference, with no
+`strategy`, `env`, `with`, `secrets` or `steps`. A structural test parses all
+three workflow files and fails if either caller reintroduces a matrix or a
+Cargo/Tauri build.
+
+Reusable-workflow jobs are displayed under the caller job plus the called job's
+name, so the visible name changed from the old duplicated
+`Build desktop client (<platform>)` matrix to `Native desktop build (Windows x64,
+Linux x64/ARM64)` followed by the called `native-build` job. The caller job ID
+stays `desktop-client-build`, and the native workflow's internal job ID stays
+`native-build`. This affects display and external references, not the release
+gate or policy: no required job was added, removed or renamed in
+`scripts/release/policy/stable_gate_policy.json`, and desktop packaging is not one
+of its `ci_acceptance.required_jobs`.
+
+Every level declares only `contents: read`; the native workflow defines no
+secrets, environment, write permission or publication step. A caller cannot grant
+more than its own read-only permission, and the native workflow cannot use a
+secret it was not passed.
 
 ## Uploaded artifacts
 
@@ -116,7 +167,7 @@ validates every path and runs only local `git` commands without a shell.
 
 The document binds:
 
-- the dispatched source SHA, the actual `git rev-parse HEAD`, and a clean tracked
+- the expected source SHA, the actual `git rev-parse HEAD`, and a clean tracked
   worktree;
 - the run id, attempt, ref, event and repository;
 - the platform label, runner OS/architecture and bundle;
@@ -158,7 +209,8 @@ A checksum is integrity evidence, not a signature, review or certification.
 
 The evidence step exits non-zero and uploads nothing when:
 
-- the checked-out HEAD differs from the dispatched SHA;
+- the checked-out HEAD differs from the expected source SHA;
+- the triggering event is not `workflow_dispatch`, `push` or `pull_request`;
 - tracked files changed during the build (ignored generated outputs remain
   allowed);
 - a canonical toolchain declaration disagrees with the version supplied by the
@@ -182,10 +234,22 @@ The workflow is statically checked by, and explicitly runs, the repository's
 existing toolchain gate. The focused unit tests exercise source mismatch, dirty
 tracked worktree, missing and ambiguous outputs, missing locks, declared and
 actual toolchain drift, probe failure without raw output, unsafe output paths,
-stale stages and Linux archive member hashes:
+stale stages, Linux archive member hashes and supported versus unsupported trigger
+events. They also parse the workflows structurally:
+
+- the native workflow's trigger set is exactly `workflow_call` plus
+  `workflow_dispatch`, with no direct push, pull request or schedule trigger, no
+  inputs and no write permission;
+- the pinned Windows x64, Linux x64 and Linux ARM64 matrix, canonical Python
+  fallback and single `--locked` Tauri build are unchanged;
+- both `ci.yml` and `ci-manual.yml` call the same local reusable workflow from
+  `desktop-client-build`, with no caller matrix and no duplicate Cargo/Tauri
+  build; and
+- ordinary CI still runs that caller on push to `main` and on pull requests, while
+  manual CI remains `workflow_dispatch`-only.
 
 ```bash
-pytest -q tests/unit/test_native_build_evidence.py
+pytest -q tests/unit/test_native_build_evidence.py tests/unit/test_windows_canonical_python.py
 python scripts/ci/check_toolchain_versions.py
 python scripts/ci/check_markdown_links.py
 ```
@@ -198,7 +262,10 @@ this environment, so the repository owner runs the gates.
 
 The owner, not an implementation worker, reviews and commits the workflow, then
 dispatches `Native build-only acceptance` at the intended commit and retrieves the
-three artifacts with the GitHub connector or UI. A suggested review sequence is:
+three artifacts with the GitHub connector or UI. The same workflow also runs via
+the two reusable callers, but a caller-triggered run is ordinary build evidence:
+it does not replace the owner's review, the direct-dispatch record or the
+acceptance gates below. A suggested review sequence is:
 
 1. Confirm the run's `source.git_sha` equals the reviewed commit and all three
    declarations are the intended ones.
@@ -299,6 +366,9 @@ Tauri CLI2.11.2 help: runner arguments follow the second `--`, so the workflow
 uses `npm run build -- --bundles <bundle> -- --locked`. These checks do not claim
 a hosted native build, installation, launch, signing or customer acceptance.
 
+That verification predates the reusable-call slice. It does not cover the new
+trigger/caller structural tests or a called-workflow run.
+
 ## Windows Python setup failure and fallback status
 
 A dispatched Windows job at run `40555545694` / job `122370525386` failed in
@@ -360,3 +430,22 @@ This supersedes the implementation-session-only "fallback is not passed" note
 for local bootstrap execution. The hosted Windows retry, full native installation
 and UI acceptance remain open. The original run's Windows failure remains a
 failed result; Linux builds from that run are assessed separately.
+
+## Reusable-call slice — root checks passed, hosted caller pending
+
+The focused native evidence/bootstrap suite passed 47 tests. Ruff for the changed
+Python files, toolchain consistency and Markdown links passed. The reusable-call
+wiring has not yet been executed by a hosted caller job. Repeat these checks when
+changing this contract:
+
+```bash
+pytest -q tests/unit/test_native_build_evidence.py tests/unit/test_windows_canonical_python.py
+python scripts/ci/check_toolchain_versions.py
+python scripts/ci/check_markdown_links.py
+ruff check .
+```
+
+This slice changes no version, lock, release policy, promotion rule, secret,
+permission, action dependency or artifact contract. A green caller run would show
+only that the pinned build completed for that commit; it would not prove
+installation, launch, signing, customer acceptance or a stable release.

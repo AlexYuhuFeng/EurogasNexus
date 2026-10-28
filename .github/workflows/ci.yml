@@ -427,67 +427,11 @@ jobs:
           retention-days: 7
 
   desktop-client-build:
-    name: Build desktop client (${{ matrix.artifact_label }})
-    if: github.event_name == 'pull_request'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            bundle: nsis
-            artifact_label: windows-x64
-            artifact_glob: clients/desktop/src-tauri/target/release/bundle/nsis/*.exe
-          - os: ubuntu-latest
-            bundle: deb
-            artifact_label: linux-x64
-            artifact_glob: clients/desktop/src-tauri/target/release/bundle/deb/*.deb
-          - os: ubuntu-24.04-arm
-            bundle: deb
-            artifact_label: linux-arm64
-            artifact_glob: clients/desktop/src-tauri/target/release/bundle/deb/*.deb
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Linux Tauri dependencies
-        if: runner.os == 'Linux'
-        run: bash scripts/ci/install_linux_tauri_dependencies.sh
-
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: |
-            clients/web/package-lock.json
-            clients/desktop/package-lock.json
-
-      - name: Set up Rust (pinned by rust-toolchain.toml)
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-
-      - name: Enforce Cargo.lock
-        working-directory: clients/desktop
-        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
-
-      - name: Install Web dependencies
-        working-directory: clients/web
-        run: npm ci
-
-      - name: Install desktop dependencies
-        working-directory: clients/desktop
-        run: npm ci
-
-      - name: Build desktop bundle
-        working-directory: clients/desktop
-        run: npm run build -- --bundles ${{ matrix.bundle }}
-
-      - name: Upload desktop artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: eurogas-nexus-${{ matrix.artifact_label }}
-          path: ${{ matrix.artifact_glob }}
-          if-no-files-found: error
+    # Single native pipeline. The reusable workflow owns the pinned three-platform
+    # matrix, the canonical Python fallback and hash-bound evidence; this caller
+    # deliberately has no matrix, env, secrets or build steps of its own. The job ID
+    # is retained for external references. Display-name changes are documented in
+    # docs/release/acceptance/26_NATIVE_BUILD_ACCEPTANCE.md and are not release-gate
+    # changes (desktop packaging is not a stable_gate_policy required job).
+    name: Native desktop build (Windows x64, Linux x64/ARM64)
+    uses: ./.github/workflows/native-acceptance.yml
