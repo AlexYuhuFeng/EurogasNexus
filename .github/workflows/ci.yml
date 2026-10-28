@@ -435,3 +435,7 @@ jobs:
     # changes (desktop packaging is not a stable_gate_policy required job).
     name: Native desktop build (Windows x64, Linux x64/ARM64)
     uses: ./.github/workflows/native-acceptance.yml
+
+  sdk-installed:
+    name: SDK installed-wheel acceptance
+    uses: ./.github/workflows/sdk-acceptance.yml

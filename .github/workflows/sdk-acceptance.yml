@@ -1,0 +1,112 @@
+name: SDK installed-wheel acceptance
+
+# This workflow is reusable and manually dispatchable. The root callers in
+# ci.yml and ci-manual.yml now wire it, and both callers pass no inputs. There
+# is deliberately no arbitrary source-ref input: the checkout and the recorded
+# source identity are always github.sha (the helper also refuses a HEAD mismatch).
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Read-only by construction: this workflow builds and tests, it never commits,
+# pushes, publishes a package, or creates a release/customer artifact.
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11.12"
+
+jobs:
+  installed-sdk:
+    name: Installed SDK (${{ matrix.surface }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            surface: linux-x64
+          - os: windows-2025
+            surface: windows-x64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python (Linux, canonical 3.11.12)
+        if: runner.os == 'Linux'
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install canonical Python (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/ci/install_windows_canonical_python.ps1
+
+      - name: Verify canonical Python
+        run: python -c "import sys; assert sys.version_info[:3] == (3, 11, 12), sys.version; print(sys.version)"
+
+      - name: Install hash-pinned build and runtime locks
+        run: python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
+
+      - name: Build the one shared customer wheel
+        # The SDK source lives in packages/python-sdk/src and is found by the
+        # repository's setuptools configuration, so backend and SDK ship in the
+        # same wheel. No editable install and no separate SDK distribution.
+        run: python -m pip wheel . --no-deps --no-build-isolation --wheel-dir "${{ runner.temp }}/sdk-wheelhouse"
+
+      - name: Create isolated runtime venv (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/sdk-runtime-venv"
+          "$RUNNER_TEMP/sdk-runtime-venv/bin/python" -m pip install --require-hashes -r requirements-runtime.lock
+          wheel_count="$(find "$RUNNER_TEMP/sdk-wheelhouse" -maxdepth 1 -name '*.whl' -type f | wc -l)"
+          test "$wheel_count" = "1"
+          "$RUNNER_TEMP/sdk-runtime-venv/bin/python" -m pip install --no-index --no-deps "$RUNNER_TEMP"/sdk-wheelhouse/*.whl
+
+      - name: Create isolated runtime venv (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $venv = Join-Path $env:RUNNER_TEMP 'sdk-runtime-venv'
+          python -m venv $venv
+          if ($LASTEXITCODE -ne 0) { throw 'venv creation failed' }
+          $venvPython = Join-Path $venv 'Scripts/python.exe'
+          & $venvPython -m pip install --require-hashes -r requirements-runtime.lock
+          if ($LASTEXITCODE -ne 0) { throw 'runtime lock install failed' }
+          $wheels = @(Get-ChildItem -LiteralPath (Join-Path $env:RUNNER_TEMP 'sdk-wheelhouse') -Filter '*.whl' -File)
+          if ($wheels.Count -ne 1) { throw 'expected exactly one shared customer wheel' }
+          & $venvPython -m pip install --no-index --no-deps $wheels[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw 'installed-wheel install failed' }
+
+      - name: Run installed-wheel SDK acceptance
+        # The helper starts the backend from source separately, but runs the
+        # smoke and example outside the checkout with the isolated venv Python
+        # -I, so the imported SDK can only come from the built wheel.
+        run: >-
+          python scripts/ci/check_installed_sdk.py
+          --checkout-root .
+          --wheel-dir "${{ runner.temp }}/sdk-wheelhouse"
+          --venv-python "${{ runner.os == 'Windows' && format('{0}/sdk-runtime-venv/Scripts/python.exe', runner.temp) || format('{0}/sdk-runtime-venv/bin/python', runner.temp) }}"
+          --work-dir "${{ runner.temp }}"
+          --report "artifacts/sdk-acceptance/${{ matrix.surface }}.json"
+          --source-commit "${{ github.sha }}"
+
+      - name: Upload installed-wheel acceptance record
+        # Review evidence only. It is not a customer release, signing result,
+        # native GUI proof, or claim that providers/databases were certified.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sdk-acceptance-${{ matrix.surface }}
+          path: artifacts/sdk-acceptance/${{ matrix.surface }}.json
+          if-no-files-found: error
+          retention-days: 7
