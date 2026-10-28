@@ -177,6 +177,7 @@ def main() -> int:
         session_factory = create_session_factory(engine)
         with session_factory() as gate_session:
             gate_families = (
+                ("ECB", {"ecb"}),
                 ("ENTSOG", {"entsog", "entsog-capacity", "entsog-reference"}),
                 ("GIE", {"gie-agsi", "gie-alsi"}),
             )

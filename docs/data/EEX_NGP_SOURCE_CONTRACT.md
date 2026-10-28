@@ -165,3 +165,54 @@ Until blockers 1–4 are closed the adapter is parse-and-test only: it writes no
 
 - `docs/data/SOURCE_TIMEZONE_CONTRACT.md` — the shared timestamp rule the EEX declaration joins.
 - `docs/product/DATA_OPERATIONS_SPEC.md` — ingestion invocation model and fail-closed gates.
+
+## 8. Bounded public acquisition transport and capture CLI
+
+Status: **transport delivered; canonical consumer not delivered**. Implementation:
+`src/eurogas_nexus/ingestion/eex_public_download.py` and
+`scripts/ops/fetch_eex_public_capture.py`. Tests:
+`tests/ingestion/test_eex_public_download.py`. This step is necessary transport work, not final
+fulfilment: it does not resolve the timezone, delivery-calendar, granularity or rights blockers
+in sections 3–6, and it does not make the EEX NGP file a ready data feed.
+
+The transport makes one fixed request for the file URL in section 1. Callers cannot supply a
+URL, host, path, query or local input path. Redirects are not followed by httpx; each hop is
+validated manually, up to the bounded maximum, and must remain HTTPS on
+`gasandregistry.eex.com` or `www.eex.com`, on the default port, with no credential userinfo. The
+client has no cookie jar, auth header, browser state or stored session and ignores environment
+proxy/netrc settings.
+
+Responses are streamed and refused above the existing
+`MAX_CAPTURE_BYTES` (5 MiB) inspection ceiling. A 200 response must declare `text/csv`,
+`text/plain` or `application/octet-stream`; the body is also rejected when it begins with an
+HTML/XML document, because a matching media type alone is not CSV proof. The bytes are kept
+exactly as received (BOM and line endings included), and their SHA-256 and UTC receipt instant
+are recorded. Content encoding other than identity is refused rather than hashed after decoding.
+
+Retries are bounded to three attempts and are used only for timeouts, network failures, 429 and
+the transient 5xx set `{500, 502, 503, 504}`. A numeric `Retry-After` is capped at five seconds;
+malformed or absent values fall back to a bounded exponential delay. A 4xx, a media-type or HTML
+refusal, an oversized body or a malformed CSV is never retried. Transport error codes are
+stable, and error text contains neither a response body nor a request/redirect URL.
+
+The operator CLI takes an explicit new `--output` file and writes the raw bytes unchanged plus a
+sanitized JSON metadata sidecar (default `<output>.metadata.json`). Both paths must be new files,
+must not be symlinks, and must have an existing parent directory; an explicit absolute path
+outside the repository is permitted. The files are opened exclusively, so an existing file is
+never overwritten. The CLI passes the exact bytes to the existing
+`inspect_eex_ngp_capture(raw_bytes, retrieved_at_utc=...)` seam and writes nothing when the
+transport or inspection refuses the capture. The metadata contains counts, hashes, source URLs
+and contract blockers, but no CSV rows. Row-level inspection remains the explicit
+`scripts/ops/inspect_eex_ngp_capture.py` command.
+
+```text
+python scripts/ops/fetch_eex_public_capture.py --output /path/to/TTF_NGP_15_Mins.csv
+```
+
+Exit code `0` means only that the bounded download and local capture inspection succeeded. It
+does not mean canonicalization, freshness, executable pricing, redistribution rights,
+certification or source activation were established. Exit code `1` is a transport or inspection
+refusal and `2` is invalid arguments or an output-path refusal. The command performs no database
+write, grant, scheduler change or source activation. Running the actual official download and
+comparing it with the existing inspection/SDK remains an operator step for the root reviewer
+after the canonical contract is verified; it is not claimed by the synthetic test suite.

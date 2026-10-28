@@ -1,5 +1,54 @@
 # Architecture V2 Execution State
 
+## 2026-10-28 — public-data and demand-model direction
+
+Owner confirmed market data acquisition should use official Data-page downloads
+when no API subscription is supplied; paid API credentials are not a prerequisite.
+Owner explicitly chooses keyless ECMWF Open Data, and requires weather to be used
+in regional supply/demand predictions (HDD/CDD and measured better models), not
+merely collected. RFC0003/Decision17 accepted e0dd7a0; the generated vertical plan
+remains a proposal where it conflicts, especially future-valid forecast features
+and unnecessary parallel storage. Existing ForecastObservationRecord and dataset
+point-in-time foundations are reused.
+
+Current main9bae9ce has same-commit remote CI success40557768170 and three-platform
+native build-only success40557820701. Local full suite4334pass62skip. Root downloaded
+all three archives and verified GitHub digests, package/binary hashes, source SHA,
+tracked-source cleanliness and actual canonical Python/Node/Rust. Linuxx64 DEB
+installed in Ubuntu24.04; UI launch/business acceptance remains open. Windows
+verified acceptance copies are under outputs/EurogasNexus-9bae9ce-Windows-x64-acceptance.
+The computer-use policy requires action-time confirmation before launching newly
+downloaded Windows software; an async owner question is pending. No need to stop
+source/model work while waiting.
+
+Owner provided a temporary GIE credential: stored only with Windows CurrentUser
+DPAPI encryption outside Git. Root actualAGSI/ALSI connection probes200,2rows each
+normalize successfully, one page only, not a history/commercial-certification claim.
+A current owned loopback API runs with that credential supplied only in process
+environment; never expose the value or commit it. Existing runtime/certification
+controls are retained.
+
+Reviewed EEX public downloader and capture tests77pass1skip; actual officialCSV
+fetch200,286bytes,fourrows,zero row rejects, rawhash6d0b9da4ff997a57d97fb2053aefd96af6e617cdf3551bd9db3ec2310c9668aa.
+Canonical publication/calendar/granularity remain unresolved; no fabricated UTC,
+tradable quote or source activation. Root continues official methodology research.
+ECB main entry omitted its existing runtime stop gate; bounded DeepSeek fix adds
+ECB to the actual main gate loop. Root17gate tests and Ruff pass.
+
+Actual public National Gas CSV works without a key. Captured catalogue names
+PUBOB652 actualNTS D+6 and PUBOB637 D+1 native mscm, with revised/provisional data;
+blank quality is unknown and A meansAmended, notActual. PUBOB4422 energy candidate
+returns empty; no inferred CV conversion. PUBOBJ1030 energy samples require a
+separate verified unit/scope before use. CSV publication zone is not yet proven;
+keep wall clocks and conservative receipt availability. Official Ofgem evidence
+supports05:00GBlocal gas day; use existing EU_CAM_UTC for new data, notUK_LEGACY.
+
+Live DeepSeek tasks: ECMWF bounded index/range transport and authentic ecCodes
+adapter; National Gas actual-target append-only ingestion/storage (0042 reserved).
+Root retains numerical/source/architecture review. Snapshot binding design and
+source audit drafts remain unaccepted implementation. All actual consumer/model,
+provider/installed/security/signing/customer gates remain to be proved.
+
 ## 2026-10-28 — connected costs and durable workflow verification
 
 Tariff business-date propagation and missing-cost refusal pushed5216b69. Actual

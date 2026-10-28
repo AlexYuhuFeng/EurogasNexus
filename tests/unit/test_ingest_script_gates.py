@@ -1,10 +1,14 @@
 """Ingest script fail-closed gates, retry, and raw archive tests (audit item 4)."""
 
 import importlib.util
+import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[2] / "scripts" / "ops" / "ingest_public_sources.py"
@@ -154,6 +158,174 @@ def test_gate_blocks_an_explicitly_disabled_public_source_operation(
     )
 
     assert script._gate_blockers(session, "ECB") == ["source_operation_disabled"]
+
+
+def _sqlite_session_factory(tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from eurogas_nexus.db.base import Base
+
+    db_path = tmp_path / "ingest-main-gates.sqlite"
+    engine = create_engine(f"sqlite+pysqlite:///{db_path.as_posix()}", future=True)
+    Base.metadata.create_all(engine)
+    return engine, sessionmaker(bind=engine, expire_on_commit=False)
+
+
+class _RecordingHttpClient:
+    instances = []
+
+    def __init__(self, **kwargs) -> None:
+        self.calls = []
+        _RecordingHttpClient.instances.append(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info) -> bool:
+        return False
+
+    def get(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        raise RuntimeError("unexpected live HTTP fetch")
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_blocker"),
+    [
+        ("disabled", "source_operation_disabled"),
+        ("unreadable", "source_state_unreadable"),
+    ],
+)
+def test_main_ecb_gate_blocks_fetch_and_records_failed_run(
+    tmp_path, monkeypatch, capsys, mode, expected_blocker
+) -> None:
+    """The real main() must not fetch ECB when its runtime state blocks live."""
+
+    script = _load_script()
+    engine, session_factory = _sqlite_session_factory(tmp_path)
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.db.models import (
+        FxObservationRecord,
+        IngestionRunRecord,
+        MarketObservationRecord,
+    )
+
+    real_query = Session.query
+
+    def gate_query(self, *entities, **kwargs):
+        if entities and getattr(entities[0], "__name__", "") == "SourceRuntimeStateRecord":
+            if mode == "unreadable":
+                raise RuntimeError("runtime state store unavailable")
+            query = MagicMock()
+            query.filter.return_value.one_or_none.return_value = SimpleNamespace(
+                enabled=False
+            )
+            return query
+        return real_query(self, *entities, **kwargs)
+
+    monkeypatch.setattr(Session, "query", gate_query)
+    monkeypatch.setattr(
+        script, "resolve_database_url", lambda: "sqlite+pysqlite:///gate-test"
+    )
+    monkeypatch.setattr(script, "get_engine", lambda database_url: engine)
+    monkeypatch.setattr(
+        script, "create_session_factory", lambda active_engine: session_factory
+    )
+    _RecordingHttpClient.instances.clear()
+    monkeypatch.setattr(script.httpx, "Client", _RecordingHttpClient)
+    monkeypatch.setattr(
+        sys, "argv", ["ingest_public_sources.py", "--source", "ecb", "--json"]
+    )
+
+    result = script.main()
+
+    assert result == 0
+    assert _RecordingHttpClient.instances
+    assert all(client.calls == [] for client in _RecordingHttpClient.instances)
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["sources"] == {}
+    assert payload["failures"] == []
+    assert payload["warnings"] == [
+        f"ECB live ingestion blocked (fail-closed): {expected_blocker}"
+    ]
+    with Session(engine) as session:
+        runs = session.query(IngestionRunRecord).all()
+        assert [run.status for run in runs] == ["failed"]
+        assert runs[0].source_name == "ECB"
+        assert expected_blocker in runs[0].notes
+        assert session.query(MarketObservationRecord).count() == 0
+        assert session.query(FxObservationRecord).count() == 0
+
+
+def test_main_source_all_processes_independent_providers_after_ecb_gate(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A blocked ECB must not remove independent, permitted source families."""
+
+    script = _load_script()
+    engine, session_factory = _sqlite_session_factory(tmp_path)
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.db.models import IngestionRunRecord
+
+    real_runtime_blockers = script._source_runtime_blockers
+
+    def runtime_blockers(session, source_system):
+        if source_system == "ECB":
+            return ["source_operation_disabled"]
+        return real_runtime_blockers(session, source_system)
+
+    monkeypatch.setattr(script, "_source_runtime_blockers", runtime_blockers)
+    _allow_live_certification(monkeypatch)
+    monkeypatch.setattr(script, "_resolve_gie_api_key", lambda session_factory: None)
+
+    entsog_routes = []
+
+    def fake_entsog(client, session, *, route, args, started, report):
+        entsog_routes.append(route)
+        report["sources"][route] = {"records": 0}
+
+    monkeypatch.setattr(script, "_ingest_entsog_source", fake_entsog)
+    monkeypatch.setattr(
+        script, "resolve_database_url", lambda: "sqlite+pysqlite:///gate-test"
+    )
+    monkeypatch.setattr(script, "get_engine", lambda database_url: engine)
+    monkeypatch.setattr(
+        script, "create_session_factory", lambda active_engine: session_factory
+    )
+    _RecordingHttpClient.instances.clear()
+    monkeypatch.setattr(script.httpx, "Client", _RecordingHttpClient)
+    monkeypatch.setattr(
+        sys, "argv", ["ingest_public_sources.py", "--source", "all", "--json"]
+    )
+
+    result = script.main()
+
+    assert result == 1
+    assert set(entsog_routes) == {"entsog", "entsog-capacity", "entsog-reference"}
+    assert _RecordingHttpClient.instances
+    assert all(client.calls == [] for client in _RecordingHttpClient.instances)
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert "ECB" not in payload["sources"]
+    assert any(
+        warning
+        == "ECB live ingestion blocked (fail-closed): source_operation_disabled"
+        for warning in payload["warnings"]
+    )
+    with Session(engine) as session:
+        ecb_runs = (
+            session.query(IngestionRunRecord)
+            .filter(IngestionRunRecord.source_name == "ECB")
+            .all()
+        )
+        assert [run.status for run in ecb_runs] == ["failed"]
+        assert "source_operation_disabled" in ecb_runs[0].notes
 
 
 def test_archive_raw_payload_writes_row(tmp_path, monkeypatch) -> None:
