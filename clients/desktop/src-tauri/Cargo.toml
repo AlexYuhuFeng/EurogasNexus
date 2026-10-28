@@ -8,6 +8,12 @@ license = "Proprietary"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+# This feature is used for production builds or when a dev server is not
+# specified. DO NOT REMOVE: a plain release build without it embeds the
+# development URL and fails at runtime.
+custom-protocol = ["tauri/custom-protocol"]
+
 [dependencies]
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }

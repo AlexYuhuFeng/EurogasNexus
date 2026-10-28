@@ -15,6 +15,7 @@ import re
 import shutil
 import sys
 import tarfile
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -214,12 +215,32 @@ def test_workflow_is_manual_read_only_and_has_no_publish_surface() -> None:
     assert "if: runner.os == 'Windows'" in text
     assert "pwsh -File scripts/ci/install_windows_canonical_python.ps1" in text
     assert "cargo check --manifest-path src-tauri/Cargo.toml --locked" in text
-    assert "cargo build --manifest-path src-tauri/Cargo.toml --release --locked" in text
     assert "npm run build -- --bundles ${{ matrix.bundle }} -- --locked" in text
     assert "python scripts/ci/check_toolchain_versions.py" in text
     assert "npm ci" in text
     assert "write_native_build_evidence.py" in text
     assert "eurogas-nexus-unsigned-native-acceptance" in text
+
+
+def test_portable_binary_preserves_tauri_production_embedding() -> None:
+    manifest_path = ROOT / "clients/desktop/src-tauri/Cargo.toml"
+    manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest["features"]["custom-protocol"] == ["tauri/custom-protocol"]
+    assert "clients/desktop/src-tauri/Cargo.toml" in native.BUILD_INPUT_FILES
+
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "npm run build -- --bundles ${{ matrix.bundle }} -- --locked" in text
+    assert "Build portable native binary with locked dependencies" not in text
+
+    # A future standalone Cargo build is allowed only when it explicitly opts
+    # into the production feature; otherwise it can overwrite the Tauri binary.
+    cargo_build_lines = [
+        line.strip()
+        for line in text.splitlines()
+        if "cargo build" in line and not line.lstrip().startswith("#")
+    ]
+    assert all("--features custom-protocol" in line for line in cargo_build_lines)
 
 
 def test_windows_python_installer_is_a_hash_bound_build_input(tmp_path: Path) -> None:

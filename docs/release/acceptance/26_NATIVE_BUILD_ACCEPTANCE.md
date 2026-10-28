@@ -1,6 +1,7 @@
 # Native build-only acceptance workflow
 
-Status: **implemented; Windows fallback unverified; unsigned, unreviewed,
+Status: **implemented; portable production-embedding regression corrected in
+source pending redispatch; Windows Python fallback verified; unsigned, unreviewed,
 build-only.**
 
 This document describes `.github/workflows/native-acceptance.yml` and
@@ -64,12 +65,20 @@ Each job runs the same build sequence as the release desktop job:
 1. `bash scripts/ci/install_linux_tauri_dependencies.sh` on Linux, using the
    existing retrying dependency installer;
 2. `npm ci` in `clients/web` and `clients/desktop`;
-3. `cargo check --manifest-path src-tauri/Cargo.toml --locked`;
+3. `cargo check --manifest-path src-tauri/Cargo.toml --locked`; and
 4. `npm run build -- --bundles <nsis|deb> -- --locked` in `clients/desktop`; the
    first `--` makes npm forward the remaining arguments and the second `--` makes
-   the Tauri CLI forward `--locked` to the Cargo runner; and
-5. `cargo build --manifest-path src-tauri/Cargo.toml --release --locked` to build
-   the portable native binary from the same locked source.
+   the Tauri CLI forward `--locked` to the Cargo runner.
+
+The Tauri production build in step 4 emits both the installer and the portable
+native binary at `clients/desktop/src-tauri/target/release/eurogas-nexus-desktop`
+(`.exe` on Windows), with the production `custom-protocol` embedding. The
+workflow deliberately does **not** run a second standalone
+`cargo build --release`: that would overwrite the embedded binary with one built
+without Tauri's production feature, which falls back to the development URL and
+shows `ERR_CONNECTION_REFUSED`. The standard manifest declaration
+`custom-protocol = ["tauri/custom-protocol"]` is retained for explicit production
+Cargo builds; a release profile alone does not enable it.
 
 No version, action permission, test suite, license gate or security gate is
 weakened. The workflow does not run release validation, and it cannot promote
@@ -119,8 +128,9 @@ The document binds:
 - SHA-256 and byte counts for all committed dependency locks
   (`requirements*.lock`, both npm lockfiles and `Cargo.lock`);
 - SHA-256 and byte counts for the build inputs, including the workflow, the Linux
-  dependency installer, the Windows Python installer, the two client manifests,
-  the Tauri configuration and the evidence writer itself;
+  dependency installer, the Windows Python installer, the two npm client
+  manifests, the desktop Cargo manifest, the Tauri configuration and the evidence
+  writer itself;
 - the build output path, staged path, SHA-256 and byte count for both the installer
   and the portable native binary (the Linux tar's source binary and archive member
   are both recorded); and
@@ -242,6 +252,43 @@ because this change follows the existing release engineering and client-platform
 contracts without changing a normative boundary; if a future change makes these
 artifacts part of release promotion, that change requires the normal policy and
 RFC/ADR review.
+
+## Portable production-embedding failure at 9bae9ce
+
+Root launched the Windows x64 portable `.exe` built by this workflow from source
+`9bae9ce` and observed both the splash window and the main window show
+`ERR_CONNECTION_REFUSED` for `127.0.0.1`. The package built, but the portable
+binary was not the production-embedded artifact.
+
+Cause: the workflow ran `tauri build` (production, `custom-protocol` enabled) and
+then ran a second standalone `cargo build --release --locked`. That second build
+replaced `target/release/eurogas-nexus-desktop.exe` without Tauri's
+`custom-protocol` feature, because a release profile does not enable a Cargo
+feature. The resulting binary expected the
+development URL instead of the bundled web assets.
+
+The fix is deliberately narrow:
+
+- `clients/desktop/src-tauri/Cargo.toml` now declares the standard
+  `custom-protocol = ["tauri/custom-protocol"]` feature; and
+- `native-acceptance.yml` no longer runs the redundant standalone Cargo build, so
+  the portable artifact is the exact production binary emitted by `tauri build`.
+
+The focused regression contract in
+`tests/unit/test_native_build_evidence.py` asserts that the feature mapping remains
+present, that the manifest remains a hash-bound build input, and that any
+standalone `cargo build` step in the workflow explicitly requests
+`--features custom-protocol`.
+
+This is a discovered failure record, not a UI acceptance result. The launch above
+was **not accepted**, `native_ui_executed` and `installed_launch_verified` remain
+false in the evidence contract, and no rerun, installed UI acceptance, signing or
+customer acceptance is claimed. Root must review, commit and dispatch a new
+workflow run at the reviewed commit before assessing the corrected artifacts.
+
+Independent root verification of this correction: 37 focused native evidence and
+Windows Python bootstrap tests passed; Ruff passed. These checks validate the
+build contract and bootstrap, not the corrected executable's runtime behavior.
 
 ## Independent root verification
 

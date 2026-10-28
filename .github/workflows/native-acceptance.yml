@@ -109,9 +109,10 @@ jobs:
         working-directory: clients/desktop
         run: npm run build -- --bundles ${{ matrix.bundle }} -- --locked
 
-      - name: Build portable native binary with locked dependencies
-        working-directory: clients/desktop
-        run: cargo build --manifest-path src-tauri/Cargo.toml --release --locked
+      # Do not add a standalone `cargo build --release` step here. The Tauri
+      # production build above emits the portable binary with the
+      # custom-protocol embedding; a second Cargo build would overwrite it
+      # without that feature and the UI would fall back to the development URL.
 
       - name: Stage artifacts and write hash-bound evidence
         shell: bash
