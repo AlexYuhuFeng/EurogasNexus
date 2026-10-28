@@ -1,5 +1,25 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — staged weather feature and demand inference implementation
+
+Accepted the pure weather domain core and persisted forecast projection bridge
+as staged RFC0003 implementation. Explicit weighted degree days preserve DST,
+coverage gaps, forecast vintages and feature-policy identities. SQLite integration
+uses actual repository-persisted rows: changed temperatures change HDD and later
+receipts do not leak into an earlier prediction origin. Future inference applies
+frozen coefficients and rejects model-selection evidence before its validation
+cutoff. Selection identity binds fold results, metrics and residual intervals;
+inconsistent result/evidence combinations are refused, not silently reused.
+
+Root validation:47 focused tests passed on both Windows and Linux canonical
+Python3.11 with isolated NumPy2.3.5; Ruff passed. Default runtime without NumPy:
+31passed/16skipped, so default CI alone does not prove fitting functionality.
+No dependency lock or source activation changed. Optional backend dependency
+delivery, authentic multi-step capture, real target/history calibration and
+API/SDK/Web/portfolio consumers remain required before acceptance. Synthetic
+model fixtures are not evidence of real predictive accuracy. Last hosted CI
+checkpoint8cc3418/run40724318398 succeeded; this staged change needs a fresh run.
+
 ## 2026-10-29 — weather integration review in progress
 
 Verified source checkpoint `61dfc3bbcbae64f792e33f1f3d3d05a3fb520dd2`:
