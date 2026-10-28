@@ -1029,11 +1029,36 @@ def test_ci_runs_the_live_locked_rust_audit_after_toolchain_setup() -> None:
     assert "continue-on-error" not in section
 
 
+WORKFLOW_DIR = ROOT / ".github" / "workflows"
+RUST_SETUP_ACTION = "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772"
+RUST_TOOLCHAIN_EXPRESSION = "${{ env.RUST_TOOLCHAIN }}"
+
+
+def _workflow_payload(name: str) -> dict[str, Any]:
+    payload = yaml.safe_load((WORKFLOW_DIR / name).read_text(encoding="utf-8"))
+    assert isinstance(payload, dict), name
+    return payload
+
+
+def _rust_setup_steps(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    setups: list[tuple[str, dict[str, Any]]] = []
+    for job_id, job in payload["jobs"].items():
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and str(step.get("uses", "")).startswith(
+                "dtolnay/rust-toolchain@"
+            ):
+                setups.append((job_id, step))
+    return setups
+
+
 def test_workflows_remain_valid_yaml() -> None:
-    for workflow in ("ci.yml", "release.yml"):
-        text = (ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
-        payload = yaml.safe_load(text)
-        assert isinstance(payload, dict), workflow
+    for workflow in (
+        "ci.yml",
+        "release.yml",
+        "native-acceptance.yml",
+        "sdk-acceptance.yml",
+    ):
+        payload = _workflow_payload(workflow)
         assert "jobs" in payload, workflow
 
 
@@ -1041,20 +1066,42 @@ def test_all_rust_setup_actions_supply_the_repository_toolchain_pin() -> None:
     pin = tomllib.loads((ROOT / "rust-toolchain.toml").read_text(encoding="utf-8"))["toolchain"][
         "channel"
     ]
-    for workflow in ("ci.yml", "release.yml"):
-        payload = yaml.safe_load(
-            (ROOT / ".github/workflows" / workflow).read_text(encoding="utf-8")
-        )
-        assert payload["env"]["RUST_TOOLCHAIN"] == pin
-        setups = [
-            step
-            for job in payload["jobs"].values()
-            for step in job.get("steps", [])
-            if step.get("uses", "").startswith("dtolnay/rust-toolchain@")
-        ]
-        assert len(setups) == 2
-        for step in setups:
-            assert step["with"]["toolchain"] == "${{ env.RUST_TOOLCHAIN }}"
+    counts: dict[str, int] = {}
+    setup_jobs: dict[str, set[str]] = {}
+    for path in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
+        payload = _workflow_payload(path.name)
+        setups = _rust_setup_steps(payload)
+        counts[path.name] = len(setups)
+        setup_jobs[path.name] = {job_id for job_id, _ in setups}
+        if setups:
+            assert (payload.get("env") or {}).get("RUST_TOOLCHAIN") == pin, path.name
+        for job_id, step in setups:
+            assert step["uses"] == RUST_SETUP_ACTION, (path.name, job_id)
+            assert (step.get("with") or {}).get("toolchain") == RUST_TOOLCHAIN_EXPRESSION, (
+                path.name,
+                job_id,
+            )
+
+    # CI has one local Rust step (dependency-audit) and delegates the native
+    # build to the reviewed local reusable workflow. The latter declares one
+    # Rust setup step that the runner applies to each of its three matrix legs,
+    # so the authoritative CI Rust setup graph is exactly these two steps.
+    ci = _workflow_payload("ci.yml")
+    desktop = ci["jobs"]["desktop-client-build"]
+    assert desktop.get("uses") == "./.github/workflows/native-acceptance.yml"
+    assert "if" not in desktop
+    assert counts.get("ci.yml") == 1
+    assert setup_jobs.get("ci.yml") == {"dependency-audit"}
+    assert counts.get("native-acceptance.yml") == 1
+    assert setup_jobs.get("native-acceptance.yml") == {"native-build"}
+    assert counts["ci.yml"] + counts["native-acceptance.yml"] == 2
+
+    # release.yml keeps its two existing authoritative Rust jobs.
+    assert counts.get("release.yml") == 2
+    assert setup_jobs.get("release.yml") == {"dependency-scan", "desktop"}
+
+    # The SDK workflow has no Rust action, so no RUST_TOOLCHAIN env is required.
+    assert counts.get("sdk-acceptance.yml") == 0
 
 
 # --- Reviewed Cargo license-choice records (RFC-0002) -----------------------

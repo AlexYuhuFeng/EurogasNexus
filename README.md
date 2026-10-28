@@ -155,6 +155,7 @@ runs initdb, seed, migration or a volume reset.
 Full environment, database URL, and Docker runtime instructions:
 
 - [Local development](docs/operations/LOCAL_DEVELOPMENT.md)
+- [Linux, Web, Windows and SDK development pipelines](docs/engineering/MULTI_SURFACE_DEVELOPMENT.md)
 - [Local Docker runtime troubleshooting](docs/operations/LOCAL_DOCKER_RUNTIME.md)
 - [Live PostgreSQL operations](docs/operations/LIVE_POSTGRESQL.md)
 - [DB migration runbook](docs/operations/DB_MIGRATIONS.md)

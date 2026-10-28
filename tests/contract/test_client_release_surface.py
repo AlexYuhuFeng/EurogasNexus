@@ -159,26 +159,98 @@ def test_client_dependency_policy_excludes_disallowed_frameworks() -> None:
 
 
 def test_ci_builds_web_windows_and_linux_clients() -> None:
+    import yaml
 
-    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    workflows = ROOT / ".github" / "workflows"
+    ci = yaml.safe_load((workflows / "ci.yml").read_text(encoding="utf-8"))
+    jobs = ci["jobs"]
 
-    assert "web-client-build" in workflow
+    # The Web build stays in ordinary CI and still installs/builds the shared
+    # React/npm client from its lock file.
+    web_steps = jobs["web-client-build"]["steps"]
+    web_runs = {(step.get("working-directory"), step.get("run")) for step in web_steps}
+    assert ("clients/web", "npm ci") in web_runs
+    assert ("clients/web", "npm run build") in web_runs
+    web_package = json.loads(
+        (ROOT / "clients" / "web" / "package.json").read_text(encoding="utf-8")
+    )
+    web_dependencies = {
+        **web_package.get("dependencies", {}),
+        **web_package.get("devDependencies", {}),
+    }
+    assert "react" in web_dependencies
 
-    assert "desktop-client-build" in workflow
+    # CI delegates the native build to the reviewed reusable workflow; the
+    # caller is unconditional and carries no inline matrix, env or steps.
+    desktop = jobs["desktop-client-build"]
+    assert desktop["uses"] == "./.github/workflows/native-acceptance.yml"
+    assert "if" not in desktop
+    assert "strategy" not in desktop
+    assert "env" not in desktop
+    assert "secrets" not in desktop
+    assert "steps" not in desktop
 
-    assert "windows-latest" in workflow
+    sdk = jobs["sdk-installed"]
+    assert sdk["uses"] == "./.github/workflows/sdk-acceptance.yml"
+    assert (workflows / "sdk-acceptance.yml").is_file()
 
-    assert "ubuntu-latest" in workflow
-    assert "ubuntu-24.04-arm" in workflow
-    assert "linux-arm64" in workflow
-    assert "if: github.event_name == 'pull_request'" in workflow
-    assert "bash scripts/ci/install_linux_tauri_dependencies.sh" in workflow
+    native = yaml.safe_load(
+        (workflows / "native-acceptance.yml").read_text(encoding="utf-8")
+    )
+    native_job = native["jobs"]["native-build"]
+    matrix = native_job["strategy"]["matrix"]["include"]
+    expected_matrix = {
+        "windows-x64": (
+            "windows-2025",
+            "nsis",
+            "clients/desktop/src-tauri/target/release/bundle/nsis/*.exe",
+        ),
+        "linux-x64": (
+            "ubuntu-24.04",
+            "deb",
+            "clients/desktop/src-tauri/target/release/bundle/deb/*.deb",
+        ),
+        "linux-arm64": (
+            "ubuntu-24.04-arm",
+            "deb",
+            "clients/desktop/src-tauri/target/release/bundle/deb/*.deb",
+        ),
+    }
+    actual_matrix = {
+        entry["artifact_label"]: (
+            entry["os"],
+            entry["bundle"],
+            entry["package_glob"],
+        )
+        for entry in matrix
+    }
+    assert len(matrix) == len(expected_matrix) == 3
+    assert actual_matrix == expected_matrix
 
-    assert "--bundles ${{ matrix.bundle }}" in workflow
+    steps = native_job["steps"]
+    actions = [step["uses"] for step in steps if "uses" in step]
+    assert actions
+    for action in actions:
+        if action.startswith("./"):
+            continue
+        _, separator, ref = action.rpartition("@")
+        assert separator and len(ref) == 40, action
+        assert all(character in "0123456789abcdef" for character in ref), action
+    assert any(action.startswith("dtolnay/rust-toolchain@6c977a6") for action in actions)
 
-    assert "clients/desktop/src-tauri/target/release/bundle/nsis/*.exe" in workflow
+    linux_setup = [
+        step
+        for step in steps
+        if step.get("run") == "bash scripts/ci/install_linux_tauri_dependencies.sh"
+    ]
+    assert len(linux_setup) == 1
+    assert linux_setup[0].get("if") == "runner.os == 'Linux'"
 
-    assert "clients/desktop/src-tauri/target/release/bundle/deb/*.deb" in workflow
+    runs = [step.get("run") for step in steps]
+    assert runs.count("npm ci") == 2
+    build_commands = [run for run in runs if isinstance(run, str) and "npm run build" in run]
+    assert build_commands == ["npm run build -- --bundles ${{ matrix.bundle }} -- --locked"]
+    assert not any(isinstance(run, str) and "cargo build --release" in run for run in runs)
 
 
 def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:

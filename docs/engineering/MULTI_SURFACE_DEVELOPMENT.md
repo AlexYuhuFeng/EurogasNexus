@@ -256,10 +256,25 @@ SDK on Windows and Linux x64.
   integration, production SSO, performance or commercial entitlement.
 * The economics requests are stateless and synthetic. No provider, DB, external
   credential or customer data is required or used.
-* Native build success is not GUI/installer/signing evidence. Manual native UAT
-  on the rebuilt artifact remains required.
+* Native build success is not GUI/installer/signing evidence. Installed native
+  UAT by a human or approved automation remains required on rebuilt artifacts.
 * No SDK or Web code is auto-generated. Feature synchronisation remains a
   reviewed, manual, typed change across backend, SDK, shared adapters and tests.
 * A green workflow is review evidence. It is not by itself a customer release
-  claim, and this document does not claim that the workflow has already run
-  successfully in CI.
+  claim.
+
+## Verified checkpoints
+
+At commit `8ea0ace`, GitHub CI run `40714555558` completed both installed SDK
+jobs successfully on canonical Python 3.11.12: Windows x64 and Linux x64.
+Each imported the wheel outside the checkout and completed the six actual HTTP
+economics cases. The local locked Web build passed; its tests reported 996
+passed, three skipped and zero failed. These observations are scoped to their
+tested inputs and commits, not later changes.
+
+The unified native caller also completed Windows x64, Linux x64 and Linux ARM64
+builds in run `40712022210`. That overall run failed older pipeline-contract
+tests, so its successful native jobs are evidence only for native builds.
+[RFC-0004](RFC-0004-MULTI-SURFACE-PIPELINES.md) aligns the release gate with actual
+native and SDK leaf jobs. G1 requires all five in addition to its original jobs;
+missing, skipped or failed surfaces cannot authorize publication.

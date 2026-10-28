@@ -305,17 +305,200 @@ def test_policy_pins_the_trusted_repository_and_required_jobs() -> None:
     assert policy["producers"]["ci-verification"]["job"] == "validate"
 
 
-def test_required_jobs_are_exactly_the_workflows_always_run_jobs() -> None:
-    """Policy drift in either direction would silently weaken the gate."""
+BASE_REQUIRED_JOBS = (
+    "validate",
+    "Dependency license & CVE audit",
+    "PostgreSQL integration",
+    "web-client-build",
+    "Browser acceptance (EN/ZH, 3 viewports)",
+)
+NEW_HOSTED_API_LEAVES = (
+    "Native desktop build (Windows x64, Linux x64/ARM64) / "
+    "Build-only native acceptance (windows-x64)",
+    "Native desktop build (Windows x64, Linux x64/ARM64) / "
+    "Build-only native acceptance (linux-x64)",
+    "Native desktop build (Windows x64, Linux x64/ARM64) / "
+    "Build-only native acceptance (linux-arm64)",
+    "SDK installed-wheel acceptance / Installed SDK (windows-x64)",
+    "SDK installed-wheel acceptance / Installed SDK (linux-x64)",
+)
 
+_MAX_WORKFLOW_DEPTH = 8
+_MAX_RESOLVED_LEAVES = 256
+_LOCAL_WORKFLOW = re.compile(r"\./\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml")
+_MATRIX_EXPRESSION = re.compile(r"\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}")
+_ANY_EXPRESSION = re.compile(r"\$\{\{.*?\}\}")
+_MAIN_PUSH_CONDITIONS = frozenset(
+    {
+        "github.event_name == 'push'",
+        'github.event_name == "push"',
+        "github.event_name != 'pull_request'",
+        'github.event_name != "pull_request"',
+    }
+)
+_PULL_REQUEST_ONLY_CONDITIONS = frozenset(
+    {
+        "github.event_name == 'pull_request'",
+        'github.event_name == "pull_request"',
+        "github.event_name != 'push'",
+        'github.event_name != "push"',
+    }
+)
+
+
+def _workflow_jobs(workflow_path: Path) -> Mapping[str, Any]:
+    document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    if not isinstance(document, Mapping) or not isinstance(document.get("jobs"), Mapping):
+        raise AssertionError(f"{workflow_path} does not declare a jobs mapping")
+    return document["jobs"]
+
+
+def _condition_target(condition: object) -> str:
+    """Classify only reviewed event conditions; never evaluate arbitrary YAML."""
+
+    text = " ".join(str(condition or "").split())
+    if not text:
+        return "unconditional"
+    if text.startswith("${{") and text.endswith("}}"):
+        text = " ".join(text[3:-2].split())
+    if text in _MAIN_PUSH_CONDITIONS:
+        return "push"
+    if text in _PULL_REQUEST_ONLY_CONDITIONS:
+        return "pull-request-only"
+    raise AssertionError(f"unreviewed workflow condition: {text!r}")
+
+
+def _matrix_rows(job: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    strategy = job.get("strategy")
+    if strategy is None:
+        return [{}]
+    if not isinstance(strategy, Mapping):
+        raise AssertionError("job strategy must be a mapping")
+    matrix = strategy.get("matrix")
+    if matrix is None:
+        return [{}]
+    if not isinstance(matrix, Mapping) or set(matrix) != {"include"}:
+        raise AssertionError("only an explicit strategy.matrix.include is supported")
+    include = matrix["include"]
+    if (
+        not isinstance(include, list)
+        or not include
+        or not all(isinstance(row, Mapping) for row in include)
+    ):
+        raise AssertionError("strategy.matrix.include must be a non-empty list of mappings")
+    return list(include)
+
+
+def _render_leaf_name(
+    job: Mapping[str, Any],
+    job_id: str,
+    matrix_row: Mapping[str, Any],
+    caller_prefix: str,
+) -> str:
+    template = str(job.get("name") or job_id)
+
+    def substitute(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key not in matrix_row:
+            raise AssertionError(f"matrix expression {match.group(0)!r} has no include value")
+        value = matrix_row[key]
+        if value is None or isinstance(value, (dict, list)):
+            raise AssertionError(f"matrix expression {match.group(0)!r} is not a scalar")
+        return str(value)
+
+    name = _MATRIX_EXPRESSION.sub(substitute, template)
+    unresolved = _ANY_EXPRESSION.search(name)
+    if unresolved is not None:
+        raise AssertionError(f"unresolved workflow expression in job name: {unresolved.group(0)!r}")
+    return f"{caller_prefix} / {name}" if caller_prefix else name
+
+
+def _resolve_workflow_leaves(
+    workflow_path: Path,
+    *,
+    caller_prefix: str = "",
+    depth: int = 0,
+    stack: tuple[Path, ...] = (),
+    leaves: list[str] | None = None,
+) -> list[str]:
+    if leaves is None:
+        leaves = []
+    if depth > _MAX_WORKFLOW_DEPTH:
+        raise AssertionError(f"reusable workflow nesting exceeds {_MAX_WORKFLOW_DEPTH} levels")
+    resolved = workflow_path.resolve()
+    workflow_root = (ROOT / ".github" / "workflows").resolve()
+    if workflow_root not in resolved.parents:
+        raise AssertionError(f"workflow outside .github/workflows: {resolved}")
+    if resolved in stack:
+        raise AssertionError(f"reusable workflow cycle: {resolved}")
+    if len(leaves) > _MAX_RESOLVED_LEAVES:
+        raise AssertionError(f"workflow resolution exceeds {_MAX_RESOLVED_LEAVES} leaf jobs")
+    jobs = _workflow_jobs(resolved)
+    for job_id, job in jobs.items():
+        if not isinstance(job, Mapping):
+            raise AssertionError(f"job {job_id!r} must be a mapping")
+        condition = _condition_target(job.get("if"))
+        if condition == "pull-request-only":
+            continue
+        if condition != "unconditional":
+            # Push-only review evidence (for example python-license-texts) is
+            # intentionally not part of G1: the gate requires unconditional jobs.
+            continue
+        for matrix_row in _matrix_rows(job):
+            name = _render_leaf_name(job, str(job_id), matrix_row, caller_prefix)
+            uses = job.get("uses")
+            if uses is None:
+                leaves.append(name)
+                continue
+            if not isinstance(uses, str) or _LOCAL_WORKFLOW.fullmatch(uses) is None:
+                raise AssertionError(f"unreviewed reusable workflow reference: {uses!r}")
+            _resolve_workflow_leaves(
+                (ROOT / uses[2:]).resolve(),
+                caller_prefix=name,
+                depth=depth + 1,
+                stack=(*stack, resolved),
+                leaves=leaves,
+            )
+    return leaves
+
+
+def resolve_workflow_leaf_jobs(workflow_path: Path) -> list[str]:
+    """Resolve same-repository reusable calls to bounded, unconditional leaves."""
+
+    return _resolve_workflow_leaves(workflow_path)
+
+
+def test_required_jobs_are_exactly_the_unconditional_main_push_leaf_jobs() -> None:
+    """Policy drift in either direction, or an unreviewed call, weakens the gate."""
+
+    leaves = resolve_workflow_leaf_jobs(CI_WORKFLOW_PATH)
+    assert len(leaves) == len(set(leaves))
+    assert required_jobs() == [*BASE_REQUIRED_JOBS, *NEW_HOSTED_API_LEAVES]
+    assert set(required_jobs()) == set(leaves)
     workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    always_run = set()
-    for key, job in workflow["jobs"].items():
-        condition = str(job.get("if", "")).strip()
-        if condition.startswith("github.event_name =="):
-            continue  # e.g. desktop packaging is pull-request-only
-        always_run.add(str(job.get("name") or key))
-    assert set(required_jobs()) == always_run
+    assert "if" in workflow["jobs"]["python-license-texts"]
+    assert "Python license text evidence (runtime lock)" not in required_jobs()
+
+
+@pytest.mark.parametrize("leaf", NEW_HOSTED_API_LEAVES)
+@pytest.mark.parametrize("failure", ["missing", "skipped", "failure"])
+def test_each_new_hosted_surface_leaf_blocks(
+    tmp_path: Path, leaf: str, failure: str
+) -> None:
+    jobs = all_required_jobs()
+    if failure == "missing":
+        jobs = [job for job in jobs if job["name"] != leaf]
+    else:
+        for job in jobs:
+            if job["name"] == leaf:
+                job["conclusion"] = failure
+    api = FakeGitHubApi(jobs=jobs)
+    evidence = write_evidence(tmp_path, ci_evidence_envelope(report=declared_ci_run()))
+    row, failed = gate_row(evidence, api=api)
+    assert row["state"] == "FAIL" and failed is True
+    assert leaf in row["detail"]
+    if failure != "missing":
+        assert f"completed/{failure}" in row["detail"]
 
 
 def test_policy_refuses_a_foreign_api_host_or_malformed_job_list() -> None:

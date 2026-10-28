@@ -420,3 +420,11 @@ forecast/artifact foundations. Preserve source/identity controls and product
 boundaries. Root reviewed actual official directory/AWS registry responses and
 public National Gas target documentation. No implementation, accuracy, source
 activation, separate legal review or customer acceptance is claimed by adoption.
+
+## Decision 18: Multi-surface development and delivery pipelines
+
+Accepted 2026-10-28 under the autonomous execution policy and the owner's explicit
+Linux/Web/Windows/SDK maintenance requirement. [RFC-0004](../engineering/RFC-0004-MULTI-SURFACE-PIPELINES.md)
+requires shared native and installed-SDK workflows and adds their actual hosted
+matrix leaf jobs to G1. Existing release, security, signing and external approval
+boundaries remain in force. Adoption does not prove hosted execution or GUI UAT.
