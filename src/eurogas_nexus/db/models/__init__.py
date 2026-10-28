@@ -38,6 +38,7 @@ from eurogas_nexus.db.models.decision import (
     DecisionCaseDecisionRecord,
     DecisionCaseRecord,
 )
+from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
 from eurogas_nexus.db.models.identity import (
     IdentityApiKeyRecord,
@@ -248,6 +249,7 @@ __all__ = [
     "AnalysisSnapshotRecord",
     "DecisionCaseDecisionRecord",
     "DecisionCaseRecord",
+    "NationalGasActualDemandRecord",
     "CapacityObservationRecord",
     "CompanyTsoAccessRecord",
     "CostObservationRecord",
