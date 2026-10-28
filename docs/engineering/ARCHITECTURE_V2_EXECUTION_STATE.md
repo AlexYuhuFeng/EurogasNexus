@@ -1,5 +1,29 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — weather integration review in progress
+
+Verified source checkpoint `61dfc3bbcbae64f792e33f1f3d3d05a3fb520dd2`:
+GitHub CI `40721172633` completed successfully. Canonical Linux Python3.11
+isolated ecCodes2.50 decoder also decoded the authentic ECMWF capture recorded
+below. Exact installed license/native inventories were collected separately for
+Linux3.11; this is evidence collection, not dependency redistribution approval.
+
+Draft weather core and instant-to-interval bridge passed36 focused tests in the
+isolated canonical Windows3.11 NumPy environment. They remain uncommitted pending
+integration and dependency review. The bridge filters by issue and receipt time,
+uses explicitly bounded left-hold approximation, and refuses extrapolation or
+mixed field revisions. Direct persisted-row projection/integration tests are in
+progress. Root also identified the missing public future-demand inference entry:
+implementation must bind selection evidence availability to validation cutoff,
+so later OOS evidence cannot authorize an earlier historical prediction.
+
+ENTSOG native-unit correction remains open: an assumed calorific value must not
+turn provider energy into factual volume. A first proposal lacked actual schema
+and consumer inspection and was rejected for implementation; reconciliation is
+in progress. Preserve immutable vintages and do not infer exact source decimals
+from legacy binary floats. No source activation, production model promotion or
+overall delivery acceptance is claimed by these checks.
+
 ## 2026-10-28 — unified access pipelines and authentic weather capture
 
 Latest verified code checkpoint: `bde28a8f0d68914ff192839f120a6395009cf60e`,
