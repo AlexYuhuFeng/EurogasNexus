@@ -9,6 +9,8 @@ the RFC itself and the accepted contract or ADR carry normative authority.
 
 | RFC-0002 | Reviewed Cargo license choices | Accepted for bounded implementation (2026-10-28); release legal clearance open | Exact identity/checksum/expression/text-bound MIT choices; default gate remains strict | [RFC](RFC-0002-REVIEWED-CARGO-LICENSE-CHOICES.md); [Decision16](../architecture/ARCHITECTURE_DECISION_RECORD.md#decision-16-reviewed-cargo-license-choices) |
 
+| RFC-0003 | ECMWF weather to regional gas demand | Accepted architecture and staged implementation (2026-10-28) | Real public forecast vintages, models and business consumers | [RFC](RFC-0003-ECMWF-DEMAND-VERTICAL.md); [Decision17](../architecture/ARCHITECTURE_DECISION_RECORD.md#decision-17-ecmwf-weather-to-regional-gas-demand) |
+
 Use [RFC_TEMPLATE.md](RFC_TEMPLATE.md) for a new proposal and follow
 [RFC_PROCESS.md](RFC_PROCESS.md). Do not add private milestone plans,
 confidential records, or deleted internal plans to this index.

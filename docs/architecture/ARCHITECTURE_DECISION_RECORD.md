@@ -408,3 +408,15 @@ Implementation and its negative tests remain necessary before CI may pass.
 Rollback removes the reviewed choices and restores the current refusal. No
 source license, dependency version, registry, permission or product boundary
 changes. Existing decisions remain unchanged.
+
+## Decision 17: ECMWF Weather To Regional Gas Demand
+
+Accepted2026-10-28 under the autonomous execution policy and the owner's explicit
+weather-to-supply/demand requirement. [RFC-0003](../engineering/RFC-0003-ECMWF-DEMAND-VERTICAL.md)
+governs staged implementation and supersedes conflicting details in the
+ECMWF_DEMAND_VERTICAL_DELIVERY_PLAN proposal, particularly future-valid forecast
+features and speculative parallel storage. Reuse the existing research temporal/
+forecast/artifact foundations. Preserve source/identity controls and product
+boundaries. Root reviewed actual official directory/AWS registry responses and
+public National Gas target documentation. No implementation, accuracy, source
+activation, separate legal review or customer acceptance is claimed by adoption.
