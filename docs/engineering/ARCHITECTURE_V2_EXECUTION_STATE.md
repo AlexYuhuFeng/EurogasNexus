@@ -1,5 +1,68 @@
 # Architecture V2 Execution State
 
+## 2026-10-28 — unified access pipelines and authentic weather capture
+
+Latest verified code checkpoint: `bde28a8f0d68914ff192839f120a6395009cf60e`,
+GitHub CI run `40716183139`, completed success. All eleven hosted jobs succeeded:
+full validation, dependency/CVE audit, Python notice evidence, PostgreSQL,
+bilingual browser acceptance, Web build, Windows/Linux installed SDK, and native
+Windows x64/Linux x64/Linux ARM64 builds. This supersedes the older checkpoint
+and pending-launch statements below; those sections remain historical evidence.
+
+RFC0004/Decision18 governs shared native/SDK pipelines and stronger G1 leaf-job
+requirements. CI/main/PR/manual share the native workflow and SDK workflow.
+Release G1 now requires the actual three native and two SDK hosted leaf jobs in
+addition to its original jobs; no publication/signing/external gate is waived.
+Developer entry: `docs/engineering/MULTI_SURFACE_DEVELOPMENT.md`, linked in README.
+Local focused pipeline/bootstrap suite65passed; gate/source/Rust contracts185passed;
+the independent security-suite evidence replay passed (236 seconds). Local
+locked Web build passed, 996tests passed/3skipped. A separate canonical Python
+3.11.12 Linux installed-wheel run at bde28a8 imported29SDK modules and passed all
+six real loopback economics HTTP cases; no source SDK import was used.
+
+The previous portable native workflow overwrote Tauri's embedded production
+binary with plain Cargo output. Fixed6fb6b18; new three-platform build succeeded,
+and verified Windows portable artifact0344b2eb0700cc77ea42c4eb81871ee64ddbeb4cc689f26e5a737afb6ad98e62
+loaded its bundled `tauri.localhost` sign-in page. The user stopped computer use
+with physical Escape before credentials or login submission. UI input remains
+stopped pending explicit resumption; logged-in native business UAT is still open.
+Linux DEB installation does not prove logged-in native business UAT either.
+
+National Gas actual-demand adapter/repository/migration0042 shipped9eaf657;
+schema declaration advanced a76aac9. Root18focusedtests passed, and a real
+public download plus isolated full PostgreSQL migration/replay stored nineD+1
+revisions and twoD+6 rows with zero duplicate inserts on replay. Units remain
+mscm; publication timezone remains unresolved and availability is receipt-only.
+
+Authentic ECMWF IFS00z +24h temperature GRIB2 capture/decode shipped5cbfa31;
+root54focusedtests passed. Exact selected message316916bytes, SHA256
+b5f2d7539233af58073c3c92abb6b1b672d4506558bab5226756c4ac370f5ba0.
+Linux ecCodes2.50 validated parameter167/K/grid/run/validity and mapped the
+explicit London location to9.177087402343773C. This is a forecast grid value,
+not observed weather or regional model accuracy. Windows ecCodes' embedded
+definitions failed in the isolated probe; client operation via Linux backend is
+separate. Optional dependency/license/native-binary closure remains open.
+
+Point-bound append-only forecast persistence now reuses the existing forecast
+table, with explicit per-point series/entity/mapping identities, no broadcast,
+and independent source-field revisions. Root24SQLite tests passed; 17 synthetic
+repository invariants also passed on migrated PostgreSQL. One-point versus
+64-point lookup count remains constant (at most six SELECTs). Actual provider
+corrections append; widening a point request retains existing point rows and
+appends only new points. No data source is activated by the repository.
+
+Current unaccepted work: pure weather-demand core with explicit region/bases/weights/calendar/
+temporal policy fingerprints (18isolatedNumPy tests pass, still under review);
+dependency and public-source gap drafts. No API/SDK/Web model-consumer completion
+or real OOS accuracy is claimed. Source audit also found implicit ENTSOG kWh/day
+toMCM/day conversion via fixed10.55kWh/m3 and unsupported-unit fallthrough;
+review and correct unit truth before using those numbers as certified inputs.
+
+Full delivery remains open: actual source-to-business consumption, model/OOS
+validation, canonical public price ingestion, snapshot row/revision replay,
+source capability/queue truth, installed native UAT, and security/release/signing/
+customer gates. Use the full owner objective; green pipelines are not completion.
+
 ## 2026-10-28 — public-data and demand-model direction
 
 Owner confirmed market data acquisition should use official Data-page downloads
