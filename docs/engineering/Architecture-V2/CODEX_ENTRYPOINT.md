@@ -1,10 +1,11 @@
-# Current owner routing (2026-10-12)
+# Current owner routing (2026-10-28)
 
-For the active supplier-acceptance task, the owner replaced DeepSeek execution
-with GPT-6.1 Sol. Use Sol for implementation and workflow testing; do not start
-new DeepSeek workers. GPT-6 Astra retains planning/architecture/integration
-review. Older DeepSeek routing below describes the original programme and is
-superseded for this task by the owner's instruction and root `AGENTS.md`.
+For the active supplier-acceptance task, the owner explicitly restored DeepSeek
+implementation through the approved local Harness. Use DeepSeek V4.1 Flash1017
+(`deepseek-flash`) with max reasoning for bounded tasks; parallel DeepSeek tasks
+are authorized. Codex retains planning, architecture and integration review.
+Credentials stay outside the repository; root reviews and executes tests before
+committing. This replaces the 2026-10-12 Sol-only routing.
 Preserve hard STOP conditions, security/product boundaries and acceptance gates.
 
 # AUTONOMOUS MODE OVERRIDE

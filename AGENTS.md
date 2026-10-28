@@ -3,7 +3,7 @@
 
 1. Read `docs/engineering/Architecture-V2/CODEX_ENTRYPOINT.md` first.
 2. Read `docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md` before planning work.
-3. GPT-6 Astra is the planner/architect/integration reviewer; routine implementation belongs to GPT-6.1 Sol per the owner's 2026-10-12 instruction. Do not launch new DeepSeek workers for this task.
+3. Codex retains planning, architecture and integration review. Per the owner's 2026-10-28 instruction, use the approved local DeepSeek Harness with DeepSeek V4.1 Flash1017 (`deepseek-flash`), max reasoning, for bounded implementation; parallel DeepSeek tasks are authorized. Keep credentials outside the repository and review/test changes before committing.
 4. No big-bang rewrite.
 5. No new microservices/Kubernetes/Kafka/service mesh/datastore without reviewed ADR and measured need.
 6. Preserve FastAPI, React, Tauri, PostgreSQL/Alembic and existing security/release/DR foundations unless an approved migration says otherwise.
