@@ -12,6 +12,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import venv
 import zipfile
 from pathlib import Path
 from types import ModuleType
@@ -99,6 +100,31 @@ def test_work_dir_beside_checkout_is_allowed(tmp_path: Path) -> None:
     checkout.mkdir()
     work = tmp_path / "runtime"
     assert helper._validate_work_root(checkout, str(work)) == work.resolve()
+
+
+def test_venv_interpreter_symlink_keeps_the_venv_prefix(tmp_path: Path) -> None:
+    """A real venv's normal interpreter must be invoked without dereferencing."""
+
+    venv_dir = tmp_path / "venv"
+    venv.EnvBuilder(
+        with_pip=False,
+        symlinks=sys.platform != "win32",
+    ).create(venv_dir)
+    interpreter_name = (
+        "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
+    )
+    raw_interpreter = venv_dir / interpreter_name
+    assert raw_interpreter.is_file()
+
+    interpreter = helper._normalize_interpreter_path(str(raw_interpreter))
+    assert interpreter == raw_interpreter.absolute()
+    if sys.platform != "win32":
+        assert raw_interpreter.is_symlink()
+        assert interpreter != raw_interpreter.resolve()
+
+    prefix, purelib = helper._query_venv(interpreter)
+    assert prefix == venv_dir.resolve()
+    assert purelib.is_relative_to(prefix)
 
 
 def test_installed_origin_rejects_source_and_outside_venv(tmp_path: Path) -> None:

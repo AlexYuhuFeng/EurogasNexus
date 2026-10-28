@@ -310,6 +310,24 @@ def _verify_shared_wheel(wheel: Path) -> None:
     _check(name_lines == {"eurogas-nexus"}, "wheel", "wrong_distribution_metadata")
 
 
+def _normalize_interpreter_path(value: str) -> Path:
+    """Return a lexical absolute interpreter path without resolving symlinks.
+
+    A POSIX venv's ``bin/python`` is normally a symlink to the base interpreter.
+    Dereferencing it before invocation makes CPython start as that base
+    interpreter and lose the venv's ``sys.prefix``. ``abspath`` normalizes the
+    caller's path but deliberately leaves symlinks untouched.
+    """
+
+    try:
+        path = Path(os.path.abspath(os.path.expanduser(value)))
+    except (OSError, RuntimeError):
+        raise AcceptanceFailure("configuration", "venv_python_not_found") from None
+    _check(path.exists(), "configuration", "venv_python_not_found")
+    _check(path.is_file(), "configuration", "venv_python_not_file")
+    return path
+
+
 def _query_venv(venv_python: Path) -> tuple[Path, Path]:
     """Ask the isolated interpreter for its prefix and purelib directory."""
 
@@ -827,11 +845,7 @@ def _run_acceptance(
     context["wheel_sha256"] = wheel_sha256
     _verify_shared_wheel(wheel)
 
-    try:
-        venv_python = Path(args.venv_python).expanduser().resolve(strict=True)
-    except (OSError, RuntimeError):
-        raise AcceptanceFailure("configuration", "venv_python_not_found") from None
-    _check(venv_python.is_file(), "configuration", "venv_python_not_file")
+    venv_python = _normalize_interpreter_path(args.venv_python)
     venv_prefix, purelib = _query_venv(venv_python)
     _check(
         not venv_prefix.is_relative_to(checkout_root),
