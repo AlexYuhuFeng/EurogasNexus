@@ -146,6 +146,12 @@ def _decode_json(raw_body: bytes) -> dict[str, Any]:
     return payload
 
 
+def _reject_nonfinite_json_constant(_token: str) -> Any:
+    raise EntsogMalformedResponseError(
+        "ENTSOG response contains a non-finite JSON numeric constant."
+    )
+
+
 @dataclass(frozen=True)
 class EntsogPage:
     dataset: str
@@ -161,6 +167,32 @@ class EntsogPage:
     def payload(self) -> dict[str, Any]:
         """Fresh decoded copy: normalization cannot mutate the archive bytes."""
         return _decode_json(self.raw_body)
+
+    @property
+    def numeric_lexeme_payload(self) -> dict[str, Any]:
+        """RFC 0005 observation view: numbers as exact source lexemes.
+
+        This reparses the archived bytes directly. It never converts numbers
+        from :attr:`payload` back into text, so scientific spelling, trailing
+        zeros and negative zero survive. Existing JSON strings are untouched.
+
+        Paging metadata is textual in this view; it is not a protocol/count
+        authority. Use :attr:`payload` for the existing typed pagination checks.
+        """
+        try:
+            payload = json.loads(
+                self.raw_body.decode("utf-8"),
+                parse_float=str,
+                parse_int=str,
+                parse_constant=_reject_nonfinite_json_constant,
+            )
+        except (ValueError, UnicodeError):
+            raise EntsogMalformedResponseError(
+                "ENTSOG response is not valid UTF-8 JSON."
+            ) from None
+        if not isinstance(payload, dict):
+            raise EntsogMalformedResponseError("ENTSOG response envelope must be an object.")
+        return payload
 
     @property
     def payload_sha256(self) -> str:

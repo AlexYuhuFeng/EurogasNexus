@@ -13,6 +13,8 @@ the RFC itself and the accepted contract or ADR carry normative authority.
 
 | RFC-0004 | Multi-surface development and delivery pipelines | Accepted for implementation (2026-10-28) | Shared native/SDK workflows and stronger same-SHA G1 leaf-job requirements | [RFC](RFC-0004-MULTI-SURFACE-PIPELINES.md) |
 
+| RFC-0005 | ENTSOG native rates | Accepted for staged implementation (2026-10-29) | Exact native units, immutable normalization identities and compatible physical consumers | [RFC](RFC-0005-ENTSOG-NATIVE-RATES.md) |
+
 Use [RFC_TEMPLATE.md](RFC_TEMPLATE.md) for a new proposal and follow
 [RFC_PROCESS.md](RFC_PROCESS.md). Do not add private milestone plans,
 confidential records, or deleted internal plans to this index.

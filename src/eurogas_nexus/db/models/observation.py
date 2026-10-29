@@ -7,7 +7,17 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, String, Text, text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    Index,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -82,15 +92,27 @@ class FlowObservationRecord(Base):
     """
 
     __tablename__ = "flow_observations"
+    __table_args__ = (
+        CheckConstraint(
+            "("
+            "normalizer_version IS NULL AND native_rate_json IS NULL "
+            "AND flow_mcm_d IS NOT NULL"
+            ") OR ("
+            "normalizer_version IS NOT NULL AND native_rate_json IS NOT NULL "
+            "AND normalizer_version = 'entsog-native-units-v1'"
+            ")",
+            name="ck_flow_observations_native_rate_evidence",
+        ),
+    )
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     point_id: Mapped[str] = mapped_column(String(64), nullable=False)
     point_name: Mapped[str] = mapped_column(String(128), nullable=False)
     direction: Mapped[str] = mapped_column(String(8), nullable=False)
     kind: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="actual"
+        String(32), nullable=False, default="actual", server_default="actual"
     )  # "actual" | "nomination" | "allocation" | "forecast"
-    flow_mcm_d: Mapped[float] = mapped_column(Float, nullable=False)
+    flow_mcm_d: Mapped[float | None] = mapped_column(Float, nullable=True)
     original_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     original_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     period_start_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -104,6 +126,10 @@ class FlowObservationRecord(Base):
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    normalizer_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    native_rate_json: Mapped[dict | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
 
 
 class CapacityObservationRecord(Base):
@@ -113,13 +139,25 @@ class CapacityObservationRecord(Base):
     """
 
     __tablename__ = "capacity_observations"
+    __table_args__ = (
+        CheckConstraint(
+            "("
+            "normalizer_version IS NULL AND native_rate_json IS NULL "
+            "AND capacity_mcm_d IS NOT NULL"
+            ") OR ("
+            "normalizer_version IS NOT NULL AND native_rate_json IS NOT NULL "
+            "AND normalizer_version = 'entsog-native-units-v1'"
+            ")",
+            name="ck_capacity_observations_native_rate_evidence",
+        ),
+    )
 
     observation_id: Mapped[str] = mapped_column(String(96), primary_key=True)
     point_id: Mapped[str] = mapped_column(String(64), nullable=False)
     point_name: Mapped[str] = mapped_column(String(128), nullable=False)
     direction: Mapped[str] = mapped_column(String(8), nullable=False)
     capacity_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    capacity_mcm_d: Mapped[float] = mapped_column(Float, nullable=False)
+    capacity_mcm_d: Mapped[float | None] = mapped_column(Float, nullable=True)
     original_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     original_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     period_start_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -133,6 +171,10 @@ class CapacityObservationRecord(Base):
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    normalizer_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    native_rate_json: Mapped[dict | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
 
 
 class StorageObservationRecord(Base):

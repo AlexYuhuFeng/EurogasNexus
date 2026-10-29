@@ -21,7 +21,6 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
-from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
 ROOT = Path(__file__).resolve().parents[2]
 RECEIVED = datetime(2026, 10, 27, 13, 0, tzinfo=UTC)
@@ -209,11 +208,10 @@ def _reflected(engine_or_connection, table_name: str = "national_gas_actual_dema
     return sa.Table(table_name, sa.MetaData(), autoload_with=engine_or_connection)
 
 
-def test_schema_revision_matches_the_0043_migration():
+def test_0043_revision_ancestry_is_preserved():
     migration = _migration("0043_national_gas_rest_evidence.py")
 
-    assert DB_SCHEMA_REVISION == "0043_national_gas_rest_evidence"
-    assert migration.revision == DB_SCHEMA_REVISION
+    assert migration.revision == "0043_national_gas_rest_evidence"
     assert migration.down_revision == "0042_national_gas_actual_demand"
 
 

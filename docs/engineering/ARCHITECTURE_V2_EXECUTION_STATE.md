@@ -1,5 +1,32 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — RFC0005 native-rate schema and exact raw numeric tokens
+
+Root accepted RFC0005/Decision19 for coordinated native-unit migration. Existing
+volume clients keep numeric contracts; opt-in native representation, agent guards,
+raw-lexeme normalization, immutable namespaced rows and shared clients follow in
+stages. The fixed-CV source normalizer remains a known defect until connected.
+
+StageA0044 adds nullable native version/payload and gated nullable volume on the
+existing flow/capacity tables. Real PostgreSQL schema suites passed18, including
+old REST evidence and new native upgrade/downgrade/refusal cases. An actual full
+Alembic0043-to0044 upgrade on the dedicated weather acceptance database passed;
+all three existing forecast rows retained their content digest, and authentic
+ECMWF query/hash/first-receipt verification still passed. Root fixed the SQLite
+copy's lost kind=actual server default and a test fixture that accidentally
+supplied a non-null volume for its intended null-volume rejection. The earlier
+0043 test now checks its preserved ancestry; the0044 suite pins the current head.
+This does not migrate customer databases or create production source approval.
+
+A separate EntsogPage.numeric_lexeme_payload view preserves numeric source tokens
+straight from exact raw bytes; protocol pagination/default payload are unchanged.
+Lexer plus transport tests103passed; architecture alignment8passed; existing
+API stability/reachability9passed; legacy ingestion/upsert/API regression27passed.
+Ruff passed on these files. Strict native read projection and PostgreSQL CI
+wiring are in progress. Do not claim native business consumption or ENTSOG defect
+closure from these foundation checks. Latest fully verified hosted checkpoint
+remains c171dc8/run40853172800 (all eleven jobs passed).
+
 ## 2026-10-29 — operator ECMWF ingestion and native-unit foundation
 
 Pushed a67460c adds an explicit operator ECMWF capture/archive/append CLI and
@@ -24,9 +51,16 @@ and forbidding legacy Float values from masquerading as exact provider tokens.
 Do not claim that the staged parser alone fixes ENTSOG ingestion or closes supply
 and capacity integration. Full Python regression exposed the security acceptance
 script's stale189-path pin. Updated it to the declared191 (strict equality
-retained); independent script returned automated PASS. The full run and a fresh
-nested security-evidence replay remain active at this checkpoint; no new hosted
-all-green result is claimed.
+retained); independent script returned automated PASS. The original full run
+finished4688passed/80skipped/3failed, with all three failures from that stale pin.
+Fresh-process replay of all three affected tests passed3, including the actual
+nested security suite (270.70seconds). The full run collected before the new
+native-unit/CLI tests were added; those are separately covered by51 and94 focused
+passes above. Full-worktree Ruff passed. All eleven hostedCI jobs for c171dc8,
+run40853172800, completed successfully: full validation, PostgreSQL, EN/ZH browser,
+Web build, dependency/CVE and Python notice checks, three native builds and two
+installed-wheel SDK jobs. This is a verified staged checkpoint, not full delivery
+acceptance or evidence that isolated model/decoder dependencies are shipped.
 
 ## 2026-10-29 — governed weather API/SDK and shared client evidence panel
 

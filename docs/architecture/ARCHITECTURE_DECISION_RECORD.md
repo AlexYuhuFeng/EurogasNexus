@@ -428,3 +428,15 @@ Linux/Web/Windows/SDK maintenance requirement. [RFC-0004](../engineering/RFC-000
 requires shared native and installed-SDK workflows and adds their actual hosted
 matrix leaf jobs to G1. Existing release, security, signing and external approval
 boundaries remain in force. Adoption does not prove hosted execution or GUI UAT.
+
+
+## Decision19: ENTSOG native rates
+
+Accepted2026-10-29 under the Autonomous Execution Policy.
+[RFC-0005](../engineering/RFC-0005-ENTSOG-NATIVE-RATES.md) replaces the assumed-CV
+ENTSOG normalization with explicit same-dimension native rates, additive storage,
+immutable normalization namespaces and opt-in native physical reads. Existing
+volume DTOs remain non-null; unsafe legacy quantities are withheld with warnings,
+not rewritten or zero-filled. Agent, SDK and shared client consumers migrate in
+stages before the new ingestion path is admitted. Root architecture review does
+not claim implementation completion, source activation or customer acceptance.
