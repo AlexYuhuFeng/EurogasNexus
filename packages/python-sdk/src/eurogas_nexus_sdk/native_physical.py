@@ -299,7 +299,35 @@ class NativeCapacity(_NativePhysicalBase):
     capacity_type: str
 
 
-def _query_params(point_id: str | None, limit: int) -> dict[str, Any]:
+def _history_window(
+    from_utc: datetime | None, to_utc: datetime | None
+) -> tuple[str, str] | None:
+    """Validate an optional paired aware window and return explicit UTC text."""
+
+    if (from_utc is None) != (to_utc is None):
+        raise ValueError("from_utc and to_utc must be provided together")
+    if from_utc is None:
+        return None
+    if not isinstance(from_utc, datetime) or not isinstance(to_utc, datetime):
+        raise ValueError("from_utc and to_utc must be datetime values")
+
+    for name, value in (("from_utc", from_utc), ("to_utc", to_utc)):
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"{name} must be timezone-aware")
+
+    start = from_utc.astimezone(UTC)
+    end = to_utc.astimezone(UTC)
+    if start >= end:
+        raise ValueError("from_utc must be strictly before to_utc")
+    return start.isoformat(), end.isoformat()
+
+
+def _query_params(
+    point_id: str | None,
+    limit: int,
+    from_utc: datetime | None = None,
+    to_utc: datetime | None = None,
+) -> dict[str, Any]:
     if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 2000:
         raise ValueError("limit must be an integer between 1 and 2000")
     if point_id is not None:
@@ -309,9 +337,12 @@ def _query_params(point_id: str | None, limit: int) -> dict[str, Any]:
             raise ValueError("point_id must be non-blank")
         if len(point_id) > 128:
             raise ValueError("point_id must be at most 128 characters")
+    window = _history_window(from_utc, to_utc)
     params: dict[str, Any] = {"quantity_basis": "native", "limit": limit}
     if point_id is not None:
         params["point_id"] = point_id
+    if window is not None:
+        params["from_utc"], params["to_utc"] = window
     return params
 
 
@@ -320,10 +351,12 @@ def fetch_native_flows_result(
     *,
     point_id: str | None = None,
     limit: int = 200,
+    from_utc: datetime | None = None,
+    to_utc: datetime | None = None,
 ) -> SdkResult[list[NativeFlow]]:
     """Fetch projected native-unit flows, preserving envelope metadata."""
 
-    params = _query_params(point_id, limit)
+    params = _query_params(point_id, limit, from_utc, to_utc)
     data, meta = get_envelope(api_url(base_url, "physical/flows"), params=params)
     if not isinstance(data, list):
         raise SdkProtocolError("Native physical flow data must be a JSON list.")
@@ -335,10 +368,12 @@ def fetch_native_capacity_result(
     *,
     point_id: str | None = None,
     limit: int = 200,
+    from_utc: datetime | None = None,
+    to_utc: datetime | None = None,
 ) -> SdkResult[list[NativeCapacity]]:
     """Fetch projected native-unit capacities, preserving envelope metadata."""
 
-    params = _query_params(point_id, limit)
+    params = _query_params(point_id, limit, from_utc, to_utc)
     data, meta = get_envelope(api_url(base_url, "physical/capacity"), params=params)
     if not isinstance(data, list):
         raise SdkProtocolError("Native physical capacity data must be a JSON list.")
@@ -350,11 +385,17 @@ def fetch_native_flows(
     *,
     point_id: str | None = None,
     limit: int = 200,
+    from_utc: datetime | None = None,
+    to_utc: datetime | None = None,
 ) -> list[NativeFlow]:
     """Fetch projected native-unit flows without envelope metadata."""
 
     return fetch_native_flows_result(
-        base_url, point_id=point_id, limit=limit
+        base_url,
+        point_id=point_id,
+        limit=limit,
+        from_utc=from_utc,
+        to_utc=to_utc,
     ).data
 
 
@@ -363,9 +404,15 @@ def fetch_native_capacity(
     *,
     point_id: str | None = None,
     limit: int = 200,
+    from_utc: datetime | None = None,
+    to_utc: datetime | None = None,
 ) -> list[NativeCapacity]:
     """Fetch projected native-unit capacities without envelope metadata."""
 
     return fetch_native_capacity_result(
-        base_url, point_id=point_id, limit=limit
+        base_url,
+        point_id=point_id,
+        limit=limit,
+        from_utc=from_utc,
+        to_utc=to_utc,
     ).data

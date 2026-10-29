@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -539,6 +540,154 @@ def test_fetch_native_capacity_uses_capacity_path_and_default_limit(
     ]
     assert isinstance(result.data[0], NativeCapacity)
     assert result.meta.research_only is True
+
+
+def _capture_native_transport(
+    calls: list[tuple[str, dict[str, Any] | None]],
+) -> Any:
+    def fake_get_envelope(
+        url: str,
+        *,
+        params: dict[str, Any] | None = None,
+        timeout_seconds: float = 10.0,
+    ) -> tuple[Any, ResponseMeta]:
+        calls.append((url, params))
+        meta = ResponseMeta.model_validate(
+            {
+                "research_only": False,
+                "warnings": ["native"],
+                "future_meta": {"revision": 3},
+            }
+        )
+        if url.endswith("/physical/flows"):
+            return [deepcopy(_FLOW)], meta
+        return [deepcopy(_CAPACITY)], meta
+
+    return fake_get_envelope
+
+
+def test_native_history_window_is_forwarded_by_all_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any] | None]] = []
+    monkeypatch.setattr(
+        native_physical, "get_envelope", _capture_native_transport(calls)
+    )
+    start = datetime(
+        2026, 1, 1, 5, 30, tzinfo=timezone(timedelta(hours=5, minutes=30))
+    )
+    end = datetime(2026, 1, 1, 18, 0, tzinfo=timezone(timedelta(hours=-6)))
+
+    flows = fetch_native_flows(
+        "https://example.test",
+        point_id="DE-TSO-0001",
+        limit=3,
+        from_utc=start,
+        to_utc=end,
+    )
+    capacity = fetch_native_capacity(
+        "https://example.test", limit=4, from_utc=start, to_utc=end
+    )
+    flows_result = fetch_native_flows_result(
+        "https://example.test", limit=5, from_utc=start, to_utc=end
+    )
+    capacity_result = fetch_native_capacity_result(
+        "https://example.test", limit=6, from_utc=start, to_utc=end
+    )
+
+    assert [url for url, _ in calls] == [
+        "https://example.test/api/physical/flows",
+        "https://example.test/api/physical/capacity",
+        "https://example.test/api/physical/flows",
+        "https://example.test/api/physical/capacity",
+    ]
+    for _, params in calls:
+        assert params is not None
+        assert params["from_utc"] == "2026-01-01T00:00:00+00:00"
+        assert params["to_utc"] == "2026-01-02T00:00:00+00:00"
+
+    assert isinstance(flows[0], NativeFlow)
+    assert isinstance(capacity[0], NativeCapacity)
+    assert flows_result.meta.model_extra == {"future_meta": {"revision": 3}}
+    assert capacity_result.meta.warnings == ["native"]
+
+
+def test_native_history_window_offset_equivalents_produce_same_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any] | None]] = []
+    monkeypatch.setattr(
+        native_physical, "get_envelope", _capture_native_transport(calls)
+    )
+
+    fetch_native_flows_result(
+        "https://example.test",
+        from_utc=datetime(
+            2026, 1, 1, 5, 30, tzinfo=timezone(timedelta(hours=5, minutes=30))
+        ),
+        to_utc=datetime(2026, 1, 1, 19, 0, tzinfo=timezone(timedelta(hours=-5))),
+    )
+    fetch_native_capacity_result(
+        "https://example.test",
+        from_utc=datetime(2026, 1, 1, tzinfo=UTC),
+        to_utc=datetime(2026, 1, 2, tzinfo=UTC),
+    )
+
+    assert calls[0][1] == calls[1][1]
+    assert calls[0][1] is not None
+    assert calls[0][1]["from_utc"] == "2026-01-01T00:00:00+00:00"
+    assert calls[0][1]["to_utc"] == "2026-01-02T00:00:00+00:00"
+
+
+@pytest.mark.parametrize(
+    ("from_utc", "to_utc"),
+    [
+        (None, datetime(2026, 1, 2, tzinfo=UTC)),
+        (datetime(2026, 1, 1, tzinfo=UTC), None),
+        (datetime(2026, 1, 1), datetime(2026, 1, 2, tzinfo=UTC)),
+        (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 2)),
+        (
+            datetime(2026, 1, 1, tzinfo=UTC),
+            datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+        (
+            datetime(2026, 1, 1, 1, tzinfo=timezone(timedelta(hours=1))),
+            datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+        (
+            datetime(2026, 1, 2, tzinfo=UTC),
+            datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+        ("DO-NOT-ECHO", datetime(2026, 1, 2, tzinfo=UTC)),
+        (datetime(2026, 1, 1, tzinfo=UTC), "DO-NOT-ECHO"),
+        (1, 2),
+        (True, False),
+    ],
+)
+def test_invalid_native_history_windows_do_not_call_transport(
+    monkeypatch: pytest.MonkeyPatch, from_utc: Any, to_utc: Any
+) -> None:
+    calls: list[object] = []
+
+    def fail_if_called(*args: object, **kwargs: object) -> tuple[Any, ResponseMeta]:
+        calls.append((args, kwargs))
+        raise AssertionError("transport must not be called for invalid windows")
+
+    monkeypatch.setattr(native_physical, "get_envelope", fail_if_called)
+    for fetch in (
+        fetch_native_flows_result,
+        fetch_native_capacity_result,
+        fetch_native_flows,
+        fetch_native_capacity,
+    ):
+        with pytest.raises(ValueError) as excinfo:
+            fetch(
+                "https://example.test",
+                from_utc=from_utc,
+                to_utc=to_utc,
+            )
+        assert "DO-NOT-ECHO" not in str(excinfo.value)
+    assert calls == []
 
 
 def test_data_only_helpers_return_typed_lists(

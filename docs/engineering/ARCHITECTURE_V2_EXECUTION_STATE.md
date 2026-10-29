@@ -1,5 +1,20 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — native SDK history window verified over actual PG HTTP
+
+All four native SDK fetch methods now accept paired aware datetime bounds,
+normalize UTC and forward the same half-open overlap window. Partial, naive,
+equal or reversed inputs refuse before transport; existing metadata/auth and
+exact strings remain intact. SDK plus actual-projector wire contracts102passed.
+Root ran three real PostgreSQL-backed HTTP windows through both API and source
+SDK: each daily boundary selected one flow, the adjacent empty day selected none,
+and the longer covering technical capacity remained present in all three. The
+owned HTTP server stopped. This is source SDK proof, not installed-wheel proof.
+Web history controls and microsecond comparison review are in progress; the
+new browser test's deliberately induced503 also needs exact-URL attribution so
+its controlled refusal cannot mask a real unrelated read error.
+
+
 ## 2026-10-29 — shared native capacity context and bounded history reads
 
 The existing capacity network workspace now queries native flow/capacity together
