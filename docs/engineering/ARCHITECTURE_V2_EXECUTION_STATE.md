@@ -1,5 +1,34 @@
 # Architecture V2 Execution State
 
+## 2026-10-30 — point-in-time actual demand model inputs and full browser pass
+
+C1a adds a bounded explicit National Gas target read: source item and CSV/REST
+representation, gas-day range, aware actual-availability cutoff, overflow refusal
+and no autoflush/commit. The pure mapper preserves exact native MSCM evidence,
+blank versus zero, original publication/quality/hash, derived receipt ranking and
+all admitted revisions so each model fold can choose its own eligible revision.
+Equal-receipt conflicting publications refuse. D+1 requires explicit provisional
+opt-in; unresolved D+6 and unadmitted source-quality flags remain diagnostics.
+No actual-quality promotion or mcm/energy conversion occurs.
+
+Root actual PostgreSQL review caught a wrong expected cutoff assertion and the
+potential query autoflush; DeepSeek fixed both and added a real pending-write
+regression. Root then caught latest-only mapping losing earlier OOS revisions;
+DeepSeek restored all revisions and the real core selector regression. Mapper28
+passed, standalone actual PG12passed, Ruff passed. Both PG modules are now in the
+existing Linux PostgreSQL CI script; fresh empty owned DB through0044, API auth
+smokes and88tests all passed without skips. No new schema/API/source activation.
+Runtime composition with the actual fit core is now delegated to DeepSeek; model
+history, representativeness, NumPy delivery and prediction/business use remain open.
+
+The rerun local whole-product Chromium sweep passed96workspace checks with zero
+failures, plus4reference-index cases. Dedicated synthetic UAT DB was upgraded
+additively0041->0044 before rerun. Hosted698333d andefe518e CI both completed
+successfully across declared jobs. These are build/UI contracts, not signed native
+GUI/customer or full provider acceptance. Owned loopback UAT servers are stopped
+after this sweep. Full goal remains active.
+
+
 ## 2026-10-29 — real headless reference-index interaction, coherent projection
 
 DeepSeek added reference-index interaction to the existing whole-product browser

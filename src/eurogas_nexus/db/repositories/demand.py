@@ -16,9 +16,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
-from eurogas_nexus.ingestion.national_gas_demand import NationalGasActualDemand
+from eurogas_nexus.ingestion.national_gas_demand import (
+    ALLOWED_PROVIDER_ITEM_IDS,
+    NationalGasActualDemand,
+)
 
 _QUERY_CHUNK = 400
+MAX_DEMAND_TARGET_READ_LIMIT = 10_000
+DEMAND_TARGET_SOURCE_FORMATS = frozenset({"CSV", "REST"})
+DEMAND_TARGET_REGION = "GB_NTS"
+DEMAND_TARGET_UNIT = "mscm"
 
 
 class DemandPersistenceError(RuntimeError):
@@ -35,6 +42,28 @@ class DemandPublicationConflict(DemandPersistenceError):
     """A source publication identity already exists with different content."""
 
     code = "DEMAND_PUBLICATION_CONFLICT"
+
+
+class DemandTargetReadError(RuntimeError):
+    """Base failure for bounded, point-in-time demand-target reads."""
+
+    code = "DEMAND_TARGET_READ_ERROR"
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(f"{self.code}: {message}")
+
+
+class DemandTargetReadValidationError(DemandTargetReadError):
+    """A read argument is missing, malformed or outside the allowlist."""
+
+    code = "DEMAND_TARGET_READ_VALIDATION_ERROR"
+
+
+class DemandTargetReadOverflow(DemandTargetReadError):
+    """The result exceeded the explicit limit; rows are never silently trimmed."""
+
+    code = "DEMAND_TARGET_READ_OVERFLOW"
 
 
 @dataclass(frozen=True)
@@ -160,6 +189,105 @@ def list_demand_rows(
         NationalGasActualDemandRecord.record_id,
     ).limit(limit)
     return list(session.scalars(statement).all())
+
+
+def read_demand_target_revisions(
+    session: Session,
+    *,
+    provider_item_id: str,
+    source_format: str,
+    gas_day_from: date,
+    gas_day_to: date,
+    available_at_utc: datetime,
+    limit: int = 1_000,
+) -> list[NationalGasActualDemandRecord]:
+    """Read one source format's revisions that were actually available by a cutoff.
+
+    The query is deliberately narrow and read-only: one allowlisted provider item,
+    one explicit ``CSV`` or ``REST`` copy, the fixed GB NTS throughput region and
+    native ``mscm`` unit, an inclusive gas-day window, and receipt availability at
+    or before an aware cutoff.  Published clocks are never substituted for receipt
+    evidence.  ``limit + 1`` is fetched so an over-limit result is refused rather
+    than silently trimmed.  The caller owns the transaction; this function neither
+    commits nor mutates a row.
+    """
+
+    _validate_target_read_arguments(
+        provider_item_id=provider_item_id,
+        source_format=source_format,
+        gas_day_from=gas_day_from,
+        gas_day_to=gas_day_to,
+        available_at_utc=available_at_utc,
+        limit=limit,
+    )
+    cutoff_utc = available_at_utc.astimezone(UTC)
+
+    statement = (
+        select(NationalGasActualDemandRecord)
+        .where(
+            NationalGasActualDemandRecord.provider_item_id == provider_item_id,
+            NationalGasActualDemandRecord.source_format == source_format,
+            NationalGasActualDemandRecord.region == DEMAND_TARGET_REGION,
+            NationalGasActualDemandRecord.unit == DEMAND_TARGET_UNIT,
+            NationalGasActualDemandRecord.gas_day >= gas_day_from,
+            NationalGasActualDemandRecord.gas_day <= gas_day_to,
+            NationalGasActualDemandRecord.available_at_utc <= cutoff_utc,
+        )
+        .order_by(
+            NationalGasActualDemandRecord.gas_day,
+            NationalGasActualDemandRecord.available_at_utc,
+            NationalGasActualDemandRecord.record_id,
+        )
+        .limit(limit + 1)
+    )
+    # A read must never flush pending caller writes.  Scope autoflush suppression
+    # to this query only and leave the caller's unit of work exactly as it was.
+    with session.no_autoflush:
+        rows = list(session.scalars(statement).all())
+    if len(rows) > limit:
+        raise DemandTargetReadOverflow(
+            "demand target read exceeded the explicit limit; rows are never silently trimmed"
+        )
+    return rows
+
+
+def _validate_target_read_arguments(
+    *,
+    provider_item_id: str,
+    source_format: str,
+    gas_day_from: date,
+    gas_day_to: date,
+    available_at_utc: datetime,
+    limit: int,
+) -> None:
+    if (
+        not isinstance(provider_item_id, str)
+        or provider_item_id not in ALLOWED_PROVIDER_ITEM_IDS
+    ):
+        raise DemandTargetReadValidationError(
+            "provider_item_id must be one of the allowlisted National Gas actual-demand items"
+        )
+    if not isinstance(source_format, str) or source_format not in DEMAND_TARGET_SOURCE_FORMATS:
+        raise DemandTargetReadValidationError("source_format must be CSV or REST")
+    for name, value in (("gas_day_from", gas_day_from), ("gas_day_to", gas_day_to)):
+        if not isinstance(value, date) or isinstance(value, datetime):
+            raise DemandTargetReadValidationError(f"{name} must be a calendar date")
+        if not date(2000, 1, 1) <= value <= date(2100, 12, 31):
+            raise DemandTargetReadValidationError(f"{name} is outside the supported range")
+    if gas_day_from > gas_day_to:
+        raise DemandTargetReadValidationError("gas_day_from must not be after gas_day_to")
+    if (
+        not isinstance(available_at_utc, datetime)
+        or available_at_utc.tzinfo is None
+        or available_at_utc.utcoffset() is None
+    ):
+        raise DemandTargetReadValidationError("available_at_utc must be an aware datetime")
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        raise DemandTargetReadValidationError("limit must be an integer")
+    if not 1 <= limit <= MAX_DEMAND_TARGET_READ_LIMIT:
+        raise DemandTargetReadValidationError(
+            f"limit must be between 1 and {MAX_DEMAND_TARGET_READ_LIMIT}"
+        )
 
 
 def _ensure_sqlite_begin(session: Session) -> None:
