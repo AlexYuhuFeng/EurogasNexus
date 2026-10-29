@@ -1,5 +1,35 @@
 # Architecture V2 Execution State
 
+## 2026-10-30 — persisted weather/target composition reaches the frozen fitter
+
+C1b composes actual target/forecast repositories, PIT target mapping, per-day
+forecast projection/vintage selection, bounded left hold, degree-day features and
+the existing NumPy fitter. Explicit policies/bindings/calendar/weights/origins are
+required; no API, datastore, source activation, network or writes are added.
+Root found and DeepSeek fixed a missing readiness gate: fewer paired training
+days than the frozen minimum now returns insufficient history before any fit or
+baseline. All target revisions survive for per-fold selection. Research-only,
+unpromoted model/selection hashes and caller-declared unreviewed weighting basis
+remain explicit; missing NumPy never becomes an alternate solver.
+
+Root Linux NumPy runtime12tests and actual PostgreSQL5composition tests passed.
+The latter persists synthetic mechanics data in owned schemas and invokes actual
+SQL/projection/degree-day/fitter code without mocking those seams; it is not real
+provider history or accuracy. Ruff and Markdown links passed. The PG module is
+registered in the existing CI script; hosted locks still omit NumPy, so its fitted
+case may skip there. Broader weather/architecture regression is running, not yet
+claimed complete. Operator invocation is under separate DeepSeek implementation.
+
+A read-only probe using actual persisted3ECMWF/17National Gas REST rows from two
+owned databases refused AMBIGUOUS_RECEIPT_TIE before fitting; before/after counts
+matched3/17, no model produced. Shared-capture receipt times do not establish a
+source revision order. A dedicated semantics review is complete but admits no
+new ordering policy; current official portal evidence is being gathered. Actual
+model consumption remains unproven, alongside regional history/weights, NumPy
+redistribution closure, result persistence and business integration. No delivery
+completion claim follows from this internal composition.
+
+
 ## 2026-10-30 — point-in-time actual demand model inputs and full browser pass
 
 C1a adds a bounded explicit National Gas target read: source item and CSV/REST
