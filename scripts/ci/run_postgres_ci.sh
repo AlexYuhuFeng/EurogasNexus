@@ -50,12 +50,18 @@ assert refused.status_code in {401, 403, 503}, refused.status_code
 print("db-backed api smoke ok: an uncredentialed caller is refused")
 PY
 
+# SQLite fixtures do not prove PostgreSQL behaviour. The two schema modules below own
+# native PostgreSQL upgrade/downgrade cases that are optional elsewhere, so bind the
+# runtime database to this pytest command and run them here instead of letting them skip.
 EUROGAS_NEXUS_ACK_INTEGRATION_TEST=1 \
 EUROGAS_NEXUS_CONTRACT_REVISION_INTEGRATION_TEST=1 \
 EUROGAS_NEXUS_PAYMENT_TERMS_INTEGRATION_TEST=1 \
+EUROGAS_NEXUS_TEST_POSTGRES_URL="$RUNTIME_STORE_DATABASE_URL" \
 python -m pytest -q \
   tests/integration/test_postgres_backed_smoke.py \
   tests/integration/test_monitoring_acknowledgement_postgres.py \
   tests/integration/test_research_entitlement_postgres.py \
   tests/integration/test_contract_revision_capture_postgres.py \
-  tests/integration/test_contract_payment_terms_acceptance_postgres.py
+  tests/integration/test_contract_payment_terms_acceptance_postgres.py \
+  tests/db/test_demand_rest_schema.py \
+  tests/db/test_entsog_native_rate_schema.py

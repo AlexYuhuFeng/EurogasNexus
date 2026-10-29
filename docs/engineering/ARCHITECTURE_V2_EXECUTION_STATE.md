@@ -22,9 +22,20 @@ A separate EntsogPage.numeric_lexeme_payload view preserves numeric source token
 straight from exact raw bytes; protocol pagination/default payload are unchanged.
 Lexer plus transport tests103passed; architecture alignment8passed; existing
 API stability/reachability9passed; legacy ingestion/upsert/API regression27passed.
-Ruff passed on these files. Strict native read projection and PostgreSQL CI
-wiring are in progress. Do not claim native business consumption or ENTSOG defect
-closure from these foundation checks. Latest fully verified hosted checkpoint
+Strict native read projection now passed49focused tests; combined native-core/
+projection/pipeline wiring suite101passed. Review removed a metadata-only shortcut,
+requires the actual version/payload columns, rejects forged native quantities and
+unknown/partial versions, and requires exact aware timestamp cross-checks before
+accepting naive fixture instants. Legacy case variants cannot bypass admission.
+No route or ingestion consumes this helper yet; those changes remain pending.
+
+The existing PostgreSQL CI script now explicitly runs both schema modules with
+the actual test DSN. Root executed the complete script in a newly created isolated
+PostgreSQL database using canonical LinuxPython3.11: all migrations to0044,
+required tables, authenticated/anonymous HTTP smoke and39tests passed with no
+skips. This includes the real PostgreSQL schema branches, separately from the
+fast SQLite mechanics. Ruff passed. Do not claim native business consumption or
+ENTSOG defect closure from these foundation checks. Latest fully verified hosted checkpoint
 remains c171dc8/run40853172800 (all eleven jobs passed).
 
 ## 2026-10-29 — operator ECMWF ingestion and native-unit foundation
