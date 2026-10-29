@@ -1,5 +1,48 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — installed SDK pipeline pins normalized market evidence
+
+DeepSeek extended the existing installed-wheel isolated smoke with18actual DTO
+evidence fields and6synthetic contract groups: retained long signed exact text,
+strict nullable executable flags, refused numeric fake exact values, legacy
+optional defaults and unknown publication distinct from receipt. The parent
+requires those counters; existing6HTTP economics checks and import-origin/source
+binding remain. Root removed a redundant source-string assertion test and ran
+24focused pipeline/SDK tests and Ruff, all passed.
+
+The actual new smoke then ran with Python3.11.12 in a fresh WSL venv outside the
+checkout, hash-locked runtime install, the built3ca3870 wheel and Python-I:
+32SDK modules,18fields,6market contract groups and2required-field checks passed.
+This proves installed SDK mechanics, not production data/source rights. Windows
+local new-venv creation returned access denied; earlier hosted Windows SDK CI
+passed independently. DeepSeek audit confirmed no persisted-weather/target-to-fit
+runtime exists and NumPy is absent from delivered dependencies. C1a target PIT
+read/mapping is now under root review; full runtime composition, historical
+coverage, regional weights, frozen results and portfolio use remain mandatory.
+
+
+## 2026-10-29 — installed-wheel exact market evidence verified
+
+Root built the shared customer wheel from clean tracked source at3ca3870 and
+installed it into a separate ignored target. An isolated Python -I child asserted
+its SDK import came from that installed directory, then read the actual ephemeral
+HTTP API backed by the owned PostgreSQL EEX acceptance rows:4normalized records
+retained exact source-price strings, executable=false, unknown publication time,
+receipt availability basis and response meta. Anonymous access401; owned server
+stopped. The parent also checked4raw/source-SDK rows separately. Customer artifact
+inventory verification passed. Wheel SHA256:
+a95d24b2fa17a6734df466f73bca86534ee8751394a922429114cc3f61cafafa.
+
+This local artifact probe used the existing local Python3.12 runtime dependencies,
+not a fresh canonical3.11 lock install. Hosted3ca3870 SDK installed-wheel jobs on
+canonical3.11 Linux and Windows separately passed, along with PostgreSQL, Web and
+dependency/license jobs; browser/native/full-validation jobs were still running
+when observed. These scoped checks do not prove production rights, signing,
+native interaction or the full weather-demand/business vertical. DeepSeek is
+extending the reusable installed-wheel smoke so exact evidence retention remains
+a durable cross-platform contract, and auditing the weather runtime gap.
+
+
 ## 2026-10-29 — explicit gated EEX operator ingestion and truthful run evidence
 
 The existing public-source CLI now accepts explicit eex-ngp selection, preserving

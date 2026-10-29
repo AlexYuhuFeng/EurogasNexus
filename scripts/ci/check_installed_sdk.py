@@ -21,11 +21,12 @@ What it does
    customer wheel contains the shared product packages but not the ``apps/``
    deployment wrappers. The SDK/examples run in a separate process from a temp
    directory, with isolated Python ``-I``, using only the installed wheel.
-5. Runs a stdlib smoke (every SDK module imported with ``pkgutil`` plus stable
-   typed missing-field errors) and the existing synthetic economics example
-   (six actual HTTP cases: three capacity, one capacity refusal, one LNG and one
-   LNG refusal). Financial arithmetic stays in the backend/example; this helper
-   never recomputes it.
+5. Runs a stdlib smoke (every SDK module imported with ``pkgutil``, stable
+   typed missing-field errors, and a synthetic normalized-market evidence
+   contract) and the existing synthetic economics example (six actual HTTP
+   cases: three capacity, one capacity refusal, one LNG and one LNG refusal).
+   Financial arithmetic stays in the backend/example; this helper never
+   recomputes it.
 6. Writes one JSON record with only non-secret fields and terminates the child
    process it started in ``finally``. It never stops a process by port or PID
    discovery.
@@ -62,6 +63,8 @@ HEALTH_TIMEOUT_SECONDS = 30.0
 SMOKE_TIMEOUT_SECONDS = 120.0
 GIT_TIMEOUT_SECONDS = 15.0
 EXPECTED_HTTP_CASE_COUNT = 6
+EXPECTED_MARKET_EVIDENCE_FIELD_COUNT = 18
+EXPECTED_MARKET_CONTRACT_CASE_COUNT = 6
 EXPECTED_CHECK_IDS = frozenset(
     {
         "capacity-23h",
@@ -403,7 +406,7 @@ class SmokeError(RuntimeError):
 
 
 def main() -> int:
-    """Import every SDK module and assert stable typed missing-field errors."""
+    """Import every SDK module and assert typed and synthetic model contracts."""
 
     result = {
         "status": "failed",
@@ -412,6 +415,8 @@ def main() -> int:
         "module_count": 0,
         "typed_validation_case_count": 0,
         "typed_error_fields": [],
+        "market_evidence_field_count": 0,
+        "market_contract_case_count": 0,
     }
     try:
         prefix = Path(sys.argv[1]).resolve(strict=True)
@@ -476,6 +481,166 @@ def main() -> int:
                 raise SmokeError("missing_required_fields_accepted")
         result["typed_validation_case_count"] = len(fields)
         result["typed_error_fields"] = fields
+
+        market = importlib.import_module("eurogas_nexus_sdk.market")
+        observation_model = market.NormalizedMarketObservation
+        model_fields = getattr(observation_model, "model_fields", None)
+        if model_fields is None:
+            model_fields = getattr(observation_model, "__fields__", {})
+        evidence_fields = (
+            "source_price_status",
+            "source_price_exact",
+            "source_price_raw",
+            "source_price_volume_mwh_exact",
+            "source_price_volume_raw",
+            "source_price_volume_status",
+            "source_price_provenance",
+            "source_price_issue",
+            "source_price_issue_detail",
+            "source_price_source_system",
+            "source_price_source_reference",
+            "source_price_source_dataset",
+            "price_float_provenance",
+            "price_semantics",
+            "executable_quote",
+            "price_gbp_mwh_exact",
+            "price_gbp_mwh_provenance",
+            "price_name",
+        )
+        strict_text_fields = (
+            "price_gbp_mwh_exact",
+            "source_price_exact",
+            "source_price_raw",
+            "source_price_volume_mwh_exact",
+            "source_price_volume_raw",
+        )
+        if not {*evidence_fields, "price_gbp_mwh", "metadata_json"} <= set(model_fields):
+            raise SmokeError("market_evidence_field_missing")
+
+        required_values = {
+            "observation_id": "synthetic-observation",
+            "market_venue": "synthetic-venue",
+            "product": "synthetic-product",
+            "price": 1.25,
+            "unit": "MWh",
+            "currency": "GBP",
+            "period_start_utc": "2026-01-01T00:00:00Z",
+            "period_end_utc": "2026-01-02T00:00:00Z",
+            "hub": "NBP",
+            "tenor": "day-ahead",
+            "is_gas_price": True,
+        }
+        positive_exact = "+" + "0" * 80 + "12345678901234567890.4500"
+        negative_exact = "-" + "9" * 80 + "8765432109876543210.0100"
+        positive_volume = "+" + "0" * 64 + "42.500000000000000000"
+        negative_volume = "-" + "9" * 64 + "42.500000000000000000"
+        evidence_values = {
+            "price_gbp_mwh_exact": positive_exact,
+            "price_gbp_mwh_provenance": "synthetic-exact-source",
+            "price_name": "synthetic-price-name",
+            "source_price_status": "exact",
+            "source_price_exact": negative_exact,
+            "source_price_raw": " " + negative_exact + " ",
+            "source_price_volume_mwh_exact": positive_volume,
+            "source_price_volume_raw": " " + positive_volume + " ",
+            "source_price_volume_status": "exact",
+            "source_price_provenance": "synthetic-source-provenance",
+            "source_price_issue": None,
+            "source_price_issue_detail": None,
+            "source_price_source_system": "synthetic-source-system",
+            "source_price_source_reference": "synthetic-source-reference",
+            "source_price_source_dataset": "synthetic-source-dataset",
+            "price_float_provenance": "synthetic-float-provenance",
+            "price_semantics": "reference_index",
+        }
+        full = observation_model(
+            **required_values,
+            **evidence_values,
+            price_gbp_mwh=1.25,
+            executable_quote=True,
+            metadata_json={
+                "publication_time_utc": None,
+                "publication_time_basis": "unknown",
+                "availability_basis": "response_receipt",
+                "available_at_utc": "2026-01-01T00:00:05Z",
+            },
+        )
+        dumped = full.model_dump()
+        if not {*evidence_fields, "price_gbp_mwh", "metadata_json"} <= set(dumped):
+            raise SmokeError("market_evidence_field_dropped")
+        for name, value in evidence_values.items():
+            if dumped.get(name) != value:
+                raise SmokeError("market_evidence_value_changed")
+        if dumped.get("price_gbp_mwh") != 1.25:
+            raise SmokeError("market_conversion_value_changed")
+        for name in strict_text_fields:
+            if not isinstance(dumped.get(name), str):
+                raise SmokeError("market_exact_text_not_string")
+            if dumped.get(name) != evidence_values[name]:
+                raise SmokeError("market_exact_text_not_preserved")
+        if dumped.get("executable_quote") is not True:
+            raise SmokeError("market_executable_quote_not_strict")
+        contract_cases = 1
+
+        for expected in (True, False, None):
+            probe = observation_model(**required_values, executable_quote=expected)
+            if probe.model_dump().get("executable_quote") is not expected:
+                raise SmokeError("market_executable_quote_not_strict")
+        contract_cases += 1
+        for forged in (1, 0, 1.0, "true", "false"):
+            try:
+                observation_model(**required_values, executable_quote=forged)
+            except ValidationError:
+                continue
+            raise SmokeError("market_executable_quote_coerced")
+        contract_cases += 1
+
+        for name in strict_text_fields:
+            for forged in (123.45, 42, True):
+                try:
+                    observation_model(**required_values, **{name: forged})
+                except ValidationError:
+                    continue
+                raise SmokeError("market_numeric_exact_accepted")
+        contract_cases += 1
+
+        legacy = observation_model(**required_values)
+        legacy_dump = legacy.model_dump()
+        for name in evidence_fields:
+            if legacy_dump.get(name) is not None:
+                raise SmokeError("market_optional_default_changed")
+        if legacy_dump.get("executable_quote") is not None:
+            raise SmokeError("market_executable_quote_default_changed")
+        if legacy_dump.get("price_gbp_mwh") is not None:
+            raise SmokeError("market_conversion_value_default_changed")
+        if legacy_dump.get("metadata_json") != {}:
+            raise SmokeError("market_metadata_default_changed")
+        contract_cases += 1
+
+        metadata = {
+            "publication_time_utc": None,
+            "publication_time_basis": "unknown",
+            "availability_basis": "response_receipt",
+            "available_at_utc": "2026-01-01T00:00:05Z",
+            "retrieved_at_utc": "2026-01-01T00:00:06Z",
+        }
+        metadata_dump = observation_model(
+            **required_values, metadata_json=metadata
+        ).model_dump()["metadata_json"]
+        if metadata_dump.get("publication_time_utc", "missing") is not None:
+            raise SmokeError("market_unknown_publication_became_receipt")
+        if metadata_dump.get("publication_time_basis") != "unknown":
+            raise SmokeError("market_publication_basis_changed")
+        if metadata_dump.get("availability_basis") != "response_receipt":
+            raise SmokeError("market_availability_basis_changed")
+        if metadata_dump.get("available_at_utc") != metadata["available_at_utc"]:
+            raise SmokeError("market_receipt_time_changed")
+        if metadata_dump.get("retrieved_at_utc") != metadata["retrieved_at_utc"]:
+            raise SmokeError("market_retrieval_time_changed")
+        contract_cases += 1
+
+        result["market_evidence_field_count"] = len(evidence_fields)
+        result["market_contract_case_count"] = contract_cases
         result["status"] = "passed"
     except SmokeError as exc:
         result["error_code"] = exc.code
@@ -613,6 +778,22 @@ def _validate_smoke_summary(
         and set(typed_fields) == {"billing_start", "valuation_date"},
         "smoke",
         "typed_validation_fields_changed",
+    )
+    market_field_count = summary.get("market_evidence_field_count")
+    _check(
+        isinstance(market_field_count, int)
+        and not isinstance(market_field_count, bool)
+        and market_field_count == EXPECTED_MARKET_EVIDENCE_FIELD_COUNT,
+        "smoke",
+        "market_evidence_field_count_changed",
+    )
+    market_case_count = summary.get("market_contract_case_count")
+    _check(
+        isinstance(market_case_count, int)
+        and not isinstance(market_case_count, bool)
+        and market_case_count == EXPECTED_MARKET_CONTRACT_CASE_COUNT,
+        "smoke",
+        "market_contract_case_count_changed",
     )
     sdk_version = summary.get("sdk_version")
     _check(

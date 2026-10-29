@@ -214,3 +214,54 @@ def test_exact_decimal_text_rejects_numbers_and_booleans(session: Session) -> No
         {**produced, "executable_quote": False}
     )
     assert accepted.executable_quote is False
+
+
+def test_installed_smoke_summary_requires_market_contract_counts(
+    monkeypatch, tmp_path
+) -> None:
+    from scripts.ci import check_installed_sdk as acceptance
+
+    installed_origin = (
+        tmp_path / "venv" / "site-packages" / "eurogas_nexus_sdk" / "__init__.py"
+    )
+    installed_origin.parent.mkdir(parents=True)
+    installed_origin.write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        acceptance,
+        "_assert_installed_origin",
+        lambda *args, **kwargs: installed_origin,
+    )
+    venv_prefix = tmp_path / "venv"
+    checkout_root = tmp_path / "checkout"
+    checkout_root.mkdir()
+    summary = {
+        "status": "passed",
+        "sdk_origin": "site-packages/eurogas_nexus_sdk/__init__.py",
+        "module_count": 3,
+        "python_version": "3.11.9",
+        "typed_validation_case_count": 2,
+        "typed_error_fields": ["billing_start", "valuation_date"],
+        "sdk_version": "0.5.0",
+        "market_evidence_field_count": 18,
+        "market_contract_case_count": 6,
+    }
+    acceptance._validate_smoke_summary(
+        summary,
+        venv_prefix=venv_prefix,
+        checkout_root=checkout_root,
+        installed_origin=installed_origin,
+    )
+    for key, code in (
+        ("market_evidence_field_count", "market_evidence_field_count_changed"),
+        ("market_contract_case_count", "market_contract_case_count_changed"),
+    ):
+        broken = dict(summary)
+        del broken[key]
+        with pytest.raises(acceptance.AcceptanceFailure) as excinfo:
+            acceptance._validate_smoke_summary(
+                broken,
+                venv_prefix=venv_prefix,
+                checkout_root=checkout_root,
+                installed_origin=installed_origin,
+            )
+        assert excinfo.value.code == code
