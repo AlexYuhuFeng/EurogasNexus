@@ -18,7 +18,12 @@ or commit:
 - canonical rows are append-or-verified by
   :func:`eurogas_nexus.db.repositories.eex_ngp_persistence.upsert_eex_ngp_observation_rows`,
   which keeps the original ``eex-ttf-ngp-15-mins`` source-reference authority
-  (never a URL substitution) and preserves the first receipt on recapture.
+  (never a URL substitution) and preserves the first receipt on recapture;
+- an explicit positive integer ``max_records`` bound is enforced after the raw
+  archive and receipt mapping but before any canonical row is written. A capture
+  that maps more priced rows than the bound is refused with the typed stable code
+  ``eex_ngp_record_limit``; the already archived exact bytes survive so the
+  refusal is evidence, not data loss.
 
 No default calendar, receipt clock, source URL or raw hash is accepted. A
 malformed capture, an altered/non-official URL, a non-200 response, a naive
@@ -87,9 +92,15 @@ class EexNgpArchiveLineageError(EexNgpIngestionError):
 
 
 class EexNgpInputError(EexNgpIngestionError):
-    """The caller supplied an invalid run identity."""
+    """The caller supplied an invalid run identity or record bound."""
 
     code = "eex_ngp_invalid_input"
+
+
+class EexNgpRecordLimitError(EexNgpIngestionError):
+    """The mapped capture exceeds the caller's explicit canonical row bound."""
+
+    code = "eex_ngp_record_limit"
 
 
 def persist_eex_ngp_capture(
@@ -98,6 +109,7 @@ def persist_eex_ngp_capture(
     capture: EexPublicCapture,
     gas_day_calendar_contract: EexNgpGasDayCalendarContract,
     run_id: str,
+    max_records: int = 10000,
 ) -> dict[str, Any]:
     """Archive one exact official capture, then append-or-verify its canonical rows.
 
@@ -111,6 +123,10 @@ def persist_eex_ngp_capture(
             the ``Gasday`` column. There is no default.
         run_id: Nonempty caller-owned ingestion run identity stamped into row
             metadata. This helper does not create an ingestion run row.
+        max_records: Positive integer ceiling for mapped canonical rows. It is
+            validated before any write; a capture that maps more rows is refused
+            after the exact raw archive and receipt mapping, before canonical
+            writes, so the archived evidence survives.
 
     Returns:
         Counts for the batch: ``records`` (canonical rows), ``received_records``
@@ -118,7 +134,14 @@ def persist_eex_ngp_capture(
         ``archived_pages`` (1), ``archive_id`` and the existing helper's
         ``inserted``/``unchanged`` counts.
 
+    Refusals that occur after the exact raw archive completed carry
+    ``retained_archive_id`` and ``retained_archived_pages == 1`` on the original
+    exception instance. The caller owns the transaction, so those values become
+    confirmed retention only after its commit succeeds.
+
     Raises:
+        EexNgpInputError: The record bound is not a positive integer (``bool`` is
+            not an integer here) or the run identity is invalid.
         EexNgpCaptureValidationError: The capture is not an exact bounded
             official-URL/200/aware-receipt capture.
         EexNgpInvalidUtf8Error: The exact bytes cannot be losslessly stored as
@@ -127,11 +150,15 @@ def persist_eex_ngp_capture(
             not match, so no canonical row is written.
         EexNgpParseError: The pure CSV parser or the receipt-bound mapper refused
             the payload. The raw archive completed first and survives.
+        EexNgpRecordLimitError: The receipt mapper produced more priced rows than
+            ``max_records``. The raw archive completed first and survives while
+            no canonical row is written.
         EexNgpRevisionRequiresHistoryError: A same-identity canonical row carries
             different semantic content; canonical writes roll back and raw
             archives remain.
     """
 
+    max_records = _validate_max_records(max_records)
     receipt = _validate_capture(capture)
     run = _validate_run_id(run_id)
 
@@ -162,23 +189,42 @@ def persist_eex_ngp_capture(
     )
 
     if parse_error is not None:
+        _mark_retained_archive(parse_error, archive_id)
         raise parse_error
     if parsed is None:  # defensive; parse_error is the only non-result path
-        raise EexNgpIngestionError("EEX NGP parser returned no result.")
+        error = EexNgpIngestionError("EEX NGP parser returned no result.")
+        _mark_retained_archive(error, archive_id)
+        raise error
 
-    rows = eex_ttf_ngp_receipt_observations(
-        parsed,
-        received_at_utc=receipt,
-        gas_day_calendar_contract=gas_day_calendar_contract,
-    )
-    stamped = _stamp_rows(
-        rows,
-        archive_id=archive_id,
-        payload_sha256=payload_sha256,
-        receipt=receipt,
-        run_id=run,
-    )
-    outcome = upsert_eex_ngp_observation_rows(session, stamped)
+    try:
+        rows = eex_ttf_ngp_receipt_observations(
+            parsed,
+            received_at_utc=receipt,
+            gas_day_calendar_contract=gas_day_calendar_contract,
+        )
+        if len(rows) > max_records:
+            # The exact raw archive was released above. This refusal happens before
+            # stamping/upsert, so the caller can commit the retained evidence without
+            # a partial canonical batch.
+            raise EexNgpRecordLimitError(
+                f"EEX NGP receipt mapping produced {len(rows)} canonical rows, exceeding "
+                f"the explicit max_records bound of {max_records}; no canonical row was "
+                "written and the exact raw archive is retained."
+            )
+        stamped = _stamp_rows(
+            rows,
+            archive_id=archive_id,
+            payload_sha256=payload_sha256,
+            receipt=receipt,
+            run_id=run,
+        )
+        outcome = upsert_eex_ngp_observation_rows(session, stamped)
+    except Exception as error:
+        # The exact raw archive already completed. Attach that confirmed lineage to
+        # the original refusal without replacing its type, stable code or traceback;
+        # the caller decides whether its commit actually retained it.
+        _mark_retained_archive(error, archive_id)
+        raise
     return {
         "records": len(stamped),
         "received_records": len(parsed.records),
@@ -246,6 +292,19 @@ def _validate_run_id(run_id: object) -> str:
     return run_id
 
 
+def _validate_max_records(value: object) -> int:
+    """Return the explicit positive integer bound, refusing ``bool`` and non-integers.
+
+    This check runs before capture validation, raw archival or any canonical work.
+    """
+
+    if type(value) is not int or value <= 0:
+        raise EexNgpInputError(
+            "EEX NGP max_records must be a positive integer (bool is not accepted)."
+        )
+    return value
+
+
 def _require_aware_receipt(value: object) -> datetime:
     if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
         raise EexNgpCaptureValidationError(
@@ -274,6 +333,18 @@ def _decode_exact_utf8(raw_bytes: bytes) -> str:
             "EEX NGP capture bytes do not round-trip through UTF-8 without alteration."
         )
     return text
+
+
+def _mark_retained_archive(error: Exception, archive_id: str) -> None:
+    """Attach confirmed raw-archive lineage to the original refusal.
+
+    Only the exception instance is annotated: its original type, stable ``code``
+    and traceback are preserved. The attributes are a retention *candidate*; a
+    caller may report them as retained only after its own transaction commits.
+    """
+
+    error.retained_archive_id = archive_id
+    error.retained_archived_pages = 1
 
 
 def _archive_exact_bytes(
@@ -371,6 +442,7 @@ __all__ = [
     "EexNgpInvalidUtf8Error",
     "EexNgpParseError",
     "EexNgpPersistenceError",
+    "EexNgpRecordLimitError",
     "EexNgpRevisionRaceError",
     "EexNgpRevisionRequiresHistoryError",
     "persist_eex_ngp_capture",

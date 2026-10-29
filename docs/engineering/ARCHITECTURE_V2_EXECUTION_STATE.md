@@ -1,5 +1,29 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — explicit gated EEX operator ingestion and truthful run evidence
+
+The existing public-source CLI now accepts explicit eex-ngp selection, preserving
+all/default behavior and independent provider transactions. Entitlement, runtime
+and certification gates precede download. A bounded capture reaches exact raw
+archival and receipt-bound append-or-verify with an explicit calendar contract;
+record-limit refusal keeps raw evidence without partial canonical writes. New
+run records carry declared registered source ids and the known EEX dataset;
+unknown names stay blank and historical rows are untouched. Failure reports
+claim retained archive identity/count only after commit; failed commits remain
+unknown, and download failures confirm zero archives.
+
+Root reviewed DeepSeek implementation, corrected one import ordering, and ran
+CLI/new-existing gate regressions53passed plus Ruff. DeepSeek corrected SQLite's
+auxiliary fixture to use real explicit transactions; the rollback assertion was
+retained. Separate fresh actual PostgreSQL CI76passed through schema0044 and
+API authentication smokes. An actual blocked CLI call fetched zero times and
+left raw/canonical counts unchanged; eight alias rows persisted correctly in an
+owned PostgreSQL database. Prior real EEX capture/HTTP/SDK evidence remains scoped
+to owned acceptance data. No production source activation, rights clearance,
+scheduler enablement or full delivery completion follows. Shared reference-index
+headless browser interaction is being implemented separately by DeepSeek.
+
+
 ## 2026-10-29 — shared receipt-bound reference-index evidence
 
 The existing market terminal now exposes EEX receipt-bound NGP observations in

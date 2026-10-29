@@ -1,8 +1,13 @@
 # EEX TTF NGP Source Contract
 
-Status: **current** (bounded adapter delivered 2026-09-29; RFC0006 stage A receipt-bound mapper
-delivered 2026-10-29). Implementation: `src/eurogas_nexus/ingestion/eex_ngp.py`. Tests:
-`tests/ingestion/test_eex_ngp_csv.py` and `tests/ingestion/test_eex_ngp_receipt.py`. RFC:
+Status: **current** (bounded adapter delivered 2026-09-29; RFC0006 stage A receipt-bound mapper,
+stage B persistence and stage C explicit operator CLI delivered 2026-10-29). Implementation:
+`src/eurogas_nexus/ingestion/eex_ngp.py`, `src/eurogas_nexus/ingestion/eex_ngp_ingestion.py`,
+`src/eurogas_nexus/ingestion/eex_public_download.py` and
+`scripts/ops/ingest_public_sources.py`. Tests: `tests/ingestion/test_eex_ngp_csv.py`,
+`tests/ingestion/test_eex_ngp_receipt.py`, `tests/ingestion/test_eex_public_download.py`,
+`tests/unit/test_ingest_eex_receipt_cli.py` and
+`tests/integration/test_eex_ngp_receipt_postgres.py`. RFC:
 [RFC-0006](../engineering/RFC-0006-EEX-RECEIPT-PRICE-EVIDENCE.md). Timezone declaration:
 `SOURCE_TIMEZONE_CONTRACTS` entry `EEX` / `ttf-ngp-15min`
 (`docs/data/SOURCE_TIMEZONE_CONTRACT.md`).
@@ -152,10 +157,12 @@ own recorded capture instant.
 
 `src-eex` is registered as a licensed, export-restricted (`license-controlled`) source whose
 certification stage is unverified: public download availability is not a redistribution right.
-This adapter adds no network call, no scheduled write, no CLI default, no datastore and no
-migration, and it does not grant, infer or record any certification. The existing fail-closed
-entitlement/certification gate in `scripts/ops/ingest_public_sources.py` is untouched and must
-stay in force for any future live ingestion of this file.
+The explicit operator route in section 11 applies the existing fail-closed entitlement, runtime
+and certification gates before any EEX download. `EEX` is in `CERTIFICATION_REQUIRED_SOURCES` and
+the gate family resolves the runtime operation through `src-eex`; a missing/insufficient
+certification is a structured failed run with a nonzero exit. The route never activates the
+source, writes a certification/runtime override or substitutes synthetic/zero rows. A schedule
+remains deliberately unimplemented.
 
 ## 6. Integration next steps and remaining blockers
 
@@ -175,16 +182,17 @@ approval, and the adapter treats unevidenced, unregistered or mismatched claims 
    no hardcoded default, and this interpretation is not rights certification or source activation.
 3. Confirm that the deployment's entitlement covers persisted or redistributed index values and
    record a certification decision; no automatic certification is granted.
-4. Wire the operator invocation through `ingest_public_sources.py` behind the existing gates
-   (bounded windows, raw archive, idempotent upsert) and only then consider a schedule. RFC0006
-   stage A adds only the pure receipt-bound mapper; it does not add persistence, a consumer, a
-   CLI path or a schedule.
+4. The operator invocation is wired through `ingest_public_sources.py` behind the existing gates
+   (bounded record limit, raw archive, idempotent upsert) as the **explicit** `eex-ngp` route only
+   (section 11). No implicit `all` default or scheduler entry was added; a schedule remains
+   unapproved and unimplemented.
 5. Confirm the file's granularity semantics (`Gasday` delivery day vs `Timestamp Let`, one row per
    gas day vs 15-minute buckets) so the canonical period basis can be stated with evidence.
 6. Optional, and not part of this bounded task: register the `ttf-ngp-15min` dataset in the Source
    Center registry (`src/eurogas_nexus/domain/ingestion/source_registry.py`).
 
-Until blockers 1–4 are closed the adapter is parse-and-test only: it writes nothing.
+Until the source-semantic, rights and certification blockers are closed, the operator route remains
+gated and a blocked run writes no canonical row. Live invocation is not production activation.
 
 ## 7. Related records
 
@@ -330,4 +338,82 @@ Root verified two actual official downloads in an owned acceptance database:
 first inserted4, second inserted0/verified4; exact bytes, hashes, null publication
 times, exact price authority and first receipts were preserved. Raw SHA256 was
 019f2286f8124be81c57d5b95e5df31497665f9ee877390122149b7842951707.
-Gated operator invocation and business-consumer acceptance remain subsequent work.
+Gated operator invocation is added in section 11; business-consumer acceptance
+and any schedule remain subsequent work.
+
+## 11. Explicit operator invocation (RFC0006 stage C)
+
+Status: **explicit operator CLI delivered; no schedule, activation or rights clearance**. The only
+entry is the existing `scripts/ops/ingest_public_sources.py` command with the new explicit route:
+
+```text
+python scripts/ops/ingest_public_sources.py --source eex-ngp --limit 20 --json
+```
+
+`eex-ngp` is a `--source` choice but is **not** added to the implicit `all` set, the no-argument
+default or any scheduler mapping. `--source all` alone therefore behaves exactly as before.
+`--source all --source eex-ngp` keeps the explicit EEX route alongside the existing providers,
+rather than letting the `all` expansion discard it.
+
+### 11.1 Gate order and refusal semantics
+
+The EEX family (`EEX`, runtime registry id `src-eex`) is evaluated in the same pre-download gate
+session as the existing families. It uses the existing entitlement check, operator runtime state
+and `CERTIFICATION_REQUIRED_SOURCES` certification gate. A blocked EEX run:
+
+- is recorded as a failed `ingestion_runs` row with its audit event;
+- appears as a structured entry in the report's `failures` and `sources` (code
+  `eex_gate_blocked`);
+- returns a nonzero exit;
+- performs no HTTP request, source activation or certification/runtime override.
+
+The route is separate from the shared ECB/ENTSOG/GIE session. EEX fetches and persists in its own
+session after the independent providers commit, so an EEX refusal cannot roll back their work.
+This ordering is covered by unit tests, not by a live provider call in CI.
+
+### 11.2 Fetch, record bound and persistence
+
+The route calls the existing bounded `fetch_eex_public_capture()` with no URL, key or caller
+transport argument: it is the fixed official HTTPS file and the fixed no-API-key path. It then calls
+`persist_eex_ngp_capture(...)` with an explicit delivery-calendar contract, the CLI `--limit`, and a
+fresh run id.
+
+The persistence helper now takes `max_records: int = 10000`, validates that it is a positive
+integer (`bool` is refused) before any write, archives the exact bytes and performs receipt
+mapping, then refuses `len(mapped_rows) > max_records` with the new typed stable code
+`eex_ngp_record_limit` **before** any canonical write. The archived raw capture is retained. The CLI
+passes `--limit`; an invalid EEX limit is rejected before database resolution or HTTP. The CLI
+records the same run id in the success/failure `ingestion_runs` row and audit event, and commits a
+retained raw archive when mapping, revision or record-limit refusal occurs. Report details include
+the full helper counts and safe stable codes only; provider text, URLs and query secrets are not
+echoed, and there is no zero/synthetic fallback.
+
+### 11.3 Calendar contract and non-claims
+
+The caller constructs the root-accepted contract explicitly:
+
+- `calendar_id = EU-CAM-UTC-2025`;
+- evidence cites EEX Index Description v25 sections 1 and 2.5
+  (`https://www.eex.com/fileadmin/EEX/Downloads/Trading/Indices/Index_Description_v25_clean.pdf`)
+  and EEX Contract Specifications 0105a section 1.2.3
+  (`https://www.eex.com/fileadmin/EEX/Downloads/Rules/Contract_Specifications/20261002_EEX_Contract_Spezifications_0105a_E_FINAL.pdf`)
+  for the 06:00 Europe/Berlin delivery day.
+
+There is no guessed publication clock, no generic/default calendar and no caller flag that could
+claim rights. The evidence string is a citation, not certification. Tests use only local stubs for
+the CLI/transport and one actual PostgreSQL record-limit case; real EEX network capture and the
+complete PostgreSQL CI were separately verified by root (76 passed in an empty owned database).
+
+Rollback removes the `eex-ngp` choice and its explicit route, the EEX gate-family registration, the
+`max_records` parameter/typed refusal, the CLI helper and tests, and this section. Existing
+providers, the stage B helper without a bound, and already archived raw/canonical rows need no data
+migration.
+
+
+New CLI runs carry explicit registered source ids (including EEX-NGP to src-eex)
+and the known EEX dataset. Unknown names retain blank ids; historical records are
+unchanged. Refusals report raw retention only after commit confirms the exact
+archive id. Failed commits leave retention unknown; pre-download failures report
+zero. Root verified eight run aliases in actual PostgreSQL, plus a blocked actual
+CLI invocation with zero fetches and unchanged raw/canonical counts. These are
+owned acceptance probes, not production activation or provider certification.

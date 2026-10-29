@@ -578,3 +578,41 @@ def test_zero_volume_provider_row_is_not_mapped_but_other_rows_persist():
         assert len(rows) == 1
         assert rows[0]["source_record_id"] == "2026-05-29-20260529T1430-final"
         assert rows[0]["metadata_json"]["index_volume_mwh_exact"] == "1200.5"
+
+
+def test_record_limit_refuses_after_raw_archive_and_before_any_canonical_write():
+    capture = _capture(ROW_FINAL, ROW_TEMPORARY, receipt=FIRST_RECEIPT)
+
+    with _session() as session:
+        with pytest.raises(ingestion.EexNgpRecordLimitError) as caught:
+            ingestion.persist_eex_ngp_capture(
+                session,
+                capture=capture,
+                gas_day_calendar_contract=_calendar(),
+                run_id="limit-refused",
+                max_records=1,
+            )
+        assert caught.value.code == "eex_ngp_record_limit"
+        assert _rows(session, MarketObservationRecord) == []
+        archives = _archives(session)
+        assert len(archives) == 1
+        assert archives[0]["payload_text"].encode("utf-8") == capture.raw_bytes
+        assert archives[0]["payload_sha256"] == hashlib.sha256(
+            capture.raw_bytes
+        ).hexdigest()
+        assert archives[0]["received_at_utc"] == FIRST_RECEIPT
+        assert archives[0]["record_count"] == 2
+
+        # The retained raw archive proves the bound alone refused the batch; the
+        # same capture fits when the explicit bound matches the mapped row count.
+        outcome = ingestion.persist_eex_ngp_capture(
+            session,
+            capture=capture,
+            gas_day_calendar_contract=_calendar(),
+            run_id="limit-allowed",
+            max_records=2,
+        )
+        assert outcome["records"] == 2
+        assert outcome["inserted"] == 2 and outcome["unchanged"] == 0
+        assert len(_rows(session, MarketObservationRecord)) == 2
+        assert len(_archives(session)) == 2

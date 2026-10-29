@@ -36,6 +36,7 @@ SOURCE_ID_BY_NAME = {
     "ECB": "src-ecb",
     "ECMWF_OPEN_DATA": "src-ecmwf-open-data",
     "EEX": "src-eex",
+    "EEX-NGP": "src-eex",
     "EEX_SIM": "src-eex-sim",
     "EEX SIM": "src-eex-sim",
     "ENTSOG": "src-entsog",
