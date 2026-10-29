@@ -5,7 +5,7 @@ The source registry is pure data used by the Source Center API
 registered feed surface. It must stay free of web-framework and database
 imports (enforced by the import-boundary contract tests).
 
-本模块是数据源登记表的唯一静态事实来源：24 个注册来源的分类、授权、
+本模块是数据源登记表的唯一静态事实来源：25 个注册来源的分类、授权、
 新鲜度期望、凭据与认证要求都在此处声明；API 层只做展示与运行时状态
 叠加，不得另行维护一份来源清单。
 """
@@ -76,7 +76,7 @@ def _source_row(
 
 
 def registered_sources() -> list[dict]:
-    """Return the full static registry of 24 source systems.
+    """Return the full static registry of 25 source systems.
 
     返回全部注册来源的静态登记记录列表。
 
@@ -304,6 +304,18 @@ def registered_sources() -> list[dict]:
             "Weather observations and forecast signals for HDD/CDD modelling.",
             True,
             freshness_minutes=180,
+        ),
+        _source_row(
+            "src-ecmwf-open-data",
+            "ECMWF_OPEN_DATA",
+            "weather",
+            ("ifs_0p25_oper_2t_forecasts",),
+            (
+                "ECMWF Open Data IFS 0.25° 2 m temperature forecasts. Actual public "
+                "source under CC BY 4.0; attribution: ECMWF."
+            ),
+            False,
+            freshness_minutes=720,
         ),
         _source_row(
             "src-deepseek",

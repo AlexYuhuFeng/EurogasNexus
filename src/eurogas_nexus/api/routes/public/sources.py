@@ -34,6 +34,7 @@ SOURCE_ID_BY_NAME = {
     "ARGUS": "src-argus",
     "DEEPSEEK": "src-deepseek",
     "ECB": "src-ecb",
+    "ECMWF_OPEN_DATA": "src-ecmwf-open-data",
     "EEX": "src-eex",
     "EEX_SIM": "src-eex-sim",
     "EEX SIM": "src-eex-sim",
