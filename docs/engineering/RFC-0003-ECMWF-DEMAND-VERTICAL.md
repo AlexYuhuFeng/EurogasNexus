@@ -1,6 +1,23 @@
 # RFC-0003: ECMWF weather to regional gas demand
 
 Status: Accepted architecture and staged implementation,2026-10-28.
+
+### 2026-10-29 bounded REST persistence extension
+
+Root accepts reusing `national_gas_actual_demand` for the verified keyless REST
+dataset alongside CSV, without overwriting or conflating either representation.
+Add source-format identity, nullable REST provenance and an explicit blank-value
+flag. Existing CSV rows retain their values, identities and receipt times.
+Permit an empty value only when explicitly marked blank; zero remains a value.
+Retain all offset-bearing provider clocks, substitution flags and their raw
+spellings in provenance. A maximum of those clocks is a labelled derived bound,
+not proof of historical first publication; operational availability remains
+actual receipt until a separate reviewed historical-admission policy exists.
+REST publication identities use a distinct format namespace. Consumers must
+select a source representation explicitly and cannot sum overlapping CSV/REST
+records. Reuse existing append-or-verify semantics and bounded queries, with
+atomic conflict rejection and first-receipt preservation. No automatic source
+activation or historical model validation follows from this schema extension.
 Root architecture/integration review under the autonomous execution policy.
 No model accuracy, production source activation or customer acceptance is claimed.
 

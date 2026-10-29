@@ -8,14 +8,24 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Index, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Index,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
 
 
 class NationalGasActualDemandRecord(Base):
-    """One immutable actual-demand revision from the public National Gas CSV."""
+    """One immutable actual-demand revision from the National Gas CSV or REST feed."""
 
     __tablename__ = "national_gas_actual_demand"
     __table_args__ = (
@@ -23,7 +33,17 @@ class NationalGasActualDemandRecord(Base):
         CheckConstraint("unit = 'mscm'", name="ck_ng_actual_demand_unit"),
         CheckConstraint("term IN ('D+1', 'D+6')", name="ck_ng_actual_demand_term"),
         CheckConstraint(
-            "length(value_text) > 0 AND length(value_text) <= 64",
+            "source_format IN ('CSV', 'REST')",
+            name="ck_ng_actual_demand_source_format",
+        ),
+        CheckConstraint(
+            "source_format != 'REST' OR rest_provenance IS NOT NULL",
+            name="ck_ng_actual_demand_rest_provenance",
+        ),
+        CheckConstraint(
+            "length(value_text) <= 64 AND "
+            "((value_is_blank AND length(value_text) = 0) OR "
+            "(NOT value_is_blank AND length(value_text) > 0))",
             name="ck_ng_actual_demand_value_text",
         ),
         CheckConstraint(
@@ -70,3 +90,10 @@ class NationalGasActualDemandRecord(Base):
     raw_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     source_url: Mapped[str] = mapped_column(String(512), nullable=False)
     hash_schema: Mapped[str] = mapped_column(String(64), nullable=False)
+    value_is_blank: Mapped[bool] = mapped_column(
+        Boolean(), nullable=False, default=False, server_default=text("false")
+    )
+    source_format: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="CSV", server_default="CSV"
+    )
+    rest_provenance: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
