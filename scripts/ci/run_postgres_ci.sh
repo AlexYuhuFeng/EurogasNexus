@@ -69,4 +69,5 @@ python -m pytest -q \
   tests/integration/test_eex_ngp_receipt_postgres.py \
   tests/integration/test_demand_target_reads_postgres.py \
   tests/integration/test_demand_target_reads_no_autoflush_postgres.py \
-  tests/integration/test_weather_demand_runtime_postgres.py
+  tests/integration/test_weather_demand_runtime_postgres.py \
+  tests/integration/test_weather_demand_operator_postgres.py

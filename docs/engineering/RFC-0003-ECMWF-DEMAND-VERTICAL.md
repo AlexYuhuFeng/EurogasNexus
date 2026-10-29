@@ -119,3 +119,35 @@ storage. Preserve existing APIs and legacy data; new source can be disabled and
 new consumers invalidated without destroying history. Root reviews each bounded
 migration/numerical implementation. Separate legal/customer reviews are not
 claimed by this technical architecture decision.
+### 2026-10-30 bounded REST applicability-order research extension
+
+Root accepts an explicit opt-in derived REST revision-order policy, separate from
+receipt availability. The default receipt-only mapper and its ambiguity refusal
+remain unchanged. Current official API specification describes publishedtime as
+an applicableAt search and latestValue=Y as the latest value per gas day:
+https://apideveloper.nationalgas.com/s/communityasset/a0sSq000000LG4zIAG/nggtemipiapi
+Root read the live specification through a headless public browser (no Send/Try
+It invocation). On the same explicit Oct26-27 publication-time window, actual
+fixed-origin REST queries returned17rows for N and5rows for Y; each Y row matched
+the unique maximum applicableAt row within its gas day. All three provider clocks
+agreed for every N row. Raw-response hashes are11f52e0e9d61d740a5d412a8abb5068d2ba7d4f41f65fe88f66855db9c50a5d2
+andd54a2aedb3ae49af0146d85a12e04274439c251028a41e92ae9d8272c9571638.
+
+The opt-in policy is DERIVED_REST_APPLICABILITY_ORDER_V1: accept only the existing
+fixed National Gas REST identity/provenance contract, three valid offset-bearing
+raw/normalized source clocks that agree as UTC instants, and source time no later
+than actual receipt. Rank all admitted revisions per gas day by this single
+consensus applicability instant, independently of receipt ordering. Equal source
+instants with competing publications remain ambiguous; no lexical/value tie-break,
+maximum-of-disagreeing-clocks fallback, CSV inference or provider revision-number
+claim. Later-received older applicability revisions cannot supersede newer ones.
+
+Every actual receipt/available_at/ingested_at, source row and quality flag remains
+immutable. Source applicability is never first public availability, and this
+extension grants no historical admission. Each fold still filters target revisions
+by actual receipt before choosing a ranked revision. Retain source clocks, chosen
+method/basis and original exact value in provenance; bind the opt-in method into
+request and model input lineage/hashes. D+6 unresolved quality, amended/substituted
+quality gates, missing/zero distinctions and native MSCM remain unchanged. No model
+promotion, schema, public API, source activation or bulk data rewrite is accepted.
+Root architecture/integration review under the autonomous execution policy.

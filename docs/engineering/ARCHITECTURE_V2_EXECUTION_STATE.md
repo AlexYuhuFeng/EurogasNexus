@@ -1,5 +1,36 @@
 # Architecture V2 Execution State
 
+## 2026-10-30 — durable operator PG gates and verified historical source evidence
+
+DeepSeek converted the real operator probes into two disposable-schema PG
+regressions. Actual SQL/runtime/fitter are used: committed synthetic fixtures
+produce a readonly research model; missing history produces exit1 without NumPy.
+Both actual Linux PostgreSQL tests passed with NumPy, Ruff passed after root
+import cleanup. The module is registered in the existing PG CI script. Hosted
+NumPy absence still means fitted-case skip, not delivered numerical capability.
+
+Root read current National Gas API specification in a public headless browser:
+latestValue=Y selects latest values per gas day, and publishedtime filters
+applicableAt. Actual same-window N/Y queries yielded17/5rows across5gas days;
+each Y row matched the unique maximum applicability instant and all three source
+clocks agreed. RFC0003 records a bounded opt-in derived applicability-order
+policy; default receipt ambiguity, actual availability and quality remain. DeepSeek
+is implementing the pure mapper policy, not yet runtime/CLI wiring or acceptance.
+
+Root actual official AWS listings confirmed IFS0p25 archive objects for Jan2025,
+Jan2026 and Oct2026. One Jan2025 24h 2t field was fetched by index/range and decoded
+at4explicit UK grid points; exact GRIB/index hashes are in RFC0007. Root accepted
+staged research archive architecture with explicit public-read continuity
+assumption and a distinct reconstruction basis, never historical local receipt or
+prospective accuracy. DeepSeek S1 evidence validator is in progress; no historical
+eligibility/persistence/default read changes have been made. Source bytes remain
+ignored evidence. RFC index formatting now presents one complete table.
+
+Full delivery remains open: regional coverage/weights, target selection integration,
+archive transport/PIT model use, numerical dependency/customer closure, prediction
+and frozen output/business consumption, signing and customer/native acceptance.
+
+
 ## 2026-10-30 — trusted read-only model operator command
 
 DeepSeek added scripts/ops/fit_weather_demand.py, separate from the public
