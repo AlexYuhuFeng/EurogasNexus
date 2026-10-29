@@ -440,3 +440,12 @@ volume DTOs remain non-null; unsafe legacy quantities are withheld with warnings
 not rewritten or zero-filled. Agent, SDK and shared client consumers migrate in
 stages before the new ingestion path is admitted. Root architecture review does
 not claim implementation completion, source activation or customer acceptance.
+
+
+## Decision20: EEX receipt-bound price evidence
+
+Accepted2026-10-29 under the Autonomous Execution Policy.
+[RFC-0006](../engineering/RFC-0006-EEX-RECEIPT-PRICE-EVIDENCE.md) adds explicit
+receipt-bound NGP mapping without assigning an unverified publication clock.
+The existing strict mapper and source rights/certification gates remain.
+Implementation, actual consumer use and delivery acceptance must be verified.

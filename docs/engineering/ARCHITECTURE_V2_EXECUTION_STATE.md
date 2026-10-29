@@ -1,5 +1,27 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — EEX receipt-bound price mapping with actual capture evidence
+
+Root rechecked the official EEX index page and current methodology25/spec0105a.
+Accepted RFC0006/Decision20 separates actual receipt availability from unproved
+Timestamp Let publication semantics, with a separately evidenced delivery calendar.
+The additive mapper retains null publication time and exact raw price/volume,
+source statuses and receipt; old publication-based mapping remains strict. A new
+stable namespace separates timing interpretations; no receipt enters its identity.
+No source rights, certification or runtime activation is granted by this change.
+
+Root fetched the actual linked TTF NGP CSV,293bytes, SHA256
+1944c540ddccd5b870214889ca7c83ebf733baf7095e1d3291c71be6ee8933d2,
+received2026-10-29T14:54:05.623743Z. Four usable records mapped at that receipt,
+with oneFinal/threeTemporary statuses and no asserted publication instant. All
+four passed the existing exact source-price authority. Raw capture and reports
+are retained locally; no market payload or credential is committed.
+Pure new/old EEX suites87passed/1existingoptionalskip; Ruff and347-file Markdown
+link validation passed. Persistence/append-replay/raw archival is being implemented
+separately, followed by gated operator and business-consumer integration. This
+bounded mapping is not end-to-end delivery or historical availability evidence.
+
+
 ## 2026-10-29 — full hosted quality-guard regression fixture correction
 
 Hosted020ae60/run40895895337 passed ten jobs, including actual PostgreSQL,

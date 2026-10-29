@@ -18,3 +18,5 @@ the RFC itself and the accepted contract or ADR carry normative authority.
 Use [RFC_TEMPLATE.md](RFC_TEMPLATE.md) for a new proposal and follow
 [RFC_PROCESS.md](RFC_PROCESS.md). Do not add private milestone plans,
 confidential records, or deleted internal plans to this index.
+
+| RFC-0006 | EEX receipt-bound reference-index evidence | Accepted staged implementation (2026-10-29) | Explicit receipt availability without guessed publication clocks | [RFC](RFC-0006-EEX-RECEIPT-PRICE-EVIDENCE.md); [Decision20](../architecture/ARCHITECTURE_DECISION_RECORD.md#decision20-eex-receipt-bound-price-evidence) |

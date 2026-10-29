@@ -1,8 +1,10 @@
 # EEX TTF NGP Source Contract
 
-Status: **current** (bounded adapter delivered 2026-09-29). Implementation:
-`src/eurogas_nexus/ingestion/eex_ngp.py`. Tests: `tests/ingestion/test_eex_ngp_csv.py`.
-Timezone declaration: `SOURCE_TIMEZONE_CONTRACTS` entry `EEX` / `ttf-ngp-15min`
+Status: **current** (bounded adapter delivered 2026-09-29; RFC0006 stage A receipt-bound mapper
+delivered 2026-10-29). Implementation: `src/eurogas_nexus/ingestion/eex_ngp.py`. Tests:
+`tests/ingestion/test_eex_ngp_csv.py` and `tests/ingestion/test_eex_ngp_receipt.py`. RFC:
+[RFC-0006](../engineering/RFC-0006-EEX-RECEIPT-PRICE-EVIDENCE.md). Timezone declaration:
+`SOURCE_TIMEZONE_CONTRACTS` entry `EEX` / `ttf-ngp-15min`
 (`docs/data/SOURCE_TIMEZONE_CONTRACT.md`).
 
 ## 1. Source
@@ -73,21 +75,31 @@ and exponent notation are refused loudly rather than reinterpreted (the canonica
 is a float because `market_observations.price` is a Float column; the exact decimal survives in
 metadata).
 
-Natural key and IDs: `observation_id = eex-ngp-ttf-<gas-day>-<timestamp>-<status>`, e.g.
-`eex-ngp-ttf-2026-05-29-20260529T1430-final`. The gas day is mapped to a UTC interval only through
-the separately evidenced delivery calendar the caller supplies (subsection 3.1); the resulting id
-and the contract's evidence are recorded in row metadata.
+Natural key and IDs: `source_record_id` is the original provider record identity
+`<gas-day>-<timestamp>-<status>`, e.g. `2026-05-29-20260529T1430-final`, and is never changed by
+normalization. The strict publication-bound mapper keeps
+`observation_id = eex-ngp-ttf-<gas-day>-<timestamp>-<status>` (e.g.
+`eex-ngp-ttf-2026-05-29-20260529T1430-final`). The RFC0006 receipt-bound mapper uses a separate
+deterministic namespace, `observation_id = eex-ngp-r1-<sha48>`, hashed from the source reference and
+`source_record_id` only — never from the receipt instant or price. The gas day is mapped to a UTC
+interval only through the separately evidenced delivery calendar the caller supplies (subsection
+3.1); the resulting ids and the contract's evidence are recorded in row metadata.
 
 ### 3.1 Delivery calendar (`Gasday`) — second independent, unproven contract
 
-The `Gasday` column is a *delivery-day* label, and this repository has **not** verified that EEX
-labels NGP delivery days on the CAM convention (or any other). Canonical mapping therefore
-requires its own evidence, separate from section 4:
+The `Gasday` column is a *delivery-day* label. RFC0006 records the accepted source interpretation
+(EEX Index Description v25 sections 1 and 2.5; EEX Contract Specifications 0105a section 1.2.3) for
+a 06:00 Europe/Berlin delivery day represented by `EU-CAM-UTC-2025`. Mapping still requires its own
+caller-supplied evidence, separate from section 4; the RFC does not turn that interpretation into a
+hardcoded default or rights certification:
 
-- `eex_ttf_ngp_market_observations(...)` accepts a governed
+- both mappers, `eex_ttf_ngp_market_observations(...)` and
+  `eex_ttf_ngp_receipt_observations(...)`, require a governed
   `EexNgpGasDayCalendarContract(calendar_id, evidence)` argument; `calendar_id` must be an
   existing id registered in `GAS_DAY_CALENDARS` (`EU-CAM-UTC-2025`, `EU-CAM-2025`,
-  `UK-NBP-LEGACY`) — no new calendar framework is introduced — and `evidence` must not be blank;
+  `UK-NBP-LEGACY`) — no new calendar framework is introduced — and `evidence` must not be blank.
+  The receipt-bound mapper accepts a pending publication timezone but never defaults this
+  delivery-calendar contract;
 - with no contract the payload is refused (`unproven_gas_day_calendar`); an unregistered id
   (`unregistered_gas_day_calendar`) or blank evidence (`unattested_gas_day_calendar`) is refused
   as well. There is no default calendar and no fallback to `EU-CAM-UTC-2025`;
@@ -108,12 +120,12 @@ so **no provider zone is declared**. The adapter:
   local wall clock;
 - returns every record as `normalization_status = pending_source_timezone` with
   `publication_time_utc = null`;
-- **refuses canonical conversion** (`unproven_publication_timezone`) instead of reading the value
-  on the host clock;
+- the **strict publication mapper refuses** (`unproven_publication_timezone`) instead of reading
+  the value on the host clock;
 - accepts an explicitly **evidenced** governed `SourceTimezoneContract` argument as the only path
-  to canonical rows; an unevidenced contract, or one for another source/dataset, is refused.
-  Synthetic tests exercise that path for regular CET/CEST wall clocks (`06:00` → `05:00Z` /
-  `04:00Z`).
+  to strict publication-bound rows; an unevidenced contract, or one for another source/dataset, is
+  refused. Synthetic tests exercise that path for regular CET/CEST wall clocks (`06:00` → `05:00Z`
+  / `04:00Z`).
 - **DST folds and gaps are refused, not resolved.** No official EEX fold/gap rule for this column
   exists, so with a proven zone the adapter probes both folds of the naive wall clock
   (`fold=0`/`fold=1`) and round-trips each candidate back from UTC: a wall clock that lands on a
@@ -124,8 +136,17 @@ so **no provider zone is declared**. The adapter:
   folded to `fold=0`, never shifted forward, and the shared timezone parser is not changed for
   other sources.
 
-Ingestion timing is separate and explicit: `retrieved_at_utc` (the operator clock, which must be
-timezone-aware) is never conflated with the source's publication stamp.
+The RFC0006 receipt-bound mapper does not need this blocker resolved: it accepts a record whose
+`normalization_status` is `pending_source_timezone`. Availability there is the explicit response
+receipt, not the provider clock. Even when the parser was given a governed timezone contract and
+therefore has a mapped `record.publication_time_utc`, the receipt-bound row still records
+`publication_time_utc: null` and `publication_time_basis: unknown`; no first-publication instant is
+asserted. The raw `Timestamp Let` text and revision status remain visible.
+
+Ingestion timing is separate and explicit: `received_at_utc` / `retrieved_at_utc` (the awareness
+clock, which must be timezone-aware) is never conflated with the source's publication stamp. The
+receipt-bound mapper has no default receipt and refuses a receipt that does not match the parser's
+own recorded capture instant.
 
 ## 5. Rights, entitlement and certification
 
@@ -142,18 +163,22 @@ Two **independent** evidence blockers, neither of which stands in for the other.
 argument records the operator's claim and its source; it does not by itself certify official EEX
 approval, and the adapter treats unevidenced, unregistered or mismatched claims as refusals.
 
-1. `Timestamp Let` semantics: cite official EEX methodology (or a written operator confirmation)
-   for the token's meaning and its zone, then record a governed, evidenced
-   `SourceTimezoneContract` entry; until then every record stays `pending_source_timezone` and
-   canonical conversion refuses (`unproven_publication_timezone`).
-2. `Gasday` delivery calendar: record official evidence for how EEX labels NGP delivery days, then
-   supply the evidenced `EexNgpGasDayCalendarContract` (an existing calendar id) at the canonical
-   mapping boundary; until then canonical mapping refuses (`unproven_gas_day_calendar`), and a
-   proven `Timestamp Let` zone changes nothing about this blocker.
+1. `Timestamp Let` first-publication semantics: cite official EEX methodology (or a written
+   operator confirmation) for the token's meaning and its zone before a strict publication-bound
+   claim is made. Until then strict mapping refuses (`unproven_publication_timezone`) when no
+   governed zone is supplied. The RFC0006 receipt-bound mapper does not claim this meaning and
+   keeps `publication_time_utc` null.
+2. `Gasday` delivery calendar: RFC0006 records the accepted source chain (EEX Index Description v25
+   sections 1 and 2.5; EEX Contract Specifications 0105a section 1.2.3) for the 06:00
+   Europe/Berlin delivery day represented by `EU-CAM-UTC-2025`. The mapper still requires callers to
+   supply the explicitly evidenced `EexNgpGasDayCalendarContract` at the mapping boundary; there is
+   no hardcoded default, and this interpretation is not rights certification or source activation.
 3. Confirm that the deployment's entitlement covers persisted or redistributed index values and
    record a certification decision; no automatic certification is granted.
 4. Wire the operator invocation through `ingest_public_sources.py` behind the existing gates
-   (bounded windows, raw archive, idempotent upsert) and only then consider a schedule.
+   (bounded windows, raw archive, idempotent upsert) and only then consider a schedule. RFC0006
+   stage A adds only the pure receipt-bound mapper; it does not add persistence, a consumer, a
+   CLI path or a schedule.
 5. Confirm the file's granularity semantics (`Gasday` delivery day vs `Timestamp Let`, one row per
    gas day vs 15-minute buckets) so the canonical period basis can be stated with evidence.
 6. Optional, and not part of this bounded task: register the `ttf-ngp-15min` dataset in the Source
@@ -216,3 +241,75 @@ refusal and `2` is invalid arguments or an output-path refusal. The command perf
 write, grant, scheduler change or source activation. Running the actual official download and
 comparing it with the existing inspection/SDK remains an operator step for the root reviewer
 after the canonical contract is verified; it is not claimed by the synthetic test suite.
+
+## 9. RFC0006 stage A: receipt-bound reference-index evidence
+
+Status: **stage A parser mapping delivered 2026-10-29; persistence, consumers and certification
+remain separate**. Implementation:
+`eex_ttf_ngp_receipt_observations(result, *, received_at_utc, gas_day_calendar_contract)` in
+`src/eurogas_nexus/ingestion/eex_ngp.py`. Tests:
+`tests/ingestion/test_eex_ngp_receipt.py`. RFC:
+[RFC-0006](../engineering/RFC-0006-EEX-RECEIPT-PRICE-EVIDENCE.md), accepted by
+[Decision20](../architecture/ARCHITECTURE_DECISION_RECORD.md#decision20-eex-receipt-bound-price-evidence).
+
+This additive path exists because the accepted evidence establishes the delivery day but not the
+meaning of the CSV `Timestamp Let` column. It records what the platform actually knows: the file was
+available at the explicit response receipt. It does not convert the provider wall clock into an
+asserted first publication instant.
+
+### 9.1 Contract
+
+- `received_at_utc` is required, must be an aware `datetime`, is normalized to UTC and must equal
+  `result.retrieved_at_utc`, the receipt recorded by `parse_eex_ttf_ngp_csv`. There is no default,
+  no `datetime.now()` fallback and no host-clock read. A naive receipt
+  (`naive_receipt_timestamp`), a non-datetime (`receipt_timestamp_invalid`), a different instant
+  (`receipt_timestamp_mismatch`) or a parse result without an aware capture receipt
+  (`invalid_parse_result_receipt`) is refused.
+- A pending publication timezone is accepted. Parse rejections are refused whole
+  (`rejected_rows_present`), and a result with no usable priced row — including an all-zero or
+  all-unavailable payload — is refused (`no_priced_rows`), never mapped as empty data. Unavailable
+  rows stay visible on the parse result and are not mapped.
+- The separately evidenced, registered `EexNgpGasDayCalendarContract` remains mandatory
+  (`unproven_gas_day_calendar`, `unregistered_gas_day_calendar`,
+  `unattested_gas_day_calendar`). No calendar is hardcoded or defaulted. Publication-timezone
+  evidence is never accepted as delivery-calendar evidence.
+- Exact `Decimal` parsing, the original raw price/volume/status/timestamp strings and the strict
+  Float-overflow refusal (`index_value_float_overflow`) are shared with the strict mapper. A
+  negative published index value is valid. A reference index is never an executable bid/ask.
+- The accepted delivery-calendar source chain is EEX Index Description v25 sections 1 and 2.5 plus
+  EEX Contract Specifications 0105a section 1.2.3, representing the 06:00 Europe/Berlin gas delivery
+  day as `EU-CAM-UTC-2025`. Tests pass that explicit contract evidence; this does not certify
+  rights, activate the source or prove the publication timezone.
+
+### 9.2 Row semantics
+
+| Field | Receipt-bound value |
+| --- | --- |
+| `observation_id` | `eex-ngp-r1-<sha48>`, deterministic from the source reference and original `source_record_id` only |
+| `source_record_id` | unchanged original provider identity |
+| `observed_at_utc` | `received_at_utc` (normalized UTC) |
+| `metadata_json.available_at_utc` | same response receipt |
+| `metadata_json.availability_basis` | `response_receipt` |
+| `metadata_json.publication_time_utc` | always `null` |
+| `metadata_json.publication_time_basis` | `unknown` |
+| `metadata_json.normalizer_version` | `eex-ngp-receipt-v1` |
+| `freshness`, `quality_score` | `unknown`, `0.0` with `quality_assessed: false` |
+| `research_only`, price labels | `true`, `index` / `index`, `executable_quote: false` |
+
+The deterministic id deliberately excludes the receipt and price: recapturing the same original
+record under a new receipt, or a changed semantic value at that same original identity, keeps the
+same id so append-or-verify persistence can preserve the first receipt and refuse a silent
+overwrite. That persistence behaviour is not added by this stage. The old
+`eex_ttf_ngp_market_observations` path and its `eex-ngp-ttf-...` ids are unchanged and remain strict
+about a proven publication timezone.
+
+### 9.3 Tests and non-goals
+
+Focused tests cover explicit aware receipt causality, mismatch/naive/forged-result refusals, pending
+and mapped parser clocks (publication always null), original raw fields, exact long decimals,
+negative prices, zero/missing rows, all-unavailable/empty/rejection refusals, Float overflow, the
+23-hour and 25-hour DST delivery windows, explicit calendar evidence, replay-stable receipt ids and
+the unchanged strict refusal. This stage adds no network, database write, scheduler, CLI activation,
+consumer, certification or rights claim; RFC0006's real PostgreSQL/HTTP persistence and consumer
+acceptance remain outstanding. Rollback removes this additive mapper, its tests and this section;
+the existing parser and strict mapper need no data migration.

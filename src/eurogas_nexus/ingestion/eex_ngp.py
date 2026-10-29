@@ -20,16 +20,22 @@ What this module is — and deliberately is not:
 - The zone of the ``Timestamp Let`` column is **not established** against official EEX
   methodology in this repository. Unless the caller supplies an explicitly *evidenced* governed
   timezone contract, records keep the raw timestamp and are returned as
-  ``pending_source_timezone``; canonical conversion is refused rather than stamped with the host
+  ``pending_source_timezone``; the strict publication mapper refuses rather than stamping the host
   machine's zone (the M1-P0 rule, ``docs/data/SOURCE_TIMEZONE_CONTRACT.md``).
+- RFC0006 stage A adds a separate **receipt-bound** mapper:
+  :func:`eex_ttf_ngp_receipt_observations` accepts a pending publication timezone and uses the
+  explicit aware response receipt for availability, never the unverified provider clock as a first
+  publication instant. It still requires the independent evidenced delivery-calendar contract and
+  adds a deterministic ``eex-ngp-r1-`` identity namespace.
 - A wall clock that the proven zone makes ambiguous (DST fall-back) or nonexistent (DST
   spring-forward gap) has no official EEX fold/gap rule here, so the row is *refused* with a
   stable reason (``ambiguous_local_timestamp`` / ``nonexistent_local_timestamp``) instead of
   being folded, shifted or host-resolved. The shared timezone module is not changed.
-- The delivery meaning of the ``Gasday`` column is a *second, independent* unproven contract:
-  canonical mapping requires a separately evidenced gas-day calendar contract naming an existing
-  registered calendar id, and refuses by default with ``unproven_gas_day_calendar``. Publication
-  timezone evidence is never treated as delivery calendar proof.
+- The delivery meaning of the ``Gasday`` column is a *second, independent* governed contract:
+  mapping requires a separately evidenced gas-day calendar contract naming an existing registered
+  calendar id, and refuses by default with ``unproven_gas_day_calendar``. RFC0006 records the
+  accepted source-to-calendar evidence but does not hardcode a default or certify rights;
+  publication-timezone evidence is never treated as delivery calendar proof.
 - Canonical rows carry no unearned freshness or quality: an explicit
   ``freshness="unknown"`` (the accepted unknown representation of
   :class:`eurogas_nexus.domain.observations.market.ObservationFreshness`) and
@@ -45,6 +51,7 @@ What this module is — and deliberately is not:
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import math
 import re
@@ -90,6 +97,11 @@ EXPECTED_HEADER = (
 STATUS_FINAL = "final"
 STATUS_TEMPORARY = "temporary"
 STATUS_TOKENS = {"final ngp": STATUS_FINAL, "temporary ngp": STATUS_TEMPORARY}
+
+#: Receipt-bound namespace version. This identifies the availability basis, not a provider
+#: revision and not a first-publication claim.
+RECEIPT_NORMALIZER_VERSION = "eex-ngp-receipt-v1"
+_RECEIPT_OBSERVATION_PREFIX = "eex-ngp-r1-"
 
 
 def _normalize_header_cell(cell: str) -> str:
@@ -365,6 +377,7 @@ def eex_ttf_ngp_market_observations(
             _observation_row(
                 record,
                 index_value=index_value,
+                observation_time_utc=publication_time_utc,
                 publication_time_utc=publication_time_utc,
                 retrieved_at_utc=result.retrieved_at_utc,
                 timezone_evidence=result.timezone_contract.evidence,
@@ -382,18 +395,219 @@ def eex_ttf_ngp_market_observations(
     return rows
 
 
+def eex_ttf_ngp_receipt_observations(
+    result: EexNgpParseResult,
+    *,
+    received_at_utc: datetime,
+    gas_day_calendar_contract: EexNgpGasDayCalendarContract,
+) -> list[dict[str, Any]]:
+    """Canonical rows whose availability is the explicit response receipt, not a publication clock.
+
+    This is the RFC0006 stage A additive path. It exists because the official EEX documents cited
+    in the RFC establish the gas delivery day but do **not** establish what the CSV ``Timestamp
+    Let`` column denotes. The parser may therefore have a mapped publication instant from a caller's
+    governed timezone contract, but this mapper still must not present that clock as the first
+    publication time.
+
+    The caller must supply the actual capture receipt twice, consistently:
+
+    - ``received_at_utc`` is the aware response receipt, normalized to UTC;
+    - it must equal ``result.retrieved_at_utc``, the receipt recorded by the parser. There is no
+      default, no ingest clock and no host-clock fallback.
+
+    A pending publication timezone is accepted here: receipt availability does not depend on
+    resolving ``Timestamp Let``. The separately evidenced, registered ``gas_day_calendar_contract``
+    is still required for the ``Gasday`` delivery period, exactly as in
+    :func:`eex_ttf_ngp_market_observations`; no calendar is defaulted and publication-timezone
+    evidence never substitutes for delivery-calendar evidence.
+
+    Rows keep the original record fields and ``source_record_id``. Their deterministic identity is
+    ``eex-ngp-r1-<sha48>``, hashed from the original record identity (source reference and
+    ``source_record_id``) and never from the receipt or price. ``observed_at_utc``,
+    ``available_at_utc`` and ``availability_basis=response_receipt`` use the receipt;
+    ``publication_time_utc`` stays ``null`` with ``publication_time_basis=unknown`` even when the
+    parser placed the provider clock. Freshness stays unknown and quality stays unassessed.
+
+    Parse rejections are refused whole, and a payload with no usable price (including an
+    all-zero/unavailable payload) is refused rather than mapped as empty, matching the strict
+    mapper. Unavailable rows stay unavailable. A negative published index value is valid. An exact
+    decimal that overflows the canonical Float price is refused. No network, database, scheduler,
+    source activation, certification or rights claim is introduced.
+    """
+
+    receipt = _require_aware_receipt(received_at_utc)
+    _require_matching_capture_receipt(result, receipt)
+    calendar_contract = _resolve_gas_day_calendar_contract(gas_day_calendar_contract)
+    if result.rejections:
+        raise EexNgpParseError(
+            "rejected_rows_present",
+            (
+                f"{len(result.rejections)} row(s) were rejected; refusing to map a partial "
+                "receipt-bound payload."
+            ),
+        )
+    rows: list[dict[str, Any]] = []
+    for record in result.records:
+        index_value = record.index_value
+        if not record.price_available or index_value is None:
+            continue
+        rows.append(
+            _observation_row(
+                record,
+                index_value=index_value,
+                observation_id=_receipt_observation_id(record),
+                observation_time_utc=receipt,
+                publication_time_utc=None,
+                retrieved_at_utc=receipt,
+                timezone_evidence=result.timezone_contract.evidence,
+                gas_day_calendar_contract=calendar_contract,
+                receipt_bound=True,
+            )
+        )
+    if not rows:
+        raise EexNgpParseError(
+            "no_priced_rows",
+            (
+                "no row carried a usable index value with positive volume; refusing to treat an "
+                "all-unavailable payload as empty data."
+            ),
+        )
+    return rows
+
+
+def _require_aware_receipt(value: datetime) -> datetime:
+    """Read the caller's explicit receipt, refusing a missing/invalid/naive clock."""
+
+    if not isinstance(value, datetime):
+        raise EexNgpParseError(
+            "receipt_timestamp_invalid",
+            "received_at_utc must be a datetime carrying the actual response receipt.",
+        )
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise EexNgpParseError(
+            "naive_receipt_timestamp",
+            (
+                "received_at_utc must be timezone-aware; a naive value would be read as UTC rather "
+                "than as the explicit response receipt."
+            ),
+        )
+    return value.astimezone(UTC)
+
+
+def _require_matching_capture_receipt(result: EexNgpParseResult, receipt: datetime) -> None:
+    """Require the passed receipt to match the parser's own recorded capture receipt."""
+
+    if not isinstance(result, EexNgpParseResult):
+        raise EexNgpParseError(
+            "invalid_parse_result",
+            "the receipt-bound mapper requires the EexNgpParseResult produced by the parser.",
+        )
+    captured = result.retrieved_at_utc
+    if (
+        not isinstance(captured, datetime)
+        or captured.tzinfo is None
+        or captured.utcoffset() is None
+    ):
+        raise EexNgpParseError(
+            "invalid_parse_result_receipt",
+            (
+                "the parse result does not carry an aware capture receipt; a manually altered or "
+                "synthetic result cannot authorize receipt availability."
+            ),
+        )
+    if captured.astimezone(UTC) != receipt:
+        raise EexNgpParseError(
+            "receipt_timestamp_mismatch",
+            (
+                "received_at_utc does not match the parser's recorded capture receipt; refusing to "
+                "label rows with a different availability instant."
+            ),
+        )
+
+
+def _receipt_observation_id(record: EexNgpRecord) -> str:
+    """RFC0006 receipt namespace, hashed from original identity only (not receipt or price)."""
+
+    material = "\x1f".join((SOURCE_REFERENCE, record.source_record_id))
+    digest = hashlib.sha256(material.encode("utf-8")).hexdigest()[:48]
+    return f"{_RECEIPT_OBSERVATION_PREFIX}{digest}"
+
+
 def _observation_row(
     record: EexNgpRecord,
     *,
     index_value: Decimal,
-    publication_time_utc: datetime,
+    observation_time_utc: datetime,
+    publication_time_utc: datetime | None,
     retrieved_at_utc: datetime,
     timezone_evidence: str,
     gas_day_calendar_contract: EexNgpGasDayCalendarContract,
+    observation_id: str | None = None,
+    receipt_bound: bool = False,
 ) -> dict[str, Any]:
     calendar_id = gas_day_calendar_contract.calendar_id
+    metadata: dict[str, Any] = {
+        "source_system": SOURCE_SYSTEM,
+        "source_reference": SOURCE_REFERENCE,
+        "source_dataset": SOURCE_DATASET,
+        "source_page_url": SOURCE_PAGE_URL,
+        "source_file_url": SOURCE_FILE_URL,
+        # EEX live data, never the EEX_Sim simulator family.
+        "simulated": False,
+        "hub": HUB,
+        "market_area": HUB,
+        "product_detail": "TTF NGP volume-weighted reference index",
+        "index": "NGP",
+        "index_type": "volume_weighted_reference_index",
+        # A reference index, not a future, a spot quote, or an executable bid/ask.
+        "contract_type": "index",
+        "price_type": "index",
+        "price_semantics": "reference_index_never_an_executable_bid_or_ask",
+        "executable_quote": False,
+        # Raw gas day, revision status, publication vs ingestion semantics.
+        "gas_day": record.gas_day.isoformat(),
+        "gas_day_raw": record.gas_day_raw,
+        # The delivery calendar is a separately evidenced contract, never inferred from the
+        # publication timestamp evidence above.
+        "gas_day_calendar": calendar_id,
+        "gas_day_calendar_evidence": gas_day_calendar_contract.evidence,
+        "period_basis": "gas_day_declared_calendar",
+        "revision_status": record.status,
+        "revision_status_raw": record.status_raw,
+        "provisional": record.is_provisional,
+        "publication_timestamp_raw": record.timestamp_raw,
+        "publication_time_utc": (
+            publication_time_utc.isoformat() if publication_time_utc is not None else None
+        ),
+        "publication_timezone_evidence": timezone_evidence,
+        "retrieved_at_utc": retrieved_at_utc.isoformat(),
+        # Freshness/quality were not assessed against a proven source expectation.
+        "freshness_basis": "no_proven_source_freshness_expectation",
+        "quality_assessed": False,
+        "quality_score_basis": "unassessed",
+        "index_value_raw": record.index_value_raw,
+        "index_value_exact": str(index_value),
+        "index_volume_raw": record.index_volume_raw,
+        "index_volume_mwh_exact": str(record.index_volume),
+        # Licensed source: nothing in this adapter certifies rights for live ingestion.
+        "entitlement_scope": "licensed",
+        "license_controlled": True,
+        "certification_stage": "unverified",
+    }
+    if receipt_bound:
+        # Explicit receipt availability: the provider clock stays unasserted even when the parser
+        # was given a governed publication-timezone contract.
+        metadata.update(
+            {
+                "available_at_utc": observation_time_utc.isoformat(),
+                "availability_basis": "response_receipt",
+                "publication_time_basis": "unknown",
+                "normalizer_version": RECEIPT_NORMALIZER_VERSION,
+                "research_only": True,
+            }
+        )
     return {
-        "observation_id": record.observation_id,
+        "observation_id": observation_id or record.observation_id,
         "market_venue": MARKET_VENUE,
         "product": PRODUCT,
         "price": _canonical_price(record, index_value),
@@ -403,7 +617,7 @@ def _observation_row(
         "period_end_utc": gas_day_start_for_date(
             record.gas_day + timedelta(days=1), calendar=calendar_id
         ),
-        "observed_at_utc": publication_time_utc,
+        "observed_at_utc": observation_time_utc,
         "source_system": SOURCE_SYSTEM,
         "source_reference": SOURCE_REFERENCE,
         "source_record_id": record.source_record_id,
@@ -411,52 +625,7 @@ def _observation_row(
         "freshness": ObservationFreshness.UNKNOWN.value,
         "quality_score": 0.0,
         "research_only": True,
-        "metadata_json": {
-            "source_system": SOURCE_SYSTEM,
-            "source_reference": SOURCE_REFERENCE,
-            "source_dataset": SOURCE_DATASET,
-            "source_page_url": SOURCE_PAGE_URL,
-            "source_file_url": SOURCE_FILE_URL,
-            # EEX live data, never the EEX_Sim simulator family.
-            "simulated": False,
-            "hub": HUB,
-            "market_area": HUB,
-            "product_detail": "TTF NGP volume-weighted reference index",
-            "index": "NGP",
-            "index_type": "volume_weighted_reference_index",
-            # A reference index, not a future, a spot quote, or an executable bid/ask.
-            "contract_type": "index",
-            "price_type": "index",
-            "price_semantics": "reference_index_never_an_executable_bid_or_ask",
-            "executable_quote": False,
-            # Raw gas day, revision status, publication vs ingestion semantics.
-            "gas_day": record.gas_day.isoformat(),
-            "gas_day_raw": record.gas_day_raw,
-            # The delivery calendar is a separately evidenced contract, never inferred from the
-            # publication timestamp evidence above.
-            "gas_day_calendar": calendar_id,
-            "gas_day_calendar_evidence": gas_day_calendar_contract.evidence,
-            "period_basis": "gas_day_declared_calendar",
-            "revision_status": record.status,
-            "revision_status_raw": record.status_raw,
-            "provisional": record.is_provisional,
-            "publication_timestamp_raw": record.timestamp_raw,
-            "publication_time_utc": publication_time_utc.isoformat(),
-            "publication_timezone_evidence": timezone_evidence,
-            "retrieved_at_utc": retrieved_at_utc.isoformat(),
-            # Freshness/quality were not assessed against a proven source expectation.
-            "freshness_basis": "no_proven_source_freshness_expectation",
-            "quality_assessed": False,
-            "quality_score_basis": "unassessed",
-            "index_value_raw": record.index_value_raw,
-            "index_value_exact": str(index_value),
-            "index_volume_raw": record.index_volume_raw,
-            "index_volume_mwh_exact": str(record.index_volume),
-            # Licensed source: nothing in this adapter certifies rights for live ingestion.
-            "entitlement_scope": "licensed",
-            "license_controlled": True,
-            "certification_stage": "unverified",
-        },
+        "metadata_json": metadata,
     }
 
 
