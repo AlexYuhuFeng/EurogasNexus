@@ -7,6 +7,7 @@ or activates a source.
 
 from __future__ import annotations
 
+import json
 from dataclasses import FrozenInstanceError
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -19,10 +20,17 @@ from eurogas_nexus.application.research.demand_target_inputs import (
     DemandTargetDiagnosticCode,
     DemandTargetDuplicateConflict,
     DemandTargetInputValidationError,
+    RevisionOrderPolicy,
     build_demand_target_rows,
 )
+from eurogas_nexus.db.repositories.demand_rest import _to_record
 from eurogas_nexus.domain.ontology.vocabulary import DemandTargetQuality, TargetScope
 from eurogas_nexus.domain.research.weather_demand import _resolve_targets
+from eurogas_nexus.ingestion.national_gas_rest import (
+    API_URL,
+    D1_PUBLICATION_ID,
+    parse_national_gas_rest,
+)
 
 GAS_DAY = date(2026, 10, 21)
 RECEIVED = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
@@ -76,6 +84,87 @@ def build(records, **overrides: object):
     }
     arguments.update(overrides)
     return build_demand_target_rows(records, **arguments)
+
+
+REST_WINDOW_FROM = date(2026, 10, 21)
+REST_WINDOW_TO = date(2026, 10, 27)
+
+
+def rest_payload(
+    *rows: dict[str, object],
+    publication_id: str = D1_PUBLICATION_ID,
+    publication_name: str = "Demand Actual, NTS, D+1",
+) -> bytes:
+    """Build a synthetic REST response; provenance is produced by the real parser."""
+
+    return json.dumps(
+        [
+            {
+                "publicationId": publication_id,
+                "publicationName": publication_name,
+                "publications": list(rows),
+            }
+        ],
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def rest_row(
+    *,
+    applicable_at: str = "2026-10-22T10:20:01+00:00",
+    generated_at: str | None = None,
+    created_at: str | None = None,
+    applicable_for: str = GAS_DAY.isoformat(),
+    value: str = "176.708",
+    quality: str = "",
+    substituted: str = "N",
+) -> dict[str, object]:
+    """One synthetic provider row with all three clocks aligned by default."""
+
+    return {
+        "applicableAt": applicable_at,
+        "applicableFor": applicable_for,
+        "value": value,
+        "generatedTimeStamp": generated_at or applicable_at,
+        "qualityIndicator": quality,
+        "substituted": substituted,
+        "createdDate": created_at or applicable_at,
+    }
+
+
+def rest_records(
+    *rows: dict[str, object],
+    received: datetime = RECEIVED,
+    available: datetime | None = None,
+    publication_id: str = D1_PUBLICATION_ID,
+    publication_name: str = "Demand Actual, NTS, D+1",
+):
+    """Parse synthetic source text and persist it through the real repository mapper."""
+
+    publications = parse_national_gas_rest(
+        rest_payload(
+            *rows,
+            publication_id=publication_id,
+            publication_name=publication_name,
+        ),
+        date_from=REST_WINDOW_FROM,
+        date_to=REST_WINDOW_TO,
+        received_at_utc=received,
+        available_at_utc=available,
+        publication_ids=[publication_id],
+    )
+    return [_to_record(publication) for publication in publications]
+
+
+def build_rest(records, **overrides: object):
+    arguments: dict[str, object] = {
+        "source_format": "REST",
+        "revision_order_policy": (
+            RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+        ),
+    }
+    arguments.update(overrides)
+    return build(records, **arguments)
 
 
 def test_d1_provisional_maps_only_with_explicit_permission_and_full_provenance():
@@ -352,3 +441,268 @@ def test_result_and_provenance_mapping_are_immutable():
         result.rows = ()  # type: ignore[misc]
     with pytest.raises(TypeError):
         result.provenance_by_record_id["rec-1"] = None  # type: ignore[index]
+
+
+def test_default_policy_still_refuses_actual_rest_same_receipt_tie():
+    rows = rest_records(
+        rest_row(applicable_at="2026-10-22T09:20:01+00:00", value="100"),
+        rest_row(applicable_at="2026-10-22T11:20:01+00:00", value="101"),
+    )
+
+    with pytest.raises(DemandTargetAmbiguityError) as caught:
+        build(rows, source_format="REST")
+
+    assert caught.value.code == "AMBIGUOUS_RECEIPT_TIE"
+    assert "ambiguous target selection" in str(caught.value)
+
+
+def test_opt_in_returns_same_receipt_revisions_and_earlier_cutoff_has_no_leak():
+    rows = rest_records(
+        rest_row(applicable_at="2026-10-22T09:20:01+00:00", value="100"),
+        rest_row(applicable_at="2026-10-22T11:20:01+00:00", value="101"),
+    )
+    mapped = build_rest(rows)
+
+    assert len(mapped.rows) == 2
+    assert [row.revision for row in mapped.rows] == [1, 2]
+    assert [row.revision_id for row in mapped.rows] == [
+        row.record_id for row in rows
+    ]
+    assert all(row.available_at == RECEIVED for row in mapped.rows)
+    assert [row.source_ref.rsplit(":", 1)[-1] for row in mapped.rows] == [
+        RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1.value,
+        RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1.value,
+    ]
+
+    before_receipt = _resolve_targets(mapped.rows, RECEIVED - timedelta(minutes=1))
+    assert before_receipt == {}
+    at_receipt = _resolve_targets(mapped.rows, RECEIVED)
+    assert at_receipt[GAS_DAY].revision_id == rows[1].record_id
+    assert at_receipt[GAS_DAY].revision == 2
+
+
+def test_later_receipt_of_older_applicability_does_not_supersede_newer_source():
+    newer = rest_records(
+        rest_row(applicable_at="2026-10-22T11:20:01+00:00", value="201"),
+        received=RECEIVED,
+    )[0]
+    older_late = rest_records(
+        rest_row(applicable_at="2026-10-22T09:20:01+00:00", value="200"),
+        received=RECEIVED + timedelta(hours=6),
+    )[0]
+    mapped = build_rest(
+        [newer, older_late],
+        available_at_utc=RECEIVED + timedelta(hours=9),
+    )
+
+    assert [row.revision_id for row in mapped.rows] == [
+        older_late.record_id,
+        newer.record_id,
+    ]
+    assert [row.revision for row in mapped.rows] == [1, 2]
+    assert mapped.provenance_by_record_id[older_late.record_id].derived_revision == 1
+    assert mapped.provenance_by_record_id[newer.record_id].derived_revision == 2
+
+    before_older_receipt = _resolve_targets(mapped.rows, RECEIVED + timedelta(hours=1))
+    after_both = _resolve_targets(mapped.rows, RECEIVED + timedelta(hours=9))
+    assert before_older_receipt[GAS_DAY].revision_id == newer.record_id
+    assert after_both[GAS_DAY].revision_id == newer.record_id
+    assert after_both[GAS_DAY].revision == 2
+
+
+def test_opt_in_source_ref_and_provenance_bind_the_chosen_method():
+    source = rest_records(rest_row())[0]
+    mapped = build_rest([source])
+    method = RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1.value
+
+    row = mapped.rows[0]
+    provenance = mapped.provenance_by_record_id[source.record_id]
+    assert row.source_ref == (
+        f"NATIONAL_GAS:REST:{source.source_publication_id}:{method}"
+    )
+    assert provenance.revision_order_basis == method
+    assert provenance.source_order_method_basis == method
+    assert provenance.source_order_basis == method
+    assert provenance.source_order_at_utc == datetime(
+        2026, 10, 22, 10, 20, 1, tzinfo=UTC
+    )
+    assert row.available_at == RECEIVED
+    assert row.revision_id == source.record_id
+    assert source.received_at_utc == RECEIVED
+    assert source.available_at_utc == RECEIVED
+
+    default = build([source], source_format="REST")
+    assert default.rows[0].source_ref == (
+        f"NATIONAL_GAS:REST:{source.source_publication_id}"
+    )
+    default_provenance = default.provenance_by_record_id[source.record_id]
+    assert default_provenance.revision_order_basis == "DERIVED_RECEIPT_ORDER"
+    assert default_provenance.source_order_at_utc is None
+    assert default_provenance.source_order_method_basis is None
+
+
+def test_offset_equivalent_source_clocks_are_one_consensus_instant():
+    source = rest_records(
+        rest_row(
+            applicable_at="2026-10-22T12:20:01+02:00",
+            generated_at="2026-10-22T11:20:01+01:00",
+            created_at="2026-10-22T10:20:01+00:00",
+        )
+    )[0]
+    mapped = build_rest([source])
+
+    assert len(mapped.rows) == 1
+    provenance = mapped.provenance_by_record_id[source.record_id]
+    assert provenance.source_order_at_utc == datetime(
+        2026, 10, 22, 10, 20, 1, tzinfo=UTC
+    )
+    assert source.rest_provenance["applicable_at_raw"] == "2026-10-22T12:20:01+02:00"
+    assert source.rest_provenance["generated_at_raw"] == "2026-10-22T11:20:01+01:00"
+    assert source.rest_provenance["created_at_raw"] == "2026-10-22T10:20:01+00:00"
+
+
+def test_equal_source_instant_with_competing_publications_remains_ambiguous():
+    rows = rest_records(
+        rest_row(applicable_at="2026-10-22T10:20:01+00:00", value="300"),
+        rest_row(applicable_at="2026-10-22T11:20:01+01:00", value="301"),
+    )
+
+    with pytest.raises(DemandTargetAmbiguityError) as caught:
+        build_rest(rows)
+    assert "source applicability instant" in str(caught.value)
+
+    with pytest.raises(DemandTargetAmbiguityError):
+        build_rest(list(reversed(rows)))
+
+
+def test_opt_in_refuses_missing_and_malformed_rest_provenance():
+    missing = rest_records(rest_row())[0]
+    missing.rest_provenance = None
+    missing_result = build_rest([missing])
+    assert missing_result.rows == ()
+    assert missing_result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.REST_ORDER_PROVENANCE_MISSING
+    )
+
+    malformed = rest_records(rest_row())[0]
+    provenance = dict(malformed.rest_provenance)
+    provenance.pop("created_at_utc")
+    malformed.rest_provenance = provenance
+    malformed_result = build_rest([malformed])
+    assert malformed_result.rows == ()
+    assert malformed_result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.SOURCE_CLOCK_MISSING
+    )
+
+    schema_drift = rest_records(rest_row())[0]
+    provenance = dict(schema_drift.rest_provenance)
+    provenance.pop("evidence_basis")
+    schema_drift.rest_provenance = provenance
+    schema_drift_result = build_rest([schema_drift])
+    assert schema_drift_result.rows == ()
+    assert schema_drift_result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.REST_ORDER_PROVENANCE_MALFORMED
+    )
+
+
+def test_opt_in_refuses_non_rest_source_identity():
+    wrong_url = rest_records(rest_row())[0]
+    wrong_url.source_url = "https://example.test/not-national-gas"
+    url_result = build_rest([wrong_url])
+    assert url_result.rows == ()
+    assert url_result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.REST_ORDER_IDENTITY_MISMATCH
+    )
+
+    wrong_schema = rest_records(rest_row())[0]
+    wrong_schema.hash_schema = "national_gas_actual_demand.v1"
+    schema_result = build_rest([wrong_schema])
+    assert schema_result.rows == ()
+    assert schema_result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.REST_ORDER_IDENTITY_MISMATCH
+    )
+
+
+def test_opt_in_refuses_disagreeing_clocks_instead_of_using_a_maximum():
+    source = rest_records(rest_row())[0]
+    provenance = dict(source.rest_provenance)
+    provenance["generated_at_utc"] = "2026-10-22T10:21:01+00:00"
+    source.rest_provenance = provenance
+
+    result = build_rest([source])
+
+    assert result.rows == ()
+    assert result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.SOURCE_CLOCK_INCONSISTENT
+    )
+
+
+def test_opt_in_refuses_naive_source_clock_without_falling_back_to_receipt():
+    source = rest_records(rest_row())[0]
+    provenance = dict(source.rest_provenance)
+    provenance["applicable_at_raw"] = "2026-10-22T10:20:01"
+    source.rest_provenance = provenance
+    source.applicable_at_raw = "2026-10-22T10:20:01"
+
+    result = build_rest([source])
+
+    assert result.rows == ()
+    assert result.diagnostics[0].code is DemandTargetDiagnosticCode.NAIVE_SOURCE_CLOCK
+
+
+def test_opt_in_refuses_source_clock_after_actual_receipt():
+    source = rest_records(
+        rest_row(applicable_at="2026-10-22T13:20:01+00:00"),
+        received=RECEIVED,
+    )[0]
+
+    result = build_rest([source])
+
+    assert result.rows == ()
+    assert result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.SOURCE_CLOCK_AFTER_RECEIPT
+    )
+
+
+def test_opt_in_refuses_csv_inference_explicitly():
+    with pytest.raises(DemandTargetInputValidationError):
+        build(
+            [record()],
+            revision_order_policy=(
+                RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+            ),
+        )
+
+    with pytest.raises(DemandTargetInputValidationError):
+        build([record()], revision_order_policy="UNSUPPORTED_POLICY")
+
+
+def test_opt_in_keeps_amended_d6_and_substituted_quality_distinctions():
+    amended = rest_records(rest_row(quality="A"))[0]
+    amended_result = build_rest([amended])
+    assert amended_result.rows == ()
+    assert amended_result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.SOURCE_QUALITY_AMENDED
+    )
+
+    d6 = rest_records(
+        rest_row(),
+        publication_id="PUBOB652",
+        publication_name="Demand Actual, NTS, D+6",
+    )[0]
+    d6_result = build_rest([d6], provider_item_id="PUBOB652")
+    assert d6_result.rows == ()
+    assert d6_result.diagnostics[0].code is (
+        DemandTargetDiagnosticCode.UNRESOLVED_TARGET_QUALITY
+    )
+
+    substituted = rest_records(rest_row(substituted="Y"))[0]
+    substituted_result = build_rest([substituted])
+    assert len(substituted_result.rows) == 1
+    assert substituted_result.rows[0].quality is DemandTargetQuality.PROVISIONAL
+    assert substituted.rest_provenance["is_substituted"] is True
+    assert substituted_result.rows[0].quality not in {
+        DemandTargetQuality.ACTUAL,
+        DemandTargetQuality.ESTIMATED,
+    }
+    assert API_URL == substituted.source_url

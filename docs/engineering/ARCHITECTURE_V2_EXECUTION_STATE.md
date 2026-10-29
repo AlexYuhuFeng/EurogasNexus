@@ -1,5 +1,32 @@
 # Architecture V2 Execution State
 
+## 2026-10-30 — actual demand revisions ordered by an explicit source policy
+
+The pure target mapper now offers DERIVED_REST_APPLICABILITY_ORDER_V1 as an
+explicit opt-in. The default receipt-only policy and tie refusal remain. The new
+policy requires the pinned REST identity/provenance contract, validates all three
+raw/UTC source clocks and their consensus, refuses future/disagreeing evidence,
+and ranks all admitted revisions by source applicability independently of receipt.
+Equal source instants still refuse competing publications. Earlier revisions stay
+available for each fold, and late receipt of an older source revision cannot
+supersede a newer applicability revision. Policy and clocks are explicit provenance;
+opt-in source references bind the method into fitted-model input lineage.
+
+Root41mapper tests passed (legacy plus new policy), actual read-only PostgreSQL
+probe admitted17existing real REST revisions across5gas days and matched all5
+actual provider latestValue=Y values. First receipt/availability times and database
+row count17were unchanged. Root corrected import ordering and one property-access
+lint finding. No source activation, quality promotion, schema or historical
+availability rewrite occurred. Runtime/JSON operator wiring is delegated separately
+and is not yet delivered by this checkpoint.
+
+Independent scientific CI with an exact NumPy wheel is under implementation for
+mandatory no-skip numerical checks only; customer dependency delivery remains open.
+RFC0007 S1 archive evidence validation is also in progress. Full delivery still
+requires actual regional weather/target history, model/result/business consumers,
+release/customer/native acceptance and the other recorded data-source gaps.
+
+
 ## 2026-10-30 — durable operator PG gates and verified historical source evidence
 
 DeepSeek converted the real operator probes into two disposable-schema PG
