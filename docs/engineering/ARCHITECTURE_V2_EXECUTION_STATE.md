@@ -1,5 +1,25 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — shared receipt-bound reference-index evidence
+
+The existing market terminal now exposes EEX receipt-bound NGP observations in
+its own reference-index section using the already-authorized normalized rows.
+All delivery periods remain reachable with 50-row pagination and focused-hub
+filtering. Exact source strings and units stay verbatim; missing/invalid claims
+show unavailable diagnostics. Receipt availability, unknown publication time,
+unproven source-clock text, Final/Temporary flags and raw archive lineage remain
+separate. This adds no quote authority, source activation or client arithmetic.
+
+Focused component evidence5passed; full shared Web1054passed3skipped; production
+build passed with existing bundle/import warnings. This covers shared Web code,
+not a rebuilt Windows/Linux package or native GUI acceptance. Root reviewed the
+implementation; headless responsive interaction remains a follow-up. Separately,
+the operator CLI is under review: fresh real PostgreSQL full CI76passed including
+the added record-limit retention case. One auxiliary SQLite transaction fixture
+failed rollback assertions and is being corrected rather than treated as a
+PostgreSQL failure. The CLI is excluded from this commit and readiness claim.
+
+
 ## 2026-10-29 — exact market evidence reaches the typed SDK
 
 The existing normalized market backend already emitted exact source-price,

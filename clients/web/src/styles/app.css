@@ -9588,3 +9588,291 @@ button.glossary-related-chip {
 .settings-about-panel .panel-title-row { flex-wrap: wrap; }
 .settings-about-panel .panel-title-row > div { min-width: 0; flex: 1 1 220px; }
 .settings-about-panel .status-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+
+/* EEX receipt-bound reference-index evidence: a full-width evidence panel inside
+   the existing market grid. Long exact decimals and hashes wrap instead of
+   widening the document on narrow viewports. */
+.market-reference-index-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.reference-index-evidence {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.reference-index-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.reference-index-meta strong {
+  color: var(--text);
+}
+
+.reference-index-list {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.reference-index-card {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 10px;
+}
+
+.reference-index-card-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.reference-index-card-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.reference-index-card-heading strong,
+.reference-index-card-heading span {
+  overflow-wrap: anywhere;
+}
+
+.reference-index-card-heading span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.reference-index-revision {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: normal;
+}
+
+.reference-index-revision.is-unavailable {
+  color: var(--warning);
+}
+
+.reference-index-exact {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.reference-index-exact > span,
+.reference-index-gbp-exact span,
+.reference-index-defaults > p {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.reference-index-exact p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.reference-index-exact p strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+}
+
+.reference-index-unit {
+  overflow-wrap: anywhere;
+}
+
+.reference-index-unavailable {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.reference-index-unavailable p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.reference-index-unavailable code,
+.reference-index-detail-grid code,
+.reference-index-facts code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.reference-index-defaults {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.reference-index-executable {
+  display: inline-block;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.reference-index-executable.is-reference-only {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.reference-index-executable.is-unverified {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.reference-index-gbp-exact {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.reference-index-facts,
+.reference-index-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  min-width: 0;
+  margin: 0;
+}
+
+.reference-index-facts > div,
+.reference-index-detail-grid > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.reference-index-facts dt,
+.reference-index-detail-grid dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.reference-index-facts dd,
+.reference-index-detail-grid dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.reference-index-facts small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.reference-index-fact-wide {
+  grid-column: 1 / -1;
+}
+
+.reference-index-details {
+  min-width: 0;
+}
+
+.reference-index-details summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reference-index-detail-grid {
+  margin-top: 8px;
+}
+
+.reference-index-muted {
+  color: var(--muted);
+}
+
+.reference-index-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.reference-index-pagination button {
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-strong);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 9px;
+}
+
+.reference-index-pagination button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.reference-index-total {
+  margin-left: auto;
+}
+
+.reference-index-empty {
+  display: grid;
+  gap: 4px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.reference-index-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .reference-index-facts,
+  .reference-index-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reference-index-total {
+    margin-left: 0;
+  }
+}

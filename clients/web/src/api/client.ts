@@ -719,6 +719,30 @@ export interface NormalizedMarketObsDTO extends MarketObsDTO {
   tenor: string;
   is_gas_price: boolean;
   price_gbp_mwh: number | null;
+  /**
+   * Backend-owned exact source-price evidence. These are the original domain
+   * `normalized_view._source_price_fields` names plus the exact/provenance pair
+   * (`price_gbp_mwh_exact`, `price_gbp_mwh_provenance`); `price_gbp_mwh` above is
+   * the existing numeric normalized field. The web client renders these strings
+   * verbatim and never parses them into a float or performs FX arithmetic.
+   */
+  price_gbp_mwh_exact?: string | null;
+  price_gbp_mwh_provenance?: string | null;
+  source_price_status?: string | null;
+  source_price_exact?: string | null;
+  source_price_raw?: string | null;
+  source_price_volume_mwh_exact?: string | null;
+  source_price_volume_raw?: string | null;
+  source_price_volume_status?: string | null;
+  source_price_provenance?: string | null;
+  source_price_issue?: string | null;
+  source_price_issue_detail?: string | null;
+  source_price_source_system?: string | null;
+  source_price_source_reference?: string | null;
+  source_price_source_dataset?: string | null;
+  price_float_provenance?: string | null;
+  price_semantics?: string | null;
+  executable_quote?: boolean | null;
 }
 
 export interface MarketSpreadDTO {

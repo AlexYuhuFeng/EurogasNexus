@@ -13,6 +13,7 @@ import type {
   SourceSystemDTO,
 } from "@/api/client";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
+import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
 
 type Translate = (key: string) => string;
 
@@ -638,6 +639,14 @@ export function MarketTerminal({
         <IntradayDecisionFeed
           opportunities={intradayOpportunities}
           lastUpdatedAtUtc={lastUpdatedAtUtc}
+          t={t}
+        />
+      </div>
+
+      <div className="workspace-panel market-reference-index-panel">
+        <ReferenceIndexEvidence
+          markets={markets}
+          focusedHub={focusedHub}
           t={t}
         />
       </div>
