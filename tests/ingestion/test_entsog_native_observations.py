@@ -417,7 +417,9 @@ def test_repository_compares_native_columns_and_accepts_legacy_replay(
         rows: list[dict[str, Any]],
         *,
         semantic_fields: tuple[str, ...],
+        semantic_metadata_keys: tuple[str, ...],
     ) -> dict[str, int]:
+        assert semantic_metadata_keys == ("operatorKey", "flowStatus", "periodType")
         captured["rows"] = rows
         captured["fields"] = semantic_fields
         return {"inserted": len(rows), "verified": 0}
@@ -479,7 +481,9 @@ def test_repository_changed_native_content_is_typed_revision_refusal(
         rows: list[dict[str, Any]],
         *,
         semantic_fields: tuple[str, ...],
+        semantic_metadata_keys: tuple[str, ...],
     ) -> dict[str, int]:
+        assert semantic_metadata_keys == ("operatorKey", "flowStatus", "periodType")
         raise GieRevisionRequiresHistoryError("changed native content")
 
     monkeypatch.setattr(
@@ -524,7 +528,9 @@ def test_repository_refuses_perturbed_native_volume_before_write(
         rows: list[dict[str, Any]],
         *,
         semantic_fields: tuple[str, ...],
+        semantic_metadata_keys: tuple[str, ...],
     ) -> dict[str, int]:
+        assert semantic_metadata_keys == ("operatorKey", "flowStatus", "periodType")
         calls.append(rows)
         return {"inserted": len(rows), "verified": 0}
 

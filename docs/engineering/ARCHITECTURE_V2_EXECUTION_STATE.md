@@ -1,5 +1,17 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — full hosted quality-guard regression fixture correction
+
+Hosted020ae60/run40895895337 passed ten jobs, including actual PostgreSQL,
+browser and all native/SDK platforms. Validate reported3failed/4966passed/
+116skipped: three old native-ingestion test doubles lacked the new explicit
+semantic_metadata_keys argument. Root updated those signatures and asserted the
+exact operatorKey/flowStatus/periodType allowlist; no catch-all kwargs, skips or
+assertion removal. Native-ingestion plus upsert tests26passed; Ruff passed.
+Same-SHA full CI remains required. EEX RFC0006 receipt mapping/persistence is
+being implemented separately and is not included in this corrective checkpoint.
+
+
 ## 2026-10-29 — provider quality changes refused and Web harness isolated
 
 ENTSOG append-or-verify now includes exact presence/type/value for operatorKey,
