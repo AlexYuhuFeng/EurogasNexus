@@ -1,5 +1,33 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — operator ECMWF ingestion and native-unit foundation
+
+Pushed a67460c adds an explicit operator ECMWF capture/archive/append CLI and
+runbook. Root ran real Linux Python3.11/ecCodes2.50 against the2026-10-29/00run,
+steps27/30, London51.5,-0.1. Both raw fields were archived and two rows inserted
+in the dedicated PostgreSQL acceptance database using explicit local test
+identities. A later capture inserted zero rows/two duplicates; strict query and
+projection matched hashes and original receipt timestamps. This verifies the
+operator path, not production mapping/certification or regional demand accuracy.
+New CLI plus existing transport/decoder/repository/capture suite94passed; Ruff
+passed. Root fixed a worker import of the decoded type from the wrong module.
+No decoder dependency was added to delivered requirements. Windows nativeecCodes
+and optional-dependency redistribution remain open. See the runbook for hashes.
+
+Pushed9729c0e adds the precise ENTSOG native-rate core:51tests passed. It preserves
+explicit numeric text and exact Decimal rates, converts only within energy or
+volume dimensions, and refuses unsupported units/floats instead of assuming a
+calorific value. This core is not connected to public_sources.py yet: its old
+fixed-CV conversion is still a known delivery defect. Next requires coordinated
+schema/persistence/read/API/SDK/Web consumer migration, preserving legacy rows
+and forbidding legacy Float values from masquerading as exact provider tokens.
+Do not claim that the staged parser alone fixes ENTSOG ingestion or closes supply
+and capacity integration. Full Python regression exposed the security acceptance
+script's stale189-path pin. Updated it to the declared191 (strict equality
+retained); independent script returned automated PASS. The full run and a fresh
+nested security-evidence replay remain active at this checkpoint; no new hosted
+all-green result is claimed.
+
 ## 2026-10-29 — governed weather API/SDK and shared client evidence panel
 
 Pushed weather GET forecast reads and POST caller-weighted degree-day computation,
