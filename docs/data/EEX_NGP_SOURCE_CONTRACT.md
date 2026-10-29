@@ -313,3 +313,21 @@ the unchanged strict refusal. This stage adds no network, database write, schedu
 consumer, certification or rights claim; RFC0006's real PostgreSQL/HTTP persistence and consumer
 acceptance remain outstanding. Rollback removes this additive mapper, its tests and this section;
 the existing parser and strict mapper need no data migration.
+
+
+## 10. Receipt persistence (RFC0006 stage B)
+
+`persist_eex_ngp_capture` accepts the bounded official capture and an explicit
+calendar contract. It archives exact UTF-8 bytes, including BOM and line endings,
+then maps and append-verifies canonical rows in a separate savepoint. The caller
+owns authorization, the ingestion run and commit. Mapping/revision refusals keep
+already archived raw evidence; archive failure cannot create canonical lineage.
+Same-key semantic revisions refuse, and recapture preserves the first receipt.
+This internal helper performs no fetch, scheduler activation or certification.
+
+The complete PostgreSQL CI now includes its dedicated disposable-schema tests.
+Root verified two actual official downloads in an owned acceptance database:
+first inserted4, second inserted0/verified4; exact bytes, hashes, null publication
+times, exact price authority and first receipts were preserved. Raw SHA256 was
+019f2286f8124be81c57d5b95e5df31497665f9ee877390122149b7842951707.
+Gated operator invocation and business-consumer acceptance remain subsequent work.

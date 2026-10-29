@@ -1,5 +1,27 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — actual EEX captures append/replay in PostgreSQL
+
+RFC0006 stageB persists exact official bounded UTF8 bytes through the shared raw
+archive, then receipt-bound observations through locked append-or-verify. BOM,
+line ends, source authority reference and exact decimals survive; unavailable
+rows never become zero prices. Same-key changes refuse atomically while retained
+raw evidence survives. First receipt/archive metadata is immutable on recapture.
+No source activation, rights assertion, HTTP fetch or commit occurs in helpers.
+Root corrected two lint findings and the count-result annotation's archive id.
+
+The complete Linux PostgreSQL CI ran from an empty owned database through0044,
+authenticated/anonymous smokes and75tests, all passed without skips. Architecture
+plus new receipt mapping38passed; Ruff passed. Two real official network captures
+were then persisted in the owned acceptance DB: first4inserted, second0inserted/
+4unchanged. Both raw hashes019f2286f8124be81c57d5b95e5df31497665f9ee877390122149b7842951707
+matched exact archived bytes and actual receipts; every row resolved as exact
+source-price evidence and kept publication_time_utc null. Real ingestion/audit
+run records accompanied the probe; this is not production activation or rights
+clearance. Gated operator command and API/business consumption remain to connect.
+Same-SHA hosted validation and all broader delivery gaps remain required.
+
+
 ## 2026-10-29 — EEX receipt-bound price mapping with actual capture evidence
 
 Root rechecked the official EEX index page and current methodology25/spec0105a.
