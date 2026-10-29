@@ -1,3 +1,25 @@
+## 2026-10-30 — RFC0007 S1 pure archive evidence validation
+
+Reviewed DeepSeek S1 helper validates typed fixed-bucket HEAD/HTTP metadata,
+exact index/range bytes and hashes, decoder/request identity, conservative max
+object LastModified, opaque ETags, explicit null versions and public-read
+continuity assumption. Replay comparison is explicitly query/decoder specific.
+No SQL, network, native decoder loading, source activation, model eligibility
+or canonical receipt rewriting is introduced. Root focused tests: 15 passed;
+Ruff passed. Duplicate JSON members are refused by the reused strict parser.
+Actual end-to-end S1 capture remains unproven: official historical conditional
+index GET returned HTTP 503. Earlier historical decode evidence is separate.
+
+Scientific CI review is ongoing in DeepSeek task dsh-weather-ci-review-fix
+(session 83435, launcher metadata under ignored dsh-tasks directory). Do not
+restart while live. Root ran the exact selected unit set: 144 passed, plus both
+real PostgreSQL modules: 7 passed; their actual JUnit reported 151 tests with
+zero failures/errors/skips. The current inline gate accepted these reports;
+review still requires testcase-name spoof protection and contract correction.
+Exact science lock installed successfully into a new isolated Linux target with
+--require-hashes --only-binary=:all: --no-deps --ignore-installed. The application
+runtime dependency/redistribution gap remains open. NumPy internal-only review
+addendum is local and must accompany any science workflow commit.
 ## 2026-10-30 — explicit REST target ordering reaches runtime/operator
 
 Reviewed DeepSeek implementation forwards optional target_revision_order_policy
