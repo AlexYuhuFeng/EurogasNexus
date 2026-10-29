@@ -226,9 +226,7 @@ def test_hashes_are_deterministic_and_changed_validators_are_object_changes():
         assert_archive_replay(first, changed)
     assert excinfo.value.code == "ARCHIVE_OBJECT_CHANGED"
 
-    later = _evidence(
-        fixture=(request, index, grib, selected, captured + timedelta(seconds=5))
-    )
+    later = _evidence(fixture=(request, index, grib, selected, captured + timedelta(seconds=5)))
     assert assert_archive_replay(first, later) is later
 
 
@@ -521,3 +519,20 @@ def test_decoded_identity_and_reference_mismatches_are_refused():
             fixture=(request, index, grib, selected, captured),
             selected_message=replace(selected, reference=changed_reference),
         )
+
+
+def test_s3_literal_null_version_is_retained_but_never_claimed_pinned():
+    request, index, grib, selected, captured = _fixture()
+    index = replace(
+        index,
+        metadata=replace(index.metadata, version_id="null"),
+        http=replace(index.http, version_id="null"),
+    )
+    grib = replace(
+        grib,
+        metadata=replace(grib.metadata, version_id="null"),
+        http=replace(grib.http, version_id="null"),
+    )
+    evidence = _evidence(fixture=(request, index, grib, selected, captured))
+    assert evidence.index.version_id == evidence.grib.version_id == "null"
+    assert sum("not version-pinned" in item for item in evidence.limitations) == 2

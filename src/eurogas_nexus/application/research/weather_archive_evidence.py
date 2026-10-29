@@ -363,9 +363,7 @@ def _check_object(
         _text(meta.version_id, f"{name} versionId")
         _text(http.version_id, f"{name} HTTP versionId")
     size = _integer(meta.size_bytes, f"{name} size", 1, MAX_ARCHIVE_OBJECT_BYTES)
-    content_length = _integer(
-        http.content_length, f"{name} Content-Length", 1, max_content_length
-    )
+    content_length = _integer(http.content_length, f"{name} Content-Length", 1, max_content_length)
     if content_length != len(raw):
         raise WeatherArchiveRangeError(f"{name} Content-Length does not match the body bytes")
     if ranged:
@@ -422,17 +420,11 @@ def _parse_content_range(
     if start != expected_start:
         raise WeatherArchiveRangeError("Content-Range start does not match the selected row")
     if end != expected_start + expected_length - 1:
-        raise WeatherArchiveRangeError(
-            "Content-Range end does not match the selected message"
-        )
+        raise WeatherArchiveRangeError("Content-Range end does not match the selected message")
     if total != expected_total:
-        raise WeatherArchiveRangeError(
-            "Content-Range total does not match the S3 object size"
-        )
+        raise WeatherArchiveRangeError("Content-Range total does not match the S3 object size")
     if total < end + 1:
-        raise WeatherArchiveRangeError(
-            "Content-Range total is smaller than the selected message"
-        )
+        raise WeatherArchiveRangeError("Content-Range total is smaller than the selected message")
     _integer(total, "archive object total bytes", 1, MAX_ARCHIVE_OBJECT_BYTES)
     return raw_content_range, total
 
@@ -483,9 +475,7 @@ def _check_decoded(
         _utc(request.valid_at_utc, "request validity"),
         request.step_hours,
     ):
-        raise WeatherArchiveIdentityError(
-            "decoded run/step/validity does not match the request"
-        )
+        raise WeatherArchiveIdentityError("decoded run/step/validity does not match the request")
     if _text(decoded.request_sha256, "decoded request hash", maximum=64) != (
         expected_request_sha256
     ):
@@ -531,9 +521,7 @@ def _check_reference(
         request.step_hours,
         _utc(request.valid_at_utc, "request validity"),
     ):
-        raise WeatherArchiveIdentityError(
-            "selected-message identity does not match the request"
-        )
+        raise WeatherArchiveIdentityError("selected-message identity does not match the request")
 
 
 def _object_payload(obj: ArchiveObjectEvidence) -> dict[str, object]:
@@ -612,9 +600,7 @@ def reconstruct_archive_evidence(
             grib_ev.http_captured_at_utc,
         )
     ):
-        raise WeatherArchiveTimeError(
-            "object capture time is after the overall capture time"
-        )
+        raise WeatherArchiveTimeError("object capture time is after the overall capture time")
 
     raw_index = index_object.raw_bytes
     try:
@@ -643,9 +629,7 @@ def reconstruct_archive_evidence(
     if selected.byte_offset < 0 or not 1 <= selected.byte_length <= MAX_FIELD_BYTES:
         raise WeatherArchiveMetadataError("selected index row has an invalid GRIB range")
     if len(raw_grib) != selected.byte_length:
-        raise WeatherArchiveRangeError(
-            "GRIB body length does not match the selected index row"
-        )
+        raise WeatherArchiveRangeError("GRIB body length does not match the selected index row")
     if selected.byte_offset + selected.byte_length > grib_ev.size_bytes:
         raise WeatherArchiveRangeError("selected message escapes the S3 object size")
     raw_range = grib_object.http.content_range
@@ -700,10 +684,14 @@ def reconstruct_archive_evidence(
         "ETag is retained as an opaque validator and is not a content hash or MD5.",
         "This evidence is not a genuine forecast vintage and is not forecast-accuracy evidence.",
     ]
-    if index_ev.version_id is None:
-        limitations.append("Index versionId is null; the index object is not version-pinned.")
-    if grib_ev.version_id is None:
-        limitations.append("GRIB versionId is null; the GRIB object is not version-pinned.")
+    if index_ev.version_id in (None, "null"):
+        limitations.append(
+            "Index versionId is null/unversioned; the index object is not version-pinned."
+        )
+    if grib_ev.version_id in (None, "null"):
+        limitations.append(
+            "GRIB versionId is null/unversioned; the GRIB object is not version-pinned."
+        )
     evidence_payload: dict[str, object] = {
         "schema": "ecmwf-archive-evidence-v1",
         "availability_basis": ARCHIVE_AVAILABILITY_BASIS,

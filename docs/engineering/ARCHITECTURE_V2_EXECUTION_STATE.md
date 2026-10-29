@@ -1,3 +1,32 @@
+## 2026-10-30 — hosted numerical proof and S3 null-version correction
+
+Hosted science job123803628020 in run40975872180 at3ee4a79 completed success:
+exact wheel install, full registered PostgreSQL script, actual numerical units
+and actual PostgreSQL fit modules, zero-skip/module-identity gate, and artifact
+upload all succeeded. Whole CI still running at observation; no overall green
+claim. ae8eabe and80b91ac whole CI both succeeded.
+
+Root found a metadata-label edge case during S2 review: literal S3 versionId
+"null" is overwriteable, not immutable version pinning. Verified AWS primary
+reference: https://docs.aws.amazon.com/AmazonS3/latest/userguide/AddingObjectstoVersionSuspendedBuckets.html.
+S1 now retains the exact string while recording the unpinned limitation for
+both None and literal"null". Sixteen focused S1 tests and Ruff passed. No data
+eligibility change; no production or archive capture success inferred.
+
+Regional primary-source review now records the actual13 throughput weights
+(sum1.000) explicitly for GasYear2024/25 on2020CWVbasis, not current2026/27.
+Xoserve2025review effective dates prove that blindly reusing historical station
+weights today is unsound. See REGIONAL_WEATHER_WEIGHT_PRIMARY_REVIEW.md; no
+weights/stations activated in code. Exact historical publication knowledge and
+temperature/HDD approximation remain unresolved.
+
+Live workers: archiveS2 session95817, prediction runtime10762, and new bounded
+causality review84538 (dsh-retrospective-label-causality-review). The latter must
+verify whether actual-receipt labels captured now prevent historical fold
+training; provider applicability ranking never authorizes receipt rewriting.
+S2 in-progress tests currently have failures; do not accept or commit that work
+until the worker terminates and root review repairs/verifies it. No restart of
+live processes. Full delivery goal stays active.
 ## 2026-10-30 — isolated numerical CI gate accepted for execution
 
 Reviewed DeepSeek reusable weather-model workflow is called by ordinary/manual
