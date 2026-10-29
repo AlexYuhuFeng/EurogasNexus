@@ -137,6 +137,20 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     # agent work - not gas-market semantics, so it stays with its contract.
     "eurogas_nexus.domain.operations.jobs:JobKind",
     "eurogas_nexus.domain.operations.jobs:JobState",
+    # RFC-0003 weather-to-demand research lifecycle and method-assessment states.
+    # ModelKind, ModelSelectionStatus, ModelUseStatus, PromotionStatus and
+    # ValidationBasis name a fitted model's family, selection/use/promotion
+    # posture and the basis of its out-of-sample evidence. They are research
+    # governance vocabulary, not gas-market semantics, so they stay beside the
+    # frozen weather-demand core instead of entering the GRM ontology. Their
+    # gas/data semantic companions (TemperatureInputType, TargetScope,
+    # DemandTargetQuality, WeatherFeature and TemperatureDerivationMethod) live
+    # in domain/ontology/vocabulary.py.
+    "eurogas_nexus.domain.research.weather_demand:ModelKind",
+    "eurogas_nexus.domain.research.weather_demand:ModelSelectionStatus",
+    "eurogas_nexus.domain.research.weather_demand:ModelUseStatus",
+    "eurogas_nexus.domain.research.weather_demand:PromotionStatus",
+    "eurogas_nexus.domain.research.weather_demand:ValidationBasis",
 }
 
 

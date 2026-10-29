@@ -332,6 +332,62 @@ class ActionKindCategory(StrEnum):
     EXTERNAL_ACTION = "EXTERNAL_ACTION"
 
 
+# --- Weather-to-demand semantics (RFC-0003 phase C) -------------------------
+#
+# These finite vocabularies name the weather evidence, demand targets and
+# degree-day features consumed by the pure weather-to-demand research core.
+# They are gas/data semantics, not research-lifecycle states, so their canonical
+# home is this ontology vocabulary. ``domain/research/weather_demand.py`` imports
+# and re-exports these exact classes, preserving existing public imports, enum
+# identity and serialized values.
+
+
+class TemperatureInputType(StrEnum):
+    """Whether a temperature value is a forecast vintage or realized evidence."""
+
+    FORECAST_VINTAGE = "FORECAST_VINTAGE"
+    REALIZED_OBSERVATION = "REALIZED_OBSERVATION"
+
+
+class TargetScope(StrEnum):
+    """Supported actual-target scope; no implicit cross-region aggregation."""
+
+    GB_NTS_THROUGHPUT = "GB_NTS_THROUGHPUT"
+    REGION = "REGION"
+
+
+class DemandTargetQuality(StrEnum):
+    """Native target quality preserved from the source revision."""
+
+    ACTUAL = "ACTUAL"
+    ESTIMATED = "ESTIMATED"
+    PROVISIONAL = "PROVISIONAL"
+    ALLOCATED = "ALLOCATED"
+
+
+class WeatherFeature(StrEnum):
+    """Weather columns that a demand candidate may use explicitly."""
+
+    HDD_MEAN = "HDD_MEAN"
+    CDD_MEAN = "CDD_MEAN"
+    HDD_INTEGRAL = "HDD_INTEGRAL"
+    CDD_INTEGRAL = "CDD_INTEGRAL"
+
+
+class TemperatureDerivationMethod(StrEnum):
+    """How an interval mean was produced, kept separate from degree-day math.
+
+    ``PROVIDER_INTERVAL_MEAN`` means the provider supplied a mean over the whole
+    valid interval. ``EXPLICIT_DERIVED_HOLD`` means a single value was explicitly
+    held across the interval by a derivation step. The weather-to-demand core
+    performs no instant-to-mean conversion; a future adapter that does must label
+    its output.
+    """
+
+    PROVIDER_INTERVAL_MEAN = "PROVIDER_INTERVAL_MEAN"
+    EXPLICIT_DERIVED_HOLD = "EXPLICIT_DERIVED_HOLD"
+
+
 # --- OWL/GRM companion identifiers -----------------------------------------
 
 GRM_ROLES: tuple[str, ...] = (

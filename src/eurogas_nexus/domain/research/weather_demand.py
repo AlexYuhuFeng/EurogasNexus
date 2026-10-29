@@ -40,6 +40,13 @@ from eurogas_nexus.domain.market.gas_day import (
     DEFAULT_GAS_DAY_CALENDAR,
     gas_day_start_for_date,
 )
+from eurogas_nexus.domain.ontology.vocabulary import (
+    DemandTargetQuality,
+    TargetScope,
+    TemperatureDerivationMethod,
+    TemperatureInputType,
+    WeatherFeature,
+)
 
 DEGREE_DAY_METHOD_VERSION = "degree-day-mean-and-integral/v1"
 DEMAND_MODEL_METHOD_VERSION = "weather-calendar-ridge/v1"
@@ -108,38 +115,6 @@ class MissingNumpyError(RuntimeError):
             "NumPy is required for demand fitting. Install the separately reviewed "
             "NumPy lock; this module does not add or install dependencies."
         )
-
-
-class TemperatureInputType(StrEnum):
-    """Whether a temperature value is a forecast vintage or realized evidence."""
-
-    FORECAST_VINTAGE = "FORECAST_VINTAGE"
-    REALIZED_OBSERVATION = "REALIZED_OBSERVATION"
-
-
-class TargetScope(StrEnum):
-    """Supported actual-target scope; no implicit cross-region aggregation."""
-
-    GB_NTS_THROUGHPUT = "GB_NTS_THROUGHPUT"
-    REGION = "REGION"
-
-
-class DemandTargetQuality(StrEnum):
-    """Native target quality preserved from the source revision."""
-
-    ACTUAL = "ACTUAL"
-    ESTIMATED = "ESTIMATED"
-    PROVISIONAL = "PROVISIONAL"
-    ALLOCATED = "ALLOCATED"
-
-
-class WeatherFeature(StrEnum):
-    """Weather columns that a demand candidate may use explicitly."""
-
-    HDD_MEAN = "HDD_MEAN"
-    CDD_MEAN = "CDD_MEAN"
-    HDD_INTEGRAL = "HDD_INTEGRAL"
-    CDD_INTEGRAL = "CDD_INTEGRAL"
 
 
 class ValidationBasis(StrEnum):
@@ -398,19 +373,6 @@ class RealizedTemperatureInterval:
 
 
 TemperatureInterval = ForecastTemperatureInterval | RealizedTemperatureInterval
-
-
-class TemperatureDerivationMethod(StrEnum):
-    """How an interval mean was produced, kept separate from degree-day math.
-
-    ``PROVIDER_INTERVAL_MEAN`` means the provider supplied a mean over the whole
-    valid interval. ``EXPLICIT_DERIVED_HOLD`` means a single value was explicitly
-    held across the interval by a derivation step. This module performs no
-    instant-to-mean conversion; a future adapter that does must label its output.
-    """
-
-    PROVIDER_INTERVAL_MEAN = "PROVIDER_INTERVAL_MEAN"
-    EXPLICIT_DERIVED_HOLD = "EXPLICIT_DERIVED_HOLD"
 
 
 def _decimal_identity(value: Decimal) -> str:

@@ -170,3 +170,17 @@ before prediction. This provenance revision was not executed by the implementing
 worker; the root reviewer runs the isolated NumPy test command. NumPy-dependent
 tests require the root-reviewed NumPy 2.3 lock to be installed. The
 lazy-dependency failure test does not require NumPy.
+
+## Ontology review note (2026-10-27)
+
+Per the Architecture V2 ontology review, this slice's gas/data semantic
+vocabulary — `TemperatureInputType`, `TargetScope`, `DemandTargetQuality`,
+`WeatherFeature` and `TemperatureDerivationMethod` — now lives in
+`domain/ontology/vocabulary.py`. This module imports and re-exports those exact
+classes, so enum values, class identity and existing public imports are
+unchanged. The research lifecycle/method-assessment states (`ModelKind`,
+`ModelSelectionStatus`, `ModelUseStatus`, `PromotionStatus`, `ValidationBasis`)
+remain beside the frozen core; the ontology contract gate records them as five
+explicit reviewed entries with the RFC-0003 rationale. This was a vocabulary
+placement review only: degree-day equations, fitting, selection evidence and
+prediction behaviour are unchanged.
