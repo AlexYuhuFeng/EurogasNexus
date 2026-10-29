@@ -13,7 +13,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select
 
 from eurogas_nexus.api.dependencies.identity import require_identity_for_route
 from eurogas_nexus.api.dependencies.row_entitlement import (
@@ -34,13 +33,6 @@ from eurogas_nexus.application.research.weather_demand_inputs import (
     compute_degree_days_from_bundle,
     project_forecast_observation_record,
 )
-from eurogas_nexus.db.models.certification import ProviderCertificationRecord
-from eurogas_nexus.db.repositories.ecmwf_forecast_reads import (
-    EcmwfForecastReadOverflowError,
-    EcmwfForecastReadValidationError,
-    read_ecmwf_forecasts,
-)
-from eurogas_nexus.db.session import get_session_factory
 from eurogas_nexus.domain.ingestion.certification import certification_gate
 from eurogas_nexus.domain.research.weather_demand import (
     DegreeDayFeaturePolicy,
@@ -48,6 +40,15 @@ from eurogas_nexus.domain.research.weather_demand import (
     RegionLocationWeight,
     WeatherDemandInputError,
 )
+
+
+def get_session_factory():
+    """Resolve the DB session factory lazily so API import stays DB-free."""
+
+    from eurogas_nexus.db.session import get_session_factory as _get_session_factory
+
+    return _get_session_factory()
+
 
 router = APIRouter(tags=["weather"])
 
@@ -115,6 +116,12 @@ def list_forecasts(
         series_ids, entity_ids, prediction_origin, valid_from, valid_to, limit)
     require_derived_access(request, (_SOURCE,), resource="weather_forecasts")
 
+    from eurogas_nexus.db.repositories.ecmwf_forecast_reads import (
+        EcmwfForecastReadOverflowError,
+        EcmwfForecastReadValidationError,
+        read_ecmwf_forecasts,
+    )
+
     try:
         with get_session_factory()() as session:
             _require_certification(session)
@@ -154,6 +161,12 @@ def compute_weather_degree_days(
     """Compute bounded, caller-weighted degree days from persisted forecasts."""
 
     require_derived_access(request, (_SOURCE,), resource="weather_degree_days")
+    from eurogas_nexus.db.repositories.ecmwf_forecast_reads import (
+        EcmwfForecastReadOverflowError,
+        EcmwfForecastReadValidationError,
+        read_ecmwf_forecasts,
+    )
+
     try:
         policy, config, bindings = _degree_day_inputs(payload)
         with get_session_factory()() as session:
@@ -323,6 +336,10 @@ def _utc(value: str | None, name: str) -> datetime:
 
 
 def _require_certification(session) -> None:
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models.certification import ProviderCertificationRecord
+
     certification = session.scalar(
         select(ProviderCertificationRecord)
         .where(ProviderCertificationRecord.source_system == _SOURCE)
