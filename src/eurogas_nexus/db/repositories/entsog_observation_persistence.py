@@ -18,14 +18,14 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from eurogas_nexus.application.physical_native_rates import (
-    NativeRateProjectionError,
-    validate_native_rate_payload,
-)
 from eurogas_nexus.db.repositories.public_ingestion_upsert import (
     GieRevisionRaceError,
     GieRevisionRequiresHistoryError,
     upsert_revision_safe_observation_rows,
+)
+from eurogas_nexus.ingestion.entsog_native_payloads import (
+    NativeRateProjectionError,
+    validate_native_rate_payload,
 )
 
 _COMMON_FIELDS = (

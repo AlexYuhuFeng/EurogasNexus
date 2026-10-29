@@ -285,9 +285,20 @@ def test_main_source_all_processes_independent_providers_after_ecb_gate(
     monkeypatch.setattr(script, "_resolve_gie_api_key", lambda session_factory: None)
 
     entsog_routes = []
+    entsog_point_directions = []
 
-    def fake_entsog(client, session, *, route, args, started, report):
+    def fake_entsog(
+        client,
+        session,
+        *,
+        route,
+        args,
+        started,
+        report,
+        point_directions=None,
+    ):
         entsog_routes.append(route)
+        entsog_point_directions.append(point_directions)
         report["sources"][route] = {"records": 0}
 
     monkeypatch.setattr(script, "_ingest_entsog_source", fake_entsog)
@@ -308,6 +319,7 @@ def test_main_source_all_processes_independent_providers_after_ecb_gate(
 
     assert result == 1
     assert set(entsog_routes) == {"entsog", "entsog-capacity", "entsog-reference"}
+    assert entsog_point_directions == [(), (), ()]
     assert _RecordingHttpClient.instances
     assert all(client.calls == [] for client in _RecordingHttpClient.instances)
     payload = json.loads(capsys.readouterr().out)

@@ -19,7 +19,7 @@ import math
 from datetime import UTC, datetime
 from typing import Any
 
-from eurogas_nexus.application.physical_native_rates import serialize_native_rate
+from eurogas_nexus.ingestion.entsog_native_payloads import serialize_native_rate
 from eurogas_nexus.ingestion.entsog_native_units import (
     NORMALIZER_VERSION,
     EntsogNativeRate,

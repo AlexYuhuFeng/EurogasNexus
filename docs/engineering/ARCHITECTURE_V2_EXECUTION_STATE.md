@@ -1,5 +1,21 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — hosted native integration regression corrections
+
+Hosted run40863573034 on2dff9d4 passed ten jobs but validate failed six tests.
+Moved the exact native payload codec below application so DB and ingestion no
+longer import application; application reexports preserve the same error type
+and public helpers. No architecture gate exception or quantity-rule weakening.
+Updated positive ENTSOG security/glossary fixtures to genuine explicit native
+volume payloads; licensed negative fixtures and scope assertions remain. CLI
+mock now explicitly accepts and checks the actual empty point-scope tuple.
+Root verification: native projection/API/SDK-wire/CLI81passed; architecture,
+security entitlement and glossary33passed; Ruff import ordering corrected.
+Full hosted regression and nested security evidence still require same-SHA CI.
+Shared Web native client/model/panel implementation is in progress separately;
+remaining delivery gaps listed below remain open.
+
+
 ## 2026-10-29 — native ENTSOG ingestion, guarded reads and source SDK connected
 
 Replaced the fixed-CV flow/capacity normalizers with explicit receipt-bound native

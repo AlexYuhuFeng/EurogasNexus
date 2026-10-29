@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
+from eurogas_nexus.application.physical_native_rates import serialize_native_rate
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
@@ -19,6 +20,10 @@ from eurogas_nexus.db.models import (
 from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
     create_identity_principal,
+)
+from eurogas_nexus.ingestion.entsog_native_units import (
+    NORMALIZER_VERSION,
+    parse_entsog_native_rate,
 )
 
 PUBLIC_TOKEN = "test-public-api-token"
@@ -46,6 +51,9 @@ def _create_principal(session: Session, scopes: list[str]) -> str:
 
 
 def _flow(observation_id: str, source_system: str, now: datetime) -> FlowObservationRecord:
+    native_rate = None
+    if source_system == "ENTSOG":
+        native_rate = serialize_native_rate(parse_entsog_native_rate("1.0", "mcm/d"))
     return FlowObservationRecord(
         observation_id=observation_id,
         point_id=f"point-{observation_id}",
@@ -56,13 +64,15 @@ def _flow(observation_id: str, source_system: str, now: datetime) -> FlowObserva
         original_value=1.0,
         original_unit="mcm/d",
         period_start_utc=now,
-        period_end_utc=now,
+        period_end_utc=now + timedelta(hours=1) if native_rate is not None else now,
         observed_at_utc=now,
         source_system=source_system,
         source_reference=f"test:{observation_id}",
         source_record_id=observation_id,
         freshness="live",
         research_only=True,
+        normalizer_version=NORMALIZER_VERSION if native_rate is not None else None,
+        native_rate_json=native_rate,
     )
 
 

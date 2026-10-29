@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
+from eurogas_nexus.application.physical_native_rates import serialize_native_rate
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     CapacityProfileRecord,
@@ -17,6 +18,15 @@ from eurogas_nexus.db.models import (
     RouteCandidateRecord,
     UpstreamResourceContractRecord,
 )
+from eurogas_nexus.ingestion.entsog_native_units import (
+    NORMALIZER_VERSION,
+    parse_entsog_native_rate,
+)
+
+
+def _native_mcm_rate(value_text: str) -> dict[str, str | None]:
+    """Build the exact persisted native payload from an explicit mcm/d string."""
+    return serialize_native_rate(parse_entsog_native_rate(value_text, "mcm/d"))
 
 
 def test_glossary_context_reads_capacity_flow_prices_and_contracts_from_db(
@@ -53,6 +63,8 @@ def test_glossary_context_reads_capacity_flow_prices_and_contracts_from_db(
                 point_name="TTF",
                 direction="exit",
                 flow_mcm_d=6.0,
+                normalizer_version=NORMALIZER_VERSION,
+                native_rate_json=_native_mcm_rate("6.0"),
                 period_start_utc=start,
                 period_end_utc=end,
                 observed_at_utc=observed,
@@ -219,6 +231,8 @@ def test_glossary_context_derives_non_profile_entry_point_from_runtime_records(
                     point_name="Zeebrugge Entry Point",
                     direction="entry",
                     flow_mcm_d=10.0,
+                    normalizer_version=NORMALIZER_VERSION,
+                    native_rate_json=_native_mcm_rate("10.0"),
                     period_start_utc=start,
                     period_end_utc=middle,
                     observed_at_utc=middle,
@@ -233,6 +247,8 @@ def test_glossary_context_derives_non_profile_entry_point_from_runtime_records(
                     point_name="Zeebrugge Entry Point",
                     direction="entry",
                     flow_mcm_d=20.0,
+                    normalizer_version=NORMALIZER_VERSION,
+                    native_rate_json=_native_mcm_rate("20.0"),
                     period_start_utc=middle,
                     period_end_utc=end,
                     observed_at_utc=observed,
