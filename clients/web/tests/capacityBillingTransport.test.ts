@@ -323,3 +323,17 @@ test("the method is transport only and the request type declares no authority fi
   assert.match(hookSource, /abortRef\.current\?\.abort\(\)/, "an edit or rerun aborts the old request");
   assert.match(hookSource, /if \(sequence !== runSequence\.current\) return;/, "stale responses are ignored");
 });
+
+test("the harness keeps store modules fresh and the real client unmocked", async () => {
+  const first = await loadApiStore();
+  const second = await loadApiStore();
+
+  assert.notEqual(first.store, second.store, "each load executes a fresh store module");
+  assert.equal(typeof first.store.getState, "function");
+  assert.equal(typeof second.store.getState, "function");
+
+  // The store above is loaded with the mock boundary swapped in; this load is the real module.
+  const client = await second.load<CapacityBillingClient>("/src/api/client.ts");
+  assert.equal(typeof client.api.capacityBilling, "function");
+  assert.equal(typeof client.ApiError, "function");
+});

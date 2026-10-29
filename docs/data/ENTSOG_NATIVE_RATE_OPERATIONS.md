@@ -114,6 +114,24 @@ conflict handling in owned test schemas. SQLite fixture tests are fast mechanics
 only and do not substitute for those tests. See the execution checkpoint for
 current pipeline results and outstanding shared-client adoption.
 
+## Bounded provider-quality revision guard
+
+The append-or-verify path compares stored and incoming canonical semantic columns
+and, for ENTSOG observations, only these explicit provider metadata keys:
+`operatorKey`, `flowStatus` and `periodType`. For those keys an absent key, an
+explicit JSON `null` and a value are distinct states; provider strings are
+compared exactly and are never normalized, guessed or converted through a CV.
+Unlisted metadata stays ignored, so a new receipt, raw archive, ingestion run,
+payload hash or label does not make an unchanged observation look revised.
+
+A changed quantity or an allowlisted identity/quality field refuses the canonical
+batch with the existing `entsog_revision_requires_history` error in its savepoint.
+Mixed new/changed batches roll back their canonical writes as a whole; raw
+archives already retained by the caller survive. The first-seen receipt and
+stored lineage of an unchanged row are preserved. This is a bounded semantic
+guard, not full provider revision history: there is no new history table, schema,
+observation ID, overwrite or source activation.
+
 ## Shared client window selection
 
 The capacity network panel accepts an optional From/To pair with explicit UTC

@@ -14,9 +14,11 @@ Semantics:
 - ``upsert_revision_safe_observation_rows`` is the GIE-scoped append-or-verify
   path: a new natural key is inserted, a semantically unchanged existing row is
   left untouched, and a semantically revised existing row is refused with
-  :class:`GieRevisionRequiresHistoryError` instead of overwriting it. The
-  generic upsert above keeps its documented in-place-revision limitation for the
-  other sources and is deliberately not changed here.
+  :class:`GieRevisionRequiresHistoryError` instead of overwriting it. An optional
+  metadata allowlist extends that comparison without treating receipt, archive,
+  run or hash churn as a revision. The generic upsert above keeps its documented
+  in-place-revision limitation for the other sources and is deliberately not
+  changed here.
 - ``replace_reference_snapshot`` replaces only the rows of one source system
   and only when the new payload is non-empty. An empty payload is treated as
   provider failure, not as evidence that the reference data became empty.
@@ -81,10 +83,15 @@ class GieRevisionRequiresHistoryError(RuntimeError):
     revised provider measurement must never overwrite the original row: doing so
     projects the new value back to the original first-seen observation instant
     (lookahead). The batch is refused as a whole; the error message carries only
-    the source, dataset, counts and observation ids, never provider payload text.
+    the source, dataset, counts, observation ids and safe field names, never
+    provider payload or metadata values.
     """
 
     code = "gie_revision_requires_history"
+
+    def __init__(self, message: str, *, changed_fields: Iterable[str] = ()) -> None:
+        self.changed_fields = tuple(changed_fields)
+        super().__init__(message)
 
 
 class GieRevisionRaceError(RuntimeError):
@@ -115,6 +122,7 @@ def upsert_revision_safe_observation_rows(
     rows: list[dict[str, Any]],
     *,
     semantic_fields: Iterable[str] | None = None,
+    semantic_metadata_keys: Iterable[str] = (),
 ) -> dict[str, int]:
     """Append-or-verify GIE observation rows without revising existing content.
 
@@ -145,13 +153,19 @@ def upsert_revision_safe_observation_rows(
         rows: Normalized row dicts already carrying their exact archive lineage.
         semantic_fields: Override of the compared semantic columns; defaults to
             :data:`GIE_SEMANTIC_FIELDS` for the model's table.
+        semantic_metadata_keys: Optional allowlist of ``metadata_json`` keys whose
+            presence and exact value are also compared. The default is empty, so
+            GIE rows keep their existing whole-metadata-ignoring behaviour.
+            Provider receipt/archive/run/hash and other unlisted metadata churn is
+            never compared. An absent key, an explicit JSON ``null`` and a value
+            are three distinct states.
 
     Returns:
         ``{"inserted": n, "unchanged": m}`` counts for the batch.
 
     Raises:
         GieRevisionRequiresHistoryError: An existing natural key carries
-            different semantic content.
+            different semantic content or an allowlisted metadata change.
         ValueError: ``rows`` is empty, repeats a natural key, or the model has
             no declarable semantic field set.
     """
@@ -162,6 +176,7 @@ def upsert_revision_safe_observation_rows(
     table = model.__table__
     key_columns = [column.name for column in table.primary_key.columns]
     fields = _resolve_semantic_fields(table, semantic_fields)
+    metadata_keys = tuple(dict.fromkeys(str(name) for name in semantic_metadata_keys))
 
     seen_keys: set[tuple[Any, ...]] = set()
     inserted = 0
@@ -206,14 +221,17 @@ def upsert_revision_safe_observation_rows(
             for name in fields
             if _semantic_value(existing.get(name)) != _semantic_value(row.get(name))
         ]
+        mismatched.extend(_metadata_semantic_mismatches(existing, row, metadata_keys))
         if mismatched:
+            ordered = sorted(mismatched)
             raise GieRevisionRequiresHistoryError(
                 "GIE revision requires append-only history: refusing to overwrite "
                 f"{table.name} key={_display_key(key)} for dataset "
                 f"{row.get('source_dataset')!r}; the existing row differs on "
-                f"{len(mismatched)} semantic field(s) [{', '.join(sorted(mismatched))}]. "
+                f"{len(ordered)} semantic field(s) [{', '.join(ordered)}]. "
                 "No revision history exists, so the original measurement is kept and the "
-                "batch is refused as a whole."
+                "batch is refused as a whole.",
+                changed_fields=ordered,
             )
         unchanged += 1
 
@@ -300,6 +318,48 @@ def _semantic_value(value: Any) -> Any:
     if isinstance(value, (int, float, Decimal)):
         return float(value)
     return value
+
+
+def _metadata_semantic_mismatches(
+    existing: Mapping[str, Any],
+    incoming: Mapping[str, Any],
+    keys: tuple[str, ...],
+) -> list[str]:
+    """Compare only explicitly allowlisted metadata keys, without echoing values.
+
+    A key that is absent, present with an explicit JSON ``null`` and present with
+    a value are distinct. Unlisted metadata (receipt, archive id, run id, hash,
+    labels or any other churn) is never compared. A malformed stored/incoming
+    metadata value is a typed revision refusal rather than an ignored field or an
+    ``AttributeError``.
+    """
+
+    if not keys:
+        return []
+    existing_metadata = existing.get("metadata_json")
+    incoming_metadata = incoming.get("metadata_json")
+    if existing_metadata is None:
+        existing_metadata = {}
+    if incoming_metadata is None:
+        incoming_metadata = {}
+    if not isinstance(existing_metadata, Mapping) or not isinstance(incoming_metadata, Mapping):
+        return ["metadata_json"]
+
+    missing = object()
+    changed: list[str] = []
+    for name in keys:
+        old = existing_metadata.get(name, missing)
+        new = incoming_metadata.get(name, missing)
+        if old is missing and new is missing:
+            continue
+        if (
+            old is missing
+            or new is missing
+            or type(old) is not type(new)
+            or old != new
+        ):
+            changed.append(f"metadata_json.{name}")
+    return changed
 
 
 def replace_reference_snapshot(

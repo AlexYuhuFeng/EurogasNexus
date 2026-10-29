@@ -8,12 +8,16 @@ their canonical writes while the caller's previously archived raw pages survive.
 RFC0005 native rows add the version and exact native wire payload to the semantic
 comparison.  They remain additive: a native row must use its new namespace, while
 both-NULL legacy rows stay replayable under their original ids.  A changed native
-payload is therefore a typed revision refusal, never a silent overwrite.
+payload is therefore a typed revision refusal, never a silent overwrite.  The
+explicit provider metadata allowlist (``operatorKey``, ``flowStatus`` and
+``periodType``) is also compared, so an identity/quality change is refused while
+receipt, archive, run and hash churn remains ignored.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -60,6 +64,9 @@ _NATIVE_NAMESPACES = {
     "flow_observations": ("entsog-flow-n1-", "flow_mcm_d"),
     "capacity_observations": ("entsog-capacity-n1-", "capacity_mcm_d"),
 }
+#: Provider identity/quality metadata that must not silently change under an
+#: unchanged natural key. Unlisted receipt/archive/run/hash fields stay ignored.
+_SEMANTIC_METADATA_KEYS = ("operatorKey", "flowStatus", "periodType")
 
 
 class EntsogObservationPersistenceError(RuntimeError):
@@ -92,7 +99,13 @@ def upsert_entsog_observation_rows(
     seen = set()
     for row in rows:
         key = row.get("observation_id")
-        metadata = row.get("metadata_json") or {}
+        metadata = row.get("metadata_json")
+        if metadata is None:
+            metadata = {}
+        elif not isinstance(metadata, Mapping):
+            raise EntsogInvalidObservationError(
+                "ENTSOG observation metadata_json must be a mapping, not a list or scalar."
+            )
         if (
             row.get("source_system") != "ENTSOG"
             or not isinstance(key, str)
@@ -126,10 +139,17 @@ def upsert_entsog_observation_rows(
                 model,
                 prepared,
                 semantic_fields=fields,
+                semantic_metadata_keys=_SEMANTIC_METADATA_KEYS,
             )
-    except GieRevisionRequiresHistoryError:
+    except GieRevisionRequiresHistoryError as exc:
+        changed = (
+            f" Changed semantic field(s): [{', '.join(exc.changed_fields)}]."
+            if exc.changed_fields
+            else ""
+        )
         raise EntsogRevisionRequiresHistoryError(
             "ENTSOG revised semantic content requires append-only history; original rows kept."
+            f"{changed}"
         ) from None
     except GieRevisionRaceError:
         raise EntsogRevisionRaceError("ENTSOG concurrent insert could not be verified.") from None

@@ -1,5 +1,35 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — provider quality changes refused and Web harness isolated
+
+ENTSOG append-or-verify now includes exact presence/type/value for operatorKey,
+flowStatus and periodType inside the existing locked comparison, including the
+concurrent-winner reread. Same-id same-quantity metadata changes are typed
+revision refusals, never unchanged confirmations or overwrites. Mixed batches
+roll back canonical writes while raw archives survive. Receipt/archive/run/hash
+churn remains ignored. Missing, explicit null and concrete values differ; malformed
+metadata is refused without echo. GIE defaults retain an empty metadata allowlist.
+Root added permanent boundary tests after reviewing the worker's real PG cases.
+Final complete isolated PostgreSQL CI migrated from empty through0044 and passed
+57tests without skips; earlier intermediate55pass evidence is retained. Unit
+upsert/GIE regressions21passed, metadata boundary probes8passed, Ruff passed.
+This preserves evidence but does not implement full append-only provider revision
+history or promote status labels into model authority.
+
+The local Windows full Web process was confirmed live with a stalled Vite SSR
+load in capacityBillingTransport.test.ts. Root stopped only that owned run after
+reviewing the changed harness. DeepSeek isolated per-process test caches, disabled
+unused discovery/watchers, and bounded loads with explicit failing diagnostics.
+Actual SSR, fresh store module identity and real HTTP transport remain exercised.
+A new focused freshness test passed; the whole Web suite then completed in5.5s:
+1049passed,3skipped, no force-exit/skip/threshold weakening. The precise cause of
+the earlier intermittent stall remains an inference, not a proved Vite defect.
+No recursive cache cleanup was added. Same-SHA hosted results remain required.
+Latest fully green hosted checkpoints include cc44fea and d650b1f.081a938 has
+passed PostgreSQL/browser/client/SDK/native jobs; validate still running at check.
+Broader delivery gaps listed below remain open.
+
+
 ## 2026-10-29 — shared native history inputs and exact temporal comparison
 
 Web client and capacity panel now pass paired aware ISO instants to both native

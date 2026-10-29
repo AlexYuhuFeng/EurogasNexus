@@ -236,3 +236,32 @@ def test_revision_safe_race_reread_verifies_the_committed_row() -> None:
     )
 
     assert outcome == {"inserted": 0, "unchanged": 1}
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        ({}, {}, []),
+        ({}, {"flowStatus": None}, ["metadata_json.flowStatus"]),
+        ({"flowStatus": None}, {}, ["metadata_json.flowStatus"]),
+        ({"flowStatus": None}, {"flowStatus": "confirmed"}, ["metadata_json.flowStatus"]),
+        ({"flowStatus": False}, {"flowStatus": 0}, ["metadata_json.flowStatus"]),
+        (
+            {"flowStatus": "confirmed", "archive_id": "first"},
+            {"flowStatus": "confirmed", "archive_id": "next"},
+            [],
+        ),
+        (["malformed"], {}, ["metadata_json"]),
+    ],
+)
+def test_allowlisted_metadata_preserves_presence_type_and_ignores_receipt_churn(
+    old, new, expected
+):
+    from eurogas_nexus.db.repositories.public_ingestion_upsert import (
+        _metadata_semantic_mismatches,
+    )
+
+    existing = {"metadata_json": old}
+    incoming = {"metadata_json": new}
+    assert _metadata_semantic_mismatches(existing, incoming, ("flowStatus",)) == expected
+    assert _metadata_semantic_mismatches(existing, incoming, ()) == []

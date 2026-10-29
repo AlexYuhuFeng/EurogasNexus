@@ -153,16 +153,71 @@ export interface ApiStoreHarness {
   load<T>(modulePath: string): Promise<T>;
 }
 
+/**
+ * A load that never settles is a harness failure, not a slow assertion. The bound is far above
+ * the sub-second loads this suite observes; it exists so a stuck Vite pipeline reports the stage
+ * that stuck instead of leaving a test child alive with no output.
+ */
+const LOAD_TIMEOUT_MS = 30_000;
+
+function withLoadTimeout<T>(
+  operation: Promise<T>,
+  stage: string,
+  onTimeout?: () => void,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      onTimeout?.();
+      reject(
+        new Error(
+          `apiStoreHarness: ${stage} did not settle within ${LOAD_TIMEOUT_MS}ms. ` +
+            "The Vite test module pipeline is stuck; this is a harness failure, not a retry.",
+        ),
+      );
+    }, LOAD_TIMEOUT_MS);
+  });
+  return Promise.race([operation, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
+/**
+ * The cache is process-local, under the ignored `node_modules` tree, so parallel `node --test`
+ * children never race on Vite's default shared `node_modules/.vite` optimizer metadata.
+ */
+const CACHE_DIR = path.join(
+  WEB_ROOT,
+  "node_modules",
+  ".vite-test-cache",
+  `${process.pid}-${Date.now()}`,
+);
+
 let serverPromise: Promise<ViteDevServer> | null = null;
 let storeLoadCount = 0;
 
+/**
+ * One middleware-mode server per test process. It owns no port. Dependency discovery and the
+ * dev watcher are off: the harness only needs `ssrLoadModule`, which reads the module graph
+ * directly, and the tests never edit files while a server is running.
+ */
 function harnessServer(): Promise<ViteDevServer> {
-  serverPromise ??= createServer({
+  if (serverPromise) return serverPromise;
+  const start = createServer({
     configFile: false,
     root: WEB_ROOT,
+    cacheDir: CACHE_DIR,
     logLevel: "silent",
-    server: { middlewareMode: true },
+    server: {
+      middlewareMode: true,
+      // No HMR is expected in a test process; a watcher per parallel child is pure contention
+      // on Windows and can keep the child alive during shutdown.
+      watch: null,
+    },
     appType: "custom",
+    // Skip only cold-start discovery/scanning. Real SSR still resolves and loads source modules
+    // and externalized dependencies; this harness has no CJS dependency that needs pre-bundling.
+    optimizeDeps: { noDiscovery: true },
     // The harness also loads TSX modules for render-level tests. State the JSX runtime explicitly
     // so the test server does not depend on a framework plugin being present.
     esbuild: { jsx: "automatic", jsxImportSource: "react" },
@@ -179,7 +234,17 @@ function harnessServer(): Promise<ViteDevServer> {
       },
     ],
   });
-  return serverPromise;
+  let abandoned = false;
+  const pending = withLoadTimeout(start, "Vite test server initialization", () => {
+    abandoned = true;
+  });
+  serverPromise = pending;
+  // A timed-out initialization can still complete later. Close that server instead of leaking
+  // it; the normal path closes through closeApiStoreHarness().
+  void start
+    .then((server) => (abandoned ? server.close() : undefined))
+    .catch(() => {});
+  return pending;
 }
 
 export async function loadApiStore(): Promise<ApiStoreHarness> {
@@ -204,7 +269,10 @@ export async function loadApiStore(): Promise<ApiStoreHarness> {
   registry.handlers.fxRates = () => ({ data: [], meta: {} });
   registry.handlers.sources = () => ({ data: [], meta: {} });
   storeLoadCount += 1;
-  const module = (await vite.ssrLoadModule(`/src/stores/api.ts?storeTest=${storeLoadCount}`)) as {
+  const module = (await withLoadTimeout(
+    vite.ssrLoadModule(`/src/stores/api.ts?storeTest=${storeLoadCount}`),
+    `SSR load of /src/stores/api.ts?storeTest=${storeLoadCount}`,
+  )) as {
     useApiStore: TestApiStore;
   };
   return {
@@ -213,13 +281,19 @@ export async function loadApiStore(): Promise<ApiStoreHarness> {
     answer: (method, handler) => {
       registry.handlers[method] = handler;
     },
-    load: <T>(modulePath: string) => vite.ssrLoadModule(modulePath) as Promise<T>,
+    load: <T>(modulePath: string) =>
+      withLoadTimeout(
+        vite.ssrLoadModule(modulePath),
+        `SSR load of ${modulePath}`,
+      ) as Promise<T>,
   };
 }
 
-/** Release the module pipeline (one dev server, one file watcher, per test process). */
+/** Close the one server this harness started; it owns no port and no filesystem cache cleanup. */
 export async function closeApiStoreHarness(): Promise<void> {
   const server = serverPromise;
   serverPromise = null;
-  if (server) await (await server).close();
+  if (!server) return;
+  const vite = await server;
+  await vite.close();
 }
