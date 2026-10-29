@@ -1,5 +1,31 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — REST demand persistence verified, consumer integration pending
+
+Current pushed implementation checkpoint919a0a3 includes keyless National Gas
+REST capture, explicit provider-clock evidence, additive0043 schema and immutable
+REST revision persistence. Root fetched17 authentic revisions and persisted them
+in dedicated PostgreSQL:17 inserted initially, zero inserted/17 duplicates on
+later-receipt replay. Default availability remains actual receipt; the maximum
+of three provider clocks is explicitly derived evidence and does not authorize
+historical model admission. CSV/REST identities remain separate.
+
+Real PostgreSQL0043 upgrade succeeded, seventeen existing forecast repository
+invariants passed, and the dedicated schema suite passed all ten tests including
+upgrade/downgrade. The first PG attempt exposed BatchOperations/module-operation
+API mismatch; fixed. A second attempt exposed pg8000's unsupported options
+argument in the test fixture; fixed using an owned-schema connection event.
+Parser/persistence/CSV regression suite37passed; Ruff passed. Weather ontology
+review0188f65 passed49 focused tests, preserving enum values and imports.
+
+Model-input admission and operator REST CLI implementation are in progress.
+Do not promote receipt-limited historic data to forecast OOS evidence, aggregate
+CSV and REST copies, treat blanks as zero, or claim D+6 finality. Latest hosted
+runs for0188f65/8df0765/ce04801 are still running;919a0a3 is queued. Thus no new
+complete hosted-green checkpoint is claimed. Dependency redistribution closure,
+regional weights, historical calibration, API/SDK/Web/portfolio consumers and
+the other source/snapshot acceptance gaps remain open.
+
 ## 2026-10-29 — staged weather feature and demand inference implementation
 
 Accepted the pure weather domain core and persisted forecast projection bridge
