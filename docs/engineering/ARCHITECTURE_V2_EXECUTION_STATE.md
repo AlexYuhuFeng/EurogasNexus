@@ -1,5 +1,32 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — real headless reference-index interaction, coherent projection
+
+DeepSeek added reference-index interaction to the existing whole-product browser
+sweep. Root execution first exposed the wrong fixture path: the surface reads
+normalized_quotes from market-context, not the standalone normalized endpoint.
+The revised fixture fetches the real authenticated context, replaces only that
+slice with explicitly synthetic rows, preserves other slices/metadata, and reloads
+the actual page after removal. Root fixed an async text assertion and allowed the
+actual unscoped request (TTF terminal focus is a local filter), without rewriting
+query filters or relaxing backend authority.
+
+Targeted real Chromium4cases passed: EN/ZH x1440/390,51distinct rows paged50+1,
+exact signed strings/units, unavailable diagnostics, receipt/publication split,
+lineage details and no document overflow. Browser gate15 and route-contract16
+passed. These are synthetic transport UI mechanics, not provider/PG proof.
+The old local whole sweep failed because its owned synthetic DB was still0041;
+root applied additive0042-0044 and confirmed native columns. A new full96-view
+sweep is running and is not yet claimed passed. Hosted50ef167 and3ca3870 CI both
+completed successfully, independently of these uncommitted browser tests.
+
+Target PIT query12actual PostgreSQL tests and27mapper tests passed, but root then
+found latest-only mapping discards revisions needed by earlier OOS folds. DeepSeek
+is correcting that before acceptance/commit; this bounded model prerequisite is
+not yet delivered. NumPy wheels and package-level CVE check are collected; native
+license/source distribution review remains explicit. Full delivery goal stays open.
+
+
 ## 2026-10-29 — installed SDK pipeline pins normalized market evidence
 
 DeepSeek extended the existing installed-wheel isolated smoke with18actual DTO

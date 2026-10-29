@@ -44,6 +44,7 @@ import {
   ROUTE_BADGE_STATES,
 } from "./readToRender.mjs";
 import { inspectNativeCapacityInteraction } from "./nativeCapacityInteraction.mjs";
+import { inspectReferenceIndexInteraction } from "./referenceIndexInteraction.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(
@@ -2310,6 +2311,7 @@ export async function runWorkflowSmoke() {
   const consoleErrors = [];
   const results = [];
   const nativeCapacityRefusals = [];
+  const referenceIndexEvidence = [];
   let agentResearch = null;
   let nativeCapacityContext = null;
   let currentScope = "startup";
@@ -2435,6 +2437,36 @@ export async function runWorkflowSmoke() {
     currentScope = "interaction/agent-research-review";
     agentResearch = await agentResearchE2E(page, failures);
 
+    // The receipt-bound EEX TTF NGP reference index, with a controlled transport fixture for
+    // exactly `GET /api/projections/market-context` while the helper is active. The fixture keeps
+    // the actual projection envelope/metadata and every other slice, and replaces only
+    // `data.slices.normalized_quotes.rows` with 51 clearly synthetic rows marked as such; it is
+    // not PostgreSQL, EEX or backend evidence. A read that is not a 200 envelope with that slice
+    // is left as the actual response (no forged fallback), and the route is removed in the
+    // helper's own finally before the market page is reloaded from the real API. The runner's
+    // existing language and viewport declarations decide the four measured cases.
+    for (const language of LANGUAGES) {
+      await setLanguage(page, language.id);
+      for (const viewport of VIEWPORTS.filter(
+        (item) => item.width === 1440 || item.width === 390,
+      )) {
+        currentScope = `${language.id}/${viewport.id}/reference-index`;
+        referenceIndexEvidence.push(
+          await inspectReferenceIndexInteraction({
+            page,
+            failures,
+            observations,
+            outputDir: OUTPUT_DIR,
+            baseUrl: BASE,
+            language,
+            viewport,
+          }),
+        );
+      }
+    }
+    // Leave the shared page in the language the later interactions assume.
+    await setLanguage(page, "en");
+
     // The native capacity context panel, with its own controlled transport fixture for exactly
     // one explicit point id. It runs last so no fixture can reach a later workspace check, and
     // its handler is removed in the helper's own finally.
@@ -2482,6 +2514,7 @@ export async function runWorkflowSmoke() {
     viewports: VIEWPORTS,
     checks: results.length,
     agentResearch,
+    referenceIndexEvidence,
     nativeCapacityContext,
     // Declared gaps and skipped checks travel with the result: a green run that quietly measured
     // nothing is the failure mode this list exists to prevent.
