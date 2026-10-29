@@ -1,5 +1,30 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — shared native history inputs and exact temporal comparison
+
+Web client and capacity panel now pass paired aware ISO instants to both native
+reads. Blank pairs preserve existing behavior; partial pairs refuse without
+changing a previous result's accepted label. Loaded point/window labels are
+independent of editable inputs. Client comparison uses integer microseconds,
+matching Python truncation beyond six fraction digits and avoiding epoch-number
+rounding that falsely rejected valid one-microsecond windows. Exact rate strings
+remain unchanged. SDK history102tests and three real PG HTTP windows were already
+verified in d650b1f. Web focused client/panel/locale23passed; console gates15passed;
+backend client-contract/security/installed-SDK pipeline39passed; build passed.
+
+The deliberately induced native503 is attributed by exact request URL AND status.
+Native errors cannot fall through to an older default-volume path-only fixture.
+Behavioral tests cover another point, default mode, missing URL, wrong status and
+legacy attribution. Root fixed the worker test's omitted extracted function braces
+and its reused consumed Response fixture; translated the two new Chinese hints.
+Headless synthetic browser checks passed both original pagination/recovery and
+new shared positive-offset windows/accepted-label immutability. No UI control
+of the user's desktop occurred. Hosted cc44fea/run40892448821 completed11jobs green.
+A fresh complete local Web run is still live in capacityBillingTransport.test.ts
+without final output; do not claim a full post-window green run from focused tests.
+Same-SHA hosted verification and broader delivery gaps remain outstanding.
+
+
 ## 2026-10-29 — native SDK history window verified over actual PG HTTP
 
 All four native SDK fetch methods now accept paired aware datetime bounds,

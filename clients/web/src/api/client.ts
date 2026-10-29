@@ -1235,9 +1235,106 @@ export interface NativeCapacityObsDTO extends NativePhysicalObservationBaseDTO {
 export interface NativePhysicalFetchOptions {
   /** Optional ENTSOG point identifier; surrounding whitespace is trimmed. */
   pointId?: string;
+  /**
+   * Inclusive lower bound. ISO 8601 with an explicit timezone (`Z` or `+-HH:MM`).
+   * Must be supplied together with `toUtc`.
+   */
+  fromUtc?: string;
+  /**
+   * Exclusive upper bound. ISO 8601 with an explicit timezone (`Z` or `+-HH:MM`).
+   * Must be supplied together with `fromUtc` and be later than it.
+   */
+  toUtc?: string;
   /** Page size, an integer from 1 to 2000. Defaults to 200. */
   limit?: number;
   signal?: AbortSignal;
+}
+
+const NATIVE_PHYSICAL_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * Parse a strict, timezone-aware ISO 8601 timestamp into an exact epoch instant.
+ *
+ * The backend expects aware datetimes and rejects naive ones, so the pattern
+ * makes a `Z` or `+-HH:MM` zone mandatory. Calendar fields are checked here
+ * instead of through `Date.parse`, which silently normalizes impossible dates
+ * such as 2026-02-30. No clock/default is consulted: a range is only ever the
+ * pair the caller supplied.
+ *
+ * The instant is integer epoch microseconds, not a JS number: modern epoch
+ * milliseconds cannot distinguish a one-microsecond window, while the backend
+ * compares Python datetimes at microsecond resolution. `datetime.fromisoformat`
+ * truncates digits beyond six, so the fraction is padded/truncated to exactly
+ * six digits before it is folded into the instant.
+ */
+function parseNativePhysicalTimestamp(
+  value: unknown,
+  label: "fromUtc" | "toUtc",
+): { text: string; instant: bigint } {
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a string.`);
+  }
+  const match = NATIVE_PHYSICAL_TIMESTAMP_PATTERN.exec(value);
+  if (!match) {
+    throw new Error(
+      `${label} must be an ISO 8601 timestamp with an explicit timezone (Z or +-HH:MM).`,
+    );
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const fraction = match[7] ?? "";
+  const zone = match[8] ?? "";
+  const leapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const daysInMonth =
+    month === 2
+      ? leapYear
+        ? 29
+        : 28
+      : [4, 6, 9, 11].includes(month)
+        ? 30
+        : 31;
+  if (
+    year < 1 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    throw new Error(`${label} must be a valid calendar date and time.`);
+  }
+
+  let offsetMinutes = 0;
+  if (zone !== "Z") {
+    const offsetHour = Number(zone.slice(1, 3));
+    const offsetMinute = Number(zone.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) {
+      throw new Error(`${label} must use a valid explicit timezone offset.`);
+    }
+    offsetMinutes = (zone[0] === "-" ? -1 : 1) * (offsetHour * 60 + offsetMinute);
+  }
+
+  const instant = new Date(0);
+  instant.setUTCFullYear(year, month - 1, day);
+  instant.setUTCHours(hour, minute, second, 0);
+  // Match the backend exactly: the first six fraction digits are microseconds,
+  // any 7th-9th digits are truncated, and fewer digits are right-padded.
+  const fractionMicros = BigInt((fraction + "000000").slice(0, 6));
+  return {
+    text: value,
+    instant:
+      BigInt(instant.getTime()) * 1000n +
+      fractionMicros -
+      BigInt(offsetMinutes) * 60n * 1_000_000n,
+  };
 }
 
 function nativePhysicalQuery(options: NativePhysicalFetchOptions): URLSearchParams {
@@ -1270,10 +1367,35 @@ function nativePhysicalQuery(options: NativePhysicalFetchOptions): URLSearchPara
     throw new Error("limit must be an integer between 1 and 2000.");
   }
 
+  const rawFromUtc: unknown = options.fromUtc;
+  const rawToUtc: unknown = options.toUtc;
+  const hasFromUtc = rawFromUtc !== undefined;
+  const hasToUtc = rawToUtc !== undefined;
+  if (hasFromUtc !== hasToUtc) {
+    throw new Error("fromUtc and toUtc must be provided together.");
+  }
+  let fromUtc: string | undefined;
+  let toUtc: string | undefined;
+  if (hasFromUtc && hasToUtc) {
+    const from = parseNativePhysicalTimestamp(rawFromUtc, "fromUtc");
+    const to = parseNativePhysicalTimestamp(rawToUtc, "toUtc");
+    if (from.instant >= to.instant) {
+      throw new Error("fromUtc must be earlier than toUtc.");
+    }
+    fromUtc = from.text;
+    toUtc = to.text;
+  }
+
   const params = new URLSearchParams();
   params.set("quantity_basis", "native");
   if (pointId !== undefined) params.set("point_id", pointId);
   params.set("limit", String(rawLimit));
+  if (fromUtc !== undefined && toUtc !== undefined) {
+    // Forward the validated text verbatim: an explicit offset is preserved, and
+    // URLSearchParams encodes the `+` sign rather than decoding it as a space.
+    params.set("from_utc", fromUtc);
+    params.set("to_utc", toUtc);
+  }
   return params;
 }
 

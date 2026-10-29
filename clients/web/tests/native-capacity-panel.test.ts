@@ -37,6 +37,7 @@ let panel: {
     page: number;
     onPageChange: (page: number) => void;
     pointId?: string | null;
+    acceptedWindow?: { fromUtc: string; toUtc: string } | null;
   }) => unknown;
   NativeCapacityPaginationControls: (props: {
     pagination: {
@@ -64,10 +65,22 @@ let panel: {
     read: unknown,
     requestedPage: number,
   ) => number;
+  nativeCapacityWindowFromInputs: (
+    fromInput: string,
+    toInput: string,
+  ) => {
+    state: "none" | "invalid" | "window";
+    validationKey?: string;
+    window?: { fromUtc: string; toUtc: string };
+  };
   NativeCapacityQuerySession: new () => {
-    run: (pointId: string) => Promise<{
+    run: (
+      pointId: string,
+      window?: { fromUtc: string; toUtc: string } | null,
+    ) => Promise<{
       state: string;
       pointId?: string;
+      window?: { fromUtc: string; toUtc: string } | null;
       read?: unknown;
       error?: unknown;
     }>;
@@ -250,7 +263,12 @@ function largeRead(count = 120) {
   };
 }
 
-function renderResults(read: unknown, page: number, pointId: string | null = null): string {
+function renderResults(
+  read: unknown,
+  page: number,
+  pointId: string | null = null,
+  acceptedWindow: { fromUtc: string; toUtc: string } | null = null,
+): string {
   return renderToStaticMarkup(
     createElement(panel.NativeCapacityContextResults, {
       read,
@@ -258,6 +276,7 @@ function renderResults(read: unknown, page: number, pointId: string | null = nul
       page,
       onPageChange: () => {},
       pointId,
+      acceptedWindow,
     }),
   );
 }
@@ -409,7 +428,38 @@ test("the panel starts idle and asks for an explicit point_id", () => {
   );
   assert.match(html, /Submit an explicit point_id/);
   assert.match(html, /data-native-query-form="true"/);
+  assert.match(html, /data-native-window-from="true"/);
+  assert.match(html, /data-native-window-to="true"/);
+  assert.doesNotMatch(html, /id="native-capacity-from-utc"[^>]*value="20\d\d-/);
+  assert.doesNotMatch(html, /id="native-capacity-to-utc"[^>]*value="20\d\d-/);
+  assert.ok(html.includes("Optional From/To"));
+  assert.ok(html.includes("fully covers the flow period"));
   assert.ok(!html.includes("data-native-results"));
+});
+
+test("From/To pairing never fabricates a date and rejects a one-sided window", () => {
+  assert.deepEqual(panel.nativeCapacityWindowFromInputs("", "   "), { state: "none" });
+
+  const oneSided = panel.nativeCapacityWindowFromInputs(
+    "2026-10-28T00:00:00Z",
+    " ",
+  );
+  assert.equal(oneSided.state, "invalid");
+  if (oneSided.state === "invalid") {
+    assert.equal(oneSided.validationKey, "nativeCapacity.validation_window_pair");
+  }
+
+  const paired = panel.nativeCapacityWindowFromInputs(
+    "  2026-10-28T00:00:00+02:00 ",
+    " 2026-10-29T00:00:00+02:00",
+  );
+  assert.deepEqual(paired, {
+    state: "window",
+    window: {
+      fromUtc: "2026-10-28T00:00:00+02:00",
+      toUtc: "2026-10-29T00:00:00+02:00",
+    },
+  });
 });
 
 test("real model output keeps exact rates, unclipped ratios and null diagnostics", () => {
@@ -534,26 +584,97 @@ test("a new read resets the page while a shrinking read clamps it", () => {
   assert.equal(panel.nativeCapacityPageWindow(0, 9).page, 0);
 });
 
-test("the accepted query point_id labels the loaded result and a missing point_id does not", async () => {
+test("the accepted point_id and window label the loaded result independently of editable inputs", async () => {
   installBrowserStubs();
   const pending = installPendingFetch();
   const session = new panel.NativeCapacityQuerySession();
-  const running = session.run("ITP-ACCEPTED");
+  const acceptedWindow = {
+    fromUtc: "2026-10-28T00:00:00Z",
+    toUtc: "2026-10-29T00:00:00Z",
+  };
+  const running = session.run("ITP-ACCEPTED", acceptedWindow);
   await waitFor(() => pending.length === 2);
   completePhysicalCall(pending[0]!);
   completePhysicalCall(pending[1]!);
   const outcome = await running;
   assert.equal(outcome.state, "success");
   if (outcome.state !== "success") return;
+  assert.deepEqual(outcome.window, acceptedWindow);
 
-  const labelled = renderResults(outcome.read, 0, outcome.pointId);
+  const labelled = renderResults(outcome.read, 0, outcome.pointId, outcome.window);
   const label = labelled.match(/<p[^>]*data-native-resolved-point="true"[\s\S]*?<\/p>/)?.[0] ?? "";
   assert.ok(label.length > 0);
   assert.ok(label.includes("Loaded point_id"));
   assert.ok(label.includes("ITP-ACCEPTED"));
+  const windowLabel =
+    labelled.match(/<p[^>]*data-native-resolved-window="true"[\s\S]*?<\/p>/)?.[0] ?? "";
+  assert.ok(windowLabel.length > 0);
+  assert.ok(windowLabel.includes("Loaded time window"));
+  assert.ok(windowLabel.includes(acceptedWindow.fromUtc));
+  assert.ok(windowLabel.includes(acceptedWindow.toUtc));
+  assert.match(windowLabel, /data-native-window-from="2026-10-28T00:00:00Z"/);
+  assert.match(windowLabel, /data-native-window-to="2026-10-29T00:00:00Z"/);
 
-  const unlabelled = renderResults(outcome.read, 0, null);
+  // A later valid query with both inputs blank keeps the point label but drops the
+  // previously accepted window, rather than relabelling the old read from the form.
+  const noWindow = renderResults(outcome.read, 0, outcome.pointId, null);
+  assert.ok(noWindow.includes("data-native-resolved-point"));
+  assert.ok(!noWindow.includes("data-native-resolved-window"));
+
+  const unlabelled = renderResults(outcome.read, 0, null, null);
   assert.ok(!unlabelled.includes("data-native-resolved-point"));
+  assert.ok(!unlabelled.includes("data-native-resolved-window"));
+});
+
+test("an explicit window reaches both reads with the caller's exact encoded offset", async () => {
+  installBrowserStubs();
+  const pending = installPendingFetch();
+  const session = new panel.NativeCapacityQuerySession();
+  const acceptedWindow = {
+    fromUtc: "2026-10-28T00:00:00+02:00",
+    toUtc: "2026-10-29T00:00:00+02:00",
+  };
+
+  const running = session.run("ITP-WINDOW", acceptedWindow);
+  await waitFor(() => pending.length === 2);
+  assert.ok(pending[0]!.url.pathname.endsWith("/physical/flows"));
+  assert.ok(pending[1]!.url.pathname.endsWith("/physical/capacity"));
+  for (const call of pending.slice(0, 2)) {
+    assert.equal(call.url.searchParams.get("from_utc"), acceptedWindow.fromUtc);
+    assert.equal(call.url.searchParams.get("to_utc"), acceptedWindow.toUtc);
+    assert.ok(
+      call.url.search.includes(
+        "from_utc=2026-10-28T00%3A00%3A00%2B02%3A00",
+      ),
+    );
+    assert.ok(
+      call.url.search.includes(
+        "to_utc=2026-10-29T00%3A00%3A00%2B02%3A00",
+      ),
+    );
+  }
+
+  completePhysicalCall(pending[0]!);
+  completePhysicalCall(pending[1]!);
+  const outcome = await running;
+  assert.equal(outcome.state, "success");
+  if (outcome.state === "success") {
+    assert.deepEqual(outcome.window, acceptedWindow);
+    assert.equal(outcome.pointId, "ITP-WINDOW");
+  }
+});
+
+test("client window validation fails before either physical fetch is sent", async () => {
+  installBrowserStubs();
+  const pending = installPendingFetch();
+  const session = new panel.NativeCapacityQuerySession();
+
+  const outcome = await session.run("ITP-BAD-WINDOW", {
+    fromUtc: "2026-10-28T00:00:00",
+    toUtc: "2026-10-29T00:00:00",
+  });
+  assert.equal(outcome.state, "error");
+  assert.equal(pending.length, 0);
 });
 
 test("concurrent reads use limit 2000 and shared auth, and stale completions never publish", async () => {
@@ -571,6 +692,8 @@ test("concurrent reads use limit 2000 and shared auth, and stale completions nev
     assert.equal(call.url.searchParams.get("quantity_basis"), "native");
     assert.equal(call.url.searchParams.get("point_id"), "ITP-1");
     assert.equal(call.url.searchParams.get("limit"), "2000");
+    assert.equal(call.url.searchParams.has("from_utc"), false);
+    assert.equal(call.url.searchParams.has("to_utc"), false);
     assert.equal(call.init.credentials, "include");
     assert.equal(
       (call.init.headers as Record<string, string>).Authorization,
@@ -590,6 +713,7 @@ test("concurrent reads use limit 2000 and shared auth, and stale completions nev
   assert.equal(secondOutcome.state, "success");
   if (secondOutcome.state === "success") {
     assert.equal(secondOutcome.pointId, "ITP-2");
+    assert.equal(secondOutcome.window, null);
     const read = secondOutcome.read as { contexts: unknown[] };
     assert.equal(read.contexts.length, 1);
   }

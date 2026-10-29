@@ -15,6 +15,7 @@ const ERROR_POINT = `${CONTEXT_POINT}-ERROR`;
 const EMPTY_POINT = `${CONTEXT_POINT}-EMPTY`;
 const SLOW_POINT = `${CONTEXT_POINT}-SLOW`;
 const CONTROLLED_POINTS = new Set([CONTEXT_POINT, ERROR_POINT, EMPTY_POINT, SLOW_POINT]);
+const INDUCED_REFUSAL_STATUS = 503;
 
 /** Route only native-basis reads for the controlled point ids; every other read bypasses. */
 function isControlledNativePhysicalRead(url) {
@@ -198,13 +199,21 @@ async function captureEvidence(page, outputDir, name, fail) {
   }
 }
 
-/** The controlled route handler: only native-basis reads for the fixture points are fulfilled. */
+/**
+ * The controlled route handler: only native-basis reads for the fixture points are fulfilled.
+ *
+ * `onInducedReadRefusal` is optional. It receives the actual request URL and the status the
+ * fixture is about to return for the one deliberately refused capacity read, before that refusal
+ * is fulfilled, so the caller can attribute the browser's console error to the harness's own
+ * fixture rather than to the product.
+ */
 function createNativeCapacityRouteHandler({
   calls,
   slowGate,
   markSlowHandled,
   settleSlow,
   onSlowStarted,
+  onInducedReadRefusal,
 }) {
   return async (route) => {
     const request = route.request();
@@ -232,11 +241,15 @@ function createNativeCapacityRouteHandler({
     calls.push({ kind, url: request.url(), point });
     try {
       if (point === ERROR_POINT && kind === "capacity") {
-        await route.fulfill({
-          status: 503,
-          contentType: "application/json",
-          body: JSON.stringify({ detail: { error: "service_unavailable" } }),
-        });
+        try {
+          onInducedReadRefusal?.(request.url(), INDUCED_REFUSAL_STATUS);
+        } finally {
+          await route.fulfill({
+            status: INDUCED_REFUSAL_STATUS,
+            contentType: "application/json",
+            body: JSON.stringify({ detail: { error: "service_unavailable" } }),
+          });
+        }
         return;
       }
       if (point === SLOW_POINT && kind === "capacity") {
@@ -300,7 +313,11 @@ function editedInputKeepsLoadedLabel(page, point) {
  *
  * The route handler is registered before navigation and removed in `finally`.
  * It fulfils only `GET` native-basis reads for the controlled point ids; all
- * other physical reads reach the application unchanged.
+ * other physical reads reach the application unchanged. When
+ * `onInducedReadRefusal` is supplied, the helper reports the one deliberate
+ * capacity refusal's exact URL and status before answering it, and calls any
+ * cleanup that callback returns in its own `finally` so the caller's active
+ * attribution window is scoped to this interaction.
  */
 export async function inspectNativeCapacityInteraction({
   page,
@@ -308,11 +325,13 @@ export async function inspectNativeCapacityInteraction({
   observations,
   outputDir,
   baseUrl,
+  onInducedReadRefusal,
 }) {
   const scope = "interaction/native-capacity-context";
   const fail = (detail) => failures.push({ scope, detail: String(detail) });
   const note = (detail) => observations.push(`${scope}: ${detail}`);
   const calls = [];
+  const inducedRefusalCleanups = [];
   let releaseSlow = () => {};
   let settleSlow = () => {};
   let markSlowHandled = () => {};
@@ -326,6 +345,10 @@ export async function inspectNativeCapacityInteraction({
     markSlowHandled,
     settleSlow,
     onSlowStarted: () => { slowStarted = true; },
+    onInducedReadRefusal: (url, status) => {
+      const cleanup = onInducedReadRefusal?.(url, status);
+      if (typeof cleanup === "function") inducedRefusalCleanups.push(cleanup);
+    },
   });
 
   let evidence = null;
@@ -507,6 +530,13 @@ export async function inspectNativeCapacityInteraction({
   } finally {
     releaseSlow();
     await page.unroute(isControlledNativePhysicalRead, handler).catch(() => {});
+    for (const cleanup of inducedRefusalCleanups.splice(0).reverse()) {
+      try {
+        cleanup();
+      } catch {
+        // Cleanup only closes the caller's active attribution window; it must not hide the result.
+      }
+    }
   }
   note(
     `synthetic fixture for '${CONTEXT_POINT}' only: ${calls.length} native read(s) fulfilled;`

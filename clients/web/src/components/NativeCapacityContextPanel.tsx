@@ -15,6 +15,7 @@ import {
   type ApiMeta,
   type NativeCapacityObsDTO,
   type NativeFlowObsDTO,
+  type NativePhysicalFetchOptions,
 } from "@/api/client";
 import {
   NATIVE_CAPACITY_MAX_OBSERVATIONS,
@@ -30,6 +31,38 @@ const KNOWN_REASONS: ReadonlySet<string> = new Set<string>(NATIVE_CAPACITY_REASO
 
 export const NATIVE_CAPACITY_PAGE_SIZE = 50;
 const NO_PAGE_CHANGE = (_page: number): void => {};
+
+/** The explicit From/To pair a caller supplied; both bounds travel together. */
+export interface NativeCapacityWindow {
+  readonly fromUtc: string;
+  readonly toUtc: string;
+}
+
+export type NativeCapacityWindowInput =
+  | { readonly state: "none" }
+  | { readonly state: "invalid"; readonly validationKey: string }
+  | { readonly state: "window"; readonly window: NativeCapacityWindow };
+
+/**
+ * Pair the two optional text inputs without inventing a date.
+ *
+ * Both blank means no window, exactly as before. One blank is a caller error and is
+ * rejected before a query is started. The panel deliberately does not parse the
+ * timestamps here: the shared API client owns strict aware-ISO validation, so the
+ * accepted text is forwarded verbatim rather than re-derived.
+ */
+export function nativeCapacityWindowFromInputs(
+  fromInput: string,
+  toInput: string,
+): NativeCapacityWindowInput {
+  const fromUtc = fromInput.trim();
+  const toUtc = toInput.trim();
+  if (!fromUtc && !toUtc) return { state: "none" };
+  if (!fromUtc || !toUtc) {
+    return { state: "invalid", validationKey: "nativeCapacity.validation_window_pair" };
+  }
+  return { state: "window", window: { fromUtc, toUtc } };
+}
 
 export interface NativeCapacityPageWindow {
   readonly page: number;
@@ -84,20 +117,24 @@ export interface NativeCapacityRead {
 export type NativeCapacityReader = (
   pointId: string,
   signal: AbortSignal,
+  window?: NativeCapacityWindow | null,
 ) => Promise<NativeCapacityRead>;
 
 /**
  * Read both native physical endpoints concurrently under one signal. The shared API
- * client owns authentication, the browser/Tauri base URL and envelope parsing.
+ * client owns authentication, the browser/Tauri base URL and envelope parsing. When
+ * the caller supplies a window, the exact same pair is attached to both reads.
  */
 export async function readNativeCapacity(
   pointId: string,
   signal: AbortSignal,
+  window: NativeCapacityWindow | null = null,
 ): Promise<NativeCapacityRead> {
-  const options = {
+  const options: NativePhysicalFetchOptions = {
     pointId,
     limit: NATIVE_CAPACITY_MAX_OBSERVATIONS,
     signal,
+    ...(window ? { fromUtc: window.fromUtc, toUtc: window.toUtc } : {}),
   };
   const [flowResponse, capacityResponse] = await Promise.all([
     fetchNativeFlows(options),
@@ -111,7 +148,13 @@ export async function readNativeCapacity(
 }
 
 export type NativeCapacityQueryOutcome =
-  | { readonly state: "success"; readonly pointId: string; readonly read: NativeCapacityRead }
+  | {
+      readonly state: "success";
+      readonly pointId: string;
+      /** The accepted pair; optional only so older custom readers stay compatible. */
+      readonly window?: NativeCapacityWindow | null;
+      readonly read: NativeCapacityRead;
+    }
   | { readonly state: "error"; readonly pointId: string; readonly error: unknown }
   | { readonly state: "superseded" };
 
@@ -126,16 +169,19 @@ export class NativeCapacityQuerySession {
 
   constructor(private readonly read: NativeCapacityReader = readNativeCapacity) {}
 
-  async run(pointId: string): Promise<NativeCapacityQueryOutcome> {
+  async run(
+    pointId: string,
+    window: NativeCapacityWindow | null = null,
+  ): Promise<NativeCapacityQueryOutcome> {
     const generation = ++this.generation;
     this.controller?.abort();
     const controller = new AbortController();
     this.controller = controller;
 
     try {
-      const read = await this.read(pointId, controller.signal);
+      const read = await this.read(pointId, controller.signal, window);
       if (generation !== this.generation) return { state: "superseded" };
-      return { state: "success", pointId, read };
+      return { state: "success", pointId, window, read };
     } catch (error) {
       if (generation !== this.generation || controller.signal.aborted) {
         return { state: "superseded" };
@@ -416,12 +462,18 @@ export function NativeCapacityContextResults({
   page = 0,
   onPageChange = NO_PAGE_CHANGE,
   pointId = null,
+  acceptedWindow = null,
 }: {
   read: NativeCapacityRead;
   t: NativeCapacityTranslate;
   page?: number;
   onPageChange?: (page: number) => void;
   pointId?: string | null;
+  /**
+   * The window the displayed read was accepted with. This is deliberately separate
+   * from the editable form inputs so editing them never relabels an existing result.
+   */
+  acceptedWindow?: NativeCapacityWindow | null;
 }) {
   const indicated = read.contexts.filter((context) => context.indicativeRatioPct !== null).length;
   const warningCount =
@@ -446,6 +498,17 @@ export function NativeCapacityContextResults({
       {pointId && (
         <p className="capacity-readiness-note" data-native-resolved-point="true">
           {t("nativeCapacity.loaded_point")}: <code>{pointId}</code>
+        </p>
+      )}
+      {acceptedWindow && (
+        <p
+          className="capacity-readiness-note"
+          data-native-resolved-window="true"
+          data-native-window-from={acceptedWindow.fromUtc}
+          data-native-window-to={acceptedWindow.toUtc}
+        >
+          {t("nativeCapacity.loaded_window")}:{" "}
+          <code>{acceptedWindow.fromUtc}</code> – <code>{acceptedWindow.toUtc}</code>
         </p>
       )}
 
@@ -487,10 +550,13 @@ export function NativeCapacityContextResults({
 
 export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }) {
   const [pointId, setPointId] = useState("");
+  const [fromUtcInput, setFromUtcInput] = useState("");
+  const [toUtcInput, setToUtcInput] = useState("");
   const [validationKey, setValidationKey] = useState<string | null>(null);
   const [state, setState] = useState<QueryState>("idle");
   const [read, setRead] = useState<NativeCapacityRead | null>(null);
   const [resolvedPointId, setResolvedPointId] = useState<string | null>(null);
+  const [acceptedWindow, setAcceptedWindow] = useState<NativeCapacityWindow | null>(null);
   const [page, setPage] = useState(0);
   const [error, setError] = useState<unknown>(null);
   const sessionRef = useRef<NativeCapacityQuerySession | null>(null);
@@ -511,15 +577,23 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
       setValidationKey("nativeCapacity.validation_length");
       return;
     }
+    const windowInput = nativeCapacityWindowFromInputs(fromUtcInput, toUtcInput);
+    if (windowInput.state === "invalid") {
+      // Keep the previous read and its accepted label: nothing was queried.
+      setValidationKey(windowInput.validationKey);
+      return;
+    }
+    const window = windowInput.state === "window" ? windowInput.window : null;
 
     setValidationKey(null);
     setState("loading");
     setRead(null);
     setResolvedPointId(null);
+    setAcceptedWindow(null);
     setPage(0);
     setError(null);
 
-    const outcome = await session.run(trimmed);
+    const outcome = await session.run(trimmed, window);
     if (outcome.state === "superseded") return;
     if (outcome.state === "error") {
       setError(outcome.error);
@@ -527,6 +601,7 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
       return;
     }
     setResolvedPointId(outcome.pointId);
+    setAcceptedWindow(outcome.window ?? null);
     setPage(0);
     setRead(outcome.read);
     setState("success");
@@ -557,11 +632,48 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
           }}
           placeholder={t("nativeCapacity.point_placeholder")}
           aria-label={t("nativeCapacity.point_id")}
-          aria-invalid={validationKey !== null}
+          aria-invalid={
+            validationKey === "nativeCapacity.validation_point" ||
+            validationKey === "nativeCapacity.validation_length"
+          }
           aria-describedby="native-capacity-query-hint"
           autoComplete="off"
           spellCheck={false}
           data-native-point-id="true"
+        />
+        <label htmlFor="native-capacity-from-utc">{t("nativeCapacity.window_from")}</label>
+        <input
+          id="native-capacity-from-utc"
+          name="from_utc"
+          value={fromUtcInput}
+          onChange={(event) => {
+            setFromUtcInput(event.target.value);
+            if (validationKey) setValidationKey(null);
+          }}
+          placeholder={t("nativeCapacity.window_from_placeholder")}
+          aria-label={t("nativeCapacity.window_from")}
+          aria-invalid={validationKey === "nativeCapacity.validation_window_pair"}
+          aria-describedby="native-capacity-window-hint"
+          autoComplete="off"
+          spellCheck={false}
+          data-native-window-from="true"
+        />
+        <label htmlFor="native-capacity-to-utc">{t("nativeCapacity.window_to")}</label>
+        <input
+          id="native-capacity-to-utc"
+          name="to_utc"
+          value={toUtcInput}
+          onChange={(event) => {
+            setToUtcInput(event.target.value);
+            if (validationKey) setValidationKey(null);
+          }}
+          placeholder={t("nativeCapacity.window_to_placeholder")}
+          aria-label={t("nativeCapacity.window_to")}
+          aria-invalid={validationKey === "nativeCapacity.validation_window_pair"}
+          aria-describedby="native-capacity-window-hint"
+          autoComplete="off"
+          spellCheck={false}
+          data-native-window-to="true"
         />
         <button type="submit" aria-busy={state === "loading"}>
           {state === "loading" ? t("nativeCapacity.query_busy") : t("nativeCapacity.query")}
@@ -569,6 +681,13 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
       </form>
       <p id="native-capacity-query-hint" className="capacity-readiness-note">
         {t("nativeCapacity.query_hint")}
+      </p>
+      <p
+        id="native-capacity-window-hint"
+        className="capacity-readiness-note"
+        data-native-window-hint="true"
+      >
+        {t("nativeCapacity.window_hint")}
       </p>
 
       {validationKey && (
@@ -593,6 +712,7 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
         <div className="capacity-data-warning" role="alert" data-native-state="error">
           <strong>{t("nativeCapacity.error")}</strong>
           <p>{t("nativeCapacity.error_code")}: <code>{failureCode(error)}</code></p>
+          <p data-native-error-hint="true">{t("nativeCapacity.error_window_hint")}</p>
         </div>
       )}
 
@@ -609,6 +729,7 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
           page={page}
           onPageChange={setPage}
           pointId={resolvedPointId}
+          acceptedWindow={acceptedWindow}
         />
       )}
     </section>

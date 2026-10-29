@@ -113,3 +113,14 @@ PostgreSQL-specific tests exercise real schema, append/replay and transactional
 conflict handling in owned test schemas. SQLite fixture tests are fast mechanics
 only and do not substitute for those tests. See the execution checkpoint for
 current pipeline results and outstanding shared-client adoption.
+
+## Shared client window selection
+
+The capacity network panel accepts an optional From/To pair with explicit UTC
+or offset timestamps. Both reads receive the same pair; a loaded result retains
+its accepted point and window when inputs are edited. Comparisons still require
+a single compatible covering capacity, and pagination paints50observations while
+retaining complete totals. The Python SDK native methods accept paired aware
+`datetime` values; Web methods accept paired `fromUtc`/`toUtc` text. Missing,
+naive, reversed and equal instants are refused before transport. Client temporal
+ordering preserves microseconds; it does not round canonical quantity strings.

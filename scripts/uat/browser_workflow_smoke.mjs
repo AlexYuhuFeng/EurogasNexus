@@ -254,6 +254,14 @@ const ALLOWED_CONSOLE_ERRORS = [
  * the request URL the harness refused (and, only when the browser carries no URL for the entry, by
  * the exact status the harness returned) and reported in the summary as an observation. Every
  * other console error stays a failure, including one on another URL inside the same window.
+ *
+ * A controlled fixture may instead set `exactUrl: true`: that entry is attributed only by the
+ * complete request URL (query included) and the status it returned, never by the endpoint's path,
+ * so the fixture's own error console entry cannot mask another point, the default-volume read, or
+ * any other error on the same endpoint. The entry's `active` window is scoped to the fixture's
+ * helper, but exact-URL matching stays available afterwards for a console entry the browser
+ * reports delayed. Exact entries are consulted before path-based entries, so an older path entry
+ * for the same endpoint cannot claim the fixture's own console error.
  */
 const inducedReadRefusals = [];
 
@@ -267,7 +275,31 @@ function inducedReadRefusalFor(message) {
   const location = typeof message.location === "function" ? message.location() : null;
   const url = location && typeof location.url === "string" ? location.url : "";
   const text = message.text();
+  // Exact fixture entries first: an older path-based entry for the same endpoint must not claim the
+  // fixture's own console error. The complete URL, query included, and the status decide it.
   for (const refusal of inducedReadRefusals) {
+    if (refusal.exactUrl !== true) continue;
+    if (
+      url !== ""
+      && refusal.url !== null
+      && url === refusal.url
+      && /failed to load resource/i.test(text)
+      && text.includes(`status of ${refusal.status}`)
+    ) {
+      return refusal;
+    }
+  }
+  // Native reads are a separate representation. A previous default-volume fixture
+  // must never claim another point/window's native error through path-only matching.
+  if (url !== "") {
+    try {
+      if (new URL(url).searchParams.get("quantity_basis") === "native") return null;
+    } catch {
+      return null;
+    }
+  }
+  for (const refusal of inducedReadRefusals) {
+    if (refusal.exactUrl === true) continue;
     // The same origin and path the harness refused - never another endpoint's message.
     if (url !== "" && refusal.url !== null && requestPath(url) === requestPath(refusal.url)) {
       return refusal;
@@ -2277,9 +2309,40 @@ export async function runWorkflowSmoke() {
   const functionalGaps = [];
   const consoleErrors = [];
   const results = [];
+  const nativeCapacityRefusals = [];
   let agentResearch = null;
   let nativeCapacityContext = null;
   let currentScope = "startup";
+
+  /**
+   * Register the native panel's one controlled refusal with the console attribution registry.
+   *
+   * The callback receives the URL and status the helper is about to fulfil. Reusing the entry for
+   * the same exact URL keeps a repeated fixture request on one active window; the returned cleanup
+   * only closes that window, because exact-URL console attribution must survive a delayed message.
+   */
+  const registerNativeCapacityRefusal = (url, status) => {
+    let refusal = nativeCapacityRefusals.find(
+      (entry) => entry.url === url && entry.status === status,
+    );
+    if (!refusal) {
+      refusal = {
+        url,
+        status,
+        exactUrl: true,
+        active: true,
+        refusals: 0,
+        consoleEntries: [],
+      };
+      inducedReadRefusals.push(refusal);
+      nativeCapacityRefusals.push(refusal);
+    }
+    refusal.active = true;
+    refusal.refusals += 1;
+    return () => {
+      refusal.active = false;
+    };
+  };
 
   page.on("pageerror", (error) => {
     pageErrors.push({ scope: currentScope, detail: String(error) });
@@ -2382,7 +2445,23 @@ export async function runWorkflowSmoke() {
       observations,
       outputDir: OUTPUT_DIR,
       baseUrl: BASE,
+      onInducedReadRefusal: registerNativeCapacityRefusal,
     });
+    const refusedReads = nativeCapacityRefusals.reduce(
+      (total, refusal) => total + refusal.refusals,
+      0,
+    );
+    const refusedConsoleEntries = nativeCapacityRefusals.reduce(
+      (total, refusal) => total + refusal.consoleEntries.length,
+      0,
+    );
+    recordObservation(
+      observations,
+      `interaction/native-capacity-context: the fixture refused ${refusedReads} controlled native`
+      + ` capacity read(s) with HTTP 503; the browser reported ${refusedConsoleEntries} console`
+      + " error(s) for exactly that request URL (the harness's own induced failure, attributed by"
+      + " exact URL)",
+    );
   } finally {
     await context.close();
     await browser.close();

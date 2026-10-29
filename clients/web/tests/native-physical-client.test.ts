@@ -267,6 +267,116 @@ test("fetchNativeFlows sends the canonical native query, shared headers and exac
   assert.equal(result.meta.precision, "exact-decimal-tokens");
 });
 
+test("native physical ranges keep explicit offsets and exact meta on both reads", async () => {
+  const harness = clientHarness();
+  const fromUtc = "2026-01-01T01:00:00+01:00";
+  const toUtc = "2026-01-01T03:30:00.250+01:00";
+  const flowEnvelope = { data: [SAMPLE_FLOW], meta: SAMPLE_META };
+  harness.respondWith(jsonResponse(flowEnvelope));
+
+  const flowResult = await harness.client.fetchNativeFlows({ fromUtc, toUtc });
+
+  assert.equal(harness.calls.length, 1);
+  const [{ url: flowUrl }] = harness.calls;
+  assert.equal(flowUrl.pathname, "/api/physical/flows");
+  assert.equal(flowUrl.searchParams.get("from_utc"), fromUtc);
+  assert.equal(flowUrl.searchParams.get("to_utc"), toUtc);
+  assert.deepEqual(
+    [...flowUrl.searchParams.keys()],
+    ["quantity_basis", "limit", "from_utc", "to_utc"],
+  );
+  // The positive sign survives as %2B; it is never decoded into a space.
+  assert.match(flowUrl.search, /from_utc=2026-01-01T01%3A00%3A00%2B01%3A00/);
+  assert.match(flowUrl.search, /to_utc=2026-01-01T03%3A30%3A00.250%2B01%3A00/);
+  assert.deepEqual(JSON.parse(JSON.stringify(flowResult)), flowEnvelope);
+
+  const capacityEnvelope = { data: [SAMPLE_CAPACITY], meta: SAMPLE_META };
+  harness.respondWith(jsonResponse(capacityEnvelope));
+  const capacityResult = await harness.client.fetchNativeCapacity({
+    pointId: "point-2",
+    fromUtc,
+    toUtc,
+  });
+
+  assert.equal(harness.calls.length, 2);
+  const capacityUrl = harness.calls[1].url;
+  assert.equal(capacityUrl.pathname, "/api/physical/capacity");
+  assert.equal(capacityUrl.searchParams.get("from_utc"), fromUtc);
+  assert.equal(capacityUrl.searchParams.get("to_utc"), toUtc);
+  assert.deepEqual(
+    [...capacityUrl.searchParams.keys()],
+    ["quantity_basis", "point_id", "limit", "from_utc", "to_utc"],
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(capacityResult)), capacityEnvelope);
+});
+
+test("native physical ranges accept UTC Z and leap-day boundaries", async () => {
+  const harness = clientHarness();
+  harness.respondWith(jsonResponse({ data: [], meta: SAMPLE_META }));
+
+  await harness.client.fetchNativeFlows({
+    fromUtc: "2024-02-29T23:59:59.999999Z",
+    toUtc: "2024-03-01T00:00:00Z",
+  });
+
+  assert.equal(harness.calls.length, 1);
+  const [{ url }] = harness.calls;
+  assert.equal(url.searchParams.get("from_utc"), "2024-02-29T23:59:59.999999Z");
+  assert.equal(url.searchParams.get("to_utc"), "2024-03-01T00:00:00Z");
+});
+
+test("native physical ranges compare exact microseconds on both reads", async () => {
+  const harness = clientHarness();
+
+  const windows = [
+    [
+      "one microsecond",
+      "2026-01-01T00:00:00.000001Z",
+      "2026-01-01T00:00:00.000002Z",
+    ],
+    [
+      "seven-digit fractions",
+      "2026-01-01T00:00:00.1234567Z",
+      "2026-01-01T00:00:00.1234570Z",
+    ],
+    [
+      "eight-digit fractions",
+      "2026-01-01T00:00:00.12345678Z",
+      "2026-01-01T00:00:00.12345700Z",
+    ],
+    [
+      "nine-digit fractions",
+      "2026-01-01T00:00:00.123456789Z",
+      "2026-01-01T00:00:00.123457000Z",
+    ],
+  ] as const;
+
+  const fetchers = [
+    ["flows", harness.client.fetchNativeFlows],
+    ["capacity", harness.client.fetchNativeCapacity],
+  ] as const;
+
+  for (const [label, fromUtc, toUtc] of windows) {
+    for (const [name, fetcher] of fetchers) {
+          harness.respondWith(jsonResponse({ data: [], meta: SAMPLE_META }));
+      await fetcher({ fromUtc, toUtc });
+      const [{ url }] = harness.calls.slice(-1);
+      assert.equal(
+        url.searchParams.get("from_utc"),
+        fromUtc,
+        `${name}: ${label} fromUtc`,
+      );
+      assert.equal(
+        url.searchParams.get("to_utc"),
+        toUtc,
+        `${name}: ${label} toUtc`,
+      );
+    }
+  }
+
+  assert.equal(harness.calls.length, windows.length * fetchers.length);
+});
+
 test("fetchNativeCapacity defaults to 200 and omits an unset point_id", async () => {
   const harness = clientHarness();
   const envelope = { data: [SAMPLE_CAPACITY], meta: SAMPLE_META };
@@ -315,6 +425,31 @@ test("invalid native physical queries reject before any request is made", async 
     ["string limit", { limit: "200" }, /limit/i],
     ["boolean limit", { limit: true }, /limit/i],
     ["NaN limit", { limit: Number.NaN }, /limit/i],
+    ["missing fromUtc partner", { toUtc: "2026-01-01T01:00:00Z" }, /together/i],
+    ["missing toUtc partner", { fromUtc: "2026-01-01T00:00:00Z" }, /together/i],
+    ["non-string fromUtc", { fromUtc: 42, toUtc: "2026-01-01T01:00:00Z" }, /fromUtc/i],
+    ["null fromUtc", { fromUtc: null, toUtc: "2026-01-01T01:00:00Z" }, /fromUtc/i],
+    ["non-string toUtc", { fromUtc: "2026-01-01T00:00:00Z", toUtc: 42 }, /toUtc/i],
+    ["null toUtc", { fromUtc: "2026-01-01T00:00:00Z", toUtc: null }, /toUtc/i],
+    ["naive fromUtc", { fromUtc: "2026-01-01T00:00:00", toUtc: "2026-01-01T01:00:00Z" }, /timezone/i],
+    ["naive toUtc", { fromUtc: "2026-01-01T00:00:00Z", toUtc: "2026-01-01T01:00:00" }, /timezone/i],
+    ["compact offset", { fromUtc: "2026-01-01T00:00:00+0100", toUtc: "2026-01-01T01:00:00Z" }, /timezone/i],
+    ["lowercase z zone", { fromUtc: "2026-01-01T00:00:00z", toUtc: "2026-01-01T01:00:00Z" }, /timezone/i],
+    ["impossible February date", { fromUtc: "2026-02-30T00:00:00Z", toUtc: "2026-03-01T00:00:00Z" }, /calendar/i],
+    ["non-leap February 29", { fromUtc: "2026-02-29T00:00:00Z", toUtc: "2026-03-01T00:00:00Z" }, /calendar/i],
+    ["month zero", { fromUtc: "2026-00-01T00:00:00Z", toUtc: "2026-01-01T00:00:00Z" }, /calendar/i],
+    ["month thirteen", { fromUtc: "2026-13-01T00:00:00Z", toUtc: "2027-01-01T00:00:00Z" }, /calendar/i],
+    ["day zero", { fromUtc: "2026-01-00T00:00:00Z", toUtc: "2026-01-01T00:00:00Z" }, /calendar/i],
+    ["hour twenty-four", { fromUtc: "2026-01-01T24:00:00Z", toUtc: "2026-01-02T00:00:00Z" }, /calendar/i],
+    ["minute sixty", { fromUtc: "2026-01-01T00:60:00Z", toUtc: "2026-01-01T01:00:00Z" }, /calendar/i],
+    ["second sixty", { fromUtc: "2026-01-01T00:00:60Z", toUtc: "2026-01-01T00:01:00Z" }, /calendar/i],
+    ["invalid offset", { fromUtc: "2026-01-01T00:00:00+24:00", toUtc: "2026-01-01T01:00:00Z" }, /timezone/i],
+    ["reversed range", { fromUtc: "2026-01-01T02:00:00Z", toUtc: "2026-01-01T01:00:00Z" }, /earlier/i],
+    ["equal range", { fromUtc: "2026-01-01T01:00:00+01:00", toUtc: "2026-01-01T00:00:00Z" }, /earlier/i],
+    ["offset-equivalent microseconds", { fromUtc: "2026-01-01T01:00:00.000001+01:00", toUtc: "2026-01-01T00:00:00.000001Z" }, /earlier/i],
+    ["seven-digit fraction truncates to equal instant", { fromUtc: "2026-01-01T00:00:00.1234567Z", toUtc: "2026-01-01T00:00:00.1234568Z" }, /earlier/i],
+    ["eight-digit fraction truncates to equal instant", { fromUtc: "2026-01-01T00:00:00.12345678Z", toUtc: "2026-01-01T00:00:00.12345679Z" }, /earlier/i],
+    ["nine-digit fraction truncates to equal instant", { fromUtc: "2026-01-01T00:00:00.123456789Z", toUtc: "2026-01-01T00:00:00.123456999Z" }, /earlier/i],
   ];
 
   const fetchers = [

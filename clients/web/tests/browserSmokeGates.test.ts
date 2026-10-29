@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 const HARNESS = new URL("../../../scripts/uat/browser_workflow_smoke.mjs", import.meta.url);
 // Marker parsing is semantic; Git/editor CRLF must not change the gate.
@@ -32,6 +33,30 @@ function declaredKeys(constantName: string): string[] {
 /** The hub codes a declaration names, sorted: declarations may order hubs for display. */
 function sortedHubCodes(source: string): string[] {
   return [...source.matchAll(/"([A-Z]+)"/g)].map((match) => match[1]).sort();
+}
+
+/**
+ * Evaluate the harness's own refusal-attribution rules against a controlled registry.
+ *
+ * The functions are extracted from the harness source rather than reimplemented here, so this test
+ * exercises the code the sweep actually runs: `requestPath` identifies an endpoint, and
+ * `inducedReadRefusalFor` closes over the registry the test supplies.
+ */
+function loadInducedReadRefusalFor(refusals: Array<Record<string, unknown>>) {
+  const declarations = [
+    block("function requestPath(url) {", "\n}") + "\n}",
+    block("function inducedReadRefusalFor(message) {", "\n}") + "\n}",
+  ].join("\n");
+  return runInNewContext(
+    `${declarations}\n({ requestPath, inducedReadRefusalFor });`,
+    { inducedReadRefusals: refusals, URL },
+  ) as {
+    requestPath: (url: string) => string;
+    inducedReadRefusalFor: (message: {
+      location: () => { url: string } | null;
+      text: () => string;
+    }) => Record<string, unknown> | null;
+  };
 }
 
 test("no workspace is exempt from rendering its own page", () => {
@@ -605,9 +630,20 @@ test("the capacity board's joined rows are compared with both reads, and its ref
   assert.equal(allowed.includes("503"), false, "the induced refusal is not an exemption");
   assert.equal(
     source.match(/inducedReadRefusals\.push\(refusal\);/g)?.length,
-    2,
-    "both induced refusals are registered for attribution",
+    3,
+    "the two path-based fixture refusals and the native exact-URL refusal are registered",
   );
+  // The third entry is registered by the native helper's callback, from the URL and status the
+  // helper is about to answer, and is exact-URL only: unlike the two broad fixtures it cannot
+  // claim another point, the default-volume read or another error on the same endpoint.
+  const nativeRegistration = block(
+    "const registerNativeCapacityRefusal = (url, status) => {",
+    "\n  };",
+  );
+  assert.match(nativeRegistration, /url,\s*status,/);
+  assert.match(nativeRegistration, /exactUrl: true/);
+  assert.match(nativeRegistration, /inducedReadRefusals\.push\(refusal\);/);
+  assert.match(source, /onInducedReadRefusal: registerNativeCapacityRefusal/);
 
   // The markers the check selects are the board component's own.
   const component = readFileSync(
@@ -642,6 +678,128 @@ test("the capacity board's joined rows are compared with both reads, and its ref
   ]) {
     assert.ok(collector.includes(marker), `the board's markers include ${marker}`);
   }
+});
+
+test("the native capacity refusal is attributed only to its exact query and its 503", () => {
+  // The native panel's fixture refuses exactly one capacity read for one explicit point. Its
+  // console entry must be attributed by the complete request URL and the status the fixture
+  // answered, because the same endpoint also serves other points and the default-volume read
+  // during the sweep. The rules below are the harness's own functions, extracted from its source
+  // and evaluated against a controlled registry - not a second implementation of them.
+  const nativeUrl =
+    "http://127.0.0.1:8000/api/physical/capacity"
+    + "?point_id=UAT-NATIVE-CONTEXT-ERROR&quantity_basis=native&limit=2000";
+  const nativeRefusal = {
+    url: nativeUrl,
+    status: 503,
+    exactUrl: true,
+    // The helper closes its active window in its own finally; exact-URL attribution deliberately
+    // survives a console entry the browser reports after that cleanup.
+    active: false,
+    refusals: 1,
+    consoleEntries: [],
+  };
+  const failureText =
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)";
+  const message = (url: string | null, text = failureText) => ({
+    location: () => (url === null ? null : { url }),
+    text: () => text,
+  });
+  const { requestPath, inducedReadRefusalFor } = loadInducedReadRefusalFor([nativeRefusal]);
+
+  assert.equal(
+    requestPath(nativeUrl),
+    "http://127.0.0.1:8000/api/physical/capacity",
+    "the harness's requestPath identifies the endpoint without its exact query",
+  );
+  assert.equal(
+    inducedReadRefusalFor(message(nativeUrl)),
+    nativeRefusal,
+    "the fixture's exact native point query and its 503 are attributed to it",
+  );
+
+  const notThisRefusal: Array<[string, string | null, string?]> = [
+    ["a different point", nativeUrl.replace("UAT-NATIVE-CONTEXT-ERROR", "UAT-NATIVE-CONTEXT")],
+    ["the default-volume read", nativeUrl.replace("quantity_basis=native", "quantity_basis=default")],
+    ["a different path", nativeUrl.replace("/api/physical/capacity", "/api/physical/flows")],
+    ["a missing URL", null],
+    [
+      "a 500 on the same URL",
+      nativeUrl,
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    ],
+    ["a 503 without the failure text", nativeUrl, "the server answered 503"],
+  ];
+  for (const [label, url, text] of notThisRefusal) {
+    assert.equal(
+      inducedReadRefusalFor(message(url, text)),
+      null,
+      `the exact native refusal must not claim ${label}`,
+    );
+  }
+
+  // An older path-based fixture for the same endpoint is consulted after the exact entry, so it
+  // cannot claim the native fixture's own console error even though its path matches.
+  const olderPathRefusal = {
+    url: nativeUrl.replace("limit=2000", "limit=500"),
+    status: 503,
+    active: false,
+    refusals: 1,
+    consoleEntries: [],
+  };
+  assert.equal(
+    loadInducedReadRefusalFor([olderPathRefusal, nativeRefusal]).inducedReadRefusalFor(
+      message(nativeUrl.replace("UAT-NATIVE-CONTEXT-ERROR", "UNRELATED-POINT")),
+    ),
+    null,
+    "an older default-volume fixture cannot claim another native point's error",
+  );
+  assert.equal(
+    loadInducedReadRefusalFor([olderPathRefusal, nativeRefusal]).inducedReadRefusalFor(
+      message(nativeUrl),
+    ),
+    nativeRefusal,
+    "an exact entry is consulted before a path entry for the same endpoint",
+  );
+});
+
+test("path-based induced refusals keep their broad matching without becoming a 503 wildcard", () => {
+  const broadUrl = "http://127.0.0.1:8000/api/sources?limit=5";
+  const broadRefusal = {
+    url: broadUrl,
+    status: 503,
+    active: true,
+    refusals: 1,
+    consoleEntries: [],
+  };
+  const message = (
+    url: string,
+    text = "Failed to load resource: the server responded with a status of 503",
+  ) => ({
+    location: () => ({ url }),
+    text: () => text,
+  });
+  const { inducedReadRefusalFor } = loadInducedReadRefusalFor([broadRefusal]);
+
+  assert.equal(
+    inducedReadRefusalFor(message("http://127.0.0.1:8000/api/sources?limit=50")),
+    broadRefusal,
+    "an old fixture still matches its own endpoint when the query changes",
+  );
+  assert.equal(
+    inducedReadRefusalFor(message("http://127.0.0.1:8000/api/sources/UAT/run")),
+    null,
+    "a path-based refusal does not widen to a different endpoint",
+  );
+  // There is no status-only wildcard: an unrelated 503 with no registered refusal remains a
+  // console error, and the declared allowlist still carries only the pre-login 401.
+  assert.equal(
+    loadInducedReadRefusalFor([]).inducedReadRefusalFor(
+      message("http://127.0.0.1:8000/api/physical/capacity?limit=5"),
+    ),
+    null,
+    "a 503 without a registered induced refusal stays a console error",
+  );
 });
 
 test("the route-state badges are rendered and measured in every language and viewport", () => {
