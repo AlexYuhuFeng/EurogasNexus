@@ -1,5 +1,36 @@
 # Architecture V2 Execution State
 
+## 2026-10-30 — trusted read-only model operator command
+
+DeepSeek added scripts/ops/fit_weather_demand.py, separate from the public
+SDK-backed CLI. It parses a bounded explicit JSON policy request, rejects unknown
+or duplicate fields/naive clocks/nonfinite values, requires PostgreSQL, sets the
+transaction READ ONLY and rolls back/closes without committing. Stable summaries
+expose actual counts, policy/model hashes, native units and research/no-promotion
+labels; typed refusals are nonzero and errors do not expose DB URLs or exception
+text. It adds no API, source activation, dependency or customer runtime payload.
+Root fixed a wrong enum reference in two test fixtures and bounded the actual
+file read as well as its size checks. Operator19tests, Ruff and Markdown passed.
+
+Root real PostgreSQL empty-table execution returned insufficient history/exit1
+with readonly transaction confirmed. A separate owned-schema execution persisted
+21synthetic target days and forecast instants, parsed a full actual request, and
+ran the actual readonly operator/SQL/degree-day/fitter path: READY/exit0,
+21feature days,13paired training days and229bounded raw forecast reads, native
+MSCM and research-only candidate. Schema was removed after the probe. Synthetic
+mechanics are not provider history, regional validation or accuracy evidence.
+The broader Linux NumPy weather/bridge/runtime/target/architecture regressions
+completed121passed in519.86s; the existing live handle was waited, not restarted.
+
+Actual3ECMWF/17REST target probe still refuses ambiguous same-receipt revisions
+and preserves source rows. Official current developer portal is readable via
+headless browser, but clock-order semantics are not yet accepted. NumPy customer
+closure, historical forecast coverage, regional weights, frozen output persistence
+and portfolio/scenario use remain required. Hosted10c250c PostgreSQL, Web, audits,
+SDK Windows/Linux and native Linux builds passed when observed; other jobs were
+still running. No full delivery claim or desktop GUI resumption.
+
+
 ## 2026-10-30 — persisted weather/target composition reaches the frozen fitter
 
 C1b composes actual target/forecast repositories, PIT target mapping, per-day
