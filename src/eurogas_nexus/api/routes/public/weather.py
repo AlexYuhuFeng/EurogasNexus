@@ -6,10 +6,13 @@ weather/HDD/CDD values when no runtime source has been ingested.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 
 from eurogas_nexus.api.dependencies.identity import require_identity_for_route
@@ -17,12 +20,18 @@ from eurogas_nexus.api.dependencies.row_entitlement import (
     filter_rows,
     require_derived_access,
 )
+from eurogas_nexus.api.schemas.weather_degree_days import WeatherDegreeDayRequest
 from eurogas_nexus.api.schemas.weather_forecasts import (
     ForecastPointReading,
     ForecastReadEnvelope,
     ForecastReadMeta,
 )
 from eurogas_nexus.application.research.weather_demand_inputs import (
+    LEFT_HOLD_INSTANT,
+    ForecastPointBinding,
+    WeatherDemandBridgeConfig,
+    build_weather_demand_inputs,
+    compute_degree_days_from_bundle,
     project_forecast_observation_record,
 )
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
@@ -33,6 +42,12 @@ from eurogas_nexus.db.repositories.ecmwf_forecast_reads import (
 )
 from eurogas_nexus.db.session import get_session_factory
 from eurogas_nexus.domain.ingestion.certification import certification_gate
+from eurogas_nexus.domain.research.weather_demand import (
+    DegreeDayFeaturePolicy,
+    DegreeDayPolicy,
+    RegionLocationWeight,
+    WeatherDemandInputError,
+)
 
 router = APIRouter(tags=["weather"])
 
@@ -40,6 +55,8 @@ _SOURCE = "ECMWF_OPEN_DATA"
 _ATTRIBUTION = "ECMWF Open Data (CC BY 4.0)"
 _DEFAULT_LIMIT = 100
 _MAX_LIMIT = 256
+_DEGREE_DAY_MAX_ROWS = 256
+_DEGREE_DAY_MAX_POINTS = 64
 
 
 @router.get("/api/weather/stations")
@@ -126,6 +143,140 @@ def list_forecasts(
         attribution=_ATTRIBUTION,
     )
     return ForecastReadEnvelope(data=data, meta=meta)
+
+
+@router.post("/api/weather/degree-days")
+def compute_weather_degree_days(
+    payload: WeatherDegreeDayRequest,
+    request: Request,
+    _identity: None = Depends(require_identity_for_route),
+) -> dict:
+    """Compute bounded, caller-weighted degree days from persisted forecasts."""
+
+    require_derived_access(request, (_SOURCE,), resource="weather_degree_days")
+    try:
+        policy, config, bindings = _degree_day_inputs(payload)
+        with get_session_factory()() as session:
+            _require_certification(session)
+            rows = read_ecmwf_forecasts(
+                session,
+                tuple(dict.fromkeys(b.series_id for b in bindings)),
+                tuple(dict.fromkeys(b.entity_id for b in bindings)),
+                payload.prediction_origin,
+                config.window_start_utc - timedelta(minutes=payload.max_hold_minutes),
+                config.window_end_utc + timedelta(minutes=payload.max_hold_minutes),
+                _DEGREE_DAY_MAX_ROWS,
+            )
+    except WeatherDemandInputError as exc:
+        raise _error(422, "invalid_degree_day_inputs", str(exc)) from exc
+    except EcmwfForecastReadOverflowError as exc:
+        raise _error(
+            400, "forecast_query_overflow", "Degree-day input exceeds 256 rows."
+        ) from exc
+    except EcmwfForecastReadValidationError as exc:
+        raise _error(400, "invalid_degree_day_query", str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _error(
+            503, "forecast_store_unavailable", "Forecast storage is unavailable."
+        ) from exc
+
+    try:
+        visible = filter_rows(
+            request,
+            ({"source_system": row.source_system, "record": row} for row in rows),
+            source_key="source_system",
+        )
+        projected = tuple(
+            project_forecast_observation_record(item["record"]) for item in visible
+        )
+        bundle = build_weather_demand_inputs(projected, bindings, config)
+        result = compute_degree_days_from_bundle(bundle, policy)
+    except WeatherDemandInputError as exc:
+        raise _error(422, "invalid_degree_day_inputs", str(exc)) from exc
+    except Exception as exc:
+        raise _error(
+            503, "forecast_data_malformed", "Stored forecast data is malformed."
+        ) from exc
+
+    if result is None:
+        data = {
+            "status": "NOT_READY",
+            "diagnostics": jsonable_encoder(
+                [asdict(diagnostic) for diagnostic in bundle.diagnostics]
+            ),
+        }
+    else:
+        data = jsonable_encoder(asdict(result), custom_encoder={Decimal: str})
+    return {
+        "data": data,
+        "meta": _degree_day_meta(config, bundle, ready=result is not None),
+    }
+
+
+def _degree_day_inputs(payload: WeatherDegreeDayRequest):
+    bindings = tuple(
+        ForecastPointBinding(**binding.model_dump(exclude={"weight"}))
+        for binding in payload.point_bindings
+    )
+    feature_policy = DegreeDayFeaturePolicy(
+        region=payload.region,
+        heating_base_c=payload.heating_base_c,
+        cooling_base_c=payload.cooling_base_c,
+        max_gap_minutes=payload.max_hold_minutes,
+        min_covered_fraction=payload.min_covered_fraction,
+        location_weights=tuple(
+            RegionLocationWeight(location_id=item.location_id, weight=item.weight)
+            for item in payload.point_bindings
+        ),
+        gas_day_calendar=payload.gas_day_calendar,
+        temporal_method=LEFT_HOLD_INSTANT,
+    )
+    policy = DegreeDayPolicy(
+        heating_base_c=feature_policy.heating_base_c,
+        cooling_base_c=feature_policy.cooling_base_c,
+        max_gap_minutes=feature_policy.max_gap_minutes,
+        min_covered_fraction=feature_policy.min_covered_fraction,
+    )
+    config = WeatherDemandBridgeConfig(
+        feature_policy=feature_policy,
+        prediction_origin=payload.prediction_origin,
+        gas_days=tuple(payload.gas_days),
+        max_hold_minutes=payload.max_hold_minutes,
+        max_rows=_DEGREE_DAY_MAX_ROWS,
+        max_points=_DEGREE_DAY_MAX_POINTS,
+    )
+    return policy, config, bindings
+
+
+def _degree_day_meta(config, bundle, *, ready: bool) -> dict:
+    warnings = [
+        "CALLER_DEFINED_REGION_WEIGHTS",
+        "LEFT_HOLD_APPROXIMATION",
+        "MISSING_COVERAGE_NULL",
+        "RESEARCH_ONLY",
+        "HUMAN_REVIEW_REQUIRED",
+    ]
+    if not ready:
+        warnings.append("FORECAST_INPUT_NOT_READY")
+    vintage = bundle.selected_vintage
+    return jsonable_encoder(
+        {
+            "research_only": True,
+            "human_review_required": True,
+            "status": "READY" if ready else "NOT_READY",
+            "attribution": _ATTRIBUTION,
+            "source_references": sorted({_SOURCE, *bundle.source_refs}),
+            "feature_policy_hash": config.feature_policy.policy_hash,
+            "prediction_origin": bundle.prediction_origin,
+            "gas_days": [day.isoformat() for day in bundle.gas_days],
+            "max_hold_minutes": bundle.max_hold_minutes,
+            "query_limit": _DEGREE_DAY_MAX_ROWS,
+            "selected_forecast_vintage": asdict(vintage) if vintage else None,
+            "warnings": warnings,
+        }
+    )
 
 
 def _forecast_query(
