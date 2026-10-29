@@ -13,6 +13,10 @@ from eurogas_nexus.ingestion.public_sources import (
     gie_storage_observations_from_json,
 )
 
+# A deterministic, synthetic response receipt for direct-normalizer fixtures. It is the
+# test's own clock value, not a claim about when historical provider data was published.
+_ENTSOG_FIXTURE_RECEIPT = datetime(2026, 10, 9, 22, 45, tzinfo=UTC)
+
 
 def test_ecb_xml_is_normalized_into_market_observations() -> None:
     xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -62,14 +66,32 @@ def test_entsog_json_is_normalized_into_flow_observations() -> None:
         ]
     }
 
-    rows = entsog_flow_observations_from_json(payload)
+    rows = entsog_flow_observations_from_json(
+        payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
+    )
 
     assert len(rows) == 1
-    assert rows[0]["observation_id"] == "entsog-flow-123"
+    assert rows[0]["observation_id"].startswith("entsog-flow-n1-")
+    assert rows[0]["observation_id"] != "entsog-flow-123"
+    assert rows[0]["source_record_id"] == "123"
+    assert rows[0]["source_record_id"] != "entsog-flow-123"
     assert rows[0]["source_system"] == "ENTSOG"
     assert rows[0]["point_id"] == "be-zee"
     assert rows[0]["point_name"] == "Zeebrugge"
-    assert rows[0]["flow_mcm_d"] == 1.0
+    assert rows[0]["flow_mcm_d"] is None
+    assert rows[0]["normalizer_version"] == "entsog-native-units-v1"
+    assert rows[0]["native_rate_json"] == {
+        "value_text": "10550000",
+        "unit_text": "kWh/d",
+        "native_value": "10550000",
+        "normalized_unit": "kWh/day",
+        "quantity_kind": "energy",
+        "rate_basis": "day",
+        "energy_kwh_per_day": "10550000",
+        "volume_mcm_per_day": None,
+        "normalizer_version": "entsog-native-units-v1",
+    }
+    assert rows[0]["observed_at_utc"] == _ENTSOG_FIXTURE_RECEIPT
     assert rows[0]["freshness"] == "live"
     # Offset input is converted to UTC. The naive/CET/CEST/WET cases, and the fail-closed rule for a
     # zone the contract does not support, are asserted in
@@ -97,8 +119,11 @@ def test_entsog_naive_periods_are_read_on_the_central_european_clock() -> None:
         ]
     }
 
-    rows = entsog_flow_observations_from_json(payload)
+    rows = entsog_flow_observations_from_json(
+        payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
+    )
 
+    assert rows[0]["observed_at_utc"] == _ENTSOG_FIXTURE_RECEIPT
     assert rows[0]["period_start_utc"] == datetime(2026, 1, 15, 5, 0, tzinfo=UTC)
     assert rows[0]["period_end_utc"] == datetime(2026, 1, 16, 5, 0, tzinfo=UTC)
 
@@ -127,16 +152,54 @@ def test_entsog_operational_indicators_are_not_mixed_between_flow_and_capacity()
         ]
     }
 
-    flow_rows = entsog_flow_observations_from_json(payload)
-    capacity_rows = entsog_capacity_observations_from_json(payload)
+    flow_rows = entsog_flow_observations_from_json(
+        payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
+    )
+    capacity_rows = entsog_capacity_observations_from_json(
+        payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
+    )
 
-    assert [row["observation_id"] for row in flow_rows] == ["entsog-flow-flow"]
+    assert [row["observation_id"].startswith("entsog-flow-n1-") for row in flow_rows] == [True]
+    assert [row["observation_id"].startswith("entsog-capacity-n1-") for row in capacity_rows] == [
+        True,
+        True,
+    ]
+    assert [row["source_record_id"] for row in flow_rows] == ["flow"]
+    assert [row["source_record_id"] for row in capacity_rows] == ["technical", "booked"]
     assert [row["capacity_type"] for row in capacity_rows] == [
         "firm_technical",
         "firm_booked",
     ]
-    assert capacity_rows[0]["capacity_mcm_d"] == 2.0
-    assert capacity_rows[1]["capacity_mcm_d"] == 1.5
+    assert all(row["flow_mcm_d"] is None for row in flow_rows)
+    assert all(row["capacity_mcm_d"] is None for row in capacity_rows)
+    assert [row["normalizer_version"] for row in capacity_rows] == [
+        "entsog-native-units-v1",
+        "entsog-native-units-v1",
+    ]
+    assert [row["native_rate_json"] for row in capacity_rows] == [
+        {
+            "value_text": "21100000",
+            "unit_text": "kWh/d",
+            "native_value": "21100000",
+            "normalized_unit": "kWh/day",
+            "quantity_kind": "energy",
+            "rate_basis": "day",
+            "energy_kwh_per_day": "21100000",
+            "volume_mcm_per_day": None,
+            "normalizer_version": "entsog-native-units-v1",
+        },
+        {
+            "value_text": "15825000",
+            "unit_text": "kWh/d",
+            "native_value": "15825000",
+            "normalized_unit": "kWh/day",
+            "quantity_kind": "energy",
+            "rate_basis": "day",
+            "energy_kwh_per_day": "15825000",
+            "volume_mcm_per_day": None,
+            "normalizer_version": "entsog-native-units-v1",
+        },
+    ]
 
 
 def test_gie_agsi_json_is_normalized_into_storage_observations() -> None:

@@ -1,5 +1,54 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — native ENTSOG ingestion, guarded reads and source SDK connected
+
+Replaced the fixed-CV flow/capacity normalizers with explicit receipt-bound native
+rates. Exact raw JSON number tokens reach the shared Decimal parser; energy has
+no volume, real volume rates use only same-dimension scaling. New deterministic
+namespaces retain original provider ids; append/replay and semantic-conflict
+refusal preserve legacy rows and first receipts. Physical API opt-in native mode,
+volume-only compatibility reads, agent DB bridges and analysis/report snapshot
+admission now share the guard. Unverified legacy volumes and native energy are
+not reported as mcm. Bad native payloads are typed refusals, not empty readings.
+Native query overflow refuses; default volume reads are not silently truncated.
+
+New typed native SDK methods preserve exact strings and metadata. Review caught
+invented SDK field names despite green synthetic fixtures: fixed them to actual
+backend fields and added actual-projector-to-SDK contract tests. Source status,
+period type and operator key are carried when captured, without inferring quality
+or physical authority. Explicit CLI point-direction scope now reaches both flow
+and capacity, retaining date/budget/source-certification gates and leaving
+reference queries untouched. Generic unscoped samples encountered N/A exemptions;
+they were correctly refused as zero usable rows, never converted to zero.
+
+Root captured a published DE-TSO-0009/ITP-00126/entry direction forOct28..29:
+two populated energy flow rows and one technical capacity. Dedicated PostgreSQL
+first inserted2/1, then real recapture inserted0/0 and verified2/1unchanged rows;
+first receipts and full projections were preserved. A real loopback HTTP server
+plus source SDK read actual PG quantities92954921,738726002.1 and416592000kWh/day
+as strings, with no volume, and anonymous access401. This is not installed-wheel,
+SSO, regional completeness or model accuracy proof. Raw hashes and limitations
+are in docs/data/ENTSOG_NATIVE_RATE_OPERATIONS.md.
+
+Validation: new integration delta151passed; core/projection/SDK/wire149passed;
+existing analysis/agent/contracts68passed; physical API/context30passed; native
+persistence10passed on realPG; data-product contracts15passed; product-boundary
+checks3passed; Ruff passed. Extended complete PostgreSQL CI ran from an empty
+owned database through0044 plus authenticated/anonymous smoke and49tests, all
+passed without skips. Root corrected local shell CRLF after a failed attempt;
+the successful rerun used LF. An obsolete test imported the removed CV constant:
+replaced its import smoke with the actual normalizer. Full canonical Linux
+regression is running; its first collection failure is retained separately.
+Latest fully green hosted checkpoints:8108fb8/run40855865853 and
+d49d32a/run40856477170. This new integration still needs same-SHA hosted results.
+
+Remaining: shared Web/desktop native-rate business consumption, native-read
+history/window ergonomics, scheduled point-scope configuration/source activation,
+full provider quality/revision semantics, real regional weather-demand/portfolio
+vertical, optional numerical/decoder dependency delivery and redistribution,
+public market-price consumers, snapshot replay and customer SSO/native UAT.
+Do not mark delivery ready from this bounded native-source integration.
+
 ## 2026-10-29 — RFC0005 native-rate schema and exact raw numeric tokens
 
 Root accepted RFC0005/Decision19 for coordinated native-unit migration. Existing

@@ -50,11 +50,14 @@ def test_capacity_api_reads_configured_runtime_db(tmp_path, monkeypatch) -> None
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["data"][0]["observation_id"] == "entsog-capacity-test"
-    assert payload["data"][0]["capacity_type"] == "firm_technical"
-    assert payload["data"][0]["capacity_mcm_d"] == 112.5
+    # The legacy row is stored, but its kWh -> assumed-CV volume is not admissible.
+    assert payload["data"] == []
     assert payload["meta"]["source_references"] == ["runtime-postgresql"]
+    warnings = " ".join(payload["meta"]["warnings"]).lower()
+    assert "legacy entsog" in warnings
+    assert "does not mean" in warnings
     entsog_source = next(
         source for source in sources_response.json()["data"] if source["source_system"] == "ENTSOG"
     )
+    # Storage/ingestion count is retained; it is not an eligible quantity count.
     assert entsog_source["live_record_count"] == 1

@@ -142,8 +142,25 @@ def main() -> int:
     )
     parser.add_argument("--entsog-page-size", type=int, default=100)
     parser.add_argument("--entsog-max-pages", type=int, default=50)
+    parser.add_argument(
+        "--entsog-point-direction",
+        action="append",
+        default=[],
+        metavar="POINT_DIRECTION",
+        help=(
+            "Explicit ENTSOG operational point direction (repeatable or "
+            "comma-separated; each value must end with entry or exit). Applies "
+            "only to flow/capacity observations, never topology reference data."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Print a JSON report.")
     args = parser.parse_args()
+    try:
+        args.entsog_point_direction = _validate_entsog_point_directions(
+            args.entsog_point_direction
+        )
+    except ValueError as exc:
+        parser.error(f"invalid --entsog-point-direction: {exc}")
 
     database_url = resolve_database_url()
     if not database_url:
@@ -291,6 +308,7 @@ def main() -> int:
                         _ingest_entsog_source(
                             client, session, route=entsog_route, args=args,
                             started=started, report=report,
+                            point_directions=args.entsog_point_direction,
                         )
 
                 for gie_route, gie_product in (
@@ -657,6 +675,77 @@ def _resolve_gie_key(session_factory) -> str | None:
     return resolved.value if resolved is not None else None
 
 
+ENTSOG_POINT_DIRECTION_MAX_COUNT = 64
+ENTSOG_POINT_DIRECTION_MAX_CHARS = 8192
+_ENTSOG_POINT_DIRECTION_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyz0123456789._-"
+)
+
+
+def _validate_entsog_point_directions(values) -> tuple[str, ...]:
+    """Return the explicit, canonical ENTSOG operational point scope.
+
+    Values are caller-declared provider identities; nothing is inferred or
+    defaulted. A value may contain a comma-separated composite. Canonicalisation
+    lowercases, strips, deduplicates and sorts so the same declaration always
+    produces the same query. Validation happens before database/HTTP side
+    effects in ``main``.
+    """
+
+    if values is None:
+        return ()
+    if isinstance(values, str):
+        raw_values = (values,)
+    else:
+        raw_values = tuple(values)
+    if not raw_values:
+        return ()
+    if not all(isinstance(value, str) for value in raw_values):
+        raise ValueError("point directions must be text values")
+    if sum(len(value) for value in raw_values) > ENTSOG_POINT_DIRECTION_MAX_CHARS:
+        raise ValueError(
+            f"point directions exceed {ENTSOG_POINT_DIRECTION_MAX_CHARS} characters"
+        )
+    tokens: list[str] = []
+    for value in raw_values:
+        if not value.isascii():
+            raise ValueError("point directions must be ASCII")
+        for part in value.split(","):
+            token = part.strip().lower()
+            if not token:
+                raise ValueError("point directions must not be blank")
+            if token.endswith("entry"):
+                suffix = "entry"
+            elif token.endswith("exit"):
+                suffix = "exit"
+            else:
+                raise ValueError(
+                    f"point direction {token!r} must end with 'entry' or 'exit'"
+                )
+            prefix = token[: -len(suffix)]
+            if not prefix or not prefix[0].isalnum():
+                raise ValueError(
+                    f"point direction {token!r} has no provider identity prefix"
+                )
+            if "www." in token or "://" in token:
+                raise ValueError(f"point direction {token!r} must not be a URL")
+            if any(char not in _ENTSOG_POINT_DIRECTION_CHARS for char in token):
+                raise ValueError(
+                    f"point direction {token!r} contains a control or unsupported character"
+                )
+            tokens.append(token)
+    canonical = tuple(sorted(set(tokens)))
+    if len(canonical) > ENTSOG_POINT_DIRECTION_MAX_COUNT:
+        raise ValueError(
+            f"at most {ENTSOG_POINT_DIRECTION_MAX_COUNT} point directions are allowed"
+        )
+    if len(",".join(canonical)) > ENTSOG_POINT_DIRECTION_MAX_CHARS:
+        raise ValueError(
+            f"point directions exceed {ENTSOG_POINT_DIRECTION_MAX_CHARS} characters"
+        )
+    return canonical
+
+
 def _ingest_entsog_source(
     client,
     session,
@@ -665,8 +754,13 @@ def _ingest_entsog_source(
     args,
     started: datetime,
     report: dict[str, Any],
+    point_directions: tuple[str, ...] | None = None,
 ) -> None:
     """Execute one ENTSOG route while keeping other source transactions usable."""
+    if point_directions is None:
+        point_directions = getattr(args, "entsog_point_direction", ())
+    point_directions = _validate_entsog_point_directions(point_directions)
+    point_scope = ",".join(point_directions)
     source_name = {
         "entsog": "ENTSOG",
         "entsog-capacity": "ENTSOG-capacity",
@@ -696,10 +790,21 @@ def _ingest_entsog_source(
             )
             selected_window = policy.select(getattr(args, "entsog_window_anchor", None))
             detail["window"] = selected_window.metadata()
+            if point_scope:
+                detail["point_direction"] = point_scope
+                detail["point_directions"] = list(point_directions)
             window = {"from": selected_window.from_date, "to": selected_window.to_date}
             indicators = ("Physical Flow",) if route == "entsog" else ENTSOG_CAPACITY_INDICATORS
             queries = tuple(
-                ("operationaldatas", {**window, "indicator": indicator}) for indicator in indicators
+                (
+                    "operationaldatas",
+                    {
+                        **window,
+                        "indicator": indicator,
+                        **({"pointDirection": point_scope} if point_scope else {}),
+                    },
+                )
+                for indicator in indicators
             )
         for dataset, filters in queries:
             results.append(

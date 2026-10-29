@@ -11,6 +11,10 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial, ai_caller
+from eurogas_nexus.application.physical_native_rates import (
+    NativeRateProjectionError,
+    row_volume_admissible,
+)
 from eurogas_nexus.domain.analysis import (
     AnalysisRequest,
     AnalysisResult,
@@ -31,6 +35,13 @@ if TYPE_CHECKING:  # pragma: no cover - a type-only import, never executed
     from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
 router = APIRouter(tags=["analysis"])
+
+_OMITTED_UNVERIFIED_VOLUME_WARNING = (
+    "Flow observations with an unverified or incompatible volume (legacy ENTSOG "
+    "or native energy) were omitted; their absence is NOT zero volume and does "
+    "not mean the source reported no flow."
+)
+_PHYSICAL_QUANTITY_INVALID_CODE = "physical_quantity_invalid"
 
 
 @router.get("/api/analysis/ontology")
@@ -407,6 +418,23 @@ def _db_snapshot(
                 .all()
             )
             contracts = session.query(UpstreamResourceContractRecord).limit(50).all()
+            admitted_flows: list[dict] = []
+            omitted_unverified_volume = False
+            for row in flows:
+                try:
+                    admissible = row_volume_admissible(
+                        row,
+                        volume_field="flow_mcm_d",
+                    )
+                except NativeRateProjectionError as exc:
+                    raise _physical_quantity_invalid() from exc
+                if not admissible:
+                    omitted_unverified_volume = True
+                    continue
+                admitted_flows.append(_flow_row(row))
+            snapshot_warnings = (
+                [_OMITTED_UNVERIFIED_VOLUME_WARNING] if omitted_unverified_volume else []
+            )
             return AnalysisSnapshot(
                 snapshot_id=f"snapshot-{uuid4().hex[:12]}",
                 source="runtime-postgresql",
@@ -428,11 +456,12 @@ def _db_snapshot(
                 market_observations=[_market_row(row) for row in markets],
                 live_market_marks=[_live_mark_row(row) for row in live_marks],
                 fx_rates=[_fx_row(row) for row in fx_rows],
-                flow_observations=[_flow_row(row) for row in flows],
+                flow_observations=admitted_flows,
                 capacity_context=[_capacity_row(row) for row in capacities],
                 route_candidates=[_route_row(row) for row in routes],
                 strategy_runs=[_strategy_row(row) for row in strategies],
                 portfolio_context=[_contract_row(row) for row in contracts],
+                warnings=snapshot_warnings,
             )
     except sqlalchemy_error:
         return _empty_snapshot(
@@ -1127,6 +1156,28 @@ def _sqlalchemy_error_type():
     from sqlalchemy.exc import SQLAlchemyError
 
     return SQLAlchemyError
+
+
+def _physical_quantity_invalid() -> HTTPException:
+    """Refuse a malformed stored native quantity without echoing its payload.
+
+    The native codec is the only evidence that can admit an ENTSOG volume. A
+    stored payload that fails that codec is not an empty reading and is not a
+    legacy row: the analysis snapshot must fail closed with a stable code rather
+    than silently omit the row. The message is deliberately generic so no stored
+    payload, exception text or database URL reaches the caller.
+    """
+
+    return HTTPException(
+        status_code=503,
+        detail={
+            "code": _PHYSICAL_QUANTITY_INVALID_CODE,
+            "message": (
+                "Stored physical quantity data failed strict validation and was not "
+                "returned."
+            ),
+        },
+    )
 
 
 def _env(

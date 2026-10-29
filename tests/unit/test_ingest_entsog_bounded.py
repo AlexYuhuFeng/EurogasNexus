@@ -300,3 +300,164 @@ def test_recurring_worker_missing_window_keeps_independent_sources_running(capsy
 def test_invalid_windows_refuse_collection(start, end):
     with pytest.raises(EntsogWindowError):
         validate_entsog_window(start, end)
+
+
+@pytest.mark.parametrize(
+    ("route", "source_name", "query_count"),
+    [
+        ("entsog", "ENTSOG", 1),
+        ("entsog-capacity", "ENTSOG-capacity", 4),
+    ],
+)
+def test_explicit_point_scope_is_forwarded_to_flow_and_capacity_queries(
+    monkeypatch, route, source_name, query_count
+):
+    _archive(monkeypatch)
+    calls = []
+
+    def fetch(client, dataset, **kwargs):
+        filters = kwargs["filters"]
+        calls.append((dataset, filters))
+        return query_result(
+            "operationaldatas",
+            [observation(str(len(calls)), filters["indicator"])],
+            indicator=filters["indicator"],
+            complete=True,
+        )
+
+    monkeypatch.setattr(script, "fetch_entsog_dataset", fetch)
+    monkeypatch.setattr(
+        persistence,
+        "upsert_entsog_observation_rows",
+        lambda *args: {"inserted": 0, "unchanged": 1},
+    )
+    scope = (
+        "de-tso-0009itp-00126entry",
+        "de-tso-0009itp-00126exit",
+    )
+    report = {"sources": {}, "warnings": [], "failures": []}
+    script._ingest_entsog_source(
+        None,
+        _session(),
+        route=route,
+        args=_args(),
+        started=RECEIPT,
+        report=report,
+        point_directions=scope,
+    )
+    assert len(calls) == query_count
+    assert all(dataset == "operationaldatas" for dataset, _ in calls)
+    assert all(filters["pointDirection"] == ",".join(scope) for _, filters in calls)
+    detail = report["sources"][source_name]
+    assert detail["point_direction"] == ",".join(scope)
+    assert detail["point_directions"] == list(scope)
+
+
+def test_unspecified_point_scope_preserves_existing_operational_filters(monkeypatch):
+    _archive(monkeypatch)
+    calls = []
+
+    def fetch(client, dataset, **kwargs):
+        calls.append(kwargs["filters"])
+        return query_result("operationaldatas", [observation()], complete=True)
+
+    monkeypatch.setattr(script, "fetch_entsog_dataset", fetch)
+    monkeypatch.setattr(
+        persistence,
+        "upsert_entsog_observation_rows",
+        lambda *args: {"inserted": 1, "unchanged": 0},
+    )
+    report = {"sources": {}, "warnings": [], "failures": []}
+    script._ingest_entsog_source(
+        None, _session(), route="entsog", args=_args(), started=RECEIPT, report=report
+    )
+    assert calls == [
+        {
+            "from": "2026-10-10",
+            "to": "2026-10-11",
+            "indicator": "Physical Flow",
+        }
+    ]
+    detail = report["sources"]["ENTSOG"]
+    assert "point_direction" not in detail and "point_directions" not in detail
+
+
+def test_reference_queries_never_receive_observation_point_scope(monkeypatch):
+    _archive(monkeypatch)
+    calls = []
+
+    def fetch(client, dataset, **kwargs):
+        calls.append((dataset, kwargs["filters"]))
+        rows = [connectionpoint()] if dataset == "connectionpoints" else [operatorpoint()]
+        return query_result(dataset, rows, complete=True)
+
+    monkeypatch.setattr(script, "fetch_entsog_dataset", fetch)
+    monkeypatch.setattr(
+        script,
+        "persist_entsog_reference",
+        lambda *args, **kwargs: {"records": 2, "replaced": 2, "skipped_tables": []},
+    )
+    report = {"sources": {}, "warnings": [], "failures": []}
+    script._ingest_entsog_source(
+        None,
+        _session(),
+        route="entsog-reference",
+        args=_args(),
+        started=RECEIPT,
+        report=report,
+        point_directions=("de-tso-0009itp-00126entry",),
+    )
+    assert calls == [
+        ("connectionpoints", {"extended": "1"}),
+        ("operatorpointdirections", {"hasData": "1"}),
+    ]
+    detail = report["sources"]["ENTSOG-reference"]
+    assert "point_direction" not in detail and "point_directions" not in detail
+
+
+def test_point_direction_validation_lowercases_deduplicates_and_sorts():
+    result = script._validate_entsog_point_directions(
+        [
+            "DE-TSO-0009ITP-00126ENTRY, de-tso-0009itp-00126exit",
+            "de-tso-0009itp-00126entry",
+            "AT-TSO-0001ITP-00002EXIT",
+        ]
+    )
+    assert result == (
+        "at-tso-0001itp-00002exit",
+        "de-tso-0009itp-00126entry",
+        "de-tso-0009itp-00126exit",
+    )
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        [""],
+        ["   "],
+        ["de-tso-0009itp-00126"],
+        ["http://example.invalid/de-tso-0009itp-00126entry"],
+        ["de-tso-0009itp-00126entry\x01"],
+        ["dé-tso-0009itp-00126entry"],
+        [",".join(f"de-tso-{index:04d}itp-00126entry" for index in range(65))],
+        ["a" * 8188 + "entry"],
+    ],
+)
+def test_point_direction_validation_refuses_invalid_scope(values):
+    with pytest.raises(ValueError):
+        script._validate_entsog_point_directions(values)
+
+
+def test_invalid_scope_is_refused_before_database_resolution(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["ingest_public_sources.py", "--entsog-point-direction", "not-a-direction"],
+    )
+    monkeypatch.setattr(
+        script,
+        "resolve_database_url",
+        lambda: pytest.fail("Database resolution happened before scope validation"),
+    )
+    with pytest.raises(SystemExit) as exit_info:
+        script.main()
+    assert exit_info.value.code == 2

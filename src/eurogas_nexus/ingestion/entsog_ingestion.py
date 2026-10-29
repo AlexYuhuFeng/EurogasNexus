@@ -128,7 +128,10 @@ def persist_entsog_observations(
     for result, pages in zip(results, archived, strict=True):
         query_rows = []
         for page, archive_id in pages:
-            normalized = normalizer(page.payload, observed_at_utc=page.received_at_utc)
+            normalized = normalizer(
+                page.numeric_lexeme_payload,
+                observed_at_utc=page.received_at_utc,
+            )
             query_rows.extend(_stamp_page_rows(normalized, page, archive_id, result, run_id))
         if not query_rows:
             raise EntsogEmptyNormalizationError("ENTSOG query produced no canonical observations.")

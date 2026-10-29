@@ -118,6 +118,11 @@ def test_real_insert_and_unchanged_poll_preserve_whole_row_and_separate_raw_arch
         assert len(archives) == 2
         stored = snapshot[0]
         assert stored["observed_at_utc"] == RECEIPT
+        volume_field = "flow_mcm_d" if model is FlowObservationRecord else "capacity_mcm_d"
+        assert stored[volume_field] is None
+        assert stored["normalizer_version"] == "entsog-native-units-v1"
+        assert stored["native_rate_json"]["energy_kwh_per_day"] == "10500000"
+        assert stored["native_rate_json"]["volume_mcm_per_day"] is None
         metadata = stored["metadata_json"]
         exact = next(a for a in archives if a["archive_id"] == metadata["archive_id"])
         assert exact["received_at_utc"] == RECEIPT

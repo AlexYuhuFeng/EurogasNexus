@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
+from eurogas_nexus.application.physical_native_rates import row_volume_admissible
 from eurogas_nexus.db.session import resolve_database_url
 from eurogas_nexus.security.identity import (
     AuthenticatedPrincipal,
@@ -42,6 +43,16 @@ def principal_from_context(context) -> AuthenticatedPrincipal:
 
 def entitled(context, source_system: str) -> bool:
     return principal_allows_source_family(principal_from_context(context), source_system)
+
+
+def _volume_admissible(row, volume_field: str) -> bool:
+    """Fail closed on legacy ENTSOG and native energy.
+
+    Malformed native rows propagate the safe typed refusal instead of becoming
+    an empty reading.
+    """
+
+    return row_volume_admissible(row, volume_field=volume_field)
 
 
 def market_rows(
@@ -116,22 +127,26 @@ def flow_rows(session, *, point_id: str | None = None, limit: int = 200) -> list
     query = query.order_by(FlowObservationRecord.observed_at_utc.desc()).limit(
         max(1, min(limit, 500))
     )
-    return [
-        {
-            "observation_id": row.observation_id,
-            "point_id": row.point_id,
-            "point_name": row.point_name,
-            "direction": row.direction,
-            "kind": row.kind,
-            "flow_mcm_d": row.flow_mcm_d,
-            "period_start": row.period_start_utc.isoformat(),
-            "period_end": row.period_end_utc.isoformat(),
-            "observed_at": row.observed_at_utc.isoformat(),
-            "source_system": row.source_system,
-            "source_reference": row.source_reference,
-        }
-        for row in query.all()
-    ]
+    rows = []
+    for row in query.all():
+        if not _volume_admissible(row, "flow_mcm_d"):
+            continue
+        rows.append(
+            {
+                "observation_id": row.observation_id,
+                "point_id": row.point_id,
+                "point_name": row.point_name,
+                "direction": row.direction,
+                "kind": row.kind,
+                "flow_mcm_d": row.flow_mcm_d,
+                "period_start": row.period_start_utc.isoformat(),
+                "period_end": row.period_end_utc.isoformat(),
+                "observed_at": row.observed_at_utc.isoformat(),
+                "source_system": row.source_system,
+                "source_reference": row.source_reference,
+            }
+        )
+    return rows
 
 
 def capacity_rows(
@@ -145,22 +160,26 @@ def capacity_rows(
     query = query.order_by(CapacityObservationRecord.observed_at_utc.desc()).limit(
         max(1, min(limit, 500))
     )
-    return [
-        {
-            "observation_id": row.observation_id,
-            "point_id": row.point_id,
-            "point_name": row.point_name,
-            "direction": row.direction,
-            "capacity_type": row.capacity_type,
-            "capacity_mcm_d": row.capacity_mcm_d,
-            "period_start": row.period_start_utc.isoformat(),
-            "period_end": row.period_end_utc.isoformat(),
-            "observed_at": row.observed_at_utc.isoformat(),
-            "source_system": row.source_system,
-            "source_reference": row.source_reference,
-        }
-        for row in query.all()
-    ]
+    rows = []
+    for row in query.all():
+        if not _volume_admissible(row, "capacity_mcm_d"):
+            continue
+        rows.append(
+            {
+                "observation_id": row.observation_id,
+                "point_id": row.point_id,
+                "point_name": row.point_name,
+                "direction": row.direction,
+                "capacity_type": row.capacity_type,
+                "capacity_mcm_d": row.capacity_mcm_d,
+                "period_start": row.period_start_utc.isoformat(),
+                "period_end": row.period_end_utc.isoformat(),
+                "observed_at": row.observed_at_utc.isoformat(),
+                "source_system": row.source_system,
+                "source_reference": row.source_reference,
+            }
+        )
+    return rows
 
 
 def resource_rows(session, *, resource_id: str | None = None) -> list[dict[str, Any]]:

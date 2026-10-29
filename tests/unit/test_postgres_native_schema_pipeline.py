@@ -17,6 +17,7 @@ POSTGRES_URL_BINDING = 'EUROGAS_NEXUS_TEST_POSTGRES_URL="$RUNTIME_STORE_DATABASE
 NATIVE_SCHEMA_MODULES = (
     "tests/db/test_demand_rest_schema.py",
     "tests/db/test_entsog_native_rate_schema.py",
+    "tests/integration/test_entsog_bounded_persistence_postgres.py",
 )
 EXISTING_PATHS = (
     "tests/integration/test_postgres_backed_smoke.py",

@@ -31,6 +31,10 @@ from eurogas_nexus.ingestion.public_sources import (
 
 ENTSOG = contract_for("ENTSOG", "operationaldatas")
 
+# A deterministic, synthetic response receipt for direct-normalizer fixtures. It is the
+# test's own clock value, not a claim about when historical provider data was published.
+_ENTSOG_FIXTURE_RECEIPT = datetime(2026, 10, 9, 22, 45, tzinfo=UTC)
+
 
 def _record(**overrides: str) -> dict[str, str]:
     record = {
@@ -184,31 +188,44 @@ def test_the_entsog_normalizers_agree_about_a_naive_gas_day() -> None:
         ]
     }
 
-    flow_rows = entsog_flow_observations_from_json(payload)
-    capacity_rows = entsog_capacity_observations_from_json(payload)
+    flow_rows = entsog_flow_observations_from_json(
+        payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
+    )
+    capacity_rows = entsog_capacity_observations_from_json(
+        payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
+    )
 
     assert flow_rows[0]["period_start_utc"] == datetime(2026, 1, 15, 5, 0, tzinfo=UTC)
     assert capacity_rows[0]["period_start_utc"] == datetime(2026, 1, 15, 5, 0, tzinfo=UTC)
     assert flow_rows[0]["period_end_utc"] == datetime(2026, 1, 16, 5, 0, tzinfo=UTC)
     assert capacity_rows[0]["period_end_utc"] == datetime(2026, 1, 16, 5, 0, tzinfo=UTC)
+    assert flow_rows[0]["flow_mcm_d"] is None
+    assert capacity_rows[0]["capacity_mcm_d"] is None
 
 
 def test_the_entsog_normalizers_refuse_a_payload_in_an_unsupported_zone() -> None:
     payload = {"timeZone": "WET", "operationaldatas": [_record()]}
 
+    # The valid receipt clears the native adapter's receipt gate so the timezone refusal is
+    # the condition actually reached and asserted here.
     with pytest.raises(SourceTimezoneError) as flow_refusal:
-        entsog_flow_observations_from_json(payload)
+        entsog_flow_observations_from_json(
+            payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
+        )
     assert flow_refusal.value.code == "unsupported_source_timezone"
 
     with pytest.raises(SourceTimezoneError) as capacity_refusal:
-        entsog_capacity_observations_from_json(payload)
+        entsog_capacity_observations_from_json(
+            payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
+        )
     assert capacity_refusal.value.code == "unsupported_source_timezone"
 
     # A payload that declares UTC is read as UTC, including for a naive value.
     utc_payload = {"timeZone": "UTC", "operationaldatas": [_record()]}
-    assert entsog_flow_observations_from_json(utc_payload)[0]["period_start_utc"] == datetime(
-        2026, 1, 15, 6, 0, tzinfo=UTC
+    utc_rows = entsog_flow_observations_from_json(
+        utc_payload, observed_at_utc=_ENTSOG_FIXTURE_RECEIPT
     )
+    assert utc_rows[0]["period_start_utc"] == datetime(2026, 1, 15, 6, 0, tzinfo=UTC)
 
 
 def test_a_gie_row_with_a_naive_freshness_stamp_is_refused() -> None:

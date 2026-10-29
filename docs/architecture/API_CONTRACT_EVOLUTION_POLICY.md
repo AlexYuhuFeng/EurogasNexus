@@ -306,3 +306,42 @@ Bridge or domain violations of the declared bindings, weights, calendar or
 coverage policy are refused as `422 invalid_degree_day_inputs`; request-schema
 violations use the platform's standard `422` validation response. Neither form
 computes a value.
+
+
+## 2026-10-29 native physical-rate representation (RFC0005)
+
+`GET /api/physical/flows` and `GET /api/physical/capacity` add an explicit
+`quantity_basis=native` representation. Default `quantity_basis=volume` keeps the
+existing numeric, non-null volume DTOs and returns all admitted rows; the new
+`limit` applies only to native mode. Legacy ENTSOG volumes from unverified
+normalization are withheld with a warning rather than rewritten, zero-filled or
+offered as physical truth. A valid native energy rate has no volume and is served
+only in native mode. An empty volume result does not mean zero physical flow.
+Other sources retain their finite volume contract.
+
+Native mode accepts `limit`1..2000 (default200) and an optional exact `point_id`
+(up to128characters). A query exceeding the native bound answers400
+`native_query_overflow`, without silently truncating the result. Authentication,
+route permission, commercial access and source entitlement remain authoritative;
+row filtering precedes projection and metadata. Invalid stored native content
+answers503 `native_rate_invalid` with a fixed message, not raw values or SQL.
+The source-format/normalizer namespace is separate from provider revision history.
+
+Native rows carry the existing point/source/period identities plus
+`quantity_basis`, `normalizer_version`, `operator_key` (nullable),
+`native_rate_json`, `raw_archive_id`, `payload_sha256` and `received_at_utc`.
+`flow_status` and `period_type` preserve captured provider labels when available;
+they do not infer finality or physical authority. The
+native payload preserves original `value_text`/`unit_text`, exact decimal strings
+for native and canonical rates, declared dimension and hourly/daily rate basis.
+Energy exposes `energy_kwh_per_day` and null volume; volume exposes
+`volume_mcm_per_day` and null energy. The backend revalidates the payload from its
+source strings. No assumed calorific conversion exists. Timestamps remain
+explicit instants; missing provenance is not replaced with a clock default.
+
+The SDK adds separate typed native methods in `native_physical`; existing
+`physical` methods remain volume-only. Clients must not pair different operators,
+points, directions, dimensions or incompatible periods, nor interpret absent
+quantities as zero. Native rows do not prove booked capacity or execution rights.
+See [RFC0005](../engineering/RFC-0005-ENTSOG-NATIVE-RATES.md). No path or operation
+was added: the exact census stays191paths/205operations.

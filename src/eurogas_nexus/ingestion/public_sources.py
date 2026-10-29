@@ -21,8 +21,6 @@ from eurogas_nexus.domain.ingestion.source_timezone import (
 )
 from eurogas_nexus.domain.market.gas_day import EU_CAM_UTC_CALENDAR
 
-KWH_PER_MCM = 10_550_000.0
-
 
 def entsog_reference_nodes_from_connectionpoints(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Normalize ENTSOG connection points into DB reference-node rows.
@@ -344,85 +342,43 @@ def ecb_fx_observations_from_xml(
     return rows
 
 
+def _entsog_native_time_context(payload: dict[str, Any]) -> tuple[Any, Any]:
+    """The ENTSOG timezone declaration shared by the native flow/capacity adapters."""
+
+    contract = contract_for("ENTSOG", "operationaldatas")
+    return contract, resolve_payload_zone(contract, payload)
+
+
+def _entsog_native_parse_instant(
+    value: object,
+    *,
+    contract: Any,
+    zone: Any,
+) -> datetime | None:
+    """Read one ENTSOG provider instant without guessing an unproven zone."""
+
+    return parse_source_instant(value, contract=contract, zone=zone)
+
+
 def entsog_flow_observations_from_json(
     payload: dict[str, Any],
     *,
     observed_at_utc: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Normalize ENTSOG operational data JSON into flow observation rows.
+    """Delegate ENTSOG flow normalization to the RFC0005 native adapter.
 
-    Period instants are read through the ENTSOG timezone declaration
-    (:mod:`eurogas_nexus.domain.ingestion.source_timezone`, item M1-P0): an offset in the
-    payload is trusted, a value without one is read on the Central European clock the gas-day
-    calendar uses, and a payload that declares a zone the contract does not support is refused
-    whole rather than read as UTC.
+    The native representation is additive: its deterministic namespace is distinct from the
+    legacy ``entsog-flow-<record>`` rows, so old rows are never rewritten or backfilled.
     """
 
-    if observed_at_utc is not None and observed_at_utc.utcoffset() is None:
-        raise ValueError("ENTSOG receipt must be timezone-aware.")
-    receipt = observed_at_utc.astimezone(UTC) if observed_at_utc is not None else None
-    contract = contract_for("ENTSOG", "operationaldatas")
-    zone = resolve_payload_zone(contract, payload)
-    records = _extract_records(payload, "operationaldatas")
-    rows: list[dict[str, Any]] = []
-    for record in records:
-        indicator = str(record.get("indicator") or "physical flow").strip()
-        if not _is_entsog_physical_flow_indicator(indicator):
-            continue
-        record_id = str(record.get("id") or "").strip()
-        value = _to_float(record.get("value"))
-        if not record_id or value is None:
-            continue
-        period_start = parse_source_instant(record.get("periodFrom"), contract=contract, zone=zone)
-        period_end = parse_source_instant(record.get("periodTo"), contract=contract, zone=zone)
-        if period_start is None or period_end is None:
-            continue
-        unit = str(record.get("unit") or "").lower()
-        flow_mcm_d = value / KWH_PER_MCM if unit in {"kwh/d", "kwh/day"} else value
-        safe_id = _safe_observation_suffix(record_id, max_length=52)
-        rows.append(
-            {
-                "observation_id": f"entsog-flow-{safe_id}",
-                "point_id": str(record.get("pointKey") or record.get("pointLabel") or record_id),
-                "point_name": str(record.get("pointLabel") or record.get("pointKey") or record_id),
-                "direction": str(record.get("directionKey") or "unknown").lower()[:8],
-                "flow_mcm_d": round(flow_mcm_d, 6),
-                "original_value": value,
-                "original_unit": unit or None,
-                "period_start_utc": period_start,
-                "period_end_utc": period_end,
-                "observed_at_utc": receipt
-                or parse_source_instant(
-                    record.get("lastUpdateDateTime"), contract=contract, zone=zone
-                )
-                or datetime.now(UTC),
-                "source_system": "ENTSOG",
-                "source_reference": "entsog-operationaldatas",
-                "source_record_id": record_id,
-                "freshness": "live",
-                "research_only": True,
-                "metadata_json": {
-                    **_metadata_subset(
-                        record,
-                        [
-                            "id",
-                            "pointKey",
-                            "pointLabel",
-                            "operatorKey",
-                            "operatorLabel",
-                            "tsoEicCode",
-                            "directionKey",
-                            "indicator",
-                            "unit",
-                            "periodType",
-                            "lastUpdateDateTime",
-                        ],
-                    ),
-                    **({"availability_basis": "response_receipt"} if receipt else {}),
-                },
-            }
-        )
-    return rows
+    from eurogas_nexus.ingestion.entsog_native_observations import (
+        native_entsog_flow_observations_from_json,
+    )
+
+    return native_entsog_flow_observations_from_json(
+        payload,
+        observed_at_utc=observed_at_utc,
+    )
 
 
 def entsog_capacity_observations_from_json(
@@ -430,79 +386,16 @@ def entsog_capacity_observations_from_json(
     *,
     observed_at_utc: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Normalize ENTSOG operational data JSON into capacity observation rows.
+    """Delegate ENTSOG capacity normalization to the RFC0005 native adapter."""
 
-    Periods are read through the same ENTSOG timezone declaration as the flow normalizer, so a
-    capacity row and a flow row covering one gas day cannot disagree about which hour it started.
-    """
+    from eurogas_nexus.ingestion.entsog_native_observations import (
+        native_entsog_capacity_observations_from_json,
+    )
 
-    if observed_at_utc is not None and observed_at_utc.utcoffset() is None:
-        raise ValueError("ENTSOG receipt must be timezone-aware.")
-    receipt = observed_at_utc.astimezone(UTC) if observed_at_utc is not None else None
-    contract = contract_for("ENTSOG", "operationaldatas")
-    zone = resolve_payload_zone(contract, payload)
-    records = _extract_records(payload, "operationaldatas")
-    rows: list[dict[str, Any]] = []
-    for record in records:
-        record_id = str(record.get("id") or "").strip()
-        value = _to_float(record.get("value"))
-        if not record_id or value is None:
-            continue
-        period_start = parse_source_instant(record.get("periodFrom"), contract=contract, zone=zone)
-        period_end = parse_source_instant(record.get("periodTo"), contract=contract, zone=zone)
-        if period_start is None or period_end is None:
-            continue
-        indicator = str(record.get("indicator") or "capacity").strip()
-        capacity_type = _capacity_indicator_type(indicator)
-        if capacity_type is None:
-            continue
-        unit = str(record.get("unit") or "").lower()
-        capacity_mcm_d = value / KWH_PER_MCM if unit in {"kwh/d", "kwh/day"} else value
-        safe_id = _safe_observation_suffix(record_id, max_length=52)
-        rows.append(
-            {
-                "observation_id": f"entsog-capacity-{safe_id}",
-                "point_id": str(record.get("pointKey") or record.get("pointLabel") or record_id),
-                "point_name": str(record.get("pointLabel") or record.get("pointKey") or record_id),
-                "direction": str(record.get("directionKey") or "unknown").lower()[:8],
-                "capacity_type": capacity_type,
-                "capacity_mcm_d": round(capacity_mcm_d, 6),
-                "original_value": value,
-                "original_unit": unit or None,
-                "period_start_utc": period_start,
-                "period_end_utc": period_end,
-                "observed_at_utc": receipt
-                or parse_source_instant(
-                    record.get("lastUpdateDateTime"), contract=contract, zone=zone
-                )
-                or datetime.now(UTC),
-                "source_system": "ENTSOG",
-                "source_reference": "entsog-operationaldatas",
-                "source_record_id": record_id,
-                "freshness": "live",
-                "research_only": True,
-                "metadata_json": {
-                    **_metadata_subset(
-                        record,
-                        [
-                            "id",
-                            "pointKey",
-                            "pointLabel",
-                            "operatorKey",
-                            "operatorLabel",
-                            "tsoEicCode",
-                            "directionKey",
-                            "indicator",
-                            "unit",
-                            "periodType",
-                            "lastUpdateDateTime",
-                        ],
-                    ),
-                    **({"availability_basis": "response_receipt"} if receipt else {}),
-                },
-            }
-        )
-    return rows
+    return native_entsog_capacity_observations_from_json(
+        payload,
+        observed_at_utc=observed_at_utc,
+    )
 
 
 def gie_storage_observations_from_json(

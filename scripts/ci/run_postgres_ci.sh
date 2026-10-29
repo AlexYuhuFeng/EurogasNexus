@@ -64,4 +64,5 @@ python -m pytest -q \
   tests/integration/test_contract_revision_capture_postgres.py \
   tests/integration/test_contract_payment_terms_acceptance_postgres.py \
   tests/db/test_demand_rest_schema.py \
-  tests/db/test_entsog_native_rate_schema.py
+  tests/db/test_entsog_native_rate_schema.py \
+  tests/integration/test_entsog_bounded_persistence_postgres.py

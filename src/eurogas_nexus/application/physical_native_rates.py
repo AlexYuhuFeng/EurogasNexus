@@ -272,6 +272,9 @@ def project_native_rate_row(
                 row, _row_attr(row, "observed_at_utc"), metadata, "observed_at_utc"
             ),
             "source_system": "ENTSOG",
+            "operator_key": _optional_text(metadata, "operatorKey"),
+            "flow_status": _optional_text(metadata, "flowStatus"),
+            "period_type": _optional_text(metadata, "periodType"),
             "source_reference": _row_attr(row, "source_reference"),
             "research_only": _row_attr(row, "research_only"),
             "quantity_basis": "native",
