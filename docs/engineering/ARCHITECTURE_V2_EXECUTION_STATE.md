@@ -1,5 +1,34 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — governed weather API/SDK and shared client evidence panel
+
+Pushed weather GET forecast reads and POST caller-weighted degree-day computation,
+typed SDK requests/responses and the shared Web/desktop Source Center forecast
+evidence panel. Both routes retain identity, commercial entitlement, persisted
+provider certification and row filtering. Point-in-time issue/receipt selection,
+explicit region weights and coverage remain mandatory; no source is automatically
+activated. Missing daily coverage is null, not zero. This is staged integration,
+not completion of the regional demand or portfolio consumer vertical.
+
+Root validated six focused panel tests and the full Web suite:1005 passed,
+three skipped. Production build passed with existing bundle warnings. The first
+panel harness failed to intercept Vite-resolved API aliases; corrected and rerun
+without weakening stale-response/abort/unmount/empty-state assertions. HDD/CDD
+SDK plus reachability tests passed13; API stability/architecture/reachability
+checks passed17 after registering both additive paths in the exact contract.
+Full Python regression is running; no fresh all-green CI claim yet. Pushed
+checkpoint f36983a includes the declarations; ec40aae includes the panel,
+bb2ee4f the degree-day SDK. Older 1ee800b CI failed on missing declarations and
+reachability, including nested security evidence. Those causes were reproduced
+and corrected; a new same-SHA hosted result must prove closure.
+
+DeepSeek is implementing a bounded operator ECMWF capture/archive/append CLI;
+it is not yet accepted or tested. Optional decoder/numerical dependency delivery,
+real regional weighting/history/OOS model evidence, forecast-to-demand-to-business
+consumers, ENTSOG native-unit correction, public price integration, snapshot replay
+and authenticated customer UAT remain open. Isolated NumPy/ecCodes probes do not
+establish delivered runtime dependencies or redistribution clearance.
+
 ## 2026-10-29 — REST demand persistence verified, consumer integration pending
 
 Current pushed implementation checkpoint919a0a3 includes keyless National Gas
