@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool, StrictStr
 
 from eurogas_nexus_sdk._transport import SdkResult, api_url, get_envelope
 
@@ -19,7 +19,10 @@ class MarketObservation(BaseModel):
         currency: ISO currency code of ``price``.
         period_start_utc: Delivery/valuation period start (ISO 8601).
         period_end_utc: Delivery/valuation period end (ISO 8601).
-        observed_at_utc: Publication time of the price; None when unknown.
+        observed_at_utc: Observation instant recorded by the backend; its basis
+            (for example publication time or response receipt) is declared in
+            ``metadata_json`` rather than assumed to be publication time. None
+            when unknown.
         source_system: Originating system name; None when unknown.
         source_reference: External reference for the source record.
         source_record_id: Identifier of the record in the source system.
@@ -251,20 +254,52 @@ class NormalizedMarketObservation(BaseModel):
         currency: ISO currency code of ``price``.
         period_start_utc: Delivery/valuation period start (ISO 8601).
         period_end_utc: Delivery/valuation period end (ISO 8601).
-        observed_at_utc: Publication time of the price; None when unknown.
+        observed_at_utc: Observation instant recorded by the backend; its basis
+            (for example publication time or response receipt) is declared in
+            ``metadata_json`` rather than assumed to be publication time. None
+            when unknown.
         source_system: Originating system name; None when unknown.
         source_reference: External reference for the source record.
         source_record_id: Identifier of the record in the source system.
         freshness: Source-certified freshness status; None when not assessed.
         quality_score: Data quality score in [0, 1]; None when not assessed.
         research_only: Whether the observation is restricted to research use.
-        metadata_json: Free-form metadata carried from the source payload.
+        metadata_json: Free-form metadata carried from the source payload,
+            including any declared observation-time/publication basis and
+            receipt availability.
         hub: Canonical hub the observation is mapped to.
         tenor: Canonical delivery tenor (e.g., day-ahead).
         is_gas_price: Whether the observation is a gas price rather than
             another product type.
         price_gbp_mwh: Price converted to GBP per MWh; None when conversion
             is not available.
+        price_gbp_mwh_exact: Exact GBP/MWh decimal text only when the backend
+            performed no approximate FX conversion; None for a float-FX
+            approximation or an unavailable conversion.
+        price_gbp_mwh_provenance: Backend description of how ``price_gbp_mwh``
+            was derived; a float-FX conversion is explicitly approximate.
+        price_name: Backend canonical price name, or the source-declared
+            ``price_name`` when present.
+        source_price_status: Backend exact-source status (``exact``,
+            ``legacy_float``, ``missing`` or ``invalid``).
+        source_price_exact: Exact source price decimal text, verbatim.
+        source_price_raw: Raw source price text, verbatim.
+        source_price_volume_mwh_exact: Exact source volume decimal text,
+            verbatim.
+        source_price_volume_raw: Raw source volume text, verbatim.
+        source_price_volume_status: Backend volume-evidence status.
+        source_price_provenance: Backend source-price provenance description.
+        source_price_issue: Stable backend refusal/missing code, or None.
+        source_price_issue_detail: Backend refusal/missing detail, or None.
+        source_price_source_system: Source system checked by the backend.
+        source_price_source_reference: Source reference checked by the backend.
+        source_price_source_dataset: Source dataset checked by the backend.
+        price_float_provenance: How the canonical float relates to the exact
+            source decimal or legacy float path.
+        price_semantics: Backend source semantics (for example, a reference
+            index rather than an executable quote).
+        executable_quote: Whether the source value is executable; None when
+            the backend did not classify it.
     """
 
     observation_id: str
@@ -287,6 +322,24 @@ class NormalizedMarketObservation(BaseModel):
     tenor: str
     is_gas_price: bool
     price_gbp_mwh: float | None = None
+    price_gbp_mwh_exact: StrictStr | None = None
+    price_gbp_mwh_provenance: str | None = None
+    price_name: str | None = None
+    source_price_status: str | None = None
+    source_price_exact: StrictStr | None = None
+    source_price_raw: StrictStr | None = None
+    source_price_volume_mwh_exact: StrictStr | None = None
+    source_price_volume_raw: StrictStr | None = None
+    source_price_volume_status: str | None = None
+    source_price_provenance: str | None = None
+    source_price_issue: str | None = None
+    source_price_issue_detail: str | None = None
+    source_price_source_system: str | None = None
+    source_price_source_reference: str | None = None
+    source_price_source_dataset: str | None = None
+    price_float_provenance: str | None = None
+    price_semantics: str | None = None
+    executable_quote: StrictBool | None = None
 
 
 def fetch_market_observations(base_url: str) -> list[MarketObservation]:

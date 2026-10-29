@@ -1,5 +1,25 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — exact market evidence reaches the typed SDK
+
+The existing normalized market backend already emitted exact source-price,
+volume, provenance/refusal and conversion-basis fields. The SDK silently dropped
+them. Its normalized DTO now declares those actual producer names, with strict
+string evidence fields and a strict nullable executable flag; older responses
+without them retain optional defaults. Conversion strings retain their declared
+float-FX approximation basis. Observation timestamps are documented by their
+metadata basis rather than unconditionally called publication times.
+
+Actual-producer/model and ASGI-to-SDK contracts6passed. Root fixed the new test's
+isolated in-memory connection across the ASGI thread and closed test resources;
+this fixture is auxiliary, not PostgreSQL acceptance. Real owned PostgreSQL
+rows then traversed an ephemeral actual HTTP server to source SDK:4raw/4normalized
+EEX rows retained exact strings, null publication time, receipt basis and full
+meta; anonymous access401, server stopped. No installed-wheel or production
+certification claim follows. Gated operator CLI and shared reference-index view
+are in progress separately and are excluded from this checkpoint.
+
+
 ## 2026-10-29 — actual EEX captures append/replay in PostgreSQL
 
 RFC0006 stageB persists exact official bounded UTF8 bytes through the shared raw
