@@ -1,3 +1,28 @@
+## 2026-10-30 — explicit REST target ordering reaches runtime/operator
+
+Reviewed DeepSeek implementation forwards optional target_revision_order_policy
+through the read-only runtime and strict operator request. Default remains
+DERIVED_RECEIPT_ORDER; REST applicability opt-in is rejected for CSV or unknown
+policy before repository reads. Request hashes include the nondefault policy;
+root compared both default CSV and REST hashes against the committed legacy
+implementation and confirmed exact equality. Operator evidence distinguishes
+actual receipt availability from source applicability ranking. No rows, source
+permissions, public SDK command, schema or customer dependency changed.
+
+Root Linux Python 3.11.12 / approved isolated NumPy 2.3.5 verification: 53 tests
+passed across runtime, operator and archive evidence modules, zero skipped;
+focused Ruff passed. Actual read-only two-database probe retained source counts
+3 ECMWF / 17 National Gas rows. For the requested date window, four target
+revisions were admitted without receipt-tie ambiguity, two weather observations
+were read, zero feature days or training pairs qualified. Result correctly
+INSUFFICIENT_REAL_HISTORY with no model. This is integration/refusal evidence,
+not a real-data fitted model, national weighting or forecast accuracy claim.
+
+Latest remote CI at 635b6cc and 8301b27 both succeeded. Scientific CI and archive
+S1 helper remain under review, uncommitted. Archive conditional index GET returned
+HTTP 503 repeatedly at the official historical AWS URL; no successful S1 actual
+capture is claimed. Continue science gate review, bounded archive capture and
+regional history/model business consumption. Full delivery goal remains active.
 # Architecture V2 Execution State
 
 ## 2026-10-30 — actual demand revisions ordered by an explicit source policy

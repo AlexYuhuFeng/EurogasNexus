@@ -10,15 +10,20 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import math
 from dataclasses import replace
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
 
 from eurogas_nexus.application.research import weather_demand_runtime as runtime
+from eurogas_nexus.application.research.demand_target_inputs import (
+    DemandTargetAmbiguityError,
+    RevisionOrderPolicy,
+)
 from eurogas_nexus.application.research.weather_demand_inputs import (
     ForecastInstantRow,
     ForecastPointBinding,
@@ -36,6 +41,7 @@ from eurogas_nexus.application.research.weather_demand_runtime import (
     WeatherDemandRuntimeValidationError,
     run_weather_demand_runtime,
 )
+from eurogas_nexus.db.repositories.demand_rest import _to_record
 from eurogas_nexus.domain.market.gas_day import (
     DEFAULT_GAS_DAY_CALENDAR,
     gas_day_start_for_date,
@@ -54,6 +60,10 @@ from eurogas_nexus.domain.research.weather_demand import (
     PromotionStatus,
     RegionLocationWeight,
     ValidationBasis,
+)
+from eurogas_nexus.ingestion.national_gas_rest import (
+    D1_PUBLICATION_ID,
+    parse_national_gas_rest,
 )
 
 PROVIDER_ITEM = "PUBOB637"
@@ -175,7 +185,11 @@ def _request(
     configs: tuple[WeatherDemandBridgeConfig, ...] | None = None,
     degree_policy: DegreeDayPolicy | None = None,
     point_bindings: tuple[ForecastPointBinding, ...] | None = None,
+    revision_order_policy: RevisionOrderPolicy | str | None = None,
 ) -> WeatherDemandRuntimeRequest:
+    policy_args: dict[str, object] = {}
+    if revision_order_policy is not None:
+        policy_args["target_revision_order_policy"] = revision_order_policy
     return WeatherDemandRuntimeRequest(
         model_policy=_model_policy(
             policy,
@@ -193,6 +207,7 @@ def _request(
         target_gas_day_to=days[-1],
         allow_provisional_targets=True,
         regional_weighting_evidence_ref=WEIGHT_EVIDENCE,
+        **policy_args,
     )
 
 
@@ -257,6 +272,51 @@ def _target_records(days: tuple[date, ...]) -> list[SimpleNamespace]:
         _target_record(day, _target_value(day), record_id=f"rec-{day.isoformat()}")
         for day in days
     ]
+
+
+REST_RECEIVED = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
+
+
+def _rest_row(*, gas_day: date, applicable_at: str, value: str) -> dict[str, object]:
+    """Build one synthetic source row whose provenance comes from the actual parser."""
+
+    return {
+        "applicableAt": applicable_at,
+        "applicableFor": gas_day.isoformat(),
+        "value": value,
+        "generatedTimeStamp": applicable_at,
+        "qualityIndicator": "",
+        "substituted": "N",
+        "createdDate": applicable_at,
+    }
+
+
+def _rest_records(
+    source_rows: list[dict[str, object]],
+    *,
+    date_from: date,
+    date_to: date,
+) -> list[object]:
+    """Parse synthetic REST text and persist it through the actual record mapper."""
+
+    payload = json.dumps(
+        [
+            {
+                "publicationId": D1_PUBLICATION_ID,
+                "publicationName": "Demand Actual, NTS, D+1",
+                "publications": source_rows,
+            }
+        ],
+        separators=(",", ":"),
+    ).encode("utf-8")
+    publications = parse_national_gas_rest(
+        payload,
+        date_from=date_from,
+        date_to=date_to,
+        received_at_utc=REST_RECEIVED,
+        publication_ids=[D1_PUBLICATION_ID],
+    )
+    return [_to_record(publication) for publication in publications]
 
 
 def _forecast_rows(
@@ -784,6 +844,230 @@ def test_target_source_format_window_cutoff_and_limit_are_explicit(
         "available_at_utc": validation,
         "limit": 1_000,
     }
+
+
+def test_request_hash_preserves_legacy_default_and_binds_opt_in_policy() -> None:
+    day = START
+    policy = _feature_policy()
+    cutoff = _day_start(day)
+    validation = _day_end(day)
+    implicit_default = _request(
+        policy,
+        (day,),
+        cutoff=cutoff,
+        validation=validation,
+    )
+    explicit_default = _request(
+        policy,
+        (day,),
+        cutoff=cutoff,
+        validation=validation,
+        revision_order_policy=RevisionOrderPolicy.DERIVED_RECEIPT_ORDER,
+    )
+    rest_default = _request(
+        policy,
+        (day,),
+        cutoff=cutoff,
+        validation=validation,
+        source_format="REST",
+    )
+    rest_explicit_default = _request(
+        policy,
+        (day,),
+        cutoff=cutoff,
+        validation=validation,
+        source_format="REST",
+        revision_order_policy=RevisionOrderPolicy.DERIVED_RECEIPT_ORDER,
+    )
+    rest_opt_in = _request(
+        policy,
+        (day,),
+        cutoff=cutoff,
+        validation=validation,
+        source_format="REST",
+        revision_order_policy=(
+            RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+        ),
+    )
+
+    assert implicit_default.request_hash == explicit_default.request_hash
+    assert rest_default.request_hash == rest_explicit_default.request_hash
+    assert rest_opt_in.request_hash != rest_default.request_hash
+    assert rest_opt_in.target_revision_order_policy is (
+        RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+    )
+
+
+def test_opt_in_policy_requires_rest_and_a_known_enum_before_any_read() -> None:
+    day = START
+    policy = _feature_policy()
+    cutoff = _day_start(day)
+    validation = _day_end(day)
+    opt_in = RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+
+    with pytest.raises(WeatherDemandRuntimeValidationError, match="REST"):
+        _request(
+            policy,
+            (day,),
+            cutoff=cutoff,
+            validation=validation,
+            source_format="CSV",
+            revision_order_policy=opt_in,
+        )
+    with pytest.raises(
+        WeatherDemandRuntimeValidationError,
+        match="supported revision-order policy",
+    ):
+        _request(
+            policy,
+            (day,),
+            cutoff=cutoff,
+            validation=validation,
+            revision_order_policy="UNKNOWN_POLICY",
+        )
+
+    request = _request(
+        policy,
+        (day,),
+        cutoff=cutoff,
+        validation=validation,
+        source_format="CSV",
+    )
+    object.__setattr__(request, "target_revision_order_policy", opt_in)
+    session = _FakeSession([])
+    with pytest.raises(WeatherDemandRuntimeValidationError, match="REST"):
+        run_weather_demand_runtime(session, request)
+    assert session.responses == []
+    _assert_no_writes(session)
+
+
+def test_default_runtime_still_refuses_same_receipt_rest_tie() -> None:
+    day = date(2026, 10, 21)
+    policy = _feature_policy()
+    records = _rest_records(
+        [
+            _rest_row(
+                gas_day=day,
+                applicable_at="2026-10-21T09:20:01+00:00",
+                value="100",
+            ),
+            _rest_row(
+                gas_day=day,
+                applicable_at="2026-10-21T11:20:01+00:00",
+                value="101",
+            ),
+        ],
+        date_from=day,
+        date_to=day,
+    )
+    session = _FakeSession([records])
+
+    with pytest.raises(DemandTargetAmbiguityError) as caught:
+        run_weather_demand_runtime(
+            session,
+            _request(
+                policy,
+                (day,),
+                cutoff=REST_RECEIVED,
+                validation=REST_RECEIVED + timedelta(days=1),
+                source_format="REST",
+            ),
+        )
+
+    assert caught.value.code == "AMBIGUOUS_RECEIPT_TIE"
+    assert session.responses == []
+    _assert_no_writes(session)
+
+
+def test_opt_in_runtime_keeps_all_revisions_and_forwards_source_clock_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    days = tuple(
+        date(2026, 10, 21) - timedelta(days=offset) for offset in range(7, -1, -1)
+    )
+    source_rows = [
+        _rest_row(
+            gas_day=days[0],
+            applicable_at=f"{days[0].isoformat()}T11:20:01+00:00",
+            value="101",
+        ),
+        _rest_row(
+            gas_day=days[0],
+            applicable_at=f"{days[0].isoformat()}T09:20:01+00:00",
+            value="100",
+        ),
+    ]
+    source_rows.extend(
+        _rest_row(
+            gas_day=day,
+            applicable_at=f"{day.isoformat()}T10:20:01+00:00",
+            value=str(200 + index),
+        )
+        for index, day in enumerate(days[1:])
+    )
+    targets = _rest_records(
+        source_rows,
+        date_from=days[0],
+        date_to=days[-1],
+    )
+    captured: dict[str, object] = {}
+
+    def fake_fit(targets_arg, features_arg, policy_arg):
+        captured["targets"] = targets_arg
+        captured["features"] = features_arg
+        captured["policy"] = policy_arg
+        raise MissingNumpyError()
+
+    monkeypatch.setattr(runtime, "fit_weather_demand_model", fake_fit)
+    monkeypatch.setattr(
+        runtime,
+        "project_forecast_observation_record",
+        lambda record: record,
+    )
+    session = _FakeSession(
+        [targets]
+        + [_forecast_rows(day, run_id=f"run-{day.isoformat()}") for day in days]
+    )
+    opt_in = RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+
+    result = run_weather_demand_runtime(
+        session,
+        _request(
+            _feature_policy(),
+            days,
+            cutoff=REST_RECEIVED + timedelta(days=1),
+            validation=REST_RECEIVED + timedelta(days=2),
+            source_format="REST",
+            revision_order_policy=opt_in,
+        ),
+    )
+
+    passed_targets = captured["targets"]
+    assert isinstance(passed_targets, tuple)
+    assert len(passed_targets) == len(targets) == 9
+    assert {row.revision_id for row in passed_targets} == {
+        row.record_id for row in targets
+    }
+    first_day = [row for row in passed_targets if row.gas_day == days[0]]
+    assert [row.revision for row in first_day] == [1, 2]
+    assert [row.value for row in first_day] == [100.0, 101.0]
+    assert all(row.available_at == REST_RECEIVED for row in passed_targets)
+    assert all(
+        row.source_ref.endswith(f":{opt_in.value}") for row in passed_targets
+    )
+    assert result.status is WeatherDemandRuntimeStatus.NUMPY_NOT_INSTALLED
+    assert result.model_result is None
+    assert result.target_revision_count == 9
+    assert result.target_distinct_gas_days == 8
+    assert result.evidence.target_revision_order_policy is opt_in
+    assert result.target_revision_order_policy is opt_in
+    assert result.target_availability_basis == "ACTUAL_RECEIPT_AVAILABLE_AT"
+    assert set(result.evidence.target_source_refs) == {
+        row.source_ref for row in passed_targets
+    }
+    assert result.research_only
+    assert result.production_promotion is PromotionStatus.NOT_PROMOTED
+    _assert_no_writes(session)
 
 
 def test_validation_rejects_synthetic_basis_region_source_and_unit_mismatches() -> None:

@@ -50,6 +50,7 @@ The root object requires `schema` with the exact value
 | `target_gas_day_from`, `target_gas_day_to` | Inclusive calendar-date window. |
 | `allow_provisional_targets` | Explicit bool; never defaulted. |
 | `regional_weighting_evidence_ref` | Operator-declared provenance reference; not a review or accuracy proof. |
+| `target_revision_order_policy` | Optional additive policy key: `DERIVED_RECEIPT_ORDER` (default) or `DERIVED_REST_APPLICABILITY_ORDER_V1` (explicit REST-only opt-in). |
 | `work_budget` | Optional existing query bounds: `target_read_limit`, `forecast_read_limit`. |
 
 The parser rejects, before any database session is opened:
@@ -62,11 +63,41 @@ The parser rejects, before any database session is opened:
 - booleans used as integer counts or work bounds;
 - invalid enum values, dates, decimals or negative/duplicate selection values;
 - `validation_basis: SYNTHETIC_NOT_REAL`;
+- an unknown revision-order policy, or the REST applicability-order opt-in with a
+  non-`REST` `source_format`;
 - request files above 1 MiB or non-UTF-8 files.
 
 Location weights are exact JSON **strings** parsed as `Decimal`, not binary
 floats. They must sum exactly to one and match the explicit point bindings. There
 is no default region, base, weight, timestamp, cutoff or minimum threshold.
+
+### Optional revision-order policy
+
+Omitting `target_revision_order_policy` preserves the existing
+`DERIVED_RECEIPT_ORDER` behaviour: admitted target revisions are ranked by their
+actual receipt availability within each gas day, and competing publications with
+the same receipt still refuse with `AMBIGUOUS_RECEIPT_TIE`.
+
+`DERIVED_REST_APPLICABILITY_ORDER_V1` is an explicit, non-default opt-in. It is
+valid only with `"source_format": "REST"`, and only when the persisted fixed
+National Gas REST identity and provenance are complete, the three offset-bearing
+provider clocks agree as one UTC instant, and that instant is not after actual
+receipt. It ranks revisions by that single provider applicability instant,
+independently of receipt order. It is **not** a provider revision number, first
+publication time, or historical-admission claim. Actual availability remains the
+receipt-based `available_at`; each model fold still filters by actual receipt.
+
+```json
+{
+  "source_format": "REST",
+  "target_revision_order_policy": "DERIVED_REST_APPLICABILITY_ORDER_V1"
+}
+```
+
+The request schema stays `weather-demand-operator-request/v1`: the key is
+additive and optional, so existing request files remain valid. A non-default
+policy is bound into the runtime request hash and target source lineage; the
+default policy is omitted from the hash so legacy hashes are unchanged.
 
 ## PostgreSQL and session guarantees
 
@@ -111,9 +142,12 @@ contains:
   diagnostics;
 - `source_evidence` with the immutable target revision/source IDs, forecast
   observation IDs, feature/degree-day source references, selected vintage IDs,
-  training cutoff, validation cutoff, validation basis and exact
+  training cutoff, validation cutoff, validation basis, the chosen
+  `target_revision_order_policy` next to `target_availability_basis`, and exact
   regional-weighting evidence reference/basis;
-- `source_basis` with the declared source item/format and weighting provenance;
+- `source_basis` with the declared source item/format, validation basis, chosen
+  `target_revision_order_policy`, `target_availability_basis` and weighting
+  provenance;
 - `missing_inputs` with stable diagnostic/omission codes and gas days only;
 - `model`, only for an actual `READY` result: selection status, selected model
   kind and use status, native unit, target scope/region/version, training-row
@@ -259,7 +293,8 @@ python -m pytest tests/unit/test_weather_demand_operator_cli.py -q
 
 The focused tests use synthetic request data and controlled session seams. They
 cover actual parser behavior, repeated request hashes, pre-database refusal,
-read-only SQL before the runtime, rollback/close without commit, PostgreSQL-only
+explicit/default revision-order policy compatibility, opt-in reporting, read-only
+SQL before the runtime, rollback/close without commit, PostgreSQL-only
 acceptance, typed ambiguity, non-ready exit `1`, and stable exit `2` failures
 without secret text or traceback. This command does not add a wheel/runtime
 allowlist, source activation, public route or delivery gate.

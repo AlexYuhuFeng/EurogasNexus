@@ -37,6 +37,7 @@ from eurogas_nexus.application.research.demand_target_inputs import (  # noqa: E
     SUPPORTED_SOURCE_FORMATS,
     DemandTargetAmbiguityError,
     DemandTargetDuplicateConflict,
+    RevisionOrderPolicy,
 )
 from eurogas_nexus.application.research.weather_demand_inputs import (  # noqa: E402
     ForecastBridgeAmbiguityError,
@@ -47,6 +48,7 @@ from eurogas_nexus.application.research.weather_demand_inputs import (  # noqa: 
 from eurogas_nexus.application.research.weather_demand_runtime import (  # noqa: E402
     MAX_BRIDGE_DAYS,
     RESEARCH_ONLY_LABEL,
+    TARGET_AVAILABILITY_BASIS,
     WeatherDemandRuntimeError,
     WeatherDemandRuntimeRequest,
     WeatherDemandRuntimeResult,
@@ -91,7 +93,7 @@ _ROOT_REQUIRED = frozenset(
         "regional_weighting_evidence_ref",
     }
 )
-_ROOT_OPTIONAL = frozenset({"work_budget"})
+_ROOT_OPTIONAL = frozenset({"work_budget", "target_revision_order_policy"})
 _MODEL_REQUIRED = frozenset(
     {
         "target_scope",
@@ -549,6 +551,23 @@ def _parse_request_payload(payload: object) -> WeatherDemandRuntimeRequest:
     if source_format not in SUPPORTED_SOURCE_FORMATS:
         raise _request_error("REQUEST_INVALID_VALUE", "source_format")
 
+    revision_policy_args: dict[str, RevisionOrderPolicy] = {}
+    if "target_revision_order_policy" in root:
+        requested_policy = _enum(
+            root["target_revision_order_policy"],
+            RevisionOrderPolicy,
+            "target_revision_order_policy",
+        )
+        if (
+            requested_policy
+            is RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+            and source_format != "REST"
+        ):
+            raise _request_error(
+                "REQUEST_INVALID_VALUE", "target_revision_order_policy"
+            )
+        revision_policy_args["target_revision_order_policy"] = requested_policy
+
     budget: dict[str, int] = {}
     if "work_budget" in root:
         raw_budget = _object(
@@ -583,6 +602,7 @@ def _parse_request_payload(payload: object) -> WeatherDemandRuntimeRequest:
                 "regional_weighting_evidence_ref",
             ),
             **budget,
+            **revision_policy_args,
         )
     except (TypeError, ValueError):
         raise _request_error("REQUEST_VALIDATION_FAILED", "request") from None
@@ -867,6 +887,13 @@ def _model_summary(result: WeatherDemandRuntimeResult) -> dict[str, object] | No
 
 def _result_summary(result: WeatherDemandRuntimeResult) -> dict[str, object]:
     evidence = result.evidence
+    revision_order_policy = RevisionOrderPolicy(
+        getattr(
+            evidence,
+            "target_revision_order_policy",
+            RevisionOrderPolicy.DERIVED_RECEIPT_ORDER,
+        )
+    )
     return {
         "schema": SUMMARY_SCHEMA,
         "status": result.status.value,
@@ -910,6 +937,8 @@ def _result_summary(result: WeatherDemandRuntimeResult) -> dict[str, object]:
             "training_cutoff": evidence.training_cutoff.isoformat(),
             "validation_as_of": evidence.validation_as_of.isoformat(),
             "validation_basis": evidence.validation_basis.value,
+            "target_availability_basis": TARGET_AVAILABILITY_BASIS,
+            "target_revision_order_policy": revision_order_policy.value,
             "regional_weighting_evidence_ref": (
                 evidence.regional_weighting_evidence_ref
             ),
@@ -921,6 +950,8 @@ def _result_summary(result: WeatherDemandRuntimeResult) -> dict[str, object]:
             "provider_item_id": result.provider_item_id,
             "source_format": result.source_format,
             "validation_basis": evidence.validation_basis.value,
+            "target_availability_basis": TARGET_AVAILABILITY_BASIS,
+            "target_revision_order_policy": revision_order_policy.value,
             "regional_weighting_evidence_ref": (
                 evidence.regional_weighting_evidence_ref
             ),

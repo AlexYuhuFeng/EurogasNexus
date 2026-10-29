@@ -47,6 +47,7 @@ from eurogas_nexus.application.research.demand_target_inputs import (
     SUPPORTED_SOURCE_FORMATS,
     TARGET_UNIT,
     DemandTargetInputs,
+    RevisionOrderPolicy,
     build_demand_target_rows,
 )
 from eurogas_nexus.application.research.weather_demand_inputs import (
@@ -91,6 +92,7 @@ RUNTIME_SCHEMA = "weather-demand-runtime/v1"
 MAX_BRIDGE_DAYS = 366
 RESEARCH_ONLY_LABEL = "RESEARCH_ONLY_UNVALIDATED_OOS"
 REGIONAL_WEIGHTING_EVIDENCE_BASIS = "CALLER_DECLARED_PROVENANCE_NOT_REVIEWED"
+TARGET_AVAILABILITY_BASIS = "ACTUAL_RECEIPT_AVAILABLE_AT"
 _TARGET_DATE_MIN = date(2000, 1, 1)
 _TARGET_DATE_MAX = date(2100, 12, 31)
 _NO_TRAINING_ROWS = "no training rows were available at training_cutoff"
@@ -142,6 +144,31 @@ class WeatherDemandOmissionReason(StrEnum):
     FORECAST_BRIDGE_MISSING = "FORECAST_BRIDGE_MISSING"
     DEGREE_DAY_INCOMPLETE = "DEGREE_DAY_INCOMPLETE"
     NO_FEATURE_ROW = "NO_FEATURE_ROW"
+
+
+def _resolve_target_revision_order_policy(
+    policy: object,
+    source_format: object,
+) -> RevisionOrderPolicy:
+    """Resolve the explicit revision-order policy and reject unsupported opt-ins."""
+
+    if isinstance(policy, RevisionOrderPolicy):
+        resolved = policy
+    else:
+        try:
+            resolved = RevisionOrderPolicy(policy)
+        except (TypeError, ValueError) as exc:
+            raise WeatherDemandRuntimeValidationError(
+                "target_revision_order_policy must be a supported revision-order policy"
+            ) from exc
+    if (
+        resolved is RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+        and source_format != "REST"
+    ):
+        raise WeatherDemandRuntimeValidationError(
+            "DERIVED_REST_APPLICABILITY_ORDER_V1 requires the REST source format"
+        )
+    return resolved
 
 
 @dataclass(frozen=True)
@@ -209,6 +236,9 @@ class WeatherDemandRuntimeEvidence:
     model_selection_hash: str | None
     regional_weighting_evidence_ref: str
     regional_weighting_evidence_basis: str = REGIONAL_WEIGHTING_EVIDENCE_BASIS
+    target_revision_order_policy: RevisionOrderPolicy = (
+        RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
+    )
 
     def __post_init__(self) -> None:
         for name in (
@@ -222,6 +252,17 @@ class WeatherDemandRuntimeEvidence:
             if not isinstance(value, str) or not value.strip():
                 raise WeatherDemandRuntimeValidationError(f"{name} must be non-empty")
         object.__setattr__(self, "validation_basis", ValidationBasis(self.validation_basis))
+        try:
+            revision_order_policy = RevisionOrderPolicy(
+                self.target_revision_order_policy
+            )
+        except (TypeError, ValueError) as exc:
+            raise WeatherDemandRuntimeValidationError(
+                "target_revision_order_policy must be a supported revision-order policy"
+            ) from exc
+        object.__setattr__(
+            self, "target_revision_order_policy", revision_order_policy
+        )
         object.__setattr__(
             self, "training_cutoff", _utc(self.training_cutoff, "training_cutoff")
         )
@@ -255,6 +296,9 @@ class WeatherDemandRuntimeRequest:
     regional_weighting_evidence_ref: str
     target_read_limit: int = 1_000
     forecast_read_limit: int = MAX_FORECAST_READ_LIMIT
+    target_revision_order_policy: RevisionOrderPolicy = (
+        RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.model_policy, DemandModelPolicy):
@@ -445,6 +489,14 @@ class WeatherDemandRuntimeRequest:
             raise WeatherDemandRuntimeValidationError(
                 "allow_provisional_targets must be a bool"
             )
+        object.__setattr__(
+            self,
+            "target_revision_order_policy",
+            _resolve_target_revision_order_policy(
+                self.target_revision_order_policy,
+                self.source_format,
+            ),
+        )
         if (
             not isinstance(self.regional_weighting_evidence_ref, str)
             or not self.regional_weighting_evidence_ref.strip()
@@ -478,51 +530,57 @@ class WeatherDemandRuntimeRequest:
     def request_hash(self) -> str:
         """Return a deterministic hash of every explicit runtime selection."""
 
-        return _canonical_hash(
-            {
-                "schema": RUNTIME_SCHEMA,
-                "model_policy": _model_policy_payload(self.model_policy),
-                "degree_day_policy": {
-                    "heating_base_c": self.degree_day_policy.heating_base_c,
-                    "cooling_base_c": self.degree_day_policy.cooling_base_c,
-                    "max_gap_minutes": self.degree_day_policy.max_gap_minutes,
-                    "min_covered_fraction": self.degree_day_policy.min_covered_fraction,
-                    "method_version": self.degree_day_policy.method_version,
-                },
-                "bridges": [
-                    {
-                        "feature_policy_hash": config.feature_policy.policy_hash,
-                        "prediction_origin": config.prediction_origin.isoformat(),
-                        "gas_days": [day.isoformat() for day in config.gas_days],
-                        "max_hold_minutes": config.max_hold_minutes,
-                        "max_rows": config.max_rows,
-                        "max_points": config.max_points,
-                        "max_window_days": config.max_window_days,
-                        "max_cross_product": config.max_cross_product,
-                        "max_intervals": config.max_intervals,
-                    }
-                    for config in self.bridge_configs
-                ],
-                "bindings": [
-                    {
-                        "point_id": binding.point_id,
-                        "series_id": binding.series_id,
-                        "entity_id": binding.entity_id,
-                        "location_id": binding.location_id,
-                        "region": binding.region,
-                    }
-                    for binding in self.point_bindings
-                ],
-                "provider_item_id": self.provider_item_id,
-                "source_format": self.source_format,
-                "target_gas_day_from": self.target_gas_day_from.isoformat(),
-                "target_gas_day_to": self.target_gas_day_to.isoformat(),
-                "allow_provisional_targets": self.allow_provisional_targets,
-                "regional_weighting_evidence_ref": self.regional_weighting_evidence_ref,
-                "target_read_limit": self.target_read_limit,
-                "forecast_read_limit": self.forecast_read_limit,
-            }
-        )
+        payload: dict[str, object] = {
+            "schema": RUNTIME_SCHEMA,
+            "model_policy": _model_policy_payload(self.model_policy),
+            "degree_day_policy": {
+                "heating_base_c": self.degree_day_policy.heating_base_c,
+                "cooling_base_c": self.degree_day_policy.cooling_base_c,
+                "max_gap_minutes": self.degree_day_policy.max_gap_minutes,
+                "min_covered_fraction": self.degree_day_policy.min_covered_fraction,
+                "method_version": self.degree_day_policy.method_version,
+            },
+            "bridges": [
+                {
+                    "feature_policy_hash": config.feature_policy.policy_hash,
+                    "prediction_origin": config.prediction_origin.isoformat(),
+                    "gas_days": [day.isoformat() for day in config.gas_days],
+                    "max_hold_minutes": config.max_hold_minutes,
+                    "max_rows": config.max_rows,
+                    "max_points": config.max_points,
+                    "max_window_days": config.max_window_days,
+                    "max_cross_product": config.max_cross_product,
+                    "max_intervals": config.max_intervals,
+                }
+                for config in self.bridge_configs
+            ],
+            "bindings": [
+                {
+                    "point_id": binding.point_id,
+                    "series_id": binding.series_id,
+                    "entity_id": binding.entity_id,
+                    "location_id": binding.location_id,
+                    "region": binding.region,
+                }
+                for binding in self.point_bindings
+            ],
+            "provider_item_id": self.provider_item_id,
+            "source_format": self.source_format,
+            "target_gas_day_from": self.target_gas_day_from.isoformat(),
+            "target_gas_day_to": self.target_gas_day_to.isoformat(),
+            "allow_provisional_targets": self.allow_provisional_targets,
+            "regional_weighting_evidence_ref": self.regional_weighting_evidence_ref,
+            "target_read_limit": self.target_read_limit,
+            "forecast_read_limit": self.forecast_read_limit,
+        }
+        if (
+            self.target_revision_order_policy
+            is not RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
+        ):
+            payload["target_revision_order_policy"] = (
+                self.target_revision_order_policy.value
+            )
+        return _canonical_hash(payload)
 
 
 @dataclass(frozen=True)
@@ -683,6 +741,18 @@ class WeatherDemandRuntimeResult:
 
         return RESEARCH_ONLY_LABEL
 
+    @property
+    def target_revision_order_policy(self) -> RevisionOrderPolicy:
+        """Return the chosen target ranking policy, not a provider revision number."""
+
+        return self.evidence.target_revision_order_policy
+
+    @property
+    def target_availability_basis(self) -> str:
+        """Return the actual receipt availability basis, independent of ranking."""
+
+        return TARGET_AVAILABILITY_BASIS
+
 
 def run_weather_demand_runtime(
     session: Session,
@@ -698,6 +768,10 @@ def run_weather_demand_runtime(
 
     if not isinstance(request, WeatherDemandRuntimeRequest):
         raise TypeError("request must be a WeatherDemandRuntimeRequest")
+    revision_order_policy = _resolve_target_revision_order_policy(
+        request.target_revision_order_policy,
+        request.source_format,
+    )
     request_hash = request.request_hash
 
     target_records = read_demand_target_revisions(
@@ -717,6 +791,7 @@ def run_weather_demand_runtime(
         gas_day_to=request.target_gas_day_to,
         available_at_utc=request.model_policy.validation_as_of,
         allow_provisional_targets=request.allow_provisional_targets,
+        revision_order_policy=revision_order_policy,
     )
     if not target_inputs.rows:
         diagnostic = WeatherDemandRuntimeDiagnostic(
@@ -1070,6 +1145,10 @@ def _result(
         ),
         regional_weighting_evidence_ref=request.regional_weighting_evidence_ref,
         degree_day_source_refs=degree_day_source_refs,
+        target_revision_order_policy=_resolve_target_revision_order_policy(
+            request.target_revision_order_policy,
+            request.source_format,
+        ),
     )
     return WeatherDemandRuntimeResult(
         status=status,

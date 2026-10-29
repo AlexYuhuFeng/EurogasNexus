@@ -20,6 +20,7 @@ from sqlalchemy.exc import OperationalError
 from eurogas_nexus.application.research import weather_demand_runtime as runtime
 from eurogas_nexus.application.research.demand_target_inputs import (
     DemandTargetAmbiguityError,
+    RevisionOrderPolicy,
 )
 from eurogas_nexus.application.research.weather_demand_inputs import WeatherDemandDiagnosticCode
 from eurogas_nexus.domain.market.gas_day import DEFAULT_GAS_DAY_CALENDAR
@@ -139,6 +140,13 @@ def _write_request(
     return path
 
 
+def _csv_opt_in(payload: dict[str, object]) -> None:
+    payload["source_format"] = "CSV"
+    payload["target_revision_order_policy"] = (
+        RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1.value
+    )
+
+
 class _FakeSession:
     def __init__(
         self,
@@ -206,6 +214,7 @@ def _evidence(request: object, *, ready: bool) -> SimpleNamespace:
         selected_vintage_ids=("ECMWF/ifs/run-1@2025-12-31T12:00:00+00:00",),
         degree_day_method_version=DEGREE_DAY_METHOD_VERSION,
         request_hash=request_hash,
+        target_revision_order_policy=request.target_revision_order_policy,
     )
 
 
@@ -357,6 +366,14 @@ def test_ready_run_uses_read_only_postgresql_and_reports_actual_result(
         summary["source_basis"]["regional_weighting_evidence_basis"]
         == runtime.REGIONAL_WEIGHTING_EVIDENCE_BASIS
     )
+    assert (
+        summary["source_basis"]["target_revision_order_policy"]
+        == "DERIVED_RECEIPT_ORDER"
+    )
+    assert (
+        summary["source_basis"]["target_availability_basis"]
+        == "ACTUAL_RECEIPT_AVAILABLE_AT"
+    )
     encoded = json.dumps(summary)
     assert "coefficients" not in encoded
     assert "prediction" not in encoded
@@ -395,6 +412,77 @@ def test_request_hash_and_result_hashes_repeat(
     assert summaries[0]["counts"] == summaries[1]["counts"]
 
 
+def test_opt_in_policy_is_explicit_reported_and_legacy_hash_is_unchanged(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default_path = _write_request(tmp_path)
+    default_request = operator_cli.load_request(str(default_path))
+
+    explicit_default_payload = _payload()
+    explicit_default_payload["target_revision_order_policy"] = (
+        RevisionOrderPolicy.DERIVED_RECEIPT_ORDER.value
+    )
+    explicit_default_path = tmp_path / "explicit-default.json"
+    explicit_default_path.write_text(
+        json.dumps(explicit_default_payload),
+        encoding="utf-8",
+    )
+    explicit_default_request = operator_cli.load_request(
+        str(explicit_default_path)
+    )
+
+    opt_in_payload = _payload()
+    opt_in_payload["target_revision_order_policy"] = (
+        RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1.value
+    )
+    opt_in_path = tmp_path / "opt-in.json"
+    opt_in_path.write_text(json.dumps(opt_in_payload), encoding="utf-8")
+    opt_in_request = operator_cli.load_request(str(opt_in_path))
+
+    assert default_request.target_revision_order_policy is (
+        RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
+    )
+    assert explicit_default_request.request_hash == default_request.request_hash
+    assert opt_in_request.target_revision_order_policy is (
+        RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+    )
+    assert opt_in_request.request_hash != default_request.request_hash
+
+    monkeypatch.setattr(
+        operator_cli,
+        "run_weather_demand_runtime",
+        lambda _session, request: _ready_result(request),
+    )
+    session = _FakeSession()
+
+    assert (
+        operator_cli.run(
+            ["--request-json", str(opt_in_path)],
+            session_factory_provider=_provider(session),
+        )
+        == 0
+    )
+    summary = _summary(capsys)
+    assert summary["schema"] == operator_cli.SUMMARY_SCHEMA
+    assert summary["source_basis"]["target_revision_order_policy"] == (
+        RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1.value
+    )
+    assert summary["source_basis"]["target_availability_basis"] == (
+        "ACTUAL_RECEIPT_AVAILABLE_AT"
+    )
+    assert summary["source_evidence"]["target_revision_order_policy"] == (
+        RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1.value
+    )
+    assert summary["source_evidence"]["target_availability_basis"] == (
+        "ACTUAL_RECEIPT_AVAILABLE_AT"
+    )
+    assert summary["research_only"] is True
+    assert summary["production_promotion"] == "NOT_PROMOTED"
+    assert "accuracy" not in json.dumps(summary).lower()
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected_code"),
     [
@@ -424,6 +512,13 @@ def test_request_hash_and_result_hashes_repeat(
             ),
             "SYNTHETIC_VALIDATION_BASIS_REJECTED",
         ),
+        (
+            lambda payload: payload.update(
+                {"target_revision_order_policy": "UNSUPPORTED_POLICY"}
+            ),
+            "REQUEST_INVALID_VALUE",
+        ),
+        (_csv_opt_in, "REQUEST_INVALID_VALUE"),
     ],
 )
 def test_invalid_request_is_refused_before_database(
