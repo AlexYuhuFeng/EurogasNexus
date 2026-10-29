@@ -199,6 +199,8 @@ PINNED_PUBLIC_PATHS = {
     "/api/stream/alerts",
     "/api/stream/opportunities",
     "/api/stream/quotes",
+    "/api/weather/degree-days",
+    "/api/weather/forecasts",
     "/api/weather/hdd-cdd",
     "/api/weather/observations",
     "/api/weather/stations",

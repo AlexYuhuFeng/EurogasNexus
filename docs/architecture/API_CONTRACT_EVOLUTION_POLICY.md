@@ -115,6 +115,8 @@ These tests fail CI loudly on contract drift:
 | `POST /api/research/cash-valuation` | Shared cash valuation capability (2026-09-30) | Sandbox-only (GOVERNED, ANALYST floor inside the commercial boundary) adaptation of the one shared cash-flow engine: caller-supplied canonical `concept:value` references (never resolved or entitled — `meta.references_verified: false`), exact decimal strings for every amount/FX rate/discount factor (JSON numbers refused), ISO dates, and Decimals serialized as exact strings. Refusals are typed (`422 cash_valuation_input_invalid` for wire-syntax violations, `422 cash_valuation_refused` with the engine's stable codes). No persistence, provider, audit record, trade, nomination or settlement; `meta.customer_approval` is always `false`. See [CASH_VALUATION_CAPABILITY.md](CASH_VALUATION_CAPABILITY.md) |
 | `GET /api/route-cost/upstream-contracts/{contract_id}/revisions` | Contract revision integration (2026-10-01) | GOVERNED-floor (ANALYST) bounded history of one contract's captured immutable economic revisions, inside the commercial boundary, oldest revision number first (`limit` ≤ 200 with `offset`). Every returned row is verified (reviewed capture origin, stored hash, canonical decode, contract id and schema version) before it is served; an unknown contract is 404 `upstream_contract_not_found` while an existing contract with nothing captured is an empty page with `revision_count` 0 and an explicit warning. Reading captures nothing and re-attributes nothing. Honest evidence only: a capture is not a complete history, and the stored economics carry `payment_terms: null` — no payment date, discount factor or valuation is derived or implied |
 | `GET /api/route-cost/upstream-contracts/{contract_id}/revisions/{contract_revision_id}` | Contract revision integration (2026-10-01) | GOVERNED-floor (ANALYST) read of one verified captured revision, explicitly scoped to `contract_id`: a revision id from another contract answers the same 404 `contract_revision_not_found` as an unknown id. An integrity-verification failure is a structured 409 carrying the repository's stable code and a fixed message only (no stored row content, driver text or SQL). The payload preserves capture origin, schema version, content hash, capture instant, original recorder and raw operator notes |
+| `GET /api/weather/forecasts` | Declared additive ECMWF research read (2026-10-28) | Authenticated, entitlement-filtered point-in-time ECMWF grid forecast readings. The caller supplies non-empty `series_ids`, `entity_ids`, `prediction_origin`, `valid_from` and `valid_to` as aware ISO datetimes, plus optional `limit` (1–256, default 100); `valid_to` must follow `valid_from`. Every row exposes `issued_at_utc`, `valid_at_utc`, `available_at_utc`, degC temperature, requested/grid coordinates and GRIB/record SHA-256 values; the API performs no interval aggregation or station inference. Requires a live ECMWF provider certification and ECMWF source entitlement: a missing, expired or uncertified record answers 503 `forecast_source_unavailable`; storage failures answer 503 without inventing values. `meta.research_only` is true and `HUMAN_REVIEW_REQUIRED` is warned |
+| `POST /api/weather/degree-days` | Declared additive ECMWF research calculation (2026-10-28) | Authenticated, entitlement-filtered degree-day calculation from persisted ECMWF forecasts. The caller must declare 1–64 unique point bindings (`point_id`, `series_id`, `entity_id`, `location_id`, `region`, exact decimal `weight`), each weight in `[0, 1]` with the set summing exactly to `1`; 1–7 unique gas days; an aware `prediction_origin`; heating and cooling bases; an approved `gas_day_calendar`; `max_hold_minutes` (1–10080); and `min_covered_fraction` (`0`–`1`). The bridge uses `LEFT_HOLD_INSTANT` with the declared hold as its maximum gap, reports the selected forecast vintage, feature-policy hash and coverage diagnostics, and reports nullable daily values with `MISSING_COVERAGE_NULL` rather than zero-filling; `NOT_READY` means no bridge intervals were available. Same certification and entitlement gates; no persistence, forecast invention, trade, nomination or settlement |
 
 ## Additive Field Declarations
 
@@ -229,7 +231,7 @@ recompute it. It establishes neither booked rights nor physical readiness.
 Existing routes and authorization remain unchanged. See
 [capacity billing capability](CAPACITY_BILLING_CAPABILITY.md) and
 [delivery reconstruction plan](../engineering/DELIVERY_RECOVERY_EXECPLAN.md).
-Public census: 189 paths / 203 operations.
+Public census: 191 paths / 205 operations.
 
 `POST /api/research/lng-economics-only` is likewise additive and sandbox-only.
 It requires explicit ordered energy stages, charged cost bases and dated cash
@@ -246,3 +248,61 @@ PortfolioSnapshot uses its existing normalized trading-context gas day for tarif
 selection. Unknown cost is never substituted with zero; missing price/cost basis
 or conflicting dates blocks allocation. Existing paths/counts remain unchanged.
 See [consumer contract](ROUTE_TARIFF_DATE_CONSUMERS.md).
+
+## 2026-10-28 additive ECMWF forecast and degree-day paths
+
+The stable public surface now includes `GET /api/weather/forecasts` and
+`POST /api/weather/degree-days`. They are additive research paths: the legacy
+shells `GET /api/weather/stations`, `GET /api/weather/observations` and
+`GET /api/weather/hdd-cdd` remain mounted with their existing empty-envelope
+behaviour, and no existing path, parameter or response meaning changes. This
+declaration records a contract; it is not an acceptance, production-readiness or
+operational-forecast claim.
+
+**Point-in-time inputs.** `GET /api/weather/forecasts` selects readings by the
+caller's explicit `prediction_origin`, `valid_from` and `valid_to`, and each
+returned row preserves `issued_at_utc`, `valid_at_utc` and `available_at_utc`;
+the API performs no interval aggregation. `POST /api/weather/degree-days`
+requires explicit `prediction_origin`, `gas_days` and `max_hold_minutes`; it
+reports `selected_forecast_vintage`, `feature_policy_hash`, the resolved gas
+days and the query limit, and reads persisted forecasts across the declared
+window extended by the hold. Neither path defaults a missing origin, window or
+vintage.
+
+**Weights.** Degree-day weights are caller declarations, not server inferences.
+Each binding names one persisted `point_id`/`series_id`/`entity_id`/`location_id`
+and one `region`; point and location ids must be unique; all bindings must share
+the request region (which may be supplied once); each weight is an exact decimal
+in `[0, 1]` and the bindings must sum exactly to `1`. The response warns
+`CALLER_DEFINED_REGION_WEIGHTS`.
+
+**Coverage.** `min_covered_fraction` is an explicit request field, not a default.
+The computation uses the declared `LEFT_HOLD_INSTANT` temporal method with
+`max_hold_minutes` as its maximum gap, caps the query at 256 forecast rows and
+the bindings at 64 points. Insufficient daily coverage produces null daily
+metrics with an explicit missing reason. When no bridge intervals are available,
+it returns `NOT_READY` with diagnostics and `FORECAST_INPUT_NOT_READY`. The
+`MISSING_COVERAGE_NULL` warning declares the missing-value policy. Missing coverage is never replaced by zero, and a
+calibration or station value is never substituted for an absent grid point.
+
+**Research restrictions.** Both paths return `meta.research_only: true` and the
+`RESEARCH_ONLY`/`HUMAN_REVIEW_REQUIRED` warnings; the degree-day envelope also
+sets `meta.human_review_required: true`. Both carry ECMWF Open Data attribution
+(CC BY 4.0). They perform reads and a calculation only: no persistence, no
+forecast invention, no provider call at request time, and no trade, order,
+nomination or settlement semantics. Existing legacy weather endpoints are not
+deprecated by this addition.
+
+**Authentication and source certification.** Both paths sit behind the
+deployment's public API authentication, named identity, declared route-permission
+and commercial-access gates. They additionally require derived-data access to
+`ECMWF_OPEN_DATA` (`weather_forecasts` / `weather_degree_days`), and returned
+rows are filtered by entity/source entitlement. Before reading, each path checks
+the latest `ProviderCertificationRecord` for `ECMWF_OPEN_DATA`; no record, an
+expired record, or a gate that does not allow live use answers
+`503 forecast_source_unavailable`. A storage failure or malformed stored data
+answers `503` with a sanitized code rather than an empty or invented value.
+Bridge or domain violations of the declared bindings, weights, calendar or
+coverage policy are refused as `422 invalid_degree_day_inputs`; request-schema
+violations use the platform's standard `422` validation response. Neither form
+computes a value.
