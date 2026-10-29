@@ -15,10 +15,12 @@ from eurogas_nexus.application.source_operations import (
     SourceOperationPolicy,
     run_with_retry,
 )
+from eurogas_nexus.ingestion.entsog_scope import validate_entsog_point_directions
 from eurogas_nexus.ingestion.entsog_transport import EntsogWindowError
 from eurogas_nexus.ingestion.entsog_window import EntsogWindowPolicy
 
 INGEST_SCRIPT = Path(__file__).with_name("ingest_public_sources.py")
+ENTSOG_POINT_SCOPE_SOURCES = frozenset({"all", "entsog", "entsog-capacity"})
 
 
 def build_ingestion_command(
@@ -29,9 +31,11 @@ def build_ingestion_command(
     entsog_to: str | None = None,
     entsog_lookback_gas_days: int | None = None,
     entsog_window_anchor: str | None = None,
+    entsog_point_directions: Sequence[str] = (),
 ) -> list[str]:
     """Build a bounded child command without embedding credentials."""
 
+    point_directions = validate_entsog_point_directions(entsog_point_directions)
     command = [sys.executable, str(INGEST_SCRIPT)]
     for source in sources:
         command.extend(["--source", source])
@@ -43,6 +47,9 @@ def build_ingestion_command(
         command.extend(["--entsog-lookback-gas-days", str(entsog_lookback_gas_days)])
     if entsog_window_anchor is not None:
         command.extend(["--entsog-window-anchor", entsog_window_anchor])
+    if set(sources) & ENTSOG_POINT_SCOPE_SOURCES:
+        for point_direction in point_directions:
+            command.extend(["--entsog-point-direction", point_direction])
     command.extend(["--limit", str(limit), "--json"])
     return command
 
@@ -60,10 +67,12 @@ def run_worker(
     entsog_from: str | None = None,
     entsog_to: str | None = None,
     entsog_lookback_gas_days: int | None = None,
+    entsog_point_directions: Sequence[str] = (),
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> int:
     """Run ingestion repeatedly; source failures do not terminate supervision."""
 
+    point_directions = validate_entsog_point_directions(entsog_point_directions)
     configuration_blocked = False
     window_policy = None
     if set(sources) & {"all", "entsog", "entsog-capacity"}:
@@ -107,6 +116,7 @@ def run_worker(
             entsog_window_anchor=window.anchor_utc.isoformat()
             if window and window.rolling
             else None,
+            entsog_point_directions=point_directions,
         )
         if window and window.rolling:
             print(
@@ -152,9 +162,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--entsog-from")
     parser.add_argument("--entsog-to")
     parser.add_argument("--entsog-lookback-gas-days", type=int)
+    parser.add_argument(
+        "--entsog-point-direction",
+        action="append",
+        default=[],
+        metavar="POINT_DIRECTION",
+        help=(
+            "Explicit ENTSOG operational point direction (repeatable or "
+            "comma-separated; each value must end with entry or exit). Applies "
+            "only to flow/capacity observations, never topology reference data."
+        ),
+    )
     args = parser.parse_args(argv)
     if args.interval_seconds < 60:
         parser.error("--interval-seconds must be at least 60")
+    try:
+        point_directions = validate_entsog_point_directions(args.entsog_point_direction)
+    except ValueError as exc:
+        parser.error(f"invalid --entsog-point-direction: {exc}")
     return run_worker(
         sources=args.source,
         limit=args.limit,
@@ -165,6 +190,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         entsog_from=args.entsog_from,
         entsog_to=args.entsog_to,
         entsog_lookback_gas_days=args.entsog_lookback_gas_days,
+        entsog_point_directions=point_directions,
     )
 
 

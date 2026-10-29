@@ -68,6 +68,7 @@ from eurogas_nexus.ingestion.entsog_ingestion import (
     persist_entsog_observations,
     persist_entsog_reference,
 )
+from eurogas_nexus.ingestion.entsog_scope import validate_entsog_point_directions
 from eurogas_nexus.ingestion.entsog_transport import (
     EntsogFetchResult,
     EntsogTransportError,
@@ -675,75 +676,7 @@ def _resolve_gie_key(session_factory) -> str | None:
     return resolved.value if resolved is not None else None
 
 
-ENTSOG_POINT_DIRECTION_MAX_COUNT = 64
-ENTSOG_POINT_DIRECTION_MAX_CHARS = 8192
-_ENTSOG_POINT_DIRECTION_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyz0123456789._-"
-)
-
-
-def _validate_entsog_point_directions(values) -> tuple[str, ...]:
-    """Return the explicit, canonical ENTSOG operational point scope.
-
-    Values are caller-declared provider identities; nothing is inferred or
-    defaulted. A value may contain a comma-separated composite. Canonicalisation
-    lowercases, strips, deduplicates and sorts so the same declaration always
-    produces the same query. Validation happens before database/HTTP side
-    effects in ``main``.
-    """
-
-    if values is None:
-        return ()
-    if isinstance(values, str):
-        raw_values = (values,)
-    else:
-        raw_values = tuple(values)
-    if not raw_values:
-        return ()
-    if not all(isinstance(value, str) for value in raw_values):
-        raise ValueError("point directions must be text values")
-    if sum(len(value) for value in raw_values) > ENTSOG_POINT_DIRECTION_MAX_CHARS:
-        raise ValueError(
-            f"point directions exceed {ENTSOG_POINT_DIRECTION_MAX_CHARS} characters"
-        )
-    tokens: list[str] = []
-    for value in raw_values:
-        if not value.isascii():
-            raise ValueError("point directions must be ASCII")
-        for part in value.split(","):
-            token = part.strip().lower()
-            if not token:
-                raise ValueError("point directions must not be blank")
-            if token.endswith("entry"):
-                suffix = "entry"
-            elif token.endswith("exit"):
-                suffix = "exit"
-            else:
-                raise ValueError(
-                    f"point direction {token!r} must end with 'entry' or 'exit'"
-                )
-            prefix = token[: -len(suffix)]
-            if not prefix or not prefix[0].isalnum():
-                raise ValueError(
-                    f"point direction {token!r} has no provider identity prefix"
-                )
-            if "www." in token or "://" in token:
-                raise ValueError(f"point direction {token!r} must not be a URL")
-            if any(char not in _ENTSOG_POINT_DIRECTION_CHARS for char in token):
-                raise ValueError(
-                    f"point direction {token!r} contains a control or unsupported character"
-                )
-            tokens.append(token)
-    canonical = tuple(sorted(set(tokens)))
-    if len(canonical) > ENTSOG_POINT_DIRECTION_MAX_COUNT:
-        raise ValueError(
-            f"at most {ENTSOG_POINT_DIRECTION_MAX_COUNT} point directions are allowed"
-        )
-    if len(",".join(canonical)) > ENTSOG_POINT_DIRECTION_MAX_CHARS:
-        raise ValueError(
-            f"point directions exceed {ENTSOG_POINT_DIRECTION_MAX_CHARS} characters"
-        )
-    return canonical
+_validate_entsog_point_directions = validate_entsog_point_directions
 
 
 def _ingest_entsog_source(

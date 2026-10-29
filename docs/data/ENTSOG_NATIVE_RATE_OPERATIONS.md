@@ -22,6 +22,28 @@ python scripts/ops/ingest_public_sources.py --source entsog --source entsog-capa
   --limit 100 --entsog-page-size 100 --entsog-max-pages 1 --json
 ```
 
+The same explicit, repeatable (or comma-separated) flag is accepted by both
+recurring runners. They canonicalize lowercased, stripped, deduplicated values
+and pass them as repeated child flags only to ENTSOG flow/capacity work. The
+scheduler forwards them only for its `src-entsog` job; ECB and GIE jobs are
+unchanged. Validation happens before the child subprocess, so an invalid scope
+refuses clearly before any runner or network work.
+
+```sh
+python scripts/ops/run_public_ingestion_worker.py --source entsog \
+  --interval-seconds 300 --max-iterations 1 \
+  --entsog-from 2026-10-28 --entsog-to 2026-10-29 \
+  --entsog-point-direction de-tso-0009itp-00126entry
+
+python scripts/ops/run_dataops_scheduler.py --once \
+  --entsog-from 2026-10-28 --entsog-to 2026-10-29 \
+  --entsog-point-direction de-tso-0009itp-00126entry
+```
+
+Omitting the flag preserves the existing unscoped query behaviour. An unscoped
+result is not complete point-direction coverage and may encounter N/A exemption
+records; neither setting the flag nor a successful response activates a source.
+
 This example identifies one published direction, not European coverage. The DB
 URL and credentials use the existing secure runtime configuration; never put them
 in shared command history. The command's raw archive retains exact provider

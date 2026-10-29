@@ -137,6 +137,105 @@ def test_entsog_window_pass_through_preserves_partial_warning_and_actual_counts(
     assert result.quality_issues[0].quality_code == "entsog_bounded_partial"
 
 
+def test_ingestor_attempt_forwards_canonical_point_scope_only_to_entsog():
+    commands = []
+
+    def runner(command, **kwargs):
+        commands.append(command)
+        return SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout=json.dumps({"ok": True, "sources": {"ENTSOG": {"records": 1}}}),
+        )
+
+    attempt = run_ingestor_attempt(
+        runner,
+        entsog_from="2026-10-10",
+        entsog_to="2026-10-11",
+        entsog_point_directions=["B-EXIT", "a-entry,a-EXIT"],
+    )
+    assert attempt({"source_id": "src-entsog", "run_id": "run-one"}, 1).succeeded is True
+    command = commands[0]
+    assert [
+        command[index + 1]
+        for index, argument in enumerate(command)
+        if argument == "--entsog-point-direction"
+    ] == ["a-entry", "a-exit", "b-exit"]
+    assert command[command.index("--entsog-from") + 1] == "2026-10-10"
+    assert command[command.index("--entsog-to") + 1] == "2026-10-11"
+
+    ecb_attempt = run_ingestor_attempt(runner, entsog_point_directions=["c-entry"])
+    ecb_result = ecb_attempt({"source_id": "src-ecb", "run_id": "run-two"}, 1)
+    assert ecb_result.succeeded is True
+    assert "--entsog-point-direction" not in commands[-1]
+
+
+def test_invalid_point_scope_refuses_before_runner_factory_runs():
+    commands = []
+
+    def runner(command, **kwargs):
+        commands.append(command)
+        return SimpleNamespace(returncode=0, stdout="{}", stderr="")
+
+    with pytest.raises(ValueError, match="must end with 'entry' or 'exit'"):
+        run_ingestor_attempt(runner, entsog_point_directions=["not-a-direction"])
+
+    assert commands == []
+
+
+def test_run_loop_passes_canonical_point_scope_to_attempt_factory(monkeypatch):
+    from contextlib import nullcontext
+
+    from scripts.ops import run_dataops_scheduler as scheduler
+
+    monkeypatch.setattr(scheduler, "resolve_database_url", lambda: "configured")
+    monkeypatch.setattr(
+        scheduler,
+        "get_session_factory",
+        lambda: lambda: nullcontext(SimpleNamespace(commit=lambda: None)),
+    )
+    monkeypatch.setattr(scheduler, "scan_scheduler", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        scheduler,
+        "execute_claimed_runs",
+        lambda *args, **kwargs: {"outcomes": []},
+    )
+    captured = {}
+
+    def fake_factory(runner, **kwargs):
+        captured.update(kwargs)
+        return lambda payload, attempt: None
+
+    monkeypatch.setattr(scheduler, "run_ingestor_attempt", fake_factory)
+    result = scheduler.run_loop(
+        interval_seconds=60,
+        max_iterations=1,
+        emit=lambda value: None,
+        entsog_from="2026-10-10",
+        entsog_to="2026-10-11",
+        entsog_point_directions=["B-EXIT", "a-entry,a-EXIT"],
+    )
+
+    assert result == 0
+    assert captured["entsog_point_directions"] == ("a-entry", "a-exit", "b-exit")
+
+
+def test_main_rejects_invalid_point_scope_before_run_loop(monkeypatch):
+    from scripts.ops import run_dataops_scheduler as scheduler
+
+    monkeypatch.setattr(
+        scheduler,
+        "run_loop",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("run loop must not start with invalid point scope")
+        ),
+    )
+    with pytest.raises(SystemExit) as exc:
+        scheduler.main(["--once", "--entsog-point-direction", "not-a-direction"])
+
+    assert exc.value.code == 2
+
+
 def test_scheduler_loop_does_not_label_failed_configuration_as_ok(monkeypatch):
     from contextlib import nullcontext
 

@@ -26,6 +26,7 @@ from eurogas_nexus.application.dataops_runtime import (
 )
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 from eurogas_nexus.domain.dataops.contracts import FailureCategory, QualityIssue, QualitySeverity
+from eurogas_nexus.ingestion.entsog_scope import validate_entsog_point_directions
 from eurogas_nexus.ingestion.entsog_transport import EntsogWindowError
 from eurogas_nexus.ingestion.entsog_window import EntsogWindowPolicy, require_aware_anchor
 
@@ -44,8 +45,11 @@ def run_ingestor_attempt(
     entsog_from: str | None = None,
     entsog_to: str | None = None,
     entsog_lookback_gas_days: int | None = None,
+    entsog_point_directions: Sequence[str] = (),
 ) -> Callable[[dict, int], IngestionAttemptResult]:
     """Return an adapter runner bound to the public-source ingestor."""
+
+    point_directions = validate_entsog_point_directions(entsog_point_directions)
 
     def run(payload: dict, attempt: int) -> IngestionAttemptResult:
         source_id = str(payload.get("source_id") or "")
@@ -69,6 +73,8 @@ def run_ingestor_attempt(
             command.extend(["--source", source])
         window = None
         if source_id == "src-entsog":
+            for point_direction in point_directions:
+                command.extend(["--entsog-point-direction", point_direction])
             try:
                 policy = EntsogWindowPolicy(entsog_from, entsog_to, entsog_lookback_gas_days)
                 anchor = None
@@ -278,10 +284,12 @@ def run_loop(
     entsog_from: str | None = None,
     entsog_to: str | None = None,
     entsog_lookback_gas_days: int | None = None,
+    entsog_point_directions: Sequence[str] = (),
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> int:
     """Run scheduler scans and run executions on a bounded cadence."""
 
+    point_directions = validate_entsog_point_directions(entsog_point_directions)
     if resolve_database_url() is None:
         emit_event(event="scheduler.blocked", level="error", error_category="CONFIGURATION")
         emit(json.dumps({"status": "blocked", "reason": "database_url_missing"}))
@@ -305,6 +313,7 @@ def run_loop(
         entsog_from=entsog_from,
         entsog_to=entsog_to,
         entsog_lookback_gas_days=entsog_lookback_gas_days,
+        entsog_point_directions=point_directions,
     )
     iteration = 0
     failed_iterations = 0
@@ -358,9 +367,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--entsog-from")
     parser.add_argument("--entsog-to")
     parser.add_argument("--entsog-lookback-gas-days", type=int)
+    parser.add_argument(
+        "--entsog-point-direction",
+        action="append",
+        default=[],
+        metavar="POINT_DIRECTION",
+        help=(
+            "Explicit ENTSOG operational point direction (repeatable or "
+            "comma-separated; each value must end with entry or exit). Applies "
+            "only to src-entsog flow/capacity observations, never reference "
+            "topology or non-ENTSOG scheduled jobs."
+        ),
+    )
     args = parser.parse_args(argv)
     if args.interval_seconds < 15:
         parser.error("--interval-seconds must be at least 15")
+    try:
+        point_directions = validate_entsog_point_directions(args.entsog_point_direction)
+    except ValueError as exc:
+        parser.error(f"invalid --entsog-point-direction: {exc}")
     return run_loop(
         interval_seconds=args.interval_seconds,
         max_iterations=1 if args.once else None,
@@ -369,6 +394,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         entsog_from=args.entsog_from,
         entsog_to=args.entsog_to,
         entsog_lookback_gas_days=args.entsog_lookback_gas_days,
+        entsog_point_directions=point_directions,
     )
 
 

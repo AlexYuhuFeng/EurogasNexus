@@ -1,5 +1,22 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — recurring ENTSOG explicit point scope
+
+Both existing recurring runners now accept the same repeatable/comma point
+scope as the direct ingestor, using one extracted validator. Canonical immutable
+scope reaches each retry alongside its frozen time window. Non-ENTSOG scheduled
+jobs receive no point flag; invalid scope refuses before subprocess. Empty scope
+retains compatibility and proves no coverage. No source activation is performed.
+Root reviewed the command paths and tests: runner/scheduler/CLI47passed;
+window/architecture53passed; Ruff passed. Same-SHA hosted PG integration for the
+preceding5ed06fc correction passed; full hosted run40865762328 is still running.
+Web native client/model/panel work has1036passed/3skipped and production build
+passed before pagination follow-up. Real PG HTTP envelopes reached actual Web
+model with exact92954921/738726002.1/416592000 strings; backend-parser-to-Web
+verification passed all eight native-unit shapes. This is bounded evidence,
+not European coverage, customer authentication or delivery completion.
+
+
 ## 2026-10-29 — hosted native integration regression corrections
 
 Hosted run40863573034 on2dff9d4 passed ten jobs but validate failed six tests.
