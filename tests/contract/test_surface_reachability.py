@@ -63,6 +63,7 @@ def _marker(path: str) -> str:
 
 #: Paths the SDK (or CLI/MCP) call by design, and the product does not need on a screen.
 MACHINE_SURFACE: dict[str, str] = {
+    "/api/weather/degree-days": "caller-weighted degree-day computation (typed weather_degree_days SDK)",
     "/api/analysis/ontology": "ontology read for SDK/agent callers",
     "/api/cost-observations/applicable": "cost-observation bench read (SDK)",
     "/api/cost-observations/values": "cost-observation bench read (SDK)",
