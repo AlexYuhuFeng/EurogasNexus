@@ -61,8 +61,22 @@ No incomplete sample is a regional total or a consistent provider snapshot.
 
 Read `/api/physical/flows?quantity_basis=native&point_id=ITP-00126` and the
 corresponding capacity path using the normal authenticated client. Limit overflow
-is a refusal, so narrow the point scope rather than assuming a truncated set is
-complete. The current read supports point filtering; ingestion owns date windows.
+is a refusal, so narrow the point or period scope rather than assuming a truncated
+set is complete. Both native reads also accept optional `from_utc` and `to_utc`
+aware ISO-8601 instants. Supply both or neither; naive instants, a reversed or
+equal pair, and a window with `quantity_basis=volume` are refused as 422
+`native_window_invalid` without echoing the input. Each instant is normalized to
+UTC, and an observation is selected when its half-open period overlaps the
+half-open request window: `period_start_utc < to_utc` and
+`period_end_utc > from_utc`. This is overlap, not containment, so a longer
+technical-capacity row covering a requested daily-flow window remains in scope.
+The predicates apply before the native order and `limit + 1` probe; a window that
+still exceeds the limit is the existing 400 `native_query_overflow` refusal, never
+a silent truncation. When comparing flows with capacity, send the same explicit
+`from_utc`/`to_utc` pair to both paths. The window is a captured-observation
+selection, not a complete history or provider revision ledger, and it makes no
+calorific-value (CV) conversion. No clock time is defaulted when an instant is
+omitted.
 Use SDK `native_physical.fetch_native_flows_result` and
 `fetch_native_capacity_result` to preserve envelope metadata and exact strings.
 The existing volume methods withhold native energy and unverified legacy volumes.

@@ -339,6 +339,22 @@ Energy exposes `energy_kwh_per_day` and null volume; volume exposes
 source strings. No assumed calorific conversion exists. Timestamps remain
 explicit instants; missing provenance is not replaced with a clock default.
 
+The same two paths accept optional `from_utc`/`to_utc` aware ISO-8601 query
+instants for a native period window. Both must be supplied or neither; naive
+instants are refused, each is normalized to UTC, and `to_utc` must be later than
+`from_utc`. A window is accepted only with `quantity_basis=native`; in volume mode
+it answers 422 `native_window_invalid` with a fixed message that echoes no input.
+The window is a half-open period **overlap**, not containment: a row is selected
+when `period_start_utc < to_utc` and `period_end_utc > from_utc`. A longer
+technical-capacity observation that covers a requested daily-flow window therefore
+remains visible instead of being dropped. The overlap predicates run before native
+ordering and the `limit + 1` probe, so overflow still answers 400
+`native_query_overflow` and a narrower window can make the same native query fit.
+Clients comparing flows with capacity should send the same explicit query window to
+both paths. The window selects captured observations only; it is not a complete
+history or a provider revision ledger, makes no calorific-value (CV) conversion,
+and defaults no clock time when either instant is omitted.
+
 The SDK adds separate typed native methods in `native_physical`; existing
 `physical` methods remain volume-only. Clients must not pair different operators,
 points, directions, dimensions or incompatible periods, nor interpret absent

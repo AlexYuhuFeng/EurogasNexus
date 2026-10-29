@@ -139,6 +139,86 @@ def _capacity_observation(**overrides) -> CapacityObservationRecord:
     return CapacityObservationRecord(**values)
 
 
+def _window_native_records(
+    *, capacity: bool
+) -> list[FlowObservationRecord | CapacityObservationRecord]:
+    """Rows around a [2026-06-01, 2026-06-02) request window."""
+
+    native = _native_payload("100.5", volume=True)
+    canonical_volume = float(native["volume_mcm_per_day"])
+    prefix = "capacity" if capacity else "flow"
+    periods = (
+        (
+            "before",
+            datetime(2026, 5, 29, tzinfo=UTC),
+            datetime(2026, 5, 30, tzinfo=UTC),
+        ),
+        (
+            "start-boundary",
+            datetime(2026, 6, 1, tzinfo=UTC),
+            datetime(2026, 6, 1, 6, tzinfo=UTC),
+        ),
+        (
+            "end-boundary",
+            datetime(2026, 5, 31, 18, tzinfo=UTC),
+            datetime(2026, 6, 2, tzinfo=UTC),
+        ),
+        (
+            "inside",
+            datetime(2026, 6, 1, 12, tzinfo=UTC),
+            datetime(2026, 6, 1, 18, tzinfo=UTC),
+        ),
+        (
+            "covering",
+            datetime(2026, 5, 1, tzinfo=UTC),
+            datetime(2026, 7, 1, tzinfo=UTC),
+        ),
+        (
+            "starts-at-end",
+            datetime(2026, 6, 2, tzinfo=UTC),
+            datetime(2026, 6, 2, 6, tzinfo=UTC),
+        ),
+        (
+            "after",
+            datetime(2026, 6, 3, tzinfo=UTC),
+            datetime(2026, 6, 4, tzinfo=UTC),
+        ),
+    )
+    records = []
+    for suffix, start, end in periods:
+        metadata = _metadata(f"archive-{prefix}-{suffix}")
+        metadata["normalized_period_start_utc"] = start.isoformat()
+        metadata["normalized_period_end_utc"] = end.isoformat()
+        metadata["source_receipt_at_utc"] = start.isoformat()
+        values = {
+            "observation_id": f"{prefix}-{suffix}",
+            "point_id": "window-point",
+            "point_name": "Window Point",
+            "period_start_utc": start,
+            "period_end_utc": end,
+            "observed_at_utc": start,
+            "normalizer_version": native["normalizer_version"],
+            "native_rate_json": native,
+            "metadata_json": metadata,
+        }
+        if capacity:
+            values["capacity_mcm_d"] = canonical_volume
+            records.append(_capacity_observation(**values))
+        else:
+            values["flow_mcm_d"] = canonical_volume
+            records.append(_flow_observation(**values))
+    return records
+
+
+def _expected_window_ids(prefix: str) -> set[str]:
+    return {
+        f"{prefix}-start-boundary",
+        f"{prefix}-end-boundary",
+        f"{prefix}-inside",
+        f"{prefix}-covering",
+    }
+
+
 def _database(monkeypatch, tmp_path, name: str):
     path = tmp_path / f"{name}.sqlite"
     database_url = f"sqlite+pysqlite:///{path.as_posix()}"
@@ -604,3 +684,194 @@ def test_anonymous_is_rejected_under_full_app_config(monkeypatch) -> None:
     for url in ("/api/physical/flows", "/api/physical/capacity"):
         response = client.get(url)
         assert response.status_code == 401
+
+
+_NATIVE_WINDOW_PATHS = (
+    ("/api/physical/flows", "flow", False),
+    ("/api/physical/capacity", "capacity", True),
+)
+
+
+@pytest.mark.parametrize(("path", "prefix", "capacity"), _NATIVE_WINDOW_PATHS)
+def test_native_window_period_overlap_boundaries_and_covering_period(
+    tmp_path, monkeypatch, path, prefix, capacity
+) -> None:
+    engine = _database(monkeypatch, tmp_path, f"native-window-{prefix}")
+    with Session(engine) as session:
+        session.add_all(_window_native_records(capacity=capacity))
+        session.commit()
+
+    response = TestClient(create_app()).get(
+        f"{path}?quantity_basis=native"
+        "&from_utc=2026-06-01T00:00:00Z"
+        "&to_utc=2026-06-02T00:00:00Z"
+    )
+
+    assert response.status_code == 200
+    rows = response.json()["data"]
+    assert {row["observation_id"] for row in rows} == _expected_window_ids(prefix)
+    covering = next(
+        row for row in rows if row["observation_id"] == f"{prefix}-covering"
+    )
+    assert covering["period_start_utc"] < "2026-06-01T00:00:00+00:00"
+    assert covering["period_end_utc"] > "2026-06-02T00:00:00+00:00"
+
+
+@pytest.mark.parametrize(("path", "prefix", "capacity"), _NATIVE_WINDOW_PATHS)
+def test_native_window_normalizes_utc_offsets(
+    tmp_path, monkeypatch, path, prefix, capacity
+) -> None:
+    engine = _database(monkeypatch, tmp_path, f"native-window-offset-{prefix}")
+    with Session(engine) as session:
+        session.add_all(_window_native_records(capacity=capacity))
+        session.commit()
+
+    response = TestClient(create_app()).get(
+        f"{path}?quantity_basis=native"
+        "&from_utc=2026-05-31T20:00:00-04:00"
+        "&to_utc=2026-06-01T20:00:00-04:00"
+    )
+
+    assert response.status_code == 200
+    assert {row["observation_id"] for row in response.json()["data"]} == (
+        _expected_window_ids(prefix)
+    )
+
+    # Encode the positive UTC offset so URL decoding preserves the explicit sign.
+    encoded_plus_response = TestClient(create_app()).get(
+        f"{path}?quantity_basis=native"
+        "&from_utc=2026-06-01T02:00:00%2B02:00"
+        "&to_utc=2026-06-02T02:00:00%2B02:00"
+    )
+    assert encoded_plus_response.status_code == 200
+    assert {row["observation_id"] for row in encoded_plus_response.json()["data"]} == (
+        _expected_window_ids(prefix)
+    )
+
+
+_INVALID_NATIVE_WINDOWS = (
+    (
+        "quantity_basis=native&from_utc=2026-06-01T00:00:00"
+        "&to_utc=2026-06-02T00:00:00Z",
+        "2026-06-01T00:00:00",
+    ),
+    (
+        "quantity_basis=native&to_utc=2026-06-02T00:00:00Z",
+        "2026-06-02T00:00:00Z",
+    ),
+    (
+        "quantity_basis=native&from_utc=2026-06-01T00:00:00Z",
+        "2026-06-01T00:00:00Z",
+    ),
+    (
+        "quantity_basis=native&from_utc=2026-06-02T00:00:00Z"
+        "&to_utc=2026-06-01T00:00:00Z",
+        "2026-06-02T00:00:00Z",
+    ),
+    (
+        "quantity_basis=native&from_utc=2026-06-01T00:00:00Z"
+        "&to_utc=2026-06-01T00:00:00Z",
+        "2026-06-01T00:00:00Z",
+    ),
+    (
+        "quantity_basis=volume&from_utc=2026-06-01T00:00:00Z"
+        "&to_utc=2026-06-02T00:00:00Z",
+        "2026-06-01T00:00:00Z",
+    ),
+    (
+        "from_utc=2026-06-01T00:00:00Z&to_utc=2026-06-02T00:00:00Z",
+        "2026-06-01T00:00:00Z",
+    ),
+    (
+        "quantity_basis=native&from_utc=secret-window-value"
+        "&to_utc=2026-06-02T00:00:00Z",
+        "secret-window-value",
+    ),
+)
+
+
+@pytest.mark.parametrize(("query", "sensitive_echo"), _INVALID_NATIVE_WINDOWS)
+def test_native_window_invalid_requests_are_safe_422(
+    monkeypatch, query, sensitive_echo
+) -> None:
+    _clear_database_env(monkeypatch)
+    client = TestClient(create_app())
+
+    for path, _prefix, _capacity in _NATIVE_WINDOW_PATHS:
+        response = client.get(f"{path}?{query}")
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert detail["code"] == "native_window_invalid"
+        assert set(detail) == {"code", "message"}
+        assert sensitive_echo not in response.text
+
+
+@pytest.mark.parametrize(("path", "prefix", "capacity"), _NATIVE_WINDOW_PATHS)
+def test_native_window_narrows_limit_overflow(
+    tmp_path, monkeypatch, path, prefix, capacity
+) -> None:
+    engine = _database(monkeypatch, tmp_path, f"native-window-limit-{prefix}")
+    native = _native_payload("100.5", volume=True)
+    canonical_volume = float(native["volume_mcm_per_day"])
+    periods = (
+        (
+            "inside-1",
+            datetime(2026, 6, 1, 1, tzinfo=UTC),
+            datetime(2026, 6, 1, 2, tzinfo=UTC),
+        ),
+        (
+            "inside-2",
+            datetime(2026, 6, 1, 2, tzinfo=UTC),
+            datetime(2026, 6, 1, 3, tzinfo=UTC),
+        ),
+        (
+            "outside-before",
+            datetime(2026, 5, 1, tzinfo=UTC),
+            datetime(2026, 5, 2, tzinfo=UTC),
+        ),
+        (
+            "outside-after",
+            datetime(2026, 6, 3, tzinfo=UTC),
+            datetime(2026, 6, 4, tzinfo=UTC),
+        ),
+    )
+    with Session(engine) as session:
+        for suffix, start, end in periods:
+            metadata = _metadata(f"archive-{prefix}-{suffix}")
+            metadata["normalized_period_start_utc"] = start.isoformat()
+            metadata["normalized_period_end_utc"] = end.isoformat()
+            metadata["source_receipt_at_utc"] = start.isoformat()
+            values = {
+                "observation_id": f"{prefix}-{suffix}",
+                "point_id": "window-limit-point",
+                "point_name": "Window Limit Point",
+                "period_start_utc": start,
+                "period_end_utc": end,
+                "observed_at_utc": start,
+                "normalizer_version": native["normalizer_version"],
+                "native_rate_json": native,
+                "metadata_json": metadata,
+            }
+            if capacity:
+                values["capacity_mcm_d"] = canonical_volume
+                session.add(_capacity_observation(**values))
+            else:
+                values["flow_mcm_d"] = canonical_volume
+                session.add(_flow_observation(**values))
+        session.commit()
+
+    client = TestClient(create_app())
+    broad_response = client.get(f"{path}?quantity_basis=native&limit=2")
+    assert broad_response.status_code == 400
+    assert broad_response.json()["detail"]["code"] == "native_query_overflow"
+
+    narrowed_response = client.get(
+        f"{path}?quantity_basis=native&limit=2"
+        "&from_utc=2026-06-01T00:00:00Z"
+        "&to_utc=2026-06-02T00:00:00Z"
+    )
+    assert narrowed_response.status_code == 200
+    assert {row["observation_id"] for row in narrowed_response.json()["data"]} == {
+        f"{prefix}-inside-1",
+        f"{prefix}-inside-2",
+    }

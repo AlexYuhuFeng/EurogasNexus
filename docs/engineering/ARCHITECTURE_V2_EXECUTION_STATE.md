@@ -1,5 +1,38 @@
 # Architecture V2 Execution State
 
+## 2026-10-29 — shared native capacity context and bounded history reads
+
+The existing capacity network workspace now queries native flow/capacity together
+for an explicit point, preserves exact canonical strings and both response meta,
+and displays approximate same-operator/dimension/covering-period comparisons.
+Missing, negative, ambiguous or incompatible evidence cannot become zero or a
+comparison. Ratios above100 remain visible; no rights/headroom inference exists.
+Review corrected the initial model's mistaken rejection of supported MWh/hour
+and m3 units: the backend owns conversion, the UI uses its canonical daily field.
+Root generated all eight actual backend unit payloads and verified the Web model.
+Only50 evidence cards render per page, with visible totals and deterministic
+navigation; new reads reset the page and loaded query identity survives edits.
+
+Native API reads additionally accept paired aware from_utc/to_utc instants with
+half-open overlap, including covering technical capacity; naive/reversed/partial
+or volume-mode windows refuse422. Root removed a worker shortcut guessing an
+unescaped positive offset; callers must URL-encode it normally. No path added.
+SDK/Web query window controls are the next integration step, still outstanding.
+
+Root validation: Web1040passed/3skipped and production build passed; focused
+API27passed, combined API/client contract/wire47passed before the offset cleanup.
+Real headless browser interaction passed51-row pagination, exact long decimals,
+200% indication, evidence expansion, error/empty clearing, superseded reads and
+loaded-point identity.390px viewport had no document horizontal overflow.
+The browser transport fixture is explicitly synthetic and separate from the
+real PostgreSQL/HTTP-to-Web-model verification already recorded. This interaction
+is now included in hosted browser acceptance; same-SHA results remain required.
+Hosted d76c829/run40866724770 and5ed06fc/run40865762328 completed all11jobs green.
+The long local Linux run overlapped edits and ended4930passed/96skipped with
+five failures/three build errors; it is not a clean same-SHA completion claim.
+Delivery gaps below remain open; do not infer customer readiness from these gates.
+
+
 ## 2026-10-29 — recurring ENTSOG explicit point scope
 
 Both existing recurring runners now accept the same repeatable/comma point

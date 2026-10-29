@@ -1182,6 +1182,131 @@ export interface CapacityObsDTO {
   observed_at_utc?: string; source_system?: string; source_reference?: string; freshness?: string;
 }
 
+/**
+ * One exact native-rate payload from the backend `entsog-native-units-v1`
+ * normalizer. Every numeric token stays a string: the web client renders the
+ * backend's exact decimal, it never converts or re-rounds it.
+ */
+export interface NativeRateDTO {
+  value_text: string;
+  unit_text: string;
+  native_value: string;
+  normalized_unit: string;
+  quantity_kind: "energy" | "volume";
+  rate_basis: "day" | "hour";
+  energy_kwh_per_day: string | null;
+  volume_mcm_per_day: string | null;
+  normalizer_version: "entsog-native-units-v1";
+}
+
+interface NativePhysicalObservationBaseDTO {
+  observation_id: string;
+  source_record_id: string;
+  point_id: string;
+  point_name: string;
+  direction: string;
+  period_start_utc: string;
+  period_end_utc: string;
+  observed_at_utc: string | null;
+  source_system: "ENTSOG";
+  operator_key: string | null;
+  flow_status: string | null;
+  period_type: string | null;
+  source_reference: string;
+  research_only: boolean;
+  quantity_basis: "native";
+  normalizer_version: "entsog-native-units-v1";
+  native_rate_json: NativeRateDTO;
+  raw_archive_id: string | null;
+  payload_sha256: string | null;
+  received_at_utc: string | null;
+}
+
+/** One projected native-unit ENTSOG physical flow observation. */
+export interface NativeFlowObsDTO extends NativePhysicalObservationBaseDTO {
+  kind: string;
+}
+
+/** One projected native-unit ENTSOG physical capacity observation. */
+export interface NativeCapacityObsDTO extends NativePhysicalObservationBaseDTO {
+  capacity_type: string;
+}
+
+export interface NativePhysicalFetchOptions {
+  /** Optional ENTSOG point identifier; surrounding whitespace is trimmed. */
+  pointId?: string;
+  /** Page size, an integer from 1 to 2000. Defaults to 200. */
+  limit?: number;
+  signal?: AbortSignal;
+}
+
+function nativePhysicalQuery(options: NativePhysicalFetchOptions): URLSearchParams {
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw new Error("Native physical options are required.");
+  }
+
+  const rawPointId = options.pointId;
+  let pointId: string | undefined;
+  if (rawPointId !== undefined) {
+    if (typeof rawPointId !== "string") {
+      throw new Error("pointId must be a string.");
+    }
+    pointId = rawPointId.trim();
+    if (!pointId) {
+      throw new Error("pointId must be non-blank.");
+    }
+    if (pointId.length > 128) {
+      throw new Error("pointId must be at most 128 characters.");
+    }
+  }
+
+  const rawLimit: unknown = options.limit === undefined ? 200 : options.limit;
+  if (
+    typeof rawLimit !== "number" ||
+    !Number.isInteger(rawLimit) ||
+    rawLimit < 1 ||
+    rawLimit > 2000
+  ) {
+    throw new Error("limit must be an integer between 1 and 2000.");
+  }
+
+  const params = new URLSearchParams();
+  params.set("quantity_basis", "native");
+  if (pointId !== undefined) params.set("point_id", pointId);
+  params.set("limit", String(rawLimit));
+  return params;
+}
+
+/**
+ * Fetch projected native-unit ENTSOG physical flows through the shared API
+ * transport, preserving the envelope's complete meta.
+ */
+export async function fetchNativeFlows(
+  options: NativePhysicalFetchOptions = {},
+): Promise<ApiResponse<NativeFlowObsDTO[]>> {
+  const params = nativePhysicalQuery(options);
+  return get<NativeFlowObsDTO[]>(
+    "/physical/flows",
+    params,
+    options.signal ? { signal: options.signal } : {},
+  );
+}
+
+/**
+ * Fetch projected native-unit ENTSOG physical capacities through the shared API
+ * transport, preserving the envelope's complete meta.
+ */
+export async function fetchNativeCapacity(
+  options: NativePhysicalFetchOptions = {},
+): Promise<ApiResponse<NativeCapacityObsDTO[]>> {
+  const params = nativePhysicalQuery(options);
+  return get<NativeCapacityObsDTO[]>(
+    "/physical/capacity",
+    params,
+    options.signal ? { signal: options.signal } : {},
+  );
+}
+
 export interface StorageObsDTO {
   observation_id: string; facility_id: string; facility_name: string;
   country?: string; inventory_twh: number | null; working_capacity_twh?: number | null;

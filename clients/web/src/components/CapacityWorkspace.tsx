@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
 import { CapacityContractBook } from "@/components/CapacityContractBook";
+import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
 import type { CapacityOperatingBoardReadSurface } from "@/app/model/capacityOperatingBoardRead";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
@@ -665,6 +666,8 @@ export function CapacityWorkspace({
           </div>
         </section>
       )}
+
+      {activeView === "network" && <NativeCapacityContextPanel t={t} />}
 
       {/* The capacity the operator has declared, behind the board's measured and technical
           capacity: the profiles the runtime stores, on the same page as the points they belong to
