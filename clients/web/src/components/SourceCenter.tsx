@@ -3,6 +3,7 @@ import type { SourceRunOutcome, SourceRunReadiness } from "@/app/model/sourceRun
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import type { SourceRegistryReadSurface } from "@/app/model/sourceRegistryRead";
 import { useInspectorStore } from "@/stores/inspector";
+import { WeatherForecastEvidence } from "@/components/WeatherForecastEvidence";
 import {
   EvidenceBlock,
   MetricStrip,
@@ -465,6 +466,9 @@ export function SourceCenter({
                 },
               ]}
             />
+            {selectedSource.source_system === "ECMWF_OPEN_DATA" && (
+              <WeatherForecastEvidence key={selectedSource.source_id} t={t} />
+            )}
             <div className="metric-grid two-column source-detail-metrics">
               <div><span>{t("sources.category_label")}</span><strong>{sourceLabel("sources.category", selectedSource.category)}</strong></div>
               <div><span>{t("sources.native_status")}</span><strong>{sourceLabel("sources.status", selectedSource.connectivity_status)}</strong></div>
