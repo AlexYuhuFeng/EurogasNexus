@@ -404,17 +404,19 @@ export async function testApiBaseUrl(value: string): Promise<HealthDTO> {
   );
 }
 
-async function get<T>(
+async function get<T, M = ApiMeta>(
   path: string,
-  params?: Record<string, string>,
+  params?: Record<string, string> | URLSearchParams,
   options: ApiRequestOptions = {},
-): Promise<ApiResponse<T>> {
+): Promise<ApiResponse<T, M>> {
   const url = new URL(apiUrl(path));
-  if (params) {
+  if (params instanceof URLSearchParams) {
+    params.forEach((value, key) => url.searchParams.append(key, value));
+  } else if (params) {
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   }
   const res = await fetch(url.toString(), requestInit({ signal: options.signal }));
-  return parseResponse<ApiResponse<T>>(res);
+  return parseResponse<ApiResponse<T, M>>(res);
 }
 
 async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
@@ -3940,4 +3942,190 @@ export interface RuntimeDependenciesDTO {
   oidc: RuntimeDependencyStateDTO;
   llm: RuntimeDependencyStateDTO;
   streaming: RuntimeDependencyStateDTO;
+}
+
+/**
+ * One persisted ECMWF forecast-grid reading at a single instant.
+ *
+ * Mirrors `ForecastPointReading` in the backend contract. Timestamps are the
+ * backend's explicit-UTC ISO-8601 strings, not local times, and the two hashes
+ * are the stored sha256 provenance. This is transport data only: no client
+ * aggregation, persistence or inferred station identity belongs here.
+ */
+export interface ForecastPointReadingDTO {
+  observation_id: string;
+  point_id: string;
+  series_id: string;
+  entity_id: string;
+  source_system: "ECMWF_OPEN_DATA";
+  provider: "ECMWF";
+  model: string;
+  run_id: string;
+  issued_at_utc: string;
+  valid_at_utc: string;
+  available_at_utc: string;
+  temperature_c: number;
+  unit: "degC";
+  raw_grib_sha256: string;
+  record_content_sha256: string;
+  requested_latitude: number;
+  requested_longitude: number;
+  grid_latitude: number;
+  grid_longitude: number;
+}
+
+/**
+ * Envelope metadata for the research-only forecast surface.
+ *
+ * `research_only` is the literal `true` the backend emits; the attribution and
+ * warnings are part of the answer, not decoration, so callers keep the whole
+ * meta object rather than narrowing it to the data array.
+ */
+export interface ForecastReadMetaDTO {
+  research_only: true;
+  source_references: string[];
+  warnings: string[];
+  attribution: string;
+  point_kind: "FORECAST_GRID_POINT";
+}
+
+/** Bounded forecast-grid response envelope (`GET /api/weather/forecasts`). */
+export interface ForecastReadEnvelopeDTO {
+  data: ForecastPointReadingDTO[];
+  meta: ForecastReadMetaDTO;
+}
+
+/**
+ * Explicit forecast query. Every field is required: the client never fills in
+ * a default region, an implicit "now", or a zero limit on the caller's behalf.
+ */
+export interface FetchWeatherForecastsOptions {
+  seriesIds: string[];
+  entityIds: string[];
+  /** Explicit UTC instant whose issued/available vintages may be selected. */
+  predictionOrigin: string;
+  /** Inclusive lower bound of the half-open valid-at window. */
+  validFrom: string;
+  /** Exclusive upper bound of the half-open valid-at window. */
+  validTo: string;
+  /** Maximum rows the backend may return, from 1 through 256. */
+  limit: number;
+  signal?: AbortSignal;
+}
+
+const WEATHER_FORECAST_MAX_IDENTIFIERS = 256;
+const WEATHER_FORECAST_MAX_SERIES_ID_LENGTH = 160;
+const WEATHER_FORECAST_MAX_ENTITY_ID_LENGTH = 128;
+const WEATHER_FORECAST_MAX_LIMIT = 256;
+const WEATHER_FORECAST_MAX_WINDOW_MS = 32 * 24 * 60 * 60 * 1000;
+const UTC_ISO_TIMESTAMP =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|z|[+-]00:00)$/;
+
+function forecastIdentifiers(
+  value: unknown,
+  name: string,
+  maxLength: number,
+): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new TypeError(`${name} must be a non-empty list of identifiers.`);
+  }
+  if (value.length > WEATHER_FORECAST_MAX_IDENTIFIERS) {
+    throw new TypeError(
+      `${name} must contain at most ${WEATHER_FORECAST_MAX_IDENTIFIERS} identifiers.`,
+    );
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string") {
+      throw new TypeError(`${name}[${index}] must be a string identifier.`);
+    }
+    const identifier = entry.trim();
+    if (!identifier) {
+      throw new TypeError(`${name}[${index}] must not be empty.`);
+    }
+    if (identifier.length > maxLength) {
+      throw new TypeError(
+        `${name}[${index}] must be at most ${maxLength} characters.`,
+      );
+    }
+    return identifier;
+  });
+}
+
+function forecastUtcInstant(value: unknown, name: string): number {
+  if (typeof value !== "string" || !UTC_ISO_TIMESTAMP.test(value.trim())) {
+    throw new TypeError(`${name} must be an explicit UTC ISO-8601 timestamp.`);
+  }
+  const parsed = Date.parse(value.trim());
+  if (!Number.isFinite(parsed)) {
+    throw new TypeError(`${name} must be a valid UTC ISO-8601 timestamp.`);
+  }
+  return parsed;
+}
+
+/**
+ * Read bounded ECMWF forecast points for explicitly authorized series/entities.
+ *
+ * Validation happens before any transport call, so an unbounded or implicit
+ * query never reaches the backend. The response is returned as the complete
+ * typed envelope, including `research_only`, attribution, source references and
+ * warnings; HTTP failures reject as the existing `ApiError` with its structured
+ * detail intact.
+ */
+export async function fetchWeatherForecasts(
+  options: FetchWeatherForecastsOptions,
+): Promise<ForecastReadEnvelopeDTO> {
+  if (!options || typeof options !== "object") {
+    throw new TypeError("Weather forecast options are required.");
+  }
+
+  const seriesIds = forecastIdentifiers(
+    options.seriesIds,
+    "seriesIds",
+    WEATHER_FORECAST_MAX_SERIES_ID_LENGTH,
+  );
+  const entityIds = forecastIdentifiers(
+    options.entityIds,
+    "entityIds",
+    WEATHER_FORECAST_MAX_ENTITY_ID_LENGTH,
+  );
+  const predictionOrigin = options.predictionOrigin;
+  const validFrom = options.validFrom;
+  const validTo = options.validTo;
+  forecastUtcInstant(predictionOrigin, "predictionOrigin");
+  const validFromMs = forecastUtcInstant(validFrom, "validFrom");
+  const validToMs = forecastUtcInstant(validTo, "validTo");
+
+  if (validToMs <= validFromMs) {
+    throw new TypeError("validTo must be after validFrom.");
+  }
+  if (validToMs - validFromMs > WEATHER_FORECAST_MAX_WINDOW_MS) {
+    throw new TypeError("The forecast validity window must not exceed 32 days.");
+  }
+
+  const limit = options.limit;
+  if (
+    typeof limit !== "number" ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > WEATHER_FORECAST_MAX_LIMIT
+  ) {
+    throw new TypeError(
+      `limit must be an integer between 1 and ${WEATHER_FORECAST_MAX_LIMIT}.`,
+    );
+  }
+
+  const params = new URLSearchParams();
+  seriesIds.forEach((seriesId) => params.append("series_ids", seriesId));
+  entityIds.forEach((entityId) => params.append("entity_ids", entityId));
+  params.set("prediction_origin", predictionOrigin.trim());
+  params.set("valid_from", validFrom.trim());
+  params.set("valid_to", validTo.trim());
+  params.set("limit", String(limit));
+
+  const response = await get<ForecastPointReadingDTO[], ForecastReadMetaDTO>(
+    "/weather/forecasts",
+    params,
+    { signal: options.signal },
+  );
+  return { data: response.data, meta: response.meta };
 }
