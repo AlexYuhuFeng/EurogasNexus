@@ -131,13 +131,16 @@ jobs:
         # the CI environment is clean - not that the set a customer receives is.
         run: python -m pip_audit
 
-      - name: CVE audit (pip-audit, shipped lock set)
+      - name: CVE audit (pip-audit, shipped and internal science lock sets)
         # Audits the declared dependency set rather than this environment, so the
         # result is a statement about what ships: the runtime lock is the image's
         # dependency set, and the full lock covers the development extras.
+        # The internal science lock is included so the reviewed NumPy pin has a
+        # CVE check too; this is not a shipped-runtime audit or licence approval.
         run: |
           python -m pip_audit -r requirements-runtime.lock
           python -m pip_audit -r requirements.lock
+          python -m pip_audit -r requirements-scientific-ci.lock
 
       - name: Set up Rust for locked metadata audit
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
@@ -439,3 +442,9 @@ jobs:
   sdk-installed:
     name: SDK installed-wheel acceptance
     uses: ./.github/workflows/sdk-acceptance.yml
+
+  weather-model-numerical:
+    # One shared definition for ordinary CI and manual CI. No inputs, refs,
+    # secrets, or write permission are passed from this caller.
+    name: Weather model numerical acceptance (internal, NumPy 2.3.5)
+    uses: ./.github/workflows/weather-model-acceptance.yml

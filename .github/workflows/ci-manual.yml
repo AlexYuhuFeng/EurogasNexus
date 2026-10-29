@@ -99,3 +99,9 @@ jobs:
   sdk-installed:
     name: SDK installed-wheel acceptance
     uses: ./.github/workflows/sdk-acceptance.yml
+
+  weather-model-numerical:
+    # Same single shared definition as ordinary CI. No inputs, refs, secrets,
+    # or write permission are passed from this caller.
+    name: Weather model numerical acceptance (internal, NumPy 2.3.5)
+    uses: ./.github/workflows/weather-model-acceptance.yml

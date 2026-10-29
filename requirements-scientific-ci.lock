@@ -1,0 +1,17 @@
+# INTERNAL CI-ONLY scientific numerical environment. NOT a customer runtime
+# dependency, release lock, redistribution approval, or claim that NumPy ships.
+#
+# Root approved NumPy 2.3.5 for isolated CI computation only, under RFC-0003
+# approved decoder/numerical experiments and the NumPy default-stack dependency
+# policy. The full texts reviewed in
+# docs/engineering/NUMPY_RUNTIME_CLOSURE_20261029.md remain the basis; native
+# notice/source-offer obligations for customer redistribution remain OPEN.
+#
+# Exact artifact, from .local-runtime/delivery-20261029-numpy/manifest.json:
+#   numpy-2.3.5-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+#   Requires-Dist: []  (empty; the --no-deps install is therefore exact)
+# This lock is installed only by .github/workflows/weather-model-acceptance.yml
+# with --require-hashes --only-binary=:all: --no-deps. It is not referenced by
+# requirements.lock, requirements-runtime.lock, pyproject.toml, or any image.
+numpy==2.3.5 \
+    --hash=sha256:8cba086a43d54ca804ce711b2a940b16e452807acebe7852ff327f1ecd49b0d4

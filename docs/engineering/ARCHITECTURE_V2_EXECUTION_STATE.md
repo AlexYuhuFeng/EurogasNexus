@@ -1,3 +1,34 @@
+## 2026-10-30 — isolated numerical CI gate accepted for execution
+
+Reviewed DeepSeek reusable weather-model workflow is called by ordinary/manual
+CI with read-only permissions and same dispatched SHA. It installs only the
+exact hash-pinned CP311 manylinux NumPy 2.3.5 wheel into its internal environment.
+The full PostgreSQL script precedes explicit focused unit/actual PG fit suites.
+JUnit gate rejects any skips/failures/errors/zero cases/missing required module;
+module evidence comes from exact normalized classname/file identities, never
+from testcase names. Root corrected one final test-message spelling assertion.
+Nine contract tests passed, including executing the actual inline parser against
+valid and tampered evidence; focused Ruff passed. Actual local 144-unit/7-PG
+JUnit passed the revised gate with 151 tests and zero skipped/failed/errored.
+New isolated Linux target install verified the exact lock with hashes, binaries
+only, no dependencies and ignore-installed. No customer runtime/redistribution
+approval is inferred; native obligations remain open in NumPy review addendum.
+
+Root also ran the full registered PostgreSQL script in newly owned database
+nexus_science_full_ci_20261030: all migrations through0044, required-table check,
+credentialed and uncredentialed API smoke, and95 tests passed. This includes
+real fits on synthetic fixtures; not provider-history accuracy evidence.
+Actual conditional archive index failure was diagnosed as AmazonS3 XML Code
+SlowDown (HEAD200, conditionalGET503, no Retry-After); do not hammer or remove
+conditional validation. Prior80b91ac remote CI succeeded; ae8eabe pending.
+
+Two bounded DeepSeek workers are active: dsh-archive-s2-capture session95817,
+and dsh-demand-prediction-runtime session10762. Respect live handles; no restart
+on observation timeout. S2 owns only raw capture/client extension/application
+wrapper/new unit module. Prediction owns only new runtime/unit/PG/doc files.
+Root will register prediction PG tests only after review. No desktop GUI use.
+Full regional history, source coverage, prediction business use, delivered
+scientific dependencies/native closure and remaining acceptance gates stay open.
 ## 2026-10-30 — RFC0007 S1 pure archive evidence validation
 
 Reviewed DeepSeek S1 helper validates typed fixed-bucket HEAD/HTTP metadata,

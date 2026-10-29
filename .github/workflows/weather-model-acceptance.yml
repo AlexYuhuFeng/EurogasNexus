@@ -1,0 +1,276 @@
+name: Weather model numerical acceptance (internal)
+
+# INTERNAL scientific numerical CI. This workflow is reusable and manually
+# dispatchable, accepts no ref/source input, and always checks out github.sha.
+# It installs the separately reviewed NumPy 2.3.5 wheel only into this isolated
+# CI environment. It does not make NumPy a customer/runtime dependency, ship a
+# wheel, approve redistribution, or claim provider accuracy or model promotion.
+# The native notice/source-offer obligations in
+# docs/engineering/NUMPY_RUNTIME_CLOSURE_20261029.md remain OPEN for customer
+# redistribution. The global dependency/licence audit is unchanged and does not
+# audit this environment as a shipped-runtime set.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Read-only by construction: test, parse evidence, upload review artifacts.
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11.12"
+
+jobs:
+  weather-model-numerical:
+    name: Internal numerical acceptance (NumPy 2.3.5)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        # Same service settings as the existing integration-postgres job.
+        # The repository records the tag, not an image digest; this job reuses
+        # that exact reviewed tag and does not invent an unverified digest.
+        # When a digest is approved, pin every PostgreSQL service together.
+        image: postgres:16
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus
+          POSTGRES_DB: nexus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://nexus:nexus@127.0.0.1:5432/nexus_test
+      EUROGAS_NEXUS_TEST_POSTGRES_URL: postgresql+pg8000://nexus:nexus@127.0.0.1:5432/nexus_test
+      # In-process TestClient smoke only; this is not a server deployment secret.
+      EUROGAS_NEXUS_PUBLIC_API_TOKEN: ci-weather-model-public-api-token
+
+    steps:
+      - name: Check out the dispatched commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up canonical Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify canonical Python
+        run: >-
+          python -c "import sys; assert sys.version_info[:3] == (3, 11, 12),
+          sys.version; print(sys.version)"
+
+      - name: Install hash-pinned base and build locks
+        run: |
+          python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
+          python -m pip install --no-deps --no-build-isolation -e .
+
+      - name: Install science-only lock for reviewed internal execution
+        # --no-deps is exact: the approved wheel declares Requires-Dist: [].
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-scientific-ci.lock
+
+      - name: Verify the approved NumPy version
+        run: |
+          python - <<'PY'
+          import numpy
+          assert numpy.__version__ == "2.3.5", numpy.__version__
+          print(f"numpy {numpy.__version__} loaded from the reviewed internal lock")
+          PY
+
+      - name: PostgreSQL migrations, registered tests, and API auth smoke
+        # Alembic head, the registered PostgreSQL modules, and the in-process
+        # authenticated API smoke. No owned HTTP server is started.
+        run: bash scripts/ci/run_postgres_ci.sh
+
+      - name: Focused weather-model unit tests
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/weather-model-ci/junit
+          python -m pytest -q \
+            tests/unit/test_weather_demand.py \
+            tests/unit/test_weather_demand_inputs.py \
+            tests/unit/test_demand_target_inputs.py \
+            tests/unit/test_weather_demand_runtime.py \
+            tests/unit/test_weather_demand_operator_cli.py \
+            tests/unit/test_weather_forecast_contract.py \
+            tests/db/test_ecmwf_weather_feature_bridge.py \
+            --junitxml=artifacts/weather-model-ci/junit/unit.xml
+
+      - name: Actual PostgreSQL weather-model fit tests
+        # The fitted cases use the reviewed NumPy install and real PostgreSQL.
+        # Every fixture is explicitly synthetic mechanics data, not provider
+        # history, accuracy evidence, or a model-promotion claim.
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/integration/test_weather_demand_runtime_postgres.py \
+            tests/integration/test_weather_demand_operator_postgres.py \
+            --junitxml=artifacts/weather-model-ci/junit/postgres.xml
+
+      - name: Enforce zero-skipped JUnit and required weather-model evidence
+        # A skip is never a numerical pass. Module evidence comes only from the
+        # exact normalized classname/file identity of a testcase, never from its
+        # name: another test's name must not be able to satisfy a missing module.
+        if: always()
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          NUMPY_HASH = "8cba086a43d54ca804ce711b2a940b16e452807acebe7852ff327f1ecd49b0d4"
+          root = Path("artifacts/weather-model-ci")
+          junit_dir = root / "junit"
+          required_modules = {
+              "weather_core": "tests/unit/test_weather_demand.py",
+              "weather_bridge": "tests/unit/test_weather_demand_inputs.py",
+              "target_inputs": "tests/unit/test_demand_target_inputs.py",
+              "weather_runtime": "tests/unit/test_weather_demand_runtime.py",
+              "weather_operator": "tests/unit/test_weather_demand_operator_cli.py",
+              "weather_forecast_contract": "tests/unit/test_weather_forecast_contract.py",
+              "weather_db_bridge": "tests/db/test_ecmwf_weather_feature_bridge.py",
+              "pg_weather_runtime": "tests/integration/test_weather_demand_runtime_postgres.py",
+              "pg_weather_operator": "tests/integration/test_weather_demand_operator_postgres.py",
+          }
+          required_dotted = {
+              name: path.removesuffix(".py").replace("/", ".")
+              for name, path in required_modules.items()
+          }
+
+          def normalize_file(value: str | None) -> str:
+              text = (value or "").strip().replace("\\", "/")
+              text = re.sub(r"/+", "/", text)
+              while text.startswith("./"):
+                  text = text[2:]
+              return text
+
+          def normalize_classname(value: str | None) -> str:
+              text = (value or "").strip().replace("\\", "/")
+              text = text.replace("/", ".")
+              text = re.sub(r"\.+", ".", text).strip(".")
+              return text.removesuffix(".py")
+
+          files = sorted(junit_dir.glob("*.xml"))
+          counts = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          observed: set[str] = set()
+          identity_conflicts = 0
+          suite_skips_total = 0
+          suite_failures_total = 0
+          suite_errors_total = 0
+          for path in files:
+              root_element = ET.parse(path).getroot()
+              suites = list(root_element.iter("testsuite"))
+              if root_element.tag == "testsuites":
+                  suites.append(root_element)
+              suite_skips_total += sum(int(suite.get("skipped") or 0) for suite in suites)
+              suite_failures_total += sum(
+                  int(suite.get("failures") or 0) for suite in suites
+              )
+              suite_errors_total += sum(int(suite.get("errors") or 0) for suite in suites)
+              for case in root_element.iter("testcase"):
+                  counts["tests"] += 1
+                  file_identity = normalize_file(case.get("file"))
+                  class_identity = normalize_classname(case.get("classname"))
+                  file_matches = {
+                      name
+                      for name, module_path in required_modules.items()
+                      if file_identity == module_path
+                  }
+                  class_matches = {
+                      name
+                      for name, dotted in required_dotted.items()
+                      if class_identity == dotted
+                      or class_identity.startswith(dotted + ".")
+                  }
+                  observed.update(file_matches)
+                  observed.update(class_matches)
+                  if file_matches and class_matches and file_matches != class_matches:
+                      identity_conflicts += 1
+                  if case.find("skipped") is not None:
+                      counts["skipped"] += 1
+                  if case.find("failure") is not None:
+                      counts["failures"] += 1
+                  if case.find("error") is not None:
+                      counts["errors"] += 1
+          counts["skipped"] = max(counts["skipped"], suite_skips_total)
+          counts["failures"] = max(counts["failures"], suite_failures_total)
+          counts["errors"] = max(counts["errors"], suite_errors_total)
+          missing = [name for name in required_modules if name not in observed]
+          problems = []
+          if not files:
+              problems.append("no JUnit XML files were produced")
+          if counts["tests"] == 0:
+              problems.append("zero test cases were reported")
+          if counts["skipped"] > 0:
+              problems.append(f"{counts['skipped']} skipped test(s)")
+          if counts["failures"] > 0:
+              problems.append(f"{counts['failures']} failed test(s)")
+          if counts["errors"] > 0:
+              problems.append(f"{counts['errors']} errored test(s)")
+          if identity_conflicts > 0:
+              problems.append(
+                  f"{identity_conflicts} testcase(s) with conflicting classname/file identities"
+              )
+          if missing:
+              problems.append("missing required module evidence: " + ", ".join(missing))
+          identity = {
+              "scope": "internal-reviewed-execution-not-shipped-runtime",
+              "source_sha": os.environ.get("GITHUB_SHA", ""),
+              "repository": os.environ.get("GITHUB_REPOSITORY", ""),
+              "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+              "runner_os": os.environ.get("RUNNER_OS", ""),
+              "python_version": os.environ.get("PYTHON_VERSION", ""),
+              "numpy_version": "2.3.5",
+              "numpy_wheel_sha256": NUMPY_HASH,
+              "junit_files": [path.name for path in files],
+          }
+          payload = {
+              **counts,
+              "missing_evidence": missing,
+              "identity_conflicts": identity_conflicts,
+              "result": "fail" if problems else "pass",
+              "junit_files": [path.name for path in files],
+          }
+          root.mkdir(parents=True, exist_ok=True)
+          (root / "identity.json").write_text(
+              json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          (root / "counts.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          if problems:
+              for problem in problems:
+                  print(f"::error::weather-model numerical gate: {problem}")
+              sys.exit(1)
+          print(f"weather-model numerical gate passed: {json.dumps(counts, sort_keys=True)}")
+          PY
+
+      - name: Upload JUnit and safe identity/count evidence
+        # Only JUnit XML and the safe identity/count JSON. No virtualenv, wheel,
+        # archive, credential, database URL, or raw model data is uploaded.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: weather-model-numerical-ci
+          path: |
+            artifacts/weather-model-ci/junit/*.xml
+            artifacts/weather-model-ci/identity.json
+            artifacts/weather-model-ci/counts.json
+          if-no-files-found: error
+          retention-days: 7
