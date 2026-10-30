@@ -36,6 +36,8 @@ class ScreenOrderObservationRecord(Base):
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(256), nullable=False)
     linked_strategy_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    #: Trading book the trade is held in (trading_books.book_id); None while unassigned.
+    book_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     linked_resource_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
     human_review_required: Mapped[bool] = mapped_column(Boolean, nullable=False)

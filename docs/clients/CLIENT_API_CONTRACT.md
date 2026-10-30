@@ -212,7 +212,8 @@ missing/stale precondition and `409 contract_edit_token_malformed` for a value
 that is not this API's token; both write nothing, keep the draft, and require a
 fresh read before reconciliation - clients must not retry the same stale token
 or treat the failure as success. The token schema is
-`upstream-contract-edit-token/v2` since the payment-terms carrier was added, so
+`upstream-contract-edit-token/v3` since the payment-terms carrier (v2) and the trading
+book (v3) were added, so
 a token read before that upgrade is stale by construction and must be reloaded;
 there is no fallback.
 

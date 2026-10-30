@@ -34,6 +34,7 @@ class PositionLeg:
     mwh_per_day: float  # long positive, short negative
     price: float | None = None  # contract or trade price, in the hub's ladder currency/MWh
     reference: str = ""
+    book_id: str = ""  # trading book; "" while unassigned
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ class LadderResult:
     var_95_1d: float | None = None
     var_observations: int = 0
     warnings: list[str] = field(default_factory=list)
+    reporting_currency: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -89,6 +91,7 @@ class LadderResult:
             "unpriced_rows": self.unpriced_rows,
             "var_95_1d": None if self.var_95_1d is None else round(self.var_95_1d, 2),
             "var_observations": self.var_observations,
+            "reporting_currency": self.reporting_currency,
             "warnings": list(self.warnings),
         }
 
@@ -134,21 +137,26 @@ def mark_to_market(
     *,
     horizon_start: date,
     horizon_end: date,
+    fx_by_hub: Mapping[str, float] | None = None,
 ) -> tuple[float | None, int]:
     """Value of each leg against the mark for its hub and month: (mark − price) × MWh.
 
+    Hubs quote in different currencies (NBP in GBP, continental hubs in EUR). With
+    ``fx_by_hub`` each hub's value is multiplied into one reporting currency, and a hub
+    without a rate is left unvalued; without it all hubs must share one currency.
     Returns the total (``None`` when no leg-month could be valued) and the number of
-    leg-months without a mark or a leg price.
+    leg-months without a mark, a leg price or an FX rate.
     """
 
     total, missing, valued = 0.0, 0, 0
     for leg in legs:
         for row in build_ladder([leg], horizon_start=horizon_start, horizon_end=horizon_end):
             mark = marks.get((row.hub, row.month))
-            if mark is None or leg.price is None:
+            fx = 1.0 if fx_by_hub is None else fx_by_hub.get(row.hub)
+            if mark is None or leg.price is None or fx is None:
                 missing += 1
                 continue
-            total += (mark - leg.price) * row.net_mwh
+            total += (mark - leg.price) * row.net_mwh * fx
             valued += 1
     # Nothing valued is unknown, not zero.
     return (total if valued else None), missing
@@ -160,6 +168,7 @@ def historical_var(
     *,
     confidence: float = 0.95,
     min_observations: int = 20,
+    fx_by_hub: Mapping[str, float] | None = None,
 ) -> tuple[float | None, int]:
     """One-day historical-simulation VaR of the open position (a positive loss figure).
 
@@ -170,6 +179,9 @@ def historical_var(
     hubs = [hub for hub, mwh in net_mwh_by_hub.items() if abs(mwh) > 1e-9]
     if not hubs:
         return 0.0, 0
+    fx = {hub: 1.0 if fx_by_hub is None else fx_by_hub.get(hub) for hub in hubs}
+    if any(rate is None for rate in fx.values()):
+        return None, 0
     common: set[date] | None = None
     for hub in hubs:
         days = set(daily_closes_by_hub.get(hub, {}))
@@ -181,6 +193,7 @@ def historical_var(
             sum(
                 net_mwh_by_hub[hub]
                 * (daily_closes_by_hub[hub][current] - daily_closes_by_hub[hub][previous])
+                * fx[hub]
                 for hub in hubs
             )
         )
@@ -198,16 +211,18 @@ def ladder_report(
     horizon_end: date,
     marks: Mapping[tuple[str, str], float] | None = None,
     daily_closes_by_hub: Mapping[str, Mapping[date, float]] | None = None,
+    fx_by_hub: Mapping[str, float] | None = None,
+    reporting_currency: str | None = None,
 ) -> LadderResult:
     rows = build_ladder(legs, horizon_start=horizon_start, horizon_end=horizon_end)
-    result = LadderResult(rows=rows)
+    result = LadderResult(rows=rows, reporting_currency=reporting_currency)
     result.warnings.append(
         "Indicative: price risk on the open position only; volume, basis, shape and credit "
         "risk are not included. Not a substitute for the risk system."
     )
     if marks is not None:
         value, missing = mark_to_market(
-            legs, marks, horizon_start=horizon_start, horizon_end=horizon_end
+            legs, marks, horizon_start=horizon_start, horizon_end=horizon_end, fx_by_hub=fx_by_hub
         )
         result.mark_to_market, result.unpriced_rows = value, missing
         if missing:
@@ -218,7 +233,9 @@ def ladder_report(
         net_by_hub: dict[str, float] = {}
         for row in rows:
             net_by_hub[row.hub] = net_by_hub.get(row.hub, 0.0) + row.net_mwh
-        result.var_95_1d, result.var_observations = historical_var(net_by_hub, daily_closes_by_hub)
+        result.var_95_1d, result.var_observations = historical_var(
+            net_by_hub, daily_closes_by_hub, fx_by_hub=fx_by_hub
+        )
         if result.var_95_1d is None:
             result.warnings.append(
                 f"VaR needs at least 20 daily price changes on every hub held; "

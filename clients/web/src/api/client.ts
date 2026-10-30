@@ -2419,6 +2419,48 @@ export interface OutageEventDTO {
   market_participant: string;
 }
 
+export interface LadderRollupDTO {
+  group: string;
+  level: string;
+  physical_mwh: number;
+  financial_mwh: number;
+  net_mwh: number;
+  hedge_ratio: number | null;
+  mark_to_market: number | null;
+  legs: number;
+}
+
+export interface TradingBookDTO {
+  book_id: string;
+  name: string;
+  legal_entity: string;
+  region: string;
+  business: string;
+  base_currency: string;
+  commodities: string[];
+  active: boolean;
+  contracts: number;
+  orders: number;
+}
+
+export interface TradingBooksDTO {
+  books: TradingBookDTO[];
+  hierarchy: Record<string, Record<string, Record<string, string[]>>>;
+  unassigned: { contracts: number; orders: number };
+}
+
+export interface TradingBookInput {
+  name: string;
+  legal_entity: string;
+  region: string;
+  business: string;
+  base_currency?: string;
+  commodities?: string[];
+  active?: boolean;
+  contract_ids?: string[];
+  order_ids?: string[];
+}
+
 export interface ForwardCurvePointDTO {
   hub: string;
   month: string;
@@ -2438,6 +2480,9 @@ export interface PositionLadderDTO {
   horizon: { start: string; end: string };
   legs: { physical: number; financial: number };
   curve?: ForwardCurvePointDTO[];
+  reporting_currency?: string | null;
+  group_by?: string;
+  rollup?: LadderRollupDTO[];
   warnings: string[];
 }
 
@@ -4116,8 +4161,26 @@ export const api = {
     get<GasForPowerDayDTO[]>("/market/gas-for-power", { zone, days: String(days) }, options),
   outages: (horizonDays = 90, options?: ApiRequestOptions) =>
     get<OutageEventDTO[]>("/physical/outages", { horizon_days: String(horizonDays) }, options),
-  positionLadder: (months = 12, options?: ApiRequestOptions) =>
-    get<PositionLadderDTO>("/portfolio/position-ladder", { months: String(months) }, options),
+  positionLadder: (
+    months = 12,
+    options?: ApiRequestOptions,
+    view: { groupBy?: string; reportingCurrency?: string } = {},
+  ) =>
+    get<PositionLadderDTO>(
+      "/portfolio/position-ladder",
+      {
+        months: String(months),
+        ...(view.groupBy && view.groupBy !== "hub" ? { group_by: view.groupBy } : {}),
+        ...(view.reportingCurrency ? { reporting_currency: view.reportingCurrency } : {}),
+      },
+      options,
+    ),
+  tradingBooks: (options?: ApiRequestOptions) => get<TradingBooksDTO>("/portfolio/books", undefined, options),
+  saveTradingBook: (bookId: string, body: TradingBookInput) =>
+    put<{ book_id: string; created: boolean; contracts_assigned: number; orders_assigned: number }>(
+      `/portfolio/books/${encodeURIComponent(bookId)}`,
+      body,
+    ),
   myPreferences: (options?: ApiRequestOptions) => get<PreferencesDTO>("/me/preferences", undefined, options),
   /** Merge personal choices; `null` clears one back to the organisation default. */
   saveMyPreferences: (patch: Partial<Record<PreferenceKey, string | null>>) =>

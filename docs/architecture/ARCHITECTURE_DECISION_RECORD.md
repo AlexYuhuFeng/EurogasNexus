@@ -573,3 +573,35 @@ domain code that tests can check, for a configurability the desk does not need).
 power and EUA for a power desk, starts with the market model. Tests:
 `tests/unit/test_market_reference.py` (every vocabulary hub is a market, calendars and
 units resolve, aliases are unique), `tests/contract/test_ontology_version_alignment.py`.
+
+## Decision 26: Multiple commodities, regions and books in one installation
+
+Accepted 2026-10-30.
+
+**Context.** The firm trades from offices in several countries and may add commodities
+beyond European gas: European power and carbon, Canadian AECO gas exported towards Henry
+Hub, Alberta power and emission credits. Head office reads performance across all of them;
+regional heads and desks read their part.
+
+**Decision.**
+
+1. *Markets* come from the market model (Decision 25): commodity, region, currency, units,
+   calendar. A new commodity or region is reference data plus the ingestion and analytics
+   that use it.
+2. *Positions* are held in **books**; a book belongs to a business in a region of a legal
+   entity (`trading_books`; `book_id` on contracts and screen trades). Roll-ups read the
+   same positions at firm, legal-entity, region, business or book level.
+3. *Money* is reported in one chosen currency. Each market's own currency is converted
+   through ECB reference rates; a position without a rate is left unvalued and counted,
+   never added unconverted.
+4. *Time* stays per market: EU-CAM and NAESB gas days, power hours in the market's zone.
+5. *Access* is by role and data scope today. Restricting a desk to its own books needs a
+   `PORTFOLIO` scope kind keyed on book or legal entity; until then, separate books that
+   must be hidden from another office need separate installations
+   ([GLOBAL_DEPLOYMENT.md](GLOBAL_DEPLOYMENT.md)).
+
+**Rejected.** One installation per commodity or per office (splits the firm's book and
+duplicates data and licences); currency-blind totals.
+
+Tests: `tests/api/test_portfolio_books_api.py`, `tests/unit/test_market_reference.py`.
+

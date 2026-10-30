@@ -48,9 +48,9 @@ from datetime import UTC, datetime
 #: Canonical schema discriminator of the edit-token document. Changing the
 #: covered field set or the canonicalization requires a new version, so a token
 #: from an older shape can never compare equal to a newer one. ``v2`` added
-#: ``payment_terms_json`` to the covered columns (S2b), so every token loaded
-#: from a pre-upgrade read is stale by construction and must be reloaded.
-CONTRACT_EDIT_TOKEN_SCHEMA = "upstream-contract-edit-token/v2"
+#: ``payment_terms_json`` to the covered columns (S2b); ``v3`` added ``book_id``
+#: (trading books), so moving a contract to another book makes an open draft stale.
+CONTRACT_EDIT_TOKEN_SCHEMA = "upstream-contract-edit-token/v3"
 
 #: Token text prefix; the digest is lowercase hex SHA-256.
 CONTRACT_EDIT_TOKEN_PREFIX = "sha256:"
@@ -88,6 +88,7 @@ CONTRACT_EDIT_TOKEN_FIELDS = (
     "allowed_exit_points",
     "eligible_sale_modes",
     "notes",
+    "book_id",
     "payment_terms_json",
     "created_at_utc",
     "updated_at_utc",

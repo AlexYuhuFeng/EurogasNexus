@@ -82,6 +82,8 @@ class UpstreamResourceContractRecord(Base):
     allowed_exit_points: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     eligible_sale_modes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    #: Trading book the contract is held in (trading_books.book_id); None while unassigned.
+    book_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     #: Strict canonical ``contract-payment-terms/v1`` declaration text (S2b), or
     #: NULL for "not stated". Nullable additive carrier: no backfill, no
     #: fabricated default. The governed write stores only the declaration's own

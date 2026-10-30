@@ -26,6 +26,7 @@ from eurogas_nexus.db.models.backtest import (
     BacktestExperimentRecord,
     BacktestSeriesRecord,
 )
+from eurogas_nexus.db.models.books import TradingBookRecord
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
 from eurogas_nexus.db.models.cost_observation import CostObservationRecord
 from eurogas_nexus.db.models.data_platform import AnalysisSnapshotRecord
@@ -268,6 +269,7 @@ __all__ = [
     "OrganisationSettingRecord",
     "PowerObservationRecord",
     "MarketDataLicenceRecord",
+    "TradingBookRecord",
     "RemitUmmRecord",
     "PrincipalPreferenceRecord",
     "GlossaryTermRecord",

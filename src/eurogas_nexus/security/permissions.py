@@ -279,6 +279,8 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/analysis-snapshots", Permission.GOVERNED),
     ("POST", "/api/decision-cases", Permission.GOVERNED),
     ("PUT", "/api/settings/organisation", Permission.ADMIN),
+    # Book structure and assignment is middle-office configuration, not a market read.
+    ("PUT", "/api/portfolio/books/{book_id}", Permission.OPERATOR),
 )
 
 PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {

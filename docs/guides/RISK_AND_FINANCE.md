@@ -28,3 +28,11 @@
 
 You cannot approve a decision you opened (four-eyes). Every grant, decision and setting
 change is in the audit log (Administration → Audit, for reviewers).
+
+## Books and reporting currency
+
+Portfolio → Exposure rolls the ladder up by firm, legal entity, region, business or book
+(*Roll up by*) and reports mark-to-market and VaR in one currency (*Currency*). Each hub's
+own currency is converted at the latest ECB reference rate; a position without a rate is
+left unvalued and named in the warnings. Middle office defines books and assigns contracts
+and trades to them in the *Trading books* panel (operator role).

@@ -11,6 +11,7 @@ Every response field of every endpoint below is unchanged.
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.application.projections.market_reads import runtime_db_configured
 from eurogas_nexus.application.projections.portfolio_reads import (
@@ -291,10 +292,120 @@ def _gas_year_window(label: str, horizon_end) -> tuple | None:
     return first, last
 
 
+def _books(session) -> dict:
+    from eurogas_nexus.db.models import TradingBookRecord
+    from eurogas_nexus.domain.portfolio.books import Book
+
+    return {
+        row.book_id: Book(
+            book_id=row.book_id,
+            name=row.name,
+            legal_entity=row.legal_entity,
+            region=row.region,
+            business=row.business,
+            base_currency=row.base_currency,
+            commodities=tuple(row.commodities or ()),
+            active=row.active,
+        )
+        for row in session.query(TradingBookRecord).all()
+    }
+
+
+def _order_books(session) -> dict[str, str]:
+    from eurogas_nexus.db.models import ScreenOrderObservationRecord
+
+    return {
+        order_id: book_id
+        for order_id, book_id in session.query(
+            ScreenOrderObservationRecord.order_observation_id,
+            ScreenOrderObservationRecord.book_id,
+        )
+        .filter(ScreenOrderObservationRecord.book_id.is_not(None))
+        .all()
+    }
+
+
+def _ecb_rates(session) -> dict[str, float]:
+    """Latest ECB reference rate per currency, units of currency per EUR (EUR itself is 1)."""
+
+    from eurogas_nexus.db.models import FxObservationRecord
+
+    rates: dict[str, tuple[str, float]] = {}
+    for quote, value_date, rate in (
+        session.query(
+            FxObservationRecord.quote_currency,
+            FxObservationRecord.value_date,
+            FxObservationRecord.rate,
+        )
+        .filter(FxObservationRecord.base_currency == "EUR")
+        .filter(FxObservationRecord.source_system == "ECB")
+        .all()
+    ):
+        held = rates.get(quote)
+        if rate and (held is None or value_date > held[0]):
+            rates[quote] = (value_date, float(rate))
+    return {"EUR": 1.0, **{quote: rate for quote, (_d, rate) in rates.items()}}
+
+
+def _fx_by_hub(hubs, reporting_currency: str, eur_rates: dict[str, float]):
+    """Multiplier from each hub's quote currency into the reporting currency, via EUR."""
+
+    fx: dict[str, float] = {}
+    missing: set[str] = set()
+    target = eur_rates.get(reporting_currency)
+    for hub in hubs:
+        currency = quote_currency(hub)
+        if currency == reporting_currency:
+            fx[hub] = 1.0
+        elif target is not None and currency in eur_rates:
+            fx[hub] = target / eur_rates[currency]
+        else:
+            missing.add(currency)
+    return fx, missing
+
+
+def _rollup(legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub) -> list[dict]:
+    """Totals per group at ``level`` (firm, legal entity, region, business or book)."""
+
+    from eurogas_nexus.domain.portfolio.books import group_key
+    from eurogas_nexus.domain.portfolio.position_ladder import build_ladder, mark_to_market
+
+    groups: dict[str, list] = {}
+    for leg in legs:
+        groups.setdefault(group_key(leg.book_id, books, level), []).append(leg)
+    rollup = []
+    for key, members in sorted(groups.items()):
+        rows = build_ladder(members, horizon_start=horizon_start, horizon_end=horizon_end)
+        physical = sum(row.physical_mwh for row in rows)
+        financial = sum(row.financial_mwh for row in rows)
+        value, _missing = mark_to_market(
+            members,
+            marks,
+            horizon_start=horizon_start,
+            horizon_end=horizon_end,
+            fx_by_hub=fx_by_hub,
+        )
+        rollup.append(
+            {
+                "group": key,
+                "level": level,
+                "physical_mwh": round(physical, 1),
+                "financial_mwh": round(financial, 1),
+                "net_mwh": round(physical + financial, 1),
+                "hedge_ratio": None if abs(physical) < 1e-9 else round(-financial / physical, 4),
+                "mark_to_market": None if value is None else round(value, 2),
+                "legs": len(members),
+            }
+        )
+    return rollup
+
+
 @router.get("/api/portfolio/position-ladder")
 def get_position_ladder(
     request: Request,
     months: int = Query(12, ge=1, le=36),
+    group_by: str = Query("hub", pattern="^(hub|firm|legal_entity|region|business|book)$"),
+    reporting_currency: str | None = Query(None, pattern="^[A-Z]{3}$"),
 ) -> dict:
     """Physical and financial positions by hub and delivery month, MtM and indicative VaR.
 
@@ -335,6 +446,9 @@ def get_position_ladder(
 
         with get_session_factory()() as session:
             contracts = session.query(UpstreamResourceContractRecord).all()
+            books = _books(session)
+            order_books = _order_books(session)
+            eur_rates = _ecb_rates(session)
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
     for contract in contracts:
@@ -357,6 +471,7 @@ def get_position_ladder(
                 if _HUB_CURRENCY.get(hub) == "GBP"
                 else None,
                 reference=contract.contract_id,
+                book_id=contract.book_id or "",
             )
         )
     orders, _source, order_warnings = _load_screen_orders(_identity_id(request))
@@ -386,6 +501,7 @@ def get_position_ladder(
                 mwh_per_day=sign * filled / days,
                 price=float(order.price) if currency_matches else None,
                 reference=order.order_observation_id,
+                book_id=order_books.get(order.order_observation_id, ""),
             )
         )
     closes: dict[str, dict] = {}
@@ -420,12 +536,24 @@ def get_position_ladder(
                     mark_method[key] = "flat"
                     flat_months += 1
                 month = (month.replace(day=1) + timedelta(days=32)).replace(day=1)
+    if reporting_currency is None:
+        # One currency across the positions: report in it; otherwise in EUR.
+        held = {quote_currency(leg.hub) for leg in legs}
+        reporting_currency = held.pop() if len(held) == 1 else "EUR"
+    fx_by_hub, missing_fx = _fx_by_hub({leg.hub for leg in legs}, reporting_currency, eur_rates)
+    if missing_fx:
+        warnings.append(
+            f"No ECB rate to {reporting_currency} for {', '.join(sorted(missing_fx))}; "
+            "positions in those currencies are not valued."
+        )
     report = ladder_report(
         legs,
         horizon_start=horizon_start,
         horizon_end=horizon_end,
         marks=marks,
         daily_closes_by_hub=closes,
+        fx_by_hub=fx_by_hub,
+        reporting_currency=reporting_currency,
     )
     if flat_months:
         warnings.append(
@@ -448,6 +576,176 @@ def get_position_ladder(
         "physical": sum(1 for leg in legs if leg.kind == "physical"),
         "financial": sum(1 for leg in legs if leg.kind == "financial"),
     }
+    if group_by != "hub":
+        payload["rollup"] = _rollup(
+            legs,
+            books,
+            group_by,
+            horizon_start=horizon_start,
+            horizon_end=horizon_end,
+            marks=marks,
+            fx_by_hub=fx_by_hub,
+        )
+        payload["group_by"] = group_by
     return _env(
         payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
+    )
+
+
+class BookRequest(BaseModel):
+    """A trading book and the contracts and screen trades to hold in it."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=128)
+    legal_entity: str = Field(min_length=1, max_length=64)
+    region: str = Field(pattern="^(europe|north_america|asia|global)$")
+    business: str = Field(min_length=1, max_length=128)
+    base_currency: str = Field(default="EUR", pattern="^[A-Z]{3}$")
+    commodities: list[str] = Field(default_factory=list, max_length=8)
+    active: bool = True
+    #: Contracts and screen trades to hold in this book (moved from any other book).
+    contract_ids: list[str] = Field(default_factory=list, max_length=5000)
+    order_ids: list[str] = Field(default_factory=list, max_length=20000)
+
+
+@router.get("/api/portfolio/books")
+def list_books(request: Request) -> dict:
+    """Trading books and their hierarchy: legal entity, region, business, book.
+
+    交易账簿及其层级（法人实体、区域、业务、账簿），用于组合汇总。
+    """
+
+    from eurogas_nexus.domain.portfolio.books import hierarchy
+
+    if not _db_is_configured():
+        return _env([], request, source="runtime-db-not-configured", warnings=[])
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from sqlalchemy import func
+
+        from eurogas_nexus.db.models import (
+            ScreenOrderObservationRecord,
+            UpstreamResourceContractRecord,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            books = _books(session)
+            contracts = dict(
+                session.query(UpstreamResourceContractRecord.book_id, func.count()).group_by(
+                    UpstreamResourceContractRecord.book_id
+                )
+            )
+            orders = dict(
+                session.query(ScreenOrderObservationRecord.book_id, func.count()).group_by(
+                    ScreenOrderObservationRecord.book_id
+                )
+            )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    rows = [
+        {
+            "book_id": book.book_id,
+            "name": book.name,
+            "legal_entity": book.legal_entity,
+            "region": book.region,
+            "business": book.business,
+            "base_currency": book.base_currency,
+            "commodities": list(book.commodities),
+            "active": book.active,
+            "contracts": contracts.get(book.book_id, 0),
+            "orders": orders.get(book.book_id, 0),
+        }
+        for book in sorted(books.values(), key=lambda b: b.book_id)
+    ]
+    unassigned = {"contracts": contracts.get(None, 0), "orders": orders.get(None, 0)}
+    return _env(
+        {"books": rows, "hierarchy": hierarchy(books.values()), "unassigned": unassigned},
+        request,
+        source="runtime-postgresql",
+        warnings=[],
+    )
+
+
+@router.put("/api/portfolio/books/{book_id}")
+def put_book(book_id: str, body: BookRequest, request: Request) -> dict:
+    """Define a book and assign contracts and screen trades to it (operator, audited)."""
+
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.domain.ontology.markets import Commodity
+
+    if not book_id or len(book_id) > 64 or book_id.upper() == "UNASSIGNED":
+        raise HTTPException(status_code=422, detail={"code": "book_id_invalid"})
+    unknown = [c for c in body.commodities if c not in {m.value for m in Commodity}]
+    if unknown:
+        raise HTTPException(
+            status_code=422, detail={"code": "unknown_commodity", "values": unknown}
+        )
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    actor = _identity_id(request) or "api"
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import (
+            ScreenOrderObservationRecord,
+            TradingBookRecord,
+            UpstreamResourceContractRecord,
+        )
+        from eurogas_nexus.db.repositories.audit import record_audit_event
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            row = session.get(TradingBookRecord, book_id)
+            created = row is None
+            if row is None:
+                row = TradingBookRecord(book_id=book_id)
+                session.add(row)
+            row.name = body.name
+            row.legal_entity = body.legal_entity
+            row.region = body.region
+            row.business = body.business
+            row.base_currency = body.base_currency
+            row.commodities = body.commodities or None
+            row.active = body.active
+            row.updated_by = actor
+            row.updated_at_utc = datetime.now(UTC)
+            moved_contracts = moved_orders = 0
+            if body.contract_ids:
+                moved_contracts = (
+                    session.query(UpstreamResourceContractRecord)
+                    .filter(UpstreamResourceContractRecord.contract_id.in_(body.contract_ids))
+                    .update({"book_id": book_id}, synchronize_session=False)
+                )
+            if body.order_ids:
+                moved_orders = (
+                    session.query(ScreenOrderObservationRecord)
+                    .filter(ScreenOrderObservationRecord.order_observation_id.in_(body.order_ids))
+                    .update({"book_id": book_id}, synchronize_session=False)
+                )
+            record_audit_event(
+                session,
+                event_type="portfolio.book",
+                principal=actor,
+                action="portfolio.book.update",
+                resource=f"trading_book:{book_id}",
+                outcome="created" if created else "updated",
+                severity="info",
+                detail=f"contracts={moved_contracts} orders={moved_orders}",
+                source_system="portfolio-api",
+                now_utc=datetime.now(UTC),
+            )
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(
+        {
+            "book_id": book_id,
+            "created": created,
+            "contracts_assigned": moved_contracts,
+            "orders_assigned": moved_orders,
+        },
+        request,
+        source="runtime-postgresql",
+        warnings=[],
     )

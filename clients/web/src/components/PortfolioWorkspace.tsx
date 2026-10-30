@@ -3,6 +3,7 @@ import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { PositionLadderPanel, PositionRiskSummary } from "@/components/PositionLadderPanel";
+import { TradingBooksPanel } from "@/components/TradingBooksPanel";
 import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
 import { routeCostDraftForRoute } from "@/app/model/routeCostModel";
 import { useRouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
@@ -344,6 +345,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
           </>
         )}
         {task === "exposure" && <PositionLadderPanel t={t} />}
+        {task === "exposure" && <TradingBooksPanel t={t} />}
         {task === "exposure" && (
           <MarketPositioningWorkspace
             portfolioSummary={api.portfolioSummary}

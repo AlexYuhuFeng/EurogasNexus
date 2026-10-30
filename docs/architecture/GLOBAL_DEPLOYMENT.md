@@ -72,6 +72,9 @@ is different on every row of the table, so it gets its own installation.
 
 - One OIDC identity provider per legal entity. Job functions and office come from the
   profile ([ROLES_AND_RESPONSIBILITIES.md](../product/ROLES_AND_RESPONSIBILITIES.md)).
+- Positions roll up by **book → business → region → legal entity → firm** in one reporting
+  currency (Portfolio → Exposure; Decision 26), so head office reads the global book and each
+  region or desk its part.
 - **Office does not limit data today.** Data scopes do (source families). Region and
   portfolio scope kinds are reported as unsupported. Before a desk's book is hidden from
   another office inside the primary, a `PORTFOLIO` scope must be implemented. Until then,

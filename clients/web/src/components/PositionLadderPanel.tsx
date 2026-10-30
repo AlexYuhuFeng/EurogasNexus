@@ -30,19 +30,19 @@ function percent(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? "–" : `${Math.round(value * 100)}%`;
 }
 
-function useLadder(months: number) {
+function useLadder(months: number, groupBy = "hub", reportingCurrency = "") {
   const [ladder, setLadder] = useState<PositionLadderDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     api
-      .positionLadder(months)
+      .positionLadder(months, undefined, { groupBy, reportingCurrency: reportingCurrency || undefined })
       .then((response) => live && setLadder(response.data))
       .catch((caught: unknown) => live && setError(caught instanceof Error ? caught.message : String(caught)));
     return () => {
       live = false;
     };
-  }, [months]);
+  }, [months, groupBy, reportingCurrency]);
   return { ladder, error };
 }
 
@@ -53,7 +53,10 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
       <div><span>{t("position.physical")}</span><strong>{mwh(ladder.totals.physical_mwh)}</strong></div>
       <div><span>{t("position.financial")}</span><strong>{mwh(ladder.totals.financial_mwh)}</strong></div>
       <div><span>{t("position.hedged")}</span><strong>{percent(overallHedgeRatio(ladder))}</strong></div>
-      <div><span>{t("position.mtm")}</span><strong className={pnlClass(ladder.mark_to_market)}>{money(ladder.mark_to_market)}</strong></div>
+      <div>
+        <span>{t("position.mtm")}{ladder.reporting_currency ? ` (${ladder.reporting_currency})` : ""}</span>
+        <strong className={pnlClass(ladder.mark_to_market)}>{money(ladder.mark_to_market)}</strong>
+      </div>
       <div>
         <span>{t("position.var")}</span>
         <strong title={t("position.var_help", { count: ladder.var_observations })}>{money(ladder.var_95_1d)}</strong>
@@ -80,7 +83,9 @@ export function PositionRiskSummary({ t }: { t: Translate }) {
  */
 export function PositionLadderPanel({ t }: { t: Translate }) {
   const [months, setMonths] = useState(12);
-  const { ladder, error } = useLadder(months);
+  const [groupBy, setGroupBy] = useState("hub");
+  const [currency, setCurrency] = useState("");
+  const { ladder, error } = useLadder(months, groupBy, currency);
   const grouped = useMemo(() => groupLadderByMonth(ladder?.rows ?? []), [ladder]);
 
   return (
@@ -95,8 +100,49 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
             ))}
           </select>
         </label>
+        <label className="position-horizon">
+          <span>{t("position.group_by")}</span>
+          <select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}>
+            {["hub", "firm", "legal_entity", "region", "business", "book"].map((value) => (
+              <option key={value} value={value}>{t(`position.level_${value}`)}</option>
+            ))}
+          </select>
+        </label>
+        <label className="position-horizon">
+          <span>{t("position.reporting_currency")}</span>
+          <select value={currency} onChange={(event) => setCurrency(event.target.value)}>
+            <option value="">{t("position.currency_auto")}</option>
+            {["EUR", "GBP", "USD", "CAD"].map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
       </div>
       {error && <p role="alert">{error}</p>}
+      {ladder?.rollup && ladder.rollup.length > 0 && (
+        <table className="position-ladder" data-position-rollup="true">
+          <thead>
+            <tr>
+              <th scope="col">{t(`position.level_${ladder.group_by ?? groupBy}`)}</th>
+              <th scope="col" className="num">{t("position.physical")}</th>
+              <th scope="col" className="num">{t("position.financial")}</th>
+              <th scope="col" className="num">{t("position.net")}</th>
+              <th scope="col" className="num">{t("position.hedged")}</th>
+              <th scope="col" className="num">{t("position.mtm")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ladder.rollup.map((row) => (
+              <tr key={row.group} data-record="position-rollup-row">
+                <th scope="row">{row.group === "UNASSIGNED" ? t("position.unassigned") : row.group}</th>
+                <td className="num">{mwh(row.physical_mwh)}</td>
+                <td className="num">{mwh(row.financial_mwh)}</td>
+                <td className={`num ${row.net_mwh >= 0 ? "long" : "short"}`}>{mwh(row.net_mwh)}</td>
+                <td className="num">{percent(row.hedge_ratio)}</td>
+                <td className={`num ${pnlClass(row.mark_to_market)}`}>{money(row.mark_to_market)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {ladder && ladder.rows.length === 0 && <p className="muted">{t("position.empty")}</p>}
       {ladder && ladder.rows.length > 0 && (
         <>

@@ -97,6 +97,8 @@ PINNED_PUBLIC_PATHS = {
     "/api/physical/outages",
     "/api/portfolio/live-summary",
     "/api/portfolio/position-ladder",
+    "/api/portfolio/books",
+    "/api/portfolio/books/{book_id}",
     "/api/market/gas-for-power",
     "/api/market/nwe-balance",
     "/api/access/market-data-licences",

@@ -428,3 +428,16 @@ and a forecast whose method is stated per component and day, with Norwegian supp
 by live REMIT outages and storage rolled into an inventory and fill trajectory. Read under
 the `/api/market/` READ family. Public census: 205 paths / 221 operations.
 
+## 2026-10-30 additive trading books and roll-ups
+
+`GET /api/portfolio/books` lists trading books (legal entity, region, business, base
+currency, commodities) with their hierarchy and how many contracts and screen trades each
+holds. `PUT /api/portfolio/books/{book_id}` defines a book and assigns contracts and trades
+to it (OPERATOR, audited). `GET /api/portfolio/position-ladder` gains `group_by`
+(hub, firm, legal_entity, region, business, book) returning a `rollup`, and
+`reporting_currency`; mark-to-market and VaR now convert each hub's currency through ECB
+reference rates (previously GBP and EUR amounts were added unconverted). Without
+`reporting_currency` the positions' own currency is used when they share one, else EUR.
+Public census: 207 paths / 223 operations.
+The contract edit token now covers `book_id` and its schema is
+`upstream-contract-edit-token/v3`: open contract drafts must be reloaded after the upgrade.

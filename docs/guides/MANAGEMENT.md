@@ -15,3 +15,9 @@ overview.
 Figures are indicative decision support; the risk system and finance ledger are the books
 of record. Access to commercial data is decided by the business and granted by IT; see
 [ROLES_AND_RESPONSIBILITIES.md](../product/ROLES_AND_RESPONSIBILITIES.md).
+
+## Global view
+
+Portfolio → Exposure → *Roll up by: Firm* gives the whole firm's net position, hedge ratio
+and mark-to-market in one currency; *Legal entity*, *Region* or *Business* breaks it down by
+office and desk.
