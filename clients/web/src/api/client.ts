@@ -2311,7 +2311,7 @@ export interface AnalysisResultDTO {
 
 // --- API functions ---
 
-export type PreferenceKey = "language" | "theme" | "market_view" | "market_board_layout";
+export type PreferenceKey = "language" | "theme" | "market_view" | "market_board_layout" | "pnl_colors";
 
 export interface PreferencesDTO {
   personal: Partial<Record<PreferenceKey, string>>;

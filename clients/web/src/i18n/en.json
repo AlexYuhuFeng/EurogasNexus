@@ -3716,5 +3716,8 @@
   "position.hedged": "Hedged",
   "position.mtm": "Mark-to-market",
   "position.var": "VaR 95% 1-day",
-  "position.var_help": "Historical simulation over {{count}} daily price changes; price risk only."
+  "position.var_help": "Historical simulation over {{count}} daily price changes; price risk only.",
+  "preferences.pnl_colors": "Profit colour",
+  "preferences.pnl_green_up": "Green profit, red loss",
+  "preferences.pnl_red_up": "Red profit, green loss"
 }

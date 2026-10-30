@@ -7,6 +7,7 @@ import {
   ladderMonthLabel,
   overallHedgeRatio,
 } from "@/app/model/positionLadderModel";
+import { pnlClass } from "@/app/model/pnlColor";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -48,7 +49,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
       <div><span>{t("position.physical")}</span><strong>{mwh(ladder.totals.physical_mwh)}</strong></div>
       <div><span>{t("position.financial")}</span><strong>{mwh(ladder.totals.financial_mwh)}</strong></div>
       <div><span>{t("position.hedged")}</span><strong>{percent(overallHedgeRatio(ladder))}</strong></div>
-      <div><span>{t("position.mtm")}</span><strong>{money(ladder.mark_to_market)}</strong></div>
+      <div><span>{t("position.mtm")}</span><strong className={pnlClass(ladder.mark_to_market)}>{money(ladder.mark_to_market)}</strong></div>
       <div>
         <span>{t("position.var")}</span>
         <strong title={t("position.var_help", { count: ladder.var_observations })}>{money(ladder.var_95_1d)}</strong>

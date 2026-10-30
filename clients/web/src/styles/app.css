@@ -9901,3 +9901,58 @@ button.glossary-related-chip {
   border-radius: var(--eg-radius-sm, 4px);
   padding: 6px 10px;
 }
+
+/* Profit and loss colours follow the user's convention (green-up or red-up), see
+   app/model/pnlColor.ts. Text colours meet WCAG AA on the canvas in both themes. */
+:root {
+  --pnl-up: #1d6b3a;
+  --pnl-down: #b42318;
+  --pnl-profit: var(--pnl-up);
+  --pnl-loss: var(--pnl-down);
+}
+
+:root.dark {
+  --pnl-up: #4cc38a;
+  --pnl-down: #ff8a80;
+}
+
+:root[data-pnl="red_up"] {
+  --pnl-profit: var(--pnl-down);
+  --pnl-loss: var(--pnl-up);
+}
+
+.pnl-profit {
+  color: var(--pnl-profit);
+}
+
+.pnl-loss {
+  color: var(--pnl-loss);
+}
+
+.strategy-chart.pnl-profit,
+.strategy-chart.pnl-profit svg {
+  color: var(--pnl-profit);
+}
+
+.strategy-chart.pnl-loss,
+.strategy-chart.pnl-loss svg {
+  color: var(--pnl-loss);
+}
+
+.strategy-chart.pnl-profit .strategy-chart-line {
+  stroke: var(--pnl-profit);
+}
+
+.strategy-chart.pnl-loss .strategy-chart-line {
+  stroke: var(--pnl-loss);
+}
+
+.strategy-chart.pnl-profit .strategy-chart-point,
+.strategy-chart.pnl-profit .strategy-chart-area {
+  fill: var(--pnl-profit);
+}
+
+.strategy-chart.pnl-loss .strategy-chart-point,
+.strategy-chart.pnl-loss .strategy-chart-area {
+  fill: var(--pnl-loss);
+}

@@ -29,6 +29,8 @@ PREFERENCE_VOCABULARY: dict[str, tuple[str, ...]] = {
     "market_view": ("curves", "network"),
     # Quote layout: hub board (hubs down) or execution-screen ladder (products down).
     "market_board_layout": ("board", "ladder"),
+    # Profit colour: green (Europe, Americas) or red (China and much of Asia).
+    "pnl_colors": ("green_up", "red_up"),
 }
 
 BUILT_IN_DEFAULTS: dict[str, str] = {
@@ -36,6 +38,7 @@ BUILT_IN_DEFAULTS: dict[str, str] = {
     "theme": "system",
     "market_view": "curves",
     "market_board_layout": "board",
+    "pnl_colors": "green_up",
 }
 
 

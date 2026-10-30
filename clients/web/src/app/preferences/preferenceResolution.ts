@@ -1,6 +1,12 @@
 import type { PreferenceKey, PreferencesDTO } from "@/api/client";
 
-export const PREFERENCE_KEYS: PreferenceKey[] = ["language", "theme", "market_view", "market_board_layout"];
+export const PREFERENCE_KEYS: PreferenceKey[] = [
+  "language",
+  "theme",
+  "market_view",
+  "market_board_layout",
+  "pnl_colors",
+];
 
 /**
  * What takes effect after sign-in, per setting: an explicit choice made on this device

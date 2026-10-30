@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { pnlClass } from "@/app/model/pnlColor";
 import type { StrategyLabController, StrategyLabSelection } from "@/app/model/useStrategyLab";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import {
@@ -241,8 +242,8 @@ export function StrategyBacktestWorkspace({
           </section>
           {metrics && (
             <section className="workspace-panel strategy-kpi-strip">
-              <div><span>{t("strategy_lab.net_indicative_pnl")}</span><strong>{formatSignedMoney(metrics.net_indicative_pnl_gbp)}</strong></div>
-              <div><span>{t("strategy_lab.gross_indicative_pnl")}</span><strong>{formatSignedMoney(metrics.gross_indicative_pnl_gbp)}</strong></div>
+              <div><span>{t("strategy_lab.net_indicative_pnl")}</span><strong className={pnlClass(metrics.net_indicative_pnl_gbp)}>{formatSignedMoney(metrics.net_indicative_pnl_gbp)}</strong></div>
+              <div><span>{t("strategy_lab.gross_indicative_pnl")}</span><strong className={pnlClass(metrics.gross_indicative_pnl_gbp)}>{formatSignedMoney(metrics.gross_indicative_pnl_gbp)}</strong></div>
               <div><span>{t("strategy_lab.modeled_costs")}</span><strong>{formatSignedMoney(metrics.modeled_costs_gbp)}</strong></div>
               <div><span>{t("strategy_lab.max_drawdown")}</span><strong>{formatSignedMoney(metrics.max_drawdown_gbp)}</strong></div>
               <div title={t("strategy_lab.evaluation_completion_help")}>
@@ -295,7 +296,7 @@ export function StrategyBacktestWorkspace({
                 {details.attribution.map((row) => (
                   <div key={row.attribution_id} className="data-table-row four">
                     <span>{row.dimension}</span><span>{row.key}</span>
-                    <span>{row.net_indicative_pnl_gbp.toFixed(2)}</span>
+                    <span className={pnlClass(row.net_indicative_pnl_gbp)}>{row.net_indicative_pnl_gbp.toFixed(2)}</span>
                     <span>{row.modeled_costs_gbp.toFixed(2)}</span>
                   </div>
                 ))}
@@ -318,7 +319,7 @@ export function StrategyBacktestWorkspace({
                     <span>{formatTimestamp(event.decision_time_utc, language)}</span>
                     <span>{event.gas_day}</span>
                     <span>{event.outcome}</span>
-                    <span>{event.net_indicative_pnl_gbp.toFixed(2)}</span>
+                    <span className={pnlClass(event.net_indicative_pnl_gbp)}>{event.net_indicative_pnl_gbp.toFixed(2)}</span>
                     <span>{event.warnings.length}</span>
                   </div>
                 ))}
@@ -512,7 +513,7 @@ export function StrategyBacktestWorkspace({
                 <span>{item.strategy_version_id ? item.strategy_version_id.slice(-8) : "legacy"}</span>
                 <span>{formatTimestamp(item.evaluation_start_utc, language)}</span>
                 <span>{item.status}</span>
-                <span>{item.backtest_metrics ? formatSignedMoney(item.backtest_metrics.net_indicative_pnl_gbp) : "n/a"}</span>
+                <span className={pnlClass(item.backtest_metrics?.net_indicative_pnl_gbp)}>{item.backtest_metrics ? formatSignedMoney(item.backtest_metrics.net_indicative_pnl_gbp) : "n/a"}</span>
                 <span>{item.backtest_metrics ? formatSignedMoney(item.backtest_metrics.max_drawdown_gbp) : "n/a"}</span>
                 <span>{item.backtest_metrics?.temporal_integrity ?? "n/a"}</span>
                 <span>{item.backtest_engine_version ?? "n/a"}</span>

@@ -8,6 +8,7 @@ import {
   writeMarketViewPreference,
 } from "@/app/context/viewPreference";
 import { resolveSignInPreferences } from "./preferenceResolution";
+import { applyPnlColorConvention } from "@/app/model/pnlColor";
 
 /**
  * Personal preferences live on the server per principal (`/api/me/preferences`), so a
@@ -21,6 +22,25 @@ import { resolveSignInPreferences } from "./preferenceResolution";
  */
 
 export const BOARD_LAYOUT_STORAGE_KEY = "eurogas.market.board_view";
+export const PNL_COLORS_STORAGE_KEY = "eurogas.pnl_colors";
+
+/** Apply the stored P&L colour convention before the server answers (called at start-up). */
+export function applyStoredPnlColors(): void {
+  try {
+    applyPnlColorConvention(window.localStorage.getItem(PNL_COLORS_STORAGE_KEY) ?? "green_up");
+  } catch {
+    applyPnlColorConvention("green_up");
+  }
+}
+
+export function writeLocalPnlColors(convention: string): void {
+  try {
+    window.localStorage.setItem(PNL_COLORS_STORAGE_KEY, convention);
+  } catch {
+    // The server copy still holds it.
+  }
+  applyPnlColorConvention(convention);
+}
 export const PREFERENCES_APPLIED_EVENT = "eurogas:preferences-applied";
 
 export function readBoardLayout(): "board" | "ladder" {
@@ -48,6 +68,7 @@ export async function applyEffectivePreferences(
   useThemeStore.getState().setMode(effective.theme as ThemeMode);
   writeMarketViewPreference(principalId, normalizeMarketViewPreference(effective.market_view));
   writeBoardLayout(effective.market_board_layout);
+  writeLocalPnlColors(effective.pnl_colors);
   window.dispatchEvent(new Event(PREFERENCES_APPLIED_EVENT));
 }
 
@@ -61,6 +82,8 @@ function locallyChosen(principalId: string): Partial<Record<PreferenceKey, strin
     if (theme === "system" || theme === "light" || theme === "dark") chosen.theme = theme;
     const layout = window.localStorage.getItem(BOARD_LAYOUT_STORAGE_KEY);
     if (layout === "board" || layout === "ladder") chosen.market_board_layout = layout;
+    const pnl = window.localStorage.getItem(PNL_COLORS_STORAGE_KEY);
+    if (pnl === "green_up" || pnl === "red_up") chosen.pnl_colors = pnl;
   } catch {
     // Storage unavailable: nothing was chosen on this device.
   }

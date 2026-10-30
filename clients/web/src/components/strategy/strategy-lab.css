@@ -550,13 +550,6 @@
   font-size: 11.5px;
 }
 
-.spread-lab-trades td.pos {
-  color: var(--eg-positive, #1d6b3a);
-}
-
-.spread-lab-trades td.neg {
-  color: var(--danger, #a3261a);
-}
 
 @media (max-width: 900px) {
   .spread-lab-form,

@@ -12,6 +12,7 @@ import {
   type SpreadLabDraft,
 } from "@/app/model/spreadLabModel";
 import { StrategyLineChart } from "./StrategyLabCharts";
+import { pnlClass } from "@/app/model/pnlColor";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -259,14 +260,14 @@ export function SpreadLabWorkspace({ t }: SpreadLabWorkspaceProps) {
             <div><span>{t("spread_lab.stat.percentile")}</span><strong>{num(result.statistics.percentile_last, 0)}%</strong></div>
             <div><span>{t("spread_lab.stat.half_life")}</span><strong>{num(result.statistics.half_life_days, 1)} d</strong></div>
             <div><span>{t("spread_lab.stat.range")}</span><strong>{num(result.statistics.min)} … {num(result.statistics.max)}</strong></div>
-            <div><span>{t("spread_lab.metric.pnl")}</span><strong>{num(result.metrics.total_pnl, 0)} {currency}</strong></div>
+            <div><span>{t("spread_lab.metric.pnl")}</span><strong className={pnlClass(result.metrics.total_pnl)}>{num(result.metrics.total_pnl, 0)} {currency}</strong></div>
             <div><span>{t("spread_lab.metric.trades")}</span><strong>{result.metrics.trades ?? 0} · {t("spread_lab.metric.hit_rate")} {num(result.metrics.hit_rate == null ? null : result.metrics.hit_rate * 100, 0)}%</strong></div>
             <div><span>{t("spread_lab.metric.drawdown")}</span><strong>{num(result.metrics.max_drawdown, 0)} {currency}</strong></div>
             <div><span>{t("spread_lab.metric.sharpe")}</span><strong>{num(result.metrics.sharpe_annualised)}</strong></div>
           </div>
           <StrategyLineChart points={charts.spread} title={t("spread_lab.chart.spread")} unit={result.unit} />
           <StrategyLineChart points={charts.zscore} title={t("spread_lab.chart.zscore")} unit="σ" height={120} />
-          <StrategyLineChart points={charts.pnl} title={t("spread_lab.chart.pnl")} unit={currency} height={140} />
+          <StrategyLineChart points={charts.pnl} title={t("spread_lab.chart.pnl")} unit={currency} height={140} className={pnlClass(result.metrics.total_pnl)} />
           <details className="spread-lab-trades">
             <summary>{t("spread_lab.trades", { count: result.trades.length })}</summary>
             <table>
@@ -288,7 +289,7 @@ export function SpreadLabWorkspace({ t }: SpreadLabWorkspaceProps) {
                     <td>{num(trade.entry_spread)}</td>
                     <td>{trade.closed ?? t("spread_lab.trade.open")}</td>
                     <td>{num(trade.exit_spread)}</td>
-                    <td className={trade.pnl >= 0 ? "pos" : "neg"}>{num(trade.pnl, 0)}</td>
+                    <td className={pnlClass(trade.pnl)}>{num(trade.pnl, 0)}</td>
                   </tr>
                 ))}
               </tbody>

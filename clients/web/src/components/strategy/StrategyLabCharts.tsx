@@ -10,6 +10,8 @@ interface StrategyLineChartProps {
   unit: string;
   height?: number;
   valueFormatter?: (value: number) => string;
+  /** Extra class on the figure, e.g. the P&L colour of the series' last value. */
+  className?: string;
 }
 
 function defaultFormatter(value: number): string {
@@ -24,6 +26,7 @@ export function StrategyLineChart({
   unit,
   height = 180,
   valueFormatter = defaultFormatter,
+  className = "",
 }: StrategyLineChartProps) {
   const gradientId = useId();
   const { t } = useTranslation();
@@ -54,7 +57,7 @@ export function StrategyLineChart({
     last: isChartValue(lastValue) ? `${valueFormatter(lastValue)} ${unit}` : t("strategy_lab.chart_unavailable"),
   });
   return (
-    <figure className="strategy-chart" aria-label={summary}>
+    <figure className={`strategy-chart ${className}`.trim()} aria-label={summary}>
       <figcaption>{title} ({unit})</figcaption>
       <p className="muted">{t("strategy_lab.chart_categorical_axis")}</p>
       {missingCount > 0 && <p className="muted">{t("strategy_lab.chart_missing", { count: missingCount })}</p>}

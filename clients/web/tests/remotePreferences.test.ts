@@ -16,6 +16,7 @@ function server(
       theme: personal.theme ?? "system",
       market_view: personal.market_view ?? "curves",
       market_board_layout: personal.market_board_layout ?? "board",
+      pnl_colors: personal.pnl_colors ?? "green_up",
       enabled_languages: enabled,
     },
     updated_at_utc: null,
@@ -39,4 +40,10 @@ test("an unchanged choice is not saved again; a switched-off language is not kep
   const off = resolveSignInPreferences(server({}, ["en"]), { language: "zh-CN" });
   assert.equal(off.effective.language, "en");
   assert.deepEqual(off.seed, {});
+});
+
+test("the profit colour preference is resolved like the others", () => {
+  const { effective, seed } = resolveSignInPreferences(server({}), { pnl_colors: "red_up" });
+  assert.equal(effective.pnl_colors, "red_up");
+  assert.deepEqual(seed, { pnl_colors: "red_up" });
 });

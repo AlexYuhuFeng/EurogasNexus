@@ -3,6 +3,7 @@ import type {
   PortfolioPnlSnapshotDTO,
   ScreenOrderObservationDTO,
 } from "@/api/client";
+import { pnlClass } from "@/app/model/pnlColor";
 
 type Translate = (key: string) => string;
 
@@ -45,7 +46,7 @@ export function MarketPositioningWorkspace({
         </div>
         <p className="panel-copy">{t("orders.subtitle")}</p>
         <div className="metric-grid four-column">
-          <div><span>{t("portfolio.indicative_pnl")}</span><strong>{formatGbpTotal(portfolioSummary?.total_indicative_pnl_gbp, t)}</strong></div>
+          <div><span>{t("portfolio.indicative_pnl")}</span><strong className={pnlClass(portfolioSummary?.total_indicative_pnl_gbp)}>{formatGbpTotal(portfolioSummary?.total_indicative_pnl_gbp, t)}</strong></div>
           <div><span>{t("portfolio.cash_value")}</span><strong>{formatGbpTotal(portfolioSummary?.total_cash_value_gbp, t)}</strong></div>
           <div><span>{t("portfolio.open_orders")}</span><strong>{portfolioSummary?.open_order_count ?? screenOrders.length}</strong></div>
           <div><span>{t("orders.filled_orders")}</span><strong>{portfolioSummary?.filled_order_count ?? "n/a"}</strong></div>
@@ -88,7 +89,7 @@ export function MarketPositioningWorkspace({
               <strong>{snapshot.portfolio_id}</strong>
               <span>{formatTimestamp(snapshot.valuation_time_utc)}</span>
               <span>{snapshot.quantity_mwh.toLocaleString()} MWh</span>
-              <span>GBP {Math.round(snapshot.indicative_pnl_gbp).toLocaleString()}</span>
+              <span className={pnlClass(snapshot.indicative_pnl_gbp)}>GBP {Math.round(snapshot.indicative_pnl_gbp).toLocaleString()}</span>
               <span>GBP {Math.round(snapshot.cash_value_gbp).toLocaleString()}</span>
               <span>{snapshot.valuation_basis}</span>
             </div>

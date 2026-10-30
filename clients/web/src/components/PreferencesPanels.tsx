@@ -21,6 +21,10 @@ const CHOICES: Record<PreferenceKey, { value: string; labelKey?: string; label?:
     { value: "board", labelKey: "preferences.layout_board" },
     { value: "ladder", labelKey: "preferences.layout_ladder" },
   ],
+  pnl_colors: [
+    { value: "green_up", labelKey: "preferences.pnl_green_up" },
+    { value: "red_up", labelKey: "preferences.pnl_red_up" },
+  ],
 };
 
 const LABEL_KEYS: Record<PreferenceKey, string> = {
@@ -28,6 +32,7 @@ const LABEL_KEYS: Record<PreferenceKey, string> = {
   theme: "settings.appearance",
   market_view: "settings.market_default_view",
   market_board_layout: "preferences.board_layout",
+  pnl_colors: "preferences.pnl_colors",
 };
 
 const KEYS = Object.keys(LABEL_KEYS) as PreferenceKey[];
@@ -38,6 +43,7 @@ const BUILT_IN: Record<PreferenceKey, string> = {
   theme: "system",
   market_view: "curves",
   market_board_layout: "board",
+  pnl_colors: "green_up",
 };
 
 function choiceLabel(t: Translate, key: PreferenceKey, value: string | undefined): string {

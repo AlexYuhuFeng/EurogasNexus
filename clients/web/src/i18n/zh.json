@@ -3716,5 +3716,8 @@
   "position.hedged": "已对冲",
   "position.mtm": "盯市价值",
   "position.var": "VaR 95% 1日",
-  "position.var_help": "基于 {{count}} 个日度价格变动的历史模拟；仅价格风险。"
+  "position.var_help": "基于 {{count}} 个日度价格变动的历史模拟；仅价格风险。",
+  "preferences.pnl_colors": "盈利颜色",
+  "preferences.pnl_green_up": "绿色盈利，红色亏损",
+  "preferences.pnl_red_up": "红色盈利，绿色亏损"
 }
