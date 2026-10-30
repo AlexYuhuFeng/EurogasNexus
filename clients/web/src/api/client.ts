@@ -1453,6 +1453,38 @@ export async function fetchNativeCapacity(
   );
 }
 
+export interface GasProductDTO {
+  code: string; label: string; kind: string; first_gas_day: string; last_gas_day: string;
+  gas_days: number; delivery_start_utc: string; delivery_end_utc: string; hours: number;
+  calendar: string;
+}
+
+export interface GasProductStripDTO {
+  trade_date: string;
+  products: GasProductDTO[];
+}
+
+export interface PriceConversionDTO {
+  value: number;
+  from_unit: string;
+  converted: Record<string, number | null>;
+  fx: Record<string, { rate: number; source?: string | null; observed_at_utc?: string | null }>;
+  factors: Record<string, number>;
+}
+
+export interface StorageTrajectoryDTO {
+  code: string; as_of_gas_day: string; fill_pct: number; inventory_twh: number;
+  working_capacity_twh: number; target_pct: number; deviation_pp: number;
+  effective_target_pct: number; target_inventory_twh: number; gap_twh: number;
+  window_open: string; deadline: string; days_to_window_open: number; days_to_deadline: number;
+  required_net_injection_to_window_twh_d: number | null;
+  required_net_injection_to_deadline_twh_d: number | null;
+  recent_net_injection_twh_d: number | null; pace_days_used: number;
+  projected_fill_at_deadline_pct: number | null;
+  status: "target_met" | "on_track" | "behind" | "unreachable" | "withdrawal_season";
+  limitations: string[];
+}
+
 export interface StorageObsDTO {
   observation_id: string; facility_id: string; facility_name: string;
   country?: string; inventory_twh: number | null; working_capacity_twh?: number | null;
@@ -3620,6 +3652,21 @@ export const api = {
   capacityObservations: (options?: ApiRequestOptions) => get<CapacityObsDTO[]>("/physical/capacity", undefined, options),
 
   storageObservations: (options?: ApiRequestOptions) => get<StorageObsDTO[]>("/storage/observations", undefined, options),
+
+  /** Standard desk strip (WD..Cal+1) resolved to gas-day delivery periods by the backend. */
+  gasProductStrip: (options?: ApiRequestOptions) =>
+    get<GasProductStripDTO>("/market/products", undefined, options),
+
+  /** Backend price conversion; FX comes from the latest ECB rows unless overridden. */
+  priceConversion: (value: number, fromUnit: string, options?: ApiRequestOptions) =>
+    get<PriceConversionDTO>(
+      "/market/price-conversion",
+      { value: String(value), from_unit: fromUnit },
+      options,
+    ),
+
+  storageTargetTrajectory: (code: string, options?: ApiRequestOptions) =>
+    get<StorageTrajectoryDTO | null>("/storage/target-trajectory", { code }, options),
 
   lngObservations: (options?: ApiRequestOptions) => get<LngObsDTO[]>("/lng/observations", undefined, options),
 

@@ -1,6 +1,15 @@
 """Read-only /api/storage routes."""
 
-from fastapi import APIRouter, HTTPException, Request
+from datetime import date
+
+from fastapi import APIRouter, HTTPException, Query, Request
+
+from eurogas_nexus.domain.market.storage_targets import (
+    DEFAULT_TARGET_PCT,
+    StorageDay,
+    StorageTrajectoryError,
+    storage_trajectory,
+)
 
 router = APIRouter(tags=["storage"])
 
@@ -92,6 +101,61 @@ def list_observations(request: Request) -> dict:
         return _runtime_env(filter_rows(request, observations))
 
     return _env([], request)
+
+
+@router.get("/api/storage/target-trajectory")
+def target_trajectory(
+    request: Request,
+    code: str = Query(default="EU", min_length=2, max_length=16),
+    target_pct: float = Query(default=DEFAULT_TARGET_PCT, gt=0, le=100),
+    deviation_pp: float = Query(default=0.0, ge=0, lt=100),
+    pace_days: int = Query(default=7, ge=1, le=60),
+) -> dict:
+    """Filling trajectory of one AGSI storage code against the EU storage target.
+
+    返回指定 AGSI 代码（EU/国家）相对欧盟储气目标的库存差距、所需日均注入与
+    近期注入速度；DB 未配置时降级为空并告警。
+
+    Raises:
+        HTTPException: 404 ``storage_series_unavailable`` when no usable rows exist;
+            503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
+    observations = _db_storage_observations()
+    if observations is None:
+        return _env(None, request)
+    from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+
+    wanted = code.strip().upper()
+    series = []
+    for row in filter_rows(request, observations):
+        if str(row["facility_id"]).upper() != wanted:
+            continue
+        if row["inventory_twh"] is None or row["working_capacity_twh"] is None:
+            continue
+        series.append(
+            StorageDay(
+                gas_day=date.fromisoformat(row["period_start_utc"][:10]),
+                inventory_twh=row["inventory_twh"],
+                working_capacity_twh=row["working_capacity_twh"],
+                injection_twh_d=row["injection_twh_d"],
+                withdrawal_twh_d=row["withdrawal_twh_d"],
+            )
+        )
+    try:
+        trajectory = storage_trajectory(
+            wanted,
+            series,
+            target_pct=target_pct,
+            deviation_pp=deviation_pp,
+            pace_days=pace_days,
+        )
+    except StorageTrajectoryError as exc:
+        raise HTTPException(
+            status_code=404 if not series else 422,
+            detail={"code": "storage_series_unavailable", "message": str(exc)},
+        ) from exc
+    return _runtime_env(trajectory.as_dict())
 
 
 def _db_storage_observations() -> list[dict] | None:

@@ -1,0 +1,92 @@
+.trader-desk {
+  font-variant-numeric: tabular-nums;
+}
+
+.trader-desk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-2);
+}
+
+.trader-desk-block {
+  min-width: 0;
+  border: 1px solid var(--eg-hairline);
+  background: var(--eg-canvas);
+  padding: var(--space-2);
+}
+
+.trader-desk-block h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-body);
+}
+
+.trader-desk-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.trader-desk-table th,
+.trader-desk-table td {
+  padding: 2px var(--space-1);
+  border-bottom: 1px solid var(--eg-hairline);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.trader-desk-table .num {
+  text-align: right;
+}
+
+.trader-desk-table .muted,
+.trader-desk-note {
+  color: var(--eg-muted);
+}
+
+.trader-desk-note {
+  margin: var(--space-1) 0 0;
+  font-size: 0.85em;
+}
+
+.trader-desk-inputs {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin-bottom: var(--space-1);
+}
+
+.trader-desk-inputs input {
+  width: 8em;
+}
+
+.trader-desk-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.trader-desk-metrics dt {
+  color: var(--eg-muted);
+  font-size: 0.85em;
+}
+
+.trader-desk-metrics dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.trader-desk-status {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--eg-hairline);
+  font-weight: 600;
+}
+
+.trader-desk-status.status-behind,
+.trader-desk-status.status-unreachable {
+  color: var(--eg-negative);
+}
+
+.trader-desk-status.status-on_track,
+.trader-desk-status.status-target_met {
+  color: var(--eg-positive);
+}

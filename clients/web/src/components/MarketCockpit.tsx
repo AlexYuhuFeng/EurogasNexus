@@ -3,6 +3,7 @@ import { WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
 import { MarketTerminal } from "@/components/MarketTerminal";
+import { TraderDeskPanel } from "@/components/TraderDeskPanel";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
@@ -377,6 +378,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
         <MarketContextStrip projection={api.marketContext} t={t} />
         {task === "overview" && <MarketOverview controller={controller} task={task} />}
         {task === "curves" && (
+          <>
           <MarketTerminal
             markets={api.normalizedMarkets}
             marketSpreads={api.marketSpreads}
@@ -390,6 +392,10 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             onRefresh={api.refreshMarketData}
             t={t}
           />
+          {/* Desk conventions beside the board: product strip, hub price conversion and the
+              storage-target trajectory, all computed by the backend. */}
+          <TraderDeskPanel t={t} />
+          </>
         )}
         {task === "network" && (
           <>

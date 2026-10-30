@@ -546,3 +546,96 @@ def fetch_normalized_market_observations_result(
     return SdkResult(
         [NormalizedMarketObservation.model_validate(row) for row in data], meta
     )
+
+
+class GasProduct(BaseModel):
+    """One resolved gas product from ``GET /api/market/products``.
+
+    Attributes:
+        code: Requested code (``DA``, ``M+1``, ``Sum-27``...).
+        label: Absolute desk label (``Nov-26``, ``Q1-27``...).
+        kind: Product kind (``day_ahead``, ``month``, ``season``...).
+        first_gas_day: First delivered gas day (ISO date).
+        last_gas_day: Last delivered gas day (ISO date, inclusive).
+        gas_days: Number of delivered gas days.
+        delivery_start_utc: UTC start of delivery.
+        delivery_end_utc: UTC end of delivery (exclusive).
+        hours: DST-true delivery hours (MWh of a 1 MW flat position).
+        calendar: Gas-day calendar version.
+    """
+
+    code: str
+    label: str
+    kind: str
+    first_gas_day: str
+    last_gas_day: str
+    gas_days: int
+    delivery_start_utc: str
+    delivery_end_utc: str
+    hours: float
+    calendar: str
+
+
+def fetch_gas_products_result(
+    base_url: str,
+    *,
+    trade_date: str | None = None,
+    codes: list[str] | None = None,
+) -> SdkResult[list[GasProduct]]:
+    """Resolve gas product codes (or the standard strip) to delivery periods.
+
+    Args:
+        base_url: Operator-provided server root URL.
+        trade_date: ISO trade date anchoring relative codes; server today when None.
+        codes: Product codes; the standard desk strip when None.
+
+    Returns:
+        An SdkResult whose data holds the resolved products.
+
+    Raises:
+        httpx.HTTPStatusError: 422 for an unknown or fully delivered code.
+    """
+    params: dict[str, Any] = {}
+    if trade_date:
+        params["trade_date"] = trade_date
+    if codes:
+        params["code"] = list(codes)
+    data, meta = get_envelope(api_url(base_url, "market/products"), params=params)
+    return SdkResult([GasProduct.model_validate(row) for row in data["products"]], meta)
+
+
+def convert_gas_price_result(
+    base_url: str,
+    *,
+    value: float,
+    from_unit: str,
+    to_unit: str | None = None,
+    gbp_per_eur: float | None = None,
+    usd_per_eur: float | None = None,
+) -> SdkResult[dict[str, Any]]:
+    """Convert a gas price between EUR/MWh, GBp/th, USD/MMBtu and related units.
+
+    Args:
+        base_url: Operator-provided server root URL.
+        value: Price in ``from_unit``.
+        from_unit: Source quotation.
+        to_unit: Target quotation; every supported quotation when None.
+        gbp_per_eur: Explicit FX override; latest ECB rate when None.
+        usd_per_eur: Explicit FX override; latest ECB rate when None.
+
+    Returns:
+        An SdkResult whose data holds ``converted`` values and the ``fx`` used.
+
+    Raises:
+        httpx.HTTPStatusError: 422 for an unsupported unit or missing FX rate.
+    """
+    params: dict[str, Any] = {"value": value, "from_unit": from_unit}
+    for key, item in (
+        ("to_unit", to_unit),
+        ("gbp_per_eur", gbp_per_eur),
+        ("usd_per_eur", usd_per_eur),
+    ):
+        if item is not None:
+            params[key] = item
+    data, meta = get_envelope(api_url(base_url, "market/price-conversion"), params=params)
+    return SdkResult(dict(data), meta)

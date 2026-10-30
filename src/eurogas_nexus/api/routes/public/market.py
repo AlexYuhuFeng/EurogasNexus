@@ -8,6 +8,8 @@ them. This module keeps the HTTP concerns: the runtime-database guard, the
 response field of every endpoint below is unchanged.
 """
 
+from datetime import UTC, date, datetime
+
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
@@ -23,6 +25,18 @@ from eurogas_nexus.application.projections.market_reads import (
     market_quotes,
     normalized_market_view,
     source_family_filter,
+)
+from eurogas_nexus.domain.market.products import (
+    ProductCodeError,
+    resolve_product,
+    standard_strip,
+)
+from eurogas_nexus.domain.market.units import (
+    ENERGY_UNITS_PER_MWH,
+    PRICE_UNITS,
+    UnitConversionError,
+    canonical_price_unit,
+    convert_price,
 )
 
 router = APIRouter(tags=["market"])
@@ -281,6 +295,122 @@ def _db_unavailable(exc: Exception) -> HTTPException:
             "error_class": exc.__class__.__name__,
         },
     )
+
+
+@router.get("/api/market/products")
+def list_products(
+    trade_date: date | None = None,
+    code: list[str] | None = Query(default=None, max_length=32),
+) -> dict:
+    """Resolve gas product codes (DA, WE, BOM, M+1, Q+1, Sum-27, Cal-27...) to delivery.
+
+    Without ``code`` the standard desk strip is returned. Pure calendar logic; no DB.
+    无 code 参数时返回标准交易曲线条（WD→Cal+1）；纯日历计算，不读数据库。
+
+    Raises:
+        HTTPException: 422 ``unknown_product_code`` for an unknown/expired code.
+    """
+
+    anchor = trade_date or datetime.now(UTC).date()
+    if not code:
+        periods = standard_strip(anchor)
+    else:
+        try:
+            periods = [resolve_product(item, anchor) for item in code]
+        except ProductCodeError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "unknown_product_code", "message": str(exc)},
+            ) from exc
+    return _env(
+        {"trade_date": anchor.isoformat(), "products": [p.as_dict() for p in periods]},
+        source="gas-product-calendar",
+        warnings=["Exchange holiday calendars are not applied to DA."],
+    )
+
+
+@router.get("/api/market/price-conversion")
+def convert_market_price(
+    value: float = Query(..., allow_inf_nan=False),
+    from_unit: str = Query(..., max_length=16),
+    to_unit: str | None = Query(default=None, max_length=16),
+    gbp_per_eur: float | None = Query(default=None, gt=0),
+    usd_per_eur: float | None = Query(default=None, gt=0),
+) -> dict:
+    """Convert a gas price between EUR/MWh, GBp/th, USD/MMBtu and related quotations.
+
+    FX is the explicit ``*_per_eur`` override when given, otherwise the latest ECB
+    EUR-based rate in the runtime DB; the rates used are returned with their source.
+    汇率优先使用显式参数，否则取数据库最新 ECB 汇率，并回传所用汇率及来源。
+
+    Raises:
+        HTTPException: 422 ``unsupported_price_unit`` / ``fx_rate_unavailable``.
+    """
+
+    rates: dict[str, dict[str, object]] = {}
+    if gbp_per_eur is not None:
+        rates["GBP"] = {"rate": gbp_per_eur, "source": "request"}
+    if usd_per_eur is not None:
+        rates["USD"] = {"rate": usd_per_eur, "source": "request"}
+    if len(rates) < 2 and _db_is_configured():
+        rates = {**_latest_eur_rates(), **rates}
+    targets = [to_unit] if to_unit else list(PRICE_UNITS)
+    eur_rates = {currency: float(entry["rate"]) for currency, entry in rates.items()}
+    converted: dict[str, float | None] = {}
+    try:
+        source_unit = canonical_price_unit(from_unit)
+        for target in targets:
+            try:
+                converted[canonical_price_unit(target)] = convert_price(
+                    value, source_unit, target, eur_rates=eur_rates
+                )
+            except UnitConversionError:
+                if to_unit:
+                    raise
+                converted[canonical_price_unit(target)] = None
+    except UnitConversionError as exc:
+        code = "fx_rate_unavailable" if "FX" in str(exc) else "unsupported_price_unit"
+        raise HTTPException(status_code=422, detail={"code": code, "message": str(exc)}) from exc
+    return _env(
+        {
+            "value": value,
+            "from_unit": source_unit,
+            "converted": converted,
+            "fx": rates,
+            "factors": {"therm_per_mwh": ENERGY_UNITS_PER_MWH["therm"],
+                        "mmbtu_per_mwh": ENERGY_UNITS_PER_MWH["MMBtu"]},
+        },
+        source="gas-unit-conversion",
+        warnings=[] if len(rates) == 2 else ["Some FX rates are unavailable; null values."],
+    )
+
+
+def _latest_eur_rates() -> dict[str, dict[str, object]]:
+    """Latest EUR-based GBP/USD rates from the runtime DB, newest first."""
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = fx_observations(session)
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    found: dict[str, dict[str, object]] = {}
+    for row in rows:
+        pair = str(row.get("pair") or "").upper()
+        base = str(row.get("base_currency") or pair[:3]).upper()
+        quote = str(row.get("quote_currency") or pair[3:6]).upper()
+        rate = row.get("rate")
+        if base != "EUR" or quote not in ("GBP", "USD") or quote in found:
+            continue
+        if isinstance(rate, (int, float)) and rate > 0:
+            found[quote] = {
+                "rate": float(rate),
+                "source": row.get("source_system"),
+                "observed_at_utc": row.get("observed_at_utc"),
+            }
+    return found
 
 
 def _env(data: object, *, source: str, warnings: list[str] | None = None) -> dict:

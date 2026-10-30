@@ -164,3 +164,32 @@ def fetch_storage_observations(base_url: str) -> list[StorageObservation]:
 
     url = f"{base_url}/api/storage/observations"
     return [StorageObservation(**o) for o in _get(url)["data"]]
+
+
+def fetch_storage_target_trajectory(
+    base_url: str,
+    *,
+    code: str = "EU",
+    target_pct: float = 90.0,
+    deviation_pp: float = 0.0,
+) -> dict[str, Any]:
+    """Return the filling trajectory of one AGSI code against the storage target.
+
+    Args:
+        base_url: Base URL of the backend server.
+        code: AGSI code (``EU``, ``DE``, ``NL``...).
+        target_pct: Filling target in percent of working gas volume.
+        deviation_pp: Permitted deviation below target, percentage points.
+
+    Returns:
+        The trajectory payload (fill, gap, required and recent net injection,
+        projected deadline fill and status); None data when no runtime DB.
+    """
+
+    r = _http.get(
+        f"{base_url}/api/storage/target-trajectory",
+        params={"code": code, "target_pct": target_pct, "deviation_pp": deviation_pp},
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()["data"]

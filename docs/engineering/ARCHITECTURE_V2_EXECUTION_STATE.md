@@ -1,3 +1,18 @@
+## 2026-10-30 — trader acceptance review, import blocker fixed, desk conventions
+
+Supplier-acceptance review from the gas-trader seat: see
+`docs/product/TRADER_ACCEPTANCE_REVIEW.md` (conditional acceptance). Blocker: d97fd56
+imported the never-committed `ingestion/ecmwf_archive_evidence.py`, so the ECMWF
+repository, ingest CLI and archive tests failed to import on a clean checkout. Restored it
+as the single pure S1 policy/method/evidence-hash and limitation source, now also used by
+the S1 reconstruction; 54 real-PG archive/repository tests pass, including replay. Added
+pure desk-convention modules `domain/market/{products,units,storage_targets}.py` and
+three READ-floor routes (`/api/market/products`, `/api/market/price-conversion`,
+`/api/storage/target-trajectory`), SDK functions, and a Trader desk panel on the existing
+Market → Curves task (no new page). Surface pinned at 194 paths / 208 operations. No
+execution, nomination or settlement semantics; FX and calorific values are never
+assumed.
+
 ## 2026-10-30 — final expanded scientific gate232 accepted
 
 CI mapper-registration6345 terminal exit0. Root re-ran final scientific composition
