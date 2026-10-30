@@ -1,6 +1,6 @@
 # Data-source and service terms for commercial use
 
-Code dependencies are covered by `DEPENDENCY_LICENSE_REVIEW.md`, which is gated in CI.
+Code dependencies are covered by [DEPENDENCY_LICENSE_REVIEW.md](DEPENDENCY_LICENSE_REVIEW.md) and gated in CI.
 Data feeds and hosted services are governed by their providers' terms instead. This
 table is the engineering summary the product enforces, not legal advice; legal should
 confirm each provider's current terms before a production deployment.
