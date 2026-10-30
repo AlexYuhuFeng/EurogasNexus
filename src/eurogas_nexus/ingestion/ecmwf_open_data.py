@@ -131,6 +131,18 @@ class EcmwfSource(StrEnum):
     AWS = "aws"
 
 
+class EcmwfArchiveOperation(StrEnum):
+    """Fixed archive transport operations for the reviewed AWS origin.
+
+    Callers select an operation, never a URL, source or arbitrary header map.
+    """
+
+    HEAD_INDEX = "head_index"
+    HEAD_GRIB = "head_grib"
+    GET_INDEX = "get_index"
+    GET_GRIB_RANGE = "get_grib_range"
+
+
 class EcmwfAvailabilityBasis(StrEnum):
     PROVIDER_LAST_MODIFIED = "provider_last_modified"
     LOCAL_RECEIPT_ONLY = "local_receipt_only"
@@ -808,7 +820,7 @@ class EcmwfOpenDataClient:
             raise EcmwfOriginError("redirect fragments are forbidden")
 
     def _send_following_redirects(
-        self, url: str, headers: Mapping[str, str]
+        self, url: str, headers: Mapping[str, str], *, method: str = "GET"
     ) -> tuple[httpx.Response, str]:
         current = url
         for redirect_count in range(MAX_REDIRECTS + 1):
@@ -817,7 +829,7 @@ class EcmwfOpenDataClient:
             # hop so a provider Set-Cookie can never become a credential on a retry.
             self._client.cookies.clear()
             request = self._client.build_request(
-                "GET",
+                method,
                 current,
                 headers=dict(headers),
             )
@@ -861,10 +873,15 @@ class EcmwfOpenDataClient:
         return min(0.5 * (2**attempt), MAX_RETRY_AFTER_SECONDS)
 
     def _send_with_retries(
-        self, url: str, headers: Mapping[str, str]
+        self, url: str, headers: Mapping[str, str], *, method: str = "GET"
     ) -> tuple[httpx.Response, str]:
         for attempt in range(MAX_HTTP_ATTEMPTS):
-            response, final_url = self._send_following_redirects(url, headers)
+            if method == "GET":
+                response, final_url = self._send_following_redirects(url, headers)
+            else:
+                response, final_url = self._send_following_redirects(
+                    url, headers, method=method
+                )
             if response.status_code not in {429, 503}:
                 return response, final_url
             delay = self._retry_delay(response, attempt)
@@ -873,6 +890,106 @@ class EcmwfOpenDataClient:
                 raise EcmwfRateLimitedError("provider remained rate limited")
             self._sleep(delay)
         raise EcmwfRateLimitedError("provider remained rate limited")
+
+    def archive_http(
+        self,
+        request: EcmwfOpenDataRequest,
+        operation: EcmwfArchiveOperation | str,
+        *,
+        if_match: str | None = None,
+        byte_range: tuple[int, int] | None = None,
+    ) -> tuple[httpx.Response, str]:
+        """Open one reviewed archive HEAD/GET without caller-supplied URLs or headers.
+
+        ``byte_range`` is ``(start, length)``.  The fixed object key comes only from
+        the typed request; the only added request headers are the exact ``If-Match``
+        validator and the canonical ``Range`` derived from the selected index row.
+        """
+
+        if not isinstance(request, EcmwfOpenDataRequest):
+            raise EcmwfInvalidRequestError("request must be EcmwfOpenDataRequest")
+        try:
+            selected = (
+                operation
+                if isinstance(operation, EcmwfArchiveOperation)
+                else EcmwfArchiveOperation(operation)
+            )
+        except (TypeError, ValueError) as exc:
+            raise EcmwfInvalidRequestError("archive operation is not reviewed") from exc
+        if self._source is not EcmwfSource.AWS:
+            raise EcmwfInvalidRequestError("archive capture requires the reviewed AWS origin")
+        if request.cycle_hour != 0:
+            raise EcmwfInvalidRequestError("archive capture allows only the 00z cycle")
+        if request.step_hours not in STEP_HOURS:
+            raise EcmwfInvalidRequestError("archive step is outside 0..360 by 3 hours")
+
+        head_operations = {
+            EcmwfArchiveOperation.HEAD_INDEX,
+            EcmwfArchiveOperation.HEAD_GRIB,
+        }
+        is_head = selected in head_operations
+        if is_head and (if_match is not None or byte_range is not None):
+            raise EcmwfInvalidRequestError("HEAD archive operations take no validators")
+        if selected is EcmwfArchiveOperation.GET_INDEX:
+            if if_match is None or byte_range is not None:
+                raise EcmwfInvalidRequestError("index GET requires one If-Match validator")
+        if selected is EcmwfArchiveOperation.GET_GRIB_RANGE:
+            if if_match is None or byte_range is None:
+                raise EcmwfInvalidRequestError("range GET requires If-Match and a byte range")
+        if if_match is not None and (
+            not isinstance(if_match, str)
+            or not if_match
+            or len(if_match) > 512
+            or if_match != if_match.strip()
+            or any(
+                ord(character) < 0x20 or ord(character) == 0x7F
+                for character in if_match
+            )
+        ):
+            raise EcmwfInvalidRequestError("archive validator is not safe header text")
+
+        index_operation = selected in {
+            EcmwfArchiveOperation.HEAD_INDEX,
+            EcmwfArchiveOperation.GET_INDEX,
+        }
+        key = (
+            request.s3_prefix + request.index_filename
+            if index_operation
+            else request.s3_prefix + request.asset_filename
+        )
+        url = self.origin.base_url + quote(key, safe="/")
+        self._validate_url(url)
+        headers = {
+            "Accept-Encoding": "identity",
+            "User-Agent": _USER_AGENT,
+            "Accept": (
+                "application/json, application/x-ndjson, text/plain"
+                if index_operation
+                else "application/octet-stream"
+            ),
+        }
+        if if_match is not None:
+            headers["If-Match"] = if_match
+        if byte_range is not None:
+            if not isinstance(byte_range, tuple) or len(byte_range) != 2:
+                raise EcmwfInvalidRequestError("archive byte range must be (start, length)")
+            start, length = byte_range
+            if (
+                isinstance(start, bool)
+                or not isinstance(start, int)
+                or isinstance(length, bool)
+                or not isinstance(length, int)
+                or start < 0
+                or not 1 <= length <= MAX_FIELD_BYTES
+            ):
+                raise EcmwfInvalidRequestError("archive byte range is outside its bound")
+            headers["Range"] = f"bytes={start}-{start + length - 1}"
+
+        return self._send_with_retries(
+            url,
+            headers,
+            method="HEAD" if is_head else "GET",
+        )
 
     @staticmethod
     def _check_identity_encoding(response: httpx.Response) -> None:

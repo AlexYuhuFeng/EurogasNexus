@@ -1,3 +1,24 @@
+## 2026-10-30 — bounded archive S2 capture implementation accepted
+
+Reviewed DeepSeek fixed-origin server capture uses HEAD metadata for the exact
+AWS index/GRIB keys, conditional If-Match index/range GETs, bounded retries and
+streams, strict validators/ranges, exact bytes/hashes, actual receipt clocks,
+safe Date metadata, lazy native decoder and S1 validation. Existing live retrieve
+default remains unchanged. No DB, source activation, archive eligibility or API.
+Root repaired a Range-request test typo, added stable transport-error refusal,
+and moved GET receipt clocks after complete bounded body reads with a delayed
+stream regression. S2 focused36 passed; S1 focused16 previously passed. Existing
+ECMWF client/decoder plus prediction units63 passed in approved Linux environment;
+focused Ruff passed. Actual S2 official capture attempt refused on ConnectTimeout,
+so authentic S2 end-to-end is still unproven; no raw capture/model claim.
+
+Both implementation workers95817 and10762 are terminal. RFC8 draft9793 is also
+terminal and awaits root architecture review. Do not restart them. Broader release
+suite48981 completed484 passed7 skipped; those environment skips are not numerical
+evidence. Full new PostgreSQL registered script91406 completed96 passed with all
+migrations/schema/API smoke in owned nexus_prediction_full_ci_20261030, including
+new actual frozen-prediction composition test. Prediction and its CI registration
+are reviewed separately in the next commit. Full delivery remains active.
 ## 2026-10-30 — G1 numerical leaf integration correction
 
 Run40975872180 science job succeeded, but overall CI failed at validate/Tests:
