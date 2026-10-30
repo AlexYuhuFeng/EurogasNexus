@@ -1,7 +1,7 @@
 {
   "name": "eurogas-nexus-web",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "engines": {
     "node": ">=24.13.1 <25"

@@ -1,13 +1,16 @@
-"""Ontology version and OWL/GRM parity contract tests."""
+"""Ontology version and OWL/GRM parity contract tests.
+
+The ontology carries its own semantic version (``current_ontology_version``), bumped when
+its meaning changes; it does not follow application releases.
+"""
 
 from pathlib import Path
 
 from eurogas_nexus.domain.ontology.semantic_kernel import current_ontology_version
 from eurogas_nexus.domain.ontology.vocabulary import GRM_PROCESSES, GRM_ROLES
-from eurogas_nexus.version import APPLICATION_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
-CANONICAL_VERSION = APPLICATION_VERSION
+CANONICAL_VERSION = current_ontology_version().label().removeprefix("v")
 
 
 def _read(relative: str) -> str:
@@ -32,10 +35,6 @@ def test_subject_architecture_version_is_canonical() -> None:
     doc = _read("docs/ontology/europe-natural-gas.md")
 
     assert f"- **版本**：v{CANONICAL_VERSION}。" in doc
-
-
-def test_executable_ontology_version_is_canonical() -> None:
-    assert current_ontology_version().label() == f"v{CANONICAL_VERSION}"
 
 
 def test_grm_role_identifiers_match_owl_document() -> None:

@@ -29,7 +29,10 @@ def test_readme_mentions_starting_docs_and_full_suite_validation() -> None:
     assert "[Release readiness](docs/release/RELEASE_READINESS.md)" in text
     assert "## Documentation map" in text
     assert "pytest -q tests" in text
-    assert "中文说明：" in text
+    # The language switch is the first thing a reader sees, in both READMEs.
+    assert "[简体中文](README-CN.md)" in "\n".join(text.splitlines()[:5])
+    mandarin = (ROOT / "README-CN.md").read_text(encoding="utf-8")
+    assert "[English](README.md)" in "\n".join(mandarin.splitlines()[:5])
 
 
 def test_governance_documents_and_indexes_are_registered() -> None:
@@ -109,9 +112,7 @@ def test_documented_root_layout_matches_tracked_source_tree() -> None:
     assert "\nrelease/" not in directory_map
     optional_paths = ("release-assets/", "output/", "tmp/")
     assert all(path in directory_map for path in optional_paths)
-    deployment = (ROOT / "docs" / "release" / "DEPLOYMENT_CONTRACT.md").read_text(
-        encoding="utf-8"
-    )
+    deployment = (ROOT / "docs" / "release" / "DEPLOYMENT_CONTRACT.md").read_text(encoding="utf-8")
     assert "release-assets/" in deployment
     assert "clients/desktop/src-tauri/target/release/bundle/" in deployment
 
@@ -140,11 +141,13 @@ def test_current_docs_use_public_plan_workflow_and_preview_version() -> None:
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "Package version: `0.5.0`" in readme
+    from eurogas_nexus.version import APPLICATION_VERSION
+
+    assert f"Package version: `{APPLICATION_VERSION}`" in readme
     assert "Channel: `preview`" in readme
     assert "not a production or GA release" in readme
-    assert "package version `0.5.0`" in changelog
-    assert "not a production multi-user or GA deployment" in changelog
+    assert f"package version `{APPLICATION_VERSION}`" in changelog
+    assert "not a production (GA) release" in changelog
     deployment_contract = (ROOT / "docs" / "release" / "DEPLOYMENT_CONTRACT.md").read_text(
         encoding="utf-8"
     )
@@ -155,10 +158,8 @@ def test_current_docs_use_public_plan_workflow_and_preview_version() -> None:
     assert "embed the desktop Client or API image" in deployment_contract
     assert "one-click" not in deployment_contract
     for deployment_doc in ("DEPLOYMENT_ROLES-EN.md", "DEPLOYMENT_ROLES-CN.md"):
-        deployment = (ROOT / "docs" / "deployment" / deployment_doc).read_text(
-            encoding="utf-8"
-        )
-        assert "0.5.0" in deployment
+        deployment = (ROOT / "docs" / "deployment" / deployment_doc).read_text(encoding="utf-8")
+        assert APPLICATION_VERSION in deployment
     english_roles = (ROOT / "docs" / "deployment" / "DEPLOYMENT_ROLES-EN.md").read_text(
         encoding="utf-8"
     )
@@ -170,9 +171,7 @@ def test_current_docs_use_public_plan_workflow_and_preview_version() -> None:
     assert "作为独立的 GitHub Release 产物发布" in mandarin_roles
     assert "不包含在 Server 运维 ZIP 包中" in mandarin_roles
     assert "Server therefore\nrequire" not in english_roles
-    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "resolve_release_context.py" in workflow
     assert "publish-stable:" in workflow and "environment: production" in workflow
     assert "validate_stable_release.py" in workflow
@@ -186,9 +185,9 @@ def test_resource_pool_contract_defines_home_and_efet_contract_entry() -> None:
     cn = (ROOT / "docs" / "architecture" / "RESOURCE_POOL_CONTRACT-CN.md").read_text(
         encoding="utf-8"
     )
-    cockpit = (
-        ROOT / "docs" / "clients" / "MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md"
-    ).read_text(encoding="utf-8")
+    cockpit = (ROOT / "docs" / "clients" / "MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "resource-pool-native" in en
     assert "EFET-style term-sheet" in en
@@ -203,9 +202,7 @@ def test_resource_pool_contract_defines_home_and_efet_contract_entry() -> None:
 
 def test_current_guidance_reflects_active_client_runtime() -> None:
     client_index = (ROOT / "docs" / "clients" / "README.md").read_text(encoding="utf-8")
-    release = (ROOT / "docs" / "release" / "RELEASE_READINESS.md").read_text(
-        encoding="utf-8"
-    )
+    release = (ROOT / "docs" / "release" / "RELEASE_READINESS.md").read_text(encoding="utf-8")
 
     assert "RELEASE CANDIDATE" in release
     assert "Validated Gates" in release

@@ -7,15 +7,18 @@ import {
   isBlockingCompatibility,
 } from "../src/app/releaseCompatibility.ts";
 
+// The client's own version, so these cases survive a version bump.
+const V = CLIENT_RELEASE_METADATA.version;
+
 function server(overrides: Record<string, unknown> = {}) {
   return {
-    application_version: "0.5.0",
+    application_version: V,
     release_channel: "preview",
     git_sha: "033df92a856e8820dd0f4d2a02367b21a285664d",
     api_contract_version: "api-contract/v1",
     database_schema_revision: "0030_reliability_indexes",
-    minimum_supported_client: "0.5.0",
-    minimum_supported_server: "0.5.0",
+    minimum_supported_client: V,
+    minimum_supported_server: V,
     backtest_engine_version: "backtest-engine/2",
     legacy_backtest_engine_version: "backtest-engine/1",
     strategy_schema_version: "strategy-definition/v1",
@@ -26,9 +29,9 @@ function server(overrides: Record<string, unknown> = {}) {
 }
 
 test("stable client metadata exposes version channel and commit separately", () => {
-  assert.equal(CLIENT_RELEASE_METADATA.version, "0.5.0");
+  assert.match(CLIENT_RELEASE_METADATA.version, /^\d+\.\d+\.\d+$/);
   assert.equal(CLIENT_RELEASE_METADATA.channel, "preview");
-  assert.equal(CLIENT_RELEASE_METADATA.minimumSupportedServer, "0.5.0");
+  assert.equal(CLIENT_RELEASE_METADATA.minimumSupportedServer, V);
 });
 
 test("compatible server is accepted", () => {
@@ -40,7 +43,7 @@ test("compatible server is accepted", () => {
 test("client update required is blocking and explicit", () => {
   const compatibility = compatibilityForServer(
     { ...CLIENT_RELEASE_METADATA, version: "0.4.9" },
-    server({ minimum_supported_client: "0.5.0" }),
+    server({ minimum_supported_client: V }),
   );
   assert.equal(compatibility.state, "client_update_required");
   assert.equal(compatibility.messageKey, "release.compat_client_update_required");
@@ -49,7 +52,7 @@ test("client update required is blocking and explicit", () => {
 
 test("server upgrade required is blocking and explicit", () => {
   const compatibility = compatibilityForServer(
-    { ...CLIENT_RELEASE_METADATA, minimumSupportedServer: "0.5.0" },
+    { ...CLIENT_RELEASE_METADATA, minimumSupportedServer: V },
     server({ application_version: "0.4.9", minimum_supported_server: "0.4.9" }),
   );
   assert.equal(compatibility.state, "server_upgrade_required");

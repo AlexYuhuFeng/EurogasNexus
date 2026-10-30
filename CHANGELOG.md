@@ -1,13 +1,83 @@
 # Changelog
 
-All notable changes to Eurogas Nexus are documented in this file.
+All notable changes to Eurogas Nexus are listed here, newest first. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
+[Semantic Versioning](https://semver.org/) as described in
+[docs/release/RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md). The current package version `0.6.0`
+is on the `preview` channel and is not a production (GA) release.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-Application artifacts use package version `0.5.0`; the current public channel is
-`preview` and is not a GA/stable release.
-Release tags use `vX.Y.Z`, `vX.Y.Z-rc.N`, or
-`vX.Y.Z-preview.N.<shortsha>`; legacy `v0.5-preview-<run>-<sha>` tags are
-historical and are no longer generated.
+Each entry says what changed for the people using the product. Engineering detail for a
+version lives under [docs/release/notes](docs/release/notes).
+
+## [Unreleased]
+
+## [0.6.0] - 2026-10-30
+
+### Added
+
+- Monthly forward curve per hub built from month, quarter, season and year quotes; the
+  position ladder marks each month on it and shows how every mark was obtained.
+- REMIT outage messages (UMMs): import from the desk's inside-information platform,
+  every version kept, live and upcoming outages under Market → Capacity & Events.
+- Position ladder for physical and financial positions by hub and month, with hedge
+  ratio, mark-to-market and indicative one-day VaR.
+- ENTSO-E power data (prices, load, wind, solar, gas generation) and gas-for-power
+  measures (residual load, spark and dark spreads, fuel switch).
+- Point-in-time training datasets over prices, power, storage, LNG and flows, with
+  declared lag and rolling features and walk-forward folds.
+- Spread lab for benchmark and spread analysis with a declared-rule backtest.
+- Benchmark rates SONIA, €STR and SOFR for contract financing; named FX fixes including
+  WM/Reuters and BFIX (customer licence).
+- Import of quotes from the desk's own licensed screen (Trayport, ICE, EEX exports).
+- Account menu with per-user preferences and organisation defaults: language, theme,
+  quote layout, profit and loss colours (green-up or red-up).
+- Declared job functions (trader, analyst, risk, middle and back office, compliance,
+  management, IT) with four-eyes approval; job functions never grant access.
+- Weather-driven GB demand: ECMWF forecasts, degree days, frozen model fits and
+  point-in-time demand labels.
+- Exact ENTSOG native rates without assumed calorific values; bounded native history in
+  the web client and SDK.
+- Guides by role and a trading-house assessment of coverage and gaps.
+
+### Changed
+
+- Market board and execution-style ladder follow screen conventions (WD, DA, WE, BOM,
+  months, quarters, seasons, Cal) in desk units; simulated prices are labelled and never
+  used as marks or risk figures.
+- The data-ops scheduler now also runs ENTSO-E power and the SONIA, €STR and SOFR fixings,
+  with retries and freshness targets.
+- The LLM layer uses a provider-neutral endpoint configured per installation.
+- Preview builds are no longer published as GitHub Releases; only release candidates and
+  stable versions are.
+- The ontology carries its own version, independent of application releases.
+
+### Fixed
+
+- Sign-in language was overridden by stored preferences.
+- Database migration identifiers longer than the `alembic_version` column.
+- Browser acceptance and reproducibility of the weather-model numerical tests in CI.
+
+### Security
+
+- Dependency licences are gated for commercial use; vulnerability audits run in CI.
+
+## [0.5.0] - Preview release line
+
+The 0.5.0 line was published only as preview builds (tags `v0.5-preview-<run>-<sha>`).
+It was a release candidate for the tested local scope, not a production multi-user or
+GA deployment.
+
+Highlights:
+
+- PostgreSQL-first backend, API, Python SDK, CLI, Web client, and Tauri desktop shells.
+- DB-composed portfolio network optimization and contract-level PnL attribution.
+- Intraday opportunity monitoring with persisted alerts and DeepSeek enrichment.
+- Storage/nomination assessment workflows (assessment only).
+- Local identities, hashed API keys, role authorization, data scopes, and OIDC verification.
+- Server and Client-only deployment roles.
+
+See `docs/release/RELEASE_READINESS.md` for the current release status and
+production gaps.
 
 ## Ontology version changes
 
@@ -22,232 +92,3 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
   `tests/contract/test_ontology_grm_parity.py` verifies that the published
   `docs/ontology/eurogas-nexus-grm.ttl` remains in structural parity with the
   executable vocabulary.
-
-## [Unreleased]
-
-- The header no longer carries the language and appearance controls, and the
-  interface language now persists. Preferences are not part of the shell's global
-  context (gas day, product, hub, runtime/data status), they are option sets, and
-  two dropdowns beside the context filters gave them equal toolbar weight; the
-  System workspace's settings page already owned both, and the sign-in screen
-  keeps its language control because settings need an identity. Because language
-  was hard-coded to English at start-up, a choice made in settings used to die on
-  every reload - it now persists through a single module with a single writer, and
-  a storage that throws degrades to the in-session choice.
-- The header's data-plane badge states a state instead of naming the store. It
-  read "Runtime DB" whenever the data plane was healthy - the subsystem's name,
-  outside the shared operational vocabulary, in a white pill identical to the
-  selects beside it. It is now the canonical badge primitive showing Ready /
-  Partial / Unavailable, with the store named in its title, and it no longer
-  stretches to half the row on a phone (measured 181px to 38px at 390x844). The
-  same mapping backs the header, the settings page and the market overview strip,
-  which had been printing the raw internal value.
-
-- The signed-in identity in the header no longer renders as one glued token. The
-  container class the markup uses had no CSS rule at all, so the display name and
-  the role appeared as `dev.analystANALYST` at every width and in both locales.
-  The cluster is now a flex row with an 8px gap, the name is the only flexible
-  field (so a long one ellipsises instead of pushing sign-out off the row), the
-  role stays on one line, and a client test fails if the markup class loses its
-  rule. Found by reviewing the captured screens as images rather than inferring
-  from the DOM, which cannot see missing whitespace.
-
-- A user-triggered follow-up read can no longer outlive the identity that asked
-  for it. Glossary context, analysis, portfolio report and monitoring-alert
-  analysis answers are now dropped when the session signs out or changes while
-  the request is in flight, on both the success and the failure path. Previously
-  such an answer was written into the store regardless, so the next sign-in -
-  including one as a different principal - rendered the previous identity's
-  answer; reproduced live with a delayed, marked response before the fix.
-
-- The Agents workspace now renders the governed artifact chain that the replay
-  endpoint returns: ordered entries with present/missing state, operation id and
-  producing stage, replay identity (id, content hash, determinism), fixture
-  identity, lineage, entitlement state and each artifact's payload, with absent
-  artifacts shown as "not persisted" and lineage the server resolves at replay
-  time labelled as such. Unknown artifact kinds are reported rather than dropped,
-  and the absence of hidden reasoning is stated instead of rendered as an empty
-  field. A human gate records a verdict through the existing review-decision
-  endpoint, disables its controls while the request is in flight, localises a
-  refusal instead of echoing server prose, and re-reads the run so the displayed
-  confirmation comes from the backend.
-
-- The Research Data workspace gained the governed dataset spec and build surface:
-  a typed spec form (empty fields omitted, no invented defaults), validation that
-  renders the registry resolution, spec hash and every structured issue grouped by
-  field with its safe code, a build action locked to the exact validated spec
-  fingerprint, a created-snapshot card, and artifact delivery derived from the
-  server's answer - a restricted answer removes the request control and explains
-  the governed state, an unregistered format is dropped from the available
-  formats, and a granted answer renders the reference without a download link.
-
-- Governed research runs can be read back: the run replay now returns the ordered
-  artifact chain (research plan, findings, StrategyIR, validation, challenge
-  report, review pack) with each artifact's operation id, producing stage, ids,
-  fixture and replay identity, lineage, entitlement state and timestamps, and an
-  explicit `hidden_chain_of_thought: null`. Absent artifacts report themselves
-  instead of failing the read, and a review pack can now be confirmed through the
-  existing review-decision API (new `agent_review_pack` review kind with a
-  fail-closed resolver).
-
-- The degraded-endpoint surface is now truthful and bounded: it renders
-  translated endpoint labels and the safe machine code per failure (at most five
-  detail rows plus a "showing N of M" line) instead of raw internal loader keys,
-  the retry control reports its attempt count and last attempt time, disables
-  itself and marks `aria-busy` while a retry is in flight, and the release-blocker
-  list in the runtime workspace no longer prints loader keys.
-- Accessibility defects found by an axe audit of the current surfaces are fixed:
-  the market sparkline's empty state exposed an `aria-label` on an element
-  without a role, the simulated-source pill's accent-on-tint text measured
-  about 4.16:1 against the 4.5:1 required for its 11px label, a source-row
-  secondary line was below the body-text contrast, the capacity board exposed
-  bare toggles with no group or pressed state, three Agents view containers had
-  no `tabpanel` relationship, and scrollable source and research regions were
-  unreachable by keyboard. A signed-in automated sweep of all 16 workspaces at
-  1440x900 now reports zero violations in English and zero in Mandarin, with the
-  sign-in screen, the numeric market view and the 390x844 System workspace
-  audited separately. These are accessibility-tree results, not visual review.
-- The narrow-viewport task tabs no longer wrap per glyph in Mandarin: the shared
-  navigation primitive's tab buttons (System, Access and Agents strips) are now
-  styled through the element the primitive actually emits, with `flex: 0 0 auto`
-  and `white-space: nowrap`. At 390x844 all eight System tabs measure 32px on a
-  single line with the container scrolling horizontally.
-- The desktop shell drops its WebView cookies, caches and local storage after a
-  sign-out (`clear_client_session_data`), so a shared workstation keeps no
-  session material behind once the backend session has been revoked.
-
-- Research datasets: builds register a format-specific artifact (CSV always,
-  Parquet when the optional adapter is installed) with a sha256 under a
-  configurable artifact root, and export now matches the requested format
-  against a stored artifact instead of answering 200 with a null reference; an
-  unavailable format fails closed with `artifact_not_available` and the list of
-  available formats. The declared `dataset.export` capability gained its missing
-  handler, reusing the same server-derived entitlement policy.
-- Research dataset validation and build share one registry resolver: unknown
-  feature/target/source/entity/policy ids now fail at validation time with
-  structured `{field, code, message}` issues, `entity_ids` actually filters the
-  built rows, and the requested resampling policy is applied through the bounded
-  resampler (recorded in snapshot metadata) instead of being silently ignored in
-  favour of the first registry row.
-- Shared task-tab strips no longer wrap their labels per glyph on narrow
-  viewports: the rules now target the buttons the navigation primitive actually
-  renders, so Mandarin labels stay on one line and the strip scrolls.
-
-- Market views: the combined `overview` dashboard is no longer the mandatory
-  landing task. The numeric analysis (`curves`) and the map/network inspection
-  (`network`) are separate task views, and each authenticated user's preferred
-  view is remembered per principal and shown again after sign-in, with gas day,
-  product and hub context retained across the switch. `overview` remains
-  available as an explicit opt-in task.
-- Portfolio exposure no longer reports a false `GBP 0`: the summary totals are
-  nullable, an empty or degraded read returns an explicit unknown with a
-  `VALUATION_EVIDENCE_MISSING` warning, and a genuinely measured zero still
-  reports zero.
-- Fixed a cold-visit misclassification: a real `401` from `/api/me` was read as
-  an unreachable backend, which showed an error banner and discarded the
-  requested deep link. A plain anonymous visit now keeps its `?workspace=` link
-  until sign-in succeeds, while an explicit sign-out or a session lost during
-  use still scrubs the protected context from the entry URL.
-
-- Authentication-first entry (UX-01 priority): an unauthenticated visit no
-  longer reaches the terminal. `GET /api/me` answers 401 when no credential is
-  presented (the verified static deployment token keeps its legacy SDK/CLI
-  principal), the Web client resolves identity before any protected read, and a
-  dedicated sign-in screen - company SSO plus a development-only credential form
-  - stands in front of the workspace until authentication succeeds. Deep links,
-  reload, session expiry, browser history, logout and desktop startup all honour
-  the gate, and the development credential login exists only in the development
-  route profile.
-- Just-in-time SSO provisioning no longer grants access: a first login for an
-  unknown approved-domain identity registers a `PENDING` principal and is
-  rejected with `identity_pending_approval` until an administrator activates it.
-
-- Client contract tests re-aligned with the current Web client (generic
-  `loadWorkspaceEndpoint` store loaders, `workspaceTaskSearch` URL sync, current
-  shell/topbar grid rows, plain glossary sticky offset, `ApiRequestOptions`
-  client methods). The `contracts.edit_confirm` English confirmation was
-  rephrased to satisfy the translation quality gate.
-
-- Served-instance load smoke: `scripts/ops/load_smoke.py` accepts `--base-url`
-  to send the smoke workload over real HTTP, and
-  `scripts/ops/run_served_load_smoke.sh` starts a uvicorn process, waits for
-  `/api/health/live`, and runs the smoke against it in CI alongside the
-  in-process smoke.
-
-- Agent-native capability layer (CR-15 / P14):
-  - first-class Capability Registry with 68 versioned semantic capabilities
-    (determinism, side effects, permissions, entitlement, provenance,
-    timeout/retry metadata) and capability discovery API;
-  - governed CapabilityRuntime with typed failure codes and
-    AUTO/RESEARCH/HUMAN_CONFIRMATION/HUMAN_ONLY action policy;
-  - registry-driven MCP adapter with legacy read/sandbox tool compatibility;
-  - AgentRun, ToolInvocation, ResearchPlan, ResearchFinding, ResearchBudget,
-    ChallengeReport, and ReviewPack persistence plus observable Agent Replay
-    (no hidden chain-of-thought);
-  - Strategy IR with semantic validation and compilation into the CR-03
-    StrategyVersionDefinition;
-  - governed ResearchOrchestrator, bounded research budget/final-holdout
-    controls, Risk Challenger, and human review pack;
-  - System > Agent Research UI; migration `0032_agent_capability_layer`;
-    162 OpenAPI paths; 30-case deterministic agent evaluation suite.
-- Research data foundation (CR-14 / P13):
-  - executable `energy-ontology/v1`, canonical entities, and point-in-time
-    source mappings;
-  - observed_at/available_at/ingested_at temporal semantics, forecast
-    vintages, and actual/forecast/assessment/simulated observation kinds;
-  - versioned FeatureDefinition/TargetDefinition/ResamplingPolicy/DatasetSpec
-    registries with bounded carry-forward (no unlimited ffill);
-  - immutable dataset snapshots, point-in-time builder, leakage validation,
-    time splits, quality reports, lineage, and entitlement-gated
-    Parquet/CSV export;
-  - migration `0031_research_data_foundation`, seeded research catalog,
-    restrained System > Research Data UI, and MCP-free agent capability
-    contracts;
-  - 151 OpenAPI paths with legacy `/api/research/*` sandbox routes preserved.
-- Commercial UAT convergence (CR-13):
-  - PostgreSQL 16 browser Golden Workflows for Market → Scenario,
-    Portfolio → Optimize → Review, and Strategy create/freeze/backtest;
-  - P0 fixed: backtest attribution persistence now flushes decision events
-    before attribution rows (PostgreSQL FK ordering);
-  - P1 fixed: legacy Review deep link, human-readable warning labels, TSO
-    access propagation, heading/landmark/contrast accessibility across all
-    workspaces;
-  - deterministic development-gated UAT fixture pack, AI eval corpus (13/13
-    critical cases), axe-core 0 violations, EN/zh-CN 1,259-key parity;
-  - user/UAT documentation and internal GA RC acceptance report.
-- Supply-chain and release hardening (CR-12):
-  - single canonical version contract enforced by
-    `scripts/release/check_version_consistency.py`;
-  - preview/RC/stable channel semantics with tag-only stable promotion;
-  - machine-readable `release-manifest.json`, final `SHA256SUMS`, SPDX SBOMs,
-    dependency vulnerability evidence, and GitHub OIDC attestations;
-  - policy-aware Windows/Linux signing with explicit unsigned-pending state;
-  - tag/version-derived artifact names; immutable container `sha-*` tags and
-    multi-arch digest acceptance;
-  - client/server compatibility contract (`/api/runtime/release`) and a
-    blocking client compatibility screen;
-  - managed/offline desktop update policy (no Tauri updater ships);
-  - pinned runners, toolchains, and GitHub Actions in release/CI workflows.
-- Standardized backend project structure:
-  - consolidated research calculations under `src/eurogas_nexus/domain/research`;
-  - removed empty source placeholder packages;
-  - archived orphaned documentation;
-  - updated directory ownership and testing documentation.
-- Aligned release validation commands with the stable OpenAPI path count.
-
-## [0.5.0] - Preview release line
-
-The current preview line is package version `0.5.0`. It is a release candidate
-for the tested local scope, not a production multi-user or GA deployment.
-
-Highlights:
-
-- PostgreSQL-first backend, API, Python SDK, CLI, Web client, and Tauri desktop shells.
-- DB-composed portfolio network optimization and contract-level PnL attribution.
-- Intraday opportunity monitoring with persisted alerts and DeepSeek enrichment.
-- Storage/nomination assessment workflows (assessment only).
-- Local identities, hashed API keys, role authorization, data scopes, and OIDC verification.
-- Server and Client-only deployment roles.
-
-See `docs/release/RELEASE_READINESS.md` for the current release status and
-production gaps.

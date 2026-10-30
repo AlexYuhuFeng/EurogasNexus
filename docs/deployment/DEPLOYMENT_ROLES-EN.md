@@ -151,7 +151,7 @@ GIE ingestion remains disabled until the customer stores its own GIE key via
 the backend-managed Data Sources workflow. Licensed providers remain disabled
 until customer credentials are configured.
 
-Package version `0.5.0` on the `preview` channel has no multi-user login or SSO.
+Package version `0.6.0` on the `preview` channel has no multi-user login or SSO.
 Server therefore requires `-PrivateNetworkOnly`, must sit behind a customer
 firewall/VPN allowlist and must not be exposed to the public internet. HTTPS
 protects transport; it

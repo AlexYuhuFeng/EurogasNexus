@@ -9,6 +9,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from eurogas_nexus.version import APPLICATION_VERSION
+
 ROOT = Path(__file__).resolve().parents[2]
 WEB_SRC = ROOT / "clients" / "web" / "src"
 
@@ -43,7 +45,7 @@ def test_release_versions_are_aligned() -> None:
         tauri["version"],
         web["version"],
         desktop["version"],
-    } == {"0.5.0"}
+    } == {APPLICATION_VERSION}
 
 
 def test_desktop_workstation_shares_business_ui_with_native_window_controls() -> None:
@@ -200,9 +202,7 @@ def test_ci_builds_web_windows_and_linux_clients() -> None:
     assert sdk["uses"] == "./.github/workflows/sdk-acceptance.yml"
     assert (workflows / "sdk-acceptance.yml").is_file()
 
-    native = yaml.safe_load(
-        (workflows / "native-acceptance.yml").read_text(encoding="utf-8")
-    )
+    native = yaml.safe_load((workflows / "native-acceptance.yml").read_text(encoding="utf-8"))
     native_job = native["jobs"]["native-build"]
     matrix = native_job["strategy"]["matrix"]["include"]
     expected_matrix = {
@@ -323,9 +323,7 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
     assert zh["theme.dark"] == "\u6df1\u8272"
 
     # Mandarin is offered through the locale registry every language picker reads.
-    locales = (ROOT / "clients" / "web" / "src" / "i18n" / "locales.ts").read_text(
-        encoding="utf-8"
-    )
+    locales = (ROOT / "clients" / "web" / "src" / "i18n" / "locales.ts").read_text(encoding="utf-8")
     assert '{ code: "zh-CN", nativeName: "简体中文"' in locales
     assert "<PersonalPreferencesPanel" in app_and_settings
 
@@ -391,7 +389,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
     assert "topbar-search" in app_and_topbar
     assert "hasMapSearch" in topbar
-    assert '{hasMapSearch && (' in topbar
+    assert "{hasMapSearch && (" in topbar
     assert "workspace-topbar-page" in topbar
     assert "topbar-icon-button" not in app
     assert "workspace-nav" not in app
@@ -434,13 +432,9 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "const optimizerProvenanceKey = useMemo(" in app
     assert "decisionInputIdentity({" in app
     assert (
-        "api.optimizeResourcePool(resourcePoolOptimizationRequest, optimizerProvenanceKey)"
-        in app
+        "api.optimizeResourcePool(resourcePoolOptimizationRequest, optimizerProvenanceKey)" in app
     )
-    assert (
-        "api.recommendRouteAllocation(routeRecommendationRequest, compareProvenanceKey)"
-        in app
-    )
+    assert "api.recommendRouteAllocation(routeRecommendationRequest, compareProvenanceKey)" in app
     assert "lastAutoOptimizerSignatureRef" in app
     assert "autoOptimizerSignature" in app
     assert (
@@ -522,9 +516,9 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     map_component = (
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
     ).read_text(encoding="utf-8")
-    line_model = (
-        ROOT / "clients" / "web" / "src" / "app" / "networkMapLines.ts"
-    ).read_text(encoding="utf-8")
+    line_model = (ROOT / "clients" / "web" / "src" / "app" / "networkMapLines.ts").read_text(
+        encoding="utf-8"
+    )
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -615,9 +609,8 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     assert "nextUrl.search = workspaceTaskSearch(window.location.search, page, task)" in app
     assert 'window.history.pushState({ workspace: page }, "", nextUrl)' in app
     assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in app
-    assert (
-        app.index('activePrimaryWorkspace.id === "market"')
-        < app.index('activePrimaryWorkspace.id === "portfolio"')
+    assert app.index('activePrimaryWorkspace.id === "market"') < app.index(
+        'activePrimaryWorkspace.id === "portfolio"'
     )
     assert app.index('activePrimaryWorkspace.id === "portfolio"') < app.index(
         'activePrimaryWorkspace.id === "decision"'
@@ -758,13 +751,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
         ROOT / "clients" / "web" / "src" / "components" / "StrategyShadowRunTerminal.tsx"
     )
     detail_path = (
-        ROOT
-        / "clients"
-        / "web"
-        / "src"
-        / "components"
-        / "strategy"
-        / "StrategyShadowRunDetail.tsx"
+        ROOT / "clients" / "web" / "src" / "components" / "strategy" / "StrategyShadowRunDetail.tsx"
     )
     sections_path = (
         ROOT
@@ -775,9 +762,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
         / "strategy"
         / "StrategyShadowRunSections.tsx"
     )
-    model_path = (
-        ROOT / "clients" / "web" / "src" / "app" / "model" / "shadowRunPresentation.ts"
-    )
+    model_path = ROOT / "clients" / "web" / "src" / "app" / "model" / "shadowRunPresentation.ts"
     detail = detail_path.read_text(encoding="utf-8")
     sections = sections_path.read_text(encoding="utf-8")
     model = model_path.read_text(encoding="utf-8")
@@ -792,8 +777,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
     assert (
-        'import { StrategyLabWorkspace } from "@/components/strategy/StrategyLabWorkspace";'
-        in app
+        'import { StrategyLabWorkspace } from "@/components/strategy/StrategyLabWorkspace";' in app
     )
     assert "<StrategyLabWorkspace" in app
     assert "controller={strategyLab}" in app
@@ -812,13 +796,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     # already had, and the economics those monitors produce.
     assert not retired_terminal_path.exists()
     lab_workspace = (
-        ROOT
-        / "clients"
-        / "web"
-        / "src"
-        / "components"
-        / "strategy"
-        / "StrategyLabWorkspace.tsx"
+        ROOT / "clients" / "web" / "src" / "components" / "strategy" / "StrategyLabWorkspace.tsx"
     ).read_text(encoding="utf-8")
     assert "<StrategyShadowShell" in lab_workspace
     assert "<StrategyShadowRunDetail" in lab_workspace
@@ -1175,7 +1153,7 @@ def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() 
     assert 'idPrefix="network-rail-tab"' in network_workspace
     assert 'role = "tablist"' in workspace_tabs
     assert "role={role}" in workspace_tabs
-    assert 'aria-selected={isActive}' in workspace_tabs
+    assert "aria-selected={isActive}" in workspace_tabs
     assert 'activeRailView === "decision"' in network_workspace
     assert 'activeRailView === "pnl"' in network_workspace
     assert 'activeRailView === "warnings"' in network_workspace
@@ -1266,7 +1244,7 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     assert 'id: "verified-pipeline-lines"' in map_component
     assert 'id: "indicative-route-lines"' in map_component
     assert "geometry_classification" in map_component
-    assert 'is_schematic_corridor: true' in map_component
+    assert "is_schematic_corridor: true" in map_component
     assert 't("map.indicative_route_warning")' in map_component
     assert "fallback-flow-path direct-corridor" not in map_component
     assert "fallback-flow endpoint-link" not in map_component
@@ -1412,7 +1390,7 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
     portfolio_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
     ).read_text(encoding="utf-8")
-    assert 'import { ContractWorkbench' in portfolio_workspace
+    assert "import { ContractWorkbench" in portfolio_workspace
     assert 'from "@/components/ContractWorkbench";' in portfolio_workspace
     assert "<ContractWorkbench" in portfolio_workspace
     # Wave 9 action geography: writing the reviewed draft is a `persist` consequence, so the

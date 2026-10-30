@@ -136,7 +136,7 @@ Eurogas Nexus **不会静默下载或安装** Docker Desktop、WSL、PostgreSQL�
 GIE 采集在客户通过“数据源”工作流保存自己的 GIE 密钥后才启用。授权价格
 供应商在客户配置相应凭据之前保持禁用。
 
-`0.5.0` 的 `preview` 渠道尚未实现多用户登录或 SSO，因此 Server 必须指定
+`0.6.0` 的 `preview` 渠道尚未实现多用户登录或 SSO，因此 Server 必须指定
 `-PrivateNetworkOnly`，部署在客户防火墙或 VPN 白名单之后，严禁直接暴露到公网。
 HTTPS 只保护传输，不能替代用户授权。后端认证和权限控制完成前，公网及多租户
 部署均属于阻塞项。

@@ -37,6 +37,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from eurogas_nexus.version import APPLICATION_VERSION
+
 ConfigScope = Literal["OPERATOR", "BUILD_METADATA", "TOOLING", "TEST_ONLY"]
 Sensitivity = Literal["public", "internal", "secret"]
 
@@ -123,7 +125,7 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         name="EUROGAS_NEXUS_VERSION",
         scope="OPERATOR",
         purpose="Application version reported by the runtime and release endpoints.",
-        example="0.5.0",
+        example=APPLICATION_VERSION,
         notes=(
             "Normally stamped by the release tooling; do not hand-edit in a release",
             "Must match the packaged version or the version-consistency gate fails",

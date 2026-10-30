@@ -23,6 +23,7 @@ from eurogas_nexus.release.versioning import (
     parse_app_version,
     parse_release_tag,
 )
+from eurogas_nexus.version import APPLICATION_VERSION  # noqa: I001
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -48,7 +49,7 @@ from scripts.release.release_metadata import (  # noqa: E402
 
 
 def test_canonical_version_parses_and_all_surfaces_agree() -> None:
-    assert parse_app_version(canonical_app_version()).core == "0.5.0"
+    assert parse_app_version(canonical_app_version()).core == APPLICATION_VERSION
     report = evaluate()
     assert report["ok"], report["failures"]
 
@@ -118,11 +119,11 @@ def test_revision_resolution_ignores_prose_that_starts_with_revision(tmp_path, m
     versions.mkdir(parents=True)
     (versions / "0001_example.py").write_text(
         '"""A migration whose docstring wraps onto a line that starts with\n'
-        'revision. This must not be read as the revision identifier.\n'
+        "revision. This must not be read as the revision identifier.\n"
         '"""\n\n'
-        'from __future__ import annotations\n\n'
+        "from __future__ import annotations\n\n"
         'revision: str = "0001_example"\n'
-        'down_revision: str | None = None\n',
+        "down_revision: str | None = None\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(release_metadata, "ROOT", tmp_path)
@@ -304,8 +305,12 @@ def test_release_artifact_names_follow_contract() -> None:
         build_run_number=7,
     )
     names = expected_artifacts(context)
-    assert names[0] == ("Eurogas-Nexus-Client-0.5.0-preview.7.033df92a856e-windows-x64-setup.exe")
+    assert names[0] == (
+        f"Eurogas-Nexus-Client-{APPLICATION_VERSION}-preview.7.033df92a856e-windows-x64-setup.exe"
+    )
     assert "linux-x64" in names[1]
     assert "linux-arm64" in names[2]
-    assert names[3] == ("Eurogas-Nexus-Server-0.5.0-preview.7.033df92a856e-Windows.zip")
-    assert names[4] == "eurogas-nexus-web-0.5.0-preview.7.033df92a856e.tar.gz"
+    assert names[3] == (
+        f"Eurogas-Nexus-Server-{APPLICATION_VERSION}-preview.7.033df92a856e-Windows.zip"
+    )
+    assert names[4] == f"eurogas-nexus-web-{APPLICATION_VERSION}-preview.7.033df92a856e.tar.gz"

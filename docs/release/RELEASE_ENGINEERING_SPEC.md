@@ -81,7 +81,7 @@ Classification: `IMPLEMENTED`, `PARTIAL`, `MISSING`,
 | --- | --- | --- | --- |
 | STABLE | `X.Y.Z` | `vX.Y.Z` | `v0.5.0` |
 | RC | `X.Y.Z` | `vX.Y.Z-rc.N` | `v0.5.0-rc.1` |
-| PREVIEW | `X.Y.Z` | `vX.Y.Z-preview.N.<shortsha>` | `v0.5.0-preview.1.033df92a856e` |
+| PREVIEW | `X.Y.Z` | none (artifact identifier `X.Y.Z-preview.N.<shortsha>`) | `0.5.0-preview.1.033df92a856e` |
 
 - The application always exposes version, channel, and commit as separate
   fields; no behavior is derived from an installer filename.
@@ -93,7 +93,9 @@ Classification: `IMPLEMENTED`, `PARTIAL`, `MISSING`,
 ## 5. Channel model and triggers
 
 - PREVIEW: engineering/internal evaluation. May be `workflow_dispatch` from
-  `main` only (mainline lineage is verified by the resolver).
+  `main` only (mainline lineage is verified by the resolver). A preview is built and
+  gated like an RC but is not tagged or published as a GitHub Release; its bundle is
+  the workflow run's `release-final` artifact (see `RELEASE_CHANNELS.md`).
 - RC: candidate for user acceptance. May be `workflow_dispatch` from `main`
   or a pushed `vX.Y.Z-rc.N` tag.
 - STABLE: commercial GA quality. **Must** originate from a pushed `vX.Y.Z`

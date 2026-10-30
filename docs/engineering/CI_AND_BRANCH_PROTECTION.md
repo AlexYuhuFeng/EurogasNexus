@@ -38,3 +38,25 @@ Settings → Branches → add a rule for `main`:
 These settings cannot be committed to the repository; they live in GitHub. Without
 them, a red `main` can only be caught after the fact. CI on `main` was red from
 `d97fd56` until the fixes on 2026-10-30.
+
+## Repository profile (About, topics, releases)
+
+The About panel is what a visitor reads first; it is also set in GitHub, not in a file.
+Repository home → About (gear icon):
+
+- **Description:** `Decision-support workstation for European gas trading desks: hub
+  prices, fundamentals (ENTSOG, GIE, ENTSO-E, REMIT), forward curves, positions and
+  research on the customer's licensed data. No order entry.`
+- **Website:** leave empty, or the customer-facing documentation site once one exists.
+- **Topics:** `natural-gas`, `energy-trading`, `commodities`, `european-gas`, `ttf`,
+  `nbp`, `market-data`, `risk-management`, `fastapi`, `react`, `tauri`, `postgresql`.
+- Show **Releases**; hide Packages and Deployments unless they are used.
+
+Settings → General: keep Issues on, Wikis off (documentation lives in `docs/`), and turn
+on "Automatically delete head branches". Settings → Tags → add a tag protection (ruleset)
+for `v*` so only release maintainers can create or delete release tags.
+
+Releases follow [RELEASE_CHANNELS.md](../release/RELEASE_CHANNELS.md): only release
+candidates (`vX.Y.Z-rc.N`) and stable versions (`vX.Y.Z`) appear on the Releases page.
+The legacy 0.5 preview pre-releases can be removed with
+`scripts/release/prune_legacy_prereleases.sh` (dry run first).

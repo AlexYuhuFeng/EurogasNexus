@@ -34,13 +34,27 @@ REQUIRED_STABLE_SECTIONS = [
 ]
 
 
-def changelog_unreleased() -> str:
+def changelog_section(version: str | None = None) -> str:
+    """The CHANGELOG section for ``version`` (``## [X.Y.Z] - date``), else ``[Unreleased]``.
+
+    A release cut with ``bump_version.py`` moves the entries under the version heading, so
+    the release's own section is preferred; previews of unreleased work read
+    ``[Unreleased]``.
+    """
+
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    marker = "## [Unreleased]"
-    if marker not in text:
-        return "_No unreleased changelog section found._"
-    section = text.split(marker, 1)[1].split("\n## ", 1)[0].strip()
-    return section
+    for marker in ([f"## [{version}]"] if version else []) + ["## [Unreleased]"]:
+        if marker in text:
+            section = text.split(marker, 1)[1]
+            section = section.split("\n", 1)[1] if "\n" in section else ""
+            section = section.split("\n## ", 1)[0].strip()
+            if section:
+                return section
+    return "_No changelog entries found for this version._"
+
+
+def changelog_unreleased() -> str:
+    return changelog_section(None)
 
 
 def draft_notes(context: dict) -> str:
@@ -58,7 +72,7 @@ def draft_notes(context: dict) -> str:
         "",
         "## What changed",
         "",
-        changelog_unreleased(),
+        changelog_section(context.get("app_version")),
         "",
         "## Compatibility",
         "",

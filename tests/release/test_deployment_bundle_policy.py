@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 
+from eurogas_nexus.version import APPLICATION_VERSION
 from scripts.release import package_deployment_bundle as packager
 from scripts.release.release_metadata import resolve_release_context
 
@@ -64,6 +65,11 @@ UNSAFE_RELATIVE_PATHS = [
     "C:/windows/system32/evil.txt",
     "trailing/",
 ]
+
+#: The canonical version, so these cases survive a version bump.
+V = APPLICATION_VERSION
+_major, _minor, _patch = (int(part) for part in V.split("."))
+OTHER = f"{_major}.{_minor + 1}.0"
 
 
 def policy_json() -> dict:
@@ -537,33 +543,33 @@ IDENTITY_FAILURES: list[tuple[str, object, object, str]] = [
     ),
     (
         "version-core-mismatch",
-        identity_context(release_version="v0.6.0-preview.7.0123456789ab"),
+        identity_context(release_version=f"v{OTHER}-preview.7.0123456789ab"),
         TEST_IMAGE_DIGEST,
-        "v0.5.0",
+        f"v{V}",
     ),
     # A prefix match would accept a longer core: channel suffixes must follow
     # the exact base version, not merely start with it.
     (
         "lengthened-core-stable",
-        identity_context(channel="stable", release_version="v0.5.01"),
+        identity_context(channel="stable", release_version=f"v{V}1"),
         TEST_IMAGE_DIGEST,
-        "v0.5.0",
+        f"v{V}",
     ),
     (
         "lengthened-core-rc",
-        identity_context(channel="rc", release_version="v0.5.01-rc.1"),
+        identity_context(channel="rc", release_version=f"v{V}1-rc.1"),
         TEST_IMAGE_DIGEST,
-        "v0.5.0",
+        f"v{V}",
     ),
     (
         "lengthened-core-preview",
-        identity_context(release_version="v0.5.01-preview.7.0123456789ab"),
+        identity_context(release_version=f"v{V}1-preview.7.0123456789ab"),
         TEST_IMAGE_DIGEST,
-        "v0.5.0",
+        f"v{V}",
     ),
     (
         "preview-suffix-mismatch",
-        identity_context(release_version="v0.5.0-preview.7.ffffffffffff"),
+        identity_context(release_version=f"v{V}-preview.7.ffffffffffff"),
         TEST_IMAGE_DIGEST,
         "preview suffix",
     ),
@@ -642,9 +648,9 @@ def test_exact_base_versions_and_registry_ports_are_accepted() -> None:
         f"registry.example.com:5000/example/api@{TEST_IMAGE_DIGEST}"
     )
     for channel, release_version in (
-        ("stable", "v0.5.0"),
-        ("rc", "v0.5.0-rc.2"),
-        ("preview", "v0.5.0-preview.7.0123456789ab"),
+        ("stable", f"v{V}"),
+        ("rc", f"v{V}-rc.2"),
+        ("preview", f"v{V}-preview.7.0123456789ab"),
     ):
         identity = packager.build_release_identity(
             identity_context(channel=channel, release_version=release_version),

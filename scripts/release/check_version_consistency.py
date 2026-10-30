@@ -74,14 +74,13 @@ def _read_ts_version() -> str:
 def _write_ts_version(value: str) -> None:
     path = ROOT / "clients" / "web" / "src" / "app" / "releaseMetadata.ts"
     text = path.read_text(encoding="utf-8")
-    path.write_text(
-        re.sub(
-            r'(export const CLIENT_APPLICATION_VERSION = ")[^"]+(";)',
+    for constant in ("CLIENT_APPLICATION_VERSION", "CLIENT_MINIMUM_SUPPORTED_SERVER"):
+        text = re.sub(
+            rf'(export const {constant} = ")[^"]+(";)',
             lambda match: f"{match.group(1)}{value}{match.group(2)}",
             text,
-        ),
-        encoding="utf-8",
-    )
+        )
+    path.write_text(text, encoding="utf-8")
 
 
 def machine_surfaces() -> list[dict]:
@@ -204,10 +203,8 @@ def documentation_surfaces(version: str) -> list[tuple[str, str, str]]:
     checks.append(
         _require_version_or_template("docs/deployment/DEPLOYMENT_ROLES-CN.md", version, "roles CN")
     )
-    checks.append(_require_text("docs/ontology/eurogas-nexus-grm.ttl", version, "GRM turtle"))
-    checks.append(_require_text("docs/ontology/OWL_GAS_ROLE_MODEL.md", version, "OWL EN"))
-    checks.append(_require_text("docs/ontology/OWL_GAS_ROLE_MODEL-CN.md", version, "OWL CN"))
-    checks.append(_require_text("docs/ontology/europe-natural-gas.md", version, "ontology"))
+    # The ontology documents carry the ontology's own version, not the application's
+    # (tests/contract/test_ontology_version_alignment.py).
     checks.append(
         _require_version_or_template("docs/operations/RELEASE_SIGNING.md", version, "signing")
     )

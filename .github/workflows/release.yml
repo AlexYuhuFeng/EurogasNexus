@@ -4,7 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       release_channel:
-        description: Preview or RC channel. Stable promotion is tag-only.
+        description: >-
+          preview builds and validates the full bundle and keeps it as workflow artifacts
+          (no tag, no GitHub Release); rc publishes a pre-release. Stable is tag-only.
         type: choice
         required: true
         default: preview
@@ -15,7 +17,6 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-preview.[0-9]+.[0-9a-f]{7,40}'
 
 permissions:
   contents: read
@@ -939,11 +940,14 @@ jobs:
           path: release-evidence
           if-no-files-found: error
 
+  # Only release candidates become GitHub pre-releases. A preview build is a tested,
+  # downloadable bundle (the release-final workflow artifact), not a release: publishing
+  # every preview filled the Releases page with hundreds of near-identical entries.
   publish-preview-rc:
-    name: Publish preview or RC release
+    name: Publish release candidate
     runs-on: ubuntu-24.04
     needs: [resolve, assemble, attest, container-acceptance]
-    if: ${{ always() && needs.resolve.result == 'success' && needs.assemble.result == 'success' && needs.attest.result == 'success' && needs.container-acceptance.result == 'success' && needs.resolve.outputs.channel != 'stable' }}
+    if: ${{ always() && needs.resolve.result == 'success' && needs.assemble.result == 'success' && needs.attest.result == 'success' && needs.container-acceptance.result == 'success' && needs.resolve.outputs.channel != 'stable' && needs.resolve.outputs.channel == 'rc' }}
     # actions: read exists only so the promotion gate below can re-derive G1's
     # same-SHA CI verification from the read-only Actions API with the
     # step-scoped workflow token; no publication path may write releases

@@ -7,7 +7,7 @@ fails the build when this value diverges from pyproject or any other
 version-bearing surface.
 """
 
-APPLICATION_VERSION = "0.5.0"
+APPLICATION_VERSION = "0.6.0"
 DEFAULT_RELEASE_CHANNEL = "preview"
 
 __all__ = ["APPLICATION_VERSION", "DEFAULT_RELEASE_CHANNEL"]
