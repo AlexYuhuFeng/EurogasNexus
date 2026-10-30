@@ -3561,5 +3561,7 @@
   "financing.as_of": "观察日",
   "financing.resolve": "查询",
   "financing.apply": "用作融资利率",
-  "financing.unavailable": "该基准在此日期附近无定盘，请运行基准利率采集。"
+  "financing.unavailable": "该基准在此日期附近无定盘，请运行基准利率采集。",
+  "market.simulated_banner_title": "模拟价格",
+  "market.simulated_banner_body": "合成测试数据，并非市场价格。请接入您的 Trayport/ICE/EEX 授权（运营方报价导入）以获取真实报价。"
 }

@@ -475,8 +475,12 @@ export function MarketTerminal({
   const premiumOverTtf = (hub: string, tenor: string, row: HubTerminalRow | undefined) => {
     const quote = latestQuoteByHubTenor.get(`${hub}:${tenor}`);
     if (hub === "TTF") return { value: 0, unit: quote ? `${quote.currency}/${quote.unit}` : "EUR/MWh" };
-    const liveMid = quoteMid(quote);
-    const ttfMid = quoteMid(latestQuoteByHubTenor.get(`TTF:${tenor}`));
+    const ttfQuote = latestQuoteByHubTenor.get(`TTF:${tenor}`);
+    // A spread is only a difference of like with like: an NBP row in GBP next to TTF in EUR
+    // is not subtracted (the backend spread, which converts with a declared FX, is used instead).
+    const sameUnit = Boolean(quote && ttfQuote && quote.currency === ttfQuote.currency && quote.unit === ttfQuote.unit);
+    const liveMid = sameUnit ? quoteMid(quote) : null;
+    const ttfMid = sameUnit ? quoteMid(ttfQuote) : null;
     const value = liveMid !== null && ttfMid !== null
       ? liveMid - ttfMid
       : row?.spreadToTtf?.value_eur_mwh ?? null;
@@ -484,6 +488,12 @@ export function MarketTerminal({
   };
 
   const activeQuoteCount = sourceQuoteRows.length;
+  // A simulated price must never be read as a market price: when any priced row on the board
+  // is simulated, the board says so above the numbers, not only in a per-row pill.
+  const simulatedOnBoard = priceRowsForStrip.some((row) => {
+    const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
+    return quote ? quote.simulated : row.simulated;
+  });
 
   return (
     <div className="workspace-grid market-page market-terminal-board">
@@ -522,6 +532,12 @@ export function MarketTerminal({
             </button>
           </div>
         </div>
+        {simulatedOnBoard && (
+          <div className="market-simulated-banner" role="alert" data-simulated-board="true">
+            <strong>{t("market.simulated_banner_title")}</strong>
+            <span>{t("market.simulated_banner_body")}</span>
+          </div>
+        )}
         {/* The board prices one tenor at a time and one row per major hub. Both are declared on the
             elements the operator sees (`data-board-tenor`, per row `data-price-tenor`), so the
             browser sweep compares the payload's rows for the *displayed* scope instead of assuming

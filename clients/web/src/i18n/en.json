@@ -3561,5 +3561,7 @@
   "financing.as_of": "Observed on",
   "financing.resolve": "Look up",
   "financing.apply": "Use as financing rate",
-  "financing.unavailable": "No recent fixing for this benchmark and date. Run the benchmark-rate ingest."
+  "financing.unavailable": "No recent fixing for this benchmark and date. Run the benchmark-rate ingest.",
+  "market.simulated_banner_title": "Simulated prices",
+  "market.simulated_banner_body": "Synthetic test data, not market prices. Connect your Trayport/ICE/EEX entitlement (operator quote import) for real quotes."
 }
