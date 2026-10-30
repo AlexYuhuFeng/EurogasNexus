@@ -37,6 +37,7 @@ EU_CAM_CALENDAR = "EU-CAM-2025"
 EU_CAM_UTC_CALENDAR = "EU-CAM-UTC-2025"
 DEFAULT_GAS_DAY_CALENDAR = EU_CAM_UTC_CALENDAR
 UK_LEGACY_CALENDAR = "UK-NBP-LEGACY"
+NAESB_CALENDAR = "NAESB"
 
 # 时区对象复用：构造开销小但重复创建无意义，模块级缓存一次。
 _BERLIN = ZoneInfo("Europe/Berlin")
@@ -53,6 +54,7 @@ class GasDayCalendar(StrEnum):
     EU_CAM_LEGACY = EU_CAM_CALENDAR
     EU_CAM_UTC = EU_CAM_UTC_CALENDAR
     UK_LEGACY = UK_LEGACY_CALENDAR
+    NAESB = NAESB_CALENDAR
 
 
 @dataclass(frozen=True)
@@ -105,6 +107,16 @@ GAS_DAY_CALENDARS: dict[str, GasDayCalendarRef] = {
             "04:00 UTC during BST). Historical backfill only."
         ),
         effective_from="1990-01-01",
+    ),
+    NAESB_CALENDAR: GasDayCalendarRef(
+        calendar_id=NAESB_CALENDAR,
+        local_start_time=time(hour=9),
+        timezone_name="America/Chicago",
+        description=(
+            "North American (NAESB) gas day: 09:00 Central Clock Time, used by Henry Hub "
+            "and most US pipelines."
+        ),
+        effective_from="2013-04-01",
     ),
 }
 

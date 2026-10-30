@@ -7,6 +7,7 @@ transfer）场景不经过网络容量，直接短路返回。
 
 from __future__ import annotations
 
+from eurogas_nexus.domain.ontology.markets import european_gas_hubs
 from eurogas_nexus.domain.route_cost.enums import (
     BusinessModel,
     CostComponentType,
@@ -24,16 +25,7 @@ ENTRY_RESOURCE_TYPES = {
     SourceResourceType.CONTRACT_POOL,
 }
 # 已知虚拟枢纽代码：用于判定"目标是否为枢纽"（枢纽目标不需要出口点位映射）。
-VIRTUAL_HUBS = {
-    "CEGH",
-    "NBP",
-    "PEG",
-    "PSV",
-    "PVB",
-    "THE",
-    "TTF",
-    "ZTP",
-}
+VIRTUAL_HUBS = frozenset(european_gas_hubs(include_superseded=True))
 
 
 def build_capacity_requirement(scenario: RouteCostScenario) -> CapacityRequirement:

@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from eurogas_nexus.domain.ontology.markets import Commodity, MarketStatus, markets
+
 BTU_JOULES = 1055.05585262
 MJ_PER_MWH = 3600.0
 
@@ -42,22 +44,19 @@ PRICE_UNITS: dict[str, tuple[str, float, str]] = {
     "GBp/th": ("GBP", 100.0, "therm"),
     "USD/MMBtu": ("USD", 1.0, "MMBtu"),
     "EUR/GJ": ("EUR", 1.0, "GJ"),
+    "CAD/GJ": ("CAD", 1.0, "GJ"),
     "EUR/kWh": ("EUR", 1.0, "kWh"),
 }
 
-#: Native quotation per hub, for display next to normalised values.
+#: Native quotation per gas and LNG market, for display next to normalised values. Read
+#: from the market reference model (``domain.ontology.markets``), aliases included.
 HUB_NATIVE_PRICE_UNIT: dict[str, str] = {
-    "TTF": "EUR/MWh",
-    "THE": "EUR/MWh",
-    "PEG": "EUR/MWh",
-    "ZTP": "EUR/MWh",
-    "PSV": "EUR/MWh",
-    "CEGH": "EUR/MWh",
-    "VTP": "EUR/MWh",
-    "PVB": "EUR/MWh",
-    "NBP": "GBp/th",
-    "JKM": "USD/MMBtu",
-    "HH": "USD/MMBtu",
+    key: m.price_unit
+    for m in markets(
+        commodity=(Commodity.NATURAL_GAS, Commodity.LNG),
+        include=(MarketStatus.ACTIVE, MarketStatus.SUPERSEDED),
+    )
+    for key in (m.code, *m.aliases)
 }
 
 _ALIASES = {

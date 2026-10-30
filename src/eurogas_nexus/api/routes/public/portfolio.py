@@ -22,6 +22,7 @@ from eurogas_nexus.domain.market_positioning import (
     ScreenOrderObservation,
     summarize_portfolio,
 )
+from eurogas_nexus.domain.ontology.markets import european_gas_hubs, quote_currency
 
 router = APIRouter(tags=["portfolio"])
 
@@ -184,8 +185,8 @@ def _env(data: object, _request: Request, source: str, warnings: list[str]) -> d
     }
 
 
-_HUB_CODES = ("NBP", "TTF", "THE", "PEG", "ZTP", "PSV", "PVB", "CEGH", "ZEE")
-_HUB_CURRENCY = {"NBP": "GBP"}
+_HUB_CODES = european_gas_hubs()
+_HUB_CURRENCY = {code: quote_currency(code) for code in _HUB_CODES}
 _CURVE_QUOTE_LOOKBACK_DAYS = 10
 
 

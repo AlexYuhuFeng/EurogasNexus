@@ -26,7 +26,7 @@ the multi-office topology is in [GLOBAL_DEPLOYMENT.md](GLOBAL_DEPLOYMENT.md).
 | Package | Owns | Depends on |
 |---|---|---|
 | `core` | Settings, configuration contract, shared primitives | nothing in the product |
-| `domain` | Pure business logic: gas day and products, units, route costs, spreads, forward curve, research datasets and features, power fundamentals, portfolio ladder, settings rules | `core` |
+| `domain` | Pure business logic. `domain/ontology` is the reference-data backbone: commodities, regions and markets with their currency, units, calendar and price sources (Decision 25). Also gas day and products, units, route costs, spreads, forward curve, research datasets and features, power fundamentals, portfolio ladder, settings rules | `core` |
 | `optimization` | Resource-pool, capacity and storage optimisation | `domain` |
 | `ingestion` | Parsers and transports for each source; no analysis | `domain`, `core` |
 | `db` | SQLAlchemy models and repositories | `domain`, `core` |

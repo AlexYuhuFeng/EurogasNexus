@@ -531,3 +531,45 @@ the B-tree on the largest partitions. Retention (raw archive and audit pruning) 
 backup/restore drill apply per installation. Test:
 `tests/db/test_alembic_revision_ids.py` guards the migration chain on PostgreSQL widths.
 
+
+## Decision 25: The ontology is the typed reference-data backbone, not a runtime graph
+
+Accepted 2026-10-30.
+
+**Context.** The ontology (`src/eurogas_nexus/domain/ontology/`) grew from two ideas:
+Palantir's Ontology (object types, links and actions laid over datasets so every
+application shares one model) and Kraken's single domain model. In practice it held
+controlled vocabularies, typed concepts, constraints and an OWL export of gas-market roles
+(GRM). Meanwhile the facts a desk relies on most (which hubs exist, their currency, quote
+unit, calendar and time zone) were repeated in at least seven modules, and there was no way
+to add a commodity or region without editing all of them.
+
+**Decision.** The ontology is the **reference-data backbone**, the equivalent of an ETRM's
+static data:
+
+1. *Semantic structure lives in code.* `ontology/markets.py` defines commodities (gas, LNG,
+   power, emissions, coal), regions (Europe, North America, Asia) and every pricing point
+   with its currency, native price and quantity units, delivery calendar, time zone,
+   licensed price sources and public reference. Vocabulary enums, concepts, relations,
+   actions and constraints stay alongside it.
+2. *Everything reads from it.* Hub lists, unit conventions, currency rules and
+   recognised codes in portfolio, units, licensed import, route costs and agent tools
+   derive from the model. A new market is one entry, plus the ingestion and analytics
+   that use it.
+3. *Instances live in PostgreSQL.* Observations, contracts, positions and books reference
+   markets by code. Effective-dated network reference tables (`reference_market_hubs`,
+   facilities, edges) remain the DB master for physical network instances.
+4. *Exports are adapters.* OWL/Turtle (`docs/ontology/eurogas-nexus-grm.ttl`) is
+   generated for interoperability and documentation; it is never read at runtime. The
+   ontology carries its own semantic version.
+
+**Rejected.** A runtime graph or triple store as the system of record (a new datastore
+with no measured need, AGENTS.md rule 5; joins across observations and positions are
+relational). A pure glossary (a dictionary does not stop seven copies of the hub list
+drifting apart). A Palantir-style generic object platform (it would replace the typed
+domain code that tests can check, for a configurability the desk does not need).
+
+**Consequences.** Adding AECO, Alberta power or TIER credits for a Canada desk, or EU
+power and EUA for a power desk, starts with the market model. Tests:
+`tests/unit/test_market_reference.py` (every vocabulary hub is a market, calendars and
+units resolve, aliases are unique), `tests/contract/test_ontology_version_alignment.py`.

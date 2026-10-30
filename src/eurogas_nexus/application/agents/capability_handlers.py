@@ -18,19 +18,13 @@ from eurogas_nexus.domain.agents.contracts import (
     IdempotencyClass,
     SideEffectClass,
 )
+from eurogas_nexus.domain.ontology.markets import european_gas_hubs, market
 from eurogas_nexus.domain.research.ontology import (
     CORE_CONCEPTS,
     canonical_entity_id,
 )
 
-_KNOWN_HUBS = {
-    "TTF": "Title Transfer Facility",
-    "NBP": "National Balancing Point",
-    "THE": "Trading Hub Europe",
-    "PEG": "Point d'Echange de Gaz",
-    "ZTP": "Zeebrugge Trading Point",
-    "PSV": "Punto di Scambio Virtuale",
-}
+_KNOWN_HUBS = {code: market(code).name for code in european_gas_hubs()}
 _KNOWN_INTERCONNECTORS = {
     "BBL": "Bacton-Balgzand pipeline",
     "IUK": "Interconnector UK",
