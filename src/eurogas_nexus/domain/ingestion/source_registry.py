@@ -320,6 +320,19 @@ def registered_sources() -> list[dict]:
             freshness_minutes=120,
         ),
         _source_row(
+            "src-remit-umm",
+            "REMIT",
+            "infrastructure",
+            ("gas-umm-outages",),
+            (
+                "REMIT urgent market messages: planned and unplanned outages of gas "
+                "production, storage, LNG and transmission, imported from the desk's "
+                "inside-information platform export (scripts/ops/import_remit_umm.py)."
+            ),
+            False,
+            freshness_minutes=60,
+        ),
+        _source_row(
             "src-ecmwf-open-data",
             "ECMWF_OPEN_DATA",
             "weather",

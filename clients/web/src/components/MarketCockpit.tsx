@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
+import { OutagesPanel } from "@/components/OutagesPanel";
 import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { TraderDeskPanel } from "@/components/TraderDeskPanel";
@@ -497,6 +498,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             t={t}
           />
         )}
+        {task === "capacity" && <OutagesPanel t={t} />}
       </div>
     </div>
   );

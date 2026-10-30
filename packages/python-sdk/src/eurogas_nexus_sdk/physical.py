@@ -90,8 +90,17 @@ class OutageEvent(BaseModel):
         status: Lifecycle status of the outage event.
         start_utc: UTC start of the outage.
         end_utc: UTC end of the outage; None when still ongoing.
-        capacity_impact_mcm_d: Capacity removed by the outage in mcm per day.
+        capacity_impact_mcm_d: Capacity removed by the outage in mcm per day (volume units
+            only; see ``unit`` and ``unavailable_capacity`` for the message's own figure).
         description: Free-text description of the outage.
+        asset_type: production, storage, lng, transmission, consumption or other.
+        balancing_zone: Balancing zone(s) the message names.
+        unit: Capacity unit as published (mcm/d, MSm3/d, GWh/d...).
+        unavailable_capacity: Unavailable capacity in ``unit``.
+        unavailable_gwh_d: Unavailable capacity in GWh/d when the unit is energy per day.
+        published_at_utc: Publication time of the message version used.
+        version: REMIT message version used (the latest stored).
+        market_participant: Publishing operator.
     """
 
     event_id: str
@@ -103,6 +112,14 @@ class OutageEvent(BaseModel):
     end_utc: str | None = None
     capacity_impact_mcm_d: float = 0.0
     description: str = ""
+    asset_type: str = ""
+    balancing_zone: str = ""
+    unit: str = ""
+    unavailable_capacity: float | None = None
+    unavailable_gwh_d: float | None = None
+    published_at_utc: str | None = None
+    version: int | None = None
+    market_participant: str = ""
 
 
 def fetch_flows(base_url: str) -> list[FlowObservation]:

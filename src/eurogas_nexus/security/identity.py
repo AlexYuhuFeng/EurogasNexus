@@ -30,6 +30,8 @@ PUBLIC_BASELINE_SOURCE_FAMILIES = frozenset(
         "NYFED",
         # ENTSO-E Transparency: free power-system data (token required, attribution).
         "ENTSOE",
+        # REMIT urgent market messages: inside information operators must publish.
+        "REMIT",
     }
 )
 

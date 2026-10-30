@@ -2335,6 +2335,26 @@ export interface PositionLadderRowDTO {
   mark_method?: string | null;
 }
 
+/** One live or upcoming gas facility outage from a REMIT urgent market message. */
+export interface OutageEventDTO {
+  event_id: string;
+  version: number | null;
+  facility_id: string;
+  facility_name: string;
+  asset_type: string;
+  event_type: string;
+  status: string;
+  start_utc: string;
+  end_utc: string | null;
+  published_at_utc: string | null;
+  balancing_zone: string;
+  unit: string;
+  unavailable_capacity: number | null;
+  capacity_impact_mcm_d: number;
+  description: string;
+  market_participant: string;
+}
+
 export interface ForwardCurvePointDTO {
   hub: string;
   month: string;
@@ -4026,6 +4046,8 @@ export const api = {
   runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
   runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
+  outages: (horizonDays = 90, options?: ApiRequestOptions) =>
+    get<OutageEventDTO[]>("/physical/outages", { horizon_days: String(horizonDays) }, options),
   positionLadder: (months = 12, options?: ApiRequestOptions) =>
     get<PositionLadderDTO>("/portfolio/position-ladder", { months: String(months) }, options),
   myPreferences: (options?: ApiRequestOptions) => get<PreferencesDTO>("/me/preferences", undefined, options),

@@ -3724,5 +3724,20 @@
   "position.mark_quoted": "月度报价",
   "position.mark_derived": "由季度、季节或年度报价推导",
   "position.mark_front": "近期合约（月内余量）",
-  "position.mark_flat": "无曲线报价：最新日收盘价"
+  "position.mark_flat": "无曲线报价：最新日收盘价",
+  "outages.title": "停运（REMIT 紧急市场消息）",
+  "outages.empty": "暂无当前或即将发生的停运。",
+  "outages.status": "状态",
+  "outages.asset": "设施",
+  "outages.zone": "平衡区",
+  "outages.type": "类型",
+  "outages.unavailable": "不可用容量",
+  "outages.start": "开始（UTC）",
+  "outages.end": "结束（UTC）",
+  "outages.reason": "原因",
+  "outages.status_active": "进行中",
+  "outages.status_scheduled": "即将发生",
+  "outages.type_planned": "计划内",
+  "outages.type_unplanned": "计划外",
+  "outages.type_unspecified": "未说明"
 }

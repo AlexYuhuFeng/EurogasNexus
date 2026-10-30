@@ -27,6 +27,7 @@ at start-up (`python scripts/ops/check_config.py --strict`).
 | ECMWF temperature | `scripts/ops/ingest_ecmwf_forecasts.py` | [ECMWF_FORECAST_OPERATIONS.md](../data/ECMWF_FORECAST_OPERATIONS.md) |
 | National Gas demand | `scripts/ops/ingest_national_gas_rest.py` | [NATIONAL_GAS_REST_OPERATIONS.md](../data/NATIONAL_GAS_REST_OPERATIONS.md) |
 | ENTSO-E power | `scripts/ops/ingest_power.py` | [POWER_DATA.md](../operations/POWER_DATA.md) |
+| REMIT outages (UMMs) | `scripts/ops/import_remit_umm.py` | [REMIT_OUTAGES.md](../operations/REMIT_OUTAGES.md) |
 | Licensed quotes, FX fixings | `scripts/ops/import_market_quotes.py`, `import_fx_fixings.py` | [LIVE_PRICE_SOURCES.md](../operations/LIVE_PRICE_SOURCES.md), [FX_FIXINGS.md](../operations/FX_FIXINGS.md) |
 | Weather-demand model | `scripts/ops/fit_weather_demand.py` | [WEATHER_DEMAND_MODEL_OPERATOR.md](../operations/WEATHER_DEMAND_MODEL_OPERATOR.md) |
 

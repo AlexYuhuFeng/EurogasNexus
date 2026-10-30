@@ -12,6 +12,7 @@ in EUR/MWh, volumes in MWh/d (th/d for NBP).
 | Product strip (WD, DA, WE, BOM, M+n, Q+n, seasons, Cal), unit and FX converter | Market → Curves → Trader desk |
 | Storage against the EU target | Market → Curves → Trader desk |
 | Flows, capacity and maintenance | Market → Network, Market → Capacity & Events |
+| Live and upcoming outages (REMIT UMMs: fields, plants, storage, LNG, pipelines) | Market → Capacity & Events → Outages |
 | Spread or benchmark analysis and a quick rule backtest | Strategy Lab → Spread |
 | Position by hub and month, hedge ratio, MtM | Portfolio → Exposure → Position ladder |
 | Opportunities and alerts | Decision Center, Alerts (top bar) |

@@ -14,6 +14,7 @@ confirm each provider's current terms before a production deployment.
 | NY Fed (SOFR) | SOFR fixings | Free; NY Fed terms of use (attribution) | Public baseline family `NYFED`; attribution returned |
 | ECMWF Open Data | weather forecasts | CC-BY-4.0: commercial use with attribution | Certified source; attribution in evidence |
 | ENTSO-E Transparency Platform | power prices, load, generation by fuel | Free with a registered token; the platform's terms permit reuse with attribution to ENTSO-E (confirm the current terms at go-live) | Public baseline family `ENTSOE`; token held server-side |
+| REMIT UMMs (EEX Transparency, GIE IIP, Gassco UMM and other inside-information platforms) | gas facility outages | Inside information operators must publish; each platform sets reuse terms, confirm commercial reuse for the platform used | Public baseline family `REMIT`; operator file import |
 | National Gas (GB) | demand | Open data licence; attribution | Certified source |
 | EEX public market data (TTF NGP reference) | reference index | Display/internal use only; redistribution and derived products need an EEX licence | Commercial family `EEX`; data-scope grant required |
 | WM/Reuters (LSEG), Bloomberg BFIX | FX fixes | Licensed; the subscriber's own entitlement | Operator import only; families `WMR`/`BFIX` need a grant |

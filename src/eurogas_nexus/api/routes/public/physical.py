@@ -194,17 +194,79 @@ def list_capacity(
 
 
 @router.get("/api/physical/outages")
-def list_outages(request: Request) -> dict:
-    """List outage records (requires source ingestion; no fallback data).
+def list_outages(
+    request: Request,
+    horizon_days: int = Query(90, ge=1, le=366),
+    asset_type: str | None = Query(None, max_length=16),
+) -> dict:
+    """Live and upcoming gas facility outages from imported REMIT UMMs, soonest first.
 
-    故障（outage）端点依赖来源采集；未配置时不返回任何回退数据。
+    来自 REMIT 紧急市场消息（UMM）的当前及未来气田、储气、LNG 与管输停运事件。
+
+    The latest version of each message is used and dismissed events are dropped. Capacity
+    stays in the message's unit; ``capacity_impact_mcm_d`` is filled only for volume units.
     """
 
-    return _env(
-        [],
-        source="runtime-db-not-configured",
-        warnings=["Outage endpoint requires source ingestion; no fallback data returned."],
+    from eurogas_nexus.domain.observations.remit_umm import UmmMessage, outage_view
+
+    if not _db_is_configured():
+        return _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; REMIT outage messages are unavailable."],
+        )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    now = datetime.now(UTC)
+    try:
+        from eurogas_nexus.db.models import RemitUmmRecord
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            naive = session.get_bind().dialect.name == "sqlite"
+            cutoff = now.replace(tzinfo=None) if naive else now
+            # Messages with any version still open; then every version of them, so the latest
+            # version decides (a revision may have ended or dismissed the event).
+            open_ids = session.query(RemitUmmRecord.message_id).filter(
+                (RemitUmmRecord.event_stop_utc.is_(None)) | (RemitUmmRecord.event_stop_utc > cutoff)
+            )
+            if asset_type:
+                open_ids = open_ids.filter(RemitUmmRecord.asset_type == asset_type.casefold())
+            records = (
+                session.query(RemitUmmRecord)
+                .filter(RemitUmmRecord.message_id.in_(open_ids.distinct().limit(5_000)))
+                .all()
+            )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+    def aware(moment: datetime | None) -> datetime | None:
+        if moment is None:
+            return None
+        return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment.astimezone(UTC)
+
+    fields = UmmMessage.__dataclass_fields__
+    messages = [
+        UmmMessage(
+            **{
+                name: aware(getattr(record, name))
+                if name.endswith("_utc")
+                else getattr(record, name)
+                for name in fields
+            }
+        )
+        for record in records
+    ]
+    rows = outage_view(messages, now=now, horizon_days=horizon_days)
+    rows = filter_rows(request, rows)
+    warnings = (
+        []
+        if rows
+        else [
+            "No live or upcoming REMIT outages stored; import UMMs with "
+            "scripts/ops/import_remit_umm.py."
+        ]
     )
+    return _env(rows, source="runtime-postgresql:remit_umm_messages", warnings=warnings)
 
 
 def _db_flow_observations(
@@ -257,8 +319,7 @@ def _filter_raw_rows(raw_rows, *, request: Request | None):
     if request is None:
         return raw_rows
     wrapped = [
-        {"source_system": getattr(row, "source_system", None), "record": row}
-        for row in raw_rows
+        {"source_system": getattr(row, "source_system", None), "record": row} for row in raw_rows
     ]
     return [entry["record"] for entry in filter_rows(request, wrapped)]
 
@@ -468,9 +529,7 @@ def _project_rows(
         except NativeRateProjectionError as exc:
             raise _native_rate_unavailable() from exc
         if admissible:
-            rows.append(
-                _flow_row(row) if volume_field == "flow_mcm_d" else _capacity_row(row)
-            )
+            rows.append(_flow_row(row) if volume_field == "flow_mcm_d" else _capacity_row(row))
         elif _is_legacy_entsog(row):
             legacy_entsog_withheld = True
 

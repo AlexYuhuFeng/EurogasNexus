@@ -3724,5 +3724,20 @@
   "position.mark_quoted": "Month quote",
   "position.mark_derived": "Derived from a quarter, season or year quote",
   "position.mark_front": "Prompt product (balance of month)",
-  "position.mark_flat": "No curve quote: latest daily close"
+  "position.mark_flat": "No curve quote: latest daily close",
+  "outages.title": "Outages (REMIT UMMs)",
+  "outages.empty": "No live or upcoming outages stored.",
+  "outages.status": "Status",
+  "outages.asset": "Asset",
+  "outages.zone": "Zone",
+  "outages.type": "Type",
+  "outages.unavailable": "Unavailable",
+  "outages.start": "Start (UTC)",
+  "outages.end": "End (UTC)",
+  "outages.reason": "Reason",
+  "outages.status_active": "Active",
+  "outages.status_scheduled": "Upcoming",
+  "outages.type_planned": "Planned",
+  "outages.type_unplanned": "Unplanned",
+  "outages.type_unspecified": "Unspecified"
 }

@@ -23,6 +23,7 @@ the current/normative document listed here and report the conflict.
 - Data operations: [live prices](operations/LIVE_PRICE_SOURCES.md),
   [power](operations/POWER_DATA.md), [interest rates](operations/INTEREST_RATES.md),
   [FX fixings](operations/FX_FIXINGS.md),
+  [REMIT outages](operations/REMIT_OUTAGES.md),
   [ECMWF forecasts](data/ECMWF_FORECAST_OPERATIONS.md),
   [weather-demand model](operations/WEATHER_DEMAND_MODEL_OPERATOR.md),
   [API profiles](api/API_PROFILES.md)

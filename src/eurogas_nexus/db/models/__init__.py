@@ -82,6 +82,7 @@ from eurogas_nexus.db.models.reference_network import (
     ReferenceTsoAccessPoint,
     TopologyMarketMapping,
 )
+from eurogas_nexus.db.models.remit import RemitUmmRecord
 from eurogas_nexus.db.models.research import (
     CanonicalEntityRecord,
     DatasetArtifactRecord,
@@ -265,6 +266,7 @@ __all__ = [
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
     "PowerObservationRecord",
+    "RemitUmmRecord",
     "PrincipalPreferenceRecord",
     "GlossaryTermRecord",
     "JobRecord",

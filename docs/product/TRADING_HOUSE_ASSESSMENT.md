@@ -10,7 +10,7 @@ and decision-support layer between them.
 Usable today as a **desk analytics and research workstation** for fundamentals, spreads,
 route economics, positions and decision review, on the customer's own licensed prices.
 **Not yet a complete trading-house platform:** live licensed price connectors are shells,
-several fundamental feeds (outages, system prices, carbon/coal) are missing, and
+several fundamental feeds (system prices, carbon/coal) are missing and outages arrive by file import, and
 forecasting covers GB demand and data preparation rather than a full balance model.
 
 ## Data sources: what is fetched, in what form, and where it is used
@@ -25,6 +25,7 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 | National Gas (GB demand actuals) | Live (script) | Daily demand | Weather-demand targets |
 | ENTSO-E Transparency (power prices, load, wind, solar, gas generation) | Parser and script (customer token) | MW, EUR/MWh per bidding zone | Gas-for-power, datasets (`power.*`) |
 | EEX public TTF NGP file | Live (bounded download) | Reference index, 15-min | Reference index panel (not a quote) |
+| REMIT UMMs (gas outages) | Operator import (JSON/CSV, ACER fields) | Every message version; native capacity unit | Capacity & Events → Outages, SDK `fetch_outages` |
 | Customer screen export (Trayport/ICE/EEX) | Operator import | L1 bid/ask in native units | Board, ladder, spread lab, position marks |
 | WM/Reuters, BFIX fixes | Operator import | Fixings | FX conversions for LNG and contracts |
 | Published TSO tariffs (NTS, BBL, IUK, GTS, NaTran, German TSOs, Fluxys, Enagás) | Curated tables | Tariff per point and gas year | Route costs, capacity billing |
@@ -35,7 +36,6 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 
 | Feed | Why it matters | Terms |
 |---|---|---|
-| REMIT UMMs (ACER inside-information platforms, Gassco UMM) | Norwegian and field outages move NBP/TTF within minutes | Public; check each platform's reuse terms |
 | National Gas SAP/SMP, system imbalance, linepack | GB balancing prices and system length | Public (National Gas data portal) |
 | THE/GTS/GRTgaz balancing signals | Continental system length | Public per TSO |
 | EUA carbon and API2 coal prices | Fuel switching, spark/dark spreads | Licensed (ICE/EEX); customer entitlement |
@@ -74,7 +74,8 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 
 1. **Licensed price connectors** on the customer's entitlement: EEX DataSource end-of-day
    and ICE Endex settlements first (curves for marks and VaR), Trayport streaming second.
-2. **REMIT outage feed** and GB system prices: the two fastest-moving fundamentals.
+2. ~~REMIT outage import~~ done (file import); next: a platform API connector so UMMs arrive
+   within minutes, outage features in training datasets, and GB system prices.
 3. **Carbon and coal** via the customer's ICE/EEX entitlement, completing the switching view.
 4. ~~Forward curve builder~~ done (2026-10-30); next: feed it settlement curves from the
    licensed connectors in priority 1.

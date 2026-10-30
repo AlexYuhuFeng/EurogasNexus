@@ -103,6 +103,14 @@ _SOURCE_OVERRIDES: dict[str, dict] = {
         "enabled_default": False,
         "adapter_version": "entsoe-transparency-xml-v1",
     },
+    # Operator file import (scripts/ops/import_remit_umm.py); nothing for the scheduler to run.
+    "src-remit-umm": {
+        "source_class": SourceClass.PUBLIC,
+        "access_mode": AccessMode.FILE_UPLOAD,
+        "schedulable": False,
+        "enabled_default": False,
+        "adapter_version": "remit-umm-acer-fields-v1",
+    },
     "src-gie": {
         "source_class": SourceClass.PUBLIC,
         "access_mode": AccessMode.KEYED_HTTP,
