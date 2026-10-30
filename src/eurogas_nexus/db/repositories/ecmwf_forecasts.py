@@ -15,15 +15,17 @@ stored as binary floats; they are approximate physical measurements, not money.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import BigInteger, func, literal, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -32,6 +34,13 @@ from eurogas_nexus.db.models.research import (
     ForecastObservationRecord,
     SeriesDefinitionRecord,
     SourceEntityMappingRecord,
+)
+from eurogas_nexus.ingestion.ecmwf_archive_evidence import (
+    ARCHIVE_ORIGIN_LABEL,
+    archive_evidence_hash,
+    archive_limitations,
+    archive_method_hash,
+    archive_policy_hash,
 )
 from eurogas_nexus.ingestion.ecmwf_grib import (
     EcmwfDecodedField,
@@ -55,7 +64,125 @@ _QUERY_CHUNK = 400
 _RECORD_SCHEMA = "ecmwf-open-data-forecast-observation/v3"
 _BATCH_SCHEMA = "ecmwf-open-data-forecast-batch/v2"
 _POINT_METHOD_VERSION = "ecmwf-2t-nearest-grid/v1"
+ARCHIVE_EVIDENCE_SCHEMA = "ecmwf-archive-persistence-evidence/v1"
+_ARCHIVE_AVAILABILITY_BASIS = "ARCHIVE_OBJECT_LAST_MODIFIED_RECONSTRUCTION"
+_ARCHIVE_BUCKET = "ecmwf-forecasts"
+_ARCHIVE_LOOKUP_LIMIT = 16
+_ARCHIVE_LOCK_BUDGET_SECONDS = 5.0
+_ARCHIVE_LOCK_POLL_SECONDS = 0.05
 _DEG_C_UNITS = frozenset({"degC", "°C"})
+_ARCHIVE_TOP_LEVEL_KEYS = frozenset(
+    {
+        "schema",
+        "availability_basis",
+        "provider_source",
+        "provider_origin",
+        "index",
+        "grib",
+        "reference",
+        "run_date",
+        "cycle_hour",
+        "step_hours",
+        "index_row_offset",
+        "message_offset",
+        "message_length",
+        "content_range",
+        "object_total_bytes",
+        "effective_archive_available_at_utc",
+        "captured_at_utc",
+        "decoded",
+        "policy_hash",
+        "method_hash",
+        "evidence_hash",
+        "limitations",
+        "public_read_continuity_assumption",
+        "availability_is_local_receipt",
+        "availability_is_prospective",
+        "etag_is_content_hash",
+    }
+)
+_ARCHIVE_OBJECT_KEYS = frozenset(
+    {
+        "bucket",
+        "key",
+        "url",
+        "etag",
+        "version_id",
+        "http_etag",
+        "http_version_id",
+        "size_bytes",
+        "last_modified_utc",
+        "s3_last_modified_utc",
+        "http_last_modified_utc",
+        "s3_captured_at_utc",
+        "http_captured_at_utc",
+        "sha256",
+    }
+)
+_ARCHIVE_OBJECT_STABLE_KEYS = frozenset(
+    {
+        "bucket",
+        "key",
+        "url",
+        "etag",
+        "version_id",
+        "http_etag",
+        "http_version_id",
+        "size_bytes",
+        "last_modified_utc",
+        "s3_last_modified_utc",
+        "http_last_modified_utc",
+        "sha256",
+    }
+)
+_ARCHIVE_REFERENCE_KEYS = frozenset(
+    {
+        "source",
+        "origin",
+        "asset_url",
+        "request_sha256",
+        "grib_sha256",
+        "index_sha256",
+        "index_row_offset",
+        "run_date",
+        "cycle_hour",
+        "step_hours",
+        "valid_at_utc",
+    }
+)
+_ARCHIVE_REFERENCE_STABLE_KEYS = _ARCHIVE_REFERENCE_KEYS - {"request_sha256"}
+_ARCHIVE_DECODED_KEYS = frozenset(
+    {
+        "decoder_library",
+        "decoder_version",
+        "param_id",
+        "units",
+        "step_type",
+        "grid_type",
+        "grid_ni",
+        "grid_nj",
+        "data_date",
+        "data_time_utc",
+        "validity_at_utc",
+        "forecast_step_hours",
+        "request_sha256",
+    }
+)
+_ARCHIVE_DECODED_STABLE_KEYS = _ARCHIVE_DECODED_KEYS - {"request_sha256"}
+_ARCHIVE_BINDING_KEYS = frozenset(
+    {
+        "forecast_observation_id",
+        "point_id",
+        "series_id",
+        "entity_id",
+        "identity_mapping_id",
+        "request_sha256",
+        "grib_sha256",
+        "index_sha256",
+        "valid_at_utc",
+    }
+)
+_ARCHIVE_BINDING_STABLE_KEYS = _ARCHIVE_BINDING_KEYS - {"request_sha256"}
 _LEGACY_LICENSED_SOURCE_CLASSES = frozenset(
     {"WEATHER", "LICENSED", "LICENSED_WEATHER", "COMMERCIAL_WEATHER"}
 )
@@ -88,6 +215,63 @@ class EcmwfForecastConflict(EcmwfForecastPersistenceError):
     """An existing point identity conflicts semantically with the requested append."""
 
     code = "ECMWF_FORECAST_CONFLICT"
+
+
+class EcmwfForecastArchiveValidationError(EcmwfForecastPersistenceError):
+    """The internal archive payload does not bind to the exact transport/decoded pair."""
+
+    code = "ECMWF_ARCHIVE_EVIDENCE_INVALID"
+
+
+class EcmwfForecastArchiveChanged(EcmwfForecastPersistenceError):
+    """A persisted archive object binding has different stable object facts."""
+
+    code = "ARCHIVE_OBJECT_CHANGED"
+
+
+class EcmwfForecastArchiveEvidenceMissing(EcmwfForecastPersistenceError):
+    """An existing canonical row predates archive evidence and is never backfilled."""
+
+    code = "ECMWF_ARCHIVE_EVIDENCE_MISSING"
+
+
+class EcmwfForecastArchivePendingWrites(EcmwfForecastPersistenceError):
+    """Caller-pending ORM writes would be flushed by the existing repository path."""
+
+    code = "ECMWF_ARCHIVE_PENDING_CALLER_WRITES"
+
+
+class EcmwfForecastArchiveLookupLimit(EcmwfForecastPersistenceError):
+    """The bounded archive-identity lookup found more rows than the reviewed limit."""
+
+    code = "ECMWF_ARCHIVE_LOOKUP_LIMIT"
+
+
+class EcmwfForecastArchiveBusy(EcmwfForecastPersistenceError):
+    """The bounded archive-object lock wait expired; the caller may retry.
+
+    Acquired keys are transaction-scoped and are never explicitly released by this
+    helper.  This refusal never commits or rolls back the caller's outer
+    transaction itself.
+    """
+
+    code = "ECMWF_ARCHIVE_BUSY"
+    retryable: bool = True
+
+
+def refuse_pending_archive_caller_writes(session: Session) -> None:
+    """Refuse caller-pending ORM state before the archive path touches SQL.
+
+    The existing default append keeps its historical autoflush behaviour.  The
+    archive path cannot use it safely: opening the existing nested savepoint (or
+    executing the first SELECT) would flush unrelated caller rows.  There is no
+    silent flush and no no-autoflush rewrite of the legacy repository here.
+    """
+
+    if session.new or session.dirty or session.deleted:
+        raise EcmwfForecastArchivePendingWrites(
+            "caller-pending ORM writes are refused before the archive append"
+        )
 
 
 @dataclass(frozen=True)
@@ -132,6 +316,7 @@ def append_ecmwf_forecast(
     transport: EcmwfField,
     decoded: EcmwfDecodedField,
     ingested_at_utc: datetime,
+    archive_evidence: Mapping[str, Any] | None = None,
 ) -> EcmwfForecastInsertSummary:
     """Append one decoded field as one existing observation per bound point.
 
@@ -141,6 +326,15 @@ def append_ecmwf_forecast(
     instant.  The caller owns the outer transaction.  A nested savepoint makes a
     conflict discovered after earlier rows in this batch atomic, and the SQLite
     BEGIN helper ensures that savepoint is not silently the outermost transaction.
+
+    ``archive_evidence`` is a deliberately optional, internal trusted payload seam
+    for RFC-0007 S3.  It is not remote-origin authentication and not arbitrary JSON
+    authorization: the application constructs it from a typed S2 capture validated
+    through S1, and this repository revalidates every constituent transport/
+    decoded/object-hash/clock binding, recomputes the exact S1 policy/method/
+    evidence hashes and mandatory limitations, and checks stored bindings against
+    the immutable v3 row before any archive replay.  The default ``None`` path is
+    byte-compatible with the existing v3 append and never adds an archive block.
     """
 
     if not isinstance(transport, EcmwfField):
@@ -158,6 +352,16 @@ def append_ecmwf_forecast(
             "ingested_at_utc must not precede the actual local receipt"
         )
 
+    archive_payload: dict[str, Any] | None = None
+    if archive_evidence is not None:
+        refuse_pending_archive_caller_writes(session)
+        archive_payload = _validate_archive_evidence(
+            archive_evidence,
+            transport=transport,
+            decoded=decoded,
+            ingested_at_utc=ingested,
+        )
+
     valid_start = _explicit_utc(decoded.metadata.validity_at_utc, "forecast validity")
     resolved_by_point = _resolve_point_bindings(
         session,
@@ -172,6 +376,7 @@ def append_ecmwf_forecast(
         decoded=decoded,
         valid_start=valid_start,
         ingested_at_utc=ingested,
+        archive_evidence=archive_payload,
     )
     expected = {
         row.forecast_observation_id: _expected_signature(
@@ -186,12 +391,48 @@ def append_ecmwf_forecast(
     pending: list[ForecastObservationRecord] = []
     try:
         with session.begin_nested():
+            object_candidates: dict[str, tuple[ForecastObservationRecord, ...]] = {}
+            if archive_payload is not None:
+                # Serialize the object/binding append-or-verify decision before any
+                # archive read.  PostgreSQL transaction-scoped advisory locks cover
+                # both inserts and replays without a table lock or unique migration;
+                # acquisition is non-blocking under one bounded monotonic budget and
+                # keys are sorted so multi-row batches acquire in one global order.
+                _lock_archive_object_bindings(session, rows)
+                # Every archive check below is a bounded read.  Candidates are the
+                # existing canonical rows for the fixed origin/exact object pair/
+                # run/validity/binding, never the incoming id alone: a changed raw
+                # hash creates a new id, and a non-archive row must not be backfilled.
+                for row in rows:
+                    object_candidates[row.forecast_observation_id] = (
+                        _load_canonical_object_candidates(session, record=row)
+                    )
+                for row in rows:
+                    current = _archive_block(row.provenance)
+                    current_signature = _archive_stable_signature(current)
+                    for old in object_candidates[row.forecast_observation_id]:
+                        old_block = _archive_block(old.provenance)
+                        _validate_stored_archive_evidence(old, old_block)
+                        if _archive_stable_signature(old_block) != current_signature:
+                            raise EcmwfForecastArchiveChanged(
+                                "the same archive object/binding has different stable evidence"
+                            )
+
             existing_by_id = _load_existing_by_id(session, tuple(expected))
             for row in rows:
                 old = existing_by_id.get(row.forecast_observation_id)
                 if old is None:
                     pending.append(row)
                     continue
+                if archive_payload is not None:
+                    old_block = _archive_block(old.provenance)
+                    _validate_stored_archive_evidence(old, old_block)
+                    if _archive_stable_signature(old_block) != _archive_stable_signature(
+                        _archive_block(row.provenance)
+                    ):
+                        raise EcmwfForecastArchiveChanged(
+                            "existing archive observation has different stable evidence"
+                        )
                 if _record_signature(old) != expected[row.forecast_observation_id]:
                     raise EcmwfForecastConflict(
                         "existing forecast observation id has different semantic content"
@@ -581,6 +822,7 @@ def _build_rows(
     decoded: EcmwfDecodedField,
     valid_start: datetime,
     ingested_at_utc: datetime,
+    archive_evidence: Mapping[str, Any] | None = None,
 ) -> tuple[str, dict[str, str], list[ForecastObservationRecord]]:
     run = transport.run
     request = run.request
@@ -657,6 +899,14 @@ def _build_rows(
             availability_basis=run.availability_basis,
             provider_last_modified=provider_last_modified,
         )
+        if archive_evidence is not None:
+            provenance["archive_evidence"] = _archive_row_evidence(
+                archive_evidence,
+                record_id=record_id,
+                resolved=resolved,
+                transport=transport,
+                point=point,
+            )
         rows.append(
             ForecastObservationRecord(
                 forecast_observation_id=record_id,
@@ -680,6 +930,930 @@ def _build_rows(
             )
         )
     return batch_identity, content_identities, rows
+
+
+def _archive_row_evidence(
+    archive_evidence: Mapping[str, Any],
+    *,
+    record_id: str,
+    resolved: _ResolvedPointBinding,
+    transport: EcmwfField,
+    point: EcmwfPoint,
+) -> dict[str, Any]:
+    """Add the immutable v3 binding to one already-validated archive block."""
+
+    block = copy.deepcopy(dict(archive_evidence))
+    block["binding"] = {
+        "forecast_observation_id": record_id,
+        "point_id": point.point_id,
+        "series_id": resolved.series.series_id,
+        "entity_id": resolved.binding.entity_id,
+        "identity_mapping_id": resolved.mapping.mapping_id,
+        "request_sha256": transport.run.request_sha256,
+        "grib_sha256": transport.grib_sha256,
+        "index_sha256": transport.reference.index_sha256,
+        "valid_at_utc": _iso(point.reference.valid_at_utc),
+    }
+    return block
+
+
+def _validate_archive_evidence(
+    archive_evidence: Mapping[str, Any],
+    *,
+    transport: EcmwfField,
+    decoded: EcmwfDecodedField,
+    ingested_at_utc: datetime,
+) -> dict[str, Any]:
+    """Revalidate the internal archive seam against the exact typed capture.
+
+    This is deliberately not remote-origin authentication.  The caller is the
+    trusted application boundary; this function only proves that the payload it
+    was handed is the exact S1 evidence for this transport/decoded pair and cannot
+    silently describe different bytes, validators, object keys, range or clock.
+    """
+
+    if not isinstance(archive_evidence, Mapping):
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence must be the internal typed mapping"
+        )
+    if set(archive_evidence) != _ARCHIVE_TOP_LEVEL_KEYS:
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence has an unexpected top-level field set"
+        )
+    if _archive_text(archive_evidence["schema"], "archive schema", maximum=128) != (
+        ARCHIVE_EVIDENCE_SCHEMA
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence schema is not supported"
+        )
+    if _archive_text(
+        archive_evidence["availability_basis"],
+        "archive availability basis",
+        maximum=128,
+    ) != _ARCHIVE_AVAILABILITY_BASIS:
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence is not the reviewed reconstruction basis"
+        )
+
+    request = transport.run.request
+    reference = transport.reference
+    metadata = decoded.metadata
+    if decoded.reference != reference:
+        raise EcmwfForecastArchiveValidationError(
+            "archive decoded reference does not match transport"
+        )
+    if reference.source is not EcmwfSource.AWS or reference.origin != ARCHIVE_ORIGIN_LABEL:
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence is not the reviewed AWS archive origin"
+        )
+
+    if _archive_text(archive_evidence["provider_source"], "provider source") != (
+        reference.source.value
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive provider source does not match"
+        )
+    if _archive_text(archive_evidence["provider_origin"], "provider origin") != (
+        reference.origin
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive provider origin does not match"
+        )
+
+    reference_payload = archive_evidence["reference"]
+    if not isinstance(reference_payload, Mapping) or set(reference_payload) != (
+        _ARCHIVE_REFERENCE_KEYS
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference binding has an unexpected field set"
+        )
+    if _archive_text(reference_payload["source"], "reference source") != (
+        reference.source.value
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference source does not match"
+        )
+    if _archive_text(reference_payload["origin"], "reference origin") != reference.origin:
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference origin does not match"
+        )
+    if _archive_text(reference_payload["asset_url"], "reference asset URL") != (
+        reference.asset_url
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference asset URL does not match"
+        )
+    if _archive_hash(reference_payload["request_sha256"], "reference request hash") != (
+        request.fingerprint()
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference request hash does not match"
+        )
+    if _archive_hash(reference_payload["grib_sha256"], "reference GRIB hash") != (
+        transport.grib_sha256
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference GRIB hash does not match"
+        )
+    if _archive_hash(reference_payload["index_sha256"], "reference index hash") != (
+        reference.index_sha256
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference index hash does not match"
+        )
+    offset = _archive_int(
+        reference_payload["index_row_offset"], "reference row offset", 0, 10**12
+    )
+    if offset != reference.index_row_offset:
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference row offset does not match"
+        )
+    if _archive_date(reference_payload["run_date"], "reference run date") != (
+        request.run_date
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference run date does not match"
+        )
+    if _archive_int(reference_payload["cycle_hour"], "reference cycle", 0, 23) != (
+        request.cycle_hour
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference cycle does not match"
+        )
+    if _archive_int(reference_payload["step_hours"], "reference step", 0, 10_000) != (
+        request.step_hours
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference step does not match"
+        )
+    if _archive_utc(reference_payload["valid_at_utc"], "reference validity") != (
+        reference.valid_at_utc
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive reference validity does not match"
+        )
+
+    decoded_payload = archive_evidence["decoded"]
+    if not isinstance(decoded_payload, Mapping) or set(decoded_payload) != (
+        _ARCHIVE_DECODED_KEYS
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive decoded binding has an unexpected field set"
+        )
+    decoded_text_fields = (
+        "decoder_library",
+        "decoder_version",
+        "units",
+        "step_type",
+        "grid_type",
+    )
+    for name in decoded_text_fields:
+        if _archive_text(decoded_payload[name], f"decoded {name}") != getattr(
+            metadata, name
+        ):
+            raise EcmwfForecastArchiveValidationError(
+                f"archive decoded {name} does not match"
+            )
+    if _archive_int(decoded_payload["param_id"], "decoded paramId", 0, 1_000_000) != (
+        metadata.param_id
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive decoded paramId does not match"
+        )
+    if _archive_int(decoded_payload["grid_ni"], "decoded Ni", 1, 1_000_000) != (
+        metadata.grid_ni
+    ):
+        raise EcmwfForecastArchiveValidationError("archive decoded Ni does not match")
+    if _archive_int(decoded_payload["grid_nj"], "decoded Nj", 1, 1_000_000) != (
+        metadata.grid_nj
+    ):
+        raise EcmwfForecastArchiveValidationError("archive decoded Nj does not match")
+    if _archive_date(decoded_payload["data_date"], "decoded data date") != (
+        metadata.data_date
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive decoded data date does not match"
+        )
+    if _archive_utc(decoded_payload["data_time_utc"], "decoded data time") != (
+        metadata.data_time_utc
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive decoded data time does not match"
+        )
+    if _archive_utc(decoded_payload["validity_at_utc"], "decoded validity") != (
+        metadata.validity_at_utc
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive decoded validity does not match"
+        )
+    decoded_step = _archive_int(
+        decoded_payload["forecast_step_hours"], "decoded step", 0, 10_000
+    )
+    if decoded_step != metadata.forecast_step_hours:
+        raise EcmwfForecastArchiveValidationError(
+            "archive decoded step does not match"
+        )
+    if _archive_hash(decoded_payload["request_sha256"], "decoded request hash") != (
+        request.fingerprint()
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive decoded request hash does not match"
+        )
+
+    index_key = request.s3_prefix + request.index_filename
+    grib_key = request.s3_prefix + request.asset_filename
+    index_object = _archive_object(
+        archive_evidence["index"],
+        "archive index",
+        expected_key=index_key,
+        expected_url=transport.run.index_url,
+        expected_size=transport.index.raw_size_bytes,
+        expected_hash=reference.index_sha256,
+    )
+    grib_object = _archive_object(
+        archive_evidence["grib"],
+        "archive GRIB",
+        expected_key=grib_key,
+        expected_url=reference.asset_url,
+        expected_size=transport.asset_total_bytes,
+        expected_hash=transport.grib_sha256,
+    )
+    if index_object["sha256"] != transport.index.raw_sha256:
+        raise EcmwfForecastArchiveValidationError(
+            "archive index hash does not match parsed index"
+        )
+    if grib_object["sha256"] != decoded.reference.grib_sha256:
+        raise EcmwfForecastArchiveValidationError(
+            "archive GRIB hash does not match decoded"
+        )
+
+    selected = transport.index.selected
+    index_row_offset = _archive_int(
+        archive_evidence["index_row_offset"], "archive index row offset", 0, 10**12
+    )
+    if index_row_offset != selected.row_offset:
+        raise EcmwfForecastArchiveValidationError(
+            "archive index row offset does not match"
+        )
+    message_offset = _archive_int(
+        archive_evidence["message_offset"], "archive message offset", 0, 10**12
+    )
+    if message_offset != selected.byte_offset:
+        raise EcmwfForecastArchiveValidationError(
+            "archive message offset does not match"
+        )
+    message_length = _archive_int(
+        archive_evidence["message_length"], "archive message length", 1, 10**9
+    )
+    if message_length != selected.byte_length:
+        raise EcmwfForecastArchiveValidationError(
+            "archive message length does not match"
+        )
+    if message_length != len(transport.grib_bytes):
+        raise EcmwfForecastArchiveValidationError(
+            "archive message length does not match bytes"
+        )
+    content_range = _archive_text(
+        archive_evidence["content_range"], "archive Content-Range", maximum=128
+    )
+    if content_range != transport.content_range:
+        raise EcmwfForecastArchiveValidationError(
+            "archive Content-Range does not match"
+        )
+    object_total = _archive_int(
+        archive_evidence["object_total_bytes"], "archive object total", 1, 10**9
+    )
+    if object_total != transport.asset_total_bytes:
+        raise EcmwfForecastArchiveValidationError(
+            "archive object total does not match"
+        )
+    if transport.asset_total_bytes < (selected.byte_offset + selected.byte_length):
+        raise EcmwfForecastArchiveValidationError(
+            "archive range escapes the transport object"
+        )
+
+    run_date = _archive_date(archive_evidence["run_date"], "archive run date")
+    cycle_hour = _archive_int(archive_evidence["cycle_hour"], "archive cycle", 0, 23)
+    step_hours = _archive_int(archive_evidence["step_hours"], "archive step", 0, 10_000)
+    if (run_date, cycle_hour, step_hours) != (
+        request.run_date,
+        request.cycle_hour,
+        request.step_hours,
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            "archive run/step identities do not match"
+        )
+
+    effective = _archive_utc(
+        archive_evidence["effective_archive_available_at_utc"],
+        "archive effective availability",
+    )
+    expected_effective = max(
+        _archive_utc(index_object["last_modified_utc"], "index LastModified"),
+        _archive_utc(grib_object["last_modified_utc"], "GRIB LastModified"),
+    )
+    if effective != expected_effective:
+        raise EcmwfForecastArchiveValidationError(
+            "archive effective availability is not the conservative max"
+        )
+    captured_at = _archive_utc(
+        archive_evidence["captured_at_utc"], "archive captured_at"
+    )
+    receipt = _explicit_utc(
+        transport.run.receipt_completed_at_utc, "receipt_completed_at_utc"
+    )
+    if captured_at != receipt:
+        raise EcmwfForecastArchiveValidationError(
+            "archive capture clock is not the transport receipt"
+        )
+    if captured_at > ingested_at_utc:
+        raise EcmwfForecastArchiveValidationError(
+            "archive capture clock is after the explicit ingestion clock"
+        )
+    if effective > captured_at:
+        raise EcmwfForecastArchiveValidationError(
+            "archive effective availability is after its capture"
+        )
+    for name, obj in (("index", index_object), ("GRIB", grib_object)):
+        s3_captured = _archive_utc(obj["s3_captured_at_utc"], f"{name} S3 capture")
+        http_captured = _archive_utc(
+            obj["http_captured_at_utc"], f"{name} HTTP capture"
+        )
+        if s3_captured > captured_at:
+            raise EcmwfForecastArchiveValidationError(
+                f"{name} S3 capture is after the overall capture"
+            )
+        if http_captured > captured_at:
+            raise EcmwfForecastArchiveValidationError(
+                f"{name} HTTP capture is after the overall capture"
+            )
+
+    for name in ("policy_hash", "method_hash", "evidence_hash"):
+        _archive_hash(archive_evidence[name], f"archive {name}")
+    raw_limitations = archive_evidence["limitations"]
+    if not isinstance(raw_limitations, (list, tuple)):
+        raise EcmwfForecastArchiveValidationError(
+            "archive limitations are missing or unbounded"
+        )
+    if not 1 <= len(raw_limitations) <= 8:
+        raise EcmwfForecastArchiveValidationError(
+            "archive limitations are missing or unbounded"
+        )
+    for item in raw_limitations:
+        _archive_text(item, "archive limitation", maximum=1024)
+    if archive_evidence["public_read_continuity_assumption"] is not True:
+        raise EcmwfForecastArchiveValidationError(
+            "archive public-read continuity assumption is not explicit"
+        )
+    for name in (
+        "availability_is_local_receipt",
+        "availability_is_prospective",
+        "etag_is_content_hash",
+    ):
+        if archive_evidence[name] is not False:
+            raise EcmwfForecastArchiveValidationError(f"archive {name} must be false")
+
+    try:
+        normalized = json.loads(
+            json.dumps(
+                dict(archive_evidence),
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            )
+        )
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence is not a bounded JSON object"
+        ) from exc
+
+    # S1 hashes and limitations are recomputed from the validated typed facts.
+    # Carrying a syntactically valid 64-hex value or arbitrary limitation text is
+    # not evidence identity, and replay must detect a stored block whose carried
+    # values no longer describe its own contents.
+    expected_policy = archive_policy_hash()
+    try:
+        expected_method = archive_method_hash(decoded.metadata.decoder_version)
+        expected_limitations = archive_limitations(
+            normalized["index"]["version_id"],
+            normalized["grib"]["version_id"],
+        )
+        expected_evidence = archive_evidence_hash(normalized)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence schema cannot be recomputed"
+        ) from exc
+    if normalized["policy_hash"] != expected_policy:
+        raise EcmwfForecastArchiveValidationError(
+            "archive policy hash is not the exact reviewed S1 policy identity"
+        )
+    if normalized["method_hash"] != expected_method:
+        raise EcmwfForecastArchiveValidationError(
+            "archive method hash is not the exact typed decoder method identity"
+        )
+    if tuple(normalized["limitations"]) != expected_limitations:
+        raise EcmwfForecastArchiveValidationError(
+            "archive limitations are not the exact mandatory S1 limitation set"
+        )
+    if normalized["evidence_hash"] != expected_evidence:
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence hash is not the exact S1 evidence hash"
+        )
+    return normalized
+
+
+def _archive_object(
+    value: object,
+    name: str,
+    *,
+    expected_key: str,
+    expected_url: str,
+    expected_size: int,
+    expected_hash: str,
+) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != _ARCHIVE_OBJECT_KEYS:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} has an unexpected object-evidence field set"
+        )
+    bucket = _archive_text(value["bucket"], f"{name} bucket", maximum=255)
+    if bucket != _ARCHIVE_BUCKET:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} bucket is not the reviewed bucket"
+        )
+    if _archive_text(value["key"], f"{name} key", maximum=512) != expected_key:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} key is not the exact object"
+        )
+    if _archive_text(value["url"], f"{name} URL", maximum=1024) != expected_url:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} URL is not the exact object"
+        )
+    etag = _archive_text(value["etag"], f"{name} ETag")
+    http_etag = _archive_text(value["http_etag"], f"{name} HTTP ETag")
+    if etag != http_etag:
+        raise EcmwfForecastArchiveValidationError(f"{name} ETag metadata disagree")
+    version = _archive_optional_text(value["version_id"], f"{name} versionId")
+    http_version = _archive_optional_text(
+        value["http_version_id"], f"{name} HTTP versionId"
+    )
+    if version != http_version:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} versionId metadata disagree"
+        )
+    size_bytes = _archive_int(value["size_bytes"], f"{name} size", 1, 10**9)
+    if size_bytes != expected_size:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} size does not match the object"
+        )
+    last_modified = _archive_utc(value["last_modified_utc"], f"{name} LastModified")
+    s3_last_modified = _archive_utc(
+        value["s3_last_modified_utc"], f"{name} S3 LastModified"
+    )
+    http_last_modified = _archive_utc(
+        value["http_last_modified_utc"], f"{name} HTTP LastModified"
+    )
+    if last_modified != s3_last_modified.replace(microsecond=0) or last_modified != (
+        http_last_modified.replace(microsecond=0)
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} LastModified metadata disagree"
+        )
+    s3_captured = _archive_utc(value["s3_captured_at_utc"], f"{name} S3 capture")
+    http_captured = _archive_utc(
+        value["http_captured_at_utc"], f"{name} HTTP capture"
+    )
+    if s3_captured > http_captured:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} capture clocks are not monotonic"
+        )
+    if last_modified > s3_captured or last_modified > http_captured:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} LastModified is after its receipt"
+        )
+    if _archive_hash(value["sha256"], f"{name} hash") != expected_hash:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} hash does not match raw bytes"
+        )
+    return value
+
+
+def _archive_block(provenance: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    if not isinstance(provenance, Mapping):
+        raise EcmwfForecastArchiveEvidenceMissing(
+            "existing forecast observation has no archive evidence"
+        )
+    block = provenance.get("archive_evidence")
+    if not isinstance(block, Mapping):
+        raise EcmwfForecastArchiveEvidenceMissing(
+            "existing forecast observation predates archive evidence; it is not backfilled"
+        )
+    return block
+
+
+def _validate_stored_archive_evidence(
+    record: ForecastObservationRecord,
+    block: Mapping[str, Any],
+) -> None:
+    """Revalidate a stored block against its own facts and immutable v3 row.
+
+    Replay compares only stable object facts, but a stored block must first be
+    self-consistent: its carried policy/method/evidence hashes and limitation text
+    are recomputed, and its binding is checked against the original v3 provenance.
+    The incoming query fingerprint is deliberately not part of that binding check.
+    """
+
+    try:
+        if block["schema"] != ARCHIVE_EVIDENCE_SCHEMA:
+            raise ValueError("stored archive schema")
+        expected_policy = archive_policy_hash()
+        expected_method = archive_method_hash(block["decoded"]["decoder_version"])
+        expected_limitations = archive_limitations(
+            block["index"]["version_id"],
+            block["grib"]["version_id"],
+        )
+        expected_evidence = archive_evidence_hash(block)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EcmwfForecastArchiveChanged(
+            "stored archive evidence is malformed or not the reviewed S1 schema"
+        ) from exc
+    stored_limitations = block.get("limitations")
+    if (
+        block.get("policy_hash") != expected_policy
+        or block.get("method_hash") != expected_method
+        or not isinstance(stored_limitations, (list, tuple))
+        or tuple(stored_limitations) != expected_limitations
+        or block.get("evidence_hash") != expected_evidence
+    ):
+        raise EcmwfForecastArchiveChanged(
+            "stored archive hashes or mandatory limitations were altered"
+        )
+    _validate_archive_row_binding(record, block)
+
+
+def _validate_archive_row_binding(
+    record: ForecastObservationRecord,
+    block: Mapping[str, Any],
+) -> None:
+    """Bind stored archive evidence to the immutable row's original v3 facts."""
+
+    binding = block.get("binding")
+    if not isinstance(binding, Mapping) or set(binding) != _ARCHIVE_BINDING_KEYS:
+        raise EcmwfForecastArchiveChanged(
+            "stored archive row binding is missing or malformed"
+        )
+    provenance = record.provenance
+    if not isinstance(provenance, Mapping):
+        raise EcmwfForecastArchiveChanged("stored forecast provenance is missing")
+    row_binding = provenance.get("binding")
+    request = provenance.get("request")
+    reference = provenance.get("reference")
+    run = provenance.get("run")
+    block_reference = block.get("reference")
+    block_index = block.get("index")
+    block_grib = block.get("grib")
+    block_decoded = block.get("decoded")
+    identity_mappings = provenance.get("identity_mapping_ids")
+    immutable_mappings = (
+        row_binding,
+        request,
+        reference,
+        run,
+        block_reference,
+        block_index,
+        block_grib,
+        block_decoded,
+    )
+    if not all(isinstance(item, Mapping) for item in immutable_mappings):
+        raise EcmwfForecastArchiveChanged(
+            "stored archive binding has no immutable v3 counterpart"
+        )
+    if not isinstance(identity_mappings, (list, tuple)):
+        raise EcmwfForecastArchiveChanged(
+            "stored archive binding has no immutable mapping identity"
+        )
+
+    expected_request = provenance.get("request_sha256")
+    expected_grib = provenance.get("grib_sha256")
+    expected_index = provenance.get("index_sha256")
+    expected_valid_at = _iso(record.forecast_valid_start)
+    checks = (
+        (
+            binding["forecast_observation_id"] == record.forecast_observation_id,
+            "row id",
+        ),
+        (binding["point_id"] == row_binding.get("point_id"), "point id"),
+        (
+            binding["series_id"] == record.series_id
+            and binding["series_id"] == row_binding.get("series_id"),
+            "series id",
+        ),
+        (
+            binding["entity_id"] == record.entity_id
+            and binding["entity_id"] == row_binding.get("entity_id"),
+            "entity id",
+        ),
+        (
+            binding["identity_mapping_id"] == row_binding.get("identity_mapping_id")
+            and binding["identity_mapping_id"] in identity_mappings,
+            "identity mapping",
+        ),
+        (
+            binding["request_sha256"] == expected_request
+            and request.get("sha256") == expected_request
+            and reference.get("request_sha256") == expected_request
+            and block_reference.get("request_sha256") == expected_request
+            and block_decoded.get("request_sha256") == expected_request,
+            "original request",
+        ),
+        (
+            binding["grib_sha256"] == expected_grib
+            and reference.get("grib_sha256") == expected_grib
+            and block_grib.get("sha256") == expected_grib,
+            "GRIB reference",
+        ),
+        (
+            binding["index_sha256"] == expected_index
+            and reference.get("index_sha256") == expected_index
+            and block_index.get("sha256") == expected_index,
+            "index reference",
+        ),
+        (
+            binding["valid_at_utc"] == expected_valid_at
+            and reference.get("valid_at_utc") == expected_valid_at
+            and run.get("forecast_valid_at_utc") == expected_valid_at
+            and block_reference.get("valid_at_utc") == expected_valid_at,
+            "validity",
+        ),
+        (
+            block.get("captured_at_utc") == run.get("receipt_completed_at_utc"),
+            "capture receipt",
+        ),
+    )
+    for matched, name in checks:
+        if not matched:
+            raise EcmwfForecastArchiveChanged(
+                f"stored archive binding does not match the immutable v3 {name}"
+            )
+
+
+def _archive_stable_signature(payload: Mapping[str, Any]) -> str:
+    try:
+        return _sha256_json(_archive_stable_payload(payload))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EcmwfForecastArchiveChanged(
+            "stored archive evidence is malformed or not the same object binding"
+        ) from exc
+
+
+def _archive_stable_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Stable object facts only; receipt clocks and whole-evidence hashes differ."""
+
+    return {
+        "schema": payload["schema"],
+        "availability_basis": payload["availability_basis"],
+        "provider_source": payload["provider_source"],
+        "provider_origin": payload["provider_origin"],
+        "index": {
+            key: payload["index"][key] for key in _ARCHIVE_OBJECT_STABLE_KEYS
+        },
+        "grib": {
+            key: payload["grib"][key] for key in _ARCHIVE_OBJECT_STABLE_KEYS
+        },
+        "reference": {
+            key: payload["reference"][key] for key in _ARCHIVE_REFERENCE_STABLE_KEYS
+        },
+        "decoded": {
+            key: payload["decoded"][key] for key in _ARCHIVE_DECODED_STABLE_KEYS
+        },
+        "binding": {
+            key: payload["binding"][key] for key in _ARCHIVE_BINDING_STABLE_KEYS
+        },
+        "run_date": payload["run_date"],
+        "cycle_hour": payload["cycle_hour"],
+        "step_hours": payload["step_hours"],
+        "index_row_offset": payload["index_row_offset"],
+        "message_offset": payload["message_offset"],
+        "message_length": payload["message_length"],
+        "content_range": payload["content_range"],
+        "object_total_bytes": payload["object_total_bytes"],
+        "effective_archive_available_at_utc": payload[
+            "effective_archive_available_at_utc"
+        ],
+        "policy_hash": payload["policy_hash"],
+        "method_hash": payload["method_hash"],
+        "limitations": payload["limitations"],
+        "public_read_continuity_assumption": payload[
+            "public_read_continuity_assumption"
+        ],
+        "availability_is_local_receipt": payload["availability_is_local_receipt"],
+        "availability_is_prospective": payload["availability_is_prospective"],
+        "etag_is_content_hash": payload["etag_is_content_hash"],
+    }
+
+
+def _load_canonical_object_candidates(
+    session: Session, *, record: ForecastObservationRecord
+) -> tuple[ForecastObservationRecord, ...]:
+    """Find existing v3 rows for the fixed object/run/validity/binding, bounded.
+
+    This deliberately does not require the existing row to have archive evidence.
+    A non-archive row is then a typed refusal rather than an opportunity to append
+    a new, apparently archive-backed identity beside it.  The v3 locators are the
+    exact M2M object URLs, so a different request-location fingerprint is not a
+    different object candidate.
+    """
+
+    block = _archive_block(record.provenance)
+    binding = block.get("binding")
+    if not isinstance(binding, Mapping):
+        raise EcmwfForecastArchiveValidationError("archive row binding is missing")
+    point_id = binding.get("point_id")
+    if not isinstance(point_id, str) or not point_id:
+        raise EcmwfForecastArchiveValidationError("archive row point binding is invalid")
+    provenance = ForecastObservationRecord.provenance
+    rows = session.scalars(
+        select(ForecastObservationRecord)
+        .where(
+            ForecastObservationRecord.source_system == SOURCE_SYSTEM,
+            ForecastObservationRecord.model_provider == MODEL_PROVIDER,
+            ForecastObservationRecord.series_id == record.series_id,
+            ForecastObservationRecord.entity_id == record.entity_id,
+            ForecastObservationRecord.forecast_valid_start == record.forecast_valid_start,
+            ForecastObservationRecord.horizon == record.horizon,
+            provenance["provider_source"].as_string() == block["provider_source"],
+            provenance["provider_origin"].as_string() == block["provider_origin"],
+            provenance[("reference", "asset_url")].as_string() == block["grib"]["url"],
+            provenance[("run", "index_url")].as_string() == block["index"]["url"],
+            provenance[("request", "run_date")].as_string() == block["run_date"],
+            provenance[("request", "cycle_hour")].as_string() == str(block["cycle_hour"]),
+            provenance[("request", "step_hours")].as_string() == str(block["step_hours"]),
+            provenance[("binding", "point_id")].as_string() == point_id,
+        )
+        .order_by(ForecastObservationRecord.forecast_observation_id)
+        .limit(_ARCHIVE_LOOKUP_LIMIT + 1)
+    )
+    found = tuple(rows)
+    if len(found) > _ARCHIVE_LOOKUP_LIMIT:
+        raise EcmwfForecastArchiveLookupLimit(
+            "canonical object/binding lookup exceeded its explicit bound"
+        )
+    return found
+
+
+def _lock_archive_object_bindings(
+    session: Session,
+    rows: Sequence[ForecastObservationRecord],
+) -> None:
+    """Serialize archive object/binding decisions within one bounded wait.
+
+    PostgreSQL transaction-scoped advisory locks are deterministic and released by
+    the caller's transaction; this function never commits, rolls back, changes a
+    session setting or takes a session/table lock.  It uses the non-blocking
+    ``pg_try_advisory_xact_lock`` variant plus short sleeps so the wait cannot rely
+    on a caller-configured ``lock_timeout``.  The monotonic deadline is shared by
+    every key in the batch: the whole acquisition sequence is bounded by
+    ``_ARCHIVE_LOCK_BUDGET_SECONDS`` and raises ``EcmwfForecastArchiveBusy`` when it
+    expires.  Keys are sorted for a single acquisition order so a multi-row batch
+    cannot deadlock against another sorted batch; a key already acquired is
+    transaction-scoped and is never explicitly released by this helper.  SQLite is
+    an auxiliary sequential fixture backend only and is not given a fake lock.
+    """
+
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    keys = sorted({_archive_lock_key(row) for row in rows})
+    deadline = time.monotonic() + _ARCHIVE_LOCK_BUDGET_SECONDS
+    for key in keys:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise EcmwfForecastArchiveBusy(
+                    "timed out waiting for the archive object advisory lock"
+                )
+            acquired = session.execute(
+                select(func.pg_try_advisory_xact_lock(literal(key, BigInteger)))
+            ).scalar_one()
+            if acquired:
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise EcmwfForecastArchiveBusy(
+                    "timed out waiting for the archive object advisory lock"
+                )
+            time.sleep(min(_ARCHIVE_LOCK_POLL_SECONDS, remaining))
+
+
+def _archive_lock_key(record: ForecastObservationRecord) -> int:
+    block = _archive_block(record.provenance)
+    try:
+        reference = block["reference"]
+        if not isinstance(reference, Mapping):
+            raise TypeError("archive reference is not a mapping")
+        payload = {
+            "schema": block["schema"],
+            "availability_basis": block["availability_basis"],
+            "provider_source": block["provider_source"],
+            "provider_origin": block["provider_origin"],
+            "index_key": block["index"]["key"],
+            "grib_key": block["grib"]["key"],
+            "index_url": block["index"]["url"],
+            "grib_url": block["grib"]["url"],
+            "run_date": block["run_date"],
+            "cycle_hour": block["cycle_hour"],
+            "step_hours": block["step_hours"],
+            "valid_at_utc": reference["valid_at_utc"],
+        }
+    except (KeyError, TypeError) as exc:
+        raise EcmwfForecastArchiveValidationError(
+            "archive evidence cannot form a deterministic object lock key"
+        ) from exc
+    value = int(_sha256_json(payload)[:16], 16)
+    return value if value < 2**63 else value - 2**64
+
+
+def _archive_text(value: object, name: str, *, maximum: int = 512) -> str:
+    if not isinstance(value, str) or not value or len(value) > maximum:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} must be non-empty bounded text"
+        )
+    if value != value.strip() or any(
+        ord(character) < 0x20 or ord(character) == 0x7F for character in value
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} contains forbidden bytes"
+        )
+    return value
+
+
+def _archive_optional_text(
+    value: object, name: str, *, maximum: int = 512
+) -> str | None:
+    if value is None:
+        return None
+    return _archive_text(value, name, maximum=maximum)
+
+
+def _archive_int(value: object, name: str, minimum: int, maximum: int) -> int:
+    if type(value) is not int:
+        raise EcmwfForecastArchiveValidationError(f"{name} must be an integer")
+    if value < minimum or value > maximum:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} is outside its reviewed bound"
+        )
+    return value
+
+
+def _archive_hash(value: object, name: str) -> str:
+    text = _archive_text(value, name, maximum=64)
+    if len(text) != 64 or any(
+        character not in "0123456789abcdef" for character in text
+    ):
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} must be a lowercase 64-character SHA-256"
+        )
+    return text
+
+
+def _archive_date(value: object, name: str) -> date:
+    text = _archive_text(value, name, maximum=10)
+    try:
+        parsed = date.fromisoformat(text)
+    except (TypeError, ValueError) as exc:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} is not an ISO date"
+        ) from exc
+    if text != parsed.isoformat():
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} is not a canonical date"
+        )
+    return parsed
+
+
+def _archive_utc(value: object, name: str) -> datetime:
+    text = _archive_text(value, name, maximum=64)
+    try:
+        parsed = datetime.fromisoformat(text)
+    except (TypeError, ValueError) as exc:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} is not an ISO datetime"
+        ) from exc
+    if parsed.tzinfo is None:
+        raise EcmwfForecastArchiveValidationError(f"{name} must not be naive")
+    try:
+        offset = parsed.utcoffset()
+    except (OverflowError, ValueError) as exc:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} has an invalid UTC offset"
+        ) from exc
+    if offset is None or offset != timedelta(0):
+        raise EcmwfForecastArchiveValidationError(f"{name} must be UTC")
+    try:
+        return parsed.astimezone(UTC)
+    except (OverflowError, ValueError) as exc:
+        raise EcmwfForecastArchiveValidationError(
+            f"{name} cannot be normalized to UTC"
+        ) from exc
 
 
 def _batch_payload(
