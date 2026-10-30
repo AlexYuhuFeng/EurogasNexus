@@ -9876,3 +9876,9 @@ button.glossary-related-chip {
     margin-left: 0;
   }
 }
+
+/* Dark theme: the generic danger red is too dark on the dark canvas at 11px (WCAG AA);
+   the dark palette's negative tone keeps the meaning at a readable contrast. */
+:root.dark .context-freshness.issue strong {
+  color: var(--eg-negative);
+}

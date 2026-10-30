@@ -16,3 +16,17 @@
 13. Never run two active autonomous supervisors against the same working tree.
 14. No automatic push/merge unless separately authorised by a human.
 <!-- EUROGAS_ARCH_V2_AUTONOMY_END -->
+15. Before every push run `scripts/ci/pre_push_check.sh` (install it as `.git/hooks/pre-push`).
+    It refuses untracked source files and runs the fast gates a clean checkout runs; `main`
+    broke on 2026-10-30 because a pushed commit imported a module that existed only in the
+    worker's tree.
+16. A push to `main` is not done until the hosted CI run for that commit is green. If it is
+    red, fixing it comes before any new feature work. Prefer a pull request with required
+    checks (see `docs/engineering/CI_AND_BRANCH_PROTECTION.md`).
+17. Users are commercial gas traders, analysts and risk staff who trade on Trayport or
+    exchange screens. Follow `docs/product/UX_REFERENCE.md` "Trader-first presentation
+    rules": desk names and native units, prices first, provenance on demand, and no
+    simulated price that can be read as a market price.
+18. The product is sold commercially: no dependency, dataset, tile service or API whose
+    terms exclude commercial use (see `docs/legal/`). Licensed market data comes only
+    through the customer's own entitlement.

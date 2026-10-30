@@ -52,7 +52,7 @@ export function ManualWorkspace({
       <div className="workspace-panel span-3" data-manual-section="from-trading-screen">
         <h2>{t("manual.from_screen.title")}</h2>
         <p className="panel-copy">{t("manual.from_screen.intro")}</p>
-        <div className="data-table manual-mapping-table">
+        <div className="data-table manual-mapping-table" tabIndex={0}>
           <div className="data-table-row header">
             <span>{t("manual.from_screen.on_screen")}</span>
             <span>{t("manual.from_screen.here")}</span>

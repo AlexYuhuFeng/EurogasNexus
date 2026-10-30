@@ -95,6 +95,16 @@ unchanged; these rules govern how much of that evidence is *on screen by default
    $/MMBtu, FX fix used) are explicit and labelled, never silent.
 8. **Prices are the landing page.** Market → Curves opens first; map, capacity and
    research are tasks.
+9. **Speak the execution screen's language.** Users trade on Trayport or exchange
+   screens. Use their product names (WD, DA, WE, BOM, Nov-26, Q1-27, Sum-27, Win-27,
+   GY-27, Cal-27), "Bid / Offer", volumes in MW (continental) and th/d (NBP), and offer
+   the ladder layout (products down, hubs across, Bid Vol | Bid | Offer | Offer Vol).
+   Do not copy any vendor's visual design.
+10. **Simulated is never mistaken for market.** Any simulated price on screen carries a
+    board-level banner. Real and simulated quotes never compete for a best price.
+11. **Accessible by default.** Text meets WCAG AA contrast in light and dark themes, and
+    scrollable regions are keyboard focusable. The browser-acceptance axe sweep enforces
+    this.
 
 Source-pinning contract tests should assert behaviour and data hooks
 (`data-market-board`, `data-record`, `aria-pressed`) rather than CSS class names or

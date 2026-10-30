@@ -1,3 +1,15 @@
+## 2026-10-30 — commercial-readiness pass: rates, licences, live-price bridge, ladder, CI
+
+Owner-requested pass (see `docs/product/TRADER_ACCEPTANCE_REVIEW.md`). Added SONIA/€STR/SOFR
+fixings (migration 0045, BoE/ECB/NY Fed ingest, `/api/market/interest-rates`,
+`/api/market/financing-rate`, surface 196/210) for benchmark + spread financing rates.
+Licence audit: no blocking dependency. Live prices: no free commercial feed exists, so an
+operator import of the desk's own Trayport/ICE/EEX export was added; simulated prices are
+flagged. Ladder view and Trayport-familiar conventions added. CI was red since d97fd56; the
+redesign's browser-acceptance failures (contrast, hidden evidence, 404 console errors) are
+fixed and the sweep passes locally with 0 failures. New AGENTS.md rules 15-18: pre-push
+guard, green CI before new work, trader-first UX, commercial-use terms.
+
 ## 2026-10-30 — trader acceptance review, import blocker fixed, desk conventions
 
 Supplier-acceptance review from the gas-trader seat: see

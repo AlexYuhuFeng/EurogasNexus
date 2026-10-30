@@ -72,11 +72,21 @@ query still asks for raw point ids and ISO timestamps; it should pick a point fr
 the operating board. The resource pool is GBP-denominated throughout API/SDK, so a
 EUR reporting currency needs an ADR-backed contract migration.
 
+## Commercial-readiness pass (2026-10-30)
+
+| Request | Outcome |
+|---|---|
+| Interest rates for early-cash value (SONIA for UK) | SONIA (BoE), €STR (ECB) and SOFR (NY Fed) fixings are stored and ingested. The financing rate is resolved as benchmark + spread, using the fixing on or before the date with a staleness refusal and the correct day count (ACT/365F vs ACT/360, restated for the days/365 early-cash term). A helper sits next to the contract's financing-rate field. See `docs/operations/INTEREST_RATES.md` |
+| No dependency that forbids commercial use | Audited all three ecosystems with the existing fail-closed licence gate: no copyleft or non-commercial dependency, MPL-2.0 items usable unmodified. Data-provider terms reviewed. See `docs/legal/` |
+| Live hub prices instead of simulated data | No free, real-time, commercially usable feed exists; prices are licensed per subscriber. Added an import of the desk's own Trayport/ICE/EEX screen export (CSV, optionally on a timer). Simulated sources stay for dev/demo only, disabled in trial/release, and flagged by a board banner. See `docs/operations/LIVE_PRICE_SOURCES.md` |
+| Shorter learning curve for Trayport users | Ladder view (products down, hubs across, Bid Vol / Bid / Offer / Offer Vol, best price across venues, native p/th and th/d, arrow-key navigation), screen product names, "Offer" terminology, and a "Coming from Trayport" mapping in the manual |
+| CI/build | CI had been red on `main` since `d97fd56`. Fixed the missing module and the redesign's axe/interaction failures (browser acceptance now passes locally: 0 failures), added PR-only run cancellation and pip caching, a pre-push guard, and documented branch protection |
+
 ## Remaining gaps before it is a daily desk tool (priority order)
 
-1. **Licensed real-time prices.** Without ICE Endex / EEX / broker feeds the board relies
-   on public settlement data and simulated rows. Simulated rows are labelled, but a
-   desk cannot trade off them. This is a procurement and licensing step, not code.
+1. **Licensed real-time prices.** The operator quote import bridges a desk's own screen
+   export today. A direct real-time connector needs Trayport (or ICE/EEX) API access and
+   documentation from the vendor, a procurement step, before it can be built.
 2. **Forward curve construction.** Build a daily settlement curve per hub on the product
    calendar now available. Use explicit shaping/interpolation rules, and keep spreads
    (TTF–THE, TTF–NBP in a common unit, summer–winter) as first-class series.

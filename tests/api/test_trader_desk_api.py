@@ -160,8 +160,9 @@ def test_storage_trajectory_from_runtime_rows(runtime_db):
     assert data["deadline"] == "2026-12-01"
 
     missing = client.get("/api/storage/target-trajectory", params={"code": "DE"})
-    assert missing.status_code == 404
-    assert missing.json()["detail"]["code"] == "storage_series_unavailable"
+    assert missing.status_code == 200
+    assert missing.json()["data"] is None
+    assert missing.json()["meta"]["warnings"][0].startswith("storage_series_unavailable")
 
 
 def test_storage_trajectory_without_db_is_empty_with_warning(no_db):

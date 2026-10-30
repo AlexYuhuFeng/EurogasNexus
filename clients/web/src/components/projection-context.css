@@ -89,10 +89,12 @@
   margin-top: var(--space-1);
 }
 
+/* Text colours meet WCAG AA (4.5:1) at the strip's 11px: the degraded count is ink on a
+   warning tint rather than amber text, and the basis keeps the full muted colour. */
 .projection-context-summary span.projection-context-degraded {
-  color: var(--eg-warning);
-}
-
-.projection-context-summary span.projection-context-basis {
-  opacity: 0.8;
+  color: var(--eg-ink);
+  background: var(--eg-warn-soft);
+  border-left: 3px solid var(--eg-warning);
+  padding: 0 var(--space-1);
+  font-weight: 600;
 }

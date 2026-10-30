@@ -46,6 +46,7 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
 
   const [storageCode, setStorageCode] = useState<string>("EU");
   const [trajectory, setTrajectory] = useState<StorageTrajectoryDTO | null>(null);
+  const [storageWarnings, setStorageWarnings] = useState<string[]>([]);
   const [storageError, setStorageError] = useState<unknown>(null);
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
     api.storageTargetTrajectory(storageCode, { signal: controller.signal })
       .then((response) => {
         setTrajectory(response.data);
+        setStorageWarnings(response.meta?.warnings ?? []);
         setStorageError(null);
       })
       .catch((error: unknown) => {
@@ -216,7 +218,11 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
           {storageError && apiErrorDetailCode(storageError) === "storage_series_unavailable" ? (
             <p className="trader-desk-note">{t("desk.storage_no_series")}</p>
           ) : storageError ? failureText(storageError) : trajectory === null ? (
-            <p className="trader-desk-note">{t("desk.storage_unavailable")}</p>
+            <p className="trader-desk-note">
+              {storageWarnings.some((warning) => warning.startsWith("storage_series_unavailable"))
+                ? t("desk.storage_no_series")
+                : t("desk.storage_unavailable")}
+            </p>
           ) : (
             <>
               <dl className="trader-desk-metrics">

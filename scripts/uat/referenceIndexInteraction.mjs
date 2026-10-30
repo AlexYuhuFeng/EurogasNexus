@@ -485,6 +485,13 @@ export async function inspectReferenceIndexInteraction({
       .catch(() => false);
     if (!settled) fail("the market workspace read never settled");
 
+    // Reference indices are evidence, not the board: they sit inside the market page's
+    // "Quotes by source, source matrix and reference indices" disclosure. Open it the
+    // way a user does before inspecting the panel.
+    const sourceDetails = page.locator("details.market-source-details");
+    if ((await sourceDetails.count()) > 0 && !(await sourceDetails.first().evaluate((node) => node.open))) {
+      await sourceDetails.first().locator(":scope > summary").click();
+    }
     const evidenceSection = page.locator(".reference-index-evidence");
     await evidenceSection.waitFor({ state: "visible", timeout: 20_000 });
 

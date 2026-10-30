@@ -117,8 +117,9 @@ def target_trajectory(
     近期注入速度；DB 未配置时降级为空并告警。
 
     Raises:
-        HTTPException: 404 ``storage_series_unavailable`` when no usable rows exist;
-            503 ``runtime_db_unavailable`` on DB read failure.
+        HTTPException: 422 ``storage_series_unavailable`` when rows exist but cannot
+            support a trajectory (no capacity); 503 ``runtime_db_unavailable``. No rows
+            for the code answer 200 with ``data: null`` and a warning.
     """
 
     observations = _db_storage_observations()
@@ -151,8 +152,20 @@ def target_trajectory(
             pace_days=pace_days,
         )
     except StorageTrajectoryError as exc:
+        if not series:
+            # No AGSI rows for this code is a data-availability state, answered like every
+            # other read here: empty data plus a warning, not an HTTP error.
+            return {
+                "data": None,
+                "meta": {
+                    "research_only": True,
+                    "human_review_required": True,
+                    "source_references": ["runtime-postgresql"],
+                    "warnings": [f"storage_series_unavailable: no AGSI series for {wanted}"],
+                },
+            }
         raise HTTPException(
-            status_code=404 if not series else 422,
+            status_code=422,
             detail={"code": "storage_series_unavailable", "message": str(exc)},
         ) from exc
     return _runtime_env(trajectory.as_dict())

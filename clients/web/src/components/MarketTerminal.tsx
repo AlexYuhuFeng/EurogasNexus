@@ -714,7 +714,7 @@ export function MarketTerminal({
           <span>{t("market.fx")}</span>
           {fxRates.length === 0
             ? <strong>{t("data.unavailable")}</strong>
-            : fxRates.slice(0, 4).map((rate) => (
+            : latestFxPerPair(fxRates).slice(0, 4).map((rate) => (
               <strong key={`fx-${rate.pair}-${rate.observed_at_utc}`} title={formatTimestamp(rate.observed_at_utc)}>
                 {rate.pair} {rate.rate.toFixed(4)} <small>{rate.source_system ?? t("market.ecb_source")}</small>
               </strong>
@@ -821,6 +821,18 @@ export function MarketTerminal({
       </details>
     </div>
   );
+}
+
+/** The newest rate per pair, so a history of fixes reads as one current rate each. */
+function latestFxPerPair<T extends { pair: string; observed_at_utc: string }>(rates: readonly T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const rate of rates) {
+    const current = latest.get(rate.pair);
+    if (!current || Date.parse(rate.observed_at_utc) > Date.parse(current.observed_at_utc)) {
+      latest.set(rate.pair, rate);
+    }
+  }
+  return [...latest.values()];
 }
 
 function formatPriceValue(value: number | null | undefined): string {
