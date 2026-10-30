@@ -1,5 +1,12 @@
 # 01 — 甲方验收意见：Eurogas Nexus 供应商交付软件
 
+> **English abstract (added 2026-10-30; the record below is unchanged and in its original
+> language).** Buyer acceptance of the supplier-delivered software, audited on 2026-10-07
+> against a working copy with uncommitted changes. Every figure was reproduced by commands
+> run on the auditor's machine; supplier documents were treated as claims only.
+> **Verdict: REJECT.** The engineering evidence was substantial, but legal and commercial
+> deliverability decided the outcome (§8).
+
 | 项目 | 内容 |
 | --- | --- |
 | 文档性质 | 采购方（甲方）对供应商交付软件的正式验收意见 |

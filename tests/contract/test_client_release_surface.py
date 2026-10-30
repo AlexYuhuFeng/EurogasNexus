@@ -122,7 +122,13 @@ def test_windows_client_has_minimal_safe_permissions() -> None:
 
     assert "connect-src 'self' http://localhost:* http://127.0.0.1:* https:" in config_text
 
-    assert "img-src 'self' data: blob: https://tile.openstreetmap.org" in config_text
+    # Map tiles come from the service the customer chooses (their own, or one they license),
+    # so images may load from any HTTPS host; scripts still load only from the bundle, and
+    # plugins, framing and foreign form targets are refused.
+    assert "img-src 'self' data: blob: https:;" in config_text
+    assert "script-src 'self';" in config_text
+    assert "object-src 'none'" in config_text
+    assert "frame-ancestors 'none'" in config_text
 
 
 def test_client_dependency_policy_excludes_disallowed_frameworks() -> None:

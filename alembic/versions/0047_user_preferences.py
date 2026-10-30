@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0047_preferences_and_organisation_settings"
+revision = "0047_user_preferences"
 down_revision = "0046_principal_job_functions"
 branch_labels = None
 depends_on = None

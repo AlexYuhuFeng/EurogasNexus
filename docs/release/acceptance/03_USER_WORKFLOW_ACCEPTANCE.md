@@ -1,5 +1,16 @@
 # 意向用户视角工作流验收（三 persona 浏览器实测）
 
+> **English abstract (added 2026-10-30; the record below is unchanged and in its original
+> language).** Prospective-user acceptance on 2026-10-07: three personas (trader,
+> time-series engineer, strategy analyst) exercised the product in a browser.
+> **Verdict: not ready for these users.** The workspaces rendered completely and rarely
+> failed silently, but the one number each user relies on could mislead: an inconsistent
+> TTF–NBP spread sign for the trader; a dataset snapshot marked COMPLETE while its own
+> quality report blocked it, with simulated lineage unflagged; and backtests with no
+> out-of-sample evaluation, an unexplained drawdown and most of the window before the first
+> market data. 8 product defects (1 critical, 4 high, 3 medium) and 3 environment limits.
+> Later releases addressed these; see RELEASE_READINESS.md and TRADER_ACCEPTANCE_REVIEW.md.
+
 任务：`task-3` ｜ 验收人：`user-uat`（意向用户代表）｜ 日期：2026-10-07
 被测修订：工作树 `C:\Users\qqshu\Desktop\Dev Work\EurogasNexus`（含未提交改动）
 产出范围：仅本文件。所有探针脚本在 `.dnx-out/persona/`，原始证据在 `.dnx-out/persona-out/`（均不在仓库源码目录内）。

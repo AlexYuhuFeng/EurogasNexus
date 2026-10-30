@@ -1,5 +1,11 @@
 # 04 — 运维团队验收意见：可运维性实测
 
+> **English abstract (added 2026-10-30; the record below is unchanged and in its original
+> language).** Operations team's hand-over acceptance on 2026-10-07, every item reproduced by
+> command. **Verdict: CONDITIONAL hand-over.** The two P0 findings (OPS-01, OPS-02) were
+> fixed and independently re-checked (§2.10, §4.5); the conclusion rests on the five P1
+> items in §11.
+
 | 项目 | 内容 |
 | --- | --- |
 | 文档性质 | 接手方（运维团队）对 Eurogas Nexus 交付软件的可运维性验收与接手意见 |

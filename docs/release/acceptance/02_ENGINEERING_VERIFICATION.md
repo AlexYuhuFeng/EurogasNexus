@@ -1,5 +1,11 @@
 # 02 工程团队验收核验：CA-01..CA-10 整改状态 + 覆盖率 / 静态检查 / 安装构建
 
+> **English abstract (added 2026-10-30; the record below is unchanged and in its original
+> language).** Supplier engineering team's verification, on 2026-10-07, of the remediation
+> of commercial-audit findings CA-01 to CA-10, each re-checked by command. **Result:** 4
+> closed (CA-01, 04, 07, 10), 5 partly closed (CA-02, 03, 05, 06, 08), 1 open (CA-09), plus
+> 3 new engineering findings (§6). Coverage, static checks and installer builds are recorded.
+
 | 项目 | 内容 |
 | --- | --- |
 | 文档性质 | 工程（供应方）团队对 `19_COMMERCIAL_ACCEPTANCE_AUDIT.md` 中 CA-01..CA-10 发现项的**整改核验报告** |

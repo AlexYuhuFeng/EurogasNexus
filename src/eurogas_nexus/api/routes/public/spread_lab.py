@@ -68,9 +68,25 @@ def _price_unit(currency: str, unit: str) -> str:
     return unit if "/" in unit else f"{currency}/{unit}"
 
 
-def _daily_rows(request: Request) -> list[dict[str, Any]]:
-    """Entitled gas-price observations reduced to one close per series per trade date."""
+#: A spread reads daily closes; this bounds the rows one request may load (about ten years
+#: of daily closes for 40 series, or less history when intraday ticks are stored too).
+MAX_OBSERVATION_ROWS = 150_000
 
+
+def _daily_rows(
+    request: Request, date_from: date | None = None, date_to: date | None = None
+) -> list[dict[str, Any]]:
+    """Entitled gas-price observations reduced to one close per series per trade date.
+
+    Only per-MWh prices in the requested window are read, and only the columns used.
+
+    Raises:
+        HTTPException: 422 ``spread_window_too_large`` above :data:`MAX_OBSERVATION_ROWS`.
+    """
+
+    from datetime import UTC, datetime, time, timedelta
+
+    from sqlalchemy import func
     from sqlalchemy.exc import SQLAlchemyError
 
     from eurogas_nexus.db.models import MarketObservationRecord
@@ -80,16 +96,41 @@ def _daily_rows(request: Request) -> list[dict[str, Any]]:
         return []
     try:
         with get_session_factory()() as session:
+            query = session.query(
+                MarketObservationRecord.product,
+                MarketObservationRecord.price,
+                MarketObservationRecord.unit,
+                MarketObservationRecord.currency,
+                MarketObservationRecord.observed_at_utc,
+                MarketObservationRecord.source_system,
+                MarketObservationRecord.metadata_json,
+            ).filter(func.upper(MarketObservationRecord.unit).like("%MWH%"))
+            if date_from:
+                query = query.filter(
+                    MarketObservationRecord.observed_at_utc
+                    >= datetime.combine(date_from, time.min, tzinfo=UTC)
+                )
+            if date_to:
+                query = query.filter(
+                    MarketObservationRecord.observed_at_utc
+                    < datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC)
+                )
             records = (
-                session.query(MarketObservationRecord)
-                .order_by(MarketObservationRecord.observed_at_utc)
+                query.order_by(MarketObservationRecord.observed_at_utc)
+                .limit(MAX_OBSERVATION_ROWS + 1)
                 .all()
             )
+            if len(records) > MAX_OBSERVATION_ROWS:
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "spread_window_too_large",
+                        "message": "too many observations in this window; narrow the dates",
+                    },
+                )
             rows = []
             for record in records:
                 metadata = record.metadata_json or {}
-                if "MWH" not in (record.unit or "").upper():
-                    continue
                 hub = str(metadata.get("hub") or record.product.split(" ")[0]).upper()
                 tenor = str(metadata.get("tenor") or record.product).lower()
                 rows.append(
@@ -159,7 +200,7 @@ def run_spread_analysis(body: SpreadAnalysisInput, request: Request) -> dict:
             too little overlap, bad rule).
     """
 
-    rows = _daily_rows(request)
+    rows = _daily_rows(request, body.date_from, body.date_to)
     legs: list[SpreadLeg] = []
     units: set[str] = set()
     simulated = False

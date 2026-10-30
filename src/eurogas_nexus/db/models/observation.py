@@ -117,6 +117,11 @@ class FlowObservationRecord(Base):
 
     __tablename__ = "flow_observations"
     __table_args__ = (
+        # Mirrors migration 0010 (entity/period) and 0048 (source/time).
+        Index("ix_flow_observations_point_period", "point_id", "period_start_utc"),
+        Index(
+            "ix_flow_observations_source_observed", "source_system", text("observed_at_utc DESC")
+        ),
         CheckConstraint(
             "("
             "normalizer_version IS NULL AND native_rate_json IS NULL "
@@ -164,6 +169,14 @@ class CapacityObservationRecord(Base):
 
     __tablename__ = "capacity_observations"
     __table_args__ = (
+        # Mirrors migration 0012 (entity/period, type/period) and 0048 (source/time).
+        Index("ix_capacity_observations_point_period", "point_id", "period_start_utc"),
+        Index("ix_capacity_observations_type_period", "capacity_type", "period_start_utc"),
+        Index(
+            "ix_capacity_observations_source_observed",
+            "source_system",
+            text("observed_at_utc DESC"),
+        ),
         CheckConstraint(
             "("
             "normalizer_version IS NULL AND native_rate_json IS NULL "
@@ -208,6 +221,13 @@ class StorageObservationRecord(Base):
     """
 
     __tablename__ = "storage_observations"
+    __table_args__ = (
+        # Mirrors migration 0010 (entity/period) and 0048 (source/time).
+        Index("ix_storage_observations_facility_period", "facility_id", "period_start_utc"),
+        Index(
+            "ix_storage_observations_source_observed", "source_system", text("observed_at_utc DESC")
+        ),
+    )
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     source_dataset: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -239,6 +259,11 @@ class LngObservationRecord(Base):
     """
 
     __tablename__ = "lng_observations"
+    __table_args__ = (
+        # Mirrors migration 0010 (entity/period) and 0048 (source/time).
+        Index("ix_lng_observations_terminal_period", "terminal_id", "period_start_utc"),
+        Index("ix_lng_observations_source_observed", "source_system", text("observed_at_utc DESC")),
+    )
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     source_dataset: Mapped[str] = mapped_column(String(16), nullable=False)
