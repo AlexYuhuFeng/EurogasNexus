@@ -151,6 +151,9 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.research.weather_demand:ModelUseStatus",
     "eurogas_nexus.domain.research.weather_demand:PromotionStatus",
     "eurogas_nexus.domain.research.weather_demand:ValidationBasis",
+    # RFC-0008 target-label evidence clock, orthogonal to weather ValidationBasis.
+    # Research methodology only: no target quality, unit or market meaning changes.
+    "eurogas_nexus.domain.research.weather_demand:DemandTargetLabelBasis",
 }
 
 
