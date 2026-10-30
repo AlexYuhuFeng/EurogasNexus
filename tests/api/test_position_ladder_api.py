@@ -121,6 +121,30 @@ def test_ladder_combines_physical_supply_and_financial_hedge(tmp_path, monkeypat
                     metadata_json={"hub": "NBP", "tenor": "month-ahead"},
                 )
             )
+        # A quarter quote after the month: the curve derives the months it does not fix.
+        quarter_start = (month_start + timedelta(days=32)).replace(day=1)
+        quarter_end = quarter_start
+        for _ in range(3):
+            quarter_end = (quarter_end + timedelta(days=32)).replace(day=1)
+        session.add(
+            MarketObservationRecord(
+                observation_id="nbp-quarter",
+                market_venue="ICE",
+                product="NBP quarter",
+                price=34.0,
+                unit="GBP/MWh",
+                currency="GBP",
+                period_start_utc=quarter_start,
+                period_end_utc=quarter_end,
+                observed_at_utc=now - timedelta(hours=1),
+                source_system="ICE_OCM",
+                source_reference="nbp:quarter",
+                freshness="end_of_day",
+                quality_score=0.9,
+                research_only=True,
+                metadata_json={"hub": "NBP", "tenor": "Q+1"},
+            )
+        )
         session.commit()
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
@@ -146,3 +170,8 @@ def test_ladder_combines_physical_supply_and_financial_hedge(tmp_path, monkeypat
     assert any(
         "Not a substitute for the risk system" in w for w in response.json()["meta"]["warnings"]
     )
+    # Marks come from the curve: the month quote as quoted, the quarter's months derived.
+    assert row["mark"] == 31.5 and row["mark_method"] == "quoted"
+    quarter_month = f"{quarter_start.year:04d}-{quarter_start.month:02d}"
+    point = next(p for p in data["curve"] if p["hub"] == "NBP" and p["month"] == quarter_month)
+    assert point["method"] == "derived" and point["price"] == 34.0

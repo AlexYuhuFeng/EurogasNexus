@@ -186,6 +186,88 @@ def _env(data: object, _request: Request, source: str, warnings: list[str]) -> d
 
 _HUB_CODES = ("NBP", "TTF", "THE", "PEG", "ZTP", "PSV", "PVB", "CEGH", "ZEE")
 _HUB_CURRENCY = {"NBP": "GBP"}
+_CURVE_QUOTE_LOOKBACK_DAYS = 10
+
+
+def _curve_quotes(request: Request, date_from, date_to) -> list:
+    """Latest entitled, non-simulated quote per hub and delivery window, for the curve.
+
+    Only quotes in the hub's own currency are used (NBP in GBP, continental hubs in EUR).
+    A window that starts on the 1st and lasts 28 to 31 days is read as that whole month,
+    so a month-ahead quote with a gas-day-aligned end prices its month.
+    """
+
+    from datetime import UTC, datetime, time, timedelta
+
+    from sqlalchemy import func
+
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+    from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
+    from eurogas_nexus.db.models import MarketObservationRecord
+    from eurogas_nexus.db.session import get_session_factory
+    from eurogas_nexus.domain.market.forward_curve import CurveQuote
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with get_session_factory()() as session:
+            naive = session.get_bind().dialect.name == "sqlite"
+
+            def bound(day):
+                moment = datetime.combine(day, time.min, tzinfo=UTC)
+                return moment.replace(tzinfo=None) if naive else moment
+
+            records = (
+                session.query(
+                    MarketObservationRecord.product,
+                    MarketObservationRecord.price,
+                    MarketObservationRecord.currency,
+                    MarketObservationRecord.period_start_utc,
+                    MarketObservationRecord.period_end_utc,
+                    MarketObservationRecord.observed_at_utc,
+                    MarketObservationRecord.source_system,
+                    MarketObservationRecord.metadata_json,
+                )
+                .filter(func.upper(MarketObservationRecord.unit).like("%MWH%"))
+                .filter(MarketObservationRecord.observed_at_utc >= bound(date_from))
+                .filter(
+                    MarketObservationRecord.observed_at_utc < bound(date_to + timedelta(days=1))
+                )
+                .order_by(MarketObservationRecord.observed_at_utc)
+                .limit(20_000)
+                .all()
+            )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    rows = []
+    for record in records:
+        metadata = record.metadata_json or {}
+        if metadata.get("simulated") or record.source_system.endswith("_Sim"):
+            continue
+        hub = str(metadata.get("hub") or record.product.split(" ")[0]).upper()
+        if (record.currency or "").upper() != _HUB_CURRENCY.get(hub, "EUR"):
+            continue
+        rows.append(
+            {
+                "hub": hub,
+                "label": str(metadata.get("tenor") or record.product),
+                "first": record.period_start_utc.date(),
+                "end": record.period_end_utc.date(),
+                "price": float(record.price),
+                "source_system": record.source_system,
+            }
+        )
+    latest: dict[tuple, dict] = {}
+    for row in filter_entitled_rows(current_principal(request), rows, source_key="source_system"):
+        first, end = row["first"], row["end"]
+        if first.day == 1 and 28 <= (end - first).days <= 31:
+            end = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+        latest[(row["hub"], first, end)] = row  # ordered by time: the last one wins
+    return [
+        CurveQuote(
+            hub, first, end, row["price"], label=row["label"], reference=row["source_system"]
+        )
+        for (hub, first, end), row in latest.items()
+    ]
 
 
 def _hub_from_text(text: str, default: str = "NBP") -> str:
@@ -219,14 +301,16 @@ def get_position_ladder(
 
     Physical legs are the stored upstream contracts (daily contract quantity over their gas
     year, hub from the delivery point); financial legs are filled screen trades (buy long,
-    sell short) spread over their delivery days. Marks are the latest entitled daily close
-    per hub, applied flat across months; legs in a currency other than the hub's mark are
-    left unvalued.
+    sell short) spread over their delivery days. Marks come from a monthly forward curve
+    built from the latest entitled quotes (months, quarters, seasons, years); a month the
+    curve does not reach falls back to the hub's latest daily close, and the warnings say
+    so. Legs in a currency other than the hub's mark are left unvalued.
     """
 
     from datetime import UTC, datetime, timedelta
 
     from eurogas_nexus.api.routes.public.spread_lab import _daily_rows
+    from eurogas_nexus.domain.market.forward_curve import build_forward_curve
     from eurogas_nexus.domain.portfolio.position_ladder import PositionLeg, ladder_report
 
     today = datetime.now(UTC).date()
@@ -317,13 +401,23 @@ def get_position_ladder(
         series = closes.setdefault(row["hub"], {})
         if tenor == "month-ahead" or row["day"] not in series:
             series[row["day"]] = row["price"]
-    marks = {}
+    curve = build_forward_curve(
+        _curve_quotes(request, today - timedelta(days=_CURVE_QUOTE_LOOKBACK_DAYS), today),
+        first_month=horizon_start,
+    )
+    marks = curve.marks()
+    mark_method = {(point.hub, point.month): point.method for point in curve.points}
+    flat_months = 0
     for hub, series in closes.items():
         if series:
             latest = series[max(series)]
             month = horizon_start
             while month <= horizon_end:
-                marks[(hub, f"{month.year:04d}-{month.month:02d}")] = latest
+                key = (hub, f"{month.year:04d}-{month.month:02d}")
+                if key not in marks:
+                    marks[key] = latest
+                    mark_method[key] = "flat"
+                    flat_months += 1
                 month = (month.replace(day=1) + timedelta(days=32)).replace(day=1)
     report = ladder_report(
         legs,
@@ -332,13 +426,22 @@ def get_position_ladder(
         marks=marks,
         daily_closes_by_hub=closes,
     )
-    if marks:
-        warnings.append("Marks are the latest daily close per hub applied flat across months.")
+    if flat_months:
+        warnings.append(
+            f"{flat_months} hub-months have no curve quote and are marked flat at the hub's "
+            "latest daily close."
+        )
+    warnings += curve.warnings
     if simulated_skipped:
         warnings.append(
             "Simulated prices are not used for marks or VaR; connect or import licensed prices."
         )
     payload = report.as_dict()
+    for row in payload["rows"]:
+        key = (row["hub"], row["month"])
+        row["mark"] = round(marks[key], 4) if key in marks else None
+        row["mark_method"] = mark_method.get(key)
+    payload["curve"] = curve.as_dict()["points"]
     payload["horizon"] = {"start": horizon_start.isoformat(), "end": horizon_end.isoformat()}
     payload["legs"] = {
         "physical": sum(1 for leg in legs if leg.kind == "physical"),

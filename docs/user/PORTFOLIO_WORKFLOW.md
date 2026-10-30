@@ -34,9 +34,11 @@ hub sales alongside screen hedges sees how long or short it is, where and when:
   short).
 - **Net**, a long/short bar, and **Hedged**: the share of the physical position offset by
   trades.
-- **Summary:** net, physical, financial, overall hedge ratio, mark-to-market against the
-  latest licensed daily close per hub (flat across months), and a one-day 95 % VaR by
-  historical simulation of the open position.
+- **Mark:** the month's price from the hub's forward curve (month quote, derived from a
+  quarter/season/year quote, or prompt product); flat at the latest daily close where no
+  curve quote reaches.
+- **Summary:** net, physical, financial, overall hedge ratio, mark-to-market against those
+  marks, and a one-day 95 % VaR by historical simulation of the open position.
 
 The figures are indicative: price risk on the open position only (no volume, basis, shape
 or credit risk), and never computed from simulated prices. Legs priced in a different

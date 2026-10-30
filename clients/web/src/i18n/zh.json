@@ -3719,5 +3719,10 @@
   "position.var_help": "基于 {{count}} 个日度价格变动的历史模拟；仅价格风险。",
   "preferences.pnl_colors": "盈利颜色",
   "preferences.pnl_green_up": "绿色盈利，红色亏损",
-  "preferences.pnl_red_up": "红色盈利，绿色亏损"
+  "preferences.pnl_red_up": "红色盈利，绿色亏损",
+  "position.mark": "盯市价",
+  "position.mark_quoted": "月度报价",
+  "position.mark_derived": "由季度、季节或年度报价推导",
+  "position.mark_front": "近期合约（月内余量）",
+  "position.mark_flat": "无曲线报价：最新日收盘价"
 }

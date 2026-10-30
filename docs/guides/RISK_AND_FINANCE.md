@@ -13,8 +13,12 @@
 
 ## How to read the risk figures
 
-- Marks are the latest licensed daily close per hub, flat across months, until a forward
-  curve is connected. Simulated prices are never used.
+- Marks come from a monthly forward curve per hub built from the latest licensed quotes:
+  month quotes as quoted, months inside a quarter, season or year derived so that their
+  day-weighted average equals the product price, and the current month from the prompt
+  product. The **Mark** column shows the price and, on hover, how it was obtained. A month
+  with no curve quote is marked flat at the hub's latest daily close and the warnings
+  count it. Simulated prices are never used.
 - VaR is historical simulation of price moves on the open position: no volume, basis,
   shape or credit risk. Your risk system remains the book of record.
 - A leg priced in a currency other than its hub's mark is shown unvalued and counted, not

@@ -22,6 +22,10 @@ function money(value: number | null | undefined): string {
   return Math.round(value).toLocaleString("en-GB");
 }
 
+function price(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? "–" : value.toFixed(3);
+}
+
 function percent(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? "–" : `${Math.round(value * 100)}%`;
 }
@@ -107,6 +111,7 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
                 <th scope="col" className="num">{t("position.net")}</th>
                 <th scope="col">{t("position.net_bar")}</th>
                 <th scope="col" className="num">{t("position.hedged")}</th>
+                <th scope="col" className="num">{t("position.mark")}</th>
               </tr>
             </thead>
             <tbody>
@@ -127,6 +132,13 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
                       />
                     </td>
                     <td className="num">{percent(row.hedge_ratio)}</td>
+                    <td
+                      className="num"
+                      data-mark-method={row.mark_method ?? undefined}
+                      title={row.mark_method ? t(`position.mark_${row.mark_method}`) : undefined}
+                    >
+                      {price(row.mark)}
+                    </td>
                   </tr>
                 )),
               )}

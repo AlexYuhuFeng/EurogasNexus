@@ -3719,5 +3719,10 @@
   "position.var_help": "Historical simulation over {{count}} daily price changes; price risk only.",
   "preferences.pnl_colors": "Profit colour",
   "preferences.pnl_green_up": "Green profit, red loss",
-  "preferences.pnl_red_up": "Red profit, green loss"
+  "preferences.pnl_red_up": "Red profit, green loss",
+  "position.mark": "Mark",
+  "position.mark_quoted": "Month quote",
+  "position.mark_derived": "Derived from a quarter, season or year quote",
+  "position.mark_front": "Prompt product (balance of month)",
+  "position.mark_flat": "No curve quote: latest daily close"
 }

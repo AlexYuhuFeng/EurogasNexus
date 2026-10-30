@@ -2329,6 +2329,19 @@ export interface PositionLadderRowDTO {
   financial_mwh: number;
   net_mwh: number;
   hedge_ratio: number | null;
+  /** Price the month is marked at, in the hub's unit; null when nothing marks it. */
+  mark?: number | null;
+  /** "quoted", "derived" (from a quarter, season or year), "front" (prompt) or "flat". */
+  mark_method?: string | null;
+}
+
+export interface ForwardCurvePointDTO {
+  hub: string;
+  month: string;
+  price: number;
+  method: string;
+  source: string;
+  warning: string | null;
 }
 
 export interface PositionLadderDTO {
@@ -2340,6 +2353,7 @@ export interface PositionLadderDTO {
   var_observations: number;
   horizon: { start: string; end: string };
   legs: { physical: number; financial: number };
+  curve?: ForwardCurvePointDTO[];
   warnings: string[];
 }
 

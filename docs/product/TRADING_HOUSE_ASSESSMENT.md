@@ -52,9 +52,9 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 | Point-in-time training datasets (prices, power, storage, LNG, flows; lags, rolling, walk-forward) | Implemented |
 | Spread analysis and declared-rule backtests | Implemented |
 | Strategy design, frozen backtests, shadow runs | Implemented |
-| Position ladder, MtM, indicative VaR | Implemented (price risk only) |
+| Position ladder, MtM on the forward curve, indicative VaR | Implemented (price risk only) |
 | Supply/demand balance (NW Europe), storage trajectory forecast, LNG send-out forecast | **Missing** |
-| Forward curve construction (shaping, seasonality) | **Missing**; marks are flat per hub |
+| Forward curve construction (months, quarters, seasons, years; optional seasonal shape) | Implemented; ladder marks use it, with a flagged flat fallback |
 | Option or swing valuation, storage intrinsic/extrinsic | Storage dispatch assessment only; no extrinsic valuation |
 
 ## Components: effect and efficiency
@@ -76,7 +76,8 @@ forecasting covers GB demand and data preparation rather than a full balance mod
    and ICE Endex settlements first (curves for marks and VaR), Trayport streaming second.
 2. **REMIT outage feed** and GB system prices: the two fastest-moving fundamentals.
 3. **Carbon and coal** via the customer's ICE/EEX entitlement, completing the switching view.
-4. **Forward curve builder** (hub, month, season, shaping) so marks and VaR use the curve.
+4. ~~Forward curve builder~~ done (2026-10-30); next: feed it settlement curves from the
+   licensed connectors in priority 1.
 5. **NW Europe balance**: demand (weather, power burn) against supply (flows, LNG,
    storage), forecast daily for two weeks.
 6. Bring all ingestors under the scheduler with the same freshness SLAs.
