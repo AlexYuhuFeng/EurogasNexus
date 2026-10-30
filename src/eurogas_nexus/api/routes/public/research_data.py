@@ -6,6 +6,7 @@ licensed data is returned.
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -757,41 +758,22 @@ def _build_from_runtime(
             )
         )
         trusted_source_ids.add(source_definition.source_id)
-    # Power-system drivers of gas burn (ENTSO-E): series ``power.<metric>.<zone>``. Their
-    # availability is the earlier of the document time and the regulatory publication
-    # deadline, so it is approximate rather than verified.
-    entsoe_definition = source_by_system.get("entsoe")
-    if entsoe_definition is not None:
-        from eurogas_nexus.db.models.power import PowerObservationRecord
-
-        power_rows = (
-            session.query(PowerObservationRecord)
-            .filter(PowerObservationRecord.period_start_utc >= history_start)
-            .filter(PowerObservationRecord.period_start_utc < spec.end)
-            .all()
-        )
-        for row in power_rows:
-            entity_id = f"ent:bidding_zone:{row.zone}"
-            if requested_entity_ids and entity_id not in requested_entity_ids:
-                continue
-            records.append(
-                DatasetEvidenceRecord(
-                    record_id=row.observation_id,
-                    series_id=f"power.{row.metric}.{row.zone}",
-                    entity_id=entity_id,
-                    observed_at=row.period_start_utc,
-                    available_at=row.published_at_utc,
-                    ingested_at=row.ingested_at_utc,
-                    value=row.value,
-                    unit=row.unit,
-                    observation_kind=ObservationKind.ACTUAL,
-                    temporal_integrity=TemporalIntegrityState.TEMPORAL_APPROXIMATE,
-                    source_reference=row.source_reference,
-                    export_policy=row_export_policy(entsoe_definition),
-                )
-            )
-        if power_rows:
-            trusted_source_ids.add(entsoe_definition.source_id)
+    # Fundamentals beyond prices: power (ENTSO-E), storage (AGSI), LNG (ALSI) and flows
+    # (ENTSOG). Only the series the requested features depend on are read, so a dataset over
+    # one storage site does not scan every flow point in Europe.
+    needed = {
+        series_id for feature in features.values() for series_id in feature.input_dependencies
+    }
+    physical_records, physical_sources = _fundamental_evidence(
+        session,
+        needed,
+        source_by_system,
+        history_start=history_start,
+        end=spec.end,
+        requested_entity_ids=requested_entity_ids,
+    )
+    records.extend(physical_records)
+    trusted_source_ids.update(physical_sources)
     if not records:
         raise HTTPException(
             status_code=422,
@@ -835,3 +817,164 @@ def _build_from_runtime(
         for index, issue in enumerate(result.leakage_issues)
     ]
     return result, dependencies, issue_rows
+
+
+def _fundamental_evidence(
+    session,
+    needed: set[str],
+    source_by_system: dict,
+    *,
+    history_start,
+    end,
+    requested_entity_ids: set[str],
+) -> tuple[list[DatasetEvidenceRecord], set[str]]:
+    """Evidence for ``power.*``, ``storage.*``, ``lng.*`` and ``flow.*`` series a dataset uses.
+
+    Series ids: ``power.<metric>.<zone>`` (ENTSO-E), ``storage.<metric>.<facility_id>`` and
+    ``lng.<metric>.<terminal_id>`` (GIE AGSI/ALSI, TWh or %), ``flow.mcm_d.<point_id>.<direction>``
+    (ENTSOG). Availability is the observation's ingestion time (power: the publication deadline),
+    so it is approximate rather than certified.
+    """
+
+    from eurogas_nexus.db.models import FlowObservationRecord
+    from eurogas_nexus.db.models.observation import (
+        LngObservationRecord,
+        StorageObservationRecord,
+    )
+    from eurogas_nexus.db.models.power import PowerObservationRecord
+
+    by_prefix: dict[str, set[tuple[str, ...]]] = {}
+    for series_id in needed:
+        parts = tuple(series_id.split("."))
+        if parts and parts[0] in {"power", "storage", "lng", "flow"} and len(parts) >= 3:
+            by_prefix.setdefault(parts[0], set()).add(parts[1:])
+    records: list[DatasetEvidenceRecord] = []
+    sources: set[str] = set()
+
+    def add(
+        series_id, entity_id, observed_at, available_at, ingested_at, value, unit, row, definition
+    ):
+        if value is None or (requested_entity_ids and entity_id not in requested_entity_ids):
+            return
+        observed_at, available_at, ingested_at = (
+            moment.replace(tzinfo=UTC) if moment is not None and moment.tzinfo is None else moment
+            for moment in (observed_at, available_at, ingested_at)
+        )
+        records.append(
+            DatasetEvidenceRecord(
+                record_id=row.observation_id,
+                series_id=series_id,
+                entity_id=entity_id,
+                observed_at=observed_at,
+                available_at=available_at,
+                ingested_at=ingested_at,
+                value=float(value),
+                unit=unit,
+                observation_kind=ObservationKind.ACTUAL,
+                temporal_integrity=TemporalIntegrityState.TEMPORAL_APPROXIMATE,
+                source_reference=row.source_reference,
+                export_policy=row_export_policy(definition),
+            )
+        )
+        sources.add(definition.source_id)
+
+    power_definition = source_by_system.get("entsoe")
+    if power_definition is not None and by_prefix.get("power"):
+        wanted = by_prefix["power"]
+        rows = (
+            session.query(PowerObservationRecord)
+            .filter(PowerObservationRecord.metric.in_({w[0] for w in wanted}))
+            .filter(PowerObservationRecord.zone.in_({w[1] for w in wanted if len(w) > 1}))
+            .filter(PowerObservationRecord.period_start_utc >= history_start)
+            .filter(PowerObservationRecord.period_start_utc < end)
+            .all()
+        )
+        for row in rows:
+            add(
+                f"power.{row.metric}.{row.zone}",
+                f"ent:bidding_zone:{row.zone}",
+                row.period_start_utc,
+                row.published_at_utc,
+                row.ingested_at_utc,
+                row.value,
+                row.unit,
+                row,
+                power_definition,
+            )
+
+    gie = source_by_system.get("gie")
+    for prefix, model, key_column, entity_kind, metrics in (
+        (
+            "storage",
+            StorageObservationRecord,
+            "facility_id",
+            "storage_site",
+            {
+                "inventory_twh": "TWh",
+                "fill_pct": "%",
+                "injection_twh_d": "TWh/d",
+                "withdrawal_twh_d": "TWh/d",
+            },
+        ),
+        (
+            "lng",
+            LngObservationRecord,
+            "terminal_id",
+            "lng_terminal",
+            {"inventory_twh": "TWh", "send_out_twh_d": "TWh/d", "dtmi_twh": "TWh"},
+        ),
+    ):
+        wanted = by_prefix.get(prefix)
+        if gie is None or not wanted:
+            continue
+        column = getattr(model, key_column)
+        rows = (
+            session.query(model)
+            .filter(column.in_({w[1] for w in wanted if len(w) > 1}))
+            .filter(model.period_start_utc >= history_start)
+            .filter(model.period_start_utc < end)
+            .all()
+        )
+        for row in rows:
+            key = getattr(row, key_column)
+            for metric, unit in metrics.items():
+                if (metric, key) in wanted:
+                    add(
+                        f"{prefix}.{metric}.{key}",
+                        f"ent:{entity_kind}:{key}",
+                        row.period_start_utc,
+                        row.observed_at_utc,
+                        row.observed_at_utc,
+                        getattr(row, metric),
+                        unit,
+                        row,
+                        gie,
+                    )
+
+    entsog = source_by_system.get("entsog")
+    wanted = by_prefix.get("flow")
+    if entsog is not None and wanted:
+        points = {w[1] for w in wanted if len(w) > 2}
+        rows = (
+            session.query(FlowObservationRecord)
+            .filter(FlowObservationRecord.point_id.in_(points))
+            .filter(FlowObservationRecord.period_start_utc >= history_start)
+            .filter(FlowObservationRecord.period_start_utc < end)
+            .all()
+        )
+        for row in rows:
+            direction = str(row.direction or "").lower()
+            if ("mcm_d", row.point_id, direction) not in wanted:
+                continue
+            add(
+                f"flow.mcm_d.{row.point_id}.{direction}",
+                f"ent:point:{row.point_id}",
+                row.period_start_utc,
+                row.observed_at_utc,
+                row.observed_at_utc,
+                row.flow_mcm_d,
+                "mcm/d",
+                row,
+                entsog,
+            )
+    return records, sources
