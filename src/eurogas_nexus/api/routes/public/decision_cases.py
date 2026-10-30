@@ -281,6 +281,15 @@ def _case_error(reason: str, case_id: str) -> HTTPException:
             status_code=404,
             detail={"error": "unknown_decision_case", "message": f"No decision case {case_id!r}."},
         )
+    if reason == "four_eyes_required":
+        return HTTPException(
+            status_code=409,
+            detail={
+                "error": "four_eyes_required",
+                "message": "The person who opened a case cannot record its decision; "
+                "a second reviewer decides.",
+            },
+        )
     if reason.startswith("case_not_decidable"):
         return HTTPException(
             status_code=409,

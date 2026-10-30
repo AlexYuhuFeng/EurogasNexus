@@ -177,14 +177,22 @@ class FunctionalAssignment(StrEnum):
     """What a person does. Overlapping by design: nobody holds exactly one.
 
     ``06_IDENTITY_ACCESS_CONTROL_PLANE.md`` section 2 forbids modelling these as
-    mutually exclusive personas, so the set is derived from capabilities and any
-    combination is valid.
+    mutually exclusive personas, so any combination is valid. The set follows the
+    front/middle/back-office split of an energy trading house: front office
+    (trading, analysis, research), middle office (risk), back office (finance and
+    settlement), control functions (legal and compliance), management, and the
+    platform functions. An administrator *declares* a person's functions; a declared
+    function the person's role cannot support is reported, never granted.
     """
 
     TRADER = "TRADER"
     HQ_BUSINESS_ANALYST = "HQ_BUSINESS_ANALYST"
     REVIEWER_MANAGEMENT = "REVIEWER_MANAGEMENT"
     QUANT_RESEARCHER = "QUANT_RESEARCHER"
+    RISK_MANAGER = "RISK_MANAGER"
+    FINANCE_SETTLEMENT = "FINANCE_SETTLEMENT"
+    LEGAL_COMPLIANCE = "LEGAL_COMPLIANCE"
+    MANAGEMENT = "MANAGEMENT"
     DATA_OPERATOR = "DATA_OPERATOR"
     PLATFORM_ADMINISTRATOR = "PLATFORM_ADMINISTRATOR"
 
@@ -224,9 +232,79 @@ ASSIGNMENT_CAPABILITIES: dict[FunctionalAssignment, frozenset[Capability]] = {
             Capability.AGENT_RESEARCH_RUN,
         }
     ),
+    # Middle office: independent view of exposure and the right to challenge decisions.
+    FunctionalAssignment.RISK_MANAGER: frozenset(
+        {
+            Capability.MARKET_READ,
+            Capability.PORTFOLIO_READ,
+            Capability.DECISION_EVIDENCE_READ,
+            Capability.DECISION_REVIEW,
+        }
+    ),
+    # Back office: cash, settlement and FX consequences of the book.
+    FunctionalAssignment.FINANCE_SETTLEMENT: frozenset(
+        {Capability.PORTFOLIO_READ, Capability.DECISION_EVIDENCE_READ}
+    ),
+    # Control function: contract terms and the decision record, not market screens.
+    FunctionalAssignment.LEGAL_COMPLIANCE: frozenset(
+        {Capability.DECISION_EVIDENCE_READ, Capability.DECISION_REVIEW}
+    ),
+    # Executive overview: positions, P&L and the portfolio's footprint.
+    FunctionalAssignment.MANAGEMENT: frozenset(
+        {Capability.PORTFOLIO_READ, Capability.DECISION_EVIDENCE_READ}
+    ),
     FunctionalAssignment.DATA_OPERATOR: frozenset({Capability.PROVIDER_INGESTION_OPERATE}),
     FunctionalAssignment.PLATFORM_ADMINISTRATOR: frozenset({Capability.ACCESS_MANAGE}),
 }
+
+#: Where each job function lands and what it reads first (client workspace page id and
+#: task). Composition only: the landing page is re-authorised like every other page.
+ASSIGNMENT_HOME: dict[FunctionalAssignment, tuple[str, str]] = {
+    FunctionalAssignment.TRADER: ("market", "curves"),
+    FunctionalAssignment.HQ_BUSINESS_ANALYST: ("market", "curves"),
+    FunctionalAssignment.QUANT_RESEARCHER: ("strategy", "design"),
+    FunctionalAssignment.RISK_MANAGER: ("contracts", "exposure"),
+    FunctionalAssignment.FINANCE_SETTLEMENT: ("contracts", "exposure"),
+    FunctionalAssignment.LEGAL_COMPLIANCE: ("review", "review"),
+    FunctionalAssignment.MANAGEMENT: ("contracts", "overview"),
+    FunctionalAssignment.REVIEWER_MANAGEMENT: ("review", "review"),
+    FunctionalAssignment.DATA_OPERATOR: ("sources", "sources"),
+    FunctionalAssignment.PLATFORM_ADMINISTRATOR: ("access", "access"),
+}
+
+#: Home-office codes and their local time zone (display only today).
+OFFICE_TIME_ZONES: dict[str, str] = {
+    "UK": "Europe/London",
+    "CA": "America/Toronto",
+    "SG": "Asia/Singapore",
+    "CN": "Asia/Shanghai",
+    "NL": "Europe/Amsterdam",
+    "DE": "Europe/Berlin",
+    "CH": "Europe/Zurich",
+}
+
+
+def parse_job_functions(values: object) -> tuple[FunctionalAssignment, ...]:
+    """Validate declared job-function names (order kept, duplicates dropped).
+
+    Raises:
+        ValueError: ``unknown_job_function:<name>`` for a name outside the vocabulary.
+    """
+
+    if values is None:
+        return ()
+    if not isinstance(values, (list, tuple)):
+        raise ValueError("job_functions_must_be_a_list")
+    parsed: list[FunctionalAssignment] = []
+    for value in values:
+        name = str(value).strip().upper()
+        try:
+            item = FunctionalAssignment(name)
+        except ValueError as exc:
+            raise ValueError(f"unknown_job_function:{name}") from exc
+        if item not in parsed:
+            parsed.append(item)
+    return tuple(parsed)
 
 WORK_MODE_CAPABILITIES: dict[WorkMode, frozenset[Capability]] = {
     WorkMode.TRADING_ANALYSIS: frozenset(
@@ -354,6 +432,11 @@ class ExperienceProfile:
     role: str
     roles: tuple[str, ...]
     functional_assignments: tuple[FunctionalAssignment, ...]
+    declared_job_functions: tuple[FunctionalAssignment, ...]
+    unsatisfied_job_functions: tuple[FunctionalAssignment, ...]
+    home: tuple[str, str] | None
+    office: str | None
+    office_time_zone: str | None
     available_work_modes: tuple[WorkMode, ...]
     default_work_mode: WorkMode | None
     effective_capabilities: tuple[Capability, ...]
@@ -370,6 +453,15 @@ class ExperienceProfile:
             "role": self.role,
             "roles": list(self.roles),
             "functional_assignments": [item.value for item in self.functional_assignments],
+            "declared_job_functions": [item.value for item in self.declared_job_functions],
+            "unsatisfied_job_functions": [
+                item.value for item in self.unsatisfied_job_functions
+            ],
+            "home": (
+                {"workspace": self.home[0], "task": self.home[1]} if self.home else None
+            ),
+            "office": self.office,
+            "office_time_zone": self.office_time_zone,
             "available_work_modes": [item.value for item in self.available_work_modes],
             "default_work_mode": (
                 self.default_work_mode.value if self.default_work_mode is not None else None
@@ -386,15 +478,35 @@ class ExperienceProfile:
 
 
 def build_experience_profile(principal: AuthenticatedPrincipal) -> ExperienceProfile:
-    """Compose the ExperienceProfile for one authenticated principal."""
+    """Compose the ExperienceProfile for one authenticated principal.
+
+    Declared job functions win over capability-derived ones, but only those the
+    principal's capabilities support; the rest are reported as unsatisfied.
+    """
 
     capabilities = capabilities_for_principal(principal)
     modes = available_work_modes(capabilities)
+    eligible = functional_assignments_for(capabilities)
+    try:
+        declared = parse_job_functions(list(principal.job_functions or ()))
+    except ValueError:
+        declared = ()
+    if declared:
+        assignments = tuple(item for item in declared if item in eligible)
+        unsatisfied = tuple(item for item in declared if item not in eligible)
+    else:
+        assignments, unsatisfied = eligible, ()
+    office = (principal.office or "").strip().upper() or None
     return ExperienceProfile(
         principal_id=principal.principal_id,
         role=principal.role,
         roles=tuple(principal.roles or (principal.role,)),
-        functional_assignments=functional_assignments_for(capabilities),
+        functional_assignments=assignments,
+        declared_job_functions=declared,
+        unsatisfied_job_functions=unsatisfied,
+        home=ASSIGNMENT_HOME.get(assignments[0]) if declared and assignments else None,
+        office=office,
+        office_time_zone=OFFICE_TIME_ZONES.get(office or ""),
         available_work_modes=modes,
         default_work_mode=default_work_mode(modes),
         effective_capabilities=tuple(sorted(capabilities, key=lambda item: item.value)),

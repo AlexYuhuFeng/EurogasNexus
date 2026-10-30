@@ -85,6 +85,9 @@ class AuthenticatedPrincipal:
     email: str | None = None
     identity_source: str = "LOCAL"
     auth_method: str = "identity_key"
+    # Declared job functions and home office: experience composition only, never a grant.
+    job_functions: tuple[str, ...] = ()
+    office: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -281,6 +281,8 @@ def authenticate_identity_bearer(
         email=principal.email,
         identity_source=principal.identity_source or "LOCAL",
         auth_method="identity_key",
+        job_functions=tuple(principal.job_functions or ()),
+        office=principal.office,
     )
 
 

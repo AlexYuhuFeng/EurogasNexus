@@ -4162,6 +4162,14 @@ export interface ExperienceProfileDTO {
   role: string;
   roles: string[];
   functional_assignments: string[];
+  /** Job functions an administrator declared; composition only, never a grant. */
+  declared_job_functions?: string[];
+  /** Declared functions the role cannot support: reported, not granted. */
+  unsatisfied_job_functions?: string[];
+  /** Persona landing page, when a job function is declared. */
+  home?: { workspace: string; task: string } | null;
+  office?: string | null;
+  office_time_zone?: string | null;
   available_work_modes: string[];
   default_work_mode: string | null;
   effective_capabilities: string[];
@@ -4224,10 +4232,13 @@ export interface AccessUserDTO {
   role: string; roles: string[]; email: string | null; identity_source: string;
   status: string; data_scopes: string[]; created_at_utc: string; updated_at_utc: string;
   last_login_at_utc: string | null; keys: AccessApiKeyDTO[];
+  /** Declared job functions and home office: composition only, never a grant. */
+  job_functions?: string[]; office?: string | null;
 }
 
 export interface AccessUserPatchInputDTO {
   status?: string; roles?: string[]; data_scopes?: string[]; email?: string | null;
+  job_functions?: string[]; office?: string | null;
 }
 
 export interface AccessApiKeyDTO {

@@ -216,6 +216,15 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
                   </label>
                 ))}
                 <span className="access-row-actions">
+                  <JobProfileEditor
+                    user={user}
+                    busy={Boolean(busyRows[user.principal_id])}
+                    t={t}
+                    onSave={(body) => mutateRow(user.principal_id, async () => {
+                      const response = await api.patchAccessUser(user.principal_id, body);
+                      setUsers((current) => current.map((item) => item.principal_id === user.principal_id ? response.data : item));
+                    })}
+                  />
                   <button type="button" disabled={busyRows[user.principal_id]} onClick={() => void toggleUserStatus(user)}>
                     {user.status === "ACTIVE" ? t("access.disable") : t("access.enable")}
                   </button>
@@ -426,5 +435,65 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
         </div>
       )}
     </div>
+  );
+}
+
+
+/** Declared job functions and home office: what the person does, never what they may do. */
+export const JOB_FUNCTIONS = [
+  "TRADER",
+  "HQ_BUSINESS_ANALYST",
+  "QUANT_RESEARCHER",
+  "RISK_MANAGER",
+  "FINANCE_SETTLEMENT",
+  "LEGAL_COMPLIANCE",
+  "MANAGEMENT",
+  "REVIEWER_MANAGEMENT",
+  "DATA_OPERATOR",
+  "PLATFORM_ADMINISTRATOR",
+] as const;
+
+export const OFFICES = ["UK", "CA", "SG", "CN", "NL", "DE", "CH"] as const;
+
+function JobProfileEditor({
+  user,
+  busy,
+  t,
+  onSave,
+}: {
+  user: AccessUserDTO;
+  busy: boolean;
+  t: (key: string) => string;
+  onSave: (body: { job_functions: string[]; office: string | null }) => Promise<void> | void;
+}) {
+  const [functions, setFunctions] = useState<string[]>(user.job_functions ?? []);
+  const [office, setOffice] = useState<string>(user.office ?? "");
+  return (
+    <details className="access-job-profile">
+      <summary>{t("access.job_profile")}</summary>
+      <label>
+        <span>{t("access.job_functions")}</span>
+        <select
+          multiple
+          aria-label={`${user.display_name} · ${t("access.job_functions")}`}
+          value={functions}
+          disabled={busy}
+          onChange={(event) => setFunctions(Array.from(event.target.selectedOptions, (option) => option.value))}
+        >
+          {JOB_FUNCTIONS.map((item) => <option key={item} value={item}>{t(`access.job_function.${item}`)}</option>)}
+        </select>
+      </label>
+      <label>
+        <span>{t("access.office")}</span>
+        <select value={office} disabled={busy} onChange={(event) => setOffice(event.target.value)}>
+          <option value="">—</option>
+          {OFFICES.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </label>
+      <small>{t("access.job_profile_note")}</small>
+      <button type="button" disabled={busy} onClick={() => void onSave({ job_functions: functions, office: office || null })}>
+        {t("access.save")}
+      </button>
+    </details>
   );
 }

@@ -223,6 +223,11 @@ def test_experience_profile_payload_carries_no_secret_or_record() -> None:
         "role",
         "roles",
         "functional_assignments",
+        "declared_job_functions",
+        "unsatisfied_job_functions",
+        "home",
+        "office",
+        "office_time_zone",
         "available_work_modes",
         "default_work_mode",
         "effective_capabilities",
@@ -289,3 +294,47 @@ def test_me_returns_the_experience_profile_for_the_authenticated_identity(
     assert "market.read" in analyst_experience["commercial_capabilities"]
     assert analyst_experience["default_work_mode"] == WorkMode.TRADING_ANALYSIS.value
     assert analyst_experience["scope_refs"] == ["DATA:EEX"]
+
+
+def test_declared_job_functions_win_but_never_exceed_the_role() -> None:
+    from dataclasses import replace
+
+    import pytest
+
+    from eurogas_nexus.security.capabilities import parse_job_functions
+
+    # Risk challenges decisions, so the declared function needs ANALYST + REVIEWER.
+    analyst = replace(
+        _principal("ANALYST", roles=("ANALYST", "REVIEWER"), scopes=("EEX",)),
+        job_functions=("RISK_MANAGER", "PLATFORM_ADMINISTRATOR"),
+        office="sg",
+    )
+    profile = build_experience_profile(analyst)
+    # A declared function the role supports becomes the composition...
+    assert FunctionalAssignment.RISK_MANAGER in profile.functional_assignments
+    # ...one it cannot support is reported, not granted.
+    assert profile.unsatisfied_job_functions == (FunctionalAssignment.PLATFORM_ADMINISTRATOR,)
+    assert FunctionalAssignment.PLATFORM_ADMINISTRATOR not in profile.functional_assignments
+    assert profile.home == ("contracts", "exposure")
+    assert profile.office == "SG" and profile.office_time_zone == "Asia/Singapore"
+    assert profile_stays_within_role_permissions(analyst, profile)
+    assert parse_job_functions(["trader", "TRADER"]) == (FunctionalAssignment.TRADER,)
+    with pytest.raises(ValueError, match="unknown_job_function"):
+        parse_job_functions(["CEO"])
+
+
+def test_undeclared_principals_keep_derived_functions_and_no_home() -> None:
+    profile = build_experience_profile(_principal("ANALYST", scopes=("EEX",)))
+    assert profile.declared_job_functions == ()
+    assert profile.home is None
+    assert FunctionalAssignment.TRADER in profile.functional_assignments
+
+
+def test_a_declared_function_the_role_cannot_support_is_unsatisfied() -> None:
+    from dataclasses import replace
+
+    analyst = replace(_principal("ANALYST", scopes=("EEX",)), job_functions=("RISK_MANAGER",))
+    profile = build_experience_profile(analyst)
+    assert profile.functional_assignments == ()
+    assert profile.unsatisfied_job_functions == (FunctionalAssignment.RISK_MANAGER,)
+    assert profile.home is None

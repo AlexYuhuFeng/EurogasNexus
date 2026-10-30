@@ -198,12 +198,16 @@ def record_decision(
     """Append a decision record, returning a new case.
 
     Raises:
-        ValueError: when the case is not decidable, or the actor is missing. The
-            error carries the blocker codes, so a caller can explain the refusal.
+        ValueError: when the case is not decidable, the actor is missing, or the
+            actor opened the case (``four_eyes_required``: a second person decides).
+            The error carries the blocker codes, so a caller can explain the refusal.
     """
 
     if not actor.strip():
         raise ValueError("record_actor_required")
+    # Four-eyes (segregation of duties): whoever opened the case does not decide it.
+    if actor.strip().casefold() == case.created_by.strip().casefold():
+        raise ValueError("four_eyes_required")
     if not case_is_decidable(case):
         raise ValueError("case_not_decidable:" + ",".join(decision_blockers(case)))
     if len(note) > MAX_NOTE_LENGTH:

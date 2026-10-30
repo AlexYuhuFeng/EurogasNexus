@@ -200,3 +200,14 @@ def test_evidence_is_deduplicated_and_carries_the_assumptions() -> None:
         "reproducible",
         "last_record",
     }
+
+
+def test_four_eyes_the_case_opener_cannot_decide_it() -> None:
+    case = add_evidence(
+        _case(),
+        DecisionEvidence(kind=DecisionEvidenceKind.RESEARCH_DATASET, ref="ds-1"),
+    )
+    with pytest.raises(ValueError, match="four_eyes_required"):
+        record_decision(case, outcome=ReviewDecisionValue.ACCEPTED, actor="Analyst.One ")
+    decided = record_decision(case, outcome=ReviewDecisionValue.ACCEPTED, actor="risk.two")
+    assert decided.records[-1].actor == "risk.two"

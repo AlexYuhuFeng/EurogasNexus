@@ -33,6 +33,9 @@ class AccessUpdateRequest(BaseModel):
     roles: list[str] | None = None
     data_scopes: list[str] | None = None
     email: str | None = Field(default=None, max_length=254)
+    # Composition only (never a grant): what the person does and where they sit.
+    job_functions: list[str] | None = Field(default=None, max_length=10)
+    office: str | None = Field(default=None, max_length=16, pattern="^[A-Za-z]{0,16}$")
 
 
 class ApiKeyCreateRequest(BaseModel):
@@ -355,6 +358,19 @@ def patch_user(principal_id: str, body: AccessUpdateRequest, request: Request) -
             )
         if body.email is not None:
             row.email = body.email or None
+        if body.job_functions is not None:
+            from eurogas_nexus.security.capabilities import parse_job_functions
+
+            try:
+                functions = parse_job_functions(body.job_functions)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"code": "unknown_job_function", "message": str(exc)},
+                ) from exc
+            row.job_functions = [item.value for item in functions] or None
+        if body.office is not None:
+            row.office = body.office.strip().upper() or None
         row.updated_at_utc = datetime.now(UTC)
         after = principal_payload(session, row)
         _audit_admin(

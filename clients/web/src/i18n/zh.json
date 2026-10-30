@@ -3594,5 +3594,19 @@
   "manual.from_screen.fx.screen": "LNG/跨币种交易的汇率",
   "manual.from_screen.fx.here": "价格换算 → 汇率定盘：ECB、WM/路透 4pm 或彭博 BFIX，单日或定价期平均",
   "manual.from_screen.alerts.screen": "预警/关注列表",
-  "manual.from_screen.alerts.here": "顶部栏的预警；点击枢纽可让所有面板聚焦该枢纽"
+  "manual.from_screen.alerts.here": "顶部栏的预警；点击枢纽可让所有面板聚焦该枢纽",
+  "access.job_profile": "岗位档案",
+  "access.job_functions": "岗位职能",
+  "access.office": "所在办公室",
+  "access.job_profile_note": "决定此人的首页与侧重点，不授予任何权限；权限由角色与数据访问范围决定。",
+  "access.job_function.TRADER": "交易员",
+  "access.job_function.HQ_BUSINESS_ANALYST": "业务分析师",
+  "access.job_function.QUANT_RESEARCHER": "量化研究员",
+  "access.job_function.RISK_MANAGER": "风险管理（中台）",
+  "access.job_function.FINANCE_SETTLEMENT": "财务与结算（后台）",
+  "access.job_function.LEGAL_COMPLIANCE": "法务与合规",
+  "access.job_function.MANAGEMENT": "管理层",
+  "access.job_function.REVIEWER_MANAGEMENT": "决策复核人",
+  "access.job_function.DATA_OPERATOR": "数据运营",
+  "access.job_function.PLATFORM_ADMINISTRATOR": "平台管理员"
 }

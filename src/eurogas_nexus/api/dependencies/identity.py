@@ -225,6 +225,8 @@ def _authenticate_session_cookie(request: Request, token: str) -> AuthenticatedP
                 email=principal.email,
                 identity_source=principal.identity_source or "LOCAL",
                 auth_method="session",
+                job_functions=tuple(principal.job_functions or ()),
+                office=principal.office,
             )
             session.commit()
     except HTTPException:

@@ -3594,5 +3594,19 @@
   "manual.from_screen.fx.screen": "FX for LNG / cross-currency deals",
   "manual.from_screen.fx.here": "Price converter → FX fix: ECB, WM/Reuters 4pm or Bloomberg BFIX, single date or pricing-period average",
   "manual.from_screen.alerts.screen": "Alerts / watch lists",
-  "manual.from_screen.alerts.here": "Alerts in the top bar; click a hub to focus every panel on it"
+  "manual.from_screen.alerts.here": "Alerts in the top bar; click a hub to focus every panel on it",
+  "access.job_profile": "Job profile",
+  "access.job_functions": "Job functions",
+  "access.office": "Office",
+  "access.job_profile_note": "Sets the person's home screen and emphasis. It grants nothing: roles and data access do.",
+  "access.job_function.TRADER": "Trader",
+  "access.job_function.HQ_BUSINESS_ANALYST": "Business analyst",
+  "access.job_function.QUANT_RESEARCHER": "Quant researcher",
+  "access.job_function.RISK_MANAGER": "Risk manager (middle office)",
+  "access.job_function.FINANCE_SETTLEMENT": "Finance & settlement (back office)",
+  "access.job_function.LEGAL_COMPLIANCE": "Legal & compliance",
+  "access.job_function.MANAGEMENT": "Management",
+  "access.job_function.REVIEWER_MANAGEMENT": "Decision reviewer",
+  "access.job_function.DATA_OPERATOR": "Data operator",
+  "access.job_function.PLATFORM_ADMINISTRATOR": "Platform administrator"
 }

@@ -15,6 +15,7 @@ import {
 import { marketTaskFromSearch } from "@/app/model/marketCockpitModel";
 import {
   coerceWorkspacePageId,
+  isWorkspacePageId,
   DEFAULT_WORKSPACE_PAGE_ID,
   workspaceTaskSearch,
   type WorkspacePageId,
@@ -45,8 +46,29 @@ export function workspaceFromLocation(): WorkspacePageId {
       persisted: readMarketViewPreference(marketViewPreferencePrincipalId()),
     });
     if (preferredLanding) return preferredLanding;
+    // No URL and no personal preference: the declared job function's home (a risk
+    // manager lands on exposure, a trader on prices). Composition only; the page is
+    // authorised like any other.
+    const personaLanding = personaHome(useApiStore.getState().currentUser?.experience?.home);
+    if (personaLanding) {
+      if (personaLanding.task && !new URLSearchParams(window.location.search).get("task")) {
+        const next = new URLSearchParams(window.location.search);
+        next.set("workspace", personaLanding.page);
+        next.set("task", personaLanding.task);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}?${next}`);
+      }
+      return personaLanding.page;
+    }
   }
   return coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID);
+}
+
+/** The persona home the backend declared, when it names a known page. */
+export function personaHome(
+  home: { workspace: string; task: string } | null | undefined,
+): { page: WorkspacePageId; task: string | null } | null {
+  if (!home || !isWorkspacePageId(home.workspace)) return null;
+  return { page: home.workspace, task: home.task || null };
 }
 
 export function useWorkspaceNavigation() {

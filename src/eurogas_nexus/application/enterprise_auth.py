@@ -473,6 +473,8 @@ def principal_payload(session: Session, principal: IdentityPrincipalRecord) -> d
                 email=principal.email,
                 identity_source=principal.identity_source or "LOCAL",
                 auth_method="session",
+                job_functions=tuple(principal.job_functions or ()),
+                office=principal.office,
             )
         )
     )
@@ -487,6 +489,8 @@ def principal_payload(session: Session, principal: IdentityPrincipalRecord) -> d
         "role": principal.role,
         "roles": list(principal.roles or [principal.role]),
         "data_scopes": list(principal.data_scopes or []),
+        "job_functions": list(principal.job_functions or []),
+        "office": principal.office,
         "permissions": permissions,
         "last_login_at_utc": (
             principal.last_login_at_utc.isoformat() if principal.last_login_at_utc else None

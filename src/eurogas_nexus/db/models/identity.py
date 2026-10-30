@@ -36,6 +36,10 @@ class IdentityPrincipalRecord(Base):
     )
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     data_scopes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    # Declared job functions (TRADER, RISK_MANAGER, ...): composition only, never a grant.
+    job_functions: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    # Home office code (UK, CA, SG, CN, ...): local time and future regional scoping.
+    office: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
