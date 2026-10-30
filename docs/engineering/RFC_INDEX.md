@@ -12,6 +12,7 @@ the RFC itself and the accepted contract or ADR carry normative authority.
 | RFC-0005 | ENTSOG native rates | Accepted for staged implementation (2026-10-29) | Exact native units, immutable normalization identities and compatible physical consumers | [RFC](RFC-0005-ENTSOG-NATIVE-RATES.md) |
 | RFC-0006 | EEX receipt-bound reference-index evidence | Accepted staged implementation (2026-10-29) | Explicit receipt availability without guessed publication clocks | [RFC](RFC-0006-EEX-RECEIPT-PRICE-EVIDENCE.md); [Decision20](../architecture/ARCHITECTURE_DECISION_RECORD.md#decision20-eex-receipt-bound-price-evidence) |
 | RFC-0007 | ECMWF archive availability for research | Accepted staged research architecture (2026-10-30); implementation pending | Explicit object-time reconstruction; immutable receipt defaults and no prospective-OOS uplift | [RFC](RFC-0007-ECMWF-ARCHIVE-AVAILABILITY.md) |
+| RFC-0008 | Retrospective demand-label availability | Accepted staged research architecture (2026-10-30); pure stage1 authorized | Orthogonal label clocks, immutable actual receipts and no genuine-OOS uplift | [RFC](RFC-0008-RETROSPECTIVE-DEMAND-LABEL-AVAILABILITY.md) |
 
 Use [RFC_TEMPLATE.md](RFC_TEMPLATE.md) for a new proposal and follow
 [RFC_PROCESS.md](RFC_PROCESS.md). Do not add private milestone plans,

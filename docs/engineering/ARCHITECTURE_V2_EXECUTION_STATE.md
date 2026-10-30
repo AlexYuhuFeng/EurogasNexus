@@ -1,3 +1,26 @@
+## 2026-10-30 — bounded orthogonal label-clock architecture
+
+Root accepts RFC0008 staged research architecture and authorizes pure stage1 only.
+Actual receipts stay immutable and always bound by analysis-as-of. Reconstructed
+provider applicability is a separate opt-in label clock and historical-publication
+assumption, never actual-receipt/genuine OOS proof. Root corrected the draft's
+late-receipt test to distinguish receipt AFTER analysis (exclude everywhere) from
+receipt AFTER historical fold but BEFORE analysis (eligible only under explicit
+reconstruction if its source clock was already applicable). Existing predictor
+must refuse nondefault use until full evidence propagation is reviewed.
+No runtime opt-in, source activation, API or quality promotion is authorized yet.
+
+Root captured pre-change default synthetic core golden at dab616c:
+selection7d2cbc5ee765b775b2f07c51cedc8bc3433c90fd60968112c8be17d523ef1647,
+baselinea10059c3b9d4b816fb1df7342bc120a37e25b185976677cc72e1096d9d09e545,
+candidate9cfaa82b64efaa5543b36414f152313d733914c25404135c7975cca749c59c58.
+Ten folds and exact metrics are retained in ignored
+delivery-20261030-label-default-golden/before.json. Future defaults must match.
+
+Live DeepSeek tasks: archiveS3 persistence session92448 and NumPy native-source
+closure review98153. Prior S2/prediction/RFC8 workers are terminal. a1f281d whole
+CI succeeded, confirming the strengthened G1 leaf integration; ca8fbaa/dab616c
+CI pending. S2 actual end-to-end still unproven. Full goal remains active.
 ## 2026-10-30 — persisted forecast to frozen demand prediction accepted
 
 Reviewed DeepSeek read-only prediction runtime takes an already fitted frozen
