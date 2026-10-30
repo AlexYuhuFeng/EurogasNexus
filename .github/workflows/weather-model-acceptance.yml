@@ -100,9 +100,12 @@ jobs:
             tests/unit/test_weather_demand.py \
             tests/unit/test_weather_demand_inputs.py \
             tests/unit/test_demand_target_inputs.py \
+            tests/unit/test_demand_target_label_mapper.py \
             tests/unit/test_weather_demand_runtime.py \
             tests/unit/test_weather_demand_operator_cli.py \
             tests/unit/test_weather_demand_prediction_runtime.py \
+            tests/unit/test_weather_archive_persistence.py \
+            tests/unit/test_weather_demand_label_basis.py \
             tests/unit/test_weather_forecast_contract.py \
             tests/db/test_ecmwf_weather_feature_bridge.py \
             --junitxml=artifacts/weather-model-ci/junit/unit.xml
@@ -117,6 +120,7 @@ jobs:
             tests/integration/test_weather_demand_runtime_postgres.py \
             tests/integration/test_weather_demand_operator_postgres.py \
             tests/integration/test_weather_demand_prediction_runtime_postgres.py \
+            tests/integration/test_weather_archive_persistence_postgres.py \
             --junitxml=artifacts/weather-model-ci/junit/postgres.xml
 
       - name: Enforce zero-skipped JUnit and required weather-model evidence
@@ -142,14 +146,20 @@ jobs:
               "weather_core": "tests/unit/test_weather_demand.py",
               "weather_bridge": "tests/unit/test_weather_demand_inputs.py",
               "target_inputs": "tests/unit/test_demand_target_inputs.py",
+              "demand_target_label_mapper": (
+                  "tests/unit/test_demand_target_label_mapper.py"
+              ),
               "weather_runtime": "tests/unit/test_weather_demand_runtime.py",
               "weather_operator": "tests/unit/test_weather_demand_operator_cli.py",
               "weather_prediction": "tests/unit/test_weather_demand_prediction_runtime.py",
+              "weather_archive_persistence": "tests/unit/test_weather_archive_persistence.py",
+              "weather_label_basis": "tests/unit/test_weather_demand_label_basis.py",
               "weather_forecast_contract": "tests/unit/test_weather_forecast_contract.py",
               "weather_db_bridge": "tests/db/test_ecmwf_weather_feature_bridge.py",
               "pg_weather_runtime": "tests/integration/test_weather_demand_runtime_postgres.py",
               "pg_weather_operator": "tests/integration/test_weather_demand_operator_postgres.py",
               "pg_weather_prediction": "tests/integration/test_weather_demand_prediction_runtime_postgres.py",
+              "pg_weather_archive_persistence": "tests/integration/test_weather_archive_persistence_postgres.py",
           }
           required_dotted = {
               name: path.removesuffix(".py").replace("/", ".")

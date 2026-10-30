@@ -71,4 +71,5 @@ python -m pytest -q \
   tests/integration/test_demand_target_reads_no_autoflush_postgres.py \
   tests/integration/test_weather_demand_runtime_postgres.py \
   tests/integration/test_weather_demand_operator_postgres.py \
-  tests/integration/test_weather_demand_prediction_runtime_postgres.py
+  tests/integration/test_weather_demand_prediction_runtime_postgres.py \
+  tests/integration/test_weather_archive_persistence_postgres.py

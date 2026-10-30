@@ -1,3 +1,241 @@
+## 2026-10-30 — final expanded scientific gate232 accepted
+
+CI mapper-registration6345 terminal exit0. Root re-ran final scientific composition
+in approvedLinux/NumPy:193 unit/bridge cases plus39 realPG cases passed, zero skips.
+Actual updated inlineJUnit gate accepted232 tests and all15 exact module identities.
+Root76 scientific/releaseG1/ontology contracts passed;364Markdown local links pass.
+No gates relaxed. Register archivePG in fullPGCI, archive/label/mapperunit paths in
+scientific selection and exact-module gate. The39PG cases include S3 boundedlocks,
+corefit, operator and frozenprediction; no realprovideraccuracy claim.
+
+Native81050 terminal changedNOFILES because brief lacked exact ignored paths and
+Harness enumeration was unavailable. Root read finalreport, supplied exact root
+and every knownfile, and launched bounded correctionv2 at98158. No ACLrepair or
+external network policy bypass authorized; self-authored collector assertion only.
+Rootretry of actual conditional archivecapture still refused rate_limited; retained
+separate retry-0255 report, no repeatedhammering or actualcapture claim. S481939
+still live. Full goal active; latestpushed d97fd56; CIregistration accepted separately.
+## 2026-10-30 — bounded archive S3 accepted and pushed d97fd56
+
+Lock worker46931 terminal exit0. Root actualPG30 passed including held-lock timeout
+and concurrent replay success,65 existing repository/reader/archive/evidence units
+passed, focusedRuff and diffchecks passed. New archive locks use sorted transaction
+keys, nonblocking pg_try_advisory_xact_lock and shared monotonic5s acquisitionbudget,
+with typed retryable busy refusal; no caller settings/commit/rollback/defaultpath
+change. S3 canonical evidence hash/policy/method/limitations and originalrow binding
+are verified. First actualreceipt/provenance retained and no oldrowbackfill.
+Commitd97fd56 (5files) pushed authorized main; hostedCIpending. Provider S2 authentic
+conditional capture remains unproven; these transport/decoderfixtures are synthetic.
+
+Root now authorizes bounded S4 explicit research read/projection only, task81939:
+complete typed archive DTO, immutable actualreceipt plus separate reconstructed
+clock, trustedserver analysiscap, historicalorigin/evidencebinding validation and
+bounded noautoflush actualPGreads. Existing live/API/bridge default receipt semantics
+unchanged, no model/runtime/operator/prediction/API opt-in. Register readtests only
+after finalreview. Nativecollector81050 and mapper-CI6345 are live and ownseparate
+files; oldnative38478/archive54802/labelmapper20659 are terminal. Revalidate handles,
+never duplicate. Full scope remains active.
+## 2026-10-30 — actual REST label mapper verified and pushed a8f359f
+
+Mapper worker20659 terminal exit0. Root first test run52pass1fail found a test-only
+strict-zip length mismatch; corrected labels[:-1] vs labels[1:] without weakening
+monotonicity assertion. Final mapper/new+existing tests53 passed; Ruff passed.
+Root actual read-only PostgreSQL probe mapped all17 persisted authentic National
+Gas REST revisions over5 gas days with explicit research basis,0 diagnostics,
+identical revision IDs/ranks/values/actualreceipts to default, no writes and no
+model. Evidence target-label-mapper-actual-readonly.json retained. This is actual
+stored-source consumption at mapper only, not historical-publication or accuracy
+proof. Runtime/operator/predictor nondefault use remains separately gated.
+
+Commit a8f359f includes mapper, newtests/docs and root RFC advancement addendum;
+pushed authorized main. Hosted CI pending. Archive lock46931 and native transport
+collector81050 remain live; no overlap or restart. Full goal active. Root must
+register new mapper unit in scientific gate after archive finalvalidation, then
+advance bounded read/fit runtime stages without changing default receipt semantics.
+## 2026-10-30 — hosted ontology gate omission corrected 3b02537
+
+Authoritative job snapshot for CI40993736249/ddd22a4 shows validate/Tests failed.
+Root fetched exact job123861929027 log: only reported failure is
+contract/test_domain_enum_ontology_gate.py requiring review for the new
+DemandTargetLabelBasis. Science leaf, PostgreSQL, browser EN/ZH, both SDK wheels,
+all three native builds, web build and dependency/license audit jobs succeeded;
+this does NOT make the whole failed run successful.
+
+Root architecture ruling: target-label evidence clock is research-methodology
+vocabulary, orthogonal to existing allowlisted weather ValidationBasis, not a new
+gas-market quality/unit/semantic. Add only this exact enum to reviewed entries
+with RFC0008 rationale; retain AST scan and stale-entry checks. Root2 focused
+ontology contracts and Ruff passed. Commit3b02537 pushed; new CI must verify it.
+No unrelated enum exemption, schema or production behavior change.
+
+Three implementation tasks20659/81050/46931 remain live at last handle poll.
+Wait terminal before edits/testing their final source. Full goal active. Previous
+continuation verified live waits; this turn fixes actual hosted gate failure.
+## 2026-10-30 — archive integrity mechanics verified, bounded lock followup
+
+Workers54802 and38478 completed exit0; do not restart them. Root actual PostgreSQL
+archive integrity29 tests passed (including two-session replay and stored-binding
+mutation refusals), archive units6 passed and Ruff passed. Canonical policy/method/
+evidence hashes and required limitation labels are now recomputed; stored row
+binding is checked against original v3 provenance with query-specific receipts
+preserved. Root withholds final acceptance because blocking pg_advisory_xact_lock
+has no intrinsic wait bound outside tests. New bounded DeepSeek task46931 owns
+repository/archive PG tests/doc only, replaces it with a shared total bounded
+try-lock budget and typed retryable busy refusal, preserving sorted xact locks.
+
+Root executed native collector: INCOMPLETE,0wheels0APKs11gaps. Its self-authored
+non-public DNS assertion rejects the approved machine198.18/15 DNS transport, even
+for fixed TLS-verified PyPI/Alpine hosts. Root authorizes correcting THIS prototype
+assertion (not any external policy) with strict fixed HTTPS origins/paths, TLS,
+redirect/size/hash controls and DNS provenance. New native followup81050 also must
+preserve official APK/index signature verification instead of rebuilding unsigned
+indexes and using allow-untrusted. No build or production dependency/image change.
+
+Mapper-only stage2 worker20659 remains live; RFC0008 now has explicit root staged
+advancement addendum after ddd22a4 pure acceptance. Runtime/operator opt-in stays
+unauthorized until separate review/serverclockcap. Main CI40993736249 last observed
+in_progress. Earlier complete PG116/numericalgate201 predate final corrections and
+must be re-run. Full delivery goal active; previous turn verified live waits.
+## 2026-10-30 — reviewed pure label integrity slice pushed ddd22a4
+
+Corrective worker58574 completed exit0. Root reviewed monotonic per-day effective
+clock/derived-rank validation, exact complete latest analysis finaltruth, model
+fact/count/revision/identity/cutoff binding, fold consistency and standalone
+nondefault prediction DTO refusal. Both existing predictors and runtime still
+refuse nondefault use; mapper/runtime/operator wire opt-in remains deferred.
+Root actual Linux/NumPy58 focused label/core/prediction tests passed after final
+worker output, Ruff passed, default pre-change selection/baseline/candidate hashes
+and exact ten-fold metrics still match. Operator PG fixture correction keeps pure
+field out of strict wire only after proving ACTUAL_RECEIPT; nondefault omission
+refused. Earlier real PG116 and combined gate201 predate final integrity changes
+and must not be attributed to final revision without revalidation.
+
+Commitddd22a4 (four files) pushed authorized origin/main. Hosted CI pending; source
+has no archive or CI-registration changes in this commit. Archive integrity54802
+and native experiment38478 still live; their files remain uncommitted and must not
+be folded into this slice. Full goal remains active; no provider accuracy, runtime
+packaging or customer-delivery completion inferred.
+## 2026-10-30 — root adversarial label reproduction and live corrections
+
+Root independently executed a synthetic NumPy constructor/selector probe before
+label correction landed: empty finaltruth and one-fact fitted-model metadata were
+accepted, and inverted rank/label clocks selected earlier-clock rank2. This
+reproduces B1/B2/B3 mechanics; retained review-findings-root-probe.json under
+label-default-golden. Existing predictor still refuses nondefault; no emitted
+prediction/accuracy/provider-data claim. Corrective task58574 remains live.
+
+Archive corrective task54802 began editing during a root adversarial probe: forged
+policy was already typed refused, but normal insert hit a transient undefined new
+lock helper in the incomplete live edit. This is NOT final acceptance or a stable
+regression result. Wait for actual worker terminal and then run full correction
+suite. Preserve probe record; do not restart or patch live worker files. Native
+experiment38478 also remains live. Independent reviewer27523 completed exit0.
+Station primary PDF collector received403 for both exact official URLs; no mapping
+is approved from search excerpts. No repeated provider probing while unchanged.
+Prior continuation verified live worker waits and collected primary access evidence.
+Full goal stays active; no new customer readiness claim.
+## 2026-10-30 — independent integrity findings hold acceptance
+
+Full registered PGCI session72987 completed116 passed, with all migrations0044,
+schema and authenticated/unauthenticated API smoke. Correction worker19883 is
+terminal exit0; final fixture diff preserves production strict schema and adds
+nondefault omission refusal. This mechanics proof does not close review findings.
+
+Independent read-only DeepSeek review now identifies S3 missing canonical evidence
+hash/policy/limitations recomputation, unchecked stored per-row archive binding,
+and an unexecuted concurrency race concern. Label S1 lacks derived-rank/clock
+monotonicity enforcement, exact complete latest finaltruth checks and exact model
+fact/count/revision bindings; standalone prediction DTO should refuse nondefault
+until full carrier exists. Root inspected cited source and accepts these as
+strengthening work before acceptance; the reviewer could not execute tests due
+Harness shell ACL. Do not describe concerns as reproduced runtime failures.
+
+Root launched bounded DeepSeek corrective tasks: archive integrity session54802
+(object/binding replay validation, canonical evidence hashes and bounded two-session
+PG concurrency reproduction; transaction-scoped sorted locks permitted if needed),
+label integrity session58574 (pure-only causal/order/completeness validation and
+DTO refusal; preserve exact default golden). No overlapping code ownership. Native
+source experiment38478 remains separate. Independent reviewer27523 only owns its
+review document; revalidate terminal handle before relying on completion. All new
+code remains uncommitted pending these corrections and root revalidation; latest
+pushed main a98ace6 remains green. Full goal active, no customer completion claim.
+## 2026-10-30 — actual combined numerical gate now passes
+
+Root reviewed completed CI-registration worker19754: additive exact-module entries
+only, existing required modules/security/pins and zero-skip semantics retained.
+Final numerical-CI/release G1 contracts74 passed; focused Ruff passed. Root tested
+the in-progress fixture correction (only pure ACTUAL_RECEIPT may be omitted from
+strict operator JSON; nondefault refusal regression added): four real PostgreSQL
+scientific modules now28 passed, no skips, on Linux/NumPy. Prior25pass2fail evidence
+is retained rather than overwritten. Correction worker19883 still finalizing;
+revalidate terminal state and final diff before accepting.
+
+Root ran the actual updated workflow inline JUnit gate against173 unit/bridge
+cases and28 actualPG cases:201 tests, zero failures/errors/skips, all14 exact module
+identities observed. Evidence: .local-runtime/archive-label-gate-review-20261030.
+This is local verified numerical mechanics, not hosted CI or provider accuracy.
+Full registered PGCI (migrations/schema/auth smoke/all modules) now running at
+session72987 in owned nexus_archive_label_full_ci_20261030; do not restart/claim
+result before actual terminal output. Independent review27523 and native source
+experiment38478 last confirmed live. Full delivery and source/native closure remain
+open. Previous turn progress/verified wait, no completion claim.
+## 2026-10-30 — full scientific PG cross-contract failure isolated
+
+Root expanded scientific PostgreSQL run (four modules, real Linux NumPy) produced
+25 passed2 failed, no skips; do not claim zero-skip gate acceptance yet. Both
+failures are existing operator fixture serialization: dataclasses.asdict now emits
+the new pure-only model_policy.target_label_basis; the unchanged strict operator
+wire schema correctly refuses this unknown field with exit2. Root authorizes a
+bounded DeepSeek correction ONLY to the operator PG fixture: require ACTUAL_RECEIPT
+before omitting pure-only field, refuse silently dropping nondefault basis, and
+preserve strict production parser/schema. Session19883 now owns that test file.
+Actual failed JUnit and redacted log are retained. Re-run all four PG modules after
+terminal correction, not merely the two assertions. No runtime label opt-in.
+
+CI contract9 passed against new registration while worker19754 still finalizes;
+not final acceptance. Independent review27523 and CI registration19754 confirmed
+live. New NumPy source-build experiment worker38478 is live, restricted to ignored
+prototype output and a new experiment note; production dependencies/images/gates
+remain unchanged. It must collect pinned input evidence before any bounded build.
+Previous continuation was concrete progress:173 numerical tests and measured default
+golden proof. Full delivery goal remains active.
+## 2026-10-30 — expanded numerical regression verified
+
+Previous continuation made concrete progress (actual PG19, numerical56 and exact
+pre-change default golden comparison). Root now ran the complete existing eight
+scientific unit/bridge modules plus both new archive/label modules in the approved
+Linux Python/NumPy environment:173 passed, zero skipped, JUnit retained at
+.local-runtime/delivery-20261030-label-default-golden/combined-unit.xml. Focused
+Ruff and git diff --check pass after two import-order repairs. No customer image
+or provider-history/model-accuracy claim follows from synthetic mechanics tests.
+
+DeepSeek independent review session27523 and bounded CI-registration implementation
+session19754 were both re-polled and confirmed live. The latter owns only the
+existing science workflow, PGCI script, numerical CI contract test and its new
+registration note; it must preserve all zero-skip and exact-module gates. Wait for
+terminal workers, review findings, validate registered PG and JUnit gates, then
+commit/push accepted slices. Do not duplicate live workers. Full goal is active.
+## 2026-10-30 — root revalidation of terminal archive and label workers
+
+Actual launcher handles92448/85834 are missing, process inventory has no matching
+live Harness processes and both completion records report exit0. Do not duplicate
+these implementation workers. Root ran actual Linux/NumPy unit checks:56 passed,
+including label-basis, archive persistence, core fitter and frozen prediction.
+Root separately recaptured the default golden to after.json (before.json retained):
+all three model/selection hashes, ten folds and exact metric strings match.
+Windows-only first pass8 passed12 skipped is not numerical acceptance evidence.
+Root actual PostgreSQL archive S3 module19 passed using owned disposable schemas
+in nexus_archive_s3_review_20261030. These are synthetic transport/decoder mechanics,
+not actual provider archive capture. Two Ruff import-order errors were repaired;
+implementation is not yet accepted or committed pending adversarial review.
+
+All latest pushed CI runs a98ace6, dab616c, ca8fbaa and a1f281d completed success.
+Root independently inspected native wheel ZIP/RECORD/ELF payloads, API base identity
+and exact NumPy sdist; facts and remaining closure are added to the native review.
+No production dependency/image/license policy changed. Scientific runtime customer
+packaging remains open. New bounded read-only DeepSeek independent review of
+archive/label code is launched at session27523; revalidate actual handle before
+acting, do not infer liveness from log files. Full goal remains active.
 ## 2026-10-30 — bounded orthogonal label-clock architecture
 
 Root accepts RFC0008 staged research architecture and authorizes pure stage1 only.

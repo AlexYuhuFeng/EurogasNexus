@@ -28,21 +28,27 @@ MANUAL = ROOT / ".github" / "workflows" / "ci-manual.yml"
 LOCK = ROOT / "requirements-scientific-ci.lock"
 PG_SCRIPT = ROOT / "scripts" / "ci" / "run_postgres_ci.sh"
 DOC = ROOT / "docs" / "engineering" / "WEATHER_MODEL_CI_CONTRACT.md"
+REGISTRATION_DOC = (
+    ROOT / "docs" / "engineering" / "ARCHIVE_LABEL_CI_REGISTRATION.md"
+)
 
 NUMPY_HASH = "8cba086a43d54ca804ce711b2a940b16e452807acebe7852ff327f1ecd49b0d4"
 CHECKOUT = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
 SETUP_PYTHON = "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
 UPLOAD_ARTIFACT = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 WEATHER_CALL = "./.github/workflows/weather-model-acceptance.yml"
-# Eight explicit focused modules plus the three actual-PostgreSQL modules. The
+# Eleven explicit focused modules plus the four actual-PostgreSQL modules. The
 # workflow selects these files by name; it never runs a directory or a glob.
 FOCUSED_MODULES = {
     "weather_core": "tests/unit/test_weather_demand.py",
     "weather_bridge": "tests/unit/test_weather_demand_inputs.py",
     "target_inputs": "tests/unit/test_demand_target_inputs.py",
+    "demand_target_label_mapper": "tests/unit/test_demand_target_label_mapper.py",
     "weather_runtime": "tests/unit/test_weather_demand_runtime.py",
     "weather_operator": "tests/unit/test_weather_demand_operator_cli.py",
     "weather_prediction": "tests/unit/test_weather_demand_prediction_runtime.py",
+    "weather_archive_persistence": "tests/unit/test_weather_archive_persistence.py",
+    "weather_label_basis": "tests/unit/test_weather_demand_label_basis.py",
     "weather_forecast_contract": "tests/unit/test_weather_forecast_contract.py",
     "weather_db_bridge": "tests/db/test_ecmwf_weather_feature_bridge.py",
 }
@@ -50,8 +56,17 @@ POSTGRES_MODULES = {
     "pg_weather_runtime": "tests/integration/test_weather_demand_runtime_postgres.py",
     "pg_weather_operator": "tests/integration/test_weather_demand_operator_postgres.py",
     "pg_weather_prediction": "tests/integration/test_weather_demand_prediction_runtime_postgres.py",
+    "pg_weather_archive_persistence": (
+        "tests/integration/test_weather_archive_persistence_postgres.py"
+    ),
 }
 REQUIRED_MODULES = {**FOCUSED_MODULES, **POSTGRES_MODULES}
+ARCHIVE_LABEL_MODULES = {
+    "weather_archive_persistence",
+    "weather_label_basis",
+    "demand_target_label_mapper",
+    "pg_weather_archive_persistence",
+}
 
 
 def _load(path: Path) -> dict:
@@ -466,6 +481,7 @@ def test_registered_pg_weather_actual_fit_modules_and_document_remain() -> None:
     pg = PG_SCRIPT.read_text(encoding="utf-8")
     assert "tests/integration/test_weather_demand_runtime_postgres.py" in pg
     assert "tests/integration/test_weather_demand_operator_postgres.py" in pg
+    assert "tests/integration/test_weather_archive_persistence_postgres.py" in pg
 
     document = _single_job(_load(WORKFLOW))
     runs = _runs(document)
@@ -489,5 +505,14 @@ def test_registered_pg_weather_actual_fit_modules_and_document_remain() -> None:
     assert "internal ci computation only" in doc.lower()
     assert "OPEN" in doc
     assert "not" in doc.lower() and "customer" in doc.lower()
-    for path in REQUIRED_MODULES.values():
-        assert path in doc, f"contract document does not list {path}"
+    registration = REGISTRATION_DOC.read_text(encoding="utf-8")
+    assert "internal numerical ci" in registration.lower()
+    assert "not a hosted ci" in registration.lower()
+    assert "windows skips are not numerical evidence" in registration.lower()
+    for key, path in REQUIRED_MODULES.items():
+        if key in ARCHIVE_LABEL_MODULES:
+            assert path in registration, (
+                f"archive/label registration document does not list {path}"
+            )
+        else:
+            assert path in doc, f"contract document does not list {path}"
