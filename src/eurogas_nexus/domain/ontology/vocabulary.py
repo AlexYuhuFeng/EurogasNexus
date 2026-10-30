@@ -968,6 +968,21 @@ def coerce_review_entity_type(value: str) -> ReviewEntityType:
         return ReviewEntityType(value)
     except ValueError as exc:
         known = ", ".join(sorted(item.value for item in ReviewEntityType))
-        raise ValueError(
-            f"unknown review entity type {value!r}; expected one of: {known}"
-        ) from exc
+        raise ValueError(f"unknown review entity type {value!r}; expected one of: {known}") from exc
+
+
+# Market-data licensing: how the firm holds a vendor licence (domain.market_data.licences).
+class LicenceType(StrEnum):
+    """Who a market-data licence covers: everyone, named offices, or a number of seats."""
+
+    ENTERPRISE = "ENTERPRISE"  # every user of the firm
+    SITE = "SITE"  # users in the named offices
+    NAMED_USER = "NAMED_USER"  # up to ``seats`` named users
+
+
+class LicensedUse(StrEnum):
+    """What a licence permits: people viewing prices, applications computing with them."""
+
+    DISPLAY = "DISPLAY"  # people see prices on screen
+    NON_DISPLAY = "NON_DISPLAY"  # applications compute with prices (curves, risk, models)
+    DISPLAY_AND_NON_DISPLAY = "DISPLAY_AND_NON_DISPLAY"

@@ -80,8 +80,8 @@ def _checks() -> list[dict]:
     # benchmark-rate paths add fixings and financing-rate resolution; the spread lab adds
     # its series catalogue and analysis; preferences add the personal and
     # organisation settings; the position ladder adds one read (201 / 217); gas-for-power
-    # adds one read (202 / 218).
-    check("public_surface_bounded", len(paths) == 202, f"public paths={len(paths)}")
+    # adds one read (202 / 218); the market-data licence register adds two (204 / 220).
+    check("public_surface_bounded", len(paths) == 204, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

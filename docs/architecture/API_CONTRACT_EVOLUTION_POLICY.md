@@ -406,3 +406,16 @@ GB) and API2 coal, and the clean spark spread, clean dark spread and fuel-switch
 Inputs come only from entitled, non-simulated rows; a missing input leaves the dependent
 figure null. Read under the `/api/market/` READ family and commercial boundary. Public
 census: 202 paths / 218 operations.
+
+## 2026-10-30 additive market-data licence register
+
+`GET /api/access/market-data-licences` lists the firm's market-data licences (vendor,
+source family, enterprise/site/named-user, display or non-display use, validity, offices,
+seats, contract reference) with each licence's current holders. `PUT
+/api/access/market-data-licences/{licence_id}` records or amends one (identity
+administration, audited). `PATCH /api/access/users/{principal_id}` now refuses with 409
+`data_scope_not_licensed` a newly added licensed data scope that no active licence covers
+for the person's office or that has no free named-user seat; public families and the
+`*` wildcard are unaffected. `GET /api/access/data-scopes` derives its families from the
+source registry. Public census: 204 paths / 220 operations.
+

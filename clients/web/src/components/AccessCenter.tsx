@@ -18,6 +18,7 @@ import {
   type DataScopeCatalogue,
 } from "@/app/model/accessCatalogueModel";
 import { PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
+import { LicenceRegisterPanel } from "@/components/LicenceRegisterPanel";
 
 type AccessViewId = "users" | "api_keys" | "catalogue" | "audit" | "sso";
 const ACCESS_VIEWS: AccessViewId[] = ["users", "api_keys", "catalogue", "audit", "sso"];
@@ -400,6 +401,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
               </div>
             )}
           </section>
+          <LicenceRegisterPanel t={t} />
         </div>
       )}
 

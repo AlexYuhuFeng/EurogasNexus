@@ -2335,6 +2335,29 @@ export interface PositionLadderRowDTO {
   mark_method?: string | null;
 }
 
+/** A market-data licence the firm holds; licensed data scopes are granted against it. */
+export interface MarketDataLicenceInput {
+  vendor: string;
+  source_family: string;
+  licence_type: "ENTERPRISE" | "SITE" | "NAMED_USER";
+  licensed_use: "DISPLAY" | "NON_DISPLAY" | "DISPLAY_AND_NON_DISPLAY";
+  valid_from: string;
+  valid_to?: string | null;
+  offices?: string[];
+  seats?: number | null;
+  contract_reference?: string;
+  notes?: string;
+}
+
+export interface MarketDataLicenceDTO extends MarketDataLicenceInput {
+  licence_id: string;
+  active: boolean;
+  holders: { principal_id: string; display_name: string; office: string | null }[];
+  seats_used: number | null;
+  updated_by: string;
+  updated_at_utc: string;
+}
+
 /** One delivery day of the gas-for-power view for a bidding zone. */
 export interface GasForPowerDayDTO {
   day: string;
@@ -4302,6 +4325,9 @@ export const api = {
     patch<AccessUserDTO>(`/access/users/${encodeURIComponent(principalId)}`, body),
   accessRoles: () => get<Record<string, string[]>>("/access/roles"),
   accessDataScopes: () => get<DataScopeCatalogueDTO>("/access/data-scopes"),
+  marketDataLicences: () => get<MarketDataLicenceDTO[]>("/access/market-data-licences"),
+  saveMarketDataLicence: (licenceId: string, body: MarketDataLicenceInput) =>
+    put<MarketDataLicenceDTO>(`/access/market-data-licences/${encodeURIComponent(licenceId)}`, body),
   accessApiKeys: () => get<AccessApiKeyDTO[]>("/access/api-keys"),
   createAccessApiKey: (body: AccessApiKeyCreateInputDTO) =>
     post<AccessApiKeyDTO & { api_key: string }>("/access/api-keys", body),

@@ -6,6 +6,11 @@ credentials on the server, administrators grant data scopes to people against th
 licences, and every price row is filtered by its source family. Nobody enters a vendor
 password in their own preferences.
 
+Administrators record each licence in the licence register (Administration → Access →
+Catalogue); granting a licensed data scope to a person is refused unless an active licence
+covers their office and has a free seat. See
+[ADMIN_AND_OPERATIONS.md](../guides/ADMIN_AND_OPERATIONS.md#market-data-licences).
+
 ## Priority: licensed sources to connect
 
 | Priority | Vendor / product | Covers | Licence | Route into the product today |

@@ -48,6 +48,7 @@ from eurogas_nexus.db.models.identity import (
     UserSessionRecord,
 )
 from eurogas_nexus.db.models.jobs import JobRecord
+from eurogas_nexus.db.models.market_data import MarketDataLicenceRecord
 from eurogas_nexus.db.models.market_intelligence import (
     CompanyTsoAccessRecord,
     IntradayOpportunityRecord,
@@ -266,6 +267,7 @@ __all__ = [
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
     "PowerObservationRecord",
+    "MarketDataLicenceRecord",
     "RemitUmmRecord",
     "PrincipalPreferenceRecord",
     "GlossaryTermRecord",

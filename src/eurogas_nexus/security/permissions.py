@@ -62,6 +62,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/access/users/{principal_id}", Permission.ADMIN),
     ("/api/access/roles", Permission.ADMIN),
     ("/api/access/data-scopes", Permission.ADMIN),
+    ("/api/access/market-data-licences", Permission.ADMIN),
+    ("/api/access/market-data-licences/{licence_id}", Permission.ADMIN),
     ("/api/access/api-keys", Permission.ADMIN),
     ("/api/access/api-keys/{key_id}/revoke", Permission.ADMIN),
     ("/api/audit", Permission.ADMIN),

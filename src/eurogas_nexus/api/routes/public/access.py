@@ -9,7 +9,7 @@ ADMIN role floor.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -36,6 +36,20 @@ class AccessUpdateRequest(BaseModel):
     # Composition only (never a grant): what the person does and where they sit.
     job_functions: list[str] | None = Field(default=None, max_length=10)
     office: str | None = Field(default=None, max_length=16, pattern="^[A-Za-z]{0,16}$")
+
+
+class LicenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    vendor: str = Field(min_length=1, max_length=64)
+    source_family: str = Field(min_length=1, max_length=32, pattern="^[A-Za-z0-9_]+$")
+    licence_type: str = Field(pattern="^(ENTERPRISE|SITE|NAMED_USER)$")
+    licensed_use: str = Field(pattern="^(DISPLAY|NON_DISPLAY|DISPLAY_AND_NON_DISPLAY)$")
+    valid_from: date
+    valid_to: date | None = None
+    offices: list[str] = Field(default_factory=list, max_length=32)
+    seats: int | None = Field(default=None, ge=1, le=100_000)
+    contract_reference: str = Field(default="", max_length=128)
+    notes: str = Field(default="", max_length=2000)
 
 
 class ApiKeyCreateRequest(BaseModel):
@@ -334,6 +348,19 @@ def patch_user(principal_id: str, body: AccessUpdateRequest, request: Request) -
                     "human_review_required": True,
                 },
             )
+        if body.data_scopes is not None:
+            office = (
+                (body.office.strip().upper() or None) if body.office is not None else row.office
+            )
+            _require_licences(
+                session,
+                principal_id=principal_id,
+                current=row.data_scopes or [],
+                requested=body.data_scopes,
+                office=office,
+                admin=admin,
+                before=before,
+            )
         if body.status:
             row.status = body.status
             if body.status in {"DISABLED", "LOCKED"}:
@@ -402,17 +429,231 @@ def list_roles(request: Request) -> dict:
 @router.get("/api/access/data-scopes")
 def list_data_scopes(request: Request) -> dict:
     _require_admin(request, Permission.IDENTITY_READ)
+    from eurogas_nexus.domain.ingestion.source_registry import registered_sources
+    from eurogas_nexus.security.identity import PUBLIC_BASELINE_SOURCE_FAMILIES
+
+    licensed = {
+        str(row["source_system"]).upper()
+        for row in registered_sources()
+        if row["credential_requirements"] and not str(row["source_system"]).endswith("_Sim")
+    }
+    licensed |= {"TRAYPORT", "WMR", "BFIX"}
     return _env(
         {
-            "public_baseline": [
-                "operator-input", "ENTSOG", "GIE", "ECB", "Weather", "BOE", "NYFED",
-            ],
-            "commercial": [
-                "EEX", "ICE_OCM", "TRAYPORT", "ICIS", "PLATTS", "ARGUS", "KPLER", "WMR", "BFIX",
-            ],
+            "public_baseline": sorted(PUBLIC_BASELINE_SOURCE_FAMILIES),
+            "commercial": sorted(licensed - {f.upper() for f in PUBLIC_BASELINE_SOURCE_FAMILIES}),
             "wildcard": "*",
         }
     )
+
+
+def _licence_payload(row, holders: list[dict]) -> dict:
+    return {
+        "licence_id": row.licence_id,
+        "vendor": row.vendor,
+        "source_family": row.source_family,
+        "licence_type": row.licence_type,
+        "licensed_use": row.licensed_use,
+        "valid_from": row.valid_from.isoformat(),
+        "valid_to": row.valid_to.isoformat() if row.valid_to else None,
+        "offices": list(row.offices or []),
+        "seats": row.seats,
+        "contract_reference": row.contract_reference,
+        "notes": row.notes,
+        "active": row.valid_from <= date.today()
+        and (row.valid_to is None or date.today() <= row.valid_to),
+        "holders": holders,
+        "seats_used": len(holders) if row.licence_type == "NAMED_USER" else None,
+        "updated_by": row.updated_by,
+        "updated_at_utc": row.updated_at_utc.isoformat(),
+    }
+
+
+def _licences(session):
+    from eurogas_nexus.db.models import MarketDataLicenceRecord
+    from eurogas_nexus.domain.market_data.licences import Licence, LicenceType, LicensedUse
+
+    rows = session.query(MarketDataLicenceRecord).all()
+    return rows, [
+        Licence(
+            licence_id=row.licence_id,
+            vendor=row.vendor,
+            source_family=row.source_family,
+            licence_type=LicenceType(row.licence_type),
+            use=LicensedUse(row.licensed_use),
+            valid_from=row.valid_from,
+            valid_to=row.valid_to,
+            offices=tuple(row.offices or ()),
+            seats=row.seats,
+            contract_reference=row.contract_reference,
+        )
+        for row in rows
+    ]
+
+
+def _holders_by_family(session, *, exclude: str | None = None) -> dict[str, list[dict]]:
+    from eurogas_nexus.db.models import IdentityPrincipalRecord
+
+    holders: dict[str, list[dict]] = {}
+    for person in session.query(IdentityPrincipalRecord).all():
+        if person.principal_id == exclude or person.status != "ACTIVE":
+            continue
+        for scope in person.data_scopes or []:
+            holders.setdefault(str(scope).upper(), []).append(
+                {
+                    "principal_id": person.principal_id,
+                    "display_name": person.display_name,
+                    "office": person.office,
+                }
+            )
+    return holders
+
+
+def _require_licences(
+    session,
+    *,
+    principal_id: str,
+    current: list[str],
+    requested: list[str],
+    office: str | None,
+    admin: AuthenticatedPrincipal,
+    before: dict,
+) -> None:
+    """Refuse (audited) a newly granted licensed family the licence register does not cover."""
+
+    from eurogas_nexus.domain.market_data.licences import grant_problems
+    from eurogas_nexus.security.identity import PUBLIC_BASELINE_SOURCE_FAMILIES
+
+    added = {s.strip().upper() for s in requested} - {str(s).upper() for s in current}
+    if not added:
+        return
+    _rows, licences = _licences(session)
+    holders = {
+        family: len(people)
+        for family, people in _holders_by_family(session, exclude=principal_id).items()
+    }
+    problems = grant_problems(
+        families=added,
+        office=office,
+        licences=licences,
+        holders=holders,
+        public_families=PUBLIC_BASELINE_SOURCE_FAMILIES,
+        today=date.today(),
+    )
+    if not problems:
+        return
+    _audit_admin(
+        session,
+        actor=admin.principal_id,
+        action="access.user.update",
+        resource=f"identity_principal:{principal_id}",
+        outcome="denied",
+        detail="unlicensed data scope: "
+        + "; ".join(f"{k}: {v}" for k, v in sorted(problems.items())),
+        before=before,
+    )
+    session.commit()
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "error": "data_scope_not_licensed",
+            "message": "Grant licensed data scopes only against a licence in the register.",
+            "families": problems,
+        },
+    )
+
+
+@router.get("/api/access/market-data-licences")
+def list_market_data_licences(request: Request) -> dict:
+    """The licence register with each licence's current holders (vendor usage report)."""
+
+    admin = _require_admin(request, Permission.IDENTITY_READ)
+    _require_db()
+    with _session() as session:
+        rows, _ = _licences(session)
+        holders = _holders_by_family(session)
+        payload = [
+            _licence_payload(row, holders.get(row.source_family.upper(), []))
+            for row in sorted(rows, key=lambda r: (r.source_family, r.licence_id))
+        ]
+        _audit_admin(
+            session,
+            actor=admin.principal_id,
+            action="access.licences.list",
+            resource="market_data_licences",
+            outcome="listed",
+        )
+        session.commit()
+    return _env(payload)
+
+
+@router.put("/api/access/market-data-licences/{licence_id}")
+def put_market_data_licence(licence_id: str, body: LicenceRequest, request: Request) -> dict:
+    """Record or amend one licence. End a licence by setting ``valid_to``; rows are kept."""
+
+    from eurogas_nexus.db.models import MarketDataLicenceRecord
+    from eurogas_nexus.domain.market_data.licences import (
+        Licence,
+        LicenceType,
+        LicensedUse,
+        validate_licence,
+    )
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    if not licence_id or len(licence_id) > 64:
+        raise HTTPException(status_code=422, detail={"code": "licence_id_invalid"})
+    offices = sorted({o.strip().upper() for o in body.offices if o.strip()})
+    problems = validate_licence(
+        Licence(
+            licence_id=licence_id,
+            vendor=body.vendor,
+            source_family=body.source_family,
+            licence_type=LicenceType(body.licence_type),
+            use=LicensedUse(body.licensed_use),
+            valid_from=body.valid_from,
+            valid_to=body.valid_to,
+            offices=tuple(offices),
+            seats=body.seats,
+        )
+    )
+    if problems:
+        raise HTTPException(
+            status_code=422, detail={"code": "licence_invalid", "problems": problems}
+        )
+    with _session() as session:
+        row = session.get(MarketDataLicenceRecord, licence_id)
+        before = None
+        if row is None:
+            row = MarketDataLicenceRecord(licence_id=licence_id)
+            session.add(row)
+        else:
+            before = _licence_payload(row, [])
+        row.vendor = body.vendor
+        row.source_family = body.source_family.upper()
+        row.licence_type = body.licence_type
+        row.licensed_use = body.licensed_use
+        row.valid_from = body.valid_from
+        row.valid_to = body.valid_to
+        row.offices = offices or None
+        row.seats = body.seats
+        row.contract_reference = body.contract_reference
+        row.notes = body.notes
+        row.updated_by = admin.principal_id
+        row.updated_at_utc = datetime.now(UTC)
+        session.flush()
+        after = _licence_payload(row, [])
+        _audit_admin(
+            session,
+            actor=admin.principal_id,
+            action="access.licence.update",
+            resource=f"market_data_licence:{licence_id}",
+            outcome="updated" if before else "created",
+            before=before,
+            after=after,
+        )
+        session.commit()
+    return _env(after)
 
 
 @router.get("/api/access/api-keys")

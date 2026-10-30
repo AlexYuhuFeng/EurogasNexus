@@ -110,12 +110,37 @@ def test_access_apis_require_admin_and_record_audit(tmp_path, monkeypatch) -> No
     rows = users.json()["data"]
     assert {row["principal_id"] for row in rows} >= {admin_id, analyst_id}
 
+    # A licensed data scope is granted only against a licence in the register.
+    unlicensed = client.patch(
+        f"/api/access/users/{analyst_id}",
+        headers=_headers(admin_key),
+        json={"roles": ["REVIEWER"], "data_scopes": ["ICIS"]},
+    )
+    assert unlicensed.status_code == 409
+    assert "ICIS" in unlicensed.json()["detail"]["families"]
+    licence = client.put(
+        "/api/access/market-data-licences/icis-2026",
+        headers=_headers(admin_key),
+        json={
+            "vendor": "ICIS",
+            "source_family": "ICIS",
+            "licence_type": "NAMED_USER",
+            "licensed_use": "DISPLAY",
+            "valid_from": "2026-01-01",
+            "seats": 1,
+            "contract_reference": "ICIS-123",
+        },
+    )
+    assert licence.status_code == 200, licence.text
     patched = client.patch(
         f"/api/access/users/{analyst_id}",
         headers=_headers(admin_key),
         json={"roles": ["REVIEWER"], "data_scopes": ["ICIS"]},
     )
     assert patched.status_code == 200
+    register = client.get("/api/access/market-data-licences", headers=_headers(admin_key))
+    (row,) = register.json()["data"]
+    assert row["seats_used"] == 1 and row["holders"][0]["principal_id"] == analyst_id
     assert patched.json()["data"]["role"] == "REVIEWER"
     assert patched.json()["data"]["data_scopes"] == ["ICIS"]
 

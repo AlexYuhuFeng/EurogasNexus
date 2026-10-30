@@ -150,6 +150,17 @@ def test_an_administrator_still_grants_another_principal(access) -> None:
     """The control refuses self-grants, not administration."""
 
     client = access["client"]
+    client.put(
+        "/api/access/market-data-licences/eex-enterprise",
+        headers=_headers(access["admin_bearer"]),
+        json={
+            "vendor": "EEX",
+            "source_family": "EEX",
+            "licence_type": "ENTERPRISE",
+            "licensed_use": "DISPLAY_AND_NON_DISPLAY",
+            "valid_from": "2026-01-01",
+        },
+    ).raise_for_status()
 
     response = client.patch(
         f"/api/access/users/{access['other_id']}",

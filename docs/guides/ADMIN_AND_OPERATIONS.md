@@ -43,3 +43,14 @@ Backups and restore drill (`backup_runtime.py`, `backup_restore_drill.py`), rete
 (`prune_audit_events.py`, `prune_runtime_data.py`), stale jobs (`recover_stale_jobs.py`),
 health at `/api/health/ready`, metrics at `/api/runtime/metrics`. Operations index:
 [docs/operations](../operations).
+
+## Market-data licences
+
+The firm, not each user, holds market-data licences. Record every licence under
+Administration → Access → Catalogue → Market-data licences (vendor, source family,
+enterprise, site or named-user, display or non-display use, validity, seats). A licensed
+data scope (EEX, ICE_ENDEX, TRAYPORT, ...) can then be granted to a person only when an
+active licence covers their office and, for named-user licences, a seat is free. The holder
+list is the usage report a vendor asks for in an audit. Vendor API credentials are stored
+once on the server (Administration → Credentials), never in personal preferences.
+
