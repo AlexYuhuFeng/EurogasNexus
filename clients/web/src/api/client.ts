@@ -1489,6 +1489,12 @@ export interface StorageTrajectoryDTO {
   limitations: string[];
 }
 
+export interface FinancingRateDTO {
+  benchmark_id: string; currency: string; day_count: string; fixing_date: string; as_of: string;
+  benchmark_rate_pct: number; spread_bps: number; all_in_pct: number; all_in_act365_pct: number;
+  staleness_days: number; source_system: string; source_reference: string; attribution: string;
+}
+
 export interface StorageObsDTO {
   observation_id: string; facility_id: string; facility_name: string;
   country?: string; inventory_twh: number | null; working_capacity_twh?: number | null;
@@ -3674,6 +3680,21 @@ export const api = {
     get<PriceConversionDTO>(
       "/market/price-conversion",
       { value: String(value), from_unit: fromUnit, fx_source: fxSource },
+      options,
+    ),
+
+  /** Contract financing rate: benchmark fixing on/before `asOf` + spread (backend-resolved). */
+  financingRate: (benchmark: string, spreadBps: number, asOf?: string, options?: ApiRequestOptions) =>
+    get<FinancingRateDTO>(
+      "/market/financing-rate",
+      { benchmark, spread_bps: String(spreadBps), ...(asOf ? { as_of: asOf } : {}) },
+      options,
+    ),
+
+  interestRates: (benchmark?: string, options?: ApiRequestOptions) =>
+    get<{ benchmarks: Record<string, { label: string; day_count: string; attribution: string }>; fixings: unknown[] }>(
+      "/market/interest-rates",
+      benchmark ? { benchmark } : undefined,
       options,
     ),
 

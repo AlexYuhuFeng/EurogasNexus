@@ -3551,5 +3551,15 @@
   "market.tenor_short.within-day": "日内",
   "market.tenor_short.day-ahead": "日前",
   "market.tenor_short.weekend": "周末",
-  "market.tenor_short.month-ahead": "月前"
+  "market.tenor_short.month-ahead": "月前",
+  "financing.title": "按基准利率计算融资利率",
+  "financing.benchmark": "基准",
+  "financing.benchmark.SONIA": "SONIA（英镑）",
+  "financing.benchmark.ESTR": "€STR（欧元）",
+  "financing.benchmark.SOFR": "SOFR（美元）",
+  "financing.spread_bps": "点差（基点）",
+  "financing.as_of": "观察日",
+  "financing.resolve": "查询",
+  "financing.apply": "用作融资利率",
+  "financing.unavailable": "该基准在此日期附近无定盘，请运行基准利率采集。"
 }

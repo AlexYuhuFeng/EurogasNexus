@@ -55,6 +55,8 @@ KNOWN_ENTITLED_SYSTEMS_V1 = frozenset(
         "Weather",
         "WMR",
         "BFIX",
+        "BOE",
+        "NYFED",
     }
 )
 

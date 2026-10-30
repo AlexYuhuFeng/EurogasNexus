@@ -289,3 +289,49 @@ def test_fixing_import_script_upserts_licensed_rows(runtime_db, tmp_path):
     bad = tmp_path / "bad.csv"
     bad.write_text("date,pair,rate\n2026-10-28,EURUSD,abc\n")
     assert main(["--source", "WMR", "--file", str(bad)]) == 2
+
+
+def test_interest_rates_and_financing_rate(runtime_db):
+    from datetime import date as _date
+
+    from eurogas_nexus.db.models import InterestRateObservationRecord
+
+    with Session(runtime_db) as session:
+        for day, rate in ((28, 4.7012), (29, 4.7034)):
+            session.add(
+                InterestRateObservationRecord(
+                    observation_id=f"sonia-2026-10-{day}",
+                    benchmark_id="SONIA",
+                    currency="GBP",
+                    value_date=_date(2026, 10, day),
+                    rate_pct=rate,
+                    day_count="ACT/365F",
+                    source_system="BOE",
+                    source_reference="boe-iadb:IUDSOIA",
+                    ingested_at_utc=datetime(2026, 10, 30, 9, 30, tzinfo=UTC),
+                )
+            )
+        session.commit()
+    client = TestClient(create_app())
+    listed = client.get("/api/market/interest-rates", params={"benchmark": "SONIA"})
+    assert listed.status_code == 200, listed.text
+    data = listed.json()["data"]
+    assert [row["value_date"] for row in data["fixings"]] == ["2026-10-29", "2026-10-28"]
+    assert data["benchmarks"]["SONIA"]["day_count"] == "ACT/365F"
+
+    resolved = client.get(
+        "/api/market/financing-rate",
+        params={"benchmark": "SONIA", "as_of": "2026-10-30", "spread_bps": 150},
+    )
+    assert resolved.status_code == 200, resolved.text
+    rate = resolved.json()["data"]
+    assert rate["fixing_date"] == "2026-10-29"
+    assert rate["all_in_pct"] == pytest.approx(6.2034)
+
+    missing = client.get(
+        "/api/market/financing-rate", params={"benchmark": "SOFR", "as_of": "2026-10-30"}
+    )
+    assert missing.status_code == 422
+    assert missing.json()["detail"]["code"] == "financing_rate_unavailable"
+    unknown = client.get("/api/market/interest-rates", params={"benchmark": "LIBOR"})
+    assert unknown.status_code == 422

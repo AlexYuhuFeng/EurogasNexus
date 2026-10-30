@@ -31,6 +31,14 @@ from eurogas_nexus.domain.market.fx_fixings import (
     resolve_fixing,
     select_fixing_rates,
 )
+from eurogas_nexus.domain.market.interest_rates import (
+    BENCHMARKS,
+    InterestRateError,
+    resolve_financing_rate,
+)
+from eurogas_nexus.domain.market.interest_rates import (
+    benchmark as rate_benchmark,
+)
 from eurogas_nexus.domain.market.products import (
     ProductCodeError,
     resolve_product,
@@ -436,6 +444,127 @@ def convert_market_price(
         source="gas-unit-conversion",
         warnings=warnings,
     )
+
+
+@router.get("/api/market/interest-rates")
+def list_interest_rates(
+    request: Request,
+    benchmark: str | None = Query(default=None, max_length=8),
+    limit: int = Query(default=30, ge=1, le=400),
+) -> dict:
+    """Overnight benchmark fixings (SONIA, €STR, SOFR), newest first per benchmark.
+
+    返回隔夜基准利率定盘（按基准最新在前）；DB 未配置时降级为空并告警。
+
+    Raises:
+        HTTPException: 422 ``unknown_benchmark``; 503 ``runtime_db_unavailable``.
+    """
+
+    selected = None
+    if benchmark:
+        try:
+            selected = rate_benchmark(benchmark).benchmark_id
+        except InterestRateError as exc:
+            raise HTTPException(
+                status_code=422, detail={"code": "unknown_benchmark", "message": str(exc)}
+            ) from exc
+    if not _db_is_configured():
+        return _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; benchmark fixings are unavailable."],
+        )
+    rows = _filter_entitled_rows(request, _interest_rate_rows(selected), source_key="source_system")
+    per_benchmark: dict[str, int] = {}
+    limited = []
+    for row in rows:
+        count = per_benchmark.get(row["benchmark_id"], 0)
+        if count < limit:
+            limited.append(row)
+            per_benchmark[row["benchmark_id"]] = count + 1
+    benchmarks = {
+        key: {
+            "label": item.label,
+            "currency": item.currency,
+            "day_count": item.day_count,
+            "administrator": item.administrator,
+            "attribution": item.attribution,
+        }
+        for key, item in BENCHMARKS.items()
+    }
+    return _env({"benchmarks": benchmarks, "fixings": limited}, source="runtime-postgresql")
+
+
+@router.get("/api/market/financing-rate")
+def resolve_contract_financing_rate(
+    request: Request,
+    benchmark: str = Query(..., max_length=8),
+    as_of: date | None = None,
+    spread_bps: float = Query(default=0.0, ge=-1000, le=5000, allow_inf_nan=False),
+    max_staleness_days: int = Query(default=7, ge=0, le=31),
+) -> dict:
+    """All-in contract financing rate = benchmark fixing on/before ``as_of`` + spread.
+
+    Returns the rate on the benchmark's own day count and restated on ACT/365F (the
+    basis the early-cash term accrues on), with the fixing date and source.
+    合同融资利率 = 截至 as_of 的基准定盘 + 点差；同时给出 ACT/365F 等效利率。
+
+    Raises:
+        HTTPException: 422 ``financing_rate_unavailable`` (unknown benchmark, no or
+            stale fixing); 503 ``runtime_db_unavailable``.
+    """
+
+    anchor = as_of or datetime.now(UTC).date()
+    try:
+        rate_benchmark(benchmark)
+        rows = (
+            _filter_entitled_rows(request, _interest_rate_rows(None), source_key="source_system")
+            if _db_is_configured()
+            else []
+        )
+        resolved = resolve_financing_rate(
+            rows,
+            benchmark,
+            as_of=anchor,
+            spread_bps=spread_bps,
+            max_staleness_days=max_staleness_days,
+        )
+    except InterestRateError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "financing_rate_unavailable", "message": str(exc)},
+        ) from exc
+    return _env(resolved.as_dict(), source="runtime-postgresql")
+
+
+def _interest_rate_rows(benchmark_id: str | None) -> list[dict]:
+    """Stored fixings, newest first (entitlement applied by the caller)."""
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import InterestRateObservationRecord
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            query = session.query(InterestRateObservationRecord)
+            if benchmark_id:
+                query = query.filter(InterestRateObservationRecord.benchmark_id == benchmark_id)
+            records = query.order_by(InterestRateObservationRecord.value_date.desc()).all()
+            return [
+                {
+                    "benchmark_id": record.benchmark_id,
+                    "currency": record.currency,
+                    "value_date": record.value_date.isoformat(),
+                    "rate_pct": record.rate_pct,
+                    "day_count": record.day_count,
+                    "source_system": record.source_system,
+                    "source_reference": record.source_reference,
+                    "ingested_at_utc": record.ingested_at_utc.isoformat(),
+                }
+                for record in records
+            ]
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
 
 
 def _fx_rows() -> list[dict]:

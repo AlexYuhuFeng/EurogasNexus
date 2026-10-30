@@ -3551,5 +3551,15 @@
   "market.tenor_short.within-day": "WD",
   "market.tenor_short.day-ahead": "DA",
   "market.tenor_short.weekend": "WE",
-  "market.tenor_short.month-ahead": "MA"
+  "market.tenor_short.month-ahead": "MA",
+  "financing.title": "Financing rate from benchmark",
+  "financing.benchmark": "Benchmark",
+  "financing.benchmark.SONIA": "SONIA (GBP)",
+  "financing.benchmark.ESTR": "€STR (EUR)",
+  "financing.benchmark.SOFR": "SOFR (USD)",
+  "financing.spread_bps": "Spread (bp)",
+  "financing.as_of": "Observed on",
+  "financing.resolve": "Look up",
+  "financing.apply": "Use as financing rate",
+  "financing.unavailable": "No recent fixing for this benchmark and date. Run the benchmark-rate ingest."
 }

@@ -25,6 +25,9 @@ PUBLIC_BASELINE_SOURCE_FAMILIES = frozenset(
         "GIE",
         "ECB",
         "Weather",
+        # Benchmark-rate administrators (SONIA, SOFR): free public fixings.
+        "BOE",
+        "NYFED",
     }
 )
 

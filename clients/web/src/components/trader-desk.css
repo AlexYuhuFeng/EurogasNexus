@@ -101,3 +101,28 @@
   color: var(--eg-muted);
   font-weight: 600;
 }
+
+.financing-rate-helper {
+  display: grid;
+  gap: var(--space-1);
+  border: 1px dashed var(--eg-hairline);
+  padding: var(--space-2);
+}
+
+.financing-rate-inputs,
+.financing-rate-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.financing-rate-result small,
+.financing-rate-note {
+  color: var(--eg-muted);
+  font-size: 11px;
+}
+
+.financing-rate-note.issue {
+  color: var(--eg-warning);
+}

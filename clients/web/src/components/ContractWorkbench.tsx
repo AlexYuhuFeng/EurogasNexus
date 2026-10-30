@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { PortfolioResourceDTO, UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
+import { FinancingRateHelper } from "@/components/FinancingRateHelper";
 import { LngEconomicsPanel } from "@/components/LngEconomicsPanel";
 import { useLngEconomicsOnly } from "@/app/model/useLngEconomicsOnly";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
@@ -293,6 +294,7 @@ export function ContractWorkbench({
               <label>{t("economics.cash_lag")}<input type="number" min="0" value={contract.screen_sale_cash_lag_days ?? ""} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
               <label>{t("contracts.upstream_payment_lag")}<input type="number" min="0" value={contract.upstream_payment_lag_days ?? ""} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
               <label>{t("economics.finance_rate")}<input type="number" min="0" value={contract.annual_financing_rate_pct ?? ""} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
+              <FinancingRateHelper t={t} onApply={(rate) => updateContractNumber("annual_financing_rate_pct", String(rate))} />
               <label className="span-2">{t("contracts.governing_law")}<input value={contract.governing_law} onChange={(event) => updateContractText("governing_law", event.target.value)} /></label>
             </div><ContractPaymentTerms read={contract.persisted_payment_terms} t={t} /></fieldset>}
             {clauseView === "restrictions" && <fieldset><legend>{t("contracts.restrictions")}</legend><p>{t("contracts.section_help.restrictions")}</p><div className="contract-field-grid">

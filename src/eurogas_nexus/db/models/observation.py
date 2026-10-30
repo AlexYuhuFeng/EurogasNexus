@@ -5,17 +5,19 @@
 标记（fail-closed 数据纪律的落库形态）。
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     Index,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -82,6 +84,28 @@ class FxObservationRecord(Base):
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class InterestRateObservationRecord(Base):
+    """One overnight benchmark fixing (SONIA, €STR, SOFR) from its administrator.
+
+    对应表 ``interest_rate_observations``；合同融资利率（基准 + 点差）的定盘来源。
+    """
+
+    __tablename__ = "interest_rate_observations"
+    __table_args__ = (
+        UniqueConstraint("benchmark_id", "value_date", name="uq_interest_rate_benchmark_date"),
+    )
+
+    observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    benchmark_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    value_date: Mapped[date] = mapped_column(Date, nullable=False)
+    rate_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    day_count: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_system: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    ingested_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class FlowObservationRecord(Base):

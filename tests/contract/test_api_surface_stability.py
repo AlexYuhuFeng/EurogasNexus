@@ -75,6 +75,8 @@ PINNED_PUBLIC_PATHS = {
     "/api/market/opportunities",
     "/api/market/quotes",
     "/api/market/price-conversion",
+    "/api/market/financing-rate",
+    "/api/market/interest-rates",
     "/api/market/products",
     "/api/market/spreads",
     "/api/monitoring/alerts",

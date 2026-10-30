@@ -654,3 +654,57 @@ def convert_gas_price_result(
             params[key] = item
     data, meta = get_envelope(api_url(base_url, "market/price-conversion"), params=params)
     return SdkResult(dict(data), meta)
+
+
+def fetch_interest_rates_result(
+    base_url: str,
+    *,
+    benchmark: str | None = None,
+    limit: int = 30,
+) -> SdkResult[dict[str, Any]]:
+    """Fetch overnight benchmark fixings (SONIA, €STR, SOFR) and the benchmark catalogue.
+
+    Args:
+        base_url: Operator-provided server root URL.
+        benchmark: ``SONIA``, ``ESTR`` or ``SOFR``; every benchmark when None.
+        limit: Fixings per benchmark, newest first.
+
+    Returns:
+        An SdkResult whose data holds ``benchmarks`` and ``fixings``.
+
+    Raises:
+        httpx.HTTPStatusError: 422 for an unknown benchmark.
+    """
+    params: dict[str, Any] = {"limit": limit}
+    if benchmark:
+        params["benchmark"] = benchmark
+    data, meta = get_envelope(api_url(base_url, "market/interest-rates"), params=params)
+    return SdkResult(dict(data), meta)
+
+
+def resolve_financing_rate_result(
+    base_url: str,
+    *,
+    benchmark: str,
+    spread_bps: float = 0.0,
+    as_of: str | None = None,
+) -> SdkResult[dict[str, Any]]:
+    """Resolve a contract financing rate (benchmark fixing on/before ``as_of`` + spread).
+
+    Args:
+        base_url: Operator-provided server root URL.
+        benchmark: ``SONIA``, ``ESTR`` or ``SOFR``.
+        spread_bps: Contract spread in basis points.
+        as_of: ISO observation date; server today when None.
+
+    Returns:
+        An SdkResult with the all-in rate, its ACT/365F restatement and the fixing used.
+
+    Raises:
+        httpx.HTTPStatusError: 422 ``financing_rate_unavailable`` for no or stale fixing.
+    """
+    params: dict[str, Any] = {"benchmark": benchmark, "spread_bps": spread_bps}
+    if as_of:
+        params["as_of"] = as_of
+    data, meta = get_envelope(api_url(base_url, "market/financing-rate"), params=params)
+    return SdkResult(dict(data), meta)

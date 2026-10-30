@@ -388,7 +388,7 @@ def list_data_scopes(request: Request) -> dict:
     _require_admin(request, Permission.IDENTITY_READ)
     return _env(
         {
-            "public_baseline": ["operator-input", "ENTSOG", "GIE", "ECB", "Weather"],
+            "public_baseline": ["operator-input", "ENTSOG", "GIE", "ECB", "Weather", "BOE", "NYFED"],
             "commercial": [
                 "EEX", "ICE_OCM", "TRAYPORT", "ICIS", "PLATTS", "ARGUS", "KPLER", "WMR", "BFIX",
             ],

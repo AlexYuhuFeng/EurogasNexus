@@ -273,8 +273,9 @@ def _assert_invalid_insert(connection: sa.Connection, table, values) -> None:
 def test_schema_revision_and_model_native_contract():
     migration = _migration("0044_entsog_native_rates.py")
 
-    assert DB_SCHEMA_REVISION == "0044_entsog_native_rates"
-    assert migration.revision == DB_SCHEMA_REVISION
+    # The ENTSOG native-rate migration is no longer head; it stays in the chain.
+    assert migration.revision == "0044_entsog_native_rates"
+    assert DB_SCHEMA_REVISION == "0045_interest_rate_observations"
     assert migration.down_revision == "0043_national_gas_rest_evidence"
 
     for model, volume_column, check_name in (
