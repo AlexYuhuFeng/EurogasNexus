@@ -40,7 +40,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U nexus"
+          --health-cmd "pg_isready -U nexus -d nexus_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -50,6 +50,15 @@ jobs:
       EUROGAS_NEXUS_TEST_POSTGRES_URL: postgresql+pg8000://nexus:nexus@127.0.0.1:5432/nexus_test
       # In-process TestClient smoke only; this is not a server deployment secret.
       EUROGAS_NEXUS_PUBLIC_API_TOKEN: ci-weather-model-public-api-token
+      # Reproducible floating point. The golden fit values were produced by OpenBLAS's
+      # Haswell (AVX2) kernels; GitHub's x64 pool mixes AVX2 and AVX-512 machines, and on
+      # AVX-512 OpenBLAS picks SkylakeX kernels whose least-squares results differ in the
+      # last bits (~1e-14 relative). That changed the full-precision selection hash and made
+      # the golden test pass or fail by runner hardware. Pinning the kernel and a single
+      # thread makes the computation identical on every x86-64-v3 runner; the gate itself
+      # is unchanged.
+      OPENBLAS_CORETYPE: Haswell
+      OPENBLAS_NUM_THREADS: "1"
 
     steps:
       - name: Check out the dispatched commit
