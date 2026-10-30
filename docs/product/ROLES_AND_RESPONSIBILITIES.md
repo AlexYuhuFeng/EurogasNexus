@@ -43,6 +43,30 @@ wins over the persona home.
 - **No execution.** Nothing in the product places orders, nominates or settles.
   Decisions are recorded evidence, not execution approval.
 
+## IT administration versus business leadership
+
+They are different roles with different rights:
+
+| | Platform administrator (IT) | Head of trading / business lead |
+|---|---|---|
+| Role | `ADMIN` only | `REVIEWER` (or `ANALYST` if they also research) |
+| Job function | Platform administrator | Management |
+| Sees prices, positions, P&L | No | Yes, within their data scopes |
+| Manages users, keys, audit, sources, runtime | Yes | No |
+| Decides who may see commercial data | Carries out the change | **Owns the decision** |
+| Records decisions on cases | No | Yes (never on a case they opened) |
+
+The code enforces the left column: `ADMIN` is a platform bundle with no commercial
+permission, and an administrator cannot change their own grants. A business lead
+holds no identity or administration permission.
+
+What it does not yet enforce is that a **commercial grant** (a commercial role or a
+data scope) is approved by the business owner before IT applies it. Until an
+access-request flow exists, administrators should apply commercial grants only
+against a ticket approved by the desk head, and the audit log records who made the
+change. A periodic access review (quarterly, by each desk head) is the compensating
+control.
+
 ## Offices
 
 Office codes (UK, CA, SG, CN, NL, DE, CH) set a person's local time zone for display. They

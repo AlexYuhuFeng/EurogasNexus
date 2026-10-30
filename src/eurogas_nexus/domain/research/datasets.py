@@ -17,6 +17,12 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from eurogas_nexus.domain.research.feature_transforms import (
+    apply_transform,
+    cutoff_offsets,
+    is_declarative,
+    validate_declarative_feature,
+)
 from eurogas_nexus.domain.research.features import FeatureDefinition
 from eurogas_nexus.domain.research.leakage import LeakageValidator
 from eurogas_nexus.domain.research.resampling import (
@@ -75,6 +81,53 @@ class DatasetSplit(BaseModel):
     def contains(self, value: datetime) -> bool:
         value_utc = _utc(value)
         return _utc(self.start) <= value_utc < _utc(self.end)
+
+
+def walk_forward_folds(
+    start: datetime,
+    end: datetime,
+    *,
+    train: timedelta,
+    test: timedelta,
+    step: timedelta | None = None,
+    embargo: timedelta = timedelta(0),
+    expanding: bool = True,
+) -> list[list[DatasetSplit]]:
+    """Walk-forward (rolling-origin) folds: train on the past, test on the next block.
+
+    Each fold is a non-overlapping ``[train, test]`` pair ready to be a spec's
+    ``split_specs``. ``embargo`` is left empty between the end of training and the start of
+    testing, so a label whose horizon reaches into the test block is never trained on.
+    ``expanding`` keeps the training start at ``start``; otherwise the window rolls with
+    fixed length ``train``. A fold whose test block would pass ``end`` is not produced.
+    """
+
+    if train <= timedelta(0) or test <= timedelta(0) or embargo < timedelta(0):
+        raise ValueError("train and test must be positive and embargo non-negative")
+    step = step or test
+    if step <= timedelta(0):
+        raise ValueError("step must be positive")
+    start, end = _utc(start), _utc(end)
+    folds: list[list[DatasetSplit]] = []
+    test_start = start + train + embargo
+    index = 0
+    while test_start + test <= end:
+        train_end = test_start - embargo
+        train_start = start if expanding else train_end - train
+        folds.append(
+            [
+                DatasetSplit(name=f"fold{index}-train", start=train_start, end=train_end),
+                DatasetSplit(
+                    name=f"fold{index}-test",
+                    start=test_start,
+                    end=test_start + test,
+                    embargo_before=embargo,
+                ),
+            ]
+        )
+        index += 1
+        test_start += step
+    return folds
 
 
 class DatasetSpec(BaseModel):
@@ -522,6 +575,16 @@ def _feature_temporal_integrity(
     return TemporalIntegrityState.TEMPORAL_VERIFIED.value
 
 
+def _weakest_integrity(states: list[str]) -> str:
+    for weakest in (
+        TemporalIntegrityState.TEMPORAL_INSUFFICIENT.value,
+        TemporalIntegrityState.TEMPORAL_APPROXIMATE.value,
+    ):
+        if weakest in states:
+            return weakest
+    return TemporalIntegrityState.TEMPORAL_VERIFIED.value
+
+
 def _compute_builtin_feature(
     feature: FeatureDefinition,
     series_values: dict[str, list[float]],
@@ -651,6 +714,12 @@ def build_dataset(
     overlap = set(spec.feature_ids) & set(spec.target_ids)
     if overlap:
         issues.append(f"target ids used as features: {sorted(overlap)}")
+    for feature_id in spec.feature_ids:
+        if feature_id in features and is_declarative(features[feature_id]):
+            try:
+                validate_declarative_feature(features[feature_id])
+            except ValueError as exc:
+                issues.append(str(exc))
     if issues:
         raise ValueError("; ".join(issues))
 
@@ -660,10 +729,19 @@ def build_dataset(
     validator = LeakageValidator(mode=spec.point_in_time_policy.mode.value)
     computers = feature_computers or {}
 
+    # Point-in-time selections keyed by cutoff: a lag or rolling window at one origin reads
+    # the cutoffs earlier origins already resolved.
+    selections: dict[datetime, dict[str, DatasetEvidenceRecord | None]] = {}
+
+    def select_at(cutoff: datetime) -> dict[str, DatasetEvidenceRecord | None]:
+        if cutoff not in selections:
+            selections[cutoff] = _select_series_values(
+                records, cutoff, spec=spec, resampling_policy=resampling_policy
+            )
+        return selections[cutoff]
+
     for origin in origins:
-        selected = _select_series_values(
-            records, origin, spec=spec, resampling_policy=resampling_policy
-        )
+        selected = select_at(origin)
         series_values: dict[str, list[float | None]] = {}
         for series_id, record in selected.items():
             series_values.setdefault(series_id, []).append(
@@ -676,16 +754,28 @@ def build_dataset(
                 for series_id in feature.input_dependencies
             }
             computer = computers.get(feature_id)
-            value = (
-                computer(feature, values, {})
-                if computer
-                else _compute_builtin_feature(feature, values, {})
-            )
+            used = [selected]
+            if computer:
+                value = computer(feature, values, {})
+            elif is_declarative(feature):
+                used = [select_at(origin - offset) for offset in cutoff_offsets(feature)]
+
+                def value_at(offset: timedelta, _origin: datetime = origin) -> dict:
+                    chosen = select_at(_origin - offset)
+                    return {
+                        series_id: record.value if record is not None else None
+                        for series_id, record in chosen.items()
+                    }
+
+                value = apply_transform(feature, value_at)
+            else:
+                value = _compute_builtin_feature(feature, values, {})
             row_source_refs = sorted(
                 {
                     record.source_reference
+                    for chosen in used
                     for series_id in feature.input_dependencies
-                    if (record := selected.get(series_id)) is not None
+                    if (record := chosen.get(series_id)) is not None
                 }
             )
             row = {
@@ -698,8 +788,11 @@ def build_dataset(
                 "is_imputed": False,
                 "quality_state": "OBSERVED" if value is not None else "MISSING",
                 "available_at": origin,
-                "temporal_integrity": _feature_temporal_integrity(
-                    selected, feature.input_dependencies
+                "temporal_integrity": _weakest_integrity(
+                    [
+                        _feature_temporal_integrity(chosen, feature.input_dependencies)
+                        for chosen in used
+                    ]
                 ),
                 "source_refs": row_source_refs,
             }

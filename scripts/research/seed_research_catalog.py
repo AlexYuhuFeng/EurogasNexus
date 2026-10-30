@@ -61,6 +61,28 @@ def _feature(feature_id: str, name: str, deps: list[str], unit: str) -> FeatureD
     )
 
 
+def _declared(
+    feature_id: str, name: str, transformation: str, deps: list[str], **metadata: object
+) -> FeatureDefinition:
+    """A feature computed from its declaration (see domain/research/feature_transforms.py)."""
+
+    return FeatureDefinition(
+        feature_id=feature_id,
+        name=name,
+        description=f"{name}; every input resolved as of its own earlier cutoff.",
+        category="market",
+        input_dependencies=deps,
+        output_unit="EUR/MWh",
+        frequency="1d",
+        availability_class="DERIVED_AS_OF",
+        transformation=transformation,
+        transformation_version="v1",
+        lookback="none",
+        missing_data_policy="mask",
+        metadata=dict(metadata),
+    )
+
+
 def _target(target_id: str, name: str, entity: str, unit: str) -> TargetDefinition:
     return TargetDefinition(
         target_id=target_id,
@@ -209,6 +231,18 @@ def main() -> int:
                 ["market.price.NBP.DAY_AHEAD"],
                 "GBP/MWh",
             ),
+            _declared("TTF_DA_LAG1", "TTF day-ahead, previous day", "lag",
+                      ["market.price.TTF.DAY_AHEAD"], lag_steps=1),
+            _declared("TTF_DA_CHG1", "TTF day-ahead, 1-day change", "difference",
+                      ["market.price.TTF.DAY_AHEAD"], lag_steps=1),
+            _declared("TTF_DA_CHG5", "TTF day-ahead, 5-day change", "difference",
+                      ["market.price.TTF.DAY_AHEAD"], lag_steps=5),
+            _declared("TTF_DA_MA20", "TTF day-ahead, 20-day mean", "rolling_mean",
+                      ["market.price.TTF.DAY_AHEAD"], window=20),
+            _declared("TTF_DA_SD20", "TTF day-ahead, 20-day dispersion", "rolling_std",
+                      ["market.price.TTF.DAY_AHEAD"], window=20),
+            _declared("NBP_DA_MA5", "NBP day-ahead, 5-day mean",
+                      "rolling_mean", ["market.price.NBP.DAY_AHEAD"], window=5),
         ):
             upsert_feature_definition(
                 session,

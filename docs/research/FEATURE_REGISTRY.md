@@ -36,12 +36,37 @@ reference:
 - `feature_dependency_closure()` resolves transitive dependencies
   deterministically.
 
+## Declarative transforms (no code needed)
+
+A feature whose `transformation` is one of the names below is computed from its
+declaration alone (`domain/research/feature_transforms.py`), so an analyst adds a
+lag or a rolling statistic by registering data, not by asking for a release.
+
+| Transformation | Inputs | Metadata | Value at origin *t* |
+|---|---|---|---|
+| `identity` | 1 series | `step` | value as of *t* |
+| `linear_combination` | 1+ series | `weights` (one per input) | Σ wᵢ·xᵢ as of *t* |
+| `lag` | 1 series | `lag_steps`, `step` | value as of *t − k·step* |
+| `difference` | 1 series | `lag_steps`, `step` | x(*t*) − x(*t − k·step*) |
+| `rolling_mean` | 1 series | `window`, `step` | mean of the last *n* values |
+| `rolling_std` | 1 series | `window` (≥ 2), `step` | sample standard deviation of the last *n* values |
+
+Each value is resolved **as of its own cutoff** with the same point-in-time selection
+the builder uses at the origin. A lag therefore returns what was known at *t − k*,
+not a later revision of that day's value placed on the old date. A missing input at
+any cutoff masks the value (no fill). `step` is `"1d"` or `"1h"` style; windows are
+capped at 400.
+
 ## Seeded features
 
-| Feature id | Dependencies | Unit |
-|---|---|---|
-| `NBP_TTF_DA_SPREAD` | `market.price.NBP.DAY_AHEAD`, `market.price.TTF.DAY_AHEAD` | EUR/MWh |
-| `ROUTE_MARGIN` | `market.price.NBP.DAY_AHEAD` plus explicit route cost context | GBP/MWh |
+| Feature id | Transformation | Dependencies | Unit |
+|---|---|---|---|
+| `NBP_TTF_DA_SPREAD` | builtin | `market.price.NBP.DAY_AHEAD`, `market.price.TTF.DAY_AHEAD` | EUR/MWh |
+| `ROUTE_MARGIN` | builtin | `market.price.NBP.DAY_AHEAD` plus explicit route cost context | GBP/MWh |
+| `TTF_DA_LAG1` | `lag` 1d | `market.price.TTF.DAY_AHEAD` | EUR/MWh |
+| `TTF_DA_CHG1`, `TTF_DA_CHG5` | `difference` 1d / 5d | `market.price.TTF.DAY_AHEAD` | EUR/MWh |
+| `TTF_DA_MA20`, `TTF_DA_SD20` | `rolling_mean` / `rolling_std` 20d | `market.price.TTF.DAY_AHEAD` | EUR/MWh |
+| `NBP_DA_MA5` | `rolling_mean` 5d | `market.price.NBP.DAY_AHEAD` | EUR/MWh |
 
 ## Safety rules
 

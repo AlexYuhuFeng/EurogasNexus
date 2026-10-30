@@ -49,3 +49,67 @@ dataset foundation.
 
 CR-15 / P14 is complete (see `docs/agents/`). Next: CR-16 / P15 Energy
 Forecast Benchmark, unless CR-15 reveals a material defect first.
+
+## Assessment: training datasets for gas and power forecasting (2026-10-30)
+
+### Is the expectation valid?
+
+Yes, for **fundamental, daily-to-seasonal forecasting**, and that is where it pays.
+European gas and power desks forecast LDZ and industrial demand, gas-for-power burn,
+storage injection and withdrawal, LNG send-out, cross-border flows and the spreads
+these drive (NBP–TTF, THE–TTF, TTF–JKM, clean spark spreads). Weather explains most of
+the day-to-day variance in demand, and gas-for-power burn links gas to power prices,
+wind and solar output. The hard part of those models is not the estimator; it is a
+history that shows **what was known at each forecast time**: weather forecast
+vintages instead of later actuals, flows before their revisions, and prices with
+their real publication times. Most in-house datasets get this wrong and their
+backtests look better than live performance. A product that produces point-in-time,
+licence-aware, reproducible datasets solves the expensive part.
+
+It is **not** a meaningful source for the work HFT and market-making firms (Jane
+Street, Hudson River Trading and similar) do in these markets. Their edge is order-book
+microstructure: tick-by-tick ICE Endex/EEX/Trayport depth, queue position and latency.
+That needs a dedicated capture stack and exchange licences for derived use, not a
+research product, so it is out of scope by design. What those firms and energy
+majors share with this product is the discipline: point-in-time data, embargoed
+walk-forward evaluation and reproducible snapshots.
+
+In a trading house the user is a **quantitative analyst or data scientist** on the
+fundamentals or quant team. Here that is an ANALYST role with the
+`QUANT_RESEARCHER` job function; data operators keep the sources current, and the
+dataset build/export routes stay behind the GOVERNED floor and the export
+entitlement gate.
+
+### What the product provides
+
+| Need | Status |
+|---|---|
+| Point-in-time selection (`available_at ≤ cutoff`), forecast vintages | Ready |
+| Target registry; a target can never be a feature; leakage validator | Ready |
+| Bounded resampling (no unlimited forward fill) | Ready |
+| Lags, changes, rolling mean/std, linear combinations, each as of its own cutoff | Ready (2026-10-30) |
+| Walk-forward folds with an embargo (`walk_forward_folds`) | Ready (2026-10-30) |
+| Immutable snapshots, content hash, lineage, quality report | Ready |
+| Parquet/CSV export with the entitlement gate | Ready |
+| Python SDK for notebooks | Ready |
+
+### Gaps, in priority order
+
+1. **Coverage of drivers.** The catalogue has price series, weather and a few
+   features. A useful demand or spread model also needs power prices and
+   generation (ENTSO-E day-ahead prices, load, wind and solar), storage (AGSI),
+   flows (ENTSOG), LNG send-out (ALSI), and calendar effects (holidays, gas-day,
+   weekends). Each needs an ingestor that records publication time.
+2. **Source certification for STRICT mode.** Until a source's historical
+   `available_at` is certified, its datasets are EXPLORATORY.
+3. **Licensing of exported features.** Exchange settlement prices and broker data
+   are usually licensed for display; derived-data or non-display use in models needs
+   the customer's own licence. The export gate enforces the row policy; the licence
+   itself sits with the customer (see `docs/legal/DATA_SOURCE_TERMS.md`).
+4. **Bulk and scheduled builds.** Builds are bounded per request (250k origins).
+   Multi-year hourly datasets for many entities should run as scheduled jobs that
+   write Parquet to object storage.
+5. **Forecasts back into the platform.** Models are trained outside (notebooks,
+   MLflow or similar). Their outputs should come back as `FORECAST` vintages so they
+   enter later datasets and shadow evaluation like any other source. Training
+   infrastructure stays out of scope.
