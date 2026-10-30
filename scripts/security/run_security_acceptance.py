@@ -77,8 +77,9 @@ def _checks() -> list[dict]:
     # explicit caller-weighted degree-day computation (191 paths / 205 operations).
     # Three READ-floor trader desk paths add product calendar, price conversion and
     # storage-target trajectory reads (194 paths / 208 operations). Two READ-floor
-    # benchmark-rate paths add fixings and financing-rate resolution (196 / 210).
-    check("public_surface_bounded", len(paths) == 196, f"public paths={len(paths)}")
+    # benchmark-rate paths add fixings and financing-rate resolution; the spread lab adds
+    # its series catalogue and analysis (198 / 212).
+    check("public_surface_bounded", len(paths) == 198, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

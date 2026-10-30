@@ -23,13 +23,13 @@ function run(overrides: Record<string, unknown> = {}) {
 }
 
 test("strategy lab task ids are the four research workflow tasks", () => {
-  assert.deepEqual(STRATEGY_TASKS, ["design", "backtest", "compare", "shadow"]);
+  assert.deepEqual(STRATEGY_TASKS, ["spread", "design", "backtest", "compare", "shadow"]);
 });
 
 test("strategy lab task deep links and safe fallback", () => {
   assert.equal(strategyTaskFromLocation("?workspace=strategy&task=backtest"), "backtest");
-  assert.equal(strategyTaskFromLocation("?workspace=strategy"), "design");
-  assert.equal(strategyTaskFromLocation("?workspace=strategy&task=orders"), "design");
+  assert.equal(strategyTaskFromLocation("?workspace=strategy"), "spread");
+  assert.equal(strategyTaskFromLocation("?workspace=strategy&task=orders"), "spread");
   assert.equal(
     strategyTaskToSearch("?gasDay=2026-09-07", "compare"),
     "gasDay=2026-09-07&workspace=strategy&task=compare",
@@ -42,7 +42,7 @@ test("strategy workspace re-entry clears a stale task from another workspace", (
     "market",
   );
   const reenteredStrategy = workspaceTaskSearch(leftStrategy, "strategy");
-  assert.equal(strategyTaskFromLocation(reenteredStrategy), "design");
+  assert.equal(strategyTaskFromLocation(reenteredStrategy), "spread");
 });
 
 test("comparison is not ready until at least two persisted runs are selected", () => {

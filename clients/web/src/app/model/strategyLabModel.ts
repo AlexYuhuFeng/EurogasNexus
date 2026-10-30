@@ -1,8 +1,14 @@
 import type { StrategyRunDTO } from "@/api/client";
 
-export type StrategyTaskId = "design" | "backtest" | "compare" | "shadow";
+export type StrategyTaskId = "spread" | "design" | "backtest" | "compare" | "shadow";
 
+/**
+ * Spread first: reading a benchmark or a spread and testing a simple rule on it needs no saved
+ * strategy, so it is where a trader starts; Design/Backtest/Shadow keep the governed path for
+ * rules worth freezing.
+ */
 export const STRATEGY_TASKS: StrategyTaskId[] = [
+  "spread",
   "design",
   "backtest",
   "compare",
@@ -15,7 +21,7 @@ export function strategyTaskFromLocation(search: string): StrategyTaskId {
   const value = new URLSearchParams(search).get("task");
   return STRATEGY_TASKS.includes(value as StrategyTaskId)
     ? (value as StrategyTaskId)
-    : "design";
+    : "spread";
 }
 
 export function strategyTaskToSearch(

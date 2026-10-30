@@ -18,6 +18,7 @@ import { StrategyShadowShell } from "./StrategyShadowShell";
 import { StrategyShadowRunDetail } from "./StrategyShadowRunDetail";
 import { StrategyIdentityHeader } from "./StrategyIdentityHeader";
 import { StrategyNavigator } from "./StrategyNavigator";
+import { SpreadLabWorkspace } from "./SpreadLabWorkspace";
 import "./strategy-lab.css";
 
 type Translate = (key: string) => string;
@@ -32,6 +33,7 @@ interface StrategyLabWorkspaceProps {
 }
 
 const TASK_LABEL_KEYS: Record<StrategyTaskId, string> = {
+  spread: "strategy_lab.task.spread",
   design: "strategy_lab.task.design",
   backtest: "strategy_lab.task.backtest",
   compare: "strategy_lab.task.compare",
@@ -136,6 +138,13 @@ export function StrategyLabWorkspace({
         titleLevel={workspaceHeaderTitleLevel("strategy")}
         onActivate={controller.openTask}
       />
+      {controller.task === "spread" ? (
+        // The spread lab works on market series, not on a saved strategy, so it takes the full
+        // width without the strategy navigator.
+        <div id="strategy-lab-panel" role="tabpanel" aria-label={t(TASK_LABEL_KEYS.spread)}>
+          <SpreadLabWorkspace t={t} />
+        </div>
+      ) : (
       <div className="strategy-lab-grid" id="strategy-lab-panel">
         <StrategyNavigator
           controller={controller}
@@ -194,6 +203,7 @@ export function StrategyLabWorkspace({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

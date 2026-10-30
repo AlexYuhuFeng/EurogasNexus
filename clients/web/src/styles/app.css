@@ -2159,7 +2159,9 @@ input {
   vector-effect: non-scaling-stroke;
 }
 
-.strategy-chart-point {
+/* The HTML marker in the shadow performance plot. SVG chart points share the class name, and a
+   CSS translate on an SVG <circle> moves it off its own coordinates, so the rule is scoped. */
+.strategy-performance-plot .strategy-chart-point {
   position: absolute;
   width: 9px;
   height: 9px;

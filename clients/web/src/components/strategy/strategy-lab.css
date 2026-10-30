@@ -17,7 +17,7 @@
 .strategy-lab-task-tabs button {
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
   padding: 5px 10px;
   font-size: 12.5px;
   font-weight: 600;
@@ -38,7 +38,7 @@
 
 .strategy-navigator {
   border: 1px solid var(--border, #d7dde6);
-  background: var(--panel, #ffffff);
+  background: var(--eg-canvas, #ffffff);
   padding: 8px;
   min-height: 400px;
   overflow: auto;
@@ -125,7 +125,7 @@
 
 .strategy-identity-header {
   border: 1px solid var(--border, #d7dde6);
-  background: var(--panel, #ffffff);
+  background: var(--eg-canvas, #ffffff);
   padding: 8px 10px;
   display: flex;
   justify-content: space-between;
@@ -147,7 +147,7 @@
 .strategy-identity-id,
 .strategy-version-state,
 .strategy-lifecycle-state {
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
   font-size: 11.5px;
 }
 
@@ -155,7 +155,7 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
 }
 
 .strategy-design,
@@ -169,7 +169,7 @@
 
 .strategy-validation-summary {
   border: 1px solid var(--border, #d7dde6);
-  background: var(--panel, #ffffff);
+  background: var(--eg-canvas, #ffffff);
   padding: 8px 10px;
   display: flex;
   gap: 8px;
@@ -194,7 +194,7 @@
 .strategy-form-grid label {
   display: grid;
   gap: 4px;
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
   font-size: 11.5px;
 }
 
@@ -215,7 +215,7 @@
   gap: 8px;
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid var(--border-subtle, #d9dee7);
+  border-top: 1px solid var(--eg-hairline, #d9dee7);
 }
 
 .strategy-evidence-leg {
@@ -224,13 +224,13 @@
   gap: 8px;
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid var(--border-subtle, #d9dee7);
+  border: 1px solid var(--eg-hairline, #d9dee7);
   border-radius: 6px;
 }
 
 .strategy-evidence-leg legend {
   padding: 0 6px;
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
   font-size: 11.5px;
 }
 
@@ -277,7 +277,7 @@
   gap: 14px;
   flex-wrap: wrap;
   font-size: 11.5px;
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
 }
 
 .strategy-kpi-strip {
@@ -292,7 +292,7 @@
 }
 
 .strategy-kpi-strip span {
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
   font-size: 11px;
 }
 
@@ -338,13 +338,13 @@
 }
 
 .strategy-chart-zero {
-  stroke: var(--border-strong, #9aa7ba);
+  stroke: var(--eg-hairline-strong, #9aa7ba);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .strategy-chart-axis {
-  fill: var(--text-muted, #58657a);
+  fill: var(--eg-muted, #58657a);
   font-size: 10px;
 }
 
@@ -352,7 +352,7 @@
   min-height: 120px;
   display: grid;
   place-items: center;
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
 }
 
 .strategy-event-table,
@@ -403,7 +403,7 @@
 .strategy-shadow-checklist {
   margin: 0;
   padding-left: 18px;
-  color: var(--text-muted, #58657a);
+  color: var(--eg-muted, #58657a);
 }
 
 .strategy-error {
@@ -470,3 +470,97 @@
 .strategy-price-choice input[type="checkbox"] { width: auto; flex: 0 0 auto; margin-top: .25rem; }
 .strategy-price-choice span { min-width: 0; overflow-wrap: anywhere; }
 .strategy-price-choice small { display: block; color: var(--text-secondary); }
+
+/* Spread lab: legs and rule side by side above the result, compact like a ticket. */
+.spread-lab {
+  display: grid;
+  gap: 12px;
+}
+
+.spread-lab-form {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.2fr) minmax(280px, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.spread-lab-form fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #d6dce5);
+  border-radius: 6px;
+}
+
+.spread-lab-rule {
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+}
+
+.spread-lab-rule legend,
+.spread-lab-legs legend {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.spread-lab-form label {
+  display: grid;
+  gap: 3px;
+  font-size: 11.5px;
+}
+
+.spread-lab-leg {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.spread-lab-formula {
+  margin: 0;
+  font-size: 12px;
+}
+
+.spread-lab-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+}
+
+.spread-lab-result {
+  display: grid;
+  gap: 10px;
+}
+
+.spread-lab-result .strategy-kpi-strip {
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+}
+
+.spread-lab-error {
+  color: var(--danger, #a3261a);
+}
+
+.spread-lab-warnings {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11.5px;
+}
+
+.spread-lab-trades td.pos {
+  color: var(--eg-positive, #1d6b3a);
+}
+
+.spread-lab-trades td.neg {
+  color: var(--danger, #a3261a);
+}
+
+@media (max-width: 900px) {
+  .spread-lab-form,
+  .spread-lab-result .strategy-kpi-strip {
+    grid-template-columns: 1fr;
+  }
+}

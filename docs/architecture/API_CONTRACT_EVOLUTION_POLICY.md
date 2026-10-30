@@ -366,3 +366,15 @@ points, directions, dimensions or incompatible periods, nor interpret absent
 quantities as zero. Native rows do not prove booked capacity or execution rights.
 See [RFC0005](../engineering/RFC-0005-ENTSOG-NATIVE-RATES.md). No path or operation
 was added: the exact census stays191paths/205operations.
+
+## 2026-10-30 additive spread lab contract
+
+`GET /api/research/spread-series` lists the daily close series the caller is entitled
+to (hub, tenor, source, unit, first/last date, day count). `POST
+/api/research/spread-analysis` builds a weighted spread of one to four of those series,
+reports its statistics (z-score, percentile, AR(1) half-life) and backtests one
+declarative rule (z-score mean reversion or fixed bands) with positions decided at
+close t and P&L earned from t to t+1. Both sit under the existing `/api/research/`
+GOVERNED prefix and filter rows by data entitlement; neither creates an order. A
+mixed-unit spread, an unknown series or an invalid rule is a 422
+`spread_analysis_invalid`. Public census: 198 paths / 212 operations.

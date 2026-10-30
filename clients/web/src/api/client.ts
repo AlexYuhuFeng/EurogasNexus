@@ -2311,6 +2311,68 @@ export interface AnalysisResultDTO {
 
 // --- API functions ---
 
+export interface SpreadSeriesDTO {
+  hub: string;
+  tenor: string;
+  source_system: string;
+  currency: string;
+  unit: string;
+  first: string;
+  last: string;
+  days: number;
+  simulated: boolean;
+}
+
+export interface SpreadLegInputDTO {
+  hub: string;
+  tenor: string;
+  source_system?: string | null;
+  weight: number;
+}
+
+export interface SpreadRuleInputDTO {
+  kind: "zscore" | "threshold";
+  lookback: number;
+  entry_z: number;
+  exit_z: number;
+  low?: number | null;
+  high?: number | null;
+  volume_mwh_per_day: number;
+  cost_per_mwh: number;
+}
+
+export interface SpreadPointDTO {
+  date: string;
+  legs: number[];
+  spread: number;
+  zscore: number | null;
+  position: number;
+  pnl: number;
+  cumulative_pnl: number;
+}
+
+export interface SpreadTradeDTO {
+  opened: string;
+  closed: string | null;
+  direction: "long" | "short";
+  entry_spread: number;
+  exit_spread: number | null;
+  pnl: number;
+}
+
+export interface SpreadAnalysisDTO {
+  labels: string[];
+  weights: number[];
+  rule: Record<string, unknown>;
+  unit: string;
+  points: SpreadPointDTO[];
+  statistics: Record<string, number | null>;
+  trades: SpreadTradeDTO[];
+  metrics: Record<string, number | null>;
+  limitations: string[];
+  analysis_hash: string;
+}
+
 export interface ResearchFeatureDTO {
   feature_id: string;
   content_hash: string;
@@ -3918,6 +3980,11 @@ export const api = {
   runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
   runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
+  spreadSeries: (options?: ApiRequestOptions) => get<SpreadSeriesDTO[]>("/research/spread-series", undefined, options),
+  spreadAnalysis: (
+    body: { legs: SpreadLegInputDTO[]; date_from?: string | null; date_to?: string | null; rule: SpreadRuleInputDTO },
+    options?: ApiRequestOptions,
+  ) => post<SpreadAnalysisDTO>("/research/spread-analysis", body, options),
   researchFeatures: (options?: ApiRequestOptions) => get<ResearchFeatureDTO[]>("/research/features", undefined, options),
   researchTargets: (options?: ApiRequestOptions) => get<ResearchTargetDTO[]>("/research/targets", undefined, options),
   researchDatasets: (options?: ApiRequestOptions) => get<ResearchDatasetDTO[]>("/research/datasets", undefined, options),

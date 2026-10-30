@@ -393,3 +393,36 @@ def calculate_lng_economics_only(
 # The capability name used by the domain primitive is also exposed here so a
 # caller can select either the SDK's action-style name or the domain's verb.
 compute_lng_economics_only = calculate_lng_economics_only
+
+
+def list_spread_series(base_url: str) -> list[dict]:
+    """List the daily close series the caller may use in a spread analysis.
+
+    Args:
+        base_url: Base URL of the backend server.
+
+    Returns:
+        One entry per (hub, tenor, source): currency, unit, first/last date and days.
+    """
+
+    r = _http.get(f"{base_url}/api/research/spread-series", timeout=15)
+    r.raise_for_status()
+    return r.json()["data"]
+
+
+def analyse_spread(base_url: str, **kwargs) -> dict:
+    """Build a weighted spread of 1-4 daily series and backtest one declarative rule.
+
+    The rule is data, not code (``kind`` ``zscore`` or ``threshold``); for anything the
+    rule cannot express, pull :func:`list_spread_series` data into your own notebook.
+
+    Args:
+        base_url: Base URL of the backend server.
+        **kwargs: ``legs`` (hub, tenor, weight, optional source_system), optional
+            ``date_from``/``date_to`` and ``rule``.
+
+    Returns:
+        Points, statistics, trades, metrics, limitations and the analysis hash.
+    """
+
+    return _post(f"{base_url}/api/research/spread-analysis", kwargs)["data"]
