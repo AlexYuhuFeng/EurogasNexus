@@ -16,7 +16,14 @@ import shutil
 import uuid
 from pathlib import Path
 
-import pytest
+# Reproducible floating point for the numerical golden tests, set before NumPy loads:
+# OpenBLAS picks CPU-specific kernels (SkylakeX on AVX-512, Haswell on AVX2) whose
+# least-squares results differ in the last bits, which changes full-precision evidence
+# hashes. The golden values are Haswell's; an explicit environment value still wins.
+os.environ.setdefault("OPENBLAS_CORETYPE", "Haswell")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+import pytest  # noqa: E402
 
 _TMP_ROOT = Path(os.environ.get("EUROGAS_NEXUS_TEST_TMP_ROOT", ".tmp_work")).resolve()
 
