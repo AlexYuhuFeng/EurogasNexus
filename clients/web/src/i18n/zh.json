@@ -3702,5 +3702,19 @@
   "shortcuts.ladder-move": "在阶梯单元格间移动",
   "shortcuts.palette-close": "关闭菜单、对话框或面板",
   "shortcuts.shortcuts-open": "显示此列表",
-  "sources.category.power": "电力"
+  "sources.category.power": "电力",
+  "position.title": "头寸阶梯",
+  "position.horizon": "期限",
+  "position.months": "{{count}} 个月",
+  "position.empty": "此期限内没有实物合同或已成交交易。",
+  "position.month": "月份",
+  "position.hub": "枢纽",
+  "position.physical": "实物（MWh）",
+  "position.financial": "金融（MWh）",
+  "position.net": "净头寸",
+  "position.net_bar": "多 / 空",
+  "position.hedged": "已对冲",
+  "position.mtm": "盯市价值",
+  "position.var": "VaR 95% 1日",
+  "position.var_help": "基于 {{count}} 个日度价格变动的历史模拟；仅价格风险。"
 }

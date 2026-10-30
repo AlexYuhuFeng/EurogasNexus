@@ -520,3 +520,110 @@
 .decision-case-record textarea { min-height: 90px; }
 .review-supporting-tools { margin-top: 20px; border-top: 1px solid var(--eg-hairline); padding-top: 14px; }
 .review-supporting-tools > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+
+/* Position ladder: months down, hubs within, a diverging bar for net long/short. */
+.position-ladder-panel .panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.position-horizon {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.position-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.position-summary > div {
+  display: grid;
+  gap: 2px;
+}
+
+.position-summary span {
+  font-size: 11px;
+  color: var(--eg-muted, #6f6f6f);
+}
+
+.position-summary strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
+.position-ladder {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.position-ladder th,
+.position-ladder td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--eg-hairline, #ebebeb);
+  text-align: left;
+}
+
+.position-ladder .num {
+  text-align: right;
+}
+
+.position-ladder td.long {
+  color: var(--eg-positive, #1d6b3a);
+}
+
+.position-ladder td.short {
+  color: var(--eg-negative, #a3261a);
+}
+
+.position-bar-cell {
+  position: relative;
+  min-width: 140px;
+}
+
+.position-bar-cell::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  bottom: 3px;
+  border-left: 1px solid var(--eg-hairline-strong, #a1a1a1);
+}
+
+.position-bar {
+  position: absolute;
+  top: 6px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.position-bar.long {
+  left: 50%;
+  background: var(--eg-positive, #1d6b3a);
+}
+
+.position-bar.short {
+  right: 50%;
+  background: var(--eg-negative, #a3261a);
+}
+
+.position-notes {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 11.5px;
+  color: var(--eg-muted, #6f6f6f);
+}
+
+@media (max-width: 900px) {
+  .position-summary {
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
+  }
+}

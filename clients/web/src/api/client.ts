@@ -2322,6 +2322,27 @@ export interface PreferencesDTO {
 
 export type OrganisationSettingsDTO = Partial<Record<PreferenceKey, string>> & { enabled_languages?: string[] };
 
+export interface PositionLadderRowDTO {
+  hub: string;
+  month: string;
+  physical_mwh: number;
+  financial_mwh: number;
+  net_mwh: number;
+  hedge_ratio: number | null;
+}
+
+export interface PositionLadderDTO {
+  rows: PositionLadderRowDTO[];
+  totals: { physical_mwh: number; financial_mwh: number; net_mwh: number };
+  mark_to_market: number | null;
+  unpriced_rows: number;
+  var_95_1d: number | null;
+  var_observations: number;
+  horizon: { start: string; end: string };
+  legs: { physical: number; financial: number };
+  warnings: string[];
+}
+
 export interface SpreadSeriesDTO {
   hub: string;
   tenor: string;
@@ -3991,6 +4012,8 @@ export const api = {
   runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
   runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
+  positionLadder: (months = 12, options?: ApiRequestOptions) =>
+    get<PositionLadderDTO>("/portfolio/position-ladder", { months: String(months) }, options),
   myPreferences: (options?: ApiRequestOptions) => get<PreferencesDTO>("/me/preferences", undefined, options),
   /** Merge personal choices; `null` clears one back to the organisation default. */
   saveMyPreferences: (patch: Partial<Record<PreferenceKey, string | null>>) =>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
+import { PositionLadderPanel, PositionRiskSummary } from "@/components/PositionLadderPanel";
 import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
 import { routeCostDraftForRoute } from "@/app/model/routeCostModel";
 import { useRouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
@@ -287,6 +288,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
           <strong>{t("portfolio.scope.title")}</strong>
           <p className="panel-copy">{t(task === "exposure" ? "portfolio.scope.observations" : "portfolio.scope.scenario")}</p>
         </section>
+        {task === "overview" && <PositionRiskSummary t={t} />}
         {task === "overview" && <PortfolioOverview controller={controller} />}
         {task === "resources" && (
           <ContractWorkbench
@@ -341,6 +343,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             <CapacityBillingPanel t={t} capacityBilling={capacityBilling} />
           </>
         )}
+        {task === "exposure" && <PositionLadderPanel t={t} />}
         {task === "exposure" && (
           <MarketPositioningWorkspace
             portfolioSummary={api.portfolioSummary}

@@ -21,3 +21,28 @@
 
 The optimizer is an exact min-cost flow. It never executes anything; a
 positive PnL is indicative and requires human review.
+
+## Position ladder (Portfolio → Exposure)
+
+One table for physical and financial positions, so a desk with upstream supply, cargoes and
+hub sales alongside screen hedges sees how long or short it is, where and when:
+
+- **Rows:** delivery month (Nov-26, Dec-26, …), then hub within the month.
+- **Physical:** stored upstream contracts at their daily contract quantity over their gas
+  year (supply long, sales short), placed at the hub named in the delivery point.
+- **Financial:** filled screen trades spread over their delivery gas days (buys long, sells
+  short).
+- **Net**, a long/short bar, and **Hedged**: the share of the physical position offset by
+  trades.
+- **Summary:** net, physical, financial, overall hedge ratio, mark-to-market against the
+  latest licensed daily close per hub (flat across months), and a one-day 95 % VaR by
+  historical simulation of the open position.
+
+The figures are indicative: price risk on the open position only (no volume, basis, shape
+or credit risk), and never computed from simulated prices. Legs priced in a different
+currency from the hub's mark are left unvalued and counted. The risk system remains the
+book of record.
+
+Who sees what first: management and risk land on Portfolio → Overview, which opens with
+the same summary strip (net, hedge ratio, mark-to-market, VaR) above the resource
+overview; traders land on Market → Curves and open the ladder when they need it.

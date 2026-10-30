@@ -96,6 +96,7 @@ PINNED_PUBLIC_PATHS = {
     "/api/physical/flows",
     "/api/physical/outages",
     "/api/portfolio/live-summary",
+    "/api/portfolio/position-ladder",
     "/api/portfolio/pnl-snapshots",
     "/api/projections/market-context",
     "/api/projections/portfolio-snapshot",

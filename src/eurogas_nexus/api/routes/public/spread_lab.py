@@ -105,15 +105,18 @@ def _daily_rows(
                 MarketObservationRecord.source_system,
                 MarketObservationRecord.metadata_json,
             ).filter(func.upper(MarketObservationRecord.unit).like("%MWH%"))
+            # SQLite stores these timestamps without an offset; compare like with like.
+            naive = session.get_bind().dialect.name == "sqlite"
+
+            def bound(day: date) -> datetime:
+                moment = datetime.combine(day, time.min, tzinfo=UTC)
+                return moment.replace(tzinfo=None) if naive else moment
+
             if date_from:
-                query = query.filter(
-                    MarketObservationRecord.observed_at_utc
-                    >= datetime.combine(date_from, time.min, tzinfo=UTC)
-                )
+                query = query.filter(MarketObservationRecord.observed_at_utc >= bound(date_from))
             if date_to:
                 query = query.filter(
-                    MarketObservationRecord.observed_at_utc
-                    < datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC)
+                    MarketObservationRecord.observed_at_utc < bound(date_to + timedelta(days=1))
                 )
             records = (
                 query.order_by(MarketObservationRecord.observed_at_utc)

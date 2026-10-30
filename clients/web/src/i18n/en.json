@@ -3702,5 +3702,19 @@
   "shortcuts.ladder-move": "Move between ladder cells",
   "shortcuts.palette-close": "Close a menu, dialog or palette",
   "shortcuts.shortcuts-open": "Show this list",
-  "sources.category.power": "Power"
+  "sources.category.power": "Power",
+  "position.title": "Position ladder",
+  "position.horizon": "Horizon",
+  "position.months": "{{count}} months",
+  "position.empty": "No physical contracts or filled trades in this horizon.",
+  "position.month": "Month",
+  "position.hub": "Hub",
+  "position.physical": "Physical (MWh)",
+  "position.financial": "Financial (MWh)",
+  "position.net": "Net",
+  "position.net_bar": "Long / short",
+  "position.hedged": "Hedged",
+  "position.mtm": "Mark-to-market",
+  "position.var": "VaR 95% 1-day",
+  "position.var_help": "Historical simulation over {{count}} daily price changes; price risk only."
 }

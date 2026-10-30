@@ -387,3 +387,12 @@ organisation defaults and the effective values. `GET /api/settings/organisation`
 the organisation defaults; `PUT` sets them and requires identity administration
 (audited). Values outside the closed vocabulary are a 422. Preferences grant nothing.
 Public census: 200 paths / 216 operations.
+
+## 2026-10-30 additive position ladder
+
+`GET /api/portfolio/position-ladder?months=N` (1-36) returns physical (stored upstream
+contracts) and financial (filled screen trades) positions by hub and delivery month with
+net and hedge ratio, a mark-to-market against the latest entitled daily close per hub, and
+an indicative one-day 95 % historical-simulation VaR of the open position. It reads under
+the existing `/api/portfolio/` READ family and commercial boundary; price history is
+entitlement-filtered. Public census: 201 paths / 217 operations.

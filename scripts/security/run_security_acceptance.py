@@ -79,8 +79,8 @@ def _checks() -> list[dict]:
     # storage-target trajectory reads (194 paths / 208 operations). Two READ-floor
     # benchmark-rate paths add fixings and financing-rate resolution; the spread lab adds
     # its series catalogue and analysis; preferences add the personal and
-    # organisation settings (200 / 216).
-    check("public_surface_bounded", len(paths) == 200, f"public paths={len(paths)}")
+    # organisation settings; the position ladder adds one read (201 / 217).
+    check("public_surface_bounded", len(paths) == 201, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 
