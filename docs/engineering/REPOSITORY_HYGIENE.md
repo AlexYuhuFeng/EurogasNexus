@@ -20,5 +20,15 @@ reduce the count would remove tests or evidence, so it is not recommended.
 | `src/eurogas_nexus/domain/research/weather_demand.py` (154 KB) | Model, features and evidence in one module | Split into features, fit and evidence modules behind the same public functions |
 | `docs/engineering/Architecture-V2/` (44 wave records) | Closed plans read as current | Mark each *Closed* with a link to the owning document (DOCUMENTATION_POLICY.md) |
 
+## Removed on 2026-10-30
+
+Files nothing referenced and no reader needed (all remain in git history): bootstrap-era
+architecture "contract" stubs for modules described as future (replaced by
+`docs/architecture/ARCHITECTURE.md`), the function-signature catalogue and new-file
+template, one-off engineering acceptance logs, superseded numbered release-acceptance
+records (07–27) and their caller inventory, an unreferenced root note and an unused
+benchmark script. Operations documents that were orphaned but useful are now linked from
+the index and the role guides.
+
 Each split is a refactor with no behaviour change: the existing tests must pass unchanged,
 and source-pin tests that name a file move with it.

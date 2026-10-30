@@ -3,243 +3,126 @@
 [![CI](https://github.com/AlexYuhuFeng/EurogasNexus/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexYuhuFeng/EurogasNexus/actions/workflows/ci.yml)
 [![Build and Release](https://github.com/AlexYuhuFeng/EurogasNexus/actions/workflows/release.yml/badge.svg)](https://github.com/AlexYuhuFeng/EurogasNexus/actions/workflows/release.yml)
 [![Release](https://img.shields.io/github/v/release/AlexYuhuFeng/EurogasNexus?include_prereleases&label=release)](https://github.com/AlexYuhuFeng/EurogasNexus/releases)
-[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](https://www.python.org/)
-[![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL-4169E1)](https://www.postgresql.org/)
-[![React](https://img.shields.io/badge/web-React%20%2B%20MapLibre-61DAFB)](https://maplibre.org/)
-[![Tauri](https://img.shields.io/badge/desktop-Tauri-FFC131)](https://tauri.app/)
 
-Eurogas Nexus is a PostgreSQL-first European gas intelligence and
-decision-support workspace for infrastructure visibility, source operations,
-route economics, resource-pool optimization, market positioning, strategy
-evaluation, and trader-reviewed analysis.
+**A decision-support workstation for European gas trading desks.** Traders, analysts,
+risk, management and compliance staff read prices, fundamentals, positions and research
+in one place, in desk units (p/th, EUR/MWh, MWh/d), on their own licensed market data.
 
-Runtime truth lives in PostgreSQL and is exposed through the backend API or
-Python SDK. Web, Windows, Linux, SDK, CLI, and public integrations all consume
-the single unversioned `/api` surface.
+Package version: `0.5.0` · Channel: `preview` · Status: release candidate for the tested
+local scope, not a production or GA release.
 
-Package version: `0.5.0` · Channel: `preview` · Status: release candidate for
-the tested local scope, not a production or GA release.
+## What it does
 
-## Product boundary
+| Area | Highlights |
+|---|---|
+| **Market** | Hub board and execution-style ladder (WD, DA, WE, BOM, months, quarters, seasons, Cal) for NBP, TTF, THE, PEG, ZTP, PSV; spreads to TTF; product strip; unit and FX converter; storage against EU targets; network map of flows and capacity |
+| **Fundamentals** | ENTSOG flows and capacity, GIE storage and LNG, ECB/BoE/NY Fed rates, ECMWF temperature, GB demand, ENTSO-E power (load, wind, solar, gas generation, prices), gas-for-power (residual load, spark/dark spreads, fuel switch) |
+| **Research** | Spread lab with declared-rule backtests; strategy design, frozen backtests, comparison and shadow runs; point-in-time training datasets over prices, power, storage, LNG and flows with lags, rolling features and walk-forward folds; Python SDK |
+| **Portfolio and risk** | Position ladder (physical and financial by hub and month, hedge ratio), mark-to-market, indicative VaR, route economics, capacity billing, early-cash valuation with SONIA/€STR/SOFR |
+| **Decisions** | Evidence-backed decision cases with four-eyes approval, alerts with optional LLM explanations, full audit trail |
+| **Platform** | SSO (OIDC), RBAC with commercial data scopes, per-user preferences and organisation defaults, English and Chinese, light/dark, green-up or red-up P&L colours, keyboard-first navigation |
 
-Eurogas Nexus is a decision-support workspace. It is not an ETRM replacement,
-execution venue, order router, nomination-submission system, auto-trading
-system, legal-advice tool, settlement system, or official trading
-recommendation system. Every strategy, route, allocation, and report output is
-a candidate that requires human review.
+**Boundary:** no order entry, execution, nomination or settlement, and no official
+trading recommendations. Every output is a candidate for human review. Market prices come
+only from the customer's own licensed sources (Trayport, ICE, EEX); the product never
+shows a simulated price as a market price.
 
-## What is in this preview
+## Who uses it
 
-- DB-composed portfolio network optimization with shared-capacity flow and
-  contract-level PnL attribution.
-- Map-first Network workspace, route/Scenario economics, and structured Review
-  evidence.
-- Source Center with PostgreSQL-backed provider posture, credentials,
-  certification, freshness, and diagnostics.
-- 10-second intraday opportunity monitoring and deduplicated live DeepSeek
-  explanations for persisted alerts.
-- PostgreSQL-backed data-operations scheduling with typed source registry,
-  restart-safe duplicate-proof ingestion runs, failure-category retry/circuit
-  breaking, calendar-aware freshness SLAs, structured quality issues, dataset
-  certification evidence, row-level entitlement propagation, and
-  Prometheus-text runtime metrics.
-- Distinct liveness/readiness health, dependency health matrix, configurable
-  DB pooling/timeouts, HTTP/DB observability, stale-job recovery, automated
-  backup/restore drill, migration preflight, release smoke and evidence-based
-  performance budgets.
-- Strategy backtesting, shadow-running, persisted run history, and risk-control
-  signals.
-- Storage-dispatch and nomination-window assessment workflows (assessment only;
-  nothing is submitted).
-- Single-organization enterprise SSO (Authorization Code + PKCE), backend
-  sessions, local identities, hashed service API keys, VIEWER/REVIEWER/
-  ANALYST/OPERATOR/ADMIN RBAC, commercial data scopes, audit and access
-  administration.
-- Web workspace packaged for Windows and Linux through Tauri, plus Server and Client-only deployment roles.
+| Role | Lands on | Guide |
+|---|---|---|
+| Trader | Market → Curves | [docs/guides/TRADER.md](docs/guides/TRADER.md) |
+| Analyst, quant | Market or Strategy Lab | [docs/guides/ANALYST_QUANT.md](docs/guides/ANALYST_QUANT.md) |
+| Risk, finance | Portfolio → Exposure | [docs/guides/RISK_AND_FINANCE.md](docs/guides/RISK_AND_FINANCE.md) |
+| Management | Portfolio → Overview | [docs/guides/MANAGEMENT.md](docs/guides/MANAGEMENT.md) |
+| Legal, compliance | Decision Center → Review | [docs/guides/LEGAL_COMPLIANCE.md](docs/guides/LEGAL_COMPLIANCE.md) |
+| IT admin, data operator | Administration, Sources | [docs/guides/ADMIN_AND_OPERATIONS.md](docs/guides/ADMIN_AND_OPERATIONS.md) |
 
-## Architecture
+## Architecture at a glance
 
-```mermaid
-flowchart TB
-    subgraph Repo["Eurogas Nexus repository"]
-        direction TB
-        subgraph Backend["Backend"]
-            Apps["apps/api"]
-            Ing["src/eurogas_nexus/ingestion"]
-            Api["src/eurogas_nexus/api"]
-            App["src/eurogas_nexus/application"]
-            Domain["src/eurogas_nexus/domain"]
-            Db["src/eurogas_nexus/db"]
-            Opt["src/eurogas_nexus/optimization"]
-            Gov["src/eurogas_nexus/security · governance"]
-        end
-
-        subgraph Clients["Clients"]
-            SDK["Python SDK"]
-            CLI["CLI"]
-            Web["Web client"]
-            Desktop["Desktop client"]
-        end
-
-        subgraph Delivery["Packaging and delivery"]
-            Deploy["deploy/ runtime containers"]
-            Scripts["scripts/ release and ops"]
-        end
-    end
-
-    Sources["Public and licensed data sources"] --> Ing
-    Ing --> PG[("PostgreSQL runtime store")]
-    PG --> Db
-    Db --> Api
-    Api --> App
-    App --> Domain
-    Domain --> Opt
-    Api --> Gov
-
-    Apps -. "thin process entrypoints" .-> Api
-    Api --> SDK
-    Api --> CLI
-    Api --> Web
-    Web --> Desktop
-
-    Deploy --> PG
-    Scripts -. "operator actions" .-> Db
-    Scripts -. "operator actions" .-> Api
+```
+ Web (React) · Desktop (Tauri, Windows/Linux) · Python SDK · CLI · MCP tools
+                         │  HTTPS /api only
+                FastAPI backend (apps/api, src/eurogas_nexus)
+                         │
+          PostgreSQL (Alembic)  ·  workers: scheduler, ingestion, monitoring
+                         │
+     ENTSOG · GIE · ECB · BoE · NY Fed · ECMWF · National Gas · ENTSO-E · EEX
+     + the customer's licensed feeds (Trayport, ICE, EEX DataSource, …)
 ```
 
-Core rules:
+Clients never touch the database; provider credentials stay in the backend. Details:
+[ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md). Multi-office deployment (UK,
+Canada, Singapore; separate China installation):
+[GLOBAL_DEPLOYMENT.md](docs/architecture/GLOBAL_DEPLOYMENT.md).
 
-- PostgreSQL is the runtime source of truth; Alembic owns schema changes.
-- Public client paths use `/api`. Internal and development routes are
-  profile-gated under `/api/internal` and `/api/dev`.
-- Clients consume the backend API or SDK only; they never connect directly to
-  PostgreSQL.
-- Provider access material is backend-owned and is never returned in plaintext.
-- Backend import is DB-free and network-free; migrations are explicit operator
-  actions.
-- Missing or stale runtime data is surfaced as a diagnostic state, never
-  replaced with fabricated client-side values.
+## Deploy
 
-## Quick start
+Two roles: a **Server** (PostgreSQL, API, HTTPS gateway, ingestion workers, in Docker
+Compose) and **Clients** (Windows or Linux desktop installer, or the browser).
 
-Requirements: Python 3.11+, Node.js 24+, PostgreSQL for runtime workflows, and
-Rust only for desktop packaging.
+1. Server: follow [DEPLOYMENT_ROLES-EN.md](docs/deployment/DEPLOYMENT_ROLES-EN.md). Windows
+   servers use `Deploy-EurogasNexus.ps1 -Role Server`; Linux servers use
+   [deploy/runtime](deploy/runtime/README-EN.md). Configuration comes from
+   `deploy/runtime/env.server.example` and is checked at start-up
+   (`python scripts/ops/check_config.py --strict`).
+2. Sign-in: configure OIDC with your identity provider
+   ([OIDC_ACCESS_TOKEN.md](docs/operations/OIDC_ACCESS_TOKEN.md)), then grant roles and
+   data scopes ([ROLES_AND_RESPONSIBILITIES.md](docs/product/ROLES_AND_RESPONSIBILITIES.md)).
+3. Data: add GIE and ENTSO-E keys, schedule the public sources, and connect or import your
+   licensed prices ([LIVE_PRICE_SOURCES.md](docs/operations/LIVE_PRICE_SOURCES.md)).
+4. Clients: install the desktop client pointing at `https://<server>/api`, or open the web
+   address.
+5. Operate: backups and restore drills, retention, health and metrics
+   ([docs/operations](docs/operations)).
+
+## Develop
+
+Requirements: Python 3.11+, Node.js 24+, PostgreSQL 16, Rust only for desktop builds.
 
 ```bash
 python -m pip install -e ".[dev]"
+alembic upgrade head                       # needs RUNTIME_STORE_DATABASE_URL
 uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
+npm --prefix clients/web ci && npm --prefix clients/web run dev
 ```
+
+Before pushing (install as `.git/hooks/pre-push`):
 
 ```bash
-npm --prefix clients/web ci
-npm --prefix clients/web run dev
-```
-
-The Web client defaults to `/api` in browser mode and to
-`http://127.0.0.1:8000/api` in the Tauri desktop shell. Settings can store a
-non-secret backend API override; remote endpoints must use HTTPS and end in
-`/api`.
-
-The single local Docker + API + Web entry point is:
-
-```powershell
-powershell -File scripts/ops/Start-LocalAcceptance.ps1
-```
-
-It starts or reuses the canonical Docker PostgreSQL container
-(`eurogas-nexus-postgres`, loopback `127.0.0.1:51356`, external verified volume
-`eurogas-nexus-postgres-data`) and then the API and Web server. It fails closed
-when the verified volume or the ignored local secret is missing, and it never
-runs initdb, seed, migration or a volume reset.
-
-Full environment, database URL, and Docker runtime instructions:
-
-- [Local development](docs/operations/LOCAL_DEVELOPMENT.md)
-- [Linux, Web, Windows and SDK development pipelines](docs/engineering/MULTI_SURFACE_DEVELOPMENT.md)
-- [Local Docker runtime troubleshooting](docs/operations/LOCAL_DOCKER_RUNTIME.md)
-- [Live PostgreSQL operations](docs/operations/LIVE_POSTGRESQL.md)
-- [DB migration runbook](docs/operations/DB_MIGRATIONS.md)
-
-## Verification
-
-Before submitting changes:
-
-```bash
-ruff check .
-pytest -q tests
+bash scripts/ci/pre_push_check.sh          # ruff check ., fast pytest, web tests
+pytest -q tests                            # full suite
 npm --prefix clients/web run build
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
+python -c "from apps.api.main import app; print(len(app.openapi()['paths']))"
 ```
 
-Documentation integrity and version consistency:
-
-```bash
-python scripts/ci/check_markdown_links.py
-python scripts/ci/check_config_contract.py
-python scripts/ci/generate_env_template.py --check
-python scripts/ci/check_toolchain_versions.py
-python scripts/ops/check_config.py --env-file scripts/ci/fixtures/release.env --strict
-python scripts/release/check_version_consistency.py
-```
-
-Configuration contract: every environment variable the code reads is declared in
-`src/eurogas_nexus/core/config_contract.py`, with its default, sensitivity, and
-whether an operator sets it. `check_config_contract.py` fails the build when a
-read is undeclared, when a declaration has no read site (dead configuration), or
-when a shipped template sets an undeclared variable. `generate_env_template.py`
-renders `.env.example` and `deploy/runtime/.env.server.example` from that same
-contract, so a template cannot drift away from the code; changing a declaration
-means regenerating the templates in the same commit.
-
-Toolchain versions: `.python-version`, `.nvmrc` and `rust-toolchain.toml` are
-canonical, and `check_toolchain_versions.py` fails the build when `pyproject.toml`,
-either client's `engines.node`, a workflow version, or a lock file's recorded
-`--python-version` disagrees with them. Bump the canonical file first, then every
-declaration that follows it.
-
-Configuration preflight: `scripts/ops/check_config.py` reports missing required
-settings, placeholder secrets, mistyped variable names, development-only switches
-left enabled in a release deployment, and a partially configured OIDC block. The
-deployment refuses to start until its errors are resolved; `--strict` also fails on
-warnings and is the form a release gate uses.
-
-Release supply-chain evidence is generated by
-`scripts/release/run_release_dry_run.py`; stable promotion is fail-closed
-behind `scripts/release/validate_stable_release.py`. Detailed guidance is in
-[Validation](docs/operations/VALIDATION.md),
-[Release readiness](docs/release/RELEASE_READINESS.md), and
-[Release engineering](docs/release/RELEASE_ENGINEERING_SPEC.md).
+CI adds PostgreSQL integration, browser acceptance in English and Chinese with
+accessibility checks, native desktop builds, SDK acceptance and licence/vulnerability
+audits. See [Validation](docs/operations/VALIDATION.md),
+[Release readiness](docs/release/RELEASE_READINESS.md) and
+[CI and branch protection](docs/engineering/CI_AND_BRANCH_PROTECTION.md).
 
 ## Documentation map
 
-- [Changelog](CHANGELOG.md)
-- [Documentation index](docs/README.md) — current, normative, runbook, design
-  reference, and historical documents.
-- [Research data foundation and ML readiness](docs/research/ML_READINESS.md)
-- [Agent-native capability layer](docs/agents/AGENT_NATIVE_ARCHITECTURE.md)
-- [中文文档索引](docs/README-CN.md)
-- [Software supply chain](docs/release/SUPPLY_CHAIN.md)
-- [Commercial UAT plan](docs/uat/COMMERCIAL_UAT_PLAN.md)
-- [User quick start](docs/user/QUICK_START.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
-- [Project directory and ownership](PROJECT_DIRECTORY.md)
-- [Architecture decisions](docs/architecture/ARCHITECTURE_DECISION_RECORD.md)
-- [UI and content standards](docs/clients/UI_CONTENT_STANDARDS.md)
-- [Professional UI Constitution (accepted contract)](docs/clients/PROFESSIONAL_UI_CONSTITUTION.md)
-- [Motion System (accepted subordinate contract)](docs/clients/MOTION_SYSTEM.md)
+- [Guides by role](docs/guides/README.md)
+- [Documentation index](docs/README.md) · [中文文档索引](docs/README-CN.md)
+- [Architecture](docs/architecture/ARCHITECTURE.md) ·
+  [Decisions](docs/architecture/ARCHITECTURE_DECISION_RECORD.md) ·
+  [Project directory and ownership](PROJECT_DIRECTORY.md)
+- [Assessment against a trading house's needs](docs/product/TRADING_HOUSE_ASSESSMENT.md)
+- [Data source terms](docs/legal/DATA_SOURCE_TERMS.md) ·
+  [Dependency licences](docs/legal/DEPENDENCY_LICENSE_REVIEW.md) ·
+  [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Research data and ML readiness](docs/research/ML_READINESS.md) ·
+  [Gas and power](docs/research/GAS_POWER_COUPLING.md)
+- [Changelog](CHANGELOG.md) · [Documentation policy](docs/engineering/DOCUMENTATION_POLICY.md)
 
-## Security, contribution, and license
+## Security and licence
 
-This is a public source-visible repository for proprietary software. Do not
-commit provider access material, licensed vendor payloads, internal commercial
-material, confidential contracts or counterparty terms, customer deployment
-details, real strategy parameters, or non-public runtime configuration.
+Proprietary software, source-visible. Do not commit credentials, licensed vendor data,
+customer contracts or deployment details. Report vulnerabilities as described in
+[SECURITY.md](SECURITY.md); contribution rules are in [CONTRIBUTING.md](CONTRIBUTING.md);
+licence terms in [LICENSE](LICENSE).
 
-- Security reporting: [SECURITY.md](SECURITY.md)
-- Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md)
-- License: [LICENSE](LICENSE) — proprietary, all rights reserved unless a
-  separate written agreement grants additional rights.
-
-中文说明：Eurogas Nexus 是面向欧洲天然气分析与运营团队的 PostgreSQL 优先
-智能工作台，提供决策支持而非执行、下单、提名或官方交易建议。中文文档入口见
-[docs/README-CN.md](docs/README-CN.md)。
+中文说明：Eurogas Nexus 是面向欧洲天然气交易团队的决策支持工作台，提供行情、基本面、头寸、
+研究与决策审阅，不进行下单、执行、提名或结算。中文文档入口见 [docs/README-CN.md](docs/README-CN.md)。

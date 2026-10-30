@@ -7,6 +7,28 @@ separates current/normative material from runbooks, design references, and
 historical public references. If two documents disagree, follow
 the current/normative document listed here and report the conflict.
 
+## Start here by role
+
+[Guides by role](guides/README.md): [Trader](guides/TRADER.md) ·
+[Analyst and quant](guides/ANALYST_QUANT.md) · [Risk and finance](guides/RISK_AND_FINANCE.md) ·
+[Management](guides/MANAGEMENT.md) · [Legal and compliance](guides/LEGAL_COMPLIANCE.md) ·
+[IT admin and data operations](guides/ADMIN_AND_OPERATIONS.md)
+
+## Architecture and operations
+
+- [Architecture](architecture/ARCHITECTURE.md) and
+  [global deployment](architecture/GLOBAL_DEPLOYMENT.md)
+- [Assessment against a trading house's needs](product/TRADING_HOUSE_ASSESSMENT.md)
+- [Roles and responsibilities](product/ROLES_AND_RESPONSIBILITIES.md)
+- Data operations: [live prices](operations/LIVE_PRICE_SOURCES.md),
+  [power](operations/POWER_DATA.md), [interest rates](operations/INTEREST_RATES.md),
+  [FX fixings](operations/FX_FIXINGS.md),
+  [ECMWF forecasts](data/ECMWF_FORECAST_OPERATIONS.md),
+  [weather-demand model](operations/WEATHER_DEMAND_MODEL_OPERATOR.md),
+  [API profiles](api/API_PROFILES.md)
+- [Documentation policy](engineering/DOCUMENTATION_POLICY.md) and
+  [repository hygiene](engineering/REPOSITORY_HYGIENE.md)
+
 ## Read first
 
 1. [Changelog](../CHANGELOG.md)
