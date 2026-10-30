@@ -1,3 +1,28 @@
+## 2026-10-30 — G1 numerical leaf integration correction
+
+Run40975872180 science job succeeded, but overall CI failed at validate/Tests:
+test_required_jobs_are_exactly_the_unconditional_main_push_leaf_jobs correctly
+caught that the new numerical leaf was absent from stable G1 required_jobs.
+Root adds the exact science leaf to policy and the reusable-leaf contract, so
+missing/skipped/failed science jobs now block release. This strengthens the gate;
+no skipped/failing check is ignored. Focused G1 tests65 passed and Ruff passed.
+Broader tests/release run is still live at session48981; do not restart it or
+claim its result. New revision CI must verify the policy integration.
+
+New prediction runtime mechanics verified by root while DeepSeek still finalizes:
+9 Linux/NumPy units passed, and1 actual PostgreSQL integration flow passed in
+owned nexus_prediction_runtime_ci_20261030. It fits committed synthetic21-day
+history, predicts from future committed forecast rows using the actual core,
+excludes late receipt/issue rows, preserves pending caller row and transaction.
+Not yet accepted/registered/committed; wait for worker terminal and final review.
+
+Causality review worker84538 completed. Root separately executed40 syntheticdays:
+historical receipts ->10 folds/weather selected; receipts captured now with past
+cutoff -> refused no training rows; today's cutoff -> candidate fitted but zero
+folds/INSUFFICIENT_DATA/calendar baseline. Accepted finding: historical weather
+archive alone cannot fix target-label availability. No receipt rewriting or
+reconstructed-target policy is authorized by the existing ranking option.
+See RETROSPECTIVE_DEMAND_LABEL_CAUSALITY_REVIEW.md root addendum.
 ## 2026-10-30 — hosted numerical proof and S3 null-version correction
 
 Hosted science job123803628020 in run40975872180 at3ee4a79 completed success:

@@ -63,7 +63,7 @@
     }
   },
   "ci_acceptance": {
-    "policy": "Read-only GitHub API contract for G1 (PILOT-B2). The validator queries only api.github.com, only for this repository and workflow path, at the full release commit; required job names are exactly the names the Actions API reports for the workflow file. G1 requires the base CI jobs plus the hosted leaf jobs of the reusable native build-only workflow (Windows x64, Linux x64, Linux ARM64) and the reusable installed-wheel SDK workflow (Windows x64, Linux x64). The native and SDK callers run on main-branch pushes, pull requests and manual CI; missing, skipped, failed or pending hosted leaves stay failures. Review-only conditional evidence such as the push-only Python license texts remains outside the release gate by design. This binds the source commit's CI run, not acceptance of the packaged artifact or image.",
+    "policy": "Read-only GitHub API contract for G1 (PILOT-B2). The validator queries only api.github.com, only for this repository and workflow path, at the full release commit; required job names are exactly the names the Actions API reports for the workflow file. G1 requires the base CI jobs plus the hosted leaf jobs of the reusable native build-only workflow (Windows x64, Linux x64, Linux ARM64) the reusable installed-wheel SDK workflow (Windows x64, Linux x64), and the internal numerical weather-model workflow. Numerical CI proves fitted computation, not shipped scientific dependencies or model accuracy. The native and SDK callers run on main-branch pushes, pull requests and manual CI; missing, skipped, failed or pending hosted leaves stay failures. Review-only conditional evidence such as the push-only Python license texts remains outside the release gate by design. This binds the source commit's CI run, not acceptance of the packaged artifact or image.",
     "repository": "AlexYuhuFeng/EurogasNexus",
     "api_host": "api.github.com",
     "workflow_path": ".github/workflows/ci.yml",
@@ -78,7 +78,8 @@
       "Native desktop build (Windows x64, Linux x64/ARM64) / Build-only native acceptance (linux-x64)",
       "Native desktop build (Windows x64, Linux x64/ARM64) / Build-only native acceptance (linux-arm64)",
       "SDK installed-wheel acceptance / Installed SDK (windows-x64)",
-      "SDK installed-wheel acceptance / Installed SDK (linux-x64)"
+      "SDK installed-wheel acceptance / Installed SDK (linux-x64)",
+      "Weather model numerical acceptance (internal, NumPy 2.3.5) / Internal numerical acceptance (NumPy 2.3.5)"
     ],
     "max_pages": 10,
     "request_timeout_seconds": 20,

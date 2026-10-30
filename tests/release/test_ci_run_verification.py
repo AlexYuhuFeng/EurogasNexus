@@ -312,7 +312,7 @@ BASE_REQUIRED_JOBS = (
     "web-client-build",
     "Browser acceptance (EN/ZH, 3 viewports)",
 )
-NEW_HOSTED_API_LEAVES = (
+REUSABLE_ACCEPTANCE_LEAVES = (
     "Native desktop build (Windows x64, Linux x64/ARM64) / "
     "Build-only native acceptance (windows-x64)",
     "Native desktop build (Windows x64, Linux x64/ARM64) / "
@@ -321,6 +321,8 @@ NEW_HOSTED_API_LEAVES = (
     "Build-only native acceptance (linux-arm64)",
     "SDK installed-wheel acceptance / Installed SDK (windows-x64)",
     "SDK installed-wheel acceptance / Installed SDK (linux-x64)",
+    "Weather model numerical acceptance (internal, NumPy 2.3.5) / "
+    "Internal numerical acceptance (NumPy 2.3.5)",
 )
 
 _MAX_WORKFLOW_DEPTH = 8
@@ -473,14 +475,14 @@ def test_required_jobs_are_exactly_the_unconditional_main_push_leaf_jobs() -> No
 
     leaves = resolve_workflow_leaf_jobs(CI_WORKFLOW_PATH)
     assert len(leaves) == len(set(leaves))
-    assert required_jobs() == [*BASE_REQUIRED_JOBS, *NEW_HOSTED_API_LEAVES]
+    assert required_jobs() == [*BASE_REQUIRED_JOBS, *REUSABLE_ACCEPTANCE_LEAVES]
     assert set(required_jobs()) == set(leaves)
     workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
     assert "if" in workflow["jobs"]["python-license-texts"]
     assert "Python license text evidence (runtime lock)" not in required_jobs()
 
 
-@pytest.mark.parametrize("leaf", NEW_HOSTED_API_LEAVES)
+@pytest.mark.parametrize("leaf", REUSABLE_ACCEPTANCE_LEAVES)
 @pytest.mark.parametrize("failure", ["missing", "skipped", "failure"])
 def test_each_new_hosted_surface_leaf_blocks(
     tmp_path: Path, leaf: str, failure: str
