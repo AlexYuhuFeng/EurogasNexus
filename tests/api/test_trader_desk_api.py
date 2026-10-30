@@ -169,3 +169,123 @@ def test_storage_trajectory_without_db_is_empty_with_warning(no_db):
     assert response.status_code == 200
     assert response.json()["data"] is None
     assert response.json()["meta"]["warnings"]
+
+
+def _wmr(pair: str, rate: float, day: str) -> FxObservationRecord:
+    return FxObservationRecord(
+        observation_id=f"wmr-WMR_1600_LDN-{pair}-{day}",
+        pair=pair,
+        base_currency=pair[:3],
+        quote_currency=pair[3:],
+        rate=rate,
+        rate_type="WMR_1600_LDN",
+        value_date=day,
+        observed_at_utc=datetime.fromisoformat(f"{day}T16:00:00+00:00"),
+        source_system="WMR",
+        source_reference="operator-export:test.csv",
+        source_record_id=None,
+        freshness="imported",
+        research_only=True,
+        metadata_json={},
+    )
+
+
+def _bearer(engine, scopes: list[str]) -> str:
+    from eurogas_nexus.db.repositories.identity import (
+        create_identity_api_key,
+        create_identity_principal,
+    )
+
+    with Session(engine) as session:
+        principal = create_identity_principal(
+            session,
+            name=f"desk-{'-'.join(scopes) or 'public'}",
+            display_name="Desk",
+            role="ANALYST",
+            data_scopes=scopes,
+        )
+        _, bearer = create_identity_api_key(session, principal.principal_id, scopes=["*"])
+        session.commit()
+    return bearer
+
+
+def _hdr(bearer: str) -> dict[str, str]:
+    return {"X-Eurogas-Identity": bearer, "X-Eurogas-Api-Key": "test-public-api-token"}
+
+
+def test_wmr_fix_is_used_only_for_entitled_principals(runtime_db):
+    with Session(runtime_db) as session:
+        session.add_all(
+            [
+                _fx("EURGBP", "GBP", 0.85),
+                _fx("EURUSD", "USD", 1.10),
+                _wmr("EURUSD", 1.08, "2026-10-27"),
+                _wmr("GBPUSD", 1.27, "2026-10-27"),
+                _wmr("EURUSD", 1.09, "2026-10-28"),
+                _wmr("GBPUSD", 1.28, "2026-10-28"),
+            ]
+        )
+        session.commit()
+    entitled = _bearer(runtime_db, ["WMR"])
+    public_only = _bearer(runtime_db, [])
+    params = {"value": 10, "from_unit": "USD/MMBtu", "to_unit": "EUR/MWh", "fx_source": "WMR"}
+
+    granted = TestClient(create_app(), headers=_hdr(entitled)).get(
+        "/api/market/price-conversion", params=params
+    )
+    assert granted.status_code == 200, granted.text
+    data = granted.json()["data"]
+    assert data["fx"]["USD"]["source"] == "WMR"
+    assert data["fx"]["USD"]["value_dates"] == ["2026-10-28"]
+    assert data["converted"]["EUR/MWh"] == pytest.approx(10 * 3.41214163 / 1.09, rel=1e-8)
+    assert data["fx_fixing"]["licensed"] is True
+
+    averaged = TestClient(create_app(), headers=_hdr(entitled)).get(
+        "/api/market/price-conversion",
+        params={**params, "fx_average_from": "2026-10-01", "fx_average_to": "2026-10-31"},
+    )
+    assert averaged.json()["data"]["fx_fixing"]["fixings_used"] == 2
+    assert averaged.json()["data"]["fx"]["USD"]["rate"] == pytest.approx(1.085)
+
+    refused = TestClient(create_app(), headers=_hdr(public_only)).get(
+        "/api/market/price-conversion", params=params
+    )
+    assert refused.status_code == 422
+    assert refused.json()["detail"]["code"] == "fx_rate_unavailable"
+
+    public_fx = TestClient(create_app(), headers=_hdr(public_only)).get(
+        "/api/market/fx"
+    )
+    assert {row["source_system"] for row in public_fx.json()["data"]} == {"ECB"}
+
+    ecb_default = TestClient(create_app(), headers=_hdr(public_only)).get(
+        "/api/market/price-conversion",
+        params={"value": 10, "from_unit": "USD/MMBtu", "to_unit": "EUR/MWh"},
+    )
+    assert ecb_default.json()["data"]["fx"]["USD"]["source"] == "ECB"
+
+
+def test_unknown_fx_source_is_refused(no_db):
+    response = no_db.get(
+        "/api/market/price-conversion",
+        params={"value": 1, "from_unit": "EUR/MWh", "fx_source": "XYZ"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "unknown_fx_fixing"
+
+
+def test_fixing_import_script_upserts_licensed_rows(runtime_db, tmp_path):
+    from scripts.ops.import_fx_fixings import main
+
+    export = tmp_path / "wmr.csv"
+    export.write_text("date,pair,rate\n2026-10-28,EURUSD,1.09\n2026-10-28,GBP/USD,1.28\n")
+    assert main(["--source", "WMR", "--file", str(export), "--dry-run"]) == 0
+    assert main(["--source", "WMR", "--file", str(export)]) == 0
+    assert main(["--source", "WMR", "--file", str(export)]) == 0  # idempotent upsert
+    with Session(runtime_db) as session:
+        rows = session.query(FxObservationRecord).all()
+    assert sorted(row.pair for row in rows) == ["EURUSD", "GBPUSD"]
+    assert {row.source_system for row in rows} == {"WMR"}
+    bad = tmp_path / "bad.csv"
+    bad.write_text("date,pair,rate\n2026-10-28,EURUSD,abc\n")
+    assert main(["--source", "WMR", "--file", str(bad)]) == 2

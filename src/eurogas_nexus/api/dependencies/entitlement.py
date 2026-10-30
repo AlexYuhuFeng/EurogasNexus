@@ -67,7 +67,7 @@ async def require_entitlement(request: Request, source_system: str = "") -> None
         # 新增商业来源必须先经治理评审再进白名单。
         known = frozenset({
             "operator-input", "ENTSOG", "GIE", "ECB",
-            "EEX", "Trayport", "ICE_OCM", "Weather",
+            "EEX", "Trayport", "ICE_OCM", "Weather", "WMR", "BFIX",
         })
         identity = getattr(request.state, "identity", legacy_public_token_principal())
         if not principal_allows_source_family(identity, source_system):

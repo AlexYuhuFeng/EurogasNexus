@@ -29,6 +29,9 @@ COMMERCIAL_SOURCE_FAMILIES = frozenset(
         "Argus",
         "Kpler",
         "Platts",
+        # Licensed FX benchmark fixes (WM/Reuters via LSEG, Bloomberg BFIX).
+        "WMR",
+        "BFIX",
     }
 )
 

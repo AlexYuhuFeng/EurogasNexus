@@ -53,6 +53,8 @@ KNOWN_ENTITLED_SYSTEMS_V1 = frozenset(
         "Trayport",
         "ICE_OCM",
         "Weather",
+        "WMR",
+        "BFIX",
     }
 )
 

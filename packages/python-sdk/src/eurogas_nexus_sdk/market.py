@@ -610,6 +610,11 @@ def convert_gas_price_result(
     value: float,
     from_unit: str,
     to_unit: str | None = None,
+    fx_source: str = "ECB",
+    fx_fixing: str | None = None,
+    fx_date: str | None = None,
+    fx_average_from: str | None = None,
+    fx_average_to: str | None = None,
     gbp_per_eur: float | None = None,
     usd_per_eur: float | None = None,
 ) -> SdkResult[dict[str, Any]]:
@@ -620,6 +625,12 @@ def convert_gas_price_result(
         value: Price in ``from_unit``.
         from_unit: Source quotation.
         to_unit: Target quotation; every supported quotation when None.
+        fx_source: ``ECB`` (default), ``WMR`` (WM/Reuters) or ``BFIX`` (Bloomberg);
+            licensed fixes need the matching data-scope grant.
+        fx_fixing: Specific fixing id (e.g. ``WMR_1600_LDN``); source default when None.
+        fx_date: ISO value date of the fix; latest when None.
+        fx_average_from: ISO start of an averaging window (LNG pricing period).
+        fx_average_to: ISO end of the averaging window (inclusive).
         gbp_per_eur: Explicit FX override; latest ECB rate when None.
         usd_per_eur: Explicit FX override; latest ECB rate when None.
 
@@ -629,9 +640,13 @@ def convert_gas_price_result(
     Raises:
         httpx.HTTPStatusError: 422 for an unsupported unit or missing FX rate.
     """
-    params: dict[str, Any] = {"value": value, "from_unit": from_unit}
+    params: dict[str, Any] = {"value": value, "from_unit": from_unit, "fx_source": fx_source}
     for key, item in (
         ("to_unit", to_unit),
+        ("fx_fixing", fx_fixing),
+        ("fx_date", fx_date),
+        ("fx_average_from", fx_average_from),
+        ("fx_average_to", fx_average_to),
         ("gbp_per_eur", gbp_per_eur),
         ("usd_per_eur", usd_per_eur),
     ):

@@ -9,7 +9,9 @@ import {
 import { PanelHeader } from "@/components/ui";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
+  FX_SOURCE_OPTIONS,
   PRICE_UNIT_OPTIONS,
+  describeFxRate,
   STORAGE_CODES,
   formatConverted,
   formatSigned,
@@ -38,6 +40,7 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
 
   const [priceText, setPriceText] = useState("35");
   const [fromUnit, setFromUnit] = useState<string>("EUR/MWh");
+  const [fxSource, setFxSource] = useState<string>("ECB");
   const [conversion, setConversion] = useState<PriceConversionDTO | null>(null);
   const [conversionError, setConversionError] = useState<unknown>(null);
 
@@ -67,7 +70,7 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
     }
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      api.priceConversion(value, fromUnit, { signal: controller.signal })
+      api.priceConversion(value, fromUnit, fxSource, { signal: controller.signal })
         .then((response) => {
           setConversion(response.data);
           setConversionError(null);
@@ -80,7 +83,7 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [priceText, fromUnit]);
+  }, [priceText, fromUnit, fxSource]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -160,6 +163,16 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
             >
               {PRICE_UNIT_OPTIONS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
             </select>
+            <select
+              value={fxSource}
+              aria-label={t("desk.fx_source")}
+              title={t("desk.fx_source_hint")}
+              onChange={(event) => setFxSource(event.target.value)}
+            >
+              {FX_SOURCE_OPTIONS.map((source) => (
+                <option key={source} value={source}>{t(`desk.fx_source.${source}`)}</option>
+              ))}
+            </select>
           </div>
           {conversionError ? failureText(conversionError) : conversion && (
             <>
@@ -174,11 +187,11 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
                 </tbody>
               </table>
               <p className="trader-desk-note">
+                {conversion.fx_fixing.label}
+                {" · "}
                 {Object.entries(conversion.fx).length === 0
-                  ? t("desk.fx_none")
-                  : Object.entries(conversion.fx)
-                    .map(([ccy, fx]) => `EUR/${ccy} ${fx.rate.toFixed(4)} (${fx.source ?? "?"}${fx.observed_at_utc ? ` ${fx.observed_at_utc.slice(0, 10)}` : ""})`)
-                    .join(" · ")}
+                  ? t(conversion.fx_fixing.licensed ? "desk.fx_licensed_none" : "desk.fx_none")
+                  : Object.entries(conversion.fx).map(([ccy, fx]) => describeFxRate(ccy, fx)).join(" · ")}
               </p>
             </>
           )}

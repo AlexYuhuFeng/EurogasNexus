@@ -26,6 +26,11 @@ from eurogas_nexus.application.projections.market_reads import (
     normalized_market_view,
     source_family_filter,
 )
+from eurogas_nexus.domain.market.fx_fixings import (
+    FxFixingError,
+    resolve_fixing,
+    select_fixing_rates,
+)
 from eurogas_nexus.domain.market.products import (
     ProductCodeError,
     resolve_product,
@@ -108,7 +113,11 @@ def list_fx(request: Request) -> dict:
 
         with get_session_factory()() as session:
             rows = fx_observations(session)
-        return _env(rows, source="runtime-postgresql")
+        # Licensed fixes (WMR/BFIX) share this table: filter like every other row read.
+        return _env(
+            _filter_entitled_rows(request, rows, source_key="source_system"),
+            source="runtime-postgresql",
+        )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -331,29 +340,62 @@ def list_products(
 
 @router.get("/api/market/price-conversion")
 def convert_market_price(
+    request: Request,
     value: float = Query(..., allow_inf_nan=False),
     from_unit: str = Query(..., max_length=16),
     to_unit: str | None = Query(default=None, max_length=16),
+    fx_source: str = Query(default="ECB", max_length=8),
+    fx_fixing: str | None = Query(default=None, max_length=32),
+    fx_date: date | None = None,
+    fx_average_from: date | None = None,
+    fx_average_to: date | None = None,
     gbp_per_eur: float | None = Query(default=None, gt=0),
     usd_per_eur: float | None = Query(default=None, gt=0),
 ) -> dict:
     """Convert a gas price between EUR/MWh, GBp/th, USD/MMBtu and related quotations.
 
-    FX is the explicit ``*_per_eur`` override when given, otherwise the latest ECB
-    EUR-based rate in the runtime DB; the rates used are returned with their source.
-    汇率优先使用显式参数，否则取数据库最新 ECB 汇率，并回传所用汇率及来源。
+    FX comes from the named benchmark fix: ``fx_source`` ECB (default), WMR
+    (WM/Reuters) or BFIX (Bloomberg), optionally a specific ``fx_fixing``, on
+    ``fx_date`` or averaged over ``fx_average_from``..``fx_average_to`` (LNG
+    pricing-period practice); latest fix otherwise. Explicit ``*_per_eur`` values
+    override per currency. Licensed fixes are entitlement-filtered per principal.
+    汇率来自指定基准定盘（ECB/WMR/BFIX），可指定日期或定价期平均；显式参数优先。
 
     Raises:
-        HTTPException: 422 ``unsupported_price_unit`` / ``fx_rate_unavailable``.
+        HTTPException: 422 ``unsupported_price_unit`` / ``fx_rate_unavailable`` /
+            ``unknown_fx_fixing``.
     """
 
+    try:
+        fixing = resolve_fixing(fx_source, fx_fixing)
+        selection: dict[str, object] = {"eur_rates": {}, "value_dates": [], "fixings_used": 0}
+        if _db_is_configured() and (gbp_per_eur is None or usd_per_eur is None):
+            selection = select_fixing_rates(
+                _filter_entitled_rows(request, _fx_rows(), source_key="source_system"),
+                fixing,
+                on=fx_date,
+                average_from=fx_average_from,
+                average_to=fx_average_to,
+            )
+    except FxFixingError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": "unknown_fx_fixing", "message": str(exc)}
+        ) from exc
+
     rates: dict[str, dict[str, object]] = {}
+    fixing_rates = selection["eur_rates"]
+    for currency in ("GBP", "USD"):
+        if currency in fixing_rates:
+            rates[currency] = {
+                "rate": fixing_rates[currency],
+                "source": fixing.source_system,
+                "fixing": fixing.fixing_id,
+                "value_dates": selection["value_dates"],
+            }
     if gbp_per_eur is not None:
         rates["GBP"] = {"rate": gbp_per_eur, "source": "request"}
     if usd_per_eur is not None:
         rates["USD"] = {"rate": usd_per_eur, "source": "request"}
-    if len(rates) < 2 and _db_is_configured():
-        rates = {**_latest_eur_rates(), **rates}
     targets = [to_unit] if to_unit else list(PRICE_UNITS)
     eur_rates = {currency: float(entry["rate"]) for currency, entry in rates.items()}
     converted: dict[str, float | None] = {}
@@ -371,46 +413,42 @@ def convert_market_price(
     except UnitConversionError as exc:
         code = "fx_rate_unavailable" if "FX" in str(exc) else "unsupported_price_unit"
         raise HTTPException(status_code=422, detail={"code": code, "message": str(exc)}) from exc
+    warnings = [] if len(rates) == 2 else [
+        f"Some {fixing.label} rates are unavailable for this request; null values."
+    ]
     return _env(
         {
             "value": value,
             "from_unit": source_unit,
             "converted": converted,
             "fx": rates,
+            "fx_fixing": {
+                "fixing_id": fixing.fixing_id,
+                "source_system": fixing.source_system,
+                "label": fixing.label,
+                "licensed": fixing.licensed,
+                "fixings_used": selection["fixings_used"],
+                "averaged": fx_average_from is not None,
+            },
             "factors": {"therm_per_mwh": ENERGY_UNITS_PER_MWH["therm"],
                         "mmbtu_per_mwh": ENERGY_UNITS_PER_MWH["MMBtu"]},
         },
         source="gas-unit-conversion",
-        warnings=[] if len(rates) == 2 else ["Some FX rates are unavailable; null values."],
+        warnings=warnings,
     )
 
 
-def _latest_eur_rates() -> dict[str, dict[str, object]]:
-    """Latest EUR-based GBP/USD rates from the runtime DB, newest first."""
+def _fx_rows() -> list[dict]:
+    """All FX observation rows from the runtime DB (entitlement applied by caller)."""
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = fx_observations(session)
+            return fx_observations(session)
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
-    found: dict[str, dict[str, object]] = {}
-    for row in rows:
-        pair = str(row.get("pair") or "").upper()
-        base = str(row.get("base_currency") or pair[:3]).upper()
-        quote = str(row.get("quote_currency") or pair[3:6]).upper()
-        rate = row.get("rate")
-        if base != "EUR" or quote not in ("GBP", "USD") or quote in found:
-            continue
-        if isinstance(rate, (int, float)) and rate > 0:
-            found[quote] = {
-                "rate": float(rate),
-                "source": row.get("source_system"),
-                "observed_at_utc": row.get("observed_at_utc"),
-            }
-    return found
 
 
 def _env(data: object, *, source: str, warnings: list[str] | None = None) -> dict:

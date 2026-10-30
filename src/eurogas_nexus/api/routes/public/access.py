@@ -389,7 +389,9 @@ def list_data_scopes(request: Request) -> dict:
     return _env(
         {
             "public_baseline": ["operator-input", "ENTSOG", "GIE", "ECB", "Weather"],
-            "commercial": ["EEX", "ICE_OCM", "TRAYPORT", "ICIS", "PLATTS", "ARGUS", "KPLER"],
+            "commercial": [
+                "EEX", "ICE_OCM", "TRAYPORT", "ICIS", "PLATTS", "ARGUS", "KPLER", "WMR", "BFIX",
+            ],
             "wildcard": "*",
         }
     )

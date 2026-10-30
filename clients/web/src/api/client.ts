@@ -1468,7 +1468,11 @@ export interface PriceConversionDTO {
   value: number;
   from_unit: string;
   converted: Record<string, number | null>;
-  fx: Record<string, { rate: number; source?: string | null; observed_at_utc?: string | null }>;
+  fx: Record<string, { rate: number; source?: string | null; fixing?: string; value_dates?: string[] }>;
+  fx_fixing: {
+    fixing_id: string; source_system: string; label: string; licensed: boolean;
+    fixings_used: number; averaged: boolean;
+  };
   factors: Record<string, number>;
 }
 
@@ -3657,11 +3661,19 @@ export const api = {
   gasProductStrip: (options?: ApiRequestOptions) =>
     get<GasProductStripDTO>("/market/products", undefined, options),
 
-  /** Backend price conversion; FX comes from the latest ECB rows unless overridden. */
-  priceConversion: (value: number, fromUnit: string, options?: ApiRequestOptions) =>
+  /**
+   * Backend price conversion with a named FX fix: ECB (default), WMR (WM/Reuters) or BFIX
+   * (Bloomberg). Licensed fixes answer only for principals holding that data scope.
+   */
+  priceConversion: (
+    value: number,
+    fromUnit: string,
+    fxSource: string = "ECB",
+    options?: ApiRequestOptions,
+  ) =>
     get<PriceConversionDTO>(
       "/market/price-conversion",
-      { value: String(value), from_unit: fromUnit },
+      { value: String(value), from_unit: fromUnit, fx_source: fxSource },
       options,
     ),
 

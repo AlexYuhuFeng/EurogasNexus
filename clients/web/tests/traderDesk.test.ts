@@ -10,7 +10,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  FX_SOURCE_OPTIONS,
   PRICE_UNIT_OPTIONS,
+  describeFxRate,
   STORAGE_CODES,
   formatConverted,
   formatSigned,
@@ -57,4 +59,15 @@ test("the panel is mounted on the curves task and reads the three backend routes
   for (const path of ["/market/products", "/market/price-conversion", "/storage/target-trajectory"]) {
     assert.ok(client.includes(`"${path}"`), path);
   }
+});
+
+test("the converter names the FX fix: ECB, WM/Reuters or BFIX, and an average names its window", () => {
+  assert.deepEqual([...FX_SOURCE_OPTIONS], ["ECB", "WMR", "BFIX"]);
+  assert.equal(
+    describeFxRate("USD", { rate: 1.085, source: "WMR", value_dates: ["2026-10-01", "2026-10-31"] }),
+    "EUR/USD 1.0850 (WMR 2026-10-01..2026-10-31, 2 fixes)",
+  );
+  assert.equal(describeFxRate("GBP", { rate: 0.85, source: "request" }), "EUR/GBP 0.8500 (request)");
+  const client = read("../src/api/client.ts");
+  assert.ok(client.includes("fx_source: fxSource"));
 });

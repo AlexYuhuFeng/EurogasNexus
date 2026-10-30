@@ -3532,5 +3532,11 @@
   "desk.status.on_track": "On track",
   "desk.status.behind": "Behind",
   "desk.status.unreachable": "Missed",
-  "desk.status.withdrawal_season": "Withdrawal season"
+  "desk.status.withdrawal_season": "Withdrawal season",
+  "desk.fx_source": "FX fix",
+  "desk.fx_source_hint": "LNG contracts usually name WM/Reuters 4pm London or Bloomberg BFIX; ECB is the public reference rate.",
+  "desk.fx_source.ECB": "ECB reference",
+  "desk.fx_source.WMR": "WM/Reuters 4pm",
+  "desk.fx_source.BFIX": "Bloomberg BFIX",
+  "desk.fx_licensed_none": "No entitled fix available: import the WMR/BFIX export and grant the data scope."
 }

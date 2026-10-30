@@ -3532,5 +3532,11 @@
   "desk.status.on_track": "按进度",
   "desk.status.behind": "落后",
   "desk.status.unreachable": "未达标",
-  "desk.status.withdrawal_season": "采气季"
+  "desk.status.withdrawal_season": "采气季",
+  "desk.fx_source": "汇率定盘",
+  "desk.fx_source_hint": "LNG 合同通常指定 WM/Reuters 伦敦 4pm 或 Bloomberg BFIX；ECB 为公开参考汇率。",
+  "desk.fx_source.ECB": "ECB 参考汇率",
+  "desk.fx_source.WMR": "WM/路透 伦敦 4pm",
+  "desk.fx_source.BFIX": "彭博 BFIX",
+  "desk.fx_licensed_none": "无可用授权定盘：请导入 WMR/BFIX 数据并授予数据范围。"
 }

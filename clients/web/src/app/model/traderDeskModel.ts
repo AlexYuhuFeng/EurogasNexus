@@ -3,6 +3,25 @@ import type { StorageTrajectoryDTO } from "@/api/client";
 /** Quotations the backend `/market/price-conversion` route supports, desk order. */
 export const PRICE_UNIT_OPTIONS = ["EUR/MWh", "GBp/th", "USD/MMBtu", "GBP/MWh", "USD/MWh", "EUR/GJ"] as const;
 
+/**
+ * FX benchmark fixes the converter can apply. ECB is public; WMR (WM/Reuters, LSEG) and BFIX
+ * (Bloomberg) are licensed and answer only for principals holding that data scope - the usual
+ * reference in LNG contracts.
+ */
+export const FX_SOURCE_OPTIONS = ["ECB", "WMR", "BFIX"] as const;
+
+/** `EUR/USD 1.0850 (WMR 2026-10-28)`; an average names its window and fix count. */
+export function describeFxRate(
+  currency: string,
+  fx: { rate: number; source?: string | null; value_dates?: string[] },
+): string {
+  const dates = fx.value_dates ?? [];
+  const when = dates.length > 1
+    ? ` ${dates[0]}..${dates[dates.length - 1]}, ${dates.length} fixes`
+    : dates.length === 1 ? ` ${dates[0]}` : "";
+  return `EUR/${currency} ${fx.rate.toFixed(4)} (${fx.source ?? "?"}${when})`;
+}
+
 /** AGSI codes offered by the storage trajectory selector (EU aggregate first). */
 export const STORAGE_CODES = ["EU", "DE", "NL", "FR", "IT", "AT", "BE", "ES", "PL", "CZ", "SK", "HU"] as const;
 

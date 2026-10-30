@@ -265,9 +265,10 @@ def fx_observations(session: Session) -> list[dict[str, Any]]:
     """Return FX observations, falling back to ECB market observations.
 
     Returns:
-        FX payloads from ``fx_observations`` when that table has rows, otherwise
-        the ECB rows of ``market_observations`` reshaped as FX - exactly the
-        behaviour ``/api/market/fx`` already had.
+        FX payloads from ``fx_observations`` (ECB and any imported licensed
+        fixes); when that table holds no ECB rows, the ECB rows of
+        ``market_observations`` reshaped as FX are appended, as before. Callers
+        apply row entitlement.
     """
 
     from eurogas_nexus.db.models import FxObservationRecord, MarketObservationRecord
@@ -276,12 +277,15 @@ def fx_observations(session: Session) -> list[dict[str, Any]]:
         FxObservationRecord.observed_at_utc.desc(),
         FxObservationRecord.pair,
     ).all()
-    if rows:
-        return [fx_observation_row(row) for row in rows]
+    payloads = [fx_observation_row(row) for row in rows]
+    # Imported licensed fixes (WMR/BFIX) share the table; they must not hide the
+    # ECB market-observation fallback when no ECB FX rows exist.
+    if any(row.source_system == "ECB" for row in rows):
+        return payloads
     market_rows = session.query(MarketObservationRecord).filter(
         MarketObservationRecord.source_system == "ECB"
     ).order_by(MarketObservationRecord.observed_at_utc.desc())
-    return [fx_row_from_market_observation(row) for row in market_rows.all()]
+    return payloads + [fx_row_from_market_observation(row) for row in market_rows.all()]
 
 
 def market_quotes(

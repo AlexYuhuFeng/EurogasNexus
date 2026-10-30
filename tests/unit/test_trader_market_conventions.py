@@ -194,3 +194,83 @@ def test_trajectory_refuses_bad_inputs():
         storage_trajectory("EU", _series(date(2026, 8, 1), 2, 1.0, 1.0, capacity=0.0))
     with pytest.raises(StorageTrajectoryError):
         storage_trajectory("EU", _series(date(2026, 8, 1), 2, 1.0, 1.0), target_pct=120)
+
+
+# --- FX benchmark fixings (ECB / WM/Reuters / BFIX) -------------------------------
+
+from eurogas_nexus.domain.market.fx_fixings import (  # noqa: E402
+    FxFixingError,
+    eur_rates_from_pairs,
+    parse_fixing_export,
+    resolve_fixing,
+    select_fixing_rates,
+)
+
+WMR_EXPORT = """Date,RIC,Mid
+2026-10-27,EURUSDFIXM=WM,1.0800
+2026-10-27,GBPUSDFIXM=WM,1.2700
+2026-10-28,EURUSDFIXM=WM,1.0900
+2026-10-28,GBPUSDFIXM=WM,1.2800
+"""
+
+
+def test_fixing_resolution_and_instants():
+    wmr = resolve_fixing("wmr")
+    assert wmr.fixing_id == "WMR_1600_LDN" and wmr.licensed
+    # 4pm London is 15:00 UTC in BST and 16:00 UTC in GMT.
+    assert wmr.fixing_instant_utc(date(2026, 10, 23)).hour == 15
+    assert wmr.fixing_instant_utc(date(2026, 10, 26)).hour == 16
+    assert resolve_fixing(None).source_system == "ECB"
+    assert resolve_fixing("BFIX", "BFIX_1400_CET").label.startswith("Bloomberg")
+    for source, fixing in (("XYZ", None), ("WMR", "BFIX_1600_LDN"), ("WMR", "nope")):
+        with pytest.raises(FxFixingError):
+            resolve_fixing(source, fixing)
+
+
+def test_usd_quoted_pairs_are_crossed_to_eur_base():
+    rates = eur_rates_from_pairs({"EURUSD": 1.08, "GBPUSD": 1.27, "USDJPY": 150.0})
+    assert rates["USD"] == pytest.approx(1.08)
+    assert rates["GBP"] == pytest.approx(1.08 / 1.27)
+    assert rates["JPY"] == pytest.approx(1.08 * 150.0)
+    assert eur_rates_from_pairs({"EURGBP": 0.85, "GBPUSD": 1.3})["GBP"] == 0.85
+
+
+def test_parse_export_reads_rics_and_refuses_bad_rows():
+    rows = parse_fixing_export(WMR_EXPORT, resolve_fixing("WMR"), source_reference="t")
+    assert [row.pair for row in rows] == ["EURUSD", "GBPUSD", "EURUSD", "GBPUSD"]
+    record = rows[0].as_record()
+    assert record["source_system"] == "WMR"
+    assert record["rate_type"] == "WMR_1600_LDN"
+    assert record["observed_at_utc"] == datetime(2026, 10, 27, 16, tzinfo=UTC)
+    for bad in (
+        "date,pair\n2026-10-27,EURUSD\n",
+        "date,pair,rate\n27/10/2026,EURUSD,1.08\n",
+        "date,pair,rate\n2026-10-27,EURUSD,-1\n",
+        "date,pair,rate\n2026-10-27,EURUSD,1.08\n2026-10-27,EURUSD,1.09\n",
+        "date,pair,rate\n",
+    ):
+        with pytest.raises(FxFixingError):
+            parse_fixing_export(bad, resolve_fixing("WMR"), source_reference="t")
+
+
+def test_select_latest_dated_and_period_average():
+    fixing = resolve_fixing("WMR")
+    rows = [
+        row.as_record()
+        for row in parse_fixing_export(WMR_EXPORT, fixing, source_reference="t")
+    ]
+    rows.append({**rows[0], "source_system": "BFIX", "rate": 9.9})  # other source ignored
+    latest = select_fixing_rates(rows, fixing)
+    assert latest["value_dates"] == ["2026-10-28"]
+    assert latest["eur_rates"]["USD"] == pytest.approx(1.09)
+    dated = select_fixing_rates(rows, fixing, on=date(2026, 10, 27))
+    assert dated["eur_rates"]["GBP"] == pytest.approx(1.08 / 1.27)
+    avg = select_fixing_rates(
+        rows, fixing, average_from=date(2026, 10, 1), average_to=date(2026, 10, 31)
+    )
+    assert avg["fixings_used"] == 2
+    assert avg["eur_rates"]["USD"] == pytest.approx(1.085)
+    assert avg["eur_rates"]["GBP"] == pytest.approx(1.085 / 1.275)
+    assert select_fixing_rates(rows, fixing, on=date(2026, 1, 1))["eur_rates"] == {}
+    with pytest.raises(FxFixingError):
+        select_fixing_rates(rows, fixing, average_from=date(2026, 10, 1))
