@@ -16,6 +16,27 @@ prices.
 | ICE / EEX market-data connector | Real time or end of day | A market-data licence and the venue's API credentials |
 | EEX public TTF NGP reference index (implemented) | Daily | Display/internal use; redistribution needs an EEX licence |
 
+### Order of precedence when a source is missing
+
+1. A direct connection under the customer's licence (Trayport, ICE, EEX DataSource API).
+2. A file the desk uploads from its own licensed screen or DataSource subscription
+   (operator quote import).
+3. EEX's free official transparency file (TTF NGP reference index), shown as a reference
+   index, never as an executable quote.
+4. Nothing. The product shows "awaiting licensed feed"; it does not substitute simulated
+   prices.
+
+### Why the product does not scrape data.eex.com
+
+data.eex.com is EEX Group DataSource, EEX's paid market-data service. Its General
+Conditions for DataSource products and the DataSource Service Agreement license data per
+subscriber: a webshop order grants an internal-usage licence, redistribution needs an
+external or vendor licence, and subscribers report their usage to EEX every year.
+Scraping it would bypass those terms and put a commercially sold product, and its
+customers, in breach. A customer with a DataSource subscription connects with its own
+credentials (option 1) or imports the files it downloads under that subscription
+(option 2).
+
 ## Operator quote import
 
 Export the market view you already trade from: a Trayport Joule export, or an

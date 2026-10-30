@@ -162,7 +162,8 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         scope="OPERATOR",
         purpose="Alias for RUNTIME_STORE_DATABASE_URL (lowest precedence).",
         sensitivity="secret",
-    ),    ConfigVar(
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DB_ECHO",
         scope="OPERATOR",
         purpose="Echo SQL to the log. Development diagnosis only.",
@@ -473,6 +474,43 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "provider credential store.",
             "Keep the key file outside the repository and readable only by the "
             "runtime account; the file content is never logged.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_LLM_BASE_URL",
+        scope="OPERATOR",
+        purpose=(
+            "OpenAI-compatible chat-completions base URL of the model this installation "
+            "uses (DeepSeek, OpenAI, Azure OpenAI, Mistral, Qwen, or a self-hosted "
+            "vLLM/Ollama)."
+        ),
+        default="https://api.deepseek.com",
+        notes=(
+            "HTTPS required; plain HTTP only for a model on a private network. External LLM "
+            "calls stay off in trial/release unless EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED "
+            "allows them.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_LLM_MODEL",
+        scope="OPERATOR",
+        purpose=("Model name sent to the LLM endpoint."),
+        default="deepseek-v4-flash",
+        notes=(
+            "HTTPS required; plain HTTP only for a model on a private network. External LLM "
+            "calls stay off in trial/release unless EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED "
+            "allows them.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_LLM_PROVIDER_NAME",
+        scope="OPERATOR",
+        purpose=("Provider label recorded in audit events and shown with LLM answers."),
+        default="DEEPSEEK",
+        notes=(
+            "HTTPS required; plain HTTP only for a model on a private network. External LLM "
+            "calls stay off in trial/release unless EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED "
+            "allows them.",
         ),
     ),
     ConfigVar(

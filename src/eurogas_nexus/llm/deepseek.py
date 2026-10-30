@@ -1,4 +1,8 @@
-"""Minimal governed DeepSeek API adapter."""
+"""Governed chat-completions adapter (OpenAI-compatible; DeepSeek by default).
+
+The function names keep their historical ``deepseek`` prefix for the callers; the endpoint
+comes from :func:`eurogas_nexus.llm.provider.configured_endpoint`.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +12,15 @@ from typing import Any
 import httpx
 
 from eurogas_nexus.core.config import get_settings
+from eurogas_nexus.llm.provider import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
+    LlmEndpointError,
+    configured_endpoint,
+)
 
-DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash"
+DEEPSEEK_API_BASE_URL = DEFAULT_BASE_URL
+DEEPSEEK_DEFAULT_MODEL = DEFAULT_MODEL
 
 
 @dataclass(frozen=True)
@@ -26,12 +36,16 @@ def invoke_deepseek(
     *,
     api_key: str,
     messages: list[dict[str, str]],
-    model: str = DEEPSEEK_DEFAULT_MODEL,
+    model: str | None = None,
     temperature: float = 0.2,
     max_tokens: int = 1600,
     timeout_seconds: float = 45.0,
 ) -> DeepSeekCallResult:
-    """Call the live DeepSeek chat-completions API with bounded output."""
+    """Call the configured chat-completions endpoint with bounded output.
+
+    ``model`` defaults to the configured model; a caller-supplied model that differs from
+    the configured one is replaced by it, so the installation decides which model runs.
+    """
 
     if not get_settings().llm_external_provider_enabled:
         return DeepSeekCallResult(
@@ -40,8 +54,15 @@ def invoke_deepseek(
     if not api_key.strip():
         return DeepSeekCallResult(status="credential_missing", error_code="credential_missing")
     try:
+        endpoint = configured_endpoint()
+    except LlmEndpointError:
+        return DeepSeekCallResult(
+            status="provider_misconfigured", error_code="llm_endpoint_invalid"
+        )
+    model = endpoint.model
+    try:
         response = httpx.post(
-            f"{DEEPSEEK_API_BASE_URL}/chat/completions",
+            f"{endpoint.base_url}/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -85,8 +106,14 @@ def test_deepseek_connection(
     if not api_key.strip():
         return DeepSeekCallResult(status="credential_missing", error_code="credential_missing")
     try:
+        endpoint = configured_endpoint()
+    except LlmEndpointError:
+        return DeepSeekCallResult(
+            status="provider_misconfigured", error_code="llm_endpoint_invalid"
+        )
+    try:
         response = httpx.get(
-            f"{DEEPSEEK_API_BASE_URL}/models",
+            f"{endpoint.base_url}/models",
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=timeout_seconds,
         )

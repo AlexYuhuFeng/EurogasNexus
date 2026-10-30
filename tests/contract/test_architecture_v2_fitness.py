@@ -157,7 +157,8 @@ def test_clients_do_not_import_backend_internals() -> None:
 # file is asserted to still contain the host, which keeps the list honest when
 # backend provider endpoints move.
 VENDOR_ENDPOINT_EVIDENCE: dict[str, str] = {
-    "api.deepseek.com": "src/eurogas_nexus/llm/deepseek.py",
+    "api.deepseek.com": "src/eurogas_nexus/llm/provider.py",
+    "web-api.tp.entsoe.eu": "src/eurogas_nexus/ingestion/entsoe_transparency.py",
     "www.ecb.europa.eu": "scripts/ops/ingest_public_sources.py",
     "transparency.entsog.eu": "scripts/ops/ingest_public_sources.py",
     "agsi.gie.eu": "scripts/ops/ingest_public_sources.py",

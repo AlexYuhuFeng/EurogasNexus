@@ -182,3 +182,22 @@ the Alert Center for a real completion test. Confirm the provider status is
 logs.
 
 Automated tests replace the provider callable and never contact DeepSeek.
+
+## Choosing the model per installation
+
+The adapter speaks the OpenAI-compatible chat-completions API, so the model is
+installation configuration rather than code:
+
+| Variable | Default | Example |
+|---|---|---|
+| `EUROGAS_NEXUS_LLM_BASE_URL` | `https://api.deepseek.com` | `https://<resource>.openai.azure.com/openai/v1`, `https://api.mistral.ai/v1`, `http://10.0.4.20:8000/v1` (vLLM on-premises) |
+| `EUROGAS_NEXUS_LLM_MODEL` | `deepseek-v4-flash` | `mistral-large-latest`, `qwen2.5-72b-instruct` |
+| `EUROGAS_NEXUS_LLM_PROVIDER_NAME` | `DEEPSEEK` | `AZURE_OPENAI`, `MISTRAL`, `ONPREM` |
+
+HTTPS is required; plain HTTP is accepted only for a model on a private network. The
+provider name is recorded with every answer and in the audit trail. Pick the model by
+installation (see `docs/architecture/GLOBAL_DEPLOYMENT.md`): an EU-hosted or on-premises
+model for the primary installation if prompts must stay in Europe, an in-country model
+for the China installation. `EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED` still has to allow
+external calls, and payloads never include licensed raw prices.
+

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from eurogas_nexus.api.dependencies.acting_actor import require_acting_actor
 from eurogas_nexus.api.dependencies.ai_authority import require_ai_authority
 from eurogas_nexus.llm import invoke_deepseek
+from eurogas_nexus.llm.provider import LlmEndpointError, configured_endpoint
 from eurogas_nexus.security.provider_keys import load_provider_api_key
 
 router = APIRouter(tags=["monitoring"])
@@ -214,24 +215,28 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
         }
         return _env(data, warnings=data["warnings"])
 
+    try:
+        endpoint = configured_endpoint()
+        provider_id, model_used = endpoint.provider_name, endpoint.model
+    except LlmEndpointError:
+        provider_id, model_used = "DEEPSEEK", payload.model
     result = invoke_deepseek(
         api_key=api_key,
         messages=_analysis_messages(alert_snapshot, payload),
-        model=payload.model,
         temperature=0.15,
         max_tokens=1600,
     )
     analysis_id = f"monitoring-analysis-{uuid4().hex}"
     warnings = list(alert_snapshot.get("warnings") or [])
     if result.status != "success":
-        warnings.append(f"deepseek:{result.error_code or result.status}")
+        warnings.append(f"{provider_id.lower()}:{result.error_code or result.status}")
     data = {
         "analysis_id": analysis_id,
         "alert_id": alert_id,
-        "provider_id": "DEEPSEEK",
+        "provider_id": provider_id,
         "provider_status": result.status,
         "answer": result.content,
-        "model": payload.model,
+        "model": model_used,
         "language": payload.language,
         "source_refs": alert_snapshot["source_refs"],
         "warnings": list(dict.fromkeys(warnings)),
@@ -257,9 +262,7 @@ def _analysis_messages(
     request: AlertAnalysisRequest,
 ) -> list[dict[str, str]]:
     language_instruction = (
-        "Respond in Simplified Chinese."
-        if request.language == "zh-CN"
-        else "Respond in English."
+        "Respond in Simplified Chinese." if request.language == "zh-CN" else "Respond in English."
     )
     return [
         {
