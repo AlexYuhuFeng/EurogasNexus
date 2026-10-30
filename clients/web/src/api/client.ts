@@ -2335,6 +2335,24 @@ export interface PositionLadderRowDTO {
   mark_method?: string | null;
 }
 
+/** One delivery day of the gas-for-power view for a bidding zone. */
+export interface GasForPowerDayDTO {
+  day: string;
+  power_price: number | null;
+  residual_load_mw: number | null;
+  implied_gas_burn_gwh: number | null;
+  burn_basis: string[];
+  gas_hub: string | null;
+  gas_price: number | null;
+  carbon_market: string | null;
+  carbon_price: number | null;
+  coal_price_per_mwh: number | null;
+  clean_spark_spread: number | null;
+  clean_dark_spread: number | null;
+  fuel_switch_gas_price: number | null;
+  currency: string;
+}
+
 /** One live or upcoming gas facility outage from a REMIT urgent market message. */
 export interface OutageEventDTO {
   event_id: string;
@@ -4046,6 +4064,8 @@ export const api = {
   runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
   runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
+  gasForPower: (zone = "DE_LU", days = 14, options?: ApiRequestOptions) =>
+    get<GasForPowerDayDTO[]>("/market/gas-for-power", { zone, days: String(days) }, options),
   outages: (horizonDays = 90, options?: ApiRequestOptions) =>
     get<OutageEventDTO[]>("/physical/outages", { horizon_days: String(horizonDays) }, options),
   positionLadder: (months = 12, options?: ApiRequestOptions) =>

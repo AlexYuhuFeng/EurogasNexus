@@ -3740,5 +3740,17 @@
   "outages.type_planned": "计划内",
   "outages.type_unplanned": "计划外",
   "outages.type_unspecified": "未说明",
-  "sources.category.rates": "利率"
+  "sources.category.rates": "利率",
+  "gfp.title": "燃气发电",
+  "gfp.zone": "价区",
+  "gfp.day": "日期",
+  "gfp.power": "电价（{{currency}}/MWh）",
+  "gfp.residual": "剩余负荷（MW）",
+  "gfp.burn": "燃气消耗（GWh）",
+  "gfp.gas": "天然气 {{hub}}",
+  "gfp.carbon": "碳价 {{market}}",
+  "gfp.css": "清洁点火价差",
+  "gfp.cds": "清洁暗价差",
+  "gfp.switch": "燃料转换气价",
+  "gfp.empty": "该价区尚无电力数据。"
 }

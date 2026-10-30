@@ -68,6 +68,9 @@ class Market:
     #: Public, commercially reusable price reference where one exists.
     public_reference: str | None = None
     aliases: tuple[str, ...] = ()
+    #: Power markets: the gas hub and carbon market that set a gas plant's fuel cost.
+    gas_hub: str | None = None
+    carbon_market: str | None = None
 
 
 _EU_GAS = dict(
@@ -98,6 +101,7 @@ def _power(code: str, name: str, country: str, currency: str = "EUR", **override
         calendar="POWER-HOURLY",
         price_sources=("EEX", "EPEX", "Nord_Pool", "ICE_ENDEX"),
         public_reference="ENTSO-E day-ahead price (A44)",
+        carbon_market="EUA",
     )
     return Market(code=code, name=name, country=country, **{**fields, **overrides})
 
@@ -180,10 +184,10 @@ MARKETS: tuple[Market, ...] = (
         price_sources=("NGX",),
     ),
     # European power (bidding zones).
-    _power("DE_LU", "Germany-Luxembourg power", "DE"),
-    _power("FR", "France power", "FR", timezone="Europe/Paris"),
-    _power("NL", "Netherlands power", "NL", timezone="Europe/Amsterdam"),
-    _power("BE", "Belgium power", "BE"),
+    _power("DE_LU", "Germany-Luxembourg power", "DE", gas_hub="THE"),
+    _power("FR", "France power", "FR", gas_hub="PEG", timezone="Europe/Paris"),
+    _power("NL", "Netherlands power", "NL", gas_hub="TTF", timezone="Europe/Amsterdam"),
+    _power("BE", "Belgium power", "BE", gas_hub="ZTP"),
     _power(
         "GB",
         "Great Britain power",
@@ -191,6 +195,8 @@ MARKETS: tuple[Market, ...] = (
         currency="GBP",
         timezone="Europe/London",
         price_sources=("EPEX", "Nord_Pool", "ICE_ENDEX"),
+        gas_hub="NBP",
+        carbon_market="UKA",
     ),
     Market(
         code="AESO",

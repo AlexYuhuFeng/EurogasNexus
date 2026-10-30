@@ -254,6 +254,49 @@ def registered_sources() -> list[dict]:
             freshness_minutes=1,
         ),
         _source_row(
+            "src-ice-endex",
+            "ICE_ENDEX",
+            "price",
+            ("ttf-nbp-futures", "eua-uka-futures", "api2-coal-futures", "settlements"),
+            (
+                "ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 "
+                "Rotterdam coal and power. Licensed; imported from the customer's ICE "
+                "Report Center export until a connector is licensed."
+            ),
+            True,
+            freshness_minutes=1440,
+        ),
+        _source_row(
+            "src-cme",
+            "CME",
+            "price",
+            ("henry-hub-futures", "settlements"),
+            "CME NYMEX Henry Hub futures settlements. Licensed (CME DataMine).",
+            True,
+            freshness_minutes=1440,
+        ),
+        _source_row(
+            "src-ngx",
+            "NGX",
+            "price",
+            ("aeco-indices", "settlements"),
+            "NGX (ICE) Canadian gas: AECO-C/NIT indices and settlements. Licensed.",
+            True,
+            freshness_minutes=1440,
+        ),
+        _source_row(
+            "src-eia",
+            "EIA",
+            "price",
+            ("henry-hub-spot",),
+            (
+                "US EIA open data: Henry Hub daily spot price (public domain; free API key). "
+                "Reference for US LNG export economics."
+            ),
+            False,
+            freshness_minutes=1440,
+        ),
+        _source_row(
             "src-platts",
             "Platts",
             "price",

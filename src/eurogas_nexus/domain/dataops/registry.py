@@ -132,6 +132,11 @@ _SOURCE_OVERRIDES: dict[str, dict] = {
     # Benchmark overnight rates, run by the scheduler through scripts/ops/ingest_interest_rates.py
     # once a business day after each administrator publishes.
     "src-boe": _rate_override("10:15", "Europe/London"),
+    # Henry Hub spot through scripts/ops/ingest_eia.py, after EIA's daily update.
+    "src-eia": {
+        **_rate_override("17:10", "America/New_York"),
+        "adapter_version": "eia-open-data-v2",
+    },
     "src-ecb-estr": _rate_override("08:15", "Europe/Berlin"),
     "src-nyfed": _rate_override("08:30", "America/New_York"),
     # Operator file import (scripts/ops/import_remit_umm.py); nothing for the scheduler to run.

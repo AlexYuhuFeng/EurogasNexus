@@ -24,6 +24,7 @@ the current/normative document listed here and report the conflict.
   [power](operations/POWER_DATA.md), [interest rates](operations/INTEREST_RATES.md),
   [FX fixings](operations/FX_FIXINGS.md),
   [REMIT outages](operations/REMIT_OUTAGES.md),
+  [market data sourcing](operations/MARKET_DATA_SOURCING.md),
   [ECMWF forecasts](data/ECMWF_FORECAST_OPERATIONS.md),
   [weather-demand model](operations/WEATHER_DEMAND_MODEL_OPERATOR.md),
   [API profiles](api/API_PROFILES.md)

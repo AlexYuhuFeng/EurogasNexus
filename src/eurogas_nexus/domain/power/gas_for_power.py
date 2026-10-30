@@ -19,6 +19,8 @@ from dataclasses import dataclass
 GAS_EMISSION_T_PER_MWH_TH = 0.184
 #: Emission factor of hard coal, tonnes CO2 per MWh of coal burned (NCV basis).
 COAL_EMISSION_T_PER_MWH_TH = 0.341
+#: Energy in a tonne of API 2 coal (6,000 kcal/kg NAR = 25.12 GJ/t), MWh per tonne.
+API2_MWH_TH_PER_TONNE = 6.978
 
 
 class GasForPowerError(ValueError):

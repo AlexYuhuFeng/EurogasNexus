@@ -32,6 +32,8 @@ PUBLIC_BASELINE_SOURCE_FAMILIES = frozenset(
         "ENTSOE",
         # REMIT urgent market messages: inside information operators must publish.
         "REMIT",
+        # US Energy Information Administration: public-domain government data.
+        "EIA",
     }
 )
 

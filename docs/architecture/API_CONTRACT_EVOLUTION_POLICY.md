@@ -396,3 +396,13 @@ net and hedge ratio, a mark-to-market against the latest entitled daily close pe
 an indicative one-day 95 % historical-simulation VaR of the open position. It reads under
 the existing `/api/portfolio/` READ family and commercial boundary; price history is
 entitlement-filtered. Public census: 201 paths / 217 operations.
+
+## 2026-10-30 additive gas-for-power
+
+`GET /api/market/gas-for-power?zone=DE_LU&days=14` returns, per delivery day for one
+bidding zone, the average day-ahead power price, residual load, implied gas burn and its
+basis, the reference gas hub close, front carbon (EUA; UKA plus Carbon Price Support for
+GB) and API2 coal, and the clean spark spread, clean dark spread and fuel-switch gas price.
+Inputs come only from entitled, non-simulated rows; a missing input leaves the dependent
+figure null. Read under the `/api/market/` READ family and commercial boundary. Public
+census: 202 paths / 218 operations.

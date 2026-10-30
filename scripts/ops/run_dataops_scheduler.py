@@ -43,6 +43,7 @@ _SCRIPT_COMMANDS = {
     "src-entsoe": ("ingest_power.py", "--commit", "--json", "--days", "2"),
     "src-boe": ("ingest_interest_rates.py", "--json", "--benchmark", "SONIA", "--days", "10"),
     "src-ecb-estr": ("ingest_interest_rates.py", "--json", "--benchmark", "ESTR", "--days", "10"),
+    "src-eia": ("ingest_eia.py", "--json", "--days", "14"),
     "src-nyfed": ("ingest_interest_rates.py", "--json", "--benchmark", "SOFR", "--days", "10"),
 }
 

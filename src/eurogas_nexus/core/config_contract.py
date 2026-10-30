@@ -516,6 +516,17 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="EIA_API_KEY",
+        scope="OPERATOR",
+        purpose="API key for the US EIA open-data API (Henry Hub daily spot price).",
+        sensitivity="secret",
+        required_when="Henry Hub ingestion (scripts/ops/ingest_eia.py) fetches from EIA",
+        notes=(
+            "Free on registration at eia.gov/opendata; EIA data is public domain. The key "
+            "is sent as a query parameter and never logged.",
+        ),
+    ),
+    ConfigVar(
         name="ENTSOE_SECURITY_TOKEN",
         scope="OPERATOR",
         purpose=(

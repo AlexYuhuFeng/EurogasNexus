@@ -14,6 +14,7 @@ from eurogas_nexus.api.routes.public.cost_observations import router as cost_obs
 from eurogas_nexus.api.routes.public.credentials import router as credentials_router
 from eurogas_nexus.api.routes.public.data_platform import router as data_platform_router
 from eurogas_nexus.api.routes.public.decision_cases import router as decision_cases_router
+from eurogas_nexus.api.routes.public.fundamentals import router as fundamentals_router
 from eurogas_nexus.api.routes.public.glossary import router as glossary_router
 from eurogas_nexus.api.routes.public.health import router as health_router
 from eurogas_nexus.api.routes.public.jobs import router as jobs_router
@@ -63,6 +64,7 @@ def register_routes(
         app.include_router(market_router)
         app.include_router(monitoring_router)
         app.include_router(portfolio_router)
+        app.include_router(fundamentals_router)
         app.include_router(physical_router)
         app.include_router(lng_router)
         app.include_router(storage_router)

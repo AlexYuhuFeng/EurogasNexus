@@ -25,6 +25,8 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 | National Gas (GB demand actuals) | Live (script) | Daily demand | Weather-demand targets |
 | ENTSO-E Transparency (power prices, load, wind, solar, gas generation) | Live, scheduled hourly (customer token) | MW, EUR/MWh per bidding zone | Gas-for-power, datasets (`power.*`) |
 | EEX public TTF NGP file | Live (bounded download) | Reference index, 15-min | Reference index panel (not a quote) |
+| EUA, UKA carbon; API2 coal; power and gas settlements | Settlement import from the customer's ICE Endex / EEX licence | Native units (EUR/t, USD/t) | Gas for power: clean spark and dark spreads, fuel-switch price |
+| EIA Henry Hub spot | Live, scheduled daily (free key) | USD/MMBtu | LNG arbitrage reference |
 | REMIT UMMs (gas outages) | Operator import (JSON/CSV, ACER fields) | Every message version; native capacity unit | Capacity & Events → Outages, SDK `fetch_outages` |
 | Customer screen export (Trayport/ICE/EEX) | Operator import | L1 bid/ask in native units | Board, ladder, spread lab, position marks |
 | WM/Reuters, BFIX fixes | Operator import | Fixings | FX conversions for LNG and contracts |
@@ -38,8 +40,7 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 |---|---|---|
 | National Gas SAP/SMP, system imbalance, linepack | GB balancing prices and system length | Public (National Gas data portal) |
 | THE/GTS/GRTgaz balancing signals | Continental system length | Public per TSO |
-| EUA carbon and API2 coal prices | Fuel switching, spark/dark spreads | Licensed (ICE/EEX); customer entitlement |
-| JKM, Henry Hub | LNG arbitrage | JKM licensed (Platts); Henry Hub spot public via EIA |
+| JKM | LNG arbitrage | Licensed (Platts) |
 | Weather actuals and ensembles (ERA5, ECMWF ENS) | Model training and uncertainty | ERA5 CC-BY; ENS licensed |
 | Hydro reservoir and French nuclear availability | Residual load and gas burn | ENTSO-E (A72 reservoirs, A77/A80 unavailability) |
 
@@ -48,7 +49,7 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 | Capability | State |
 |---|---|
 | GB weather-adjusted demand (ECMWF → degree days → National Gas demand) | Implemented, frozen model fits, numerical acceptance in CI |
-| Gas-for-power (residual load, spark/dark, fuel switch, implied burn) | Implemented as calculations; not yet a fitted burn model |
+| Gas-for-power (residual load, clean spark/dark, fuel switch, implied burn) | Served daily per zone with EUA/UKA and API2; not yet a fitted burn model |
 | Point-in-time training datasets (prices, power, storage, LNG, flows; lags, rolling, walk-forward) | Implemented |
 | Spread analysis and declared-rule backtests | Implemented |
 | Strategy design, frozen backtests, shadow runs | Implemented |
@@ -76,7 +77,8 @@ forecasting covers GB demand and data preparation rather than a full balance mod
    and ICE Endex settlements first (curves for marks and VaR), Trayport streaming second.
 2. ~~REMIT outage import~~ done (file import); next: a platform API connector so UMMs arrive
    within minutes, outage features in training datasets, and GB system prices.
-3. **Carbon and coal** via the customer's ICE/EEX entitlement, completing the switching view.
+3. ~~Carbon and coal~~ settlement import and gas-for-power view done; next: direct ICE Endex
+   and EEX connectors once licensed ([MARKET_DATA_SOURCING.md](../operations/MARKET_DATA_SOURCING.md)).
 4. ~~Forward curve builder~~ done (2026-10-30); next: feed it settlement curves from the
    licensed connectors in priority 1.
 5. **NW Europe balance**: demand (weather, power burn) against supply (flows, LNG,

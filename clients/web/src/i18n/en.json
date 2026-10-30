@@ -3740,5 +3740,17 @@
   "outages.type_planned": "Planned",
   "outages.type_unplanned": "Unplanned",
   "outages.type_unspecified": "Unspecified",
-  "sources.category.rates": "Interest rates"
+  "sources.category.rates": "Interest rates",
+  "gfp.title": "Gas for power",
+  "gfp.zone": "Zone",
+  "gfp.day": "Day",
+  "gfp.power": "Power ({{currency}}/MWh)",
+  "gfp.residual": "Residual load (MW)",
+  "gfp.burn": "Gas burn (GWh)",
+  "gfp.gas": "Gas {{hub}}",
+  "gfp.carbon": "Carbon {{market}}",
+  "gfp.css": "Clean spark",
+  "gfp.cds": "Clean dark",
+  "gfp.switch": "Switch gas price",
+  "gfp.empty": "No power data for this zone yet."
 }

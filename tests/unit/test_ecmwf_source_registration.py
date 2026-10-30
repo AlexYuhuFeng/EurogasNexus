@@ -19,7 +19,7 @@ def _source_for_system(source_system: str) -> dict:
 
 def test_ecmwf_open_data_is_distinct_registered_public_source() -> None:
     sources = registered_sources()
-    assert len(sources) == 30
+    assert len(sources) == 34
     assert len({source["source_id"] for source in sources}) == len(sources)
     assert len({source["source_system"] for source in sources}) == len(sources)
 
