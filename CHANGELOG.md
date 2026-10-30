@@ -11,6 +11,27 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ## [Unreleased]
 
+### Added
+
+- Market reference model: commodities (gas, LNG, power, emissions, coal), regions and
+  pricing points, including planned AECO, Alberta power and TIER credits for a Canada desk;
+  North American (NAESB) gas day.
+- Carbon (EUA, UKA), API2 coal, power and gas settlement import from the firm's ICE Endex,
+  EEX, CME, NGX, Argus or Platts licence; Henry Hub daily spot from EIA.
+- Gas for power per bidding zone: clean spark and dark spreads, fuel-switch gas price,
+  implied gas burn (Market → Overview).
+- North-west Europe balance: the call on Norway, LNG and storage, measured and forecast,
+  with Norwegian REMIT outages applied and a storage fill trajectory.
+- Market-data licence register: licensed data scopes are granted only against a licence
+  the firm holds, with seat and office checks and a holder report for vendor audits.
+- Trading books (legal entity, region, business, book) and position roll-ups from firm to
+  book in one reporting currency.
+
+### Fixed
+
+- Mark-to-market and VaR added GBP and EUR amounts without converting them; each market's
+  currency is now converted at ECB reference rates.
+
 ## [0.6.0] - 2026-10-30
 
 ### Added
