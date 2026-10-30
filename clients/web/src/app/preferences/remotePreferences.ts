@@ -1,10 +1,13 @@
 import { api, type PreferenceKey, type PreferencesDTO } from "@/api/client";
 import { changeAppLanguage } from "@/i18n";
+import { LANGUAGE_STORAGE_KEY, normalizeLanguage } from "@/i18n/language";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
 import {
   normalizeMarketViewPreference,
+  readMarketViewPreference,
   writeMarketViewPreference,
 } from "@/app/context/viewPreference";
+import { resolveSignInPreferences } from "./preferenceResolution";
 
 /**
  * Personal preferences live on the server per principal (`/api/me/preferences`), so a
@@ -48,11 +51,31 @@ export async function applyEffectivePreferences(
   window.dispatchEvent(new Event(PREFERENCES_APPLIED_EVENT));
 }
 
+/** Keys the user chose explicitly on this device (sign-in language picker, theme menu, …). */
+function locallyChosen(principalId: string): Partial<Record<PreferenceKey, string>> {
+  const chosen: Partial<Record<PreferenceKey, string>> = {};
+  try {
+    const language = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (language) chosen.language = normalizeLanguage(language);
+    const theme = window.localStorage.getItem("theme");
+    if (theme === "system" || theme === "light" || theme === "dark") chosen.theme = theme;
+    const layout = window.localStorage.getItem(BOARD_LAYOUT_STORAGE_KEY);
+    if (layout === "board" || layout === "ladder") chosen.market_board_layout = layout;
+  } catch {
+    // Storage unavailable: nothing was chosen on this device.
+  }
+  const view = readMarketViewPreference(principalId);
+  if (view) chosen.market_view = view;
+  return chosen;
+}
+
 /** Load and apply once per signed-in principal; a failed read keeps the local copy. */
 export async function loadRemotePreferences(principalId: string): Promise<PreferencesDTO | null> {
   try {
     const response = await api.myPreferences();
-    await applyEffectivePreferences(response.data.effective, principalId);
+    const { effective, seed } = resolveSignInPreferences(response.data, locallyChosen(principalId));
+    await applyEffectivePreferences(effective, principalId);
+    if (Object.keys(seed).length > 0) void api.saveMyPreferences(seed).catch(() => undefined);
     return response.data;
   } catch {
     return null;

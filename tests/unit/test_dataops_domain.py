@@ -56,7 +56,8 @@ NOW = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
 def test_registry_is_canonical_and_classified() -> None:
     definitions = source_definitions()
 
-    assert len(definitions) == 25
+    assert len(definitions) == 26
+    assert definition_for_source("src-entsoe").source_class == SourceClass.PUBLIC
     assert definition_for_source("src-eex") is not None
     assert definition_for_provider("ENTSOG") is not None
     assert definition_for_source("src-ice-ocm").source_class == SourceClass.EXCHANGE

@@ -476,6 +476,20 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="ENTSOE_SECURITY_TOKEN",
+        scope="OPERATOR",
+        purpose=(
+            "Security token for the ENTSO-E Transparency Platform (day-ahead power prices, "
+            "load, wind, solar and gas-fired generation)."
+        ),
+        sensitivity="secret",
+        required_when="power ingestion (scripts/ops/ingest_power.py) fetches from ENTSO-E",
+        notes=(
+            "Free after registering on transparency.entsoe.eu and requesting API access; "
+            "the token is sent as a query parameter and never logged.",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_COST_SOURCE_URL",
         scope="TOOLING",
         purpose="Endpoint the cost-observation refresh reads.",

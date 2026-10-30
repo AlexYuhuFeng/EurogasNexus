@@ -3701,5 +3701,6 @@
   "shortcuts.profile-previous-window": "Previous window (desktop)",
   "shortcuts.ladder-move": "Move between ladder cells",
   "shortcuts.palette-close": "Close a menu, dialog or palette",
-  "shortcuts.shortcuts-open": "Show this list"
+  "shortcuts.shortcuts-open": "Show this list",
+  "sources.category.power": "Power"
 }

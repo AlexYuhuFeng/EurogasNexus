@@ -71,6 +71,7 @@ from eurogas_nexus.db.models.observation import (
     StorageObservationRecord,
 )
 from eurogas_nexus.db.models.optimization import OptimizationRunRecord
+from eurogas_nexus.db.models.power import PowerObservationRecord
 from eurogas_nexus.db.models.raw_archive import RawPayloadArchiveRecord
 from eurogas_nexus.db.models.reference_network import (
     NodeFacilityMapping,
@@ -263,6 +264,7 @@ __all__ = [
     "FxObservationRecord",
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
+    "PowerObservationRecord",
     "PrincipalPreferenceRecord",
     "GlossaryTermRecord",
     "JobRecord",

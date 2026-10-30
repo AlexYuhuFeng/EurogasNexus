@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Acknowledgement_MarketDocument xmlns="urn:iec62325.351:tc57wg16:451-1:acknowledgementdocument:7:0">
+  <mRID>ack</mRID>
+  <createdDateTime>2026-10-30T02:10:00Z</createdDateTime>
+  <Reason><code>999</code><text>No matching data found</text></Reason>
+</Acknowledgement_MarketDocument>

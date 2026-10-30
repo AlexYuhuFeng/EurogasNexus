@@ -215,6 +215,32 @@ def main() -> int:
                 schema_version="series/v1",
                 created_at_utc=now,
             ),
+            *(
+                SeriesDefinitionRecord(
+                    series_id=f"power.{metric}.GB",
+                    name=f"GB {label}",
+                    metric_type="power",
+                    entity_type="bidding_zone",
+                    entity_id="ent:bidding_zone:GB",
+                    product_id=None,
+                    source_class="ENTSOE",
+                    native_frequency="PT30M",
+                    native_unit=unit,
+                    currency="EUR" if unit == "EUR/MWh" else None,
+                    temporal_type="OBSERVED",
+                    availability_semantics="regulatory_publication_deadline",
+                    schema_version="series/v1",
+                    created_at_utc=now,
+                )
+                for metric, label, unit in (
+                    ("load_actual", "actual load", "MW"),
+                    ("wind_onshore_generation", "onshore wind generation", "MW"),
+                    ("wind_offshore_generation", "offshore wind generation", "MW"),
+                    ("solar_generation", "solar generation", "MW"),
+                    ("gas_generation", "gas-fired generation", "MW"),
+                    ("day_ahead_price", "day-ahead power price", "EUR/MWh"),
+                )
+            ),
         ):
             upsert_series_definition(session, series)
 
@@ -241,6 +267,21 @@ def main() -> int:
                       ["market.price.TTF.DAY_AHEAD"], window=20),
             _declared("TTF_DA_SD20", "TTF day-ahead, 20-day dispersion", "rolling_std",
                       ["market.price.TTF.DAY_AHEAD"], window=20),
+            _declared(
+                "GB_RESIDUAL_LOAD",
+                "GB residual load (load less wind and solar)",
+                "linear_combination",
+                [
+                    "power.load_actual.GB",
+                    "power.wind_onshore_generation.GB",
+                    "power.wind_offshore_generation.GB",
+                    "power.solar_generation.GB",
+                ],
+                weights=[1, -1, -1, -1],
+                step="1h",
+            ),
+            _declared("GB_GAS_GENERATION_LAG24H", "GB gas-fired generation, 24 h earlier", "lag",
+                      ["power.gas_generation.GB"], lag_steps=24, step="1h"),
             _declared("NBP_DA_MA5", "NBP day-ahead, 5-day mean",
                       "rolling_mean", ["market.price.NBP.DAY_AHEAD"], window=5),
         ):

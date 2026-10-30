@@ -28,6 +28,8 @@ PUBLIC_BASELINE_SOURCE_FAMILIES = frozenset(
         # Benchmark-rate administrators (SONIA, SOFR): free public fixings.
         "BOE",
         "NYFED",
+        # ENTSO-E Transparency: free power-system data (token required, attribution).
+        "ENTSOE",
     }
 )
 

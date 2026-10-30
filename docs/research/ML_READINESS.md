@@ -95,11 +95,12 @@ entitlement gate.
 
 ### Gaps, in priority order
 
-1. **Coverage of drivers.** The catalogue has price series, weather and a few
-   features. A useful demand or spread model also needs power prices and
-   generation (ENTSO-E day-ahead prices, load, wind and solar), storage (AGSI),
-   flows (ENTSOG), LNG send-out (ALSI), and calendar effects (holidays, gas-day,
-   weekends). Each needs an ingestor that records publication time.
+1. **Coverage of drivers.** Prices for every hub and ENTSO-E power series (load, wind,
+   solar, gas-fired generation, day-ahead power prices; see
+   [GAS_POWER_COUPLING.md](GAS_POWER_COUPLING.md)) now enter datasets. Still missing
+   from the builder: storage (AGSI), flows (ENTSOG), LNG send-out (ALSI) and calendar
+   effects (holidays, gas day, weekends); the data exist in the runtime store but the
+   evidence loader does not read them yet.
 2. **Source certification for STRICT mode.** Until a source's historical
    `available_at` is certified, its datasets are EXPLORATORY.
 3. **Licensing of exported features.** Exchange settlement prices and broker data

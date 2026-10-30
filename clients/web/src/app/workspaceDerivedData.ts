@@ -35,6 +35,7 @@ export const SOURCE_CATEGORY_ORDER = [
   "infrastructure",
   "tariff",
   "weather",
+  "power",
   "ai",
 ] as const;
 

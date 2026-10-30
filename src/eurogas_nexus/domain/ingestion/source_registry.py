@@ -17,6 +17,7 @@ CATEGORY_LABELS = {
     "infrastructure": "Infrastructure",
     "tariff": "TSO Tariffs",
     "weather": "Weather",
+    "power": "Power",
     "ai": "LLM",
 }
 
@@ -76,7 +77,7 @@ def _source_row(
 
 
 def registered_sources() -> list[dict]:
-    """Return the full static registry of 25 source systems.
+    """Return the full static registry of 26 source systems.
 
     返回全部注册来源的静态登记记录列表。
 
@@ -304,6 +305,19 @@ def registered_sources() -> list[dict]:
             "Weather observations and forecast signals for HDD/CDD modelling.",
             True,
             freshness_minutes=180,
+        ),
+        _source_row(
+            "src-entsoe",
+            "ENTSOE",
+            "power",
+            ("day-ahead-prices", "actual-load", "generation-per-type"),
+            (
+                "ENTSO-E Transparency Platform day-ahead power prices, load, and wind, solar "
+                "and gas-fired generation: the drivers of gas burned for power. Free; "
+                "requires a registered security token; attribution: ENTSO-E."
+            ),
+            True,
+            freshness_minutes=120,
         ),
         _source_row(
             "src-ecmwf-open-data",

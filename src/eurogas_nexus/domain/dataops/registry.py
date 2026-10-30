@@ -92,6 +92,17 @@ _SOURCE_OVERRIDES: dict[str, dict] = {
         "rate_limit_policy": RateLimitPolicy(6, 60.0, 5.0, 1),
         "adapter_version": "public-source-ingestor/1",
     },
+    # Ingested by scripts/ops/ingest_power.py; the scheduler has no ENTSO-E adapter yet, so the
+    # source is not schedulable rather than claimed and never run.
+    "src-entsoe": {
+        "source_class": SourceClass.PUBLIC,
+        "access_mode": AccessMode.KEYED_HTTP,
+        "credential_fields": ("security_token",),
+        "certification_required": True,
+        "schedulable": False,
+        "enabled_default": False,
+        "adapter_version": "entsoe-transparency-xml-v1",
+    },
     "src-gie": {
         "source_class": SourceClass.PUBLIC,
         "access_mode": AccessMode.KEYED_HTTP,

@@ -3701,5 +3701,6 @@
   "shortcuts.profile-previous-window": "上一个窗口（桌面版）",
   "shortcuts.ladder-move": "在阶梯单元格间移动",
   "shortcuts.palette-close": "关闭菜单、对话框或面板",
-  "shortcuts.shortcuts-open": "显示此列表"
+  "shortcuts.shortcuts-open": "显示此列表",
+  "sources.category.power": "电力"
 }

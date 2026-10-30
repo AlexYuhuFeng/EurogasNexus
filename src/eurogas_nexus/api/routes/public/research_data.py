@@ -720,8 +720,8 @@ def _build_from_runtime(
         metadata = row.metadata_json or {}
         hub = str(metadata.get("hub") or row.market_venue).strip().upper()
         tenor = str(metadata.get("tenor") or row.product).strip().lower()
-        if hub not in {"NBP", "TTF"}:
-            continue
+        if not hub.isalnum() or len(hub) > 8:
+            continue  # a venue label, not a hub code
         entity_id = canonical_entity_id(CanonicalEntityType.MARKET_HUB, hub)
         # An empty entity_ids list means "no entity restriction"; otherwise the
         # requested canonical entities are the only rows that may enter the build.
@@ -757,6 +757,41 @@ def _build_from_runtime(
             )
         )
         trusted_source_ids.add(source_definition.source_id)
+    # Power-system drivers of gas burn (ENTSO-E): series ``power.<metric>.<zone>``. Their
+    # availability is the earlier of the document time and the regulatory publication
+    # deadline, so it is approximate rather than verified.
+    entsoe_definition = source_by_system.get("entsoe")
+    if entsoe_definition is not None:
+        from eurogas_nexus.db.models.power import PowerObservationRecord
+
+        power_rows = (
+            session.query(PowerObservationRecord)
+            .filter(PowerObservationRecord.period_start_utc >= history_start)
+            .filter(PowerObservationRecord.period_start_utc < spec.end)
+            .all()
+        )
+        for row in power_rows:
+            entity_id = f"ent:bidding_zone:{row.zone}"
+            if requested_entity_ids and entity_id not in requested_entity_ids:
+                continue
+            records.append(
+                DatasetEvidenceRecord(
+                    record_id=row.observation_id,
+                    series_id=f"power.{row.metric}.{row.zone}",
+                    entity_id=entity_id,
+                    observed_at=row.period_start_utc,
+                    available_at=row.published_at_utc,
+                    ingested_at=row.ingested_at_utc,
+                    value=row.value,
+                    unit=row.unit,
+                    observation_kind=ObservationKind.ACTUAL,
+                    temporal_integrity=TemporalIntegrityState.TEMPORAL_APPROXIMATE,
+                    source_reference=row.source_reference,
+                    export_policy=row_export_policy(entsoe_definition),
+                )
+            )
+        if power_rows:
+            trusted_source_ids.add(entsoe_definition.source_id)
     if not records:
         raise HTTPException(
             status_code=422,
