@@ -470,3 +470,115 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* Price view switch and market ladder (products down, hubs across). */
+.market-view-switch {
+  display: inline-flex;
+  border: 1px solid var(--eg-hairline);
+}
+
+.market-view-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--eg-muted);
+  padding: 2px var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.market-view-switch button.active {
+  background: var(--eg-ink);
+  color: var(--eg-on-ink, var(--eg-canvas));
+}
+
+.market-ladder-scroll {
+  overflow-x: auto;
+}
+
+.market-ladder {
+  border-collapse: collapse;
+  font-family: var(--eg-font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+
+.market-ladder th,
+.market-ladder td {
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--eg-hairline);
+  text-align: right;
+  white-space: nowrap;
+  min-width: 52px;
+}
+
+.market-ladder thead th {
+  color: var(--eg-muted);
+  font-weight: 600;
+  font-size: 11px;
+  background: var(--eg-canvas-soft);
+}
+
+.market-ladder .market-ladder-hub {
+  text-align: center;
+  border-left: 2px solid var(--eg-hairline-strong, var(--eg-hairline));
+}
+
+.market-ladder .market-ladder-hub button {
+  border: 0;
+  background: transparent;
+  color: var(--eg-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.market-ladder .market-ladder-hub.focused button {
+  color: var(--eg-link);
+}
+
+.market-ladder .market-ladder-product {
+  text-align: left;
+  font-weight: 700;
+  color: var(--eg-ink);
+  position: sticky;
+  left: 0;
+  background: var(--eg-canvas);
+}
+
+.market-ladder td.vol {
+  color: var(--eg-muted);
+}
+
+.market-ladder td.vol:nth-of-type(4n + 1) {
+  border-left: 2px solid var(--eg-hairline-strong, var(--eg-hairline));
+}
+
+.market-ladder td.bid {
+  color: var(--eg-link);
+  font-weight: 700;
+}
+
+.market-ladder td.offer {
+  color: var(--eg-negative);
+  font-weight: 700;
+}
+
+.market-ladder td.crossed {
+  background: var(--eg-warn-soft);
+}
+
+.market-ladder td.simulated {
+  text-decoration: underline dotted;
+}
+
+.market-ladder td:focus,
+.market-ladder th:focus {
+  outline: 2px solid var(--eg-link);
+  outline-offset: -2px;
+}
+
+.intraday-decision-feed > .intraday-expired-toggle {
+  justify-self: start;
+}

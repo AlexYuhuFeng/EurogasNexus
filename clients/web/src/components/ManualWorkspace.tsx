@@ -21,6 +21,17 @@ const WORKSPACE_GUIDE_KEYS = [
   "sources",
 ] as const;
 
+const FROM_SCREEN_KEYS = [
+  "market_view",
+  "sequences",
+  "units",
+  "spreads",
+  "depth",
+  "trading",
+  "fx",
+  "alerts",
+] as const;
+
 export function ManualWorkspace({
   runtimeDb,
   activeSourceCount,
@@ -36,6 +47,23 @@ export function ManualWorkspace({
           <strong>{t("manual.title")}</strong>
         </div>
         <p className="panel-copy">{t("manual.subtitle")}</p>
+      </div>
+      {/* For traders arriving from an execution screen: where each familiar thing lives here. */}
+      <div className="workspace-panel span-3" data-manual-section="from-trading-screen">
+        <h2>{t("manual.from_screen.title")}</h2>
+        <p className="panel-copy">{t("manual.from_screen.intro")}</p>
+        <div className="data-table manual-mapping-table">
+          <div className="data-table-row header">
+            <span>{t("manual.from_screen.on_screen")}</span>
+            <span>{t("manual.from_screen.here")}</span>
+          </div>
+          {FROM_SCREEN_KEYS.map((key) => (
+            <div key={key} className="data-table-row">
+              <strong>{t(`manual.from_screen.${key}.screen`)}</strong>
+              <span>{t(`manual.from_screen.${key}.here`)}</span>
+            </div>
+          ))}
+        </div>
       </div>
       <div className="workspace-panel span-2">
         <h2>{t("manual.workspace_map")}</h2>

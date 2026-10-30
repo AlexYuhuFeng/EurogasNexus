@@ -13,7 +13,9 @@ Expected columns (case-insensitive; extra columns ignored)::
 
 ``product`` accepts Trayport-style names: ``WD``/``Within Day``, ``DA``/``Day Ahead``,
 ``WE``/``Weekend``, ``BOM``, ``Nov-26``, ``Q1-27``, ``Sum-27``/``Win-27``,
-``GY-27``, ``Cal-27`` and relative ``M+1``/``Q+1``. Prices may be EUR/MWh,
+``GY-27``, ``Cal-27`` and relative ``M+1``/``Q+1``. Volumes follow the screen
+convention (MW for MWh-priced hubs, therms/day for p/th) and are stored as MWh per
+gas day. Prices may be EUR/MWh,
 GBP/MWh or GBp/th (NBP); pence per therm is stored per MWh in GBP and the native
 value is kept in ``metadata_json``.
 
@@ -87,10 +89,20 @@ def _number(value: str | None, line: int, name: str, *, required: bool) -> float
     return number
 
 
-def _quantity_mwh(value: float | None, native_unit: str) -> float | None:
+QUANTITY_UNITS = ("MW", "MWh/d", "th/d")
+
+
+def _quantity_mwh_per_day(value: float | None, unit: str, hours_per_day: float) -> float | None:
+    """Screen volume as MWh per gas day (the basis depth is compared with capacity on).
+
+    Continental screens quote a delivery rate in MW, NBP screens therms/day.
+    """
+
     if value is None:
         return None
-    if native_unit == "GBp/th":
+    if unit == "MW":
+        return round(value * hours_per_day, 6)
+    if unit == "th/d":
         return round(convert_energy(value, "therm", "MWh"), 6)
     return value
 
@@ -113,6 +125,7 @@ def parse_quote_export(
     source_reference: str,
     received_at_utc: datetime,
     default_units: dict[str, str] | None = None,
+    quantity_unit_override: str | None = None,
 ) -> QuoteImportResult:
     """Parse one export into ``market_quotes`` rows.
 
@@ -120,6 +133,8 @@ def parse_quote_export(
         QuoteImportError: Unknown source, missing columns or any bad row.
     """
 
+    if quantity_unit_override not in (None, *QUANTITY_UNITS):
+        raise QuoteImportError(f"quantity unit must be one of {QUANTITY_UNITS}")
     if source_system not in LICENSED_QUOTE_SOURCES:
         raise QuoteImportError(f"source must be one of {sorted(LICENSED_QUOTE_SOURCES)}")
     reader = csv.DictReader(io.StringIO(text.lstrip("﻿")))
@@ -178,6 +193,12 @@ def parse_quote_export(
             )
         except UnitConversionError as exc:
             raise QuoteImportError(f"line {line}: {exc}") from exc
+        # Volume convention: per-import override, else the screen's convention for the
+        # price unit (p/th screens show therms/day, MWh-priced screens show MW).
+        quantity_unit = quantity_unit_override or ("th/d" if native_unit == "GBp/th" else "MW")
+        hours_per_day = period.hours / period.gas_days
+        bid_qty = _number(cell(record, "bid_qty"), line, "bid_qty", required=False)
+        ask_qty = _number(cell(record, "ask_qty"), line, "ask_qty", required=False)
         board_tenor = _BOARD_TENOR.get(period.kind)
         if board_tenor is None:
             board_tenor = "month-ahead" if code.upper() in {"M+1", "MA"} else period.label.lower()
@@ -199,13 +220,8 @@ def parse_quote_export(
                 "bid_price": bid_mwh,
                 "ask_price": ask_mwh,
                 "last_price": last_mwh,
-                # p/th screens quote volume in therms/day; store MWh like every other row.
-                "bid_quantity_mwh": _quantity_mwh(
-                    _number(cell(record, "bid_qty"), line, "bid_qty", required=False), native_unit
-                ),
-                "ask_quantity_mwh": _quantity_mwh(
-                    _number(cell(record, "ask_qty"), line, "ask_qty", required=False), native_unit
-                ),
+                "bid_quantity_mwh": _quantity_mwh_per_day(bid_qty, quantity_unit, hours_per_day),
+                "ask_quantity_mwh": _quantity_mwh_per_day(ask_qty, quantity_unit, hours_per_day),
                 "currency": per_mwh_unit.split("/")[0],
                 "unit": "MWh",
                 "observed_at_utc": observed,
@@ -223,6 +239,9 @@ def parse_quote_export(
                     "native_bid": bid,
                     "native_ask": ask,
                     "native_last": last,
+                    "native_bid_qty": bid_qty,
+                    "native_ask_qty": ask_qty,
+                    "native_quantity_unit": quantity_unit,
                     "price_level": "L1",
                     "calendar_version": EU_CAM_UTC_CALENDAR,
                     "official_entitlement_required": True,

@@ -12,6 +12,7 @@ import type {
   NormalizedMarketObsDTO,
   SourceSystemDTO,
 } from "@/api/client";
+import { MarketLadder } from "@/components/MarketLadder";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
 
@@ -262,6 +263,17 @@ const formatDelta = (value: number | null): string => {
   return `${value > 0 ? "+" : ""}${value.toFixed(3)}`;
 };
 
+type BoardView = "board" | "ladder";
+const BOARD_VIEW_STORAGE_KEY = "eurogas.market.board_view";
+
+function readBoardView(): BoardView {
+  try {
+    return window.localStorage.getItem(BOARD_VIEW_STORAGE_KEY) === "ladder" ? "ladder" : "board";
+  } catch {
+    return "board";
+  }
+}
+
 export function MarketTerminal({
   markets,
   marketSpreads,
@@ -276,6 +288,15 @@ export function MarketTerminal({
   t,
 }: MarketTerminalProps) {
   const [activeTenor, setActiveTenor] = useState("day-ahead");
+  const [boardView, setBoardView] = useState<BoardView>(readBoardView);
+  const chooseBoardView = (view: BoardView) => {
+    setBoardView(view);
+    try {
+      window.localStorage.setItem(BOARD_VIEW_STORAGE_KEY, view);
+    } catch {
+      // Storage may be unavailable (private window); the choice then lasts this session.
+    }
+  };
 
   const quoteHistoryByIdentity = useMemo(() => {
     const result = new Map<string, MarketQuoteDTO[]>();
@@ -505,6 +526,20 @@ export function MarketTerminal({
           <div className="section-heading">
             <strong>{t("market.terminal")}</strong>
           </div>
+          <div className="market-view-switch" role="group" aria-label={t("ladder.view")}>
+            {(["board", "ladder"] as const).map((view) => (
+              <button
+                key={`board-view-${view}`}
+                type="button"
+                aria-pressed={boardView === view}
+                className={boardView === view ? "active" : undefined}
+                onClick={() => chooseBoardView(view)}
+              >
+                {t(`ladder.view.${view}`)}
+              </button>
+            ))}
+          </div>
+          {boardView === "board" && (
           <div className="market-tenor-tabs" aria-label={t("market.tenor_tabs")}>
             {marketTenorOrder.map((tenor) => (
               <button
@@ -519,6 +554,7 @@ export function MarketTerminal({
               </button>
             ))}
           </div>
+          )}
           <div className="market-live-status">
             <span>{t("market.updated")}</span>
             <strong>{formatTimestamp(lastUpdatedAtUtc)}</strong>
@@ -538,6 +574,16 @@ export function MarketTerminal({
             <span>{t("market.simulated_banner_body")}</span>
           </div>
         )}
+        {boardView === "ladder" ? (
+          <MarketLadder
+            quotes={marketQuotes}
+            hubs={marketMajorHubs.map((definition) => definition.hub)}
+            focusedHub={focusedHub}
+            onHubChange={onHubChange}
+            t={t}
+          />
+        ) : (
+        <>
         {/* The board prices one tenor at a time and one row per major hub. Both are declared on the
             elements the operator sees (`data-board-tenor`, per row `data-price-tenor`), so the
             browser sweep compares the payload's rows for the *displayed* scope instead of assuming
@@ -656,6 +702,8 @@ export function MarketTerminal({
             </div>
           );})}
         </div>
+        </>
+        )}
         <p className="market-terminal-note">
           {t("market.board_note")}
           {marketUnavailableRows.length > 0 && (

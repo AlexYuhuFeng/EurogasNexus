@@ -36,6 +36,9 @@ def test_trayport_export_maps_products_units_and_family():
     assert da["product"] == "day-ahead"  # Friday DA delivers Monday
     assert da["source_system"] == "Trayport" and da["simulated"] is False
     assert da["currency"] == "EUR" and da["bid_price"] == 31.575
+    # Continental screens quote MW: 30 MW over a 24-hour gas day is 720 MWh/d.
+    assert da["bid_quantity_mwh"] == 720
+    assert da["metadata_json"]["native_quantity_unit"] == "MW"
     month = rows[("TTF", "Nov-26")]
     assert month["product"] == "nov-26"
     nbp = rows[("NBP", "2026-11-02")]
@@ -71,6 +74,16 @@ def test_nbp_unit_override_and_explicit_unit_column():
 def test_bad_rows_refuse_the_file(row):
     with pytest.raises(QuoteImportError):
         _parse("timestamp,hub,product,bid,ask\n" + row + "\n")
+
+
+def test_quantity_override_and_dst_gas_day():
+    text = "timestamp,hub,product,bid,ask,bid_qty\n2026-10-23T09:00:00Z,TTF,WE,31,32,10\n"
+    # Weekend 24-25 Oct 2026 includes the 25-hour clock-change day: 49 h over 2 days.
+    row = _parse(text).rows[0]
+    assert row["bid_quantity_mwh"] == pytest.approx(245)
+    assert _parse(text, quantity_unit_override="MWh/d").rows[0]["bid_quantity_mwh"] == 10
+    with pytest.raises(QuoteImportError):
+        _parse(text, quantity_unit_override="kg")
 
 
 def test_only_licensed_families_and_required_columns():

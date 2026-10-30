@@ -52,6 +52,7 @@ def import_once(session_factory, path: Path, args: argparse.Namespace) -> int:
             source_reference=f"operator-export:{path.name}",
             received_at_utc=now,
             default_units={"NBP": args.nbp_unit} if args.nbp_unit else None,
+            quantity_unit_override=args.quantity_unit,
         )
     except QuoteImportError as exc:
         print(f"Refused: {exc}")
@@ -103,6 +104,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--source", required=True, choices=sorted(LICENSED_QUOTE_SOURCES))
     parser.add_argument("--file", required=True)
     parser.add_argument("--nbp-unit", choices=("GBp/th", "GBP/MWh"), default=None)
+    parser.add_argument(
+        "--quantity-unit", choices=("MW", "MWh/d", "th/d"), default=None,
+        help="screen volume unit; default MW for MWh-priced rows, th/d for p/th rows",
+    )
     parser.add_argument("--watch", type=float, default=0, help="poll seconds; 0 imports once")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)

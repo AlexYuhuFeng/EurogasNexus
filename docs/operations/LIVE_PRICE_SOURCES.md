@@ -41,6 +41,9 @@ python scripts/ops/import_market_quotes.py --source Trayport --file trayport.csv
   continental hubs €/MWh), overridable with `--nbp-unit`. p/th prices are stored as
   GBP/MWh and therms/day volumes as MWh, with the native values kept in the row's
   metadata.
+- Volumes: continental screens quote MW and NBP screens therms/day; both are stored
+  as MWh per gas day (MW × the gas day's hours, 23/24/25), overridable with
+  `--quantity-unit`.
 - A bad row (naive timestamp, unknown hub, crossed bid/ask, expired product) refuses
   the whole file, so a half-imported screen never shows.
 - Rows are stored under the licensed family (`Trayport`, `ICE_OCM`, `EEX`). Only users
