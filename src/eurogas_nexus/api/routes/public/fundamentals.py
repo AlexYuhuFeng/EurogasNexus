@@ -330,3 +330,227 @@ def get_gas_for_power(
     elif rows and "API2" in settlements and eur_per_usd is None:
         warnings.append("No ECB EUR/USD rate; API2 coal cannot be converted.")
     return _env(rows, "runtime-postgresql", warnings)
+
+
+#: ENTSOG entry points that land Norwegian pipeline gas in north-west Europe (Europipe I/II,
+#: Norpipe, Zeepipe, Franpipe, Vesterled, Langeled). Matched on the point name.
+NORWEGIAN_ENTRY_POINTS = (
+    "EMDEN",
+    "DORNUM",
+    "ZEEBRUGGE ZPT",
+    "DUNKERQUE",
+    "ST. FERGUS",
+    "ST FERGUS",
+    "EASINGTON",
+)
+#: Gross calorific value used to turn Norwegian volumes into energy (kWh per m3).
+NORWEGIAN_GCV_KWH_M3 = 11.0
+
+
+def _utc_date(session, column):
+    """The UTC calendar date of a timestamp column (PostgreSQL would use the session zone)."""
+
+    from sqlalchemy import func, literal_column
+
+    if session.get_bind().dialect.name == "postgresql":
+        # A literal, not a bound parameter, so GROUP BY sees the same expression as SELECT.
+        return func.date(func.timezone(literal_column("'UTC'"), column))
+    return func.date(column)
+
+
+def _daily_sum(session, column_expr, model, filters, first: date):
+    from sqlalchemy import func
+
+    day = _utc_date(session, model.period_start_utc)
+    query = session.query(day, func.sum(column_expr)).filter(
+        model.period_start_utc >= _bound(session, first)
+    )
+    for condition in filters:
+        query = query.filter(condition)
+    return {
+        (value if isinstance(value, date) else date.fromisoformat(str(value))): float(total or 0)
+        for value, total in query.group_by(day).all()
+        if value is not None
+    }
+
+
+@router.get("/api/market/nwe-balance")
+def get_nwe_balance(
+    request: Request,
+    days: int = Query(14, ge=1, le=31),
+) -> dict:
+    """North-west Europe daily balance: call on Norway, LNG and storage, and its forecast.
+
+    西北欧天然气日度平衡：对挪威管道气、LNG 与储气的需求及其预测（含 REMIT 停运）。
+
+    History is measured from ENTSOG Norwegian entry flows, GIE ALSI send-out and GIE AGSI
+    net withdrawal for GB, NL, BE, DE, FR, DK and LU, in GWh per gas day. The forecast
+    states its method per component on every day (see ``domain.fundamentals.balance``).
+    """
+
+    from sqlalchemy import or_
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.db.models import FlowObservationRecord, RemitUmmRecord
+    from eurogas_nexus.db.models.observation import (
+        LngObservationRecord,
+        StorageObservationRecord,
+    )
+    from eurogas_nexus.domain.fundamentals.balance import (
+        NWE_COUNTRIES,
+        BalanceHistoryDay,
+        Outage,
+        forecast_balance,
+    )
+
+    session = _session_or_none()
+    if session is None:
+        return _env({}, "runtime-db-not-configured", ["RUNTIME_DB_NOT_CONFIGURED"])
+    today = datetime.now(UTC).date()
+    first = today - timedelta(days=800)
+    mcm_to_gwh = NORWEGIAN_GCV_KWH_M3  # 1 mcm x kWh/m3 = GWh
+    try:
+        with session:
+            norway = _daily_sum(
+                session,
+                FlowObservationRecord.flow_mcm_d,
+                FlowObservationRecord,
+                [
+                    or_(
+                        *(
+                            FlowObservationRecord.point_name.ilike(f"%{name}%")
+                            for name in NORWEGIAN_ENTRY_POINTS
+                        )
+                    ),
+                    FlowObservationRecord.direction.ilike("entry"),
+                ],
+                first,
+            )
+            lng = _daily_sum(
+                session,
+                LngObservationRecord.send_out_twh_d,
+                LngObservationRecord,
+                [LngObservationRecord.country.in_(NWE_COUNTRIES)],
+                first,
+            )
+            withdrawal = _daily_sum(
+                session,
+                StorageObservationRecord.withdrawal_twh_d,
+                StorageObservationRecord,
+                [StorageObservationRecord.country.in_(NWE_COUNTRIES)],
+                first,
+            )
+            injection = _daily_sum(
+                session,
+                StorageObservationRecord.injection_twh_d,
+                StorageObservationRecord,
+                [StorageObservationRecord.country.in_(NWE_COUNTRIES)],
+                first,
+            )
+            latest_storage_day = max(withdrawal, default=None)
+            inventory = capacity = None
+            if latest_storage_day is not None:
+                from sqlalchemy import func
+
+                inventory, capacity = (
+                    session.query(
+                        func.sum(StorageObservationRecord.inventory_twh),
+                        func.sum(StorageObservationRecord.working_capacity_twh),
+                    )
+                    .filter(StorageObservationRecord.country.in_(NWE_COUNTRIES))
+                    .filter(
+                        _utc_date(session, StorageObservationRecord.period_start_utc)
+                        == latest_storage_day
+                    )
+                    .one()
+                )
+            cutoff = datetime.now(UTC)
+            remit = (
+                session.query(RemitUmmRecord)
+                .filter(RemitUmmRecord.balancing_zone.ilike("%NO%"))
+                .filter(
+                    or_(
+                        RemitUmmRecord.event_stop_utc.is_(None),
+                        RemitUmmRecord.event_stop_utc > _bound(session, cutoff.date()),
+                    )
+                )
+                .all()
+            )
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "runtime_db_unavailable", "error_class": exc.__class__.__name__},
+        ) from exc
+
+    history = [
+        BalanceHistoryDay(
+            day=day,
+            norway_gwh=norway[day] * mcm_to_gwh,
+            lng_gwh=lng[day] * 1000,
+            storage_net_withdrawal_gwh=(withdrawal.get(day, 0.0) - injection.get(day, 0.0)) * 1000,
+        )
+        for day in sorted(set(norway) & set(lng) & (set(withdrawal) | set(injection)))
+    ]
+    latest_version: dict[str, Any] = {}
+    for record in remit:
+        held = latest_version.get(record.message_id)
+        if held is None or record.version > held.version:
+            latest_version[record.message_id] = record
+    outages = []
+    for record in latest_version.values():
+        if record.event_status == "dismissed":
+            continue
+        gwh = record.unavailable_gwh_d
+        if gwh is None and record.unavailable_mcm_d is not None:
+            gwh = record.unavailable_mcm_d * mcm_to_gwh
+        if not gwh:
+            continue
+        outages.append(
+            Outage(
+                start=_aware(record.event_start_utc).date(),
+                end=_aware(record.event_stop_utc).date() if record.event_stop_utc else None,
+                unavailable_gwh_d=gwh,
+            )
+        )
+    start = (history[-1].day + timedelta(days=1)) if history else today
+    forecast = forecast_balance(
+        history,
+        start=start,
+        days=days + max(0, (today - start).days),
+        norway_outages=outages,
+        inventory_twh=float(inventory) if inventory else None,
+        working_capacity_twh=float(capacity) if capacity else None,
+    )
+    warnings = list(forecast.warnings)
+    if not history:
+        warnings.append(
+            "No overlapping ENTSOG Norwegian entry, ALSI and AGSI history for NW Europe; "
+            "check that these sources are scheduled."
+        )
+    return _env(
+        {
+            "region": list(NWE_COUNTRIES),
+            "unit": "GWh/d",
+            "history": [
+                {
+                    "day": h.day.isoformat(),
+                    "call_gwh": round(h.call_gwh, 1),
+                    "norway_gwh": round(h.norway_gwh, 1),
+                    "lng_gwh": round(h.lng_gwh, 1),
+                    "storage_net_withdrawal_gwh": round(h.storage_net_withdrawal_gwh, 1),
+                }
+                for h in history[-28:]
+            ],
+            "forecast": [d.as_dict() for d in forecast.days],
+            "norway_outages": len(outages),
+            "assumptions": {
+                "norwegian_gcv_kwh_m3": NORWEGIAN_GCV_KWH_M3,
+                "norwegian_entry_points": list(NORWEGIAN_ENTRY_POINTS),
+                "storage_inventory_day": latest_storage_day.isoformat()
+                if latest_storage_day
+                else None,
+            },
+        },
+        "runtime-postgresql",
+        warnings,
+    )

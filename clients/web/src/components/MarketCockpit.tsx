@@ -3,6 +3,7 @@ import { WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { OutagesPanel } from "@/components/OutagesPanel";
 import { GasForPowerPanel } from "@/components/GasForPowerPanel";
+import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { TraderDeskPanel } from "@/components/TraderDeskPanel";
@@ -379,6 +380,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
       <div id="market-cockpit-panel" className="market-cockpit-panel">
         <MarketContextStrip projection={api.marketContext} t={t} />
         {task === "overview" && <MarketOverview controller={controller} task={task} />}
+        {task === "overview" && <NweBalancePanel t={t} />}
         {task === "overview" && <GasForPowerPanel t={t} />}
         {task === "curves" && (
           <>

@@ -32,6 +32,7 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "evidence.utc": "a time-basis token, the same in both locales",
   "experience.palette.group.ai": "an acronym",
   "map.layer.lng": "an acronym",
+  "nwe.lng": "an acronym",
   "panel.lng": "an acronym in a vendor's own product name",
   "settings.chinese": "a language named in its own language",
   "settings.english": "a language named in its own language",

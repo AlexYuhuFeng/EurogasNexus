@@ -54,7 +54,7 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 | Spread analysis and declared-rule backtests | Implemented |
 | Strategy design, frozen backtests, shadow runs | Implemented |
 | Position ladder, MtM on the forward curve, indicative VaR | Implemented (price risk only) |
-| Supply/demand balance (NW Europe), storage trajectory forecast, LNG send-out forecast | **Missing** |
+| Supply/demand balance (NW Europe) with storage trajectory and REMIT-adjusted Norwegian supply | Implemented as a component model ([NWE_BALANCE.md](../research/NWE_BALANCE.md)); weather call needs per-country HDD forecasts; LNG uses averages until a cargo feed is licensed |
 | Forward curve construction (months, quarters, seasons, years; optional seasonal shape) | Implemented; ladder marks use it, with a flagged flat fallback |
 | Option or swing valuation, storage intrinsic/extrinsic | Storage dispatch assessment only; no extrinsic valuation |
 
@@ -81,6 +81,6 @@ forecasting covers GB demand and data preparation rather than a full balance mod
    and EEX connectors once licensed ([MARKET_DATA_SOURCING.md](../operations/MARKET_DATA_SOURCING.md)).
 4. ~~Forward curve builder~~ done (2026-10-30); next: feed it settlement curves from the
    licensed connectors in priority 1.
-5. **NW Europe balance**: demand (weather, power burn) against supply (flows, LNG,
-   storage), forecast daily for two weeks.
+5. ~~NW Europe balance~~ component model done; next: per-country HDD from ECMWF and the
+   gas-for-power burn as call inputs, Kpler cargoes for LNG.
 6. Move ECMWF and National Gas under the scheduler too (ENTSO-E and rates done).

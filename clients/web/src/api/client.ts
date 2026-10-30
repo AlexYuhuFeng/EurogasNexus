@@ -2358,6 +2358,29 @@ export interface MarketDataLicenceDTO extends MarketDataLicenceInput {
   updated_at_utc: string;
 }
 
+export interface NweBalanceDayDTO {
+  day: string;
+  call_gwh: number;
+  norway_gwh: number;
+  norway_outage_gwh?: number;
+  lng_gwh: number;
+  storage_net_withdrawal_gwh: number;
+  inventory_twh?: number | null;
+  fill_pct?: number | null;
+  methods?: Record<string, string>;
+  flags?: string[];
+}
+
+/** North-west Europe balance: measured history and the component forecast. */
+export interface NweBalanceDTO {
+  region: string[];
+  unit: string;
+  history: NweBalanceDayDTO[];
+  forecast: NweBalanceDayDTO[];
+  norway_outages: number;
+  assumptions: Record<string, unknown>;
+}
+
 /** One delivery day of the gas-for-power view for a bidding zone. */
 export interface GasForPowerDayDTO {
   day: string;
@@ -4087,6 +4110,8 @@ export const api = {
   runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
   runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
+  nweBalance: (days = 14, options?: ApiRequestOptions) =>
+    get<NweBalanceDTO>("/market/nwe-balance", { days: String(days) }, options),
   gasForPower: (zone = "DE_LU", days = 14, options?: ApiRequestOptions) =>
     get<GasForPowerDayDTO[]>("/market/gas-for-power", { zone, days: String(days) }, options),
   outages: (horizonDays = 90, options?: ApiRequestOptions) =>

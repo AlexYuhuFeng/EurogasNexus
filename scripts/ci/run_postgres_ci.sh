@@ -48,6 +48,12 @@ anonymous = TestClient(app)
 refused = anonymous.get("/api/route-cost/tso-tariffs")
 assert refused.status_code in {401, 403, 503}, refused.status_code
 print("db-backed api smoke ok: an uncredentialed caller is refused")
+
+# Aggregating reads that group by gas day in SQL: PostgreSQL rejects what SQLite accepts.
+for path in ("/api/market/nwe-balance?days=3", "/api/market/gas-for-power?zone=DE_LU&days=3"):
+    aggregated = client.get(path)
+    assert aggregated.status_code == 200, (path, aggregated.text)
+print("db-backed api smoke ok: balance and gas-for-power aggregate on PostgreSQL")
 PY
 
 # SQLite fixtures do not prove PostgreSQL behaviour. The two schema modules below own

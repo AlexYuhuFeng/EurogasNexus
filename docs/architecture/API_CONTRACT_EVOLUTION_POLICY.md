@@ -419,3 +419,12 @@ for the person's office or that has no free named-user seat; public families and
 `*` wildcard are unaffected. `GET /api/access/data-scopes` derives its families from the
 source registry. Public census: 204 paths / 220 operations.
 
+## 2026-10-30 additive north-west Europe balance
+
+`GET /api/market/nwe-balance?days=14` (1-31) returns the north-west Europe call on
+Norwegian pipeline gas, LNG send-out and storage in GWh per gas day: the last 28 measured
+days (ENTSOG Norwegian entry points, GIE ALSI, GIE AGSI for GB, NL, BE, DE, FR, DK, LU)
+and a forecast whose method is stated per component and day, with Norwegian supply reduced
+by live REMIT outages and storage rolled into an inventory and fill trajectory. Read under
+the `/api/market/` READ family. Public census: 205 paths / 221 operations.
+

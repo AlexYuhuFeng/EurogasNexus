@@ -3775,5 +3775,14 @@
   "licence.type_NAMED_USER": "指定用户",
   "licence.use_DISPLAY": "显示",
   "licence.use_NON_DISPLAY": "非显示",
-  "licence.use_DISPLAY_AND_NON_DISPLAY": "显示与非显示"
+  "licence.use_DISPLAY_AND_NON_DISPLAY": "显示与非显示",
+  "nwe.title": "西北欧供需平衡（GWh/日）",
+  "nwe.day": "燃气日",
+  "nwe.call": "需求",
+  "nwe.norway": "挪威",
+  "nwe.lng": "LNG",
+  "nwe.storage": "储气净采出",
+  "nwe.fill": "库容率",
+  "nwe.outage": "挪威停运减少 {{gwh}} GWh/日",
+  "nwe.methods": "预测（粗体）：需求 {{call}}；挪威 {{norway}}；LNG {{lng}}；储气为差额。"
 }

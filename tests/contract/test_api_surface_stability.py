@@ -98,6 +98,7 @@ PINNED_PUBLIC_PATHS = {
     "/api/portfolio/live-summary",
     "/api/portfolio/position-ladder",
     "/api/market/gas-for-power",
+    "/api/market/nwe-balance",
     "/api/access/market-data-licences",
     "/api/access/market-data-licences/{licence_id}",
     "/api/portfolio/pnl-snapshots",

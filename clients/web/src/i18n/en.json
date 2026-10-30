@@ -3775,5 +3775,14 @@
   "licence.type_NAMED_USER": "Named users",
   "licence.use_DISPLAY": "Display",
   "licence.use_NON_DISPLAY": "Non-display",
-  "licence.use_DISPLAY_AND_NON_DISPLAY": "Display and non-display"
+  "licence.use_DISPLAY_AND_NON_DISPLAY": "Display and non-display",
+  "nwe.title": "North-west Europe balance (GWh/d)",
+  "nwe.day": "Gas day",
+  "nwe.call": "Call",
+  "nwe.norway": "Norway",
+  "nwe.lng": "LNG",
+  "nwe.storage": "Storage withdrawal",
+  "nwe.fill": "Fill",
+  "nwe.outage": "{{gwh}} GWh/d off for Norwegian outages",
+  "nwe.methods": "Forecast (bold): call {{call}}; Norway {{norway}}; LNG {{lng}}; storage is the residual."
 }

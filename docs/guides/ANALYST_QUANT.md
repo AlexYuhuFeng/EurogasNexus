@@ -34,3 +34,12 @@ they enter datasets and shadow evaluation like any other source.
 
 Every value is used only after it was available; simulated sources are labelled; exports
 respect licence terms (exchange data usually needs a derived-data licence for models).
+
+## Balance and gas for power
+
+Market → Overview shows the north-west Europe balance (the call on Norway, LNG and storage,
+measured and forecast, with REMIT outages applied; method in
+[NWE_BALANCE.md](../research/NWE_BALANCE.md)) and the gas-for-power view per bidding zone
+(clean spark and dark spreads with EUA/UKA and API2, implied gas burn). Both are in the API
+(`/api/market/nwe-balance`, `/api/market/gas-for-power`) for notebooks.
+
