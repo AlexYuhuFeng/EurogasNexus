@@ -75,7 +75,9 @@ def _checks() -> list[dict]:
     # group metadata, and membership management. Public remains authenticated.
     # Two declared, authenticated ECMWF research paths add forecast reads and
     # explicit caller-weighted degree-day computation (191 paths / 205 operations).
-    check("public_surface_bounded", len(paths) == 191, f"public paths={len(paths)}")
+    # Three READ-floor trader desk paths add product calendar, price conversion and
+    # storage-target trajectory reads (194 paths / 208 operations).
+    check("public_surface_bounded", len(paths) == 194, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 
