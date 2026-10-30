@@ -10,6 +10,8 @@ archive evidence is absent and has no fallback.  Missing coverage is a typed
 insufficient result, never zero weather, a baseline or a fitted model.  The
 repository's own ``no_autoflush`` scope leaves caller work untouched, and this
 module never writes, flushes, commits, rolls back or calls the network.
+Retrospective provider-applicability target-label evidence is refused here until
+its complete downstream evidence propagation is separately reviewed.
 """
 
 from __future__ import annotations
@@ -55,6 +57,7 @@ from eurogas_nexus.domain.research.weather_demand import (
     DemandModelResult,
     DemandPrediction,
     DemandPredictionRequest,
+    DemandTargetLabelBasis,
     ForecastVintageRef,
     ModelKind,
     PromotionStatus,
@@ -108,6 +111,10 @@ class WeatherDemandPredictionValidationError(WeatherDemandPredictionError):
 
 class WeatherDemandPredictionArchiveBasisError(WeatherDemandPredictionValidationError):
     code = "ARCHIVE_FORECAST_BASIS_UNSUPPORTED"
+
+
+class WeatherDemandPredictionTargetLabelBasisError(WeatherDemandPredictionValidationError):
+    code = "RETROSPECTIVE_TARGET_LABEL_BASIS_UNSUPPORTED"
 
 
 class WeatherDemandPredictionCoreError(WeatherDemandPredictionError):
@@ -279,6 +286,25 @@ class WeatherDemandPredictionRequest:
         result = self.model_result
         evidence = result.selection_evidence
         _require(evidence is not None, "no selection evidence")
+        for model in (result.baseline_model, result.candidate_model, result.selected_model):
+            if (
+                model is not None
+                and (
+                    model.target_label_basis
+                    is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+                    or model.target_label_policy_hash is not None
+                    or model.target_label_facts
+                )
+            ):
+                raise WeatherDemandPredictionTargetLabelBasisError(
+                    "retrospective provider-applicability target labels are not "
+                    "supported by this prediction runtime"
+                )
+        if evidence.target_label_evidence is not None:
+            raise WeatherDemandPredictionTargetLabelBasisError(
+                "retrospective target label evidence is not supported by this "
+                "prediction runtime"
+            )
         _require(
             evidence.validation_as_of <= self.prediction_origin,
             "prediction origin precedes selection evidence",

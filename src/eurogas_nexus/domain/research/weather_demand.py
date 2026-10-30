@@ -92,6 +92,18 @@ class WeatherPredictionInputError(WeatherDemandInputError):
     """Base refusal for a prediction that cannot be made from the frozen result."""
 
 
+class DemandTargetLabelBasisError(WeatherDemandInputError):
+    """Raised when a target-label clock/basis is malformed or inconsistent."""
+
+    code = "DEMAND_TARGET_LABEL_BASIS_INVALID"
+
+
+class RetrospectiveTargetLabelConsumptionError(WeatherPredictionInputError):
+    """Raised when a selected research label basis is consumed by prediction."""
+
+    code = "RETROSPECTIVE_TARGET_LABEL_UNSUPPORTED"
+
+
 class MissingWeatherFeatureError(WeatherPredictionInputError):
     """Raised when a weather model is asked to predict without a required column."""
 
@@ -123,6 +135,25 @@ class ValidationBasis(StrEnum):
     SYNTHETIC_NOT_REAL = "SYNTHETIC_NOT_REAL"
     REALIZED_WEATHER_CALIBRATION = "REALIZED_WEATHER_CALIBRATION"
     GENUINE_FORECAST_VINTAGE_OOS = "GENUINE_FORECAST_VINTAGE_OOS"
+
+
+class DemandTargetLabelBasis(StrEnum):
+    """How a demand target's label clock is interpreted.
+
+    ``ACTUAL_RECEIPT`` is the default and uses ``DemandTargetRow.available_at``
+    exactly. ``RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH`` is an explicit
+    research-only basis that uses the separate ``label_at`` provider clock; it is
+    not first-publication proof, genuine OOS or production evidence.
+    """
+
+    ACTUAL_RECEIPT = "ACTUAL_RECEIPT"
+    RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH = (
+        "RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH"
+    )
+
+
+DEMAND_TARGET_LABEL_METHOD_VERSION = "demand-target-effective-label-clock/v1"
+FINAL_TARGET_TRUTH_LABEL = "FINAL_KNOWN_AT_ANALYSIS_AS_OF"
 
 
 class ModelKind(StrEnum):
@@ -1132,7 +1163,12 @@ def compute_degree_days(request: DegreeDayRequest, policy: DegreeDayPolicy) -> D
 
 @dataclass(frozen=True)
 class DemandTargetRow:
-    """One native-unit actual demand revision with point-in-time availability."""
+    """One native-unit actual demand revision with actual receipt and label clocks.
+
+    ``available_at`` is always the immutable actual receipt. ``label_at`` is an
+    optional separate provider-applicability clock used only under the explicit
+    nondefault research basis; it never replaces or rewrites the receipt.
+    """
 
     gas_day: date
     scope: TargetScope
@@ -1144,6 +1180,8 @@ class DemandTargetRow:
     revision_id: str
     available_at: datetime
     source_ref: str
+    label_at: datetime | None = None
+    label_basis: DemandTargetLabelBasis = DemandTargetLabelBasis.ACTUAL_RECEIPT
 
     def __post_init__(self) -> None:
         if not isinstance(self.gas_day, date) or isinstance(self.gas_day, datetime):
@@ -1165,6 +1203,282 @@ class DemandTargetRow:
         object.__setattr__(self, "revision_id", _text(self.revision_id, "revision_id"))
         object.__setattr__(self, "available_at", _utc(self.available_at, "available_at"))
         object.__setattr__(self, "source_ref", _text(self.source_ref, "source_ref"))
+        try:
+            basis = DemandTargetLabelBasis(self.label_basis)
+        except (TypeError, ValueError) as exc:
+            raise DemandTargetLabelBasisError("unsupported demand target label basis") from exc
+        object.__setattr__(self, "label_basis", basis)
+        if self.label_at is not None:
+            try:
+                label_at = _utc(self.label_at, "label_at")
+            except WeatherDemandInputError as exc:
+                raise DemandTargetLabelBasisError(str(exc)) from exc
+            object.__setattr__(self, "label_at", label_at)
+        if basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+            if self.label_at is not None:
+                raise DemandTargetLabelBasisError(
+                    "actual-receipt label basis cannot carry a separate label clock"
+                )
+            return
+        if self.label_at is None:
+            raise DemandTargetLabelBasisError(
+                "retrospective provider-applicability basis requires an explicit label_at"
+            )
+        if self.label_at > self.available_at:
+            raise DemandTargetLabelBasisError(
+                "retrospective label clock cannot follow the actual receipt"
+            )
+
+
+@dataclass(frozen=True)
+class DemandTargetLabelFact:
+    """Complete immutable target-revision and label-clock fact for one revision."""
+
+    gas_day: date
+    scope: TargetScope
+    region: str
+    unit: str
+    value: float
+    quality: DemandTargetQuality
+    revision: int
+    revision_id: str
+    available_at: datetime
+    label_at: datetime
+    label_basis: DemandTargetLabelBasis
+    source_ref: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.gas_day, date) or isinstance(self.gas_day, datetime):
+            raise DemandTargetLabelBasisError("label fact gas_day must be a date")
+        if not date(2000, 1, 1) <= self.gas_day <= date(2100, 12, 31):
+            raise DemandTargetLabelBasisError("label fact gas_day is outside the supported range")
+        object.__setattr__(self, "scope", TargetScope(self.scope))
+        object.__setattr__(self, "quality", DemandTargetQuality(self.quality))
+        object.__setattr__(self, "region", _text(self.region, "region"))
+        object.__setattr__(self, "unit", _text(self.unit, "unit").upper())
+        object.__setattr__(
+            self,
+            "value",
+            _number(self.value, "value", minimum=0.0, maximum=MAX_DEMAND_VALUE),
+        )
+        object.__setattr__(
+            self,
+            "revision",
+            _integer(self.revision, "revision", minimum=1, maximum=1_000_000),
+        )
+        object.__setattr__(self, "revision_id", _text(self.revision_id, "revision_id"))
+        try:
+            available_at = _utc(self.available_at, "available_at")
+            label_at = _utc(self.label_at, "label_at")
+        except WeatherDemandInputError as exc:
+            raise DemandTargetLabelBasisError(str(exc)) from exc
+        object.__setattr__(self, "available_at", available_at)
+        object.__setattr__(self, "label_at", label_at)
+        try:
+            basis = DemandTargetLabelBasis(self.label_basis)
+        except (TypeError, ValueError) as exc:
+            raise DemandTargetLabelBasisError("unsupported demand target label basis") from exc
+        if basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+            raise DemandTargetLabelBasisError(
+                "label facts require an explicit nondefault label basis"
+            )
+        object.__setattr__(self, "label_basis", basis)
+        if label_at > available_at:
+            raise DemandTargetLabelBasisError(
+                "retrospective label clock cannot follow the actual receipt"
+            )
+        object.__setattr__(self, "source_ref", _text(self.source_ref, "source_ref"))
+
+    @classmethod
+    def from_row(cls, row: DemandTargetRow) -> DemandTargetLabelFact:
+        """Build a complete fact from an explicitly labelled nondefault row."""
+
+        if not isinstance(row, DemandTargetRow):
+            raise DemandTargetLabelBasisError("unsupported demand target row type")
+        if (
+            row.label_basis is DemandTargetLabelBasis.ACTUAL_RECEIPT
+            or row.label_at is None
+        ):
+            raise DemandTargetLabelBasisError(
+                "a label fact requires an explicit nondefault row label basis and clock"
+            )
+        return cls(
+            gas_day=row.gas_day,
+            scope=row.scope,
+            region=row.region,
+            unit=row.unit,
+            value=row.value,
+            quality=row.quality,
+            revision=row.revision,
+            revision_id=row.revision_id,
+            available_at=row.available_at,
+            label_at=row.label_at,
+            label_basis=row.label_basis,
+            source_ref=row.source_ref,
+        )
+
+
+def _target_label_fact_payload(fact: DemandTargetLabelFact) -> dict[str, object]:
+    """Return a deterministic JSON-safe identity for one complete label fact."""
+
+    return {
+        "gas_day": fact.gas_day.isoformat(),
+        "scope": fact.scope.value,
+        "region": fact.region,
+        "unit": fact.unit,
+        "value": fact.value,
+        "quality": fact.quality.value,
+        "revision": fact.revision,
+        "revision_id": fact.revision_id,
+        "available_at": fact.available_at.isoformat(),
+        "label_at": fact.label_at.isoformat(),
+        "label_basis": fact.label_basis.value,
+        "source_ref": fact.source_ref,
+    }
+
+
+def _target_label_policy_hash_for_basis(basis: DemandTargetLabelBasis) -> str:
+    """Return the stable policy-hash identity for one explicit label basis."""
+
+    return _canonical_hash(
+        {
+            "schema": "demand-target-label-policy/v1",
+            "label_method": DEMAND_TARGET_LABEL_METHOD_VERSION,
+            "target_label_basis": basis.value,
+        }
+    )
+
+
+@dataclass(frozen=True)
+class DemandTargetLabelEvidence:
+    """Complete nondefault label-clock evidence; never a lone basis string.
+
+    ``revision_facts`` retains every actual-receipt-admitted target revision and
+    its derived label clock. ``final_truth`` is the separate analysis-as-of
+    truth used only for scoring. Both are bound by model and selection hashes.
+    """
+
+    basis: DemandTargetLabelBasis
+    policy_hash: str
+    analysis_as_of: datetime
+    revision_facts: tuple[DemandTargetLabelFact, ...]
+    final_truth: tuple[DemandTargetLabelFact, ...] = ()
+    label_method: str = DEMAND_TARGET_LABEL_METHOD_VERSION
+    final_truth_label: str = FINAL_TARGET_TRUTH_LABEL
+
+    def __post_init__(self) -> None:
+        try:
+            basis = DemandTargetLabelBasis(self.basis)
+        except (TypeError, ValueError) as exc:
+            raise DemandTargetLabelBasisError("unsupported demand target label basis") from exc
+        if basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+            raise DemandTargetLabelBasisError(
+                "label evidence requires an explicit nondefault label basis"
+            )
+        object.__setattr__(self, "basis", basis)
+        object.__setattr__(self, "policy_hash", _text(self.policy_hash, "policy_hash"))
+        expected_policy_hash = _target_label_policy_hash_for_basis(basis)
+        if self.policy_hash != expected_policy_hash:
+            raise DemandTargetLabelBasisError(
+                "label evidence policy hash does not match its explicit basis and method"
+            )
+        try:
+            analysis_as_of = _utc(self.analysis_as_of, "analysis_as_of")
+        except WeatherDemandInputError as exc:
+            raise DemandTargetLabelBasisError(str(exc)) from exc
+        object.__setattr__(self, "analysis_as_of", analysis_as_of)
+        object.__setattr__(self, "label_method", _text(self.label_method, "label_method"))
+        if self.label_method != DEMAND_TARGET_LABEL_METHOD_VERSION:
+            raise DemandTargetLabelBasisError("unsupported demand target label method")
+        object.__setattr__(
+            self,
+            "final_truth_label",
+            _text(self.final_truth_label, "final_truth_label"),
+        )
+        if self.final_truth_label != FINAL_TARGET_TRUTH_LABEL:
+            raise DemandTargetLabelBasisError("unsupported final target truth label")
+        facts = tuple(self.revision_facts)
+        if not facts:
+            raise DemandTargetLabelBasisError(
+                "complete target revision and clock facts are required"
+            )
+        if any(not isinstance(fact, DemandTargetLabelFact) for fact in facts):
+            raise DemandTargetLabelBasisError("unsupported target label fact type")
+        if any(fact.label_basis is not basis for fact in facts):
+            raise DemandTargetLabelBasisError("target label facts mix label bases")
+        ordered = tuple(
+            sorted(facts, key=lambda fact: (fact.gas_day, fact.revision, fact.revision_id))
+        )
+        ordered_set = set(ordered)
+        if len(ordered_set) != len(ordered):
+            raise DemandTargetLabelBasisError("duplicate target label facts are not allowed")
+        if len({(fact.gas_day, fact.revision) for fact in ordered}) != len(ordered):
+            raise DemandTargetLabelBasisError(
+                "duplicate target gas-day/revision facts are not allowed"
+            )
+        if len({(fact.scope, fact.region, fact.unit) for fact in ordered}) != 1:
+            raise DemandTargetLabelBasisError(
+                "target label facts mix target scope, region or native unit"
+            )
+        for fact in ordered:
+            if fact.available_at > analysis_as_of:
+                raise DemandTargetLabelBasisError(
+                    "target label fact actual receipt follows the analysis cutoff"
+                )
+        object.__setattr__(self, "revision_facts", ordered)
+        final = tuple(self.final_truth)
+        if any(not isinstance(fact, DemandTargetLabelFact) for fact in final):
+            raise DemandTargetLabelBasisError("unsupported final target truth fact type")
+        if any(fact.label_basis is not basis for fact in final):
+            raise DemandTargetLabelBasisError("final target truth facts mix label bases")
+        if any(fact not in ordered_set for fact in final):
+            raise DemandTargetLabelBasisError(
+                "final target truth fact is not present in the complete revision facts"
+            )
+        final_days = [fact.gas_day for fact in final]
+        if len(set(final_days)) != len(final_days):
+            raise DemandTargetLabelBasisError(
+                "final target truth contains duplicate gas days"
+            )
+        for fact in final:
+            if fact.available_at > analysis_as_of or fact.label_at > analysis_as_of:
+                raise DemandTargetLabelBasisError(
+                    "final target truth was not known at the analysis cutoff"
+                )
+        expected_final = _expected_analysis_final_truth(ordered)
+        if tuple(sorted(final, key=_label_fact_sort_key)) != expected_final:
+            raise DemandTargetLabelBasisError(
+                "final target truth must contain exactly the latest eligible revision "
+                "for every gas day in the complete revision facts"
+            )
+        object.__setattr__(
+            self,
+            "final_truth",
+            tuple(
+                sorted(
+                    final,
+                    key=lambda fact: (fact.gas_day, fact.revision, fact.revision_id),
+                )
+            ),
+        )
+
+
+def _target_label_evidence_payload(
+    evidence: DemandTargetLabelEvidence,
+) -> dict[str, object]:
+    """Return a deterministic JSON-safe identity for complete label evidence."""
+
+    return {
+        "basis": evidence.basis.value,
+        "policy_hash": evidence.policy_hash,
+        "analysis_as_of": evidence.analysis_as_of.isoformat(),
+        "label_method": evidence.label_method,
+        "final_truth_label": evidence.final_truth_label,
+        "revision_facts": [
+            _target_label_fact_payload(fact) for fact in evidence.revision_facts
+        ],
+        "final_truth": [_target_label_fact_payload(fact) for fact in evidence.final_truth],
+    }
 
 
 @dataclass(frozen=True)
@@ -1193,6 +1507,7 @@ class DemandModelPolicy:
     max_training_rows: int = 10_000
     max_features: int = 32
     max_folds: int = 31
+    target_label_basis: DemandTargetLabelBasis = DemandTargetLabelBasis.ACTUAL_RECEIPT
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "target_scope", TargetScope(self.target_scope))
@@ -1212,6 +1527,18 @@ class DemandModelPolicy:
         )
         object.__setattr__(self, "model_version", _text(self.model_version, "model_version"))
         object.__setattr__(self, "validation_basis", ValidationBasis(self.validation_basis))
+        try:
+            label_basis = DemandTargetLabelBasis(self.target_label_basis)
+        except (TypeError, ValueError) as exc:
+            raise DemandTargetLabelBasisError("unsupported demand target label basis") from exc
+        if (
+            label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+            and self.validation_basis is ValidationBasis.GENUINE_FORECAST_VINTAGE_OOS
+        ):
+            raise DemandTargetLabelBasisError(
+                "retrospective target labels cannot claim genuine forecast-vintage OOS"
+            )
+        object.__setattr__(self, "target_label_basis", label_basis)
         features = tuple(WeatherFeature(feature) for feature in self.weather_features)
         if not features:
             raise WeatherDemandInputError("at least one weather feature is required")
@@ -1298,6 +1625,12 @@ class DemandModelPolicy:
         if _feature_count(self) > self.max_features:
             raise WeatherDemandInputError("selected features exceed max_features")
 
+    @property
+    def target_label_policy_hash(self) -> str:
+        """Return the stable identity of the explicit target-label basis/method."""
+
+        return _target_label_policy_hash_for_basis(self.target_label_basis)
+
 
 @dataclass(frozen=True)
 class ModelMetrics:
@@ -1320,6 +1653,13 @@ class DemandFoldResult:
     baseline_prediction: float
     candidate_prediction: float
     input_type: TemperatureInputType
+    training_target_facts: tuple[DemandTargetLabelFact, ...] = ()
+
+    def __post_init__(self) -> None:
+        facts = tuple(self.training_target_facts)
+        if any(not isinstance(fact, DemandTargetLabelFact) for fact in facts):
+            raise DemandTargetLabelBasisError("unsupported fold training target fact type")
+        object.__setattr__(self, "training_target_facts", facts)
 
 
 @dataclass(frozen=True)
@@ -1331,6 +1671,56 @@ class ResidualUncertainty:
     upper_offset: float
     residual_count: int
     method_version: str
+
+
+def _validate_model_target_label_facts(
+    *,
+    basis: DemandTargetLabelBasis,
+    target_scope: TargetScope,
+    region: str,
+    target_unit: str,
+    training_cutoff: datetime,
+    training_rows: int,
+    target_revision_ids: tuple[str, ...],
+    facts: tuple[DemandTargetLabelFact, ...],
+) -> None:
+    """Refuse model label facts that do not exactly bind the frozen model.
+
+    Fact membership in a wider analysis-as-of evidence set is necessary but not
+    sufficient: the model needs exactly one complete fact per training row, the
+    same revision identities, the same target identity, and no label clock after
+    its frozen training cutoff. This never widens an earlier fold with revisions
+    that only became eligible later.
+    """
+
+    if len(facts) != training_rows:
+        raise DemandTargetLabelBasisError(
+            "fitted-model training label facts count does not match training_rows"
+        )
+    if len(set(facts)) != len(facts):
+        raise DemandTargetLabelBasisError(
+            "duplicate fitted-model training label facts are not allowed"
+        )
+    if any(fact.label_basis is not basis for fact in facts):
+        raise DemandTargetLabelBasisError("fitted-model label facts mix label bases")
+    if any(
+        fact.scope != target_scope
+        or fact.region != region
+        or fact.unit != target_unit
+        for fact in facts
+    ):
+        raise DemandTargetLabelBasisError(
+            "fitted-model training label fact target identity differs from the model"
+        )
+    if any(fact.label_at > training_cutoff for fact in facts):
+        raise DemandTargetLabelBasisError(
+            "fitted-model training label clock follows the model training cutoff"
+        )
+    fact_revision_ids = tuple(sorted({fact.revision_id for fact in facts}))
+    if fact_revision_ids != tuple(target_revision_ids):
+        raise DemandTargetLabelBasisError(
+            "fitted-model training label revision ids do not match target_revision_ids"
+        )
 
 
 @dataclass(frozen=True)
@@ -1362,17 +1752,76 @@ class FittedDemandModel:
     validation_basis: ValidationBasis
     use_status: ModelUseStatus
     model_hash: str
+    target_label_basis: DemandTargetLabelBasis = DemandTargetLabelBasis.ACTUAL_RECEIPT
+    target_label_policy_hash: str | None = None
+    target_label_facts: tuple[DemandTargetLabelFact, ...] = ()
+
+    def __post_init__(self) -> None:
+        try:
+            basis = DemandTargetLabelBasis(self.target_label_basis)
+        except (TypeError, ValueError) as exc:
+            raise DemandTargetLabelBasisError("unsupported fitted-model label basis") from exc
+        object.__setattr__(self, "target_label_basis", basis)
+        facts = tuple(self.target_label_facts)
+        if any(not isinstance(fact, DemandTargetLabelFact) for fact in facts):
+            raise DemandTargetLabelBasisError("unsupported fitted-model label fact type")
+        if basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+            if self.target_label_policy_hash is not None:
+                raise DemandTargetLabelBasisError(
+                    "actual-receipt model cannot carry a retrospective label policy hash"
+                )
+            if facts:
+                raise DemandTargetLabelBasisError(
+                    "actual-receipt model cannot carry retrospective label facts"
+                )
+            return
+        if self.target_label_policy_hash is None:
+            raise DemandTargetLabelBasisError(
+                "retrospective model requires its target label policy hash"
+            )
+        object.__setattr__(
+            self,
+            "target_label_policy_hash",
+            _text(self.target_label_policy_hash, "target_label_policy_hash"),
+        )
+        if self.target_label_policy_hash != _target_label_policy_hash_for_basis(basis):
+            raise DemandTargetLabelBasisError(
+                "fitted-model label policy hash does not match its explicit basis and method"
+            )
+        if not facts:
+            raise DemandTargetLabelBasisError(
+                "retrospective fitted model requires complete training label facts"
+            )
+        if any(fact.label_basis is not basis for fact in facts):
+            raise DemandTargetLabelBasisError("fitted-model label facts mix label bases")
+        ordered_facts = tuple(
+            sorted(
+                facts,
+                key=lambda fact: (fact.gas_day, fact.revision, fact.revision_id),
+            )
+        )
+        _validate_model_target_label_facts(
+            basis=basis,
+            target_scope=self.target_scope,
+            region=self.region,
+            target_unit=self.target_unit,
+            training_cutoff=self.training_cutoff,
+            training_rows=self.training_rows,
+            target_revision_ids=tuple(self.target_revision_ids),
+            facts=ordered_facts,
+        )
+        object.__setattr__(self, "target_label_facts", ordered_facts)
 
 
 def _fold_payload(fold: DemandFoldResult) -> dict[str, object]:
     """Return the complete deterministic identity a fold currently records.
 
-    ``DemandFoldResult`` does not retain the raw target-revision/source payloads
-    used to produce ``actual_value``. This payload therefore binds the fold
-    origin/day/values and input type, but it is not a raw-data proof.
+    Default folds bind origin/day/values and input type only. Nondefault folds
+    additionally bind the complete target-revision, receipt and effective-clock
+    facts used for training. This is identity evidence, not a raw-data proof.
     """
 
-    return {
+    payload: dict[str, object] = {
         "fold_origin": fold.fold_origin.isoformat(),
         "validation_gas_day": fold.validation_gas_day.isoformat(),
         "training_rows": fold.training_rows,
@@ -1381,6 +1830,11 @@ def _fold_payload(fold: DemandFoldResult) -> dict[str, object]:
         "candidate_prediction": fold.candidate_prediction,
         "input_type": fold.input_type.value,
     }
+    if fold.training_target_facts:
+        payload["training_target_facts"] = [
+            _target_label_fact_payload(fact) for fact in fold.training_target_facts
+        ]
+    return payload
 
 
 def _uncertainty_payload(
@@ -1420,9 +1874,8 @@ class DemandSelectionEvidence:
     The hash deterministically binds the selected/baseline/candidate model hashes,
     every measured fold currently retained, the uncertainty payload and reason,
     validation basis, selection status/reason, metrics, counts and policy
-    thresholds. It contains no wall-clock execution time. Fold evidence is limited
-    to the origin/day/actual/prediction values and input type that the fold type
-    records; raw target-revision/source payload proofs are not retained. This is
+    thresholds. Nondefault runs additionally bind complete target label evidence
+    and per-fold training facts. It contains no wall-clock execution time. This is
     integrity consistency, not a cryptographic signature or raw-data proof.
     """
 
@@ -1443,6 +1896,7 @@ class DemandSelectionEvidence:
     folds: tuple[DemandFoldResult, ...] = ()
     uncertainty: ResidualUncertainty | None = None
     uncertainty_reason: str | None = None
+    target_label_evidence: DemandTargetLabelEvidence | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -1515,6 +1969,20 @@ class DemandSelectionEvidence:
                 "selection evidence folds must contain DemandFoldResult values"
             )
         object.__setattr__(self, "folds", folds)
+        label_evidence = self.target_label_evidence
+        if label_evidence is not None and not isinstance(
+            label_evidence, DemandTargetLabelEvidence
+        ):
+            raise DemandTargetLabelBasisError("unsupported target label evidence type")
+        if label_evidence is None:
+            if any(fold.training_target_facts for fold in folds):
+                raise DemandTargetLabelBasisError(
+                    "default selection evidence cannot carry retrospective fold label facts"
+                )
+        elif label_evidence.analysis_as_of != self.validation_as_of:
+            raise DemandTargetLabelBasisError(
+                "target label evidence analysis cutoff differs from selection validation_as_of"
+            )
         if self.uncertainty is not None and not isinstance(
             self.uncertainty, ResidualUncertainty
         ):
@@ -1529,33 +1997,52 @@ class DemandSelectionEvidence:
             )
 
     @property
+    def target_label_basis(self) -> DemandTargetLabelBasis:
+        """Return the evidence-carried label basis, defaulting only when absent."""
+
+        if self.target_label_evidence is None:
+            return DemandTargetLabelBasis.ACTUAL_RECEIPT
+        return self.target_label_evidence.basis
+
+    @property
+    def target_label_policy_hash(self) -> str | None:
+        """Return the nondefault label policy hash when complete evidence exists."""
+
+        if self.target_label_evidence is None:
+            return None
+        return self.target_label_evidence.policy_hash
+
+    @property
     def selection_hash(self) -> str:
         """Return the deterministic selection-evidence fingerprint."""
 
-        return _canonical_hash(
-            {
-                "schema": "demand-selection-evidence/v2",
-                "validation_as_of": self.validation_as_of.isoformat(),
-                "selected_model_hash": self.selected_model_hash,
-                "baseline_model_hash": self.baseline_model_hash,
-                "candidate_model_hash": self.candidate_model_hash,
-                "selection_status": self.selection_status.value,
-                "selection_reason": self.selection_reason,
-                "validation_basis": self.validation_basis.value,
-                "baseline_oos": _metrics_payload(self.baseline_oos),
-                "candidate_oos": _metrics_payload(self.candidate_oos),
-                "fold_count": self.fold_count,
-                "folds": [_fold_payload(fold) for fold in self.folds],
-                "fold_win_fraction": self.fold_win_fraction,
-                "oos_coverage": self.oos_coverage,
-                "residual_count": self.residual_count,
-                "uncertainty": _uncertainty_payload(self.uncertainty),
-                "uncertainty_reason": self.uncertainty_reason,
-                "policy_thresholds": sorted(
-                    [[name, value] for name, value in self.policy_thresholds]
-                ),
-            }
-        )
+        payload: dict[str, object] = {
+            "schema": "demand-selection-evidence/v2",
+            "validation_as_of": self.validation_as_of.isoformat(),
+            "selected_model_hash": self.selected_model_hash,
+            "baseline_model_hash": self.baseline_model_hash,
+            "candidate_model_hash": self.candidate_model_hash,
+            "selection_status": self.selection_status.value,
+            "selection_reason": self.selection_reason,
+            "validation_basis": self.validation_basis.value,
+            "baseline_oos": _metrics_payload(self.baseline_oos),
+            "candidate_oos": _metrics_payload(self.candidate_oos),
+            "fold_count": self.fold_count,
+            "folds": [_fold_payload(fold) for fold in self.folds],
+            "fold_win_fraction": self.fold_win_fraction,
+            "oos_coverage": self.oos_coverage,
+            "residual_count": self.residual_count,
+            "uncertainty": _uncertainty_payload(self.uncertainty),
+            "uncertainty_reason": self.uncertainty_reason,
+            "policy_thresholds": sorted(
+                [[name, value] for name, value in self.policy_thresholds]
+            ),
+        }
+        if self.target_label_evidence is not None:
+            payload["target_label_evidence"] = _target_label_evidence_payload(
+                self.target_label_evidence
+            )
+        return _canonical_hash(payload)
 
 
 @dataclass(frozen=True)
@@ -1600,6 +2087,38 @@ class DemandModelResult:
         if self.selection_evidence is None:
             return None
         return self.selection_evidence.selection_hash
+
+    @property
+    def target_label_evidence(self) -> DemandTargetLabelEvidence | None:
+        """Return complete nondefault target-label evidence when present."""
+
+        if self.selection_evidence is None:
+            return None
+        return self.selection_evidence.target_label_evidence
+
+    @property
+    def target_label_basis(self) -> DemandTargetLabelBasis:
+        """Return the basis self-described by evidence, or the selected model."""
+
+        evidence = self.target_label_evidence
+        if evidence is not None:
+            return evidence.basis
+        return self.selected_model.target_label_basis
+
+    @property
+    def target_label_policy_hash(self) -> str | None:
+        """Return the nondefault label policy hash, if this result carries one."""
+
+        evidence = self.target_label_evidence
+        if evidence is not None:
+            return evidence.policy_hash
+        return self.selected_model.target_label_policy_hash
+
+    @property
+    def retrospective_target_labels(self) -> bool:
+        """Whether this result carries the explicit reconstructed research basis."""
+
+        return self.target_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
 
 
 @dataclass(frozen=True)
@@ -1714,6 +2233,8 @@ class DemandPrediction:
     interval: DemandPredictionInterval | None
     interval_reason: str | None
     production_promotion: PromotionStatus = PromotionStatus.NOT_PROMOTED
+    target_label_basis: DemandTargetLabelBasis = DemandTargetLabelBasis.ACTUAL_RECEIPT
+    target_label_policy_hash: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.gas_day, date) or isinstance(self.gas_day, datetime):
@@ -1774,6 +2295,22 @@ class DemandPrediction:
         object.__setattr__(
             self, "production_promotion", PromotionStatus(self.production_promotion)
         )
+        try:
+            label_basis = DemandTargetLabelBasis(self.target_label_basis)
+        except (TypeError, ValueError) as exc:
+            raise DemandTargetLabelBasisError("unsupported prediction label basis") from exc
+        object.__setattr__(self, "target_label_basis", label_basis)
+        if label_basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+            if self.target_label_policy_hash is not None:
+                raise DemandTargetLabelBasisError(
+                    "actual-receipt prediction cannot carry a retrospective label policy hash"
+                )
+        else:
+            raise RetrospectiveTargetLabelConsumptionError(
+                "retrospective provider-applicability target labels are research evidence "
+                "only; direct prediction construction is refused until complete downstream "
+                "label-evidence propagation is reviewed"
+            )
 
 
 def _numpy() -> object:
@@ -1853,6 +2390,10 @@ def _validate_targets(targets: tuple[DemandTargetRow, ...], policy: DemandModelP
             raise WeatherDemandInputError(
                 "target scope, region or native unit does not match the explicit policy"
             )
+        if target.label_basis is not policy.target_label_basis:
+            raise DemandTargetLabelBasisError(
+                "target row label basis does not match the explicit model policy"
+            )
         key = (target.gas_day, target.revision)
         if key in seen:
             raise AmbiguousWeatherInputError("duplicate target gas_day/revision")
@@ -1918,6 +2459,210 @@ def _resolve_targets(
     return resolved
 
 
+def _label_fact_sort_key(fact: DemandTargetLabelFact) -> tuple[date, int, str]:
+    return (fact.gas_day, fact.revision, fact.revision_id)
+
+
+def _expected_analysis_final_truth(
+    facts: tuple[DemandTargetLabelFact, ...],
+) -> tuple[DemandTargetLabelFact, ...]:
+    """Derive the latest eligible revision fact for every gas day.
+
+    The explicit effective label clock is authoritative. The derived integer rank
+    may identify the winner only when it increases monotonically with that clock
+    for every analysis-as-of-admitted revision of the gas day. Equal clocks for
+    competing publications remain ambiguous and are refused.
+    """
+
+    grouped: dict[date, list[DemandTargetLabelFact]] = {}
+    for fact in facts:
+        grouped.setdefault(fact.gas_day, []).append(fact)
+
+    expected: list[DemandTargetLabelFact] = []
+    for gas_day in sorted(grouped):
+        day_facts = grouped[gas_day]
+        by_clock: dict[datetime, DemandTargetLabelFact] = {}
+        for fact in day_facts:
+            previous = by_clock.get(fact.label_at)
+            if previous is not None and previous != fact:
+                raise DemandTargetLabelBasisError(
+                    "equal effective label clocks for competing target publications "
+                    "at the analysis cutoff"
+                )
+            by_clock[fact.label_at] = fact
+        ordered = sorted(day_facts, key=_label_fact_sort_key)
+        for previous, current in zip(ordered[:-1], ordered[1:], strict=True):
+            if current.label_at <= previous.label_at:
+                raise DemandTargetLabelBasisError(
+                    "target revision rank must increase monotonically with the "
+                    "effective label clock for each gas day"
+                )
+        latest_revision = max(fact.revision for fact in day_facts)
+        winners = [fact for fact in day_facts if fact.revision == latest_revision]
+        if len(winners) != 1:
+            raise DemandTargetLabelBasisError(
+                "ambiguous latest target revision at the analysis cutoff"
+            )
+        expected.append(winners[0])
+    return tuple(sorted(expected, key=_label_fact_sort_key))
+
+
+def _training_target_facts(
+    rows: tuple[TrainingRow, ...], policy: DemandModelPolicy
+) -> tuple[DemandTargetLabelFact, ...]:
+    """Return complete facts for the target revisions used by one model/fold."""
+
+    if policy.target_label_basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+        if any(
+            target.label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+            for _, _, target, _ in rows
+        ):
+            raise DemandTargetLabelBasisError(
+                "actual-receipt training cannot consume a nondefault row label basis"
+            )
+        return ()
+    facts: list[DemandTargetLabelFact] = []
+    for _, _, target, _ in rows:
+        if target.label_basis is not policy.target_label_basis:
+            raise DemandTargetLabelBasisError(
+                "training target label basis does not match the explicit model policy"
+            )
+        facts.append(DemandTargetLabelFact.from_row(target))
+    return tuple(sorted(facts, key=_label_fact_sort_key))
+
+
+def _validate_target_label_clock_order(rows: tuple[DemandTargetRow, ...]) -> None:
+    """Refuse equal or inverted effective label clocks within one gas day.
+
+    The explicit provider-applicability clock is the effective clock. The derived
+    integer revision rank may be used for selection only when it increases
+    monotonically with that clock for every analysis-admitted revision.
+    """
+
+    by_clock: dict[datetime, DemandTargetRow] = {}
+    for row in rows:
+        if row.label_at is None:
+            raise DemandTargetLabelBasisError(
+                "retrospective target selection requires an explicit label clock"
+            )
+        previous = by_clock.get(row.label_at)
+        if previous is not None and (
+            previous.revision != row.revision
+            or previous.revision_id != row.revision_id
+        ):
+            raise AmbiguousWeatherInputError(
+                "equal effective label clocks for competing target publications "
+                "at the requested cutoff"
+            )
+        by_clock[row.label_at] = row
+
+    ordered = sorted(rows, key=lambda row: (row.revision, row.revision_id))
+    for previous, current in zip(ordered[:-1], ordered[1:], strict=True):
+        if previous.label_at is None or current.label_at is None:
+            raise DemandTargetLabelBasisError(
+                "retrospective target selection requires an explicit label clock"
+            )
+        if current.label_at <= previous.label_at:
+            raise DemandTargetLabelBasisError(
+                "target revision rank must increase monotonically with the "
+                "effective label clock for each gas day"
+            )
+
+
+def _resolve_targets_for_policy(
+    targets: tuple[DemandTargetRow, ...],
+    cutoff: datetime,
+    policy: DemandModelPolicy,
+) -> dict[date, DemandTargetRow]:
+    """Resolve target revisions by the policy's explicit effective label clock.
+
+    Default ``ACTUAL_RECEIPT`` is exactly the legacy selector. The research basis
+    first applies the actual-receipt analysis gate, then the requested cutoff on
+    the separate provider-applicability clock. All revisions remain inputs; only
+    the eligible maximum derived revision rank is selected for one gas day. The
+    derived rank is admitted only when it agrees monotonically with the explicit
+    clock among every analysis-as-of-admitted revision for that gas day.
+    """
+
+    if policy.target_label_basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+        if any(
+            target.label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+            for target in targets
+        ):
+            raise DemandTargetLabelBasisError(
+                "actual-receipt selection cannot consume a nondefault row label basis"
+            )
+        admitted = tuple(
+            target
+            for target in targets
+            if target.available_at <= policy.validation_as_of
+        )
+        return _resolve_targets(admitted, cutoff)
+
+    admitted_by_day: dict[date, list[DemandTargetRow]] = {}
+    for target in targets:
+        if target.label_basis is not policy.target_label_basis:
+            raise DemandTargetLabelBasisError(
+                "target row label basis does not match the explicit model policy"
+            )
+        if target.label_at is None:
+            raise DemandTargetLabelBasisError(
+                "retrospective target selection requires an explicit label clock"
+            )
+        if target.available_at > policy.validation_as_of:
+            continue
+        admitted_by_day.setdefault(target.gas_day, []).append(target)
+
+    resolved: dict[date, DemandTargetRow] = {}
+    for gas_day, admitted_rows in admitted_by_day.items():
+        _validate_target_label_clock_order(tuple(admitted_rows))
+        rows = [
+            row
+            for row in admitted_rows
+            if row.label_at is not None and row.label_at <= cutoff
+        ]
+        if not rows:
+            continue
+        latest_revision = max(row.revision for row in rows)
+        winners = [row for row in rows if row.revision == latest_revision]
+        if len(winners) != 1:
+            raise AmbiguousWeatherInputError("ambiguous latest target revision at cutoff")
+        resolved[gas_day] = winners[0]
+    return resolved
+
+
+def _build_target_label_evidence(
+    targets: tuple[DemandTargetRow, ...], policy: DemandModelPolicy
+) -> DemandTargetLabelEvidence | None:
+    """Build complete nondefault label evidence or return None for the default."""
+
+    if policy.target_label_basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+        return None
+    admitted = [target for target in targets if target.available_at <= policy.validation_as_of]
+    facts = tuple(
+        sorted(
+            (DemandTargetLabelFact.from_row(target) for target in admitted),
+            key=_label_fact_sort_key,
+        )
+    )
+    final_truth_rows = _resolve_targets_for_policy(
+        targets, policy.validation_as_of, policy
+    )
+    final_truth = tuple(
+        sorted(
+            (DemandTargetLabelFact.from_row(target) for target in final_truth_rows.values()),
+            key=_label_fact_sort_key,
+        )
+    )
+    return DemandTargetLabelEvidence(
+        basis=policy.target_label_basis,
+        policy_hash=policy.target_label_policy_hash,
+        analysis_as_of=policy.validation_as_of,
+        revision_facts=facts,
+        final_truth=final_truth,
+    )
+
+
 def _pick_feature(
     features: tuple[DailyWeatherFeature, ...],
     gas_day: date,
@@ -1962,7 +2707,7 @@ def _prepare_training(
 ) -> tuple[TrainingRow, ...]:
     """Apply target/weather cutoff filters before any transform or feature use."""
 
-    resolved_targets = _resolve_targets(targets, cutoff)
+    resolved_targets = _resolve_targets_for_policy(targets, cutoff, policy)
     input_type = features[0].input_type
     rows: list[TrainingRow] = []
     for gas_day in sorted(resolved_targets):
@@ -2020,7 +2765,7 @@ def _base_payload(
     """Build the shared canonical model-hash fields."""
 
     sources, revisions, vintages = _training_provenance(rows)
-    return {
+    payload: dict[str, object] = {
         "method_version": DEMAND_MODEL_METHOD_VERSION,
         "model_version": policy.model_version,
         "kind": kind.value,
@@ -2037,6 +2782,16 @@ def _base_payload(
         "weather_vintage_ids": list(vintages),
         "validation_basis": policy.validation_basis.value,
     }
+    if policy.target_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT:
+        payload["target_label_method"] = DEMAND_TARGET_LABEL_METHOD_VERSION
+        payload["target_label_basis"] = policy.target_label_basis.value
+        payload["target_label_policy_hash"] = policy.target_label_policy_hash
+        payload["target_label_analysis_as_of"] = policy.validation_as_of.isoformat()
+        payload["target_label_facts"] = [
+            _target_label_fact_payload(fact)
+            for fact in _training_target_facts(rows, policy)
+        ]
+    return payload
 
 
 def _fit_baseline(
@@ -2057,6 +2812,7 @@ def _fit_baseline(
     )
     overall_mean = math.fsum(row[1] for row in rows) / len(rows)
     sources, revisions, vintages = _training_provenance(rows)
+    label_facts = _training_target_facts(rows, policy)
     payload = _base_payload(policy, ModelKind.CALENDAR_BASELINE, cutoff, rows)
     payload.update(
         {
@@ -2090,6 +2846,13 @@ def _fit_baseline(
         validation_basis=policy.validation_basis,
         use_status=ModelUseStatus.CALENDAR_BASELINE_REFERENCE,
         model_hash=_canonical_hash(payload),
+        target_label_basis=policy.target_label_basis,
+        target_label_policy_hash=(
+            policy.target_label_policy_hash
+            if policy.target_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+            else None
+        ),
+        target_label_facts=label_facts,
     )
 
 
@@ -2136,6 +2899,7 @@ def _fit_candidate(
     feature_means = tuple(float(value) for value in means)
     feature_scales = tuple(float(value) for value in scales)
     sources, revisions, vintages = _training_provenance(rows)
+    label_facts = _training_target_facts(rows, policy)
     payload = _base_payload(policy, ModelKind.WEATHER_CALENDAR_RIDGE, cutoff, rows)
     payload.update(
         {
@@ -2173,6 +2937,13 @@ def _fit_candidate(
         validation_basis=policy.validation_basis,
         use_status=ModelUseStatus.UNVALIDATED_OOS_RESEARCH_OUTPUT,
         model_hash=_canonical_hash(payload),
+        target_label_basis=policy.target_label_basis,
+        target_label_policy_hash=(
+            policy.target_label_policy_hash
+            if policy.target_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+            else None
+        ),
+        target_label_facts=label_facts,
     )
 
 
@@ -2224,7 +2995,9 @@ def _run_oos(
 ]:
     """Run deterministic daily expanding folds after the frozen training cutoff."""
 
-    final_truth = _resolve_targets(targets, policy.validation_as_of)
+    final_truth = _resolve_targets_for_policy(
+        targets, policy.validation_as_of, policy
+    )
     holdout_days = []
     for gas_day in sorted(final_truth):
         start = gas_day_start_for_date(gas_day, policy.gas_day_calendar)
@@ -2265,6 +3038,7 @@ def _run_oos(
         )
         if len(training) < policy.min_training_rows:
             continue
+        training_facts = _training_target_facts(training, policy)
         baseline = _fit_baseline(training, policy, fold_origin)
         candidate = _fit_candidate(training, policy, fold_origin)
         if candidate is None:
@@ -2284,6 +3058,7 @@ def _run_oos(
                 baseline_prediction=baseline_prediction,
                 candidate_prediction=candidate_prediction,
                 input_type=input_type,
+                training_target_facts=training_facts,
             )
         )
         actual_values.append(actual)
@@ -2351,6 +3126,13 @@ def fit_weather_demand_model(
     _numpy()
     if not isinstance(policy, DemandModelPolicy):
         raise TypeError("policy must be a DemandModelPolicy")
+    if (
+        policy.target_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+        and policy.validation_basis is ValidationBasis.GENUINE_FORECAST_VINTAGE_OOS
+    ):
+        raise DemandTargetLabelBasisError(
+            "retrospective target labels cannot claim genuine forecast-vintage OOS"
+        )
     target_rows = tuple(targets)
     feature_rows = tuple(features)
     _validate_targets(target_rows, policy)
@@ -2372,6 +3154,7 @@ def fit_weather_demand_model(
         target_rows, feature_rows, policy
     )
     fold_win_fraction = _fold_win_fraction(folds)
+    target_label_evidence = _build_target_label_evidence(target_rows, policy)
 
     status = ModelSelectionStatus.INSUFFICIENT_DATA
     reason = "NO_HELDOUT_FOLDS"
@@ -2439,6 +3222,7 @@ def fit_weather_demand_model(
         folds=folds,
         uncertainty=uncertainty,
         uncertainty_reason=uncertainty_reason,
+        target_label_evidence=target_label_evidence,
         policy_thresholds=(
             ("min_training_rows", float(policy.min_training_rows)),
             ("min_validation_folds", float(policy.min_validation_folds)),
@@ -2504,6 +3288,93 @@ def _metrics_payload(metrics: ModelMetrics | None) -> dict[str, object] | None:
         "bias": metrics.bias,
         "count": metrics.count,
     }
+
+
+def _assert_target_label_consistency(
+    result: DemandModelResult, evidence: DemandSelectionEvidence
+) -> None:
+    """Refuse lost, defaulted, mixed or tampered target-label evidence."""
+
+    label_evidence = evidence.target_label_evidence
+    models = (result.baseline_model, result.candidate_model, result.selected_model)
+    if label_evidence is None:
+        for model in models:
+            if model is None:
+                continue
+            if (
+                model.target_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+                or model.target_label_policy_hash is not None
+                or model.target_label_facts
+            ):
+                raise DemandTargetLabelBasisError(
+                    "selection evidence lost a nondefault fitted-model label basis"
+                )
+        if any(fold.training_target_facts for fold in evidence.folds):
+            raise DemandTargetLabelBasisError(
+                "selection evidence lost retrospective fold label facts"
+            )
+        return
+
+    if label_evidence.analysis_as_of != evidence.validation_as_of:
+        raise DemandTargetLabelBasisError(
+            "target label evidence analysis cutoff differs from selection validation_as_of"
+        )
+    facts = set(label_evidence.revision_facts)
+    final_truth = set(label_evidence.final_truth)
+    if any(fact not in facts for fact in final_truth):
+        raise DemandTargetLabelBasisError(
+            "final target truth is not present in the complete revision facts"
+        )
+    if label_evidence.final_truth != _expected_analysis_final_truth(
+        label_evidence.revision_facts
+    ):
+        raise DemandTargetLabelBasisError(
+            "final target truth must contain exactly the latest eligible revision "
+            "for every gas day in the complete revision facts"
+        )
+    for model in models:
+        if model is None:
+            continue
+        if model.target_label_basis is not label_evidence.basis:
+            raise DemandTargetLabelBasisError(
+                "fitted-model label basis differs from the selection label evidence"
+            )
+        if model.target_label_policy_hash != label_evidence.policy_hash:
+            raise DemandTargetLabelBasisError(
+                "fitted-model label policy hash differs from the selection label evidence"
+            )
+        _validate_model_target_label_facts(
+            basis=model.target_label_basis,
+            target_scope=model.target_scope,
+            region=model.region,
+            target_unit=model.target_unit,
+            training_cutoff=model.training_cutoff,
+            training_rows=model.training_rows,
+            target_revision_ids=tuple(model.target_revision_ids),
+            facts=tuple(model.target_label_facts),
+        )
+        if any(fact not in facts for fact in model.target_label_facts):
+            raise DemandTargetLabelBasisError(
+                "fitted-model training label facts differ from the complete evidence"
+            )
+    for fold in evidence.folds:
+        fold_facts = tuple(fold.training_target_facts)
+        if len(fold_facts) != fold.training_rows:
+            raise DemandTargetLabelBasisError(
+                "fold training label facts do not match its training row count"
+            )
+        if len(set(fold_facts)) != len(fold_facts):
+            raise DemandTargetLabelBasisError(
+                "duplicate fold training label facts are not allowed"
+            )
+        if any(fact.label_at > fold.fold_origin for fact in fold_facts):
+            raise DemandTargetLabelBasisError(
+                "fold training label clock follows its fold origin"
+            )
+        if any(fact not in facts for fact in fold_facts):
+            raise DemandTargetLabelBasisError(
+                "fold training label facts differ from the complete evidence"
+            )
 
 
 def _assert_result_matches_evidence(
@@ -2579,6 +3450,7 @@ def _assert_result_matches_evidence(
     for matches, message in checks:
         if not matches:
             raise WeatherDemandInputError(message)
+    _assert_target_label_consistency(result, evidence)
 
 
 def _require_selection_evidence(
@@ -2600,6 +3472,11 @@ def _require_selection_evidence(
             f"validation_as_of {evidence.validation_as_of.isoformat()}"
         )
     _assert_result_matches_evidence(result, evidence)
+    if evidence.target_label_evidence is not None:
+        raise RetrospectiveTargetLabelConsumptionError(
+            "retrospective provider-applicability target labels are research evidence "
+            "only; prediction consumption requires separate label-evidence propagation"
+        )
     return evidence
 
 
@@ -2827,6 +3704,8 @@ def predict_selected_demand(
             forecast_vintage=vintage,
             interval=interval,
             interval_reason=interval_reason,
+            target_label_basis=model.target_label_basis,
+            target_label_policy_hash=model.target_label_policy_hash,
         )
 
     if model.kind is ModelKind.CALENDAR_BASELINE:
@@ -2860,6 +3739,8 @@ def predict_selected_demand(
             forecast_vintage=None,
             interval=None,
             interval_reason="BASELINE_MODEL_HAS_NO_HELDOUT_RESIDUAL_INTERVAL",
+            target_label_basis=model.target_label_basis,
+            target_label_policy_hash=model.target_label_policy_hash,
         )
 
     raise WeatherDemandInputError("unsupported selected model kind")
@@ -2911,4 +3792,6 @@ def predict_baseline_demand(
         forecast_vintage=None,
         interval=None,
         interval_reason="EXPLICIT_BASELINE_REFERENCE_HAS_NO_HELDOUT_RESIDUAL_INTERVAL",
+        target_label_basis=model.target_label_basis,
+        target_label_policy_hash=model.target_label_policy_hash,
     )

@@ -37,6 +37,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
 from eurogas_nexus.db.models.research import ForecastObservationRecord
+from eurogas_nexus.domain.research.weather_demand import (
+    DemandTargetLabelBasis,
+    ValidationBasis,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SUMMARY_KEYS = frozenset(
@@ -141,6 +145,18 @@ def _write_request(path: Path, request: object) -> Path:
         "target_read_limit": raw.pop("target_read_limit"),
         "forecast_read_limit": raw.pop("forecast_read_limit"),
     }
+    # ``target_label_basis`` is a pure RFC-0008 label-clock selector; the strict
+    # operator request schema has no such field. Only the default basis has the
+    # same meaning as the parser's own ACTUAL_RECEIPT default, so it is the only
+    # basis this fixture may omit. A nondefault basis must fail loudly instead of
+    # being silently dropped from the wire request.
+    model_policy = raw["model_policy"]
+    basis = model_policy["target_label_basis"]
+    assert basis == DemandTargetLabelBasis.ACTUAL_RECEIPT, (
+        "operator request schema has no target_label_basis field; refusing to "
+        "silently omit a nondefault RFC-0008 label basis"
+    )
+    model_policy.pop("target_label_basis")
     # The parser requires the model policy's expected feature policy only; the
     # bridge's internal copy is not part of the explicit operator wire format.
     for config in raw["bridge_configs"]:
@@ -158,6 +174,37 @@ def _write_request(path: Path, request: object) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+def test_write_request_refuses_nondefault_target_label_basis(
+    tmp_path: Path,
+) -> None:
+    """A nondefault RFC-0008 basis cannot be silently omitted from the wire."""
+
+    day = _runtime_fixture.START
+    request = _runtime_fixture._request(
+        _runtime_fixture._feature_policy(),
+        (day,),
+        cutoff=_runtime_fixture._day_end(day),
+        validation=_runtime_fixture._day_end(day) + timedelta(hours=1),
+    )
+    nondefault_model_policy = dataclasses.replace(
+        request.model_policy,
+        validation_basis=ValidationBasis.REALIZED_WEATHER_CALIBRATION,
+        target_label_basis=(
+            DemandTargetLabelBasis.RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH
+        ),
+    )
+    nondefault_request = dataclasses.replace(
+        request,
+        model_policy=nondefault_model_policy,
+    )
+    request_path = tmp_path / "weather-demand-operator-nondefault-label.json"
+
+    with pytest.raises(AssertionError, match="target_label_basis"):
+        _write_request(request_path, nondefault_request)
+
+    assert not request_path.exists()
 
 
 def _run_operator(
