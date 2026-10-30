@@ -191,3 +191,20 @@ a bound, resolvable frozen reference to that set; a lone self-declared basis str
 cannot replace revision IDs, actual receipts and derived-clock facts. No API exposure,
 quality promotion, new persistence or source activation is authorized. Runtime stage2
 and downstream consumers require separate root review of stage1 evidence.
+
+## Root staged advancement — mapper-only stage2, 2026-10-30
+
+After independent integrity review, corrective implementation and root's58 passing
+Linux/NumPy label/core/prediction tests with exact pre-change default hashes and
+metrics, pure stage1 is accepted at commit ddd22a4. Root now authorizes only the
+mapper portion of stage2: an explicit target-label-basis argument in the existing
+National Gas target mapper, restricted to already validated REST source-applicability
+ordering. Actual receipt admission, all revisions, native units and quality remain
+unchanged. Defaults must retain exact rows, references and hashes. CSV, unknown
+basis and receipt-ranking/nondefault combinations refuse before record iteration.
+
+This advancement does not authorize runtime/operator wire opt-in or a consumer.
+The later runtime must independently cap analysis-as-of with a trusted server clock
+and preserve actual-receipt SQL admission. Existing prediction refusal remains.
+Mapper mechanics tests cannot establish historical public availability or accuracy.
+No new persistence, schema, source activation or API is authorized.

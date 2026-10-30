@@ -32,6 +32,16 @@ maximum clock, receipt time, a lexical order or a provider revision number.
 Equal source instants for competing publications remain ambiguous.  The default
 receipt policy and its refusal behaviour are unchanged.
 
+A separate ``target_label_basis`` selects how a target's label clock is
+interpreted.  ``ACTUAL_RECEIPT`` is the default and leaves ``label_at`` unset.
+``RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH`` is an explicit research-only
+opt-in that reuses the validated REST applicability instant as ``label_at``; it
+requires the REST representation and the explicit REST applicability ordering
+policy, and never implies that policy by itself.  The actual receipt, revision
+identity, native unit and quality mapping remain unchanged.  This is not
+first-publication proof, genuine OOS or production evidence, and no CSV clock or
+provider revision number is inferred.
+
 Original source quality, provisional status, publication identity, raw hash and
 exact decimal text are retained in a separate, immutable provenance mapping.  Its
 ``selected`` flag is only a hint that a revision is latest at this mapper's
@@ -53,11 +63,14 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from eurogas_nexus.domain.research.weather_demand import (
+    DEMAND_TARGET_LABEL_METHOD_VERSION,
     MAX_DEMAND_VALUE,
+    DemandTargetLabelBasis,
     DemandTargetQuality,
     DemandTargetRow,
     TargetScope,
     WeatherDemandInputError,
+    _target_label_policy_hash_for_basis,
 )
 from eurogas_nexus.ingestion.national_gas_demand import ALLOWED_PROVIDER_ITEM_IDS
 from eurogas_nexus.ingestion.national_gas_rest import (
@@ -175,6 +188,9 @@ class DemandTargetProvenance:
     ``selected`` only marks the latest admitted revision at the mapper's outer
     cutoff.  Earlier revisions stay in ``rows`` for the domain fitter's per-fold
     cutoff resolution, so ``selected=False`` is never an exclusion decision.
+    ``label_basis`` and ``label_at`` are the separately recorded effective label
+    clock; they remain the default actual-receipt basis with no extra clock
+    unless the research basis was explicitly selected.
     """
 
     record_id: str
@@ -196,12 +212,46 @@ class DemandTargetProvenance:
     selected: bool
     source_order_at_utc: datetime | None = None
     source_order_method_basis: str | None = None
+    label_basis: DemandTargetLabelBasis = DemandTargetLabelBasis.ACTUAL_RECEIPT
+    label_at: datetime | None = None
+    label_method_version: str | None = None
+    label_policy_hash: str | None = None
 
     @property
     def source_order_basis(self) -> str | None:
         """Compatibility alias for the chosen source-order method basis."""
 
         return self.source_order_method_basis
+
+    @property
+    def effective_label_at(self) -> datetime | None:
+        """Return the explicit reconstructed label clock, if present."""
+
+        return self.label_at
+
+    @property
+    def target_label_basis(self) -> DemandTargetLabelBasis:
+        """Compatibility alias for the separately recorded label basis."""
+
+        return self.label_basis
+
+    @property
+    def label_method(self) -> str | None:
+        """Compatibility alias for the versioned label method."""
+
+        return self.label_method_version
+
+    @property
+    def target_label_method(self) -> str | None:
+        """Compatibility alias for the versioned label method."""
+
+        return self.label_method_version
+
+    @property
+    def target_label_policy_hash(self) -> str | None:
+        """Compatibility alias for the nondefault label policy binding."""
+
+        return self.label_policy_hash
 
 
 @dataclass(frozen=True)
@@ -225,6 +275,7 @@ class _Selection:
     available_at_utc: datetime
     allow_provisional_targets: bool
     revision_order_policy: RevisionOrderPolicy
+    target_label_basis: DemandTargetLabelBasis
 
 
 @dataclass(frozen=True)
@@ -251,6 +302,9 @@ def build_demand_target_rows(
     revision_order_policy: RevisionOrderPolicy = (
         RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
     ),
+    target_label_basis: DemandTargetLabelBasis = (
+        DemandTargetLabelBasis.ACTUAL_RECEIPT
+    ),
 ) -> DemandTargetInputs:
     """Map already-read revisions to every admitted point-in-time target.
 
@@ -272,6 +326,15 @@ def build_demand_target_rows(
     diagnostic, never a guessed fallback.  Provenance ``selected`` merely marks
     the latest revision at this cutoff and never removes an earlier revision from
     ``rows``.
+
+    ``target_label_basis`` defaults to ``ACTUAL_RECEIPT`` and leaves
+    ``DemandTargetRow.label_at`` unset.  The explicit research-only
+    ``RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH`` value requires the REST
+    format and ``DERIVED_REST_APPLICABILITY_ORDER_V1``; it copies the same
+    validated consensus source instant into ``label_at`` without changing the
+    actual receipt, revision rank, value, unit or quality.  The ordering opt-in
+    alone never selects the label basis.  Unsupported, CSV and receipt-ranking
+    combinations are refused before any record is read.
     """
 
     selection = _validate_selection(
@@ -282,6 +345,7 @@ def build_demand_target_rows(
         available_at_utc=available_at_utc,
         allow_provisional_targets=allow_provisional_targets,
         revision_order_policy=revision_order_policy,
+        target_label_basis=target_label_basis,
     )
 
     admitted: list[_AdmittedRevision] = []
@@ -324,6 +388,7 @@ def build_demand_target_rows(
         selection.revision_order_policy
         is RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
     )
+    label_basis = selection.target_label_basis
     for gas_day in sorted(by_gas_day):
         if source_order:
             revisions = sorted(
@@ -346,6 +411,12 @@ def build_demand_target_rows(
                 revision,
                 derived_revision=rank,
                 selected=latest_at_outer_cutoff,
+                target_label_basis=label_basis,
+            )
+            label_at = (
+                _required_source_order_instant(revision)
+                if label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+                else None
             )
             target_rows.append(
                 DemandTargetRow(
@@ -359,6 +430,8 @@ def build_demand_target_rows(
                     revision_id=revision.record.record_id,
                     available_at=revision.available_at,
                     source_ref=_source_ref(selection, revision.record),
+                    label_at=label_at,
+                    label_basis=label_basis,
                 )
             )
 
@@ -396,6 +469,7 @@ def _validate_selection(
     available_at_utc: datetime,
     allow_provisional_targets: bool,
     revision_order_policy: RevisionOrderPolicy,
+    target_label_basis: DemandTargetLabelBasis,
 ) -> _Selection:
     if (
         not isinstance(provider_item_id, str)
@@ -438,6 +512,33 @@ def _validate_selection(
         raise DemandTargetInputValidationError(
             "DERIVED_REST_APPLICABILITY_ORDER_V1 requires the REST source format"
         )
+    if isinstance(target_label_basis, DemandTargetLabelBasis):
+        resolved_label_basis = target_label_basis
+    else:
+        try:
+            resolved_label_basis = DemandTargetLabelBasis(target_label_basis)
+        except (TypeError, ValueError) as exc:
+            raise DemandTargetInputValidationError(
+                "target_label_basis must be ACTUAL_RECEIPT or "
+                "RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH"
+            ) from exc
+    if (
+        resolved_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+        and source_format != "REST"
+    ):
+        raise DemandTargetInputValidationError(
+            "RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH requires the REST source "
+            "format; no CSV label clock is inferred"
+        )
+    if (
+        resolved_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT
+        and resolved_policy is not RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+    ):
+        raise DemandTargetInputValidationError(
+            "RETROSPECTIVE_PROVIDER_APPLICABILITY_RESEARCH requires the explicit "
+            "DERIVED_REST_APPLICABILITY_ORDER_V1 selection; it is never implied by "
+            "receipt ranking"
+        )
     return _Selection(
         provider_item_id=provider_item_id,
         source_format=source_format,
@@ -446,6 +547,7 @@ def _validate_selection(
         available_at_utc=available_at_utc.astimezone(UTC),
         allow_provisional_targets=allow_provisional_targets,
         revision_order_policy=resolved_policy,
+        target_label_basis=resolved_label_basis,
     )
 
 
@@ -1040,7 +1142,10 @@ def _source_ref(selection: _Selection, record: NationalGasActualDemandRecord) ->
         selection.revision_order_policy
         is RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
     ):
-        return f"{reference}:{selection.revision_order_policy.value}"
+        reference = f"{reference}:{selection.revision_order_policy.value}"
+    # Default and revision-order-only references are intentionally untouched.
+    if selection.target_label_basis is not DemandTargetLabelBasis.ACTUAL_RECEIPT:
+        reference = f"{reference}:{selection.target_label_basis.value}"
     return reference
 
 
@@ -1062,6 +1167,7 @@ def _provenance(
     *,
     derived_revision: int,
     selected: bool,
+    target_label_basis: DemandTargetLabelBasis,
 ) -> DemandTargetProvenance:
     record = revision.record
     if revision.source_order_at_utc is None:
@@ -1072,6 +1178,15 @@ def _provenance(
             RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1.value
         )
         source_order_method_basis = revision_order_basis
+    if target_label_basis is DemandTargetLabelBasis.ACTUAL_RECEIPT:
+        label_at = None
+        label_method_version = None
+        label_policy_hash = None
+    else:
+        # The label clock is exactly the already-validated source-order instant.
+        label_at = _required_source_order_instant(revision)
+        label_method_version = DEMAND_TARGET_LABEL_METHOD_VERSION
+        label_policy_hash = _target_label_policy_hash_for_basis(target_label_basis)
     return DemandTargetProvenance(
         record_id=record.record_id,
         source_publication_id=record.source_publication_id,
@@ -1092,6 +1207,10 @@ def _provenance(
         selected=selected,
         source_order_at_utc=revision.source_order_at_utc,
         source_order_method_basis=source_order_method_basis,
+        label_basis=target_label_basis,
+        label_at=label_at,
+        label_method_version=label_method_version,
+        label_policy_hash=label_policy_hash,
     )
 
 
