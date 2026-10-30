@@ -34,7 +34,7 @@ CHECKOUT = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
 SETUP_PYTHON = "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
 UPLOAD_ARTIFACT = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 WEATHER_CALL = "./.github/workflows/weather-model-acceptance.yml"
-# Seven explicit focused modules plus the two actual-PostgreSQL modules. The
+# Eight explicit focused modules plus the three actual-PostgreSQL modules. The
 # workflow selects these files by name; it never runs a directory or a glob.
 FOCUSED_MODULES = {
     "weather_core": "tests/unit/test_weather_demand.py",
@@ -42,12 +42,14 @@ FOCUSED_MODULES = {
     "target_inputs": "tests/unit/test_demand_target_inputs.py",
     "weather_runtime": "tests/unit/test_weather_demand_runtime.py",
     "weather_operator": "tests/unit/test_weather_demand_operator_cli.py",
+    "weather_prediction": "tests/unit/test_weather_demand_prediction_runtime.py",
     "weather_forecast_contract": "tests/unit/test_weather_forecast_contract.py",
     "weather_db_bridge": "tests/db/test_ecmwf_weather_feature_bridge.py",
 }
 POSTGRES_MODULES = {
     "pg_weather_runtime": "tests/integration/test_weather_demand_runtime_postgres.py",
     "pg_weather_operator": "tests/integration/test_weather_demand_operator_postgres.py",
+    "pg_weather_prediction": "tests/integration/test_weather_demand_prediction_runtime_postgres.py",
 }
 REQUIRED_MODULES = {**FOCUSED_MODULES, **POSTGRES_MODULES}
 

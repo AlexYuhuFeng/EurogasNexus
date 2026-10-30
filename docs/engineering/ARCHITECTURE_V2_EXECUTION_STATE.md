@@ -1,3 +1,30 @@
+## 2026-10-30 — persisted forecast to frozen demand prediction accepted
+
+Reviewed DeepSeek read-only prediction runtime takes an already fitted frozen
+DemandModelResult, reads actual eligible persisted ECMWF rows, projects through
+the existing bridge/degree-day solver and calls the actual pure selected-model
+predictor. It never refits or reads target demand. Missing coverage produces no
+prediction; selected baseline is labelled baseline reference without claiming
+weather consumption. Native MSCM, model/selection/feature hashes, actual forecast
+IDs/vintage, explicit unreviewed weighting reference and no-promotion labels remain
+attached. Genuine receipt basis only; no archive fallback, API or scenario policy.
+
+Root final verification:153 selected numerical units plus8 actual PostgreSQL
+fit/prediction tests passed; the actual updated inline JUnit gate accepted161
+tests, zero failures/errors/skips, including exact prediction module identities.
+Full registered PGCI96 passed with schema/API smoke.74 numerical-CI/release-G1
+contract tests passed, focused Ruff passed,358 Markdown files have valid local
+links. Prediction PG case uses real ORM/SQL/bridge/fitter/predictor on synthetic
+21-day history; no provider-history accuracy is claimed. Register new unit and
+PG modules in both full PGCI and science zero-skip gate. No customer scientific
+runtime dependency closure or full delivery acceptance inferred.
+
+Archive S2 actual transport/decoder path remains unproven after ConnectTimeout;
+root added a typed safe transport refusal and verified its mechanics. RFC8 draft
+is not yet accepted: its late-receipt test wording needs correction to distinguish
+analysis-cutoff admission from reconstructed historical fold eligibility. Continue
+S3 append/verify, S4 archive reads, orthogonal label-clock design, regional mapping,
+real data/model business consumption and outstanding full acceptance scope.
 ## 2026-10-30 — bounded archive S2 capture implementation accepted
 
 Reviewed DeepSeek fixed-origin server capture uses HEAD metadata for the exact

@@ -127,3 +127,10 @@ No release signing, publishing, registry/tag mutation, repository write, custome
 redistribution, or alternate numerical solver is introduced. No existing
 non-science RFC-0004 shared pipeline or gate is relaxed. The reusable workflow has
 one job; the two callers add only that invocation.
+
+Prediction extension: the explicit focused list also includes
+`tests/unit/test_weather_demand_prediction_runtime.py`, and actual PostgreSQL
+includes `tests/integration/test_weather_demand_prediction_runtime_postgres.py`.
+Both module identities are mandatory in the zero-skip evidence gate. The
+committed synthetic history/future forecast test proves composition and receipt
+exclusion, not provider-history accuracy or regional calibration.
