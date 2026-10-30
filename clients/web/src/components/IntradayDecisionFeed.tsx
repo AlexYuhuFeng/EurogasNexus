@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { IntradayOpportunityDTO } from "@/api/client";
 
 type Translate = (key: string) => string;
@@ -27,7 +27,8 @@ export function IntradayDecisionFeed({
   t,
   compact = false,
 }: IntradayDecisionFeedProps) {
-  const latest = useMemo(() => {
+  const [showExpired, setShowExpired] = useState(false);
+  const deduplicated = useMemo(() => {
     const rows = [...opportunities].sort((left, right) =>
       right.detected_at_utc.localeCompare(left.detected_at_utc));
     const seen = new Set<string>();
@@ -36,8 +37,14 @@ export function IntradayDecisionFeed({
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).slice(0, compact ? 3 : 8);
-  }, [compact, opportunities]);
+    });
+  }, [opportunities]);
+  // Expired candidates are history, not something to act on: they are counted and one click
+  // away instead of filling the feed.
+  const expiredCount = deduplicated.filter((row) => row.status === "EXPIRED").length;
+  const latest = deduplicated
+    .filter((row) => showExpired || row.status !== "EXPIRED")
+    .slice(0, compact ? 3 : 8);
 
   const actionableCount = latest.filter((row) => row.status === "ACTIONABLE_REVIEW").length;
 
@@ -56,6 +63,17 @@ export function IntradayDecisionFeed({
           {actionableCount} {t("intraday.active")}
         </span>
       </div>
+
+      {expiredCount > 0 && (
+        <button
+          type="button"
+          className="intraday-expired-toggle"
+          aria-pressed={showExpired}
+          onClick={() => setShowExpired((value) => !value)}
+        >
+          {showExpired ? t("intraday.hide_expired") : t("intraday.show_expired")} ({expiredCount})
+        </button>
+      )}
 
       {latest.length === 0 ? (
         <div className="intraday-empty-state">

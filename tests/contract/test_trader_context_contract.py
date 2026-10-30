@@ -102,8 +102,8 @@ def test_context_ui_is_compact_accessible_and_clearable() -> None:
     assert 'aria-label={t("context.hub")}' in topbar
     assert 'onHubChange(event.target.value || null)' in topbar
     assert "SUPPORTED_HUB_IDS" in topbar
-    assert 'aria-pressed={focusedHub === definition.hub}' in market
-    assert "onHubChange(focusedHub === definition.hub ? null : definition.hub)" in market
+    assert "aria-pressed={focusedHub === row.hub}" in market
+    assert "onHubChange(focusedHub === row.hub ? null : row.hub)" in market
 
 
 def test_context_labels_have_en_zh_parity() -> None:

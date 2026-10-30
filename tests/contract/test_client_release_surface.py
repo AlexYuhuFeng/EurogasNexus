@@ -548,8 +548,8 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     assert zh["result.route_alpha"] == "\u8def\u5f84\u6536\u76ca\u9636\u68af"
     assert en["map.network_warning_title"] == "Pipeline geometry not loaded"
     assert zh["map.network_warning_title"] == "\u7ba1\u7ebf\u51e0\u4f55\u672a\u52a0\u8f7d"
-    assert en["map.runtime_missing_body"].startswith("Runtime PostgreSQL")
-    assert zh["map.runtime_missing_body"].startswith("\u8fd0\u884c PostgreSQL")
+    assert en["map.runtime_missing_body"].startswith("The data store is not connected")
+    assert zh["map.runtime_missing_body"].startswith("\u6570\u636e\u5b58\u50a8")
     assert en["map.coordinate_quality"] == "Coordinate quality"
     assert zh["map.coordinate_quality"] == "\u5750\u6807\u8d28\u91cf"
     assert en["map.approximate_points"] == "Approx. coords"
@@ -682,10 +682,15 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert '["marketSpreads", api.marketSpreads]' in store
     assert "loadWorkspaceEndpoint(api.fxRates" in store
     assert "market-terminal-board" in market_terminal
-    assert "market-price-ticker" in market_terminal
-    assert "market-region-comparison" in market_terminal
+    # One hub board replaces the ticker cards, curve lanes, latest-marks table and regional
+    # comparison that repeated the same prices; per-source detail sits behind a disclosure.
+    assert "market-hub-board-table" in market_terminal
+    assert "market-hub-curve" in market_terminal
+    assert "premiumOverTtf" in market_terminal
+    assert "market-source-details" in market_terminal
     assert "market-sparkline" in market_terminal
-    assert "market-source-quality" in market_terminal
+    assert "market-region-comparison" not in market_terminal
+    assert "market-source-quality" not in market_terminal
     assert "activeTenor" in market_terminal
     assert "setActiveTenor" in market_terminal
     assert "market-tenor-tab active" in market_terminal
@@ -712,15 +717,12 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "priceSourceSummary" in market_terminal
     assert "marketUnavailableRows" in market_terminal
     assert "market-terminal-board" in css
-    assert "market-price-ticker" in css
-    assert "market-region-comparison" in css
     assert "market-sparkline" in css
-    assert "market-source-quality" in css
     assert ".market-tenor-tab.active" in css
     assert ".market-source-matrix" in css
     assert ".market-live-status" in css
     assert ".market-price-delta.up" in css
-    assert ".market-fx-table" in css
+    assert "market-fx-strip" in market_terminal
     assert en["market.title"] == "Gas Market Terminal"
     assert en["market.terminal"] == "Major European gas markets"
     assert en["market.region_comparison"] == "Regional comparison"
@@ -1556,14 +1558,14 @@ def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context(
     assert "ICIS_Sim" in api_client
     assert "market-tenor-tabs" in market_terminal
     assert "market-source-pill" in market_terminal
-    assert "market-curve-lanes" in market_terminal
+    assert "market-hub-curve" in market_terminal
     assert '"Trayport_Sim"' in market_terminal
     assert "marketTenorOrder" in market_terminal
     assert "price_timing" in market_terminal
     assert "metadata_json" in market_terminal
     assert ".market-tenor-tabs" in css
     assert ".market-source-pill.simulated" in css
-    assert ".market-curve-lanes" in css
+    assert ".market-curve-lanes" not in market_terminal
     assert en["market.tenor_within_day"] == "Within-day"
     assert en["market.tenor_day_ahead"] == "Day-ahead"
     assert en["market.tenor_weekend"] == "Weekend"

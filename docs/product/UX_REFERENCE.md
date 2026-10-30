@@ -66,6 +66,40 @@ resource identity, explicit route feasibility, compact metric strips, binding
 constraint tables and a non-execution review pack. Scenario/optimizer/review
 remain separate analysis modes, not separate pages.
 
+## Trader-first presentation rules (2026-10-30, supersedes conflicting guidance)
+
+Added after the supplier-acceptance review by an experienced gas trader
+(`TRADER_ACCEPTANCE_REVIEW.md`). The backend's provenance and fail-closed rules are
+unchanged; these rules govern how much of that evidence is *on screen by default*.
+
+1. **One number, one place.** A price, spread or position appears once per page.
+   Hub prices are a single hub × tenor board (bid/ask, mid, tick, spread vs TTF,
+   WD/DA/WE/MA mids, source, unit · age), not ticker cards plus lanes plus tables.
+2. **Provenance on demand.** Projection slice tables, per-source quotes, source
+   matrices and reference-index evidence sit behind a one-line disclosure
+   (`<details>`). The default line states the as-of instant and how many slices are
+   degraded; a degraded count is coloured, so it still cannot be missed.
+3. **Plain desk language.** On-screen text names what the trader can do, not how
+   the store works: no "PostgreSQL", "runtime", "measured empty result",
+   "receipt-bound" or raw `CODE:detail` strings in visible copy. Codes stay in
+   `title` tooltips and evidence views. Tooltip/detail text may keep the precise
+   technical statement.
+4. **Empty states are one line** and say what would fill them ("appears after the
+   GIE AGSI source is ingested"), never a paragraph about what is not invented.
+5. **History is not an action.** Expired candidates, closed alerts and decided cases
+   are counted and one click away, not mixed into the actionable list.
+6. **Normal operation earns no badge.** Polling is normal; only a live stream gets a
+   chip. Administration posture (credentials, record counts) lives under
+   Administration, not on trader pages.
+7. **Native units first.** Show each hub in its quoted unit; conversions (p/th,
+   $/MMBtu, FX fix used) are explicit and labelled, never silent.
+8. **Prices are the landing page.** Market → Curves opens first; map, capacity and
+   research are tasks.
+
+Source-pinning contract tests should assert behaviour and data hooks
+(`data-market-board`, `data-record`, `aria-pressed`) rather than CSS class names or
+exact copy, so that presentation can improve without weakening a gate.
+
 ## Implementation note
 
 No rasterized screenshots are shipped as application UI. The accepted concept is

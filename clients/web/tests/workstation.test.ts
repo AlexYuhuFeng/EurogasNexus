@@ -222,7 +222,7 @@ test("a deep link opens only declared pages and refuses authority parameters", (
   assert.equal(built.startsWith(`${DEEP_LINK_SCHEME}://review?`), true);
   assert.equal(built.includes("token"), false);
   assert.equal(parseDeepLink(built)?.page, "review");
-  assert.equal(buildDeepLink("not-a-page" as never), "eurogas://network");
+  assert.equal(buildDeepLink("not-a-page" as never), "eurogas://market");
 
   // Every declared context key round-trips.
   for (const key of DEEP_LINK_CONTEXT_KEYS) {

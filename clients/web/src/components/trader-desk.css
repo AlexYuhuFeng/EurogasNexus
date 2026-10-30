@@ -90,3 +90,14 @@
 .trader-desk-status.status-target_met {
   color: var(--eg-positive);
 }
+
+.trader-desk-table,
+.trader-desk-inputs input,
+.trader-desk-inputs select {
+  font-size: var(--text-body);
+}
+
+.trader-desk-table th {
+  color: var(--eg-muted);
+  font-weight: 600;
+}

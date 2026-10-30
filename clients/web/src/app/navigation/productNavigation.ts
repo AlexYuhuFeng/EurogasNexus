@@ -29,8 +29,9 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
     id: "market",
     labelKey: "nav.primary.market",
     descriptionKey: "nav.primary.market.description",
-    pages: ["network", "market", "capacity"],
-    defaultPage: "network",
+    // Prices first: an experienced trader opens the desk to the hub board, not a map.
+    pages: ["market", "network", "capacity"],
+    defaultPage: "market",
   },
   {
     id: "portfolio",

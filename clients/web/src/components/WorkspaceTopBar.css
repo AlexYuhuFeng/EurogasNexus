@@ -594,3 +594,26 @@
 :root.dark .workspace-local-task {
   background: rgb(17 17 17 / 92%);
 }
+
+/*
+ * One header row on desktop widths: primary navigation, the trading context
+ * (gas day, product, hub, source posture) and the controls. Two stacked rows
+ * spent ~100px of every page on chrome.
+ */
+@media (min-width: 1280px) {
+  .cockpit-app .cockpit-topbar.workspace-topbar-page {
+    grid-template-areas: "workspace context topbar-controls";
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+
+  .cockpit-app .cockpit-topbar.has-map-search {
+    grid-template-areas: "workspace task search" "context context topbar-controls";
+  }
+}
+
+.cockpit-app .cockpit-topbar .header-controls {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}

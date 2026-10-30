@@ -32,7 +32,7 @@ test("primary workspace defaults match the accepted architecture", () => {
     primaryWorkspaces.map((primary) => [primary.id, defaultWorkspacePageForPrimary(primary)]),
   );
   assert.deepEqual(defaults, {
-    market: "network",
+    market: "market",
     portfolio: "contracts",
     strategy: "strategy",
     decision: "scenario",
@@ -98,7 +98,7 @@ test("invalid workspace values fall back to the centralized default", () => {
   assert.equal(coerceWorkspacePageId("does-not-exist"), DEFAULT_WORKSPACE_PAGE_ID);
   assert.equal(coerceWorkspacePageId(null), DEFAULT_WORKSPACE_PAGE_ID);
   assert.equal(coerceWorkspacePageId(""), DEFAULT_WORKSPACE_PAGE_ID);
-  assert.equal(DEFAULT_WORKSPACE_PAGE_ID, "network");
+  assert.equal(DEFAULT_WORKSPACE_PAGE_ID, "market");
 });
 
 test("primary workspace guard helpers are strict", () => {

@@ -53,7 +53,7 @@ deep-link into, while `system` keeps the help, research and agent surfaces.
 
 | Primary | Child technical ids | Default | Notes |
 |---|---|---|---|
-| Market | `network`, `market`, `capacity` | `network` | Network remains map-first; capacity and market stay local tasks |
+| Market | `market`, `network`, `capacity` | `market` | Prices first (hub board on the Curves task); the map and capacity stay one tab away. Amended 2026-10-30 after trader acceptance review: an experienced trader's first question is "where are prices", and an empty map without a licensed basemap was the landing page |
 | Portfolio | `contracts`, `orders` | `contracts` | `contracts` displayed as Resource Terms; `orders` displayed as Market Positioning |
 | Strategy Lab | `strategy` | `strategy` | Design / Backtest / Compare / Shadow are tasks of the one page |
 | Decision Center | `scenario`, `review` | `scenario` | Tasks are scenario, optimize, nomination, storage dispatch and review; pool-optimiser results remain reachable inside scenario/network workflows |
@@ -83,7 +83,7 @@ Behavior:
 5. Map (`network`) has no page-header task switcher; the topbar shows the active
    local task next to the primary tabs.
 6. URL/`popstate` behavior remains unchanged: `?workspace=<technical-id>`.
-7. Invalid workspace values continue to fall back to `network`.
+7. Invalid workspace values fall back to `market` (Curves task).
 
 ## 6. Old-route compatibility mapping
 
@@ -102,15 +102,15 @@ Behavior:
 | `settings` | system | Settings |
 | `manual` | system | Manual |
 | `glossary` | system | Glossary |
-| invalid/missing | market | Network (centralized fallback) |
+| invalid/missing | market | Market / Curves (centralized fallback) |
 
 `contracts` and `orders` keep their technical ids and display labels from the
 existing i18n overrides. No redirect URL rewrite is introduced.
 
 ## 7. Workflow examples
 
-- Market scan: open app -> Market/Network -> local task to Market for prices and
-  spreads -> local task to Capacity for flows/storage/LNG.
+- Market scan: open app -> Market/Curves (hub board, spreads, trader desk) ->
+  Network for geography -> Capacity for flows/storage/LNG.
 - Portfolio review: Portfolio/Resource Terms -> Portfolio/Market Positioning.
 - Strategy research: Strategy Lab -> current shadow terminal; later subviews are
   added under the same primary.
@@ -136,7 +136,8 @@ existing i18n overrides. No redirect URL rewrite is introduced.
 - New URL route ids (`resource-terms`, `market-positioning`) now: rejected to
   preserve every existing deep link; aliases may be considered later.
 - Put Network under Portfolio: rejected because market/network context is the
-  trader's first job and map is the primary market cockpit.
+  trader's first job. (The original "map is the primary market cockpit" premise
+  was superseded on 2026-10-30: prices are the landing view, the map a task.)
 - Delete or hide Glossary: rejected because operational context remains
   required; re-homing preserves reachability.
 - Rename backend endpoints: rejected by milestone boundary.

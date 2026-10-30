@@ -362,7 +362,7 @@ test("the context is read from the canonical sources and never invented", () => 
     search: "?workspace=nowhere&gasDay=not-a-day&product=hourly",
     persisted: {},
   });
-  assert.equal(unusable.activeContext.workspace, "network");
+  assert.equal(unusable.activeContext.workspace, "market");
   assert.equal(unusable.activeContext.gasDay, DEFAULT_TRADER_CONTEXT.gasDay);
   assert.equal(unusable.activeContext.deliveryProduct, DEFAULT_TRADER_CONTEXT.deliveryProduct);
   assert.equal(unusable.complete, true);

@@ -10,6 +10,7 @@ import {
   SCENARIO_EDITABLE_DRAFT_INPUTS,
   resolvePoolFinancingRate,
 } from "@/app/model/scenarioInputProvenance";
+import { warningLabel } from "@/app/warningLabel";
 import type { ScenarioRouteEconomics } from "@/app/model/scenarioRouteEconomics";
 import type { ContractNumberKey } from "@/components/ContractWorkbench";
 
@@ -140,7 +141,7 @@ export function ScenarioWorkspace({
         {poolInputBlockers.length > 0 && (
           <div className="runtime-blocker-list compact">
             <strong>{t("home.optimizer_blocked")}</strong>
-            {poolInputBlockers.map((blocker) => <span key={`scenario-blocker-${blocker}`}>{blocker}</span>)}
+            {poolInputBlockers.map((blocker) => <span key={`scenario-blocker-${blocker}`} title={blocker}>{warningLabel(blocker, t)}</span>)}
           </div>
         )}
         {resourcePoolResult && (

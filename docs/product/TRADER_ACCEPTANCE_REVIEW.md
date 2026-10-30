@@ -46,6 +46,32 @@ Tests: `tests/unit/test_trader_market_conventions.py` (26), `tests/api/test_trad
 (6) and `clients/web/tests/traderDesk.test.ts` (5). The contract surface is re-declared
 (194 paths / 208 operations).
 
+## Front-end clarity pass (2026-10-30)
+
+Reviewed every page (web; the Windows/Linux x64/arm64 desktop builds wrap the same
+client) as a trader seeing it for the first time. Findings and changes:
+
+| Finding | Change |
+|---|---|
+| App opened on an empty network map ("No basemap configured") | Default landing is Market → Curves; Market task order is Curves, Network, Capacity |
+| The same six hub prices appeared four times on one page (ticker cards, curve lanes, latest marks, regional comparison) | One hub × tenor board: bid/ask, mid, tick, spread vs TTF, WD/DA/WE/MA mids, source, unit · age; hub cell focuses every panel (keyboard accessible) |
+| Every page opened with a two-row STALE/UNKNOWN slice table | One-line context summary (as-of, coloured degraded count); slice table on demand |
+| Expired spread candidates filled the decision feed | Hidden behind "Show expired (n)" |
+| Admin posture (credential counts, record counts) and an empty EEX evidence panel on the trader page | Moved out / behind "Quotes by source, source matrix and reference indices" |
+| Two status badges for normal operation ("Polling fallback", runtime data) plus two header rows | Live-stream chip only when streaming; header is one row on desktop widths |
+| Raw codes and store jargon ("MARKET_PRICE_FX_UNAVAILABLE:TTF (EUR->GBP)", "Runtime PostgreSQL", "measured empty result") | Plain messages that say what to do; codes kept in tooltips |
+| Storage card said "A dependency is unavailable" when no AGSI series exists | Says there is no AGSI series yet and what fills it |
+
+The guidance that produced the clutter was amended: see "Trader-first presentation
+rules" in `UX_REFERENCE.md` and the landing change in
+`PRODUCT_INFORMATION_ARCHITECTURE.md`.
+
+Not yet done (next UI slices): the Strategy Lab design form is a single long page
+of research fields and should become a stepwise builder. The ENTSOG native-capacity
+query still asks for raw point ids and ISO timestamps; it should pick a point from
+the operating board. The resource pool is GBP-denominated throughout API/SDK, so a
+EUR reporting currency needs an ADR-backed contract migration.
+
 ## Remaining gaps before it is a daily desk tool (priority order)
 
 1. **Licensed real-time prices.** Without ICE Endex / EEX / broker feeds the board relies

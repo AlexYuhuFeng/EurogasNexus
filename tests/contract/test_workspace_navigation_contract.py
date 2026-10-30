@@ -41,7 +41,7 @@ EXPECTED_PAGES = [
 ]
 
 EXPECTED_PRIMARY_CHILDREN = {
-    "market": ["network", "market", "capacity"],
+    "market": ["market", "network", "capacity"],
     "portfolio": ["contracts", "orders"],
     "strategy": ["strategy"],
     "decision": ["scenario", "review"],
@@ -50,7 +50,7 @@ EXPECTED_PRIMARY_CHILDREN = {
 }
 
 EXPECTED_DEFAULTS = {
-    "market": "network",
+    "market": "market",
     "portfolio": "contracts",
     "strategy": "strategy",
     "decision": "scenario",
@@ -97,7 +97,7 @@ def test_route_guard_helpers_remain_centralized() -> None:
     assert "workspacePageIds.includes" in navigation_text
     assert "export function coerceWorkspacePageId" in navigation_text
     assert "fallback: WorkspacePageId = DEFAULT_WORKSPACE_PAGE_ID" in navigation_text
-    assert 'export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "network"' in navigation_text
+    assert 'export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "market"' in navigation_text
 
 
 def test_primary_workspace_model_owns_child_and_default_mapping() -> None:

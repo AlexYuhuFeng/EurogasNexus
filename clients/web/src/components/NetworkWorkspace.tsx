@@ -261,7 +261,7 @@ export function NetworkWorkspace({
           {poolInputBlockers.length > 0 && (
             <div className="runtime-blocker-list">
               <strong>{t("home.optimizer_blocked")}</strong>
-              {poolInputBlockers.map((blocker) => <span key={`home-blocker-${blocker}`}>{blocker}</span>)}
+              {poolInputBlockers.map((blocker) => <span key={`home-blocker-${blocker}`} title={blocker}>{warningLabel(blocker, t)}</span>)}
             </div>
           )}
         </div>

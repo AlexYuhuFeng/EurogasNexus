@@ -69,25 +69,28 @@ export function ProjectionContextStrip({
       aria-label={t(key("title"))}
       data-projection-as-of={asOf ?? undefined}
     >
-      <div className="projection-context-summary">
+      {/* One line by default: as-of and how many slices are degraded. The per-slice table is
+          evidence for when a number looks wrong, so it opens on demand. */}
+      <details className="projection-context-details">
+      <summary className="projection-context-summary">
         <span className="eyebrow">{t(key("title"))}</span>
         <strong>
           {asOf
             ? t(key("as_of"), { value: formatUtcTimestamp(asOf, asOf) })
             : t(key("as_of_unknown"))}
         </strong>
-        <span>
-          {t(key("time_basis"))}: {basisKey ? t(basisKey) : t(key("not_reported"))}
-          {gasDay ? ` · ${gasDay}` : ""}
-          {gasDayCalendar ? ` · ${t(key("gas_day_calendar"))} ${gasDayCalendar}` : ""}
-        </span>
-        <span>
+        <span className={degraded.length === 0 ? "projection-context-ok" : "projection-context-degraded"}>
           {degraded.length === 0
             ? t(key("all_fresh"))
             : t(key("degraded"), { count: degraded.length })}
         </span>
+        <span className="projection-context-basis">
+          {t(key("time_basis"))}: {basisKey ? t(basisKey) : t(key("not_reported"))}
+          {gasDay ? ` · ${gasDay}` : ""}
+          {gasDayCalendar ? ` · ${t(key("gas_day_calendar"))} ${gasDayCalendar}` : ""}
+        </span>
         {children}
-      </div>
+      </summary>
 
       <ul className="projection-context-slices">
         {readings.map((reading) => (
@@ -117,6 +120,7 @@ export function ProjectionContextStrip({
           </li>
         ))}
       </ul>
+      </details>
     </section>
   );
 }

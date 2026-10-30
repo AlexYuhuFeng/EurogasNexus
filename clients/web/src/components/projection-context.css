@@ -61,3 +61,38 @@
 .projection-slice-restricted {
   color: var(--eg-warning);
 }
+
+/* Collapsed by default: the summary line is the strip; slices open on demand. */
+.projection-context-details {
+  width: 100%;
+}
+
+.projection-context-details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.projection-context-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.projection-context-details > summary::after {
+  content: "▸";
+  margin-left: auto;
+}
+
+.projection-context-details[open] > summary::after {
+  content: "▾";
+}
+
+.projection-context-details[open] > .projection-context-slices {
+  margin-top: var(--space-1);
+}
+
+.projection-context-summary span.projection-context-degraded {
+  color: var(--eg-warning);
+}
+
+.projection-context-summary span.projection-context-basis {
+  opacity: 0.8;
+}

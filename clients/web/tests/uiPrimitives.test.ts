@@ -91,7 +91,7 @@ test("Capacity, Network rail, and Strategy shadow delegate tab semantics to Work
 test("narrow scroll regions are explicitly keyboard focusable", () => {
   const cases = [
     ["components/CapacityWorkspace.tsx", /className="capacity-operating-table"[\s\S]*?tabIndex=\{0\}/],
-    ["components/MarketTerminal.tsx", /className="data-table market-fx-table" tabIndex=\{0\}/],
+    ["components/MarketTerminal.tsx", /className="market-hub-board-table"[\s\S]*?tabIndex=\{0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-command-actions" tabIndex=\{0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-clause-nav"[\s\S]*?tabIndex=\{0\}/],
     ["components/ReviewWorkspace.tsx", /className="data-table" tabIndex=\{0\}/],

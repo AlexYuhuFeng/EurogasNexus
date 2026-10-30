@@ -253,12 +253,13 @@ export function WorkspaceTopBar({
             onAcknowledge={monitoring.acknowledgeMonitoringAlert}
             onAnalyze={monitoring.analyzeMonitoringAlert}
           />
-          <span
-            className={`stream-status-badge ${streamingActive ? "stream-live" : "stream-fallback"}`}
-            aria-label={streamingActive ? t("stream.live") : t("stream.polling_fallback")}
-          >
-            {streamingActive ? t("stream.live") : t("stream.polling_fallback")}
-          </span>
+          {/* Polling is normal operation, so only a live stream earns a chip; the polling
+              state stays in the data-status chip's title instead of a second badge. */}
+          {streamingActive && (
+            <span className="stream-status-badge stream-live" aria-label={t("stream.live")}>
+              {t("stream.live")}
+            </span>
+          )}
           {/*
             The shell owns runtime/data status, so the badge stays - but it names
             runtime data availability rather than an overall readiness, and it is
@@ -273,7 +274,7 @@ export function WorkspaceTopBar({
               variant="runtime-readiness-state"
               status={dataPlaneState(dataStatus)}
               className="topbar-data-status"
-              title={t("data.runtime_detail")}
+              title={`${t("data.runtime_detail")} · ${streamingActive ? t("stream.live") : t("stream.polling_fallback")}`}
             >
               {t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}
             </StatusBadge>

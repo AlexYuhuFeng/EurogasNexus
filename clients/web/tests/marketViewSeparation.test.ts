@@ -142,10 +142,10 @@ test("the market primary landing follows the persisted view without changing dec
   const navigation = readWebSource("app/hooks/useWorkspaceNavigation.ts");
   const product = readWebSource("app/navigation/productNavigation.ts");
 
-  // The declared product IA defaults are unchanged.
+  // The declared product IA default: prices first, the map one tab away.
   assert.match(
     product,
-    /id: "market",[\s\S]*?pages: \["network", "market", "capacity"\],[\s\S]*?defaultPage: "network"/,
+    /id: "market",[\s\S]*?pages: \["market", "network", "capacity"\],[\s\S]*?defaultPage: "market"/,
   );
   assert.match(navigation, /coerceWorkspacePageId\(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID\)/);
   assert.match(navigation, /defaultWorkspacePageForPrimary\(primary\)/);

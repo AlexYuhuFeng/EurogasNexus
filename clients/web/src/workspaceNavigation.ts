@@ -35,7 +35,7 @@ export const workspacePageIds: WorkspacePageId[] = [
   "agents",
 ];
 
-export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "network";
+export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "market";
 
 export function isWorkspacePageId(value: string | null | undefined): value is WorkspacePageId {
   return workspacePageIds.includes(value as WorkspacePageId);

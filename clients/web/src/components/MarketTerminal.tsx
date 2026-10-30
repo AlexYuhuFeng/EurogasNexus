@@ -471,63 +471,85 @@ export function MarketTerminal({
     ? activeFeedLabels.join(" / ")
     : priceSourceSummary.feeds.slice(0, 4).map((source) => source.source_system).join(" / ");
 
+  /** The hub's premium over TTF for one tenor: live mid-to-mid, else the persisted spread. */
+  const premiumOverTtf = (hub: string, tenor: string, row: HubTerminalRow | undefined) => {
+    const quote = latestQuoteByHubTenor.get(`${hub}:${tenor}`);
+    if (hub === "TTF") return { value: 0, unit: quote ? `${quote.currency}/${quote.unit}` : "EUR/MWh" };
+    const liveMid = quoteMid(quote);
+    const ttfMid = quoteMid(latestQuoteByHubTenor.get(`TTF:${tenor}`));
+    const value = liveMid !== null && ttfMid !== null
+      ? liveMid - ttfMid
+      : row?.spreadToTtf?.value_eur_mwh ?? null;
+    return { value, unit: quote ? `${quote.currency}/${quote.unit}` : row?.latest?.unit };
+  };
+
+  const activeQuoteCount = sourceQuoteRows.length;
+
   return (
     <div className="workspace-grid market-page market-terminal-board">
+      {/* One board: a row per hub, the active tenor's bid/ask and mid, the premium over TTF and
+          the other tenors' mids alongside. The earlier ticker cards, curve lanes, latest-marks
+          table and regional comparison showed the same six prices four times. */}
       <div className="workspace-panel span-3 market-terminal-hero">
-        <div className="section-heading">
-          <span className="eyebrow">{t("panel.market")}</span>
-          <strong>{t("market.terminal")}</strong>
-        </div>
-        <p className="panel-copy">{t("market.live_exchange_prices")}</p>
-        <div className="market-live-status">
-          <span>{t("market.live_polling")}</span>
-          <strong>{formatTimestamp(lastUpdatedAtUtc)}</strong>
-          <button
-            type="button"
-            onClick={() => {
-              void onRefresh();
-            }}
-          >
-            {t("market.refresh")}
-          </button>
-        </div>
-        <div className="market-hub-focus" role="group" aria-label={t("context.hub")}>
-          {marketMajorHubs.map((definition) => (
+        <div className="market-board-toolbar">
+          <div className="section-heading">
+            <strong>{t("market.terminal")}</strong>
+          </div>
+          <div className="market-tenor-tabs" aria-label={t("market.tenor_tabs")}>
+            {marketTenorOrder.map((tenor) => (
+              <button
+                key={`market-tenor-${tenor}`}
+                type="button"
+                data-tenor={tenor}
+                className={activeTenor === tenor ? "market-tenor-tab active" : "market-tenor-tab"}
+                aria-pressed={activeTenor === tenor}
+                onClick={() => setActiveTenor(tenor)}
+              >
+                {tenorLabel(tenor, t)}
+              </button>
+            ))}
+          </div>
+          <div className="market-live-status">
+            <span>{t("market.updated")}</span>
+            <strong>{formatTimestamp(lastUpdatedAtUtc)}</strong>
             <button
-              key={`market-hub-focus-${definition.hub}`}
               type="button"
-              className={focusedHub === definition.hub ? "market-hub-focus-button active" : "market-hub-focus-button"}
-              aria-pressed={focusedHub === definition.hub}
-              onClick={() => onHubChange(focusedHub === definition.hub ? null : definition.hub)}
+              onClick={() => {
+                void onRefresh();
+              }}
             >
-              {definition.hub}
+              {t("market.refresh")}
             </button>
-          ))}
+          </div>
         </div>
-        <div className="market-tenor-tabs" aria-label={t("market.tenor_tabs")}>
-          {marketTenorOrder.map((tenor) => (
-            <button
-              key={`market-tenor-${tenor}`}
-              type="button"
-              data-tenor={tenor}
-              className={activeTenor === tenor ? "market-tenor-tab active" : "market-tenor-tab"}
-              aria-pressed={activeTenor === tenor}
-              onClick={() => setActiveTenor(tenor)}
-            >
-              {tenorLabel(tenor, t)}
-            </button>
-          ))}
-        </div>
-        {/* The board prices one tenor at a time and one card per major hub. Both are declared on the
-            elements the operator sees (`data-board-tenor`, per card `data-price-tenor`), so the
+        {/* The board prices one tenor at a time and one row per major hub. Both are declared on the
+            elements the operator sees (`data-board-tenor`, per row `data-price-tenor`), so the
             browser sweep compares the payload's rows for the *displayed* scope instead of assuming
             the board shows every row the projection serves. */}
         <div
-          className="market-terminal-strip"
+          className="market-hub-board-table"
+          role="table"
+          tabIndex={0}
           data-market-board="hub-prices"
           data-board-tenor={activeTenor}
           aria-label={t("market.terminal")}
         >
+          <div className="market-hub-board-row header" role="row">
+            <span role="columnheader">{t("market.hub")}</span>
+            <span role="columnheader">{t("market.bid_ask")}</span>
+            <span role="columnheader" className="num">{t("market.mid")}</span>
+            <span role="columnheader" className="num">{t("market.tick_change")}</span>
+            <span role="columnheader" className="num">{t("market.spread_to_ttf")}</span>
+            <span role="columnheader" className="market-hub-curve" aria-label={t("market.curve")}>
+              {marketTenorOrder.map((tenor) => (
+                <span key={`curve-head-${tenor}`} className={tenor === activeTenor ? "active" : undefined}>
+                  {t(`market.tenor_short.${tenor}`)}
+                </span>
+              ))}
+            </span>
+            <span role="columnheader">{t("market.source")}</span>
+            <span role="columnheader">{t("market.unit_age")}</span>
+          </div>
           {priceRowsForStrip.map((row) => {
             const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
             const history = quoteHistoryByHubTenor.get(`${row.hub}:${row.tenor}`) ?? [];
@@ -537,7 +559,7 @@ export function MarketTerminal({
             const sourceDescription = simulated
               ? `${sourceLabel} · ${t("market.simulated_source")}`
               : sourceLabel;
-            // What the card priced, named for the scoped evidence: the row's own id in the slice it
+            // What the row priced, named for the scoped evidence: the row's own id in the slice it
             // came from (`quotes` when an L1 quote is shown, `normalized_quotes` otherwise), or no id
             // at all when the payload served this hub no row - an absence, not a zero.
             const priced = quote ?? row.latest;
@@ -545,27 +567,62 @@ export function MarketTerminal({
             const pricedUnit = priced
               ? displayPriceUnit(priced.currency, priced.unit)
               : null;
+            const mid = quoteMid(quote) ?? row.latest?.price ?? null;
+            const premium = premiumOverTtf(row.hub, row.tenor, row);
+            const lane = curveLanes.find((item) => item.hub === row.hub);
             return (
             <div
               key={`ticker-${row.hub}-${row.tenor}`}
+              role="row"
               data-record="market-hub-price"
               data-record-slice={pricedSlice ?? undefined}
               data-record-id={(quote?.quote_id ?? row.latest?.observation_id) ?? undefined}
               data-price-tenor={row.tenor}
-              className={`market-price-ticker ${quote || row.latest ? "is-live" : "is-waiting"} ${focusedHub && focusedHub === row.hub ? "hub-focused" : ""}`}
+              className={`market-hub-board-row ${priced ? "is-live" : "is-waiting"} ${focusedHub && focusedHub === row.hub ? "hub-focused" : ""}`}
             >
-              <span data-price-hub-label>{row.hub}</span>
-              <strong data-price-value>
+              <span role="rowheader">
+                <button
+                  type="button"
+                  className="market-hub-focus-button"
+                  aria-pressed={focusedHub === row.hub}
+                  title={t("market.board_note")}
+                  onClick={() => onHubChange(focusedHub === row.hub ? null : row.hub)}
+                >
+                  <strong data-price-hub-label>{row.hub}</strong>
+                </button>
+              </span>
+              <span role="cell" data-price-value>
                 {quote
                   ? `${formatPriceValue(quote.bid_price)} / ${formatPriceValue(quote.ask_price)}`
                   : formatPrice(row.latest)}
-              </strong>
-              <small data-price-meta>
-                {quote
-                  ? `${t("market.bid_ask")} · ${pricedUnit} · ${t("market.quote_age")} ${formatAge(quoteAgeSeconds(quote))}`
-                  : `${tenorLabel(row.tenor, t)} · ${t("market.quote_age")} ${formatAge(quoteAgeSeconds(quote))}`}
-              </small>
-              <div className="market-ticker-meta">
+              </span>
+              <span role="cell" className="num">{mid === null ? "–" : mid.toFixed(3)}</span>
+              <span
+                role="cell"
+                className={`num market-price-delta ${delta === null ? "flat" : delta > 0 ? "up" : delta < 0 ? "down" : "flat"}`}
+              >
+                {delta === null ? "–" : formatDelta(delta)}
+              </span>
+              <span role="cell" className="num">
+                {premium.value === null ? "–" : `${premium.value >= 0 ? "+" : ""}${premium.value.toFixed(2)}`}
+              </span>
+              <span role="cell" className="market-hub-curve">
+                {lane?.tenorRows.map((laneRow, index) => {
+                  const tenor = marketTenorOrder[index];
+                  const laneQuote = latestQuoteByHubTenor.get(`${row.hub}:${tenor}`);
+                  const price = quoteMid(laneQuote) ?? laneRow?.latest?.price ?? null;
+                  return (
+                    <span
+                      key={`curve-lane-${row.hub}-${tenor}`}
+                      className={tenor === activeTenor ? "active" : undefined}
+                      title={tenorLabel(tenor, t)}
+                    >
+                      {price === null ? "–" : price.toFixed(2)}
+                    </span>
+                  );
+                })}
+              </span>
+              <span role="cell">
                 <em
                   data-price-source
                   className={`market-source-pill ${simulated ? "simulated" : ""}`}
@@ -574,64 +631,30 @@ export function MarketTerminal({
                 >
                   {sourceLabel}
                 </em>
-                <span className={`market-price-delta ${delta === null ? "flat" : delta > 0 ? "up" : delta < 0 ? "down" : "flat"}`}>
-                  {t("market.tick_change")} {formatDelta(delta)}
-                </span>
-              </div>
+              </span>
+              <small role="cell" data-price-meta>
+                {priced
+                  ? `${pricedUnit} · ${formatAge(quoteAgeSeconds(quote))}`
+                  : t("market.awaiting_feed")}
+              </small>
             </div>
           );})}
         </div>
-        <div className="market-curve-lanes">
-          {curveLanes.map((lane) => (
-            <div key={`curve-lane-${lane.hub}`}>
-              <strong>{lane.hub}</strong>
-              {lane.tenorRows.map((row, index) => {
-                const tenor = marketTenorOrder[index];
-                const quote = latestQuoteByHubTenor.get(`${lane.hub}:${tenor}`);
-                const price = quoteMid(quote) ?? row?.latest?.price ?? null;
-                return (
-                  <span key={`curve-lane-${lane.hub}-${tenor}`}>
-                    {tenorLabel(tenor, t)} {price === null ? "n/a" : price.toFixed(2)}
-                  </span>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-        <div className="market-source-matrix-title">
-          <strong>{t("market.source_matrix")}</strong>
-          <span>{tenorLabel(activeTenor, t)}</span>
-        </div>
-        <div className="market-source-matrix" role="table" aria-label={t("market.source_matrix")}>
-          <div className="market-source-matrix-row header" role="row">
-            <span role="columnheader">{t("panel.source")}</span>
-            <span role="columnheader">{t("market.timing")}</span>
-            <span role="columnheader">{t("market.hubs")}</span>
-            <span role="columnheader">{t("market.cadence")}</span>
-          </div>
-          {sourceMatrixRows.map((row) => (
-            <div key={`source-matrix-${row.sourceSystem}`} className="market-source-matrix-row" role="row">
-              <strong role="rowheader" className="market-source-identity">
-                <span>{row.sourceSystem}</span>
-                {row.simulated && (
-                  <span className="market-source-pill simulated matrix-simulation-marker">
-                    {t("market.simulated_source")}
-                  </span>
-                )}
-              </strong>
-              <span role="cell">{row.priceTiming}</span>
-              <span role="cell">{row.hubs.length > 0 ? row.hubs.join(" / ") : "n/a"}</span>
-              <span role="cell">{formatCadence(row.updateIntervalSeconds)}</span>
-            </div>
-          ))}
-          {sourceMatrixRows.length === 0 && (
-            <div className="market-source-matrix-row" role="row">
-              <strong role="rowheader">{t("data.unavailable")}</strong>
-              <span role="cell">{activeTenor}</span>
-              <span role="cell">n/a</span>
-              <span role="cell">{t("market.awaiting_feed")}</span>
-            </div>
+        <p className="market-terminal-note">
+          {t("market.board_note")}
+          {marketUnavailableRows.length > 0 && (
+            <> · {t("market.no_price_rows")}: {marketUnavailableRows.map((row) => row.hub).join(", ")}</>
           )}
+        </p>
+        <div className="market-fx-strip" aria-label={t("market.fx")}>
+          <span>{t("market.fx")}</span>
+          {fxRates.length === 0
+            ? <strong>{t("data.unavailable")}</strong>
+            : fxRates.slice(0, 4).map((rate) => (
+              <strong key={`fx-${rate.pair}-${rate.observed_at_utc}`} title={formatTimestamp(rate.observed_at_utc)}>
+                {rate.pair} {rate.rate.toFixed(4)} <small>{rate.source_system ?? t("market.ecb_source")}</small>
+              </strong>
+            ))}
         </div>
       </div>
 
@@ -643,19 +666,11 @@ export function MarketTerminal({
         />
       </div>
 
-      <div className="workspace-panel market-reference-index-panel">
-        <ReferenceIndexEvidence
-          markets={markets}
-          focusedHub={focusedHub}
-          t={t}
-        />
-      </div>
-
-      <div className="workspace-panel span-2">
-        <div className="section-heading">
-          <span className="eyebrow">{t("market.latest")}</span>
-          <strong>{t("market.title")}</strong>
-        </div>
+      {/* Per-source detail and reference indices are evidence, not the board: one click away. */}
+      <details className="workspace-panel span-3 market-source-details">
+        <summary>
+          {t("market.source_detail")} <small>({activeQuoteCount} · {tenorLabel(activeTenor, t)})</small>
+        </summary>
         <div className="market-terminal-table" role="table" aria-label={t("market.title")}>
           <div className="market-terminal-row header" role="row">
             <span role="columnheader">{t("market.hub")}</span>
@@ -684,21 +699,17 @@ export function MarketTerminal({
               </span>
             </div>
           ))}
-          {priceRowsForStrip
-            .filter((row) => !sourceQuoteRows.some(({ latest }) => latest.hub === row.hub))
+          {sourceQuoteRows.length === 0 && priceRowsForStrip
+            .filter((row) => row.latest)
             .map((row) => (
               <div key={`market-terminal-fallback-${row.hub}`} className="market-terminal-row" role="row">
                 <strong data-label={t("market.hub")} role="rowheader">{row.hub}</strong>
                 <span data-label={t("market.venue_product")} role="cell">
-                  {row.latest
-                    ? `${row.latest.market_venue} ${row.latest.product} · ${row.sourceLabel}`
-                    : row.region}
+                  {`${row.latest?.market_venue} ${row.latest?.product} · ${row.sourceLabel}`}
                 </span>
                 <span data-label={t("market.price")} role="cell">{formatPrice(row.latest)}</span>
                 <span data-label={t("market.freshness")} role="cell">
-                  {row.latest
-                    ? `${row.latest.freshness ?? "n/a"} · ${metadataValue(row.latest, "price_timing") ?? row.tenor}`
-                    : t("market.awaiting_feed")}
+                  {`${row.latest?.freshness ?? "n/a"} · ${(row.latest && metadataValue(row.latest, "price_timing")) ?? row.tenor}`}
                 </span>
                 <span className="market-sparkline-cell" data-label={t("market.trend")} role="cell">
                   <MarketSparkline
@@ -709,72 +720,41 @@ export function MarketTerminal({
               </div>
             ))}
         </div>
-        {marketUnavailableRows.length > 0 && (
-          <p className="market-terminal-note">
-            {t("market.no_price_rows")}: {marketUnavailableRows.map((row) => row.hub).join(", ")}
-          </p>
-        )}
-      </div>
-
-      <div className="workspace-panel market-region-comparison">
-        <h2>{t("market.region_comparison")}</h2>
-        <div className="market-region-list">
-          {priceRowsForStrip.map((row) => (
-            <div key={`region-${row.hub}`}>
-              <span>{row.label}</span>
-              <strong>{(() => {
-                // A hub's premium over TTF is `price(hub) - price(TTF)`. One definition
-                // only: this previously preferred the persisted directional spread over a
-                // live mid-to-mid difference, and the two have opposite signs, so a hub
-                // trading above TTF could render as a negative "spread to TTF".
-                const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
-                const ttfQuote = latestQuoteByHubTenor.get(`TTF:${row.tenor}`);
-                const liveMid = quoteMid(quote);
-                const ttfMid = quoteMid(ttfQuote);
-                const premium = row.hub === "TTF"
-                  ? 0
-                  : liveMid !== null && ttfMid !== null
-                    ? liveMid - ttfMid
-                    : row.spreadToTtf?.value_eur_mwh ?? null;
-                return formatSpread(
-                  premium,
-                  quote ? `${quote.currency}/${quote.unit}` : row.latest?.unit,
-                );
-              })()}</strong>
-              <small>{t("market.spread_to_ttf")}</small>
+        <div className="market-source-matrix-title">
+          <strong>{t("market.source_matrix")}</strong>
+          <span>{displayFeeds || t("data.unavailable")}</span>
+        </div>
+        <div className="market-source-matrix" role="table" aria-label={t("market.source_matrix")}>
+          <div className="market-source-matrix-row header" role="row">
+            <span role="columnheader">{t("panel.source")}</span>
+            <span role="columnheader">{t("market.timing")}</span>
+            <span role="columnheader">{t("market.hubs")}</span>
+            <span role="columnheader">{t("market.cadence")}</span>
+          </div>
+          {sourceMatrixRows.map((row) => (
+            <div key={`source-matrix-${row.sourceSystem}`} className="market-source-matrix-row" role="row">
+              <strong role="rowheader" className="market-source-identity">
+                <span>{row.sourceSystem}</span>
+                {row.simulated && (
+                  <span className="market-source-pill simulated matrix-simulation-marker">
+                    {t("market.simulated_source")}
+                  </span>
+                )}
+              </strong>
+              <span role="cell">{row.priceTiming}</span>
+              <span role="cell">{row.hubs.length > 0 ? row.hubs.join(" / ") : "n/a"}</span>
+              <span role="cell">{formatCadence(row.updateIntervalSeconds)}</span>
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="workspace-panel market-source-quality">
-        <h2>{t("market.source_quality")}</h2>
-        <div className="metric-grid two-column">
-          <div><span>{t("sources.total_sources")}</span><strong>{priceSourceSummary.registered}</strong></div>
-          <div><span>{t("sources.active_sources")}</span><strong>{priceSourceSummary.active}</strong></div>
-          <div><span>{t("sources.missing_credentials")}</span><strong>{priceSourceSummary.missingCredentials}</strong></div>
-          <div><span>{t("sources.runtime_records")}</span><strong>{priceSourceSummary.runtimeRecords}</strong></div>
+        <div className="market-reference-index-panel">
+          <ReferenceIndexEvidence
+            markets={markets}
+            focusedHub={focusedHub}
+            t={t}
+          />
         </div>
-        <p className="market-terminal-note">{displayFeeds || t("data.unavailable")}</p>
-      </div>
-
-      <div className="workspace-panel">
-        <h2>{t("market.fx")}</h2>
-        <div className="data-table market-fx-table" tabIndex={0}>
-          <div className="data-table-row header"><span>{t("market.pair")}</span><span>{t("market.rate")}</span><span>{t("market.observed")}</span><span>{t("panel.source")}</span></div>
-          {fxRates.slice(0, 6).map((rate) => (
-            <div key={`fx-row-${rate.pair}-${rate.observed_at_utc}`} className="data-table-row">
-              <strong>{rate.pair}</strong>
-              <span>{rate.rate.toFixed(4)}</span>
-              <span>{formatTimestamp(rate.observed_at_utc)}</span>
-              <span>{rate.source_system ?? t("market.ecb_source")}</span>
-            </div>
-          ))}
-          {fxRates.length === 0 && (
-            <div className="data-table-row"><strong>n/a</strong><span>n/a</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
-          )}
-        </div>
-      </div>
+      </details>
     </div>
   );
 }

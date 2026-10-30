@@ -7,7 +7,7 @@ import {
   type StorageTrajectoryDTO,
 } from "@/api/client";
 import { PanelHeader } from "@/components/ui";
-import { describeFailure, presentError } from "@/app/experience/errorPresentation";
+import { apiErrorDetailCode, describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   FX_SOURCE_OPTIONS,
   PRICE_UNIT_OPTIONS,
@@ -213,7 +213,9 @@ export function TraderDeskPanel({ t }: TraderDeskPanelProps) {
               </span>
             )}
           </div>
-          {storageError ? failureText(storageError) : trajectory === null ? (
+          {storageError && apiErrorDetailCode(storageError) === "storage_series_unavailable" ? (
+            <p className="trader-desk-note">{t("desk.storage_no_series")}</p>
+          ) : storageError ? failureText(storageError) : trajectory === null ? (
             <p className="trader-desk-note">{t("desk.storage_unavailable")}</p>
           ) : (
             <>
