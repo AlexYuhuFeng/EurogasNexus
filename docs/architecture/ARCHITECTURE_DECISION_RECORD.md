@@ -30,6 +30,15 @@ interpreted as described in RFC 2119 and RFC 8174.
 | ADR-0014 | Public RFC/ExecPlan governance replaces private milestone archives | Accepted |
 | ADR-0015 | Professional workstation UI convergence contract | Accepted |
 | ADR-0016 | Architecture V2 programme authority and product-experience interaction authority | Accepted (supersedes part of ADR-0015) |
+| ADR-0017 | Reviewed Cargo licence choices (Decision 16) | Accepted |
+| ADR-0018 | ECMWF weather to regional gas demand (Decision 17) | Accepted |
+| ADR-0019 | Multi-surface development and delivery pipelines (Decision 18) | Accepted |
+| ADR-0020 | ENTSOG native rates (Decision 19) | Accepted |
+| ADR-0021 | EEX receipt-bound price evidence (Decision 20) | Accepted |
+| ADR-0022 | Desktop shell stays Tauri 2, hardened (Decision 21) | Accepted |
+| ADR-0023 | Global topology: UK-hosted primary plus a China installation (Decision 22) | Accepted |
+| ADR-0024 | Settings tiers: profile, organisation defaults, personal preferences (Decision 23) | Accepted |
+| ADR-0025 | Time-series storage stays in PostgreSQL; index first, partition on measured need (Decision 24) | Accepted |
 
 The numbered sections below are the historical record for these ADRs. ADR-0003
 corresponds to Decision 2A below; subsequent decisions shift by one in the
@@ -449,3 +458,76 @@ Accepted2026-10-29 under the Autonomous Execution Policy.
 receipt-bound NGP mapping without assigning an unverified publication clock.
 The existing strict mapper and source rights/certification gates remain.
 Implementation, actual consumer use and delivery acceptance must be verified.
+
+
+## Decision 21: Desktop shell stays Tauri 2, hardened
+
+Accepted 2026-10-30. The Windows and Linux clients wrap the same React workspace in Tauri 2
+(system WebView: WebView2 on Windows, WebKitGTK on Linux).
+
+Alternatives considered: **Electron** gives identical Chromium rendering on every OS and a
+larger ecosystem, but ships a 100+ MB runtime per release, uses several times the memory,
+carries a Node.js main process with a wide attack surface, and needs its own Chromium
+security patch cadence. A **web-only** client (browser PWA) is simplest to deploy, but
+desks that lock browsers down or want a separate, always-on window lose the dedicated
+window, OS-level single sign-on hand-off and deep links.
+
+Why Tauri fits this product: it is a data and decision workspace, not a native trading
+front end, so the WebView is enough. The Rust core holds no business logic (all logic is
+behind `/api`), the permission set is `core:default` only, installers are about 10 MB, the
+dependency graph passes the commercial licence audit (MIT/Apache-2.0), and the same build
+runs on Windows x64 and Linux x64/arm64 in CI.
+
+Hardening that comes with this decision:
+
+- CSP: scripts only from the bundle; images from HTTPS (the customer's own tile service);
+  `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`, `form-action 'self'`.
+- No updater: updates are managed by the customer's software distribution.
+- Windows desks without internet need an installer that carries WebView2 (offline or
+  fixed-version mode). The default bootstrapper downloads it at install time.
+- Linux rendering (WebKitGTK) differs from Chromium on WebGL maps and fonts. The native
+  acceptance jobs build on Linux; GUI acceptance on a Linux desktop remains a release
+  gate.
+
+Revisit if a feature needs a Chromium-only API, if WebKitGTK defects block Linux desks,
+or if the product adds order-entry latency requirements (out of scope today).
+
+## Decision 22: Global topology is a UK-hosted primary plus a China installation
+
+Accepted 2026-10-30. See [GLOBAL_DEPLOYMENT.md](GLOBAL_DEPLOYMENT.md). The UK, Canada and
+Singapore offices share one installation because they share one trading book. Mainland
+China runs a separate installation because personal-information, data-security, licensing
+and network constraints all differ there. Installations do not share databases. Data moves
+one way, primary to China, as signed, approved exports
+([REGIONAL_EXCHANGE_PROTOCOL_V1.md](REGIONAL_EXCHANGE_PROTOCOL_V1.md)).
+
+Rejected: one global installation (fails China constraints); one installation per office
+(splits the book and duplicates ingestion and licences); active-active federation
+(conflict resolution and deletion propagation with no use case). Read replicas and warm
+standby are added on the measured triggers listed in that document, not before.
+
+## Decision 23: Settings tiers
+
+Accepted 2026-10-30. Profile (identity admin or SSO), organisation defaults (platform
+admin, audited) and personal preferences (the user) are separate tiers with one owner
+each; effective = personal, else organisation, else built-in. Personal preferences live
+on the server per principal (`principal_preferences`) so they follow a person between
+clients and offices. Only settings that change something are offered. No tier grants or
+removes access. Tests: `tests/unit/test_settings_preferences.py`,
+`tests/api/test_preferences_api.py`.
+
+## Decision 24: Time-series storage stays in PostgreSQL; index first, partition on need
+
+Accepted 2026-10-30. Observation volumes (ENTSOG flows and capacity, AGSI, ALSI, market
+quotes) are millions of rows a year, well within PostgreSQL. Migration 0048 adds
+source/time indexes next to the existing entity/period ones. Reads that scan history are
+bounded (for example the spread lab's 150k-row ceiling).
+
+Rejected for now: TimescaleDB or a separate time-series store (a new datastore and its
+licence; AGENTS.md rule 5). Native declarative partitioning by month is the next step
+when any observation table passes about 50 million rows or a time-range read exceeds its
+latency budget after indexing. At that point a BRIN index on the time column replaces
+the B-tree on the largest partitions. Retention (raw archive and audit pruning) and the
+backup/restore drill apply per installation. Test:
+`tests/db/test_alembic_revision_ids.py` guards the migration chain on PostgreSQL widths.
+
