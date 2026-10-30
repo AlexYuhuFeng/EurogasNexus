@@ -16,25 +16,37 @@ trust; S4 owns opt-in archive reads.
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Final
 
+from eurogas_nexus.ingestion.ecmwf_archive_evidence import (
+    ARCHIVE_AVAILABILITY_BASIS,
+    ARCHIVE_BUCKET,
+    ARCHIVE_CYCLE_HOUR,
+    ARCHIVE_GRID_NI,
+    ARCHIVE_GRID_NJ,
+    ARCHIVE_GRID_TYPE,
+    ARCHIVE_HOST,
+    ARCHIVE_ORIGIN_LABEL,
+    MAX_ARCHIVE_OBJECT_BYTES,
+    WORK_BOUNDS,
+    archive_evidence_hash,
+    archive_limitations,
+    archive_method_hash,
+    archive_policy_hash,
+)
 from eurogas_nexus.ingestion.ecmwf_grib import (
     DECODER_LIBRARY,
     MIN_ECCODES_VERSION,
     EcmwfDecoderMetadata,
 )
 from eurogas_nexus.ingestion.ecmwf_open_data import (
-    GRID_NAME,
     MAX_FIELD_BYTES,
     MAX_INDEX_BYTES,
-    MODEL_NAME,
     PARAM_ID,
     PARAM_UNITS,
-    PRODUCT_STREAM,
     STEP_HOURS,
     EcmwfFieldReference,
     EcmwfIndexAmbiguousError,
@@ -45,16 +57,6 @@ from eurogas_nexus.ingestion.ecmwf_open_data import (
     parse_grib_index,
 )
 
-ARCHIVE_AVAILABILITY_BASIS: Final = "ARCHIVE_OBJECT_LAST_MODIFIED_RECONSTRUCTION"
-ARCHIVE_BUCKET: Final = "ecmwf-forecasts"
-ARCHIVE_HOST: Final = "ecmwf-forecasts.s3.eu-central-1.amazonaws.com"
-ARCHIVE_ORIGIN_LABEL: Final = "ECMWF-managed AWS Open Data replica"
-ARCHIVE_CYCLE_HOUR: Final = 0
-ARCHIVE_GRID_TYPE: Final = "regular_ll"
-ARCHIVE_GRID_NI: Final = 1440
-ARCHIVE_GRID_NJ: Final = 721
-ARCHIVE_TIME_PRECISION: Final = "utc_seconds"
-MAX_ARCHIVE_OBJECT_BYTES: Final = 256 * 1024 * 1024
 _CONTENT_RANGE_RE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
 _VERSION_RE = re.compile(r"^\s*(\d+)\.(\d+)(?:\.(\d+))?")
 
@@ -219,52 +221,7 @@ class ArchiveEvidence:
         return False
 
 
-_POLICY_PAYLOAD: Final[dict[str, object]] = {
-    "schema": "ecmwf-archive-availability-policy-v1",
-    "availability_basis": ARCHIVE_AVAILABILITY_BASIS,
-    "bucket": ARCHIVE_BUCKET,
-    "host": ARCHIVE_HOST,
-    "model": MODEL_NAME,
-    "grid": GRID_NAME,
-    "stream": PRODUCT_STREAM,
-    "key_layout": "YYYYMMDD/00z/ifs/0p25/oper/YYYYMMDD000000-{step}h-oper-fc",
-    "index_suffix": ".index",
-    "grib_suffix": ".grib2",
-    "cycle_hours": [ARCHIVE_CYCLE_HOUR],
-    "step": {"min_hours": 0, "max_hours": 360, "increment_hours": 3},
-    "param_id": PARAM_ID,
-    "param_units": PARAM_UNITS,
-    "step_type": "instant",
-    "grid_type": ARCHIVE_GRID_TYPE,
-    "grid_ni": ARCHIVE_GRID_NI,
-    "grid_nj": ARCHIVE_GRID_NJ,
-    "last_modified_precision": ARCHIVE_TIME_PRECISION,
-    "effective_rule": "max(index_last_modified,grib_last_modified)",
-    "public_read_continuity_assumption": True,
-    "max_index_bytes": MAX_INDEX_BYTES,
-    "max_message_bytes": MAX_FIELD_BYTES,
-    "max_object_bytes": MAX_ARCHIVE_OBJECT_BYTES,
-}
-_WORK_BOUNDS: Final[dict[str, object]] = {
-    "max_index_bytes": MAX_INDEX_BYTES,
-    "max_message_bytes": MAX_FIELD_BYTES,
-    "max_object_bytes": MAX_ARCHIVE_OBJECT_BYTES,
-    "time_precision": ARCHIVE_TIME_PRECISION,
-}
-
-
-def _canonical_hash(payload: dict[str, object]) -> str:
-    encoded = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    )
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-
-_ARCHIVE_POLICY_HASH: Final = _canonical_hash(_POLICY_PAYLOAD)
+_ARCHIVE_POLICY_HASH: Final = archive_policy_hash()
 
 
 def _text(value: object, name: str, *, maximum: int = 1024) -> str:
@@ -655,43 +612,9 @@ def reconstruct_archive_evidence(
         request=request,
         expected_request_sha256=request.fingerprint(),
     )
-    method_hash = _canonical_hash(
-        {
-            "schema": "ecmwf-archive-evidence-method-v1",
-            "policy_hash": _ARCHIVE_POLICY_HASH,
-            "index_parser": "eurogas_nexus.ingestion.ecmwf_open_data.parse_grib_index",
-            "selection": "single reviewed 2t surface row",
-            "range_reader": "exact single Content-Range with no full-body fallback",
-            "decoder_library": DECODER_LIBRARY,
-            "decoder_version": decoder_version,
-            "work_bounds": _WORK_BOUNDS,
-        }
-    )
+    method_hash = archive_method_hash(decoder_version)
     effective = max(index_ev.last_modified_utc, grib_ev.last_modified_utc)
-    limitations = [
-        (
-            "Availability is reconstructed from current S3 object LastModified; it is not a "
-            "local capture receipt."
-        ),
-        (
-            "Public-read continuity is an accepted research assumption, not proof of historical "
-            "public readability, rights, or entitlement."
-        ),
-        (
-            "Object LastModified does not prove first publication, continuous availability, or "
-            "prospective OOS availability."
-        ),
-        "ETag is retained as an opaque validator and is not a content hash or MD5.",
-        "This evidence is not a genuine forecast vintage and is not forecast-accuracy evidence.",
-    ]
-    if index_ev.version_id in (None, "null"):
-        limitations.append(
-            "Index versionId is null/unversioned; the index object is not version-pinned."
-        )
-    if grib_ev.version_id in (None, "null"):
-        limitations.append(
-            "GRIB versionId is null/unversioned; the GRIB object is not version-pinned."
-        )
+    limitations = list(archive_limitations(index_ev.version_id, grib_ev.version_id))
     evidence_payload: dict[str, object] = {
         "schema": "ecmwf-archive-evidence-v1",
         "availability_basis": ARCHIVE_AVAILABILITY_BASIS,
@@ -722,7 +645,7 @@ def reconstruct_archive_evidence(
         "decoded_request_sha256": decoded.request_sha256,
         "policy_hash": _ARCHIVE_POLICY_HASH,
         "method_hash": method_hash,
-        "work_bounds": _WORK_BOUNDS,
+        "work_bounds": WORK_BOUNDS,
         "public_read_continuity_assumption": True,
         "availability_is_local_receipt": False,
         "availability_is_prospective": False,
@@ -745,7 +668,7 @@ def reconstruct_archive_evidence(
         decoded=decoded,
         policy_hash=_ARCHIVE_POLICY_HASH,
         method_hash=method_hash,
-        evidence_hash=_canonical_hash(evidence_payload),
+        evidence_hash=archive_evidence_hash(evidence_payload),
         limitations=tuple(limitations),
         public_read_continuity_assumption=True,
     )
