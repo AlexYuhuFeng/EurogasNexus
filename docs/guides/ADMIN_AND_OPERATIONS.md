@@ -22,17 +22,18 @@ at start-up (`python scripts/ops/check_config.py --strict`).
 
 | Source | How it runs | Guide |
 |---|---|---|
-| ENTSOG, GIE, ECB | Data-ops scheduler (`scripts/ops/run_dataops_scheduler.py`) | Source Center |
-| BoE SONIA, NY Fed SOFR | `scripts/ops/ingest_interest_rates.py` | [INTEREST_RATES.md](../operations/INTEREST_RATES.md) |
+| ENTSOG, GIE, ECB FX | Data-ops scheduler (`scripts/ops/run_dataops_scheduler.py`) | Source Center |
+| SONIA, €STR, SOFR | Data-ops scheduler, once a business day after each publication | [INTEREST_RATES.md](../operations/INTEREST_RATES.md) |
+| ENTSO-E power | Data-ops scheduler, hourly; enable in Source Center once `ENTSOE_SECURITY_TOKEN` is set | [POWER_DATA.md](../operations/POWER_DATA.md) |
 | ECMWF temperature | `scripts/ops/ingest_ecmwf_forecasts.py` | [ECMWF_FORECAST_OPERATIONS.md](../data/ECMWF_FORECAST_OPERATIONS.md) |
 | National Gas demand | `scripts/ops/ingest_national_gas_rest.py` | [NATIONAL_GAS_REST_OPERATIONS.md](../data/NATIONAL_GAS_REST_OPERATIONS.md) |
-| ENTSO-E power | `scripts/ops/ingest_power.py` | [POWER_DATA.md](../operations/POWER_DATA.md) |
 | REMIT outages (UMMs) | `scripts/ops/import_remit_umm.py` | [REMIT_OUTAGES.md](../operations/REMIT_OUTAGES.md) |
 | Licensed quotes, FX fixings | `scripts/ops/import_market_quotes.py`, `import_fx_fixings.py` | [LIVE_PRICE_SOURCES.md](../operations/LIVE_PRICE_SOURCES.md), [FX_FIXINGS.md](../operations/FX_FIXINGS.md) |
 | Weather-demand model | `scripts/ops/fit_weather_demand.py` | [WEATHER_DEMAND_MODEL_OPERATOR.md](../operations/WEATHER_DEMAND_MODEL_OPERATOR.md) |
 
-Schedule the script-run sources with cron or the Windows Task Scheduler until they move
-under the data-ops scheduler.
+Scheduled sources get retries, freshness SLAs (on time, late, stale) and run history in
+Source Center. ECMWF, National Gas and the operator imports still run as scripts: schedule
+them with cron or the Windows Task Scheduler.
 
 ## Keep it healthy
 

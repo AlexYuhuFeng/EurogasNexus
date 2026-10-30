@@ -18,6 +18,7 @@ CATEGORY_LABELS = {
     "tariff": "TSO Tariffs",
     "weather": "Weather",
     "power": "Power",
+    "rates": "Interest rates",
     "ai": "LLM",
 }
 
@@ -318,6 +319,40 @@ def registered_sources() -> list[dict]:
             ),
             True,
             freshness_minutes=120,
+        ),
+        _source_row(
+            "src-boe",
+            "BOE",
+            "rates",
+            ("sonia",),
+            (
+                "Bank of England SONIA overnight fixing (Interactive Database series "
+                "IUDSOIA): financing and early-cash valuation in GBP. Free; attribution."
+            ),
+            False,
+            freshness_minutes=1440,
+        ),
+        _source_row(
+            "src-ecb-estr",
+            # Stored fixings carry source_system "ECB"; the registry needs a label of its own.
+            "ECB_ESTR",
+            "rates",
+            ("estr",),
+            "ECB euro short-term rate (€STR) from the ECB Data Portal: financing in EUR.",
+            False,
+            freshness_minutes=1440,
+        ),
+        _source_row(
+            "src-nyfed",
+            "NYFED",
+            "rates",
+            ("sofr",),
+            (
+                "Federal Reserve Bank of New York SOFR from the Markets API: financing in "
+                "USD for LNG and cross-currency contracts. Free; attribution."
+            ),
+            False,
+            freshness_minutes=1440,
         ),
         _source_row(
             "src-remit-umm",

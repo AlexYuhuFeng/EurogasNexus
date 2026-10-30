@@ -3739,5 +3739,6 @@
   "outages.status_scheduled": "即将发生",
   "outages.type_planned": "计划内",
   "outages.type_unplanned": "计划外",
-  "outages.type_unspecified": "未说明"
+  "outages.type_unspecified": "未说明",
+  "sources.category.rates": "利率"
 }

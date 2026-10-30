@@ -26,8 +26,11 @@ python scripts/ops/ingest_interest_rates.py --benchmark SONIA     # one benchmar
 python scripts/ops/ingest_interest_rates.py --benchmark SOFR --file sofr.json   # saved payload
 ```
 
-Schedule once per business day after 09:00 London (SONIA is published at 09:00 London
-on T+1, €STR at 08:00 CET on T+1, SOFR at 08:00 New York on T+1). Fixings are upserted
+The data-ops scheduler runs each benchmark once a business day after its publication
+(sources `src-boe` at 10:15 London, `src-ecb-estr` at 08:15 Frankfurt, `src-nyfed` at
+08:30 New York; SONIA is published at 09:00 London on T+1, €STR at 08:00 CET on T+1, SOFR
+at 08:00 New York on T+1), looking back ten days so a missed day is filled. Source Center
+marks a benchmark late after two days without a new fixing and stale after four. Fixings are upserted
 by (benchmark, value date), and a published correction replaces the stored value and is
 reported. The deployment's egress policy must allow `www.bankofengland.co.uk`,
 `data-api.ecb.europa.eu` and `markets.newyorkfed.org`.

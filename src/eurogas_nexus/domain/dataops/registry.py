@@ -28,6 +28,7 @@ from eurogas_nexus.domain.ingestion.source_registry import registered_sources
 
 # source_id -> semantics not present in the static display registry.
 
+
 def _tariff_override() -> dict:
     return {
         "source_class": SourceClass.REFERENCE,
@@ -58,6 +59,23 @@ def _licensed_override(normal: int, late: int, stale: int) -> dict:
         "licensed_data": LicensedDataPolicy(),
     }
 
+
+def _rate_override(daily_at: str, timezone: str) -> dict:
+    return {
+        "source_class": SourceClass.PUBLIC,
+        "access_mode": AccessMode.PUBLIC_HTTP,
+        "schedulable": True,
+        "enabled_default": True,
+        "schedule": SourceScheduleSpec(
+            schedule_type=ScheduleType.DAILY, daily_at=daily_at, timezone=timezone
+        ),
+        "calendar": SourceCalendar.WEEKDAYS_ONLY,
+        # A fixing a day; a long weekend or holiday leaves three to four days without one.
+        "freshness_policy": FreshnessPolicy(1440 * 2, 1440 * 4, 1440 * 6),
+        "retry_policy": RetryPolicy(3, 300.0, 3600.0),
+        "rate_limit_policy": RateLimitPolicy(4, 3600.0, 60.0, 1),
+        "adapter_version": "interest-rate-ingest/1",
+    }
 
 
 _SOURCE_OVERRIDES: dict[str, dict] = {
@@ -92,17 +110,30 @@ _SOURCE_OVERRIDES: dict[str, dict] = {
         "rate_limit_policy": RateLimitPolicy(6, 60.0, 5.0, 1),
         "adapter_version": "public-source-ingestor/1",
     },
-    # Ingested by scripts/ops/ingest_power.py; the scheduler has no ENTSO-E adapter yet, so the
-    # source is not schedulable rather than claimed and never run.
+    # Run by the scheduler through scripts/ops/ingest_power.py (token from
+    # ENTSOE_SECURITY_TOKEN); off until an operator enables it with the token in place.
     "src-entsoe": {
         "source_class": SourceClass.PUBLIC,
         "access_mode": AccessMode.KEYED_HTTP,
         "credential_fields": ("security_token",),
         "certification_required": True,
-        "schedulable": False,
+        "schedulable": True,
         "enabled_default": False,
+        "schedule": SourceScheduleSpec(
+            schedule_type=ScheduleType.INTERVAL,
+            interval_seconds=3600,
+        ),
+        # Day-ahead prices publish once a day; load and generation hourly.
+        "freshness_policy": FreshnessPolicy(120, 360, 1440),
+        "retry_policy": RetryPolicy(3, 120.0, 1800.0),
+        "rate_limit_policy": RateLimitPolicy(4, 3600.0, 60.0, 1),
         "adapter_version": "entsoe-transparency-xml-v1",
     },
+    # Benchmark overnight rates, run by the scheduler through scripts/ops/ingest_interest_rates.py
+    # once a business day after each administrator publishes.
+    "src-boe": _rate_override("10:15", "Europe/London"),
+    "src-ecb-estr": _rate_override("08:15", "Europe/Berlin"),
+    "src-nyfed": _rate_override("08:30", "America/New_York"),
     # Operator file import (scripts/ops/import_remit_umm.py); nothing for the scheduler to run.
     "src-remit-umm": {
         "source_class": SourceClass.PUBLIC,
@@ -209,10 +240,7 @@ def source_definitions() -> tuple[SourceDefinition, ...]:
         entitlement_scope = "licensed" if row["credential_requirements"] else "public"
         credential_fields: tuple[str, ...] = ()
         if row["credential_requirements"]:
-            credential_fields = tuple(
-                override.get("credential_fields")
-                or ("api_key",)
-            )
+            credential_fields = tuple(override.get("credential_fields") or ("api_key",))
         definition = SourceDefinition(
             source_id=source_id,
             provider=provider,

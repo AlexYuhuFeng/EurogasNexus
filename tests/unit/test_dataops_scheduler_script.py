@@ -9,7 +9,9 @@ from types import SimpleNamespace
 import pytest
 
 from eurogas_nexus.domain.dataops.contracts import FailureCategory
+from eurogas_nexus.domain.dataops.registry import definition_for_source
 from scripts.ops.run_dataops_scheduler import (
+    _SCRIPT_COMMANDS,
     _SOURCE_ARGS,
     run_ingestor_attempt,
     run_loop,
@@ -263,3 +265,38 @@ def test_scheduler_loop_does_not_label_failed_configuration_as_ok(monkeypatch):
     assert json.loads(reports[0])["configuration_blocks"] == {
         "src-entsog": "entsog_window_required"
     }
+
+
+@pytest.mark.parametrize(
+    ("source_id", "script", "flag"),
+    [
+        ("src-entsoe", "ingest_power.py", "--commit"),
+        ("src-boe", "ingest_interest_rates.py", "SONIA"),
+        ("src-ecb-estr", "ingest_interest_rates.py", "ESTR"),
+        ("src-nyfed", "ingest_interest_rates.py", "SOFR"),
+    ],
+)
+def test_script_sources_run_their_own_ingestor(source_id, script, flag) -> None:
+    seen = []
+
+    def fake_runner(command, **kwargs):
+        seen.append(command)
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({"ok": True, "sources": {"x": {"records": 3, "inserted": 1}}}),
+            stderr="",
+        )
+
+    result = run_ingestor_attempt(fake_runner)({"source_id": source_id, "run_id": "r"}, 1)
+
+    assert result.succeeded is True and result.rows_accepted == 3
+    assert seen[0][1].endswith(script) and "--json" in seen[0] and flag in seen[0]
+    definition = definition_for_source(source_id)
+    assert definition is not None and definition.schedulable
+
+
+def test_every_schedulable_source_has_a_runner() -> None:
+    from eurogas_nexus.domain.dataops.registry import source_definitions
+
+    schedulable = {d.source_id for d in source_definitions() if d.schedulable}
+    assert schedulable <= set(_SOURCE_ARGS) | set(_SCRIPT_COMMANDS)

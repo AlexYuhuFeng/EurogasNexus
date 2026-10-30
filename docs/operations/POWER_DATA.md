@@ -26,8 +26,9 @@ python scripts/ops/ingest_power.py --file a75_gb.xml --commit
 ```
 
 Re-running is safe: a value already stored is unchanged; a revised value replaces it.
-The scheduler has no ENTSO-E job yet, so run this from cron or the task scheduler,
-hourly for actuals and once after 13:00 Brussels for day-ahead prices.
+The data-ops scheduler runs it hourly (source `src-entsoe`, last two days, GB, NL and
+DE-LU) once an administrator enables the source in Source Center with the token set; a
+failed document fails the run so it is retried and shows as late rather than complete.
 
 ## Availability (point-in-time)
 

@@ -86,9 +86,7 @@ def scan_scheduler(
     resolved = definitions or source_definitions()
     dataops_repository.reconcile_source_runtime_states(session, resolved, now_utc=now)
     recovered = dataops_repository.recover_stale_runs(session, now_utc=now)
-    claims = dataops_repository.claim_due_sources(
-        session, resolved, now_utc=now, limit=limit
-    )
+    claims = dataops_repository.claim_due_sources(session, resolved, now_utc=now, limit=limit)
     states = _ordered_states(session)
     health = _aggregate_health(session, states, now)
     heartbeat = dataops_repository.record_heartbeat(
@@ -459,7 +457,7 @@ def source_health(
     state = dataops_repository.ensure_source_runtime_state(
         session, definition, now_utc=now, activate_new=True
     )
-    observed = _latest_observation_for(session, definition.provider)
+    observed = _latest_observation_for(session, definition.provider, definition.source_id)
     access_granted = bool(state.enabled)
     if definition.certification_required and state.certification_state not in {
         "CERTIFIED",
@@ -498,9 +496,7 @@ def source_health(
 
 def _ordered_states(session: Session) -> list[SourceRuntimeStateRecord]:
     return (
-        session.query(SourceRuntimeStateRecord)
-        .order_by(SourceRuntimeStateRecord.source_id)
-        .all()
+        session.query(SourceRuntimeStateRecord).order_by(SourceRuntimeStateRecord.source_id).all()
     )
 
 
@@ -509,13 +505,9 @@ def _aggregate_health(
     states: list[SourceRuntimeStateRecord],
     now: datetime,
 ) -> dict:
-    healthy = sum(
-        1 for state in states if state.freshness_state in {"FRESH", "NOT_EXPECTED"}
-    )
+    healthy = sum(1 for state in states if state.freshness_state in {"FRESH", "NOT_EXPECTED"})
     late = sum(1 for state in states if state.freshness_state == "LATE")
-    stale = sum(
-        1 for state in states if state.freshness_state in {"STALE", "MISSING"}
-    )
+    stale = sum(1 for state in states if state.freshness_state in {"STALE", "MISSING"})
     failed = sum(
         1
         for state in states
@@ -541,11 +533,7 @@ def _aggregate_health(
             max(
                 0.0,
                 (
-                    now
-                    - min(
-                        as_utc(state.next_run_at_utc)
-                        for state in overdue_states
-                    )
+                    now - min(as_utc(state.next_run_at_utc) for state in overdue_states)
                 ).total_seconds(),
             ),
             1,
@@ -560,9 +548,7 @@ def _aggregate_health(
         "failed": failed,
         "certification_gaps": certification_gaps,
         "entitlement_failures": sum(
-            1
-            for state in states
-            if state.entitlement_state in {"DENIED", "MISSING"}
+            1 for state in states if state.entitlement_state in {"DENIED", "MISSING"}
         ),
         "backlog_depth": backlog_depth,
         "oldest_overdue_seconds": oldest_overdue_seconds,
@@ -579,18 +565,37 @@ def _active_run_count(session: Session, now: datetime) -> int:
     )
 
 
-def _latest_observation_for(session: Session, provider: str) -> datetime | None:
+# Rate sources share an administrator with other data (ECB publishes FX and €STR), so their
+# freshness is read from their own benchmark only.
+_RATE_BENCHMARK_BY_SOURCE = {"src-boe": "SONIA", "src-ecb-estr": "ESTR", "src-nyfed": "SOFR"}
+
+
+def _latest_observation_for(
+    session: Session, provider: str, source_id: str | None = None
+) -> datetime | None:
     from sqlalchemy import func
 
     from eurogas_nexus.db.models import (
         CapacityObservationRecord,
         FlowObservationRecord,
         FxObservationRecord,
+        InterestRateObservationRecord,
         LngObservationRecord,
         MarketObservationRecord,
+        PowerObservationRecord,
+        RemitUmmRecord,
         ScreenOrderObservationRecord,
         StorageObservationRecord,
     )
+
+    benchmark = _RATE_BENCHMARK_BY_SOURCE.get(source_id or "")
+    if benchmark is not None:
+        value = (
+            session.query(func.max(InterestRateObservationRecord.ingested_at_utc))
+            .filter(InterestRateObservationRecord.benchmark_id == benchmark)
+            .scalar()
+        )
+        return as_utc(value) if value is not None else None
 
     tables = (
         (
@@ -628,14 +633,20 @@ def _latest_observation_for(session: Session, provider: str) -> datetime | None:
             ScreenOrderObservationRecord.source_system,
             ScreenOrderObservationRecord.observed_at_utc,
         ),
+        (
+            PowerObservationRecord,
+            PowerObservationRecord.source_system,
+            PowerObservationRecord.ingested_at_utc,
+        ),
+        (
+            RemitUmmRecord,
+            RemitUmmRecord.source_system,
+            RemitUmmRecord.ingested_at_utc,
+        ),
     )
     latest: datetime | None = None
     for _model, source_column, time_column in tables:
-        value = (
-            session.query(func.max(time_column))
-            .filter(source_column == provider)
-            .scalar()
-        )
+        value = session.query(func.max(time_column)).filter(source_column == provider).scalar()
         if value is None:
             continue
         value_utc = as_utc(value)

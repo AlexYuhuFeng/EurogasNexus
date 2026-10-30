@@ -11,6 +11,7 @@ parses and reports what it would store.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -32,7 +33,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--documents", default="A44,A65,A75", help="ENTSO-E document types")
     parser.add_argument("--file", action="append", type=Path, help="parse a stored document")
     parser.add_argument("--commit", action="store_true", help="write to the runtime database")
+    parser.add_argument("--json", action="store_true", help="print a JSON report (scheduler)")
     args = parser.parse_args(argv)
+    # With --json, progress goes to stderr and stdout carries only the scheduler's report.
+    say = (lambda text: print(text, file=sys.stderr)) if args.json else print
+    failures = 0
 
     observations = []
     if args.file:
@@ -41,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         token = resolve_entsoe_token()
         if not token:
-            print("ENTSOE_SECURITY_TOKEN is not set; see docs/operations/POWER_DATA.md")
+            say("ENTSOE_SECURITY_TOKEN is not set; see docs/operations/POWER_DATA.md")
             return 2
         end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
         start = end - timedelta(days=args.days)
@@ -53,15 +58,16 @@ def main(argv: list[str] | None = None) -> int:
                     observations += parse_document(fetch_document(url), source_reference=reference)
                 except (OSError, EntsoeParseError) as exc:
                     # The URL carries the token, so only the reference is reported.
-                    print(f"{reference}: {type(exc).__name__}: {str(exc)[:200]}")
+                    failures += 1
+                    say(f"{reference}: {type(exc).__name__}: {str(exc)[:200]}")
 
     by_metric: dict[tuple[str, str], int] = {}
     for item in observations:
         by_metric[(item.zone, item.metric)] = by_metric.get((item.zone, item.metric), 0) + 1
     for (zone, metric), count in sorted(by_metric.items()):
-        print(f"{zone:6} {metric:28} {count:6d}")
+        say(f"{zone:6} {metric:28} {count:6d}")
     if not args.commit:
-        print(f"{len(observations)} observations parsed; dry run (add --commit to store)")
+        say(f"{len(observations)} observations parsed; dry run (add --commit to store)")
         return 0
 
     from eurogas_nexus.db.repositories.power import upsert_power_observations
@@ -70,8 +76,23 @@ def main(argv: list[str] | None = None) -> int:
     with get_session_factory()() as session:
         counts = upsert_power_observations(session, observations)
         session.commit()
-    print(f"stored: {counts}")
-    return 0
+    say(f"stored: {counts}")
+    if args.json:
+        # A document that failed is a failed run: the scheduler retries it, and freshness shows
+        # the gap instead of a partial window passing as complete.
+        report = {
+            "ok": failures == 0 and bool(observations),
+            "sources": {
+                "entsoe": {
+                    "records": len(observations),
+                    "inserted": counts["inserted"],
+                    "unchanged": counts["unchanged"],
+                    "updated": counts["updated"],
+                }
+            },
+        }
+        print(json.dumps(report, sort_keys=True))
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

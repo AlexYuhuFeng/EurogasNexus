@@ -18,6 +18,8 @@ business day after 09:00 London.
 from __future__ import annotations
 
 import argparse
+import json
+import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -94,16 +96,19 @@ def main(argv: list[str] | None = None) -> int:
     """Run the ingest; returns a process exit code."""
 
     args = _parse_args(argv)
+    # With --json, progress goes to stderr and stdout carries only the scheduler's report.
+    say = (lambda text: print(text, file=sys.stderr)) if args.json else print
     database_url = resolve_database_url()
     if not database_url:
-        print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")
+        say("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")
         return 2
-    print(f"Runtime DB: {redact_database_url(database_url)}")
+    say(f"Runtime DB: {redact_database_url(database_url)}")
     end = date.today()
     start = end - timedelta(days=args.days)
     selected = [args.benchmark] if args.benchmark else list(BENCHMARKS)
     now = datetime.now(UTC)
     failures = 0
+    report: dict[str, dict[str, int]] = {}
     with get_session_factory(database_url=database_url)() as session:
         with httpx.Client(
             timeout=30.0,
@@ -118,15 +123,23 @@ def main(argv: list[str] | None = None) -> int:
                         fixings = fetch(client, benchmark_id, start, end)
                 except (httpx.HTTPError, InterestRateError, OSError) as exc:
                     failures += 1
-                    print(f"{benchmark_id}: failed ({exc.__class__.__name__}: {exc})")
+                    say(f"{benchmark_id}: failed ({exc.__class__.__name__}: {exc})")
                     continue
                 inserted, corrected = upsert(session, fixings, now=now)
-                print(
+                report[benchmark_id] = {
+                    "records": len(fixings),
+                    "inserted": inserted,
+                    "corrected": corrected,
+                    "unchanged": len(fixings) - inserted - corrected,
+                }
+                say(
                     f"{benchmark_id}: {len(fixings)} fixings "
                     f"{fixings[0].value_date}..{fixings[-1].value_date}, "
                     f"{inserted} new, {corrected} corrected"
                 )
         session.commit()
+    if args.json:
+        print(json.dumps({"ok": not failures and bool(report), "sources": report}, sort_keys=True))
     return 1 if failures else 0
 
 
@@ -135,6 +148,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--benchmark", choices=sorted(BENCHMARKS), default=None)
     parser.add_argument("--days", type=int, default=30, help="look-back window in days")
     parser.add_argument("--file", default=None, help="parse a saved payload instead of fetching")
+    parser.add_argument("--json", action="store_true", help="print a JSON report (scheduler)")
     args = parser.parse_args(argv)
     if args.file and not args.benchmark:
         parser.error("--file requires --benchmark")

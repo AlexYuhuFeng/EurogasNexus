@@ -20,10 +20,10 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 | ENTSOG Transparency (flows, capacity, points, interconnections) | Live, scheduled | Native rates with explicit units; flows in mcm/d | Network map, capacity, route costs, datasets (`flow.mcm_d.<point>.<dir>`) |
 | GIE AGSI+ (storage) / ALSI (LNG) | Live, scheduled (customer key) | TWh, %, TWh/d per facility/terminal | Storage vs EU target, trader desk, datasets (`storage.*`, `lng.*`) |
 | ECB reference FX, €STR | Live, scheduled | Daily fixings | Price converter, cash valuation |
-| Bank of England SONIA, NY Fed SOFR | Live (script) | Daily fixings | Early-cash valuation, financing rate |
+| Bank of England SONIA, NY Fed SOFR | Live, scheduled | Daily fixings | Early-cash valuation, financing rate |
 | ECMWF Open Data (IFS 2 m temperature) | Live (script) | GRIB → degree days | GB weather-demand model |
 | National Gas (GB demand actuals) | Live (script) | Daily demand | Weather-demand targets |
-| ENTSO-E Transparency (power prices, load, wind, solar, gas generation) | Parser and script (customer token) | MW, EUR/MWh per bidding zone | Gas-for-power, datasets (`power.*`) |
+| ENTSO-E Transparency (power prices, load, wind, solar, gas generation) | Live, scheduled hourly (customer token) | MW, EUR/MWh per bidding zone | Gas-for-power, datasets (`power.*`) |
 | EEX public TTF NGP file | Live (bounded download) | Reference index, 15-min | Reference index panel (not a quote) |
 | REMIT UMMs (gas outages) | Operator import (JSON/CSV, ACER fields) | Every message version; native capacity unit | Capacity & Events → Outages, SDK `fetch_outages` |
 | Customer screen export (Trayport/ICE/EEX) | Operator import | L1 bid/ask in native units | Board, ladder, spread lab, position marks |
@@ -63,7 +63,7 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 |---|---|---|
 | FastAPI backend, one `/api` | All clients and the SDK go through it; RBAC, data scopes, audit | Sound. Some route modules are large and should be split by domain |
 | PostgreSQL | Single source of truth, Alembic migrations | Sound. Time indexes added; partition when an observation table passes ~50M rows |
-| Data-ops scheduler | Runs ECB, ENTSOG, GIE | Other ingestors are scripts that need cron; bring them under the scheduler |
+| Data-ops scheduler | Runs ECB, ENTSOG, GIE, ENTSO-E and the SONIA/€STR/SOFR fixings with retries and freshness SLAs | ECMWF and National Gas still run as scripts under cron |
 | Projections (market context, portfolio snapshot) | One batched read per workspace | Efficient; measured latency budgets in CI |
 | Web client (React) and desktop (Tauri) | One codebase, Windows and Linux | Works. A few very large files (API client, global CSS, store) slow change |
 | Python SDK | Typed access for quants | Good coverage of research routes |
@@ -81,4 +81,4 @@ forecasting covers GB demand and data preparation rather than a full balance mod
    licensed connectors in priority 1.
 5. **NW Europe balance**: demand (weather, power burn) against supply (flows, LNG,
    storage), forecast daily for two weeks.
-6. Bring all ingestors under the scheduler with the same freshness SLAs.
+6. Move ECMWF and National Gas under the scheduler too (ENTSO-E and rates done).

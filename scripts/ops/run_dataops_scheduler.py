@@ -38,6 +38,14 @@ _SOURCE_ARGS = {
     "src-gie": ("gie-agsi", "gie-alsi"),
 }
 
+# Sources with their own ingest script; each prints the same JSON report with --json.
+_SCRIPT_COMMANDS = {
+    "src-entsoe": ("ingest_power.py", "--commit", "--json", "--days", "2"),
+    "src-boe": ("ingest_interest_rates.py", "--json", "--benchmark", "SONIA", "--days", "10"),
+    "src-ecb-estr": ("ingest_interest_rates.py", "--json", "--benchmark", "ESTR", "--days", "10"),
+    "src-nyfed": ("ingest_interest_rates.py", "--json", "--benchmark", "SOFR", "--days", "10"),
+}
+
 
 def run_ingestor_attempt(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
@@ -54,7 +62,8 @@ def run_ingestor_attempt(
     def run(payload: dict, attempt: int) -> IngestionAttemptResult:
         source_id = str(payload.get("source_id") or "")
         source_args = _SOURCE_ARGS.get(source_id)
-        if not source_args:
+        script_command = _SCRIPT_COMMANDS.get(source_id)
+        if not source_args and not script_command:
             emit_event(
                 event="ingestion.attempt.unsupported",
                 level="error",
@@ -68,9 +77,13 @@ def run_ingestor_attempt(
                 classification=FailureCategory.CONFIGURATION,
                 error_message=f"No production runner is implemented for {source_id}.",
             )
-        command = [sys.executable, str(INGEST_SCRIPT), "--json"]
-        for source in source_args:
-            command.extend(["--source", source])
+        if script_command:
+            script, *script_args = script_command
+            command = [sys.executable, str(INGEST_SCRIPT.with_name(script)), *script_args]
+        else:
+            command = [sys.executable, str(INGEST_SCRIPT), "--json"]
+            for source in source_args:
+                command.extend(["--source", source])
         window = None
         if source_id == "src-entsog":
             for point_direction in point_directions:

@@ -3739,5 +3739,6 @@
   "outages.status_scheduled": "Upcoming",
   "outages.type_planned": "Planned",
   "outages.type_unplanned": "Unplanned",
-  "outages.type_unspecified": "Unspecified"
+  "outages.type_unspecified": "Unspecified",
+  "sources.category.rates": "Interest rates"
 }
