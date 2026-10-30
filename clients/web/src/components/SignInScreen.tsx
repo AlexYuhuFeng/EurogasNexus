@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { LOCALES } from "@/i18n/locales";
 import { devLoginOffered, type AuthStatusSnapshot } from "@/stores/authGate";
 import type { AuthState } from "@/stores/workspaceLoading";
 import "./SignInScreen.css";
@@ -53,8 +54,9 @@ export function SignInScreen({
             value={language}
             onChange={(event) => onLanguageChange(event.target.value)}
           >
-            <option value="en">EN</option>
-            <option value="zh-CN">{t("settings.chinese")}</option>
+            {LOCALES.map((locale) => (
+              <option key={locale.code} value={locale.code}>{locale.shortLabel}</option>
+            ))}
           </select>
         </div>
 

@@ -1,5 +1,4 @@
 import type { AppController } from "@/app/hooks/useAppController";
-import { changeAppLanguage } from "@/i18n";
 import { AccessCenter } from "@/components/AccessCenter";
 import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
@@ -32,7 +31,6 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
     t,
     i18n,
     api,
-    theme,
     navigation,
     traderContext,
     selection,
@@ -293,8 +291,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <SettingsCenter
           t={t}
           language={i18n.language}
-          mode={theme.mode}
           principalId={api.currentUser?.principal_id ?? null}
+          canManageOrganisation={api.currentUser?.permissions.includes("identity.manage") ?? false}
           dataStatus={api.dataStatus}
           runtimeDb={api.runtimeDb}
           runtimeRelease={api.runtimeRelease}
@@ -302,8 +300,6 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           sources={api.sources}
           credentialProviders={api.credentialProviders}
           counts={{ nodes: api.nodes.length, edges: api.edges.length, routes: api.routes.length }}
-          onLanguageChange={(language) => void changeAppLanguage(language)}
-          onModeChange={theme.setMode}
           onOpenSources={() => navigation.openWorkspace("sources")}
           onBackendBaseChanged={api.fetchWorkspace}
         />

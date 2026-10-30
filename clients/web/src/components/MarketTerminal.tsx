@@ -1,4 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  PREFERENCES_APPLIED_EVENT,
+  readBoardLayout,
+  writeLocalBoardLayout,
+} from "@/app/preferences/remotePreferences";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import {
   createHubSpreadResolver,
@@ -264,14 +269,8 @@ const formatDelta = (value: number | null): string => {
 };
 
 type BoardView = "board" | "ladder";
-const BOARD_VIEW_STORAGE_KEY = "eurogas.market.board_view";
-
 function readBoardView(): BoardView {
-  try {
-    return window.localStorage.getItem(BOARD_VIEW_STORAGE_KEY) === "ladder" ? "ladder" : "board";
-  } catch {
-    return "board";
-  }
+  return readBoardLayout();
 }
 
 export function MarketTerminal({
@@ -291,12 +290,14 @@ export function MarketTerminal({
   const [boardView, setBoardView] = useState<BoardView>(readBoardView);
   const chooseBoardView = (view: BoardView) => {
     setBoardView(view);
-    try {
-      window.localStorage.setItem(BOARD_VIEW_STORAGE_KEY, view);
-    } catch {
-      // Storage may be unavailable (private window); the choice then lasts this session.
-    }
+    writeLocalBoardLayout(view);
   };
+  // The server copy of the preference can arrive after the board mounted.
+  useEffect(() => {
+    const onApplied = () => setBoardView(readBoardView());
+    window.addEventListener(PREFERENCES_APPLIED_EVENT, onApplied);
+    return () => window.removeEventListener(PREFERENCES_APPLIED_EVENT, onApplied);
+  }, []);
 
   const quoteHistoryByIdentity = useMemo(() => {
     const result = new Map<string, MarketQuoteDTO[]>();

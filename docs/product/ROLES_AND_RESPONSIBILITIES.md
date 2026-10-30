@@ -81,6 +81,17 @@ region scope is not enforced yet, and the experience profile reports `REGION` an
    licences.
 2. The same or a second administrator sets **job functions** and **office** under
    Administration → Access → Job profile.
-3. Personal preferences (theme, language, density, default market view) belong to
-   the user (Preferences menu). Organisation-wide settings (data sources, map tiles,
-   retention) belong to administrators (Administration).
+3. Settings come in three tiers, each with one owner:
+
+   | Tier | Examples | Owner | Stored |
+   |---|---|---|---|
+   | Profile | name, role, data scopes, job functions, office | identity administrator or SSO | identity principal |
+   | Organisation defaults | default language, theme, market view, quote layout; languages offered | platform administrator (`identity.manage`), audited | `organisation_settings` |
+   | Personal preferences | the same keys, chosen by the user | the user | `principal_preferences`, per principal |
+   | This workstation | backend URL, map tile service | whoever runs the device | the device |
+
+   What takes effect is the personal choice, else the organisation default, else the
+   built-in default. Personal preferences are stored on the server, so they follow a
+   person from the web client to the desktop client and between offices. None of the
+   tiers below Profile grants or removes access. Users reach theirs from the account
+   menu (initials, top right) → Settings.

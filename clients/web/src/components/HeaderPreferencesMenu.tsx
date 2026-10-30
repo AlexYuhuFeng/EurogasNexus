@@ -1,6 +1,16 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { CurrentUserDTO } from "@/api/client";
 import type { ThemeMode } from "@/stores/theme";
+import { LOCALES } from "@/i18n/locales";
+import { isShortcutHelpKey, KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
+
+/** "Jane Smith" → "JS"; a single name gives its first two letters. */
+export function accountInitials(name: string): string {
+  const parts = name.trim().split(/[\s._-]+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const letters = parts.length === 1 ? parts[0].slice(0, 2) : `${parts[0][0]}${parts[parts.length - 1][0]}`;
+  return letters.toUpperCase();
+}
 
 type Translate = (key: string) => string;
 
@@ -28,6 +38,20 @@ export function HeaderPreferencesMenu({
   onSignOut,
 }: HeaderPreferencesMenuProps) {
   const [open, setOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const displayName = currentUser.display_name ?? currentUser.name;
+  const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (isShortcutHelpKey(event)) {
+        event.preventDefault();
+        setShortcutsOpen(true);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -115,9 +139,11 @@ export function HeaderPreferencesMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="topbar-preferences-menu"
+        aria-label={`${t("topbar.account_menu")}: ${displayName}`}
         onClick={() => setOpen((value) => !value)}
       >
-        {t("topbar.preferences")}
+        <span className="topbar-account-avatar" aria-hidden="true">{accountInitials(displayName)}</span>
+        <span className="topbar-account-name">{displayName}</span>
       </button>
       {open && (
         <div
@@ -129,28 +155,27 @@ export function HeaderPreferencesMenu({
           onKeyDown={onMenuKeyDown}
         >
           <div className="topbar-menu-identity">
-            <strong>{currentUser.display_name ?? currentUser.name}</strong>
-            <span>{currentUser.role}</span>
+            <strong>{displayName}</strong>
+            <span>
+              {currentUser.role}
+              {currentUser.experience?.office ? ` · ${currentUser.experience.office}` : ""}
+            </span>
           </div>
 
           <div className="topbar-menu-group" role="group" aria-label={t("settings.language")}>
             <span className="topbar-menu-group-label">{t("settings.language")}</span>
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={language.toLowerCase().startsWith("en")}
-              onClick={() => select(() => onLanguageChange("en"))}
-            >
-              {t("settings.english")}
-            </button>
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={language.toLowerCase().startsWith("zh")}
-              onClick={() => select(() => onLanguageChange("zh-CN"))}
-            >
-              {t("settings.chinese")}
-            </button>
+            {LOCALES.map((locale) => (
+              <button
+                key={locale.code}
+                type="button"
+                role="menuitemradio"
+                lang={locale.code}
+                aria-checked={language.toLowerCase() === locale.code.toLowerCase()}
+                onClick={() => select(() => onLanguageChange(locale.code))}
+              >
+                {locale.nativeName}
+              </button>
+            ))}
           </div>
 
           <div className="topbar-menu-group" role="group" aria-label={t("settings.appearance")}>
@@ -173,6 +198,9 @@ export function HeaderPreferencesMenu({
             <button type="button" role="menuitem" onClick={() => select(onOpenSettings)}>
               {t("topbar.open_settings")}
             </button>
+            <button type="button" role="menuitem" onClick={() => select(() => setShortcutsOpen(true))}>
+              {t("topbar.keyboard_shortcuts")} <kbd>?</kbd>
+            </button>
             {currentUser.permissions.includes("identity.manage") && (
               <button type="button" role="menuitem" onClick={() => select(onOpenAccess)}>
                 {t("topbar.access_identity")}
@@ -188,6 +216,7 @@ export function HeaderPreferencesMenu({
           </div>
         </div>
       )}
+      <KeyboardShortcutsDialog open={shortcutsOpen} onClose={closeShortcuts} t={t} />
     </div>
   );
 }

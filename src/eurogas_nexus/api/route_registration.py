@@ -23,6 +23,7 @@ from eurogas_nexus.api.routes.public.monitoring import router as monitoring_rout
 from eurogas_nexus.api.routes.public.optimization import router as optimization_router
 from eurogas_nexus.api.routes.public.physical import router as physical_router
 from eurogas_nexus.api.routes.public.portfolio import router as portfolio_router
+from eurogas_nexus.api.routes.public.preferences import router as preferences_router
 from eurogas_nexus.api.routes.public.projections import router as projections_router
 from eurogas_nexus.api.routes.public.reference_network import router as reference_network_router
 from eurogas_nexus.api.routes.public.research import router as research_router
@@ -75,6 +76,7 @@ def register_routes(
         app.include_router(glossary_router)
         app.include_router(research_router)
         app.include_router(spread_lab_router)
+        app.include_router(preferences_router)
         app.include_router(research_data_router)
         app.include_router(review_router)
         app.include_router(route_cost_router)

@@ -139,6 +139,116 @@
   padding: 5px 8px;
 }
 
+.topbar-preferences-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.topbar-account-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--eg-ink, var(--text));
+  color: var(--eg-on-ink, #ffffff);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.topbar-account-name {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .topbar-account-name {
+    display: none;
+  }
+}
+
+.topbar-preferences-popover kbd,
+.shortcuts-table kbd {
+  font: 600 10.5px/1 var(--font-mono, ui-monospace, monospace);
+  padding: 2px 5px;
+  border: 1px solid var(--eg-hairline-strong, var(--border));
+  border-radius: 4px;
+  background: var(--eg-canvas-soft, transparent);
+  color: var(--eg-ink, var(--text));
+}
+
+.shortcuts-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 35%);
+  animation: shortcuts-fade 120ms ease-out;
+}
+
+.shortcuts-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: var(--eg-radius-md, 8px);
+  background: var(--eg-canvas, #ffffff);
+  color: var(--eg-ink, var(--text));
+  box-shadow: var(--eg-shadow-3, 0 12px 32px rgb(0 0 0 / 25%));
+  animation: shortcuts-rise 140ms ease-out;
+}
+
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shortcuts-header h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.shortcuts-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--eg-body, var(--text));
+  padding: 6px 0;
+  border-bottom: 1px solid var(--eg-hairline, var(--border));
+}
+
+.shortcuts-table td {
+  text-align: right;
+  border-bottom: 1px solid var(--eg-hairline, var(--border));
+}
+
+@keyframes shortcuts-fade {
+  from { opacity: 0; }
+}
+
+@keyframes shortcuts-rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shortcuts-backdrop,
+  .shortcuts-dialog {
+    animation: none;
+  }
+}
+
 .topbar-preferences-trigger[aria-expanded="true"] {
   border-color: var(--eg-link, var(--accent));
 }

@@ -9884,3 +9884,20 @@ button.glossary-related-chip {
 :root.dark .context-freshness.issue strong {
   color: var(--eg-negative);
 }
+
+/* Settings: personal preferences and organisation defaults, one labelled row per setting. */
+.settings-preference-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(160px, 1.4fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-language-set {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm, 4px);
+  padding: 6px 10px;
+}

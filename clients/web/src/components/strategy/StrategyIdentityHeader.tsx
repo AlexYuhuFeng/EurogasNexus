@@ -1,3 +1,4 @@
+import { intlLocaleFor } from "@/i18n/locales";
 import type { StrategyLabController } from "@/app/model/useStrategyLab";
 
 import { StrategySharing } from "./StrategySharing";
@@ -15,7 +16,7 @@ function formatTimestamp(value: string | null | undefined, language: string): st
   if (!value) return "n/a";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "n/a";
-  return new Intl.DateTimeFormat(language.startsWith("zh") ? "zh-CN" : "en-GB", {
+  return new Intl.DateTimeFormat(intlLocaleFor(language), {
     year: "numeric",
     month: "short",
     day: "2-digit",

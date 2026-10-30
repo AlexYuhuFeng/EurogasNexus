@@ -1,3 +1,4 @@
+import { intlLocaleFor } from "@/i18n/locales";
 import type { StrategyRunDTO, StrategySummaryDTO } from "@/api/client";
 import {
   basisLabelKey,
@@ -75,7 +76,7 @@ function formatTimestamp(value: string | null | undefined, language: string): st
   if (!value) return "n/a";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "n/a";
-  return new Intl.DateTimeFormat(language.startsWith("zh") ? "zh-CN" : "en-GB", {
+  return new Intl.DateTimeFormat(intlLocaleFor(language), {
     month: "short",
     day: "2-digit",
     hour: "2-digit",

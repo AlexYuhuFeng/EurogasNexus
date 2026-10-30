@@ -9,11 +9,13 @@
  * `changeAppLanguage` writes it whenever a surface switches language.
  */
 
+import { LOCALES, type LocaleCode } from "./locales.ts";
+
 export const LANGUAGE_STORAGE_KEY = "eurogas.language.v1";
 
-export const SUPPORTED_LANGUAGES = ["en", "zh-CN"] as const;
+export const SUPPORTED_LANGUAGES: readonly LocaleCode[] = LOCALES.map((locale) => locale.code);
 
-export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+export type SupportedLanguage = LocaleCode;
 
 export const DEFAULT_LANGUAGE: SupportedLanguage = "en";
 
@@ -35,8 +37,12 @@ export function normalizeLanguage(value: unknown): SupportedLanguage {
   if (isSupportedLanguage(value)) return value;
   if (typeof value === "string") {
     const lower = value.trim().toLowerCase();
-    if (lower === "zh" || lower.startsWith("zh-")) return "zh-CN";
-    if (lower.startsWith("en")) return "en";
+    const exact = SUPPORTED_LANGUAGES.find((code) => code.toLowerCase() === lower);
+    if (exact) return exact;
+    // A tag such as `zh`, `zh-Hans` or `en-US` resolves by its primary subtag.
+    const primary = lower.split("-")[0];
+    const byPrimary = SUPPORTED_LANGUAGES.find((code) => code.toLowerCase().split("-")[0] === primary);
+    if (byPrimary) return byPrimary;
   }
   return DEFAULT_LANGUAGE;
 }

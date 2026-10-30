@@ -2311,6 +2311,17 @@ export interface AnalysisResultDTO {
 
 // --- API functions ---
 
+export type PreferenceKey = "language" | "theme" | "market_view" | "market_board_layout";
+
+export interface PreferencesDTO {
+  personal: Partial<Record<PreferenceKey, string>>;
+  organisation_defaults: Partial<Record<PreferenceKey, string>> & { enabled_languages?: string[] };
+  effective: Record<PreferenceKey, string> & { enabled_languages: string[] };
+  updated_at_utc: string | null;
+}
+
+export type OrganisationSettingsDTO = Partial<Record<PreferenceKey, string>> & { enabled_languages?: string[] };
+
 export interface SpreadSeriesDTO {
   hub: string;
   tenor: string;
@@ -3980,6 +3991,13 @@ export const api = {
   runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
   runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
+  myPreferences: (options?: ApiRequestOptions) => get<PreferencesDTO>("/me/preferences", undefined, options),
+  /** Merge personal choices; `null` clears one back to the organisation default. */
+  saveMyPreferences: (patch: Partial<Record<PreferenceKey, string | null>>) =>
+    put<PreferencesDTO>("/me/preferences", patch),
+  organisationSettings: () => get<OrganisationSettingsDTO>("/settings/organisation"),
+  saveOrganisationSettings: (settings: OrganisationSettingsDTO) =>
+    put<OrganisationSettingsDTO>("/settings/organisation", settings),
   spreadSeries: (options?: ApiRequestOptions) => get<SpreadSeriesDTO[]>("/research/spread-series", undefined, options),
   spreadAnalysis: (
     body: { legs: SpreadLegInputDTO[]; date_from?: string | null; date_to?: string | null; rule: SpreadRuleInputDTO },

@@ -259,10 +259,13 @@ def test_topbar_controls_and_source_credentials_have_accessible_names() -> None:
     # they keep an accessible name.
     assert 'aria-label={t("settings.language")}' not in topbar
     assert 'aria-label={t("settings.appearance")}' not in topbar
-    # The settings page labels both controls with a wrapping <label>; the sign-in
-    # screen has room only for an accessible name.
-    assert 't("settings.language")' in settings
-    assert 't("settings.appearance")' in settings
+    # The settings page labels both controls with a wrapping <label> (the personal
+    # preferences panel); the sign-in screen has room only for an accessible name.
+    panels = _read(WEB / "components" / "PreferencesPanels.tsx")
+    assert "<PersonalPreferencesPanel" in settings
+    assert 'language: "settings.language"' in panels
+    assert 'theme: "settings.appearance"' in panels
+    assert '<label key={key} className="settings-preference-row">' in panels
     assert 'aria-label={t("settings.language")}' in sign_in
 
     # The controls the header does keep are still named.

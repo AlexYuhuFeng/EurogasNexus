@@ -78,8 +78,9 @@ def _checks() -> list[dict]:
     # Three READ-floor trader desk paths add product calendar, price conversion and
     # storage-target trajectory reads (194 paths / 208 operations). Two READ-floor
     # benchmark-rate paths add fixings and financing-rate resolution; the spread lab adds
-    # its series catalogue and analysis (198 / 212).
-    check("public_surface_bounded", len(paths) == 198, f"public paths={len(paths)}")
+    # its series catalogue and analysis; preferences add the personal and
+    # organisation settings (200 / 216).
+    check("public_surface_bounded", len(paths) == 200, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

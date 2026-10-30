@@ -26,40 +26,15 @@ import {
   saveMapTileToken,
 } from "@/app/mapTileProviders";
 import {
-  DEFAULT_MARKET_VIEW_PREFERENCE,
-  normalizeMarketViewPreference,
-  readMarketViewPreference,
-  writeMarketViewPreference,
-  type MarketViewPreferenceId,
-} from "@/app/context";
-import type { ThemeMode } from "@/stores/theme";
-import {
   RUNTIME_DATA_AVAILABILITY_CAPTION_KEY,
   dataPlaneState,
   runtimeDataAvailability,
   runtimeDataAvailabilityLabelKey,
 } from "@/app/model/dataPlaneStatus";
 import { StatusBadge } from "@/components/ui";
+import { OrganisationDefaultsPanel, PersonalPreferencesPanel } from "@/components/PreferencesPanels";
 
 type Translate = (key: string) => string;
-
-const PREFERENCE_STORAGE_KEY = "eurogas.settings.preferences";
-
-interface SettingsPreferences {
-  default_currency: string;
-  energy_unit: string;
-  volume_unit: string;
-  price_basis: string;
-  session_timezone: string;
-  map_density: string;
-  refresh_profile: string;
-  /**
-   * Per-user default market view (numeric `curves` or map `network`). The
-   * principal-scoped store in app/context/viewPreference.ts stays authoritative;
-   * this field keeps the settings preference object complete and explicit.
-   */
-  market_default_view: string;
-}
 
 type ApiConnectionState =
   | { kind: "connected"; version: string; profile: string }
@@ -68,9 +43,10 @@ type ApiConnectionState =
 interface SettingsCenterProps {
   t: Translate;
   language: string;
-  mode: ThemeMode;
-  /** Authenticated principal whose market view preference is being edited. */
+  /** Authenticated principal whose preferences are being edited. */
   principalId: string | null;
+  /** Platform administrators edit the organisation defaults; everyone else reads them. */
+  canManageOrganisation: boolean;
   dataStatus: string;
   runtimeDb: RuntimeDbStatusDTO | null;
   runtimeRelease: RuntimeReleaseDTO | null;
@@ -82,44 +58,15 @@ interface SettingsCenterProps {
     edges: number;
     routes: number;
   };
-  onLanguageChange: (language: string) => void;
-  onModeChange: (mode: ThemeMode) => void;
   onOpenSources: () => void;
   onBackendBaseChanged: () => Promise<void>;
-}
-
-const defaultPreferences: SettingsPreferences = {
-  default_currency: "GBP",
-  energy_unit: "MWh",
-  volume_unit: "MWh/d",
-  price_basis: "hub_day_ahead",
-  session_timezone: "Europe/London",
-  map_density: "balanced",
-  refresh_profile: "manual_review",
-  market_default_view: DEFAULT_MARKET_VIEW_PREFERENCE,
-};
-
-function readStoredPreferences(): SettingsPreferences {
-  try {
-    const raw = localStorage.getItem(PREFERENCE_STORAGE_KEY);
-    if (!raw) return defaultPreferences;
-    const parsed = JSON.parse(raw) as Partial<SettingsPreferences>;
-    return {
-      ...defaultPreferences,
-      ...Object.fromEntries(
-        Object.entries(parsed).filter(([, value]) => typeof value === "string" && value.trim().length > 0),
-      ),
-    };
-  } catch {
-    return defaultPreferences;
-  }
 }
 
 export function SettingsCenter({
   t,
   language,
-  mode,
   principalId,
+  canManageOrganisation,
   dataStatus,
   runtimeDb,
   runtimeRelease,
@@ -127,15 +74,9 @@ export function SettingsCenter({
   sources,
   credentialProviders,
   counts,
-  onLanguageChange,
-  onModeChange,
   onOpenSources,
   onBackendBaseChanged,
 }: SettingsCenterProps) {
-  const [preferences, setPreferences] = useState<SettingsPreferences>(() => readStoredPreferences());
-  const [marketView, setMarketView] = useState<MarketViewPreferenceId>(
-    () => readMarketViewPreference(principalId) ?? DEFAULT_MARKET_VIEW_PREFERENCE,
-  );
   const [apiBaseUrl, setApiBaseUrl] = useState(() => configuredApiBaseUrl());
   const [apiToken, setApiToken] = useState(() => configuredApiToken());
   const [operatorPrincipal, setOperatorPrincipal] = useState(() => configuredOperatorPrincipal());
@@ -154,35 +95,8 @@ export function SettingsCenter({
   const runtimeAvailability = runtimeDataAvailability(dataStatus);
 
   useEffect(() => {
-    localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(preferences));
-  }, [preferences]);
-
-  useEffect(() => {
     setApiBaseUrl(configuredApiBaseUrl());
   }, [dataStatus]);
-
-  // The principal-scoped view preference is authoritative; mirror it into the
-  // settings preference object so the two never drift.
-  useEffect(() => {
-    const stored = readMarketViewPreference(principalId) ?? DEFAULT_MARKET_VIEW_PREFERENCE;
-    setMarketView(stored);
-    setPreferences((current) =>
-      current.market_default_view === stored
-        ? current
-        : { ...current, market_default_view: stored },
-    );
-  }, [principalId]);
-
-  const updatePreference = (key: keyof SettingsPreferences, value: string) => {
-    setPreferences((current) => ({ ...current, [key]: value }));
-  };
-
-  const updateMarketView = (value: string) => {
-    const view = normalizeMarketViewPreference(value);
-    setMarketView(view);
-    writeMarketViewPreference(principalId, view);
-    updatePreference("market_default_view", view);
-  };
 
   const configuredCredentials = credentialProviders.filter((provider) => provider.configured).length;
   const missingCredentials = credentialProviders.filter(
@@ -237,6 +151,9 @@ export function SettingsCenter({
           <div><span>{t("settings.runtime_db")}</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "n/a"}</strong></div>
         </div>
       </div>
+
+      <PersonalPreferencesPanel t={t} principalId={principalId} />
+      <OrganisationDefaultsPanel t={t} canManage={canManageOrganisation} />
 
       <div className="workspace-panel span-3 settings-about-panel">
         <div className="panel-title-row">
@@ -349,8 +266,10 @@ export function SettingsCenter({
         </div>
       </div>
 
+
       <div className="workspace-panel settings-panel settings-unit-panel">
-        <h2>{t("settings.display_preferences")}</h2>
+        <h2>{t("preferences.workstation_title")}</h2>
+        <p className="panel-copy">{t("preferences.workstation_help")}</p>
         <label>
           {t("settings.map_tile_provider")}
           <select
@@ -359,7 +278,7 @@ export function SettingsCenter({
           >
             {MAP_TILE_PROVIDERS.map((provider) => (
               <option key={provider.id} value={provider.id}>
-                {provider.labelZh}
+                {language.startsWith("zh") ? provider.labelZh : provider.label}
               </option>
             ))}
           </select>
@@ -415,106 +334,6 @@ export function SettingsCenter({
         {mapTileMessage && (
           <p className="settings-backend-message" role="status">{mapTileMessage}</p>
         )}
-        <label>
-          {t("settings.language")}
-          <select value={language} onChange={(event) => onLanguageChange(event.target.value)}>
-            <option value="en">English</option>
-            <option value="zh-CN">{t("settings.chinese")}</option>
-          </select>
-        </label>
-        <label>
-          {t("settings.appearance")}
-          <select value={mode} onChange={(event) => onModeChange(event.target.value as ThemeMode)}>
-            <option value="light">{t("theme.light")}</option>
-            <option value="dark">{t("theme.dark")}</option>
-            <option value="system">{t("theme.system")}</option>
-          </select>
-        </label>
-        <label>
-          {t("settings.default_currency")}
-          <select
-            value={preferences.default_currency}
-            onChange={(event) => updatePreference("default_currency", event.target.value)}
-          >
-            <option value="GBP">GBP</option>
-            <option value="EUR">EUR</option>
-            <option value="USD">USD</option>
-          </select>
-        </label>
-        <label>
-          {t("settings.energy_unit")}
-          <select value={preferences.energy_unit} onChange={(event) => updatePreference("energy_unit", event.target.value)}>
-            <option value="MWh">MWh</option>
-            <option value="therm">therm</option>
-            <option value="kWh">kWh</option>
-          </select>
-        </label>
-        <label>
-          {t("settings.volume_unit")}
-          <select value={preferences.volume_unit} onChange={(event) => updatePreference("volume_unit", event.target.value)}>
-            <option value="MWh/d">MWh/d</option>
-            <option value="GWh/d">GWh/d</option>
-            <option value="mcm/d">mcm/d</option>
-          </select>
-        </label>
-        <label>
-          {t("settings.price_basis")}
-          <select value={preferences.price_basis} onChange={(event) => updatePreference("price_basis", event.target.value)}>
-            <option value="hub_day_ahead">{t("settings.price_basis_day_ahead")}</option>
-            <option value="within_day">{t("settings.price_basis_within_day")}</option>
-            <option value="month_ahead">{t("settings.price_basis_month_ahead")}</option>
-          </select>
-        </label>
-        <label>
-          {t("settings.market_default_view")}
-          <select value={marketView} onChange={(event) => updateMarketView(event.target.value)}>
-            <option value="curves">{t("market.view.numeric")}</option>
-            <option value="network">{t("market.view.map")}</option>
-          </select>
-          <small>{t("settings.market_default_view_help")}</small>
-        </label>
-      </div>
-
-      <div className="workspace-panel settings-panel settings-session-panel">
-        <h2>{t("settings.session_defaults")}</h2>
-        <label>
-          {t("settings.session_timezone")}
-          <select
-            value={preferences.session_timezone}
-            onChange={(event) => updatePreference("session_timezone", event.target.value)}
-          >
-            <option value="Europe/London">Europe/London</option>
-            <option value="Europe/Amsterdam">Europe/Amsterdam</option>
-            <option value="Europe/Berlin">Europe/Berlin</option>
-            <option value="UTC">UTC</option>
-          </select>
-        </label>
-        <label>
-          {t("settings.map_density")}
-          <select value={preferences.map_density} onChange={(event) => updatePreference("map_density", event.target.value)}>
-            <option value="balanced">{t("settings.map_density_balanced")}</option>
-            <option value="compact">{t("settings.map_density_compact")}</option>
-            <option value="operations">{t("settings.map_density_operations")}</option>
-          </select>
-        </label>
-        <label>
-          {t("settings.refresh_profile")}
-          <select
-            value={preferences.refresh_profile}
-            onChange={(event) => updatePreference("refresh_profile", event.target.value)}
-          >
-            <option value="manual_review">{t("settings.refresh_manual_review")}</option>
-            <option value="market_watch">{t("settings.refresh_market_watch")}</option>
-            <option value="low_bandwidth">{t("settings.refresh_low_bandwidth")}</option>
-          </select>
-        </label>
-        <div className="settings-preference-preview">
-          <span>{t("settings.preference_preview")}</span>
-          <strong>
-            {preferences.default_currency}/{preferences.energy_unit} · {preferences.volume_unit} · {preferences.session_timezone}
-          </strong>
-          <small>{t("settings.stored_locally")}</small>
-        </div>
       </div>
 
       <div className="workspace-panel settings-service-panel">

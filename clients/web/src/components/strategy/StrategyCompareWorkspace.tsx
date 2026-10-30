@@ -1,3 +1,4 @@
+import { intlLocaleFor } from "@/i18n/locales";
 import { useEffect, useMemo, useState } from "react";
 import type { StrategyLabController } from "@/app/model/useStrategyLab";
 import { classifyRunCompatibility, MAX_COMPARE_RUNS } from "@/app/model/strategyLabModel";
@@ -24,7 +25,7 @@ function timestamp(value: string | null | undefined, language: string): string {
   if (!value) return "n/a";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "n/a";
-  return new Intl.DateTimeFormat(language.startsWith("zh") ? "zh-CN" : "en-GB", {
+  return new Intl.DateTimeFormat(intlLocaleFor(language), {
     month: "short",
     day: "2-digit",
     year: "numeric",

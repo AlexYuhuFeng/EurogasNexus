@@ -105,6 +105,10 @@ from eurogas_nexus.db.models.route_cost import (
     UpstreamContractRevisionRecord,
     UpstreamResourceContractRecord,
 )
+from eurogas_nexus.db.models.settings import (
+    OrganisationSettingRecord,
+    PrincipalPreferenceRecord,
+)
 from eurogas_nexus.db.models.shadow import (
     StrategyShadowAlertRecord,
     StrategyShadowCandidateRecord,
@@ -258,6 +262,8 @@ __all__ = [
     "FlowObservationRecord",
     "FxObservationRecord",
     "InterestRateObservationRecord",
+    "OrganisationSettingRecord",
+    "PrincipalPreferenceRecord",
     "GlossaryTermRecord",
     "JobRecord",
     "GeneratedReportRecord",

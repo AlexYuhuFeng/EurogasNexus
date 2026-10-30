@@ -316,7 +316,12 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
     assert zh["theme.dark"] == "\u6df1\u8272"
 
-    assert '<option value="zh-CN">{t("settings.chinese")}</option>' in app_and_settings
+    # Mandarin is offered through the locale registry every language picker reads.
+    locales = (ROOT / "clients" / "web" / "src" / "i18n" / "locales.ts").read_text(
+        encoding="utf-8"
+    )
+    assert '{ code: "zh-CN", nativeName: "简体中文"' in locales
+    assert "<PersonalPreferencesPanel" in app_and_settings
 
 
 def test_web_client_matches_design_reference_cockpit() -> None:
@@ -978,20 +983,26 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
     assert "settings-auth-save" in settings_center
     assert 'autoComplete="new-password"' in settings_center
     assert ".settings-auth-grid" in css
-    assert "default_currency" in settings_center
-    assert "energy_unit" in settings_center
-    assert "session_timezone" in settings_center
-    assert "price_basis" in settings_center
-    assert "eurogas.settings.preferences" in settings_center
+    # Every setting on the page changes something. Currency, energy unit, volume unit,
+    # price basis and session time zone were stored in the browser and read by nothing,
+    # so they were removed; quotes keep their native units and the trader desk converts.
+    dead_settings = (
+        "default_currency",
+        "energy_unit",
+        "session_timezone",
+        "eurogas.settings.preferences",
+    )
+    for dead in dead_settings:
+        assert dead not in settings_center
+    assert "<PersonalPreferencesPanel" in settings_center
+    assert "<OrganisationDefaultsPanel" in settings_center
     assert "credentialProviders" in settings_center
     assert "onOpenSources" in settings_center
     assert "settings-preference-center" in css
     assert "settings-service-row" in css
-    assert en["settings.default_currency"] == "Default currency"
-    assert en["settings.energy_unit"] == "Energy unit"
     assert en["settings.service_access"] == "Service access"
-    assert zh["settings.default_currency"] == "\u9ed8\u8ba4\u8d27\u5e01"
-    assert zh["settings.energy_unit"] == "\u80fd\u91cf\u5355\u4f4d"
+    assert en["preferences.personal_title"] == "My preferences"
+    assert zh["preferences.personal_title"] == "\u6211\u7684\u504f\u597d"
 
 
 def test_web_client_network_page_shows_complete_resource_pool_path_ladder() -> None:

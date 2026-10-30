@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { CommandPalette } from "@/components/CommandPalette";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
@@ -21,6 +22,8 @@ import { useInspectorStore } from "@/stores/inspector";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
 import { changeAppLanguage } from "@/i18n";
+import { loadRemotePreferences, saveRemotePreference } from "@/app/preferences/remotePreferences";
+import type { ThemeMode } from "@/stores/theme";
 import { layoutWorkspacePage } from "@/app/context/viewPreference";
 
 interface AppShellProps {
@@ -145,6 +148,21 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
   // administration surface is refused for an identity without an administration
   // capability, instead of mounting a surface whose requests the backend will
   // reject. Navigation is not a security boundary; this is honest presentation.
+  // Personal preferences follow the principal across clients and offices: load the server
+  // copy once per signed-in identity. A failed read keeps the browser's local copy.
+  const principalId = api.currentUser?.principal_id ?? null;
+  useEffect(() => {
+    if (principalId) void loadRemotePreferences(principalId);
+  }, [principalId]);
+  const chooseLanguage = (language: string) => {
+    void changeAppLanguage(language);
+    saveRemotePreference("language", language);
+  };
+  const chooseTheme = (mode: ThemeMode) => {
+    theme.setMode(mode);
+    saveRemotePreference("theme", mode);
+  };
+
   const composition = compositionFromProfile(api.currentUser?.experience);
   const controlPlaneRestricted =
     isControlPlanePage(navigation.activeWorkspace) &&
@@ -220,8 +238,8 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         onSignOut={() => void api.signOut()}
         onOpenAccess={() => navigation.openWorkspace("access")}
         onOpenSettings={() => navigation.openWorkspace("settings")}
-        onLanguageChange={(language) => void changeAppLanguage(language)}
-        onModeChange={theme.setMode}
+        onLanguageChange={chooseLanguage}
+        onModeChange={chooseTheme}
       />
 
       {endpointFailures.total > 0 && (

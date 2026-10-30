@@ -127,8 +127,9 @@ test("the header preferences menu owns preference and lifecycle actions with key
   // immediately after `Escape`: a frame-deferred move cannot promise it. Opening still moves focus
   // into the menu on a frame, which `preferencesAndStatus.test.ts` holds.
   assert.equal(menu.includes("requestAnimationFrame(() => triggerRef.current?.focus())"), false);
-  assert.match(menu, /onLanguageChange\("en"\)/);
-  assert.match(menu, /onLanguageChange\("zh-CN"\)/);
+  // Languages come from the locale registry, so a third language needs no menu change.
+  assert.match(menu, /LOCALES\.map\(\(locale\) =>/);
+  assert.match(menu, /onLanguageChange\(locale\.code\)/);
   assert.match(menu, /onModeChange\(themeMode\)/);
   assert.match(menu, /onOpenSettings/);
   assert.match(menu, /onSignOut/);
@@ -147,27 +148,19 @@ test("the narrow header collapses context and status behind one disclosure", () 
   assert.match(css, /\.topbar-context-disclosure-content[\s\S]*?display: grid;/);
 });
 
-test("the top bar identity cluster keeps the display name and role apart", () => {
+test("the top bar shows who is signed in once, on the account menu", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
+  const menu = readWebSource("components/HeaderPreferencesMenu.tsx");
   const css = readWebSource("components/WorkspaceTopBar.css");
 
-  // The markup wraps the display name and the role in one container and JSX
-  // drops the whitespace between them, so a missing container rule rendered
-  // them as a single glued token ("dev.analystANALYST") in every locale and at
-  // every width. A visual review caught it; axe cannot see missing whitespace.
+  // The account trigger carries the initials and the display name; the role and office are
+  // inside the menu. A separate name/role label beside it showed the same person twice.
   assert.match(bar, /className="topbar-user-menu"/);
-
-  const container = /\.topbar-user-menu \{[^}]*\}/.exec(css)?.[0] ?? "";
-  assert.notEqual(container, "", "the class the markup uses must have a rule");
-  assert.match(container, /display: flex;/);
-  assert.match(container, /gap: 8px;/);
-
-  // The name is the only flexible field, so a long one ellipsises rather than
-  // pushing the sign-out control out of the row.
-  const name = /\.topbar-user-menu > span \{[^}]*\}/.exec(css)?.[0] ?? "";
+  assert.equal(bar.includes("<small>{currentUser.role}</small>"), false);
+  assert.match(menu, /className="topbar-account-avatar"/);
+  assert.match(menu, /className="topbar-account-name"/);
+  const name = /\.topbar-account-name \{[^}]*\}/.exec(css)?.[0] ?? "";
   assert.match(name, /text-overflow: ellipsis;/);
   assert.match(name, /white-space: nowrap;/);
-  const role = /\.topbar-user-menu > small \{[^}]*\}/.exec(css)?.[0] ?? "";
-  assert.match(role, /white-space: nowrap;/);
 });
 

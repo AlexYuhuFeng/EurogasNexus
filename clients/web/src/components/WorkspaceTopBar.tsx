@@ -282,8 +282,6 @@ export function WorkspaceTopBar({
           <div className="topbar-user-menu">
             {currentUser ? (
               <>
-                <span title={currentUser.name}>{currentUser.display_name ?? currentUser.name}</span>
-                <small>{currentUser.role}</small>
                 <HeaderPreferencesMenu
                   currentUser={currentUser}
                   language={language}

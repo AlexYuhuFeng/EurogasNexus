@@ -157,16 +157,16 @@ test("the market primary landing follows the persisted view without changing dec
 });
 
 test("settings owns an explicit per-user default view choice", () => {
-  const settings = readWebSource("components/SettingsCenter.tsx");
+  const panels = readWebSource("components/PreferencesPanels.tsx");
+  const remote = readWebSource("app/preferences/remotePreferences.ts");
   const renderer = readWebSource("app/workspaces/WorkspaceRenderer.tsx");
 
-  assert.match(settings, /market_default_view/);
-  assert.match(settings, /readMarketViewPreference\(principalId\)/);
-  assert.match(settings, /writeMarketViewPreference\(principalId, view\)/);
-  assert.match(settings, /t\("settings\.market_default_view"\)/);
-  assert.match(settings, /<option value="curves">\{t\("market\.view\.numeric"\)\}<\/option>/);
-  assert.match(settings, /<option value="network">\{t\("market\.view\.map"\)\}<\/option>/);
-  assert.match(settings, /eurogas\.settings\.preferences/);
+  // The choice is a personal preference stored on the server per principal, applied to the
+  // principal-scoped local store the market landing reads.
+  assert.match(panels, /market_view: "settings\.market_default_view"/);
+  assert.match(panels, /\{ value: "curves", labelKey: "market\.view\.numeric" \}/);
+  assert.match(panels, /\{ value: "network", labelKey: "market\.view\.map" \}/);
+  assert.match(remote, /writeMarketViewPreference\(principalId, normalizeMarketViewPreference\(effective\.market_view\)\)/);
   assert.match(renderer, /principalId=\{api\.currentUser\?\.principal_id \?\? null\}/);
 });
 

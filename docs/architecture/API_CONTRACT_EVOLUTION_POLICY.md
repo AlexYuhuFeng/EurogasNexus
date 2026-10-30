@@ -378,3 +378,12 @@ close t and P&L earned from t to t+1. Both sit under the existing `/api/research
 GOVERNED prefix and filter rows by data entitlement; neither creates an order. A
 mixed-unit spread, an unknown series or an invalid rule is a 422
 `spread_analysis_invalid`. Public census: 198 paths / 212 operations.
+
+## 2026-10-30 additive preferences contract
+
+`GET`/`PUT /api/me/preferences` read and merge the caller's own presentation choices
+(language, theme, market view, quote layout) and return them with the
+organisation defaults and the effective values. `GET /api/settings/organisation` reads
+the organisation defaults; `PUT` sets them and requires identity administration
+(audited). Values outside the closed vocabulary are a 422. Preferences grant nothing.
+Public census: 200 paths / 216 operations.

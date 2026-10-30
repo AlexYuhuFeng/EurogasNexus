@@ -76,7 +76,7 @@ test("the i18n entry point applies the stored language and owns the switch", () 
   assert.match(i18n, /const normalized = storeLanguage\(language\)/);
   for (const source of [
     "app/shell/AppShell.tsx",
-    "app/workspaces/WorkspaceRenderer.tsx",
+    "app/preferences/remotePreferences.ts",
   ]) {
     const file = readWebSource(source);
     assert.equal(file.includes("i18n.changeLanguage"), false, `${source} must use changeAppLanguage`);
@@ -100,10 +100,12 @@ test("settings remains the full preferences surface while the header uses one gr
   assert.match(menu, /t\("settings\.appearance"\)/);
   assert.match(menu, /role="menuitemradio"/);
 
-  // The complete controls still exist in Settings, and sign-in retains its
-  // pre-authentication language switch.
-  assert.match(settings, /t\("settings\.language"\)/);
-  assert.match(settings, /t\("settings\.appearance"\)/);
+  // The complete controls live in Settings (personal preferences, stored per user), and
+  // sign-in retains its pre-authentication language switch.
+  const panels = readWebSource("components/PreferencesPanels.tsx");
+  assert.match(settings, /<PersonalPreferencesPanel/);
+  assert.match(panels, /language: "settings\.language"/);
+  assert.match(panels, /theme: "settings\.appearance"/);
   assert.match(signIn, /aria-label=\{t\("settings\.language"\)\}/);
 });
 

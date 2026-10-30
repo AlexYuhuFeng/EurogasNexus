@@ -52,6 +52,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/auth/logout", Permission.READ),
     ("/api/me", Permission.READ),
     ("/api/me/groups", Permission.READ),
+    # A person's own presentation choices; they grant nothing (domain/settings).
+    ("/api/me/preferences", Permission.READ),
+    ("/api/settings/organisation", Permission.READ),
     ("/api/access/groups", Permission.ADMIN),
     ("/api/access/groups/{group_id}", Permission.ADMIN),
     ("/api/access/groups/{group_id}/members/{principal_id}", Permission.ADMIN),
@@ -273,6 +276,7 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/research/datasets", Permission.GOVERNED),
     ("POST", "/api/analysis-snapshots", Permission.GOVERNED),
     ("POST", "/api/decision-cases", Permission.GOVERNED),
+    ("PUT", "/api/settings/organisation", Permission.ADMIN),
 )
 
 PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {
