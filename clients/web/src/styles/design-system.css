@@ -627,6 +627,24 @@
     border-color: var(--ds-border-strong);
   }
 
+  .report-export {
+    height: var(--ds-control-sm);
+    margin-left: auto;
+    padding: 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    cursor: pointer;
+  }
+
+  .report-export:hover {
+    border-color: var(--ds-border-strong);
+    color: var(--ds-text-1);
+  }
+
   /* ---------------------------------------------------------------- tables */
   .workspace-panel table th,
   .data-table-row.header,

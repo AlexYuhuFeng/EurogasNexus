@@ -240,9 +240,7 @@ def post_decision_case_reopen(case_id: str, request: Request) -> dict:
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
-                data = reopen_decision_case(
-                    session, case_id=case_id, actor=principal.name
-                )
+                data = reopen_decision_case(session, case_id=case_id, actor=principal.name)
                 session.commit()
         except ValueError as exc:
             raise _case_error(str(exc), case_id) from exc
@@ -327,3 +325,111 @@ def _env(data: object, *, warnings: list[str]) -> dict:
             "warnings": warnings,
         },
     }
+
+
+HANDOFF_SCHEMA = "eurogas-nexus-handoff/v1"
+HANDOFF_KEY_ENV = "EUROGAS_NEXUS_HANDOFF_SIGNING_KEY"
+
+
+@router.get("/api/decision-cases/{case_id}/handoff")
+def get_decision_handoff(case_id: str, request: Request) -> dict:
+    """A signed hand-off of a decided case for ERP/ETRM middleware; never an order.
+
+    已决案例的签名交接文件，供 ERP/ETRM 中间件读取；不构成下单指令。
+
+    Only a DECIDED case (four-eyes recorded) can be handed off. The document carries the
+    decision record, the decision pack's content hash, an idempotency key the receiving
+    system uses to ignore repeats, and an HMAC-SHA256 signature over its canonical JSON
+    with the deployment's hand-off key, so the receiver can prove it came from this
+    platform unaltered. Booking, nomination or execution happen in the receiving system
+    under its own controls.
+    """
+
+    import hashlib
+    import hmac
+    import json
+    import os
+    from datetime import UTC, datetime
+
+    key = os.environ.get(HANDOFF_KEY_ENV, "").strip()
+    if len(key) < 32:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "handoff_signing_not_configured",
+                "message": f"Set {HANDOFF_KEY_ENV} (32+ characters) to issue hand-offs.",
+            },
+        )
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"error": "runtime_db_not_configured"})
+    try:
+        from eurogas_nexus.application.decision_pack import load_decision_pack
+        from eurogas_nexus.db.repositories.audit import record_audit_event
+        from eurogas_nexus.db.repositories.decision import get_decision_case as load_case
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            case = load_case(session, case_id)
+            if case is None:
+                raise HTTPException(status_code=404, detail={"error": "unknown_decision_case"})
+            if case.get("status") != "DECIDED":
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "case_not_decided",
+                        "message": "Only a decided case (reviewed and recorded) is handed off.",
+                        "status": case.get("status"),
+                    },
+                )
+            pack = load_decision_pack(session, case_id, case=case) or {}
+            records = case.get("records") or case.get("decisions") or []
+            actor = getattr(getattr(request.state, "identity", None), "principal_id", "api")
+            body = {
+                "schema": HANDOFF_SCHEMA,
+                "case_id": case_id,
+                "objective": case.get("objective"),
+                "context": {
+                    "gas_day": case.get("gas_day"),
+                    "delivery_product": case.get("delivery_product"),
+                    "hub_id": case.get("hub_id"),
+                    "portfolio_ref": case.get("portfolio_ref"),
+                },
+                "alternatives": case.get("alternatives", []),
+                "decision_records": records,
+                "pack_content_hash": pack.get("content_hash"),
+                # Same decision, same key: derived from the case and its decision records, not
+                # from the pack, whose acts (this hand-off included) change on every read.
+                "idempotency_key": hashlib.sha256(
+                    "|".join([case_id, *(str(r.get("record_id", "")) for r in records)]).encode()
+                ).hexdigest(),
+                "issued_at_utc": datetime.now(UTC).isoformat(),
+                "issued_by": actor,
+                "boundary": (
+                    "Decision support only. Not an order, nomination or settlement instruction; "
+                    "book it in the receiving system under that system's controls."
+                ),
+            }
+            # Sign exactly what the receiver gets: the JSON-encoded body, keys sorted.
+            from fastapi.encoders import jsonable_encoder
+
+            body = jsonable_encoder(body)
+            canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
+            signature = hmac.new(key.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+            record_audit_event(
+                session,
+                event_type="integration.handoff",
+                principal=actor,
+                action="decision_case.handoff",
+                resource=f"decision_case:{case_id}",
+                outcome="issued",
+                severity="info",
+                detail=f"idempotency_key={body['idempotency_key']}",
+                source_system="decision-api",
+                now_utc=datetime.now(UTC),
+            )
+            session.commit()
+    except _sqlalchemy_error_type() as exc:
+        raise HTTPException(status_code=503, detail={"error": "runtime_db_unavailable"}) from exc
+    return _env(
+        {**body, "signature": {"algorithm": "HMAC-SHA256", "value": signature}}, warnings=[]
+    )

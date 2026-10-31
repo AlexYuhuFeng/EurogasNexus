@@ -200,6 +200,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/decision-cases/{case_id}/evidence", Permission.GOVERNED),
     ("/api/decision-cases/{case_id}/decisions", Permission.REVIEW),
     ("/api/decision-cases/{case_id}/reopen", Permission.REVIEW),
+    ("/api/decision-cases/{case_id}/handoff", Permission.READ),
     # --- Architecture V2 application projections ---
     # Projections are read models over the same material as the endpoints they
     # compose, so their floors match: market, portfolio and review reads stay at

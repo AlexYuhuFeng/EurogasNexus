@@ -247,6 +247,16 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
     ),
     # --- Enterprise SSO (OIDC) ---------------------------------------------
     ConfigVar(
+        name="EUROGAS_NEXUS_HANDOFF_SIGNING_KEY",
+        scope="OPERATOR",
+        purpose=(
+            "Key that signs decision hand-offs (HMAC-SHA256) read by ERP/ETRM middleware; "
+            "the receiver holds the same key to verify them."
+        ),
+        sensitivity="secret",
+        required_when="decision hand-offs are used (docs/integration/ERP_ETRM_INTEGRATION.md)",
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_GATEWAY_AUTH_ENABLED",
         scope="OPERATOR",
         purpose=(

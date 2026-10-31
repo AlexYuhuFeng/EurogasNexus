@@ -419,6 +419,24 @@ async function get<T, M = ApiMeta>(
   return parseResponse<ApiResponse<T, M>>(res);
 }
 
+/**
+ * Download a report read as CSV (`format=csv`) with the caller's credentials, and save it under
+ * the file name the server chose.
+ */
+export async function downloadReportCsv(path: string, params: Record<string, string> = {}): Promise<void> {
+  const url = new URL(apiUrl(path));
+  Object.entries({ ...params, format: "csv" }).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+  const response = await fetch(url.toString(), requestInit());
+  if (!response.ok) throw new Error(`export failed (${response.status})`);
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "eurogas-nexus-report.csv";
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(await response.blob());
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   const response = await fetch(apiUrl(path), requestInit({
     method: "PATCH",
@@ -4155,6 +4173,8 @@ export const api = {
   runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
   runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
+  decisionHandoff: (caseId: string) =>
+    get<Record<string, unknown>>(`/decision-cases/${encodeURIComponent(caseId)}/handoff`),
   nweBalance: (days = 14, options?: ApiRequestOptions) =>
     get<NweBalanceDTO>("/market/nwe-balance", { days: String(days) }, options),
   gasForPower: (zone = "DE_LU", days = 14, options?: ApiRequestOptions) =>

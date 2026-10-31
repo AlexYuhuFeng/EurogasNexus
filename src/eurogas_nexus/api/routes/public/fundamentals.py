@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.api.csv_export import csv_response
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
 from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
 from eurogas_nexus.domain.ontology.markets import Commodity, find_market, markets
@@ -163,7 +164,8 @@ def get_gas_for_power(
     days: int = Query(14, ge=1, le=92),
     gas_efficiency: float = Query(0.50, ge=0.2, le=0.7),
     coal_efficiency: float = Query(0.38, ge=0.2, le=0.7),
-) -> dict:
+    format: str = Query("json", pattern="^(json|csv)$"),
+):
     """Daily gas-for-power view for one bidding zone.
 
     每日燃气发电视图：电价、剩余负荷、隐含燃气消耗，及清洁点火/暗价差与燃料转换价。
@@ -329,6 +331,8 @@ def get_gas_for_power(
         )
     elif rows and "API2" in settlements and eur_per_usd is None:
         warnings.append("No ECB EUR/USD rate; API2 coal cannot be converted.")
+    if format == "csv":
+        return csv_response(rows, report=f"gas-for-power-{power_market.code}")
     return _env(rows, "runtime-postgresql", warnings)
 
 
@@ -378,7 +382,8 @@ def _daily_sum(session, column_expr, model, filters, first: date):
 def get_nwe_balance(
     request: Request,
     days: int = Query(14, ge=1, le=31),
-) -> dict:
+    format: str = Query("json", pattern="^(json|csv)$"),
+):
     """North-west Europe daily balance: call on Norway, LNG and storage, and its forecast.
 
     西北欧天然气日度平衡：对挪威管道气、LNG 与储气的需求及其预测（含 REMIT 停运）。
@@ -527,6 +532,20 @@ def get_nwe_balance(
             "No overlapping ENTSOG Norwegian entry, ALSI and AGSI history for NW Europe; "
             "check that these sources are scheduled."
         )
+    if format == "csv":
+        measured = [
+            {
+                "day": h.day.isoformat(),
+                "kind": "measured",
+                "call_gwh": round(h.call_gwh, 1),
+                "norway_gwh": round(h.norway_gwh, 1),
+                "lng_gwh": round(h.lng_gwh, 1),
+                "storage_net_withdrawal_gwh": round(h.storage_net_withdrawal_gwh, 1),
+            }
+            for h in history[-28:]
+        ]
+        forecasted = [{**d.as_dict(), "kind": "forecast"} for d in forecast.days]
+        return csv_response(measured + forecasted, report="nwe-balance")
     return _env(
         {
             "region": list(NWE_COUNTRIES),

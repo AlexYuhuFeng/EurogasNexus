@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { api, type PositionLadderDTO } from "@/api/client";
+import { api, downloadReportCsv, type PositionLadderDTO } from "@/api/client";
 import {
   barShare,
   groupLadderByMonth,
@@ -108,6 +108,19 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
             ))}
           </select>
         </label>
+        <button
+          type="button"
+          className="report-export"
+          onClick={() =>
+            void downloadReportCsv("/portfolio/position-ladder", {
+              months: String(months),
+              ...(groupBy !== "hub" ? { group_by: groupBy } : {}),
+              ...(currency ? { reporting_currency: currency } : {}),
+            })
+          }
+        >
+          {t("report.export_csv")}
+        </button>
         <label className="position-horizon">
           <span>{t("position.reporting_currency")}</span>
           <select value={currency} onChange={(event) => setCurrency(event.target.value)}>

@@ -441,3 +441,16 @@ reference rates (previously GBP and EUR amounts were added unconverted). Without
 Public census: 207 paths / 223 operations.
 The contract edit token now covers `book_id` and its schema is
 `upstream-contract-edit-token/v3`: open contract drafts must be reloaded after the upgrade.
+
+## 2026-10-31 additive integration: CSV exports and signed hand-offs
+
+`format=csv` on `GET /api/portfolio/position-ladder`, `GET /api/market/gas-for-power` and
+`GET /api/market/nwe-balance` returns the same rows as a CSV attachment (UTF-8 with BOM,
+`X-Eurogas-Report-Rows`); the JSON default is unchanged.
+`GET /api/decision-cases/{case_id}/handoff` returns, for a DECIDED case only (409
+`case_not_decided` otherwise; 503 when `EUROGAS_NEXUS_HANDOFF_SIGNING_KEY` is unset), a
+`eurogas-nexus-handoff/v1` document with the decision records, the decision pack hash, an
+idempotency key stable per decision, and an HMAC-SHA256 signature over its canonical JSON.
+It is decision support for ERP/ETRM middleware, never an order. Public census: 208 paths /
+224 operations.
+

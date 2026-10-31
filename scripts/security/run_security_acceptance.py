@@ -82,8 +82,8 @@ def _checks() -> list[dict]:
     # organisation settings; the position ladder adds one read (201 / 217); gas-for-power
     # adds one read (202 / 218); the market-data licence register adds two (204 / 220);
     # the north-west Europe balance adds one read (205 / 221); trading books add a read and
-    # a middle-office write (207 / 223).
-    check("public_surface_bounded", len(paths) == 207, f"public paths={len(paths)}")
+    # a middle-office write (207 / 223); the signed decision hand-off adds a read (208 / 224).
+    check("public_surface_bounded", len(paths) == 208, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

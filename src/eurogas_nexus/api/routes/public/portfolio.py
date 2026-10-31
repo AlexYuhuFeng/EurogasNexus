@@ -408,7 +408,8 @@ def get_position_ladder(
     months: int = Query(12, ge=1, le=36),
     group_by: str = Query("hub", pattern="^(hub|firm|legal_entity|region|business|book)$"),
     reporting_currency: str | None = Query(None, pattern="^[A-Z]{3}$"),
-) -> dict:
+    format: str = Query("json", pattern="^(json|csv)$"),
+):
     """Physical and financial positions by hub and delivery month, MtM and indicative VaR.
 
     按枢纽与交割月份汇总实物与金融头寸，附盯市价值与历史模拟 VaR（指示性）。
@@ -589,6 +590,13 @@ def get_position_ladder(
             fx_by_hub=fx_by_hub,
         )
         payload["group_by"] = group_by
+    if format == "csv":
+        from eurogas_nexus.api.csv_export import csv_response
+
+        if group_by != "hub":
+            rows = [{**row, "currency": reporting_currency} for row in payload["rollup"]]
+            return csv_response(rows, report=f"positions-by-{group_by}")
+        return csv_response(payload["rows"], report="position-ladder")
     return _env(
         payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
     )

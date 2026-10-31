@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { api, type NweBalanceDTO, type NweBalanceDayDTO } from "@/api/client";
+import { api, downloadReportCsv, type NweBalanceDTO, type NweBalanceDayDTO } from "@/api/client";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -49,7 +49,12 @@ export function NweBalancePanel({ t }: { t: Translate }) {
 
   return (
     <section className="workspace-panel span-3 nwe-balance-panel" aria-labelledby="nwe-balance-title">
-      <h2 id="nwe-balance-title">{t("nwe.title")}</h2>
+      <div className="panel-title-row">
+        <h2 id="nwe-balance-title">{t("nwe.title")}</h2>
+        <button type="button" className="report-export" onClick={() => void downloadReportCsv("/market/nwe-balance", { days: "14" })}>
+          {t("report.export_csv")}
+        </button>
+      </div>
       {error && <p role="alert">{error}</p>}
       {balance && (balance.history.length > 0 || balance.forecast.length > 0) && (
         <table className="position-ladder" data-nwe-balance="true">

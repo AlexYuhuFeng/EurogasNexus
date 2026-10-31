@@ -25,6 +25,9 @@ the current/normative document listed here and report the conflict.
   [FX fixings](operations/FX_FIXINGS.md),
   [REMIT outages](operations/REMIT_OUTAGES.md),
   [market data sourcing](operations/MARKET_DATA_SOURCING.md),
+  [single sign-on](operations/ENTERPRISE_SSO.md),
+  [ETRM/ERP integration](integration/ERP_ETRM_INTEGRATION.md),
+  [design system](ux/DESIGN_SYSTEM.md),
   [ECMWF forecasts](data/ECMWF_FORECAST_OPERATIONS.md),
   [weather-demand model](operations/WEATHER_DEMAND_MODEL_OPERATOR.md),
   [API profiles](api/API_PROFILES.md)
