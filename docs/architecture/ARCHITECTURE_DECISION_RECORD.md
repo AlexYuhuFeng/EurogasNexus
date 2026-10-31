@@ -605,3 +605,25 @@ duplicates data and licences); currency-blind totals.
 
 Tests: `tests/api/test_portfolio_books_api.py`, `tests/unit/test_market_reference.py`.
 
+
+## Decision 27: One foundation for currencies, units and time
+
+Accepted 2026-10-31. Offices in several countries and markets in several commodities meet
+many currencies (EUR, GBP, USD, CAD, CNY, SGD, ...), quote conventions (pence per therm,
+offshore CNH), units (MWh, therm, MMBtu, GJ, m3, t, tCO2) and clocks (EU and NAESB gas
+days, power days, office time zones). Each of these now has one definition in the ontology
+package, and code converts only through it:
+
+- `domain/ontology/currency.py`: ISO 4217 currencies with minor units; quote units that
+  resolve to an ISO currency and a divisor (`GBp` -> GBP/100, `CNH` -> CNY); `Money`
+  rounded only for presentation; `FxTable` of dated rates from a named source converting
+  directly, inversely or through one pivot. A missing rate is an error, never 1.0.
+- `domain/ontology/quantity.py`: units with dimensions (energy, volume, mass, emissions,
+  power); conversion only within a dimension, and price units `<currency>/<unit>`.
+  Crossing dimensions (volume to energy, coal tonnes to energy) needs a stated factor.
+- `domain/ontology/timebase.py`: instants are aware UTC (naive datetimes refused);
+  business dates come from the market's calendar; people read instants in their office's
+  zone. Offices name their currency and the installation that holds their data.
+
+The position ladder and the gas price converter use the shared FX table. Tests:
+`tests/unit/test_foundation_currency_units_time.py`.

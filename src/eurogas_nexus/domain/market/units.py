@@ -117,17 +117,25 @@ def volume_to_mwh(cubic_metres: float, gcv_kwh_per_m3: float) -> float:
 def _fx_factor(currency_from: str, currency_to: str, eur_rates: Mapping[str, float]) -> float:
     """Units of ``currency_to`` per one ``currency_from`` via EUR-based rates.
 
-    ``eur_rates`` maps currency -> units per 1 EUR (ECB reference convention).
+    ``eur_rates`` maps currency -> units per 1 EUR (ECB reference convention). The
+    conversion itself is the shared FX table (``domain.ontology.currency``).
     """
 
-    if currency_from == currency_to:
-        return 1.0
-    rates = {"EUR": 1.0, **{key.upper(): float(val) for key, val in eur_rates.items()}}
-    for currency in (currency_from, currency_to):
-        rate = rates.get(currency)
-        if rate is None or not rate > 0:
-            raise UnitConversionError(f"explicit EUR/{currency} FX rate required")
-    return rates[currency_to] / rates[currency_from]
+    from datetime import date
+
+    from eurogas_nexus.domain.ontology.currency import CurrencyError, FxTable
+
+    table = FxTable.from_pivot_map(
+        {key: val for key, val in eur_rates.items() if val and float(val) > 0},
+        as_of=date.min,
+        source="caller",
+    )
+    try:
+        return table.rate(currency_from, currency_to)
+    except CurrencyError as exc:
+        raise UnitConversionError(
+            f"explicit EUR/{currency_from}/{currency_to} FX rate required"
+        ) from exc
 
 
 def convert_price(

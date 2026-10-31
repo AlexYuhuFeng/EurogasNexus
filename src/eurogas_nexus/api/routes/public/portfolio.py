@@ -348,17 +348,19 @@ def _ecb_rates(session) -> dict[str, float]:
 
 
 def _fx_by_hub(hubs, reporting_currency: str, eur_rates: dict[str, float]):
-    """Multiplier from each hub's quote currency into the reporting currency, via EUR."""
+    """Multiplier from each hub's quote currency into the reporting currency (shared FX table)."""
 
+    from datetime import date
+
+    from eurogas_nexus.domain.ontology.currency import FxTable
+
+    table = FxTable.from_pivot_map(eur_rates, as_of=date.today(), source="ECB")
     fx: dict[str, float] = {}
     missing: set[str] = set()
-    target = eur_rates.get(reporting_currency)
     for hub in hubs:
         currency = quote_currency(hub)
-        if currency == reporting_currency:
-            fx[hub] = 1.0
-        elif target is not None and currency in eur_rates:
-            fx[hub] = target / eur_rates[currency]
+        if table.has(currency, reporting_currency):
+            fx[hub] = table.rate(currency, reporting_currency)
         else:
             missing.add(currency)
     return fx, missing
