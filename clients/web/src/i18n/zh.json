@@ -4170,5 +4170,10 @@
   "lngbid.fixed_per_cargo": "每船固定费",
   "lngbid.source_url": "运营商文件（https）",
   "lngbid.effective_from": "适用起始",
-  "lngbid.of_which_regas": "其中再气化 {{value}}"
+  "lngbid.of_which_regas": "其中再气化 {{value}}",
+  "glossary.unit": "单位",
+  "glossary.formula": "公式",
+  "glossary.example": "示例",
+  "glossary.where_in_app": "应用中位置：",
+  "glossary.sources": "来源："
 }

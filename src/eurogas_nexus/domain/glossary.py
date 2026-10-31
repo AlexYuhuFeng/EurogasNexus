@@ -41,6 +41,13 @@ class GlossaryTerm(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     related_terms: list[str] = Field(default_factory=list)
     source_refs: list[str] = Field(default_factory=list)
+    #: Desk detail (optional): the unit, how it is calculated, a worked example, and the
+    #: screens where the term appears.
+    unit: str = ""
+    formula: str = ""
+    example_en: str = ""
+    example_zh_cn: str = ""
+    where_in_app: list[str] = Field(default_factory=list)
 
     def localized(self, lang: str) -> dict:
         """Return a display payload with the definition localized.
@@ -65,6 +72,12 @@ class GlossaryTerm(BaseModel):
             "aliases": self.aliases,
             "related_terms": self.related_terms,
             "source_refs": self.source_refs,
+            "unit": self.unit,
+            "formula": self.formula,
+            "example": self.example_zh_cn
+            if lang in {"zh", "zh-CN"} and self.example_zh_cn
+            else self.example_en,
+            "where_in_app": self.where_in_app,
         }
 
 
@@ -103,13 +116,57 @@ TERM_CONCEPT_IDS: dict[str, str | None] = {
     "concept-storage": "StorageFacility",
     "concept-netback": None,
     "concept-route-cost": None,
+    # Desk glossary (domain/glossary_desk.py).
+    "product-gas-day": None,
+    "product-gas-year": None,
+    "product-da": "MarketQuote",
+    "product-wd": "MarketQuote",
+    "product-bom": "MarketQuote",
+    "product-ma": "MarketQuote",
+    "product-season": "MarketQuote",
+    "product-cal": "MarketQuote",
+    "product-forward-curve": "LiveMarketMark",
+    "price-spread-location": "RouteCandidate",
+    "price-time-spread": None,
+    "price-ptherm": None,
+    "price-mmbtu": None,
+    "contract-dcq": "UpstreamResourceContract",
+    "contract-acq": "UpstreamResourceContract",
+    "contract-swing": "UpstreamResourceContract",
+    "contract-top": "UpstreamResourceContract",
+    "contract-renomination": "Nomination",
+    "contract-allocation": "Nomination",
+    "contract-des-fob": "LngRegasScenario",
+    "balancing-zone": "MarketArea",
+    "balancing-imbalance": None,
+    "balancing-cashout": None,
+    "balancing-vtp": "VirtualHub",
+    "concept-sell-down": None,
+    "capacity-entry-exit": "CapacityProfile",
+    "capacity-bundled": "CapacityProfile",
+    "capacity-prisma": None,
+    "capacity-aya": None,
+    "regulation-nc-tar": "TsoTariff",
+    "lng-regas-slot": "LngRegasScenario",
+    "lng-smart-spot": "LngRegasScenario",
+    "lng-boil-off": None,
+    "lng-heel": None,
+    "lng-gas-in-kind": None,
+    "lng-max-bid": None,
+    "risk-hedge-ratio": None,
+    "risk-var": None,
+    "risk-credit-exposure": None,
+    "risk-mandate": None,
+    "regulation-remit": None,
+    "regulation-umm": None,
+    "regulation-acer": None,
 }
 
 
 def baseline_glossary_terms() -> list[GlossaryTerm]:
     """Return a DB-free baseline glossary for development and tests.
 
-    返回 29 条双语基线术语（无 DB 依赖）：每条按 TERM_CONCEPT_IDS 锚定
+    返回双语基线术语（无 DB 依赖，含交易台术语 glossary_desk）：每条按 TERM_CONCEPT_IDS 锚定
     concept_id，并按显示名排序。生产环境以 DB 中的 glossary_terms 表为
     真相源，本函数仅用于开发回退与种子数据。
 
@@ -417,6 +474,9 @@ def baseline_glossary_terms() -> list[GlossaryTerm]:
             related_terms=["Entry Capacity", "Exit Capacity", "Netback"],
         ),
     ]
+    from eurogas_nexus.domain.glossary_desk import desk_glossary_terms
+
+    terms += desk_glossary_terms()
     for term in terms:
         term.concept_id = TERM_CONCEPT_IDS.get(term.term_id)
     return sorted(terms, key=lambda item: item.term.lower())

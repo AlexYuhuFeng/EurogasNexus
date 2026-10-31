@@ -245,7 +245,10 @@ export function WorkspaceTopBar({
               ))}
             </select>
           </label>
-          <span className={sourceSummary.viewState === "ready" ? "context-freshness" : "context-freshness issue"}>
+          <span
+            className={sourceSummary.viewState === "ready" ? "context-freshness" : "context-freshness issue"}
+            title={t(`context.sources_${sourceSummary.viewState}`)}
+          >
             <strong>{t(`context.sources_${sourceSummary.viewState}`)}</strong>
             {sourceSummary.showCounts && (
               <small>

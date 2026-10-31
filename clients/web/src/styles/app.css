@@ -3212,6 +3212,19 @@ body {
   margin: 0 auto;
 }
 
+/* Trading monitors: use the width for wider tables instead of empty margins. */
+@media (min-width: 1880px) {
+  .cockpit-app:not(.workspace-network) .workspace-page {
+    max-width: 1800px;
+  }
+}
+
+@media (min-width: 2400px) {
+  .cockpit-app:not(.workspace-network) .workspace-page {
+    max-width: 2240px;
+  }
+}
+
 /* The map-first network page composes through the workspace renderer like every other page
    (Wave 9 removed the shell's own interception of that route), so on that route the page element
    has to be shown and to carry the viewport height the map shell expects. The default above hides

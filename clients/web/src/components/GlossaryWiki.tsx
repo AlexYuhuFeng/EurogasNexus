@@ -242,6 +242,21 @@ export function GlossaryWiki({
         </div>
 
         <p className="glossary-definition">{selectedDefinition}</p>
+        {selectedTerm && (selectedTerm.unit || selectedTerm.formula || selectedTerm.example) && (
+          <dl className="glossary-facts">
+            {selectedTerm.unit && <div><dt>{t("glossary.unit")}</dt><dd>{selectedTerm.unit}</dd></div>}
+            {selectedTerm.formula && <div><dt>{t("glossary.formula")}</dt><dd><code>{selectedTerm.formula}</code></dd></div>}
+            {selectedTerm.example && <div><dt>{t("glossary.example")}</dt><dd>{selectedTerm.example}</dd></div>}
+          </dl>
+        )}
+        {selectedTerm?.where_in_app && selectedTerm.where_in_app.length > 0 && (
+          <p className="glossary-where">
+            <span>{t("glossary.where_in_app")}</span> {selectedTerm.where_in_app.join(" · ")}
+          </p>
+        )}
+        {selectedTerm && selectedTerm.source_refs.length > 0 && (
+          <p className="glossary-where muted"><span>{t("glossary.sources")}</span> {selectedTerm.source_refs.join(" · ")}</p>
+        )}
 
         {selectedTerm && (
           <div className="glossary-chip-section">

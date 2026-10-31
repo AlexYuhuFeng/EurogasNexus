@@ -4170,5 +4170,10 @@
   "lngbid.fixed_per_cargo": "Fixed per cargo",
   "lngbid.source_url": "Operator's document (https)",
   "lngbid.effective_from": "Applies from",
-  "lngbid.of_which_regas": "regas {{value}}"
+  "lngbid.of_which_regas": "regas {{value}}",
+  "glossary.unit": "Unit",
+  "glossary.formula": "Formula",
+  "glossary.example": "Example",
+  "glossary.where_in_app": "In the app:",
+  "glossary.sources": "Sources:"
 }

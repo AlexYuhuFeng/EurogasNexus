@@ -2248,6 +2248,8 @@ export interface GlossaryTermDTO {
   term_id: string; term: string; category: string; definition: string;
   definition_en: string; definition_zh_cn: string;
   aliases: string[]; related_terms: string[]; source_refs: string[];
+  /** Desk detail, when the term has it. */
+  unit?: string; formula?: string; example?: string; where_in_app?: string[];
 }
 
 export interface GlossaryContextDTO {

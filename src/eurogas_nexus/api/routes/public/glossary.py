@@ -165,7 +165,11 @@ def _load_terms() -> tuple[list[GlossaryTerm], str, list[str]]:
                 for row in rows.all()
             ]
         if terms:
-            return terms, "runtime-postgresql", []
+            # The shipped glossary is the baseline; the firm's own rows add to it and
+            # override a shipped term with the same id, so new shipped terms always appear.
+            merged = {term.term_id: term for term in baseline_glossary_terms()}
+            merged.update({term.term_id: term for term in terms})
+            return list(merged.values()), "runtime-postgresql+baseline", []
         return (
             baseline_glossary_terms(),
             "baseline-glossary",

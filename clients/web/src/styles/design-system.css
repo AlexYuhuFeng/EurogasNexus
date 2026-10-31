@@ -425,6 +425,40 @@
     }
   }
 
+  /* A 1280-1440 px laptop keeps every control of the top bar on screen: the search shows
+     its shortcut only, and the report hint lives in the "?" menu. */
+  @media (max-width: 1439px) {
+    .topbar-command > span,
+    .topbar-report-hint {
+      display: none;
+    }
+  }
+
+  /* 1280-1365 px: the freshness status keeps its coloured dot, its words move to the
+     tooltip, and the product and hub filters narrow. */
+  @media (max-width: 1365px) {
+    .context-freshness strong,
+    .context-freshness small {
+      display: none;
+    }
+
+    .header-controls select,
+    .topbar-context-disclosure-content select {
+      max-width: 108px;
+    }
+
+    .header-controls input[type="date"],
+    .topbar-context-disclosure-content input[type="date"] {
+      max-width: 124px;
+    }
+
+    .topbar-command {
+      flex: 0 0 auto;
+      min-width: 0;
+      width: auto;
+    }
+  }
+
   @media (max-width: 1279px) {
     .topbar-command > span,
     .context-freshness {
@@ -1664,4 +1698,22 @@
       min-height: 40px;
     }
   }
+}
+
+@layer ds-components {
+  .glossary-facts {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: var(--ds-space-2) 0;
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border-left: 2px solid var(--ds-accent);
+    background: var(--ds-surface-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .glossary-facts div { display: flex; gap: var(--ds-space-2); }
+  .glossary-facts dt { min-width: 72px; color: var(--ds-text-3); }
+  .glossary-facts dd { margin: 0; }
+  .glossary-where { font-size: var(--ds-text-sm); }
+  .glossary-where span { color: var(--ds-text-3); }
 }
