@@ -50,7 +50,7 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **209 paths / 225 operations**
+- OpenAPI public surface: **218 paths / 234 operations**
   (`/api/runtime/release`, CR-14 research data routes, CR-15 agent/capability
   routes, and the development-only `/api/dev/auth/login` added), pinned and
   permission-declared. Measure it rather than quoting this line:
@@ -221,7 +221,7 @@ Still needed, and only people outside engineering can provide them:
   (scripts/release/policy/stable_gate_policy.json), the GitHub `production` environment
   with required reviewers, and branch protection on `main`.
 - On the customer's side: enterprise IdP acceptance against their identity provider,
-  deployment migration to head `0053_lng_cargo_regas`, and an incident-response drill.
+  deployment migration to head `0054_risk_controls`, and an incident-response drill.
 
 ## Product Boundary
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
-import type { PortfolioResourceDTO, UpstreamContractDTO } from "@/api/client";
+import type { ContractIntakeDTO, PortfolioResourceDTO, UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
 import { FinancingRateHelper } from "@/components/FinancingRateHelper";
 import { LngEconomicsPanel } from "@/components/LngEconomicsPanel";
@@ -64,7 +64,7 @@ export type ContractListKey = "allowed_exit_points" | "eligible_sale_modes";
  */
 export type { ContractDraft };
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 /** The resource-contract sub-views. Owned by the workspace, which also hosts the save action. */
 export type ContractTaskView = "source" | "terms" | "impact" | "lng_economics" | "library";
 type ClauseView = "agreement" | "product" | "delivery" | "quantity" | "costs" | "capacity" | "settlement" | "restrictions";
@@ -93,6 +93,9 @@ interface ContractWorkbenchProps {
   onOpenStrategyForResource: (resourceId: string) => void;
   contractImportRef: RefObject<HTMLInputElement | null>;
   contractImportMessage: string | null;
+  /** Terms a PDF intake read, each with its page and words, until the reviewer dismisses it. */
+  contractIntake?: ContractIntakeDTO | null;
+  onDismissContractIntake?: () => void;
   contractSaveMessage: string | null;
   /** The last save was refused as a stale-edit conflict (`stores/api.ts`). */
   contractSaveConflict: boolean;
@@ -131,6 +134,7 @@ export function ContractWorkbench({
   firstPoolAllocation, runtimeDbReady, loading, draftDirty, selectedResourceId,
   taskView, onTaskViewChange, viewFacts, saveState,
   onOpenStrategyForResource, contractImportRef, contractImportMessage,
+  contractIntake = null, onDismissContractIntake,
   contractSaveMessage, contractSaveConflict, t,
   updateContractText, updateContractNumber, updateContractList,
   resetContractDraft, importContractDraftFile, loadPersistedContract,
@@ -213,11 +217,55 @@ export function ContractWorkbench({
         <div className="contract-command-actions" tabIndex={0}>
           <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
           <button type="button" className="secondary-button" onClick={resetContractDraft}>{t("contracts.action.new")}</button>
-          <input ref={contractImportRef} className="contract-import-input" type="file" accept=".json,.txt,application/json,text/plain" hidden onChange={importContractDraftFile} />
+          <input ref={contractImportRef} className="contract-import-input" type="file" accept=".pdf,.json,.txt,application/pdf,application/json,text/plain" hidden onChange={importContractDraftFile} />
         </div>
       </section>
 
       <div className="contract-feedback" role="status" aria-live="polite"><strong>{saveStatus}</strong><span>{contractSaveMessage ?? contractImportMessage ?? t("contracts.save_hint")}</span></div>
+      {contractIntake && (
+        <section className="contract-intake" aria-labelledby="contract-intake-title">
+          <div className="section-heading">
+            <strong id="contract-intake-title">
+              {t("contracts.intake_title", {
+                name: contractIntake.file_name,
+                terms: contractIntake.terms.filter((term) => !term.field.startsWith("_")).length,
+                pages: contractIntake.pages,
+              })}
+            </strong>
+            {onDismissContractIntake && (
+              <button type="button" className="link-button" onClick={onDismissContractIntake}>{t("contracts.intake_dismiss")}</button>
+            )}
+          </div>
+          {contractIntake.warnings.length > 0 && (
+            <ul className="contract-intake-warnings">
+              {contractIntake.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+            </ul>
+          )}
+          <table className="position-ladder">
+            <thead>
+              <tr>
+                <th scope="col">{t("contracts.intake_field")}</th>
+                <th scope="col">{t("contracts.intake_value")}</th>
+                <th scope="col" className="num">{t("contracts.intake_page")}</th>
+                <th scope="col">{t("contracts.intake_evidence")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contractIntake.terms.map((term) => (
+                <tr key={term.field} data-applied={term.field.startsWith("_") ? "false" : "true"}>
+                  <td>{t(`contracts.intake_term.${term.field.replace(/^_/, "")}`)}</td>
+                  <td>
+                    <strong>{String(term.value)}</strong> {term.unit && <small>{term.unit}</small>}
+                    {term.note && <div className="muted">{term.note}</div>}
+                  </td>
+                  <td className="num">{term.page}</td>
+                  <td><q>{term.evidence}</q></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
       {contractSaveConflict && (
         <div className="runtime-blocker-list compact" role="alert">
           <strong>{t("contracts.edit_conflict_title")}</strong>

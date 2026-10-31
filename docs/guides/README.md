@@ -11,6 +11,7 @@ you use daily, and what the product will not do for you.
 | Management (head of desk, commercial lead) | [MANAGEMENT.md](MANAGEMENT.md) |
 | Legal and compliance | [LEGAL_COMPLIANCE.md](LEGAL_COMPLIANCE.md) |
 | Platform administrator and data operator (IT) | [ADMIN_AND_OPERATIONS.md](ADMIN_AND_OPERATIONS.md) |
+| Everyone: bug reports, platforms, updates | [SUPPORT_AND_UPDATES.md](SUPPORT_AND_UPDATES.md) |
 
 Roles, job functions and who may grant what: [ROLES_AND_RESPONSIBILITIES.md](../product/ROLES_AND_RESPONSIBILITIES.md).
 

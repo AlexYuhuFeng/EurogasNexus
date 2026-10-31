@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from eurogas_nexus.api.csv_export import csv_response
+from eurogas_nexus.api.csv_export import report_response
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
 from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
 from eurogas_nexus.domain.ontology.markets import Commodity, find_market, markets
@@ -164,7 +164,7 @@ def get_gas_for_power(
     days: int = Query(14, ge=1, le=92),
     gas_efficiency: float = Query(0.50, ge=0.2, le=0.7),
     coal_efficiency: float = Query(0.38, ge=0.2, le=0.7),
-    format: str = Query("json", pattern="^(json|csv)$"),
+    format: str = Query("json", pattern="^(json|csv|xlsx|pdf)$"),
 ):
     """Daily gas-for-power view for one bidding zone.
 
@@ -331,8 +331,13 @@ def get_gas_for_power(
         )
     elif rows and "API2" in settlements and eur_per_usd is None:
         warnings.append("No ECB EUR/USD rate; API2 coal cannot be converted.")
-    if format == "csv":
-        return csv_response(rows, report=f"gas-for-power-{power_market.code}")
+    if format != "json":
+        return report_response(
+            rows,
+            report=f"gas-for-power-{power_market.code}",
+            format=format,
+            title=f"Gas for power {power_market.code}",
+        )
     return _env(rows, "runtime-postgresql", warnings)
 
 
@@ -382,7 +387,7 @@ def _daily_sum(session, column_expr, model, filters, first: date):
 def get_nwe_balance(
     request: Request,
     days: int = Query(14, ge=1, le=31),
-    format: str = Query("json", pattern="^(json|csv)$"),
+    format: str = Query("json", pattern="^(json|csv|xlsx|pdf)$"),
 ):
     """North-west Europe daily balance: call on Norway, LNG and storage, and its forecast.
 
@@ -532,7 +537,7 @@ def get_nwe_balance(
             "No overlapping ENTSOG Norwegian entry, ALSI and AGSI history for NW Europe; "
             "check that these sources are scheduled."
         )
-    if format == "csv":
+    if format != "json":
         measured = [
             {
                 "day": h.day.isoformat(),
@@ -545,7 +550,9 @@ def get_nwe_balance(
             for h in history[-28:]
         ]
         forecasted = [{**d.as_dict(), "kind": "forecast"} for d in forecast.days]
-        return csv_response(measured + forecasted, report="nwe-balance")
+        return report_response(
+            measured + forecasted, report="nwe-balance", format=format, title="NW Europe balance"
+        )
     return _env(
         {
             "region": list(NWE_COUNTRIES),

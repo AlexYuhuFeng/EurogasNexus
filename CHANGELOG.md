@@ -11,6 +11,25 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ## [Unreleased]
 
+### Added
+
+- Credit and mandates (Portfolio → Exposure): counterparty credit lines with exposure
+  (netted replacement cost, receivables, collateral) and utilisation; trader mandates
+  (books, hubs, size per hub-month, tenor, product) with breaches. Maintained by risk
+  (REVIEWER), audited, never one's own mandate.
+- Delivery against nominations (Portfolio → Resources): bilateral supply allocations
+  against nominations and DCQ, with shortfalls, imbalance volume, volatility and the
+  7-day trend; loaded daily with `scripts/ops/import_contract_deliveries.py`.
+- LNG cargo bid (Portfolio → Routes): the most the firm can pay DES at each terminal from
+  the hub forward less regas, entry, fuel, port, boil-off and charter, ranked in one
+  currency with the range for a slipped arrival.
+- Contract PDF intake: upload a signed contract or confirmation and every recognised term
+  arrives in the draft with its page and wording; scanned PDFs are read when the server
+  has Tesseract. Nothing is saved until a person reviews it.
+- Excel and PDF exports beside CSV on every report table.
+- Guide: [support, bug reports and updates](docs/guides/SUPPORT_AND_UPDATES.md); review:
+  [customer acceptance by role](docs/product/CUSTOMER_ACCEPTANCE_REVIEW.md).
+
 ## [0.6.0] - 2026-10-31
 
 ### Added

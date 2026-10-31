@@ -138,3 +138,14 @@ def test_etrm_extract_loads_into_books_and_exports_as_csv(tmp_path, monkeypatch)
     assert lines[0].startswith("group,level,physical_mwh,financial_mwh,net_mwh")
     assert {line.split(",")[0] for line in lines[1:]} == {"EGN-NL", "EGN-UK"}
     assert csv.headers["x-eurogas-report-rows"] == "2"
+
+    for fmt, magic in (("xlsx", b"PK"), ("pdf", b"%PDF")):
+        download = client.get(
+            f"/api/portfolio/position-ladder?months=4&group_by=legal_entity&format={fmt}",
+            headers=who["analyst"],
+        )
+        assert download.status_code == 200, download.text
+        assert download.content.startswith(magic)
+        assert download.headers["x-eurogas-report-rows"] == "2"
+        assert f'.{fmt}"' in download.headers["content-disposition"]
+        assert b"EGN-NL" in download.content or fmt == "xlsx"

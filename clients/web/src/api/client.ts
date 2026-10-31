@@ -419,22 +419,49 @@ async function get<T, M = ApiMeta>(
   return parseResponse<ApiResponse<T, M>>(res);
 }
 
+export type ReportFormat = "csv" | "xlsx" | "pdf";
+
 /**
- * Download a report read as CSV (`format=csv`) with the caller's credentials, and save it under
- * the file name the server chose.
+ * Download a report read as CSV, Excel or PDF (`format=`) with the caller's credentials, and
+ * save it under the file name the server chose. Every format holds the same rows.
  */
-export async function downloadReportCsv(path: string, params: Record<string, string> = {}): Promise<void> {
+export async function downloadReport(
+  path: string,
+  params: Record<string, string> = {},
+  format: ReportFormat = "csv",
+): Promise<void> {
   const url = new URL(apiUrl(path));
-  Object.entries({ ...params, format: "csv" }).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+  Object.entries({ ...params, format }).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   const response = await fetch(url.toString(), requestInit());
   if (!response.ok) throw new Error(`export failed (${response.status})`);
   const disposition = response.headers.get("content-disposition") ?? "";
-  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "eurogas-nexus-report.csv";
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `eurogas-nexus-report.${format}`;
   const link = document.createElement("a");
   link.href = URL.createObjectURL(await response.blob());
   link.download = name;
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+/**
+ * Send a contract PDF to intake and get back a draft for review; nothing is stored.
+ * The body is the file itself, so no form-data parser is needed on the server.
+ */
+export async function intakeContractPdf(file: File): Promise<ContractIntakeDTO> {
+  const url = new URL(apiUrl("/contracts/intake"));
+  url.searchParams.set("file_name", file.name);
+  const response = await fetch(url.toString(), requestInit({
+    method: "POST",
+    headers: { "Content-Type": "application/pdf" },
+    body: file,
+  }));
+  const parsed = await parseResponse<ApiResponse<ContractIntakeDTO>>(response);
+  return parsed.data;
+}
+
+/** CSV download, kept for callers that offer only CSV. */
+export function downloadReportCsv(path: string, params: Record<string, string> = {}): Promise<void> {
+  return downloadReport(path, params, "csv");
 }
 
 async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
@@ -2560,6 +2587,196 @@ export interface TradingBookDTO {
   orders: number;
 }
 
+/** Exposure to one counterparty against its approved credit line. */
+export interface CreditExposureRowDTO {
+  counterparty_id: string;
+  counterparty: string;
+  legal_entity: string | null;
+  rating: string | null;
+  currency: string;
+  limit: number;
+  replacement_exposure: number;
+  receivable_exposure: number;
+  collateral: number;
+  net_exposure: number;
+  headroom: number;
+  utilisation_pct: number | null;
+  remaining_mwh: number;
+  legs: number;
+  unvalued_legs: number;
+  valid_until: string | null;
+  status: "ok" | "watch" | "breach" | "expired" | "incomplete";
+}
+
+/** One trader's open positions against their mandate. */
+export interface MandateUsageRowDTO {
+  mandate_id: string;
+  trader: string;
+  name: string;
+  books: string;
+  hubs: string;
+  max_net_mwh_per_month: number | null;
+  largest_net_mwh: number;
+  largest_at: string;
+  utilisation_pct: number | null;
+  max_tenor_months: number | null;
+  furthest_month: string;
+  legs: number;
+  breaches: string;
+  valid_until: string | null;
+  status: "ok" | "watch" | "breach" | "expired";
+}
+
+export interface CreditLineInput {
+  name: string;
+  aliases: string[];
+  legal_entity?: string | null;
+  limit_amount: number;
+  currency: string;
+  collateral_amount: number;
+  rating?: string | null;
+  contract_ids: string[];
+  receivable_days: number;
+  valid_until?: string | null;
+}
+
+export interface MandateInput {
+  trader: string;
+  display_name: string;
+  book_ids: string[];
+  hubs: string[];
+  max_net_mwh_per_month?: number | null;
+  max_tenor_months?: number | null;
+  physical_allowed: boolean;
+  financial_allowed: boolean;
+  valid_until?: string | null;
+}
+
+/** A bilateral supply contract's allocations against nominations and DCQ. */
+export interface DeliveryPerformanceRowDTO {
+  contract_id: string;
+  contract: string;
+  hub: string;
+  tso: string;
+  dcq_mwh_d: number;
+  days: number;
+  missing_days: number;
+  nominated_mwh: number;
+  allocated_mwh: number;
+  net_deviation_mwh: number;
+  imbalance_mwh: number;
+  mean_abs_deviation_mwh_d: number | null;
+  max_shortfall_mwh_d: number;
+  short_days: number;
+  long_days: number;
+  outside_swing_days: number;
+  mean_allocated_mwh_d: number | null;
+  stdev_allocated_mwh_d: number | null;
+  cv_pct: number | null;
+  trend_7d_vs_dcq_pct: number | null;
+  flags: string;
+  status: "ok" | "watch";
+}
+
+export interface DeliveryDayDTO {
+  gas_day: string;
+  dcq_mwh: number;
+  nominated_mwh: number | null;
+  allocated_mwh: number | null;
+  deviation_mwh: number | null;
+  /** Beyond the contract's nomination tolerance that day, as the table counts it. */
+  outside_tolerance: "short" | "long" | null;
+}
+
+export interface DeliveryPerformanceDTO {
+  rows: DeliveryPerformanceRowDTO[];
+  series: DeliveryDayDTO[];
+  days: number;
+}
+
+export interface LngTerminalTermsDTO {
+  terminal_id: string;
+  name: string;
+  country: string | null;
+  hub: string;
+  currency: string;
+  regas_tariff_per_mwh: number;
+  entry_tariff_per_mwh: number;
+  fuel_retention_pct: number;
+  port_costs_per_cargo: number;
+  other_per_mwh: number;
+  extra_sailing_days: number;
+  source_note: string;
+  updated_by?: string;
+  updated_at_utc?: string | null;
+}
+
+export type LngTerminalTermsInput = Omit<LngTerminalTermsDTO, "terminal_id" | "currency" | "updated_by" | "updated_at_utc">;
+
+export interface LngCargoBidRowDTO {
+  rank: number;
+  terminal: string;
+  terminal_id: string;
+  country: string | null;
+  hub: string;
+  currency: string;
+  hub_mark: number;
+  mark_month: string;
+  spot: number | null;
+  sent_out_mwh: number;
+  costs_per_mwh: number;
+  breakeven_per_mwh: number;
+  max_bid_per_mwh: number;
+  bid_low_per_mwh: number;
+  bid_high_per_mwh: number;
+  max_bid_usd_mmbtu: number | null;
+  bid_vs_hub_per_mwh: number;
+  bid_pct_of_hub: number | null;
+  cargo_value: number;
+  terms_source: string;
+  [ranking: `max_bid_${string}_per_mwh`]: number;
+}
+
+export interface LngCargoBidDTO {
+  cargo_mwh: number;
+  cargo_mmbtu: number;
+  arrival_month: string;
+  ranking_currency: string;
+  rows: LngCargoBidRowDTO[];
+  regions: { country: string; terminals: number; low: number; high: number }[];
+}
+
+export interface LngCargoBidInput {
+  cargo_mwh?: number;
+  cargo_mmbtu?: number;
+  arrival_month: string;
+  target_margin_per_mwh: number;
+  boil_off_pct_per_day: number;
+  charter_per_day: number;
+  ranking_currency: string;
+}
+
+/** One contract term read from a PDF, with the page and words it came from. */
+export interface ContractIntakeTermDTO {
+  field: string;
+  value: string | number;
+  unit: string;
+  page: number;
+  evidence: string;
+  note: string;
+}
+
+export interface ContractIntakeDTO {
+  file_name: string;
+  pages: number;
+  text_pages: number;
+  ocr_pages: number;
+  record: Record<string, unknown>;
+  terms: ContractIntakeTermDTO[];
+  warnings: string[];
+  sha256: string;
+}
+
 export interface TradingBooksDTO {
   books: TradingBookDTO[];
   hierarchy: Record<string, Record<string, Record<string, string[]>>>;
@@ -4296,6 +4513,26 @@ export const api = {
       },
       options,
     ),
+  creditExposure: (options?: ApiRequestOptions) =>
+    get<{ rows: CreditExposureRowDTO[]; as_of: string }>("/portfolio/credit-exposure", undefined, options),
+  mandateUsage: (options?: ApiRequestOptions) =>
+    get<{ rows: MandateUsageRowDTO[]; as_of: string }>("/portfolio/mandate-usage", undefined, options),
+  saveCreditLine: (counterpartyId: string, body: CreditLineInput) =>
+    put<{ key: string; created: boolean }>(`/portfolio/credit-lines/${encodeURIComponent(counterpartyId)}`, body),
+  saveTraderMandate: (mandateId: string, body: MandateInput) =>
+    put<{ key: string; created: boolean }>(`/portfolio/trader-mandates/${encodeURIComponent(mandateId)}`, body),
+  deliveryPerformance: (days = 90, contractId?: string, options?: ApiRequestOptions) =>
+    get<DeliveryPerformanceDTO>(
+      "/contracts/delivery-performance",
+      { days: String(days), ...(contractId ? { contract_id: contractId } : {}) },
+      options,
+    ),
+  lngTerminalTerms: (options?: ApiRequestOptions) =>
+    get<{ rows: LngTerminalTermsDTO[] }>("/portfolio/lng-terminal-terms", undefined, options),
+  saveLngTerminalTerms: (terminalId: string, body: LngTerminalTermsInput) =>
+    put<{ key: string; created: boolean }>(`/portfolio/lng-terminal-terms/${encodeURIComponent(terminalId)}`, body),
+  lngCargoBid: (body: LngCargoBidInput, options?: ApiRequestOptions) =>
+    post<LngCargoBidDTO>("/portfolio/lng-cargo-bid", body, options),
   tradingBooks: (options?: ApiRequestOptions) => get<TradingBooksDTO>("/portfolio/books", undefined, options),
   saveTradingBook: (bookId: string, body: TradingBookInput) =>
     put<{ book_id: string; created: boolean; contracts_assigned: number; orders_assigned: number }>(

@@ -313,6 +313,15 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         example="Example Energy Trading Ltd,A0001234X.GB",
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_OWN_LEGAL_NAMES",
+        scope="OPERATOR",
+        purpose=(
+            "The firm's own legal entity names as they appear in contracts (comma-separated), "
+            "so contract intake picks the other party as the counterparty."
+        ),
+        example="Example Energy Trading Ltd,Example Gas Supply BV",
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DEPLOYMENT_REGION",
         scope="OPERATOR",
         purpose="Where this installation serves users: global (default) or china.",

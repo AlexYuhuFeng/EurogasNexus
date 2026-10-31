@@ -26,6 +26,16 @@
 
 ## Controls
 
+**Credit and mandates** (Portfolio → Exposure). Record each counterparty's approved line
+(limit, collateral, rating, approval expiry, the supply contracts that face it and the
+names it carries in the ETRM extract) and each trader's mandate (books, hubs, net MWh per
+hub-month, tenor, physical/financial). Exposure is netted replacement cost at the ladder's
+marks plus unpaid receivables less collateral; *watch* from 75 % used, *breach* above
+100 %; an expired approval counts with the breaches. Only a REVIEWER can change a line or
+a mandate, nobody can set their own, and every change is audited. Open-ended contracts
+are valued to the ladder's 36-month horizon. Excel and PDF exports serve the credit
+committee pack.
+
 You cannot approve a decision you opened (four-eyes). Every grant, decision and setting
 change is in the audit log (Administration → Audit, for reviewers).
 

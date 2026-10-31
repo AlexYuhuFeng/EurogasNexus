@@ -492,7 +492,7 @@ Package counts and the SHA-256 of every lock input are recorded in
 
 ## python-runtime
 
-30 packages recorded: 0 with a lock-declared license expression, 30 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
+31 packages recorded: 0 with a lock-declared license expression, 31 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
 
 - alembic 1.20.0 (NOASSERTION)
 - annotated-doc 0.0.5 (NOASSERTION)
@@ -515,6 +515,7 @@ Package counts and the SHA-256 of every lock input are recorded in
 - pycparser 3.0 (NOASSERTION)
 - pydantic 2.13.5 (NOASSERTION)
 - pydantic-core 2.46.5 (NOASSERTION)
+- pypdf 6.21.4 (NOASSERTION)
 - python-dateutil 2.9.0.post0 (NOASSERTION)
 - scramp 1.4.17 (NOASSERTION)
 - six 1.17.0 (NOASSERTION)

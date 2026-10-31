@@ -473,3 +473,25 @@ operator turns isolation on; with it off every response is unchanged. No path is
 Book-held items follow portfolio isolation; market items the caller's data scopes. Migration
 `0053_lng_cargo_regas` adds `lng_cargoes` and `regas_slots`, loaded by
 `scripts/ops/import_lng_positions.py`. Public census: 209 paths / 225 operations.
+
+## 2026-10-31 additive: risk limits, delivery performance, LNG cargo bids, contract intake
+
+Nine paths, all additive; migration `0054_risk_controls` adds `credit_lines`,
+`trader_mandates`, `contract_daily_deliveries` and `lng_terminal_terms`.
+
+| Path | Method | Permission | Purpose |
+|---|---|---|---|
+| `/api/portfolio/credit-exposure` | GET | READ | Exposure per counterparty against its line |
+| `/api/portfolio/credit-lines/{counterparty_id}` | PUT | REVIEW, and the caller must hold REVIEWER itself | Approved credit line (audited) |
+| `/api/portfolio/mandate-usage` | GET | READ | Each trader's positions against their mandate |
+| `/api/portfolio/trader-mandates/{mandate_id}` | PUT | REVIEW, REVIEWER held, never one's own (403 `own_mandate`) | Trader mandate (audited) |
+| `/api/portfolio/lng-terminal-terms` | GET | READ | The firm's landing costs per terminal |
+| `/api/portfolio/lng-terminal-terms/{terminal_id}` | PUT | GOVERNED | Terminal landing costs (audited) |
+| `/api/portfolio/lng-cargo-bid` | POST | READ (computes, stores nothing) | Max DES bid per terminal |
+| `/api/contracts/delivery-performance` | GET | READ | Allocations against nominations and DCQ |
+| `/api/contracts/intake` | POST | GOVERNED | Contract PDF to a review draft (stores nothing; audits the SHA-256) |
+
+The reads accept `format=csv|xlsx|pdf` where they return tables, as do
+`/api/portfolio/position-ladder`, `/api/portfolio/pnl-snapshots`,
+`/api/market/gas-for-power` and `/api/market/nwe-balance` (previously `json|csv`).
+Public census: 218 paths / 234 operations.

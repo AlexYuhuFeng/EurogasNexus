@@ -30,6 +30,7 @@ from eurogas_nexus.api.routes.public.reference_network import router as referenc
 from eurogas_nexus.api.routes.public.research import router as research_router
 from eurogas_nexus.api.routes.public.research_data import router as research_data_router
 from eurogas_nexus.api.routes.public.review import router as review_router
+from eurogas_nexus.api.routes.public.risk import router as risk_router
 from eurogas_nexus.api.routes.public.route_cost import router as route_cost_router
 from eurogas_nexus.api.routes.public.runtime import router as runtime_router
 from eurogas_nexus.api.routes.public.shadow import router as shadow_router
@@ -64,6 +65,7 @@ def register_routes(
         app.include_router(market_router)
         app.include_router(monitoring_router)
         app.include_router(portfolio_router)
+        app.include_router(risk_router)
         app.include_router(fundamentals_router)
         app.include_router(physical_router)
         app.include_router(lng_router)

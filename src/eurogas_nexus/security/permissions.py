@@ -282,6 +282,13 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("PUT", "/api/settings/organisation", Permission.ADMIN),
     # Book structure and assignment is middle-office configuration, not a market read.
     ("PUT", "/api/portfolio/books/{book_id}", Permission.OPERATOR),
+    # Approved limits are the risk function's (reviewer) maintenance, audited.
+    ("PUT", "/api/portfolio/credit-lines/{counterparty_id}", Permission.REVIEW),
+    ("PUT", "/api/portfolio/trader-mandates/{mandate_id}", Permission.REVIEW),
+    # Terminal landing costs are LNG desk reference data (analyst, audited).
+    ("PUT", "/api/portfolio/lng-terminal-terms/{terminal_id}", Permission.GOVERNED),
+    # Reading a contract PDF into a draft (nothing stored); the save stays the governed write.
+    ("POST", "/api/contracts/intake", Permission.GOVERNED),
 )
 
 PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {

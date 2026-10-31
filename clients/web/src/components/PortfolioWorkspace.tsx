@@ -4,6 +4,9 @@ import { ContractWorkbench, type ContractTaskView } from "@/components/ContractW
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { PositionLadderPanel, PositionRiskSummary } from "@/components/PositionLadderPanel";
 import { TradingBooksPanel } from "@/components/TradingBooksPanel";
+import { RiskLimitsPanel } from "@/components/RiskLimitsPanel";
+import { DeliveryPerformancePanel } from "@/components/DeliveryPerformancePanel";
+import { LngCargoBidPanel } from "@/components/LngCargoBidPanel";
 import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
 import { routeCostDraftForRoute } from "@/app/model/routeCostModel";
 import { useRouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
@@ -312,6 +315,8 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             }}
             contractImportRef={contractEditor.contractImportRef}
             contractImportMessage={contractEditor.contractImportMessage}
+            contractIntake={contractEditor.contractIntake}
+            onDismissContractIntake={contractEditor.dismissContractIntake}
             contractSaveMessage={api.contractSaveMessage}
             contractSaveConflict={api.contractSaveConflict}
             t={t}
@@ -323,6 +328,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             loadPersistedContract={contractEditor.loadPersistedContract}
           />
         )}
+        {task === "resources" && <DeliveryPerformancePanel t={t} />}
         {task === "routes" && (
           <>
             <PortfolioRoutes controller={controller} />
@@ -342,9 +348,11 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
               }
             />
             <CapacityBillingPanel t={t} capacityBilling={capacityBilling} />
+            <LngCargoBidPanel t={t} />
           </>
         )}
         {task === "exposure" && <PositionLadderPanel t={t} />}
+        {task === "exposure" && <RiskLimitsPanel t={t} />}
         {task === "exposure" && <TradingBooksPanel t={t} />}
         {task === "exposure" && (
           <MarketPositioningWorkspace

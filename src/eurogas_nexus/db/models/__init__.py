@@ -102,6 +102,12 @@ from eurogas_nexus.db.models.research import (
     TargetDefinitionRecord,
 )
 from eurogas_nexus.db.models.review import ReviewDecisionRecord
+from eurogas_nexus.db.models.risk_controls import (
+    ContractDeliveryRecord,
+    CreditLineRecord,
+    LngTerminalTermsRecord,
+    TraderMandateRecord,
+)
 from eurogas_nexus.db.models.route_cost import (
     CapacityProfileRecord,
     LiveMarketMarkRecord,
@@ -273,6 +279,10 @@ __all__ = [
     "TradingBookRecord",
     "RemitUmmRecord",
     "LngCargoRecord",
+    "ContractDeliveryRecord",
+    "CreditLineRecord",
+    "LngTerminalTermsRecord",
+    "TraderMandateRecord",
     "RegasSlotRecord",
     "PrincipalPreferenceRecord",
     "GlossaryTermRecord",

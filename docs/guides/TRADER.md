@@ -15,6 +15,11 @@ in EUR/MWh, volumes in MWh/d (th/d for NBP).
 | Live and upcoming outages (REMIT UMMs: fields, plants, storage, LNG, pipelines) | Market → Capacity & Events → Outages |
 | Spread or benchmark analysis and a quick rule backtest | Strategy Lab → Spread |
 | Position by hub and month, hedge ratio, MtM | Portfolio → Exposure → Position ladder |
+| Your mandate: size, hubs, tenor used | Portfolio → Exposure → Credit and mandates |
+| Did the seller deliver what we nominated? Shortfalls, volatility, trend vs DCQ | Portfolio → Resources → Delivery against nominations |
+| A signed contract PDF into a draft (each term with its page) | Portfolio → Resources → Upload contract |
+| What to bid for an LNG cargo, terminal by terminal | Portfolio → Routes → LNG cargo bid |
+| Any table to Excel or PDF | *Export* on the table |
 | Opportunities and alerts | Decision Center, Alerts (top bar) |
 
 ## Getting your prices in

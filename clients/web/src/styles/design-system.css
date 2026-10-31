@@ -645,6 +645,34 @@
     color: var(--ds-text-1);
   }
 
+  .report-export-group {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    margin-left: auto;
+  }
+
+  .report-export-group .report-export {
+    margin-left: 0;
+  }
+
+  .report-export-group .report-export:disabled {
+    cursor: progress;
+    opacity: 0.6;
+  }
+
+  .report-export-label {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .report-export-error {
+    color: var(--ds-negative);
+    font-size: var(--ds-text-xs);
+  }
+
   /* ---------------------------------------------------------------- tables */
   .workspace-panel table th,
   .data-table-row.header,
@@ -1160,5 +1188,232 @@
 
   .map-zoom-tier .chip {
     white-space: nowrap;
+  }
+}
+
+/* ------------------------------------------------ limits, deliveries, cargo bids, intake */
+@layer ds-components {
+  .limit-badge {
+    border: 1px solid var(--ds-border);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+  }
+
+  .limit-badge[data-status="ok"] {
+    border-color: color-mix(in srgb, var(--ds-positive) 30%, transparent);
+    background: var(--ds-positive-soft);
+    color: var(--ds-positive);
+  }
+
+  .limit-badge[data-status="watch"] {
+    border-color: color-mix(in srgb, var(--ds-warning) 35%, transparent);
+    background: var(--ds-warning-soft);
+    color: var(--ds-warning);
+  }
+
+  .limit-badge[data-status="breach"] {
+    border-color: color-mix(in srgb, var(--ds-negative) 40%, transparent);
+    background: var(--ds-negative-soft);
+    color: var(--ds-negative);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  tr[data-status="breach"] > td:first-child {
+    box-shadow: inset 3px 0 0 var(--ds-negative);
+  }
+
+  tr[data-status="watch"] > td:first-child {
+    box-shadow: inset 3px 0 0 var(--ds-warning);
+  }
+
+  .limit-meter {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 96px;
+    height: 16px;
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface-2);
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .limit-meter-bar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: color-mix(in srgb, var(--ds-accent) 28%, transparent);
+    transition: width var(--ds-duration-base, 160ms) ease-out;
+  }
+
+  .limit-meter-bar[data-over="true"] {
+    background: color-mix(in srgb, var(--ds-negative) 45%, transparent);
+  }
+
+  .limit-meter-value {
+    position: relative;
+    margin-left: auto;
+    padding-right: var(--ds-space-1);
+    font-size: var(--ds-text-xs);
+    color: var(--ds-text-1);
+  }
+
+  .limit-breaches {
+    margin-top: 2px;
+    color: var(--ds-negative);
+    font-size: var(--ds-text-xs);
+    white-space: normal;
+  }
+
+  .limit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    margin-top: var(--ds-space-3);
+  }
+
+  .limit-warnings summary,
+  .lng-terms summary {
+    cursor: pointer;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .risk-limits-panel h3 {
+    margin: var(--ds-space-3) 0 var(--ds-space-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .delivery-strip {
+    margin: var(--ds-space-3) 0 0;
+  }
+
+  .delivery-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 72px;
+    padding: var(--ds-space-1) 0;
+    border-bottom: 1px solid var(--ds-border);
+  }
+
+  .delivery-day {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 3px;
+    height: 100%;
+  }
+
+  .delivery-nominated,
+  .delivery-allocated {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+
+  .delivery-nominated {
+    background: var(--ds-surface-2);
+    outline: 1px solid var(--ds-border);
+  }
+
+  .delivery-allocated {
+    left: 20%;
+    right: 20%;
+    background: var(--ds-accent);
+  }
+
+  .delivery-allocated[data-short="true"] {
+    background: var(--ds-warning);
+  }
+
+  .delivery-strip figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    margin-top: var(--ds-space-1);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .legend-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  .legend-swatch.nominated { background: var(--ds-surface-2); outline: 1px solid var(--ds-border); }
+  .legend-swatch.allocated { background: var(--ds-accent); }
+  .legend-swatch.short { background: var(--ds-warning); }
+
+  .input-with-unit {
+    display: inline-flex;
+    gap: var(--ds-space-1);
+  }
+
+  .input-with-unit input {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .lng-bid-headline {
+    margin: var(--ds-space-3) 0 var(--ds-space-2);
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .contract-intake {
+    margin: var(--ds-space-2) 0;
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+  }
+
+  .contract-intake .section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+  }
+
+  .contract-intake-warnings {
+    margin: var(--ds-space-2) 0;
+    padding-left: var(--ds-space-4, 16px);
+    color: var(--ds-warning);
+    font-size: var(--ds-text-sm);
+  }
+
+  .contract-intake tr[data-applied="false"] {
+    color: var(--ds-text-3);
+  }
+
+  .contract-intake q {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ds-accent);
+    font: inherit;
+    font-weight: var(--ds-weight-medium);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .link-button:hover {
+    text-decoration: underline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .limit-meter-bar {
+    transition: none;
   }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { api, downloadReportCsv, type GasForPowerDayDTO } from "@/api/client";
+import { api, type GasForPowerDayDTO } from "@/api/client";
+import { ReportExport } from "./ReportExport";
 import { pnlClass } from "@/app/model/pnlColor";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -40,9 +41,7 @@ export function GasForPowerPanel({ t }: { t: Translate }) {
     <section className="workspace-panel span-3 gas-for-power-panel" aria-labelledby="gas-for-power-title">
       <div className="panel-title-row">
         <h2 id="gas-for-power-title">{t("gfp.title")}</h2>
-        <button type="button" className="report-export" onClick={() => void downloadReportCsv("/market/gas-for-power", { zone, days: "14" })}>
-          {t("report.export_csv")}
-        </button>
+        <ReportExport t={t} path="/market/gas-for-power" params={{ zone, days: "14" }} />
         <label className="position-horizon">
           <span>{t("gfp.zone")}</span>
           <select value={zone} onChange={(event) => setZone(event.target.value)}>

@@ -1434,7 +1434,7 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
         "contractImportRef",
         "importContractDraftFile",
         "loadTerm",
-        ".json,.txt,application/json,text/plain",
+        ".pdf,.json,.txt,application/pdf,application/json,text/plain",
         't("contracts.upload_contract")',
         't("contracts.beach_delivery_point")',
         't("contracts.title_transfer_point")',

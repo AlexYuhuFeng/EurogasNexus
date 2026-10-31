@@ -52,3 +52,51 @@ def csv_response(rows: Iterable[Mapping[str, Any]], *, report: str) -> Response:
             "X-Eurogas-Report-Rows": str(len(rows)),
         },
     )
+
+
+REPORT_FORMAT_PATTERN = "^(json|csv|xlsx|pdf)$"
+
+_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def report_response(
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    report: str,
+    format: str,
+    title: str | None = None,
+    about: list[tuple[str, str]] | None = None,
+) -> Response:
+    """The rows as CSV, Excel (XLSX) or PDF, with the same figures in each."""
+
+    if format == "csv":
+        return csv_response(rows, report=report)
+    from eurogas_nexus.core.report_files import pdf_bytes, xlsx_bytes
+
+    rows = list(rows)
+    now = datetime.now(UTC)
+    stamp = now.strftime("%Y%m%dT%H%MZ")
+    heading = title or report.replace("-", " ").capitalize()
+    details = [
+        ("Report", heading),
+        ("Generated (UTC)", now.strftime("%Y-%m-%d %H:%M")),
+        *(about or []),
+    ]
+    if format == "xlsx":
+        content, media, suffix = xlsx_bytes(rows, sheet=heading, about=details), _XLSX, "xlsx"
+    elif format == "pdf":
+        subtitle = " · ".join(f"{key}: {value}" for key, value in details[1:])
+        content = pdf_bytes(rows, title=heading, subtitle=subtitle, footer=heading)
+        media, suffix = "application/pdf", "pdf"
+    else:  # pragma: no cover - routes validate the pattern
+        raise ValueError(f"unsupported report format {format!r}")
+    return Response(
+        content=content,
+        media_type=media,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="eurogas-nexus-{report}-{stamp}.{suffix}"'
+            ),
+            "X-Eurogas-Report-Rows": str(len(rows)),
+        },
+    )

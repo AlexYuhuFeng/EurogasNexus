@@ -10,6 +10,8 @@ Every response field of every endpoint below is unchanged.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -55,8 +57,12 @@ def list_pnl_snapshots(
     portfolio_id: str | None = Query(None),
     resource_id: str | None = Query(None),
     strategy_id: str | None = Query(None),
-) -> dict:
-    """List indicative PnL snapshots for portfolio/resource/strategy context."""
+    format: str = Query("json", pattern="^(json|csv|xlsx|pdf)$"),
+):
+    """List indicative PnL snapshots for portfolio/resource/strategy context.
+
+    ``format`` csv, xlsx or pdf returns the same snapshots as a download.
+    """
 
     snapshots, source, warnings = _load_pnl_snapshots(_identity_id(request))
     if portfolio_id:
@@ -65,6 +71,16 @@ def list_pnl_snapshots(
         snapshots = [snapshot for snapshot in snapshots if snapshot.resource_id == resource_id]
     if strategy_id:
         snapshots = [snapshot for snapshot in snapshots if snapshot.strategy_id == strategy_id]
+    if format != "json":
+        from eurogas_nexus.api.csv_export import report_response
+
+        return report_response(
+            [snapshot.model_dump(mode="json") for snapshot in snapshots],
+            report="pnl-snapshots",
+            format=format,
+            title="P&L snapshots",
+            about=[("Source", source), *[("Warning", item) for item in warnings[:20]]],
+        )
     return _env(
         [snapshot.model_dump(mode="json") for snapshot in snapshots],
         request,
@@ -405,46 +421,35 @@ def _rollup(legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub)
     return rollup
 
 
-@router.get("/api/portfolio/position-ladder")
-def get_position_ladder(
-    request: Request,
-    months: int = Query(12, ge=1, le=36),
-    group_by: str = Query("hub", pattern="^(hub|firm|legal_entity|region|business|book)$"),
-    reporting_currency: str | None = Query(None, pattern="^[A-Z]{3}$"),
-    format: str = Query("json", pattern="^(json|csv)$"),
-):
-    """Physical and financial positions by hub and delivery month, MtM and indicative VaR.
+@dataclass
+class _LadderInputs:
+    """Legs and marks as the position ladder builds them, shared with the risk reads."""
 
-    按枢纽与交割月份汇总实物与金融头寸，附盯市价值与历史模拟 VaR（指示性）。
+    legs: list
+    warnings: list[str]
+    books: dict
+    contracts: list
+    orders: list
+    marks: dict
+    mark_method: dict
+    closes: dict
+    curve: object
+    eur_rates: dict[str, float]
+    flat_months: int
+    simulated_skipped: int
 
-    Physical legs are the stored upstream contracts (daily contract quantity over their gas
-    year, hub from the delivery point); financial legs are filled screen trades (buy long,
-    sell short) spread over their delivery days. Marks come from a monthly forward curve
-    built from the latest entitled quotes (months, quarters, seasons, years); a month the
-    curve does not reach falls back to the hub's latest daily close, and the warnings say
-    so. Legs in a currency other than the hub's mark are left unvalued.
-    """
 
-    from datetime import UTC, datetime, timedelta
+def _ladder_inputs(request: Request, today, horizon_start, horizon_end) -> _LadderInputs:
+    """Physical and financial legs in the caller's books, and the monthly marks for them."""
+
+    from datetime import datetime, timedelta
 
     from eurogas_nexus.api.routes.public.spread_lab import _daily_rows
     from eurogas_nexus.domain.market.forward_curve import build_forward_curve
-    from eurogas_nexus.domain.portfolio.position_ladder import PositionLeg, ladder_report
+    from eurogas_nexus.domain.portfolio.position_ladder import PositionLeg
 
-    today = datetime.now(UTC).date()
-    horizon_start = today
-    horizon_end = (today.replace(day=1) + timedelta(days=32 * months)).replace(day=1) - timedelta(
-        days=1
-    )
     legs: list[PositionLeg] = []
     warnings: list[str] = []
-    if not _db_is_configured():
-        return _env(
-            {"rows": [], "warnings": ["RUNTIME_DB_NOT_CONFIGURED"]},
-            request,
-            source="runtime-db-not-configured",
-            warnings=["RUNTIME_DB_NOT_CONFIGURED"],
-        )
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.models.route_cost import UpstreamResourceContractRecord
@@ -548,6 +553,63 @@ def get_position_ladder(
                     mark_method[key] = "flat"
                     flat_months += 1
                 month = (month.replace(day=1) + timedelta(days=32)).replace(day=1)
+    return _LadderInputs(
+        legs=legs,
+        warnings=warnings,
+        books=books,
+        contracts=contracts,
+        orders=orders,
+        marks=marks,
+        mark_method=mark_method,
+        closes=closes,
+        curve=curve,
+        eur_rates=eur_rates,
+        flat_months=flat_months,
+        simulated_skipped=simulated_skipped,
+    )
+
+
+@router.get("/api/portfolio/position-ladder")
+def get_position_ladder(
+    request: Request,
+    months: int = Query(12, ge=1, le=36),
+    group_by: str = Query("hub", pattern="^(hub|firm|legal_entity|region|business|book)$"),
+    reporting_currency: str | None = Query(None, pattern="^[A-Z]{3}$"),
+    format: str = Query("json", pattern="^(json|csv|xlsx|pdf)$"),
+):
+    """Physical and financial positions by hub and delivery month, MtM and indicative VaR.
+
+    按枢纽与交割月份汇总实物与金融头寸，附盯市价值与历史模拟 VaR（指示性）。
+
+    Physical legs are the stored upstream contracts (daily contract quantity over their gas
+    year, hub from the delivery point); financial legs are filled screen trades (buy long,
+    sell short) spread over their delivery days. Marks come from a monthly forward curve
+    built from the latest entitled quotes (months, quarters, seasons, years); a month the
+    curve does not reach falls back to the hub's latest daily close, and the warnings say
+    so. Legs in a currency other than the hub's mark are left unvalued.
+    """
+
+    from datetime import UTC, datetime, timedelta
+
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_report
+
+    today = datetime.now(UTC).date()
+    horizon_start = today
+    horizon_end = (today.replace(day=1) + timedelta(days=32 * months)).replace(day=1) - timedelta(
+        days=1
+    )
+    if not _db_is_configured():
+        return _env(
+            {"rows": [], "warnings": ["RUNTIME_DB_NOT_CONFIGURED"]},
+            request,
+            source="runtime-db-not-configured",
+            warnings=["RUNTIME_DB_NOT_CONFIGURED"],
+        )
+    inputs = _ladder_inputs(request, today, horizon_start, horizon_end)
+    legs, warnings = inputs.legs, inputs.warnings
+    marks, mark_method = inputs.marks, inputs.mark_method
+    books, closes, curve, eur_rates = inputs.books, inputs.closes, inputs.curve, inputs.eur_rates
+    flat_months, simulated_skipped = inputs.flat_months, inputs.simulated_skipped
     if reporting_currency is None:
         # One currency across the positions: report in it; otherwise in EUR.
         held = {quote_currency(leg.hub) for leg in legs}
@@ -599,13 +661,27 @@ def get_position_ladder(
             fx_by_hub=fx_by_hub,
         )
         payload["group_by"] = group_by
-    if format == "csv":
-        from eurogas_nexus.api.csv_export import csv_response
+    if format != "json":
+        from eurogas_nexus.api.csv_export import report_response
 
+        about = [("Horizon", f"{horizon_start.isoformat()} to {horizon_end.isoformat()}")]
+        about += [("Warning", item) for item in [*warnings, *report.warnings][:20]]
         if group_by != "hub":
             rows = [{**row, "currency": reporting_currency} for row in payload["rollup"]]
-            return csv_response(rows, report=f"positions-by-{group_by}")
-        return csv_response(payload["rows"], report="position-ladder")
+            return report_response(
+                rows,
+                report=f"positions-by-{group_by}",
+                format=format,
+                title=f"Positions by {group_by.replace('_', ' ')}",
+                about=about,
+            )
+        return report_response(
+            payload["rows"],
+            report="position-ladder",
+            format=format,
+            title="Position ladder",
+            about=about,
+        )
     return _env(
         payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
     )

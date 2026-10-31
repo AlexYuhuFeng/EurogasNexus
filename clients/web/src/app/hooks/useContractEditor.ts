@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { TFunction } from "i18next";
-import type { UpstreamContractDTO, UpstreamContractInputDTO } from "@/api/client";
+import { intakeContractPdf } from "@/api/client";
+import type { ContractIntakeDTO, UpstreamContractDTO, UpstreamContractInputDTO } from "@/api/client";
 import {
   contractPayloadReadiness,
   cloneDefaultContractDraft,
@@ -35,6 +36,8 @@ export function useContractEditor(
 ) {
   const contractImportRef = useRef<HTMLInputElement>(null);
   const [contractImportMessage, setContractImportMessage] = useState<string | null>(null);
+  /** What a PDF intake read, term by term with its page, for the reviewer to check. */
+  const [contractIntake, setContractIntake] = useState<ContractIntakeDTO | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
   const [contract, setContract] = useState<ContractDraft>(() => cloneDefaultContractDraft());
   // The readiness result is the one payload path: the save uses it and the surface could report
@@ -122,6 +125,7 @@ export function useContractEditor(
     beginDraftSession();
     commitDraft(() => cloneDefaultContractDraft());
     setDraftDirty(false);
+    setContractIntake(null);
     setContractImportMessage(t("contracts.new_draft_loaded"));
   }
 
@@ -129,12 +133,27 @@ export function useContractEditor(
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const record = contractRecordFromImportedFile(file.name, await file.text());
+      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      let record: Record<string, unknown> | null;
+      if (isPdf) {
+        setContractImportMessage(t("contracts.intake_reading", { name: file.name }));
+        const intake = await intakeContractPdf(file);
+        setContractIntake(intake);
+        record = intake.terms.length > 0 ? intake.record : null;
+        if (!record) throw new Error(intake.warnings[0] ?? t("contracts.import_invalid"));
+      } else {
+        setContractIntake(null);
+        record = contractRecordFromImportedFile(file.name, await file.text());
+      }
       if (!record) throw new Error(t("contracts.import_invalid"));
       beginDraftSession();
       commitDraft((current) => contractDraftFromRecord(record, current));
       setDraftDirty(true);
-      setContractImportMessage(`${file.name} ${t("contracts.import_loaded")}`);
+      setContractImportMessage(
+        isPdf
+          ? t("contracts.intake_loaded", { name: file.name })
+          : `${file.name} ${t("contracts.import_loaded")}`,
+      );
     } catch (error) {
       setContractImportMessage(`${t("contracts.import_failed")}: ${String(error)}`);
     } finally {
@@ -195,6 +214,8 @@ export function useContractEditor(
     draftDirty,
     contractImportRef,
     contractImportMessage,
+    contractIntake,
+    dismissContractIntake: () => setContractIntake(null),
     updateContractNumber,
     updateContractText,
     updateContractList,
