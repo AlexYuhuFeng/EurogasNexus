@@ -97,9 +97,11 @@ def pkce_pair() -> tuple[str, str]:
     """
 
     verifier = secrets.token_urlsafe(48)
-    challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(verifier.encode("ascii")).digest()
-    ).rstrip(b"=").decode("ascii")
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
+        .rstrip(b"=")
+        .decode("ascii")
+    )
     return verifier, challenge
 
 
@@ -323,6 +325,32 @@ def _principal_for_identity(
     now_utc: datetime | None,
 ) -> IdentityPrincipalRecord:
     now = as_utc(now_utc or datetime.now(UTC))
+    if provisioning_mode() == "directory":
+        # The company directory owns access: create or re-sync from groups, active at once.
+        from eurogas_nexus.application.directory_sync import (
+            DirectoryAccessRefused,
+            access_from_groups,
+            sync_directory_principal,
+        )
+
+        roles, scopes = access_from_groups(identity.groups, groups_role_map(), groups_scope_map())
+        try:
+            return sync_directory_principal(
+                session,
+                issuer=identity.issuer,
+                subject=identity.subject,
+                display_name=identity.name,
+                email=_email_from(identity),
+                roles=roles,
+                scopes=scopes,
+                office=getattr(identity, "office", None),
+                source="OIDC",
+                now_utc=now,
+            )
+        except DirectoryAccessRefused as exc:
+            raise OidcValidationError(
+                code="identity_principal_not_active", status_code=403, message=str(exc)
+            ) from exc
     external = find_external_identity(session, identity.issuer, identity.subject)
     if external is None:
         principal = _provision_identity(session, identity, now_utc=now)

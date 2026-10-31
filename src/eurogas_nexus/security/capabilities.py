@@ -118,9 +118,7 @@ CAPABILITY_PERMISSIONS: dict[Capability, frozenset[Permission]] = {
     Capability.PROVIDER_INGESTION_OPERATE: frozenset({Permission.SOURCE_RUN}),
     Capability.PROVIDER_BACKFILL_OPERATE: frozenset({Permission.SOURCE_BACKFILL}),
     Capability.PROVIDER_CREDENTIAL_MANAGE: frozenset({Permission.SOURCE_CREDENTIALS_WRITE}),
-    Capability.PROVIDER_CERTIFICATION_MANAGE: frozenset(
-        {Permission.SOURCE_CERTIFICATION_MANAGE}
-    ),
+    Capability.PROVIDER_CERTIFICATION_MANAGE: frozenset({Permission.SOURCE_CERTIFICATION_MANAGE}),
     Capability.RUNTIME_READ: frozenset({Permission.RUNTIME_READ}),
     Capability.ACCESS_READ: frozenset({Permission.IDENTITY_READ}),
     Capability.ACCESS_MANAGE: frozenset({Permission.IDENTITY_MANAGE}),
@@ -306,6 +304,7 @@ def parse_job_functions(values: object) -> tuple[FunctionalAssignment, ...]:
             parsed.append(item)
     return tuple(parsed)
 
+
 WORK_MODE_CAPABILITIES: dict[WorkMode, frozenset[Capability]] = {
     WorkMode.TRADING_ANALYSIS: frozenset(
         {
@@ -350,11 +349,12 @@ WORK_MODE_PRIORITY: tuple[WorkMode, ...] = (
     WorkMode.ADMINISTRATION,
 )
 
-# Scope kinds Architecture V2 defines. Only ``DATA`` is expressible in the
-# current repository (``principal.data_scopes``); the others are declared here so
-# the profile can report them as unsupported instead of pretending they exist.
-SUPPORTED_SCOPE_KINDS: frozenset[str] = frozenset({"DATA"})
-UNSUPPORTED_SCOPE_KINDS: tuple[str, ...] = ("ORGANIZATION", "PORTFOLIO", "MARKET", "REGION")
+# Scope kinds Architecture V2 defines. ``DATA`` (source families) and ``PORTFOLIO``
+# (``BOOKS:`` entries in ``principal.data_scopes``, see ``security/portfolio_scope.py``)
+# are expressible; the others are declared here so the profile can report them as
+# unsupported instead of pretending they exist.
+SUPPORTED_SCOPE_KINDS: frozenset[str] = frozenset({"DATA", "PORTFOLIO"})
+UNSUPPORTED_SCOPE_KINDS: tuple[str, ...] = ("ORGANIZATION", "MARKET", "REGION")
 
 # The second equation never creates permissions. Asserted by the focused tests
 # and by ``profile_stays_within_role_permissions``.
@@ -387,9 +387,7 @@ def functional_assignments_for(
 
     ordered = sorted(FunctionalAssignment, key=lambda item: item.value)
     return tuple(
-        assignment
-        for assignment in ordered
-        if ASSIGNMENT_CAPABILITIES[assignment] <= capabilities
+        assignment for assignment in ordered if ASSIGNMENT_CAPABILITIES[assignment] <= capabilities
     )
 
 
@@ -411,15 +409,17 @@ def default_work_mode(modes: tuple[WorkMode, ...]) -> WorkMode | None:
 def scope_refs_for(principal: AuthenticatedPrincipal) -> tuple[str, ...]:
     """Scope references the current backend can express.
 
-    Commercial source-family grants live in ``principal.data_scopes``; the
-    organisation and portfolio scope kinds do not exist yet, so they are reported
-    through :data:`UNSUPPORTED_SCOPE_KINDS` rather than fabricated here.
+    Source-family grants and ``BOOKS:`` portfolio grants both live in
+    ``principal.data_scopes``; the organisation scope kind does not exist yet, so it is
+    reported through :data:`UNSUPPORTED_SCOPE_KINDS` rather than fabricated here.
     """
 
     refs: list[str] = []
     for scope in principal.data_scopes or ():
         value = (scope or "").strip()
-        if value:
+        if value.upper().startswith("BOOKS:"):
+            refs.append(f"PORTFOLIO:{value[len('BOOKS:') :].upper()}")
+        elif value:
             refs.append(f"DATA:{'ALL' if value == '*' else value}")
     return tuple(refs)
 
@@ -454,12 +454,8 @@ class ExperienceProfile:
             "roles": list(self.roles),
             "functional_assignments": [item.value for item in self.functional_assignments],
             "declared_job_functions": [item.value for item in self.declared_job_functions],
-            "unsatisfied_job_functions": [
-                item.value for item in self.unsatisfied_job_functions
-            ],
-            "home": (
-                {"workspace": self.home[0], "task": self.home[1]} if self.home else None
-            ),
+            "unsatisfied_job_functions": [item.value for item in self.unsatisfied_job_functions],
+            "home": ({"workspace": self.home[0], "task": self.home[1]} if self.home else None),
             "office": self.office,
             "office_time_zone": self.office_time_zone,
             "available_work_modes": [item.value for item in self.available_work_modes],
@@ -467,9 +463,7 @@ class ExperienceProfile:
                 self.default_work_mode.value if self.default_work_mode is not None else None
             ),
             "effective_capabilities": sorted(item.value for item in self.effective_capabilities),
-            "commercial_capabilities": sorted(
-                item.value for item in self.commercial_capabilities
-            ),
+            "commercial_capabilities": sorted(item.value for item in self.commercial_capabilities),
             "scope_refs": list(self.scope_refs),
             "data_entitlement_refs": list(self.data_entitlement_refs),
             "unsupported_scope_kinds": list(self.unsupported_scope_kinds),

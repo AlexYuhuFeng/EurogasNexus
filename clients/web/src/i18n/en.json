@@ -3815,5 +3815,11 @@
   "books.region_asia": "Asia",
   "books.region_global": "Global",
   "topbar.command": "Search or jump to…",
-  "report.export_csv": "Export CSV"
+  "report.export_csv": "Export CSV",
+  "settings.map_tile_licence_open": "Open licence: free for commercial use with attribution",
+  "settings.map_tile_provider_openfreemap": "OpenFreeMap: free vector basemap, no key, commercial use allowed; © OpenMapTiles, data © OpenStreetMap contributors (ODbL).",
+  "settings.map_tile_provider_versatiles": "VersaTiles: open-source vector basemap with light and dark styles, commercial use allowed; data © OpenStreetMap contributors (ODbL). Can be self-hosted from one file.",
+  "settings.map_tile_availability_anywhere": "Available in every installation.",
+  "settings.map_tile_availability_outside-mainland-china": "Hosted outside mainland China: not reliably reachable there, and maps shown in mainland China need an approved provider.",
+  "settings.map_tile_availability_mainland-china": "For installations in mainland China (GCJ-02 or CGCS2000 coordinates)."
 }

@@ -454,3 +454,13 @@ idempotency key stable per decision, and an HMAC-SHA256 signature over its canon
 It is decision support for ERP/ETRM middleware, never an order. Public census: 208 paths /
 224 operations.
 
+
+## 2026-10-31 additive field and deliberate narrowing: deployment profile and isolation
+
+`GET /api/runtime/release` gains `deployment` (`region`, `map_default_provider`), an
+additive object the web client uses to pick the default basemap; older clients ignore it.
+With `EUROGAS_NEXUS_PORTFOLIO_ISOLATION=true`, contract, trade, book, ladder and P&L reads
+return only rows in the caller's `BOOKS:` scopes, and changes outside them answer 403
+`book_outside_scope` or `contract_outside_book_scope`. This narrowing applies only when an
+operator turns isolation on; with it off every response is unchanged. No path is added:
+208 paths / 224 operations.

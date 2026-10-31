@@ -69,6 +69,20 @@ def _allow_anonymous(request: Request) -> bool:
 
 
 async def require_identity(request: Request) -> None:
+    """Resolve the principal, then fix the books it may see for this request.
+
+    The book scope (``security.portfolio_scope``) is derived here, once, so every read of
+    contracts, trades and books in this request is restricted the same way.
+    """
+
+    await _resolve_identity(request)
+    from eurogas_nexus.security.portfolio_scope import set_request_scope
+
+    principal = getattr(request.state, "identity", None)
+    set_request_scope(principal.data_scopes if principal is not None else ())
+
+
+async def _resolve_identity(request: Request) -> None:
     """Resolve and attach the authenticated principal for this request.
 
     ``request.state.identity_authenticated`` records whether a *real* credential (DB identity key,
@@ -291,7 +305,7 @@ def _authenticate_gateway(request: Request) -> AuthenticatedPrincipal | None:
     if not config.enabled:
         return None
     try:
-        return gateway_principal(
+        asserted = gateway_principal(
             dict(request.headers),
             request.client.host if request.client else None,
             config=config,
@@ -303,6 +317,57 @@ def _authenticate_gateway(request: Request) -> AuthenticatedPrincipal | None:
         raise HTTPException(
             status_code=401, detail={"error": exc.code, "message": exc.message}
         ) from exc
+    from eurogas_nexus.security.oidc import provisioning_mode
+
+    if asserted is None or provisioning_mode() != "directory" or not _db_is_configured():
+        return asserted
+    return _directory_principal(asserted)
+
+
+def _directory_principal(asserted: AuthenticatedPrincipal) -> AuthenticatedPrincipal:
+    """Persist a gateway identity as a directory-managed principal and return it."""
+
+    from eurogas_nexus.application.directory_sync import (
+        DirectoryAccessRefused,
+        sync_directory_principal,
+    )
+    from eurogas_nexus.db.session import get_session_factory
+
+    subject = asserted.principal_id.removeprefix("sso:")
+    try:
+        with get_session_factory()() as session:
+            principal = sync_directory_principal(
+                session,
+                issuer="gateway",
+                subject=subject,
+                display_name=asserted.name,
+                email=asserted.email,
+                roles=list(asserted.roles or (asserted.role,)),
+                scopes=list(asserted.data_scopes),
+                office=asserted.office,
+                source="GATEWAY",
+            )
+            resolved = AuthenticatedPrincipal(
+                principal_id=principal.principal_id,
+                name=principal.name,
+                principal_type=principal.principal_type,
+                role=principal.role,
+                status=principal.status,
+                data_scopes=tuple(principal.data_scopes or []),
+                roles=tuple(principal.roles or [principal.role]),
+                email=principal.email,
+                identity_source="GATEWAY",
+                auth_method="gateway_header",
+                job_functions=tuple(principal.job_functions or ()),
+                office=principal.office,
+            )
+            session.commit()
+    except DirectoryAccessRefused as exc:
+        _audit_auth_failure("directory_principal_disabled")
+        raise HTTPException(
+            status_code=403, detail={"error": "identity_principal_not_active", "message": str(exc)}
+        ) from exc
+    return resolved
 
 
 def _audit_auth_failure(code: str) -> None:

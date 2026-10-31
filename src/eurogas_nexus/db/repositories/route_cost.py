@@ -207,9 +207,7 @@ def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
     return [_tariff_from_record(row) for row in rows.all()]
 
 
-def list_upstream_contracts(
-    session: Session, *, include_edit_token: bool = False
-) -> list[dict]:
+def list_upstream_contracts(session: Session, *, include_edit_token: bool = False) -> list[dict]:
     """List upstream resource contracts, newest update first.
 
     Args:
@@ -224,13 +222,12 @@ def list_upstream_contracts(
         List of contract payload dicts.
     """
 
-    rows = session.query(UpstreamResourceContractRecord).order_by(
-        UpstreamResourceContractRecord.updated_at_utc.desc()
-    )
-    return [
-        _contract_payload(row, include_edit_token=include_edit_token)
-        for row in rows.all()
-    ]
+    from eurogas_nexus.security.portfolio_scope import restrict
+
+    rows = restrict(
+        session.query(UpstreamResourceContractRecord), UpstreamResourceContractRecord, session
+    ).order_by(UpstreamResourceContractRecord.updated_at_utc.desc())
+    return [_contract_payload(row, include_edit_token=include_edit_token) for row in rows.all()]
 
 
 def upstream_contract_exists(session: Session, contract_id: str) -> bool:
@@ -248,8 +245,15 @@ def upstream_contract_exists(session: Session, contract_id: str) -> bool:
         ``True`` when the contract identity itself is stored.
     """
 
+    from eurogas_nexus.security.portfolio_scope import restrict
+
+    # A contract in a book the caller cannot see reads as absent (revisions answer 404).
     return (
-        session.query(UpstreamResourceContractRecord.contract_id)
+        restrict(
+            session.query(UpstreamResourceContractRecord.contract_id),
+            UpstreamResourceContractRecord,
+            session,
+        )
         .filter(UpstreamResourceContractRecord.contract_id == contract_id)
         .first()
         is not None
@@ -799,11 +803,7 @@ def upsert_upstream_contract_governed(
             refusal_detail=previous.refusal_detail,
         )
 
-    changed_fields = tuple(
-        field
-        for field, value in values.items()
-        if getattr(row, field) != value
-    )
+    changed_fields = tuple(field for field, value in values.items() if getattr(row, field) != value)
     if not changed_fields:
         # 真实重放：经济与展示证据均未变化，不写行、不写审计、保留原归属。
         return GovernedContractUpsertResult(
@@ -836,9 +836,7 @@ def upsert_upstream_contract_governed(
     # 分类以捕获结果为准：只有真的写入了新修订才是经济变更；捕获幂等说明
     # 变化只落在未参与哈希的展示证据上。
     outcome = (
-        GOVERNED_CONTRACT_ECONOMICS_UPDATED
-        if post.created
-        else GOVERNED_CONTRACT_METADATA_UPDATED
+        GOVERNED_CONTRACT_ECONOMICS_UPDATED if post.created else GOVERNED_CONTRACT_METADATA_UPDATED
     )
     _record_governed_upsert_audit(
         session,
@@ -981,9 +979,7 @@ def latest_market_marks(session: Session) -> list[LiveMarketMark]:
         List of LiveMarketMark domain rows, newest mark time first.
     """
 
-    rows = session.query(LiveMarketMarkRecord).order_by(
-        LiveMarketMarkRecord.mark_time_utc.desc()
-    )
+    rows = session.query(LiveMarketMarkRecord).order_by(LiveMarketMarkRecord.mark_time_utc.desc())
     return [_mark_from_record(row) for row in rows.all()]
 
 
@@ -997,9 +993,11 @@ def list_route_candidates(session: Session) -> list[dict]:
         List of route candidate payload dicts.
     """
 
-    rows = session.query(RouteCandidateRecord).filter(
-        RouteCandidateRecord.active.is_(True)
-    ).order_by(RouteCandidateRecord.route_name)
+    rows = (
+        session.query(RouteCandidateRecord)
+        .filter(RouteCandidateRecord.active.is_(True))
+        .order_by(RouteCandidateRecord.route_name)
+    )
     return [_route_candidate_payload(row) for row in rows.all()]
 
 
@@ -1143,14 +1141,8 @@ def _contract_payload(
         "allowed_exit_points": row.allowed_exit_points,
         "eligible_sale_modes": row.eligible_sale_modes,
         "notes": row.notes,
-        "payment_terms": (
-            None if payment_terms is None else payment_terms.canonical_document()
-        ),
-        **{
-            field: notes[field]
-            for field in _STRUCTURED_NOTE_FIELDS
-            if field in notes
-        },
+        "payment_terms": (None if payment_terms is None else payment_terms.canonical_document()),
+        **{field: notes[field] for field in _STRUCTURED_NOTE_FIELDS if field in notes},
         "updated_at_utc": row.updated_at_utc.isoformat(),
     }
     if include_edit_token:
@@ -1209,8 +1201,7 @@ def _encoded_payment_terms(value: object) -> str | None:
     if not isinstance(value, Mapping):
         raise ContractPaymentTermsRefusal(
             "canonical_not_mapping",
-            "payment_terms must be a canonical contract-payment-terms document"
-            " object or null",
+            "payment_terms must be a canonical contract-payment-terms document object or null",
         )
     try:
         terms = ContractPaymentTerms.from_canonical_document(value)
@@ -1323,15 +1314,10 @@ def _capture_instant(value: object) -> datetime:
             whose ``utcoffset`` is ``None`` is not an instant).
     """
 
-    if (
-        not isinstance(value, datetime)
-        or value.tzinfo is None
-        or value.utcoffset() is None
-    ):
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
         raise ContractRevisionPersistenceError(
             "recorded_at_not_utc",
-            "recorded_at_utc must be a timezone-aware datetime with a concrete"
-            " UTC offset",
+            "recorded_at_utc must be a timezone-aware datetime with a concrete UTC offset",
         )
     return value.astimezone(UTC)
 

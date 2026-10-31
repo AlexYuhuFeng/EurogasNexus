@@ -293,8 +293,11 @@ def _gas_year_window(label: str, horizon_end) -> tuple | None:
 
 
 def _books(session) -> dict:
+    """Books the caller may see (all of them unless portfolio isolation restricts)."""
+
     from eurogas_nexus.db.models import TradingBookRecord
     from eurogas_nexus.domain.portfolio.books import Book
+    from eurogas_nexus.security.portfolio_scope import restrict
 
     return {
         row.book_id: Book(
@@ -307,7 +310,7 @@ def _books(session) -> dict:
             commodities=tuple(row.commodities or ()),
             active=row.active,
         )
-        for row in session.query(TradingBookRecord).all()
+        for row in restrict(session.query(TradingBookRecord), TradingBookRecord, session).all()
     }
 
 
@@ -448,7 +451,13 @@ def get_position_ladder(
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            contracts = session.query(UpstreamResourceContractRecord).all()
+            from eurogas_nexus.security.portfolio_scope import restrict
+
+            contracts = restrict(
+                session.query(UpstreamResourceContractRecord),
+                UpstreamResourceContractRecord,
+                session,
+            ).all()
             books = _books(session)
             order_books = _order_books(session)
             eur_rates = _ecb_rates(session)
@@ -706,7 +715,21 @@ def put_book(book_id: str, body: BookRequest, request: Request) -> dict:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
+            from eurogas_nexus.security.portfolio_scope import current_scope, restrict
+
             row = session.get(TradingBookRecord, book_id)
+            scope = current_scope()
+            if scope is not None and not (
+                scope.allows(book_id, body.legal_entity, body.region)
+                and (row is None or scope.allows(row.book_id, row.legal_entity, row.region))
+            ):
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "code": "book_outside_scope",
+                        "message": "Books can be defined only in your legal entity or region.",
+                    },
+                )
             created = row is None
             if row is None:
                 row = TradingBookRecord(book_id=book_id)
@@ -723,13 +746,21 @@ def put_book(book_id: str, body: BookRequest, request: Request) -> dict:
             moved_contracts = moved_orders = 0
             if body.contract_ids:
                 moved_contracts = (
-                    session.query(UpstreamResourceContractRecord)
+                    restrict(
+                        session.query(UpstreamResourceContractRecord),
+                        UpstreamResourceContractRecord,
+                        session,
+                    )
                     .filter(UpstreamResourceContractRecord.contract_id.in_(body.contract_ids))
                     .update({"book_id": book_id}, synchronize_session=False)
                 )
             if body.order_ids:
                 moved_orders = (
-                    session.query(ScreenOrderObservationRecord)
+                    restrict(
+                        session.query(ScreenOrderObservationRecord),
+                        ScreenOrderObservationRecord,
+                        session,
+                    )
                     .filter(ScreenOrderObservationRecord.order_observation_id.in_(body.order_ids))
                     .update({"book_id": book_id}, synchronize_session=False)
                 )

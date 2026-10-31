@@ -65,6 +65,30 @@ def runtime_db_status(request: Request) -> dict:
     }
 
 
+#: Basemaps a deployment may choose as its default (clients/web/src/app/mapTileProviders.ts).
+MAP_PROVIDERS = {"none", "custom", "openfreemap", "versatiles", "tianditu"}
+
+
+def deployment_profile(environ: dict[str, str] | None = None) -> dict[str, str]:
+    """The installation's region and its default basemap.
+
+    Open, commercially usable basemaps (OpenFreeMap, VersaTiles; OpenStreetMap data under
+    ODbL) serve global installations. They are hosted outside mainland China and are not
+    reliably reachable there, and maps published in mainland China must come from an
+    approved provider, so a China installation defaults to no basemap unless the operator
+    names its licensed provider (Tianditu with a key, or its own tile service).
+    """
+
+    import os
+
+    env = os.environ if environ is None else environ
+    region = str(env.get("EUROGAS_NEXUS_DEPLOYMENT_REGION") or "global").strip().lower()
+    chosen = str(env.get("EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER") or "").strip().lower()
+    if chosen not in MAP_PROVIDERS:
+        chosen = "none" if region == "china" else "openfreemap"
+    return {"region": region, "map_default_provider": chosen}
+
+
 @router.get("/api/runtime/release")
 def runtime_release_metadata(request: Request) -> dict:
     """Release identity and compatibility metadata (safe, no secrets).
@@ -108,6 +132,7 @@ def runtime_release_metadata(request: Request) -> dict:
             "strategy_schema_version": STRATEGY_SCHEMA_VERSION,
             "strategy_run_schema_version": RUN_SCHEMA_VERSION,
             "solver_version": SOLVER_VERSION,
+            "deployment": deployment_profile(),
         },
         "meta": {
             "research_only": False,

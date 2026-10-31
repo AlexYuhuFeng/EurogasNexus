@@ -333,6 +333,21 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
+            from eurogas_nexus.db.models import UpstreamResourceContractRecord
+            from eurogas_nexus.security.portfolio_scope import visible_book_ids
+
+            allowed = visible_book_ids(session)
+            if allowed is not None:
+                stored = session.get(UpstreamResourceContractRecord, body.contract_id)
+                if stored is not None and (stored.book_id or "") not in allowed:
+                    # A regional office cannot overwrite another office's contract.
+                    raise HTTPException(
+                        status_code=403,
+                        detail={
+                            "code": "contract_outside_book_scope",
+                            "message": "This contract is held in a book you cannot see.",
+                        },
+                    )
             try:
                 data = body.model_dump(mode="json")
                 # Omission preserves the stored declaration; only this field

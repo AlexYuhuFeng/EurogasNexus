@@ -75,10 +75,31 @@ is different on every row of the table, so it gets its own installation.
 - Positions roll up by **book → business → region → legal entity → firm** in one reporting
   currency (Portfolio → Exposure; Decision 26), so head office reads the global book and each
   region or desk its part.
-- **Office does not limit data today.** Data scopes do (source families). Region and
-  portfolio scope kinds are reported as unsupported. Before a desk's book is hidden from
-  another office inside the primary, a `PORTFOLIO` scope must be implemented. Until then,
-  separate books need separate installations.
+- **Portfolio isolation.** With `EUROGAS_NEXUS_PORTFOLIO_ISOLATION=true` every read and
+  change of contracts, trades, books and the ladder is limited to the books named by the
+  caller's `BOOKS:` data scopes:
+
+  | Scope | Sees |
+  |---|---|
+  | `BOOKS:*` | every book and positions not yet booked; firm P&L (head office) |
+  | `BOOKS:ENTITY:EGN-UK` | books of that legal entity |
+  | `BOOKS:REGION:north_america` | books of that region |
+  | `BOOKS:BOOK:UK-NBP-FLOW` | one book |
+
+  Head office holds `BOOKS:*` and reads Canada and the UK; the UK head holds
+  `BOOKS:ENTITY:EGN-UK` and the Canada head `BOOKS:ENTITY:EGN-CA`, and neither sees, edits
+  or moves the other's positions (`tests/security/test_portfolio_isolation.py`). A person
+  with no `BOOKS:` scope sees no positions. Scopes come from the administrator or from
+  directory groups ([ENTERPRISE_SSO.md](../operations/ENTERPRISE_SSO.md)). Office is a
+  profile attribute and does not grant data by itself.
+- Isolation inside one installation is an access control, not a residency boundary: data
+  that must not leave a jurisdiction still needs its own installation (above).
+- **Basemaps by country.** `EUROGAS_NEXUS_DEPLOYMENT_REGION` selects the default network
+  basemap: OpenFreeMap (OpenStreetMap data, free for commercial use with attribution)
+  elsewhere, none in a `china` installation, where those services may be unreachable and
+  map content is regulated; an approved domestic provider (Tianditu with the customer's own
+  key) or an internal tile server can be configured there. `EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER`
+  overrides the default; each person can still choose in Settings.
 
 ## When to add capacity, not before
 

@@ -296,6 +296,7 @@ export function GasNetworkMap({
           rasterBrightnessMin: effectiveTheme === "dark" ? 0.12 : 0.2,
           rasterBrightnessMax: effectiveTheme === "dark" ? 0.76 : 0.96,
         },
+        effectiveTheme === "dark" ? "dark" : "light",
       ),
     });
 

@@ -111,6 +111,7 @@ import {
   UpstreamContractInputDTO,
   openEventStream,
 } from "@/api/client";
+import { setDeploymentMapDefault } from "@/app/mapTileProviders";
 import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
   DEFAULT_LOGOUT_TIMEOUT_MS,
@@ -1461,7 +1462,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
         CLIENT_RELEASE_METADATA,
         releaseOutcome.value.data as RuntimeReleaseDTO,
       );
-      set({ runtimeRelease: releaseOutcome.value.data as RuntimeReleaseDTO, releaseCompatibility });
+      const release = releaseOutcome.value.data as RuntimeReleaseDTO;
+      setDeploymentMapDefault(release?.deployment?.map_default_provider);
+      set({ runtimeRelease: release, releaseCompatibility });
     } else {
       set({
         runtimeRelease: null,

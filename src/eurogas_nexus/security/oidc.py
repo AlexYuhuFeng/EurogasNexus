@@ -75,6 +75,8 @@ class OidcIdentity:
     issuer: str
     email: str | None = None
     groups: tuple[str, ...] = ()
+    #: Office code from the claim named by EUROGAS_NEXUS_SSO_OFFICE_CLAIM (directory mode).
+    office: str | None = None
 
 
 def oidc_configured() -> bool:
@@ -170,7 +172,16 @@ def validate_oidc_access_token(
         issuer=issuer,
         email=email if isinstance(email, str) and email.strip() else None,
         groups=groups,
+        office=_office_claim(payload),
     )
+
+
+def _office_claim(payload: dict) -> str | None:
+    """Office code from the claim named by EUROGAS_NEXUS_SSO_OFFICE_CLAIM (default office)."""
+
+    claim = os.environ.get("EUROGAS_NEXUS_SSO_OFFICE_CLAIM", "").strip() or "office"
+    value = payload.get(claim)
+    return str(value).strip().upper()[:16] if isinstance(value, str) and value.strip() else None
 
 
 def _decode_jwt(token: str) -> tuple[dict, dict, bytes, bytes]:
@@ -572,10 +583,7 @@ def configured_oidc_profile() -> dict:
 
 
 def oidc_redirect_uri() -> str:
-    return (
-        os.environ.get(OIDC_REDIRECT_URI_ENV, "").strip()
-        or "/api/auth/oidc/callback"
-    )
+    return os.environ.get(OIDC_REDIRECT_URI_ENV, "").strip() or "/api/auth/oidc/callback"
 
 
 def provisioning_mode() -> str:

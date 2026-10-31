@@ -4593,6 +4593,8 @@ export interface RuntimeReleaseDTO {
   strategy_schema_version: string;
   strategy_run_schema_version: string;
   solver_version: string;
+  /** Installation region and its default basemap (open licence globally, none in China). */
+  deployment?: { region: string; map_default_provider: string };
 }
 
 export interface RuntimeDependenciesDTO {

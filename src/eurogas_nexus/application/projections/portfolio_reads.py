@@ -44,10 +44,11 @@ def screen_orders(
 
     from eurogas_nexus.db.models import ScreenOrderObservationRecord, StrategyRecord
     from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
+    from eurogas_nexus.security.portfolio_scope import restrict
 
     visible = select(StrategyRecord.strategy_id).where(visible_strategy_clause(principal_id))
     rows = (
-        session.query(ScreenOrderObservationRecord)
+        restrict(session.query(ScreenOrderObservationRecord), ScreenOrderObservationRecord, session)
         .filter(
             or_(
                 ScreenOrderObservationRecord.linked_strategy_id.is_(None),
@@ -66,7 +67,16 @@ def screen_orders(
 def pnl_snapshots(
     session: Session, *, principal_id: str | None = None
 ) -> list[PortfolioPnlSnapshot]:
-    """Return indicative PnL snapshots, newest valuation first."""
+    """Return indicative PnL snapshots, newest valuation first.
+
+    Snapshots carry no book, so with portfolio isolation they are firm-level figures shown
+    only to callers who see every book.
+    """
+
+    from eurogas_nexus.security.portfolio_scope import firm_level_visible
+
+    if not firm_level_visible():
+        return []
 
     from sqlalchemy import or_, select
 

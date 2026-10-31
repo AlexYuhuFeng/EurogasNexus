@@ -47,3 +47,22 @@ def test_release_profile_requires_public_token_for_release_metadata() -> None:
     client = TestClient(create_app(Settings(api_profile="release")))
 
     assert client.get("/api/runtime/release").status_code == 401
+
+
+def test_deployment_profile_picks_region_appropriate_basemaps():
+    from eurogas_nexus.api.routes.public.runtime import deployment_profile
+
+    assert deployment_profile({}) == {"region": "global", "map_default_provider": "openfreemap"}
+    china = deployment_profile({"EUROGAS_NEXUS_DEPLOYMENT_REGION": "china"})
+    assert china["map_default_provider"] == "none"
+    chosen = deployment_profile(
+        {
+            "EUROGAS_NEXUS_DEPLOYMENT_REGION": "china",
+            "EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": "tianditu",
+        }
+    )
+    assert chosen["map_default_provider"] == "tianditu"
+    assert (
+        deployment_profile({"EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": "osm"})["map_default_provider"]
+        == "openfreemap"
+    )  # a non-commercial endpoint is never a deployment default

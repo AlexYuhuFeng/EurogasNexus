@@ -3815,5 +3815,11 @@
   "books.region_asia": "亚洲",
   "books.region_global": "全球",
   "topbar.command": "搜索或跳转…",
-  "report.export_csv": "导出 CSV"
+  "report.export_csv": "导出 CSV",
+  "settings.map_tile_licence_open": "开放许可：注明出处即可免费商用",
+  "settings.map_tile_provider_openfreemap": "OpenFreeMap：免费矢量底图，无需密钥，允许商用；© OpenMapTiles，数据 © OpenStreetMap 贡献者（ODbL）。",
+  "settings.map_tile_provider_versatiles": "VersaTiles：开源矢量底图，含浅色与深色样式，允许商用；数据 © OpenStreetMap 贡献者（ODbL）。可通过单个文件自建托管。",
+  "settings.map_tile_availability_anywhere": "所有部署均可用。",
+  "settings.map_tile_availability_outside-mainland-china": "托管于中国大陆以外：在大陆访问不稳定，且在中国大陆展示的地图须使用经审批的服务商。",
+  "settings.map_tile_availability_mainland-china": "适用于中国大陆部署（GCJ-02 或 CGCS2000 坐标）。"
 }

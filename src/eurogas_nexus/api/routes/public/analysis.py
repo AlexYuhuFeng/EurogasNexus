@@ -417,7 +417,17 @@ def _db_snapshot(
                 .limit(20)
                 .all()
             )
-            contracts = session.query(UpstreamResourceContractRecord).limit(50).all()
+            from eurogas_nexus.security.portfolio_scope import restrict
+
+            contracts = (
+                restrict(
+                    session.query(UpstreamResourceContractRecord),
+                    UpstreamResourceContractRecord,
+                    session,
+                )
+                .limit(50)
+                .all()
+            )
             admitted_flows: list[dict] = []
             omitted_unverified_volume = False
             for row in flows:
@@ -1173,8 +1183,7 @@ def _physical_quantity_invalid() -> HTTPException:
         detail={
             "code": _PHYSICAL_QUANTITY_INVALID_CODE,
             "message": (
-                "Stored physical quantity data failed strict validation and was not "
-                "returned."
+                "Stored physical quantity data failed strict validation and was not returned."
             ),
         },
     )

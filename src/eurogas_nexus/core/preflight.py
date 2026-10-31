@@ -461,14 +461,15 @@ def _check_oidc(environ: Mapping[str, str]) -> list[Finding]:
     missing = [name for name in names if name not in configured]
     if not missing:
         provisioning = _value(environ, "EUROGAS_NEXUS_OIDC_PROVISIONING_MODE").lower()
-        if provisioning and provisioning not in {"preprovisioned", "approved_domain"}:
+        if provisioning and provisioning not in {"preprovisioned", "approved_domain", "directory"}:
             return [
                 Finding(
                     severity="error",
                     code="oidc_provisioning_mode_invalid",
                     variable="EUROGAS_NEXUS_OIDC_PROVISIONING_MODE",
                     message=(
-                        f"unknown mode {provisioning!r}; expected preprovisioned or approved_domain"
+                        f"unknown mode {provisioning!r}; expected preprovisioned, approved_domain "
+                        "or directory"
                     ),
                     remedy="set a supported mode; the reader falls back silently otherwise",
                 )

@@ -300,10 +300,13 @@ export function SettingsCenter({
             {t(
               selectedMapTileProvider.licence === "not-for-commercial-use"
                 ? "settings.map_tile_licence_evaluation"
-                : "settings.map_tile_licence_deployment",
+                : selectedMapTileProvider.licence === "open-licence"
+                  ? "settings.map_tile_licence_open"
+                  : "settings.map_tile_licence_deployment",
             )}
           </strong>
           <small>{t(`settings.map_tile_provider_${selectedMapTileProvider.id}`)}</small>
+          <small>{t(`settings.map_tile_availability_${selectedMapTileProvider.availability}`)}</small>
         </p>
         {selectedMapTileProvider.id === "custom" && (
           <p className="settings-map-licence">

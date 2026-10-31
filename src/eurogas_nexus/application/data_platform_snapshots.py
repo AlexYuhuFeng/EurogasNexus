@@ -42,6 +42,7 @@ from eurogas_nexus.domain.market.gas_day import (
     EU_CAM_UTC_CALENDAR,
     gas_day_label,
 )
+from eurogas_nexus.security.capabilities import UNSUPPORTED_SCOPE_KINDS
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, keeps the API import DB-free
@@ -91,9 +92,7 @@ def build_analysis_snapshot(
     market_data_versions, market_state = _market_data_versions(provenance, runtime_available)
     network_version, network_state = _network_capacity_version(provenance, runtime_available)
     portfolio_version, portfolio_state = _portfolio_version(provenance, runtime_available)
-    contract_versions, contract_state = _contract_resource_versions(
-        provenance, runtime_available
-    )
+    contract_versions, contract_state = _contract_resource_versions(provenance, runtime_available)
     tariff_fx, tariff_state = _tariff_fx(provenance, runtime_available)
     weather_assumptions, weather_state = _weather_demand_assumptions()
     assumptions = dict(manual_assumptions or {})
@@ -348,9 +347,7 @@ def _entitlement_context(
     principal is not entitled to are counted, never listed.
     """
 
-    verdicts = [
-        evaluate_product_entitlement(principal, product) for product in data_products()
-    ]
+    verdicts = [evaluate_product_entitlement(principal, product) for product in data_products()]
     restricted = [verdict for verdict in verdicts if not verdict.allowed]
     payload = {
         "principal_id": principal.principal_id,
@@ -361,10 +358,8 @@ def _entitlement_context(
         "data_entitlement_refs": [f"DATA:{scope}" for scope in principal.data_scopes],
         "evaluated_product_count": len(verdicts),
         "restricted_product_count": len(restricted),
-        "restricted_family_count": sum(
-            verdict.restricted_family_count for verdict in restricted
-        ),
-        "unsupported_scope_kinds": ["ORGANIZATION", "PORTFOLIO", "MARKET", "REGION"],
+        "restricted_family_count": sum(verdict.restricted_family_count for verdict in restricted),
+        "unsupported_scope_kinds": list(UNSUPPORTED_SCOPE_KINDS),
     }
     return payload, DescriptorFieldState(
         field="entitlement_context",

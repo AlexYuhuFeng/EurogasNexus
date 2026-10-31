@@ -202,14 +202,15 @@ def test_disabled_principal_gets_no_capability_beyond_its_permissions() -> None:
 
 
 def test_scope_kinds_report_what_the_backend_cannot_express() -> None:
-    """Scope honesty: only DATA scopes exist, the rest are declared unsupported."""
+    """Scope honesty: DATA and PORTFOLIO scopes exist, the rest are declared unsupported."""
 
-    profile = build_experience_profile(_principal("ANALYST", scopes=("*", "EEX")))
+    profile = build_experience_profile(
+        _principal("ANALYST", scopes=("*", "EEX", "BOOKS:ENTITY:EGN-UK"))
+    )
 
-    assert profile.scope_refs == ("DATA:ALL", "DATA:EEX")
-    assert profile.data_entitlement_refs == ("*", "EEX")
-    assert set(SUPPORTED_SCOPE_KINDS) == {"DATA"}
-    assert set(UNSUPPORTED_SCOPE_KINDS) == {"ORGANIZATION", "PORTFOLIO", "MARKET", "REGION"}
+    assert profile.scope_refs == ("DATA:ALL", "DATA:EEX", "PORTFOLIO:ENTITY:EGN-UK")
+    assert set(SUPPORTED_SCOPE_KINDS) == {"DATA", "PORTFOLIO"}
+    assert set(UNSUPPORTED_SCOPE_KINDS) == {"ORGANIZATION", "MARKET", "REGION"}
     assert profile.unsupported_scope_kinds == UNSUPPORTED_SCOPE_KINDS
 
 

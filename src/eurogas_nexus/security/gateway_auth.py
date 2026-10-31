@@ -31,6 +31,7 @@ TRUSTED_PROXIES_ENV = "EUROGAS_NEXUS_GATEWAY_TRUSTED_PROXIES"
 USER_HEADER_ENV = "EUROGAS_NEXUS_GATEWAY_USER_HEADER"
 GROUPS_HEADER_ENV = "EUROGAS_NEXUS_GATEWAY_GROUPS_HEADER"
 EMAIL_HEADER_ENV = "EUROGAS_NEXUS_GATEWAY_EMAIL_HEADER"
+OFFICE_HEADER_ENV = "EUROGAS_NEXUS_GATEWAY_OFFICE_HEADER"
 SECRET_HEADER = "X-Eurogas-Gateway-Secret"
 MIN_SECRET_LENGTH = 32
 _ROLE_ORDER = ("VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN")
@@ -53,6 +54,7 @@ class GatewayConfig:
     user_header: str
     groups_header: str
     email_header: str
+    office_header: str = "X-Remote-Office"
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> GatewayConfig:
@@ -69,6 +71,7 @@ class GatewayConfig:
             user_header=str(env.get(USER_HEADER_ENV) or "X-Remote-User"),
             groups_header=str(env.get(GROUPS_HEADER_ENV) or "X-Remote-Groups"),
             email_header=str(env.get(EMAIL_HEADER_ENV) or "X-Remote-Email"),
+            office_header=str(env.get(OFFICE_HEADER_ENV) or "X-Remote-Office"),
         )
 
     def problems(self) -> list[str]:
@@ -133,4 +136,5 @@ def gateway_principal(
         email=(lowered.get(config.email_header.lower()) or None),
         identity_source="GATEWAY",
         auth_method="gateway_header",
+        office=(lowered.get(config.office_header.lower()) or "").strip().upper()[:16] or None,
     )

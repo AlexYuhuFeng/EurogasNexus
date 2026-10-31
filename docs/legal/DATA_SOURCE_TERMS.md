@@ -21,7 +21,7 @@ confirm each provider's current terms before a production deployment.
 | EEX public market data (TTF NGP reference) | reference index | Display/internal use only; redistribution and derived products need an EEX licence | Commercial family `EEX`; data-scope grant required |
 | WM/Reuters (LSEG), Bloomberg BFIX | FX fixes | Licensed; the subscriber's own entitlement | Operator import only; families `WMR`/`BFIX` need a grant |
 | Trayport, ICE, ICIS, Platts, Argus, Kpler | prices, assessments | Licensed per subscriber | Commercial families; no data shipped; a connector uses the customer's own credentials |
-| Map tiles | basemap | OSM/CARTO public tiles are not for commercial embedding | Default is no basemap; operator configures a licensed or self-hosted service |
+| Map tiles | basemap | OSM Foundation and CARTO public tiles are not for commercial embedding; OpenFreeMap and VersaTiles allow commercial use (OpenStreetMap data, ODbL attribution) | Default is OpenFreeMap; none in a China installation; an operator may configure a licensed or self-hosted service |
 | DeepSeek API (optional) | alert explanations | Provider API terms; prompts leave the deployment | Off unless an API key is configured server-side; payloads exclude licensed raw data |
 
 Simulated price sources (`*_Sim`) generate synthetic numbers locally. They carry no

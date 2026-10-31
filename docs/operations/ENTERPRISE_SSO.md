@@ -64,6 +64,33 @@ SAML works the same way with `mod_auth_mellon` or Shibboleth (`MELLON_NAME_ID`,
 the browser session is the SSO session. The desktop client points at the gateway URL and
 uses OIDC or an identity key where the gateway cannot authenticate a native client.
 
+## Inheriting company accounts
+
+By default a first sign-in creates a *pending* account that an administrator approves. A
+firm that manages access in its own directory sets
+
+```
+EUROGAS_NEXUS_OIDC_PROVISIONING_MODE=directory
+```
+
+Then, for OIDC and the authenticating gateway alike:
+
+- a person's first sign-in creates an active account named after the directory account;
+- roles and data scopes are recomputed from their groups at **every** sign-in through the
+  group maps, so leaving a group removes the access on the next sign-in;
+- the office comes from the `office` claim (`EUROGAS_NEXUS_SSO_OFFICE_CLAIM`) or the
+  `X-Remote-Office` header (`EUROGAS_NEXUS_GATEWAY_OFFICE_HEADER`);
+- an account an administrator has disabled or locked stays refused whatever the directory
+  says, and every created or changed account is audited as `access.directory.sync`.
+
+Map portfolio groups to `BOOKS:` scopes to give each office its own books, for example
+
+```
+EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP={"GAS-HQ-RISK":["BOOKS:*","EEX"],"GAS-UK-DESK":["BOOKS:ENTITY:EGN-UK","EEX"],"GAS-CA-DESK":["BOOKS:ENTITY:EGN-CA"]}
+```
+
+with `EUROGAS_NEXUS_PORTFOLIO_ISOLATION=true` ([GLOBAL_DEPLOYMENT.md](../architecture/GLOBAL_DEPLOYMENT.md)).
+
 ## Dedicated and air-gapped networks
 
 - **Internal certificate authority:** set `SSL_CERT_FILE` (and `REQUESTS_CA_BUNDLE`) on the
@@ -73,7 +100,7 @@ uses OIDC or an identity key where the gateway cannot authenticate a native clie
   (`EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED=false`, or point the LLM adapter at an
   internal model), use file imports for market data (`import_settlements.py`,
   `import_market_quotes.py`, `import_remit_umm.py`) and schedule only sources the network
-  can reach. The network map uses no external basemap by default; point its *custom*
-  tile provider at an internal tile server if imagery is wanted.
+  can reach. Set `EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=none` (or `custom`, pointing
+  at an internal tile server) so the map does not reach for a public basemap.
 - **Installation:** the server bundle and container images install from an internal
   registry; `docs/deployment/DEPLOYMENT_ROLES-EN.md` lists what each role needs.

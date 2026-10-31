@@ -72,8 +72,8 @@ def grant_problems(
     active = [lic for lic in licences if lic.active_on(today)]
     problems: dict[str, str] = {}
     for family in {f.strip().upper() for f in families if f.strip() and f.strip() != "*"}:
-        if family in public:
-            continue
+        if family in public or family.startswith("BOOKS:"):
+            continue  # book scopes are portfolio access, not a data licence
         candidates = [lic for lic in active if lic.source_family.upper() == family]
         if not candidates:
             problems[family] = "no active licence for this source in the licence register"

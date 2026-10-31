@@ -14,7 +14,7 @@ function confirm the conclusions for their entities and jurisdictions before go-
 | Security controls | Largely met | Windows code signing pending; encryption at rest is a deployment duty |
 | Data protection (GDPR / UK GDPR / PIPL / PDPA / PIPEDA) | Largely met | Erasure is a documented admin procedure, not self-service |
 | Data residency and cross-border transfer | Met by design | China installation and export approvals are customer-run |
-| Market regulation (REMIT, MAR, MiFID II record-keeping) | Supported | Information barriers between desks need portfolio scopes |
+| Market regulation (REMIT, MAR, MiFID II record-keeping) | Supported | Customer to map desks to book scopes |
 | Reporting | Internal reports and exports met | Regulatory transaction reporting stays with the ETRM/RRM |
 | Data sourcing, scraping and licensing | Met | Per-platform reuse terms for REMIT exports to be confirmed |
 | Open-source licences | Met | — |
@@ -88,10 +88,11 @@ data is required; ETRM imports carry an optional counterparty label only.
 
 **Findings**
 
-- **M1 (medium, product):** information barriers between desks (for example a desk with
-  inside information about its own assets) rely on separate data scopes today; book- or
-  portfolio-level scopes are the planned control (Decision 26). Until then, use separate
-  installations where a barrier is mandatory.
+- **M1 (low, customer compliance):** information barriers between offices and desks are
+  enforced by book scopes with portfolio isolation on (`BOOKS:` scopes,
+  `docs/architecture/GLOBAL_DEPLOYMENT.md`). Compliance maps each desk to its books and
+  reviews the group-to-scope map; analysis that is not book-bearing (market data, REMIT
+  UMMs) is shared by source family, so a barrier on those needs a separate installation.
 - **M2 (low, customer compliance):** add surveillance of decision cases and hand-offs to the
   firm's market-abuse monitoring (the audit trail is exportable).
 
@@ -114,7 +115,9 @@ by design and stay with the systems of record.
   extraction or commercial reuse (`docs/operations/MARKET_DATA_SOURCING.md`); where no
   licensed price exists the product shows the gap, never a substitute.
 - Simulated prices are labelled and never used as marks, risk figures or market prices.
-- The network map ships with no third-party basemap; an operator configures a licensed one.
+- The network map uses open-licence basemaps (OpenFreeMap, VersaTiles; OpenStreetMap data
+  under ODbL with attribution shown on the map) and none by default in a China
+  installation, where foreign map services may be blocked and maps are regulated.
 
 **Findings**
 
@@ -142,4 +145,4 @@ exceptions in `docs/legal/DEPENDENCY_LICENSE_REVIEW.md`; notices ship in
 
 Repeat this audit before each minor release and before 1.0.0, updating the findings table.
 Open findings that block 1.0.0: S1 (code signing). Findings for the customer's own
-programme: S2, P2, M2, D1.
+programme: S2, P2, M1, M2, D1.

@@ -292,6 +292,45 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         example="X-Remote-Groups",
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_GATEWAY_OFFICE_HEADER",
+        scope="OPERATOR",
+        purpose="Header carrying the user's office code (directory mode sets the profile office).",
+        example="X-Remote-Office",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SSO_OFFICE_CLAIM",
+        scope="OPERATOR",
+        purpose="OIDC claim carrying the user's office code (directory provisioning mode).",
+        example="office",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEPLOYMENT_REGION",
+        scope="OPERATOR",
+        purpose="Where this installation serves users: global (default) or china.",
+        example="global",
+        notes=("Selects region-appropriate defaults such as the basemap",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER",
+        scope="OPERATOR",
+        purpose=(
+            "Default basemap for this installation: openfreemap, versatiles (open licences, "
+            "global), tianditu (mainland China, key required), custom (own tile service) or none."
+        ),
+        example="openfreemap",
+        notes=("Use none or custom in networks without internet access",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_PORTFOLIO_ISOLATION",
+        scope="OPERATOR",
+        purpose=(
+            "Restrict contracts, trades and books to the books named by each person's "
+            "BOOKS: data scopes (head office BOOKS:*, regional heads their entity or region)."
+        ),
+        example="false",
+        notes=("Turn on for any installation shared by more than one office",),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_GATEWAY_EMAIL_HEADER",
         scope="OPERATOR",
         purpose="Header carrying the user's e-mail address (optional).",
@@ -344,7 +383,11 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
     ConfigVar(
         name="EUROGAS_NEXUS_OIDC_PROVISIONING_MODE",
         scope="OPERATOR",
-        purpose="How unknown identities are handled: preprovisioned or approved_domain.",
+        purpose=(
+            "How SSO identities become users: preprovisioned, approved_domain (registered "
+            "PENDING), or directory (created active; roles, scopes and office follow "
+            "directory groups at every sign-in)."
+        ),
         default="preprovisioned",
         notes=(
             "approved_domain registers a PENDING identity and still refuses access "

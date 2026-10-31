@@ -24,7 +24,15 @@ import type { StyleSpecification } from "maplibre-gl";
  * endpoints are not a commercial entitlement say so where the operator chooses them.
  */
 
-export type MapTileProviderId = "none" | "custom" | "osm" | "carto" | "amap" | "tianditu";
+export type MapTileProviderId =
+  | "none"
+  | "custom"
+  | "openfreemap"
+  | "versatiles"
+  | "osm"
+  | "carto"
+  | "amap"
+  | "tianditu";
 
 /**
  * Whether a provider may be used in a commercial deployment as-is.
@@ -34,7 +42,13 @@ export type MapTileProviderId = "none" | "custom" | "osm" | "carto" | "amap" | "
  * terms exclude production commercial use, so selecting it is a deliberate, recorded deployment
  * choice rather than something the product does on the operator's behalf.
  */
-export type MapTileLicenceState = "licensed-by-deployment" | "not-for-commercial-use";
+export type MapTileLicenceState =
+  | "licensed-by-deployment"
+  | "open-licence"
+  | "not-for-commercial-use";
+
+/** Where a basemap can be used: reachable and lawful to display. */
+export type MapTileAvailability = "anywhere" | "outside-mainland-china" | "mainland-china";
 
 export interface MapTileProvider {
   id: MapTileProviderId;
@@ -42,7 +56,11 @@ export interface MapTileProvider {
   labelZh: string;
   requiresToken: boolean;
   licence: MapTileLicenceState;
+  availability: MapTileAvailability;
   description: string;
+  /** Vector style URL for light and dark themes (vector providers only). */
+  styleUrl?: { light: string; dark: string };
+  attribution?: string;
 }
 
 export const MAP_TILE_STORAGE_KEY = "eurogas.settings.map_tile_provider";
@@ -58,6 +76,7 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     labelZh: "无底图（默认）",
     requiresToken: false,
     licence: "licensed-by-deployment",
+    availability: "anywhere",
     description:
       "The default. The network draws on a plain background, so no third-party licence is implied "
       + "by using the platform and nothing has to be reachable from the browser.",
@@ -68,9 +87,44 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     labelZh: "自建/自有瓦片服务",
     requiresToken: false,
     licence: "licensed-by-deployment",
+    availability: "anywhere",
     description:
       "A raster tile URL template you operate or license ({z}/{x}/{y} placeholders), with the "
       + "attribution text your licence requires. Recommended for a commercial deployment.",
+  },
+  {
+    id: "openfreemap",
+    label: "OpenFreeMap",
+    labelZh: "OpenFreeMap（开放许可，可商用）",
+    requiresToken: false,
+    licence: "open-licence",
+    availability: "outside-mainland-china",
+    description:
+      "Free vector basemap with no key and no usage limit, permitted for commercial use. Data © "
+      + "OpenStreetMap contributors (ODbL), schema by OpenMapTiles; attribution is shown on the map. "
+      + "Hosted outside mainland China.",
+    styleUrl: {
+      light: "https://tiles.openfreemap.org/styles/positron",
+      dark: "https://tiles.openfreemap.org/styles/positron",
+    },
+    attribution: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap",
+  },
+  {
+    id: "versatiles",
+    label: "VersaTiles",
+    labelZh: "VersaTiles（开放许可，可商用）",
+    requiresToken: false,
+    licence: "open-licence",
+    availability: "outside-mainland-china",
+    description:
+      "Free, open-source vector basemap permitted for commercial use, with light and dark styles. "
+      + "Data © OpenStreetMap contributors (ODbL). It can also be self-hosted from a single file for "
+      + "networks without internet access.",
+    styleUrl: {
+      light: "https://tiles.versatiles.org/assets/styles/graybeard/style.json",
+      dark: "https://tiles.versatiles.org/assets/styles/eclipse/style.json",
+    },
+    attribution: "© VersaTiles © OpenStreetMap contributors",
   },
   {
     id: "tianditu",
@@ -78,6 +132,7 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     labelZh: "天地图（需 operator token）",
     requiresToken: true,
     licence: "licensed-by-deployment",
+    availability: "mainland-china",
     description:
       "CGCS2000-compatible WMTS basemap operated in mainland China. Requires an operator-provided "
       + "Tianditu token; coordinate alignment with the network WGS84 data is display-safe.",
@@ -88,6 +143,7 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     labelZh: "OpenStreetMap（仅非商业/评估）",
     requiresToken: false,
     licence: "not-for-commercial-use",
+    availability: "outside-mainland-china",
     description:
       "Volunteer-run tile service. Its usage policy excludes heavy and commercial use, so this is "
       + "for evaluation only: a production deployment must configure its own source.",
@@ -98,6 +154,7 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     labelZh: "CARTO Voyager（仅非商业/评估）",
     requiresToken: false,
     licence: "not-for-commercial-use",
+    availability: "outside-mainland-china",
     description:
       "Public basemaps endpoint, not a production entitlement under CARTO's terms. Evaluation only.",
   },
@@ -107,6 +164,7 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     labelZh: "高德地图（仅非商业/评估）",
     requiresToken: false,
     licence: "not-for-commercial-use",
+    availability: "mainland-china",
     description:
       "Public raster endpoint whose terms require a key or an enterprise agreement for production "
       + "use. Evaluation only. AMap uses GCJ-02 coordinates; the client transforms WGS84 network "
@@ -148,6 +206,13 @@ export function configuredCustomTileAttribution(): string {
   return (value ?? "").trim();
 }
 
+let deploymentDefault: MapTileProviderId | null = null;
+
+/** Set from the server's deployment profile (`GET /api/runtime/release` → `deployment`). */
+export function setDeploymentMapDefault(id: string | null | undefined): void {
+  deploymentDefault = mapTileProviderById(id)?.id ?? null;
+}
+
 export function configuredMapTileProviderId(): MapTileProviderId {
   try {
     const stored = localStorage.getItem(MAP_TILE_STORAGE_KEY);
@@ -157,6 +222,7 @@ export function configuredMapTileProviderId(): MapTileProviderId {
   } catch {
     // storage unavailable: fall through to build-time env
   }
+  if (deploymentDefault) return deploymentDefault;
   const env = import.meta.env.VITE_EUROGAS_MAP_TILE_PROVIDER as string | undefined;
   const fromEnv = mapTileProviderById(env);
   if (fromEnv) {
@@ -285,7 +351,15 @@ export function buildMapStyle(
   providerId: MapTileProviderId,
   token: string,
   options: MapStyleOptions,
-): StyleSpecification {
+  /** Theme for vector providers' light or dark style. */
+  theme: "light" | "dark" = "light",
+): StyleSpecification | string {
+  const vector = mapTileProviderById(providerId)?.styleUrl;
+  if (vector) {
+    // Open vector basemaps ship their own style (and attribution); the network layers are
+    // added on top once it has loaded.
+    return vector[theme];
+  }
   const paint = {
     "raster-opacity": options.rasterOpacity,
     "raster-saturation": options.rasterSaturation,

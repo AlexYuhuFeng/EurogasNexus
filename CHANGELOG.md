@@ -54,6 +54,14 @@ version lives under [docs/release/notes](docs/release/notes).
 - Design system: one token set and type scale, a calm sticky shell with search (Ctrl/Cmd K), consistent tabs, tables and badges, motion that respects reduced-motion, WCAG AA in both themes.
 - Common foundation for currencies (ISO 4217, quote units such as GBp and CNH, dated FX tables), units with dimensions, and time (UTC instants, market calendars, office zones).
 - Gateway single sign-on for dedicated networks (SAML, Kerberos, vendor SSO agents) alongside OIDC.
+- Company directory accounts are inherited in a dedicated network
+  (`EUROGAS_NEXUS_OIDC_PROVISIONING_MODE=directory`): people sign in with their SSO account,
+  and their roles, data scopes and office follow their directory groups at every sign-in.
+- Portfolio isolation between offices (`EUROGAS_NEXUS_PORTFOLIO_ISOLATION=true`): head
+  office sees every book; a regional office sees only books in its `BOOKS:` scopes.
+- Region-aware open-licence basemaps (OpenFreeMap, VersaTiles) chosen by
+  `EUROGAS_NEXUS_DEPLOYMENT_REGION`; a mainland China installation defaults to no external
+  basemap.
 - ETRM trade import into books, CSV exports of position, balance and gas-for-power reports, and signed hand-offs of decided cases for ERP/ETRM middleware.
 
 ### Changed
