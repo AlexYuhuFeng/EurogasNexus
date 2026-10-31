@@ -325,11 +325,15 @@ jobs:
             --report release-evidence/vulnerability-scan.json \
             --output release-evidence/vulnerability-scan.json
 
+      # cargo-audit is installed at a pinned version with its own lockfile (--locked), so a
+      # newer transitive crate cannot raise the compiler requirement above RUST_TOOLCHAIN.
+      # (rustsec/audit-check installs the latest dependencies unlocked and broke on 1.94.)
+      - name: Install cargo-audit (pinned, locked)
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
       - name: Run Rust vulnerability scan
-        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
-        with:
-          token: ${{ github.token }}
-          working-directory: clients/desktop/src-tauri
+        working-directory: clients/desktop/src-tauri
+        run: cargo audit
 
       - name: Upload scan evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

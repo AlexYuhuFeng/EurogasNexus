@@ -1,11 +1,41 @@
 # Third-Party Notices
 
-Eurogas Nexus is proprietary software. The dependency locks below were
-used by the corresponding release build. This file is generated from the
-locked dependency metadata; `NOASSERTION` means the lock did not carry a
-machine-readable license expression for that package.
+Eurogas Nexus is proprietary software. This file lists the packages and
+lock-declared license expressions recorded in the enforced dependency
+locks used by the corresponding release build. `NOASSERTION` means the
+lock carried no machine-readable license expression for that package, not
+that no license applies.
+
+Scope limits:
+
+- Lock files over-cover the shipped artifact: npm locks include dev/optional
+  dependencies and Cargo.lock includes build/dev dependencies for all
+  targets, so packages not installed on a customer machine can appear.
+- The Python lock is the runtime lock; Python build/test tooling is not
+  inventoried here.
+- Cargo.lock and the Python lock carry no license metadata, so their
+  packages are reported as `NOASSERTION` and need manual review, except
+  exact approved reviewed-choice records whose evidence is reproduced below.
+- Operating-system packages inside the runtime container image, native
+  binaries bundled by the installers, and vendored third-party code are
+  not inventoried here.
+- npm `link: true` workspace entries are local paths, not registry
+  packages; they are excluded from these lists and disclosed under
+  `excluded_entries` in `sbom-manifest.json`.
+- Reviewed Cargo license choices select only the named MIT branch for one
+  exact package identity; the original expression remains declared above,
+  the other branches are not approved, and this is not legal clearance.
+- This file is not a legal review; it includes full retained AUTHORS text
+  only for exact reviewed Cargo choices and otherwise no full license texts.
+  Obtain other texts from the upstream packages and confirm obligations with
+  legal counsel before distribution.
+
+Package counts and the SHA-256 of every lock input are recorded in
+`sbom-manifest.json`.
 
 ## desktop-node
+
+12 packages recorded: 12 with a lock-declared license expression, 0 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
 
 - @tauri-apps/cli 2.11.2 (Apache-2.0 OR MIT)
 - @tauri-apps/cli-darwin-arm64 2.11.2 (Apache-2.0 OR MIT)
@@ -22,6 +52,8 @@ machine-readable license expression for that package.
 
 ## desktop-rust
 
+435 packages recorded: 2 with a lock-declared license expression, 433 unknown (`NOASSERTION`), 2 exact reviewed choice(s).
+
 - adler2 2.0.1 (NOASSERTION)
 - aho-corasick 1.1.4 (NOASSERTION)
 - alloc-no-stdlib 2.0.4 (NOASSERTION)
@@ -34,6 +66,7 @@ machine-readable license expression for that package.
 - autocfg 1.5.1 (NOASSERTION)
 - base64 0.21.7 (NOASSERTION)
 - base64 0.22.1 (NOASSERTION)
+- base64 0.23.1 (NOASSERTION)
 - bit-set 0.8.0 (NOASSERTION)
 - bit-vec 0.8.0 (NOASSERTION)
 - bitflags 1.3.2 (NOASSERTION)
@@ -238,7 +271,7 @@ machine-readable license expression for that package.
 - phf_shared 0.13.1 (NOASSERTION)
 - pin-project-lite 0.2.17 (NOASSERTION)
 - pkg-config 0.3.33 (NOASSERTION)
-- plist 1.9.0 (NOASSERTION)
+- plist 1.10.3 (NOASSERTION)
 - png 0.17.16 (NOASSERTION)
 - png 0.18.1 (NOASSERTION)
 - potential_utf 0.1.5 (NOASSERTION)
@@ -251,10 +284,10 @@ machine-readable license expression for that package.
 - proc-macro-error 1.0.4 (NOASSERTION)
 - proc-macro-error-attr 1.0.4 (NOASSERTION)
 - proc-macro2 1.0.106 (NOASSERTION)
-- quick-xml 0.39.4 (NOASSERTION)
+- quick-xml 0.42.0 (NOASSERTION)
 - quote 1.0.45 (NOASSERTION)
-- r-efi 5.3.0 (NOASSERTION)
-- r-efi 6.0.0 (NOASSERTION)
+- r-efi 5.3.0 - declared: MIT OR Apache-2.0 OR LGPL-2.1-or-later; selected: MIT (record RCLC-0001; text SHA-256 ff92bed461f50338dd703a9ba9aee496a425957873df1d91192776e4bdf5dda7; 3693 bytes)
+- r-efi 6.0.0 - declared: MIT OR Apache-2.0 OR LGPL-2.1-or-later; selected: MIT (record RCLC-0002; text SHA-256 d027e91dbc9cdbb2f1190068e498bd6b61cff022b6a032b191021ba658d96111; 3733 bytes)
 - raw-window-handle 0.6.2 (NOASSERTION)
 - redox_syscall 0.5.18 (NOASSERTION)
 - redox_users 0.5.2 (NOASSERTION)
@@ -459,12 +492,14 @@ machine-readable license expression for that package.
 
 ## python-runtime
 
+30 packages recorded: 0 with a lock-declared license expression, 30 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
+
 - alembic 1.20.0 (NOASSERTION)
 - annotated-doc 0.0.5 (NOASSERTION)
 - annotated-types 0.8.0 (NOASSERTION)
 - anyio 4.15.1 (NOASSERTION)
 - asn1crypto 1.5.1 (NOASSERTION)
-- certifi 2026.7.22 (NOASSERTION)
+- certifi 2026.10.19 (NOASSERTION)
 - cffi 2.1.1 (NOASSERTION)
 - click 8.5.0 (NOASSERTION)
 - cryptography 50.0.1 (NOASSERTION)
@@ -492,23 +527,24 @@ machine-readable license expression for that package.
 
 ## web-node
 
+89 packages recorded: 89 with a lock-declared license expression, 0 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
+
 - @babel/runtime 7.29.7 (MIT)
 - @emnapi/core 1.11.1 (MIT)
+- @emnapi/core 1.11.3 (MIT)
 - @emnapi/runtime 1.11.1 (MIT)
+- @emnapi/runtime 1.11.3 (MIT)
 - @emnapi/wasi-threads 1.2.2 (MIT)
-- @mapbox/jsonlint-lines-primitives 2.0.2 (NOASSERTION)
+- @emnapi/wasi-threads 1.2.3 (MIT)
+- @mapbox/jsonlint-lines-primitives 2.0.3 (MIT)
+- @mapbox/point-geometry 1.1.0 (ISC)
 - @mapbox/tiny-sdf 2.2.0 (BSD-2-Clause)
-- @mapbox/unitbezier 0.0.1 (BSD-2-Clause)
-- @mapbox/whoots-js 3.1.0 (ISC)
-- @maplibre/geojson-vt 6.1.0 (ISC)
-- @maplibre/maplibre-gl-style-spec 24.8.5 (ISC)
-- @maplibre/mlt 1.1.11 ((MIT OR Apache-2.0))
-- @maplibre/mlt/node_modules/@mapbox/point-geometry 1.1.0 (ISC)
-- @maplibre/vt-pbf 4.3.0 (MIT)
-- @maplibre/vt-pbf/node_modules/@mapbox/point-geometry 1.1.0 (ISC)
-- @maplibre/vt-pbf/node_modules/@mapbox/vector-tile 2.0.5 (BSD-3-Clause)
-- @maplibre/vt-pbf/node_modules/@maplibre/geojson-vt 5.0.4 (ISC)
-- @maplibre/vt-pbf/node_modules/pbf 4.0.2 (BSD-3-Clause)
+- @mapbox/unitbezier 1.0.0 (BSD-2-Clause)
+- @mapbox/vector-tile 3.0.0 (BSD-3-Clause)
+- @maplibre/geojson-vt 6.1.1 (ISC)
+- @maplibre/maplibre-gl-style-spec 26.4.4 (ISC)
+- @maplibre/mlt 1.3.0 ((MIT OR Apache-2.0))
+- @maplibre/vt-pbf 4.3.2 (MIT)
 - @napi-rs/wasm-runtime 1.1.6 (MIT)
 - @oxc-project/types 0.139.0 (MIT)
 - @rolldown/binding-android-arm64 1.1.5 (MIT)
@@ -532,10 +568,11 @@ machine-readable license expression for that package.
 - @types/geojson 7946.0.16 (MIT)
 - @types/react 19.2.15 (MIT)
 - @types/react-dom 19.2.3 (MIT)
-- @types/supercluster 7.1.3 (MIT)
 - @vitejs/plugin-react 6.0.3 (MIT)
+- bidi-js 1.1.0 (MIT)
 - csstype 3.2.3 (MIT)
 - detect-libc 2.1.2 (Apache-2.0)
+- earcut 3.2.3 (ISC)
 - fdir 6.5.0 (MIT)
 - fsevents 2.3.3 (MIT)
 - gl-matrix 3.4.4 (MIT)
@@ -555,32 +592,206 @@ machine-readable license expression for that package.
 - lightningcss-linux-x64-musl 1.32.0 (MPL-2.0)
 - lightningcss-win32-arm64-msvc 1.32.0 (MPL-2.0)
 - lightningcss-win32-x64-msvc 1.32.0 (MPL-2.0)
-- maplibre-gl 5.24.0 (BSD-3-Clause)
-- maplibre-gl/node_modules/@mapbox/point-geometry 1.1.0 (ISC)
-- maplibre-gl/node_modules/@mapbox/vector-tile 2.0.5 (BSD-3-Clause)
-- maplibre-gl/node_modules/earcut 3.0.2 (ISC)
-- maplibre-gl/node_modules/pbf 4.0.2 (BSD-3-Clause)
+- maplibre-gl 6.10.0 (BSD-3-Clause)
 - minimist 1.2.8 (MIT)
 - murmurhash-js 1.0.0 (MIT)
-- nanoid 3.3.15 (MIT)
+- nanoid 3.3.19 (MIT)
+- pbf 5.1.2 (BSD-3-Clause)
 - picocolors 1.1.1 (ISC)
 - picomatch 4.0.5 (MIT)
-- postcss 8.5.17 (MIT)
+- postcss 8.5.28 (MIT)
 - potpack 2.1.0 (ISC)
 - protocol-buffers-schema 3.6.1 (MIT)
 - quickselect 3.0.0 (ISC)
 - react 19.2.6 (MIT)
 - react-dom 19.2.6 (MIT)
 - react-i18next 15.7.4 (MIT)
+- require-from-string 2.0.2 (MIT)
 - resolve-protobuf-schema 2.1.0 (MIT)
 - rolldown 1.1.5 (MIT)
 - scheduler 0.27.0 (MIT)
-- source-map-js 1.2.1 (BSD-3-Clause)
-- supercluster 8.0.1 (ISC)
+- source-map-js 1.2.2 (BSD-3-Clause)
 - tinyglobby 0.2.17 (MIT)
 - tinyqueue 3.0.0 (ISC)
 - tslib 2.8.1 (0BSD)
 - typescript 5.9.3 (Apache-2.0)
-- vite 8.1.4 (MIT)
+- vite 8.1.6 (MIT)
 - void-elements 3.1.0 (MIT)
 - zustand 5.0.14 (MIT)
+
+## Reviewed Cargo license-choice evidence
+
+These records select the MIT branch for exact package identities only.
+The original upstream expression is retained above and in the SPDX
+`licenseDeclared`; the other expression terms are not approved. The
+complete retained upstream AUTHORS text is reproduced below as notice
+evidence. This is technical review evidence, not legal clearance.
+
+### r-efi 5.3.0 - RCLC-0001
+
+- Declared expression: `MIT OR Apache-2.0 OR LGPL-2.1-or-later`
+- Selected license: `MIT`
+- Evidence text: `docs/policies/licenses/r-efi-5.3.0-AUTHORS.txt` (SHA-256 `ff92bed461f50338dd703a9ba9aee496a425957873df1d91192776e4bdf5dda7`, 3693 bytes)
+- Record reference: RFC-0002: Reviewed Cargo License Choices (accepted 2026-10-28; docs/engineering/RFC-0002-REVIEWED-CARGO-LICENSE-CHOICES.md)
+
+```text
+LICENSE:
+        This project is triple-licensed under the MIT License, the Apache
+        License, Version 2.0, and the GNU Lesser General Public License,
+        Version 2.1+.
+
+AUTHORS-MIT:
+        Permission is hereby granted, free of charge, to any person obtaining a
+        copy of this software and associated documentation files (the
+        "Software"), to deal in the Software without restriction, including
+        without limitation the rights to use, copy, modify, merge, publish,
+        distribute, sublicense, and/or sell copies of the Software, and to
+        permit persons to whom the Software is furnished to do so, subject to
+        the following conditions:
+
+        The above copyright notice and this permission notice shall be included
+        in all copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+        OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+        MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+        IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+        CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+        TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+        SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+AUTHORS-ASL:
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+                http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+
+AUTHORS-LGPL:
+        This program is free software; you can redistribute it and/or modify it
+        under the terms of the GNU Lesser General Public License as published
+        by the Free Software Foundation; either version 2.1 of the License, or
+        (at your option) any later version.
+
+        This program is distributed in the hope that it will be useful, but
+        WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+        Lesser General Public License for more details.
+
+        You should have received a copy of the GNU Lesser General Public License
+        along with this program; If not, see <http://www.gnu.org/licenses/>.
+
+COPYRIGHT: (ordered alphabetically)
+        Copyright (C) 2017-2023 Red Hat, Inc.
+        Copyright (C) 2019-2023 Microsoft Corporation
+        Copyright (C) 2022-2023 David Rheinsberg
+
+AUTHORS: (ordered alphabetically)
+        Alex James <theracermaster@gmail.com>
+        Ayush Singh <ayushsingh1325@gmail.com>
+        Boris-Chengbiao Zhou <bobo1239@web.de>
+        Bret Barkelew <bret@corthon.com>
+        Christopher Zurcher <christopher.zurcher@microsoft.com>
+        David Rheinsberg <david@readahead.eu>
+        Dmitry Mostovenko <trueberserker@gmail.com>
+        Hiroki Tokunaga <tokusan441@gmail.com>
+        Joe Richey <joerichey@google.com>
+        John Schock <joschock@microsoft.com>
+        Michael Kubacki <michael.kubacki@microsoft.com>
+        Oliver Smith-Denny <osde@microsoft.com>
+        Richard Wiedenhöft <richard@wiedenhoeft.xyz>
+        Rob Bradford <robert.bradford@intel.com>, <rbradford@rivosinc.com>
+        Tom Gundersen <teg@jklm.no>
+        Trevor Gross <tmgross@umich.edu>
+```
+
+### r-efi 6.0.0 - RCLC-0002
+
+- Declared expression: `MIT OR Apache-2.0 OR LGPL-2.1-or-later`
+- Selected license: `MIT`
+- Evidence text: `docs/policies/licenses/r-efi-6.0.0-AUTHORS.txt` (SHA-256 `d027e91dbc9cdbb2f1190068e498bd6b61cff022b6a032b191021ba658d96111`, 3733 bytes)
+- Record reference: RFC-0002: Reviewed Cargo License Choices (accepted 2026-10-28; docs/engineering/RFC-0002-REVIEWED-CARGO-LICENSE-CHOICES.md)
+
+```text
+LICENSE:
+        This project is triple-licensed under the MIT License, the Apache
+        License, Version 2.0, and the GNU Lesser General Public License,
+        Version 2.1+.
+
+AUTHORS-MIT:
+        Permission is hereby granted, free of charge, to any person obtaining a
+        copy of this software and associated documentation files (the
+        "Software"), to deal in the Software without restriction, including
+        without limitation the rights to use, copy, modify, merge, publish,
+        distribute, sublicense, and/or sell copies of the Software, and to
+        permit persons to whom the Software is furnished to do so, subject to
+        the following conditions:
+
+        The above copyright notice and this permission notice shall be included
+        in all copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+        OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+        MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+        IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+        CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+        TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+        SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+AUTHORS-ASL:
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+                http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+
+AUTHORS-LGPL:
+        This program is free software; you can redistribute it and/or modify it
+        under the terms of the GNU Lesser General Public License as published
+        by the Free Software Foundation; either version 2.1 of the License, or
+        (at your option) any later version.
+
+        This program is distributed in the hope that it will be useful, but
+        WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+        Lesser General Public License for more details.
+
+        You should have received a copy of the GNU Lesser General Public License
+        along with this program; If not, see <http://www.gnu.org/licenses/>.
+
+COPYRIGHT: (ordered alphabetically)
+        Copyright (C) 2017-2023 Red Hat, Inc.
+        Copyright (C) 2019-2023 Microsoft Corporation
+        Copyright (C) 2022-2023 David Rheinsberg
+
+AUTHORS: (ordered alphabetically)
+        Alan Egerton <eggyal@gmail.com>
+        Alex James <theracermaster@gmail.com>
+        Ayush Singh <ayushsingh1325@gmail.com>
+        Boris-Chengbiao Zhou <bobo1239@web.de>
+        Bret Barkelew <bret@corthon.com>
+        Christopher Zurcher <christopher.zurcher@microsoft.com>
+        David Rheinsberg <david@readahead.eu>
+        Dmitry Mostovenko <trueberserker@gmail.com>
+        Hiroki Tokunaga <tokusan441@gmail.com>
+        Joe Richey <joerichey@google.com>
+        John Schock <joschock@microsoft.com>
+        Michael Kubacki <michael.kubacki@microsoft.com>
+        Oliver Smith-Denny <osde@microsoft.com>
+        Richard Wiedenhöft <richard@wiedenhoeft.xyz>
+        Rob Bradford <robert.bradford@intel.com>, <rbradford@rivosinc.com>
+        Tom Gundersen <teg@jklm.no>
+        Trevor Gross <tmgross@umich.edu>
+```
