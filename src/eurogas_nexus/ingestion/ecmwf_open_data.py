@@ -28,6 +28,8 @@ from xml.etree import ElementTree
 
 import httpx
 
+from eurogas_nexus.core.outbound_http import client_options
+
 MODEL_NAME = "ifs"
 GRID_NAME = "0p25"
 PRODUCT_STREAM = "oper"
@@ -754,6 +756,7 @@ class EcmwfOpenDataClient:
             timeout=httpx.Timeout(timeout_seconds, connect=min(5.0, timeout_seconds)),
             follow_redirects=False,
             trust_env=False,
+            **(client_options(ECMWF_FORECASTS_URL) if transport is None else {}),
             cookies=None,
             headers={
                 "User-Agent": _USER_AGENT,

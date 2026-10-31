@@ -15,6 +15,7 @@ from datetime import date
 
 import httpx
 
+from eurogas_nexus.core.outbound_http import client_options
 from eurogas_nexus.db.repositories.demand import (
     DemandPersistenceError,
     insert_demand_rows,
@@ -22,6 +23,7 @@ from eurogas_nexus.db.repositories.demand import (
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 from eurogas_nexus.ingestion.national_gas_demand import (
     ALLOWED_PROVIDER_ITEM_IDS,
+    DOWNLOAD_URL,
     NationalGasDemandError,
     download_national_gas_csv,
     validate_query_window,
@@ -77,7 +79,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        with httpx.Client(timeout=10.0, follow_redirects=False, trust_env=False) as client:
+        with httpx.Client(
+            timeout=10.0,
+            follow_redirects=False,
+            trust_env=False,
+            **client_options(DOWNLOAD_URL),
+        ) as client:
             downloads = [
                 download_national_gas_csv(
                     publication_id,

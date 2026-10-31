@@ -10,7 +10,28 @@ branch_labels = None
 depends_on = None
 
 
+#: Columns whose models had grown wider than the deployed schema (found by comparing the
+#: models with a migrated PostgreSQL database). SQLite ignores VARCHAR lengths, so only
+#: PostgreSQL showed it: an ENTSOG run that ended SUCCEEDED_WITH_WARNINGS (23 characters)
+#: could not record its status in VARCHAR(16), and long SSO subjects could not be stored.
+_WIDENED = (
+    ("ingestion_runs", "status", 16, 32),
+    ("identity_api_keys", "created_by", 64, 80),
+    ("identity_external_ids", "identity_id", 64, 80),
+    ("identity_external_ids", "provider_id", 64, 80),
+    ("identity_principals", "principal_id", 64, 80),
+    ("identity_principals", "name", 64, 80),
+    ("oidc_authorization_states", "code_verifier_hash", 64, 80),
+    ("oidc_authorization_states", "nonce", 64, 80),
+    ("user_sessions", "session_id", 64, 80),
+    ("user_sessions", "session_token_hash", 64, 80),
+)
+
+
 def upgrade() -> None:
+    if op.get_bind().dialect.name == "postgresql":
+        for table, column, old, new in _WIDENED:
+            op.alter_column(table, column, type_=sa.String(new), existing_type=sa.String(old))
     with op.batch_alter_table("upstream_resource_contracts") as batch:
         batch.add_column(sa.Column("retired_at_utc", sa.DateTime(timezone=True), nullable=True))
         batch.add_column(sa.Column("retired_by", sa.String(128), nullable=True))
@@ -66,8 +87,6 @@ def upgrade() -> None:
         sa.Column("name", sa.String(128), nullable=False),
         sa.Column("kind", sa.String(16), nullable=False),
         sa.Column("recipients", sa.Text(), nullable=True),
-        sa.Column("secret_ciphertext", sa.Text(), nullable=True),
-        sa.Column("secret_preview", sa.String(64), nullable=True),
         sa.Column("categories", sa.JSON(), nullable=True),
         sa.Column("min_severity", sa.String(16), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
@@ -97,6 +116,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Narrowing is not reversed: values longer than the old width may now exist.
     op.drop_table("notification_deliveries")
     op.drop_table("notification_outbox")
     op.drop_table("notification_channels")

@@ -83,36 +83,27 @@ def test_a_trader_reports_a_problem_and_the_it_desk_resolves_it(tmp_path, monkey
     assert done.status_code == 200 and done.json()["data"]["assignee"]
 
 
-def test_channels_are_admin_only_and_webhook_urls_never_return(tmp_path, monkeypatch):
-    # The credential key also keys API-key hashing, so it is set before identities exist.
-    monkeypatch.setenv("EUROGAS_NEXUS_SECRET_KEY", "k" * 44)
+def test_email_channels_are_admin_only_and_addresses_are_checked(tmp_path, monkeypatch):
     _engine, who = _setup(tmp_path, monkeypatch)
     client = TestClient(create_app())
     path = "/api/settings/notification-channels"
     assert client.get(path, headers=who["it"]).status_code == 403
     email = {
         "name": "IT desk",
-        "kind": "email",
-        "recipients": "it@example.com",
+        "recipients": "it@example.com, risk@example.com",
         "categories": ["support", "source"],
         "min_severity": "medium",
     }
     first = client.put(f"{path}/it", json=email, headers=who["admin"])
     assert first.status_code == 200, first.text
-    hook = {
-        "name": "Desk Teams",
-        "kind": "webhook",
-        "webhook_url": "https://example.webhook.office.com/abc/SECRETPART",
-        "categories": ["alert"],
-    }
-    saved = client.put(f"{path}/desk", json=hook, headers=who["admin"])
-    assert saved.status_code == 200, saved.text
-    listed = client.get(path, headers=who["admin"]).json()["data"]["rows"]
-    assert "SECRETPART" not in str(listed)
-    plain = client.put(
-        f"{path}/x", json={**hook, "webhook_url": "http://insecure"}, headers=who["admin"]
+    (row,) = client.get(path, headers=who["admin"]).json()["data"]["rows"]
+    assert row["recipients"] == "it@example.com, risk@example.com" and row["kind"] == "email"
+    bad = client.put(
+        f"{path}/x", json={**email, "recipients": "not an address"}, headers=who["admin"]
     )
-    assert plain.status_code == 422
+    assert bad.status_code == 422 and bad.json()["detail"]["code"] == "recipients_invalid"
+    chat = client.put(f"{path}/x", json={**email, "kind": "webhook"}, headers=who["admin"])
+    assert chat.status_code == 422
     test = client.post(f"{path}/it/test", headers=who["admin"]).json()["data"]
     assert test["sent"] is False and "not configured" in test["detail"]
 

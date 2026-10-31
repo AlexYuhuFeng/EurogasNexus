@@ -5,12 +5,12 @@ import { api, type NotificationChannelDTO } from "@/api/client";
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 const CATEGORIES = ["alert", "support", "limits", "tariff", "source"];
-const EMPTY = { channel_id: "", name: "", kind: "email" as "email" | "webhook" | "sms", recipients: "", webhook_url: "", categories: [] as string[], min_severity: "high" };
+const EMPTY = { channel_id: "", name: "", recipients: "", categories: [] as string[], min_severity: "high" };
 
 /**
- * Where notifications go (administrators): email through the firm's SMTP relay, a Teams or
- * Slack webhook (stored encrypted) or SMS through the firm's gateway, each with the
- * categories and minimum severity it receives, a test button and its last delivery.
+ * Where notifications go (administrators): email lists sent through the firm's own SMTP
+ * relay, each with the categories and minimum severity it receives, a test button and its
+ * last delivery.
  */
 export function NotificationChannelsPanel({ t }: { t: Translate }) {
   const [rows, setRows] = useState<NotificationChannelDTO[] | null>(null);
@@ -26,9 +26,8 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
   const save = () => {
     api.saveNotificationChannel(draft.channel_id.trim(), {
       name: draft.name.trim(),
-      kind: draft.kind,
-      recipients: draft.kind === "webhook" ? null : draft.recipients,
-      webhook_url: draft.kind === "webhook" ? draft.webhook_url || null : null,
+      kind: "email",
+      recipients: draft.recipients,
       categories: draft.categories,
       min_severity: draft.min_severity,
       enabled: true,
@@ -62,7 +61,6 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
           <thead>
             <tr>
               <th scope="col">{t("notify.name")}</th>
-              <th scope="col">{t("notify.kind")}</th>
               <th scope="col">{t("notify.receives")}</th>
               <th scope="col">{t("notify.last")}</th>
               <th scope="col" />
@@ -71,8 +69,7 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.channel_id}>
-                <td><strong>{row.name}</strong> <small>{row.recipients ?? row.webhook ?? ""}</small></td>
-                <td>{t(`notify.kind_${row.kind}`)}</td>
+                <td><strong>{row.name}</strong> <small>{row.recipients ?? ""}</small></td>
                 <td><small>{(row.categories.length ? row.categories : [t("notify.all")]).join(", ")} · ≥ {row.min_severity}</small></td>
                 <td>{row.last_delivery ? <span className="limit-badge" data-status={row.last_delivery.status === "sent" ? "ok" : "breach"} title={row.last_delivery.detail}>{row.last_delivery.status}</span> : <small className="muted">-</small>}</td>
                 <td><button type="button" className="link-button" onClick={() => test(row)}>{t("notify.test")}</button></td>
@@ -84,17 +81,7 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
       <div className="licence-form">
         <label><span>{t("notify.channel_id")}</span><input value={draft.channel_id} onChange={(event) => setDraft({ ...draft, channel_id: event.target.value })} /></label>
         <label><span>{t("notify.name")}</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
-        <label>
-          <span>{t("notify.kind")}</span>
-          <select value={draft.kind} onChange={(event) => setDraft({ ...draft, kind: event.target.value as typeof draft.kind })}>
-            {(["email", "webhook", "sms"] as const).map((kind) => <option key={kind} value={kind}>{t(`notify.kind_${kind}`)}</option>)}
-          </select>
-        </label>
-        {draft.kind === "webhook" ? (
-          <label><span>{t("notify.webhook")}</span><input type="url" value={draft.webhook_url} placeholder="https://" onChange={(event) => setDraft({ ...draft, webhook_url: event.target.value })} /></label>
-        ) : (
-          <label><span>{t(draft.kind === "sms" ? "notify.numbers" : "notify.emails")}</span><input value={draft.recipients} onChange={(event) => setDraft({ ...draft, recipients: event.target.value })} /></label>
-        )}
+        <label><span>{t("notify.emails")}</span><input value={draft.recipients} placeholder="it-desk@example.com, risk@example.com" onChange={(event) => setDraft({ ...draft, recipients: event.target.value })} /></label>
         <label>
           <span>{t("notify.min_severity")}</span>
           <select value={draft.min_severity} onChange={(event) => setDraft({ ...draft, min_severity: event.target.value })}>
@@ -110,7 +97,7 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
             </label>
           ))}
         </fieldset>
-        <button type="button" disabled={!draft.channel_id.trim() || !draft.name.trim()} onClick={save}>{t("notify.save")}</button>
+        <button type="button" disabled={!draft.channel_id.trim() || !draft.name.trim() || !draft.recipients.includes("@")} onClick={save}>{t("notify.save")}</button>
       </div>
       {message && <p role="status">{message}</p>}
     </section>

@@ -1,4 +1,4 @@
-"""Tell people when something needs them: email, chat webhook or SMS, through an outbox.
+"""Tell people when something needs them, by email, through an outbox.
 
 Anything worth telling someone about is written once to ``notification_outbox`` with a
 dedupe key (a monitoring alert, a problem report to the IT desk, a tariff deadline), so the
@@ -7,15 +7,10 @@ channel whose categories and minimum severity match, records one delivery per ch
 retries a failed delivery up to :data:`MAX_ATTEMPTS` times, at least
 :data:`RETRY_AFTER` apart. Nothing is sent from a request thread.
 
-Channels (Settings → Notifications, administrators):
-
-``email``   the firm's own SMTP relay (``EUROGAS_NEXUS_SMTP_*``); recipients listed on the
-            channel. No third-party mail service is used.
-``webhook`` a Microsoft Teams or Slack incoming webhook; the URL is a secret, stored
-            encrypted with the credential-store key and never returned in clear.
-``sms``     the firm's own SMS gateway (``EUROGAS_NEXUS_SMS_GATEWAY_URL``, optional bearer
-            token), which receives ``{"to": ..., "text": ...}`` per number. Kept for what
-            cannot wait: P1 problems and high-severity alerts by default.
+A channel is a list of email addresses (Settings → Notifications, administrators), sent
+through the firm's own SMTP relay (``EUROGAS_NEXUS_SMTP_*``); no third-party mail or chat
+service is used. ``Message`` and the sender table keep the door open for another channel
+kind should a customer need one, without changing the outbox.
 """
 
 from __future__ import annotations
@@ -30,10 +25,9 @@ from email.message import EmailMessage
 
 SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 CATEGORIES = ("alert", "support", "limits", "tariff", "source")
-KINDS = ("email", "webhook", "sms")
+KINDS = ("email",)
 MAX_ATTEMPTS = 3
 RETRY_AFTER = timedelta(minutes=5)
-SMS_MAX_CHARS = 300
 
 SMTP_HOST_ENV = "EUROGAS_NEXUS_SMTP_HOST"
 SMTP_PORT_ENV = "EUROGAS_NEXUS_SMTP_PORT"
@@ -41,8 +35,6 @@ SMTP_USERNAME_ENV = "EUROGAS_NEXUS_SMTP_USERNAME"
 SMTP_PASSWORD_ENV = "EUROGAS_NEXUS_SMTP_PASSWORD"
 SMTP_FROM_ENV = "EUROGAS_NEXUS_SMTP_FROM"
 SMTP_STARTTLS_ENV = "EUROGAS_NEXUS_SMTP_STARTTLS"
-SMS_GATEWAY_URL_ENV = "EUROGAS_NEXUS_SMS_GATEWAY_URL"
-SMS_GATEWAY_TOKEN_ENV = "EUROGAS_NEXUS_SMS_GATEWAY_TOKEN"
 
 
 @dataclass(frozen=True)
@@ -140,39 +132,8 @@ def send_email(channel, message: Message, environ=None) -> None:
         smtp.send_message(email)
 
 
-def send_webhook(channel, message: Message) -> None:
-    import httpx
-
-    from eurogas_nexus.security.credentials import decrypt_credential_payload
-
-    if not channel.secret_ciphertext:
-        raise RuntimeError("webhook URL missing")
-    url = decrypt_credential_payload(channel.secret_ciphertext).get("token", "")
-    # Teams and Slack incoming webhooks both accept a plain {"text": ...} body.
-    text = f"**{message.severity.upper()} · {message.title}**\n\n{message.body}"
-    response = httpx.post(url, json={"text": text}, timeout=15)
-    response.raise_for_status()
-
-
-def send_sms(channel, message: Message, environ=None) -> None:
-    import httpx
-
-    env = os.environ if environ is None else environ
-    url = env.get(SMS_GATEWAY_URL_ENV, "").strip()
-    if not url:
-        raise RuntimeError("SMS gateway not configured (EUROGAS_NEXUS_SMS_GATEWAY_URL)")
-    token = env.get(SMS_GATEWAY_TOKEN_ENV, "").strip()
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    text = f"Eurogas Nexus {message.severity.upper()}: {message.title}"[:SMS_MAX_CHARS]
-    for number in _recipients(channel):
-        response = httpx.post(url, json={"to": number, "text": text}, headers=headers, timeout=15)
-        response.raise_for_status()
-
-
 DEFAULT_SENDERS: dict[str, Sender] = {
     "email": send_email,
-    "webhook": send_webhook,
-    "sms": send_sms,
 }
 
 

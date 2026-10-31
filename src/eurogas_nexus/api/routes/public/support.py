@@ -264,7 +264,6 @@ def _channel_row(record, last_delivery=None) -> dict:
         "name": record.name,
         "kind": record.kind,
         "recipients": record.recipients,
-        "webhook": record.secret_preview,
         "categories": record.categories or [],
         "min_severity": record.min_severity,
         "enabled": record.enabled,
@@ -313,13 +312,12 @@ def list_notification_channels(request: Request) -> dict:
 
 
 class NotificationChannelBody(BaseModel):
-    """A notification channel: kind, recipients or webhook, categories, severity floor."""
+    """An email notification channel: recipients, categories and severity floor."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: str = Field(min_length=1, max_length=128)
-    kind: str = Field(pattern="^(email|webhook|sms)$")
-    recipients: str | None = Field(default=None, max_length=2000)
-    webhook_url: str | None = Field(default=None, max_length=1000)
+    kind: str = Field(default="email", pattern="^email$")
+    recipients: str = Field(min_length=3, max_length=2000)
     categories: list[str] = Field(default_factory=list, max_length=10)
     min_severity: str = Field(default="high", pattern="^(info|low|medium|high|critical)$")
     enabled: bool = True
@@ -329,13 +327,9 @@ class NotificationChannelBody(BaseModel):
 def put_notification_channel(
     channel_id: str, body: NotificationChannelBody, request: Request
 ) -> dict:
-    """Create or change a channel (administrators, audited). Webhook URLs are encrypted."""
+    """Create or change an email channel (administrators, audited)."""
 
     from eurogas_nexus.application.notifications import CATEGORIES
-    from eurogas_nexus.security.credentials import (
-        credential_store_configured,
-        encrypt_credential_payload,
-    )
 
     _require_db()
     if not channel_id or len(channel_id) > 64:
@@ -343,8 +337,9 @@ def put_notification_channel(
     unknown = [c for c in body.categories if c not in CATEGORIES]
     if unknown:
         raise HTTPException(status_code=422, detail={"code": "unknown_category", "values": unknown})
-    if body.kind in {"email", "sms"} and not (body.recipients or "").strip():
-        raise HTTPException(status_code=422, detail={"code": "recipients_required"})
+    addresses = [item.strip() for item in body.recipients.split(",") if item.strip()]
+    if not addresses or any("@" not in item or " " in item for item in addresses):
+        raise HTTPException(status_code=422, detail={"code": "recipients_invalid"})
     actor = identity_id(request) or "api"
     sqlalchemy_error = sqlalchemy_error_type()
     try:
@@ -358,20 +353,8 @@ def put_notification_channel(
             if record is None:
                 record = NotificationChannelRecord(channel_id=channel_id)
                 session.add(record)
-            if body.kind == "webhook" and body.webhook_url:
-                if not body.webhook_url.startswith("https://"):
-                    raise HTTPException(status_code=422, detail={"code": "webhook_must_be_https"})
-                if not credential_store_configured():
-                    raise HTTPException(
-                        status_code=503, detail={"code": "credential_store_not_configured"}
-                    )
-                envelope = encrypt_credential_payload({"token": body.webhook_url})
-                record.secret_ciphertext = envelope.encrypted_payload
-                record.secret_preview = envelope.redacted_preview
-            elif body.kind == "webhook" and record.secret_ciphertext is None:
-                raise HTTPException(status_code=422, detail={"code": "webhook_url_required"})
             record.name, record.kind = body.name, body.kind
-            record.recipients = body.recipients if body.kind != "webhook" else None
+            record.recipients = ", ".join(addresses)
             record.categories = body.categories or None
             record.min_severity, record.enabled = body.min_severity, body.enabled
             record.updated_by, record.updated_at_utc = actor, datetime.now(UTC)

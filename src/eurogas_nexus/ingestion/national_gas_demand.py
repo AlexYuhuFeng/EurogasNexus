@@ -30,6 +30,8 @@ from typing import TYPE_CHECKING, Final
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
+from eurogas_nexus.core.outbound_http import client_options
+
 if TYPE_CHECKING:  # pragma: no cover - import used only by static type checkers
     import httpx
 
@@ -308,6 +310,7 @@ def download_national_gas_csv(
         timeout=httpx.Timeout(timeout_seconds),
         follow_redirects=False,
         trust_env=False,
+        **client_options(target_url),
     )
     try:
         for attempt in range(1, max_attempts + 1):

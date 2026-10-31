@@ -39,6 +39,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 
+from eurogas_nexus.core.outbound_http import client_options
 from eurogas_nexus.ingestion.eex_ngp import SOURCE_FILE_URL
 from eurogas_nexus.ingestion.eex_ngp_capture import MAX_CAPTURE_BYTES
 
@@ -174,6 +175,7 @@ def fetch_eex_public_capture(
         transport=transport,
         follow_redirects=False,
         trust_env=False,
+        **(client_options(OFFICIAL_SOURCE_URL) if transport is None else {}),
         timeout=timeout_seconds,
         auth=None,
         cookies=None,

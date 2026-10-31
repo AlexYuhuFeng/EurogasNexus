@@ -54,5 +54,5 @@ Tables use tabular numerals, right-aligned numbers and one-line rows.
 ## Sounds and notifications
 
 The app makes no sound. Alerts reach people through the notification centre in the top
-bar and, for what cannot wait, the channels IT configures (email, Teams or Slack, SMS);
+bar and, for what cannot wait, the email lists IT configures;
 see [Support, bug reports and updates](../guides/SUPPORT_AND_UPDATES.md).

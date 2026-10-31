@@ -526,8 +526,8 @@ Migration `0055_desk_operations` also adds `support_reports`, `notification_chan
 | `/api/support/reports` | POST | READ (any signed-in user) | Report a problem to the IT desk with diagnostics |
 | `/api/support/reports` | GET | READ | Operators see all reports, others their own (`scope`) |
 | `/api/support/reports/{report_id}` | PATCH | OPERATOR | Acknowledge, assign, resolve (resolution required); audited |
-| `/api/settings/notification-channels` | GET | ADMIN | Channels with their last delivery; webhook URLs redacted |
-| `/api/settings/notification-channels/{channel_id}` | PUT | ADMIN | Email, webhook (encrypted, https only) or SMS channel; audited |
+| `/api/settings/notification-channels` | GET | ADMIN | Email channels with their last delivery |
+| `/api/settings/notification-channels/{channel_id}` | PUT | ADMIN | Email channel (422 `recipients_invalid`); audited |
 | `/api/settings/notification-channels/{channel_id}/test` | POST | ADMIN | Send a test now |
 | `/api/route-cost/tariff-publications` | GET | READ | TSO tariff publications with NC TAR deadline state |
 | `/api/route-cost/tariff-publications/{publication_id}` | PUT | GOVERNED | Register, update, mark final or reviewed; audited |

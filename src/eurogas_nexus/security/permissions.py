@@ -248,7 +248,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # Anyone signed in may report a problem and see their own reports; the IT desk works them.
     ("/api/support/reports", Permission.READ),
     ("/api/support/reports/{report_id}", Permission.OPERATOR),
-    # Notification channels carry recipients and webhook secrets: administrators only.
+    # Notification channels hold recipients' addresses: administrators only.
     ("/api/settings/notification-channels", Permission.ADMIN),
     ("/api/settings/notification-channels/{channel_id}", Permission.ADMIN),
     ("/api/settings/notification-channels/{channel_id}/test", Permission.ADMIN),

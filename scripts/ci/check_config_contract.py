@@ -69,6 +69,10 @@ _HOST_ENV_NAMES = (
     "NO_PROXY",
     "HTTP_PROXY",
     "HTTPS_PROXY",
+    "no_proxy",
+    "https_proxy",
+    "SSL_CERT_FILE",
+    "REQUESTS_CA_BUNDLE",
 )
 ENV_NAME_PATTERN = re.compile(
     r"^(?:"

@@ -13,7 +13,6 @@ from eurogas_nexus.application.notifications import (
     dispatch,
     queue_notification,
     send_email,
-    send_sms,
 )
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
@@ -37,8 +36,6 @@ def _channel(cid, kind="email", categories=None, min_severity="high", enabled=Tr
         name=cid,
         kind=kind,
         recipients="it@example.com",
-        secret_ciphertext=None,
-        secret_preview=None,
         categories=categories,
         min_severity=min_severity,
         enabled=enabled,
@@ -128,7 +125,7 @@ def test_a_failed_delivery_is_retried_then_given_up(tmp_path):
 def test_senders_refuse_without_configuration():
     channel = _channel("it")
     message = Message("support", "high", "t", "b")
-    for sender in (send_email, send_sms):
+    for sender in (send_email,):
         try:
             sender(channel, message, environ={})
         except RuntimeError as exc:

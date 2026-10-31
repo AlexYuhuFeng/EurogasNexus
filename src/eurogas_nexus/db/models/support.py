@@ -33,18 +33,15 @@ class SupportReportRecord(Base):
 
 
 class NotificationChannelRecord(Base):
-    """Where notifications go: an email list, a chat webhook or an SMS list."""
+    """Where notifications go: a list of email addresses."""
 
     __tablename__ = "notification_channels"
 
     channel_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # email, webhook, sms
-    #: Email addresses or phone numbers (comma-separated); empty for a webhook.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # email
+    #: Email addresses, comma-separated.
     recipients: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    #: Webhook URL encrypted with the credential store key; never returned in clear.
-    secret_ciphertext: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    secret_preview: Mapped[str | None] = mapped_column(String(64), nullable=True)
     categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     min_severity: Mapped[str] = mapped_column(String(16), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

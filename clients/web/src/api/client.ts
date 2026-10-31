@@ -2827,9 +2827,8 @@ export interface SupportReportInput {
 export interface NotificationChannelDTO {
   channel_id: string;
   name: string;
-  kind: "email" | "webhook" | "sms";
+  kind: "email";
   recipients: string | null;
-  webhook: string | null;
   categories: string[];
   min_severity: string;
   enabled: boolean;
@@ -2840,9 +2839,8 @@ export interface NotificationChannelDTO {
 
 export interface NotificationChannelInput {
   name: string;
-  kind: "email" | "webhook" | "sms";
-  recipients?: string | null;
-  webhook_url?: string | null;
+  kind: "email";
+  recipients: string;
   categories: string[];
   min_severity: string;
   enabled: boolean;

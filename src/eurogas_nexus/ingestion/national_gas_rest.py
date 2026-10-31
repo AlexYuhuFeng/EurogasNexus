@@ -33,6 +33,8 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
+from eurogas_nexus.core.outbound_http import client_options
+
 from .national_gas_demand import NTS_DEMAND_D1, NTS_DEMAND_D6, DemandSeries
 
 if TYPE_CHECKING:  # pragma: no cover - imported by the transport function only
@@ -379,6 +381,7 @@ def fetch_national_gas_rest(
                 timeout=httpx.Timeout(timeout_seconds),
                 follow_redirects=False,
                 trust_env=False,
+                **(client_options(API_URL) if transport is None else {}),
                 auth=None,
                 cookies=None,
                 transport=transport,

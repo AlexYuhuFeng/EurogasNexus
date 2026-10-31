@@ -349,21 +349,6 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         example="true",
     ),
     ConfigVar(
-        name="EUROGAS_NEXUS_SMS_GATEWAY_URL",
-        scope="OPERATOR",
-        purpose=(
-            "The firm's SMS gateway endpoint; it receives {\"to\", \"text\"} per number for "
-            "urgent notifications."
-        ),
-        example="https://sms-gateway.example-energy.internal/send",
-    ),
-    ConfigVar(
-        name="EUROGAS_NEXUS_SMS_GATEWAY_TOKEN",
-        scope="OPERATOR",
-        purpose="Bearer token for the SMS gateway, when it requires one.",
-        sensitivity="secret",
-    ),
-    ConfigVar(
         name="EUROGAS_NEXUS_OWN_LEGAL_NAMES",
         scope="OPERATOR",
         purpose=(
