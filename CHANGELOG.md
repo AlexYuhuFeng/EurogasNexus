@@ -68,6 +68,12 @@ version lives under [docs/release/notes](docs/release/notes).
   where gas or cargoes move (off under reduced motion). Cargo and slot imports from the
   customer's vessel-tracking export or ETRM; infrastructure locations from openly licensed
   datasets (Sodir, NSTA, Global Energy Monitor, OpenStreetMap).
+- Map zooms like a city map: street level with a detailed basemap, infrastructure icons by
+  kind, labels that appear as the view narrows, find-and-fly, click to focus, and a ring
+  around approximate positions. A bundled offline outline basemap (Natural Earth) is the
+  default in mainland China and air-gapped networks.
+- Windows installers can be signed with Azure Artifact Signing (key in Microsoft's HSMs,
+  OIDC, no stored secret); see docs/release/CODE_SIGNING.md.
 - ETRM trade import into books, CSV exports of position, balance and gas-for-power reports, and signed hand-offs of decided cases for ERP/ETRM middleware.
 
 ### Changed

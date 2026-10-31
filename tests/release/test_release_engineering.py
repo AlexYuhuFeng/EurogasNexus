@@ -314,3 +314,10 @@ def test_release_artifact_names_follow_contract() -> None:
         f"Eurogas-Nexus-Server-{APPLICATION_VERSION}-preview.7.033df92a856e.zip"
     )
     assert names[4] == f"eurogas-nexus-web-{APPLICATION_VERSION}-preview.7.033df92a856e.tar.gz"
+
+
+def test_dispatched_rc_takes_the_next_free_number() -> None:
+    from scripts.release.release_metadata import next_rc_number
+
+    assert next_rc_number("0.6.0", []) == 1
+    assert next_rc_number("0.6.0", ["v0.6.0-rc.1", "v0.6.0-rc.3", "v0.5.0-rc.9", "v0.6.0"]) == 4

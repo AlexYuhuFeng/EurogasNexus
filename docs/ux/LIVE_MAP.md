@@ -25,6 +25,44 @@ A status strip states the picture in one line: "Live · 2 out now · 1 scheduled
 contracts · 1 own cargo at sea · 1 regas slot · as of 09:30 UTC · 1 not located". The map
 re-reads the situation every five minutes; a failed read keeps the last picture.
 
+## Zooming in
+
+The map behaves like a city map: scroll, pinch or double-click to zoom, and the detail grows
+with it.
+
+- **Basemap detail.** With a detailed basemap (OpenFreeMap, VersaTiles, Tianditu or the
+  firm's own tiles) the map zooms to street level (zoom 17) with roads and places. The
+  bundled outline stops at zoom 10: it holds coastlines only, and zooming further would
+  only magnify the error of approximate positions.
+- **Icons by kind.** Infrastructure is drawn with a shape per kind and a colour per family:
+  triangle = production platform, ring = field, hexagon = processing plant, rounded square
+  = LNG terminal or liquefaction, square = storage, diamond = compressor or border point,
+  circle = gas-fired power plant. Icons thin out at regional zoom and all show from zoom 8.
+- **Names appear progressively.** About 12 labels at continental zoom, 24 regionally and up
+  to 60 when local, hubs first, then terminals and points, then infrastructure, never
+  overlapping.
+- **Find and fly.** "Find a hub, terminal, field or vessel" searches what the active layers
+  draw; choosing a result flies there and drops a short-lived pin. Clicking any item flies
+  to it and pins its card until closed. Under *reduce motion* the map jumps instead.
+- **Honest positions.** ENTSOG point coordinates come from a schematic map. From zoom 7 a
+  soft ring around each such point shows that the true position lies somewhere nearby;
+  imported infrastructure with published coordinates has no ring.
+
+## Basemaps by country
+
+| Installation | Default | Why |
+|---|---|---|
+| Global | OpenFreeMap (OpenStreetMap data, free for commercial use with attribution) | Street-level detail, no key |
+| Mainland China | Bundled outline (Natural Earth, public domain) | Foreign tile services are often unreachable and published maps of China need approval. The outline is served by the application, covers Europe, North Africa and the Middle East only, and draws no Chinese territory and no borders |
+| Air-gapped | Bundled outline, or the firm's own tile server | Nothing leaves the network |
+
+For street-level detail in mainland China the operator chooses a licensed domestic
+provider: **Tianditu** (government service, free key; confirm the current terms for
+enterprise use) or **AMap / 高德**, whose enterprise use requires its paid commercial
+licence (public reports put the basic tier at about CNY 50,000 a year; confirm with AMap).
+AMap's public endpoint is listed for evaluation only. The outline is rebuilt with
+`scripts/ui/build_offline_basemap.py`.
+
 ## Rules
 
 1. **Placed only where a source places it.** An outage is drawn only when its EIC code or

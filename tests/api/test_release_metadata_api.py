@@ -54,7 +54,7 @@ def test_deployment_profile_picks_region_appropriate_basemaps():
 
     assert deployment_profile({}) == {"region": "global", "map_default_provider": "openfreemap"}
     china = deployment_profile({"EUROGAS_NEXUS_DEPLOYMENT_REGION": "china"})
-    assert china["map_default_provider"] == "none"
+    assert china["map_default_provider"] == "outline"
     chosen = deployment_profile(
         {
             "EUROGAS_NEXUS_DEPLOYMENT_REGION": "china",

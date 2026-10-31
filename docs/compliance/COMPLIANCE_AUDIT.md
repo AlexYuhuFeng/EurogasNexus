@@ -45,7 +45,8 @@ Every analytic output carries `research_only` and `human_review_required`.
 
 - **S1 (high, release owner):** Windows installers are unsigned until the customer's
   Authenticode certificate is configured (`signing-state.json` says so on every release).
-  Required before stable 1.0.0 distribution.
+  Required before stable 1.0.0 distribution. Route and the information the company must
+  provide: [CODE_SIGNING.md](../release/CODE_SIGNING.md).
 - **S2 (medium, customer IT):** encryption at rest (database volume, backups) is provided
   by the deployment (disk or cloud volume encryption, encrypted backup target), not by the
   application. Record it in the installation run book.
@@ -116,8 +117,9 @@ by design and stay with the systems of record.
   licensed price exists the product shows the gap, never a substitute.
 - Simulated prices are labelled and never used as marks, risk figures or market prices.
 - The network map uses open-licence basemaps (OpenFreeMap, VersaTiles; OpenStreetMap data
-  under ODbL with attribution shown on the map) and none by default in a China
-  installation, where foreign map services may be blocked and maps are regulated.
+  under ODbL with attribution shown on the map). A China installation defaults to a bundled
+  Natural Earth outline (public domain) that draws no Chinese territory or borders, since
+  foreign map services may be blocked there and maps of China need approval.
 
 **Findings**
 

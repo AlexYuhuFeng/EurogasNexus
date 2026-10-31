@@ -121,6 +121,25 @@ def utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
+def next_rc_number(core: str, existing_tags: list[str] | None = None) -> int:
+    """One more than the highest ``v<core>-rc.N`` tag in the repository (1 when none)."""
+
+    if existing_tags is None:
+        result = subprocess.run(
+            ["git", "tag", "--list", f"v{core}-rc.*"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        existing_tags = result.stdout.split() if result.returncode == 0 else []
+    numbers = []
+    for tag in existing_tags:
+        suffix = tag.removeprefix(f"v{core}-rc.")
+        if suffix != tag and suffix.isdigit():
+            numbers.append(int(suffix))
+    return max(numbers, default=0) + 1
+
+
 def resolve_release_context(
     *,
     channel: str,
@@ -164,7 +183,13 @@ def resolve_release_context(
                 "Stable releases require a pushed semantic tag vX.Y.Z; "
                 "workflow_dispatch stable is not permitted."
             )
-        number = build_run_number or 1
+        # A dispatched RC takes the next free number for this version (rc.1, rc.2, ...) so
+        # RCs read in order whether they were tagged by hand or started from Actions.
+        number = (
+            next_rc_number(parsed_version.core)
+            if resolved_channel is ReleaseChannel.RC
+            else build_run_number or 1
+        )
         release_version = build_release_tag(
             parsed_version,
             resolved_channel,

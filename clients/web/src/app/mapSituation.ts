@@ -174,6 +174,8 @@ export function cargoFeatures(
 }
 
 const FACILITY_KINDS = new Set([
+  "lng_terminal",
+  "border_point",
   "production_platform",
   "field",
   "liquefaction",

@@ -3872,5 +3872,15 @@
   "map.situation.facility_storage": "储气库",
   "map.situation.facility_processing_plant": "处理厂",
   "map.situation.facility_compressor": "压气站",
-  "map.situation.facility_power_plant": "燃气电厂"
+  "map.situation.facility_power_plant": "燃气电厂",
+  "settings.map_tile_provider_outline": "离线轮廓底图：Natural Earth 海岸线（公有领域），由本应用自身提供。可离线使用，适用于中国大陆；不绘制国界。",
+  "map.find.label": "在地图上查找",
+  "map.find.placeholder": "查找枢纽、接收站、气田或船舶",
+  "map.find.no_match": "地图上没有该名称",
+  "map.find.kind_hub": "枢纽",
+  "map.find.kind_lng": "LNG 接收站",
+  "map.find.kind_interconnection": "互联点",
+  "map.find.kind_point": "管网点",
+  "map.situation.facility_lng_terminal": "LNG 接收站",
+  "map.situation.facility_border_point": "边境点"
 }

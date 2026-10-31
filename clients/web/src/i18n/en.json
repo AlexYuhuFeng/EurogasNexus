@@ -3872,5 +3872,15 @@
   "map.situation.facility_storage": "Storage",
   "map.situation.facility_processing_plant": "Processing plant",
   "map.situation.facility_compressor": "Compressor station",
-  "map.situation.facility_power_plant": "Gas-fired power plant"
+  "map.situation.facility_power_plant": "Gas-fired power plant",
+  "settings.map_tile_provider_outline": "Offline outline: coastlines from Natural Earth (public domain), served by this application. Works offline and in mainland China; draws no country borders.",
+  "map.find.label": "Find on map",
+  "map.find.placeholder": "Find a hub, terminal, field or vessel",
+  "map.find.no_match": "Nothing on the map by that name",
+  "map.find.kind_hub": "Hub",
+  "map.find.kind_lng": "LNG terminal",
+  "map.find.kind_interconnection": "Interconnection point",
+  "map.find.kind_point": "Network point",
+  "map.situation.facility_lng_terminal": "LNG terminal",
+  "map.situation.facility_border_point": "Border point"
 }

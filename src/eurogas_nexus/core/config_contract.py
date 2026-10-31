@@ -315,7 +315,8 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         scope="OPERATOR",
         purpose=(
             "Default basemap for this installation: openfreemap, versatiles (open licences, "
-            "global), tianditu (mainland China, key required), custom (own tile service) or none."
+            "global), outline (bundled Natural Earth coastlines, offline; China default), "
+            "tianditu (mainland China, key required), custom (own tile service) or none."
         ),
         example="openfreemap",
         notes=("Use none or custom in networks without internet access",),
@@ -690,6 +691,16 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         purpose="Request Authenticode signing of the Windows artifacts.",
         default="0",
         notes=("Stable promotion stays blocked until signing evidence exists",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_WINDOWS_SIGNING_PROVIDER",
+        scope="TOOLING",
+        purpose=(
+            "How Windows artifacts are signed: azure-artifact-signing (key in Microsoft's "
+            "HSMs, signed by the workflow, verified here) or pfx (an internal enterprise CA)."
+        ),
+        default="pfx",
+        notes=("See docs/release/CODE_SIGNING.md",),
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_GPG_SIGNING_ENABLED",

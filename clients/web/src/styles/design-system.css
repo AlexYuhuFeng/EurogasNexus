@@ -985,3 +985,94 @@
 .gas-map .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--ds-surface); }
 .gas-map .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--ds-surface); }
 .gas-map .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--ds-surface); }
+
+@layer ds-components {
+  /* Map finder: one quiet search field over the map, results as a floating list. */
+  .map-finder {
+    position: absolute;
+    z-index: 41;
+    top: calc(var(--ds-space-8) + var(--ds-space-4));
+    left: var(--ds-space-3);
+    width: min(300px, calc(100% - 2 * var(--ds-space-3)));
+  }
+
+  .map-finder input {
+    width: 100%;
+    height: var(--ds-control);
+    padding: 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
+    backdrop-filter: blur(8px);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-ink) 8%, transparent);
+  }
+
+  .map-finder input:focus-visible {
+    outline: 2px solid var(--ds-accent);
+    outline-offset: 1px;
+  }
+
+  .map-finder-results {
+    margin: var(--ds-space-1) 0 0;
+    padding: var(--ds-space-1);
+    list-style: none;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--ds-ink) 14%, transparent);
+    animation: ds-fade-in var(--ds-duration-fast) var(--ds-ease-out);
+  }
+
+  .map-finder-results li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--ds-space-3);
+    padding: 6px var(--ds-space-2);
+    border-radius: var(--ds-radius-sm);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    cursor: pointer;
+  }
+
+  .map-finder-results li small {
+    color: var(--ds-text-3);
+    white-space: nowrap;
+  }
+
+  .map-finder-results li[aria-selected="true"],
+  .map-finder-results li:hover {
+    background: var(--ds-surface-2);
+  }
+
+  .map-finder-results li.is-empty {
+    color: var(--ds-text-3);
+    cursor: default;
+  }
+
+  .map-facility-label {
+    color: var(--ds-text-2);
+    font-weight: var(--ds-weight-regular);
+  }
+}
+
+@layer ds-motion {
+  .map-finder-pin {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--ds-surface);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-accent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ds-accent) 45%, transparent);
+    animation: map-finder-pin 1.2s var(--ds-ease-out) 3;
+  }
+
+  @keyframes map-finder-pin {
+    to { box-shadow: 0 0 0 18px transparent; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .map-finder-pin { animation: none; }
+  }
+}

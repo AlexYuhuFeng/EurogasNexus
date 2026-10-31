@@ -26,6 +26,7 @@ import type { StyleSpecification } from "maplibre-gl";
 
 export type MapTileProviderId =
   | "none"
+  | "outline"
   | "custom"
   | "openfreemap"
   | "versatiles"
@@ -66,8 +67,15 @@ export interface MapTileProvider {
 export const MAP_TILE_STORAGE_KEY = "eurogas.settings.map_tile_provider";
 const MAP_TILE_TOKEN_KEY = "eurogas.settings.map_tile_token";
 
-/** The default: no third-party basemap, and the map says so. */
-export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "none";
+/**
+ * The default: no third-party basemap. The bundled outline (Natural Earth land, public domain,
+ * served by the application itself) gives the network a coastline without fetching anything
+ * from a third party, so it is safe in every jurisdiction and in air-gapped networks.
+ */
+export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "outline";
+
+/** Land polygons built by scripts/ui/build_offline_basemap.py (Europe, North Africa, Middle East). */
+export const OUTLINE_BASEMAP_PATH = "basemaps/land-trading-region.geojson";
 
 export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
   {
@@ -80,6 +88,19 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     description:
       "The default. The network draws on a plain background, so no third-party licence is implied "
       + "by using the platform and nothing has to be reachable from the browser.",
+  },
+  {
+    id: "outline",
+    label: "Offline outline (Natural Earth)",
+    labelZh: "离线轮廓底图（Natural Earth，默认）",
+    requiresToken: false,
+    licence: "open-licence",
+    availability: "anywhere",
+    description:
+      "Coastlines of Europe, North Africa and the Middle East from Natural Earth (public domain), "
+      + "served by the application itself. Works offline and in mainland China: it fetches nothing "
+      + "from a third party and draws no country borders.",
+    attribution: "Natural Earth",
   },
   {
     id: "custom",
@@ -166,11 +187,28 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     licence: "not-for-commercial-use",
     availability: "mainland-china",
     description:
-      "Public raster endpoint whose terms require a key or an enterprise agreement for production "
-      + "use. Evaluation only. AMap uses GCJ-02 coordinates; the client transforms WGS84 network "
+      "Public raster endpoint. Enterprise use needs AMap's paid commercial licence (reported at "
+      + "about CNY 50,000 a year for the basic tier) and a key; without one, evaluation only. AMap uses GCJ-02 coordinates; the client transforms WGS84 network "
       + "data to GCJ-02 for display alignment.",
   },
 ];
+
+/**
+ * How far in the map may zoom. A detailed basemap (vector or raster tiles) carries streets
+ * and places to street level, so the map zooms like a city map; the bundled outline and the
+ * plain background hold coastlines only, so zooming past regional scale would show nothing
+ * more and only exaggerate the error of approximate positions.
+ */
+export function mapZoomRange(id: MapTileProviderId): { minZoom: number; maxZoom: number } {
+  return id === "none" || id === "outline" ? { minZoom: 2, maxZoom: 10 } : { minZoom: 2, maxZoom: 17 };
+}
+
+/** How many place labels the map shows at a zoom: more as the view narrows. */
+export function labelBudgetForZoom(zoom: number): number {
+  if (zoom < 5) return 12;
+  if (zoom < 7) return 24;
+  return 60;
+}
 
 /** The provider record for an id, or `undefined` when the id is not one this build knows. */
 export function mapTileProviderById(id: string | null | undefined): MapTileProvider | undefined {
@@ -250,6 +288,7 @@ export function mapTileBasemapState(
   token: string,
 ): "configured" | "no-basemap" | "unavailable" {
   if (provider.id === "none") return "no-basemap";
+  if (provider.id === "outline") return "configured";
   if (provider.id === "custom") {
     return configuredCustomTileTemplate() ? "configured" : "unavailable";
   }
@@ -381,8 +420,36 @@ export function buildMapStyle(
   };
 
   if (providerId === "none") {
-    // The default: the deployment chose no basemap, so the background layer is the whole style and
-    // the map states that. Nothing is fetched from a third party on the operator's behalf.
+    // The deployment chose no basemap, so the background layer is the whole style and the map
+    // states that. Nothing is fetched from a third party on the operator's behalf.
+    return style;
+  }
+
+  if (providerId === "outline") {
+    // Bundled land polygons served from the application's own origin: sea is the background,
+    // land a slightly lifted surface with a hairline coast. No borders are drawn.
+    const base = (import.meta.env?.BASE_URL as string | undefined) ?? "/";
+    style.sources = {
+      land: {
+        type: "geojson",
+        data: `${base.endsWith("/") ? base : `${base}/`}${OUTLINE_BASEMAP_PATH}`,
+        attribution: "Natural Earth",
+      },
+    };
+    style.layers.push(
+      {
+        id: "outline-land",
+        type: "fill",
+        source: "land",
+        paint: { "fill-color": theme === "dark" ? "#18181b" : "#ffffff" },
+      },
+      {
+        id: "outline-coast",
+        type: "line",
+        source: "land",
+        paint: { "line-color": theme === "dark" ? "#3f3f46" : "#d4d4d8", "line-width": 0.6 },
+      },
+    );
     return style;
   }
 

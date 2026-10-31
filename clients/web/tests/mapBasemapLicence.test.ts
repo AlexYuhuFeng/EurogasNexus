@@ -27,7 +27,9 @@ function locale(name: "en" | "zh"): Record<string, string> {
 test("no third-party basemap is the default", () => {
   const source = readWebSource("src/app/mapTileProviders.ts");
 
-  assert.match(source, /export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "none";/);
+  // The default is the bundled outline, served by the application itself.
+  assert.match(source, /export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "outline";/);
+  assert.ok(readWebSource("public/basemaps/land-trading-region.geojson").includes("Natural Earth"));
   // The old default was chosen from the browser's language, which put AMap's public endpoint in
   // front of a Chinese-locale operator without anybody deciding it.
   assert.doesNotMatch(source, /navigator\.language/);

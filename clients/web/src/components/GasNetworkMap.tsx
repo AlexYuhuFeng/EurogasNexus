@@ -34,10 +34,14 @@ import {
   buildMapStyle,
   configuredMapTileProvider,
   configuredMapTileToken,
+  labelBudgetForZoom,
   mapTileBasemapState,
+  mapZoomRange,
   transformCoordinate,
 } from "@/app/mapTileProviders";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
+import { FACILITY_ICON, drawFacilityIcon } from "@/app/mapIcons";
+import { MapFinder, type MapFinderPlace } from "@/components/MapFinder";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -74,6 +78,13 @@ const SITUATION_HOVER_LAYERS = [
   "situation-flows",
   "situation-facilities",
 ] as const;
+
+/** Fly to a point (or jump, under reduced motion), never past the map's own zoom limit. */
+function focusOn(map: MapLibreMap, center: [number, number], zoom: number): void {
+  const target = { center, zoom: Math.min(zoom, map.getMaxZoom()) };
+  if (prefersReducedMotion()) map.jumpTo(target);
+  else map.flyTo({ ...target, speed: 1.4, curve: 1.42, essential: false });
+}
 
 function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function"
@@ -285,8 +296,7 @@ export function GasNetworkMap({
       if (
         !node ||
         !visibleNodeIds.has(node.id) ||
-        priorityIds.has(node.id) ||
-        priorityNodes.length >= MAX_MAP_LABELS
+        priorityIds.has(node.id)
       ) return;
       priorityIds.add(node.id);
       priorityNodes.push(node);
@@ -303,11 +313,16 @@ export function GasNetworkMap({
       filteredNodes.find((node) => fallbackNodeLabel(node).toUpperCase() === marketCode),
     ));
     filteredNodes.filter((node) => node.node_type === "hub").forEach(addWithinBudget);
+    // Then terminals and interconnection points, then the rest: the label pass shows as many
+    // as the zoom's budget allows, so names appear progressively as the view narrows.
+    filteredNodes.filter((node) => node.node_type === "lng").forEach(addWithinBudget);
+    filteredNodes.filter((node) => node.node_type === "interconnection").forEach(addWithinBudget);
+    filteredNodes.forEach(addWithinBudget);
     return priorityNodes;
   }, [filteredNodes, highlightedRoutePoints, normalizedSearchTerm]);
 
   const fallbackLabelPriorityIds = useMemo(
-    () => new Set(priorityLabelNodes.map((node) => node.id)),
+    () => new Set(priorityLabelNodes.slice(0, MAX_MAP_LABELS).map((node) => node.id)),
     [priorityLabelNodes],
   );
 
@@ -324,8 +339,7 @@ export function GasNetworkMap({
       container: containerRef.current,
       center: toMapCoordinates(7.8, 51.2),
       zoom: 4.0,
-      minZoom: 3,
-      maxZoom: 9,
+      ...mapZoomRange(mapTileProvider.id),
       attributionControl: false,
       style: buildMapStyle(
         mapTileProvider.id,
@@ -361,6 +375,10 @@ export function GasNetworkMap({
 
     if (map.getLayer("background")) {
       map.setPaintProperty("background", "background-color", mapColors.background);
+    }
+    if (map.getLayer("outline-land")) {
+      map.setPaintProperty("outline-land", "fill-color", effectiveTheme === "dark" ? "#18181b" : "#ffffff");
+      map.setPaintProperty("outline-coast", "line-color", effectiveTheme === "dark" ? "#3f3f46" : "#d4d4d8");
     }
     for (const rasterLayerId of ["basemap-raster", "tianditu-vec-raster", "tianditu-label-raster"]) {
       if (!map.getLayer(rasterLayerId)) continue;
@@ -663,6 +681,8 @@ export function GasNetworkMap({
         const source = propertyText(props.source_system, t("data.unavailable"));
         const nodeId = propertyText(props.id, "");
         const nodeLabel = propertyText(props.name, nodeId);
+        const pointAt = (feature.geometry as { coordinates?: [number, number] }).coordinates;
+        if (pointAt) focusOn(map, pointAt, Math.max(map.getZoom(), 7));
         const popup = new Popup({ closeButton: false })
           .setLngLat(event.lngLat)
           .setHTML(
@@ -723,20 +743,50 @@ export function GasNetworkMap({
     const empty = { type: "FeatureCollection" as const, features: [] };
     const cargo = situation ? cargoFeatures(situation.cargoes, toMapCoordinates) : null;
 
+    for (const theme of ["light", "dark"] as const) {
+      for (const facilityType of Object.keys(FACILITY_ICON)) {
+        const id = `infra-${facilityType}-${theme}`;
+        if (map.hasImage(id)) continue;
+        const image = drawFacilityIcon(facilityType, theme);
+        if (image) map.addImage(id, image, { pixelRatio: 2 });
+      }
+    }
+    const iconImage = ["concat", "infra-", ["get", "facility_type"], `-${effectiveTheme}`];
     if (upsertSource(map, "situation-facilities", facilityFeatures(facilities, toMapCoordinates))) {
       map.addLayer({
         id: "situation-facilities",
-        type: "circle",
+        type: "symbol",
         source: "situation-facilities",
-        minzoom: 5,
-        paint: {
-          "circle-radius": 3,
-          "circle-color": palette.facility,
-          "circle-opacity": 0.7,
-          "circle-stroke-color": palette.halo,
-          "circle-stroke-width": 1,
+        minzoom: 4,
+        layout: {
+          "icon-image": iconImage as never,
+          "icon-size": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 8, 0.7, 12, 0.95],
+          // Thin out at regional zoom, show every asset once the view is local.
+          "icon-allow-overlap": ["step", ["zoom"], false, 8, true] as never,
+          "symbol-sort-key": ["match", ["get", "facility_type"], "lng_terminal", 0, "liquefaction", 0, "storage", 1, "production_platform", 2, 3],
         },
       }, map.getLayer("nodes-circle") ? "node-clusters" : undefined);
+    } else if (map.getLayer("situation-facilities")) {
+      map.setLayoutProperty("situation-facilities", "icon-image", iconImage as never);
+    }
+    // ENTSOG positions are transformed from a schematic map: once zoomed in, say so on the map
+    // with a soft ring rather than let a precise-looking dot sit on the wrong street.
+    if (map.getSource("nodes") && !map.getLayer("nodes-approx-halo")) {
+      map.addLayer({
+        id: "nodes-approx-halo",
+        type: "circle",
+        source: "nodes",
+        minzoom: 7,
+        filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "coordinate_quality"], "display_approximation"]],
+        paint: {
+          "circle-radius": ["interpolate", ["exponential", 2], ["zoom"], 7, 10, 12, 120],
+          "circle-color": palette.facility,
+          "circle-opacity": 0.06,
+          "circle-stroke-color": palette.facility,
+          "circle-stroke-width": 1,
+          "circle-stroke-opacity": 0.35,
+        },
+      }, "nodes-circle");
     }
     if (map.getSource("verified-pipeline-lines") && !map.getLayer("situation-pipeline-flow")) {
       map.addLayer({
@@ -859,15 +909,18 @@ export function GasNetworkMap({
       });
 
       const hover = new Popup({ closeButton: false, closeOnClick: false, offset: 10, maxWidth: "300px" });
+      const cardFor = (layerId: string, props: Record<string, unknown>): string => {
+        const current = situationRef.current;
+        if (layerId === "situation-facilities") {
+          return `<div class="node-popup situation-card"><strong>${escapeHtml(props.name)}</strong><small>${escapeHtml(t(`map.situation.facility_${String(props.facility_type)}`))}</small></div>`;
+        }
+        return current ? situationCardHtml(String(props.kind), String(props.id), current, t, escapeHtml) : "";
+      };
       for (const layerId of SITUATION_HOVER_LAYERS) {
         map.on("mousemove", layerId, (event) => {
           const feature = event.features?.[0];
-          const current = situationRef.current;
-          if (!feature || !current) return;
-          const props = feature.properties ?? {};
-          const html = layerId === "situation-facilities"
-            ? `<div class="node-popup situation-card"><strong>${escapeHtml(props.name)}</strong><small>${escapeHtml(t(`map.situation.facility_${String(props.facility_type)}`))}</small></div>`
-            : situationCardHtml(String(props.kind), String(props.id), current, t, escapeHtml);
+          if (!feature) return;
+          const html = cardFor(layerId, feature.properties ?? {});
           if (!html) return;
           map.getCanvas().style.cursor = "pointer";
           hover.setLngLat(event.lngLat).setHTML(html).addTo(map);
@@ -875,6 +928,23 @@ export function GasNetworkMap({
         map.on("mouseleave", layerId, () => {
           map.getCanvas().style.cursor = "";
           hover.remove();
+        });
+        // Click focuses: the map flies to the item and pins its card until closed.
+        map.on("click", layerId, (event) => {
+          const feature = event.features?.[0];
+          if (!feature) return;
+          const html = cardFor(layerId, feature.properties ?? {});
+          if (!html) return;
+          const coordinates = (feature.geometry as { coordinates?: [number, number] }).coordinates;
+          const target = Array.isArray(coordinates) && typeof coordinates[0] === "number"
+            ? coordinates
+            : [event.lngLat.lng, event.lngLat.lat] as [number, number];
+          hover.remove();
+          focusOn(map, target, Math.max(map.getZoom(), layerId === "situation-facilities" ? 11 : 8));
+          new Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: "320px", className: "is-pinned" })
+            .setLngLat(target)
+            .setHTML(html)
+            .addTo(map);
         });
       }
     }
@@ -898,8 +968,8 @@ export function GasNetworkMap({
     // Theme changes re-colour the layers in place.
     const ownOrMarket = ["case", ["get", "own"], palette.own, palette.market];
     const paints: Array<[string, string, unknown]> = [
-      ["situation-facilities", "circle-color", palette.facility],
-      ["situation-facilities", "circle-stroke-color", palette.halo],
+      ["nodes-approx-halo", "circle-color", palette.facility],
+      ["nodes-approx-halo", "circle-stroke-color", palette.facility],
       ["situation-pipeline-flow", "line-color", palette.flow],
       ["situation-flows", "circle-color", palette.flow],
       ["situation-flows", "circle-stroke-color", palette.flow],
@@ -962,7 +1032,11 @@ export function GasNetworkMap({
     const renderLabels = () => {
       clearLabels();
       const occupied: Array<{ x: number; y: number }> = [];
+      const budget = labelBudgetForZoom(map.getZoom());
+      const bounds = map.getBounds();
+      let shown = 0;
       priorityLabelNodes.forEach((node) => {
+        if (shown >= budget || !bounds.contains(toMapCoordinates(node.lon, node.lat))) return;
         const projected = map.project(toMapCoordinates(node.lon, node.lat));
         const isHighlighted = Boolean(
           highlightedRoutePoints &&
@@ -973,6 +1047,7 @@ export function GasNetworkMap({
         );
         if (collides && !isHighlighted) return;
         occupied.push({ x: projected.x, y: projected.y });
+        shown += 1;
         const element = document.createElement("div");
         element.className = `map-node-label map-node-label-${node.node_type}${isHighlighted ? " highlighted" : ""}`;
         element.textContent = fallbackNodeLabel(node);
@@ -983,6 +1058,24 @@ export function GasNetworkMap({
             .addTo(map),
         );
       });
+      // Close in, infrastructure gets names too, quieter than network points.
+      if (map.getZoom() >= 7 && activeLayers.includes("infrastructure")) {
+        for (const facility of facilities) {
+          if (shown >= budget) break;
+          const at = toMapCoordinates(facility.lon, facility.lat);
+          if (!bounds.contains(at) || !FACILITY_ICON[facility.facility_type]) continue;
+          const projected = map.project(at);
+          if (occupied.some((point) => Math.abs(point.x - projected.x) < 76 && Math.abs(point.y - projected.y) < 24)) continue;
+          occupied.push({ x: projected.x, y: projected.y });
+          shown += 1;
+          const element = document.createElement("div");
+          element.className = "map-node-label map-facility-label";
+          element.textContent = facility.name;
+          labelMarkersRef.current.push(
+            new Marker({ element, anchor: "left", offset: [10, 0] }).setLngLat(at).addTo(map),
+          );
+        }
+      }
     };
 
     renderLabels();
@@ -991,7 +1084,58 @@ export function GasNetworkMap({
       map.off("moveend", renderLabels);
       clearLabels();
     };
-  }, [highlightedRoutePoints, mapReady, priorityLabelNodes]);
+  }, [activeLayers, facilities, highlightedRoutePoints, mapReady, priorityLabelNodes]);
+
+  // Everything the map can locate, for the finder. Positions come from the same sources
+  // as the layers, so the finder never lands somewhere the map would not draw.
+  const finderPlaces = useMemo<MapFinderPlace[]>(() => {
+    // Only what the active layers draw, so the map never flies to something it hides.
+    const places: MapFinderPlace[] = filteredNodes.map((node) => ({
+      id: node.id,
+      name: node.name,
+      kind: t(`map.find.kind_${node.node_type === "hub" || node.node_type === "lng" || node.node_type === "interconnection" ? node.node_type : "point"}`),
+      lon: node.lon,
+      lat: node.lat,
+      zoom: node.node_type === "hub" ? 6 : 9,
+    }));
+    for (const facility of activeLayers.includes("infrastructure") ? facilities : []) {
+      places.push({
+        id: facility.id,
+        name: facility.name,
+        kind: t(`map.situation.facility_${facility.facility_type}`),
+        lon: facility.lon,
+        lat: facility.lat,
+        zoom: 12,
+      });
+    }
+    for (const cargo of activeLayers.includes("positions") ? situation?.cargoes ?? [] : []) {
+      const at = cargo.position ?? cargo.origin ?? cargo.destination;
+      if (at) {
+        places.push({
+          id: cargo.cargo_id,
+          name: cargo.vessel_name,
+          kind: t(cargo.own ? "map.situation.own_cargo" : "map.situation.market_cargo"),
+          lon: at.lon,
+          lat: at.lat,
+          zoom: 7,
+        });
+      }
+    }
+    return places;
+  }, [activeLayers, facilities, filteredNodes, situation, t]);
+
+  function flyToPlace(place: MapFinderPlace) {
+    const map = mapRef.current;
+    if (!map) return;
+    const at = toMapCoordinates(place.lon, place.lat);
+    focusOn(map, at, place.zoom);
+    // A short-lived pin marks the spot the map flew to.
+    const element = document.createElement("div");
+    element.className = "map-finder-pin";
+    element.setAttribute("aria-hidden", "true");
+    const pin = new Marker({ element }).setLngLat(at).addTo(map);
+    window.setTimeout(() => pin.remove(), 4000);
+  }
 
   function project(lon: number, lat: number): [number, number] {
     const x = ((lon + 12) / 47) * 1000;
@@ -1002,6 +1146,7 @@ export function GasNetworkMap({
   return (
     <div className="gas-map" aria-label={t("map.gas_network_map")}>
       <div ref={containerRef} className="maplibre-canvas" />
+      {mapReady && <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} />}
       {/*
         Owner decision D4: no third-party basemap is a default, so the map has to say which of the
         two honest states it is in. "No basemap configured" is a choice the deployment made and the
