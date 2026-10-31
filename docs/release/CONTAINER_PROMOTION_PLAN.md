@@ -293,9 +293,12 @@ check/write pair.
   platforms) **has not been exercised against any registry**. The tool is
   deliberately preparatory and fail-closed: if the copy cannot be verified
   post-write, the run fails instead of claiming a promotion.
+- Observed 2026-10-31 (release run 41202497976): for a tag that does not exist yet,
+  `docker buildx imagetools inspect --raw` against GHCR fails with exactly one line,
+  `ERROR: <reference>: not found`. That exact line, for the very reference inspected,
+  is now classified as absence; every other "not found" wording still refuses.
 - The exact bytes `docker buildx imagetools inspect --raw` prints (including
-  whether the CLI appends a trailing newline), the explicit manifest-missing
-  wording the registry client surfaces, and GHCR package visibility/read
+  whether the CLI appends a trailing newline) and GHCR package visibility/read
   principals (§7 D1) still need a controlled registry rehearsal; visibility is
   not assumed, and any output shape the parser cannot classify refuses.
 - No workflow run, tag write or release was dispatched for this slice: all

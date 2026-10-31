@@ -466,8 +466,9 @@ def test_inspect_failure_other_than_a_manifest_not_found_never_writes(stderr: st
 @pytest.mark.parametrize(
     "stderr",
     [
-        # The registry client's generic wording: no manifest-missing marker.
-        f"ERROR: {IMAGE}:{TAG}: not found",
+        # Generic wording that is not buildx's exact missing-tag line for this reference.
+        f"ERROR: {IMAGE}:other-tag: not found",
+        f"warning: retrying\nERROR: {IMAGE}:{TAG}: not found",
         'ERROR: exec: "docker": executable file not found in $PATH',
         "error: config file not found: /home/runner/.docker/config.json",
         f"ERROR: {IMAGE}:{TAG}: no such manifest",
@@ -548,6 +549,25 @@ def test_inspect_timeout_is_refused_and_never_read_as_absence() -> None:
 # ---------------------------------------------------------------------------
 # Promotion flow against real bytes: digest basis, copy, post-copy verify
 # ---------------------------------------------------------------------------
+
+
+def test_buildx_exact_missing_tag_line_is_absence() -> None:
+    """GHCR via buildx, observed 2026-10-31: a missing tag fails with exactly this line."""
+
+    reference = f"{IMAGE}:{TAG}"
+
+    def run(argv):
+        return promotion.CommandResult(
+            tuple(argv), returncode=1, stderr=f"ERROR: {reference}: not found\n"
+        )
+
+    outcome = promotion.inspect_reference(reference, run, byte_rule="exact")
+    assert outcome.state == "absent", outcome.detail
+    # The same words for another reference, or mixed with other output, are not absence.
+    assert not promotion._is_buildx_tag_not_found(f"ERROR: {IMAGE}:x: not found", reference)
+    assert not promotion._is_buildx_tag_not_found(
+        f"retry\nERROR: {reference}: not found", reference
+    )
 
 
 def test_absent_tag_copies_the_exact_tested_digest_then_verifies_it() -> None:
@@ -731,9 +751,7 @@ def test_descriptors_without_platform_are_tolerated_but_not_counted() -> None:
         b"not json at all",
         b'"just a string"',
         document_bytes({"schemaVersion": 2, "manifests": []}),
-        document_bytes(
-            {"schemaVersion": 2, "mediaType": PLATFORM_MEDIA_TYPE, "manifests": []}
-        ),
+        document_bytes({"schemaVersion": 2, "mediaType": PLATFORM_MEDIA_TYPE, "manifests": []}),
         document_bytes({"schemaVersion": 2, "mediaType": INDEX_MEDIA_TYPE, "manifests": "x"}),
         document_bytes(
             {

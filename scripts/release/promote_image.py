@@ -121,6 +121,21 @@ BYTE_RULES = ("exact", "trailing-newline")
 ABSENCE_PATTERN = re.compile(
     r"manifest[\s._-]*unknown|manifest[\s._-]*not[\s._-]*found", re.IGNORECASE
 )
+
+
+def _is_buildx_tag_not_found(evidence: str, reference: str) -> bool:
+    """The exact wording ``docker buildx imagetools inspect`` prints for a missing tag.
+
+    Observed against GHCR on 2026-10-31 (release run 41202497976): a tag that does not
+    exist yet fails with the single line ``ERROR: <reference>: not found``. Only that
+    exact line for the very reference inspected counts; a missing binary or an
+    unreadable config never produces it, and any other output still refuses.
+    """
+
+    lines = [line.strip() for line in evidence.strip().splitlines() if line.strip()]
+    return lines == [f"ERROR: {reference}: not found"]
+
+
 # Refusal signals win over absence when both appear anywhere in the full
 # output. HTTP server-error detection is contextual (status wording next to a
 # 5xx code, or the standard reason phrase): a bare ``5ddd`` substring would
@@ -266,8 +281,7 @@ def parse_index_manifest(content: bytes) -> IndexParse:
         if not isinstance(descriptor_digest, str) or DIGEST.fullmatch(descriptor_digest) is None:
             return IndexParse(
                 detail=(
-                    f"index descriptor {position} has no valid sha256 digest: "
-                    f"{descriptor_digest!r}"
+                    f"index descriptor {position} has no valid sha256 digest: {descriptor_digest!r}"
                 )
             )
         descriptor_media_type = descriptor.get("mediaType")
@@ -359,7 +373,7 @@ def inspect_reference(
                     f"absence: {_bounded(evidence)}"
                 ),
             )
-        if ABSENCE_PATTERN.search(evidence):
+        if ABSENCE_PATTERN.search(evidence) or _is_buildx_tag_not_found(evidence, reference):
             return InspectOutcome(
                 "absent",
                 detail=(
