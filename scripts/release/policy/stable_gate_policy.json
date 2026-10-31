@@ -60,6 +60,12 @@
       "environment_prefix": "local-dry-run",
       "require_run_identity": false,
       "local_only": true
+    },
+    "attest": {
+      "workflow": "release.yml",
+      "job": "attest",
+      "environment_prefix": "github-actions/",
+      "require_run_identity": true
     }
   },
   "ci_acceptance": {
@@ -95,7 +101,10 @@
       "evidence": "ci-run.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["ci-verification", "dry-run"],
+      "producers": [
+        "ci-verification",
+        "dry-run"
+      ],
       "verification": "same_sha_ci_run"
     },
     {
@@ -106,7 +115,10 @@
       "evidence": "python-tests.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["validate", "dry-run"]
+      "producers": [
+        "validate",
+        "dry-run"
+      ]
     },
     {
       "id": "G3",
@@ -116,7 +128,10 @@
       "evidence": "postgres-migration.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["reliability", "dry-run"]
+      "producers": [
+        "reliability",
+        "dry-run"
+      ]
     },
     {
       "id": "G4",
@@ -126,7 +141,10 @@
       "evidence": "web-build.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["web", "dry-run"]
+      "producers": [
+        "web",
+        "dry-run"
+      ]
     },
     {
       "id": "G5",
@@ -136,7 +154,10 @@
       "evidence": "desktop-packaging.json",
       "subject_kind": "artifact",
       "not_applicable_allowed": false,
-      "producers": ["dry-run"]
+      "producers": [
+        "assemble",
+        "dry-run"
+      ]
     },
     {
       "id": "G6",
@@ -166,7 +187,10 @@
       "evidence": "security-tests.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["validate", "dry-run"],
+      "producers": [
+        "validate",
+        "dry-run"
+      ],
       "evidence_runner": "scripts/release/run_security_evidence.py"
     },
     {
@@ -177,7 +201,10 @@
       "evidence": "vulnerability-scan.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["dependency-scan", "dry-run"]
+      "producers": [
+        "dependency-scan",
+        "dry-run"
+      ]
     },
     {
       "id": "G10",
@@ -187,7 +214,10 @@
       "evidence": "sbom.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["dry-run"]
+      "producers": [
+        "assemble",
+        "dry-run"
+      ]
     },
     {
       "id": "G11",
@@ -197,7 +227,10 @@
       "evidence": "provenance.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["dry-run"]
+      "producers": [
+        "attest",
+        "dry-run"
+      ]
     },
     {
       "id": "G12",
@@ -207,7 +240,10 @@
       "evidence": "checksums.json",
       "subject_kind": "artifact",
       "not_applicable_allowed": false,
-      "producers": ["assemble", "dry-run"]
+      "producers": [
+        "assemble",
+        "dry-run"
+      ]
     },
     {
       "id": "G13",
@@ -227,7 +263,10 @@
       "evidence": "performance.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": ["reliability", "dry-run"]
+      "producers": [
+        "reliability",
+        "dry-run"
+      ]
     },
     {
       "id": "G15",
@@ -267,7 +306,9 @@
       "evidence": "container-acceptance.json",
       "subject_kind": "image",
       "not_applicable_allowed": false,
-      "producers": ["container-acceptance"]
+      "producers": [
+        "container-acceptance"
+      ]
     }
   ]
 }
