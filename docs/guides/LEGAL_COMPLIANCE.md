@@ -17,3 +17,12 @@
   licensed raw prices; answers are advisory and labelled.
 - **Scope:** the product does not execute trades, nominate or settle; outputs are
   research candidates requiring human review.
+
+## Compliance audit
+
+The current audit (security, data protection and residency, REMIT/MAR/MiFID II record
+keeping, reporting, data sourcing and licensing, legal claims) with its open findings is
+[COMPLIANCE_AUDIT.md](../compliance/COMPLIANCE_AUDIT.md). Data-subject access requests are
+answered with `scripts/ops/personal_data_export.py`; audit records are kept five years by
+default.
+

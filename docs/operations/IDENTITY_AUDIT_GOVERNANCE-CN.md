@@ -71,8 +71,8 @@ fail-closed。市场观测与报价响应会按已认证身份的授权 family �
 - 清理默认 dry-run：
 
 ```bash
-python scripts/ops/prune_audit_events.py --retention-days 365
-python scripts/ops/prune_audit_events.py --retention-days 365 --commit
+python scripts/ops/prune_audit_events.py --retention-days 1827
+python scripts/ops/prune_audit_events.py --retention-days 1827 --commit
 ```
 
 - `POST /api/internal/audit/prune` 接受 `retention_days` 和 `dry_run`。

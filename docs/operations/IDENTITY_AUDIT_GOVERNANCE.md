@@ -116,7 +116,7 @@ rows to the authenticated identity's granted families.
 
 ## Audit retention and export
 
-- Default retention: 365 days; allowed window 30-3650 days.
+- Default retention: 1,827 days (five years, the usual record-keeping horizon for trading decisions); allowed window 30-3650 days. Shorten only on legal advice.
 - Prune is dry-run by default:
 
 ```bash

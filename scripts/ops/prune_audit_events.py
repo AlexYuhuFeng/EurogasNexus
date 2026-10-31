@@ -3,8 +3,8 @@
 Dry-run by default. Never prints event details or database secrets.
 
 Usage:
-    python scripts/ops/prune_audit_events.py --retention-days 365
-    python scripts/ops/prune_audit_events.py --retention-days 365 --commit
+    python scripts/ops/prune_audit_events.py --retention-days 1827
+    python scripts/ops/prune_audit_events.py --retention-days 1827 --commit
 """
 
 from __future__ import annotations

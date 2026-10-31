@@ -35,7 +35,7 @@ def test_prune_audit_events_dry_run_counts_only(tmp_path) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path.as_posix()}/audit.sqlite")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
-        session.add(_row(400))
+        session.add(_row(2000))
         session.add(_row(10))
         session.commit()
 
@@ -50,7 +50,7 @@ def test_prune_audit_events_commit_deletes_only_expired(tmp_path) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path.as_posix()}/audit.sqlite")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
-        session.add(_row(500))
+        session.add(_row(2100))
         session.add(_row(5))
         session.commit()
 
@@ -81,4 +81,4 @@ def test_prune_script_without_db_url_returns_2(monkeypatch) -> None:
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
 
     assert script.main([]) == 2
-    assert DEFAULT_AUDIT_RETENTION_DAYS == 365
+    assert DEFAULT_AUDIT_RETENTION_DAYS == 1827  # five years

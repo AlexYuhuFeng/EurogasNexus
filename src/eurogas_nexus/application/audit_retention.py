@@ -11,7 +11,9 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-DEFAULT_AUDIT_RETENTION_DAYS = 365
+#: Five years: the usual record-keeping horizon for trading decisions and their evidence
+#: (MiFID II Art. 16(6)-(7), MAR, REMIT record-keeping). Shorten only on legal advice.
+DEFAULT_AUDIT_RETENTION_DAYS = 1827
 MIN_AUDIT_RETENTION_DAYS = 30
 MAX_AUDIT_RETENTION_DAYS = 3650
 

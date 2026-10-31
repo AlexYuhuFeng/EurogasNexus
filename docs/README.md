@@ -27,6 +27,7 @@ the current/normative document listed here and report the conflict.
   [market data sourcing](operations/MARKET_DATA_SOURCING.md),
   [single sign-on](operations/ENTERPRISE_SSO.md),
   [ETRM/ERP integration](integration/ERP_ETRM_INTEGRATION.md),
+  [compliance audit](compliance/COMPLIANCE_AUDIT.md),
   [design system](ux/DESIGN_SYSTEM.md),
   [ECMWF forecasts](data/ECMWF_FORECAST_OPERATIONS.md),
   [weather-demand model](operations/WEATHER_DEMAND_MODEL_OPERATOR.md),
