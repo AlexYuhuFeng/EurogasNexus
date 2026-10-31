@@ -317,3 +317,123 @@ export function situationCardHtml(
   }
   return "";
 }
+
+// ---------------------------------------------------------------------------
+// Semantic zoom: the same map answers a different question at each scale.
+//   overview  (zoomed out)  how is the portfolio doing, country by country?
+//   region                   which assets, where?
+//   detail    (zoomed in)    what exactly is happening at this asset?
+// ---------------------------------------------------------------------------
+
+export type ZoomTier = "overview" | "region" | "detail";
+
+/** Below this zoom the map shows per-country totals instead of individual assets. */
+export const OVERVIEW_MAX_ZOOM = 5;
+/** From this zoom each asset carries its key numbers next to it. */
+export const DETAIL_MIN_ZOOM = 7.5;
+
+export function zoomTier(zoom: number): ZoomTier {
+  if (zoom < OVERVIEW_MAX_ZOOM) return "overview";
+  if (zoom < DETAIL_MIN_ZOOM) return "region";
+  return "detail";
+}
+
+export interface CountrySummary {
+  country: string;
+  lon: number;
+  lat: number;
+  contracts: number;
+  contractedMwhD: number;
+  outagesNow: number;
+  outagesScheduled: number;
+  unavailableGwhD: number;
+  cargoesInbound: number;
+  inboundGwh: number;
+  slots: number;
+}
+
+/**
+ * Totals per country for the overview. A country appears only when something located
+ * there (a contract, an outage, an inbound own cargo or a held slot); its card sits at
+ * the centre of those items, so it lands where the activity is, not at a capital.
+ */
+export function countrySummaries(situation: MapSituationDTO | null): CountrySummary[] {
+  if (!situation) return [];
+  const byCountry = new Map<string, CountrySummary & { points: Array<[number, number]> }>();
+  const entry = (country: string | null | undefined, lon: number, lat: number) => {
+    const key = (country ?? "").toUpperCase();
+    if (!key) return null;
+    let row = byCountry.get(key);
+    if (!row) {
+      row = {
+        country: key, lon, lat, contracts: 0, contractedMwhD: 0, outagesNow: 0,
+        outagesScheduled: 0, unavailableGwhD: 0, cargoesInbound: 0, inboundGwh: 0, slots: 0,
+        points: [],
+      };
+      byCountry.set(key, row);
+    }
+    row.points.push([lon, lat]);
+    return row;
+  };
+  for (const item of situation.contracts) {
+    const row = entry(item.location.country, item.location.lon, item.location.lat);
+    if (row) {
+      row.contracts += 1;
+      row.contractedMwhD += item.delivery_mwh_d;
+    }
+  }
+  for (const item of situation.outages) {
+    const row = entry(item.location.country, item.location.lon, item.location.lat);
+    if (!row) continue;
+    if (item.status === "active") row.outagesNow += 1;
+    else row.outagesScheduled += 1;
+    if (item.status === "active") row.unavailableGwhD += item.unavailable_gwh_d ?? 0;
+  }
+  for (const item of situation.cargoes) {
+    if (!item.own || item.status !== "laden" || !item.destination) continue;
+    const row = entry(item.destination.country, item.destination.lon, item.destination.lat);
+    if (row) {
+      row.cargoesInbound += 1;
+      row.inboundGwh += item.energy_gwh ?? 0;
+    }
+  }
+  for (const item of situation.regas_slots) {
+    const row = entry(item.location.country, item.location.lon, item.location.lat);
+    if (row) row.slots += 1;
+  }
+  return [...byCountry.values()]
+    .map(({ points, ...row }) => ({
+      ...row,
+      lon: points.reduce((sum, [lon]) => sum + lon, 0) / points.length,
+      lat: points.reduce((sum, [, lat]) => sum + lat, 0) / points.length,
+    }))
+    .sort((a, b) => a.country.localeCompare(b.country));
+}
+
+/** A short line of numbers shown beside an asset once zoomed in. */
+export function detailLabel(kind: string, id: string, situation: MapSituationDTO): string | null {
+  if (kind === "outage") {
+    const item = situation.outages.find((outage) => outage.event_id === id);
+    if (!item) return null;
+    const out = item.unavailable_capacity == null ? "" : `−${number(item.unavailable_capacity)} ${item.unit}`;
+    return `${item.facility_name} · ${out} · ${item.status === "active" ? "until" : "from"} ${shortUtc(item.status === "active" ? item.end_utc : item.start_utc)}`;
+  }
+  if (kind === "contract") {
+    const items = situation.contracts.filter((contract) => id.split(",").includes(contract.contract_id));
+    if (!items.length) return null;
+    const total = items.reduce((sum, item) => sum + item.delivery_mwh_d, 0);
+    return `${items[0].delivery_point} · ${number(total)} MWh/d${items.length > 1 ? ` · ${items.length} contracts` : ""}`;
+  }
+  if (kind === "cargo") {
+    const item = situation.cargoes.find((cargo) => cargo.cargo_id === id);
+    if (!item) return null;
+    return `${item.vessel_name}${item.energy_gwh != null ? ` · ${number(item.energy_gwh)} GWh` : ""}${item.eta_utc ? ` · ETA ${shortUtc(item.eta_utc)}` : ""}`;
+  }
+  if (kind === "regas") {
+    const items = situation.regas_slots.filter((slot) => slot.terminal_name === id);
+    if (!items.length) return null;
+    const next = items[0];
+    return `${id} · slot ${shortUtc(next.window_start_utc)}–${shortUtc(next.window_end_utc)}${next.send_out_gwh_d != null ? ` · ${number(next.send_out_gwh_d)} GWh/d` : ""}`;
+  }
+  return null;
+}

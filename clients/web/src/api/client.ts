@@ -2389,7 +2389,6 @@ export interface NweBalanceDayDTO {
   flags?: string[];
 }
 
-/** North-west Europe balance: measured history and the component forecast. */
 export interface MapLocationDTO {
   lon: number;
   lat: number;
@@ -2397,6 +2396,7 @@ export interface MapLocationDTO {
   ref_kind?: "node" | "facility";
   match?: "eic" | "name" | "feed";
   coordinate_quality?: string;
+  country?: string | null;
 }
 
 export interface MapOutageDTO {
@@ -2488,6 +2488,7 @@ export interface MapSituationDTO {
   positions_included: boolean;
 }
 
+/** North-west Europe balance: measured history and the component forecast. */
 export interface NweBalanceDTO {
   region: string[];
   unit: string;

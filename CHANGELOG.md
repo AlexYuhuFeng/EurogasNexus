@@ -68,6 +68,8 @@ version lives under [docs/release/notes](docs/release/notes).
   where gas or cargoes move (off under reduced motion). Cargo and slot imports from the
   customer's vessel-tracking export or ETRM; infrastructure locations from openly licensed
   datasets (Sodir, NSTA, Global Energy Monitor, OpenStreetMap).
+- Semantic zoom on the live map: country totals when zoomed out, individual assets at
+  regional zoom, key figures beside each asset when zoomed in; "Fit our positions".
 - Map zooms like a city map: street level with a detailed basemap, infrastructure icons by
   kind, labels that appear as the view narrows, find-and-fly, click to focus, and a ring
   around approximate positions. A bundled offline outline basemap (Natural Earth) is the

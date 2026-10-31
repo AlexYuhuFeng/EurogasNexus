@@ -3882,5 +3882,18 @@
   "map.find.kind_interconnection": "互联点",
   "map.find.kind_point": "管网点",
   "map.situation.facility_lng_terminal": "LNG 接收站",
-  "map.situation.facility_border_point": "边境点"
+  "map.situation.facility_border_point": "边境点",
+  "map.overview.contracted": "已签约",
+  "map.overview.cargoes_inbound": "艘我方船货在途",
+  "map.overview.slots": "个再气化窗口",
+  "map.overview.outages_now": "项当前停运",
+  "map.overview.outages_scheduled": "项计划停运",
+  "map.overview.zoom_in": "放大查看资产",
+  "map.tier.overview": "总览",
+  "map.tier.overview_hint": "按国家汇总。放大或点击卡片查看资产。",
+  "map.tier.region": "区域",
+  "map.tier.region_hint": "单个资产。继续放大查看数据。",
+  "map.tier.detail": "明细",
+  "map.tier.detail_hint": "每个资产旁显示关键数据。悬停或点击查看完整卡片。",
+  "map.tier.fit_positions": "显示全部我方头寸"
 }

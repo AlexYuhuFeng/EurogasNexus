@@ -3882,5 +3882,18 @@
   "map.find.kind_interconnection": "Interconnection point",
   "map.find.kind_point": "Network point",
   "map.situation.facility_lng_terminal": "LNG terminal",
-  "map.situation.facility_border_point": "Border point"
+  "map.situation.facility_border_point": "Border point",
+  "map.overview.contracted": "contracted",
+  "map.overview.cargoes_inbound": "own cargo(es) inbound",
+  "map.overview.slots": "regas slot(s) held",
+  "map.overview.outages_now": "out now",
+  "map.overview.outages_scheduled": "outage(s) scheduled",
+  "map.overview.zoom_in": "zoom in to see the assets",
+  "map.tier.overview": "Overview",
+  "map.tier.overview_hint": "Totals by country. Zoom in or click a card for the assets.",
+  "map.tier.region": "Region",
+  "map.tier.region_hint": "Individual assets. Zoom in further for their figures.",
+  "map.tier.detail": "Detail",
+  "map.tier.detail_hint": "Figures beside each asset. Hover or click for the full card.",
+  "map.tier.fit_positions": "Fit our positions"
 }

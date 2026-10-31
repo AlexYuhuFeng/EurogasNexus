@@ -60,6 +60,7 @@ class _Locator:
                 "ref_id": item.id,
                 "ref_kind": kind,
                 "coordinate_quality": item.data_quality or "unknown",
+                "country": (item.country or "").upper() or None,
             }
             if kind == "node":
                 self.by_node_id[item.id] = location
@@ -230,12 +231,20 @@ def build_map_situation(
                 else None
             )
             destination = (
-                {"lon": record.destination_lon, "lat": record.destination_lat, "match": "feed"}
+                {
+                    "lon": record.destination_lon,
+                    "lat": record.destination_lat,
+                    "match": "feed",
+                    "country": record.destination_country,
+                }
                 if record.destination_lat is not None
                 else locator.find(name=record.destination_terminal)
             )
+            if destination is not None and not destination.get("country"):
+                named = locator.find(name=record.destination_terminal)
+                destination["country"] = named.get("country") if named else None
             origin = (
-                {"lon": record.load_lon, "lat": record.load_lat}
+                {"lon": record.load_lon, "lat": record.load_lat, "country": record.load_country}
                 if record.load_lat is not None
                 else None
             )
@@ -274,10 +283,18 @@ def build_map_situation(
             if not (_own(record.book_id, allowed) if record.book_id else allowed is None):
                 continue
             location = (
-                {"lon": record.terminal_lon, "lat": record.terminal_lat, "match": "feed"}
+                {
+                    "lon": record.terminal_lon,
+                    "lat": record.terminal_lat,
+                    "match": "feed",
+                    "country": record.terminal_country,
+                }
                 if record.terminal_lat is not None
                 else locator.find(name=record.terminal_name)
             )
+            if location is not None and not location.get("country"):
+                named = locator.find(name=record.terminal_name)
+                location["country"] = named.get("country") if named else None
             if location is None:
                 unlocated["regas_slots"] += 1
                 continue

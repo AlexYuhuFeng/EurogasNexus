@@ -15,8 +15,13 @@ import mapLibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, FacilityDTO, MapSituationDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
 import {
+  OVERVIEW_MAX_ZOOM,
   SITUATION_COLOURS,
+  type ZoomTier,
   cargoFeatures,
+  countrySummaries,
+  detailLabel,
+  zoomTier,
   contractFeatures,
   facilityFeatures,
   flowFeatures,
@@ -192,6 +197,8 @@ export function GasNetworkMap({
   const mapRef = useRef<MapLibreMap | null>(null);
   const labelMarkersRef = useRef<Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
+  const [tier, setTier] = useState<ZoomTier>("overview");
+  const summaryMarkersRef = useRef<Marker[]>([]);
   const effectiveTheme = resolveEffectiveTheme(themeMode);
   const mapTileProvider = useMemo(configuredMapTileProvider, []);
   const basemapState = useMemo(
@@ -359,6 +366,10 @@ export function GasNetworkMap({
     map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new AttributionControl({ compact: true }), "bottom-left");
     map.on("load", () => setMapReady(true));
+    // Semantic zoom: the tier decides what the map shows, not only how big it is.
+    const syncTier = () => setTier(zoomTier(map.getZoom()));
+    syncTier();
+    map.on("zoomend", syncTier);
     mapRef.current = map;
     return () => {
       setMapReady(false);
@@ -950,6 +961,20 @@ export function GasNetworkMap({
     }
 
     const visibility = (on: boolean) => (on ? "visible" : "none");
+    // Individual assets appear from the region tier; the overview shows country totals.
+    for (const layerId of [
+      "situation-facilities",
+      "situation-flows",
+      "situation-cargo-sailed",
+      "situation-cargo-ahead",
+      "situation-regas",
+      "situation-contracts",
+      "situation-cargo-positions",
+      "situation-outage-halo",
+      "situation-outages",
+    ]) {
+      if (map.getLayer(layerId)) map.setLayerZoomRange(layerId, OVERVIEW_MAX_ZOOM, 24);
+    }
     const show: Record<string, boolean> = {
       "situation-facilities": activeLayers.includes("infrastructure"),
       "situation-pipeline-flow": activeLayers.includes("flows"),
@@ -1035,6 +1060,44 @@ export function GasNetworkMap({
       const budget = labelBudgetForZoom(map.getZoom());
       const bounds = map.getBounds();
       let shown = 0;
+      // Detail tier: each situation asset carries its key numbers, ahead of plain names.
+      const current = situationRef.current;
+      if (current && zoomTier(map.getZoom()) === "detail") {
+        const candidates: Array<{ kind: string; id: string; lon: number; lat: number }> = [
+          ...current.outages.map((item) => ({ kind: "outage", id: item.event_id, ...item.location })),
+          ...current.regas_slots.map((item) => ({ kind: "regas", id: item.terminal_name, ...item.location })),
+          ...current.cargoes
+            .filter((item) => item.position ?? item.origin)
+            .map((item) => ({ kind: "cargo", id: item.cargo_id, ...(item.position ?? item.origin)! })),
+          ...current.contracts.map((item) => ({ kind: "contract", id: item.contract_id, ...item.location })),
+        ];
+        const seen = new Set<string>();
+        for (const item of candidates) {
+          const key = `${item.kind}:${item.id}`;
+          if (seen.has(key) || shown >= budget) continue;
+          seen.add(key);
+          const at = toMapCoordinates(item.lon, item.lat);
+          if (!bounds.contains(at)) continue;
+          const text = detailLabel(item.kind, item.id, current);
+          if (!text) continue;
+          const projected = map.project(at);
+          // Assets at one place (an outage and a contract at the same terminal) stack
+          // their labels instead of hiding each other.
+          let dy = 0;
+          while (occupied.some((point) => Math.abs(point.x - projected.x) < 150 && Math.abs(point.y - (projected.y + dy)) < 22) && dy < 88) {
+            dy += 22;
+          }
+          if (dy >= 88) continue;
+          occupied.push({ x: projected.x, y: projected.y + dy });
+          shown += 1;
+          const element = document.createElement("div");
+          element.className = `map-node-label map-detail-label is-${item.kind}`;
+          element.textContent = text;
+          labelMarkersRef.current.push(
+            new Marker({ element, anchor: "left", offset: [12, dy] }).setLngLat(at).addTo(map),
+          );
+        }
+      }
       priorityLabelNodes.forEach((node) => {
         if (shown >= budget || !bounds.contains(toMapCoordinates(node.lon, node.lat))) return;
         const projected = map.project(toMapCoordinates(node.lon, node.lat));
@@ -1084,7 +1147,95 @@ export function GasNetworkMap({
       map.off("moveend", renderLabels);
       clearLabels();
     };
-  }, [activeLayers, facilities, highlightedRoutePoints, mapReady, priorityLabelNodes]);
+  }, [activeLayers, facilities, highlightedRoutePoints, mapReady, priorityLabelNodes, situation]);
+
+  // Overview tier: one compact pill per country with the portfolio's headline there; the
+  // full breakdown is in its tooltip. Pills that would overlap are pushed apart, and
+  // clicking one zooms into that country, where the individual assets take over.
+  useEffect(() => {
+    const map = mapRef.current;
+    const clear = () => {
+      summaryMarkersRef.current.forEach((marker) => marker.remove());
+      summaryMarkersRef.current = [];
+    };
+    clear();
+    if (!map || !mapReady || tier !== "overview") return;
+    const showPositions = activeLayers.includes("positions");
+    const showOutages = activeLayers.includes("outages");
+    const compact = (value: number) =>
+      value >= 1000 ? `${(value / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}k` : `${Math.round(value)}`;
+    const rows = countrySummaries(situation)
+      .map((row) => {
+        const headline: string[] = [];
+        const details: string[] = [];
+        if (showPositions && row.contracts) {
+          headline.push(`${compact(row.contractedMwhD)} MWh/d`);
+          details.push(`${row.contractedMwhD.toLocaleString()} MWh/d ${t("map.overview.contracted")} (${row.contracts})`);
+        }
+        if (showPositions && row.cargoesInbound) {
+          headline.push(`${row.cargoesInbound} ⛴`);
+          details.push(`${row.cargoesInbound} ${t("map.overview.cargoes_inbound")}${row.inboundGwh ? ` · ${Math.round(row.inboundGwh).toLocaleString()} GWh` : ""}`);
+        }
+        if (showPositions && row.slots) details.push(`${row.slots} ${t("map.overview.slots")}`);
+        const alert = showOutages && row.outagesNow > 0;
+        if (alert) {
+          details.push(`${row.outagesNow} ${t("map.overview.outages_now")}${row.unavailableGwhD ? ` · −${Math.round(row.unavailableGwhD).toLocaleString()} GWh/d` : ""}`);
+        }
+        if (showOutages && row.outagesScheduled) details.push(`${row.outagesScheduled} ${t("map.overview.outages_scheduled")}`);
+        return { row, headline, details, alert };
+      })
+      .filter((item) => item.details.length > 0);
+
+    const place = () => {
+      clear();
+      const taken: Array<{ x: number; y: number }> = [];
+      for (const { row, headline, details, alert } of rows) {
+        const at = toMapCoordinates(row.lon, row.lat);
+        const base = map.project(at);
+        let dy = 0;
+        // Simple label placement: step down until the pill clears the ones placed.
+        while (taken.some((box) => Math.abs(box.x - base.x) < 150 && Math.abs(box.y - (base.y + dy)) < 26) && dy < 260) {
+          dy += 28;
+        }
+        taken.push({ x: base.x, y: base.y + dy });
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = `map-summary-card${alert ? " has-alert" : ""}`;
+        element.title = details.join("\n");
+        element.setAttribute("aria-label", `${row.country}: ${details.join("; ")}. ${t("map.overview.zoom_in")}`);
+        element.innerHTML = `<strong>${escapeHtml(row.country)}</strong><span>${escapeHtml(headline.join(" · ") || details[0])}</span>${alert ? `<b class="is-alert">${row.outagesNow} ${escapeHtml(t("map.overview.outages_now"))}</b>` : ""}`;
+        element.addEventListener("click", () => focusOn(map, at, 6));
+        summaryMarkersRef.current.push(
+          new Marker({ element, anchor: "bottom", offset: [0, dy - 6] }).setLngLat(at).addTo(map),
+        );
+      }
+    };
+    place();
+    map.on("moveend", place);
+    return () => {
+      map.off("moveend", place);
+      clear();
+    };
+  }, [activeLayers, mapReady, situation, t, tier]);
+
+  /** Frame everything the firm holds: contracts, own cargoes and held slots. */
+  function fitOurPositions() {
+    const map = mapRef.current;
+    if (!map || !situation) return;
+    const points: Array<[number, number]> = [
+      ...situation.contracts.map((item) => [item.location.lon, item.location.lat] as [number, number]),
+      ...situation.regas_slots.map((item) => [item.location.lon, item.location.lat] as [number, number]),
+      ...situation.cargoes.filter((item) => item.own).flatMap((item) =>
+        [item.position, item.destination].filter(Boolean).map((at) => [at!.lon, at!.lat] as [number, number])),
+    ].map(([lon, lat]) => toMapCoordinates(lon, lat));
+    if (!points.length) return;
+    const lons = points.map(([lon]) => lon);
+    const lats = points.map(([, lat]) => lat);
+    map.fitBounds(
+      [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+      { padding: 80, maxZoom: 8, duration: prefersReducedMotion() ? 0 : 900 },
+    );
+  }
 
   // Everything the map can locate, for the finder. Positions come from the same sources
   // as the layers, so the finder never lands somewhere the map would not draw.
@@ -1147,6 +1298,15 @@ export function GasNetworkMap({
     <div className="gas-map" aria-label={t("map.gas_network_map")}>
       <div ref={containerRef} className="maplibre-canvas" />
       {mapReady && <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} />}
+      {mapReady && (
+        <div className="map-zoom-tier" role="status" aria-live="polite">
+          <span className={`map-zoom-tier-name is-${tier}`}>{t(`map.tier.${tier}`)}</span>
+          <small>{t(`map.tier.${tier}_hint`)}</small>
+          {situation && (situation.contracts.length > 0 || situation.regas_slots.length > 0 || situation.cargoes.some((item) => item.own)) && (
+            <button type="button" className="chip" onClick={fitOurPositions}>{t("map.tier.fit_positions")}</button>
+          )}
+        </div>
+      )}
       {/*
         Owner decision D4: no third-party basemap is a default, so the map has to say which of the
         two honest states it is in. "No basemap configured" is a choice the deployment made and the

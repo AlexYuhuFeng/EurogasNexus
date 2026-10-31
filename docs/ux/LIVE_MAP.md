@@ -25,6 +25,21 @@ A status strip states the picture in one line: "Live · 2 out now · 1 scheduled
 contracts · 1 own cargo at sea · 1 regas slot · as of 09:30 UTC · 1 not located". The map
 re-reads the situation every five minutes; a failed read keeps the last picture.
 
+## Semantic zoom: a different question at each scale
+
+Like a navigation or ride-hailing map, the map changes *what* it shows as you zoom, not
+only how large it is. A small chip at the bottom right names the current level.
+
+| Level | Zoom | Question it answers | What is drawn |
+|---|---|---|---|
+| **Overview** | below 5 | How is the portfolio doing, country by country? | One pill per country with activity: our contracted MWh/d, own cargoes inbound, live outages (red border). The tooltip has the full breakdown (slots held, scheduled outages, GWh). Click a pill to zoom into that country. Individual assets are hidden |
+| **Region** | 5 to 7.5 | Which assets, where? | Each outage, contract pin, cargo, regas terminal and facility icon, with hover cards |
+| **Detail** | from 7.5 | What exactly is happening at this asset? | The key figures beside each asset: "Easington · −300 GWh/d · until 02 Nov", "Arctic Voyager · 980 GWh · ETA 02 Nov", "Gate · slot 02 Nov–07 Nov · 190 GWh/d", "Easington · 24,000 MWh/d". Labels at the same place stack |
+
+Pills sit at the centre of the activity they summarise, not at a capital, and step apart
+when countries are close. **Fit our positions** frames every contract, own cargo and
+held slot in one move; under *reduce motion* it jumps instead of flying.
+
 ## Zooming in
 
 The map behaves like a city map: scroll, pinch or double-click to zoom, and the detail grows
