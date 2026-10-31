@@ -11,28 +11,7 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ## [Unreleased]
 
-### Added
-
-- Market reference model: commodities (gas, LNG, power, emissions, coal), regions and
-  pricing points, including planned AECO, Alberta power and TIER credits for a Canada desk;
-  North American (NAESB) gas day.
-- Carbon (EUA, UKA), API2 coal, power and gas settlement import from the firm's ICE Endex,
-  EEX, CME, NGX, Argus or Platts licence; Henry Hub daily spot from EIA.
-- Gas for power per bidding zone: clean spark and dark spreads, fuel-switch gas price,
-  implied gas burn (Market → Overview).
-- North-west Europe balance: the call on Norway, LNG and storage, measured and forecast,
-  with Norwegian REMIT outages applied and a storage fill trajectory.
-- Market-data licence register: licensed data scopes are granted only against a licence
-  the firm holds, with seat and office checks and a holder report for vendor audits.
-- Trading books (legal entity, region, business, book) and position roll-ups from firm to
-  book in one reporting currency.
-
-### Fixed
-
-- Mark-to-market and VaR added GBP and EUR amounts without converting them; each market's
-  currency is now converted at ECB reference rates.
-
-## [0.6.0] - 2026-10-30
+## [0.6.0] - 2026-10-31
 
 ### Added
 
@@ -59,6 +38,23 @@ version lives under [docs/release/notes](docs/release/notes).
 - Exact ENTSOG native rates without assumed calorific values; bounded native history in
   the web client and SDK.
 - Guides by role and a trading-house assessment of coverage and gaps.
+- Market reference model: commodities (gas, LNG, power, emissions, coal), regions and
+  pricing points, including planned AECO, Alberta power and TIER credits for a Canada desk;
+  North American (NAESB) gas day.
+- Carbon (EUA, UKA), API2 coal, power and gas settlement import from the firm's ICE Endex,
+  EEX, CME, NGX, Argus or Platts licence; Henry Hub daily spot from EIA.
+- Gas for power per bidding zone: clean spark and dark spreads, fuel-switch gas price,
+  implied gas burn (Market → Overview).
+- North-west Europe balance: the call on Norway, LNG and storage, measured and forecast,
+  with Norwegian REMIT outages applied and a storage fill trajectory.
+- Market-data licence register: licensed data scopes are granted only against a licence
+  the firm holds, with seat and office checks and a holder report for vendor audits.
+- Trading books (legal entity, region, business, book) and position roll-ups from firm to
+  book in one reporting currency.
+- Design system: one token set and type scale, a calm sticky shell with search (Ctrl/Cmd K), consistent tabs, tables and badges, motion that respects reduced-motion, WCAG AA in both themes.
+- Common foundation for currencies (ISO 4217, quote units such as GBp and CNH, dated FX tables), units with dimensions, and time (UTC instants, market calendars, office zones).
+- Gateway single sign-on for dedicated networks (SAML, Kerberos, vendor SSO agents) alongside OIDC.
+- ETRM trade import into books, CSV exports of position, balance and gas-for-power reports, and signed hand-offs of decided cases for ERP/ETRM middleware.
 
 ### Changed
 
@@ -71,12 +67,15 @@ version lives under [docs/release/notes](docs/release/notes).
 - Preview builds are no longer published as GitHub Releases; only release candidates and
   stable versions are.
 - The ontology carries its own version, independent of application releases.
+- The server bundle is platform-neutral (`Eurogas-Nexus-Server-<version>.zip`) and includes the configuration template.
 
 ### Fixed
 
 - Sign-in language was overridden by stored preferences.
 - Database migration identifiers longer than the `alembic_version` column.
 - Browser acceptance and reproducibility of the weather-model numerical tests in CI.
+- Mark-to-market and VaR added GBP and EUR amounts without converting them; each market's
+  currency is now converted at ECB reference rates.
 
 ### Security
 

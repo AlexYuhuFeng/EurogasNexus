@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "description": "Reviewed customer payload for the Windows Server operator bundle. Selection is explicit: a file ships only when it is listed in entries, plus one generated release-identity.json. Recursive directory copies are not permitted, and the packager fails closed on missing required files, unsafe paths, symlinks and duplicates. Never list .automation, engineering docs, tests, secrets, local data/logs, or deploy/runtime/Dockerfile.api (the bundle pulls the published API image; the installer never builds it).",
-  "archive_name": "Eurogas-Nexus-Server-Windows.zip",
-  "bundle_root": "Eurogas-Nexus-Server-Windows",
+  "description": "Reviewed customer payload for the Server operator bundle (Linux and Windows). Selection is explicit: a file ships only when it is listed in entries, plus one generated release-identity.json. Recursive directory copies are not permitted, and the packager fails closed on missing required files, unsafe paths, symlinks and duplicates. Never list .automation, engineering docs, tests, secrets, local data/logs, or deploy/runtime/Dockerfile.api (the bundle pulls the published API image; the installer never builds it).",
+  "archive_name": "Eurogas-Nexus-Server.zip",
+  "bundle_root": "Eurogas-Nexus-Server",
   "identity": {
     "destination": "release-identity.json"
   },
@@ -52,6 +52,12 @@
       "destination": "deploy/runtime/Caddyfile",
       "required": true,
       "purpose": "HTTPS gateway configuration; the preflight reports the HTTPS gateway configuration as missing without it and the installer copies it to <InstallRoot>/Caddyfile."
+    },
+    {
+      "source": "deploy/runtime/env.server.example",
+      "destination": "deploy/runtime/env.server.example",
+      "required": true,
+      "purpose": "Configuration template generated from the configuration contract; operators copy it to .env and fill the secrets before `docker compose up`."
     },
     {
       "source": "deploy/runtime/README-EN.md",

@@ -311,6 +311,6 @@ def test_release_artifact_names_follow_contract() -> None:
     assert "linux-x64" in names[1]
     assert "linux-arm64" in names[2]
     assert names[3] == (
-        f"Eurogas-Nexus-Server-{APPLICATION_VERSION}-preview.7.033df92a856e-Windows.zip"
+        f"Eurogas-Nexus-Server-{APPLICATION_VERSION}-preview.7.033df92a856e.zip"
     )
     assert names[4] == f"eurogas-nexus-web-{APPLICATION_VERSION}-preview.7.033df92a856e.tar.gz"

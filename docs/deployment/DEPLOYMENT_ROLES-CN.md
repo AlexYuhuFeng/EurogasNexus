@@ -50,7 +50,7 @@ HTTPS 网关或数据采集任务。
 
 - `Client`：下载 `Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe`，并连接到一个已经存在、可访问且以 `/api`
   结尾的 HTTPS 后端地址；
-- `Server`：下载 `Eurogas-Nexus-Server-Windows.zip` 并运行
+- `Server`：下载 `Eurogas-Nexus-Server.zip` 并运行
   `Deploy-EurogasNexus.ps1 -Role Server`，不需要桌面安装包；
 因此，安装后目录里只有桌面程序和卸载程序，属于正常的 Client 安装结果，
 不表示数据库和后端已经安装。Release 说明和产物命名必须明确标注这一边界；

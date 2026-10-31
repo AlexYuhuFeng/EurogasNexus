@@ -174,7 +174,7 @@ Every successful release workflow publishes:
 - `Eurogas-Nexus-Client-{release_version}-windows-x64-setup.exe`
 - `Eurogas-Nexus-Client-{release_version}-linux-x64.deb` (Linux DEB package for x64 Linux users)
 - `Eurogas-Nexus-Client-{release_version}-linux-arm64.deb` (Linux DEB package for ARM64 Linux users)
-- `Eurogas-Nexus-Server-{release_version}-Windows.zip`
+- `Eurogas-Nexus-Server-{release_version}.zip`
 - `eurogas-nexus-web-{release_version}.tar.gz`
 - `release-manifest.json`, `SHA256SUMS`, SPDX SBOM set,
   `THIRD_PARTY_NOTICES.md`, and GitHub attestation metadata.

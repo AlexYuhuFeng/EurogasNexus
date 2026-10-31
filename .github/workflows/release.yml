@@ -620,8 +620,8 @@ jobs:
           bash scripts/release/package_deployment_bundle.sh release-assets \
             --release-context release-context/release-context.json \
             --image-digest "$IMAGE_DIGEST"
-          mv release-assets/Eurogas-Nexus-Server-Windows.zip \
-             "release-assets/Eurogas-Nexus-Server-${RELEASE_VERSION}-Windows.zip"
+          mv release-assets/Eurogas-Nexus-Server.zip \
+             "release-assets/Eurogas-Nexus-Server-${RELEASE_VERSION}.zip"
 
       - name: Upload deployment release assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

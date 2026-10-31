@@ -366,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     # digest supplied explicitly through --image-digest; without one, the
     # bundle is not built at all. --build-container only records a local
     # diagnostic build id, so it never satisfies this input.
-    server_zip = output / "Eurogas-Nexus-Server-Windows.zip"
+    server_zip = output / "Eurogas-Nexus-Server.zip"
     if image_digest_error:
         step("package-deployment", False, image_digest_error)
     elif image_digest:
@@ -382,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
             ]
         )
         server_target = output / (
-            f"Eurogas-Nexus-Server-{context['release_version'].lstrip('v')}-Windows.zip"
+            f"Eurogas-Nexus-Server-{context['release_version'].lstrip('v')}.zip"
         )
         server_zip.replace(server_target)
         step(

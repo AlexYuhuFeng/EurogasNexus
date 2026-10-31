@@ -24,6 +24,21 @@ The application reports `version`, `channel` and `commit` as separate fields
 name. A preview is never labelled signed or commercial, an RC is never marked latest, and a
 stable client never consumes preview update metadata (`UPDATE_POLICY.md`).
 
+## What a release contains
+
+| Asset | For |
+|---|---|
+| `Eurogas-Nexus-Client-<version>-windows-x64-setup.exe` | Windows desktop client (connects to a server; installs no backend) |
+| `Eurogas-Nexus-Client-<version>-linux-x64.deb`, `-linux-arm64.deb` | Linux desktop client |
+| `Eurogas-Nexus-Server-<version>.zip` | Server operators on Linux or Windows: Compose file, HTTPS gateway configuration, configuration template, Windows installer scripts, deployment guides, and `release-identity.json` naming the exact API image digest |
+| `eurogas-nexus-web-<version>.tar.gz` | The web client, for hosting behind the gateway |
+| `eurogas-nexus-sboms-<version>.tar.gz` | Software bills of materials (Python, npm, Rust, container) |
+| `release-manifest.json`, `SHA256SUMS` | What was built from which commit, and checksums for every asset |
+| API container image `ghcr.io/<owner>/eurogasnexus-api@sha256:...` | The server runtime, pulled by digest; build provenance is attested |
+
+There is no all-in-one workstation installer: a client and a server are separate roles,
+and an evaluation server runs from the same Compose bundle on one machine.
+
 ## Cutting a release
 
 1. Day to day, every user-visible change adds a line under `## [Unreleased]` in

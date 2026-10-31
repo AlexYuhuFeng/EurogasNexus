@@ -40,7 +40,7 @@ Generated output is separate from committed source:
 - Every Release publishes a separate Client-only Windows NSIS asset named
   `Eurogas-Nexus-Client-{release_version}-windows-x64-setup.exe` and a Server
   operator ZIP asset named
-  `Eurogas-Nexus-Server-{release_version}-Windows.zip`.
+  `Eurogas-Nexus-Server-{release_version}.zip`.
 - The Server operator ZIP contains deployment scripts, runtime configuration,
   and operating documentation. It is not a Server NSIS installer and does not
   embed the desktop Client or API image; the target Server supplies its approved

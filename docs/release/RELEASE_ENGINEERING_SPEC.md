@@ -157,7 +157,7 @@ All names derive from `release-context.json`:
 Eurogas-Nexus-Client-{release_version}-windows-x64-setup.exe
 Eurogas-Nexus-Client-{release_version}-linux-x64.deb
 Eurogas-Nexus-Client-{release_version}-linux-arm64.deb
-Eurogas-Nexus-Server-{release_version}-Windows.zip
+Eurogas-Nexus-Server-{release_version}.zip
 eurogas-nexus-web-{release_version}.tar.gz
 ```
 

@@ -189,11 +189,11 @@ def test_dry_run_bundle_uses_the_explicit_published_digest_not_the_local_build_i
 
     assert report_step(report, "build-container")["ok"] is True
     assert report_step(report, "package-deployment")["ok"] is True
-    archives = list(output.glob("Eurogas-Nexus-Server-*-Windows.zip"))
+    archives = list(output.glob("Eurogas-Nexus-Server-*.zip"))
     assert len(archives) == 1, sorted(path.name for path in output.glob("*.zip"))
     with zipfile.ZipFile(archives[0]) as bundle:
         identity = json.loads(
-            bundle.read("Eurogas-Nexus-Server-Windows/release-identity.json").decode("utf-8")
+            bundle.read("Eurogas-Nexus-Server/release-identity.json").decode("utf-8")
         )
     assert identity["api_image_digest"] == PUBLISHED_DIGEST
     assert identity["api_image_reference"].endswith(f"@{PUBLISHED_DIGEST}")

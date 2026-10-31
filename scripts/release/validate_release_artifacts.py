@@ -28,7 +28,7 @@ def expected_artifacts(context: dict) -> list[str]:
         f"Eurogas-Nexus-Client-{version}-windows-x64-setup.exe",
         f"Eurogas-Nexus-Client-{version}-linux-x64.deb",
         f"Eurogas-Nexus-Client-{version}-linux-arm64.deb",
-        f"Eurogas-Nexus-Server-{version}-Windows.zip",
+        f"Eurogas-Nexus-Server-{version}.zip",
         f"eurogas-nexus-web-{version}.tar.gz",
         f"eurogas-nexus-sboms-{version}.tar.gz",
         "release-manifest.json",

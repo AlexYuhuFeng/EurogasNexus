@@ -32,8 +32,8 @@ ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = ROOT / "scripts" / "release" / "package_deployment_bundle.policy.json"
 INSTALLER = ROOT / "scripts" / "install" / "windows" / "Install-EurogasNexusServerRuntime.ps1"
 DEPLOY = ROOT / "scripts" / "install" / "windows" / "Deploy-EurogasNexus.ps1"
-ARCHIVE_NAME = "Eurogas-Nexus-Server-Windows.zip"
-BUNDLE_ROOT = "Eurogas-Nexus-Server-Windows"
+ARCHIVE_NAME = "Eurogas-Nexus-Server.zip"
+BUNDLE_ROOT = "Eurogas-Nexus-Server"
 IDENTITY_NAME = "release-identity.json"
 
 # Test-only identity fixtures: never a real commit, digest or release.

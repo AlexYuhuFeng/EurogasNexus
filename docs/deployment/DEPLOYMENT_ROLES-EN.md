@@ -55,7 +55,7 @@ Choose release assets by role:
 
 - `Client`: download `Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe` and connect it to an existing
   reachable HTTPS endpoint ending in `/api`.
-- `Server`: download `Eurogas-Nexus-Server-Windows.zip` and run
+- `Server`: download `Eurogas-Nexus-Server.zip` and run
   `Deploy-EurogasNexus.ps1 -Role Server`; the desktop installer is not required.
 A desktop installation showing only the application executable and uninstaller
 is therefore a normal Client installation, not evidence that the database or

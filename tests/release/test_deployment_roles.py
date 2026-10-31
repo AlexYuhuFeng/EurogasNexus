@@ -242,7 +242,7 @@ def packed_bundle(tmp_path: Path) -> Path:
     extracted = tmp_path / "extracted"
     with zipfile.ZipFile(archive) as bundle:
         bundle.extractall(extracted)
-    return extracted / "Eurogas-Nexus-Server-Windows"
+    return extracted / "Eurogas-Nexus-Server"
 
 
 def preflight_arguments(
