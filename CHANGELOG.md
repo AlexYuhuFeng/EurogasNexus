@@ -77,6 +77,9 @@ version lives under [docs/release/notes](docs/release/notes).
 - Compliance tooling: market-abuse surveillance report against REMIT disclosure timing;
   draft record of processing activities from the installation's configuration; REMIT
   imports record the source platform and require confirmed reuse terms.
+- Release acceptance automated: clean Windows install/launch/uninstall and upgrade from the
+  previous release, backup/restore drill on PostgreSQL 16, container image CVE scan
+  (Trivy) at the published digest, and desktop packaging, SBOM and provenance evidence.
 - ETRM trade import into books, CSV exports of position, balance and gas-for-power reports, and signed hand-offs of decided cases for ERP/ETRM middleware.
 
 ### Changed

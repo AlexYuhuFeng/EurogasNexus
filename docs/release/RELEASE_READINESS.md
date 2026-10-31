@@ -202,21 +202,26 @@ has been live-called or validated.
 
 ## Required Before Production Deployment
 
-- Provider-specific live tests and certification evidence for EEX, ICE OCM,
-  Trayport, Kpler, Platts, ICIS, Argus, brokers, Weather, and LLM providers
-  after credential and entitlement approval.
-- Live deployment migration to head `0032_agent_capability_layer` on the
-  target runtime store.
-- A real enterprise IdP acceptance test against the customer identity provider.
-- External security acceptance, backup/restore and incident-response drills on
-  a real deployment.
-- Windows code-signing credential configured and verified (Authenticode +
-  timestamp); stable stays blocked until this evidence exists.
-- Clean-Windows install/launch/uninstall and previous-version upgrade
-  acceptance on a controlled test machine.
-- Real trader UAT (CR-13) and GA release-gate review.
-- GitHub `production` Environment reviewer policy, branch protection for
-  release/security paths, and hosted release dry-run evidence.
+Status 2026-10-31. Automated in the release workflow (recorded per release, PASS or FAIL):
+desktop packaging (G5), clean Windows install/launch/uninstall (G6), upgrade from the
+previous release (G7), dependency and container CVE scans (G9), SBOM (G10), provenance
+(G11), checksums (G12), backup/restore drill (G13), performance (G14), container
+acceptance (G19). Code signing is not a requirement: each firm decides.
+
+Still needed, and only people outside engineering can provide them:
+
+- **External security acceptance (G15)** on a real deployment: penetration test or
+  security review by the customer or an independent tester.
+- **Commercial provider certification (G16)**: live tests of each licensed source the
+  customer subscribes to (EEX, ICE, Trayport, Kpler, Platts, ICIS, Argus...) under the
+  customer's entitlement.
+- **User acceptance (G18)**: traders, analysts and risk staff work through the
+  acceptance scripts on a release candidate and sign off.
+- An approver identity for those external gates in `authorized_external_approvals`
+  (scripts/release/policy/stable_gate_policy.json), the GitHub `production` environment
+  with required reviewers, and branch protection on `main`.
+- On the customer's side: enterprise IdP acceptance against their identity provider,
+  deployment migration to head `0053_lng_cargo_regas`, and an incident-response drill.
 
 ## Product Boundary
 

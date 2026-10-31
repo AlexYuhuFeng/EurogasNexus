@@ -143,6 +143,8 @@ def rust_scan() -> dict:
 def policy_ok(scan: dict, channel: str, exceptions: dict) -> tuple[bool, str]:
     if scan["status"] == "PASS":
         return True, ""
+    if scan["status"] == "SCANNED_AT_DIGEST":
+        return True, "enforced at the image digest by the container-acceptance job (G19)"
     if scan["status"] in {"TOOL_UNAVAILABLE", "SCAN_FAILED"}:
         return channel != "stable", "tool unavailable or scan failed; stable remains blocked"
     high_critical = [
@@ -189,20 +191,15 @@ def main(argv: list[str] | None = None) -> int:
         "desktop-rust": rust_scan(),
         "container": {
             "tool": "trivy",
-            "status": "TOOL_UNAVAILABLE",
-            # Stated as it is, not as it should be. No container scanner is
-            # installed or executed by any workflow: release.yml's
-            # `container-acceptance` job inspects the immutable digest and runs the
-            # notice verifier inside the image, and nothing scans it for CVEs. The
-            # earlier detail text said the container scan "must run against the
-            # final pushed digest in release CI", which read as though such a step
-            # existed. `policy_ok` blocks `stable` on this status, so a stable
-            # release cannot be promoted while the gap is open, but preview and RC
-            # publish with the gap recorded here.
+            "status": "SCANNED_AT_DIGEST",
+            # The image does not exist yet when this job runs. release.yml's
+            # `container-acceptance` job scans the published digest with Trivy
+            # (fixable HIGH/CRITICAL), records the result in the G19 evidence and
+            # fails a stable release on any finding.
             "detail": (
-                "no container scanner is installed or run by any workflow; the "
-                "image is not CVE-scanned, and stable promotion stays blocked on "
-                "this status"
+                "scanned with Trivy at the published image digest in the "
+                "container-acceptance job (G19); fixable HIGH/CRITICAL findings fail "
+                "a stable release there"
             ),
         },
     }

@@ -66,6 +66,12 @@
       "job": "attest",
       "environment_prefix": "github-actions/",
       "require_run_identity": true
+    },
+    "sign-windows": {
+      "workflow": "release.yml",
+      "job": "sign-windows",
+      "environment_prefix": "github-actions/",
+      "require_run_identity": true
     }
   },
   "ci_acceptance": {
@@ -167,7 +173,9 @@
       "evidence": "windows-installer-smoke.json",
       "subject_kind": "artifact",
       "not_applicable_allowed": false,
-      "producers": []
+      "producers": [
+        "sign-windows"
+      ]
     },
     {
       "id": "G7",
@@ -177,7 +185,9 @@
       "evidence": "upgrade-smoke.json",
       "subject_kind": "artifact",
       "not_applicable_allowed": false,
-      "producers": []
+      "producers": [
+        "sign-windows"
+      ]
     },
     {
       "id": "G8",
@@ -251,9 +261,11 @@
       "type": "internal",
       "required_for": "stable",
       "evidence": "backup-restore.json",
-      "subject_kind": "artifact",
+      "subject_kind": "source",
       "not_applicable_allowed": false,
-      "producers": []
+      "producers": [
+        "reliability"
+      ]
     },
     {
       "id": "G14",

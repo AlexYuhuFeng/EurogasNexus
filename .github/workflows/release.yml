@@ -227,6 +227,40 @@ jobs:
       - name: In-process load smoke
         run: python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000
 
+      # Backup/restore drill (G13): pg_dump the migrated database, restore it into a
+      # fresh database, check the schema revision, required tables and API readiness.
+      # A failed drill is recorded as FAIL (blocks stable), not as a failed job.
+      - name: Backup and restore drill
+        shell: bash
+        run: |
+          set +e
+          python scripts/ops/backup_restore_drill.py \
+            --target-database-url postgresql+pg8000://nexus:nexus@127.0.0.1:5432/nexus_restore_drill \
+            > backup-restore-report.json
+          echo "drill exit $?"
+          cat backup-restore-report.json
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          python - <<'PY'
+          import json
+          text = open("backup-restore-report.json", encoding="utf-8").read()
+          start = text.find("{")
+          report = json.loads(text[start:]) if start >= 0 else {"ok": False, "error": "no report"}
+          json.dump(report, open("backup-restore-report.json", "w", encoding="utf-8"), indent=2)
+          open("backup-restore-status", "w").write("PASS" if report.get("ok") else "FAIL")
+          PY
+          STATUS=$(cat backup-restore-status)
+          mkdir -p release-evidence
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G13 --status "$STATUS" \
+            --detail "pg_dump of the migrated PostgreSQL 16 database restored into a fresh database; schema revision, required tables and API readiness verified after restore" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job reliability \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --report backup-restore-report.json \
+            --output release-evidence/backup-restore.json
+
       - name: Record PostgreSQL/performance evidence
         shell: bash
         run: |
@@ -679,6 +713,75 @@ jobs:
             --artifacts-dir release-assets \
             --output signing-state-windows.json
 
+      - name: Fetch the previous release's Windows client (upgrade smoke)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p previous
+          TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" --jq '[.[] | select(any(.assets[]; .name | test("^Eurogas-Nexus-Client-.*-setup\\.exe$")))][0].tag_name // empty')
+          if [ -n "$TAG" ]; then
+            echo "previous release: $TAG"
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'Eurogas-Nexus-Client-*-setup.exe' --dir previous
+          else
+            echo "no previous release with a Windows client installer"
+          fi
+
+      # Clean-runner install, launch and uninstall (G6) and upgrade over the previous
+      # release (G7). Results are recorded as PASS or FAIL evidence; a failure blocks a
+      # stable release but not a release candidate.
+      - name: Installer and upgrade smoke
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release-assets -Filter *setup.exe | Select-Object -First 1
+          $previous = Get-ChildItem previous -Filter *.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          $version = (Get-Content clients/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          ./scripts/release/windows_installer_smoke.ps1 -Installer $installer.FullName `
+            -ExpectedVersion $version `
+            -PreviousInstaller $(if ($previous) { $previous.FullName } else { "" }) `
+            -Output installer-smoke.json
+
+      - name: Record installer and upgrade smoke evidence
+        shell: bash
+        run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          INSTALLER=$(cd release-assets && ls *setup.exe | head -1)
+          read -r STATUS UPGRADE <<<"$(python -c "import json; r=json.load(open('installer-smoke.json', encoding='utf-8-sig')); print('PASS' if r.get('ok') else 'FAIL', ('PASS' if r.get('upgrade_ok') else 'FAIL') if r.get('upgrade_attempted') else 'SKIP')")"
+          mkdir -p release-evidence
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G6 --status "$STATUS" \
+            --detail "silent install, launch and silent uninstall of the Windows installer on a clean windows-2025 runner" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job sign-windows \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --artifacts-dir release-assets \
+            --subject-artifact "$INSTALLER" \
+            --report installer-smoke.json \
+            --output release-evidence/windows-installer-smoke.json
+          if [ "$UPGRADE" != "SKIP" ]; then
+          python scripts/release/write_gate_evidence.py \
+              --gate-id G7 --status "$UPGRADE" \
+              --detail "the previous release installed, then upgraded in place by this installer, launched and uninstalled" \
+              --commit-sha "$GITHUB_SHA" \
+              --workflow release.yml --job sign-windows \
+              --environment "$ENVIRONMENT" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              --artifacts-dir release-assets \
+              --subject-artifact "$INSTALLER" \
+              --report installer-smoke.json \
+              --output release-evidence/upgrade-smoke.json
+          fi
+
+      - name: Upload installer smoke evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-installer-evidence
+          path: release-evidence
+          if-no-files-found: error
+
       - name: Upload signed Windows asset and state
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -942,7 +1045,7 @@ jobs:
   container-acceptance:
     name: Container acceptance by digest
     runs-on: ubuntu-24.04
-    needs: runtime-image
+    needs: [resolve, runtime-image]
     if: ${{ needs.runtime-image.result == 'success' }}
 
     steps:
@@ -994,21 +1097,68 @@ jobs:
             "$IMAGE@$DIGEST" \
             python scripts/release/verify_customer_artifact.py
 
+      - name: Resolve the image reference for scanning
+        id: image
+        shell: bash
+        run: |
+          IMAGE=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['image'])")
+          DIGEST=$(python -c "import json,re; d=json.load(open('image-metadata/image-metadata.json'))['digest']; assert re.fullmatch(r'sha256:[0-9a-f]{64}', d), 'invalid image digest'; print(d)")
+          echo "ref=$IMAGE@$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # CVE scan of the exact image customers pull (by digest). Fixable HIGH/CRITICAL
+      # findings fail a stable release here; preview and RC record them in the G19
+      # evidence and publish, so they can be reviewed before stable.
+      - name: Scan the image for vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          image-ref: ${{ steps.image.outputs.ref }}
+          scanners: vuln
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          format: json
+          output: container-cve-scan.json
+          exit-code: '0'
+
+      - name: Apply the container vulnerability policy
+        shell: bash
+        env:
+          CHANNEL: ${{ needs.resolve.outputs.channel }}
+        run: |
+          python - <<'PY'
+          import json, os
+          report = json.load(open("container-cve-scan.json", encoding="utf-8"))
+          findings = [
+              f"{v.get('PkgName')}@{v.get('InstalledVersion')} {v.get('VulnerabilityID')} {v.get('Severity')}"
+              for result in report.get("Results") or []
+              for v in result.get("Vulnerabilities") or []
+          ]
+          print(f"{len(findings)} fixable HIGH/CRITICAL findings")
+          for line in findings[:50]:
+              print("  " + line)
+          json.dump({"fixable_high_critical": len(findings), "findings": findings},
+                    open("container-cve-summary.json", "w"), indent=2)
+          if findings and os.environ["CHANNEL"] == "stable":
+              raise SystemExit("stable release blocked: fixable HIGH/CRITICAL image vulnerabilities")
+          PY
+
       - name: Record container acceptance evidence
         shell: bash
         run: |
           ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
           DIGEST=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['digest'])")
+          CVES=$(python -c "import json; print(json.load(open('container-cve-summary.json'))['fixable_high_critical'])")
           mkdir -p release-evidence
           python scripts/release/write_gate_evidence.py \
             --gate-id G19 --status PASS \
-            --detail "multi-arch manifest inspected; amd64 and arm64 entries present; Python notice evidence executed and verified inside the amd64 image at this digest with no network and the default non-root user; customer artifact exclusion and required tool imports verified at the same digest; arm64 image contents were not executed; technical evidence only, not legal clearance" \
+            --detail "Trivy CVE scan at this digest: $CVES fixable HIGH/CRITICAL findings (stable fails on any); multi-arch manifest inspected; amd64 and arm64 entries present; Python notice evidence executed and verified inside the amd64 image at this digest with no network and the default non-root user; customer artifact exclusion and required tool imports verified at the same digest; arm64 image contents were not executed; technical evidence only, not legal clearance" \
             --commit-sha "$GITHUB_SHA" \
             --workflow release.yml --job container-acceptance \
             --environment "$ENVIRONMENT" \
             --run-id "$GITHUB_RUN_ID" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --image-digest "$DIGEST" \
+            --report container-cve-summary.json \
             --output release-evidence/container-acceptance.json
 
       - name: Upload container acceptance evidence
@@ -1095,6 +1245,13 @@ jobs:
           if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "Release $TAG already exists; refusing to overwrite." >&2
             exit 1
+          fi
+          # The workflow token may not create a new tag on a commit that changes workflow
+          # files (GitHub returns 403 "Resource not accessible by integration"). Pushing
+          # the tag first (git tag vX.Y.Z-rc.N <sha> && git push origin vX.Y.Z-rc.N) runs
+          # this workflow on the tag, and the release is then created on the existing tag.
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG does not exist yet; creating it with the release."
           fi
           gh release create "$TAG" \
             release-assets/*.exe \
