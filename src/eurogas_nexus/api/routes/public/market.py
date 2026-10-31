@@ -421,9 +421,11 @@ def convert_market_price(
     except UnitConversionError as exc:
         code = "fx_rate_unavailable" if "FX" in str(exc) else "unsupported_price_unit"
         raise HTTPException(status_code=422, detail={"code": code, "message": str(exc)}) from exc
-    warnings = [] if len(rates) == 2 else [
-        f"Some {fixing.label} rates are unavailable for this request; null values."
-    ]
+    warnings = (
+        []
+        if len(rates) == 2
+        else [f"Some {fixing.label} rates are unavailable for this request; null values."]
+    )
     return _env(
         {
             "value": value,
@@ -438,8 +440,10 @@ def convert_market_price(
                 "fixings_used": selection["fixings_used"],
                 "averaged": fx_average_from is not None,
             },
-            "factors": {"therm_per_mwh": ENERGY_UNITS_PER_MWH["therm"],
-                        "mmbtu_per_mwh": ENERGY_UNITS_PER_MWH["MMBtu"]},
+            "factors": {
+                "therm_per_mwh": ENERGY_UNITS_PER_MWH["therm"],
+                "mmbtu_per_mwh": ENERGY_UNITS_PER_MWH["MMBtu"],
+            },
         },
         source="gas-unit-conversion",
         warnings=warnings,

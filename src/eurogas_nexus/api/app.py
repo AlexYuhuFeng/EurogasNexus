@@ -82,9 +82,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=_cors_origins(),
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Eurogas-Api-Key",
-                       "X-Eurogas-Identity", "X-Eurogas-Oidc-Access-Token",
-                       "X-Eurogas-Principal", "X-Eurogas-CSRF"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Eurogas-Api-Key",
+            "X-Eurogas-Identity",
+            "X-Eurogas-Oidc-Access-Token",
+            "X-Eurogas-Principal",
+            "X-Eurogas-CSRF",
+        ],
         allow_credentials=True,
     )
 
@@ -107,9 +113,7 @@ def _declare_openapi_security_scheme(app: FastAPI) -> None:
 
     def openapi_with_security() -> dict:
         schema = original_openapi()
-        schema.setdefault("components", {}).setdefault("securitySchemes", {})[
-            "ApiKeyAuth"
-        ] = {
+        schema.setdefault("components", {}).setdefault("securitySchemes", {})["ApiKeyAuth"] = {
             "type": "http",
             "scheme": "bearer",
             "description": (

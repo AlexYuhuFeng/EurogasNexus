@@ -62,12 +62,8 @@ def http_metric_lines() -> list[str]:
     for key, (count, errors, total_ms) in sorted(snapshot.items()):
         safe_key = key.replace('"', "")
         lines.append(f'eurogas_http_requests_total{{route="{safe_key}"}} {count}')
-        lines.append(
-            f'eurogas_http_errors_total{{route="{safe_key}"}} {errors}'
-        )
-        lines.append(
-            f'eurogas_http_latency_ms_sum{{route="{safe_key}"}} {total_ms:.3f}'
-        )
+        lines.append(f'eurogas_http_errors_total{{route="{safe_key}"}} {errors}')
+        lines.append(f'eurogas_http_latency_ms_sum{{route="{safe_key}"}} {total_ms:.3f}')
     return lines
 
 

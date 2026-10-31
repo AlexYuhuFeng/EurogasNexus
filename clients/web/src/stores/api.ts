@@ -1042,6 +1042,13 @@ export interface ApiState {
    * decides whether the result still belongs to the shown draft.
    */
   saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<UpstreamContractDTO | null>;
+  /** Retire or reinstate a stored contract, then re-read the library. Throws on refusal. */
+  setContractLifecycle: (
+    contractId: string,
+    action: "retire" | "reinstate",
+    reason: string,
+    editToken: string,
+  ) => Promise<void>;
   recordReviewDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
   /**
    * Compare the sale options and recommend an allocation.
@@ -2492,6 +2499,18 @@ export const useApiStore = create<ApiState>((set, get) => ({
       });
     }
     return saved.data;
+  },
+
+  setContractLifecycle: async (contractId, action, reason, editToken) => {
+    await api.setContractLifecycle(contractId, action, reason, editToken);
+    const library = await loadWorkspaceEndpoint(api.upstreamContracts, {
+      retries: 0,
+      timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+    });
+    set((state) => ({
+      ...endpointRecordsAfterPass(state, [{ key: "upstreamContracts", outcome: library }]),
+      ...(library.ok ? { upstreamContracts: library.value.data } : {}),
+    }));
   },
 
   recordReviewDecision: async (body) => {

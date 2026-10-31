@@ -145,3 +145,41 @@ def test_mandate_product_kind_and_expiry():
     assert usage.status == "breach" and "financial trades are not allowed" in usage.breaches[0]
     expired = Mandate("M3", "jdoe", "J. Doe", valid_until=date(2026, 10, 1))
     assert mandate_usage(expired, [], today=TODAY).status == "expired"
+
+
+def test_hedge_policy_band_room_and_instruments():
+    mandate = Mandate(
+        "M4",
+        "jdoe",
+        "J. Doe",
+        book_ids=("UK",),
+        max_hedge_ratio_pct=80,
+        min_hedge_ratio_pct=20,
+        instruments=("physical", "future"),
+    )
+    supply = mleg("C1", kind="physical", book="UK", account="", q=1000.0, hub="NBP")
+    hedge = mleg("H1", hub="NBP", q=-700.0, book="UK")  # 70 % hedged
+    ok = mandate_usage(mandate, [supply, hedge], today=TODAY)
+    assert ok.status == "ok", ok.breaches
+    row = ok.as_row()
+    assert row["hedge_ratio_range"] == "70-70%" and row["hedge_policy"] == "20-80%"
+    assert row["hedge_room_mwh"] == 30 * 1000 * 0.10  # 10 % of a 30-day month left to the cap
+    over = mandate_usage(mandate, [supply, mleg("H2", hub="NBP", q=-900.0, book="UK")], today=TODAY)
+    assert over.status == "breach" and "above 80%" in over.breaches[0]
+    under = mandate_usage(
+        mandate, [supply, mleg("H3", hub="NBP", q=-100.0, book="UK")], today=TODAY
+    )
+    assert "below 20%" in under.breaches[0]
+    option = MandateLeg(
+        "O1",
+        "financial",
+        "NBP",
+        "UK",
+        "",
+        date(2026, 11, 1),
+        date(2026, 11, 30),
+        -500.0,
+        instrument="option",
+    )
+    banned = mandate_usage(mandate, [supply, option], today=TODAY)
+    assert any("option is not an allowed instrument" in b for b in banned.breaches)

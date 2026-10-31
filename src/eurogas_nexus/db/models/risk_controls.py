@@ -52,6 +52,11 @@ class TraderMandateRecord(Base):
     max_tenor_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
     physical_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     financial_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    #: Hedge policy per hub-month: financial cover as a share of the physical position.
+    min_hedge_ratio_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_hedge_ratio_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: Instruments allowed (future, forward, swap, option); empty or NULL means any.
+    instruments: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

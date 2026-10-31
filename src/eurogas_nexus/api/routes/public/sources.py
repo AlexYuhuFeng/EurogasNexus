@@ -175,9 +175,7 @@ def _sources_with_runtime_status() -> list[dict]:
             credential.get("last_test_status") if credential else None
         )
         certification = certifications.get(source["source_system"])
-        source["certification_stage"] = (
-            certification["stage"] if certification else "unverified"
-        )
+        source["certification_stage"] = certification["stage"] if certification else "unverified"
         runtime_state = runtime_states.get(source["source_id"])
         if runtime_state is not None:
             source["runtime_state"] = runtime_state
@@ -276,9 +274,7 @@ def _source_posture_summary(sources: list[dict]) -> dict[str, Any]:
             "active_sources": sum(
                 1 for source in sources if source["connectivity_status"] == "active"
             ),
-            "workflow_ready_sources": sum(
-                1 for source in sources if source["workflow_ready"]
-            ),
+            "workflow_ready_sources": sum(1 for source in sources if source["workflow_ready"]),
             "sources_needing_attention": sum(
                 1 for source in sources if _source_needs_attention(source)
             ),
@@ -286,14 +282,10 @@ def _source_posture_summary(sources: list[dict]) -> dict[str, Any]:
                 1 for source in sources if source["credential_state"] == "missing"
             ),
             "preview_substitutes_active": sum(
-                1
-                for source in sources
-                if source["preview_substitute_status"] == "active"
+                1 for source in sources if source["preview_substitute_status"] == "active"
             ),
             "uncertified_active_sources": sum(
-                1
-                for source in sources
-                if source["operational_status"] == "active_uncertified"
+                1 for source in sources if source["operational_status"] == "active_uncertified"
             ),
             "runtime_records": sum(int(source["live_record_count"]) for source in sources),
         },
@@ -377,9 +369,10 @@ def _attach_preview_substitute_status(sources: list[dict]) -> None:
         source["preview_substitute_source_system"] = substitute_system
         source["preview_substitute_status"] = substitute_status
         source["preview_substitute_record_count"] = substitute_record_count
-        if substitute_status == "active" and "preview_substitute_active" not in source[
-            "diagnostics"
-        ]:
+        if (
+            substitute_status == "active"
+            and "preview_substitute_active" not in source["diagnostics"]
+        ):
             source["diagnostics"].append("preview_substitute_active")
 
 
@@ -482,10 +475,7 @@ def _connectivity_status(
         return "needs_credential"
     if credential_state == "disabled":
         return "credential_disabled"
-    if (
-        latest_run
-        and canonical_run_status(latest_run.get("status")) in FAILURE_RUN_STATUSES
-    ):
+    if latest_run and canonical_run_status(latest_run.get("status")) in FAILURE_RUN_STATUSES:
         return "failed"
     if live_record_count > 0:
         # Audit item 3: records alone do not make a source live. A source whose
@@ -513,9 +503,7 @@ def _diagnostics(
     diagnostics: list[str] = []
     if credential_state == "disabled":
         diagnostics.append("credential_disabled")
-    latest_status = (
-        canonical_run_status(latest_run.get("status")) if latest_run else None
-    )
+    latest_status = canonical_run_status(latest_run.get("status")) if latest_run else None
     if latest_status is IngestionRunStatus.FAILED:
         diagnostics.append("last_ingestion_failed")
     elif latest_status in (IngestionRunStatus.QUEUED, IngestionRunStatus.RUNNING):
@@ -528,10 +516,7 @@ def _diagnostics(
         diagnostics.append("last_ingestion_succeeded_with_warnings")
     elif latest_run is not None and latest_status is None:
         diagnostics.append("last_ingestion_status_unknown")
-    if (
-        last_success_with_warnings
-        and "last_ingestion_succeeded_with_warnings" not in diagnostics
-    ):
+    if last_success_with_warnings and "last_ingestion_succeeded_with_warnings" not in diagnostics:
         # The exposed last_success_at_utc came from a warnings run; keep that
         # success visibly qualified even when a newer failed/pending run exists.
         diagnostics.append("last_ingestion_succeeded_with_warnings")
@@ -612,9 +597,7 @@ def _runtime_source_counts() -> dict[str, int]:
                 "ENTSOG": session.query(FlowObservationRecord)
                 .filter(FlowObservationRecord.source_system == "ENTSOG")
                 .count()
-                + session.query(ReferenceNode)
-                .filter(ReferenceNode.id.like("entsog-%"))
-                .count()
+                + session.query(ReferenceNode).filter(ReferenceNode.id.like("entsog-%")).count()
                 + session.query(ReferenceTsoAccessPoint)
                 .filter(ReferenceTsoAccessPoint.source_system == "ENTSOG")
                 .count()
@@ -670,8 +653,8 @@ def _row_counts_by_source_system(session: Any, model: Any, *dimensions: Any) -> 
 
     group_columns = dimensions or (model.source_system,)
     counts: dict[Any, int] = {}
-    for row in session.query(*group_columns, func.count()).select_from(model).group_by(
-        *group_columns
+    for row in (
+        session.query(*group_columns, func.count()).select_from(model).group_by(*group_columns)
     ):
         values = tuple(row)
         key = values[0] if len(group_columns) == 1 else values[:-1]
@@ -711,47 +694,35 @@ def _runtime_source_latest_observed() -> dict[str, str]:
                 latest[system] = value
 
         with get_session_factory()() as session:
-            for row in (
-                session.query(
-                    MarketObservationRecord.source_system,
-                    func.max(MarketObservationRecord.observed_at_utc),
-                ).group_by(MarketObservationRecord.source_system)
-            ):
+            for row in session.query(
+                MarketObservationRecord.source_system,
+                func.max(MarketObservationRecord.observed_at_utc),
+            ).group_by(MarketObservationRecord.source_system):
                 track(str(row[0]), row[1])
-            for row in (
-                session.query(
-                    FlowObservationRecord.source_system,
-                    func.max(FlowObservationRecord.observed_at_utc),
-                ).group_by(FlowObservationRecord.source_system)
-            ):
+            for row in session.query(
+                FlowObservationRecord.source_system,
+                func.max(FlowObservationRecord.observed_at_utc),
+            ).group_by(FlowObservationRecord.source_system):
                 track(str(row[0]), row[1])
-            for row in (
-                session.query(
-                    StorageObservationRecord.source_system,
-                    func.max(StorageObservationRecord.observed_at_utc),
-                ).group_by(StorageObservationRecord.source_system)
-            ):
+            for row in session.query(
+                StorageObservationRecord.source_system,
+                func.max(StorageObservationRecord.observed_at_utc),
+            ).group_by(StorageObservationRecord.source_system):
                 track(str(row[0]), row[1])
-            for row in (
-                session.query(
-                    LngObservationRecord.source_system,
-                    func.max(LngObservationRecord.observed_at_utc),
-                ).group_by(LngObservationRecord.source_system)
-            ):
+            for row in session.query(
+                LngObservationRecord.source_system,
+                func.max(LngObservationRecord.observed_at_utc),
+            ).group_by(LngObservationRecord.source_system):
                 track(str(row[0]), row[1])
-            for row in (
-                session.query(
-                    FxObservationRecord.source_system,
-                    func.max(FxObservationRecord.observed_at_utc),
-                ).group_by(FxObservationRecord.source_system)
-            ):
+            for row in session.query(
+                FxObservationRecord.source_system,
+                func.max(FxObservationRecord.observed_at_utc),
+            ).group_by(FxObservationRecord.source_system):
                 track(str(row[0]), row[1])
-            for row in (
-                session.query(
-                    ScreenOrderObservationRecord.source_system,
-                    func.max(ScreenOrderObservationRecord.observed_at_utc),
-                ).group_by(ScreenOrderObservationRecord.source_system)
-            ):
+            for row in session.query(
+                ScreenOrderObservationRecord.source_system,
+                func.max(ScreenOrderObservationRecord.observed_at_utc),
+            ).group_by(ScreenOrderObservationRecord.source_system):
                 track(str(row[0]), row[1])
         return {
             system: value.isoformat()

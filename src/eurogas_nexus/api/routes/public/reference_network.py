@@ -262,8 +262,7 @@ def _db_facilities(
         with session:
             repo = SqlAlchemyFacilityRepository(session)
             return [
-                asdict(row)
-                for row in repo.list_all(facility_type=facility_type, country=country)
+                asdict(row) for row in repo.list_all(facility_type=facility_type, country=country)
             ]
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
@@ -406,4 +405,3 @@ def _db_not_configured(table: str) -> HTTPException:
             "missing_inputs": ["RUNTIME_STORE_DATABASE_URL", table],
         },
     )
-

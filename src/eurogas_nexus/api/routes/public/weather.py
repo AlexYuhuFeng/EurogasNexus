@@ -113,7 +113,8 @@ def list_forecasts(
     """Read bounded ECMWF forecast points for explicitly authorized entities."""
 
     series, entities, origin, start, end, bounded_limit = _forecast_query(
-        series_ids, entity_ids, prediction_origin, valid_from, valid_to, limit)
+        series_ids, entity_ids, prediction_origin, valid_from, valid_to, limit
+    )
     require_derived_access(request, (_SOURCE,), resource="weather_forecasts")
 
     from eurogas_nexus.db.repositories.ecmwf_forecast_reads import (
@@ -133,16 +134,12 @@ def list_forecasts(
     except HTTPException:
         raise
     except Exception as exc:
-        raise _error(
-            503, "forecast_store_unavailable", "Forecast storage is unavailable."
-        ) from exc
+        raise _error(503, "forecast_store_unavailable", "Forecast storage is unavailable.") from exc
 
     try:
         data = _visible_rows(request, rows)
     except Exception as exc:
-        raise _error(
-            503, "forecast_data_malformed", "Stored forecast data is malformed."
-        ) from exc
+        raise _error(503, "forecast_data_malformed", "Stored forecast data is malformed.") from exc
 
     meta = ForecastReadMeta(
         source_references=(_SOURCE,),
@@ -183,17 +180,13 @@ def compute_weather_degree_days(
     except WeatherDemandInputError as exc:
         raise _error(422, "invalid_degree_day_inputs", str(exc)) from exc
     except EcmwfForecastReadOverflowError as exc:
-        raise _error(
-            400, "forecast_query_overflow", "Degree-day input exceeds 256 rows."
-        ) from exc
+        raise _error(400, "forecast_query_overflow", "Degree-day input exceeds 256 rows.") from exc
     except EcmwfForecastReadValidationError as exc:
         raise _error(400, "invalid_degree_day_query", str(exc)) from exc
     except HTTPException:
         raise
     except Exception as exc:
-        raise _error(
-            503, "forecast_store_unavailable", "Forecast storage is unavailable."
-        ) from exc
+        raise _error(503, "forecast_store_unavailable", "Forecast storage is unavailable.") from exc
 
     try:
         visible = filter_rows(
@@ -201,17 +194,13 @@ def compute_weather_degree_days(
             ({"source_system": row.source_system, "record": row} for row in rows),
             source_key="source_system",
         )
-        projected = tuple(
-            project_forecast_observation_record(item["record"]) for item in visible
-        )
+        projected = tuple(project_forecast_observation_record(item["record"]) for item in visible)
         bundle = build_weather_demand_inputs(projected, bindings, config)
         result = compute_degree_days_from_bundle(bundle, policy)
     except WeatherDemandInputError as exc:
         raise _error(422, "invalid_degree_day_inputs", str(exc)) from exc
     except Exception as exc:
-        raise _error(
-            503, "forecast_data_malformed", "Stored forecast data is malformed."
-        ) from exc
+        raise _error(503, "forecast_data_malformed", "Stored forecast data is malformed.") from exc
 
     if result is None:
         data = {
@@ -293,8 +282,11 @@ def _degree_day_meta(config, bundle, *, ready: bool) -> dict:
 
 
 def _forecast_query(
-    series_ids: list[str] | None, entity_ids: list[str] | None,
-    prediction_origin: str | None, valid_from: str | None, valid_to: str | None,
+    series_ids: list[str] | None,
+    entity_ids: list[str] | None,
+    prediction_origin: str | None,
+    valid_from: str | None,
+    valid_to: str | None,
     limit: str | None,
 ) -> tuple[tuple[str, ...], tuple[str, ...], datetime, datetime, datetime, int]:
     series = _identifiers(series_ids, "series_ids")

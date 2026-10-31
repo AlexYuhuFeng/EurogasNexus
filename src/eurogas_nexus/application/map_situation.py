@@ -195,7 +195,11 @@ def build_map_situation(
     slots: list[dict[str, Any]] = []
     if include_positions:
         allowed = visible_book_ids(session)
-        for record in session.query(UpstreamResourceContractRecord).all():
+        for record in (
+            session.query(UpstreamResourceContractRecord)
+            .filter(UpstreamResourceContractRecord.retired_at_utc.is_(None))
+            .all()
+        ):
             if not _own(record.book_id, allowed):
                 continue
             location = locator.find(name=record.delivery_point_name)

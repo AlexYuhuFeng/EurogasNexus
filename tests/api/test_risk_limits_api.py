@@ -297,3 +297,103 @@ def test_contract_intake_returns_a_draft_and_audits_only_the_digest(tmp_path, mo
             e for e in session.query(AuditEventRecord).all() if e.action == "contract.intake.read"
         ]
     assert len(events) == 1 and data["sha256"] in events[0].detail
+
+
+def test_retiring_a_contract_takes_it_out_of_positions_and_keeps_history(tmp_path, monkeypatch):
+    engine, who = _setup(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    headers = _h(who, "analyst")
+    (contract,) = client.get("/api/route-cost/upstream-contracts", headers=headers).json()["data"]
+    assert contract["retired_at_utc"] is None
+    ladder = client.get("/api/portfolio/position-ladder?months=3", headers=headers).json()
+    assert ladder["data"]["legs"]["physical"] == 1
+
+    path = "/api/route-cost/upstream-contracts/nbp-supply"
+    stale = client.post(
+        f"{path}/retire",
+        json={"reason": "terminated", "expected_edit_token": "0" * 64},
+        headers=headers,
+    )
+    assert stale.status_code == 409 and stale.json()["detail"]["code"] == "contract_edit_conflict"
+    short = client.post(
+        f"{path}/retire", json={"reason": "x", "expected_edit_token": "0" * 64}, headers=headers
+    )
+    assert short.status_code == 422
+    retired = client.post(
+        f"{path}/retire",
+        json={
+            "reason": "Supply agreement terminated by mutual consent",
+            "expected_edit_token": contract["edit_token"],
+        },
+        headers=headers,
+    )
+    assert retired.status_code == 200, retired.text
+    assert retired.json()["data"]["retired_by"] == who["analyst"]["principal"]
+    assert client.get("/api/route-cost/upstream-contracts", headers=headers).json()["data"] == []
+    listed = client.get(
+        "/api/route-cost/upstream-contracts?include_retired=true", headers=headers
+    ).json()["data"]
+    assert listed[0]["retire_reason"].startswith("Supply agreement")
+    ladder = client.get("/api/portfolio/position-ladder?months=3", headers=headers).json()
+    assert ladder["data"]["legs"]["physical"] == 0
+    again = client.post(
+        f"{path}/retire",
+        json={"reason": "again", "expected_edit_token": listed[0]["edit_token"]},
+        headers=headers,
+    )
+    assert again.json()["detail"]["code"] == "contract_already_retired"
+    back = client.post(
+        f"{path}/reinstate",
+        json={"reason": "Agreement restored", "expected_edit_token": listed[0]["edit_token"]},
+        headers=headers,
+    )
+    assert back.status_code == 200 and back.json()["data"]["retired_at_utc"] is None
+    with Session(engine) as session:
+        actions = [e.action for e in session.query(AuditEventRecord).all()]
+    assert "contract.retire" in actions and "contract.reinstate" in actions
+
+
+def test_sell_down_plan_uses_measured_delivery_and_falls_back_to_tolerance(tmp_path, monkeypatch):
+    from datetime import date
+
+    from eurogas_nexus.db.models import ContractDeliveryRecord
+
+    engine, who = _setup(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    body = {
+        "hub": "NBP",
+        "da_price": 34.0,
+        "wd_expected_price": 33.8,
+        "short_penalty_per_mwh": 2.0,
+        "long_discount_per_mwh": 0.3,
+    }
+    first = client.post("/api/portfolio/sell-down-plan", json=body, headers=_h(who, "analyst"))
+    assert first.status_code == 200, first.text
+    data = first.json()["data"]
+    assert data["volatility_basis"].startswith("contract nomination tolerance")
+    assert data["sell_day_ahead_mwh"] < 1_000 and data["keep_within_day_mwh"] > 0
+    with Session(engine) as session:
+        for i in range(1, 31):
+            session.add(
+                ContractDeliveryRecord(
+                    contract_id="nbp-supply",
+                    gas_day=date.today() - timedelta(days=i),
+                    nominated_mwh=1_000.0,
+                    allocated_mwh=1_000.0 - (50.0 if i % 2 else -50.0),
+                    tso=None,
+                    point=None,
+                    source_system="T",
+                    source_reference="t",
+                    updated_at_utc=datetime.now(UTC),
+                )
+            )
+        session.commit()
+    measured = client.post(
+        "/api/portfolio/sell-down-plan", json=body, headers=_h(who, "analyst")
+    ).json()["data"]
+    assert measured["volatility_basis"] == "measured over 30 gas days"
+    assert measured["supply_stdev_mwh"] == 50
+    none = client.post(
+        "/api/portfolio/sell-down-plan", json={**body, "hub": "TTF"}, headers=_h(who, "analyst")
+    )
+    assert none.status_code == 422 and none.json()["detail"]["code"] == "no_supply_at_hub"

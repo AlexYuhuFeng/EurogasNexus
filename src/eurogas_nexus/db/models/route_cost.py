@@ -92,6 +92,11 @@ class UpstreamResourceContractRecord(Base):
     payment_terms_json: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: Lifecycle: a retired contract keeps its row, revisions and audit trail but leaves
+    #: positions, risk and the map. NULL while active.
+    retired_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retired_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    retire_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
 
 class UpstreamContractRevisionRecord(Base):

@@ -247,9 +247,7 @@ def _initial_cursor(request: Request) -> Cursor:
 async def stream_quotes(request: Request) -> StreamingResponse:
     """Push newly persisted market quotes as they land in PostgreSQL."""
 
-    return _stream_response(
-        "quotes", _fetch_new_quotes, "observed_at_utc", "quote_id", request
-    )
+    return _stream_response("quotes", _fetch_new_quotes, "observed_at_utc", "quote_id", request)
 
 
 @router.get("/api/stream/opportunities")
@@ -269,6 +267,4 @@ async def stream_opportunities(request: Request) -> StreamingResponse:
 async def stream_alerts(request: Request) -> StreamingResponse:
     """Push newly created or updated monitoring alerts."""
 
-    return _stream_response(
-        "alerts", _fetch_new_alerts, "updated_at_utc", "alert_id", request
-    )
+    return _stream_response("alerts", _fetch_new_alerts, "updated_at_utc", "alert_id", request)

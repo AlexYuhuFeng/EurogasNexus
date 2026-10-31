@@ -1417,3 +1417,52 @@
     transition: none;
   }
 }
+
+/* ------------------------------------------------------ destructive actions, lifecycle */
+@layer ds-components {
+  /* A destructive action is quiet until hovered and confirmed in place; only the confirm
+     button is solid red, so a slip of the mouse never retires anything. */
+  .danger-quiet:hover,
+  .danger-quiet:focus-visible {
+    border-color: color-mix(in srgb, var(--ds-negative) 45%, transparent);
+    color: var(--ds-negative);
+  }
+
+  button.danger {
+    border: 1px solid var(--ds-negative);
+    background: var(--ds-negative);
+    color: #fff;
+  }
+
+  button.danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ds-negative) 88%, #000);
+  }
+
+  .contract-retire-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-2);
+    border: 1px solid color-mix(in srgb, var(--ds-negative) 30%, transparent);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-negative-soft);
+  }
+
+  .contract-retire-form label {
+    display: grid;
+    gap: 2px;
+    min-width: 260px;
+    font-size: var(--ds-text-xs);
+  }
+
+  .contract-retired {
+    margin-top: var(--ds-space-3);
+  }
+
+  .contract-retired summary {
+    cursor: pointer;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+}

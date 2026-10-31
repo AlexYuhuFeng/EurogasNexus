@@ -12,13 +12,15 @@ from datetime import UTC, date, datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from eurogas_nexus.api.routes.public.portfolio import (
-    _db_is_configured,
-    _db_unavailable,
-    _env,
-    _identity_id,
-    _ladder_inputs,
-    _sqlalchemy_error_type,
+from eurogas_nexus.api.positions import ladder_inputs
+from eurogas_nexus.api.routes.public.portfolio_common import (
+    db_is_configured as _db_is_configured,
+)
+from eurogas_nexus.api.routes.public.portfolio_common import db_unavailable as _db_unavailable
+from eurogas_nexus.api.routes.public.portfolio_common import env as _env
+from eurogas_nexus.api.routes.public.portfolio_common import identity_id as _identity_id
+from eurogas_nexus.api.routes.public.portfolio_common import (
+    sqlalchemy_error_type as _sqlalchemy_error_type,
 )
 from eurogas_nexus.domain.ontology.markets import quote_currency
 
@@ -96,7 +98,7 @@ def get_credit_exposure(request: Request, format: str = Query("json", pattern=_F
         raise _db_unavailable(exc) from exc
     # Receivables look back before today, so read legs from the earliest look-back.
     lookback = max([line.receivable_days for line in lines] or [0])
-    inputs = _ladder_inputs(request, today, start - timedelta(days=lookback), end)
+    inputs = ladder_inputs(request, today, start - timedelta(days=lookback), end)
     warnings = [*inputs.warnings, *_scope_note()]
     legs_by_ref = {leg.reference: leg for leg in inputs.legs}
     etrm_by_name: dict[str, list[str]] = {}
@@ -181,12 +183,13 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
             session.expunge_all()
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
-    inputs = _ladder_inputs(request, today, start, end)
+    inputs = ladder_inputs(request, today, start, end)
     accounts = {
         order.order_observation_id: order.account_label
         for order in inputs.orders
         if str(order.provider_id).upper() != "ETRM"
     }
+    instruments = {order.order_observation_id: _instrument(order) for order in inputs.orders}
     legs = [
         MandateLeg(
             reference=leg.reference,
@@ -197,6 +200,9 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
             first_gas_day=leg.first_gas_day,
             last_gas_day=leg.last_gas_day,
             mwh_per_day=leg.mwh_per_day,
+            instrument="physical"
+            if leg.kind == "physical"
+            else instruments.get(leg.reference, "future"),
         )
         for leg in inputs.legs
     ]
@@ -213,6 +219,9 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
             physical_allowed=bool(record.physical_allowed),
             financial_allowed=bool(record.financial_allowed),
             valid_until=record.valid_until,
+            min_hedge_ratio_pct=record.min_hedge_ratio_pct,
+            max_hedge_ratio_pct=record.max_hedge_ratio_pct,
+            instruments=tuple(record.instruments or ()),
         )
         rows.append(mandate_usage(mandate, legs, today=today).as_row())
     warnings = [*inputs.warnings, *_scope_note()]
@@ -227,6 +236,19 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
             warnings=warnings,
         )
     return _env({"rows": rows, "as_of": today.isoformat()}, request, "runtime-postgresql", warnings)
+
+
+def _instrument(order) -> str:
+    """What kind of financial trade a filled order is, for the mandate's instrument list."""
+
+    text = f"{order.product} {order.order_type} {order.contract_code}".casefold()
+    if "option" in text or " call" in text or " put" in text:
+        return "option"
+    if "swap" in text:
+        return "swap"
+    if str(order.provider_id).upper() == "ETRM":
+        return "forward"  # bilateral OTC from the ETRM
+    return "future"  # exchange screen trade
 
 
 class CreditLineRequest(BaseModel):
@@ -254,6 +276,9 @@ class MandateRequest(BaseModel):
     physical_allowed: bool = True
     financial_allowed: bool = True
     valid_until: date | None = None
+    min_hedge_ratio_pct: float | None = Field(default=None, ge=0, le=200)
+    max_hedge_ratio_pct: float | None = Field(default=None, ge=0, le=200)
+    instruments: list[str] = Field(default_factory=list, max_length=6)
 
 
 def _require_risk_function(request: Request) -> None:
@@ -361,6 +386,16 @@ def put_trader_mandate(mandate_id: str, body: MandateRequest, request: Request) 
         )
     values = body.model_dump()
     values["hubs"] = [hub.upper() for hub in values["hubs"]]
+    allowed = {"physical", "future", "forward", "swap", "option"}
+    values["instruments"] = [item.casefold() for item in values["instruments"]]
+    unknown = [item for item in values["instruments"] if item not in allowed]
+    if unknown:
+        raise HTTPException(
+            status_code=422, detail={"code": "unknown_instrument", "values": unknown}
+        )
+    low, high = values["min_hedge_ratio_pct"], values["max_hedge_ratio_pct"]
+    if low is not None and high is not None and low > high:
+        raise HTTPException(status_code=422, detail={"code": "hedge_band_inverted"})
     result = _write(
         request,
         record_type=TraderMandateRecord,
@@ -513,7 +548,7 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
     if arrival < today.replace(day=1):
         raise HTTPException(status_code=422, detail={"code": "arrival_in_the_past"})
     month_after = (arrival + timedelta(days=62)).replace(day=1) - timedelta(days=1)
-    inputs = _ladder_inputs(request, today, today, max(month_after, today))
+    inputs = ladder_inputs(request, today, today, max(month_after, today))
     fx = fx_lookup(inputs.eur_rates)
 
     def spot(hub: str) -> float | None:
@@ -568,3 +603,124 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
         "runtime-postgresql",
         warnings,
     )
+
+
+# --------------------------------------------------------------- day-ahead sell-down plan
+
+
+class SellDownBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    hub: str = Field(min_length=2, max_length=16)
+    contract_ids: list[str] = Field(default_factory=list, max_length=200)
+    da_price: float = Field(ge=-500, le=5000)
+    wd_expected_price: float = Field(ge=-500, le=5000)
+    short_penalty_per_mwh: float = Field(default=0.0, ge=0, le=500)
+    long_discount_per_mwh: float = Field(default=0.0, ge=0, le=500)
+    lot_mwh: float = Field(default=24.0, gt=0, le=100_000)
+    history_days: int = Field(default=60, ge=14, le=365)
+
+
+@router.post("/api/portfolio/sell-down-plan")
+def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
+    """How much of tomorrow's supply at a hub to sell day-ahead, and how much to keep back.
+
+    日前与日内分配：按合同实测交付波动（分配量对比提名量）求解报童问题，给出日前出售量与
+    日内保留量、短缺概率与预期成本。
+
+    Expected supply is the hub's active contracts' daily quantities corrected by their
+    measured delivery bias; the uncertainty is the standard deviation of the summed daily
+    deviation over ``history_days``. Without delivery history the contracts' nomination
+    tolerance stands in for it, and the response says so. Nothing is nominated or sold.
+    """
+
+    import math
+    from statistics import pstdev
+
+    from eurogas_nexus.api.positions import hub_from_text
+    from eurogas_nexus.domain.portfolio.sell_down import SellDownInputs, plan_sell_down
+
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    hub = body.hub.upper()
+    since = datetime.now(UTC).date() - timedelta(days=body.history_days)
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import ContractDeliveryRecord, UpstreamResourceContractRecord
+        from eurogas_nexus.db.session import get_session_factory
+        from eurogas_nexus.security.portfolio_scope import restrict
+
+        with get_session_factory()() as session:
+            query = restrict(
+                session.query(UpstreamResourceContractRecord),
+                UpstreamResourceContractRecord,
+                session,
+            ).filter(UpstreamResourceContractRecord.retired_at_utc.is_(None))
+            if body.contract_ids:
+                query = query.filter(
+                    UpstreamResourceContractRecord.contract_id.in_(body.contract_ids)
+                )
+            contracts = [c for c in query.all() if hub_from_text(c.delivery_point_name) == hub]
+            ids = [c.contract_id for c in contracts]
+            records = (
+                session.query(ContractDeliveryRecord)
+                .filter(ContractDeliveryRecord.contract_id.in_(ids))
+                .filter(ContractDeliveryRecord.gas_day >= since)
+                .all()
+                if ids
+                else []
+            )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    if not contracts:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "no_supply_at_hub", "message": f"No active supply contracts at {hub}."},
+        )
+    warnings: list[str] = []
+    dcq = sum(float(c.delivery_quantity_mwh_per_day) for c in contracts)
+    daily: dict = {}
+    ratios = []
+    for record in records:
+        if record.nominated_mwh is None or record.allocated_mwh is None:
+            continue
+        daily[record.gas_day] = daily.get(record.gas_day, 0.0) + (
+            record.allocated_mwh - record.nominated_mwh
+        )
+        if record.nominated_mwh > 0:
+            ratios.append(record.allocated_mwh / record.nominated_mwh)
+    if len(daily) >= 10:
+        bias = sum(ratios) / len(ratios) if ratios else 1.0
+        expected = dcq * bias
+        sigma = pstdev(daily.values())
+        basis = f"measured over {len(daily)} gas days"
+    else:
+        tolerance = max(float(c.nomination_tolerance_pct or 0.0) for c in contracts) / 100
+        expected = dcq
+        sigma = dcq * tolerance / 1.645  # the tolerance taken as a 90 % two-sided band
+        basis = "contract nomination tolerance (no delivery history)"
+        warnings.append(
+            "No delivery history for these contracts; the nomination tolerance stands in for "
+            "the measured volatility. Load allocations to sharpen the plan."
+        )
+    plan = plan_sell_down(
+        SellDownInputs(
+            expected_supply_mwh=expected,
+            supply_stdev_mwh=sigma,
+            da_price=body.da_price,
+            wd_expected_price=body.wd_expected_price,
+            short_penalty_per_mwh=body.short_penalty_per_mwh,
+            long_discount_per_mwh=body.long_discount_per_mwh,
+            lot_mwh=body.lot_mwh,
+        )
+    )
+    payload = {
+        "hub": hub,
+        "contracts": ids,
+        "dcq_mwh": round(dcq, 0),
+        "expected_supply_mwh": round(expected, 0),
+        "supply_stdev_mwh": round(sigma, 0),
+        "volatility_basis": basis,
+        "lots_day_ahead": int(math.floor(plan.sell_day_ahead_mwh / body.lot_mwh + 1e-9)),
+        **plan.as_dict(),
+    }
+    return _env(payload, request, "runtime-postgresql", warnings)

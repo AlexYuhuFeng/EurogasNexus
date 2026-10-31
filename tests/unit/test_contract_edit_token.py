@@ -67,6 +67,9 @@ def _state(**overrides: object) -> dict[str, object]:
         "payment_terms_json": None,
         "created_at_utc": _NOW,
         "updated_at_utc": _NOW,
+        "retired_at_utc": None,
+        "retired_by": None,
+        "retire_reason": None,
     }
     state.update(overrides)
     return state
@@ -125,6 +128,9 @@ def test_equal_states_hash_to_one_token_and_the_schema_is_discriminated() -> Non
             '"schema_version":"contract-payment-terms/v1"}',
         ),
         ("updated_at_utc", _NOW + timedelta(seconds=1)),
+        ("retired_at_utc", _NOW + timedelta(days=1)),
+        ("retired_by", "risk.lead"),
+        ("retire_reason", "terminated"),
     ],
 )
 def test_every_persisted_field_changes_the_token(field: str, changed: object) -> None:

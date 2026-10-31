@@ -207,7 +207,9 @@ def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
     return [_tariff_from_record(row) for row in rows.all()]
 
 
-def list_upstream_contracts(session: Session, *, include_edit_token: bool = False) -> list[dict]:
+def list_upstream_contracts(
+    session: Session, *, include_edit_token: bool = False, include_retired: bool = False
+) -> list[dict]:
     """List upstream resource contracts, newest update first.
 
     Args:
@@ -217,6 +219,8 @@ def list_upstream_contracts(session: Session, *, include_edit_token: bool = Fals
             governed write compares). The dedicated contract read route asks
             for it; other consumers (projections, resource-pool composition,
             agent context) keep the previous payload shape.
+        include_retired: Retired contracts are left out unless asked for; positions,
+            optimisation and agent context only ever see active contracts.
 
     Returns:
         List of contract payload dicts.
@@ -227,7 +231,75 @@ def list_upstream_contracts(session: Session, *, include_edit_token: bool = Fals
     rows = restrict(
         session.query(UpstreamResourceContractRecord), UpstreamResourceContractRecord, session
     ).order_by(UpstreamResourceContractRecord.updated_at_utc.desc())
+    if not include_retired:
+        rows = rows.filter(UpstreamResourceContractRecord.retired_at_utc.is_(None))
     return [_contract_payload(row, include_edit_token=include_edit_token) for row in rows.all()]
+
+
+class ContractLifecycleRefusal(ValueError):
+    """A retire or reinstate that cannot proceed; ``code`` is the stable API code."""
+
+    def __init__(self, code: str, status: int) -> None:
+        super().__init__(code)
+        self.code = code
+        self.status = status
+
+
+def set_upstream_contract_lifecycle(
+    session: Session,
+    contract_id: str,
+    *,
+    action: str,
+    reason: str,
+    expected_edit_token: str,
+    actor: str,
+    now_utc: datetime,
+) -> dict:
+    """Retire or reinstate one contract under its edit token, with an audit record.
+
+    Retiring never deletes: the row, its revisions and the audit trail stay, so the firm
+    can always show what was contracted and when it was taken out. The caller must hold
+    the token of the version they looked at; a stale token is refused like any edit.
+    """
+
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+    from eurogas_nexus.security.portfolio_scope import restrict
+
+    row = (
+        restrict(
+            session.query(UpstreamResourceContractRecord), UpstreamResourceContractRecord, session
+        )
+        .filter(UpstreamResourceContractRecord.contract_id == contract_id)
+        .with_for_update()
+        .one_or_none()
+    )
+    if row is None:
+        raise ContractLifecycleRefusal("contract_not_found", 404)
+    if contract_edit_token(row) != expected_edit_token:
+        raise ContractLifecycleRefusal("contract_edit_conflict", 409)
+    if action == "retire":
+        if row.retired_at_utc is not None:
+            raise ContractLifecycleRefusal("contract_already_retired", 409)
+        row.retired_at_utc, row.retired_by, row.retire_reason = now_utc, actor, reason
+    elif action == "reinstate":
+        if row.retired_at_utc is None:
+            raise ContractLifecycleRefusal("contract_not_retired", 409)
+        row.retired_at_utc = row.retired_by = row.retire_reason = None
+    else:  # pragma: no cover - the route validates the action
+        raise ContractLifecycleRefusal("lifecycle_action_invalid", 422)
+    row.updated_at_utc = now_utc
+    record_audit_event(
+        session,
+        event_type="contract.lifecycle",
+        principal=actor,
+        action=f"contract.{action}",
+        resource=f"upstream_contract:{contract_id}",
+        outcome=action + "d",
+        severity="warning" if action == "retire" else "info",
+        detail=reason[:500],
+    )
+    session.flush()
+    return _contract_payload(row, include_edit_token=True)
 
 
 def upstream_contract_exists(session: Session, contract_id: str) -> bool:
@@ -1144,6 +1216,9 @@ def _contract_payload(
         "payment_terms": (None if payment_terms is None else payment_terms.canonical_document()),
         **{field: notes[field] for field in _STRUCTURED_NOTE_FIELDS if field in notes},
         "updated_at_utc": row.updated_at_utc.isoformat(),
+        "retired_at_utc": row.retired_at_utc.isoformat() if row.retired_at_utc else None,
+        "retired_by": row.retired_by,
+        "retire_reason": row.retire_reason,
     }
     if include_edit_token:
         payload["edit_token"] = contract_edit_token(row)

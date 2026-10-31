@@ -7,6 +7,7 @@ import { TradingBooksPanel } from "@/components/TradingBooksPanel";
 import { RiskLimitsPanel } from "@/components/RiskLimitsPanel";
 import { DeliveryPerformancePanel } from "@/components/DeliveryPerformancePanel";
 import { LngCargoBidPanel } from "@/components/LngCargoBidPanel";
+import { SellDownPanel } from "@/components/SellDownPanel";
 import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
 import { routeCostDraftForRoute } from "@/app/model/routeCostModel";
 import { useRouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
@@ -317,6 +318,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             contractImportMessage={contractEditor.contractImportMessage}
             contractIntake={contractEditor.contractIntake}
             onDismissContractIntake={contractEditor.dismissContractIntake}
+            onContractLifecycle={api.setContractLifecycle}
             contractSaveMessage={api.contractSaveMessage}
             contractSaveConflict={api.contractSaveConflict}
             t={t}
@@ -329,6 +331,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
           />
         )}
         {task === "resources" && <DeliveryPerformancePanel t={t} />}
+        {task === "resources" && <SellDownPanel t={t} />}
         {task === "routes" && (
           <>
             <PortfolioRoutes controller={controller} />

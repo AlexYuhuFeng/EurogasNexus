@@ -626,9 +626,7 @@ def optimize_portfolio_network(body: PortfolioNetworkOptimizationRequest) -> dic
             tariff_rows = list_tso_tariffs(session)
             node_rows = SqlAlchemyNodeRepository(session).list_all()
             access_rows = (
-                session.query(CompanyTsoAccessRecord)
-                .order_by(CompanyTsoAccessRecord.tso)
-                .all()
+                session.query(CompanyTsoAccessRecord).order_by(CompanyTsoAccessRecord.tso).all()
             )
             market_rows = (
                 session.query(MarketObservationRecord)
@@ -662,9 +660,7 @@ def optimize_portfolio_network(body: PortfolioNetworkOptimizationRequest) -> dic
             status_code=422,
             detail={
                 "code": "runtime_decision_input_blocked",
-                "message": (
-                    "Runtime DB snapshot cannot assemble portfolio-network inputs."
-                ),
+                "message": ("Runtime DB snapshot cannot assemble portfolio-network inputs."),
                 "blockers": list(composition.blockers),
                 "warnings": list(composition.warnings),
                 "missing_inputs": list(composition.missing_inputs),
@@ -962,12 +958,8 @@ def _runtime_storage_dispatch(body: StorageDispatchOptimizationRequest) -> dict:
         )
 
         with get_session_factory()() as session:
-            facility = active_storage_facility(
-                session, body.facility_id, at_utc=at_utc
-            )
-            inventory = latest_storage_inventory(
-                session, body.facility_id, asof_utc=at_utc
-            )
+            facility = active_storage_facility(session, body.facility_id, at_utc=at_utc)
+            inventory = latest_storage_inventory(session, body.facility_id, asof_utc=at_utc)
             market_rows = (
                 session.query(MarketObservationRecord)
                 .order_by(MarketObservationRecord.period_start_utc.asc())
@@ -1192,8 +1184,7 @@ def _runtime_resource_pool(body: ResourcePoolOptimizationRequest) -> dict:
             detail={
                 "code": "runtime_db_not_configured",
                 "message": (
-                    "RUNTIME_DECISION requires the runtime DB; no silent fallback "
-                    "to local files."
+                    "RUNTIME_DECISION requires the runtime DB; no silent fallback to local files."
                 ),
                 "research_only": True,
                 "human_review_required": True,
@@ -1228,9 +1219,7 @@ def _runtime_resource_pool(body: ResourcePoolOptimizationRequest) -> dict:
                 .all()
             )
             access_rows = (
-                session.query(CompanyTsoAccessRecord)
-                .order_by(CompanyTsoAccessRecord.tso)
-                .all()
+                session.query(CompanyTsoAccessRecord).order_by(CompanyTsoAccessRecord.tso).all()
             )
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
@@ -1463,9 +1452,7 @@ def _contract_fact(payload: dict) -> ContractFact:
         resource_type=payload["resource_type"],
         delivery_point_name=payload["delivery_point_name"],
         gas_year=payload["gas_year"],
-        delivery_quantity_mwh_per_day=float(
-            payload["delivery_quantity_mwh_per_day"]
-        ),
+        delivery_quantity_mwh_per_day=float(payload["delivery_quantity_mwh_per_day"]),
         contract_price_gbp_mwh=float(payload["contract_price_gbp_mwh"]),
         tolerance_risk_allowance_gbp_mwh=float(
             payload.get("tolerance_risk_allowance_gbp_mwh") or 0.0
@@ -1586,10 +1573,7 @@ def _jsonable(value: object) -> object:
     if hasattr(value, "__dataclass_fields__"):
         from dataclasses import fields
 
-        return {
-            field.name: _jsonable(getattr(value, field.name))
-            for field in fields(value)
-        }
+        return {field.name: _jsonable(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, dict):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, tuple):

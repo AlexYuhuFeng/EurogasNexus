@@ -78,9 +78,7 @@ class OriginCsrfGuardMiddleware:
         method = str(scope.get("method", "GET")).upper()
         path = str(scope.get("path", ""))
         headers = {
-            key.lower(): value
-            for key, value in scope.get("headers", [])
-            if isinstance(key, bytes)
+            key.lower(): value for key, value in scope.get("headers", []) if isinstance(key, bytes)
         }
         cookies = headers.get(b"cookie", b"").decode("latin-1", errors="ignore")
         session_token = _cookie_value(cookies, SESSION_COOKIE)
@@ -105,9 +103,7 @@ def _origin_allowed(origin: str, headers: dict[bytes, bytes]) -> bool:
     if normalized in _allowed_origins():
         return True
     host = headers.get(b"host", b"").decode("latin-1", errors="ignore")
-    forwarded_proto = headers.get(b"x-forwarded-proto", b"http").decode(
-        "latin-1", errors="ignore"
-    )
+    forwarded_proto = headers.get(b"x-forwarded-proto", b"http").decode("latin-1", errors="ignore")
     scheme = "https" if forwarded_proto == "https" else "http"
     expected = f"{scheme}://{host}"
     return normalized == expected
@@ -143,9 +139,9 @@ async def _reject(send: Any, *, status: int, code: str) -> None:
         correlation_id=correlation_id,
         message="Cookie-authenticated request blocked.",
     )
-    body = json.dumps(
-        {**payload, "detail": {"error": code, "message": payload["message"]}}
-    ).encode("utf-8")
+    body = json.dumps({**payload, "detail": {"error": code, "message": payload["message"]}}).encode(
+        "utf-8"
+    )
     await send(
         {
             "type": "http.response.start",

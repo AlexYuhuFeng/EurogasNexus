@@ -1659,6 +1659,10 @@ export interface UpstreamContractDTO {
   // number, and is sent back as `expected_edit_token` when this row is edited.
   // A create-only save omits it.
   edit_token?: string;
+  /** Lifecycle: set once the contract is retired (it then leaves positions and risk). */
+  retired_at_utc?: string | null;
+  retired_by?: string | null;
+  retire_reason?: string | null;
   // Additive write metadata: how the governed upsert classified this write and
   // which captured economic revision is newest afterwards. Capture-time evidence,
   // not a revision history or an edit-conflict protocol.
@@ -2625,6 +2629,10 @@ export interface MandateUsageRowDTO {
   breaches: string;
   valid_until: string | null;
   status: "ok" | "watch" | "breach" | "expired";
+  hedge_policy: string;
+  hedge_ratio_range: string | null;
+  hedge_room_mwh: number | null;
+  instruments: string;
 }
 
 export interface CreditLineInput {
@@ -2650,6 +2658,37 @@ export interface MandateInput {
   physical_allowed: boolean;
   financial_allowed: boolean;
   valid_until?: string | null;
+  min_hedge_ratio_pct?: number | null;
+  max_hedge_ratio_pct?: number | null;
+  instruments?: string[];
+}
+
+export interface SellDownInput {
+  hub: string;
+  da_price: number;
+  wd_expected_price: number;
+  short_penalty_per_mwh: number;
+  long_discount_per_mwh: number;
+  lot_mwh: number;
+}
+
+export interface SellDownPlanDTO {
+  hub: string;
+  contracts: string[];
+  dcq_mwh: number;
+  expected_supply_mwh: number;
+  supply_stdev_mwh: number;
+  volatility_basis: string;
+  lots_day_ahead: number;
+  sell_day_ahead_mwh: number;
+  keep_within_day_mwh: number;
+  critical_ratio: number;
+  probability_short_pct: number;
+  expected_cost_vs_perfect: number;
+  sell_all_cost_vs_perfect: number;
+  cost_over_per_mwh: number;
+  cost_under_per_mwh: number;
+  reasons: string[];
 }
 
 /** A bilateral supply contract's allocations against nominations and DCQ. */
@@ -4317,6 +4356,14 @@ export const api = {
   tsoTariffs: (options?: ApiRequestOptions) => get<TsoTariffsResultDTO>("/route-cost/tso-tariffs", undefined, options),
 
   upstreamContracts: (options?: ApiRequestOptions) => get<UpstreamContractDTO[]>("/route-cost/upstream-contracts", undefined, options),
+  retiredUpstreamContracts: (options?: ApiRequestOptions) =>
+    get<UpstreamContractDTO[]>("/route-cost/upstream-contracts", { include_retired: "true" }, options),
+  /** Retire or reinstate a contract against the version the user looked at (audited). */
+  setContractLifecycle: (contractId: string, action: "retire" | "reinstate", reason: string, editToken: string) =>
+    post<UpstreamContractDTO>(
+      `/route-cost/upstream-contracts/${encodeURIComponent(contractId)}/${action}`,
+      { reason, expected_edit_token: editToken },
+    ),
 
   saveUpstreamContract: (body: UpstreamContractInputDTO) =>
     post<UpstreamContractDTO>("/route-cost/upstream-contracts", body),
@@ -4531,6 +4578,8 @@ export const api = {
     get<{ rows: LngTerminalTermsDTO[] }>("/portfolio/lng-terminal-terms", undefined, options),
   saveLngTerminalTerms: (terminalId: string, body: LngTerminalTermsInput) =>
     put<{ key: string; created: boolean }>(`/portfolio/lng-terminal-terms/${encodeURIComponent(terminalId)}`, body),
+  sellDownPlan: (body: SellDownInput, options?: ApiRequestOptions) =>
+    post<SellDownPlanDTO>("/portfolio/sell-down-plan", body, options),
   lngCargoBid: (body: LngCargoBidInput, options?: ApiRequestOptions) =>
     post<LngCargoBidDTO>("/portfolio/lng-cargo-bid", body, options),
   tradingBooks: (options?: ApiRequestOptions) => get<TradingBooksDTO>("/portfolio/books", undefined, options),

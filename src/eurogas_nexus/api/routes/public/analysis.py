@@ -425,6 +425,7 @@ def _db_snapshot(
                     UpstreamResourceContractRecord,
                     session,
                 )
+                .filter(UpstreamResourceContractRecord.retired_at_utc.is_(None))
                 .limit(50)
                 .all()
             )

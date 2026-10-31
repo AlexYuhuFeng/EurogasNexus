@@ -65,10 +65,20 @@ async def require_entitlement(request: Request, source_system: str = "") -> None
 
         # 当前决策支持场景的已知授权来源白名单：与治理登记表保持同步，
         # 新增商业来源必须先经治理评审再进白名单。
-        known = frozenset({
-            "operator-input", "ENTSOG", "GIE", "ECB",
-            "EEX", "Trayport", "ICE_OCM", "Weather", "WMR", "BFIX",
-        })
+        known = frozenset(
+            {
+                "operator-input",
+                "ENTSOG",
+                "GIE",
+                "ECB",
+                "EEX",
+                "Trayport",
+                "ICE_OCM",
+                "Weather",
+                "WMR",
+                "BFIX",
+            }
+        )
         identity = getattr(request.state, "identity", legacy_public_token_principal())
         if not principal_allows_source_family(identity, source_system):
             _record_denial(source_system, identity.principal_id, "identity_scope_denied")
@@ -108,10 +118,7 @@ async def require_entitlement(request: Request, source_system: str = "") -> None
             detail={
                 "error": "entitlement_unavailable",
                 "source_system": source_system,
-                "reason": (
-                    "Entitlement evaluation is unavailable; access is denied "
-                    "fail-closed."
-                ),
+                "reason": ("Entitlement evaluation is unavailable; access is denied fail-closed."),
                 "error_class": exc.__class__.__name__,
                 "research_only": True,
                 "human_review_required": True,

@@ -158,7 +158,7 @@ def get_delivery_performance(
 
     from datetime import UTC, datetime, timedelta
 
-    from eurogas_nexus.api.routes.public.portfolio import _hub_from_text
+    from eurogas_nexus.api.positions import hub_from_text as _hub_from_text
     from eurogas_nexus.domain.risk.delivery import (
         DeliveryDay,
         DeliveryTerms,

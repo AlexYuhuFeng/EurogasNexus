@@ -52,6 +52,9 @@ const EMPTY_MANDATE = {
   hubs: "",
   max_net_mwh_per_month: "",
   max_tenor_months: "",
+  min_hedge: "",
+  max_hedge: "",
+  instruments: "",
   valid_until: "",
 };
 
@@ -112,6 +115,9 @@ export function RiskLimitsPanel({ t }: { t: Translate }) {
       hubs: splitList(mandate.hubs).map((hub) => hub.toUpperCase()),
       max_net_mwh_per_month: mandate.max_net_mwh_per_month ? Number(mandate.max_net_mwh_per_month) : null,
       max_tenor_months: mandate.max_tenor_months ? Number(mandate.max_tenor_months) : null,
+      min_hedge_ratio_pct: mandate.min_hedge ? Number(mandate.min_hedge) : null,
+      max_hedge_ratio_pct: mandate.max_hedge ? Number(mandate.max_hedge) : null,
+      instruments: splitList(mandate.instruments).map((item) => item.toLowerCase()),
       physical_allowed: true,
       financial_allowed: true,
       valid_until: mandate.valid_until || null,
@@ -195,6 +201,7 @@ export function RiskLimitsPanel({ t }: { t: Translate }) {
               <th scope="col" className="num">{t("limits.largest_net")}</th>
               <th scope="col">{t("limits.used")}</th>
               <th scope="col">{t("limits.tenor")}</th>
+              <th scope="col">{t("limits.hedge")}</th>
               <th scope="col">{t("limits.status")}</th>
             </tr>
           </thead>
@@ -210,6 +217,12 @@ export function RiskLimitsPanel({ t }: { t: Translate }) {
                 <td>
                   {row.furthest_month || "-"}
                   {row.max_tenor_months !== null && <small> / {t("limits.months", { count: row.max_tenor_months })}</small>}
+                </td>
+                <td>
+                  {row.hedge_ratio_range ?? "-"}
+                  {row.hedge_policy && <small> / {row.hedge_policy}</small>}
+                  {row.hedge_room_mwh !== null && <div className="muted"><small>{t("limits.hedge_room", { room: formatQuantity(row.hedge_room_mwh) })}</small></div>}
+                  {row.instruments !== "any" && <div className="muted"><small>{row.instruments}</small></div>}
                 </td>
                 <td>
                   <LimitBadge status={row.status} t={t} />
@@ -266,6 +279,9 @@ export function RiskLimitsPanel({ t }: { t: Translate }) {
           <label><span>{t("limits.hubs")}</span><input value={mandate.hubs} onChange={mandateField("hubs")} /></label>
           <label><span>{t("limits.max_net")}</span><input inputMode="decimal" value={mandate.max_net_mwh_per_month} onChange={mandateField("max_net_mwh_per_month")} /></label>
           <label><span>{t("limits.max_tenor")}</span><input inputMode="numeric" value={mandate.max_tenor_months} onChange={mandateField("max_tenor_months")} /></label>
+          <label><span>{t("limits.min_hedge")}</span><input inputMode="decimal" value={mandate.min_hedge} onChange={mandateField("min_hedge")} /></label>
+          <label><span>{t("limits.max_hedge")}</span><input inputMode="decimal" value={mandate.max_hedge} onChange={mandateField("max_hedge")} /></label>
+          <label><span>{t("limits.instruments")}</span><input value={mandate.instruments} placeholder="physical, future, forward, swap" onChange={mandateField("instruments")} /></label>
           <label><span>{t("limits.valid_until")}</span><input type="date" value={mandate.valid_until} onChange={mandateField("valid_until")} /></label>
           <button
             type="button"

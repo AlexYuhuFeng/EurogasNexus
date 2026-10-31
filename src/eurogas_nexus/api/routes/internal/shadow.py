@@ -17,8 +17,6 @@ def shadow_scheduler_tick(limit: int = Body(default=10, embed=True)) -> dict:
     from eurogas_nexus.db.session import get_session_factory
 
     with get_session_factory()() as session:
-        data = run_due_shadow_evaluations(
-            session, now_utc=datetime.now(UTC), limit=limit
-        )
+        data = run_due_shadow_evaluations(session, now_utc=datetime.now(UTC), limit=limit)
         session.commit()
     return data

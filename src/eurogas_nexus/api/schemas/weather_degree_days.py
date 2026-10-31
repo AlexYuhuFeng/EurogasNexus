@@ -35,9 +35,7 @@ class WeatherDegreeDayPointBinding(BaseModel):
     entity_id: str = Field(min_length=1, max_length=128)
     location_id: str = Field(min_length=1, max_length=160)
     region: str = Field(min_length=1, max_length=160)
-    weight: Decimal = Field(
-        ge=Decimal("0"), le=Decimal("1"), max_digits=18, decimal_places=12
-    )
+    weight: Decimal = Field(ge=Decimal("0"), le=Decimal("1"), max_digits=18, decimal_places=12)
 
     @field_validator("weight")
     @classmethod
@@ -50,9 +48,7 @@ class WeatherDegreeDayPointBinding(BaseModel):
 class WeatherDegreeDayRequest(BaseModel):
     """Explicit region weights, window, bases, calendar and coverage policy."""
 
-    model_config = ConfigDict(
-        extra="forbid", str_strip_whitespace=True, allow_inf_nan=False
-    )
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, allow_inf_nan=False)
 
     region: str | None = Field(default=None, min_length=1, max_length=160)
     point_bindings: list[WeatherDegreeDayPointBinding] = Field(
@@ -105,7 +101,5 @@ class WeatherDegreeDayRequest(BaseModel):
         try:
             gas_day_start_for_date(self.gas_days[0], self.gas_day_calendar)
         except (TypeError, ValueError) as exc:
-            raise ValueError(
-                "gas_day_calendar is not an approved calendar version"
-            ) from exc
+            raise ValueError("gas_day_calendar is not an approved calendar version") from exc
         return self

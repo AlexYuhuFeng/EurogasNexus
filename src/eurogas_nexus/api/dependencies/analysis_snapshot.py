@@ -47,8 +47,7 @@ def require_known_analysis_snapshot(
             detail={
                 "code": "runtime_db_not_configured",
                 "message": (
-                    "An Analysis Snapshot reference cannot be verified without a "
-                    "runtime database."
+                    "An Analysis Snapshot reference cannot be verified without a runtime database."
                 ),
                 "analysis_snapshot_id": snapshot_id,
             },

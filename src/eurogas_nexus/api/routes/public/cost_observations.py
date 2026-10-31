@@ -123,32 +123,36 @@ def _envelope(data: object, request: Request, *, source: str, warnings: list[str
 def _row_dict(row, as_of: str | None) -> dict:
     from eurogas_nexus.domain.economics.cost_observation import CostObservation
 
-    return CostObservation(
-        observation_id=row.observation_id,
-        scope_type=row.scope_type,
-        scope_id=row.scope_id,
-        observation_type=row.observation_type,
-        value=row.value,
-        currency=row.currency,
-        unit=row.unit,
-        direction=row.direction,
-        capacity_product=row.capacity_product,
-        firmness=row.firmness,
-        gas_year=row.gas_year,
-        effective_from_utc=row.effective_from_utc.isoformat(),
-        effective_to_utc=row.effective_to_utc.isoformat() if row.effective_to_utc else None,
-        source_system=row.source_system,
-        source_reference=row.source_reference,
-        document_id=row.document_id,
-        entitlement_scope=tuple(row.entitlement_scope or []),
-        status=row.status,
-        manual_review_required=row.manual_review_required,
-        superseded_by=row.superseded_by,
-        created_at_utc=row.created_at_utc.isoformat(),
-    ).__dict__ if as_of is None else {
-        **_row_base_dict(row),
-        "as_of": as_of,
-    }
+    return (
+        CostObservation(
+            observation_id=row.observation_id,
+            scope_type=row.scope_type,
+            scope_id=row.scope_id,
+            observation_type=row.observation_type,
+            value=row.value,
+            currency=row.currency,
+            unit=row.unit,
+            direction=row.direction,
+            capacity_product=row.capacity_product,
+            firmness=row.firmness,
+            gas_year=row.gas_year,
+            effective_from_utc=row.effective_from_utc.isoformat(),
+            effective_to_utc=row.effective_to_utc.isoformat() if row.effective_to_utc else None,
+            source_system=row.source_system,
+            source_reference=row.source_reference,
+            document_id=row.document_id,
+            entitlement_scope=tuple(row.entitlement_scope or []),
+            status=row.status,
+            manual_review_required=row.manual_review_required,
+            superseded_by=row.superseded_by,
+            created_at_utc=row.created_at_utc.isoformat(),
+        ).__dict__
+        if as_of is None
+        else {
+            **_row_base_dict(row),
+            "as_of": as_of,
+        }
+    )
 
 
 def _row_base_dict(row) -> dict:

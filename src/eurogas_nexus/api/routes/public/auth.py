@@ -69,9 +69,7 @@ def _cookie_secure(request: Request) -> bool:
     """
 
     api_profile, environment = deployment_cookie_context(request)
-    return request_cookie_secure(
-        request, api_profile=api_profile, environment=environment
-    )
+    return request_cookie_secure(request, api_profile=api_profile, environment=environment)
 
 
 def _secure_attribute(request: Request) -> str:
@@ -250,7 +248,6 @@ def oidc_desktop_token(
 ) -> dict:
     """Exchange a desktop system-browser code for a short-lived session token."""
 
-
     from eurogas_nexus.application.enterprise_auth import complete_desktop_login
 
     _require_db()
@@ -313,9 +310,7 @@ def get_me(
     principal = getattr(request.state, "identity", legacy_public_token_principal())
     session_token = request.cookies.get(SESSION_COOKIE, "")
     csrf_token = (
-        hashlib.sha256(session_token.encode("utf-8")).hexdigest()[:32]
-        if session_token
-        else None
+        hashlib.sha256(session_token.encode("utf-8")).hexdigest()[:32] if session_token else None
     )
     from eurogas_nexus.security.authorization import permissions_for_principal
     from eurogas_nexus.security.capabilities import build_experience_profile
@@ -376,9 +371,7 @@ def logout(request: Request) -> dict:
                     session.commit()
         except Exception:
             pass
-    response = JSONResponse(
-        {"data": {"logged_out": True}, "meta": {"research_only": False}}
-    )
+    response = JSONResponse({"data": {"logged_out": True}, "meta": {"research_only": False}})
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.delete_cookie(OIDC_VERIFIER_COOKIE, path="/api/auth")
     return response

@@ -185,8 +185,12 @@ def list_spread_series(request: Request) -> dict:
         entry["last"] = max(entry["last"], row["day"])
         entry["days"].add(row["day"])
     series = [
-        {**entry, "first": entry["first"].isoformat(), "last": entry["last"].isoformat(),
-         "days": len(entry["days"])}
+        {
+            **entry,
+            "first": entry["first"].isoformat(),
+            "last": entry["last"].isoformat(),
+            "days": len(entry["days"]),
+        }
         for entry in sorted(catalogue.values(), key=lambda item: (item["hub"], item["tenor"]))
     ]
     return _env(series)

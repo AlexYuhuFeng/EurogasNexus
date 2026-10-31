@@ -23,6 +23,13 @@ Mandates (per trader)
     trader's own account. A mandate is breached by a hub outside its list, a product kind it
     does not allow, a delivery beyond its tenor, or a net hub-month position beyond its size.
 
+    Hedge policy (per hub-month with a physical position): financial cover as a share of the
+    physical position must stay within ``min_hedge_ratio_pct``..``max_hedge_ratio_pct``. A
+    legal cap such as "hedge at most 80 %" stops a hedge turning into a speculative short;
+    a floor makes the desk lock in a minimum. The headroom to the cap is reported so the
+    trader knows how much more can be hedged. Instruments outside the allowed list (for
+    example options where the firm's policy forbids them) are breaches.
+
 Statuses: ``ok`` under 75 % used, ``watch`` 75-100 %, ``breach`` above 100 % or on any rule
 breach, ``expired`` once the approval's ``valid_until`` has passed.
 """
@@ -210,6 +217,7 @@ class MandateLeg:
     first_gas_day: date
     last_gas_day: date
     mwh_per_day: float
+    instrument: str = ""  # physical, future, forward, swap, option
 
 
 @dataclass(frozen=True)
@@ -224,6 +232,9 @@ class Mandate:
     physical_allowed: bool = True
     financial_allowed: bool = True
     valid_until: date | None = None
+    min_hedge_ratio_pct: float | None = None
+    max_hedge_ratio_pct: float | None = None
+    instruments: Sequence[str] = ()
 
 
 @dataclass
@@ -235,6 +246,9 @@ class MandateUsage:
     furthest_month: str = ""
     breaches: list[str] = field(default_factory=list)
     status: str = "ok"
+    lowest_hedge_pct: float | None = None
+    highest_hedge_pct: float | None = None
+    hedge_room_mwh: float | None = None
 
     @property
     def utilisation(self) -> float | None:
@@ -256,12 +270,31 @@ class MandateUsage:
             "max_tenor_months": self.mandate.max_tenor_months,
             "furthest_month": self.furthest_month,
             "legs": self.legs,
+            "hedge_policy": _policy_text(self.mandate),
+            "hedge_ratio_range": None
+            if self.lowest_hedge_pct is None
+            else f"{self.lowest_hedge_pct:.0f}-{self.highest_hedge_pct:.0f}%",
+            "hedge_room_mwh": None
+            if self.hedge_room_mwh is None
+            else round(self.hedge_room_mwh, 0),
+            "instruments": ", ".join(self.mandate.instruments) or "any",
             "breaches": "; ".join(self.breaches),
             "valid_until": self.mandate.valid_until.isoformat()
             if self.mandate.valid_until
             else None,
             "status": self.status,
         }
+
+
+def _policy_text(mandate: Mandate) -> str:
+    low, high = mandate.min_hedge_ratio_pct, mandate.max_hedge_ratio_pct
+    if low is None and high is None:
+        return ""
+    if low is None:
+        return f"at most {high:.0f}%"
+    if high is None:
+        return f"at least {low:.0f}%"
+    return f"{low:.0f}-{high:.0f}%"
 
 
 def _add_months(day: date, months: int) -> date:
@@ -276,6 +309,9 @@ def mandate_usage(mandate: Mandate, legs: Iterable[MandateLeg], *, today: date) 
     books = set(mandate.book_ids)
     hubs = {hub.upper() for hub in mandate.hubs}
     net: dict[tuple[str, str], float] = defaultdict(float)
+    physical: dict[tuple[str, str], float] = defaultdict(float)
+    financial: dict[tuple[str, str], float] = defaultdict(float)
+    allowed_instruments = {item.casefold() for item in mandate.instruments}
     tenor_end = (
         _add_months(today, mandate.max_tenor_months + 1) - timedelta(days=1)
         if mandate.max_tenor_months is not None
@@ -302,6 +338,11 @@ def mandate_usage(mandate: Mandate, legs: Iterable[MandateLeg], *, today: date) 
             breach("physical", f"physical supply is not allowed ({leg.reference})")
         if leg.kind == "financial" and not mandate.financial_allowed:
             breach("financial", f"financial trades are not allowed ({leg.reference})")
+        if allowed_instruments and leg.instrument and leg.instrument not in allowed_instruments:
+            breach(
+                f"instrument:{leg.instrument}",
+                f"{leg.instrument} is not an allowed instrument ({leg.reference})",
+            )
         if tenor_end is not None and leg.last_gas_day > tenor_end:
             breach(
                 "tenor",
@@ -311,6 +352,8 @@ def mandate_usage(mandate: Mandate, legs: Iterable[MandateLeg], *, today: date) 
         months = _days_by_month(max(leg.first_gas_day, today), leg.last_gas_day)
         for month, days in months.items():
             net[(hub, month)] += leg.mwh_per_day * days
+            side = physical if leg.kind == "physical" else financial
+            side[(hub, month)] += leg.mwh_per_day * days
             usage.furthest_month = max(usage.furthest_month, month)
     if net:
         (hub, month), value = max(net.items(), key=lambda item: abs(item[1]))
@@ -321,9 +364,40 @@ def mandate_usage(mandate: Mandate, legs: Iterable[MandateLeg], *, today: date) 
             "size",
             f"net {usage.largest_net_mwh:,.0f} MWh in {usage.largest_at} is over {limit:,.0f} MWh",
         )
+    _check_hedge_policy(mandate, usage, physical, financial, breach)
     expired = mandate.valid_until is not None and mandate.valid_until < today
     usage.status = _status(usage.utilisation, expired=expired, breached=bool(usage.breaches))
     return usage
+
+
+def _check_hedge_policy(mandate, usage, physical, financial, breach) -> None:
+    """Hedge ratio per hub-month against the policy band, and the room left to the cap."""
+
+    low, high = mandate.min_hedge_ratio_pct, mandate.max_hedge_ratio_pct
+    ratios = []
+    room = 0.0
+    for key, position in physical.items():
+        if abs(position) < 1e-6:
+            continue
+        cover = -financial.get(key, 0.0)  # a sale hedges a long, a purchase hedges a short
+        ratio = 100 * cover / position
+        ratios.append(ratio)
+        hub_month = f"{key[0]} {key[1]}"
+        if high is not None:
+            room += max(0.0, abs(position) * high / 100 - abs(cover) * (1 if ratio >= 0 else -1))
+            if ratio > high + 1e-9:
+                breach(
+                    f"over-hedged:{hub_month}",
+                    f"{hub_month} hedged {ratio:.0f}%, above {high:.0f}%",
+                )
+        if low is not None and ratio < low - 1e-9:
+            breach(
+                f"under-hedged:{hub_month}", f"{hub_month} hedged {ratio:.0f}%, below {low:.0f}%"
+            )
+    if ratios:
+        usage.lowest_hedge_pct, usage.highest_hedge_pct = min(ratios), max(ratios)
+    if high is not None and ratios:
+        usage.hedge_room_mwh = room
 
 
 def fx_lookup(eur_rates: Mapping[str, float]) -> Callable[[str, str], float | None]:

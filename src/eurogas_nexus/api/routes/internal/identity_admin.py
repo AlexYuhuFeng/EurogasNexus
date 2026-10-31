@@ -59,9 +59,7 @@ def _operator_principal(
 @router.get("/identities")
 def list_identities(
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
-    x_eurogas_internal_token: str | None = Header(
-        default=None, alias="X-Eurogas-Internal-Token"
-    ),
+    x_eurogas_internal_token: str | None = Header(default=None, alias="X-Eurogas-Internal-Token"),
 ) -> dict:
     """List local identity principals and key metadata (never hashes)."""
 
@@ -92,9 +90,7 @@ def list_identities(
 def post_identity(
     body: IdentityCreateRequest,
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
-    x_eurogas_internal_token: str | None = Header(
-        default=None, alias="X-Eurogas-Internal-Token"
-    ),
+    x_eurogas_internal_token: str | None = Header(default=None, alias="X-Eurogas-Internal-Token"),
 ) -> dict:
     """Create one USER or SERVICE identity with explicit role and data scopes."""
 
@@ -135,9 +131,7 @@ def post_identity_key(
     principal_id: str,
     body: ApiKeyCreateRequest,
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
-    x_eurogas_internal_token: str | None = Header(
-        default=None, alias="X-Eurogas-Internal-Token"
-    ),
+    x_eurogas_internal_token: str | None = Header(default=None, alias="X-Eurogas-Internal-Token"),
 ) -> dict:
     """Issue one bearer API key; plaintext is returned exactly once."""
 
@@ -179,9 +173,7 @@ def post_identity_key_rotate(
     key_id: str,
     body: ApiKeyCreateRequest,
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
-    x_eurogas_internal_token: str | None = Header(
-        default=None, alias="X-Eurogas-Internal-Token"
-    ),
+    x_eurogas_internal_token: str | None = Header(default=None, alias="X-Eurogas-Internal-Token"),
 ) -> dict:
     """Revoke an existing key and issue a replacement (plaintext once)."""
 
@@ -231,9 +223,7 @@ def post_identity_key_revoke(
     principal_id: str,
     key_id: str,
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
-    x_eurogas_internal_token: str | None = Header(
-        default=None, alias="X-Eurogas-Internal-Token"
-    ),
+    x_eurogas_internal_token: str | None = Header(default=None, alias="X-Eurogas-Internal-Token"),
 ) -> dict:
     """Revoke one API key; it stops authenticating immediately."""
 
@@ -271,9 +261,7 @@ def post_identity_key_revoke(
 def post_identity_disable(
     principal_id: str,
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
-    x_eurogas_internal_token: str | None = Header(
-        default=None, alias="X-Eurogas-Internal-Token"
-    ),
+    x_eurogas_internal_token: str | None = Header(default=None, alias="X-Eurogas-Internal-Token"),
 ) -> dict:
     """Disable a principal; all of its keys stop authenticating."""
 
@@ -310,9 +298,7 @@ def post_identity_disable(
 def get_audit_events(
     limit: int = Query(default=200, ge=1, le=1000),
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
-    x_eurogas_internal_token: str | None = Header(
-        default=None, alias="X-Eurogas-Internal-Token"
-    ),
+    x_eurogas_internal_token: str | None = Header(default=None, alias="X-Eurogas-Internal-Token"),
 ) -> dict:
     """Export bounded audit-event rows for governance review (no secrets)."""
 
@@ -353,9 +339,7 @@ def get_audit_events(
 def post_audit_prune(
     body: AuditPruneRequest,
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
-    x_eurogas_internal_token: str | None = Header(
-        default=None, alias="X-Eurogas-Internal-Token"
-    ),
+    x_eurogas_internal_token: str | None = Header(default=None, alias="X-Eurogas-Internal-Token"),
 ) -> dict:
     """Prune audit rows older than the retention policy (dry-run default)."""
 
@@ -435,9 +419,7 @@ def _key_payload(key) -> dict:
         "key_prefix": key.key_prefix,
         "display_name": key.display_name,
         "expires_at_utc": key.expires_at_utc.isoformat() if key.expires_at_utc else None,
-        "last_used_at_utc": (
-            key.last_used_at_utc.isoformat() if key.last_used_at_utc else None
-        ),
+        "last_used_at_utc": (key.last_used_at_utc.isoformat() if key.last_used_at_utc else None),
         "created_at_utc": key.created_at_utc.isoformat(),
         "revoked_at_utc": key.revoked_at_utc.isoformat() if key.revoked_at_utc else None,
     }

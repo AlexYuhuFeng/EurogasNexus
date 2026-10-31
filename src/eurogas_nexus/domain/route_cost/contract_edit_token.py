@@ -92,6 +92,9 @@ CONTRACT_EDIT_TOKEN_FIELDS = (
     "payment_terms_json",
     "created_at_utc",
     "updated_at_utc",
+    "retired_at_utc",
+    "retired_by",
+    "retire_reason",
 )
 
 _HEX_DIGITS = frozenset("0123456789abcdef")

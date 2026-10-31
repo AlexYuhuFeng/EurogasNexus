@@ -50,9 +50,7 @@ async def require_public_api_auth(request: Request) -> None:
     authorization = request.headers.get("authorization", "")
     scheme, _, value = authorization.partition(" ")
     # 优先 Bearer，其次专用头；两者皆无再退回查询参数（仅 SSE 通道需要）。
-    token = value.strip() if scheme.lower() == "bearer" else request.headers.get(
-        API_KEY_HEADER
-    )
+    token = value.strip() if scheme.lower() == "bearer" else request.headers.get(API_KEY_HEADER)
     if not token:
         token = request.query_params.get("api_key")
     if not token and _allow_anonymous(request):

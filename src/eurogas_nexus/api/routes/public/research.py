@@ -649,18 +649,10 @@ class LngEconomicsOnlyRequest(BaseModel):
     cost_scope_statement: str = Field(max_length=1000)
     purchase_payment_date: str = Field(max_length=32)
     sale_payment_date: str = Field(max_length=32)
-    downstream_costs: list[LngEconomicsOnlyDownstreamCostRequest] = Field(
-        max_length=256
-    )
-    energy_stages: list[LngEconomicsOnlyEnergyStageRequest] = Field(
-        max_length=256
-    )
-    discount_factors: list[LngEconomicsOnlyDiscountFactorRequest] = Field(
-        max_length=256
-    )
-    model_version: str = Field(
-        default=LNG_ECONOMICS_ONLY_MODEL_VERSION, max_length=64
-    )
+    downstream_costs: list[LngEconomicsOnlyDownstreamCostRequest] = Field(max_length=256)
+    energy_stages: list[LngEconomicsOnlyEnergyStageRequest] = Field(max_length=256)
+    discount_factors: list[LngEconomicsOnlyDiscountFactorRequest] = Field(max_length=256)
+    model_version: str = Field(default=LNG_ECONOMICS_ONLY_MODEL_VERSION, max_length=64)
 
 
 # --- Endpoints ---------------------------------------------------------------
@@ -752,8 +744,11 @@ def post_monitoring(body: MonitoringRequest, request: Request) -> dict:
     """Generate research alerts from observations and thresholds."""
     thresholds = [
         MonitoringThreshold(
-            field=t.field, operator=t.operator, value=t.value,
-            severity=t.severity, message_template=t.message_template,
+            field=t.field,
+            operator=t.operator,
+            value=t.value,
+            severity=t.severity,
+            message_template=t.message_template,
         )
         for t in body.thresholds
     ]
@@ -867,10 +862,7 @@ def post_cash_valuation(body: CashValuationRequest, request: Request) -> dict:
     except CashValuationError as exc:
         raise _cash_valuation_refusal(
             "cash_valuation_refused",
-            (
-                "The shared cash valuation engine refused the supplied inputs;"
-                " nothing was computed."
-            ),
+            ("The shared cash valuation engine refused the supplied inputs; nothing was computed."),
             list(exc.violations),
         ) from exc
     return _cash_valuation_envelope(result)
@@ -933,9 +925,7 @@ def post_capacity_billing(body: CapacityBillingRequest, request: Request) -> dic
 
 
 @router.post("/lng-economics-only")
-def post_lng_economics_only(
-    body: LngEconomicsOnlyRequest, request: Request
-) -> dict:
+def post_lng_economics_only(body: LngEconomicsOnlyRequest, request: Request) -> dict:
     """Compose explicit LNG economics without assessing physical readiness.
 
     Sandbox-only adaptation of ``domain/research/lng_cargo_economics.py``: the
@@ -1151,9 +1141,7 @@ def _decimal_string(value: Decimal) -> str:
     return format(value, "f")
 
 
-def _exact_decimal(
-    text: str, label: str, violations: list[tuple[str, str]]
-) -> Decimal | None:
+def _exact_decimal(text: str, label: str, violations: list[tuple[str, str]]) -> Decimal | None:
     """Parse one exact decimal string, or record a stable violation."""
 
     if not _PLAIN_DECIMAL_PATTERN.match(text):
@@ -1169,9 +1157,7 @@ def _exact_decimal(
     return Decimal(text)
 
 
-def _calendar_date(
-    text: str, label: str, violations: list[tuple[str, str]]
-) -> date | None:
+def _calendar_date(text: str, label: str, violations: list[tuple[str, str]]) -> date | None:
     """Parse one ISO calendar date string, or record a stable violation."""
 
     if not _ISO_CALENDAR_DATE_PATTERN.match(text):
@@ -1185,9 +1171,7 @@ def _calendar_date(
     try:
         return date.fromisoformat(text)
     except ValueError:
-        violations.append(
-            ("DATE_STRING_INVALID", f"{label}={text!r} is not a calendar date")
-        )
+        violations.append(("DATE_STRING_INVALID", f"{label}={text!r} is not a calendar date"))
         return None
 
 
@@ -1255,9 +1239,7 @@ def _cash_valuation_input(
             CashValuationLegInput(
                 leg_id=leg.leg_id,
                 category=_leg_category(leg.category, label, violations),
-                payment_date=_calendar_date(
-                    leg.payment_date, f"{label}.payment_date", violations
-                ),
+                payment_date=_calendar_date(leg.payment_date, f"{label}.payment_date", violations),
                 signed_amount=_exact_decimal(
                     leg.signed_amount, f"{label}.signed_amount", violations
                 ),
@@ -1273,9 +1255,7 @@ def _cash_valuation_input(
         label = f"discount_factors[{position}]"
         discount_factors.append(
             CashValuationDiscountFactorInput(
-                payment_date=_calendar_date(
-                    item.payment_date, f"{label}.payment_date", violations
-                ),
+                payment_date=_calendar_date(item.payment_date, f"{label}.payment_date", violations),
                 factor=_exact_decimal(item.factor, f"{label}.factor", violations),
                 curve_reference=item.curve_reference,
                 source_reference=item.source_reference,
@@ -1285,9 +1265,7 @@ def _cash_valuation_input(
 
     return CashValuationInput(
         business_context=tuple(business_context),
-        valuation_date=_calendar_date(
-            body.valuation_date, "valuation_date", violations
-        ),
+        valuation_date=_calendar_date(body.valuation_date, "valuation_date", violations),
         reporting_currency=body.reporting_currency,
         legs=tuple(legs),
         discount_factors=tuple(discount_factors),
@@ -1307,8 +1285,7 @@ def _cash_valuation_refusal(
             "message": message,
             "codes": [violation_code for violation_code, _ in violations],
             "violations": [
-                {"code": violation_code, "detail": detail}
-                for violation_code, detail in violations
+                {"code": violation_code, "detail": detail} for violation_code, detail in violations
             ],
             "research_only": True,
             "human_review_required": True,
@@ -1334,9 +1311,7 @@ def _cash_valuation_envelope(result: CashValuationResult) -> dict:
             "currency": leg.currency,
             "signed_amount": _decimal_string(leg.signed_amount),
             "cash_amount_reporting_ccy": _decimal_string(leg.cash_amount_reporting_ccy),
-            "present_value_reporting_ccy": _decimal_string(
-                leg.present_value_reporting_ccy
-            ),
+            "present_value_reporting_ccy": _decimal_string(leg.present_value_reporting_ccy),
             "discount_factor": _decimal_string(leg.discount_factor),
             "discount_curve_reference": leg.discount_curve_reference,
             "discount_source_reference": leg.discount_source_reference,
@@ -1363,9 +1338,7 @@ def _cash_valuation_envelope(result: CashValuationResult) -> dict:
         "total_undiscounted_cash_reporting_ccy": _decimal_string(
             result.total_undiscounted_cash_reporting_ccy
         ),
-        "net_present_value_reporting_ccy": _decimal_string(
-            result.net_present_value_reporting_ccy
-        ),
+        "net_present_value_reporting_ccy": _decimal_string(result.net_present_value_reporting_ccy),
         "assumptions": list(result.assumptions),
         "warnings": warnings,
         "source_references": source_references,
@@ -1398,9 +1371,7 @@ _ISO_DATETIME_PATTERN = re.compile(
 )
 
 
-def _aware_datetime(
-    text: str, label: str, violations: list[tuple[str, str]]
-) -> datetime | None:
+def _aware_datetime(text: str, label: str, violations: list[tuple[str, str]]) -> datetime | None:
     """Parse one ISO-8601 timestamp and require an explicit UTC offset."""
 
     if not _ISO_DATETIME_PATTERN.match(text):
@@ -1415,9 +1386,7 @@ def _aware_datetime(
     try:
         value = datetime.fromisoformat(text)
     except ValueError:
-        violations.append(
-            ("DATETIME_STRING_INVALID", f"{label}={text!r} is not a valid timestamp")
-        )
+        violations.append(("DATETIME_STRING_INVALID", f"{label}={text!r} is not a valid timestamp"))
         return None
     if value.tzinfo is None or value.utcoffset() is None:
         violations.append(
@@ -1465,9 +1434,7 @@ def _capacity_billing_input(
             "billed_capacity_energy_mwh",
             violations,
         ),
-        billing_start=_aware_datetime(
-            body.billing_start, "billing_start", violations
-        ),
+        billing_start=_aware_datetime(body.billing_start, "billing_start", violations),
         billing_end=_aware_datetime(body.billing_end, "billing_end", violations),
         source_references=tuple(body.source_references),
         model_version=body.model_version,
@@ -1486,8 +1453,7 @@ def _capacity_billing_refusal(
             "message": message,
             "codes": [violation_code for violation_code, _ in violations],
             "violations": [
-                {"code": violation_code, "detail": detail}
-                for violation_code, detail in violations
+                {"code": violation_code, "detail": detail} for violation_code, detail in violations
             ],
             "research_only": True,
             "human_review_required": True,
@@ -1518,12 +1484,8 @@ def _capacity_billing_envelope(result: CapacityBillingResult) -> dict:
         "currency": result.currency,
         "tariff_unit": result.tariff_unit,
         "tariff_rate": _decimal_string(result.tariff_rate),
-        "booked_capacity_mwh_per_h": _decimal_string(
-            result.booked_capacity_mwh_per_h
-        ),
-        "billed_capacity_energy_mwh": _decimal_string(
-            result.billed_capacity_energy_mwh
-        ),
+        "booked_capacity_mwh_per_h": _decimal_string(result.booked_capacity_mwh_per_h),
+        "billed_capacity_energy_mwh": _decimal_string(result.billed_capacity_energy_mwh),
         "delivered_energy_mwh": _decimal_string(result.delivered_energy_mwh),
         "billing_start": result.billing_start.isoformat(),
         "billing_end": result.billing_end.isoformat(),
@@ -1534,12 +1496,8 @@ def _capacity_billing_envelope(result: CapacityBillingResult) -> dict:
         "basis": {
             "tariff_rate": _decimal_string(basis.tariff_rate),
             "tariff_unit": basis.tariff_unit,
-            "booked_capacity_mwh_per_h": _decimal_string(
-                basis.booked_capacity_mwh_per_h
-            ),
-            "billed_capacity_energy_mwh": _decimal_string(
-                basis.billed_capacity_energy_mwh
-            ),
+            "booked_capacity_mwh_per_h": _decimal_string(basis.booked_capacity_mwh_per_h),
+            "billed_capacity_energy_mwh": _decimal_string(basis.billed_capacity_energy_mwh),
             "delivered_energy_mwh": _decimal_string(basis.delivered_energy_mwh),
             "billing_start_utc": basis.billing_start_utc.isoformat(),
             "billing_end_utc": basis.billing_end_utc.isoformat(),
@@ -1614,9 +1572,7 @@ def _lng_economics_only_input(
                 violations,
             ),
             source_reference=cost.source_reference,
-            charge_basis=_declared_enum(
-                LngDownstreamChargeBasis, cost.charge_basis
-            ),
+            charge_basis=_declared_enum(LngDownstreamChargeBasis, cost.charge_basis),
         )
         for position, cost in enumerate(body.downstream_costs)
     )
@@ -1655,14 +1611,10 @@ def _lng_economics_only_input(
                 f"discount_factors[{position}].payment_date",
                 violations,
             ),
-            factor=_exact_decimal(
-                item.factor, f"discount_factors[{position}].factor", violations
-            ),
+            factor=_exact_decimal(item.factor, f"discount_factors[{position}].factor", violations),
             curve_reference=item.curve_reference,
             source_reference=item.source_reference,
-            as_of=_calendar_date(
-                item.as_of, f"discount_factors[{position}].as_of", violations
-            ),
+            as_of=_calendar_date(item.as_of, f"discount_factors[{position}].as_of", violations),
         )
         for position, item in enumerate(body.discount_factors)
     )
@@ -1672,9 +1624,7 @@ def _lng_economics_only_input(
         cargo_id=body.cargo_id,
         terminal_id=body.terminal_id,
         resource_id=body.resource_id,
-        valuation_date=_calendar_date(
-            body.valuation_date, "valuation_date", violations
-        ),
+        valuation_date=_calendar_date(body.valuation_date, "valuation_date", violations),
         reporting_currency=body.reporting_currency,
         energy_basis_reference=body.energy_basis_reference,
         energy_unit=body.energy_unit,
@@ -1698,16 +1648,13 @@ def _lng_economics_only_input(
         sale_price_source_reference=body.sale_price_source_reference,
         purchase_basis=body.purchase_basis,
         purchase_included_cost_items=tuple(
-            _declared_enum(CashFlowLegCategory, item)
-            for item in body.purchase_included_cost_items
+            _declared_enum(CashFlowLegCategory, item) for item in body.purchase_included_cost_items
         ),
         cost_scope_statement=body.cost_scope_statement,
         purchase_payment_date=_calendar_date(
             body.purchase_payment_date, "purchase_payment_date", violations
         ),
-        sale_payment_date=_calendar_date(
-            body.sale_payment_date, "sale_payment_date", violations
-        ),
+        sale_payment_date=_calendar_date(body.sale_payment_date, "sale_payment_date", violations),
         downstream_costs=downstream_costs,
         energy_stages=energy_stages,
         discount_factors=discount_factors,
@@ -1727,8 +1674,7 @@ def _lng_economics_only_refusal(
             "message": message,
             "codes": [violation_code for violation_code, _ in violations],
             "violations": [
-                {"code": violation_code, "detail": detail}
-                for violation_code, detail in violations
+                {"code": violation_code, "detail": detail} for violation_code, detail in violations
             ],
             "research_only": True,
             "human_review_required": True,
@@ -1745,20 +1691,14 @@ def _lng_cash_leg_payload(leg) -> dict:
         "payment_date": leg.payment_date.isoformat(),
         "currency": leg.currency,
         "signed_amount": _decimal_string(leg.signed_amount),
-        "cash_amount_reporting_ccy": _decimal_string(
-            leg.cash_amount_reporting_ccy
-        ),
-        "present_value_reporting_ccy": _decimal_string(
-            leg.present_value_reporting_ccy
-        ),
+        "cash_amount_reporting_ccy": _decimal_string(leg.cash_amount_reporting_ccy),
+        "present_value_reporting_ccy": _decimal_string(leg.present_value_reporting_ccy),
         "discount_factor": _decimal_string(leg.discount_factor),
         "discount_curve_reference": leg.discount_curve_reference,
         "discount_source_reference": leg.discount_source_reference,
         "discount_as_of": leg.discount_as_of.isoformat(),
         "source_reference": leg.source_reference,
-        "fx_rate_reporting_per_leg": _decimal_string(
-            leg.fx_rate_reporting_per_leg
-        ),
+        "fx_rate_reporting_per_leg": _decimal_string(leg.fx_rate_reporting_per_leg),
         "fx_source_reference": leg.fx_source_reference,
         "fx_as_of": leg.fx_as_of.isoformat() if leg.fx_as_of is not None else None,
         "description": leg.description,
@@ -1776,15 +1716,11 @@ def _lng_cash_valuation_payload(result) -> dict:
         "resource_id": result.resource_id,
         "valuation_date": result.valuation_date.isoformat(),
         "reporting_currency": result.reporting_currency,
-        "leg_valuations": [
-            _lng_cash_leg_payload(leg) for leg in result.leg_valuations
-        ],
+        "leg_valuations": [_lng_cash_leg_payload(leg) for leg in result.leg_valuations],
         "total_undiscounted_cash_reporting_ccy": _decimal_string(
             result.total_undiscounted_cash_reporting_ccy
         ),
-        "net_present_value_reporting_ccy": _decimal_string(
-            result.net_present_value_reporting_ccy
-        ),
+        "net_present_value_reporting_ccy": _decimal_string(result.net_present_value_reporting_ccy),
         "assumptions": list(result.assumptions),
         "warnings": list(result.warnings),
         "source_references": list(result.source_references),
@@ -1803,9 +1739,7 @@ def _lng_energy_stage_payload(stage) -> dict:
         "input_energy_mwh": _decimal_string(stage.input_energy_mwh),
         "output_energy_mwh": _decimal_string(stage.output_energy_mwh),
         "consumed_energy_mwh": _decimal_string(stage.consumed_energy_mwh),
-        "physical_loss_energy_mwh": _decimal_string(
-            stage.physical_loss_energy_mwh
-        ),
+        "physical_loss_energy_mwh": _decimal_string(stage.physical_loss_energy_mwh),
         "source_references": list(stage.source_references),
     }
 
@@ -1819,19 +1753,11 @@ def _lng_energy_balance_payload(result) -> dict:
         "delivered_energy_mwh": _decimal_string(result.delivered_energy_mwh),
         "energy_basis_reference": result.energy_basis_reference,
         "energy_unit": result.energy_unit,
-        "total_consumed_energy_mwh": _decimal_string(
-            result.total_consumed_energy_mwh
-        ),
-        "physical_loss_energy_mwh": _decimal_string(
-            result.physical_loss_energy_mwh
-        ),
-        "total_reduction_energy_mwh": _decimal_string(
-            result.total_reduction_energy_mwh
-        ),
+        "total_consumed_energy_mwh": _decimal_string(result.total_consumed_energy_mwh),
+        "physical_loss_energy_mwh": _decimal_string(result.physical_loss_energy_mwh),
+        "total_reduction_energy_mwh": _decimal_string(result.total_reduction_energy_mwh),
         "stage_count": result.stage_count,
-        "stages": [
-            _lng_energy_stage_payload(stage) for stage in result.stages
-        ],
+        "stages": [_lng_energy_stage_payload(stage) for stage in result.stages],
         "warnings": list(result.warnings),
         "source_references": list(result.source_references),
         "research_only": result.research_only,
@@ -1866,26 +1792,16 @@ def _lng_economics_only_envelope(result: LngEconomicsOnlyResult) -> dict:
         "energy_unit": result.energy_unit,
         "purchased_energy_mwh": _decimal_string(result.purchased_energy_mwh),
         "delivered_energy_mwh": _decimal_string(result.delivered_energy_mwh),
-        "total_consumed_energy_mwh": _decimal_string(
-            result.total_consumed_energy_mwh
-        ),
-        "physical_loss_energy_mwh": _decimal_string(
-            result.physical_loss_energy_mwh
-        ),
-        "total_reduction_energy_mwh": _decimal_string(
-            result.total_reduction_energy_mwh
-        ),
+        "total_consumed_energy_mwh": _decimal_string(result.total_consumed_energy_mwh),
+        "physical_loss_energy_mwh": _decimal_string(result.physical_loss_energy_mwh),
+        "total_reduction_energy_mwh": _decimal_string(result.total_reduction_energy_mwh),
         "purchase_basis": result.purchase_basis,
         "purchase_included_cost_items": [
             item.value for item in result.purchase_included_cost_items
         ],
         "cost_scope_statement": result.cost_scope_statement,
-        "purchase_unit_price_eur_per_mwh": _decimal_string(
-            result.purchase_unit_price_eur_per_mwh
-        ),
-        "sale_unit_price_eur_per_mwh": _decimal_string(
-            result.sale_unit_price_eur_per_mwh
-        ),
+        "purchase_unit_price_eur_per_mwh": _decimal_string(result.purchase_unit_price_eur_per_mwh),
+        "sale_unit_price_eur_per_mwh": _decimal_string(result.sale_unit_price_eur_per_mwh),
         "unit_netback_eur_per_purchased_mwh": _decimal_string(
             result.unit_netback_eur_per_purchased_mwh
         ),
@@ -1894,20 +1810,14 @@ def _lng_economics_only_envelope(result: LngEconomicsOnlyResult) -> dict:
         ),
         "purchase_outlay_eur": _decimal_string(result.purchase_outlay_eur),
         "sale_proceeds_eur": _decimal_string(result.sale_proceeds_eur),
-        "total_downstream_costs_eur": _decimal_string(
-            result.total_downstream_costs_eur
-        ),
+        "total_downstream_costs_eur": _decimal_string(result.total_downstream_costs_eur),
         "cargo_margin_eur": _decimal_string(result.cargo_margin_eur),
-        "margin_reconciliation_gap_eur": _decimal_string(
-            result.margin_reconciliation_gap_eur
-        ),
+        "margin_reconciliation_gap_eur": _decimal_string(result.margin_reconciliation_gap_eur),
         "margin_reconciliation_tolerance_eur": _decimal_string(
             result.margin_reconciliation_tolerance_eur
         ),
         "net_present_value_eur": _decimal_string(result.net_present_value_eur),
-        "total_undiscounted_cash_eur": _decimal_string(
-            result.total_undiscounted_cash_eur
-        ),
+        "total_undiscounted_cash_eur": _decimal_string(result.total_undiscounted_cash_eur),
         "cash_valuation": _lng_cash_valuation_payload(result.cash_valuation),
         "energy_balance": _lng_energy_balance_payload(result.energy_balance),
         "physical_readiness": result.physical_readiness,

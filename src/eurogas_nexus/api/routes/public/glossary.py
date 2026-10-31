@@ -146,9 +146,11 @@ def _load_terms() -> tuple[list[GlossaryTerm], str, list[str]]:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = session.query(GlossaryTermRecord).filter(
-                GlossaryTermRecord.active.is_(True)
-            ).order_by(GlossaryTermRecord.category, GlossaryTermRecord.term)
+            rows = (
+                session.query(GlossaryTermRecord)
+                .filter(GlossaryTermRecord.active.is_(True))
+                .order_by(GlossaryTermRecord.category, GlossaryTermRecord.term)
+            )
             terms = [
                 GlossaryTerm(
                     term_id=row.term_id,

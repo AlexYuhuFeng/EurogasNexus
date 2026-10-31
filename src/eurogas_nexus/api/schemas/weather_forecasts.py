@@ -36,9 +36,7 @@ def _freeze_string_sequence(value: object) -> object:
     return tuple(value) if isinstance(value, list) else value
 
 
-_FrozenStrings = Annotated[
-    tuple[_NonEmptyStr, ...], BeforeValidator(_freeze_string_sequence)
-]
+_FrozenStrings = Annotated[tuple[_NonEmptyStr, ...], BeforeValidator(_freeze_string_sequence)]
 
 
 class ForecastPointReading(BaseModel):

@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.dependencies.acting_actor import require_acting_actor
 from eurogas_nexus.api.dependencies.analysis_snapshot import (
@@ -204,14 +204,15 @@ def list_route_candidates(request: Request) -> dict:
 
 
 @router.get("/api/route-cost/upstream-contracts")
-def list_upstream_contracts(request: Request) -> dict:
+def list_upstream_contracts(request: Request, include_retired: bool = Query(False)) -> dict:
     """List DB-backed upstream resource contracts.
 
     Each payload carries the stored contract fields, the opaque ``edit_token``
     and the strictly decoded declared ``payment_terms`` (the canonical
     ``contract-payment-terms/v1`` document, or ``null`` for "not stated"). A
     stored declaration that fails canonical verification refuses the read with
-    a stable, sanitized 409 rather than being served as absent.
+    a stable, sanitized 409 rather than being served as absent. Retired contracts are
+    listed only with ``include_retired=true``.
     """
 
     if not _db_is_configured():
@@ -232,7 +233,9 @@ def list_upstream_contracts(request: Request) -> dict:
 
         with get_session_factory()() as session:
             return _env(
-                list_upstream_contracts(session, include_edit_token=True),
+                list_upstream_contracts(
+                    session, include_edit_token=True, include_retired=include_retired
+                ),
                 request,
                 source="runtime-postgresql",
             )
@@ -385,6 +388,73 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
             return _env(data, request, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+class ContractLifecycleRequest(BaseModel):
+    """Why the contract is retired or reinstated, against the version the user looked at."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    reason: str = Field(min_length=3, max_length=500)
+    expected_edit_token: str = Field(min_length=8, max_length=200)
+
+
+def _contract_lifecycle(
+    contract_id: str, body: ContractLifecycleRequest, request: Request, action: str
+):
+    from datetime import UTC, datetime
+
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    actor = getattr(getattr(request.state, "identity", None), "principal_id", None) or "api"
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.route_cost import (
+            ContractLifecycleRefusal,
+            set_upstream_contract_lifecycle,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            try:
+                payload = set_upstream_contract_lifecycle(
+                    session,
+                    contract_id,
+                    action=action,
+                    reason=body.reason,
+                    expected_edit_token=body.expected_edit_token,
+                    actor=actor,
+                    now_utc=datetime.now(UTC),
+                )
+            except ContractLifecycleRefusal as refusal:
+                session.rollback()
+                raise HTTPException(
+                    status_code=refusal.status, detail={"code": refusal.code}
+                ) from refusal
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(payload, request, source="runtime-postgresql")
+
+
+@router.post("/api/route-cost/upstream-contracts/{contract_id}/retire")
+def retire_upstream_contract(
+    contract_id: str, body: ContractLifecycleRequest, request: Request
+) -> dict:
+    """Retire a contract: it leaves positions, risk and the map; history and audit stay.
+
+    合同退役：不删除记录与修订历史，只是不再计入头寸、风险与地图；需填写原因并记入审计。
+    """
+
+    return _contract_lifecycle(contract_id, body, request, "retire")
+
+
+@router.post("/api/route-cost/upstream-contracts/{contract_id}/reinstate")
+def reinstate_upstream_contract(
+    contract_id: str, body: ContractLifecycleRequest, request: Request
+) -> dict:
+    """Bring a retired contract back into positions (audited, with a reason)."""
+
+    return _contract_lifecycle(contract_id, body, request, "reinstate")
 
 
 @router.get("/api/route-cost/upstream-contracts/{contract_id}/revisions")

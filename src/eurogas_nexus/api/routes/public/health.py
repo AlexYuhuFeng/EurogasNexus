@@ -113,5 +113,3 @@ def health_ready(request: Request) -> dict:
             "required_tables": "ok",
         },
     }
-
-

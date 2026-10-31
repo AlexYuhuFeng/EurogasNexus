@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { ContractIntakeDTO, PortfolioResourceDTO, UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
+import { RetireContractButton, RetiredContractsList, type ContractLifecycleAction } from "@/components/ContractLifecycleControls";
 import { FinancingRateHelper } from "@/components/FinancingRateHelper";
 import { LngEconomicsPanel } from "@/components/LngEconomicsPanel";
 import { useLngEconomicsOnly } from "@/app/model/useLngEconomicsOnly";
@@ -96,6 +97,8 @@ interface ContractWorkbenchProps {
   /** Terms a PDF intake read, each with its page and words, until the reviewer dismisses it. */
   contractIntake?: ContractIntakeDTO | null;
   onDismissContractIntake?: () => void;
+  /** Retire or reinstate a stored contract (absent: the library is read-only). */
+  onContractLifecycle?: ContractLifecycleAction;
   contractSaveMessage: string | null;
   /** The last save was refused as a stale-edit conflict (`stores/api.ts`). */
   contractSaveConflict: boolean;
@@ -134,7 +137,7 @@ export function ContractWorkbench({
   firstPoolAllocation, runtimeDbReady, loading, draftDirty, selectedResourceId,
   taskView, onTaskViewChange, viewFacts, saveState,
   onOpenStrategyForResource, contractImportRef, contractImportMessage,
-  contractIntake = null, onDismissContractIntake,
+  contractIntake = null, onDismissContractIntake, onContractLifecycle,
   contractSaveMessage, contractSaveConflict, t,
   updateContractText, updateContractNumber, updateContractList,
   resetContractDraft, importContractDraftFile, loadPersistedContract,
@@ -461,10 +464,12 @@ export function ContractWorkbench({
                   >
                     {t("contracts.inspect")}
                   </button>
+                  {onContractLifecycle && <RetireContractButton contract={saved} onLifecycle={onContractLifecycle} t={t} />}
                 </div>
               </div>
             );
           })}{upstreamContracts.length === 0 && <p className="panel-copy" data-empty-state="contract-library">{t("contracts.no_saved_contracts")}</p>}</div>
+          {onContractLifecycle && <RetiredContractsList onLifecycle={onContractLifecycle} refreshKey={upstreamContracts.length} t={t} />}
         </section>
       )}
       <footer className="contract-boundary-note">{t("contracts.boundary_note")}</footer>

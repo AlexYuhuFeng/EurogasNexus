@@ -495,3 +495,23 @@ The reads accept `format=csv|xlsx|pdf` where they return tables, as do
 `/api/portfolio/position-ladder`, `/api/portfolio/pnl-snapshots`,
 `/api/market/gas-for-power` and `/api/market/nwe-balance` (previously `json|csv`).
 Public census: 218 paths / 234 operations.
+
+## 2026-10-31 additive: contract lifecycle and the sell-down plan
+
+Migration `0055_desk_operations` adds `retired_at_utc`, `retired_by` and `retire_reason` to
+`upstream_resource_contracts`, and `min_hedge_ratio_pct`, `max_hedge_ratio_pct` and
+`instruments` to `trader_mandates`.
+
+| Path | Method | Permission | Purpose |
+|---|---|---|---|
+| `/api/route-cost/upstream-contracts/{contract_id}/retire` | POST | GOVERNED | Retire with a reason under the edit token (409 `contract_edit_conflict`, `contract_already_retired`); audited |
+| `/api/route-cost/upstream-contracts/{contract_id}/reinstate` | POST | GOVERNED | Bring a retired contract back (409 `contract_not_retired`); audited |
+| `/api/portfolio/sell-down-plan` | POST | READ (computes, stores nothing) | Day-ahead versus within-day volume from measured delivery volatility |
+
+`GET /api/route-cost/upstream-contracts` gains `include_retired` (default false) and each
+contract gains `retired_at_utc`, `retired_by`, `retire_reason`. Retired contracts leave the
+position ladder, risk reads, analysis context and the map. `GET /api/portfolio/mandate-usage`
+rows gain `hedge_policy`, `hedge_ratio_range`, `hedge_room_mwh` and `instruments`; the
+mandate write accepts the hedge band and instruments (422 `unknown_instrument`,
+`hedge_band_inverted`). Public census: 221 paths / 237 operations.
+

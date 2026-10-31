@@ -276,8 +276,7 @@ def test_provider_credential_connection(provider_id: ProviderId) -> dict:
             detail={
                 "code": "connection_test_not_supported",
                 "message": (
-                    "A governed live connection test is not implemented for "
-                    f"{provider_id}."
+                    f"A governed live connection test is not implemented for {provider_id}."
                 ),
             },
         )
@@ -353,9 +352,9 @@ def _connection_test_gie() -> dict:
             | {
                 "connection": {
                     "ok": False,
-                    "error_code": (
-                        status["credential_diagnostics"] or ["gie_credential_missing"]
-                    )[0],
+                    "error_code": (status["credential_diagnostics"] or ["gie_credential_missing"])[
+                        0
+                    ],
                     "products": [],
                     "tested_at_utc": utc_now().isoformat(),
                 }
@@ -391,9 +390,7 @@ def _connection_test_gie() -> dict:
         for check in checks
     ]
     aggregate_ok = bool(checks) and all(check.ok for check in checks)
-    aggregate_error = next(
-        (check.error_code for check in checks if not check.ok), None
-    )
+    aggregate_error = next((check.error_code for check in checks if not check.ok), None)
     now = utc_now()
 
     sqlalchemy_error = _sqlalchemy_error_type()
@@ -417,8 +414,7 @@ def _connection_test_gie() -> dict:
                     "Bounded one-page GIE AGSI/ALSI connection test passed; this is "
                     "not a certification decision."
                     if aggregate_ok
-                    else "Bounded one-page GIE connection test failed; see connection "
-                    "error code."
+                    else "Bounded one-page GIE connection test failed; see connection error code."
                 )
                 session.commit()
     except sqlalchemy_error as exc:
@@ -483,9 +479,7 @@ def _gie_external_credential_status() -> dict:
     return {
         "configured": resolved.configured,
         "status": (
-            "configured"
-            if resolved.configured
-            else ("disabled" if resolved.blocked else "missing")
+            "configured" if resolved.configured else ("disabled" if resolved.blocked else "missing")
         ),
         "credential_source_kind": resolved.source_kind,
         "credential_diagnostics": list(resolved.diagnostics),
@@ -688,9 +682,7 @@ def _provider_status(provider: dict[str, object], row: object | None) -> dict:
 def _credential_status(row: object) -> dict:
     return {
         "provider_id": row.provider_id,
-        "default_model": (
-            "deepseek-v4-flash" if row.provider_id == "DEEPSEEK" else None
-        ),
+        "default_model": ("deepseek-v4-flash" if row.provider_id == "DEEPSEEK" else None),
         "label": row.label,
         "configured": row.status != "disabled",
         "status": row.status,

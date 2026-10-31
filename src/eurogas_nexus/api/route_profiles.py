@@ -44,7 +44,8 @@ API_ROUTE_PROFILES: dict[ApiProfileName, ApiRouteProfile] = {
         expose_docs=False,
         expose_openapi=False,
         include_internal=True,
-    ),    ApiProfileName.RELEASE: ApiRouteProfile(
+    ),
+    ApiProfileName.RELEASE: ApiRouteProfile(
         name=ApiProfileName.RELEASE,
         expose_docs=False,
         expose_openapi=False,
@@ -92,4 +93,3 @@ def authentication_posture(
         # as what it is rather than silently as "enforced".
         return "not_installed"
     return "anonymous_allowed" if allow_anonymous_callers else "enforced"
-
