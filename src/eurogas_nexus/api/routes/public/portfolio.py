@@ -790,3 +790,45 @@ def put_book(book_id: str, body: BookRequest, request: Request) -> dict:
         source="runtime-postgresql",
         warnings=[],
     )
+
+
+@router.get("/api/portfolio/map-situation")
+def map_situation(
+    request: Request,
+    outage_horizon_days: int = Query(14, ge=1, le=90),
+) -> dict:
+    """The live map: outages, point flows, the firm's contracts, LNG cargoes and regas slots.
+
+    实时地图态势：停运、管点流量、本公司上游合同、LNG 船货与再气化窗口，均按来源定位。
+
+    Items are placed only where a source locates them (EIC code or point name, or the
+    coordinates the vessel feed supplied); the rest are counted in ``unlocated``.
+    Book-held items follow portfolio isolation; market items the caller's data scopes.
+    """
+
+    from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+    from eurogas_nexus.application.map_situation import build_map_situation
+
+    if not _db_is_configured():
+        return _env({}, request, source="runtime-db-not-configured", warnings=[])
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from datetime import UTC, datetime
+
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            data = build_map_situation(
+                session,
+                now=datetime.now(UTC),
+                entitled=lambda rows: list(filter_rows(request, rows)),
+                outage_horizon_days=outage_horizon_days,
+            )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    warnings = [
+        f"{count} {kind.replace('_', ' ')} could not be located on the map"
+        for kind, count in data["unlocated"].items()
+        if count
+    ]
+    return _env(data, request, source="runtime-postgresql:map-situation", warnings=warnings)

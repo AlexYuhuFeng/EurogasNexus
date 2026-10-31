@@ -18,6 +18,8 @@ import {
   type NetworkGeometryState,
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
+import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
+import { useMapSituation } from "@/app/hooks/useMapSituation";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
@@ -152,6 +154,8 @@ export function NetworkWorkspace({
   // `network-node` as an inspectable subject, so the hand-over is legal here; the builder
   // refuses it everywhere the composition does not declare it.
   const inspector = useInspectorStore();
+  const { situation, facilities } = useMapSituation();
+  const summary = situationSummary(situation);
   const openNodeInspector = (nodeId: string, label: string) => {
     const subject = inspectorSubjectFor("network-node", nodeId, label, "network");
     if (subject) inspector.open(subject);
@@ -323,6 +327,23 @@ export function NetworkWorkspace({
               <span className="layer-label">{t(`map.layer.${layer}`)}</span>
             </button>
           ))}
+          <span className="map-toolbar-divider" aria-hidden="true" />
+          {SITUATION_LAYERS.map((layer) => (
+            <button
+              key={layer}
+              type="button"
+              className={
+                activeLayers.includes(layer)
+                  ? `chip map-layer-chip situation-chip layer-${layer} active`
+                  : `chip map-layer-chip situation-chip layer-${layer}`
+              }
+              aria-pressed={activeLayers.includes(layer)}
+              title={t(`map.layer.${layer}_hint`)}
+              onClick={() => onToggleLayer(layer)}
+            >
+              <span className="layer-label">{t(`map.layer.${layer}`)}</span>
+            </button>
+          ))}
         </div>
         <div className="map-container map-stage network-map-stage" id="map">
           <GasNetworkMap
@@ -335,7 +356,33 @@ export function NetworkWorkspace({
             t={t}
             highlightedRoute={highlightedRoute}
             onInspectNode={openNodeInspector}
+            situation={situation}
+            facilities={facilities}
           />
+          {summary && (
+            <div className="map-situation-strip" role="status" aria-live="polite">
+              <span className="map-situation-live">{t("map.situation.live")}</span>
+              {summary.outagesNow > 0 && (
+                <span className="is-alert"><i className="situation-dot outage-active" />{t("map.situation.outages_now")} <b>{summary.outagesNow}</b></span>
+              )}
+              {summary.outagesScheduled > 0 && (
+                <span><i className="situation-dot outage-scheduled" />{t("map.situation.outages_scheduled")} <b>{summary.outagesScheduled}</b></span>
+              )}
+              {summary.contracts > 0 && (
+                <span><i className="situation-dot own" />{t("map.situation.contracts")} <b>{summary.contracts}</b></span>
+              )}
+              {summary.cargoesAtSea > 0 && (
+                <span><i className="situation-dot own" />{t("map.situation.cargoes_at_sea")} <b>{summary.cargoesAtSea}</b></span>
+              )}
+              {summary.slots > 0 && (
+                <span><i className="situation-dot own ring" />{t("map.situation.slots")} <b>{summary.slots}</b></span>
+              )}
+              <small title={t("map.situation.unlocated_hint")}>
+                {t("map.situation.as_of")} {summary.asOf.slice(11, 16)} UTC
+                {summary.unlocated > 0 ? ` · ${t("map.situation.unlocated")} ${summary.unlocated}` : ""}
+              </small>
+            </div>
+          )}
           {!mapHasVisibleEvidence && (
             <div className="map-empty-state" role="status">
               <strong>{t("map.empty_title")}</strong>

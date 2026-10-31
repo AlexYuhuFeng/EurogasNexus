@@ -2390,6 +2390,104 @@ export interface NweBalanceDayDTO {
 }
 
 /** North-west Europe balance: measured history and the component forecast. */
+export interface MapLocationDTO {
+  lon: number;
+  lat: number;
+  ref_id?: string;
+  ref_kind?: "node" | "facility";
+  match?: "eic" | "name" | "feed";
+  coordinate_quality?: string;
+}
+
+export interface MapOutageDTO {
+  event_id: string;
+  facility_name: string;
+  asset_type: string;
+  event_type: string;
+  status: "active" | "scheduled";
+  start_utc: string;
+  end_utc: string | null;
+  balancing_zone: string;
+  unit: string;
+  technical_capacity: number | null;
+  unavailable_capacity: number | null;
+  unavailable_gwh_d: number | null;
+  unavailable_share: number | null;
+  description: string;
+  market_participant: string;
+  source_system: string;
+  location: MapLocationDTO;
+}
+
+export interface MapPointFlowDTO {
+  point_id: string;
+  point_name: string;
+  direction: string;
+  gas_day_start_utc: string | null;
+  value: number | null;
+  unit: string;
+  gwh_d: number | null;
+  source_system: string;
+  location: MapLocationDTO;
+}
+
+export interface MapContractDTO {
+  contract_id: string;
+  contract_name: string;
+  resource_type: string;
+  delivery_point: string;
+  gas_year: string;
+  delivery_mwh_d: number;
+  entry_capacity_mwh_d: number | null;
+  book_id: string | null;
+  location: MapLocationDTO;
+}
+
+export interface MapCargoDTO {
+  cargo_id: string;
+  vessel_name: string;
+  vessel_imo: string | null;
+  status: "loading" | "laden" | "discharging" | "delivered" | "ballast";
+  load_port: string;
+  departed_at_utc: string | null;
+  destination_terminal: string | null;
+  eta_utc: string | null;
+  position_at_utc: string | null;
+  volume_m3: number | null;
+  energy_gwh: number | null;
+  own: boolean;
+  book_id: string | null;
+  source_system: string;
+  origin: MapLocationDTO | null;
+  position: MapLocationDTO | null;
+  destination: MapLocationDTO | null;
+  track: Array<[number, number]>;
+}
+
+export interface MapRegasSlotDTO {
+  slot_id: string;
+  terminal_name: string;
+  window_start_utc: string;
+  window_end_utc: string;
+  active: boolean;
+  send_out_gwh_d: number | null;
+  energy_gwh: number | null;
+  cargo_id: string | null;
+  book_id: string | null;
+  location: MapLocationDTO;
+}
+
+export interface MapSituationDTO {
+  as_of_utc: string;
+  outages: MapOutageDTO[];
+  flows: MapPointFlowDTO[];
+  contracts: MapContractDTO[];
+  cargoes: MapCargoDTO[];
+  regas_slots: MapRegasSlotDTO[];
+  unlocated: Record<"outages" | "contracts" | "cargoes" | "regas_slots", number>;
+  positions_included: boolean;
+}
+
 export interface NweBalanceDTO {
   region: string[];
   unit: string;
@@ -4179,6 +4277,8 @@ export const api = {
     get<NweBalanceDTO>("/market/nwe-balance", { days: String(days) }, options),
   gasForPower: (zone = "DE_LU", days = 14, options?: ApiRequestOptions) =>
     get<GasForPowerDayDTO[]>("/market/gas-for-power", { zone, days: String(days) }, options),
+  mapSituation: (outageHorizonDays = 14, options?: ApiRequestOptions) =>
+    get<MapSituationDTO>("/portfolio/map-situation", { outage_horizon_days: String(outageHorizonDays) }, options),
   outages: (horizonDays = 90, options?: ApiRequestOptions) =>
     get<OutageEventDTO[]>("/physical/outages", { horizon_days: String(horizonDays) }, options),
   positionLadder: (

@@ -813,3 +813,175 @@
     }
   }
 }
+
+/* Live map situation: one quiet status strip, compact hover cards, meaning-only colour. */
+@layer ds-components {
+  .map-situation-strip {
+    position: absolute;
+    z-index: 40;
+    left: var(--ds-space-3);
+    bottom: calc(var(--ds-space-8) + var(--ds-space-1));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    max-width: min(640px, calc(100% - 2 * var(--ds-space-3)));
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: color-mix(in srgb, var(--ds-surface) 92%, transparent);
+    backdrop-filter: blur(8px);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    animation: ds-fade-in var(--ds-duration) var(--ds-ease-out);
+  }
+
+  .map-situation-strip > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .map-situation-strip .is-alert {
+    color: var(--ds-negative);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .map-situation-strip small {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .map-situation-live {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .map-situation-live::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-positive);
+  }
+
+  .situation-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-text-3);
+  }
+
+  .situation-dot.outage-active { background: var(--ds-negative); }
+  .situation-dot.outage-scheduled { background: var(--ds-warning); }
+  .situation-dot.own { background: var(--ds-accent); }
+  .situation-dot.own.ring {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--ds-accent);
+  }
+
+  .map-toolbar-divider {
+    width: 1px;
+    align-self: stretch;
+    margin: 2px var(--ds-space-1);
+    background: var(--ds-border);
+  }
+
+  .situation-card {
+    min-width: 220px;
+    max-width: 280px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .situation-card span {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--ds-space-3);
+  }
+
+  .situation-card span small {
+    color: var(--ds-text-3);
+  }
+
+  .node-popup .situation-tag {
+    justify-self: start;
+    padding: 0 6px;
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .node-popup .situation-tag.is-active { color: var(--ds-negative); }
+  .node-popup .situation-tag.is-scheduled { color: var(--ds-warning); }
+  .node-popup .situation-tag.is-own { color: var(--ds-accent); }
+}
+
+@layer ds-components {
+  .map-layer-chip.situation-chip {
+    gap: 6px;
+    padding: 0 10px;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-layer-chip.situation-chip::before {
+    width: 8px;
+    height: 8px;
+    flex-basis: 8px;
+    border: 0;
+    background: var(--ds-text-3);
+  }
+
+  .map-layer-chip.situation-chip.active {
+    border-color: var(--ds-border-strong);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-1);
+  }
+
+  .map-layer-chip.layer-outages::before { background: var(--ds-negative); }
+  .map-layer-chip.layer-flows::before { background: var(--ds-positive); }
+  .map-layer-chip.layer-positions::before { background: var(--ds-accent); }
+  .map-layer-chip.layer-infrastructure::before { background: var(--ds-text-3); }
+
+  .map-situation-strip b {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .map-situation-strip .is-alert b {
+    color: inherit;
+  }
+}
+
+/*
+ * Unlayered on purpose: maplibre-gl.css is imported without a layer, so its
+ * `.maplibregl-map { position: relative; overflow: hidden }` beats every layered rule and
+ * collapsed the map container to 0 px (everything clipped). This one rule must win.
+ */
+.gas-map > .maplibre-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Map popups follow the theme (unlayered for the same reason as above). */
+.gas-map .maplibregl-popup {
+  z-index: 45;
+}
+
+.gas-map .maplibregl-popup-content {
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  color: var(--ds-text-1);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ds-ink) 18%, transparent);
+}
+
+.gas-map .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--ds-surface); }
+.gas-map .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--ds-surface); }
+.gas-map .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--ds-surface); }
+.gas-map .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--ds-surface); }

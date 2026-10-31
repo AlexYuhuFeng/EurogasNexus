@@ -62,6 +62,12 @@ version lives under [docs/release/notes](docs/release/notes).
 - Region-aware open-licence basemaps (OpenFreeMap, VersaTiles) chosen by
   `EUROGAS_NEXUS_DEPLOYMENT_REGION`; a mainland China installation defaults to no external
   basemap.
+- Live map: REMIT outages located by EIC code, latest physical flows, the firm's upstream
+  contracts at their delivery points, LNG cargoes with track and ETA, and regas slots held
+  at terminals, with hover cards in desk units, a one-line status strip and motion only
+  where gas or cargoes move (off under reduced motion). Cargo and slot imports from the
+  customer's vessel-tracking export or ETRM; infrastructure locations from openly licensed
+  datasets (Sodir, NSTA, Global Energy Monitor, OpenStreetMap).
 - ETRM trade import into books, CSV exports of position, balance and gas-for-power reports, and signed hand-offs of decided cases for ERP/ETRM middleware.
 
 ### Changed

@@ -464,3 +464,12 @@ return only rows in the caller's `BOOKS:` scopes, and changes outside them answe
 `book_outside_scope` or `contract_outside_book_scope`. This narrowing applies only when an
 operator turns isolation on; with it off every response is unchanged. No path is added:
 208 paths / 224 operations.
+
+## 2026-10-31 additive read: live map situation
+
+`GET /api/portfolio/map-situation` (READ, commercial data) returns `outages`, `flows`,
+`contracts`, `cargoes` and `regas_slots`, each with the `location` its source supplied
+(`match`: `eic`, `name` or `feed`), plus `unlocated` counts for items with no location.
+Book-held items follow portfolio isolation; market items the caller's data scopes. Migration
+`0053_lng_cargo_regas` adds `lng_cargoes` and `regas_slots`, loaded by
+`scripts/ops/import_lng_positions.py`. Public census: 209 paths / 225 operations.

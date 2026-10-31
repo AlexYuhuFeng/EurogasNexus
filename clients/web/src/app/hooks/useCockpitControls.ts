@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 export function useCockpitControls() {
-  const [activeLayers, setActiveLayers] = useState(["hubs"]);
+  const [activeLayers, setActiveLayers] = useState(["hubs", "outages", "positions", "flows"]);
   const [searchTerm, setSearchTerm] = useState("");
 
   function toggleLayer(layer: string) {

@@ -207,7 +207,7 @@ def list_outages(
     stays in the message's unit; ``capacity_impact_mcm_d`` is filled only for volume units.
     """
 
-    from eurogas_nexus.domain.observations.remit_umm import UmmMessage, outage_view
+    from eurogas_nexus.application.remit_outages import load_outage_rows
 
     if not _db_is_configured():
         return _env(
@@ -218,45 +218,15 @@ def list_outages(
     sqlalchemy_error = _sqlalchemy_error_type()
     now = datetime.now(UTC)
     try:
-        from eurogas_nexus.db.models import RemitUmmRecord
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            naive = session.get_bind().dialect.name == "sqlite"
-            cutoff = now.replace(tzinfo=None) if naive else now
-            # Messages with any version still open; then every version of them, so the latest
-            # version decides (a revision may have ended or dismissed the event).
-            open_ids = session.query(RemitUmmRecord.message_id).filter(
-                (RemitUmmRecord.event_stop_utc.is_(None)) | (RemitUmmRecord.event_stop_utc > cutoff)
-            )
-            if asset_type:
-                open_ids = open_ids.filter(RemitUmmRecord.asset_type == asset_type.casefold())
-            records = (
-                session.query(RemitUmmRecord)
-                .filter(RemitUmmRecord.message_id.in_(open_ids.distinct().limit(5_000)))
-                .all()
+            rows = load_outage_rows(
+                session, now=now, horizon_days=horizon_days, asset_type=asset_type
             )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
-    def aware(moment: datetime | None) -> datetime | None:
-        if moment is None:
-            return None
-        return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment.astimezone(UTC)
-
-    fields = UmmMessage.__dataclass_fields__
-    messages = [
-        UmmMessage(
-            **{
-                name: aware(getattr(record, name))
-                if name.endswith("_utc")
-                else getattr(record, name)
-                for name in fields
-            }
-        )
-        for record in records
-    ]
-    rows = outage_view(messages, now=now, horizon_days=horizon_days)
     rows = filter_rows(request, rows)
     warnings = (
         []

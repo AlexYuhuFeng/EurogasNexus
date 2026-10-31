@@ -13,7 +13,17 @@ import {
 } from "maplibre-gl";
 import mapLibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
+import { EdgeDTO, FacilityDTO, MapSituationDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
+import {
+  SITUATION_COLOURS,
+  cargoFeatures,
+  contractFeatures,
+  facilityFeatures,
+  flowFeatures,
+  outageFeatures,
+  situationCardHtml,
+  slotTerminalFeatures,
+} from "@/app/mapSituation";
 import {
   buildVisibleMapNetworkLines,
   buildVisibleNetworkNodes,
@@ -50,6 +60,36 @@ interface GasNetworkMapProps {
    * detail it has no contract for.
    */
   onInspectNode?: (nodeId: string, label: string) => void;
+  /** Live situation (outages, flows, own positions) from `/api/portfolio/map-situation`. */
+  situation?: MapSituationDTO | null;
+  /** Located infrastructure (platforms, storage, plants) from the reference facilities. */
+  facilities?: FacilityDTO[];
+}
+
+const SITUATION_HOVER_LAYERS = [
+  "situation-outages",
+  "situation-contracts",
+  "situation-regas",
+  "situation-cargo-positions",
+  "situation-flows",
+  "situation-facilities",
+] as const;
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+type FeatureCollectionData = Parameters<GeoJSONSource["setData"]>[0];
+
+function upsertSource(map: MapLibreMap, id: string, data: FeatureCollectionData): boolean {
+  const source = map.getSource(id) as GeoJSONSource | undefined;
+  if (source) {
+    source.setData(data);
+    return false;
+  }
+  map.addSource(id, { type: "geojson", data });
+  return true;
 }
 
 function resolveEffectiveTheme(themeMode: GasNetworkMapProps["themeMode"]): "light" | "dark" {
@@ -134,6 +174,8 @@ export function GasNetworkMap({
   t,
   highlightedRoute,
   onInspectNode,
+  situation = null,
+  facilities = [],
 }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -666,6 +708,248 @@ export function GasNetworkMap({
       });
     }
   }, [filteredNodes, highlightedRouteSegmentFeatures, indicativeRouteLines, mapColors, mapReady, onInspectNode, t, verifiedPipelineLines]);
+
+
+  // Live situation layers. Added once, then fed with setData; visibility follows the
+  // layer chips. Hover shows a compact card; nothing here opens a second detail pane.
+  const situationRef = useRef<MapSituationDTO | null>(situation);
+  situationRef.current = situation;
+  useEffect(() => {
+    const map = mapRef.current;
+    // After "load" sources and layers can be added even while other sources are still
+    // updating, so this does not wait for isStyleLoaded() (which would skip the update).
+    if (!map || !mapReady) return;
+    const palette = SITUATION_COLOURS[effectiveTheme];
+    const empty = { type: "FeatureCollection" as const, features: [] };
+    const cargo = situation ? cargoFeatures(situation.cargoes, toMapCoordinates) : null;
+
+    if (upsertSource(map, "situation-facilities", facilityFeatures(facilities, toMapCoordinates))) {
+      map.addLayer({
+        id: "situation-facilities",
+        type: "circle",
+        source: "situation-facilities",
+        minzoom: 5,
+        paint: {
+          "circle-radius": 3,
+          "circle-color": palette.facility,
+          "circle-opacity": 0.7,
+          "circle-stroke-color": palette.halo,
+          "circle-stroke-width": 1,
+        },
+      }, map.getLayer("nodes-circle") ? "node-clusters" : undefined);
+    }
+    if (map.getSource("verified-pipeline-lines") && !map.getLayer("situation-pipeline-flow")) {
+      map.addLayer({
+        id: "situation-pipeline-flow",
+        type: "line",
+        source: "verified-pipeline-lines",
+        filter: [">", ["get", "live_flow_mwh_d"], 0],
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": palette.flow,
+          "line-width": ["interpolate", ["linear"], ["get", "utilization_pct"], 0, 1.5, 1, 3.5],
+          "line-opacity": 0.9,
+          "line-dasharray": [0, 4, 3],
+        },
+      });
+    }
+    if (upsertSource(map, "situation-flows", situation ? flowFeatures(situation.flows, toMapCoordinates) : empty)) {
+      map.addLayer({
+        id: "situation-flows",
+        type: "circle",
+        source: "situation-flows",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["sqrt", ["get", "gwh_d"]], 0, 3, 30, 16],
+          "circle-color": palette.flow,
+          "circle-opacity": 0.16,
+          "circle-stroke-color": palette.flow,
+          "circle-stroke-width": 1.2,
+        },
+      });
+    }
+    if (upsertSource(map, "situation-cargo-sailed", cargo?.sailed ?? empty)) {
+      map.addLayer({
+        id: "situation-cargo-sailed",
+        type: "line",
+        source: "situation-cargo-sailed",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["case", ["get", "own"], palette.own, palette.market],
+          "line-width": ["case", ["get", "own"], 2, 1.2],
+          "line-opacity": 0.55,
+        },
+      });
+    }
+    if (upsertSource(map, "situation-cargo-ahead", cargo?.ahead ?? empty)) {
+      map.addLayer({
+        id: "situation-cargo-ahead",
+        type: "line",
+        source: "situation-cargo-ahead",
+        layout: { "line-cap": "butt" },
+        paint: {
+          "line-color": ["case", ["get", "own"], palette.own, palette.market],
+          "line-width": ["case", ["get", "own"], 2, 1],
+          "line-opacity": 0.8,
+          "line-dasharray": [0, 4, 3],
+        },
+      });
+    }
+    if (upsertSource(map, "situation-regas", situation ? slotTerminalFeatures(situation.regas_slots, toMapCoordinates) : empty)) {
+      map.addLayer({
+        id: "situation-regas",
+        type: "circle",
+        source: "situation-regas",
+        paint: {
+          "circle-radius": 11,
+          "circle-color": palette.own,
+          "circle-opacity": ["case", ["get", "active"], 0.22, 0.1],
+          "circle-stroke-color": palette.own,
+          "circle-stroke-width": 2,
+        },
+      });
+    }
+    if (upsertSource(map, "situation-contracts", situation ? contractFeatures(situation.contracts, toMapCoordinates) : empty)) {
+      map.addLayer({
+        id: "situation-contracts",
+        type: "circle",
+        source: "situation-contracts",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["get", "count"], 1, 6, 5, 9],
+          "circle-color": palette.halo,
+          "circle-stroke-color": palette.own,
+          "circle-stroke-width": 3,
+        },
+      });
+    }
+    if (upsertSource(map, "situation-cargo-positions", cargo?.positions ?? empty)) {
+      map.addLayer({
+        id: "situation-cargo-positions",
+        type: "circle",
+        source: "situation-cargo-positions",
+        paint: {
+          "circle-radius": ["case", ["get", "own"], 6, 4],
+          "circle-color": ["case", ["get", "own"], palette.own, palette.market],
+          "circle-stroke-color": palette.halo,
+          "circle-stroke-width": 1.5,
+        },
+      });
+    }
+    if (upsertSource(map, "situation-outages", situation ? outageFeatures(situation.outages, toMapCoordinates) : empty)) {
+      map.addLayer({
+        id: "situation-outage-halo",
+        type: "circle",
+        source: "situation-outages",
+        filter: ["==", ["get", "status"], "active"],
+        paint: {
+          "circle-radius": ["+", 12, ["*", 14, ["get", "share"]]],
+          "circle-color": palette.outageActive,
+          "circle-opacity": 0.14,
+        },
+      });
+      map.addLayer({
+        id: "situation-outages",
+        type: "circle",
+        source: "situation-outages",
+        paint: {
+          "circle-radius": ["+", 5, ["*", 6, ["get", "share"]]],
+          "circle-color": ["match", ["get", "status"], "active", palette.outageActive, palette.outageScheduled],
+          "circle-stroke-color": palette.halo,
+          "circle-stroke-width": 1.5,
+        },
+      });
+
+      const hover = new Popup({ closeButton: false, closeOnClick: false, offset: 10, maxWidth: "300px" });
+      for (const layerId of SITUATION_HOVER_LAYERS) {
+        map.on("mousemove", layerId, (event) => {
+          const feature = event.features?.[0];
+          const current = situationRef.current;
+          if (!feature || !current) return;
+          const props = feature.properties ?? {};
+          const html = layerId === "situation-facilities"
+            ? `<div class="node-popup situation-card"><strong>${escapeHtml(props.name)}</strong><small>${escapeHtml(t(`map.situation.facility_${String(props.facility_type)}`))}</small></div>`
+            : situationCardHtml(String(props.kind), String(props.id), current, t, escapeHtml);
+          if (!html) return;
+          map.getCanvas().style.cursor = "pointer";
+          hover.setLngLat(event.lngLat).setHTML(html).addTo(map);
+        });
+        map.on("mouseleave", layerId, () => {
+          map.getCanvas().style.cursor = "";
+          hover.remove();
+        });
+      }
+    }
+
+    const visibility = (on: boolean) => (on ? "visible" : "none");
+    const show: Record<string, boolean> = {
+      "situation-facilities": activeLayers.includes("infrastructure"),
+      "situation-pipeline-flow": activeLayers.includes("flows"),
+      "situation-flows": activeLayers.includes("flows"),
+      "situation-cargo-sailed": activeLayers.includes("positions"),
+      "situation-cargo-ahead": activeLayers.includes("positions"),
+      "situation-regas": activeLayers.includes("positions"),
+      "situation-contracts": activeLayers.includes("positions"),
+      "situation-cargo-positions": activeLayers.includes("positions"),
+      "situation-outage-halo": activeLayers.includes("outages"),
+      "situation-outages": activeLayers.includes("outages"),
+    };
+    for (const [layerId, on] of Object.entries(show)) {
+      if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", visibility(on));
+    }
+    // Theme changes re-colour the layers in place.
+    const ownOrMarket = ["case", ["get", "own"], palette.own, palette.market];
+    const paints: Array<[string, string, unknown]> = [
+      ["situation-facilities", "circle-color", palette.facility],
+      ["situation-facilities", "circle-stroke-color", palette.halo],
+      ["situation-pipeline-flow", "line-color", palette.flow],
+      ["situation-flows", "circle-color", palette.flow],
+      ["situation-flows", "circle-stroke-color", palette.flow],
+      ["situation-cargo-sailed", "line-color", ownOrMarket],
+      ["situation-cargo-ahead", "line-color", ownOrMarket],
+      ["situation-regas", "circle-color", palette.own],
+      ["situation-regas", "circle-stroke-color", palette.own],
+      ["situation-contracts", "circle-color", palette.halo],
+      ["situation-contracts", "circle-stroke-color", palette.own],
+      ["situation-cargo-positions", "circle-color", ownOrMarket],
+      ["situation-cargo-positions", "circle-stroke-color", palette.halo],
+      ["situation-outage-halo", "circle-color", palette.outageActive],
+      ["situation-outages", "circle-color", ["match", ["get", "status"], "active", palette.outageActive, palette.outageScheduled]],
+      ["situation-outages", "circle-stroke-color", palette.halo],
+    ];
+    for (const [layerId, property, value] of paints) {
+      if (map.getLayer(layerId)) map.setPaintProperty(layerId, property as never, value as never);
+    }
+  }, [activeLayers, effectiveTheme, facilities, mapReady, situation, t, verifiedPipelineLines]);
+
+  // Motion that carries meaning only: gas moving along flowing pipelines, the firm's laden
+  // cargoes heading in, and a slow pulse on capacity that is out now. Off under
+  // prefers-reduced-motion, where the same layers stay static.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || prefersReducedMotion()) return;
+    const dashSteps: number[][] = [
+      [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0],
+      [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5],
+      [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+    ];
+    let frame = 0;
+    let step = -1;
+    const tick = (time: number) => {
+      const next = Math.floor(time / 70) % dashSteps.length;
+      if (next !== step) {
+        step = next;
+        for (const layerId of ["situation-pipeline-flow", "situation-cargo-ahead"]) {
+          if (map.getLayer(layerId)) map.setPaintProperty(layerId, "line-dasharray", dashSteps[step]);
+        }
+      }
+      if (map.getLayer("situation-outage-halo")) {
+        const phase = (Math.sin(time / 650) + 1) / 2;
+        map.setPaintProperty("situation-outage-halo", "circle-opacity", 0.06 + phase * 0.16);
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -100,6 +100,7 @@ PINNED_PUBLIC_PATHS = {
     "/api/portfolio/books",
     "/api/portfolio/books/{book_id}",
     "/api/decision-cases/{case_id}/handoff",
+    "/api/portfolio/map-situation",
     "/api/market/gas-for-power",
     "/api/market/nwe-balance",
     "/api/access/market-data-licences",

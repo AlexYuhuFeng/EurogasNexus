@@ -21,6 +21,11 @@ confirm each provider's current terms before a production deployment.
 | EEX public market data (TTF NGP reference) | reference index | Display/internal use only; redistribution and derived products need an EEX licence | Commercial family `EEX`; data-scope grant required |
 | WM/Reuters (LSEG), Bloomberg BFIX | FX fixes | Licensed; the subscriber's own entitlement | Operator import only; families `WMR`/`BFIX` need a grant |
 | Trayport, ICE, ICIS, Platts, Argus, Kpler | prices, assessments | Licensed per subscriber | Commercial families; no data shipped; a connector uses the customer's own credentials |
+| Norwegian Offshore Directorate (Sodir) FactMaps | field, platform and pipeline locations | NLOD 2.0: commercial reuse with attribution | Infrastructure import records licence and attribution per facility |
+| North Sea Transition Authority open data | UK offshore installation locations | Open Government Licence v3: commercial reuse with attribution | As above |
+| Global Energy Monitor trackers | LNG terminal, storage and pipeline locations | CC BY 4.0: commercial use with attribution | As above |
+| OpenStreetMap extracts | infrastructure gap filling | ODbL 1.0: attribution and share-alike for the database | As above; the import refuses non-commercial licences such as CC BY-NC |
+| Kpler, Spire, MarineTraffic vessel data | LNG cargo positions, tracks, ETAs | Licensed per subscriber; not redistributable | Loaded only from the customer's own export or connector; market cargoes need the source's data scope |
 | Map tiles | basemap | OSM Foundation and CARTO public tiles are not for commercial embedding; OpenFreeMap and VersaTiles allow commercial use (OpenStreetMap data, ODbL attribution) | Default is OpenFreeMap; none in a China installation; an operator may configure a licensed or self-hosted service |
 | DeepSeek API (optional) | alert explanations | Provider API terms; prompts leave the deployment | Off unless an API key is configured server-side; payloads exclude licensed raw data |
 
