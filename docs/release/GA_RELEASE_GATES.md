@@ -21,7 +21,7 @@ Enforcement: `python scripts/release/validate_stable_release.py`.
 | G14 Performance budget | baseline and CI load smoke | yes | PASS inside hard threshold; p95 target exceeded on dense UAT fixture (44.5/1668/3099.5) |
 | G15 External security acceptance | real deployment review | yes | PENDING_EXTERNAL |
 | G16 Commercial provider certification | licensed provider live acceptance | yes | PENDING_EXTERNAL |
-| G17 Code signing | Authenticode-verified Windows installer | yes | PENDING_EXTERNAL |
+| G17 Code signing | Retired 2026-10-31: signing is the deploying firm's decision, not a release gate | no | n/a |
 | G18 UAT | real trader/user acceptance | yes | PENDING_EXTERNAL |
 | G19 Container acceptance | immutable image digest inspected (amd64 + arm64 entries); delivered Python notice evidence executed and verified inside the amd64 image (arm64 entries are not executed) | RC/stable | digest-bound envelope written by the release `container-acceptance` job only after the in-image notice verification passes; not yet exercised by a release run |
 

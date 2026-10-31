@@ -218,7 +218,7 @@ def test_policy_requires_same_sha_ci_for_every_published_channel(tmp_path: Path)
     # Channel inheritance: preview <= rc <= stable, and the stable-only
     # external gates are never accidentally imposed on preview or RC.
     assert required["preview"] <= required["rc"] <= required["stable"]
-    for gate_id in ("G15", "G16", "G17", "G18"):
+    for gate_id in ("G15", "G16", "G18"):
         assert gate_id not in required["preview"] | required["rc"]
         assert gate_id in required["stable"]
     # G19 stays RC-and-above: rc inherits it, preview does not.

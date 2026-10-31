@@ -49,7 +49,6 @@ EVIDENCE_GATE_IDS = {
     "provenance": "G11",
     "checksums": "G12",
     "performance": "G14",
-    "code-signing": "G17",
 }
 # G8 (security-tests.json) is deliberately absent: its evidence may only come
 # from scripts/release/run_security_evidence.py executing the fixed
@@ -430,14 +429,7 @@ def main(argv: list[str] | None = None) -> int:
             str(output / "signing-state.json"),
         ]
     )
-    step("signing-state", True, "unsigned/pending-external recorded (no credentials fabricated)")
-    write_evidence(
-        evidence / "code-signing.json",
-        "code-signing",
-        "PENDING_EXTERNAL",
-        "no organization code-signing credentials in local worktree",
-        commit_sha=context["git_sha"],
-    )
+    step("signing-state", True, "signing state recorded (optional; no credentials fabricated)")
 
     write_evidence(
         evidence / "ci-run.json",

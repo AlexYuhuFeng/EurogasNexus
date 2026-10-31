@@ -72,8 +72,8 @@ version lives under [docs/release/notes](docs/release/notes).
   kind, labels that appear as the view narrows, find-and-fly, click to focus, and a ring
   around approximate positions. A bundled offline outline basemap (Natural Earth) is the
   default in mainland China and air-gapped networks.
-- Windows installers can be signed with Azure Artifact Signing (key in Microsoft's HSMs,
-  OIDC, no stored secret); see docs/release/CODE_SIGNING.md.
+- Code signing is no longer a release requirement: each firm decides whether to sign the
+  installers with its own certificate; the release records the signing state.
 - Compliance tooling: market-abuse surveillance report against REMIT disclosure timing;
   draft record of processing activities from the installation's configuration; REMIT
   imports record the source platform and require confirmed reuse terms.

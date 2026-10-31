@@ -267,7 +267,7 @@ def test_sbom_generator_produces_spdx_components(tmp_path: Path) -> None:
     assert "@tauri-apps/cli" in notices
 
 
-def test_stable_gate_fails_closed_on_external_and_signing_gaps(tmp_path: Path) -> None:
+def test_stable_gate_fails_closed_on_external_gaps(tmp_path: Path) -> None:
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     for name in (
@@ -293,7 +293,9 @@ def test_stable_gate_fails_closed_on_external_and_signing_gaps(tmp_path: Path) -
     rows, failed = evaluate_gates(policy, evidence, "stable")
     assert failed
     pending = {row["id"] for row in rows if row["state"] == "PENDING_EXTERNAL"}
-    assert {"G15", "G16", "G17", "G18"} <= pending
+    assert {"G15", "G16", "G18"} <= pending
+    # Code signing is the deploying firm's decision, not a release gate.
+    assert not any(row["id"] == "G17" for row in rows)
 
 
 def test_release_artifact_names_follow_contract() -> None:
@@ -321,3 +323,12 @@ def test_dispatched_rc_takes_the_next_free_number() -> None:
 
     assert next_rc_number("0.6.0", []) == 1
     assert next_rc_number("0.6.0", ["v0.6.0-rc.1", "v0.6.0-rc.3", "v0.5.0-rc.9", "v0.6.0"]) == 4
+
+
+def test_dispatch_channel_reaches_the_release_resolver() -> None:
+    """A dispatched RC must resolve as rc, not silently fall back to preview."""
+
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    step = workflow[workflow.index("- name: Resolve release identity") :]
+    step = step[: step.index("- name:", 10)]
+    assert "EUROGAS_NEXUS_RELEASE_CHANNEL: ${{ inputs.release_channel }}" in step

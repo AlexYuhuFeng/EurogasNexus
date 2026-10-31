@@ -3,12 +3,11 @@
 
 Policy enforced here:
 
-* Windows EXE/MSI: Authenticode only when real credentials are configured;
-  otherwise ``unsigned_pending_external`` and stable promotion remains blocked.
-  Two providers: ``azure-artifact-signing`` (the workflow's Azure step signs with a
-  key held in Microsoft's HSMs; this script verifies and records it) and ``pfx``
-  (a certificate file, for an internal enterprise CA; public CAs no longer issue
-  exportable code-signing keys since June 2023).
+* Windows EXE/MSI: signing is optional and not a release requirement; whether to
+  sign the installers is the deploying firm's decision. When a certificate is
+  configured (for example the firm's internal enterprise CA) the installers are
+  signed with Authenticode; otherwise the state ``unsigned_pending_external`` is
+  recorded for transparency and publication proceeds.
 * Linux DEB: detached GPG signature when a signing key is configured;
   otherwise ``checksum_attestation_baseline`` (Linux repository signing is not
   claimed).
@@ -50,34 +49,8 @@ def signtool_path() -> str | None:
     return None
 
 
-def _authenticode_status(path: Path) -> tuple[bool, str]:
-    code, out, err = run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            f"(Get-AuthenticodeSignature -LiteralPath '{path}').Status",
-        ]
-    )
-    return code == 0 and "Valid" in out, (out or err).strip()
-
-
 def sign_windows(path: Path) -> dict:
     enabled = env_bool("EUROGAS_NEXUS_WINDOWS_CODE_SIGNING_ENABLED")
-    provider = (os.environ.get("EUROGAS_NEXUS_WINDOWS_SIGNING_PROVIDER") or "pfx").strip().lower()
-    if enabled and provider == "azure-artifact-signing":
-        valid, detail = _authenticode_status(path)
-        if not valid:
-            raise RuntimeError(
-                f"Azure Artifact Signing did not produce a valid signature on {path.name}: {detail}"
-            )
-        return {
-            "signing_state": "authenticode_verified",
-            "method": "authenticode",
-            "provider": "azure-artifact-signing",
-            "verified": True,
-            "detail": "signed by Azure Artifact Signing; verified Valid",
-        }
     cert = (os.environ.get("WINDOWS_SIGNING_CERT_PATH") or "").strip()
     password = (os.environ.get("WINDOWS_SIGNING_PASSWORD") or "").strip()
     timestamp = (
@@ -89,8 +62,8 @@ def sign_windows(path: Path) -> dict:
             "method": "authenticode",
             "verified": False,
             "detail": (
-                "Authenticode credentials are not configured; stable promotion is "
-                "blocked by policy."
+                "Unsigned. Code signing is optional; the deploying firm decides "
+                "whether to sign the installers with its own certificate."
             ),
         }
     if not cert or not password:

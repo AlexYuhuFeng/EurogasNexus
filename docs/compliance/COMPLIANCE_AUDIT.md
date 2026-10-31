@@ -11,7 +11,7 @@ function confirm the conclusions for their entities and jurisdictions before go-
 | Area | Status | Open items |
 |---|---|---|
 | Product boundary (no orders, nominations, settlement) | Met | — |
-| Security controls | Largely met | Windows code signing pending; encryption at rest is a deployment duty |
+| Security controls | Largely met | Encryption at rest is a deployment duty; code signing is the customer's choice |
 | Data protection (GDPR / UK GDPR / PIPL / PDPA / PIPEDA) | Largely met | Erasure is a documented admin procedure, not self-service |
 | Data residency and cross-border transfer | Met by design | China installation and export approvals are customer-run |
 | Market regulation (REMIT, MAR, MiFID II record-keeping) | Supported | Customer to map desks to book scopes |
@@ -43,10 +43,11 @@ Every analytic output carries `research_only` and `human_review_required`.
 
 **Findings**
 
-- **S1 (high, release owner):** Windows installers are unsigned until the customer's
-  Authenticode certificate is configured (`signing-state.json` says so on every release).
-  Required before stable 1.0.0 distribution. Route and the information the company must
-  provide: [CODE_SIGNING.md](../release/CODE_SIGNING.md).
+- **Code signing (not a finding):** the installers ship unsigned. Whether to sign them,
+  and with which certificate (public CA or the firm's internal enterprise CA), is the
+  deploying firm's decision; the release records each artifact's signing state and keeps
+  an optional signing hook. Integrity is covered by SHA-256 checksums and build provenance
+  attestations on every release.
 - **S2 (medium, customer IT):** encryption at rest (database volume, backups) is provided
   by the deployment (disk or cloud volume encryption, encrypted backup target), not by the
   application. Record it in the installation run book.
@@ -155,5 +156,5 @@ exceptions in `docs/legal/DEPENDENCY_LICENSE_REVIEW.md`; notices ship in
 ## Re-run
 
 Repeat this audit before each minor release and before 1.0.0, updating the findings table.
-Open findings that block 1.0.0: S1 (code signing). Findings for the customer's own
+No open finding blocks 1.0.0. Findings for the customer's own
 programme: S2, P2, M1, M2, D1.

@@ -53,6 +53,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Resolve release identity
+        env:
+          # The dispatch choice (preview or rc); ignored for tag pushes, whose tag decides.
+          EUROGAS_NEXUS_RELEASE_CHANNEL: ${{ inputs.release_channel }}
         run: python scripts/release/resolve_release_context.py --output release-context.json
 
       - name: Export release metadata outputs
@@ -648,8 +651,6 @@ jobs:
     if: ${{ needs.desktop.result == 'success' }}
     permissions:
       contents: read
-      # OIDC token for Azure Artifact Signing; no long-lived signing secret is stored.
-      id-token: write
 
     steps:
       - name: Check out repository
@@ -666,39 +667,10 @@ jobs:
           name: release-desktop-windows-x64
           path: release-assets
 
-      # Azure Artifact Signing (formerly Trusted Signing): the private key stays in
-      # Microsoft's HSMs, as CA/Browser Forum rules require since June 2023. Configure with
-      # docs/release/CODE_SIGNING.md; skipped unless WINDOWS_SIGNING_PROVIDER says so.
-      - name: Sign in to Azure (OIDC)
-        if: ${{ vars.WINDOWS_CODE_SIGNING_ENABLED == 'true' && vars.WINDOWS_SIGNING_PROVIDER == 'azure-artifact-signing' }}
-        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
-        with:
-          client-id: ${{ secrets.AZURE_SIGNING_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_SIGNING_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SIGNING_SUBSCRIPTION_ID }}
-
-      - name: Sign with Azure Artifact Signing
-        if: ${{ vars.WINDOWS_CODE_SIGNING_ENABLED == 'true' && vars.WINDOWS_SIGNING_PROVIDER == 'azure-artifact-signing' }}
-        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
-        with:
-          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ vars.AZURE_SIGNING_CERTIFICATE_PROFILE }}
-          files-folder: release-assets
-          files-folder-filter: exe,msi
-          files-folder-recurse: true
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          exclude-environment-credential: true
-          exclude-workload-identity-credential: true
-          exclude-managed-identity-credential: true
-
       - name: Sign or record unsigned_pending_external
         shell: bash
         env:
           EUROGAS_NEXUS_WINDOWS_CODE_SIGNING_ENABLED: ${{ vars.WINDOWS_CODE_SIGNING_ENABLED == 'true' && 'true' || 'false' }}
-          EUROGAS_NEXUS_WINDOWS_SIGNING_PROVIDER: ${{ vars.WINDOWS_SIGNING_PROVIDER }}
           WINDOWS_SIGNING_CERT_PATH: ${{ secrets.WINDOWS_SIGNING_CERT_PATH }}
           WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
           EUROGAS_NEXUS_SIGNTOOL_PATH: ${{ vars.WINDOWS_SIGNTOOL_PATH }}

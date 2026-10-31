@@ -156,8 +156,9 @@ by a CLI flag.
   acceptance (G10) remains open.
 - Release artifacts are covered by final `SHA256SUMS` (including the manifest);
   GitHub OIDC build provenance is generated over the final bundle.
-- Windows code signing is policy-aware and explicitly `unsigned_pending_external`
-  until an organization credential is supplied. Stable remains blocked.
+- Windows code signing is not a release requirement (owner decision, 2026-10-31): each
+  firm decides whether to sign the installers with its own certificate. The release
+  records the signing state of every artifact; the optional signing hook stays available.
 - Tauri updater is not shipped; managed/offline update policy is documented.
 - `/api/runtime/release` exposes compatibility metadata and the client blocks
   incompatible client/server/API-contract states before partially-broken
