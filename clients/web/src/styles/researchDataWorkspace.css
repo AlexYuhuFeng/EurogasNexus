@@ -1,3 +1,4 @@
+@layer legacy {
 .research-data-page {
   min-width: 0;
   color: var(--eg-ink);
@@ -115,10 +116,9 @@
   border-top: 0;
   background: var(--eg-canvas-soft-2);
   color: var(--eg-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--ds-font-ui);
   font-size: var(--text-meta);
   font-weight: 500;
-  text-transform: uppercase;
 }
 
 .research-semantic-table tbody tr {
@@ -180,9 +180,8 @@
 
 .research-eyebrow {
   color: var(--eg-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--ds-font-ui);
   font-size: var(--text-meta);
-  text-transform: uppercase;
 }
 
 .research-detail-section {
@@ -225,7 +224,7 @@
 
 .research-detail-value dd {
   color: var(--eg-body);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--ds-font-ui);
   font-size: var(--text-meta);
   text-align: right;
 }
@@ -254,7 +253,7 @@
 }
 
 /* Materialization status and training qualification are deliberately separate
-   claims: this block reports the second one next to the first, never as a
+   claims: this block reports the second one next to the first, never as a;
    restatement of it. */
 .research-qualification {
   display: grid;
@@ -515,4 +514,5 @@
     border-left: 0;
     padding: var(--space-4) 0 0;
   }
+}
 }

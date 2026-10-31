@@ -1,3 +1,4 @@
+@layer legacy {
 .workspace-menu {
   position: fixed;
   z-index: 60;
@@ -28,13 +29,12 @@
 
 .workspace-menu-group-title {
   color: var(--eg-muted, var(--muted));
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
-  font-weight: 700;
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
   letter-spacing: 0.06em;
   line-height: 14px;
   padding: 2px 11px 0;
-  text-transform: uppercase;
 }
 
 .workspace-menu-group-items {
@@ -56,7 +56,7 @@
   background: transparent;
   color: var(--eg-ink, var(--text));
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ds-text-md);
   font-weight: 600;
   line-height: 18px;
   padding: 9px 11px;
@@ -102,7 +102,7 @@
 .topbar-user-menu > span {
   min-width: 0;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -110,7 +110,7 @@
 
 .topbar-user-menu > small {
   color: var(--eg-muted, var(--muted));
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
@@ -134,8 +134,8 @@
   background: var(--eg-surface, var(--surface));
   color: var(--eg-ink, var(--text));
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
   padding: 5px 8px;
 }
 
@@ -154,7 +154,7 @@
   border-radius: 50%;
   background: var(--eg-ink, var(--text));
   color: var(--eg-on-ink, #ffffff);
-  font-size: 10px;
+  font-size: var(--ds-text-xs);
   letter-spacing: 0.02em;
 }
 
@@ -198,7 +198,7 @@
   padding: 14px 16px;
   border: 1px solid var(--eg-hairline, var(--border));
   border-radius: var(--eg-radius-md, 8px);
-  background: var(--eg-canvas, #ffffff);
+  background: var(--eg-canvas, var(--ds-surface));
   color: var(--eg-ink, var(--text));
   box-shadow: var(--eg-shadow-3, 0 12px 32px rgb(0 0 0 / 25%));
   animation: shortcuts-rise 140ms ease-out;
@@ -212,13 +212,13 @@
 
 .shortcuts-header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--ds-text-md);
 }
 
 .shortcuts-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .shortcuts-table th {
@@ -277,13 +277,13 @@
 
 .topbar-menu-identity strong {
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .topbar-menu-identity span,
 .topbar-menu-group-label {
   color: var(--eg-muted, var(--muted));
-  font-size: 10px;
+  font-size: var(--ds-text-xs);
 }
 
 .topbar-menu-group {
@@ -301,8 +301,7 @@
 .topbar-menu-group-label {
   grid-column: 1 / -1;
   padding: 1px 4px;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-weight: 600;
 }
 
 .topbar-menu-group button {
@@ -312,7 +311,7 @@
   background: transparent;
   color: var(--eg-ink, var(--text));
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   padding: 5px 7px;
   text-align: left;
 }
@@ -326,7 +325,7 @@
 .topbar-menu-group button[role="menuitemradio"][aria-checked="true"] {
   border-color: var(--eg-link, var(--accent));
   background: var(--eg-canvas-soft, var(--surface-strong));
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .topbar-data-status {
@@ -347,14 +346,14 @@
   background: var(--eg-surface, var(--surface));
   color: var(--eg-ink, var(--text));
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
   padding: 0 10px;
 }
 
 .alert-trigger:hover,
 .alert-trigger.active {
-  border-color: var(--eg-warning, #b66a19);
+  border-color: var(--eg-warning, var(--ds-warning));
 }
 
 .alert-trigger-mark {
@@ -365,7 +364,7 @@
 }
 
 .alert-trigger.active .alert-trigger-mark {
-  background: var(--eg-warning, #b66a19);
+  background: var(--eg-warning, var(--ds-warning));
   box-shadow: 0 0 0 3px rgb(182 106 25 / 14%);
 }
 
@@ -411,15 +410,14 @@
 .alert-drawer-header span,
 .monitoring-alert-heading {
   color: var(--eg-muted, var(--muted));
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
-  font-weight: 700;
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .alert-drawer-header strong {
-  font-size: 18px;
+  font-size: var(--ds-text-xl);
   line-height: 24px;
 }
 
@@ -430,7 +428,7 @@
   background: transparent;
   color: var(--eg-muted, var(--muted));
   cursor: pointer;
-  font-size: 22px;
+  font-size: var(--ds-text-2xl);
 }
 
 .alert-summary-strip {
@@ -445,7 +443,7 @@
   gap: 2px;
   border-right: 1px solid var(--eg-hairline, var(--border));
   color: var(--eg-muted, var(--muted));
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   padding: 9px 12px;
 }
 
@@ -455,7 +453,7 @@
 
 .alert-summary-strip strong {
   color: var(--eg-ink, var(--text));
-  font-size: 16px;
+  font-size: var(--ds-text-lg);
 }
 
 .alert-list {
@@ -477,7 +475,7 @@
 }
 
 .monitoring-alert.severity-warning {
-  border-left-color: var(--eg-warning, #b66a19);
+  border-left-color: var(--eg-warning, var(--ds-warning));
 }
 
 .monitoring-alert.severity-critical {
@@ -504,7 +502,7 @@
 }
 
 .monitoring-alert h2 {
-  font-size: 14px;
+  font-size: var(--ds-text-md);
   line-height: 19px;
 }
 
@@ -512,7 +510,7 @@
 .alert-ai-summary p,
 .alert-analysis-result p {
   color: var(--eg-muted, var(--muted));
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   line-height: 18px;
 }
 
@@ -527,7 +525,7 @@
   border: 1px solid var(--eg-hairline, var(--border));
   border-radius: 8px;
   color: var(--eg-muted, var(--muted));
-  font-size: 10px;
+  font-size: var(--ds-text-xs);
   padding: 3px 6px;
 }
 
@@ -539,8 +537,8 @@
   background: var(--eg-surface, var(--surface));
   color: var(--eg-ink, var(--text));
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
   padding: 6px 10px;
 }
 
@@ -568,7 +566,7 @@
 
 .alert-ai-summary strong,
 .alert-analysis-result strong {
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
 }
 
 .alert-discussion {
@@ -585,7 +583,7 @@
   background: var(--eg-canvas, var(--background));
   color: var(--eg-ink, var(--text));
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   line-height: 18px;
   padding: 8px;
 }
@@ -650,8 +648,8 @@
   color: var(--eg-muted, var(--muted));
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 650;
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
   line-height: 16px;
   padding: 6px 10px;
   white-space: nowrap;
@@ -686,18 +684,17 @@
   background: rgb(255 255 255 / 92%);
   box-shadow: var(--eg-shadow-2, 0 1px 1px rgb(0 0 0 / 4%));
   color: var(--eg-muted, var(--muted));
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
   line-height: 14px;
   padding: 0 10px;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
 .workspace-local-task strong {
   overflow: hidden;
   color: var(--eg-ink, var(--text));
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   text-overflow: ellipsis;
 }
 
@@ -726,4 +723,5 @@
 .cockpit-app .cockpit-topbar .header-controls {
   justify-content: flex-end;
   flex-wrap: nowrap;
+}
 }

@@ -2296,6 +2296,9 @@ export async function runWorkflowSmoke() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
+    // Accessibility scans must sample settled colours, not a panel mid-entrance: the design
+    // system turns motion off under reduced motion, as it does for users who ask for it.
+    reducedMotion: "reduce",
   });
   const page = await context.newPage();
 

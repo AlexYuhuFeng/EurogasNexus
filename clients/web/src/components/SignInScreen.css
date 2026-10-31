@@ -1,3 +1,4 @@
+@layer legacy {
 .sign-in-screen {
   display: flex;
   min-height: 100vh;
@@ -183,4 +184,5 @@
   .sign-in-card {
     padding: var(--space-4);
   }
+}
 }

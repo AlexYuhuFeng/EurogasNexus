@@ -1,3 +1,4 @@
+@layer legacy {
 .commercial-workspace {
   display: flex;
   flex-direction: column;
@@ -133,15 +134,14 @@
 
 .commercial-diagnostic-heading code {
   color: var(--eg-muted);
-  font-size: 10px;
+  font-size: var(--ds-text-xs);
 }
 
 .commercial-diagnostic-level {
   border-radius: 999px;
   padding: 2px 6px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
 }
 
 .commercial-diagnostic-level.level-blocker {
@@ -166,7 +166,7 @@
 
 .commercial-diagnostic-more {
   color: var(--eg-muted);
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
 }
 /* Architecture V2 Decision Case panel (Wave 6). Composition only: it lists the
    cases the deployment tracked, the evidence attached to the selected one and the
@@ -193,7 +193,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1, 4px);
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   min-width: 220px;
 }
 
@@ -220,7 +220,7 @@
 .decision-case-boundary,
 .decision-case-error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   color: var(--eg-muted);
 }
 
@@ -234,7 +234,7 @@
 .decision-case-history {
   margin: 0;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .decision-case-blockers {
@@ -263,11 +263,11 @@
 
 .decision-pack-heading h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--ds-text-lg);
 }
 
 .decision-pack-basis {
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   color: var(--eg-muted);
 }
 
@@ -281,9 +281,8 @@
 
 .decision-pack-section h4 {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--eg-muted);
 }
 
@@ -292,7 +291,7 @@
   flex-wrap: wrap;
   gap: var(--space-2, 8px);
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .decision-pack-facts div {
@@ -319,7 +318,7 @@
   gap: var(--space-1, 4px);
   margin: 0;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .decision-pack-evidence-head {
@@ -339,7 +338,7 @@
 
 .decision-pack-snapshot {
   margin: 2px 0 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   font-weight: 600;
 }
 
@@ -367,7 +366,7 @@
 .decision-pack-not-ready,
 .decision-pack-signature {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   color: var(--eg-muted);
 }
 
@@ -386,13 +385,13 @@
 }
 
 .decision-pack-blockers strong {
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .decision-pack-blockers ul {
   margin: var(--space-1, 4px) 0 0;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .decision-pack-content-hash {
@@ -404,7 +403,7 @@
   border: 1px solid var(--eg-hairline);
   border-radius: var(--eg-radius-sm, 6px);
   background: var(--eg-canvas);
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .decision-pack-content-hash.is-invalid {
@@ -533,7 +532,7 @@
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .position-summary {
@@ -549,26 +548,26 @@
 }
 
 .position-summary span {
-  font-size: 11px;
-  color: var(--eg-muted, #6f6f6f);
+  font-size: var(--ds-text-xs);
+  color: var(--eg-muted, var(--ds-text-2));
 }
 
 .position-summary strong {
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
+  font-size: var(--ds-text-md);
 }
 
 .position-ladder {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   font-variant-numeric: tabular-nums;
 }
 
 .position-ladder th,
 .position-ladder td {
   padding: 4px 8px;
-  border-bottom: 1px solid var(--eg-hairline, #ebebeb);
+  border-bottom: 1px solid var(--eg-hairline, var(--ds-border));
   text-align: left;
 }
 
@@ -618,8 +617,8 @@
 .position-notes {
   margin: 8px 0 0;
   padding-left: 18px;
-  font-size: 11.5px;
-  color: var(--eg-muted, #6f6f6f);
+  font-size: var(--ds-text-xs);
+  color: var(--eg-muted, var(--ds-text-2));
 }
 
 @media (max-width: 900px) {
@@ -639,5 +638,6 @@
 .licence-form label {
   display: grid;
   gap: 2px;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
+}
 }

@@ -3813,5 +3813,6 @@
   "books.region_europe": "欧洲",
   "books.region_north_america": "北美",
   "books.region_asia": "亚洲",
-  "books.region_global": "全球"
+  "books.region_global": "全球",
+  "topbar.command": "搜索或跳转…"
 }

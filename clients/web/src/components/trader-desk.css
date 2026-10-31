@@ -1,3 +1,4 @@
+@layer legacy {
 .trader-desk {
   font-variant-numeric: tabular-nums;
 }
@@ -120,9 +121,10 @@
 .financing-rate-result small,
 .financing-rate-note {
   color: var(--eg-muted);
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
 }
 
 .financing-rate-note.issue {
   color: var(--eg-warning);
+}
 }

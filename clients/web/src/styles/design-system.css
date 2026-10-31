@@ -1,0 +1,797 @@
+/*
+ * Eurogas Nexus design system.
+ *
+ * One token set, one type scale, one way to draw each control. Cascade layers keep it in
+ * charge without specificity fights:
+ *
+ *   ds-base        element defaults (buttons, inputs, tables) that legacy rules may refine
+ *   legacy         every pre-existing stylesheet, wrapped by scripts/ui/layer_legacy_css.mjs
+ *   ds-theme       tokens, and the legacy variable families re-pointed at them
+ *   ds-components  the shell, tabs, panels, tables, badges and states as designed here
+ *   ds-motion      transitions and entrances, off under prefers-reduced-motion
+ *
+ * New styles go in ds-components or a component file that uses only var(--ds-*) tokens.
+ * docs/ux/DESIGN_SYSTEM.md explains the rules; clients/web/tests/designTokens.test.ts holds
+ * the line on hard-coded colours and font sizes.
+ */
+
+@layer ds-base, legacy, ds-theme, ds-components, ds-motion;
+
+/* ------------------------------------------------------------------ tokens */
+@layer ds-theme {
+  :root {
+    color-scheme: light;
+    --ds-font-ui: "Inter", "Inter var", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+      "Noto Sans CJK SC", sans-serif;
+    --ds-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --ds-text-xs: 11px;
+    --ds-text-sm: 12px;
+    --ds-text-base: 13px;
+    --ds-text-md: 14px;
+    --ds-text-lg: 16px;
+    --ds-text-xl: 18px;
+    --ds-text-2xl: 22px;
+    --ds-text-3xl: 28px;
+    --ds-leading-tight: 1.25;
+    --ds-leading: 1.5;
+    --ds-weight-regular: 400;
+    --ds-weight-medium: 500;
+    --ds-weight-semibold: 600;
+
+    --ds-space-1: 4px;
+    --ds-space-2: 8px;
+    --ds-space-3: 12px;
+    --ds-space-4: 16px;
+    --ds-space-5: 20px;
+    --ds-space-6: 24px;
+    --ds-space-8: 32px;
+
+    --ds-radius-sm: 6px;
+    --ds-radius-md: 8px;
+    --ds-radius-lg: 12px;
+    --ds-radius-pill: 999px;
+    --ds-control-sm: 28px;
+    --ds-control: 32px;
+    --ds-control-lg: 36px;
+
+    --ds-duration-fast: 120ms;
+    --ds-duration: 180ms;
+    --ds-duration-slow: 260ms;
+    --ds-ease-out: cubic-bezier(0.2, 0, 0, 1);
+    --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+    --ds-bg: #f7f7f8;
+    --ds-surface: #ffffff;
+    --ds-surface-2: #f4f4f5;
+    --ds-surface-3: #e9e9ec;
+    --ds-border: #e4e4e7;
+    --ds-border-strong: #d4d4d8;
+    --ds-text-1: #18181b;
+    --ds-text-2: #52525b;
+    --ds-text-3: #5f5f68;
+    --ds-accent: #1d4ed8;
+    --ds-accent-hover: #1e40af;
+    --ds-on-accent: #ffffff;
+    --ds-positive: #166534;
+    --ds-negative: #b91c1c;
+    --ds-warning: #854d0e;
+    --ds-ink: #18181b;
+    --ds-on-ink: #ffffff;
+    --ds-accent-soft: color-mix(in srgb, var(--ds-accent) 10%, transparent);
+    --ds-positive-soft: color-mix(in srgb, var(--ds-positive) 10%, transparent);
+    --ds-negative-soft: color-mix(in srgb, var(--ds-negative) 9%, transparent);
+    --ds-warning-soft: color-mix(in srgb, var(--ds-warning) 11%, transparent);
+    --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 5%);
+    --ds-shadow-md: 0 1px 2px rgb(0 0 0 / 4%), 0 4px 12px -2px rgb(0 0 0 / 7%);
+    --ds-shadow-lg: 0 2px 4px rgb(0 0 0 / 4%), 0 16px 40px -12px rgb(0 0 0 / 22%);
+    --ds-focus: 0 0 0 2px var(--ds-surface), 0 0 0 4px color-mix(in srgb, var(--ds-accent) 55%, transparent);
+
+    /* Legacy variable families, re-pointed so every existing rule follows the design system. */
+    --bg: var(--ds-bg);
+    --surface: var(--ds-surface);
+    --surface-strong: var(--ds-surface-2);
+    --text: var(--ds-text-1);
+    --muted: var(--ds-text-2);
+    --border: var(--ds-border);
+    --accent: var(--ds-accent);
+    --warning: var(--ds-warning);
+    --danger: var(--ds-negative);
+    --shadow: var(--ds-shadow-md);
+    --text-meta: var(--ds-text-xs);
+    --text-body: var(--ds-text-base);
+    --text-control: var(--ds-text-base);
+    --text-panel-title: var(--ds-text-lg);
+    --text-workspace-title: var(--ds-text-2xl);
+    --text-page-title: var(--ds-text-2xl);
+    --space-1: var(--ds-space-1);
+    --space-2: var(--ds-space-2);
+    --space-3: var(--ds-space-3);
+    --space-4: var(--ds-space-4);
+    --space-5: var(--ds-space-6);
+    --space-6: var(--ds-space-8);
+    --control-compact: var(--ds-control-sm);
+    --control-standard: var(--ds-control);
+    --control-prominent: var(--ds-control-lg);
+    --radius-control: var(--ds-radius-sm);
+    --radius-panel: var(--ds-radius-lg);
+    --radius-large: var(--ds-radius-lg);
+    --motion-fast: var(--ds-duration-fast);
+    --motion-standard: var(--ds-duration);
+    --motion-emphasis: var(--ds-duration-slow);
+    /* Prices and times use the interface face with tabular numerals, not a terminal font. */
+    --eg-font-mono: var(--ds-font-ui);
+    --eg-ink: var(--ds-ink);
+    --eg-on-ink: var(--ds-on-ink);
+    --eg-body: var(--ds-text-2);
+    --eg-muted: var(--ds-text-3);
+    --eg-hairline: var(--ds-border);
+    --eg-hairline-strong: var(--ds-border-strong);
+    --eg-canvas: var(--ds-surface);
+    --eg-canvas-soft: var(--ds-bg);
+    --eg-canvas-soft-2: var(--ds-surface-2);
+    --eg-link: var(--ds-accent);
+    --eg-positive: var(--ds-positive);
+    --eg-positive-soft: var(--ds-positive-soft);
+    --eg-warn: var(--ds-warning);
+    --eg-warn-soft: var(--ds-warning-soft);
+    --eg-negative: var(--ds-negative);
+    --eg-negative-soft: var(--ds-negative-soft);
+    --eg-warning: var(--ds-warning);
+    --eg-danger: var(--ds-negative);
+    --eg-radius-sm: var(--ds-radius-sm);
+    --eg-radius-md: var(--ds-radius-md);
+    --eg-pill: var(--ds-radius-pill);
+    --eg-shadow-1: inset 0 0 0 1px var(--ds-border);
+    --eg-shadow-2: var(--ds-shadow-sm), inset 0 0 0 1px var(--ds-border);
+    --eg-shadow-3: var(--ds-shadow-md), inset 0 0 0 1px var(--ds-border);
+  }
+
+  :root.dark {
+    color-scheme: dark;
+    --ds-bg: #0b0b0d;
+    --ds-surface: #131316;
+    --ds-surface-2: #1a1a1e;
+    --ds-surface-3: #242429;
+    --ds-border: #26262b;
+    --ds-border-strong: #3a3a41;
+    --ds-text-1: #f4f4f5;
+    --ds-text-2: #a8a8b3;
+    --ds-text-3: #8d8d98;
+    --ds-accent: #6ea8fe;
+    --ds-accent-hover: #93bfff;
+    --ds-on-accent: #0b0b0d;
+    --ds-positive: #4ade80;
+    --ds-negative: #f87171;
+    --ds-warning: #fbbf24;
+    --ds-ink: #f4f4f5;
+    --ds-on-ink: #131316;
+    --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+    --ds-shadow-md: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 16px -4px rgb(0 0 0 / 50%);
+    --ds-shadow-lg: 0 2px 6px rgb(0 0 0 / 45%), 0 18px 44px -10px rgb(0 0 0 / 65%);
+  }
+}
+
+/* ------------------------------------------------------------- element base */
+@layer ds-base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-base);
+    line-height: var(--ds-leading);
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--ds-font-mono);
+    font-size: 0.92em;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+}
+
+/* --------------------------------------------------------------- components */
+@layer ds-components {
+  body,
+  .app,
+  .cockpit-app {
+    background: var(--ds-bg);
+    color: var(--ds-text-1);
+    font-family: var(--ds-font-ui);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--ds-accent) 22%, transparent);
+  }
+
+  /* Numbers line up in every table and figure. */
+  td,
+  th,
+  .num,
+  .metric-grid strong,
+  .position-summary strong,
+  input[type="number"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Type: three weights, sentence case, one sans family for interface text. */
+  h1,
+  .workspace-page-heading h1 {
+    font-size: var(--ds-text-2xl);
+    font-weight: var(--ds-weight-semibold);
+    letter-spacing: -0.015em;
+    line-height: var(--ds-leading-tight);
+  }
+
+  h2,
+  .workspace-panel h2 {
+    font-size: var(--ds-text-lg);
+    font-weight: var(--ds-weight-semibold);
+    letter-spacing: -0.01em;
+    line-height: var(--ds-leading-tight);
+  }
+
+  h3 {
+    font-size: var(--ds-text-md);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .eyebrow,
+  .workspace-page-heading .eyebrow {
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ds-text-3);
+  }
+
+  .muted,
+  small {
+    color: var(--ds-text-3);
+  }
+
+  a {
+    color: var(--ds-accent);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* ---------------------------------------------------------------- shell */
+  .app-header,
+  .cockpit-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--ds-space-3);
+    min-height: 56px;
+    padding: var(--ds-space-2) var(--ds-space-4);
+    border-bottom: 1px solid var(--ds-border);
+    overflow: visible;
+    background: color-mix(in srgb, var(--ds-surface) 86%, transparent);
+    backdrop-filter: saturate(180%) blur(12px);
+    box-shadow: none;
+  }
+
+  .workspace-primary-tabs {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .workspace-primary-tabs [role="tab"] {
+    height: var(--ds-control);
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-medium);
+    white-space: nowrap;
+    box-shadow: none;
+  }
+
+  .workspace-primary-tabs [role="tab"]:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-text-1);
+  }
+
+  .workspace-primary-tabs [role="tab"][aria-selected="true"] {
+    background: var(--ds-surface-3);
+    color: var(--ds-text-1);
+  }
+
+  .topbar-command {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    height: var(--ds-control);
+    flex: 0 1 240px;
+    min-width: 150px;
+    margin-left: var(--ds-space-2);
+    padding: 0 var(--ds-space-2) 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-base);
+    cursor: pointer;
+  }
+
+  .topbar-command > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar-command:hover {
+    border-color: var(--ds-border-strong);
+    color: var(--ds-text-2);
+  }
+
+  .topbar-command kbd {
+    margin-left: auto;
+    padding: 1px 6px;
+    border: 1px solid var(--ds-border);
+    border-radius: 4px;
+    background: var(--ds-surface);
+    color: var(--ds-text-3);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-xs);
+    white-space: nowrap;
+  }
+
+  .topbar-user-menu,
+  .header-controls {
+    flex: 0 0 auto;
+  }
+
+  .topbar-trading-context input[type="date"] {
+    width: 132px;
+  }
+
+  .topbar-context-disclosure {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: auto;
+  }
+
+  /* Wide screens show the context inline; narrow screens keep the disclosure summary. */
+  @media (min-width: 901px) {
+    .topbar-context-disclosure > summary {
+      display: none;
+    }
+  }
+
+  .topbar-account-name {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-preferences-trigger {
+    height: var(--ds-control);
+    border: 1px solid transparent;
+    border-radius: var(--ds-radius-pill);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .topbar-preferences-trigger:hover {
+    background: var(--ds-surface-2);
+  }
+
+  @media (max-width: 1599px) {
+    .topbar-account-name,
+    .context-freshness small,
+    .topbar-data-status {
+      display: none;
+    }
+  }
+
+  @media (max-width: 1279px) {
+    .topbar-command > span,
+    .context-freshness {
+      display: none;
+    }
+
+    .topbar-command {
+      flex: 0 0 auto;
+      min-width: 0;
+    }
+  }
+
+  .topbar-context-disclosure-content,
+  .topbar-trading-context,
+  .header-controls {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  /* Context controls read as values; the labels stay for assistive technology. */
+  .topbar-trading-context label {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+  }
+
+  .topbar-trading-context label > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .topbar-trading-context input,
+  .topbar-trading-context select,
+  .header-controls select {
+    height: var(--ds-control);
+    padding: 0 var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-base);
+  }
+
+  .context-freshness {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: 0 var(--ds-space-2);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+    white-space: nowrap;
+  }
+
+  .context-freshness strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ds-text-2);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .context-freshness strong::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ds-positive);
+  }
+
+  .context-freshness.issue strong::before {
+    background: var(--ds-warning);
+  }
+
+  .context-freshness small:last-child {
+    display: none;
+  }
+
+  /* ----------------------------------------------------------- page header */
+  .workspace-page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--ds-space-4);
+    padding: var(--ds-space-6) 0 var(--ds-space-3);
+    border-bottom: 1px solid var(--ds-border);
+  }
+
+  /* ------------------------------------------------------------------ tabs */
+  [role="tablist"]:not(.workspace-primary-tabs) {
+    gap: var(--ds-space-1);
+  }
+
+  .workspace-page-header-actions [role="tab"],
+  .segmented-control [role="tab"],
+  .segmented-control button {
+    height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-3);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-medium);
+    box-shadow: none;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .workspace-page-header-actions [role="tab"]:hover,
+  .segmented-control [role="tab"]:hover,
+  .segmented-control button:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-text-1);
+  }
+
+  .workspace-page-header-actions [role="tab"][aria-selected="true"],
+  .segmented-control [role="tab"][aria-selected="true"],
+  .segmented-control button.active,
+  .segmented-control button[aria-pressed="true"] {
+    background: var(--ds-surface-3);
+    color: var(--ds-text-1);
+    border-bottom: 0;
+  }
+
+  .segmented-control {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+  }
+
+  .segmented-control [role="tab"][aria-selected="true"],
+  .segmented-control button.active,
+  .segmented-control button[aria-pressed="true"] {
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-sm);
+  }
+
+  /* ---------------------------------------------------------------- panels */
+  .workspace-panel,
+  .cockpit-app .panel {
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    background: var(--ds-surface);
+    background-image: none;
+    box-shadow: var(--ds-shadow-sm);
+  }
+
+  .panel-title-row {
+    align-items: center;
+    gap: var(--ds-space-3);
+  }
+
+  .panel-title-row > :not(h2):not(h3):not(button):not(a) {
+    color: var(--ds-text-3);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-sm);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  /* ---------------------------------------------------------------- controls */
+  button.primary,
+  .button-primary,
+  button[type="submit"] {
+    height: var(--ds-control);
+    padding: 0 var(--ds-space-4);
+    border: 1px solid transparent;
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-ink);
+    color: var(--ds-on-ink);
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    border-color: var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):hover,
+  select:hover {
+    border-color: var(--ds-border-strong);
+  }
+
+  /* ---------------------------------------------------------------- tables */
+  .workspace-panel table th,
+  .data-table-row.header,
+  .data-table-row.header > * {
+    color: var(--ds-text-3);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .workspace-panel table thead th {
+    border-bottom: 1px solid var(--ds-border);
+    background: transparent;
+  }
+
+  .workspace-panel table td {
+    border-bottom: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+    font-size: var(--ds-text-base);
+  }
+
+  .workspace-panel table tbody tr:hover td {
+    background: color-mix(in srgb, var(--ds-surface-2) 70%, transparent);
+  }
+
+  /* ---------------------------------------------------------------- badges */
+  .status-badge,
+  .source-status,
+  [class*="-pill"]:not([class*="row"]):not([class*="section"]),
+  [class*="-chip"]:not([class*="row"]):not([class*="section"]),
+  .badge,
+  [class$="-badge"],
+  [class*="-badge "],
+  [class*=" badge"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 20px;
+    padding: 1px var(--ds-space-2);
+    border-radius: var(--ds-radius-pill);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: 1.3;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+  }
+
+  /* --------------------------------------------------------- notices, states */
+  .market-simulated-banner {
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid color-mix(in srgb, var(--ds-warning) 35%, transparent);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-warning-soft);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-base);
+  }
+
+  .market-simulated-banner strong {
+    color: var(--ds-warning);
+    font-weight: var(--ds-weight-semibold);
+    text-transform: none;
+  }
+
+  [role="alert"]:not(.market-simulated-banner) {
+    color: var(--ds-negative);
+  }
+
+  .position-notes,
+  .metric-strip-disclosures {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  /* Scrollbars that do not shout. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ds-border-strong) transparent;
+  }
+}
+
+/* ------------------------------------------------------------------ motion */
+@layer ds-motion {
+  @keyframes ds-enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes ds-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.98) translateY(-2px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes ds-shimmer {
+    from {
+      background-position: -200% 0;
+    }
+
+    to {
+      background-position: 200% 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    button,
+    [role="tab"],
+    a,
+    input,
+    select,
+    .topbar-command,
+    .workspace-panel table tbody tr td {
+      transition:
+        background-color var(--ds-duration-fast) var(--ds-ease-out),
+        border-color var(--ds-duration-fast) var(--ds-ease-out),
+        color var(--ds-duration-fast) var(--ds-ease-out),
+        box-shadow var(--ds-duration-fast) var(--ds-ease-out);
+    }
+
+    .workspace-panel {
+      animation: ds-enter var(--ds-duration) var(--ds-ease-out) both;
+    }
+
+    [role="dialog"],
+    [role="menu"],
+    [role="listbox"],
+    .command-palette {
+      animation: ds-pop var(--ds-duration-fast) var(--ds-ease-out) both;
+    }
+
+    .ds-skeleton {
+      background: linear-gradient(
+          90deg,
+          var(--ds-surface-2) 25%,
+          var(--ds-surface-3) 37%,
+          var(--ds-surface-2) 63%
+        )
+        0 0 / 400% 100%;
+      animation: ds-shimmer 1.4s ease infinite;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

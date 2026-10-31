@@ -1,3 +1,4 @@
+@layer legacy {
 /*
  * Projection context strip (Architecture V2 Wave 5).
  *
@@ -97,4 +98,5 @@
   border-left: 3px solid var(--eg-warning);
   padding: 0 var(--space-1);
   font-weight: 600;
+}
 }

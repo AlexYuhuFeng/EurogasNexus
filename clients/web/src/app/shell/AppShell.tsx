@@ -238,6 +238,7 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         onSignOut={() => void api.signOut()}
         onOpenAccess={() => navigation.openWorkspace("access")}
         onOpenSettings={() => navigation.openWorkspace("settings")}
+        onOpenCommandPalette={() => palette.setOpen(true)}
         onLanguageChange={chooseLanguage}
         onModeChange={chooseTheme}
       />

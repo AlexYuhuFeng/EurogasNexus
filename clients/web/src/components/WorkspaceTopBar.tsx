@@ -64,6 +64,8 @@ interface WorkspaceTopBarProps {
   onSignOut: () => void;
   onOpenAccess: () => void;
   onOpenSettings: () => void;
+  /** Opens the command palette: search and jump to any workspace or action. */
+  onOpenCommandPalette?: () => void;
   onLanguageChange: (language: string) => void;
   onModeChange: (mode: ThemeMode) => void;
 }
@@ -95,6 +97,7 @@ export function WorkspaceTopBar({
   onSignOut,
   onOpenAccess,
   onOpenSettings,
+  onOpenCommandPalette,
   onLanguageChange,
   onModeChange,
 }: WorkspaceTopBarProps) {
@@ -160,6 +163,18 @@ export function WorkspaceTopBar({
         shellRegion="navigation"
         onActivate={(primary) => onOpenPrimaryWorkspace(primary as PrimaryWorkspaceId)}
       />
+      {onOpenCommandPalette && (
+        <button
+          type="button"
+          className="topbar-command"
+          aria-label={t("topbar.command")}
+          onClick={onOpenCommandPalette}
+          aria-keyshortcuts="Control+K Meta+K"
+        >
+          <span>{t("topbar.command")}</span>
+          <kbd aria-hidden="true">{/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K"}</kbd>
+        </button>
+      )}
       {hasMapSearch && (
         <span className="workspace-local-task" aria-label={t("topbar.current_task")}>
           <span>{t("topbar.task_label")}</span>

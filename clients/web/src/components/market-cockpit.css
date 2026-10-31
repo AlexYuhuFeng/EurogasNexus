@@ -1,3 +1,4 @@
+@layer legacy {
 .market-cockpit {
   display: flex;
   flex-direction: column;
@@ -342,9 +343,8 @@
   min-height: 26px;
   background: var(--eg-canvas-soft);
   color: var(--eg-muted);
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.02em;
   cursor: default;
 }
@@ -396,7 +396,7 @@
   gap: var(--space-3, 12px);
   margin-top: var(--space-1);
   color: var(--eg-muted);
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .market-fx-strip strong {
@@ -431,7 +431,7 @@
   border: 1px solid var(--eg-hairline);
   background: transparent;
   color: var(--eg-muted);
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   padding: 2px var(--space-2);
   cursor: pointer;
 }
@@ -467,7 +467,6 @@
 }
 
 .market-simulated-banner strong {
-  text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
@@ -482,7 +481,7 @@
   background: transparent;
   color: var(--eg-muted);
   padding: 2px var(--space-2);
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   font-weight: 600;
   cursor: pointer;
 }
@@ -499,7 +498,7 @@
 .market-ladder {
   border-collapse: collapse;
   font-family: var(--eg-font-mono);
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   font-variant-numeric: tabular-nums;
   width: 100%;
 }
@@ -516,7 +515,7 @@
 .market-ladder thead th {
   color: var(--eg-muted);
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   background: var(--eg-canvas-soft);
 }
 
@@ -530,7 +529,7 @@
   background: transparent;
   color: var(--eg-ink);
   font: inherit;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -540,7 +539,7 @@
 
 .market-ladder .market-ladder-product {
   text-align: left;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--eg-ink);
   position: sticky;
   left: 0;
@@ -557,12 +556,12 @@
 
 .market-ladder td.bid {
   color: var(--eg-link);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .market-ladder td.offer {
   color: var(--eg-negative);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .market-ladder td.crossed {
@@ -581,4 +580,5 @@
 
 .intraday-decision-feed > .intraday-expired-toggle {
   justify-self: start;
+}
 }

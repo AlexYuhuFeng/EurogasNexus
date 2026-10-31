@@ -1,3 +1,4 @@
+@layer legacy {
 /* Capacity-billing sandbox layout.
    The form is one scoped field grid rather than bare label/input pairs, so labels stay with their
    controls at every width. The result keeps the backend's exact strings; long decimals wrap inside
@@ -23,7 +24,7 @@
   width: 100%;
   min-inline-size: 0;
   margin: 0;
-  border: 1px solid var(--eg-hairline, var(--border, #d7e0e5));
+  border: 1px solid var(--eg-hairline, var(--border, var(--ds-border)));
   border-radius: var(--eg-radius-md, 8px);
   background: var(--eg-canvas-soft, var(--surface-strong, #edf2f4));
   padding: var(--space-3, 12px);
@@ -49,9 +50,9 @@
 
 .capacity-billing-panel .field-label {
   margin: 0;
-  color: var(--eg-muted, var(--muted, #5e6b75));
+  color: var(--eg-muted, var(--muted, var(--ds-text-2)));
   font-size: var(--text-meta, 11px);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -63,10 +64,10 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  border: 1px solid var(--eg-hairline, var(--border, #d7e0e5));
+  border: 1px solid var(--eg-hairline, var(--border, var(--ds-border)));
   border-radius: var(--radius-control, 6px);
-  background: var(--eg-canvas, var(--surface, #ffffff));
-  color: var(--eg-ink, var(--text, #182026));
+  background: var(--eg-canvas, var(--surface, var(--ds-surface)));
+  color: var(--eg-ink, var(--text, var(--ds-text-1)));
   font: inherit;
   font-size: var(--text-control, 13px);
   line-height: 1.35;
@@ -87,7 +88,7 @@
 .capacity-billing-panel .capacity-billing-field input:focus-visible,
 .capacity-billing-panel .capacity-billing-field select:focus-visible,
 .capacity-billing-panel .capacity-billing-field textarea:focus-visible {
-  outline: 2px solid var(--eg-link, var(--accent, #0f766e));
+  outline: 2px solid var(--eg-link, var(--accent, var(--ds-accent)));
   outline-offset: 1px;
 }
 
@@ -124,7 +125,7 @@
 }
 
 .capacity-billing-panel .capacity-billing-result:focus {
-  outline: 2px solid var(--eg-link, var(--accent, #0f766e));
+  outline: 2px solid var(--eg-link, var(--accent, var(--ds-accent)));
   outline-offset: 4px;
 }
 
@@ -140,14 +141,14 @@
   min-width: 0;
   align-content: start;
   gap: var(--space-1, 4px);
-  border: 1px solid var(--eg-hairline, var(--border, #d7e0e5));
+  border: 1px solid var(--eg-hairline, var(--border, var(--ds-border)));
   border-radius: var(--eg-radius-sm, 6px);
   background: var(--eg-canvas-soft, var(--surface-strong, #edf2f4));
   padding: var(--space-2, 8px);
 }
 
 .capacity-billing-panel .capacity-billing-metrics > div > span {
-  color: var(--eg-muted, var(--muted, #5e6b75));
+  color: var(--eg-muted, var(--muted, var(--ds-text-2)));
   font-size: var(--text-meta, 11px);
   font-weight: 600;
   line-height: 1.35;
@@ -159,7 +160,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-1, 4px) var(--space-2, 8px);
-  color: var(--eg-ink, var(--text, #182026));
+  color: var(--eg-ink, var(--text, var(--ds-text-1)));
   font-size: var(--text-heading, 17px);
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
@@ -174,10 +175,10 @@
 .capacity-billing-panel .capacity-billing-metrics .metric-strip-unit {
   display: inline-block;
   margin: 0;
-  border-left: 1px solid var(--eg-hairline, var(--border, #d7e0e5));
-  color: var(--eg-muted, var(--muted, #5e6b75));
+  border-left: 1px solid var(--eg-hairline, var(--border, var(--ds-border)));
+  color: var(--eg-muted, var(--muted, var(--ds-text-2)));
   font-size: var(--text-meta, 11px);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
   padding-left: var(--space-1, 4px);
   white-space: nowrap;
@@ -201,7 +202,7 @@
 }
 
 .capacity-billing-panel .capacity-billing-facts > li > strong {
-  color: var(--eg-muted, var(--muted, #5e6b75));
+  color: var(--eg-muted, var(--muted, var(--ds-text-2)));
   font-weight: 600;
 }
 
@@ -244,4 +245,5 @@
 
 .capacity-billing-panel .route-cost-result {
   scroll-margin-top: var(--space-4, 16px);
+}
 }

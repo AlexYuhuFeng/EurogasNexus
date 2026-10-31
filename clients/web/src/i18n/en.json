@@ -3813,5 +3813,6 @@
   "books.region_europe": "Europe",
   "books.region_north_america": "North America",
   "books.region_asia": "Asia",
-  "books.region_global": "Global"
+  "books.region_global": "Global",
+  "topbar.command": "Search or jump to…"
 }

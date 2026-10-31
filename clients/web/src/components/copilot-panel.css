@@ -1,3 +1,4 @@
+@layer legacy {
 /* Copilot surface (Architecture V2 Wave 7).
    The cross-workspace invocation surface for the five canonical AI actions. It is
    hosted by the command palette overlay, so it introduces no new colour, type or
@@ -10,7 +11,7 @@
   gap: 12px;
   padding: 14px 16px 18px;
   overflow-y: auto;
-  font-size: 13px;
+  font-size: var(--ds-text-base);
 }
 
 .copilot-panel-header {
@@ -22,7 +23,7 @@
 
 .copilot-panel-header h2 {
   margin: 2px 0 0;
-  font-size: 14px;
+  font-size: var(--ds-text-md);
   font-weight: 600;
 }
 
@@ -34,23 +35,22 @@
 .copilot-boundary {
   margin: 0;
   padding: 8px 10px;
-  border-left: 3px solid var(--border, #d8dde5);
-  font-size: 12px;
+  border-left: 3px solid var(--border, var(--ds-border));
+  font-size: var(--ds-text-sm);
   line-height: 1.5;
-  color: var(--text-muted, #5b6472);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-panel h3 {
   margin: 0 0 6px;
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted, #5b6472);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-panel h4 {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
 }
 
 .copilot-context-facts,
@@ -65,10 +65,9 @@
 .copilot-context-facts dt,
 .copilot-record-facts dt,
 .copilot-result-facts dt {
-  font-size: 11px;
-  text-transform: uppercase;
+  font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
-  color: var(--text-muted, #5b6472);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-context-facts dd,
@@ -82,17 +81,17 @@
 .copilot-context-note,
 .copilot-question-note {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   line-height: 1.5;
-  color: var(--text-muted, #5b6472);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-context-missing,
 .copilot-context-gaps {
   margin: 6px 0 0;
   padding-left: 18px;
-  font-size: 12px;
-  color: var(--text-muted, #5b6472);
+  font-size: var(--ds-text-sm);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-evidence-list,
@@ -111,16 +110,15 @@
 }
 
 .copilot-evidence-kind {
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted, #5b6472);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-evidence-empty {
   margin: 0;
-  font-size: 12px;
-  color: var(--text-muted, #5b6472);
+  font-size: var(--ds-text-sm);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-action-list {
@@ -130,7 +128,7 @@
 
 .copilot-action {
   padding: 8px 10px;
-  border: 1px solid var(--border, #d8dde5);
+  border: 1px solid var(--border, var(--ds-border));
   border-radius: 6px;
 }
 
@@ -152,7 +150,7 @@
   border: 0;
   background: transparent;
   color: inherit;
-  font-size: 13px;
+  font-size: var(--ds-text-base);
   text-align: left;
   cursor: pointer;
 }
@@ -162,17 +160,17 @@
 }
 
 .copilot-action-posture {
-  font-size: 11px;
-  color: var(--text-muted, #5b6472);
+  font-size: var(--ds-text-xs);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-action-produces,
 .copilot-action-carries,
 .copilot-action-withheld-reason {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   line-height: 1.5;
-  color: var(--text-muted, #5b6472);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-action-carries code {
@@ -185,17 +183,16 @@
 
 .copilot-question span {
   display: block;
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted, #5b6472);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-question textarea {
   width: 100%;
   margin-top: 4px;
   padding: 8px 10px;
-  border: 1px solid var(--border, #d8dde5);
+  border: 1px solid var(--border, var(--ds-border));
   border-radius: 6px;
   font: inherit;
   background: transparent;
@@ -212,16 +209,16 @@
 }
 
 .copilot-invoke-route {
-  font-size: 11px;
-  color: var(--text-muted, #5b6472);
+  font-size: var(--ds-text-xs);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-record-facts pre {
   margin: 2px 0 0;
   padding: 6px 8px;
-  border: 1px solid var(--border, #d8dde5);
+  border: 1px solid var(--border, var(--ds-border));
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -230,15 +227,15 @@
 .copilot-result-authority,
 .copilot-result-provider {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   line-height: 1.5;
-  color: var(--text-muted, #5b6472);
+  color: var(--text-muted, var(--ds-text-2));
 }
 
 .copilot-result-answer {
   margin: 8px 0 0;
   padding: 8px 10px;
-  border: 1px solid var(--border, #d8dde5);
+  border: 1px solid var(--border, var(--ds-border));
   border-radius: 6px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -255,18 +252,19 @@
 
 .copilot-error {
   padding: 8px 10px;
-  border: 1px solid var(--border, #d8dde5);
+  border: 1px solid var(--border, var(--ds-border));
   border-left: 3px solid var(--focus, #2b6cb0);
   border-radius: 6px;
 }
 
 .copilot-error p {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: var(--ds-text-sm);
   line-height: 1.5;
 }
 
 .copilot-error-code {
   display: flex;
   gap: 8px;
+}
 }

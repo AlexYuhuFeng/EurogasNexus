@@ -1,3 +1,4 @@
+@layer legacy {
 /* The LNG economics-only sandbox reuses the commercial workbench's panels and field grid.
    Only the row/table layout is local: exact backend strings must have room to wrap instead of
    being clipped or reformatted. */
@@ -22,7 +23,7 @@
 
 .lng-economics-panel fieldset.lng-economics-section > legend {
   padding: 0 var(--space-1);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .lng-economics-context {
@@ -66,7 +67,7 @@
   padding: 0 var(--space-1);
   color: var(--eg-muted);
   font-size: var(--text-meta);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .lng-economics-row-actions {
@@ -104,7 +105,7 @@
 
 .lng-economics-table th {
   color: var(--eg-muted);
-  font-weight: 650;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -133,4 +134,5 @@
 .lng-economics-table-wrap:focus-visible {
   outline: 2px solid var(--eg-link, #005fcc);
   outline-offset: 2px;
+}
 }

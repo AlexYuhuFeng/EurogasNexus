@@ -1,3 +1,4 @@
+@layer legacy {
 .evidence-block {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -20,7 +21,7 @@
 
 .evidence-block-item dt {
   color: var(--eg-muted, var(--muted));
-  font-size: 10.5px;
+  font-size: var(--ds-text-xs);
   line-height: 15px;
 }
 
@@ -39,12 +40,13 @@
 
 .evidence-block-item strong {
   color: var(--eg-ink, var(--text));
-  font-size: 11.5px;
+  font-size: var(--ds-text-xs);
   line-height: 17px;
 }
 
 .evidence-block-item small {
   color: var(--eg-muted, var(--muted));
-  font-size: 10px;
+  font-size: var(--ds-text-xs);
   line-height: 15px;
+}
 }
