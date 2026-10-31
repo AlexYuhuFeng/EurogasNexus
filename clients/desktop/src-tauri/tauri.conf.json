@@ -26,14 +26,17 @@
       },
       {
         "label": "splashscreen",
-        "title": "Eurogas Nexus Loading",
-        "width": 520,
+        "title": "Eurogas Nexus",
+        "width": 480,
         "height": 300,
         "center": true,
         "resizable": false,
         "decorations": false,
         "fullscreen": false,
-        "visible": true
+        "visible": true,
+        "url": "splash.html",
+        "transparent": false,
+        "skipTaskbar": false
       }
     ],
     "security": {
@@ -61,8 +64,17 @@
         "type": "downloadBootstrapper"
       },
       "nsis": {
-        "installMode": "perMachine"
+        "installMode": "perMachine",
+        "headerImage": "installer/nsis-header.bmp",
+        "sidebarImage": "installer/nsis-sidebar.bmp",
+        "installerIcon": "icons/icon.ico",
+        "languages": [
+          "English",
+          "SimpChinese"
+        ],
+        "displayLanguageSelector": true
       }
-    }
+    },
+    "copyright": "Copyright © 2026 Alex Yuhu Feng. All rights reserved."
   }
 }

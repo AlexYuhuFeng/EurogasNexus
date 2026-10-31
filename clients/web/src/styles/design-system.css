@@ -1596,3 +1596,72 @@
 @media (prefers-reduced-motion: reduce) {
   .report-dialog[open] { animation: none; }
 }
+
+/* ------------------------------------------------------------- interaction standard
+ * One rule set for how every control answers the pointer and the keyboard (see
+ * docs/ux/INTERACTION_STANDARD.md):
+ *   hover    a quiet tint or a stronger border; never a shadow, never movement
+ *   press    one step darker, settles 0.5 px (felt, not seen)
+ *   focus    the 2 px focus ring, keyboard only (:focus-visible)
+ *   disabled half opacity and a not-allowed cursor, no hover response
+ * Shadows mean elevation (panels rest on the canvas, menus and dialogs float above it),
+ * so a button never gains one on hover. */
+@layer ds-components {
+  button:not(:disabled),
+  [role="tab"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
+
+  button.primary:hover:not(:disabled),
+  .button-primary:hover:not(:disabled),
+  button[type="submit"]:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ds-ink) 86%, var(--ds-surface));
+  }
+
+  button.primary:active:not(:disabled),
+  .button-primary:active:not(:disabled),
+  button[type="submit"]:active:not(:disabled) {
+    background: color-mix(in srgb, var(--ds-ink) 94%, #000);
+  }
+
+  .secondary-button:hover:not(:disabled),
+  .report-export:hover:not(:disabled),
+  .contract-library-handoff:hover:not(:disabled) {
+    border-color: var(--ds-border-strong);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-1);
+  }
+
+  .secondary-button:active:not(:disabled),
+  .report-export:active:not(:disabled),
+  .contract-library-handoff:active:not(:disabled) {
+    background: var(--ds-surface-3, var(--ds-surface-2));
+  }
+
+  button:active:not(:disabled) {
+    transform: translateY(0.5px);
+  }
+
+  button:disabled:hover {
+    background: inherit;
+  }
+
+  /* Clickable rows and cards tint on hover; static panels do not react. */
+  .contract-library-row:hover,
+  .map-finder-results li:hover {
+    background: var(--ds-surface-2);
+  }
+}
+
+/* Touch screens (tablets, touch laptops): the same controls, 40 px targets. */
+@media (pointer: coarse) {
+  @layer ds-components {
+    button,
+    select,
+    input:not([type="checkbox"]):not([type="radio"]),
+    [role="tab"] {
+      min-height: 40px;
+    }
+  }
+}

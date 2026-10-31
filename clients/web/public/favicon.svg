@@ -1,8 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Eurogas Nexus">
-  <rect width="64" height="64" rx="12" fill="#101820"/>
-  <path d="M14 40c8-18 28-18 36-4" fill="none" stroke="#2dd4bf" stroke-width="6" stroke-linecap="round"/>
-  <path d="M16 26h16l16 14" fill="none" stroke="#f97316" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="16" cy="26" r="5" fill="#ffffff"/>
-  <circle cx="32" cy="26" r="5" fill="#ffffff"/>
-  <circle cx="48" cy="40" r="5" fill="#ffffff"/>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101c34"/>
+      <stop offset="1" stop-color="#0b1324"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="13" fill="url(#tile)"/>
+  <g stroke="#2dd4bf" stroke-width="4.2" stroke-linecap="round">
+    <line x1="32" y1="34" x2="15" y2="21"/>
+    <line x1="32" y1="34" x2="49" y2="21"/>
+    <line x1="32" y1="34" x2="32" y2="52"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="15" cy="21" r="5"/>
+    <circle cx="49" cy="21" r="5"/>
+    <circle cx="32" cy="52" r="5"/>
+    <circle cx="32" cy="34" r="8.5"/>
+  </g>
+  <circle cx="32" cy="34" r="4.2" fill="#f97316"/>
 </svg>
