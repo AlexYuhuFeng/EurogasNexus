@@ -304,6 +304,15 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         example="office",
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_REMIT_OWN_PARTICIPANTS",
+        scope="OPERATOR",
+        purpose=(
+            "The firm's REMIT market participant names or ACER codes as they appear in UMMs "
+            "(comma-separated), so surveillance recognises outages at the firm's own assets."
+        ),
+        example="Example Energy Trading Ltd,A0001234X.GB",
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DEPLOYMENT_REGION",
         scope="OPERATOR",
         purpose="Where this installation serves users: global (default) or china.",

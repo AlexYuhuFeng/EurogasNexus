@@ -74,6 +74,9 @@ version lives under [docs/release/notes](docs/release/notes).
   default in mainland China and air-gapped networks.
 - Windows installers can be signed with Azure Artifact Signing (key in Microsoft's HSMs,
   OIDC, no stored secret); see docs/release/CODE_SIGNING.md.
+- Compliance tooling: market-abuse surveillance report against REMIT disclosure timing;
+  draft record of processing activities from the installation's configuration; REMIT
+  imports record the source platform and require confirmed reuse terms.
 - ETRM trade import into books, CSV exports of position, balance and gas-for-power reports, and signed hand-offs of decided cases for ERP/ETRM middleware.
 
 ### Changed

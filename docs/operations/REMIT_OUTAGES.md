@@ -12,8 +12,10 @@ Export the messages from the platform your desk follows (EEX Transparency, GIE I
 UMM, or another platform) as JSON or CSV, then:
 
 ```bash
-python scripts/ops/import_remit_umm.py --file umm_export.json --dry-run   # parse and report
-python scripts/ops/import_remit_umm.py --file umm_export.json
+python scripts/ops/import_remit_umm.py --platform GIE_IIP --file umm_export.json --dry-run
+python scripts/ops/import_remit_umm.py --platform GIE_IIP --file umm_export.json
+# A platform whose reuse terms are not published needs written confirmation first:
+python scripts/ops/import_remit_umm.py --platform EEX_TP --terms-confirmed --file eex.csv
 ```
 
 Accepted fields (case, spaces and underscores ignored): message id, version, publication

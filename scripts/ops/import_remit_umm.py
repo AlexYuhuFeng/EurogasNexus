@@ -4,10 +4,12 @@ Operators of gas production, storage, LNG and transmission facilities publish un
 as urgent market messages under REMIT. Export them from the platform your desk follows
 (EEX Transparency, GIE IIP, Gassco UMM...) as JSON or CSV in ACER's fields and import them
 here; each message version is stored once, and Market → Capacity & Events shows the latest
-version of each live or upcoming event. Check the platform's reuse terms for commercial use.
+version of each live or upcoming event. The platform is recorded with every message;
+platforms whose reuse terms are not published need ``--terms-confirmed`` (see
+``eurogas_nexus.domain.observations.remit_platforms``).
 
-    python scripts/ops/import_remit_umm.py --file gassco_umm.json
-    python scripts/ops/import_remit_umm.py --file eex_umm.csv --dry-run
+    python scripts/ops/import_remit_umm.py --platform GIE_IIP --file iip_umm.json
+    python scripts/ops/import_remit_umm.py --platform EEX_TP --terms-confirmed --file eex.csv
 """
 
 from __future__ import annotations
@@ -20,6 +22,10 @@ from eurogas_nexus.db.session import (
     get_session_factory,
     redact_database_url,
     resolve_database_url,
+)
+from eurogas_nexus.domain.observations.remit_platforms import (
+    REMIT_PLATFORMS,
+    source_reference_for,
 )
 from eurogas_nexus.domain.observations.remit_umm import (
     UmmParseError,
@@ -39,9 +45,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Export file missing or larger than {MAX_EXPORT_BYTES} bytes: {path}")
         return 2
     try:
+        reference = source_reference_for(
+            args.platform, path.name, terms_confirmed=args.terms_confirmed
+        )
+    except ValueError as exc:
+        print(f"Refused: {exc}")
+        return 2
+    try:
         messages = parse_umm_export(
             path.read_text(encoding="utf-8"),
-            source_reference=args.source_reference or f"operator-export:{path.name}",
+            source_reference=args.source_reference or reference,
         )
     except UmmParseError as exc:
         print(f"Refused: {exc}")
@@ -74,6 +87,14 @@ def main(argv: list[str] | None = None) -> int:
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--file", required=True, help="JSON or CSV export of gas UMMs")
+    parser.add_argument(
+        "--platform", required=True, choices=sorted(REMIT_PLATFORMS), help="Where it came from"
+    )
+    parser.add_argument(
+        "--terms-confirmed",
+        action="store_true",
+        help="The platform has confirmed commercial reuse in writing",
+    )
     parser.add_argument("--source-reference", default=None, help="Provenance label to store")
     parser.add_argument("--dry-run", action="store_true", help="Parse and report only")
     return parser.parse_args(argv)

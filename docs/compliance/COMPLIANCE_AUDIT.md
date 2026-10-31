@@ -75,7 +75,8 @@ data is required; ETRM imports carry an optional counterparty label only.
   function; acceptable for an employee system, to be confirmed by the customer's DPO.
 - **P2 (low, customer DPO):** record the processing activity, the retention period and the
   transfer mechanism (UK adequacy for Canada; standard clauses for Singapore) in the
-  customer's register.
+  customer's register. `scripts/ops/processing_register.py` drafts the Art. 30 record from
+  the installation's own configuration; the DPO completes lawful basis and transfers.
 
 ## 4. Market regulation
 
@@ -94,8 +95,12 @@ data is required; ETRM imports carry an optional counterparty label only.
   `docs/architecture/GLOBAL_DEPLOYMENT.md`). Compliance maps each desk to its books and
   reviews the group-to-scope map; analysis that is not book-bearing (market data, REMIT
   UMMs) is shared by source family, so a barrier on those needs a separate installation.
-- **M2 (low, customer compliance):** add surveillance of decision cases and hand-offs to the
-  firm's market-abuse monitoring (the audit trail is exportable).
+- **M2 (low, customer compliance):** `scripts/ops/surveillance_report.py` lines up decision
+  cases, recorded decisions and ETRM trades against REMIT disclosure timing and raises
+  alerts (late disclosure of the firm's own outages; activity on affected hubs before its own
+  or another participant's disclosure) as CSV or JSON for the firm's surveillance system.
+  Compliance sets `EUROGAS_NEXUS_REMIT_OWN_PARTICIPANTS`, schedules the report and reviews
+  the alerts; they are decision support, not findings.
 
 ## 5. Reporting
 
@@ -123,8 +128,12 @@ by design and stay with the systems of record.
 
 **Findings**
 
-- **D1 (low, customer):** confirm reuse terms of the REMIT platform the desk exports UMMs
-  from (EEX Transparency, GIE IIP, Gassco UMM).
+- **D1 (low, customer):** the REMIT import records the source platform with every message.
+  GIE IIP states its data may be reused with the source credited. For EEX Transparency,
+  Gassco and PRISMA no public commercial-reuse statement was found; the import refuses them
+  until the operator confirms the terms in writing (`--terms-confirmed`, stored with the
+  data). ACER's position is that platform restrictions on using published inside
+  information are not consistent with REMIT.
 - **D2 (low, product):** the licence register records display versus non-display use but
   does not yet enforce it per feature (for example, curves and risk are non-display use).
 
