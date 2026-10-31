@@ -23,10 +23,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "native-acceptance.yml"
-CALLERS = (
-    ROOT / ".github" / "workflows" / "ci.yml",
-    ROOT / ".github" / "workflows" / "ci-manual.yml",
-)
+CALLERS = (ROOT / ".github" / "workflows" / "ci.yml",)
 REUSABLE_CALL = "./.github/workflows/native-acceptance.yml"
 CANONICAL = {"python": "3.11.12", "node": "24.13.1", "rust": "1.94.0"}
 SOURCE_SHA = "a" * 40
@@ -303,7 +300,7 @@ def test_native_workflow_keeps_canonical_fallback_and_one_locked_build() -> None
     assert "eurogas-nexus-unsigned-native-acceptance" in uploads[0]["with"]["name"]
 
 
-@pytest.mark.parametrize("caller", CALLERS, ids=["ci", "ci-manual"])
+@pytest.mark.parametrize("caller", CALLERS, ids=["ci"])
 def test_native_callers_delegate_to_the_single_reusable_workflow(caller: Path) -> None:
     document = _load_workflow(caller)
     jobs = document["jobs"]
@@ -340,17 +337,14 @@ def test_native_callers_delegate_to_the_single_reusable_workflow(caller: Path) -
         assert "write_native_build_evidence" not in commands, name
 
 
-def test_ci_workflow_runs_the_native_pipeline_on_push_main_and_pull_request() -> None:
+def test_ci_workflow_runs_the_native_pipeline_on_push_pull_request_and_dispatch() -> None:
     triggers = _triggers(_load_workflow(CALLERS[0]))
 
-    assert set(triggers) == {"pull_request", "push"}
+    # One CI definition for every trigger: the former reduced "Manual CI" workflow is gone
+    # and a manual run is the full suite.
+    assert set(triggers) == {"pull_request", "push", "workflow_dispatch"}
     assert triggers["push"] == {"branches": ["main"]}
-
-
-def test_manual_ci_workflow_stays_manual_only() -> None:
-    triggers = _triggers(_load_workflow(CALLERS[1]))
-
-    assert set(triggers) == {"workflow_dispatch"}
+    assert not (ROOT / ".github" / "workflows" / "ci-manual.yml").exists()
 
 
 def test_portable_binary_preserves_tauri_production_embedding() -> None:

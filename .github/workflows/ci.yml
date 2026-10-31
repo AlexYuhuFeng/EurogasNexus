@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  # Run the full suite on demand (replaces the former reduced "Manual CI" workflow).
+  workflow_dispatch:
 
 permissions:
   contents: read

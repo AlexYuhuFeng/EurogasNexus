@@ -26,8 +26,8 @@ The single shared definition is
 `.github/workflows/weather-model-acceptance.yml`. It is both reusable
 (`workflow_call`) and manually dispatchable (`workflow_dispatch`), has read-only
 `contents` permission, accepts no ref/source inputs, checks out `github.sha`, uses
-canonical Python 3.11.12 on Ubuntu 24.04, and is called without inputs by both
-`ci.yml` and `ci-manual.yml`.
+canonical Python 3.11.12 on Ubuntu 24.04, and is called without inputs by
+`ci.yml` (push, pull request and manual dispatch).
 
 ## Install and execution sequence
 

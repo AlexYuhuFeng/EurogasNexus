@@ -24,7 +24,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "weather-model-acceptance.yml"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
-MANUAL = ROOT / ".github" / "workflows" / "ci-manual.yml"
 LOCK = ROOT / "requirements-scientific-ci.lock"
 PG_SCRIPT = ROOT / "scripts" / "ci" / "run_postgres_ci.sh"
 DOC = ROOT / "docs" / "engineering" / "WEATHER_MODEL_CI_CONTRACT.md"
@@ -437,7 +436,7 @@ def test_junit_gate_uses_exact_module_identity_not_testcase_names(
 
 
 def test_callers_use_one_shared_definition_and_keep_existing_pipelines() -> None:
-    for caller in (CI, MANUAL):
+    for caller in (CI,):
         document = _load(caller)
         calls = [
             job

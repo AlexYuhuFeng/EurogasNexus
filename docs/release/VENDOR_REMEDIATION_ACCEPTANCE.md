@@ -62,7 +62,7 @@ but verifying no integrity.
 `pnpm-lock.yaml` with `--frozen-lockfile`.
 
 **Files.** [ci.yml](../../.github/workflows/ci.yml),
-[ci-manual.yml](../../.github/workflows/ci-manual.yml),
+`ci-manual.yml` (since merged into `ci.yml` as a manual trigger),
 [scripts/ci/browser-acceptance](../../scripts/ci/browser-acceptance/).
 
 **Verify.** `grep -n "pip install" .github/workflows/*.yml` shows only

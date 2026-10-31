@@ -1,7 +1,7 @@
 name: SDK installed-wheel acceptance
 
-# This workflow is reusable and manually dispatchable. The root callers in
-# ci.yml and ci-manual.yml now wire it, and both callers pass no inputs. There
+# This workflow is reusable and manually dispatchable. ci.yml calls it (on push,
+# pull request and manual dispatch) and passes no inputs. There
 # is deliberately no arbitrary source-ref input: the checkout and the recorded
 # source identity are always github.sha (the helper also refuses a HEAD mismatch).
 on:

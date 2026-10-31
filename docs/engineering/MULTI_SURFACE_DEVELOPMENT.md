@@ -89,7 +89,7 @@ two x64 jobs:
   `scripts/ci/install_windows_canonical_python.ps1`.
 
 Linux ARM native coverage stays in the existing native pipeline; it is not
-silently claimed by this workflow. Both `ci.yml` and `ci-manual.yml` invoke this
+silently claimed by this workflow. `ci.yml` invokes this
 same workflow without inputs. Main pushes, pull requests and manual CI therefore
 exercise the installed SDK alongside Web and native builds:
 

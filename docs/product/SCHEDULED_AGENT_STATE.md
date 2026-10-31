@@ -77,7 +77,7 @@
 - Working tree: ` M docs/clients/UI_CONTENT_STANDARDS.md` (pre-existing audit
   addition, preserved), `?? output/` (assessment evidence, not committed).
 - `stash@{0}` preserved: `codex-strategy-wip-before-9f0652d`.
-- CI config present: `ci.yml`, `ci-manual.yml`, `release.yml`. Live GitHub CI
+- CI config present: `ci.yml` (also manually dispatchable), `release.yml`. Live GitHub CI
   status was not queried; local validation gates are run below.
 - CR-01 verified in current main: five primary workspaces and local task
   switchers; 13 legacy technical ids still resolve.
