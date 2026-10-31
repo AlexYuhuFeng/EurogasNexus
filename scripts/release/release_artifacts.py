@@ -87,27 +87,30 @@ def artifact_type(name: str) -> str:
     return "artifact"
 
 
+#: Files a release publishes. SHA256SUMS covers exactly these, so a customer can verify
+#: every downloaded asset and nothing in it names a file the release page does not have.
+PUBLISHED_SUFFIXES = (".exe", ".msi", ".deb", ".zip", ".tar.gz")
+PUBLISHED_NAMES = frozenset({"release-manifest.json", "signing-state.json"})
+
+
 def checksum_map(artifacts_dir: str | Path, *, include_manifest: bool = False) -> dict[str, str]:
+    """SHA-256 of every published asset at the top of the bundle.
+
+    Evidence files, merged signing-state inputs, nested copies left by artifact merges and
+    working directories (sbom/, release-evidence/, image-metadata/) are not published and
+    are therefore not listed.
+    """
+
     root = Path(artifacts_dir)
     result: dict[str, str] = {}
-    candidates = [path for path in root.rglob("*") if path.is_file()]
-    for path in sorted(candidates, key=lambda item: relative_name(item, root)):
+    for path in sorted(
+        (item for item in root.iterdir() if item.is_file()), key=lambda item: item.name
+    ):
         name = path.name
-        relative = relative_name(path, root)
-        if name in {
-            "SHA256SUMS",
-            "checksums.json",
-            "release-context.json",
-            "release-dry-run-report.json",
-        }:
-            continue
-        if relative.startswith("sbom/") and not name.endswith(".tar.gz"):
-            continue
-        if relative.startswith("release-evidence/") or relative.startswith("image-metadata/"):
-            continue
         if name == "release-manifest.json" and not include_manifest:
             continue
-        result[relative_name(path, root)] = sha256_file(path)
+        if name in PUBLISHED_NAMES or name.endswith(PUBLISHED_SUFFIXES):
+            result[name] = sha256_file(path)
     return result
 
 

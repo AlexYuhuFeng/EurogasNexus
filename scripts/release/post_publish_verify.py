@@ -22,19 +22,31 @@ from scripts.release.release_artifacts import verify_checksums  # noqa: E402
 from scripts.release.release_metadata import read_context  # noqa: E402
 
 
-def verify_attestations(repo: str, tag: str) -> dict:
-    result = subprocess.run(
-        ["gh", "attestation", "verify", "--repo", repo, "--tag", tag],
-        capture_output=True,
-        text=True,
-        check=False,
+def verify_attestations(repo: str, assets_dir: Path) -> dict:
+    """Verify the GitHub build-provenance attestation of every published asset."""
+
+    from scripts.release.release_artifacts import PUBLISHED_SUFFIXES
+
+    assets = sorted(
+        path
+        for path in assets_dir.iterdir()
+        if path.is_file() and path.name.endswith(PUBLISHED_SUFFIXES)
     )
-    if result.returncode == 0:
-        return {"status": "PASS", "detail": "gh attestation verify succeeded"}
-    return {
-        "status": "PENDING_EXTERNAL",
-        "detail": result.stderr.strip()[:300] or "attestation verification unavailable",
-    }
+    if not assets:
+        return {"status": "FAIL", "detail": "no published assets to verify"}
+    failures = []
+    for asset in assets:
+        result = subprocess.run(
+            ["gh", "attestation", "verify", str(asset), "--repo", repo],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            failures.append(f"{asset.name}: {(result.stderr or result.stdout).strip()[:200]}")
+    if failures:
+        return {"status": "FAIL", "detail": "; ".join(failures)[:600]}
+    return {"status": "PASS", "detail": f"attestations verified for {len(assets)} assets"}
 
 
 def inspect_image(image: str, digest: str) -> dict:
@@ -125,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
                 report["checks"].append(
                     {
                         "name": "attestations",
-                        **verify_attestations(args.repo, context["release_version"]),
+                        **verify_attestations(args.repo, Path(tmp)),
                     }
                 )
 
