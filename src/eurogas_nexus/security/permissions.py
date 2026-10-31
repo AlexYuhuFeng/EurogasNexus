@@ -245,6 +245,13 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/internal/portfolio/import-observations", Permission.OPERATOR),
     ("/api/internal/shadow-scheduler/tick", Permission.OPERATOR),
     ("/api/internal/sources/certification", Permission.OPERATOR),
+    # Anyone signed in may report a problem and see their own reports; the IT desk works them.
+    ("/api/support/reports", Permission.READ),
+    ("/api/support/reports/{report_id}", Permission.OPERATOR),
+    # Notification channels carry recipients and webhook secrets: administrators only.
+    ("/api/settings/notification-channels", Permission.ADMIN),
+    ("/api/settings/notification-channels/{channel_id}", Permission.ADMIN),
+    ("/api/settings/notification-channels/{channel_id}/test", Permission.ADMIN),
     ("/api/agent/plans/validate", Permission.GOVERNED),
     ("/api/agent/research", Permission.GOVERNED),
     ("/api/agent/runs", Permission.READ),
@@ -289,6 +296,8 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("PUT", "/api/portfolio/lng-terminal-terms/{terminal_id}", Permission.GOVERNED),
     # Reading a contract PDF into a draft (nothing stored); the save stays the governed write.
     ("POST", "/api/contracts/intake", Permission.GOVERNED),
+    # The tariff publication register is reference data everyone reads; the desk maintains it.
+    ("GET", "/api/route-cost/tariff-publications", Permission.READ),
 )
 
 PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {

@@ -87,3 +87,12 @@ def test_missing_mark_or_fx_is_reported_not_guessed():
             spot=lambda h: None,
             fx=FX,
         )
+
+
+def test_held_long_term_capacity_counts_only_the_variable_regas_cost():
+    from dataclasses import replace
+
+    spot = sheet([GATE])[0][0]
+    held = sheet([replace(GATE, capacity_basis="long_term", variable_regas_per_mwh=0.2)])[0][0]
+    assert held["regas_basis"] == "long_term"
+    assert held["max_bid_per_mwh"] - spot["max_bid_per_mwh"] == pytest.approx(1.3, abs=1e-3)

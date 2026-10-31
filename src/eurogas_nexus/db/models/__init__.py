@@ -112,6 +112,7 @@ from eurogas_nexus.db.models.route_cost import (
     CapacityProfileRecord,
     LiveMarketMarkRecord,
     RouteCandidateRecord,
+    TariffPublicationRecord,
     TsoTariffRecord,
     UpstreamContractRevisionRecord,
     UpstreamResourceContractRecord,
@@ -143,6 +144,12 @@ from eurogas_nexus.db.models.strategy import (
     StrategyRecord,
     StrategyRunRecord,
     StrategyVersionRecord,
+)
+from eurogas_nexus.db.models.support import (
+    NotificationChannelRecord,
+    NotificationDeliveryRecord,
+    NotificationOutboxRecord,
+    SupportReportRecord,
 )
 
 IngestionRunStatus = Literal[
@@ -279,6 +286,10 @@ __all__ = [
     "TradingBookRecord",
     "RemitUmmRecord",
     "LngCargoRecord",
+    "NotificationChannelRecord",
+    "NotificationDeliveryRecord",
+    "NotificationOutboxRecord",
+    "SupportReportRecord",
     "ContractDeliveryRecord",
     "CreditLineRecord",
     "LngTerminalTermsRecord",
@@ -340,6 +351,7 @@ __all__ = [
     "StrategyAllocationTargetRecord",
     "StrategyDefinitionRecord",
     "StrategyRunRecord",
+    "TariffPublicationRecord",
     "TsoTariffRecord",
     "TopologyMarketMapping",
     "UpstreamContractRevisionRecord",

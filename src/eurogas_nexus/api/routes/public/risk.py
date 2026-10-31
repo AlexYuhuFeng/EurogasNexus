@@ -252,6 +252,8 @@ def _instrument(order) -> str:
 
 
 class CreditLineRequest(BaseModel):
+    """An approved credit line: limit, collateral, and what faces the counterparty."""
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: str = Field(min_length=1, max_length=160)
     aliases: list[str] = Field(default_factory=list, max_length=20)
@@ -266,6 +268,8 @@ class CreditLineRequest(BaseModel):
 
 
 class MandateRequest(BaseModel):
+    """A trader's mandate: books, hubs, size, tenor, hedge band and instruments."""
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     trader: str = Field(min_length=1, max_length=128)
     display_name: str = Field(min_length=1, max_length=160)
@@ -411,6 +415,8 @@ def put_trader_mandate(mandate_id: str, body: MandateRequest, request: Request) 
 
 
 class TerminalTermsRequest(BaseModel):
+    """The firm's cost to land a cargo at one terminal, and the capacity it holds there."""
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: str = Field(min_length=1, max_length=128)
     country: str | None = Field(default=None, pattern="^[A-Z]{2}$")
@@ -422,6 +428,8 @@ class TerminalTermsRequest(BaseModel):
     other_per_mwh: float = Field(default=0.0, ge=-100, le=100)
     extra_sailing_days: float = Field(default=0.0, ge=0, le=60)
     source_note: str = Field(min_length=1, max_length=256)
+    capacity_basis: str = Field(default="spot", pattern="^(spot|long_term)$")
+    variable_regas_per_mwh: float | None = Field(default=None, ge=0, le=100)
 
 
 def _terms_row(record) -> dict:
@@ -438,6 +446,8 @@ def _terms_row(record) -> dict:
         "other_per_mwh": record.other_per_mwh,
         "extra_sailing_days": record.extra_sailing_days,
         "source_note": record.source_note,
+        "capacity_basis": record.capacity_basis or "spot",
+        "variable_regas_per_mwh": record.variable_regas_per_mwh,
         "updated_by": record.updated_by,
         "updated_at_utc": record.updated_at_utc.isoformat() if record.updated_at_utc else None,
     }
@@ -497,6 +507,8 @@ def put_lng_terminal_terms(terminal_id: str, body: TerminalTermsRequest, request
 
 
 class CargoBidBody(BaseModel):
+    """A cargo to price: size in MWh or MMBtu, arrival month, margin and voyage costs."""
+
     model_config = ConfigDict(extra="forbid")
     cargo_mwh: float | None = Field(default=None, gt=0, le=5_000_000)
     cargo_mmbtu: float | None = Field(default=None, gt=0, le=20_000_000)
@@ -569,6 +581,8 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
             other_per_mwh=r.other_per_mwh,
             extra_sailing_days=r.extra_sailing_days,
             source_note=r.source_note,
+            capacity_basis=r.capacity_basis or "spot",
+            variable_regas_per_mwh=r.variable_regas_per_mwh,
         )
         for r in records
     ]
@@ -609,6 +623,8 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
 
 
 class SellDownBody(BaseModel):
+    """Tomorrow's sell-down at one hub: the prices the desk sees and the cost of a miss."""
+
     model_config = ConfigDict(extra="forbid")
     hub: str = Field(min_length=2, max_length=16)
     contract_ids: list[str] = Field(default_factory=list, max_length=200)

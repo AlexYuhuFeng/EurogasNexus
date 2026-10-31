@@ -18,6 +18,7 @@ import {
   WorkspaceTabs,
 } from "@/components/ui";
 import { JobTimeline } from "@/components/JobTimeline";
+import { SupportInboxPanel } from "@/components/SupportInboxPanel";
 import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 
 type Translate = (key: string) => string;
@@ -365,6 +366,7 @@ export function RuntimeWorkspace({
       <div className="workspace-panel span-3 job-timeline-panel">
         <JobTimeline t={t} />
       </div>
+      <SupportInboxPanel t={t} />
       <div className="workspace-panel span-3 diagnostics-panel-wrapper">
         <DiagnosticsPanel t={t} />
       </div>

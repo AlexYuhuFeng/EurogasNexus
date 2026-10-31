@@ -35,6 +35,7 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "nwe.lng": "an acronym",
   "panel.lng": "an acronym in a vendor's own product name",
   "report.format_csv": "a file format's name",
+  "tariffs.tso": "an acronym",
   "report.format_pdf": "a file format's name",
   "report.format_xlsx": "a product's own name",
   "settings.chinese": "a language named in its own language",

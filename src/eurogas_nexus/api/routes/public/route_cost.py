@@ -1075,3 +1075,138 @@ def _env(
             "warnings": list(dict.fromkeys(warnings or [])),
         },
     }
+
+
+# ----------------------------------------------------------- tariff publication register
+
+
+def _publication_row(record, today) -> dict:
+    from eurogas_nexus.domain.route_cost.tariff_calendar import publication_state
+
+    try:
+        state = publication_state(
+            tso=record.tso,
+            gas_year=record.gas_year,
+            status=record.status,
+            today=today,
+            changed_at=record.changed_at_utc,
+            reviewed_at=record.reviewed_at_utc,
+        )
+        derived = {
+            "state": state.state,
+            "severity": state.severity,
+            "final_due": state.deadline.isoformat(),
+            "message": state.message,
+        }
+    except ValueError:
+        derived = {"state": "unknown", "severity": "watch", "final_due": None, "message": ""}
+    stamp = lambda value: value.isoformat() if value else None  # noqa: E731
+    return {
+        "publication_id": record.publication_id,
+        "tso": record.tso,
+        "country": record.country,
+        "gas_year": record.gas_year,
+        "status": record.status,
+        "url": record.url,
+        "published_on": stamp(record.published_on),
+        "last_checked_at_utc": stamp(record.last_checked_at_utc),
+        "changed_at_utc": stamp(record.changed_at_utc),
+        "reviewed_at_utc": stamp(record.reviewed_at_utc),
+        "reviewed_by": record.reviewed_by,
+        "note": record.note,
+        **derived,
+    }
+
+
+@router.get("/api/route-cost/tariff-publications")
+def list_tariff_publications(request: Request) -> dict:
+    """Each TSO's tariff publication per gas year and what the desk must do about it.
+
+    各 TSO 每个燃气年的费率发布登记：指示性/最终状态、截止日期（NC TAR）、页面是否变化。
+    """
+
+    from datetime import UTC, datetime
+
+    if not _db_is_configured():
+        return _env({"rows": []}, request, source="runtime-db-not-configured")
+    today = datetime.now(UTC).date()
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import TariffPublicationRecord
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = [
+                _publication_row(record, today)
+                for record in session.query(TariffPublicationRecord)
+                .order_by(TariffPublicationRecord.gas_year.desc(), TariffPublicationRecord.tso)
+                .all()
+            ]
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    order = {"breach": 0, "watch": 1, "ok": 2}
+    rows.sort(key=lambda row: (order.get(row["severity"], 3), row["final_due"] or ""))
+    return _env({"rows": rows}, request, source="runtime-postgresql")
+
+
+class TariffPublicationRequest(BaseModel):
+    """A TSO's tariff publication for one gas year, as the desk registers it."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    tso: str = Field(min_length=2, max_length=128)
+    country: str | None = Field(default=None, max_length=8)
+    gas_year: str = Field(pattern=r"^\d{4}([/-]\d{2,4})?$")
+    status: str = Field(pattern="^(expected|indicative|final)$")
+    url: str | None = Field(default=None, max_length=500)
+    note: str | None = Field(default=None, max_length=2000)
+    mark_reviewed: bool = False
+
+
+@router.put("/api/route-cost/tariff-publications/{publication_id}")
+def put_tariff_publication(
+    publication_id: str, body: TariffPublicationRequest, request: Request
+) -> dict:
+    """Register or update a TSO tariff publication; ``mark_reviewed`` clears a change flag."""
+
+    from datetime import UTC, datetime
+
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    if body.url and not body.url.startswith("https://"):
+        raise HTTPException(status_code=422, detail={"code": "url_must_be_https"})
+    actor = getattr(getattr(request.state, "identity", None), "principal_id", None) or "api"
+    now = datetime.now(UTC)
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import TariffPublicationRecord
+        from eurogas_nexus.db.repositories.audit import record_audit_event
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            record = session.get(TariffPublicationRecord, publication_id)
+            created = record is None
+            if record is None:
+                record = TariffPublicationRecord(publication_id=publication_id[:64])
+                session.add(record)
+            if record.status != body.status and body.status in {"indicative", "final"}:
+                record.published_on = now
+            record.tso, record.country, record.gas_year = body.tso, body.country, body.gas_year
+            record.status, record.url, record.note = body.status, body.url, body.note
+            if body.mark_reviewed:
+                record.reviewed_at_utc, record.reviewed_by = now, actor
+            record.updated_by, record.updated_at_utc = actor, now
+            record_audit_event(
+                session,
+                event_type="tariff.publication",
+                principal=actor,
+                action="tariff.publication.update",
+                resource=f"tariff_publication:{publication_id}",
+                outcome="created" if created else "updated",
+                severity="info",
+                detail=f"{body.tso} {body.gas_year} {body.status}",
+            )
+            session.commit()
+            payload = _publication_row(record, now.date())
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(payload, request, source="runtime-postgresql")

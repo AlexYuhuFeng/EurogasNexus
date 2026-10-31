@@ -26,6 +26,8 @@ import {
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { AlertCenter } from "./AlertCenter";
 import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
+import { ReportProblemDialog } from "./ReportProblemDialog";
+import { requestProblemReport } from "@/app/model/supportReport";
 import "./WorkspaceTopBar.css";
 
 interface WorkspaceTopBarProps {
@@ -54,7 +56,7 @@ interface WorkspaceTopBarProps {
     | "acknowledgeMonitoringAlert"
     | "analyzeMonitoringAlert"
   >;
-  t: (key: string) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
   onSearchTermChange: Dispatch<SetStateAction<string>>;
   onGasDayChange: (gasDay: string) => void;
   onDeliveryProductChange: (product: string) => void;
@@ -294,9 +296,26 @@ export function WorkspaceTopBar({
               {t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}
             </StatusBadge>
           )}
+          {!loading && currentUser && dataPlaneState(dataStatus) !== "ready" && (
+            <button
+              type="button"
+              className="link-button topbar-report-hint"
+              title={t("support.hint_title")}
+              onClick={() =>
+                requestProblemReport({
+                  category: "data",
+                  severity: "P2",
+                  summary: t("support.hint_summary", { state: t(runtimeDataAvailabilityLabelKey(runtimeAvailability)) }),
+                })
+              }
+            >
+              {t("support.hint")}
+            </button>
+          )}
           <div className="topbar-user-menu">
             {currentUser ? (
               <>
+                <ReportProblemDialog t={t} />
                 <HeaderPreferencesMenu
                   currentUser={currentUser}
                   language={language}

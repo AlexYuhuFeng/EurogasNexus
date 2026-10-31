@@ -85,8 +85,9 @@ def _checks() -> list[dict]:
     # a middle-office write (207 / 223); the signed decision hand-off adds a read (208 / 224);
     # the live map situation adds a read (209 / 225); risk limits, delivery performance,
     # LNG cargo bids and contract intake add nine (218 / 234); contract retire/reinstate
-    # and the sell-down plan add three (221 / 237).
-    check("public_surface_bounded", len(paths) == 221, f"public paths={len(paths)}")
+    # and the sell-down plan add three (221 / 237); problem reports, notification channels
+    # and the tariff publication register add seven paths, eight operations (228 / 245).
+    check("public_surface_bounded", len(paths) == 228, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

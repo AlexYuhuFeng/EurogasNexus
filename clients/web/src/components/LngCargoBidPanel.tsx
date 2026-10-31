@@ -22,6 +22,8 @@ const EMPTY_TERMS = {
   other_per_mwh: "0",
   extra_sailing_days: "0",
   source_note: "",
+  capacity_basis: "spot",
+  variable_regas_per_mwh: "",
 };
 
 /**
@@ -80,6 +82,8 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
       other_per_mwh: Number(draft.other_per_mwh || 0),
       extra_sailing_days: Number(draft.extra_sailing_days || 0),
       source_note: draft.source_note.trim(),
+      capacity_basis: draft.capacity_basis as "spot" | "long_term",
+      variable_regas_per_mwh: draft.variable_regas_per_mwh === "" ? null : Number(draft.variable_regas_per_mwh),
     };
     api.saveLngTerminalTerms(draft.terminal_id.trim(), body)
       .then(() => {
@@ -104,6 +108,8 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
       other_per_mwh: String(row.other_per_mwh),
       extra_sailing_days: String(row.extra_sailing_days),
       source_note: row.source_note,
+      capacity_basis: row.capacity_basis ?? "spot",
+      variable_regas_per_mwh: row.variable_regas_per_mwh === null || row.variable_regas_per_mwh === undefined ? "" : String(row.variable_regas_per_mwh),
     });
     setEditing(true);
   };
@@ -221,7 +227,7 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
                 <tr key={row.terminal_id}>
                   <td>
                     <button type="button" className="link-button" onClick={() => editTerms(row)}>{row.name}</button>{" "}
-                    <small>{row.hub} · {row.currency}/MWh</small>
+                    <small>{row.hub} · {row.currency}/MWh · {t(row.capacity_basis === "long_term" ? "lngbid.basis_long_term" : "lngbid.basis_spot")}</small>
                   </td>
                   <td className="num">{row.regas_tariff_per_mwh.toFixed(3)}</td>
                   <td className="num">{row.entry_tariff_per_mwh.toFixed(3)}</td>
@@ -239,7 +245,17 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
           <label><span>{t("lngbid.terminal")}</span><input value={draft.name} onChange={field("name")} /></label>
           <label><span>{t("lngbid.country")}</span><input value={draft.country} maxLength={2} onChange={field("country")} /></label>
           <label><span>{t("lngbid.hub")}</span><input value={draft.hub} onChange={field("hub")} /></label>
-          <label><span>{t("lngbid.regas")}</span><input inputMode="decimal" value={draft.regas_tariff_per_mwh} onChange={field("regas_tariff_per_mwh")} /></label>
+          <label>
+            <span>{t("lngbid.capacity_basis")}</span>
+            <select value={draft.capacity_basis} onChange={field("capacity_basis")}>
+              <option value="spot">{t("lngbid.basis_spot")}</option>
+              <option value="long_term">{t("lngbid.basis_long_term")}</option>
+            </select>
+          </label>
+          <label><span>{t(draft.capacity_basis === "long_term" ? "lngbid.regas_fee_sunk" : "lngbid.regas")}</span><input inputMode="decimal" value={draft.regas_tariff_per_mwh} onChange={field("regas_tariff_per_mwh")} /></label>
+          {draft.capacity_basis === "long_term" && (
+            <label><span>{t("lngbid.variable_regas")}</span><input inputMode="decimal" value={draft.variable_regas_per_mwh} onChange={field("variable_regas_per_mwh")} /></label>
+          )}
           <label><span>{t("lngbid.entry")}</span><input inputMode="decimal" value={draft.entry_tariff_per_mwh} onChange={field("entry_tariff_per_mwh")} /></label>
           <label><span>{t("lngbid.fuel")}</span><input inputMode="decimal" value={draft.fuel_retention_pct} onChange={field("fuel_retention_pct")} /></label>
           <label><span>{t("lngbid.port")}</span><input inputMode="decimal" value={draft.port_costs_per_cargo} onChange={field("port_costs_per_cargo")} /></label>

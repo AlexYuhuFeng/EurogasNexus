@@ -196,3 +196,27 @@ class LiveMarketMarkRecord(Base):
     source_system: Mapped[str] = mapped_column(String(128), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(256), nullable=False)
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TariffPublicationRecord(Base):
+    """One TSO's tariff publication for one gas year: status, where, last checked."""
+
+    __tablename__ = "tso_tariff_publications"
+
+    publication_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tso: Mapped[str] = mapped_column(String(128), nullable=False)
+    country: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    gas_year: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)  # expected, indicative, final
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    published_on: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_checked_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    changed_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

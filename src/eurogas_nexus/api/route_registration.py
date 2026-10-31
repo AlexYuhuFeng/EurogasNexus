@@ -41,6 +41,7 @@ from eurogas_nexus.api.routes.public.storage import router as storage_router
 from eurogas_nexus.api.routes.public.strategy_lab import router as strategy_lab_router
 from eurogas_nexus.api.routes.public.strategy_registry import router as strategy_registry_router
 from eurogas_nexus.api.routes.public.streaming import router as streaming_router
+from eurogas_nexus.api.routes.public.support import router as support_router
 from eurogas_nexus.api.routes.public.weather import router as weather_router
 
 
@@ -66,6 +67,7 @@ def register_routes(
         app.include_router(monitoring_router)
         app.include_router(portfolio_router)
         app.include_router(risk_router)
+        app.include_router(support_router)
         app.include_router(fundamentals_router)
         app.include_router(physical_router)
         app.include_router(lng_router)

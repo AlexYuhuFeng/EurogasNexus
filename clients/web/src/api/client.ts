@@ -2746,6 +2746,8 @@ export interface LngTerminalTermsDTO {
   other_per_mwh: number;
   extra_sailing_days: number;
   source_note: string;
+  capacity_basis?: "spot" | "long_term";
+  variable_regas_per_mwh?: number | null;
   updated_by?: string;
   updated_at_utc?: string | null;
 }
@@ -2793,6 +2795,76 @@ export interface LngCargoBidInput {
   boil_off_pct_per_day: number;
   charter_per_day: number;
   ranking_currency: string;
+}
+
+export interface SupportReportDTO {
+  report_id: string;
+  reporter: string;
+  reporter_role: string;
+  severity: "P1" | "P2" | "P3" | "P4";
+  category: string;
+  summary: string;
+  description: string;
+  page: string | null;
+  client_context: Record<string, unknown> | null;
+  server_context: Record<string, unknown> | null;
+  status: "open" | "acknowledged" | "resolved";
+  assignee: string | null;
+  resolution: string | null;
+  created_at_utc: string;
+  updated_at_utc: string;
+}
+
+export interface SupportReportInput {
+  severity: string;
+  category: string;
+  summary: string;
+  description: string;
+  page?: string | null;
+  client_context?: Record<string, unknown> | null;
+}
+
+export interface NotificationChannelDTO {
+  channel_id: string;
+  name: string;
+  kind: "email" | "webhook" | "sms";
+  recipients: string | null;
+  webhook: string | null;
+  categories: string[];
+  min_severity: string;
+  enabled: boolean;
+  updated_by: string;
+  updated_at_utc: string;
+  last_delivery: { status: string; detail: string; at_utc: string } | null;
+}
+
+export interface NotificationChannelInput {
+  name: string;
+  kind: "email" | "webhook" | "sms";
+  recipients?: string | null;
+  webhook_url?: string | null;
+  categories: string[];
+  min_severity: string;
+  enabled: boolean;
+}
+
+export interface TariffPublicationDTO {
+  publication_id: string;
+  tso: string;
+  country: string | null;
+  gas_year: string;
+  status: "expected" | "indicative" | "final";
+  url: string | null;
+  published_on: string | null;
+  last_checked_at_utc: string | null;
+  changed_at_utc: string | null;
+  reviewed_at_utc: string | null;
+  reviewed_by: string | null;
+  note: string | null;
+  state: string;
+  severity: "ok" | "watch" | "breach";
+  final_due: string | null;
+  message: string;
 }
 
 /** One contract term read from a PDF, with the page and words it came from. */
@@ -4578,6 +4650,27 @@ export const api = {
     get<{ rows: LngTerminalTermsDTO[] }>("/portfolio/lng-terminal-terms", undefined, options),
   saveLngTerminalTerms: (terminalId: string, body: LngTerminalTermsInput) =>
     put<{ key: string; created: boolean }>(`/portfolio/lng-terminal-terms/${encodeURIComponent(terminalId)}`, body),
+  tariffPublications: (options?: ApiRequestOptions) =>
+    get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
+  saveTariffPublication: (
+    publicationId: string,
+    body: { tso: string; country: string | null; gas_year: string; status: string; url: string | null; mark_reviewed: boolean },
+  ) => put<TariffPublicationDTO>(`/route-cost/tariff-publications/${encodeURIComponent(publicationId)}`, body),
+  reportProblem: (body: SupportReportInput) => post<SupportReportDTO>("/support/reports", body),
+  supportReports: (status?: string, options?: ApiRequestOptions) =>
+    get<{ rows: SupportReportDTO[]; scope: "all" | "mine" }>(
+      "/support/reports",
+      status ? { status } : undefined,
+      options,
+    ),
+  updateSupportReport: (reportId: string, body: { status: string; assignee?: string | null; resolution?: string | null }) =>
+    patch<SupportReportDTO>(`/support/reports/${encodeURIComponent(reportId)}`, body),
+  notificationChannels: (options?: ApiRequestOptions) =>
+    get<{ rows: NotificationChannelDTO[] }>("/settings/notification-channels", undefined, options),
+  saveNotificationChannel: (channelId: string, body: NotificationChannelInput) =>
+    put<NotificationChannelDTO>(`/settings/notification-channels/${encodeURIComponent(channelId)}`, body),
+  testNotificationChannel: (channelId: string) =>
+    post<{ sent: boolean; detail: string }>(`/settings/notification-channels/${encodeURIComponent(channelId)}/test`, {}),
   sellDownPlan: (body: SellDownInput, options?: ApiRequestOptions) =>
     post<SellDownPlanDTO>("/portfolio/sell-down-plan", body, options),
   lngCargoBid: (body: LngCargoBidInput, options?: ApiRequestOptions) =>

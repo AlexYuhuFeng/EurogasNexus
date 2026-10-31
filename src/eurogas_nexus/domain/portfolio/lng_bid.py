@@ -18,6 +18,14 @@ TTF). The range runs the same sum on the hub marks of the month before and after
 because a cargo's arrival slips. Terminals are ranked on the bid in one currency; the
 result names the hub mark and its month for each, so the bid can be checked against the
 screen. Decision support for pricing a bid, not an offer.
+
+Regas capacity is bought two ways, and the bid treats them differently. A **spot slot**
+bought for this cargo costs its price, so ``regas_tariff_per_mwh`` is a cost of the cargo.
+**Long-term capacity** the firm already holds (an annual or multi-year contract) is paid
+whether this cargo lands or not: the fee is sunk, and only the variable part
+(``variable_regas_per_mwh``, for example the terminal's commodity charge) counts. Using a
+held slot for this cargo may still have an opportunity cost (the slot could be sold on the
+secondary market); that is the desk's judgement, entered as ``other_per_mwh``.
 """
 
 from __future__ import annotations
@@ -42,6 +50,8 @@ class TerminalTerms:
     other_per_mwh: float = 0.0
     extra_sailing_days: float = 0.0
     source_note: str = ""
+    capacity_basis: str = "spot"  # spot or long_term
+    variable_regas_per_mwh: float | None = None
 
 
 @dataclass(frozen=True)
@@ -67,8 +77,13 @@ def _bid(terms: TerminalTerms, request: CargoBidRequest, price: float, to_hub: f
     after_boil_off = energy * max(0.0, 1 - request.boil_off_pct_per_day / 100 * days)
     sent_out = after_boil_off * (1 - terms.fuel_retention_pct / 100)
     revenue = sent_out * price
+    regas = (
+        (terms.variable_regas_per_mwh or 0.0)
+        if terms.capacity_basis == "long_term"
+        else terms.regas_tariff_per_mwh
+    )
     costs = (
-        energy * (terms.regas_tariff_per_mwh + terms.other_per_mwh)
+        energy * (regas + terms.other_per_mwh)
         + sent_out * terms.entry_tariff_per_mwh
         + terms.port_costs_per_cargo
         + request.charter_per_day * to_hub * days
@@ -134,6 +149,7 @@ def cargo_bid_sheet(
                 f"max_bid_{request.ranking_currency.lower()}_per_mwh": round(bid * to_rank, 3),
                 "cargo_value": round(bid * request.cargo_mwh, 0),
                 "terms_source": terms.source_note,
+                "regas_basis": terms.capacity_basis,
             }
         )
     key = f"max_bid_{request.ranking_currency.lower()}_per_mwh"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NotificationChannelsPanel } from "@/components/NotificationChannelsPanel";
 import type {
   CredentialProviderDTO,
   RuntimeDbStatusDTO,
@@ -154,6 +155,11 @@ export function SettingsCenter({
 
       <PersonalPreferencesPanel t={t} principalId={principalId} />
       <OrganisationDefaultsPanel t={t} canManage={canManageOrganisation} />
+      {canManageOrganisation && (
+        <div className="workspace-panel span-3">
+          <NotificationChannelsPanel t={t} />
+        </div>
+      )}
 
       <div className="workspace-panel span-3 settings-about-panel">
         <div className="panel-title-row">

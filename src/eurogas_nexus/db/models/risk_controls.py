@@ -96,6 +96,11 @@ class LngTerminalTermsRecord(Base):
     other_per_mwh: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     #: Extra sailing days versus the firm's reference terminal, for boil-off and charter.
     extra_sailing_days: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    #: ``spot``: the regas tariff is the price of a spot slot bought for this cargo.
+    #: ``long_term``: the firm already holds capacity, the fee is sunk, and only the
+    #: variable part (``variable_regas_per_mwh``) is a cost of this cargo.
+    capacity_basis: Mapped[str] = mapped_column(String(16), nullable=False, default="spot")
+    variable_regas_per_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
     source_note: Mapped[str] = mapped_column(String(256), nullable=False)
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

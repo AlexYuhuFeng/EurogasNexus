@@ -313,6 +313,57 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         example="Example Energy Trading Ltd,A0001234X.GB",
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_SMTP_HOST",
+        scope="OPERATOR",
+        purpose="The firm's SMTP relay for email notifications (alerts, IT desk reports).",
+        example="smtp.example-energy.internal",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SMTP_PORT",
+        scope="OPERATOR",
+        purpose="SMTP relay port (default 587).",
+        example="587",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SMTP_USERNAME",
+        scope="OPERATOR",
+        purpose="SMTP login, when the relay requires one.",
+        example="eurogas-nexus",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SMTP_PASSWORD",
+        scope="OPERATOR",
+        purpose="SMTP password, when the relay requires one.",
+        sensitivity="secret",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SMTP_FROM",
+        scope="OPERATOR",
+        purpose="Sender address for notification emails.",
+        example="eurogas-nexus@example-energy.com",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SMTP_STARTTLS",
+        scope="OPERATOR",
+        purpose="Upgrade the SMTP connection with STARTTLS (default true).",
+        example="true",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SMS_GATEWAY_URL",
+        scope="OPERATOR",
+        purpose=(
+            "The firm's SMS gateway endpoint; it receives {\"to\", \"text\"} per number for "
+            "urgent notifications."
+        ),
+        example="https://sms-gateway.example-energy.internal/send",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SMS_GATEWAY_TOKEN",
+        scope="OPERATOR",
+        purpose="Bearer token for the SMS gateway, when it requires one.",
+        sensitivity="secret",
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_OWN_LEGAL_NAMES",
         scope="OPERATOR",
         purpose=(

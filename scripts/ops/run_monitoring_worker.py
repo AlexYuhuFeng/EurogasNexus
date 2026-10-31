@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from datetime import UTC, datetime
 
 from eurogas_nexus.application.monitoring_service import scan_monitoring_conditions
+from eurogas_nexus.application.notifications import dispatch, mirror_monitoring_alerts
 from eurogas_nexus.application.service_identity import (
     configured_service_principal_name,
     resolve_service_authority,
@@ -62,7 +64,16 @@ def main() -> int:
                     max_llm_enrichments=max(0, args.max_llm_enrichments),
                     service_authority=authority,
                 )
-            print(json.dumps({"status": "ok", **result}), flush=True)
+                # New alerts go to the outbox and every due notification is dispatched in
+                # the same pass, so a desk hears about a stale source within one cycle.
+                now = datetime.now(UTC)
+                queued = mirror_monitoring_alerts(session, now=now)
+                sent = dispatch(session, now=now)
+                session.commit()
+            print(
+                json.dumps({"status": "ok", **result, "notified": {"queued": queued, **sent}}),
+                flush=True,
+            )
         except Exception as exc:
             print(
                 json.dumps(

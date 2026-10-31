@@ -8,6 +8,7 @@ import { RiskLimitsPanel } from "@/components/RiskLimitsPanel";
 import { DeliveryPerformancePanel } from "@/components/DeliveryPerformancePanel";
 import { LngCargoBidPanel } from "@/components/LngCargoBidPanel";
 import { SellDownPanel } from "@/components/SellDownPanel";
+import { TariffPublicationsPanel } from "@/components/TariffPublicationsPanel";
 import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
 import { routeCostDraftForRoute } from "@/app/model/routeCostModel";
 import { useRouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
@@ -352,6 +353,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             />
             <CapacityBillingPanel t={t} capacityBilling={capacityBilling} />
             <LngCargoBidPanel t={t} />
+            <TariffPublicationsPanel t={t} />
           </>
         )}
         {task === "exposure" && <PositionLadderPanel t={t} />}

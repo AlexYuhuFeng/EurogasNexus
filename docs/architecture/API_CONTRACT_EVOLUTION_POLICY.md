@@ -515,3 +515,22 @@ rows gain `hedge_policy`, `hedge_ratio_range`, `hedge_room_mwh` and `instruments
 mandate write accepts the hedge band and instruments (422 `unknown_instrument`,
 `hedge_band_inverted`). Public census: 221 paths / 237 operations.
 
+## 2026-10-31 additive: problem reports, notifications, tariff publications
+
+Migration `0055_desk_operations` also adds `support_reports`, `notification_channels`,
+`notification_outbox`, `notification_deliveries` and `tso_tariff_publications`, and
+`capacity_basis` / `variable_regas_per_mwh` to `lng_terminal_terms`.
+
+| Path | Method | Permission | Purpose |
+|---|---|---|---|
+| `/api/support/reports` | POST | READ (any signed-in user) | Report a problem to the IT desk with diagnostics |
+| `/api/support/reports` | GET | READ | Operators see all reports, others their own (`scope`) |
+| `/api/support/reports/{report_id}` | PATCH | OPERATOR | Acknowledge, assign, resolve (resolution required); audited |
+| `/api/settings/notification-channels` | GET | ADMIN | Channels with their last delivery; webhook URLs redacted |
+| `/api/settings/notification-channels/{channel_id}` | PUT | ADMIN | Email, webhook (encrypted, https only) or SMS channel; audited |
+| `/api/settings/notification-channels/{channel_id}/test` | POST | ADMIN | Send a test now |
+| `/api/route-cost/tariff-publications` | GET | READ | TSO tariff publications with NC TAR deadline state |
+| `/api/route-cost/tariff-publications/{publication_id}` | PUT | GOVERNED | Register, update, mark final or reviewed; audited |
+
+Public census: 228 paths / 245 operations.
+
