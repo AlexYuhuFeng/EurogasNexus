@@ -2748,11 +2748,21 @@ export interface LngTerminalTermsDTO {
   source_note: string;
   capacity_basis?: "spot" | "long_term";
   variable_regas_per_mwh?: number | null;
+  regime?: "regulated_indexed" | "regulated" | "auction" | "negotiated";
+  fixed_per_cargo?: number;
+  by_cargo_class?: Record<string, number> | null;
+  source_url?: string | null;
+  source_sha256?: string | null;
+  effective_from?: string | null;
+  retrieved_at_utc?: string | null;
   updated_by?: string;
   updated_at_utc?: string | null;
 }
 
-export type LngTerminalTermsInput = Omit<LngTerminalTermsDTO, "terminal_id" | "currency" | "updated_by" | "updated_at_utc">;
+export type LngTerminalTermsInput = Omit<
+  LngTerminalTermsDTO,
+  "terminal_id" | "currency" | "updated_by" | "updated_at_utc" | "by_cargo_class" | "source_sha256" | "retrieved_at_utc"
+>;
 
 export interface LngCargoBidRowDTO {
   rank: number;
@@ -2775,6 +2785,10 @@ export interface LngCargoBidRowDTO {
   bid_pct_of_hub: number | null;
   cargo_value: number;
   terms_source: string;
+  regas_basis?: string;
+  regime?: string;
+  regas_per_mwh?: number;
+  tariff_from?: string;
   [ranking: `max_bid_${string}_per_mwh`]: number;
 }
 

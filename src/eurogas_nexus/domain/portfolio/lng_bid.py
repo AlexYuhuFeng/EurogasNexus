@@ -52,6 +52,38 @@ class TerminalTerms:
     source_note: str = ""
     capacity_basis: str = "spot"  # spot or long_term
     variable_regas_per_mwh: float | None = None
+    regime: str = "negotiated"
+    fixed_per_cargo: float = 0.0
+    by_cargo_class: dict | None = None  # {"med_max": total, "standard": total, ...}
+    effective_from: str = ""
+
+
+#: Cargo classes as the French regulated tariff defines them (energy per cargo, MWh).
+CARGO_CLASSES = (
+    ("med_max", 500_000.0),
+    ("standard", 1_000_000.0),
+    ("q_flex", 1_400_000.0),
+    ("q_max", 1_700_000.0),
+)
+
+
+def regas_charge(terms: TerminalTerms, cargo_mwh: float) -> float | None:
+    """Total regas charge for one cargo, or None when the tariff cannot take this cargo.
+
+    * long-term capacity already held: only the variable part (the rest is sunk);
+    * a tariff by cargo class: the total of the smallest class that holds the cargo;
+    * otherwise the fixed charge per cargo plus the tariff per MWh.
+    """
+
+    if terms.capacity_basis == "long_term":
+        return (terms.variable_regas_per_mwh or 0.0) * cargo_mwh
+    if terms.by_cargo_class:
+        for name, energy in CARGO_CLASSES:
+            if cargo_mwh <= energy * 1.05:
+                total = terms.by_cargo_class.get(name)
+                return None if total is None else float(total)
+        return None
+    return terms.fixed_per_cargo + terms.regas_tariff_per_mwh * cargo_mwh
 
 
 @dataclass(frozen=True)
@@ -71,19 +103,15 @@ def _neighbours(month: str) -> tuple[str, str]:
     return before, after
 
 
-def _bid(terms: TerminalTerms, request: CargoBidRequest, price: float, to_hub: float):
+def _bid(terms: TerminalTerms, request: CargoBidRequest, price: float, to_hub: float, regas: float):
     energy = request.cargo_mwh
     days = max(0.0, terms.extra_sailing_days)
     after_boil_off = energy * max(0.0, 1 - request.boil_off_pct_per_day / 100 * days)
     sent_out = after_boil_off * (1 - terms.fuel_retention_pct / 100)
     revenue = sent_out * price
-    regas = (
-        (terms.variable_regas_per_mwh or 0.0)
-        if terms.capacity_basis == "long_term"
-        else terms.regas_tariff_per_mwh
-    )
     costs = (
-        energy * (regas + terms.other_per_mwh)
+        regas
+        + energy * terms.other_per_mwh
         + sent_out * terms.entry_tariff_per_mwh
         + terms.port_costs_per_cargo
         + request.charter_per_day * to_hub * days
@@ -119,12 +147,19 @@ def cargo_bid_sheet(
                 f"{terms.name}: no ECB rate between {terms.currency} and {request.ranking_currency}"
             )
             continue
-        breakeven, bid, sent_out, costs = _bid(terms, request, price, to_hub)
+        regas = regas_charge(terms, request.cargo_mwh)
+        if regas is None:
+            warnings.append(
+                f"{terms.name}: the published tariff has no class for a "
+                f"{request.cargo_mwh / 1000:,.0f} GWh cargo"
+            )
+            continue
+        breakeven, bid, sent_out, costs = _bid(terms, request, price, to_hub, regas)
         bids = [bid]
         for month in (before, after):
             other = mark(terms.hub, month)
             if other is not None:
-                bids.append(_bid(terms, request, other, to_hub)[1])
+                bids.append(_bid(terms, request, other, to_hub, regas)[1])
         rows.append(
             {
                 "terminal": terms.name,
@@ -150,6 +185,9 @@ def cargo_bid_sheet(
                 "cargo_value": round(bid * request.cargo_mwh, 0),
                 "terms_source": terms.source_note,
                 "regas_basis": terms.capacity_basis,
+                "regime": terms.regime,
+                "regas_per_mwh": round(regas / request.cargo_mwh, 4),
+                "tariff_from": terms.effective_from,
             }
         )
     key = f"max_bid_{request.ranking_currency.lower()}_per_mwh"

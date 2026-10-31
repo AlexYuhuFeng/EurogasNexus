@@ -45,6 +45,17 @@ def upgrade() -> None:
             sa.Column("capacity_basis", sa.String(16), nullable=False, server_default="spot")
         )
         batch.add_column(sa.Column("variable_regas_per_mwh", sa.Float(), nullable=True))
+        batch.add_column(
+            sa.Column("regime", sa.String(24), nullable=False, server_default="negotiated")
+        )
+        batch.add_column(
+            sa.Column("fixed_per_cargo", sa.Float(), nullable=False, server_default="0")
+        )
+        batch.add_column(sa.Column("by_cargo_class", sa.JSON(), nullable=True))
+        batch.add_column(sa.Column("source_url", sa.String(500), nullable=True))
+        batch.add_column(sa.Column("source_sha256", sa.String(64), nullable=True))
+        batch.add_column(sa.Column("effective_from", sa.String(32), nullable=True))
+        batch.add_column(sa.Column("retrieved_at_utc", sa.DateTime(timezone=True), nullable=True))
     op.create_table(
         "tso_tariff_publications",
         sa.Column("publication_id", sa.String(64), primary_key=True),
@@ -123,6 +134,9 @@ def downgrade() -> None:
     op.drop_table("support_reports")
     op.drop_table("tso_tariff_publications")
     with op.batch_alter_table("lng_terminal_terms") as batch:
+        for column in ("retrieved_at_utc", "effective_from", "source_sha256", "source_url",
+                       "by_cargo_class", "fixed_per_cargo", "regime"):
+            batch.drop_column(column)
         batch.drop_column("variable_regas_per_mwh")
         batch.drop_column("capacity_basis")
     with op.batch_alter_table("trader_mandates") as batch:

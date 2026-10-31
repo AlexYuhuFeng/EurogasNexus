@@ -24,6 +24,10 @@ const EMPTY_TERMS = {
   source_note: "",
   capacity_basis: "spot",
   variable_regas_per_mwh: "",
+  regime: "negotiated",
+  fixed_per_cargo: "0",
+  source_url: "",
+  effective_from: "",
 };
 
 /**
@@ -84,6 +88,10 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
       source_note: draft.source_note.trim(),
       capacity_basis: draft.capacity_basis as "spot" | "long_term",
       variable_regas_per_mwh: draft.variable_regas_per_mwh === "" ? null : Number(draft.variable_regas_per_mwh),
+      regime: draft.regime as LngTerminalTermsInput["regime"],
+      fixed_per_cargo: Number(draft.fixed_per_cargo || 0),
+      source_url: draft.source_url.trim() || null,
+      effective_from: draft.effective_from.trim() || null,
     };
     api.saveLngTerminalTerms(draft.terminal_id.trim(), body)
       .then(() => {
@@ -110,6 +118,10 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
       source_note: row.source_note,
       capacity_basis: row.capacity_basis ?? "spot",
       variable_regas_per_mwh: row.variable_regas_per_mwh === null || row.variable_regas_per_mwh === undefined ? "" : String(row.variable_regas_per_mwh),
+      regime: row.regime ?? "negotiated",
+      fixed_per_cargo: String(row.fixed_per_cargo ?? 0),
+      source_url: row.source_url ?? "",
+      effective_from: row.effective_from ?? "",
     });
     setEditing(true);
   };
@@ -180,7 +192,10 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
                     {formatPrice(row.hub_mark, `${row.currency}/MWh`)}
                     {row.spot !== null && <small> {t("lngbid.spot", { price: row.spot.toFixed(3) })}</small>}
                   </td>
-                  <td className="num">{row.costs_per_mwh.toFixed(3)}</td>
+                  <td className="num">
+                    {row.costs_per_mwh.toFixed(3)}
+                    {row.regas_per_mwh !== undefined && <small> {t("lngbid.of_which_regas", { value: row.regas_per_mwh.toFixed(3) })}</small>}
+                  </td>
                   <td className="num">{row.breakeven_per_mwh.toFixed(3)}</td>
                   <td className="num"><strong>{row.max_bid_per_mwh.toFixed(3)}</strong></td>
                   <td className="num">{row.bid_low_per_mwh.toFixed(2)} - {row.bid_high_per_mwh.toFixed(2)}</td>
@@ -229,12 +244,24 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
                     <button type="button" className="link-button" onClick={() => editTerms(row)}>{row.name}</button>{" "}
                     <small>{row.hub} · {row.currency}/MWh · {t(row.capacity_basis === "long_term" ? "lngbid.basis_long_term" : "lngbid.basis_spot")}</small>
                   </td>
-                  <td className="num">{row.regas_tariff_per_mwh.toFixed(3)}</td>
+                  <td className="num">
+                    {row.by_cargo_class
+                      ? <small>{Object.entries(row.by_cargo_class).map(([cls, total]) => `${t(`lngbid.class_${cls}`)} ${formatMoney(total, row.currency)}`).join(" · ")}</small>
+                      : row.fixed_per_cargo
+                        ? <>{formatMoney(row.fixed_per_cargo, row.currency)} <small>{t("lngbid.per_cargo")}</small></>
+                        : row.regas_tariff_per_mwh.toFixed(3)}
+                  </td>
                   <td className="num">{row.entry_tariff_per_mwh.toFixed(3)}</td>
                   <td className="num">{row.fuel_retention_pct.toFixed(2)}%</td>
                   <td className="num">{formatMoney(row.port_costs_per_cargo, row.currency)}</td>
                   <td className="num">{row.extra_sailing_days.toFixed(1)}</td>
-                  <td><small>{row.source_note}</small></td>
+                  <td>
+                    <span className="limit-badge" data-status={row.regime === "negotiated" ? "watch" : "ok"}>{t(`lngbid.regime_${row.regime ?? "negotiated"}`)}</span>{" "}
+                    <small>{row.source_note}</small>
+                    {row.source_url && (
+                      <div><small><a href={row.source_url} target="_blank" rel="noreferrer noopener">{t("lngbid.source_doc")}</a>{row.retrieved_at_utc ? ` · ${t("lngbid.read_on", { date: row.retrieved_at_utc.slice(0, 10) })}` : ""}</small></div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -261,7 +288,16 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
           <label><span>{t("lngbid.port")}</span><input inputMode="decimal" value={draft.port_costs_per_cargo} onChange={field("port_costs_per_cargo")} /></label>
           <label><span>{t("lngbid.other")}</span><input inputMode="decimal" value={draft.other_per_mwh} onChange={field("other_per_mwh")} /></label>
           <label><span>{t("lngbid.sailing")}</span><input inputMode="decimal" value={draft.extra_sailing_days} onChange={field("extra_sailing_days")} /></label>
+          <label>
+            <span>{t("lngbid.regime")}</span>
+            <select value={draft.regime} onChange={field("regime")}>
+              {["negotiated", "auction", "regulated", "regulated_indexed"].map((value) => <option key={value} value={value}>{t(`lngbid.regime_${value}`)}</option>)}
+            </select>
+          </label>
+          <label><span>{t("lngbid.fixed_per_cargo")}</span><input inputMode="decimal" value={draft.fixed_per_cargo} onChange={field("fixed_per_cargo")} /></label>
           <label><span>{t("lngbid.source")}</span><input value={draft.source_note} onChange={field("source_note")} placeholder={t("lngbid.source_hint")} /></label>
+          <label><span>{t("lngbid.source_url")}</span><input type="url" value={draft.source_url} placeholder="https://" onChange={field("source_url")} /></label>
+          <label><span>{t("lngbid.effective_from")}</span><input value={draft.effective_from} placeholder="2027-04-01" onChange={field("effective_from")} /></label>
           <button
             type="button"
             disabled={!draft.terminal_id.trim() || !draft.name.trim() || draft.regas_tariff_per_mwh === "" || !draft.source_note.trim()}

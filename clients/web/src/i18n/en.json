@@ -4154,5 +4154,21 @@
   "tariffs.id": "Publication ID",
   "tariffs.country": "Country",
   "tariffs.url": "Publication page (https)",
-  "tariffs.save": "Save"
+  "tariffs.save": "Save",
+  "lngbid.per_cargo": "per cargo",
+  "lngbid.class_med_max": "Med-Max",
+  "lngbid.class_standard": "Std",
+  "lngbid.class_q_flex": "Q-Flex",
+  "lngbid.class_q_max": "Q-Max",
+  "lngbid.regime": "Pricing",
+  "lngbid.regime_regulated_indexed": "Regulated, indexed",
+  "lngbid.regime_regulated": "Regulated",
+  "lngbid.regime_auction": "Auction",
+  "lngbid.regime_negotiated": "Negotiated",
+  "lngbid.source_doc": "operator's document",
+  "lngbid.read_on": "read {{date}}",
+  "lngbid.fixed_per_cargo": "Fixed per cargo",
+  "lngbid.source_url": "Operator's document (https)",
+  "lngbid.effective_from": "Applies from",
+  "lngbid.of_which_regas": "regas {{value}}"
 }

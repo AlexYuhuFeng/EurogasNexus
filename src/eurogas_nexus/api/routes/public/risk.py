@@ -430,6 +430,12 @@ class TerminalTermsRequest(BaseModel):
     source_note: str = Field(min_length=1, max_length=256)
     capacity_basis: str = Field(default="spot", pattern="^(spot|long_term)$")
     variable_regas_per_mwh: float | None = Field(default=None, ge=0, le=100)
+    regime: str = Field(
+        default="negotiated", pattern="^(regulated_indexed|regulated|auction|negotiated)$"
+    )
+    fixed_per_cargo: float = Field(default=0.0, ge=0, le=10_000_000)
+    source_url: str | None = Field(default=None, max_length=500)
+    effective_from: str | None = Field(default=None, max_length=32)
 
 
 def _terms_row(record) -> dict:
@@ -448,6 +454,15 @@ def _terms_row(record) -> dict:
         "source_note": record.source_note,
         "capacity_basis": record.capacity_basis or "spot",
         "variable_regas_per_mwh": record.variable_regas_per_mwh,
+        "regime": record.regime or "negotiated",
+        "fixed_per_cargo": record.fixed_per_cargo or 0.0,
+        "by_cargo_class": record.by_cargo_class,
+        "source_url": record.source_url,
+        "source_sha256": record.source_sha256,
+        "effective_from": record.effective_from,
+        "retrieved_at_utc": record.retrieved_at_utc.isoformat()
+        if record.retrieved_at_utc
+        else None,
         "updated_by": record.updated_by,
         "updated_at_utc": record.updated_at_utc.isoformat() if record.updated_at_utc else None,
     }
@@ -492,6 +507,8 @@ def put_lng_terminal_terms(terminal_id: str, body: TerminalTermsRequest, request
         raise HTTPException(status_code=422, detail={"code": "terminal_id_invalid"})
     values = body.model_dump()
     values["hub"] = values["hub"].upper()
+    if values["source_url"] and not values["source_url"].startswith("https://"):
+        raise HTTPException(status_code=422, detail={"code": "source_url_must_be_https"})
     if find_market(values["hub"]) is None:
         raise HTTPException(status_code=422, detail={"code": "unknown_hub", "hub": values["hub"]})
     result = _write(
@@ -583,6 +600,10 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
             source_note=r.source_note,
             capacity_basis=r.capacity_basis or "spot",
             variable_regas_per_mwh=r.variable_regas_per_mwh,
+            regime=r.regime or "negotiated",
+            fixed_per_cargo=r.fixed_per_cargo or 0.0,
+            by_cargo_class=r.by_cargo_class,
+            effective_from=r.effective_from or "",
         )
         for r in records
     ]

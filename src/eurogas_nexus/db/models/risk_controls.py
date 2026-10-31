@@ -101,6 +101,19 @@ class LngTerminalTermsRecord(Base):
     #: variable part (``variable_regas_per_mwh``) is a cost of this cargo.
     capacity_basis: Mapped[str] = mapped_column(String(16), nullable=False, default="spot")
     variable_regas_per_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: How the operator prices it: regulated_indexed, regulated, auction or negotiated.
+    regime: Mapped[str] = mapped_column(String(24), nullable=False, default="negotiated")
+    #: A fixed charge per cargo (Fluxys slot), on top of the per-MWh tariff.
+    fixed_per_cargo: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    #: A total per cargo by cargo class (Elengy: med_max, standard, q_flex, q_max).
+    by_cargo_class: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    #: The operator's document the figures were read from, and when.
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    effective_from: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    retrieved_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     source_note: Mapped[str] = mapped_column(String(256), nullable=False)
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

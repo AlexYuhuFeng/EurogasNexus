@@ -4154,5 +4154,21 @@
   "tariffs.id": "发布编号",
   "tariffs.country": "国家",
   "tariffs.url": "发布页面（https）",
-  "tariffs.save": "保存"
+  "tariffs.save": "保存",
+  "lngbid.per_cargo": "每船",
+  "lngbid.class_med_max": "Med-Max 型",
+  "lngbid.class_standard": "标准型",
+  "lngbid.class_q_flex": "Q-Flex 型",
+  "lngbid.class_q_max": "Q-Max 型",
+  "lngbid.regime": "定价方式",
+  "lngbid.regime_regulated_indexed": "受监管、指数化",
+  "lngbid.regime_regulated": "受监管",
+  "lngbid.regime_auction": "拍卖",
+  "lngbid.regime_negotiated": "协商",
+  "lngbid.source_doc": "运营商文件",
+  "lngbid.read_on": "读取于 {{date}}",
+  "lngbid.fixed_per_cargo": "每船固定费",
+  "lngbid.source_url": "运营商文件（https）",
+  "lngbid.effective_from": "适用起始",
+  "lngbid.of_which_regas": "其中再气化 {{value}}"
 }

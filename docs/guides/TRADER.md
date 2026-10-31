@@ -18,7 +18,7 @@ in EUR/MWh, volumes in MWh/d (th/d for NBP).
 | Your mandate: size, hubs, tenor used | Portfolio → Exposure → Credit and mandates |
 | Did the seller deliver what we nominated? Shortfalls, volatility, trend vs DCQ | Portfolio → Resources → Delivery against nominations |
 | A signed contract PDF into a draft (each term with its page) | Portfolio → Resources → Upload contract |
-| What to bid for an LNG cargo, terminal by terminal | Portfolio → Routes → LNG cargo bid |
+| What to bid for an LNG cargo, terminal by terminal, on each operator's published tariff (term or spot) | Portfolio → Routes → LNG cargo bid ([where each tariff comes from](../data/LNG_TERMINAL_TARIFFS.md)) |
 | Any table to Excel or PDF | *Export* on the table |
 | Opportunities and alerts | Decision Center, Alerts (top bar) |
 
