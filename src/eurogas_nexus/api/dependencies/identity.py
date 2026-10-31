@@ -109,6 +109,12 @@ async def require_identity(request: Request) -> None:
         request.state.identity_authenticated = True
         return
 
+    gateway = _authenticate_gateway(request)
+    if gateway is not None:
+        request.state.identity = gateway
+        request.state.identity_authenticated = True
+        return
+
     verified_token = bool(getattr(request.state, PUBLIC_TOKEN_VERIFIED_FLAG, False))
     if verified_token or _allow_anonymous(request):
         request.state.identity = legacy_public_token_principal()
@@ -151,9 +157,7 @@ def _authenticate_identity_key(bearer: str) -> AuthenticatedPrincipal:
             status_code=503,
             detail={
                 "error": "identity_store_not_configured",
-                "message": (
-                    "X-Eurogas-Identity authentication requires the runtime DB."
-                ),
+                "message": ("X-Eurogas-Identity authentication requires the runtime DB."),
             },
         )
     try:
@@ -183,10 +187,7 @@ def _authenticate_identity_key(bearer: str) -> AuthenticatedPrincipal:
 
 def _authenticate_session_cookie(request: Request, token: str) -> AuthenticatedPrincipal:
     if not _db_is_configured():
-        raise HTTPException(
-            status_code=503,
-            detail={"error": "identity_store_not_configured"}
-        )
+        raise HTTPException(status_code=503, detail={"error": "identity_store_not_configured"})
     try:
         from eurogas_nexus.db.models import IdentityPrincipalRecord
         from eurogas_nexus.db.repositories.security import (
@@ -274,6 +275,34 @@ def _authenticate_oidc(token: str) -> AuthenticatedPrincipal:
         identity_source="OIDC",
         auth_method="oidc_access_token",
     )
+
+
+def _authenticate_gateway(request: Request) -> AuthenticatedPrincipal | None:
+    """A principal asserted by the deployment's authenticating gateway (SAML, Kerberos, ...)."""
+
+    from eurogas_nexus.security.gateway_auth import (
+        GatewayAuthError,
+        GatewayConfig,
+        gateway_principal,
+    )
+    from eurogas_nexus.security.oidc import groups_role_map, groups_scope_map
+
+    config = GatewayConfig.from_env()
+    if not config.enabled:
+        return None
+    try:
+        return gateway_principal(
+            dict(request.headers),
+            request.client.host if request.client else None,
+            config=config,
+            groups_role_map=groups_role_map(),
+            groups_scope_map=groups_scope_map(),
+        )
+    except GatewayAuthError as exc:
+        _audit_auth_failure(exc.code)
+        raise HTTPException(
+            status_code=401, detail={"error": exc.code, "message": exc.message}
+        ) from exc
 
 
 def _audit_auth_failure(code: str) -> None:

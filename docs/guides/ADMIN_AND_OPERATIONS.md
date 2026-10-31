@@ -54,3 +54,9 @@ active licence covers their office and, for named-user licences, a seat is free.
 list is the usage report a vendor asks for in an audit. Vendor API credentials are stored
 once on the server (Administration → Credentials), never in personal preferences.
 
+## Single sign-on
+
+OIDC (Entra ID, Okta, Ping, Keycloak) is configured directly; SAML, Kerberos and vendor SSO
+agents in a dedicated network go through an authenticating gateway. Both map groups to roles
+and data scopes the same way. See [ENTERPRISE_SSO.md](../operations/ENTERPRISE_SSO.md).
+

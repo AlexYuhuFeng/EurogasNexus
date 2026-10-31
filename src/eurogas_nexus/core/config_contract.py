@@ -247,6 +247,47 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
     ),
     # --- Enterprise SSO (OIDC) ---------------------------------------------
     ConfigVar(
+        name="EUROGAS_NEXUS_GATEWAY_AUTH_ENABLED",
+        scope="OPERATOR",
+        purpose=(
+            "Accept the user and groups asserted by an authenticating reverse proxy (SAML, "
+            "Kerberos/SPNEGO or a vendor SSO agent) in a dedicated network."
+        ),
+        example="false",
+        notes=("Requires EUROGAS_NEXUS_GATEWAY_SECRET; see docs/operations/ENTERPRISE_SSO.md",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_GATEWAY_SECRET",
+        scope="OPERATOR",
+        purpose="Shared secret the gateway sends in X-Eurogas-Gateway-Secret (32+ characters).",
+        sensitivity="secret",
+        required_when="EUROGAS_NEXUS_GATEWAY_AUTH_ENABLED is true",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_GATEWAY_TRUSTED_PROXIES",
+        scope="OPERATOR",
+        purpose="Comma-separated CIDRs the gateway connects from; requests from elsewhere fail.",
+        example="10.20.0.0/24",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_GATEWAY_USER_HEADER",
+        scope="OPERATOR",
+        purpose="Header carrying the authenticated user name.",
+        example="X-Remote-User",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_GATEWAY_GROUPS_HEADER",
+        scope="OPERATOR",
+        purpose="Header carrying the user's groups, comma or semicolon separated.",
+        example="X-Remote-Groups",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_GATEWAY_EMAIL_HEADER",
+        scope="OPERATOR",
+        purpose="Header carrying the user's e-mail address (optional).",
+        example="X-Remote-Email",
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_OIDC_ISSUER",
         scope="OPERATOR",
         purpose="OIDC issuer URL for interactive SSO login.",

@@ -52,11 +52,7 @@ CONFIG_PREFIXES = ("EUROGAS_NEXUS_", "EUROGAS_")
 
 #: Variables read by a component outside this repository's Python. They are still
 #: expected in the deployment environment, but the Python side never reads them.
-EXTERNALLY_READ = {
-    var.name: var.external_reader
-    for var in CONFIG_VARS
-    if var.external_reader
-}
+EXTERNALLY_READ = {var.name: var.external_reader for var in CONFIG_VARS if var.external_reader}
 
 MIN_SECRET_LENGTH = 32
 
@@ -153,10 +149,7 @@ def _check_unknown_variables(environ: Mapping[str, str]) -> list[Finding]:
                 severity="error",
                 code="unknown_variable",
                 variable=name,
-                message=(
-                    "set but not part of the configuration contract, so it has no "
-                    "effect"
-                ),
+                message=("set but not part of the configuration contract, so it has no effect"),
                 remedy=remedy,
             )
         )
@@ -202,8 +195,8 @@ def _check_required(
         (
             "EUROGAS_NEXUS_SECRET_KEY",
             "provider credentials are encrypted with it and identity digests are keyed by it",
-            "generate one with: python -c \"import base64,os;"
-            "print(base64.urlsafe_b64encode(os.urandom(32)).decode())\"",
+            'generate one with: python -c "import base64,os;'
+            'print(base64.urlsafe_b64encode(os.urandom(32)).decode())"',
         ),
     ]
 
@@ -281,8 +274,8 @@ def _check_secret_key(environ: Mapping[str, str]) -> list[Finding]:
                     "to hashing the raw string, which cannot be rotated deliberately"
                 ),
                 remedy=(
-                    "generate one with: python -c \"import base64,os;"
-                    "print(base64.urlsafe_b64encode(os.urandom(32)).decode())\""
+                    'generate one with: python -c "import base64,os;'
+                    'print(base64.urlsafe_b64encode(os.urandom(32)).decode())"'
                 ),
             )
         )
@@ -414,6 +407,46 @@ def _check_llm_egress(
     return []
 
 
+def _check_gateway_auth(environ: Mapping[str, str]) -> list[Finding]:
+    """Gateway SSO trusts headers, so it starts only with a strong shared secret."""
+
+    from eurogas_nexus.security.gateway_auth import GatewayConfig
+
+    try:
+        config = GatewayConfig.from_env(environ)
+    except ValueError as exc:
+        return [
+            Finding(
+                severity="error",
+                code="gateway_trusted_proxies_invalid",
+                variable="EUROGAS_NEXUS_GATEWAY_TRUSTED_PROXIES",
+                message=str(exc),
+                remedy="list the gateway's addresses as comma-separated CIDRs",
+            )
+        ]
+    findings = [
+        Finding(
+            severity="error",
+            code="gateway_secret_weak",
+            variable="EUROGAS_NEXUS_GATEWAY_SECRET",
+            message=problem,
+            remedy="generate a random secret and configure the gateway to send it",
+        )
+        for problem in config.problems()
+    ]
+    if config.enabled and not config.trusted_proxies:
+        findings.append(
+            Finding(
+                severity="warning",
+                code="gateway_trusted_proxies_unset",
+                variable="EUROGAS_NEXUS_GATEWAY_TRUSTED_PROXIES",
+                message="any network peer holding the secret can assert identities",
+                remedy="restrict to the gateway's addresses as seen by the API",
+            )
+        )
+    return findings
+
+
 def _check_oidc(environ: Mapping[str, str]) -> list[Finding]:
     """A half-configured OIDC block answers 503 only when a user tries to sign in."""
 
@@ -435,8 +468,7 @@ def _check_oidc(environ: Mapping[str, str]) -> list[Finding]:
                     code="oidc_provisioning_mode_invalid",
                     variable="EUROGAS_NEXUS_OIDC_PROVISIONING_MODE",
                     message=(
-                        f"unknown mode {provisioning!r}; expected preprovisioned or "
-                        "approved_domain"
+                        f"unknown mode {provisioning!r}; expected preprovisioned or approved_domain"
                     ),
                     remedy="set a supported mode; the reader falls back silently otherwise",
                 )
@@ -628,13 +660,12 @@ def check_environment(
         _check_llm_egress(source, environment=environment, api_profile=api_profile)
     )
     report.findings.extend(_check_oidc(source))
+    report.findings.extend(_check_gateway_auth(source))
     report.findings.extend(
         _check_proxy_topology(source, environment=environment, api_profile=api_profile)
     )
     report.findings.extend(
-        _check_dev_browser_origin(
-            source, environment=environment, api_profile=api_profile
-        )
+        _check_dev_browser_origin(source, environment=environment, api_profile=api_profile)
     )
     report.findings.extend(_check_security_posture(source))
     report.findings.extend(_check_external_consumers(source))
