@@ -76,6 +76,14 @@
     --ds-on-accent: #ffffff;
     --ds-positive: #166534;
     --ds-negative: #b91c1c;
+    /* Brand: the mark's navy tile, teal flows and text on navy (installer, splash, sign-in). */
+    --ds-brand-navy: #101c34;
+    --ds-brand-navy-deep: #0b1324;
+    --ds-brand-teal: #2dd4bf;
+    --ds-on-brand: #ffffff;
+    --ds-on-brand-1: #dbe3ef;
+    --ds-on-brand-2: #b9c4d6;
+    --ds-on-brand-3: #7f8ca3;
     --ds-warning: #854d0e;
     --ds-ink: #18181b;
     --ds-on-ink: #ffffff;
@@ -1716,4 +1724,109 @@
   .glossary-facts dd { margin: 0; }
   .glossary-where { font-size: var(--ds-text-sm); }
   .glossary-where span { color: var(--ds-text-3); }
+}
+
+/* Two-pane sign-in: the brand panel says what the product is for, the form stays plain. */
+@layer ds-components {
+  .sign-in-screen {
+    background:
+      radial-gradient(1200px 600px at 15% 10%, color-mix(in srgb, var(--ds-accent) 7%, transparent), transparent 60%),
+      var(--ds-canvas, var(--bg));
+  }
+
+  .sign-in-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 22rem) minmax(0, 30rem);
+    width: min(100%, 52rem);
+    overflow: hidden;
+    border: 1px solid var(--ds-border);
+    border-radius: 14px;
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-lg);
+    animation: ds-dialog-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+  }
+
+  .sign-in-shell .sign-in-card {
+    width: auto;
+    border: 0;
+    border-radius: 0;
+    padding: 32px 32px 28px;
+  }
+
+  .sign-in-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 32px 28px;
+    background: linear-gradient(180deg, var(--ds-brand-navy) 0%, var(--ds-brand-navy-deep) 100%);
+    color: var(--ds-on-brand);
+  }
+
+  .sign-in-mark {
+    width: 48px;
+    height: 48px;
+  }
+
+  .sign-in-brand-name {
+    margin-top: 6px;
+    font-size: var(--ds-text-2xl, 22px);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .sign-in-brand-tagline {
+    margin: 0;
+    color: var(--ds-on-brand-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .sign-in-brand-points {
+    display: grid;
+    gap: 10px;
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ds-on-brand-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  .sign-in-brand-points li {
+    position: relative;
+    padding-left: 16px;
+  }
+
+  .sign-in-brand-points li::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ds-brand-teal);
+  }
+
+  .sign-in-brand-foot {
+    margin: auto 0 0;
+    padding-top: 24px;
+    color: var(--ds-on-brand-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  @media (max-width: 760px) {
+    .sign-in-shell {
+      grid-template-columns: minmax(0, 1fr);
+      width: min(100%, 32rem);
+    }
+
+    .sign-in-brand {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sign-in-shell {
+      animation: none;
+    }
+  }
 }

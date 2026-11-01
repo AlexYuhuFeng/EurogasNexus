@@ -4175,5 +4175,11 @@
   "glossary.formula": "Formula",
   "glossary.example": "Example",
   "glossary.where_in_app": "In the app:",
-  "glossary.sources": "Sources:"
+  "glossary.sources": "Sources:",
+  "auth.error_server_not_configured": "This server is not fully set up yet, so nobody can sign in. Please tell your IT desk; nothing is wrong on your side.",
+  "auth.brand_tagline": "The European gas trading workstation",
+  "auth.brand_point_market": "Hubs, curves, flows and outages in one view",
+  "auth.brand_point_portfolio": "Positions, deliveries, LNG and risk on your own books",
+  "auth.brand_point_control": "Limits, audit and reports your risk team can sign off",
+  "auth.brand_foot": "Decision support. Your firm's data stays on your firm's servers."
 }

@@ -61,7 +61,17 @@ export function devLoginOffered(status: AuthStatusSnapshot): boolean {
 export type IdentityFailureReason =
   | "identity_absent"
   | "identity_denied"
-  | "identity_unreachable";
+  | "identity_unreachable"
+  | "server_not_configured";
+
+/**
+ * The server answered, but refuses everyone because it is not fully configured (a 5xx with
+ * a `*_not_configured` code, e.g. no public API token in a release deployment). Telling the
+ * user to check their connection would send them the wrong way: only IT can fix this.
+ */
+export function isServerConfigurationMessage(message: string): boolean {
+  return /^API 5\d\d\b/.test(message) && /_not_configured\b/.test(message);
+}
 
 export interface IdentityResolution {
   authState: AuthState;
@@ -74,7 +84,10 @@ export interface IdentityResolution {
  * session the operator lost.
  */
 export function isNoCredentialMessage(message: string): boolean {
-  return /^API 401\b/.test(message) && message.includes("unauthenticated");
+  return (
+    /^API 401\b/.test(message) &&
+    (message.includes("unauthenticated") || message.includes("public_api_token_missing"))
+  );
 }
 
 /**
@@ -87,6 +100,9 @@ export function resolveIdentity(
 ): IdentityResolution {
   if (outcome.ok) return { authState: AUTHENTICATED_AUTH_STATE, failureReason: null };
   const message = outcome.error.message;
+  if (isServerConfigurationMessage(message)) {
+    return { authState: UNAUTHENTICATED_AUTH_STATE, failureReason: "server_not_configured" };
+  }
   if (!isIdentityDeniedMessage(message)) {
     return { authState: UNAUTHENTICATED_AUTH_STATE, failureReason: "identity_unreachable" };
   }
@@ -98,11 +114,13 @@ export function resolveIdentity(
 
 export const SESSION_EXPIRED_KEY = "auth.error_session_expired";
 export const IDENTITY_UNREACHABLE_KEY = "auth.error_identity_unreachable";
+export const SERVER_NOT_CONFIGURED_KEY = "auth.error_server_not_configured";
 
 /** `null` means the sign-in screen shows no error banner: a cold visit is not a failure. */
 export function identityFailureKey(reason: IdentityFailureReason | null): string | null {
   if (reason === "identity_denied") return SESSION_EXPIRED_KEY;
   if (reason === "identity_unreachable") return IDENTITY_UNREACHABLE_KEY;
+  if (reason === "server_not_configured") return SERVER_NOT_CONFIGURED_KEY;
   return null;
 }
 

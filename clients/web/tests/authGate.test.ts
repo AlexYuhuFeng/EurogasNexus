@@ -572,3 +572,23 @@ test("the desktop shell is only told to reveal the window after identity resolve
   assert.match(host, /if \(kind !== "desktop" \|\| !isHostCommand\(command\)\) return null;/);
   assert.match(host, /catch \{\s*return null;\s*\}/);
 });
+
+test("a server that refuses everyone for missing configuration points the user to IT", () => {
+  const resolution = resolveIdentity({
+    ok: false,
+    error: new Error('API 503: {"error":"public_api_token_not_configured","family":"CONFIGURATION"}'),
+  } as never);
+  assert.equal(resolution.failureReason, "server_not_configured");
+  assert.equal(identityFailureKey(resolution.failureReason), "auth.error_server_not_configured");
+  const plain = resolveIdentity({ ok: false, error: new Error("API 503: upstream timeout") } as never);
+  assert.equal(plain.failureReason, "identity_unreachable");
+});
+
+test("a missing public API token on a first visit is a cold visit, not an ended session", () => {
+  const resolution = resolveIdentity({
+    ok: false,
+    error: new Error('API 401: {"error":"public_api_token_missing"}'),
+  } as never);
+  assert.equal(resolution.failureReason, "identity_absent");
+  assert.equal(identityFailureKey(resolution.failureReason), null);
+});

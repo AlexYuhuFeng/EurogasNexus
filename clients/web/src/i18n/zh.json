@@ -4175,5 +4175,11 @@
   "glossary.formula": "公式",
   "glossary.example": "示例",
   "glossary.where_in_app": "应用中位置：",
-  "glossary.sources": "来源："
+  "glossary.sources": "来源：",
+  "auth.error_server_not_configured": "服务器尚未完成配置，暂时无人能够登录。请联系 IT 支持；问题不在您这一侧。",
+  "auth.brand_tagline": "欧洲天然气交易工作站",
+  "auth.brand_point_market": "枢纽、曲线、流量与停运一览无余",
+  "auth.brand_point_portfolio": "基于公司账簿的头寸、交付、LNG 与风险",
+  "auth.brand_point_control": "风控可签核的限额、审计与报告",
+  "auth.brand_foot": "决策支持。公司数据保留在公司自己的服务器上。"
 }

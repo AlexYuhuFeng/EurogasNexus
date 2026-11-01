@@ -46,6 +46,32 @@ export function SignInScreen({
 
   return (
     <div className="sign-in-screen">
+      <div className="sign-in-shell">
+      <aside className="sign-in-brand" aria-hidden="true">
+        <svg className="sign-in-mark" viewBox="0 0 64 64">
+          <rect width="64" height="64" rx="13" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" />
+          <g stroke="#2dd4bf" strokeWidth="4.2" strokeLinecap="round">
+            <line x1="32" y1="34" x2="15" y2="21" />
+            <line x1="32" y1="34" x2="49" y2="21" />
+            <line x1="32" y1="34" x2="32" y2="52" />
+          </g>
+          <g fill="#fff">
+            <circle cx="15" cy="21" r="5" />
+            <circle cx="49" cy="21" r="5" />
+            <circle cx="32" cy="52" r="5" />
+            <circle cx="32" cy="34" r="8.5" />
+          </g>
+          <circle cx="32" cy="34" r="4.2" fill="#f97316" />
+        </svg>
+        <div className="sign-in-brand-name">Eurogas Nexus</div>
+        <p className="sign-in-brand-tagline">{t("auth.brand_tagline")}</p>
+        <ul className="sign-in-brand-points">
+          <li>{t("auth.brand_point_market")}</li>
+          <li>{t("auth.brand_point_portfolio")}</li>
+          <li>{t("auth.brand_point_control")}</li>
+        </ul>
+        <p className="sign-in-brand-foot">{t("auth.brand_foot")}</p>
+      </aside>
       <section className="sign-in-card" aria-labelledby="sign-in-title">
         <div className="sign-in-masthead">
           <span className="eyebrow">{t("auth.eyebrow")}</span>
@@ -138,6 +164,7 @@ export function SignInScreen({
         )}
 
       </section>
+      </div>
     </div>
   );
 }
