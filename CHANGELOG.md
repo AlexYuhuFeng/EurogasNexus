@@ -3,7 +3,7 @@
 All notable changes to Eurogas Nexus are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/) as described in
-[docs/release/RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md). The current package version `0.6.0`
+[docs/release/RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md). The current package version `0.7.0`
 is on the `preview` channel and is not a production (GA) release.
 
 Each entry says what changed for the people using the product. Engineering detail for a
@@ -11,24 +11,68 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-01
+
+Desk operations for a trading house: what every role does in a day, walked through in the
+product and written up with screenshots in the [user manual](docs/user/manual/README.md).
+
 ### Added
 
-- Credit and mandates (Portfolio → Exposure): counterparty credit lines with exposure
-  (netted replacement cost, receivables, collateral) and utilisation; trader mandates
-  (books, hubs, size per hub-month, tenor, product) with breaches. Maintained by risk
-  (REVIEWER), audited, never one's own mandate.
-- Delivery against nominations (Portfolio → Resources): bilateral supply allocations
-  against nominations and DCQ, with shortfalls, imbalance volume, volatility and the
-  7-day trend; loaded daily with `scripts/ops/import_contract_deliveries.py`.
-- LNG cargo bid (Portfolio → Routes): the most the firm can pay DES at each terminal from
-  the hub forward less regas, entry, fuel, port, boil-off and charter, ranked in one
-  currency with the range for a slipped arrival.
-- Contract PDF intake: upload a signed contract or confirmation and every recognised term
-  arrives in the draft with its page and wording; scanned PDFs are read when the server
-  has Tesseract. Nothing is saved until a person reviews it.
+- **Daily gas balance** (Portfolio → Resources): per gas day at a hub, expected supply
+  (contracts corrected by how they deliver), exchange and bilateral purchases and sales,
+  the residual still to close, and what the TSO's cash-out would cost if it is left open.
+- **Day-ahead sell-down plan**: how much of tomorrow's supply to sell day-ahead and how
+  much to keep for within-day, from the contracts' measured delivery and the cost of
+  being short or long.
+- **Credit lines and trader mandates** (Portfolio → Exposure): counterparty exposure
+  (replacement, receivable, collateral) against limits; mandates by book, hub, size,
+  tenor, hedge band (e.g. a legal 80 % cap) and allowed instruments (no options).
+- **Deal hedge approvals**: risk approves a hedge band per contract (80 % for one deal,
+  50 % for another) with its committee reference; the cover is measured month by month
+  from the trades linked to the contract.
+- **Contract lifecycle**: contracts are retired with a reason and reinstated, never
+  deleted; history and audit stay. Contract terms are chosen from lists (hubs, network
+  points, sale routes, index, law) instead of typed.
+- **Contract PDF intake**: a signed confirmation is read into a draft, every term with
+  its page and wording, for a person to check before saving.
+- **Delivery against nominations** per contract, with shortfalls against tolerance.
+- **LNG cargo bid** across terminals, with each terminal's published tariff regime and
+  the document it was read from (Fluxys monthly indexed slot, Elengy ATTM7 term and SMART
+  SPOT by cargo class, DET auction results), refreshed daily.
+- **TSO tariff publications**: per TSO and gas year, indicative or final, the NC TAR
+  deadline, and an email when the publication page changes.
+- **Report a problem** (top bar "?"): goes to the IT desk with diagnostics attached; the
+  IT desk works reports under Admin → Runtime → Problem reports.
+- **Email notifications** (Settings → Notifications): alerts, IT desk reports, limit
+  breaches, tariff deadlines and source outages through the firm's SMTP relay.
+- **Desk glossary**: 74 terms with unit, formula, worked example and where each appears.
+- **Branding**: one mark everywhere, a branded installer (English and Chinese), splash
+  and sign-in screen.
+- **User manual** by role, and a [platform strategy](docs/product/PLATFORM_STRATEGY.md)
+  for macOS, iPad, iPhone, Android and HarmonyOS.
 - Excel and PDF exports beside CSV on every report table.
-- Guide: [support, bug reports and updates](docs/guides/SUPPORT_AND_UPDATES.md); review:
-  [customer acceptance by role](docs/product/CUSTOMER_ACCEPTANCE_REVIEW.md).
+
+### Changed
+
+- Every button and select follows the design system; the top bar keeps every control on
+  screen from 1280 px to 2560 px for every role; wide monitors use the extra width.
+- The administration workspace is "Admin".
+- Screens name people, not internal ids.
+
+### Fixed
+
+- PostgreSQL rejected ENTSOG runs ending "succeeded with warnings" (a column was too
+  narrow); nine more drifted columns widened, and CI now compares models with the
+  migrated schema.
+- National Gas, ECMWF and EEX downloads ignored the corporate proxy.
+- A new contract draft carried invented facts that could be saved as recorded terms.
+- Trades adding to a position showed as a negative hedge; a trader with two mandates saw
+  one book's trade flagged against the other mandate; filled trades showed 0 MWh.
+
+### Known limits
+
+- Contract prices are recorded in GBP/MWh: a contract delivered at a euro hub is shown
+  in positions but not marked to market. Keep its valuation in the ETRM.
 
 ## [0.6.0] - 2026-10-31
 

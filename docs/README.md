@@ -14,6 +14,10 @@ the current/normative document listed here and report the conflict.
 [Management](guides/MANAGEMENT.md) · [Legal and compliance](guides/LEGAL_COMPLIANCE.md) ·
 [IT admin and data operations](guides/ADMIN_AND_OPERATIONS.md)
 
+[User manual](user/manual/README.md), step by step with screenshots, and every workflow by
+role: [Trader](user/manual/TRADER.md) · [Risk](user/manual/RISK.md) ·
+[IT desk](user/manual/IT_DESK.md) · [Administrator](user/manual/ADMIN.md)
+
 ## Architecture and operations
 
 - [Architecture](architecture/ARCHITECTURE.md) and
@@ -45,6 +49,7 @@ the current/normative document listed here and report the conflict.
 
 ## Product planning
 
+- [Platform strategy](product/PLATFORM_STRATEGY.md): Windows, macOS, iPad, iPhone, Android, HarmonyOS
 - [Commercial readiness backlog](product/COMMERCIAL_READINESS_BACKLOG.md)
 - [Scheduled agent state](product/SCHEDULED_AGENT_STATE.md)
 - [Product information architecture](product/PRODUCT_INFORMATION_ARCHITECTURE.md)

@@ -2707,6 +2707,7 @@ export interface HedgeApprovalMonthDTO {
 
 export interface HedgeApprovalRowDTO {
   contract_id: string;
+  contract_name: string;
   min_hedge_ratio_pct: number | null;
   max_hedge_ratio_pct: number | null;
   approval_ref: string | null;
@@ -4758,7 +4759,11 @@ export const api = {
       options,
     ),
   hedgeApprovals: (options?: ApiRequestOptions) =>
-    get<HedgeApprovalRowDTO[]>("/portfolio/hedge-approvals", undefined, options),
+    get<{
+      rows: HedgeApprovalRowDTO[];
+      /** Contracts a band can be approved for: identity and hub, no commercial terms. */
+      contracts: { contract_id: string; contract_name: string; hub: string }[];
+    }>("/portfolio/hedge-approvals", undefined, options),
   saveHedgeApproval: (contractId: string, body: HedgeApprovalInput) =>
     put<{ key: string; created: boolean }>(`/portfolio/hedge-approvals/${encodeURIComponent(contractId)}`, body),
   sellDownPlan: (body: SellDownInput, options?: ApiRequestOptions) =>

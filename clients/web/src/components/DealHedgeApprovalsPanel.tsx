@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { api, type HedgeApprovalRowDTO, type UpstreamContractDTO } from "@/api/client";
+import { api, type HedgeApprovalRowDTO } from "@/api/client";
 import { formatQuantity } from "@/app/model/riskLimitsModel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -15,18 +15,19 @@ const EMPTY = { contract_id: "", min: "", max: "", ref: "", valid_until: "", not
  */
 export function DealHedgeApprovalsPanel({ t }: { t: Translate }) {
   const [rows, setRows] = useState<HedgeApprovalRowDTO[] | null>(null);
-  const [contracts, setContracts] = useState<UpstreamContractDTO[]>([]);
+  const [contracts, setContracts] = useState<{ contract_id: string; contract_name: string; hub: string }[]>([]);
   const [draft, setDraft] = useState(EMPTY);
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const load = useCallback(() => {
-    api.hedgeApprovals().then((response) => setRows(response.data)).catch(() => setRows(null));
+    api.hedgeApprovals()
+      .then((response) => {
+        setRows(response.data.rows);
+        setContracts(response.data.contracts);
+      })
+      .catch(() => setRows(null));
   }, []);
   useEffect(load, [load]);
-  useEffect(() => {
-    api.upstreamContracts().then((response) => setContracts(response.data)).catch(() => setContracts([]));
-  }, []);
-  const name = (id: string) => contracts.find((row) => row.contract_id === id)?.contract_name ?? id;
   const field = (key: keyof typeof EMPTY) => (event: { target: { value: string } }) =>
     setDraft({ ...draft, [key]: event.target.value });
   const save = () => {
@@ -85,7 +86,7 @@ export function DealHedgeApprovalsPanel({ t }: { t: Translate }) {
               return (
                 <tr key={row.contract_id} data-status={row.status === "ok" ? undefined : "breach"}>
                   <td>
-                    <strong>{name(row.contract_id)}</strong>{" "}
+                    <strong>{row.contract_name}</strong>{" "}
                     <small className="muted">{row.approval_ref ?? ""}{row.valid_until ? ` · ${t("hedgeapproval.until", { date: row.valid_until })}` : ""}</small>
                   </td>
                   <td>{band(row)}</td>
@@ -116,7 +117,7 @@ export function DealHedgeApprovalsPanel({ t }: { t: Translate }) {
             <span>{t("hedgeapproval.contract")}</span>
             <select value={draft.contract_id} onChange={field("contract_id")}>
               <option value="">{t("contracts.choose")}</option>
-              {contracts.map((row) => <option key={row.contract_id} value={row.contract_id}>{row.contract_name}</option>)}
+              {contracts.map((row) => <option key={row.contract_id} value={row.contract_id}>{`${row.contract_name} · ${row.hub}`}</option>)}
             </select>
           </label>
           <label><span>{t("hedgeapproval.min")}</span><input inputMode="decimal" value={draft.min} onChange={field("min")} /></label>

@@ -13,6 +13,9 @@ you use daily, and what the product will not do for you.
 | Platform administrator and data operator (IT) | [ADMIN_AND_OPERATIONS.md](ADMIN_AND_OPERATIONS.md) |
 | Everyone: bug reports, platforms, updates | [SUPPORT_AND_UPDATES.md](SUPPORT_AND_UPDATES.md) |
 
+Step by step with screenshots: the [user manual](../user/manual/README.md), which also
+lists every workflow of every role.
+
 Roles, job functions and who may grant what: [ROLES_AND_RESPONSIBILITIES.md](../product/ROLES_AND_RESPONSIBILITIES.md).
 
 Common to everyone:

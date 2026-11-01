@@ -494,7 +494,21 @@ def get_hedge_approvals(request: Request) -> dict:
     warnings = list(inputs.warnings)
     if any(not row["contract_found"] for row in rows):
         warnings.append("an approval names a contract that is retired or not in this book scope")
-    return _env(rows, request, "runtime-postgresql", warnings)
+    # The contracts risk can approve a band for: identity and hub only, no commercial
+    # terms, so the risk function (REVIEWER) needs no read of the contract library.
+    names = {contract.contract_id: contract.contract_name for contract in inputs.contracts}
+    contracts = [
+        {
+            "contract_id": leg.reference,
+            "contract_name": names.get(leg.reference, leg.reference),
+            "hub": leg.hub,
+        }
+        for leg in inputs.legs
+        if leg.kind == "physical"
+    ]
+    for row in rows:
+        row["contract_name"] = names.get(row["contract_id"], row["contract_id"])
+    return _env({"rows": rows, "contracts": contracts}, request, "runtime-postgresql", warnings)
 
 
 @router.put("/api/portfolio/hedge-approvals/{contract_id}")

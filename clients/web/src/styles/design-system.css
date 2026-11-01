@@ -729,6 +729,40 @@
     flex: 0 0 auto;
   }
 
+  /* Tablets and phones: a table wider than its panel scrolls inside the panel instead of
+     being cut off, and the page never scrolls sideways. */
+  @media (max-width: 900px) {
+    .workspace-panel {
+      overflow-x: auto;
+    }
+  }
+
+  /* Phones: the workspace nav scrolls rather than pushing a workspace off screen; the page
+     header stacks (title, then tabs, then the page's action) and the action keeps its
+     words on one line. */
+  @media (max-width: 600px) {
+    .workspace-primary-tabs {
+      max-width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .workspace-page-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .workspace-page-header-actions {
+      flex-direction: column-reverse;
+      align-items: stretch;
+    }
+
+    .workspace-page-header-actions [data-primary-action] {
+      align-self: flex-start;
+      white-space: nowrap;
+    }
+  }
+
   /* ------------------------------------------------------------------ tabs */
   [role="tablist"]:not(.workspace-primary-tabs) {
     gap: var(--ds-space-1);

@@ -21,7 +21,7 @@ export const defaultContractDraft: ContractDraft = {
   resource_type: "PIPELINE_IMPORT",
   counterparty: "",
   contract_type: "EFET physical supply",
-  delivery_point_name: "TTF",
+  delivery_point_name: "",
   gas_year: currentGasYear(new Date()),
   delivery_quantity_mwh_per_day: 0,
   contract_price_gbp_mwh: 0,

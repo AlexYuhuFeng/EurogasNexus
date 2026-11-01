@@ -413,8 +413,15 @@ def test_risk_approves_a_hedge_band_per_deal(tmp_path, monkeypatch):
     assert client.put(path, json=inverted, headers=_h(who, "risk")).status_code == 422
     saved = client.put(path, json=band, headers=_h(who, "risk"))
     assert saved.status_code == 200, saved.text
-    rows = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "analyst")).json()["data"]
-    (row,) = rows
+    # Risk reads the approvable contracts here (no commercial terms), not the library.
+    read = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "risk"))
+    assert read.status_code == 200
+    assert read.json()["data"]["contracts"] == [
+        {"contract_id": "nbp-supply", "contract_name": "NBP supply", "hub": "NBP"}
+    ]
+    rows = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "analyst")).json()
+    (row,) = rows["data"]["rows"]
+    assert row["contract_name"] == "NBP supply"
     assert row["approval_ref"] == "CC-2026-41" and row["linked_trades"] == 1
     # 18,000 MWh sold next month against 1,000 MWh/d: about 60 %, over the 50 % band.
     first = next(month for month in row["months"] if month["hedged_mwh"])
@@ -423,7 +430,7 @@ def test_risk_approves_a_hedge_band_per_deal(tmp_path, monkeypatch):
     raised = client.put(path, json={**band, "max_hedge_ratio_pct": 80}, headers=_h(who, "risk"))
     assert raised.status_code == 200
     again = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "analyst")).json()
-    assert again["data"][0]["status"] == "ok"
+    assert again["data"]["rows"][0]["status"] == "ok"
 
 
 def test_daily_balance_shows_what_is_left_to_sell_each_gas_day(tmp_path, monkeypatch):

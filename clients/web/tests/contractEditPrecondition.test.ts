@@ -109,6 +109,7 @@ test("a new draft is create-only and clears any stored edit lease", () => {
     contract_id: "new-supply-1",
     contract_name: "New supply",
     counterparty: "Typed counterparty",
+    delivery_point_name: "NBP",
     delivery_quantity_mwh_per_day: 100,
   };
   assert.equal(payloadOf(savable).expected_edit_token, null);
