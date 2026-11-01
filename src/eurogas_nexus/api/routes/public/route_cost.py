@@ -19,6 +19,7 @@ from eurogas_nexus.application.resource_pool import (
     read_resource_pool_inputs,
     value_in_gbp,
 )
+from eurogas_nexus.domain.ontology.vocabulary import DeliveryMode
 from eurogas_nexus.domain.route_cost.contract_edit_token import (
     CONTRACT_EDIT_CONFLICT,
     CONTRACT_EDIT_TOKEN_MALFORMED,
@@ -255,6 +256,30 @@ def _name_retirers(session, rows: list[dict]) -> None:
             row["retired_by_name"] = names.get(row["retired_by"], row["retired_by"])
 
 
+# Sale routes a contract may name: the desk's three (what the editor offers) and the
+# delivery modes the resource-pool scenarios produce. Anything else is a typo that would
+# silently remove a route from the scenarios, so it is refused.
+_SALE_MODES = frozenset(
+    {"TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"}
+    | {mode.value for mode in DeliveryMode}
+)
+
+
+def _refuse_unknown_sale_modes(modes: list) -> None:
+    unknown = sorted(
+        {str(mode) for mode in modes if isinstance(mode, str) and mode not in _SALE_MODES}
+    )
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "contract_sale_mode_unknown",
+                "message": "Sale modes must be chosen from the offered list.",
+                "allowed": sorted(_SALE_MODES),
+            },
+        )
+
+
 @router.post("/api/route-cost/upstream-contracts")
 def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Request) -> dict:
     """Persist an upstream resource contract for decision-support workflows.
@@ -326,6 +351,7 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
     # access: a caller-supplied name is never trusted (finding C13), and a
     # request with no principal is refused before the write could be attempted.
     principal = require_acting_actor(request)
+    _refuse_unknown_sale_modes(body.eligible_sale_modes)
 
     if not _db_is_configured():
         raise HTTPException(

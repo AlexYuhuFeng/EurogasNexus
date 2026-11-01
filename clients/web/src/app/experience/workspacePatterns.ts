@@ -107,7 +107,7 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
     page: "strategy",
     primary: "strategy",
     pattern: "ANALYSE",
-    headerMode: "local-tabs",
+    headerMode: "consolidated",
     rationale: "Research-question-led strategy lifecycle: design, backtest, compare, shadow.",
     inspectorSubjects: ["strategy-version", "strategy-run"],
     panels: ["context-summary", "time-series", "comparison", "run-result", "evidence", "warnings"],

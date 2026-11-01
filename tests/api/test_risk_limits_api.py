@@ -101,7 +101,8 @@ def _setup(tmp_path, monkeypatch):
                     source_system="fixture",
                     source_reference="fixture",
                     linked_strategy_id=None,
-                    linked_resource_id=None,
+                    # The screen hedge is the ETRM's hedge of the NBP supply contract.
+                    linked_resource_id="nbp-supply" if oid == "hedge-1" else None,
                     research_only=True,
                     human_review_required=True,
                 )
@@ -399,3 +400,49 @@ def test_sell_down_plan_uses_measured_delivery_and_falls_back_to_tolerance(tmp_p
         "/api/portfolio/sell-down-plan", json={**body, "hub": "TTF"}, headers=_h(who, "analyst")
     )
     assert none.status_code == 422 and none.json()["detail"]["code"] == "no_supply_at_hub"
+
+
+def test_risk_approves_a_hedge_band_per_deal(tmp_path, monkeypatch):
+    _engine, who = _setup(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    path = "/api/portfolio/hedge-approvals/nbp-supply"
+    band = {"max_hedge_ratio_pct": 50, "approval_ref": "CC-2026-41"}
+    refused = client.put(path, json=band, headers=_h(who, "analyst"))
+    assert refused.status_code == 403  # the trader does not approve their own hedge band
+    inverted = {"min_hedge_ratio_pct": 60, "max_hedge_ratio_pct": 50}
+    assert client.put(path, json=inverted, headers=_h(who, "risk")).status_code == 422
+    saved = client.put(path, json=band, headers=_h(who, "risk"))
+    assert saved.status_code == 200, saved.text
+    rows = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "analyst")).json()["data"]
+    (row,) = rows
+    assert row["approval_ref"] == "CC-2026-41" and row["linked_trades"] == 1
+    # 18,000 MWh sold next month against 1,000 MWh/d: about 60 %, over the 50 % band.
+    first = next(month for month in row["months"] if month["hedged_mwh"])
+    assert 55 <= first["hedge_pct"] <= 62
+    assert row["status"] == "breach" and "over the approved 50%" in row["breaches"][0]
+    raised = client.put(path, json={**band, "max_hedge_ratio_pct": 80}, headers=_h(who, "risk"))
+    assert raised.status_code == 200
+    again = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "analyst")).json()
+    assert again["data"][0]["status"] == "ok"
+
+
+def test_daily_balance_shows_what_is_left_to_sell_each_gas_day(tmp_path, monkeypatch):
+    _engine, who = _setup(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    response = client.get(
+        "/api/portfolio/daily-balance?hub=NBP&days=31&long_discount_per_mwh=0.5"
+        "&short_premium_per_mwh=1.5",
+        headers=_h(who, "analyst"),
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["currency"] == "GBP" and data["contracts"] == ["nbp-supply"]
+    today = data["days"][0]
+    # No trade delivers today: the whole 1,000 MWh of supply is still to sell.
+    assert today["supply"] == 1_000 and today["residual_mwh"] == 1_000
+    assert today["state"] == "long" and today["cash_out_cost"] == 500.0
+    next_month = [day for day in data["days"] if day["exchange_sold"] or day["bilateral_sold"]]
+    for day in next_month:
+        # 600 MWh a day sold on screen and 600 bilaterally against 1,000 of supply: short 200.
+        assert day["exchange_sold"] == 600 and day["bilateral_sold"] == 600
+        assert day["residual_mwh"] == -200 and day["cash_out_cost"] == 300.0

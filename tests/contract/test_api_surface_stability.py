@@ -13,6 +13,9 @@ the documented route count) in the same change.
 from apps.api.main import app
 
 PINNED_PUBLIC_PATHS = {
+    "/api/portfolio/daily-balance",
+    "/api/portfolio/hedge-approvals",
+    "/api/portfolio/hedge-approvals/{contract_id}",
     "/api/agent/plans/validate",
     "/api/agent/profiles",
     "/api/agent/research",

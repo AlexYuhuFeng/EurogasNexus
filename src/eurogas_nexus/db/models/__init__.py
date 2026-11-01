@@ -105,6 +105,7 @@ from eurogas_nexus.db.models.review import ReviewDecisionRecord
 from eurogas_nexus.db.models.risk_controls import (
     ContractDeliveryRecord,
     CreditLineRecord,
+    HedgeApprovalRecord,
     LngTerminalTermsRecord,
     TraderMandateRecord,
 )
@@ -293,6 +294,7 @@ __all__ = [
     "ContractDeliveryRecord",
     "CreditLineRecord",
     "LngTerminalTermsRecord",
+    "HedgeApprovalRecord",
     "TraderMandateRecord",
     "RegasSlotRecord",
     "PrincipalPreferenceRecord",

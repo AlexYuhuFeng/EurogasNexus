@@ -62,6 +62,27 @@ class TraderMandateRecord(Base):
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class HedgeApprovalRecord(Base):
+    """Risk's approved hedge band for one supply contract (e.g. at most 80 % hedged).
+
+    Set by the risk function, not the trader who books the contract. The trades that hedge
+    the contract are the ones the ETRM links to it (``linked_resource_id``); the mandate's
+    hedge band still applies to the book, and the stricter of the two governs the deal.
+    """
+
+    __tablename__ = "hedge_approvals"
+
+    contract_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    min_hedge_ratio_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_hedge_ratio_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: The approving body's reference (credit committee minute, legal opinion).
+    approval_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ContractDeliveryRecord(Base):
     """One gas day of a bilateral supply contract: nominated and allocated quantity."""
 

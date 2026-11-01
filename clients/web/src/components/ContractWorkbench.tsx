@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
-import type { ContractIntakeDTO, PortfolioResourceDTO, UpstreamContractDTO } from "@/api/client";
+import type { ContractIntakeDTO, PortfolioResourceDTO, RouteCandidateDTO, UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
 import { RetireContractButton, RetiredContractsList, type ContractLifecycleAction } from "@/components/ContractLifecycleControls";
 import { FinancingRateHelper } from "@/components/FinancingRateHelper";
@@ -19,6 +19,57 @@ import {
   sourceReferenceFromRecord,
   stringFromRecord,
 } from "@/app/contractImport";
+import {
+  GOVERNING_LAWS,
+  SALE_MODES,
+  hubCurrency,
+  hubOfPoint,
+  indexOptions,
+  pointOptions,
+} from "@/app/contractChoices";
+
+/** A select over closed options, keeping a recorded value that is not one of them. */
+function ChoiceSelect({ value, options, onChange, blank, recordedLabel }: {
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+  blank: string;
+  recordedLabel: string;
+}) {
+  const known = options.includes(value);
+  return (
+    <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="">{blank}</option>
+      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      {value && !known && <option value={value}>{`${value} (${recordedLabel})`}</option>}
+    </select>
+  );
+}
+
+/** Checkboxes over closed options; a recorded value outside them stays ticked until cleared. */
+function ChoiceChecks({ values, options, label, onChange }: {
+  values: readonly string[];
+  options: readonly { value: string; label: string }[];
+  label: string;
+  onChange: (values: string[]) => void;
+}) {
+  const all = [...options, ...values.filter((value) => !options.some((option) => option.value === value)).map((value) => ({ value, label: value }))];
+  return (
+    <fieldset className="choice-checks span-2">
+      <legend>{label}</legend>
+      {all.map((option) => (
+        <label key={option.value} className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={values.includes(option.value)}
+            onChange={() => onChange(values.includes(option.value) ? values.filter((value) => value !== option.value) : [...values, option.value])}
+          />
+          <span>{option.label}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
 
 const RESOURCE_TYPES = ["PIPELINE_IMPORT", "BEACH_DELIVERY", "LNG_REGAS", "STORAGE", "CONTRACT_POOL"] as const;
 
@@ -108,6 +159,8 @@ interface ContractWorkbenchProps {
   updateContractText: (key: ContractTextKey, value: string) => void;
   updateContractNumber: (key: ContractNumberKey, value: string) => void;
   updateContractList: (key: ContractListKey, value: string) => void;
+  /** Route network the delivery and exit points are chosen from. */
+  routeCandidates?: readonly RouteCandidateDTO[];
   resetContractDraft: () => void;
   importContractDraftFile: (event: ChangeEvent<HTMLInputElement>) => void;
   loadPersistedContract: (saved: UpstreamContractDTO) => void;
@@ -141,7 +194,7 @@ export function ContractWorkbench({
   onOpenStrategyForResource, contractImportRef, contractImportMessage,
   contractIntake = null, onDismissContractIntake, onContractLifecycle,
   contractSaveMessage, contractSaveConflict, t,
-  updateContractText, updateContractNumber, updateContractList,
+  updateContractText, updateContractNumber, updateContractList, routeCandidates = [],
   resetContractDraft, importContractDraftFile, loadPersistedContract,
 }: ContractWorkbenchProps) {
   // Wave 9: object detail goes to the canonical Inspector instead of growing a third
@@ -171,6 +224,8 @@ export function ContractWorkbench({
       )
     : "n/a";
   // Desk words for where the draft came from; an unknown code is shown as recorded.
+  const points = useMemo(() => pointOptions(routeCandidates), [routeCandidates]);
+  const deliveryHub = hubOfPoint(contract.delivery_point_name);
   const stagedCode = contract.document_status || "MANUAL_DRAFT";
   const stagedLabel = t(`contracts.doc_status.${stagedCode}`);
   const stagedStatus = stagedLabel === `contracts.doc_status.${stagedCode}` ? stagedCode : stagedLabel;
@@ -319,14 +374,17 @@ export function ContractWorkbench({
             </div></fieldset>}
             {clauseView === "product" && <fieldset><legend>{t("contracts.product_term")}</legend><p>{t("contracts.section_help.product")}</p><div className="contract-field-grid">
               <label>{t("contracts.gas_year")}<input value={contract.gas_year} onChange={(event) => updateContractText("gas_year", event.target.value)} /></label>
-              <label>{t("contracts.index_basis")}<input value={contract.index_basis} onChange={(event) => updateContractText("index_basis", event.target.value)} /></label>
+              <label>{t("contracts.index_basis")}<ChoiceSelect value={contract.index_basis} options={indexOptions(deliveryHub)} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("index_basis", value)} /></label>
             </div></fieldset>}
             {clauseView === "delivery" && <fieldset><legend>{t("contracts.delivery")}</legend><p>{t("contracts.section_help.delivery")}</p><div className="contract-field-grid">
-              <label>{t("contracts.delivery_point")}<input value={contract.delivery_point_name} onChange={(event) => updateContractText("delivery_point_name", event.target.value)} /></label>
-              <label>{t("contracts.title_transfer_point")}<input value={contract.title_transfer_point} onChange={(event) => updateContractText("title_transfer_point", event.target.value)} /></label>
-              <label>{t("contracts.beach_delivery_point")}<input value={contract.beach_delivery_point} onChange={(event) => updateContractText("beach_delivery_point", event.target.value)} /></label>
-              <label>{t("contracts.physical_exit_point")}<input value={contract.physical_exit_point_name} onChange={(event) => updateContractText("physical_exit_point_name", event.target.value)} /></label>
-            </div></fieldset>}
+              <label>{t("contracts.delivery_point")}<ChoiceSelect value={contract.delivery_point_name} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("delivery_point_name", value)} /></label>
+              <label>{t("contracts.title_transfer_point")}<ChoiceSelect value={contract.title_transfer_point} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("title_transfer_point", value)} /></label>
+              <label>{t("contracts.beach_delivery_point")}<ChoiceSelect value={contract.beach_delivery_point} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("beach_delivery_point", value)} /></label>
+              <label>{t("contracts.physical_exit_point")}<ChoiceSelect value={contract.physical_exit_point_name} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("physical_exit_point_name", value)} /></label>
+            </div>
+              {deliveryHub && hubCurrency(deliveryHub) !== "GBP" && <div className="contract-model-boundary">{t("contracts.currency_gap", { hub: deliveryHub })}</div>}
+              {contract.delivery_point_name && !deliveryHub && <div className="contract-model-boundary">{t("contracts.point_not_hub")}</div>}
+            </fieldset>}
             {clauseView === "quantity" && <fieldset><legend>{t("contracts.quantity_tolerance")}</legend><p>{t("contracts.section_help.quantity")}</p><div className="contract-field-grid">
               <label>{t("economics.volume")}<input type="number" min="0" value={contract.delivery_quantity_mwh_per_day ?? ""} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
               <label>{t("economics.delivery_tolerance")}<input type="number" min="0" value={contract.delivery_tolerance_pct ?? ""} onChange={(event) => updateContractNumber("delivery_tolerance_pct", event.target.value)} /></label>
@@ -341,7 +399,7 @@ export function ContractWorkbench({
             </div></fieldset>}
             {clauseView === "capacity" && <fieldset><legend>{t("contracts.capacity_rights")}</legend><p>{t("contracts.section_help.capacity")}</p><div className="contract-field-grid">
               <label>{t("contracts.terminal_access")}<input value={contract.terminal_access} onChange={(event) => updateContractText("terminal_access", event.target.value)} /></label>
-              <label>{t("contracts.capacity_expiry")}<input value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} /></label>
+              <label>{t("contracts.capacity_expiry")}{/^\d{4}-\d{2}-\d{2}$/.test(contract.capacity_expiry) || !contract.capacity_expiry ? <input type="date" value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} /> : <input value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} />}</label>
               <label>{t("contracts.entry_capacity")}<input type="number" min="0" value={contract.owned_entry_capacity_mwh_per_day ?? ""} onChange={(event) => updateContractNumber("owned_entry_capacity_mwh_per_day", event.target.value)} /></label>
               <label>{t("contracts.exit_capacity")}<input type="number" min="0" value={contract.owned_exit_capacity_mwh_per_day ?? ""} onChange={(event) => updateContractNumber("owned_exit_capacity_mwh_per_day", event.target.value)} /></label>
             </div></fieldset>}
@@ -351,11 +409,11 @@ export function ContractWorkbench({
               <label>{t("contracts.upstream_payment_lag")}<input type="number" min="0" value={contract.upstream_payment_lag_days ?? ""} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
               <label>{t("economics.finance_rate")}<input type="number" min="0" value={contract.annual_financing_rate_pct ?? ""} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
               <FinancingRateHelper t={t} onApply={(rate) => updateContractNumber("annual_financing_rate_pct", String(rate))} />
-              <label className="span-2">{t("contracts.governing_law")}<input value={contract.governing_law} onChange={(event) => updateContractText("governing_law", event.target.value)} /></label>
+              <label className="span-2">{t("contracts.governing_law")}<ChoiceSelect value={contract.governing_law} options={GOVERNING_LAWS} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("governing_law", value)} /></label>
             </div><ContractPaymentTerms read={contract.persisted_payment_terms} t={t} /></fieldset>}
             {clauseView === "restrictions" && <fieldset><legend>{t("contracts.restrictions")}</legend><p>{t("contracts.section_help.restrictions")}</p><div className="contract-field-grid">
-              <label className="span-2">{t("contracts.allowed_exit_points")}<input value={contract.allowed_exit_points.join(", ")} onChange={(event) => updateContractList("allowed_exit_points", event.target.value)} /></label>
-              <label className="span-2">{t("contracts.eligible_sale_modes")}<input value={contract.eligible_sale_modes.join(", ")} onChange={(event) => updateContractList("eligible_sale_modes", event.target.value)} /></label>
+              <ChoiceChecks label={t("contracts.allowed_exit_points_pick")} values={contract.allowed_exit_points} options={points.map((point) => ({ value: point, label: point }))} onChange={(values) => updateContractList("allowed_exit_points", values.join(", "))} />
+              <ChoiceChecks label={t("contracts.eligible_sale_modes_pick")} values={contract.eligible_sale_modes} options={SALE_MODES.map((mode) => ({ value: mode, label: t(`contracts.sale_mode.${mode}`) }))} onChange={(values) => updateContractList("eligible_sale_modes", values.join(", "))} />
             </div></fieldset>}
           </section>
 

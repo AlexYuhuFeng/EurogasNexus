@@ -435,3 +435,88 @@ def fx_lookup(eur_rates: Mapping[str, float]) -> Callable[[str, str], float | No
         return b / a
 
     return fx
+
+
+@dataclass(frozen=True)
+class HedgeApproval:
+    """Risk's approved hedge band for one contract, in percent of its monthly volume."""
+
+    contract_id: str
+    min_hedge_ratio_pct: float | None = None
+    max_hedge_ratio_pct: float | None = None
+    approval_ref: str | None = None
+    valid_until: date | None = None
+
+
+@dataclass(frozen=True)
+class VolumeLeg:
+    """A flat daily volume over a gas-day window (long positive, short negative)."""
+
+    reference: str
+    first_gas_day: date
+    last_gas_day: date
+    mwh_per_day: float
+
+
+def _monthly(legs: Iterable[VolumeLeg], today: date) -> dict[str, float]:
+    volumes: dict[str, float] = defaultdict(float)
+    for leg in legs:
+        start = max(leg.first_gas_day, today)
+        if start > leg.last_gas_day:
+            continue
+        for month, days in _days_by_month(start, leg.last_gas_day).items():
+            volumes[month] += leg.mwh_per_day * days
+    return volumes
+
+
+def deal_hedge_usage(
+    approval: HedgeApproval,
+    physical: Iterable[VolumeLeg],
+    hedges: Iterable[VolumeLeg],
+    *,
+    today: date,
+) -> dict:
+    """How far each remaining month of a contract is hedged against its approved band.
+
+    The hedge ratio of a month is the linked trades' volume offsetting the contract's,
+    as a share of the contract's: selling forward 80 % of a long supply contract is 80 %.
+    A trade pointing the same way adds to the position and counts as negative cover.
+    """
+
+    supply = _monthly(physical, today)
+    cover = _monthly(hedges, today)
+    months = []
+    breaches: list[str] = []
+    low, high = approval.min_hedge_ratio_pct, approval.max_hedge_ratio_pct
+    for month in sorted(supply):
+        volume = supply[month]
+        if abs(volume) < 1e-9:
+            continue
+        pct = 100.0 * -cover.get(month, 0.0) / volume
+        room = None if high is None else high / 100.0 * abs(volume) - abs(cover.get(month, 0.0))
+        months.append(
+            {
+                "month": month,
+                "contract_mwh": round(volume, 1),
+                "hedged_mwh": round(-cover.get(month, 0.0), 1),
+                "hedge_pct": round(pct, 1) + 0.0,  # + 0.0 turns -0.0 into 0.0
+                "room_mwh": None if room is None else round(room, 1),
+            }
+        )
+        if high is not None and pct > high + 1e-6:
+            breaches.append(f"{month} hedged {pct:.0f}%, over the approved {high:.0f}%")
+        if low is not None and pct < low - 1e-6:
+            breaches.append(f"{month} hedged {pct:.0f}%, under the approved {low:.0f}%")
+    expired = approval.valid_until is not None and approval.valid_until < today
+    pcts = [row["hedge_pct"] for row in months]
+    return {
+        "contract_id": approval.contract_id,
+        "min_hedge_ratio_pct": low,
+        "max_hedge_ratio_pct": high,
+        "approval_ref": approval.approval_ref,
+        "valid_until": approval.valid_until.isoformat() if approval.valid_until else None,
+        "hedge_range": _pct_range(min(pcts), max(pcts)) if pcts else None,
+        "months": months,
+        "breaches": breaches,
+        "status": "expired" if expired else "breach" if breaches else "ok",
+    }

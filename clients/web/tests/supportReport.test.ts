@@ -15,7 +15,7 @@ test("client context is allowlisted and bounded", () => {
   const context = supportClientContext({
     clientVersion: "0.7.0",
     serverVersion: "0.7.0",
-    schemaRevision: "0055_desk_operations",
+    schemaRevision: "0056_hedge_approvals",
     hostKind: "browser",
     language: "en",
     location: { pathname: "/", search: "?workspace=market" },

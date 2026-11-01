@@ -202,3 +202,28 @@ def test_a_trade_in_another_mandates_book_is_not_a_breach_of_this_one() -> None:
     # Booked where none of their mandates reach, it still lands on this one and is flagged.
     stray = mandate_usage(ttf, [nbp_trade], today=TODAY)
     assert any("NBP is outside" in b for b in stray.breaches)
+
+
+def test_deal_hedge_band_per_contract() -> None:
+    from eurogas_nexus.domain.risk.limits import HedgeApproval, VolumeLeg, deal_hedge_usage
+
+    supply = [VolumeLeg("C1", date(2026, 11, 1), date(2026, 12, 31), 1000.0)]
+    # Sold forward 900 MWh/d in November (90 %), 500 MWh/d in December (50 %).
+    sales = [
+        VolumeLeg("S1", date(2026, 11, 1), date(2026, 11, 30), -900.0),
+        VolumeLeg("S2", date(2026, 12, 1), date(2026, 12, 31), -500.0),
+    ]
+    approved_80 = HedgeApproval("C1", max_hedge_ratio_pct=80.0, approval_ref="CC-2026-41")
+    usage = deal_hedge_usage(approved_80, supply, sales, today=TODAY)
+    assert [m["hedge_pct"] for m in usage["months"]] == [90.0, 50.0]
+    assert usage["status"] == "breach" and "over the approved 80%" in usage["breaches"][0]
+    assert usage["months"][1]["room_mwh"] == 31 * 1000 * 0.8 - 31 * 500
+    # The same deal under a 50 % approval breaches only in November.
+    approved_50 = HedgeApproval("C1", max_hedge_ratio_pct=50.0)
+    assert len(deal_hedge_usage(approved_50, supply, sales, today=TODAY)["breaches"]) == 1
+    # A minimum cover is breached when the deal is left open.
+    floor = HedgeApproval("C1", min_hedge_ratio_pct=60.0, max_hedge_ratio_pct=100.0)
+    assert (
+        "under the approved 60%"
+        in deal_hedge_usage(floor, supply, sales, today=TODAY)["breaches"][0]
+    )

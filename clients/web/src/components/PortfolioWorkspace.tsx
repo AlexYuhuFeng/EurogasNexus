@@ -7,6 +7,8 @@ import { TradingBooksPanel } from "@/components/TradingBooksPanel";
 import { RiskLimitsPanel } from "@/components/RiskLimitsPanel";
 import { DeliveryPerformancePanel } from "@/components/DeliveryPerformancePanel";
 import { LngCargoBidPanel } from "@/components/LngCargoBidPanel";
+import { DailyBalancePanel } from "@/components/DailyBalancePanel";
+import { DealHedgeApprovalsPanel } from "@/components/DealHedgeApprovalsPanel";
 import { SellDownPanel } from "@/components/SellDownPanel";
 import { TariffPublicationsPanel } from "@/components/TariffPublicationsPanel";
 import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
@@ -326,12 +328,14 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             updateContractText={contractEditor.updateContractText}
             updateContractNumber={contractEditor.updateContractNumber}
             updateContractList={contractEditor.updateContractList}
+            routeCandidates={api.routeCandidates}
             resetContractDraft={contractEditor.resetContractDraft}
             importContractDraftFile={contractEditor.importContractDraftFile}
             loadPersistedContract={contractEditor.loadPersistedContract}
           />
         )}
         {task === "resources" && <DeliveryPerformancePanel t={t} />}
+        {task === "resources" && <DailyBalancePanel t={t} />}
         {task === "resources" && <SellDownPanel t={t} />}
         {task === "routes" && (
           <>
@@ -358,6 +362,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
         )}
         {task === "exposure" && <PositionLadderPanel t={t} />}
         {task === "exposure" && <RiskLimitsPanel t={t} />}
+        {task === "exposure" && <DealHedgeApprovalsPanel t={t} />}
         {task === "exposure" && <TradingBooksPanel t={t} />}
         {task === "exposure" && (
           <MarketPositioningWorkspace

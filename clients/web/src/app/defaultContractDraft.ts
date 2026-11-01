@@ -27,7 +27,7 @@ export const defaultContractDraft: ContractDraft = {
   contract_price_gbp_mwh: 0,
   nbp_sale_price_gbp_mwh: 0,
   physical_exit_sale_price_gbp_mwh: 0,
-  physical_exit_point_name: "NBP",
+  physical_exit_point_name: "",
   title_transfer_point: "",
   beach_delivery_point: "",
   index_basis: "",

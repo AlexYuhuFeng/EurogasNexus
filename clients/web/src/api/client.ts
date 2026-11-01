@@ -2676,6 +2676,59 @@ export interface SellDownInput {
   lot_mwh: number;
 }
 
+export interface DailyBalanceDayDTO {
+  gas_day: string;
+  supply: number;
+  exchange_bought: number;
+  exchange_sold: number;
+  bilateral_bought: number;
+  bilateral_sold: number;
+  /** Supply plus purchases minus sales: positive is gas still to sell, negative to buy. */
+  residual_mwh: number;
+  state: "long" | "short" | "balanced";
+  cash_out_cost: number | null;
+}
+
+export interface DailyBalanceDTO {
+  hub: string;
+  currency: string;
+  delivery_ratio: number;
+  contracts: string[];
+  days: DailyBalanceDayDTO[];
+}
+
+export interface HedgeApprovalMonthDTO {
+  month: string;
+  contract_mwh: number;
+  hedged_mwh: number;
+  hedge_pct: number;
+  room_mwh: number | null;
+}
+
+export interface HedgeApprovalRowDTO {
+  contract_id: string;
+  min_hedge_ratio_pct: number | null;
+  max_hedge_ratio_pct: number | null;
+  approval_ref: string | null;
+  valid_until: string | null;
+  hedge_range: string | null;
+  months: HedgeApprovalMonthDTO[];
+  breaches: string[];
+  status: "ok" | "breach" | "expired";
+  linked_trades: number;
+  contract_found: boolean;
+  notes: string | null;
+  updated_by: string;
+}
+
+export interface HedgeApprovalInput {
+  min_hedge_ratio_pct: number | null;
+  max_hedge_ratio_pct: number | null;
+  approval_ref: string | null;
+  valid_until: string | null;
+  notes: string | null;
+}
+
 export interface SellDownPlanDTO {
   hub: string;
   contracts: string[];
@@ -4691,6 +4744,23 @@ export const api = {
     put<NotificationChannelDTO>(`/settings/notification-channels/${encodeURIComponent(channelId)}`, body),
   testNotificationChannel: (channelId: string) =>
     post<{ sent: boolean; detail: string }>(`/settings/notification-channels/${encodeURIComponent(channelId)}/test`, {}),
+  dailyBalance: (
+    query: { hub: string; days?: number; short_premium_per_mwh?: number; long_discount_per_mwh?: number },
+    options?: ApiRequestOptions,
+  ) =>
+    get<DailyBalanceDTO>(
+      "/portfolio/daily-balance",
+      Object.fromEntries(
+        Object.entries(query)
+          .filter(([, value]) => value !== undefined && value !== null && !Number.isNaN(value))
+          .map(([key, value]) => [key, String(value)]),
+      ),
+      options,
+    ),
+  hedgeApprovals: (options?: ApiRequestOptions) =>
+    get<HedgeApprovalRowDTO[]>("/portfolio/hedge-approvals", undefined, options),
+  saveHedgeApproval: (contractId: string, body: HedgeApprovalInput) =>
+    put<{ key: string; created: boolean }>(`/portfolio/hedge-approvals/${encodeURIComponent(contractId)}`, body),
   sellDownPlan: (body: SellDownInput, options?: ApiRequestOptions) =>
     post<SellDownPlanDTO>("/portfolio/sell-down-plan", body, options),
   lngCargoBid: (body: LngCargoBidInput, options?: ApiRequestOptions) =>

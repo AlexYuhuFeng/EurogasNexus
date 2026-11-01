@@ -138,7 +138,6 @@ export function SettingsCenter({
     <div className="workspace-grid settings-page settings-preference-center">
       <div className="workspace-panel span-3 settings-overview-panel">
         <div className="section-heading">
-          <span className="eyebrow">{t("nav.settings")}</span>
           <strong>{t("settings.title")}</strong>
         </div>
         <p className="panel-copy">{t("settings.subtitle")}</p>

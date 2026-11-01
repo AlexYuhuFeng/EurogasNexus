@@ -70,7 +70,7 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
             {rows.map((row) => (
               <tr key={row.channel_id}>
                 <td><strong>{row.name}</strong> <small>{row.recipients ?? ""}</small></td>
-                <td><small>{(row.categories.length ? row.categories : [t("notify.all")]).join(", ")} · ≥ {row.min_severity}</small></td>
+                <td><small>{(row.categories.length ? row.categories.map((category) => t(`notify.category_${category}`)) : [t("notify.all")]).join(", ")} · ≥ {t(`notify.severity_${row.min_severity}`)}</small></td>
                 <td>{row.last_delivery ? <span className="limit-badge" data-status={row.last_delivery.status === "sent" ? "ok" : "breach"} title={row.last_delivery.detail}>{row.last_delivery.status}</span> : <small className="muted">-</small>}</td>
                 <td><button type="button" className="link-button" onClick={() => test(row)}>{t("notify.test")}</button></td>
               </tr>
@@ -85,7 +85,7 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
         <label>
           <span>{t("notify.min_severity")}</span>
           <select value={draft.min_severity} onChange={(event) => setDraft({ ...draft, min_severity: event.target.value })}>
-            {["info", "low", "medium", "high", "critical"].map((level) => <option key={level} value={level}>{level}</option>)}
+            {["info", "low", "medium", "high", "critical"].map((level) => <option key={level} value={level}>{t(`notify.severity_${level}`)}</option>)}
           </select>
         </label>
         <fieldset className="notify-categories">

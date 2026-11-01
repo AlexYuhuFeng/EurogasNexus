@@ -417,6 +417,110 @@ def put_trader_mandate(mandate_id: str, body: MandateRequest, request: Request) 
     return _env(result, request, "runtime-postgresql", [])
 
 
+# -------------------------------------------------------------------- deal hedge approvals
+
+
+class HedgeApprovalRequest(BaseModel):
+    """Risk's approved hedge band for one contract, with the approval's reference."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    min_hedge_ratio_pct: float | None = Field(default=None, ge=0, le=100)
+    max_hedge_ratio_pct: float | None = Field(default=None, ge=0, le=100)
+    approval_ref: str | None = Field(default=None, max_length=128)
+    valid_until: date | None = None
+    notes: str | None = Field(default=None, max_length=500)
+
+
+@router.get("/api/portfolio/hedge-approvals")
+def get_hedge_approvals(request: Request) -> dict:
+    """Each approved deal's hedge band against the cover its linked trades give, by month.
+
+    单笔合同对冲审批：风险批准的对冲比例区间与关联交易的实际覆盖。
+    """
+
+    from eurogas_nexus.domain.risk.limits import HedgeApproval, VolumeLeg, deal_hedge_usage
+
+    if not _db_is_configured():
+        return _not_configured(request)
+    today = datetime.now(UTC).date()
+    start, end = _horizon(today)
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import HedgeApprovalRecord
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            records = (
+                session.query(HedgeApprovalRecord).order_by(HedgeApprovalRecord.contract_id).all()
+            )
+            session.expunge_all()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    inputs = ladder_inputs(request, today, start, end)
+    linked: dict[str, list[str]] = {}
+    for order in inputs.orders:
+        target = getattr(order, "linked_resource_id", None)
+        if target:
+            linked.setdefault(str(target), []).append(order.order_observation_id)
+    legs_by_ref = {leg.reference: leg for leg in inputs.legs}
+
+    def volume(leg) -> VolumeLeg:
+        return VolumeLeg(leg.reference, leg.first_gas_day, leg.last_gas_day, leg.mwh_per_day)
+
+    rows = []
+    for record in records:
+        contract = legs_by_ref.get(record.contract_id)
+        hedges = [
+            legs_by_ref[ref] for ref in linked.get(record.contract_id, []) if ref in legs_by_ref
+        ]
+        row = deal_hedge_usage(
+            HedgeApproval(
+                contract_id=record.contract_id,
+                min_hedge_ratio_pct=record.min_hedge_ratio_pct,
+                max_hedge_ratio_pct=record.max_hedge_ratio_pct,
+                approval_ref=record.approval_ref,
+                valid_until=record.valid_until,
+            ),
+            [volume(contract)] if contract and contract.kind == "physical" else [],
+            [volume(leg) for leg in hedges],
+            today=today,
+        )
+        row["linked_trades"] = len(hedges)
+        row["contract_found"] = contract is not None
+        row["notes"] = record.notes
+        row["updated_by"] = record.updated_by
+        rows.append(row)
+    warnings = list(inputs.warnings)
+    if any(not row["contract_found"] for row in rows):
+        warnings.append("an approval names a contract that is retired or not in this book scope")
+    return _env(rows, request, "runtime-postgresql", warnings)
+
+
+@router.put("/api/portfolio/hedge-approvals/{contract_id}")
+def put_hedge_approval(contract_id: str, body: HedgeApprovalRequest, request: Request) -> dict:
+    """Record or change a contract's approved hedge band (risk, audited)."""
+
+    from eurogas_nexus.db.models import HedgeApprovalRecord
+
+    if not contract_id or len(contract_id) > 128:
+        raise HTTPException(status_code=422, detail={"code": "contract_id_invalid"})
+    low, high = body.min_hedge_ratio_pct, body.max_hedge_ratio_pct
+    if low is None and high is None:
+        raise HTTPException(status_code=422, detail={"code": "hedge_band_missing"})
+    if low is not None and high is not None and low > high:
+        raise HTTPException(status_code=422, detail={"code": "hedge_band_inverted"})
+    result = _write(
+        request,
+        record_type=HedgeApprovalRecord,
+        key=contract_id,
+        values=body.model_dump(),
+        action="risk.hedge_approval.update",
+        resource=f"hedge_approval:{contract_id}",
+    )
+    return _env(result, request, "runtime-postgresql", [])
+
+
 # ------------------------------------------------------------------------- LNG cargo bids
 
 
@@ -647,6 +751,98 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
 
 
 # --------------------------------------------------------------- day-ahead sell-down plan
+
+
+@router.get("/api/portfolio/daily-balance")
+def get_daily_balance(
+    request: Request,
+    hub: str = Query("NBP", min_length=2, max_length=16),
+    days: int = Query(7, ge=1, le=31),
+    short_premium_per_mwh: float | None = Query(None, ge=0, le=500),
+    long_discount_per_mwh: float | None = Query(None, ge=0, le=500),
+    flat_band_mwh: float = Query(0.0, ge=0, le=1_000_000),
+) -> dict:
+    """The gas balance at one hub for each coming gas day: supply, trades, what is left.
+
+    每日平衡：逐个燃气日的合同供应、交易所与双边买卖、剩余敞口及不平衡结算成本。
+
+    Supply is the hub's active contracts corrected by their measured delivery over the
+    last 30 gas days; trades are every exchange trade and ETRM (bilateral) deal delivering
+    that day at the hub, month and longer products spread over their days. The residual
+    left open is cashed out by the TSO; its cost uses the desk's own short premium and long
+    discount. Nothing is nominated or traded.
+    """
+
+    from eurogas_nexus.domain.portfolio.daily_balance import BalanceLeg, daily_balance
+
+    if not _db_is_configured():
+        return _not_configured(request)
+    hub = hub.upper()
+    today = datetime.now(UTC).date()
+    gas_days = [today + timedelta(days=offset) for offset in range(days)]
+    inputs = ladder_inputs(request, today, today, gas_days[-1])
+    etrm = {
+        order.order_observation_id
+        for order in inputs.orders
+        if str(order.provider_id).upper() == "ETRM"
+    }
+    legs = [
+        BalanceLeg(
+            reference=leg.reference,
+            first_gas_day=leg.first_gas_day,
+            last_gas_day=leg.last_gas_day,
+            mwh_per_day=leg.mwh_per_day,
+            source="supply"
+            if leg.kind == "physical"
+            else "bilateral"
+            if leg.reference in etrm
+            else "exchange",
+        )
+        for leg in inputs.legs
+        if leg.hub == hub
+    ]
+    contract_ids = [leg.reference for leg in legs if leg.source == "supply"]
+    warnings = list(inputs.warnings)
+    ratio = 1.0
+    if contract_ids:
+        sqlalchemy_error = _sqlalchemy_error_type()
+        try:
+            from eurogas_nexus.db.models import ContractDeliveryRecord
+            from eurogas_nexus.db.session import get_session_factory
+
+            with get_session_factory()() as session:
+                records = (
+                    session.query(ContractDeliveryRecord)
+                    .filter(ContractDeliveryRecord.contract_id.in_(contract_ids))
+                    .filter(ContractDeliveryRecord.gas_day >= today - timedelta(days=30))
+                    .all()
+                )
+        except sqlalchemy_error as exc:
+            raise _db_unavailable(exc) from exc
+        nominated = sum(r.nominated_mwh or 0.0 for r in records if r.allocated_mwh is not None)
+        allocated = sum(r.allocated_mwh or 0.0 for r in records if r.nominated_mwh is not None)
+        if nominated > 0:
+            ratio = allocated / nominated
+        else:
+            warnings.append(
+                "No delivery history for these contracts: supply is their full daily quantity."
+            )
+    rows = daily_balance(
+        gas_days,
+        legs,
+        delivery_ratio=ratio,
+        flat_band_mwh=flat_band_mwh,
+        short_premium_per_mwh=short_premium_per_mwh,
+        long_discount_per_mwh=long_discount_per_mwh,
+    )
+    payload = {
+        "hub": hub,
+        "currency": quote_currency(hub),
+        "delivery_ratio": round(ratio, 4),
+        "contracts": contract_ids,
+        "days": rows,
+    }
+    return _env(payload, request, "runtime-postgresql", warnings)
 
 
 class SellDownBody(BaseModel):

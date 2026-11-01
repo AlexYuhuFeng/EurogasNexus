@@ -136,6 +136,7 @@
     --eg-muted: var(--ds-text-3);
     --eg-hairline: var(--ds-border);
     --eg-hairline-strong: var(--ds-border-strong);
+    --eg-border: var(--ds-border);
     --eg-canvas: var(--ds-surface);
     --eg-canvas-soft: var(--ds-bg);
     --eg-canvas-soft-2: var(--ds-surface-2);
@@ -202,6 +203,33 @@
   textarea {
     font: inherit;
     color: inherit;
+  }
+
+  /* Every button starts as the design system's secondary button. This sits in the lowest
+     layer, so a component that styles its own buttons (tabs, chips, links, the primary
+     button) still wins; a button nobody styled no longer falls back to the browser's
+     grey bevel. */
+  button {
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-medium);
+    line-height: 1.2;
+  }
+
+  button:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+  }
+
+  select {
+    min-height: var(--ds-control-sm);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background-color: var(--ds-surface);
+    padding: 0 var(--ds-space-2);
   }
 
   code,
@@ -638,6 +666,67 @@
     display: flex;
     gap: var(--ds-space-2);
     align-items: center;
+  }
+
+  /* Registration forms (credit line, mandate, tariff publication, notification channel,
+     terminal terms): one grid of labelled fields, label above value, the save after them. */
+  .licence-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--ds-space-3) var(--ds-space-4);
+    align-items: end;
+    margin-top: var(--ds-space-3);
+  }
+
+  .licence-form > label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-1);
+    min-width: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .licence-form > button {
+    justify-self: start;
+  }
+
+  .choice-checks,
+  .notify-categories {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    gap: var(--ds-space-2) var(--ds-space-4);
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+
+  .choice-checks legend,
+  .notify-categories legend {
+    margin-bottom: var(--ds-space-1);
+    padding: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .choice-checks .checkbox-row,
+  .notify-categories .checkbox-row {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .contract-field-grid .choice-checks input[type="checkbox"],
+  .choice-checks input[type="checkbox"],
+  .notify-categories input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    flex: 0 0 auto;
   }
 
   /* ------------------------------------------------------------------ tabs */

@@ -534,3 +534,20 @@ Migration `0055_desk_operations` also adds `support_reports`, `notification_chan
 
 Public census: 228 paths / 245 operations.
 
+### Deal hedge approvals and the daily gas balance (2026-11-01)
+
+Migration `0056_hedge_approvals` adds `hedge_approvals` (one row per contract: approved
+minimum and maximum hedge ratio, approval reference, validity, notes). Risk approves a band
+per deal, separately from the trader who books the contract; the mandate's band still
+applies to the book.
+
+| Path | Method | Authority | Purpose |
+|---|---|---|---|
+| `/api/portfolio/hedge-approvals` | GET | READ | Each approval with the cover its linked trades give per month, and breaches |
+| `/api/portfolio/hedge-approvals/{contract_id}` | PUT | REVIEWER (risk function) | Approve or change a deal's band (422 `hedge_band_missing`, `hedge_band_inverted`); audited |
+| `/api/portfolio/daily-balance` | GET | READ | Per gas day at a hub: supply, exchange and bilateral trades, residual, cash-out cost |
+
+The contract write also refuses an unknown sale mode (422 `contract_sale_mode_unknown`).
+
+Public census: 231 paths / 248 operations.
+
