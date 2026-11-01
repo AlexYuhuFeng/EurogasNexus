@@ -69,10 +69,11 @@ def _server_context(session) -> dict:
     }
 
 
-def _report_row(record) -> dict:
+def _report_row(record, names: dict[str, str] | None = None) -> dict:
     return {
         "report_id": record.report_id,
         "reporter": record.reporter,
+        "reporter_name": (names or {}).get(record.reporter, record.reporter),
         "reporter_role": record.reporter_role,
         "severity": record.severity,
         "category": record.category,
@@ -83,6 +84,7 @@ def _report_row(record) -> dict:
         "server_context": record.server_context,
         "status": record.status,
         "assignee": record.assignee,
+        "assignee_name": (names or {}).get(record.assignee or "", record.assignee),
         "resolution": record.resolution,
         "created_at_utc": record.created_at_utc.isoformat(),
         "updated_at_utc": record.updated_at_utc.isoformat(),
@@ -124,9 +126,11 @@ def post_support_report(body: SupportReportBody, request: Request) -> dict:
     try:
         from eurogas_nexus.db.models import SupportReportRecord
         from eurogas_nexus.db.repositories.audit import record_audit_event
+        from eurogas_nexus.db.repositories.identity import display_names
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
+            names = display_names(session, [reporter])
             record = SupportReportRecord(
                 report_id=report_id,
                 reporter=reporter,
@@ -151,7 +155,8 @@ def post_support_report(body: SupportReportBody, request: Request) -> dict:
                 severity=_P_TO_SEVERITY[body.severity],
                 title=f"{report_id} {body.severity} {body.summary}",
                 body=(
-                    f"Reported by {reporter} ({record.reporter_role}) on {body.page or '-'}.\n"
+                    f"Reported by {names.get(reporter, reporter)} ({record.reporter_role})"
+                    f" on {body.page or '-'}.\n"
                     f"Category: {body.category}\n\n{body.description}"
                 ),
                 dedupe_key=f"support:{report_id}",
@@ -168,7 +173,7 @@ def post_support_report(body: SupportReportBody, request: Request) -> dict:
                 detail=f"{body.severity} {body.category}",
             )
             session.commit()
-            payload = _report_row(record)
+            payload = _report_row(record, names)
     except sqlalchemy_error as exc:
         raise db_unavailable(exc) from exc
     return env(payload, request, "runtime-postgresql", [])
@@ -193,12 +198,13 @@ def list_support_reports(
                 query = query.filter(SupportReportRecord.reporter == (identity_id(request) or ""))
             if status:
                 query = query.filter(SupportReportRecord.status == status)
-            rows = [
-                _report_row(record)
-                for record in query.order_by(SupportReportRecord.created_at_utc.desc())
-                .limit(500)
-                .all()
-            ]
+            from eurogas_nexus.db.repositories.identity import display_names
+
+            records = query.order_by(SupportReportRecord.created_at_utc.desc()).limit(500).all()
+            names = display_names(
+                session, [r.reporter for r in records] + [r.assignee for r in records]
+            )
+            rows = [_report_row(record, names) for record in records]
     except sqlalchemy_error as exc:
         raise db_unavailable(exc) from exc
     return env(
@@ -249,7 +255,11 @@ def patch_support_report(report_id: str, body: SupportReportUpdate, request: Req
                 detail=(body.resolution or "")[:500],
             )
             session.commit()
-            payload = _report_row(record)
+            from eurogas_nexus.db.repositories.identity import display_names
+
+            payload = _report_row(
+                record, display_names(session, [record.reporter, record.assignee])
+            )
     except sqlalchemy_error as exc:
         raise db_unavailable(exc) from exc
     return env(payload, request, "runtime-postgresql", [])

@@ -144,7 +144,7 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     assert 'key: "no_execution_boundary"' in runtime_workspace
     assert 'streamingActive ? t("stream.live") : t("stream.polling_fallback")' in runtime_workspace
     assert (
-        'const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance"]'
+        'const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance", "support"]'
         in runtime_workspace
     )
     assert 'useState<RuntimeViewId>("readiness")' in runtime_workspace

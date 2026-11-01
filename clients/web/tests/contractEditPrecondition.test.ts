@@ -104,7 +104,13 @@ test("a new draft is create-only and clears any stored edit lease", () => {
   assert.equal(draftExpectedEditToken(draft), null);
   // The payload path is asserted on a new draft the boundary can transport; the template's
   // quantity is the operator-entered placeholder, so it is supplied here as an editor would.
-  const savable = { ...draft, delivery_quantity_mwh_per_day: 100 };
+  const savable = {
+    ...draft,
+    contract_id: "new-supply-1",
+    contract_name: "New supply",
+    counterparty: "Typed counterparty",
+    delivery_quantity_mwh_per_day: 100,
+  };
   assert.equal(payloadOf(savable).expected_edit_token, null);
 });
 

@@ -95,8 +95,15 @@ function payloadOf(draft: Parameters<typeof contractPayloadReadiness>[0]): NonNu
  * A new draft the boundary can transport: the template's quantity is the operator-entered
  * placeholder, so the payload-path cases supply a volume the way an operator would.
  */
+/** A new draft as a trader completes it: the template leaves identity and counterparty blank. */
 function completedNewDraft() {
-  return { ...cloneDefaultContractDraft(), delivery_quantity_mwh_per_day: 100 };
+  return {
+    ...cloneDefaultContractDraft(),
+    contract_id: "new-supply-1",
+    contract_name: "New supply",
+    counterparty: "Typed counterparty",
+    delivery_quantity_mwh_per_day: 100,
+  };
 }
 
 /** The one shape the backend accepts: `notes` serialized as a JSON object string. */
@@ -204,7 +211,7 @@ test("a new draft after a stored load clears the preserved base", () => {
   const notes = savedNotes(payloadOf(fresh));
 
   assert.equal(notes.source, "web_contract_capture");
-  assert.equal(notes.counterparty, "Operator draft counterparty");
+  assert.equal(notes.counterparty, "Typed counterparty");
   assert.equal("capture_reference" in notes, false);
   assert.equal("indexation" in notes, false);
 });

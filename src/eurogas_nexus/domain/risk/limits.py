@@ -207,6 +207,13 @@ def credit_exposure(
     return result
 
 
+def _pct_range(low: float, high: float) -> str:
+    """ "12% to 87%" (an en dash after a negative number reads as a double minus)."""
+
+    low_pct, high_pct = round(low) + 0, round(high) + 0  # + 0 turns -0 into 0
+    return f"{low_pct}%" if low_pct == high_pct else f"{low_pct}% to {high_pct}%"
+
+
 @dataclass(frozen=True)
 class MandateLeg:
     reference: str
@@ -273,7 +280,7 @@ class MandateUsage:
             "hedge_policy": _policy_text(self.mandate),
             "hedge_ratio_range": None
             if self.lowest_hedge_pct is None
-            else f"{self.lowest_hedge_pct:.0f}-{self.highest_hedge_pct:.0f}%",
+            else _pct_range(self.lowest_hedge_pct, self.highest_hedge_pct),
             "hedge_room_mwh": None
             if self.hedge_room_mwh is None
             else round(self.hedge_room_mwh, 0),
@@ -302,8 +309,21 @@ def _add_months(day: date, months: int) -> date:
     return date(index // 12, index % 12 + 1, 1)
 
 
-def mandate_usage(mandate: Mandate, legs: Iterable[MandateLeg], *, today: date) -> MandateUsage:
-    """How much of one mandate the trader's open legs use, and any rule they break."""
+def mandate_usage(
+    mandate: Mandate,
+    legs: Iterable[MandateLeg],
+    *,
+    today: date,
+    books_elsewhere: frozenset[str] = frozenset(),
+) -> MandateUsage:
+    """How much of one mandate the trader's open legs use, and any rule they break.
+
+    A leg belongs to the mandate when it sits in one of the mandate's books, or when the
+    trader dealt it on their own account in a book none of their *other* mandates cover
+    (``books_elsewhere``): a trader with an NBP mandate and a TTF mandate is not told their
+    NBP-book trade breaches the TTF one, while a trade booked outside all their books is
+    still caught.
+    """
 
     usage = MandateUsage(mandate=mandate)
     books = set(mandate.book_ids)
@@ -326,7 +346,10 @@ def mandate_usage(mandate: Mandate, legs: Iterable[MandateLeg], *, today: date) 
 
     for leg in legs:
         mine = (leg.book_id and leg.book_id in books) or (
-            leg.kind == "financial" and leg.account and leg.account == mandate.trader
+            leg.kind == "financial"
+            and leg.account
+            and leg.account == mandate.trader
+            and leg.book_id not in books_elsewhere
         )
         if not mine or leg.last_gas_day < today:
             continue

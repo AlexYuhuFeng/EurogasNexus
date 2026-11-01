@@ -28,7 +28,29 @@ function price(value: number | null | undefined): string {
 }
 
 function percent(value: number | null | undefined): string {
-  return value == null || !Number.isFinite(value) ? "–" : `${Math.round(value * 100)}%`;
+  return value == null || !Number.isFinite(value) ? "–" : `${Math.round(value * 100) + 0}%`;
+}
+
+function hedgeText(ratio: number | null | undefined, t: Translate): string {
+  return ratio != null && Number.isFinite(ratio) && Math.round(ratio * 100) < 0
+    ? t("position.hedge_adds", { pct: percent(-ratio) })
+    : percent(ratio);
+}
+
+/**
+ * The hedge cell. A negative ratio means the trades point the same way as the physical
+ * position (bought on top of a long), so they add risk instead of hedging it: shown as
+ * "adds N%", flagged, never as a negative hedge.
+ */
+function HedgeCell({ ratio, t }: { ratio: number | null | undefined; t: Translate }) {
+  if (ratio != null && Number.isFinite(ratio) && Math.round(ratio * 100) < 0) {
+    return (
+      <td className="num warning-text" title={t("position.hedge_adds_hint")}>
+        {t("position.hedge_adds", { pct: percent(-ratio) })}
+      </td>
+    );
+  }
+  return <td className="num">{percent(ratio)}</td>;
 }
 
 function useLadder(months: number, groupBy = "hub", reportingCurrency = "") {
@@ -53,7 +75,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
       <div><span>{t("position.net")}</span><strong>{mwh(ladder.totals.net_mwh)} MWh</strong></div>
       <div><span>{t("position.physical")}</span><strong>{mwh(ladder.totals.physical_mwh)}</strong></div>
       <div><span>{t("position.financial")}</span><strong>{mwh(ladder.totals.financial_mwh)}</strong></div>
-      <div><span>{t("position.hedged")}</span><strong>{percent(overallHedgeRatio(ladder))}</strong></div>
+      <div><span>{t("position.hedged")}</span><strong>{hedgeText(overallHedgeRatio(ladder), t)}</strong></div>
       <div>
         <span>{t("position.mtm")}{ladder.reporting_currency ? ` (${ladder.reporting_currency})` : ""}</span>
         <strong className={pnlClass(ladder.mark_to_market)}>{money(ladder.mark_to_market)}</strong>
@@ -145,7 +167,7 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
                 <td className="num">{mwh(row.physical_mwh)}</td>
                 <td className="num">{mwh(row.financial_mwh)}</td>
                 <td className={`num ${row.net_mwh >= 0 ? "long" : "short"}`}>{mwh(row.net_mwh)}</td>
-                <td className="num">{percent(row.hedge_ratio)}</td>
+                <HedgeCell ratio={row.hedge_ratio} t={t} />
                 <td className={`num ${pnlClass(row.mark_to_market)}`}>{money(row.mark_to_market)}</td>
               </tr>
             ))}
@@ -186,7 +208,7 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
                         style={{ width: `${barShare(row.net_mwh, ladder.rows) * 50}%` }}
                       />
                     </td>
-                    <td className="num">{percent(row.hedge_ratio)}</td>
+                    <HedgeCell ratio={row.hedge_ratio} t={t} />
                     <td
                       className="num"
                       data-mark-method={row.mark_method ?? undefined}

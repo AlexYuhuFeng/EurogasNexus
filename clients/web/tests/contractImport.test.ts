@@ -86,7 +86,8 @@ test("stored hydration clears absent text instead of presenting template facts",
 
   for (const key of ABSENT_TEXT_KEYS) {
     assert.equal(mapped[key], "", `${key} must be blank when the stored row does not record it`);
-    assert.notEqual(mapped[key], template[key], `${key} must not fall back to template text`);
+    // The template invents no contract facts, so blank is the only honest value either way.
+    assert.ok(template[key] === "" || mapped[key] !== template[key], `${key} must not fall back to template text`);
   }
 
   // Recorded values survive verbatim: the stored columns, the list columns and the structured
@@ -235,15 +236,15 @@ test("stored hydration is distinct from the new-draft template and the import ov
     notes: JSON.stringify({ source_reference: "db:contract-6" }),
   };
 
-  // The new-draft template still carries its explicit operator-entry defaults.
-  const fresh = cloneDefaultContractDraft();
-  assert.equal(fresh.counterparty, "Operator draft counterparty");
+  // The new-draft template carries desk conventions, never invented contract facts.
+  const fresh = { ...cloneDefaultContractDraft(), counterparty: "Typed by the trader" };
+  assert.equal(cloneDefaultContractDraft().counterparty, "");
+  assert.equal(cloneDefaultContractDraft().governing_law, "");
   assert.equal(fresh.contract_type, "EFET physical supply");
-  assert.equal(fresh.governing_law, "English law / EFET master confirmation to review");
 
   // The file-import overlay keeps the working draft's unstated terms...
   const overlaid = contractDraftFromRecord(record, fresh);
-  assert.equal(overlaid.counterparty, "Operator draft counterparty");
+  assert.equal(overlaid.counterparty, "Typed by the trader");
   assert.equal(overlaid.source_reference, "db:contract-6");
 
   // ...while stored hydration of the same record clears them.

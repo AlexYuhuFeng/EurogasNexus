@@ -41,7 +41,6 @@ export function MarketPositioningWorkspace({
     <div className="workspace-grid orders-page">
       <div className="workspace-panel span-3">
         <div className="section-heading">
-          <span className="eyebrow">{t("nav.orders")}</span>
           <strong>{t("orders.title")}</strong>
         </div>
         <p className="panel-copy">{t("orders.subtitle")}</p>
@@ -55,7 +54,7 @@ export function MarketPositioningWorkspace({
       <div className="workspace-panel span-3">
         <h2>{t("orders.screen_orders")}</h2>
         <div className="data-table orders-table" tabIndex={0}>
-          <div className="data-table-row header six"><span>Venue</span><span>Side</span><span>Hub</span><span>Qty</span><span>Price</span><span>Status</span></div>
+          <div className="data-table-row header six"><span>{t("orders.col.venue")}</span><span>{t("orders.col.side")}</span><span>{t("orders.col.hub")}</span><span>{t("orders.col.quantity")}</span><span>{t("orders.col.price")}</span><span>{t("orders.col.status")}</span></div>
           {screenOrders.map((order) => (
             <div
               key={`orders-${order.order_observation_id}`}
@@ -65,7 +64,10 @@ export function MarketPositioningWorkspace({
               data-record="screen-order"
               data-record-id={order.order_observation_id}
             >
-              <span>{order.venue}</span><span>{order.side}</span><span>{order.hub}</span><strong>{order.remaining_quantity_mwh.toLocaleString()} MWh</strong><span>{order.price.toFixed(2)} {order.unit}</span><span>{order.status}</span>
+              <span>{order.venue}</span><span>{order.side}</span><span>{order.hub}</span><strong title={t("orders.quantity_hint").replace("{{filled}}", order.filled_quantity_mwh.toLocaleString()).replace("{{total}}", order.quantity_mwh.toLocaleString()).replace("{{remaining}}", order.remaining_quantity_mwh.toLocaleString())}>
+                {/* Filled volume is the position; an order still working shows what is left. */}
+                {(order.filled_quantity_mwh > 0 ? order.filled_quantity_mwh : order.remaining_quantity_mwh).toLocaleString()} MWh
+              </strong><span>{order.price.toFixed(2)} {order.unit}</span><span>{order.status}</span>
             </div>
           ))}
           {screenOrders.length === 0 && (

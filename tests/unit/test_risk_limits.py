@@ -162,7 +162,7 @@ def test_hedge_policy_band_room_and_instruments():
     ok = mandate_usage(mandate, [supply, hedge], today=TODAY)
     assert ok.status == "ok", ok.breaches
     row = ok.as_row()
-    assert row["hedge_ratio_range"] == "70-70%" and row["hedge_policy"] == "20-80%"
+    assert row["hedge_ratio_range"] == "70%" and row["hedge_policy"] == "20-80%"
     assert row["hedge_room_mwh"] == 30 * 1000 * 0.10  # 10 % of a 30-day month left to the cap
     over = mandate_usage(mandate, [supply, mleg("H2", hub="NBP", q=-900.0, book="UK")], today=TODAY)
     assert over.status == "breach" and "above 80%" in over.breaches[0]
@@ -183,3 +183,22 @@ def test_hedge_policy_band_room_and_instruments():
     )
     banned = mandate_usage(mandate, [supply, option], today=TODAY)
     assert any("option is not an allowed instrument" in b for b in banned.breaches)
+
+
+def test_hedge_range_text_has_no_double_minus_or_negative_zero() -> None:
+    from eurogas_nexus.domain.risk.limits import _pct_range
+
+    assert _pct_range(-0.4, 87.2) == "0% to 87%"
+    assert _pct_range(-35.0, 20.0) == "-35% to 20%"
+    assert _pct_range(70.0, 70.2) == "70%"
+
+
+def test_a_trade_in_another_mandates_book_is_not_a_breach_of_this_one() -> None:
+    ttf = Mandate("M-TTF", "jdoe", "J. Doe", book_ids=("nl-ttf",), hubs=("TTF",))
+    nbp_trade = mleg("N1", hub="NBP", book="uk-nbp")
+    # jdoe also holds an NBP mandate covering uk-nbp: that trade is the NBP mandate's business.
+    covered = mandate_usage(ttf, [nbp_trade], today=TODAY, books_elsewhere=frozenset({"uk-nbp"}))
+    assert covered.legs == 0 and covered.breaches == []
+    # Booked where none of their mandates reach, it still lands on this one and is flagged.
+    stray = mandate_usage(ttf, [nbp_trade], today=TODAY)
+    assert any("NBP is outside" in b for b in stray.breaches)

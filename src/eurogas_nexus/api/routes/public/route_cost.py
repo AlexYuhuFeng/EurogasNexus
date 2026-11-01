@@ -232,17 +232,27 @@ def list_upstream_contracts(request: Request, include_retired: bool = Query(Fals
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            return _env(
-                list_upstream_contracts(
-                    session, include_edit_token=True, include_retired=include_retired
-                ),
-                request,
-                source="runtime-postgresql",
+            rows = list_upstream_contracts(
+                session, include_edit_token=True, include_retired=include_retired
             )
+            if include_retired:
+                _name_retirers(session, rows)
+            return _env(rows, request, source="runtime-postgresql")
     except ContractRevisionPersistenceError as exc:
         raise _contract_read_failure(exc) from exc
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+def _name_retirers(session, rows: list[dict]) -> None:
+    """Add ``retired_by_name``: the person's display name, not their principal id."""
+
+    from eurogas_nexus.db.repositories.identity import display_names
+
+    names = display_names(session, (row.get("retired_by") for row in rows))
+    for row in rows:
+        if row.get("retired_by"):
+            row["retired_by_name"] = names.get(row["retired_by"], row["retired_by"])
 
 
 @router.post("/api/route-cost/upstream-contracts")

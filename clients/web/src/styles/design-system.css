@@ -405,6 +405,13 @@
     .topbar-context-disclosure > summary {
       display: none;
     }
+
+    /* Chromium (and so WebView2) wraps a <details> element's content in an anonymous
+       ::details-content box, which cannot shrink below its content and pushed the account
+       menu off a 1280-1680 px screen for roles with six workspaces. Inline, the box goes. */
+    .topbar-context-disclosure::details-content {
+      display: contents;
+    }
   }
 
   .topbar-account-name {
@@ -552,6 +559,51 @@
     display: none;
   }
 
+  /* The top bar never pushes the account menu off screen, however many workspaces the role
+     sees (operators and administrators have six): the context block may shrink, and the
+     sources status gives way first, truncating to its dot with the words in the tooltip. */
+  .topbar-context-disclosure-content,
+  .topbar-trading-context {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .context-freshness {
+    flex: 0 1 auto;
+    min-width: 24px;
+    overflow: hidden;
+  }
+
+  .context-freshness strong,
+  .context-freshness small {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* The counts give way first (to nothing), then the words (to an ellipsis), the dot stays. */
+  .context-freshness strong {
+    flex: 0 1 auto;
+    min-width: 13px;
+    text-overflow: ellipsis;
+  }
+
+  .context-freshness small {
+    flex: 0 1000 auto;
+    text-overflow: clip;
+  }
+
+  .context-freshness strong::before {
+    display: inline-block;
+    margin-right: 6px;
+    vertical-align: 1px;
+  }
+
+  /* Dates and filters keep their size; the sources status is what gives way. */
+  .topbar-trading-context > label {
+    flex-shrink: 0;
+  }
+
   /* ----------------------------------------------------------- page header */
   .workspace-page-header {
     display: flex;
@@ -560,6 +612,32 @@
     gap: var(--ds-space-4);
     padding: var(--ds-space-6) 0 var(--ds-space-3);
     border-bottom: 1px solid var(--ds-border);
+  }
+
+  /* The page's one primary action sits at the end of the task tabs, styled as the primary
+     button, so "Save to pool" or "Run" reads as the page's commit, not a stray control. */
+  .workspace-page-header-actions {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: var(--ds-space-4);
+  }
+
+  .workspace-page-header-actions [data-primary-action] {
+    height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-4);
+    border: 1px solid transparent;
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-ink);
+    color: var(--ds-on-ink);
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .contract-reinstate {
+    display: flex;
+    gap: var(--ds-space-2);
+    align-items: center;
   }
 
   /* ------------------------------------------------------------------ tabs */

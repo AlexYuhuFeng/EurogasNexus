@@ -60,6 +60,7 @@ def test_a_trader_reports_a_problem_and_the_it_desk_resolves_it(tmp_path, monkey
     assert created.status_code == 200, created.text
     report = created.json()["data"]
     assert report["report_id"].startswith("SR-") and report["status"] == "open"
+    assert report["reporter_name"] == "trader"  # a name, not the principal id
     assert report["server_context"]["schema_revision"]
     with Session(engine) as session:
         (outbox,) = session.query(NotificationOutboxRecord).all()

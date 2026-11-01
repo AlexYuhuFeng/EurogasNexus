@@ -82,6 +82,7 @@ export function RetiredContractsList({
 }) {
   const [rows, setRows] = useState<UpstreamContractDTO[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
   const load = () => {
     api.retiredUpstreamContracts()
       .then((response) => setRows(response.data.filter((row) => row.retired_at_utc)))
@@ -89,11 +90,17 @@ export function RetiredContractsList({
   };
   useEffect(load, [refreshKey]);
   if (rows.length === 0) return null;
+  // Reinstating asks for a reason inline (a native prompt is unreliable in desktop webviews
+  // and cannot be styled or translated consistently).
   const reinstate = (row: UpstreamContractDTO) => {
-    const reason = window.prompt(t("contracts.reinstate_reason"));
-    if (!reason || reason.trim().length < 3) return;
-    onLifecycle(row.contract_id, "reinstate", reason.trim(), row.edit_token ?? "")
-      .then(load)
+    const reason = (reasons[row.contract_id] ?? "").trim();
+    if (reason.length < 3) return;
+    setError(null);
+    onLifecycle(row.contract_id, "reinstate", reason, row.edit_token ?? "")
+      .then(() => {
+        setReasons((current) => ({ ...current, [row.contract_id]: "" }));
+        load();
+      })
       .catch((caught: unknown) => setError(errorText(caught)));
   };
   return (
@@ -112,9 +119,27 @@ export function RetiredContractsList({
           {rows.map((row) => (
             <tr key={row.contract_id}>
               <td><strong>{row.contract_name}</strong> <small>{row.contract_id}</small></td>
-              <td><small>{row.retired_at_utc?.slice(0, 16).replace("T", " ")} UTC · {row.retired_by}</small></td>
+              <td><small>{row.retired_at_utc?.slice(0, 16).replace("T", " ")} UTC · {row.retired_by_name ?? row.retired_by}</small></td>
               <td>{row.retire_reason}</td>
-              <td><button type="button" className="link-button" onClick={() => reinstate(row)}>{t("contracts.reinstate")}</button></td>
+              <td>
+                <div className="contract-reinstate">
+                  <input
+                    aria-label={t("contracts.reinstate_reason")}
+                    placeholder={t("contracts.reinstate_reason")}
+                    value={reasons[row.contract_id] ?? ""}
+                    maxLength={500}
+                    onChange={(event) => setReasons((current) => ({ ...current, [row.contract_id]: event.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={(reasons[row.contract_id] ?? "").trim().length < 3}
+                    onClick={() => reinstate(row)}
+                  >
+                    {t("contracts.reinstate")}
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

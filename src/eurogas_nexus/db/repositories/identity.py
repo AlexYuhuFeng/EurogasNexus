@@ -350,3 +350,24 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def display_names(session: Session, principal_ids) -> dict[str, str]:
+    """``principal_id -> display name`` for the ids given (unknown ids are left out).
+
+    Screens name people, not their internal ids: who retired a contract, who reported a
+    problem, who is assigned to it.
+    """
+
+    from sqlalchemy import select
+
+    ids = {str(value) for value in principal_ids if value}
+    if not ids:
+        return {}
+    return dict(
+        session.execute(
+            select(
+                IdentityPrincipalRecord.principal_id, IdentityPrincipalRecord.display_name
+            ).where(IdentityPrincipalRecord.principal_id.in_(ids))
+        ).all()
+    )

@@ -23,9 +23,10 @@ import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 
 type Translate = (key: string) => string;
 type ReadinessState = "ready" | "partial" | "blocked";
-type RuntimeViewId = "readiness" | "delivery" | "governance";
+type RuntimeViewId = "readiness" | "delivery" | "governance" | "support";
 
-const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance"];
+// Problem reports get their own tab: the IT desk works them daily, not as governance.
+const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance", "support"];
 
 interface ReleaseReadinessRow {
   key: string;
@@ -366,12 +367,13 @@ export function RuntimeWorkspace({
       <div className="workspace-panel span-3 job-timeline-panel">
         <JobTimeline t={t} />
       </div>
-      <SupportInboxPanel t={t} />
       <div className="workspace-panel span-3 diagnostics-panel-wrapper">
         <DiagnosticsPanel t={t} />
       </div>
       </>
       )}
+
+      {activeView === "support" && <SupportInboxPanel t={t} />}
 
       {activeView === "delivery" && (
       <>

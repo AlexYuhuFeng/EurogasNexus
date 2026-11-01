@@ -1662,6 +1662,8 @@ export interface UpstreamContractDTO {
   /** Lifecycle: set once the contract is retired (it then leaves positions and risk). */
   retired_at_utc?: string | null;
   retired_by?: string | null;
+  /** Display name of the person who retired it (the list with retired contracts). */
+  retired_by_name?: string | null;
   retire_reason?: string | null;
   // Additive write metadata: how the governed upsert classified this write and
   // which captured economic revision is newest afterwards. Capture-time evidence,
@@ -2816,6 +2818,10 @@ export interface LngCargoBidInput {
 export interface SupportReportDTO {
   report_id: string;
   reporter: string;
+  /** The reporter's display name. */
+  reporter_name?: string | null;
+  /** The IT desk member working it, by name. */
+  assignee_name?: string | null;
   reporter_role: string;
   severity: "P1" | "P2" | "P3" | "P4";
   category: string;

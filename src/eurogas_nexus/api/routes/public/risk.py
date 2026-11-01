@@ -223,7 +223,13 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
             max_hedge_ratio_pct=record.max_hedge_ratio_pct,
             instruments=tuple(record.instruments or ()),
         )
-        rows.append(mandate_usage(mandate, legs, today=today).as_row())
+        elsewhere = frozenset(
+            book
+            for other in records
+            if other.trader == record.trader and other.mandate_id != record.mandate_id
+            for book in (other.book_ids or ())
+        ) - set(mandate.book_ids)
+        rows.append(mandate_usage(mandate, legs, today=today, books_elsewhere=elsewhere).as_row())
     warnings = [*inputs.warnings, *_scope_note()]
     if not records:
         warnings.append("No trader mandates are recorded; risk adds them under Portfolio > Limits.")

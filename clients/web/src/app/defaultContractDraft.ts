@@ -5,33 +5,38 @@ export type ContractDraft = ContractDraftModel;
 /**
  * The operator-entry template for a new manual draft.
  *
+ * Facts only the contract can state (identity, counterparty, points, capacity, law) start
+ * blank so nothing invented can be saved as a recorded term: the save stays blocked until
+ * the trader types them. Only conventions every desk starts from are pre-filled (EFET form,
+ * TTF delivery, the current gas year, tolerances, monthly settlement).
+ *
  * These are explicit pre-filled entry defaults for a *new* draft, not recorded contract facts:
  * stored hydration never inherits them, and a file import keeps them only for terms the file
  * genuinely omits (the import overlay; see `contractImport.ts`). The numeric terms are validated
  * against the governed write route before a save.
  */
 export const defaultContractDraft: ContractDraft = {
-  contract_id: "operator-ttf-supply-2025",
-  contract_name: "Operator TTF supply 2025",
+  contract_id: "",
+  contract_name: "",
   resource_type: "PIPELINE_IMPORT",
-  counterparty: "Operator draft counterparty",
+  counterparty: "",
   contract_type: "EFET physical supply",
   delivery_point_name: "TTF",
-  gas_year: "2025+",
+  gas_year: currentGasYear(new Date()),
   delivery_quantity_mwh_per_day: 0,
   contract_price_gbp_mwh: 0,
   nbp_sale_price_gbp_mwh: 0,
   physical_exit_sale_price_gbp_mwh: 0,
   physical_exit_point_name: "NBP",
-  title_transfer_point: "TTF virtual trading point",
-  beach_delivery_point: "Bacton Beach",
-  index_basis: "TTF day-ahead index",
-  terminal_access: "BBL / Bacton terminal access to confirm",
-  capacity_expiry: "operator to enter",
+  title_transfer_point: "",
+  beach_delivery_point: "",
+  index_basis: "",
+  terminal_access: "",
+  capacity_expiry: "",
   document_name: "manual draft",
   document_status: "MANUAL_DRAFT",
   source_reference: "operator manual entry",
-  governing_law: "English law / EFET master confirmation to review",
+  governing_law: "",
   delivery_tolerance_pct: 2,
   nomination_tolerance_pct: 1,
   tolerance_risk_allowance_gbp_mwh: 0.1,
@@ -57,9 +62,16 @@ export const defaultContractDraft: ContractDraft = {
   persisted_payment_terms: null,
 };
 
+/** The gas year (1 October to 30 September) containing `now`, as "2026+". */
+export function currentGasYear(now: Date): string {
+  const year = now.getUTCMonth() >= 9 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  return `${year}+`;
+}
+
 export function cloneDefaultContractDraft(): ContractDraft {
   return {
     ...defaultContractDraft,
+    gas_year: currentGasYear(new Date()),
     allowed_exit_points: [...defaultContractDraft.allowed_exit_points],
     eligible_sale_modes: [...defaultContractDraft.eligible_sale_modes],
   };

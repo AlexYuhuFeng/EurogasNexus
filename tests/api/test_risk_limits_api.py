@@ -334,6 +334,8 @@ def test_retiring_a_contract_takes_it_out_of_positions_and_keeps_history(tmp_pat
         "/api/route-cost/upstream-contracts?include_retired=true", headers=headers
     ).json()["data"]
     assert listed[0]["retire_reason"].startswith("Supply agreement")
+    # The person is named, not their principal id.
+    assert listed[0]["retired_by_name"] != listed[0]["retired_by"]
     ladder = client.get("/api/portfolio/position-ladder?months=3", headers=headers).json()
     assert ladder["data"]["legs"]["physical"] == 0
     again = client.post(

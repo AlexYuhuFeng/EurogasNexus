@@ -91,7 +91,7 @@ export function SupportInboxPanel({ t }: { t: Translate }) {
                     </div>
                   )}
                 </td>
-                <td><small>{row.reporter} · {row.reporter_role}<br />{row.created_at_utc.slice(0, 16).replace("T", " ")} UTC · {row.page}</small></td>
+                <td><small>{row.reporter_name ?? row.reporter} · {row.reporter_role}<br />{row.created_at_utc.slice(0, 16).replace("T", " ")} UTC{row.assignee ? ` · ${row.assignee_name ?? row.assignee}` : ""}</small></td>
                 <td><span className="limit-badge" data-status={row.status === "resolved" ? "ok" : row.status === "acknowledged" ? "watch" : "breach"}>{t(`support.status_${row.status}`)}</span></td>
               </tr>
             ))}

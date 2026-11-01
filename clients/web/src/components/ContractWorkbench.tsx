@@ -20,6 +20,8 @@ import {
   stringFromRecord,
 } from "@/app/contractImport";
 
+const RESOURCE_TYPES = ["PIPELINE_IMPORT", "BEACH_DELIVERY", "LNG_REGAS", "STORAGE", "CONTRACT_POOL"] as const;
+
 export type ContractNumberKey =
   | "delivery_quantity_mwh_per_day"
   | "contract_price_gbp_mwh"
@@ -168,7 +170,10 @@ export function ContractWorkbench({
         "n/a",
       )
     : "n/a";
-  const stagedStatus = contract.document_status || "MANUAL_DRAFT";
+  // Desk words for where the draft came from; an unknown code is shown as recorded.
+  const stagedCode = contract.document_status || "MANUAL_DRAFT";
+  const stagedLabel = t(`contracts.doc_status.${stagedCode}`);
+  const stagedStatus = stagedLabel === `contracts.doc_status.${stagedCode}` ? stagedCode : stagedLabel;
   const selectedReadOnlyName = selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name ?? selectedResourceId;
   // The selected term is context for the LNG sandbox, never an authoritative source of its facts.
   // Changing the selection invalidates a result computed against the previous term while keeping
@@ -309,7 +314,7 @@ export function ContractWorkbench({
               <label>{t("contracts.contract_id")}<input value={contract.contract_id} onChange={(event) => updateContractText("contract_id", event.target.value)} /></label>
               <label>{t("contracts.contract_name")}<input value={contract.contract_name} onChange={(event) => updateContractText("contract_name", event.target.value)} /></label>
               <label>{t("contracts.counterparty")}<input value={contract.counterparty} onChange={(event) => updateContractText("counterparty", event.target.value)} /></label>
-              <label>{t("contracts.resource_type")}<select value={contract.resource_type} onChange={(event) => updateContractText("resource_type", event.target.value)}><option value="PIPELINE_IMPORT">PIPELINE_IMPORT</option><option value="BEACH_DELIVERY">BEACH_DELIVERY</option><option value="LNG_REGAS">LNG_REGAS</option><option value="STORAGE">STORAGE</option><option value="CONTRACT_POOL">CONTRACT_POOL</option></select></label>
+              <label>{t("contracts.resource_type")}<select value={contract.resource_type} onChange={(event) => updateContractText("resource_type", event.target.value)}>{RESOURCE_TYPES.map((value) => <option key={value} value={value}>{t(`contracts.resource_type.${value}`)}</option>)}</select></label>
               <label className="span-2">{t("contracts.contract_type")}<input value={contract.contract_type} onChange={(event) => updateContractText("contract_type", event.target.value)} /></label>
             </div></fieldset>}
             {clauseView === "product" && <fieldset><legend>{t("contracts.product_term")}</legend><p>{t("contracts.section_help.product")}</p><div className="contract-field-grid">
