@@ -100,6 +100,20 @@ def _month_key(day: date) -> str:
     return f"{day.year:04d}-{day.month:02d}"
 
 
+def _leg_months(leg: PositionLeg, horizon_start: date, horizon_end: date):
+    """(month key, MWh) for each calendar month a leg delivers in, within the horizon."""
+
+    first = max(leg.first_gas_day, horizon_start)
+    last = min(leg.last_gas_day, horizon_end)
+    day = first
+    while day <= last:
+        # Whole months at a time: count the days of this leg inside the month.
+        month_end = (day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        stop = min(month_end, last)
+        yield _month_key(day), leg.mwh_per_day * ((stop - day).days + 1)
+        day = stop + timedelta(days=1)
+
+
 def build_ladder(
     legs: Iterable[PositionLeg],
     *,
@@ -112,17 +126,10 @@ def build_ladder(
         raise ValueError("horizon_end is before horizon_start")
     buckets: dict[tuple[str, str], list[float]] = {}
     for leg in legs:
-        first = max(leg.first_gas_day, horizon_start)
-        last = min(leg.last_gas_day, horizon_end)
-        day = first
-        while day <= last:
-            # Whole months at a time: count the days of this leg inside the month.
-            month_end = (day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
-            stop = min(month_end, last)
-            days = (stop - day).days + 1
-            bucket = buckets.setdefault((leg.hub.upper(), _month_key(day)), [0.0, 0.0])
-            bucket[0 if leg.kind == "physical" else 1] += leg.mwh_per_day * days
-            day = stop + timedelta(days=1)
+        hub, side = leg.hub.upper(), 0 if leg.kind == "physical" else 1
+        for month, mwh in _leg_months(leg, horizon_start, horizon_end):
+            bucket = buckets.setdefault((hub, month), [0.0, 0.0])
+            bucket[side] += mwh
     return [
         LadderRow(hub=hub, month=month, physical_mwh=values[0], financial_mwh=values[1])
         for (hub, month), values in sorted(
@@ -148,15 +155,18 @@ def mark_to_market(
     leg-months without a mark, a leg price or an FX rate.
     """
 
+    if horizon_end < horizon_start:
+        raise ValueError("horizon_end is before horizon_start")
     total, missing, valued = 0.0, 0, 0
     for leg in legs:
-        for row in build_ladder([leg], horizon_start=horizon_start, horizon_end=horizon_end):
-            mark = marks.get((row.hub, row.month))
-            fx = 1.0 if fx_by_hub is None else fx_by_hub.get(row.hub)
+        hub = leg.hub.upper()
+        fx = 1.0 if fx_by_hub is None else fx_by_hub.get(hub)
+        for month, mwh in _leg_months(leg, horizon_start, horizon_end):
+            mark = marks.get((hub, month))
             if mark is None or leg.price is None or fx is None:
                 missing += 1
                 continue
-            total += (mark - leg.price) * row.net_mwh * fx
+            total += (mark - leg.price) * mwh * fx
             valued += 1
     # Nothing valued is unknown, not zero.
     return (total if valued else None), missing

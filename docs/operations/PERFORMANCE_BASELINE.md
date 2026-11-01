@@ -155,3 +155,20 @@ the parent review; this file does not claim a live figure.
   version, and git SHA.
 - Report p50/p95/p99, not only mean.
 - Re-run with the documented harness after material query/index changes.
+
+## Portfolio and risk reads at trading-house scale (2026-11-01)
+
+Measured in-process on SQLite with 300 supply contracts, 5,000 filled trades (one third
+ETRM), 400 days of month-ahead closes and 24 curve months for six hubs, 40 credit lines and
+12 mandates:
+
+| Read | Time |
+|---|---|
+| `GET /api/portfolio/position-ladder?months=24` | 187 ms |
+| `GET /api/portfolio/credit-exposure` | 228 ms |
+| `GET /api/portfolio/mandate-usage` | 210 ms |
+
+Legs are split by calendar month, not by day, so the work grows with legs × months held.
+Mark-to-market now shares the ladder's month split instead of building a one-leg ladder per
+leg (207 → 187 ms). About 40 % of the remaining time is loading trades through the ORM;
+that is the next lever if books grow tenfold.

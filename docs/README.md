@@ -52,6 +52,11 @@ the current/normative document listed here and report the conflict.
 - [Trader context spec](product/TRADER_CONTEXT_SPEC.md)
 - [Industry benchmark principles](product/INDUSTRY_BENCHMARK.md)
 - [UX reference](product/UX_REFERENCE.md)
+- [Interaction standard: hover, press, focus, motion, elevation](ux/INTERACTION_STANDARD.md)
+- [Live map](ux/LIVE_MAP.md)
+- [Customer acceptance review by role](product/CUSTOMER_ACCEPTANCE_REVIEW.md)
+- [Role analytics and chart requirements](product/ROLE_ANALYTICS_AND_CHART_REQUIREMENTS.md)
+- [LNG terminal costs and their sources](data/LNG_TERMINAL_TARIFFS.md)
 - [Gas-day calendar compatibility](product/GAS_DAY_CALENDAR_COMPATIBILITY.md)
 - [Data operations specification](product/DATA_OPERATIONS_SPEC.md)
 
