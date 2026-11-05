@@ -191,7 +191,7 @@ const SURFACE_SIGNALS = {
   // unfiltered read would be the "filtered UI against unfiltered rows" mistake; `exactRows` holds
   // the catalog to the whole read in both directions, so a missing, hidden or foreign row fails by
   // its own id.
-  sources: { heading: /source/i, apiPath: "/api/sources", readToRender: [{ label: "registered sources", rowsPath: "data", recordIdField: "source_id", rowSelectors: ['[data-record="source-row"]'], emptySelector: '[data-empty-state="source-rows"]', taskTab: "source-tab-catalog", exactRows: true, showTestSources: true }] },
+  sources: { heading: /source/i, apiPath: "/api/sources", readToRender: [{ label: "registered sources", rowsPath: "data", recordIdField: "source_id", rowSelectors: ['[data-record="source-row"]'], emptySelector: '[data-empty-state="source-rows"]', taskTab: "source-tab-catalog", exactRows: true }] },
   // The glossary surface's own read (`api.glossary` in the client) answers the whole term
   // catalogue; the probe reads the same route bounded to five terms, so every term it returns must
   // be one the left term index rendered - by the term's own id, in both languages. The surface
@@ -467,25 +467,6 @@ async function selectedTaskTabId(page, tabId) {
  * select it. A tab that is not on the page, or that never becomes the selected one, answers false
  * - the caller records that as a failure rather than comparing rows from another task.
  */
-/**
- * The Source Center hides the simulated test sources (`*_Sim`) until the user opts in with its
- * "Show test sources" checkbox (#22, #42). A comparison with the whole registry read therefore
- * turns that real checkbox on first, and restores it afterwards; it never excludes ids itself.
- * Returns the state to restore, or null when the surface has no such opt-in.
- */
-async function setTestSourcesShown(page, show) {
-  const box = page.locator('.source-test-toggle input[type="checkbox"]');
-  if ((await box.count()) === 0) return null;
-  const before = await box.first().isChecked();
-  if (before !== show) await box.first().click();
-  return before;
-}
-
-/** Whether a registry row is a simulated test source the default catalog keeps hidden. */
-function isTestSourceRow(row) {
-  return /_sim$/i.test(String(row?.source_system ?? ""));
-}
-
 async function activateTaskTab(page, tabId) {
   const tab = page.locator(`#${tabId}`);
   if ((await tab.count()) === 0) return false;
@@ -498,6 +479,16 @@ async function activateTaskTab(page, tabId) {
     )
     .then(() => true)
     .catch(() => false);
+}
+
+// The registry contains test sources, but the daily catalog hides them by default.
+// Use its real opt-in control before comparing the complete unfiltered API read.
+async function setCatalogTestSources(page, checked) {
+  const toggle = page.locator('.source-test-toggle input[type="checkbox"]');
+  if ((await toggle.count()) === 0) return null;
+  const previous = await toggle.isChecked();
+  await toggle.setChecked(checked);
+  return previous;
 }
 
 /**
@@ -694,12 +685,8 @@ async function inspectSurfaceFunction(
         );
       }
     }
-    // A group compared with a read that includes opt-in rows turns the surface's own opt-in on.
-    let restoreTestSources = null;
-    if (signal.readToRender.some((group) => group.showTestSources)) {
-      restoreTestSources = await setTestSourcesShown(page, true);
-      await page.waitForTimeout(300);
-    }
+    const restoreTestSources = workspace === "sources"
+      ? await setCatalogTestSources(page, true) : null;
     const groups = signal.readToRender.map((group) => readGroupRows(state.apiBody, group));
     let compared = null;
     try {
@@ -716,7 +703,7 @@ async function inspectSurfaceFunction(
         source: readSourceLabel(state.apiBody),
       });
     } finally {
-      if (restoreTestSources !== null) await setTestSourcesShown(page, restoreTestSources);
+      if (restoreTestSources !== null) await setCatalogTestSources(page, restoreTestSources);
       for (const tabId of tabsToRestore.reverse()) {
         if (!(await activateTaskTab(page, tabId))) {
           recordFailure(
@@ -1779,32 +1766,16 @@ async function sourceCenterSelectionInteraction(page, failures) {
       return;
     }
 
-    const readIds = sources.map((row) => row.id);
-    // By default the catalog lists every source but the simulated test sources (#22): checked
-    // exactly, by id, before the real "Show test sources" opt-in widens it to the whole read.
-    const defaultIds = sources.filter((row) => !isTestSourceRow({ source_system: row.system })).map((row) => row.id);
-    const optIn = page.locator('.source-test-toggle input[type="checkbox"]');
-    if (defaultIds.length !== readIds.length) {
-      if ((await optIn.count()) === 0) {
-        recordFailure(failures, scope, "the read holds test sources but the catalog offers no 'Show test sources' opt-in");
-        return;
+    const dailyIds = sources.filter((row) => !/_sim$/i.test(row.system)).map((row) => row.id);
+    const testToggle = page.locator('.source-test-toggle input[type="checkbox"]');
+    if (dailyIds.length !== sources.length) {
+      if ((await testToggle.count()) !== 1 || await testToggle.isChecked()) {
+        throw new Error("test sources must have an explicit opt-in and be hidden by default");
       }
-      if (await optIn.first().isChecked()) await optIn.first().click();
-      const shownByDefault = await page
-        .waitForFunction(catalogRendersExactly, defaultIds, { timeout: 5_000 })
-        .then(() => true)
-        .catch(() => false);
-      if (!shownByDefault) {
-        recordFailure(
-          failures,
-          scope,
-          "by default the catalog should list every source except the simulated test sources:"
-          + ` ${difference(await renderedRowIds(), defaultIds)}`,
-        );
-      }
-      await optIn.first().click();
-      await page.waitForFunction(catalogRendersExactly, readIds, { timeout: 5_000 }).catch(() => undefined);
     }
+    await page.waitForFunction(catalogRendersExactly, dailyIds, { timeout: 5_000 });
+    await setCatalogTestSources(page, true);
+    const readIds = sources.map((row) => row.id);
     const catalogIds = await renderedRowIds();
     const missing = readIds.filter((id) => !catalogIds.includes(id));
     const foreign = catalogIds.filter((id) => !readIds.includes(id));
@@ -2132,14 +2103,15 @@ async function sourceRegistryFailureInteraction(page, failures) {
       return refusal;
     }
     await page.locator("[data-source-registry-retry]").first().click();
-    // The retried read restores the "Show test sources" opt-in (#42): wait for it, then turn it
-    // on so the recovered rows are compared with the whole read; it is turned off afterwards.
-    await page
-      .locator('.source-test-toggle input[type="checkbox"]')
-      .first()
-      .waitFor({ state: "visible", timeout: 15_000 })
-      .catch(() => undefined);
-    const restoreTestSources = await setTestSourcesShown(page, true);
+    // The opt-in is absent while the registry is failed/empty; wait for the
+    // successful retry to mount it before asking to compare every registry row.
+    await page.waitForFunction(
+      () => document.querySelector("[data-source-registry-state]")
+        ?.getAttribute("data-source-registry-state") === "ready",
+      null,
+      { timeout: 15_000 },
+    );
+    await setCatalogTestSources(page, true);
     const recovered = await page
       .waitForFunction(registryRecovered, readRows, { timeout: 15_000 })
       .then(() => true)
@@ -2164,7 +2136,6 @@ async function sourceRegistryFailureInteraction(page, failures) {
       );
       for (const detail of recoveryFailures) recordFailure(failures, scope, detail);
     }
-    if (restoreTestSources !== null) await setTestSourcesShown(page, restoreTestSources);
   } catch (error) {
     recordFailure(failures, scope, error);
   } finally {
