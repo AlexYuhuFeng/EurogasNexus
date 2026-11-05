@@ -5,12 +5,9 @@ from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import select
 
 from eurogas_nexus.api.dependencies.row_entitlement import require_derived_access
-from eurogas_nexus.application import functional_runs as service
-from eurogas_nexus.db.models.functional import FunctionalModelRecord, FunctionalRunRecord
-from eurogas_nexus.db.models.jobs import JobRecord
+from eurogas_nexus.application.functional_contracts import SubmitRun
 from eurogas_nexus.domain.analysis_contracts import compare_analysis, content_hash
 
 router = APIRouter(tags=["functional-analysis"])
@@ -31,6 +28,8 @@ def owner_id(session, request):
 
 
 def load_owned(session, run_id, request):
+    from eurogas_nexus.db.models.functional import FunctionalRunRecord
+
     row = session.get(FunctionalRunRecord, run_id)
     if row is None or row.owner_id != owner_id(session, request):
         raise HTTPException(404, detail={"code": "functional_run_not_found"})
@@ -39,6 +38,9 @@ def load_owned(session, run_id, request):
 
 
 def payload(session, row):
+    from eurogas_nexus.application import functional_runs as service
+    from eurogas_nexus.db.models.jobs import JobRecord
+
     job = session.get(JobRecord, row.job_id)
     return {
         "run_id": row.run_id,
@@ -67,7 +69,9 @@ def envelope(data):
 
 
 @router.post("/api/functional-runs", status_code=202)
-def submit_run(body: service.SubmitRun, request: Request, background: BackgroundTasks):
+def submit_run(body: SubmitRun, request: Request, background: BackgroundTasks):
+    from eurogas_nexus.application import functional_runs as service
+
     if body.kind in {"FROZEN_WEATHER", "SHADOW_EVALUATION"}:
         raise HTTPException(422, detail={"code": "use_registered_model_operation"})
     request_hash = content_hash({"operation": "submit", "body": body.model_dump(mode="json")})
@@ -110,6 +114,8 @@ def submit_run(body: service.SubmitRun, request: Request, background: Background
 
 
 def _submit(body, request, background, *, scopes=(), evidence=None, request_hash=None, warnings=()):
+    from eurogas_nexus.application import functional_runs as service
+
     store = factory()
     try:
         with store() as session:
@@ -151,6 +157,7 @@ class Replay(BaseModel):
 
 @router.post("/api/functional-runs/{run_id}/replay", status_code=202)
 def replay_run(run_id: str, body: Replay, request: Request, background: BackgroundTasks):
+    from eurogas_nexus.application import functional_runs as service
     from eurogas_nexus.application.calculation_manifest import numerical_bundle_fingerprint
 
     with factory()() as session:
@@ -160,7 +167,7 @@ def replay_run(run_id: str, body: Replay, request: Request, background: Backgrou
             or old.manifest.get("numerical_bundle_fingerprint") != numerical_bundle_fingerprint()
         ):
             raise HTTPException(409, detail={"code": "historical_engine_unavailable"})
-        supplied = service.SubmitRun(
+        supplied = SubmitRun(
             kind=old.kind,
             inputs=old.inputs,
             idempotency_key=body.idempotency_key,
@@ -196,7 +203,7 @@ def compare_runs(run_id: str, body: Compare, request: Request, background: Backg
             raise HTTPException(
                 422, detail={"code": "joint_attribution_requires_two_joint_runs_and_key"}
             )
-        submitted = service.SubmitRun(
+        submitted = SubmitRun(
             kind="SCENARIO_COMPARISON",
             inputs={"left": left.inputs, "right": right.inputs},
             idempotency_key=body.idempotency_key,
@@ -211,6 +218,10 @@ def compare_runs(run_id: str, body: Compare, request: Request, background: Backg
 
 @router.post("/api/functional-models")
 def freeze_model(body: Compare, request: Request):
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models.functional import FunctionalModelRecord
+
     with factory()() as session:
         run = load_owned(session, body.other_run_id, request)
         if (
@@ -260,6 +271,8 @@ def _model(row):
 
 @router.get("/api/functional-models/{model_id}")
 def get_model(model_id: str, request: Request):
+    from eurogas_nexus.db.models.functional import FunctionalModelRecord
+
     with factory()() as session:
         row = session.get(FunctionalModelRecord, model_id)
         if row is None or row.owner_id != owner_id(session, request):
@@ -276,6 +289,7 @@ class Review(BaseModel):
 
 @router.patch("/api/functional-models/{model_id}")
 def review_model(model_id: str, body: Review, request: Request):
+    from eurogas_nexus.db.models.functional import FunctionalModelRecord
     from eurogas_nexus.security.capabilities import Capability, capabilities_for_principal
 
     if Capability.DECISION_REVIEW not in capabilities_for_principal(request.state.identity):
@@ -312,6 +326,10 @@ def review_model(model_id: str, body: Review, request: Request):
 
 @router.get("/api/functional-runs")
 def list_runs(request: Request):
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models.functional import FunctionalRunRecord
+    from eurogas_nexus.db.models.jobs import JobRecord
     from eurogas_nexus.optimization.capabilities import engine_catalog
 
     with factory()() as session:
@@ -354,6 +372,9 @@ class Predict(Replay):
 
 @router.post("/api/functional-models/{model_id}/predict", status_code=202)
 def model_predict(model_id: str, body: Predict, request: Request, background: BackgroundTasks):
+    from eurogas_nexus.application import functional_runs as service
+    from eurogas_nexus.db.models.functional import FunctionalModelRecord
+
     with factory()() as session:
         model = session.get(FunctionalModelRecord, model_id)
         if model is None or model.owner_id != owner_id(session, request):
@@ -382,7 +403,7 @@ def model_predict(model_id: str, body: Predict, request: Request, background: Ba
             "reference_interval_radius": run.result["interval_radius"],
         }
         scopes = tuple(run.source_scopes)
-    submitted = service.SubmitRun(
+    submitted = SubmitRun(
         kind="FROZEN_WEATHER", inputs=inputs, idempotency_key=body.idempotency_key
     )
     return _submit(submitted, request, background, scopes=scopes)
@@ -397,6 +418,8 @@ class Evaluate(Replay):
 
 @router.post("/api/functional-models/{model_id}/evaluate", status_code=202)
 def model_evaluate(model_id: str, body: Evaluate, request: Request, background: BackgroundTasks):
+    from eurogas_nexus.db.models.functional import FunctionalModelRecord
+
     with factory()() as session:
         model = session.get(FunctionalModelRecord, model_id)
         if model is None or model.owner_id != owner_id(session, request):
@@ -411,7 +434,7 @@ def model_evaluate(model_id: str, body: Evaluate, request: Request, background: 
             "maximum_mae_gwh": body.maximum_mae_gwh,
         }
         scopes = tuple(run.source_scopes)
-    submitted = service.SubmitRun(
+    submitted = SubmitRun(
         kind="SHADOW_EVALUATION", inputs=inputs, idempotency_key=body.idempotency_key
     )
     return _submit(submitted, request, background, scopes=scopes)
@@ -423,12 +446,14 @@ class Reconcile(BaseModel):
 
     @model_validator(mode="after")
     def valid_versions(self):
-        service.SubmitRun.bounded_versions(self.changes)
+        SubmitRun.bounded_versions(self.changes)
         return self
 
 
 @router.post("/api/functional-runs/reconcile")
 def reconcile(body: Reconcile, request: Request):
+    from eurogas_nexus.application import functional_runs as service
+
     with factory()() as session:
         affected = service.reconcile_dependencies(
             session, body.changes, owner_id=owner_id(session, request)

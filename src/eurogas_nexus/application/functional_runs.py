@@ -4,11 +4,11 @@ import time
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from eurogas_nexus.application.calculation_manifest import calculation_manifest
+from eurogas_nexus.application.functional_contracts import SubmitRun as SubmitRun
 from eurogas_nexus.db.models.functional import FunctionalRunRecord
 from eurogas_nexus.db.models.jobs import JobRecord
 from eurogas_nexus.db.repositories.jobs import (
@@ -40,22 +40,6 @@ JOB_KINDS = {
     "READINESS": "DATASET_BUILD",
     "WEATHER_VALIDATION": "BACKTEST",
 }
-
-
-class SubmitRun(BaseModel):
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-    kind: str
-    inputs: dict
-    idempotency_key: str = Field(min_length=1, max_length=80)
-    version_refs: dict[str, str] = Field(default_factory=dict, max_length=32)
-    deadline_seconds: int = Field(default=60, ge=1, le=120)
-
-    @field_validator("version_refs")
-    @classmethod
-    def bounded_versions(cls, value):
-        if any(not 1 <= len(k) <= 160 or not 1 <= len(v) <= 128 for k, v in value.items()):
-            raise ValueError("version references require bounded non-empty identifiers")
-        return value
 
 
 def validate_inputs(kind, inputs):
