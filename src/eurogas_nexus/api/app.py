@@ -90,6 +90,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "X-Eurogas-Oidc-Access-Token",
             "X-Eurogas-Principal",
             "X-Eurogas-CSRF",
+            "X-Eurogas-Session",
         ],
         allow_credentials=True,
     )

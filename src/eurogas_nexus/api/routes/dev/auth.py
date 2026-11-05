@@ -16,6 +16,7 @@ The session issued on success is the same backend session as the OIDC flow
 from __future__ import annotations
 
 import hmac
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -35,6 +36,11 @@ class DevLoginRequest(BaseModel):
 
     username: str = Field(min_length=1, max_length=254)
     password: str = Field(min_length=1, max_length=256)
+    #: "desktop" returns the session token in the body for the app to hold in memory and
+    #: present as ``X-Eurogas-Session``; a desktop WebView is cross-site to the API, so the
+    #: SameSite cookie a browser gets would never be sent. "browser" (default) sets the
+    #: HttpOnly cookie and never exposes the token to script.
+    client: Literal["browser", "desktop"] = "browser"
 
 
 @router.post("/auth/login")
@@ -104,7 +110,9 @@ def dev_login(
                 result = create_principal_session(
                     session,
                     principal=principal,
-                    client_type="dev_credential",
+                    client_type=(
+                        "dev_credential_desktop" if body.client == "desktop" else "dev_credential"
+                    ),
                 )
                 payload = principal_payload(session, principal)
                 session.commit()
@@ -137,17 +145,32 @@ def dev_login(
         severity="info",
         detail="method=dev_credential",
     )
-    response = JSONResponse(
-        {
-            "data": {
-                "authenticated": True,
-                "principal_id": payload["principal_id"],
-                "display_name": payload["display_name"],
-                "role": payload["role"],
-                "permissions": payload["permissions"],
+    data = {
+        "authenticated": True,
+        "principal_id": payload["principal_id"],
+        "display_name": payload["display_name"],
+        "role": payload["role"],
+        "permissions": payload["permissions"],
+    }
+    if body.client == "desktop":
+        # Desktop: the same opaque session, handed to the app's memory (as the desktop OIDC
+        # flow does), never written to disk and never set as a cookie.
+        data["session_token"] = result.session_token
+        data["token_type"] = "session"
+        data["expires_in_seconds"] = SESSION_MAX_AGE_SECONDS
+        return JSONResponse(
+            {
+                "data": data,
+                "meta": {
+                    "research_only": False,
+                    "human_review_required": False,
+                    "warnings": ["Keep this token in memory only; never store it on disk."],
+                },
             },
-            "meta": {"research_only": False, "human_review_required": False},
-        }
+            headers={"Cache-Control": "no-store"},
+        )
+    response = JSONResponse(
+        {"data": data, "meta": {"research_only": False, "human_review_required": False}}
     )
     # Same cookie contract as the OIDC callback (HttpOnly/SameSite=Lax/Path=/).
     response.headers["Set-Cookie"] = _session_cookie(

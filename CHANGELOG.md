@@ -50,6 +50,12 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ### Fixed
 
+- **Desktop sign-in on Windows, macOS and Linux** (#9): the desktop app's WebView is a
+  different site from the API, so the browser session cookie never reached it and every
+  request after sign-in was refused; the desktop SSO token was also sent where only the
+  deployment token is checked. The desktop now holds its session in memory and presents it
+  in its own header (development and SSO logins alike); sign-out revokes it on the server;
+  live updates reach the desktop too. Browsers keep the HttpOnly cookie and CSRF guard.
 - Forward curve: months inside a quarter, season or year weigh by delivery hours, so the
   23- and 25-hour gas days of the summer-time change count as the exchanges count them; a
   product whose months are all quoted is repriced and a mismatch over 0.5 % is reported.

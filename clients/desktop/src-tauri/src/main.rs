@@ -46,6 +46,13 @@ fn deployment_config_candidates() -> Vec<PathBuf> {
             );
         }
     } else {
+        if cfg!(target_os = "macos") {
+            // Where MDM tools (Jamf, Intune) place managed application configuration.
+            candidates.push(PathBuf::from(
+                "/Library/Application Support/Eurogas Nexus/Client/deployment.json",
+            ));
+        }
+        // Linux packages (and macOS, as a fallback) read the system-wide file.
         candidates.push(PathBuf::from("/etc/eurogas-nexus/client.json"));
     }
     candidates

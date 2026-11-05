@@ -406,3 +406,81 @@ def test_rejected_jit_registration_is_committed_before_the_login_fails(monkeypat
     rejected, rejected_session = _callback_with_failure("oidc_token_invalid")
     assert rejected.status_code == 400
     assert rejected_session.commits == 0
+
+
+def test_a_desktop_login_holds_its_session_in_memory_and_works_cross_site(
+    env_db, monkeypatch
+) -> None:
+    """Issue #9: login -> /api/me -> a write -> logout -> the session is dead, without cookies."""
+
+    engine = env_db
+    username, password = _configure_dev_credentials(monkeypatch)
+    principal_id = _seed_principal(engine, name=username)
+    monkeypatch.setenv("EUROGAS_NEXUS_TEST_ANONYMOUS", "1")
+    try:
+        client = TestClient(create_app(Settings(api_profile="development")))
+        login = client.post(
+            DEV_LOGIN_PATH,
+            json={"username": username, "password": password, "client": "desktop"},
+            headers={"Origin": "http://tauri.localhost"},
+        )
+        assert login.status_code == 200, login.text
+        # No cookie for the desktop: the token is handed to the app's memory, not cached.
+        assert "set-cookie" not in login.headers
+        assert login.headers["cache-control"] == "no-store"
+        token = login.json()["data"]["session_token"]
+        assert token
+        client.cookies.clear()
+
+        headers = {"X-Eurogas-Session": token, "Origin": "tauri://localhost"}
+        me = client.get("/api/me", headers=headers)
+        assert me.status_code == 200, me.text
+        assert me.json()["data"]["principal_id"] == principal_id
+        # A header credential is not ambient: no CSRF token is needed or issued.
+        assert me.json()["data"]["csrf_token"] is None
+        prefs = client.put("/api/me/preferences", json={"language": "zh-CN"}, headers=headers)
+        assert prefs.status_code in (200, 204), prefs.text
+
+        assert client.post("/api/auth/logout", headers=headers).status_code == 200
+        assert client.get("/api/me", headers=headers).status_code == 401
+    finally:
+        monkeypatch.delenv("EUROGAS_NEXUS_TEST_ANONYMOUS", raising=False)
+
+
+def test_a_browser_login_still_gets_only_the_httponly_cookie(env_db, monkeypatch) -> None:
+    username, password = _configure_dev_credentials(monkeypatch)
+    _seed_principal(env_db, name=username)
+    login = _dev_client().post(DEV_LOGIN_PATH, json={"username": username, "password": password})
+    assert login.status_code == 200
+    assert "session_token" not in login.json()["data"]
+    assert "HttpOnly" in login.headers["set-cookie"]
+
+
+def test_a_forged_desktop_session_is_refused(env_db) -> None:
+    client = _dev_client()
+    response = client.get("/api/me", headers={"X-Eurogas-Session": "not-a-session"})
+    assert response.status_code == 401
+
+
+def test_a_desktop_sso_session_is_accepted_in_the_release_profile(env_db, monkeypatch) -> None:
+    """The desktop OIDC flow returns the same opaque session; the release gate lets it through
+    to the identity check instead of comparing it with the deployment API token."""
+
+    from eurogas_nexus.application.enterprise_auth import create_principal_session
+
+    principal_id = _seed_principal(env_db, name="release-desk")
+    with Session(env_db) as session:
+        principal = session.get(IdentityPrincipalRecord, principal_id)
+        token = create_principal_session(
+            session, principal=principal, client_type="desktop"
+        ).session_token
+        session.commit()
+    monkeypatch.setenv("EUROGAS_NEXUS_TEST_ANONYMOUS", "1")
+    try:
+        client = TestClient(create_app(Settings(api_profile="release")))
+        me = client.get("/api/me", headers={"X-Eurogas-Session": token})
+        assert me.status_code == 200, me.text
+        assert me.json()["data"]["principal_id"] == principal_id
+        assert client.get("/api/me", headers={"X-Eurogas-Session": "forged"}).status_code == 401
+    finally:
+        monkeypatch.delenv("EUROGAS_NEXUS_TEST_ANONYMOUS", raising=False)

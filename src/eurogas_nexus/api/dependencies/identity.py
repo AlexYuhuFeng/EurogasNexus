@@ -48,6 +48,11 @@ from eurogas_nexus.security.oidc import (
 
 OIDC_ACCESS_TOKEN_HEADER = "X-Eurogas-Oidc-Access-Token"
 SESSION_COOKIE = "eurogas_session"
+#: Desktop clients (Tauri: ``http://tauri.localhost`` on Windows, ``tauri://localhost`` on
+#: macOS and Linux) are cross-site to the API, so a ``SameSite`` cookie never reaches it.
+#: They hold the same opaque backend session in memory and present it in this header
+#: (the native-app pattern of RFC 8252: no ambient credential, so no CSRF exposure).
+SESSION_HEADER = "X-Eurogas-Session"
 # Set by ``require_public_api_auth`` once the static deployment token verified.
 PUBLIC_TOKEN_VERIFIED_FLAG = "public_api_token_verified"
 IDENTITY_AUTHENTICATED_FLAG = "identity_authenticated"
@@ -107,6 +112,7 @@ async def _resolve_identity(request: Request) -> None:
     bearer = request.headers.get(IDENTITY_HEADER)
     oidc_token = request.headers.get(OIDC_ACCESS_TOKEN_HEADER)
     session_cookie = request.cookies.get(SESSION_COOKIE, "")
+    session_header = (request.headers.get(SESSION_HEADER) or "").strip()
 
     if (bearer or "").strip():
         request.state.identity = _authenticate_identity_key(bearer)
@@ -115,6 +121,12 @@ async def _resolve_identity(request: Request) -> None:
 
     if (oidc_token or "").strip():
         request.state.identity = _authenticate_oidc(oidc_token)
+        request.state.identity_authenticated = True
+        return
+
+    if session_header:
+        # Same session store, expiry and revocation as the cookie.
+        request.state.identity = _authenticate_session_cookie(request, session_header)
         request.state.identity_authenticated = True
         return
 

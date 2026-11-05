@@ -358,7 +358,10 @@ def _credential_authenticated(request: Request) -> bool:
 def logout(request: Request) -> dict:
     """Revoke the current backend session and clear its cookie."""
 
-    token = request.cookies.get(SESSION_COOKIE, "")
+    # A browser session arrives as the cookie, a desktop session as the header.
+    token = request.cookies.get(SESSION_COOKIE, "") or (
+        request.headers.get("X-Eurogas-Session") or ""
+    ).strip()
     if token:
         try:
             from eurogas_nexus.db.session import resolve_database_url

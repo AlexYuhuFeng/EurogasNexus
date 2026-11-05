@@ -17,10 +17,22 @@ const isDesktopShell = resolveHostKind() === "desktop";
 let desktopSessionToken = "";
 let currentCsrfToken = "";
 
+/**
+ * The desktop app's backend session, held in memory only. The desktop WebView's origin is
+ * cross-site to the API on every platform (Windows, macOS, Linux), so the browser's
+ * SameSite session cookie is never sent; the app presents the same opaque session in
+ * `X-Eurogas-Session` instead (the native-app pattern, RFC 8252).
+ */
 export function setDesktopSessionToken(token: string, csrfToken = ""): void {
   desktopSessionToken = token.trim();
   currentCsrfToken = csrfToken.trim();
 }
+
+/** The CSRF token for cookie-authenticated mutations; leaves a desktop session untouched. */
+export function setCsrfToken(csrfToken: string): void {
+  currentCsrfToken = csrfToken.trim();
+}
+
 
 export function clearDesktopSession(): void {
   desktopSessionToken = "";
@@ -79,8 +91,13 @@ export function clearStoredAuth(): void {
 
 export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
-  const token = desktopSessionToken || configuredApiToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // A desktop session is an interactive login: its own header, never confused with the
+  // deployment API token an SDK or a configured workstation sends as a bearer.
+  if (desktopSessionToken) headers["X-Eurogas-Session"] = desktopSessionToken;
+  else {
+    const token = configuredApiToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
   const principal = configuredOperatorPrincipal();
   if (principal) headers["X-Eurogas-Principal"] = principal;
   if (currentCsrfToken) headers["X-Eurogas-CSRF"] = currentCsrfToken;
@@ -209,11 +226,64 @@ export interface EventStreamHandle {
   close: () => void;
 }
 
+/**
+ * Server-sent events over fetch, for credentials that must stay in headers. Reconnects after
+ * a dropped connection (as EventSource does) until closed.
+ */
+function openHeaderEventStream(
+  path: string,
+  handlers: Record<string, (data: unknown) => void>,
+  onStatus?: (status: "open" | "error") => void,
+): EventStreamHandle {
+  const controller = new AbortController();
+  let closed = false;
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  const connect = async () => {
+    try {
+      const response = await fetch(apiUrl(path), requestInit({ signal: controller.signal, headers: { Accept: "text/event-stream" } }));
+      if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
+      onStatus?.("open");
+      // Loaded on first use: only desktop sessions read streams this way.
+      const { dispatchSseBlock } = await import("./sse");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = buffer.search(/\r?\n\r?\n/);
+        while (boundary !== -1) {
+          dispatchSseBlock(buffer.slice(0, boundary), handlers);
+          buffer = buffer.slice(buffer.slice(boundary).match(/^\r?\n\r?\n/)![0].length + boundary);
+          boundary = buffer.search(/\r?\n\r?\n/);
+        }
+      }
+      throw new Error("stream ended");
+    } catch {
+      if (closed) return;
+      onStatus?.("error");
+      retry = setTimeout(() => void connect(), 5000);
+    }
+  };
+  void connect();
+  return {
+    close: () => {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      controller.abort();
+    },
+  };
+}
+
 export function openEventStream(
   path: string,
   handlers: Record<string, (data: unknown) => void>,
   onStatus?: (status: "open" | "error") => void,
 ): EventStreamHandle {
+  // A desktop session must travel in a header and never in a URL (URLs are logged), and
+  // EventSource cannot set headers: read the stream with fetch instead.
+  if (desktopSessionToken) return openHeaderEventStream(path, handlers, onStatus);
   // Native EventSource cannot set Authorization headers, so the public API
   // token travels as the documented `api_key` query parameter on SSE only.
   const url = new URL(apiUrl(path), window.location.origin);
@@ -5005,9 +5075,15 @@ export const api = {
 
   me: (options?: ApiRequestOptions) => get<CurrentUserDTO>("/me", undefined, options),
   authStatus: () => get<AuthStatusDTO>("/auth/status"),
-  /** Development-only credential login; the backend sets the session cookie. */
+  /**
+   * Development-only credential login. A browser gets the HttpOnly session cookie; the
+   * desktop app asks for the session token in the body and keeps it in memory.
+   */
   login: (username: string, password: string) =>
-    post<DevLoginIdentityDTO>("/dev/auth/login", { username, password }),
+    post<DevLoginIdentityDTO>(
+      "/dev/auth/login",
+      isDesktopShell ? { username, password, client: "desktop" } : { username, password },
+    ),
   logout: (options?: ApiRequestOptions) => post<{ logged_out: boolean }>("/auth/logout", {}, options),
   desktopOidcToken: (body: DesktopOidcTokenInputDTO) =>
     post<DesktopOidcTokenDTO>("/auth/oidc/desktop/token", body),
@@ -5091,6 +5167,8 @@ export interface DevCredentialLoginInputDTO {
 export interface DevLoginIdentityDTO {
   authenticated: boolean; principal_id: string; display_name: string;
   role: string; permissions: string[];
+  /** Desktop logins only: the session to hold in memory and present as X-Eurogas-Session. */
+  session_token?: string;
 }
 
 export interface DesktopOidcLoginInputDTO {

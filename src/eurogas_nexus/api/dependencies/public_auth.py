@@ -43,8 +43,9 @@ async def require_public_api_auth(request: Request) -> None:
 
     if is_credential_exempt(request.url.path):
         return
-    if request.cookies.get("eurogas_session"):
-        # Interactive browser session is authenticated by require_identity.
+    if request.cookies.get("eurogas_session") or request.headers.get("x-eurogas-session"):
+        # Interactive browser (cookie) or desktop (header) session: require_identity
+        # validates it against the session store.
         return
 
     authorization = request.headers.get("authorization", "")

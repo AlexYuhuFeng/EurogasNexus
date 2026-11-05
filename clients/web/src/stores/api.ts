@@ -1409,11 +1409,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
     const csrf = meOutcome.value.data.csrf_token;
     if (csrf) {
-      const { setDesktopSessionToken } = await import("@/api/client");
+      const { setCsrfToken } = await import("@/api/client");
       if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
       // Browser sessions use the cookie; CSRF token is kept in memory for
-      // cookie-authenticated mutations.
-      setDesktopSessionToken("", csrf);
+      // cookie-authenticated mutations. A desktop session is left as it is.
+      setCsrfToken(csrf);
     }
     set({
       authState: AUTHENTICATED_AUTH_STATE,
@@ -1432,6 +1432,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
       // cookie; this response is never treated as an access decision.
       const response = await api.login(username, password);
       if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
+      if (response.data.session_token) {
+        // Desktop: the session lives in memory and travels as X-Eurogas-Session.
+        const { setDesktopSessionToken } = await import("@/api/client");
+        setDesktopSessionToken(response.data.session_token);
+      }
       set({
         authState: AUTHENTICATED_AUTH_STATE,
         authBusy: false,
@@ -1921,11 +1926,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
       const response = outcome.value;
       const csrf = response.data.csrf_token;
       if (csrf) {
-        const { setDesktopSessionToken } = await import("@/api/client");
+        const { setCsrfToken } = await import("@/api/client");
         if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
         // Browser sessions use the cookie; CSRF token is kept in memory for
-        // cookie-authenticated mutations.
-        setDesktopSessionToken("", csrf);
+        // cookie-authenticated mutations. A desktop session is left as it is.
+        setCsrfToken(csrf);
       }
       set({ authState: AUTHENTICATED_AUTH_STATE, authErrorKey: null, currentUser: response.data });
     } catch (error) {

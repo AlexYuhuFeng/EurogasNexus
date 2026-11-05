@@ -239,7 +239,9 @@ test("fetchNativeFlows sends the canonical native query, shared headers and exac
   assert.equal(init?.credentials, "include");
 
   const headers = (init?.headers ?? {}) as Record<string, string>;
-  assert.equal(headers.Authorization, "Bearer desktop-session-token");
+  // A desktop session travels in its own header, never as the deployment bearer token.
+  assert.equal(headers["X-Eurogas-Session"], "desktop-session-token");
+  assert.equal(headers.Authorization, undefined);
   assert.equal(headers["X-Eurogas-Principal"], "reviewer@example.test");
   assert.equal(headers["X-Eurogas-CSRF"], "csrf-token");
 

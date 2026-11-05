@@ -235,7 +235,29 @@ one callback, then calls `POST /api/auth/oidc/desktop/token` with
 `code + code_verifier + expected redirect_uri`. The backend validates the
 one-time state/PKCE and returns a **short-lived opaque access token**.
 The desktop frontend holds that token in memory only (never localStorage)
-and sends it as a bearer header. Logout drops the in-memory token.
+and sends it in the `X-Eurogas-Session` header. Logout revokes it on the
+server (the logout route reads the header as well as the cookie) and drops it.
+
+Why a header and not the cookie (issue #9, 2026-11-05): the WebView's origin is
+`http://tauri.localhost` on Windows and `tauri://localhost` on macOS and Linux,
+a different *site* from the API at `http://127.0.0.1:8000`, so a
+`SameSite=Lax` cookie is never attached to its `fetch` calls on any of the three
+platforms; `credentials: "include"` cannot override SameSite. Relaxing the
+cookie to `SameSite=None` would need `Secure` (HTTPS to localhost) and would
+give every page in the WebView ambient authority. A header credential is the
+native-app practice (RFC 8252): it is not ambient, so the CSRF guard (which
+applies to cookie sessions) has nothing to protect, and `/api/me` returns no
+CSRF token for it. It is a separate header from `Authorization: Bearer` so it
+is never compared with the deployment API token: the release gate passes a
+request carrying it straight to the identity check, which validates it against
+the session store (same expiry, revocation and principal status as the cookie).
+
+The development credential login follows the same rule: a desktop client sends
+`"client": "desktop"` and receives `session_token` in the body (`Cache-Control:
+no-store`, no `Set-Cookie`); a browser still gets only the HttpOnly cookie.
+Acceptance: `tests/security/test_authenticated_entry_api.py` runs login ->
+`/api/me` -> a write -> logout -> refused, with no cookie at all, in the
+development profile, and a desktop SSO session in the release profile.
 
 Windows and Linux both use loopback; no custom URI scheme registration is
 required. The Tauri command never exposes filesystem/shell access beyond the
