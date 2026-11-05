@@ -13,27 +13,34 @@ in one place, in desk units (p/th, EUR/MWh, MWh/d), on their own licensed market
 Package version: `0.7.0` · Channel: `preview` · Status: release candidate for the tested
 local scope, not a production or GA release.
 
+## Client documentation
+
+Start with the [Client guide](docs/guides/README.md), [First sign-in](docs/user/QUICK_START.md)
+and [Data and methodology](docs/user/DATA_STATUS_AND_PROVENANCE.md).
+Implementation teams can use [Client onboarding](docs/guides/CLIENT_ONBOARDING.md);
+users can find the support route in [Support and updates](docs/guides/SUPPORT_AND_UPDATES.md).
+
 ## What it does
 
 | Area | Highlights |
 |---|---|
-| **Market** | Hub board and execution-style ladder (WD, DA, WE, BOM, months, quarters, seasons, Cal) for NBP, TTF, THE, PEG, ZTP, PSV; spreads to TTF; product strip; unit and FX converter; storage against EU targets; network map of flows and capacity |
+| **Market** | Hub board and quote ladder (WD, DA, WE, BOM, months, quarters, seasons, Cal) for NBP, TTF, THE, PEG, ZTP, PSV; spreads to TTF; product strip; unit and FX converter; storage against EU targets; network map of flows and capacity |
 | **Fundamentals** | ENTSOG flows and capacity, GIE storage and LNG, ECB/BoE/NY Fed rates, ECMWF temperature, GB demand, ENTSO-E power (load, wind, solar, gas generation, prices), gas-for-power (residual load, spark/dark spreads, fuel switch); REMIT outage messages |
 | **Research** | Spread lab with declared-rule backtests; strategy design, frozen backtests, comparison and shadow runs; point-in-time training datasets over prices, power, storage, LNG and flows with lags, rolling features and walk-forward folds; Python SDK |
 | **Portfolio and risk** | Position ladder (physical and financial by hub and month, hedge ratio), mark-to-market on the forward curve, indicative VaR, route economics, capacity billing, early-cash valuation with SONIA/€STR/SOFR |
 | **Decisions** | Evidence-backed decision cases with four-eyes approval, alerts with optional LLM explanations, full audit trail |
 | **Platform** | SSO (OIDC), RBAC with commercial data scopes, per-user preferences and organisation defaults, English and Chinese, light/dark, green-up or red-up P&L colours, keyboard-first navigation |
 
-**Boundary:** no order entry, execution, nomination or settlement, and no official
-trading recommendations. Every output is a candidate for human review. Market prices come
-only from the customer's own licensed sources (Trayport, ICE, EEX); the product never
-shows a simulated price as a market price.
+**Workflow:** market and portfolio analysis leads to a recorded human review. Trade
+execution, nomination submission and settlement processing remain in the firm's operating
+systems. Licensed market prices use the firm's entitled sources or approved imports;
+test observations carry simulation labels.
 
 ## Who uses it
 
-| Role | Lands on | Guide |
+| Role | Primary work | Guide |
 |---|---|---|
-| Trader | Market → Curves | [docs/guides/TRADER.md](docs/guides/TRADER.md) |
+| Trader | Market → Curves & Spreads | [docs/guides/TRADER.md](docs/guides/TRADER.md) |
 | Analyst, quant | Market or Strategy Lab | [docs/guides/ANALYST_QUANT.md](docs/guides/ANALYST_QUANT.md) |
 | Risk, finance | Portfolio → Exposure | [docs/guides/RISK_AND_FINANCE.md](docs/guides/RISK_AND_FINANCE.md) |
 | Management | Portfolio → Overview | [docs/guides/MANAGEMENT.md](docs/guides/MANAGEMENT.md) |

@@ -1,45 +1,62 @@
-# SDK CLI Contract
+# SDK and CLI integration contract
 
-## Purpose
+[简体中文](SDK_CLI_CONTRACT-CN.md)
 
-`packages/python-sdk/src/eurogas_nexus_sdk` is the required
-Python SDK. `src/eurogas_nexus/cli` is reserved for operational commands
-that call the SDK/API.
+## Current interface
 
-## Bootstrap State
+The Python SDK is packaged with the repository's distribution under
+`packages/python-sdk/src/eurogas_nexus_sdk`. It provides typed API clients for health,
+market/physical observations, portfolio, research, strategy, review and operational
+surfaces. The CLI entry point is `eurogas-nexus`, implemented in
+`src/eurogas_nexus/cli/main.py`. Use the command help and SDK from the same release as
+the installation.
 
-The SDK and CLI expose a read-only health shell. Future expansion is governed by
-`docs/clients/SDK_CLIENT_DESIGN_SPEC.md`,
-`docs/clients/CLI_CLIENT_DESIGN_SPEC.md`,
-`docs/clients/CLI_CLIENT_DESIGN_SPEC.md`, and the public RFC/ExecPlan workflow
-in `docs/engineering/RFC_PROCESS.md` and
-`docs/engineering/EXECPLAN_INDEX.md`.
+The [SDK readme](../../packages/python-sdk/README.md) contains a native-flow example.
+The [function catalogue](../api/DATA_SCIENCE_FUNCTIONS.md) describes analytical surfaces.
 
-## Rules
+## Connection and authentication
 
-- SDK methods must target documented API contracts.
-- CLI commands must be safe by default and require explicit confirmation for
-  mutating operations.
-- SDK and CLI tests belong under `tests/sdk` and `tests/cli`.
-- SDK and CLI code must call the backend API, not internal domain modules.
-- CLI should call the SDK first for runtime data, and may call `/api`
-  directly only for a documented SDK gap.
-- SDK and CLI must preserve research metadata, warnings, missing inputs, source
-  references, lineage, `research_only`, and `human_review_required` when the
-  backend provides them.
+SDK methods take the service origin, for example `https://nexus.example.com`; the health
+client appends `/api/health`. The desktop deployment setting instead uses an API address
+ending in `/api`. Use the format required by the particular interface.
 
-## Forbidden In Bootstrap
+Configure the credentials issued for the installation. Shared HTTP helpers read
+`EUROGAS_NEXUS_PUBLIC_API_TOKEN` (legacy alias `EUROGAS_NEXUS_API_TOKEN`),
+`EUROGAS_NEXUS_IDENTITY_BEARER` and, for the applicable operator context,
+`EUROGAS_NEXUS_PRINCIPAL`. The backend validates identity, permission and source access.
 
-- Publishing SDK packages.
-- Adding command frameworks.
-- Implementing mutating operational commands.
+A first read can use:
 
-## Milestone 5 Additions
+```python
+from eurogas_nexus_sdk import fetch_health
 
-- SDK exposes read-only `fetch_health(base_url)` API client.
-- CLI exposes read-only `run_health_check(base_url)` helper.
-- Both SDK and CLI call backend HTTP API surfaces only.
+health = fetch_health("https://nexus.example.com")
+print(health.status, health.version, health.profile)
+```
 
-## Milestone 6 Additions
+With the installed command:
 
-- AST-level boundary tests verify SDK/CLI do not import domain or application modules.
+```bash
+eurogas-nexus --base-url https://nexus.example.com health
+eurogas-nexus --help
+```
+
+The address is an example; use the origin supplied by IT. Health describes the service,
+not successful ingestion or commercial-data coverage.
+
+## Integration rules
+
+- SDK/CLI runtime data access uses the backend API, not direct database or domain imports.
+- Use documented methods and explicit request parameters; preserve result metadata,
+  identifiers, source references, warnings and missing-input information.
+- Keep credentials in the approved runtime configuration, separate from notebooks,
+  shared examples and log output.
+- Identify persisted operations separately from read/computation requests and verify their
+  required permissions before using them in automation.
+- Keep the service version, SDK version, request and returned evidence with a reproducible
+  integration report.
+- SDK tests live in `tests/sdk`; CLI tests live in `tests/cli`. Boundary tests check API use.
+
+The design specifications remain [SDK](SDK_CLIENT_DESIGN_SPEC.md) and
+[CLI](CLI_CLIENT_DESIGN_SPEC.md) references. Their earlier bootstrap milestones describe
+historical scope, not the complete current method set.

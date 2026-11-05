@@ -1,28 +1,50 @@
 # Legal and compliance guide
 
-**You land on Decision Center → Review.**
+[简体中文](LEGAL_COMPLIANCE-CN.md) · [Client guide](README.md)
 
-- **Decision record:** every decision case keeps its evidence, the person who opened it and
-  the person who decided (never the same person).
-- **Audit trail:** access changes, organisation settings, decisions, exports and LLM calls
-  are audited with actor and time.
-- **Licences:** licensed data is visible only to users whose data scopes include that
-  source family; exports are refused when the licence does not allow them. Terms per
-  source: [DATA_SOURCE_TERMS.md](../legal/DATA_SOURCE_TERMS.md); dependencies:
-  [DEPENDENCY_LICENSE_REVIEW.md](../legal/DEPENDENCY_LICENSE_REVIEW.md).
-- **Personal data and regions:** staff identities and audit stay in the installation of
-  their legal entity; China runs its own installation
-  ([GLOBAL_DEPLOYMENT.md](../architecture/GLOBAL_DEPLOYMENT.md)).
-- **LLM use:** external models are off unless approved per installation; prompts exclude
-  licensed raw prices; answers are advisory and labelled.
-- **Scope:** the product does not execute trades, nominate or settle; outputs are
-  research candidates requiring human review.
+Use this guide to retrieve decision evidence, review access arrangements and check how
+licensed information is used.
 
-## Compliance audit
+## Review a decision record
 
-The current audit (security, data protection and residency, REMIT/MAR/MiFID II record
-keeping, reporting, data sourcing and licensing, legal claims) with its open findings is
-[COMPLIANCE_AUDIT.md](../compliance/COMPLIANCE_AUDIT.md). Data-subject access requests are
-answered with `scripts/ops/personal_data_export.py`; audit records are kept five years by
-default.
+1. Open **Decision Center → Review** and select the case.
+2. Check the objective, author, analytical context and linked evidence.
+3. Inspect assumptions, warnings, source references and the recorded outcome.
+4. Check the reviewer identity and the separation between author and reviewer.
+5. Retain the case identifier and the relevant audit references for your review.
 
+**Result:** the review identifies who assessed which evidence and what was recorded.
+Execution and settlement records are obtained from the firm's corresponding systems.
+
+## Review data entitlements
+
+Ask the data administrator for the current licence register and user/data-scope assignments.
+Match the source family, authorised use, validity period, office and named-user conditions
+against the firm's vendor agreement. Include exported data, derived datasets and external
+recipients in that review.
+
+A saved API credential establishes a technical connection. The licence and access records
+establish which users and uses are authorised.
+
+## Review access and retention
+
+1. Agree the population of users and privileged accounts with the access owner.
+2. Compare roles and source scopes with approved requests.
+3. Examine relevant changes in **Admin → Access & Identity → Audit** with an authorised account.
+4. Verify the installed retention settings and the firm's requirements with the operator.
+5. Test retrieval of a sample record and record the review outcome.
+
+Use the [identity and SSO guide](../operations/ENTERPRISE_SSO.md),
+[roles reference](../product/ROLES_AND_RESPONSIBILITIES.md) and
+[compliance assessment](../compliance/COMPLIANCE_AUDIT.md) for specialist detail.
+A configurable retention period should be checked against the installation's actual policy.
+
+## Review AI-assisted work
+
+Establish the configured model provider, the installation's external-provider policy,
+permitted input information and the evidence retained with a response.
+Keep the analytical record and the human review identifiable when AI explanations are used.
+
+[Client onboarding](CLIENT_ONBOARDING.md) records the agreed data, access and support
+arrangements. Apply the firm's regulatory and contractual requirements to the agreed activity and
+installation, and retain the relevant approvals with the handover record.

@@ -1,23 +1,48 @@
-# Management guide
+# Desk and business management guide
 
-**You land on Portfolio → Overview**, which opens with the position and risk summary: net
-position, hedge ratio, mark-to-market and indicative VaR, above the resource and route
-overview.
+[简体中文](MANAGEMENT-CN.md) · [Client guide](README.md)
 
-| Question | Where |
-|---|---|
-| Where is our portfolio and how does gas move through it? | Portfolio → Overview, Market → Network map |
-| How long or short are we, by month and hub? | Portfolio → Exposure → Position ladder |
-| What is the P&L and risk today? | Overview summary; Exposure for detail |
-| What decisions are waiting and who made them? | Decision Center |
-| What do the markets look like? | Market → Curves |
+**Outcome:** a concise portfolio review with named exceptions, decisions and owners.
 
-Figures are indicative decision support; the risk system and finance ledger are the books
-of record. Access to commercial data is decided by the business and granted by IT; see
-[ROLES_AND_RESPONSIBILITIES.md](../product/ROLES_AND_RESPONSIBILITIES.md).
+## Prepare a desk review
 
-## Global view
+1. Open **Portfolio** and confirm the books, delivery horizon and reporting currency.
+2. Review net position, hedge measures, valuation and the associated warnings.
+3. Use the exposure view to explain a material change by hub and month.
+4. Open the underlying resource or trade record when investigating a concentration.
+5. Compare the represented position with the desk's reconciled book.
 
-Portfolio → Exposure → *Roll up by: Firm* gives the whole firm's net position, hedge ratio
-and mark-to-market in one currency; *Legal entity*, *Region* or *Business* breaks it down by
-office and desk.
+**Check the result:** the summary identifies its population and valuation basis.
+Missing or unvalued legs should be visible in the review rather than inferred to be zero.
+
+## Review commercial alternatives
+
+Open the relevant route or scenario assessment. Compare allocated volume, margin or netback,
+capacity, FX and financing assumptions on a consistent basis. Record the material sensitivity:
+a changed price, payment term or capacity assumption can change the preferred alternative.
+
+In **Decision Center → Review**, inspect the case objective, evidence and review outcome.
+Use your authorised review controls and assign follow-up through the firm's decision process.
+
+## Discuss exceptions
+
+For each material exception, record:
+
+- the affected book, contract, hub and delivery period;
+- the market or operational evidence and its timestamp;
+- the commercial implication and available alternatives;
+- the responsible person and the next review point.
+
+Data-source failures belong with the data operator; an access request needs the business
+owner's approval and IT's implementation. The
+[roles and responsibilities](../product/ROLES_AND_RESPONSIBILITIES.md) reference
+describes that separation.
+
+## Share a management pack
+
+Retain the context, warning summary and saved decision/run references with any permitted
+export. A regional or business roll-up explains the selected data; it does not establish
+that every desk or legal entity in the firm has been connected.
+
+See [Data and methodology](../user/DATA_STATUS_AND_PROVENANCE.md),
+[Risk and finance](RISK_AND_FINANCE.md) and [Support](SUPPORT_AND_UPDATES.md).

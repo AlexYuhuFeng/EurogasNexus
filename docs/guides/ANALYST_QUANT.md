@@ -1,45 +1,61 @@
 # Analyst and quant guide
 
-**You land on Market → Curves (analyst) or Strategy Lab → Design (quant).**
+[简体中文](ANALYST_QUANT-CN.md) · [Client guide](README.md)
 
-## Research workflow
+**Outcome:** an analysis that another authorised colleague can reproduce from the same
+data, version and assumptions.
 
-1. **Explore a relationship:** Strategy Lab → Spread. Weighted spreads of two to four
-   series, z-score, percentile and half-life, and a declared rule backtest without look-ahead.
-2. **Build a strategy:** Strategy Lab → Design, freeze a version, Backtest, Compare, then
-   Shadow to watch it on live data.
-3. **Build a training dataset:** System → Research Data. Point-in-time datasets over prices
-   (every hub), power (`power.*`), storage (`storage.*`), LNG (`lng.*`) and flows
-   (`flow.mcm_d.*`), with declarative features (lags, changes, rolling mean and dispersion,
-   linear combinations) and walk-forward folds with an embargo. Export to Parquet.
-   See [ML_READINESS.md](../research/ML_READINESS.md) and
-   [FEATURE_REGISTRY.md](../research/FEATURE_REGISTRY.md).
-4. **Fundamentals:** GB weather-adjusted demand and gas-for-power
-   ([GAS_POWER_COUPLING.md](../research/GAS_POWER_COUPLING.md)).
+## Explore a spread
 
-## Python SDK
+1. Open **Strategy Lab → Spread**.
+2. Select the series and weights. Check each leg's hub, tenor, source, unit and available history.
+3. Put legs on a common currency and energy basis before combining them.
+4. Inspect the spread history and statistics over the chosen period.
+5. For a rule backtest, record the rule, sample dates and cost assumptions alongside the result.
 
-```python
-from eurogas_nexus_sdk import research
-series = research.list_spread_series("https://nexus.example.com")
-result = research.analyse_spread("https://nexus.example.com",
-    legs=[{"hub": "THE", "tenor": "month-ahead", "weight": 1},
-          {"hub": "TTF", "tenor": "month-ahead", "weight": -1}])
-```
+**Check the result:** the input series and periods explain the observations used.
+A short or missing series can change the sample; resolve that difference before comparing runs.
+See the [Spread workflow](../user/STRATEGY_LAB.md).
 
-Train models in your own environment and bring forecasts back as forecast vintages, so
-they enter datasets and shadow evaluation like any other source.
+## Develop a saved strategy
 
-## Rules that protect your results
+1. In **Design**, create or select the strategy and complete its draft inputs.
+2. Resolve validation blockers, then freeze the version to retain the specification.
+3. In **Backtest**, choose the period and evaluation policies and start the run.
+4. Inspect returns, drawdown, attribution, warnings and data coverage.
+5. In **Compare**, select compatible saved runs and review the compatibility assessment.
+6. Use **Shadow** to evaluate a frozen version against its stated baseline and incoming data.
 
-Every value is used only after it was available; simulated sources are labelled; exports
-respect licence terms (exchange data usually needs a derived-data licence for models).
+**Check the result:** the strategy version and run identifiers are recorded with the input
+period and costs. Create a new draft when changing a frozen specification.
 
-## Balance and gas for power
+## Build a research dataset
 
-Market → Overview shows the north-west Europe balance (the call on Norway, LNG and storage,
-measured and forecast, with REMIT outages applied; method in
-[NWE_BALANCE.md](../research/NWE_BALANCE.md)) and the gas-for-power view per bidding zone
-(clean spark and dark spreads with EUA/UKA and API2, implied gas burn). Both are in the API
-(`/api/market/nwe-balance`, `/api/market/gas-for-power`) for notebooks.
+1. Open **System → Research Data → Datasets**.
+2. Select registered targets, features, entities and the observation window.
+3. Set the relevant resampling and history options, then validate the specification.
+4. Build a snapshot after validation succeeds.
+5. Inspect coverage, temporal integrity and training-readiness results before exporting.
 
+Retain the snapshot identifier, specification, observation types and availability cutoffs
+with your notebook or model run. Separate forecast vintages from actual observations and
+record the treatment of missing values.
+
+Technical references: [Point-in-time datasets](../research/POINT_IN_TIME_DATASETS.md),
+[Features](../research/FEATURE_REGISTRY.md), [Targets](../research/TARGET_REGISTRY.md)
+and [ML readiness](../research/ML_READINESS.md).
+
+## Use the Python SDK
+
+Use the SDK distributed with your installation and its documented authentication method.
+Start with the [SDK readme](../../packages/python-sdk/README.md) and
+[function catalogue](../api/DATA_SCIENCE_FUNCTIONS.md). Keep the API address, SDK version,
+request parameters and returned evidence metadata with a reproducible example.
+Copy working examples from the matching SDK release rather than inferring method names
+from UI labels.
+
+## Share the work
+
+Attach the saved run or snapshot reference, your business question, assumptions and
+material sensitivities to the decision case or desk research record. Confirm the
+permitted recipients and export use for the underlying data.

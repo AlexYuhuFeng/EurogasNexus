@@ -12,33 +12,39 @@
 
 软件包版本：`0.7.0` · 渠道：`preview` · 状态：已测试本地范围的候选版本，尚非生产或正式（GA）版本。
 
-本文是英文 [README.md](README.md) 的中文版，内容与之对应；如有出入，以英文版为准。
+本页与英文说明采用同一产品事实基线。客户操作说明从下方使用指南进入。
+
+## 客户使用文档
+
+首次使用，请从[客户使用指南](docs/guides/README-CN.md)、[首次登录](docs/user/QUICK_START-CN.md)及
+[数据口径](docs/user/DATA_STATUS_AND_PROVENANCE-CN.md)开始。
+实施团队使用[客户上线与交接](docs/guides/CLIENT_ONBOARDING-CN.md)，日常问题按
+[技术支持与版本更新](docs/guides/SUPPORT_AND_UPDATES-CN.md)处理。
 
 ## 功能概览
 
 | 领域 | 主要内容 |
 |---|---|
-| **市场** | NBP、TTF、THE、PEG、ZTP、PSV 的枢纽行情板与交易屏式报价梯（WD、DA、WE、BOM、月度、季度、季节、年度）；对 TTF 价差；合约条带；单位与汇率换算；储气量对照欧盟目标；流量与容量网络图 |
-| **基本面** | ENTSOG 流量与容量，GIE 储气与 LNG，ECB/BoE/纽约联储利率，ECMWF 气温，英国需求，ENTSO-E 电力（负荷、风电、光伏、燃气发电、电价），燃气发电（剩余负荷、点火/暗价差、燃料转换）；REMIT 停运消息 |
+| **市场** | NBP、TTF、THE、PEG、ZTP、PSV 的枢纽行情板与报价阶梯（WD、DA、WE、BOM、月度、季度、季节、年度）；对 TTF 价差；合约条带；单位与汇率换算；储气量对照欧盟目标；流量与容量网络图 |
+| **基本面** | ENTSOG 流量与容量，GIE 储气与 LNG，ECB/BoE/纽约联储利率，ECMWF 气温，英国需求，ENTSO-E 电力（负荷、风电、光伏、燃气发电、电价），燃气发电（剩余负荷、火花/暗价差、燃料转换）；REMIT 停运消息 |
 | **研究** | 价差实验室与声明式规则回测；策略设计、冻结回测、对比与影子运行；覆盖价格、电力、储气、LNG 与流量的时点一致（point-in-time）训练数据集，含滞后、滚动特征与前推（walk-forward）折叠；Python SDK |
 | **组合与风险** | 头寸阶梯（按枢纽与月份的实物与金融头寸、对冲比例），基于远期曲线的盯市，指示性 VaR，路径经济性，容量计费，使用 SONIA/€STR/SOFR 的提前回款估值 |
 | **决策** | 有证据支撑的决策案例与四眼审批，可选 LLM 解释的预警，完整审计轨迹 |
 | **平台** | 单点登录（OIDC），带商业数据范围的角色权限（RBAC），个人偏好与组织默认值，中英文界面，浅色/深色，绿涨或红涨的盈亏配色，键盘优先导航 |
 
-**边界：** 不提供下单、执行、提名（nomination）或结算，也不给出正式交易建议。所有输出均为待人工
-审阅的候选结果。市场价格只来自客户自己的授权来源（Trayport、ICE、EEX）；系统从不把模拟价格显示为
-市场价格。
+**操作范围：**市场和组合分析进入复核与决策记录。交易执行、提名申报和结算处理沿用公司的业务系统。
+授权行情通过公司获准的数据源或导入流程接入，测试观测保留模拟标识。
 
 ## 使用者
 
-| 角色 | 默认进入 | 指南（英文） |
+| 角色 | 主要工作 | 中文指南 |
 |---|---|---|
-| 交易员 | 市场 → 曲线 | [docs/guides/TRADER.md](docs/guides/TRADER.md) |
-| 分析师、量化 | 市场或策略实验室 | [docs/guides/ANALYST_QUANT.md](docs/guides/ANALYST_QUANT.md) |
-| 风控、财务 | 组合 → 敞口 | [docs/guides/RISK_AND_FINANCE.md](docs/guides/RISK_AND_FINANCE.md) |
-| 管理层 | 组合 → 概览 | [docs/guides/MANAGEMENT.md](docs/guides/MANAGEMENT.md) |
-| 法务、合规 | 决策中心 → 审阅 | [docs/guides/LEGAL_COMPLIANCE.md](docs/guides/LEGAL_COMPLIANCE.md) |
-| IT 管理员、数据运维 | 管理、数据源 | [docs/guides/ADMIN_AND_OPERATIONS.md](docs/guides/ADMIN_AND_OPERATIONS.md) |
+| 交易员 | 市场 → 曲线 | [docs/guides/TRADER-CN.md](docs/guides/TRADER-CN.md) |
+| 分析师、量化 | 市场或策略实验室 | [docs/guides/ANALYST_QUANT-CN.md](docs/guides/ANALYST_QUANT-CN.md) |
+| 风控、财务 | 组合 → 敞口 | [docs/guides/RISK_AND_FINANCE-CN.md](docs/guides/RISK_AND_FINANCE-CN.md) |
+| 管理层 | 组合 → 概览 | [docs/guides/MANAGEMENT-CN.md](docs/guides/MANAGEMENT-CN.md) |
+| 法务、合规 | 决策中心 → 审阅 | [docs/guides/LEGAL_COMPLIANCE-CN.md](docs/guides/LEGAL_COMPLIANCE-CN.md) |
+| IT 管理员、数据运维 | 管理、数据源 | [docs/guides/ADMIN_AND_OPERATIONS-CN.md](docs/guides/ADMIN_AND_OPERATIONS-CN.md) |
 
 ## 数据流向
 
@@ -132,7 +138,7 @@ CI 另外运行 PostgreSQL 集成测试、中英文浏览器验收与无障碍�
 
 ## 文档导航
 
-- [按角色的指南](docs/guides/README.md)（英文）
+- [按角色的指南](docs/guides/README-CN.md)（英文）
 - [中文文档索引](docs/README-CN.md) · [Documentation index](docs/README.md)
 - [架构](docs/architecture/ARCHITECTURE.md) ·
   [架构决策](docs/architecture/ARCHITECTURE_DECISION_RECORD.md) ·

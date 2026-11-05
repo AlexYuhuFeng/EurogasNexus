@@ -1,38 +1,67 @@
 # Trader guide
 
-**You land on Market → Curves.** Prices first, in desk units: NBP in p/th, continental hubs
-in EUR/MWh, volumes in MWh/d (th/d for NBP).
+[简体中文](TRADER-CN.md) · [Client guide](README.md)
 
-## Daily use
+Use this guide to prepare the desk, inspect a position and compare a sale or routing
+alternative. Have the relevant book, delivery period and price sources available.
 
-| Task | Where |
-|---|---|
-| Hub board: bid/ask, mid, change, spread to TTF, WD/DA/WE/MA | Market → Curves |
-| Execution-screen ladder (products down, hubs across) | Market → Curves → layout *Ladder*, or Settings → Quote layout |
-| Product strip (WD, DA, WE, BOM, M+n, Q+n, seasons, Cal), unit and FX converter | Market → Curves → Trader desk |
-| Storage against the EU target | Market → Curves → Trader desk |
-| Flows, capacity and maintenance | Market → Network, Market → Capacity & Events |
-| Live and upcoming outages (REMIT UMMs: fields, plants, storage, LNG, pipelines) | Market → Capacity & Events → Outages |
-| Spread or benchmark analysis and a quick rule backtest | Strategy Lab → Spread |
-| Position by hub and month, hedge ratio, MtM | Portfolio → Exposure → Position ladder |
-| Your mandate: size, hubs, tenor used | Portfolio → Exposure → Credit and mandates |
-| Did the seller deliver what we nominated? Shortfalls, volatility, trend vs DCQ | Portfolio → Resources → Delivery against nominations |
-| A signed contract PDF into a draft (each term with its page) | Portfolio → Resources → Upload contract |
-| What to bid for an LNG cargo, terminal by terminal, on each operator's published tariff (term or spot) | Portfolio → Routes → LNG cargo bid ([where each tariff comes from](../data/LNG_TERMINAL_TARIFFS.md)) |
-| Any table to Excel or PDF | *Export* on the table |
-| Opportunities and alerts | Decision Center, Alerts (top bar) |
+## Prepare the desk
 
-## Getting your prices in
+1. Open **Market → Curves & Spreads** and select the gas day, product and hub.
+2. Choose **Hub board** for a hub comparison or **Ladder** for products across markets.
+3. Check bid/offer, source and age before comparing levels. Keep NBP p/th and continental
+   EUR/MWh quotes on a common basis when comparing them.
+4. Open **Capacity & Events** for flows, capacity, storage, LNG and published outages.
+5. Review relevant alerts and investigate the source behind an exception.
 
-The product ships no live price feed: Trayport, ICE and EEX prices are licensed to you.
-Export your screen to CSV (once or on a timer) and import it, or ask IT to connect your
-licensed feed. See [LIVE_PRICE_SOURCES.md](../operations/LIVE_PRICE_SOURCES.md).
+**Result:** a consistent market view for the period you are assessing.
+[Data and conversion conventions](../user/DATA_STATUS_AND_PROVENANCE.md) explain the
+timestamps, reference prices and FX basis.
 
-## Shortcuts
+## Review the physical book
 
-`Ctrl+Shift+1…6` workspaces, `Ctrl+K` palette, arrow keys move in the ladder, `Esc` closes,
-`?` lists them all.
+1. In **Portfolio**, open the resource/contract library.
+2. Inspect the recorded delivery points, contract quantity, price currency, payment terms
+   and capacity rights for the selected contract.
+3. Review the daily gas balance and delivery-against-nomination records where populated.
+4. Open the exposure/position view for the relevant hub and month. Check the associated
+   book, physical and financial legs, marks and hedge measures.
 
-## Not here
+**Result:** a position assessment tied to recorded contracts and imported trades.
+For contract entry, PDF intake, retirement and reinstatement, use the
+[illustrated trader walkthrough](../user/manual/TRADER.md).
 
-No order entry, no nominations, no settlement. Decisions are recorded for review, not executed.
+## Compare routes and sales
+
+1. Open **Portfolio → Routes** and inspect the candidate's costs, capacity and access.
+2. Use the available scenario handoff to carry the candidate into **Decision Center**.
+3. Confirm which saved resources and sale options form the comparison. Panel edits and
+   saved contract terms can have different roles in a calculation.
+4. Run the comparison or optimisation. Inspect allocated and unallocated volume, binding
+   constraints, price/FX basis and financing assumptions.
+5. Retain the candidate and its evidence for review.
+
+**Result:** alternatives whose quantities, costs and assumptions can be explained.
+A blocked result names the input or constraint to resolve; a blank result needs data
+or configuration, rather than a presumed zero economic value.
+
+Each resource uses its own recorded contract financing rate. A resource without a rate
+uses the scenario default; in the UI, that default comes from the first saved upstream
+contract or the draft fallback. Inspect the rate, its source and day-count basis on each
+allocation when comparing contracts with different funding terms.
+[Portfolio workflow](../user/PORTFOLIO_WORKFLOW.md) describes this calculation path.
+
+## Record the decision
+
+Open **Decision Center → Review**, inspect the alternatives and record the permitted
+review outcome with a rationale. Carry the agreed instructions into your firm's trading
+or operating system through its usual approval process.
+
+## Maintain a reliable price view
+
+Licensed gas prices arrive through your firm's entitled source or approved import.
+A provider's presence in Data Sources is a catalogue entry; the data operator can confirm
+the connected/imported dataset and its last successful refresh.
+
+See [Live price imports](../operations/LIVE_PRICE_SOURCES.md) and
+[Support and updates](SUPPORT_AND_UPDATES.md).
