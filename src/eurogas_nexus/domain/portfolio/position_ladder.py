@@ -20,6 +20,24 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from eurogas_nexus.domain.ontology.markets import quote_currency
+
+#: Longest gap between two closes that still counts as one day's move: a weekend plus a
+#: holiday (Friday to Tuesday). A longer gap is missing data, not a one-day scenario.
+MAX_VAR_GAP_DAYS = 4
+
+
+def _single_currency(hubs: Iterable[str]) -> None:
+    """Refuse adding hubs that quote in different currencies when no FX table is given."""
+
+    currencies = {quote_currency(hub.upper()) for hub in hubs}
+    if len(currencies) > 1:
+        raise ValueError(
+            "hubs quote in different currencies ("
+            + ", ".join(sorted(currencies))
+            + "); pass fx_by_hub to value them in one reporting currency"
+        )
+
 #: Gas days run 06:00 to 06:00 local; the ladder works in whole gas days by their start date.
 
 
@@ -158,6 +176,7 @@ def mark_to_market(
     if horizon_end < horizon_start:
         raise ValueError("horizon_end is before horizon_start")
     total, missing, valued = 0.0, 0, 0
+    valued_hubs: set[str] = set()
     for leg in legs:
         hub = leg.hub.upper()
         fx = 1.0 if fx_by_hub is None else fx_by_hub.get(hub)
@@ -168,6 +187,10 @@ def mark_to_market(
                 continue
             total += (mark - leg.price) * mwh * fx
             valued += 1
+            valued_hubs.add(hub)
+    if fx_by_hub is None:
+        # Without FX the hubs that were valued must share one currency (GBP + EUR is no sum).
+        _single_currency(valued_hubs)
     # Nothing valued is unknown, not zero.
     return (total if valued else None), missing
 
@@ -183,12 +206,16 @@ def historical_var(
     """One-day historical-simulation VaR of the open position (a positive loss figure).
 
     Uses the days on which every hub with a position has a close on that day and the day
-    before. Returns ``(None, n)`` with fewer than ``min_observations`` scenarios.
+    before. Two closes more than ``MAX_VAR_GAP_DAYS`` apart are not a one-day move (missing
+    data), so that pair is not a scenario. Without ``fx_by_hub`` the hubs must quote in one
+    currency. Returns ``(None, n)`` with fewer than ``min_observations`` scenarios.
     """
 
     hubs = [hub for hub, mwh in net_mwh_by_hub.items() if abs(mwh) > 1e-9]
     if not hubs:
         return 0.0, 0
+    if fx_by_hub is None:
+        _single_currency(hubs)
     fx = {hub: 1.0 if fx_by_hub is None else fx_by_hub.get(hub) for hub in hubs}
     if any(rate is None for rate in fx.values()):
         return None, 0
@@ -199,6 +226,8 @@ def historical_var(
     ordered = sorted(common or ())
     scenarios: list[float] = []
     for previous, current in zip(ordered, ordered[1:], strict=False):
+        if (current - previous).days > MAX_VAR_GAP_DAYS:
+            continue
         scenarios.append(
             sum(
                 net_mwh_by_hub[hub]

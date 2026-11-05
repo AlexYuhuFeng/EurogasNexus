@@ -2,8 +2,11 @@
 
 Hubs trade months, quarters, seasons (Sum/Win) and calendar years; positions are held by
 month. The curve gives every delivery month one price, consistent with every quoted
-product: the day-weighted average of the months inside a product equals that product's
-price (Q1 = (31·Jan + 28·Feb + 31·Mar) / 90).
+product: the energy-weighted average of the months inside a product equals that product's
+price. A flat-rate product delivers the same MW every hour, so a month weighs by its
+delivery hours, not its days: the gas day that loses an hour to summer time (March) has 23
+and the one that gains it back (October) has 25, as the exchanges' contract volumes do
+(Q1 = (744·Jan + 672·Feb + 743·Mar) / 2159).
 
 Method, shortest product first:
 
@@ -15,14 +18,27 @@ Method, shortest product first:
 
 Every point records how it was obtained, so a mark can always be traced to its quotes.
 A residual that comes out negative or far outside the quoted range is still returned and
-flagged, because it usually means stale or inconsistent quotes.
+flagged, because it usually means stale or inconsistent quotes. A product whose months are
+all priced by shorter quotes is not used, but its strip is repriced and a difference
+beyond the tolerance is reported: three months that do not average to the quoted quarter
+are a quote problem the desk should see, not something to hide.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
+from functools import lru_cache
+from zoneinfo import ZoneInfo
+
+#: Gas days run 06:00 to 06:00 Central European time (05:00 UK time for NBP, the same
+#: instants), so a gas day's length follows the EU summer-time change.
+_GAS_DAY_ZONE = ZoneInfo("Europe/Brussels")
+_GAS_DAY_START = time(6, 0)
+
+#: Strip repricing difference, as a share of the product price, worth reporting.
+STRIP_TOLERANCE = 0.005
 
 
 @dataclass(frozen=True)
@@ -80,17 +96,25 @@ def _month_key(day: date) -> str:
     return f"{day.year:04d}-{day.month:02d}"
 
 
-def _months_in(first: date, end: date) -> dict[str, int]:
-    """Gas days per calendar month inside ``[first, end)``."""
+@lru_cache(maxsize=4096)
+def gas_day_hours(day: date) -> int:
+    """Delivery hours of one gas day: 24, or 23/25 on the summer-time changes."""
 
-    days: dict[str, int] = {}
+    start = datetime.combine(day, _GAS_DAY_START, _GAS_DAY_ZONE)
+    end = datetime.combine(day + timedelta(days=1), _GAS_DAY_START, _GAS_DAY_ZONE)
+    # Aware datetimes in one zone subtract by wall clock; the hours delivered are in UTC.
+    return round((end.astimezone(UTC) - start.astimezone(UTC)).total_seconds() / 3600)
+
+
+def _months_in(first: date, end: date) -> dict[str, int]:
+    """Delivery hours per calendar month inside the gas days ``[first, end)``."""
+
+    hours: dict[str, int] = {}
     day = first
     while day < end:
-        next_month = (day.replace(day=28) + timedelta(days=4)).replace(day=1)
-        stop = min(next_month, end)
-        days[_month_key(day)] = days.get(_month_key(day), 0) + (stop - day).days
-        day = stop
-    return days
+        hours[_month_key(day)] = hours.get(_month_key(day), 0) + gas_day_hours(day)
+        day += timedelta(days=1)
+    return hours
 
 
 def _is_whole_month(quote: CurveQuote) -> bool:
@@ -138,6 +162,14 @@ def build_forward_curve(
             known = {m: d for m, d in span.items() if m in fixed}
             open_months = {m: d for m, d in span.items() if m not in fixed}
             if not open_months:
+                # Every month is priced by shorter quotes: reprice the strip and say when
+                # it does not match the product.
+                implied = sum(fixed[m].price * h for m, h in span.items()) / sum(span.values())
+                if abs(implied - quote.price) > STRIP_TOLERANCE * max(abs(quote.price), 1.0):
+                    curve.warnings.append(
+                        f"{hub} {quote.label or 'product'} quoted {quote.price:.3f} but its "
+                        f"months average {implied:.3f}; check for stale or inconsistent quotes"
+                    )
                 continue
             residual_value = quote.price * sum(span.values()) - sum(
                 fixed[m].price * d for m, d in known.items()

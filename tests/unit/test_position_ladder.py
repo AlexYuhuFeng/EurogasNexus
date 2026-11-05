@@ -9,6 +9,7 @@ from eurogas_nexus.domain.portfolio.position_ladder import (
     build_ladder,
     historical_var,
     ladder_report,
+    mark_to_market,
 )
 
 NOV, DEC = date(2026, 11, 1), date(2026, 12, 1)
@@ -58,3 +59,27 @@ def test_nothing_valued_is_unknown_not_zero():
     report = ladder_report(_legs(), horizon_start=NOV, horizon_end=date(2026, 12, 31), marks={})
     assert report.mark_to_market is None
     assert report.unpriced_rows == 4
+
+
+def test_gbp_and_eur_hubs_are_not_added_without_fx():
+    marks = {("TTF", "2026-11"): 35.0, ("NBP", "2026-11"): 30.0}
+    legs = [
+        PositionLeg("physical", "TTF", NOV, date(2026, 11, 30), 1000.0, 30.0, "a"),
+        PositionLeg("physical", "NBP", NOV, date(2026, 11, 30), 1000.0, 25.0, "b"),
+    ]
+    with pytest.raises(ValueError, match="different currencies"):
+        mark_to_market(legs, marks, horizon_start=NOV, horizon_end=date(2026, 11, 30))
+    value, _ = mark_to_market(
+        legs, marks, horizon_start=NOV, horizon_end=date(2026, 11, 30),
+        fx_by_hub={"TTF": 1.0, "NBP": 1.15},
+    )
+    assert value == pytest.approx(5 * 30_000 + 5 * 30_000 * 1.15)
+
+
+def test_a_gap_in_the_closes_is_not_a_one_day_move():
+    closes = {date(2026, 9, 1) + timedelta(days=i): 30.0 + (i % 5) * 0.5 for i in range(30)}
+    # Ten days missing, then a price 8 higher: a data gap, not a one-day scenario.
+    closes[date(2026, 10, 11)] = 46.0
+    var, n = historical_var({"TTF": 100_000}, {"TTF": closes})
+    assert n == 29
+    assert var == pytest.approx(200_000)

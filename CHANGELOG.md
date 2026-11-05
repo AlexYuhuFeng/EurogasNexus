@@ -45,6 +45,11 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ### Fixed
 
+- Forward curve: months inside a quarter, season or year weigh by delivery hours, so the
+  23- and 25-hour gas days of the summer-time change count as the exchanges count them; a
+  product whose months are all quoted is repriced and a mismatch over 0.5 % is reported.
+- Mark-to-market and VaR refuse to add GBP and EUR hubs without an FX table, and VaR no
+  longer treats a gap of more than four days in the closes as a one-day move.
 - Pages no longer ask the server for what the role may not read: an administrator without
   a trading role sees System and Admin only and lands on Data sources (the trading pages
   asked for 13 reads that were all refused); a risk reviewer's strategy lab no longer asks
