@@ -19,6 +19,9 @@ import { useCopilotSources } from "@/app/hooks/useCopilot";
 import type { AiActionKind } from "@/app/experience/vocabulary";
 import { useInspectorStore } from "@/stores/inspector";
 import type { AppController } from "@/app/hooks/useAppController";
+import { useMapSituation } from "@/app/hooks/useMapSituation";
+import { situationSummary } from "@/app/mapSituation";
+import { hubPrices } from "@/app/mapSelection";
 import {
   RUNTIME_DATA_AVAILABILITY_CAPTION_KEY,
   dataPlaneState,
@@ -153,6 +156,13 @@ function MarketOverview({ controller }: MarketOverviewProps) {
   const inspectedObservation = focusedHub
     ? comparisonByHub.get(focusedHub)?.quote ?? latestMarketByHub.get(focusedHub) ?? null
     : null;
+  const { situation } = useMapSituation();
+  const networkToday = useMemo(() => {
+    const summary = situationSummary(situation);
+    if (!summary || !situation) return null;
+    const entries = situation.flows.filter((flow) => flow.direction === "entry" && flow.gwh_d != null);
+    return { ...summary, flowGwhD: entries.length ? entries.reduce((sum, flow) => sum + (flow.gwh_d ?? 0), 0) : null };
+  }, [situation]);
   const relevantResources = portfolio.portfolioResources.filter(
     (resource) =>
       !focusedHub ||
@@ -182,6 +192,9 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           </div>
           {MAJOR_HUBS.map((hub) => {
             const observation = latestMarketByHub.get(hub);
+            // Day-ahead, else month-ahead, named: the same rows and rule as the hub board and
+            // the map's hub card, so one hub never shows two unexplained prices.
+            const boardPrice = hubPrices(hub, markets)[0] ?? null;
             const comparison = comparisonByHub.get(hub);
             const quote = comparison?.quote;
             const selected = focusedHub === hub;
@@ -196,17 +209,25 @@ function MarketOverview({ controller }: MarketOverviewProps) {
               >
                 <strong>{hub}</strong>
                 <span>{quote ? formatQuoteBidAsk(comparison.bid, comparison.ask, comparison.priceUnit) : "n/a"}</span>
-                <span>{quote ? formatPrice(comparison.mid, comparison.priceUnit) : formatPrice(observation?.price_gbp_mwh, "GBP/MWh")}</span>
+                {/* Each hub in its own unit (TTF in EUR/MWh, NBP in GBP/MWh), as on the hub
+                    board: a converted price would give the same hub two numbers. */}
+                <span>
+                  {quote
+                    ? formatPrice(comparison.mid, comparison.priceUnit)
+                    : boardPrice
+                      ? <>{formatPrice(boardPrice.price, boardPrice.unit)} <small className="muted">{t(boardPrice.tenor === "day-ahead" ? "map.detail.day_ahead" : "map.detail.month_ahead")}</small></>
+                      : "n/a"}
+                </span>
                 <span>{formatSpread(comparison?.spread ?? null, comparison?.spreadUnit ?? null)}</span>
-                <span>{quote?.source_system ?? observation?.source_system ?? "n/a"}</span>
-                <span>{formatAge(quote?.observed_at_utc ?? observation?.observed_at_utc)}</span>
+                <span>{quote?.source_system ?? boardPrice?.source ?? observation?.source_system ?? "n/a"}</span>
+                <span>{formatAge(quote?.observed_at_utc ?? boardPrice?.observedAt ?? observation?.observed_at_utc)}</span>
               </button>
             );
           })}
         </div>
       </aside>
 
-      <section className="market-overview-map" aria-label={t("market.overview_map")}>
+      <section className="market-overview-map" aria-label={t("market.overview_map")} title={t("market.map_context_note")}>
         <GasNetworkMap
           nodes={api.nodes}
           edges={api.edges}
@@ -217,20 +238,26 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           t={t}
           highlightedRoute={portfolio.highlightedRoute}
         />
-        <div className="market-overview-map-note">{t("market.map_context_note")}</div>
       </section>
 
       <aside className="market-context-rail" aria-label={t("market.context_rail")}>
+        {/* What is happening on the network now, from the same live read as the map, instead
+            of counts of loaded rows. */}
         <section className="workspace-panel">
-          <h2>{t("market.physical_context")}</h2>
-          <div className="metric-grid two-column compact-metrics">
-            <div><span>{t("market.flows")}</span><strong>{api.flows.length}</strong></div>
-            <div><span>{t("market.capacity")}</span><strong>{api.capacity.length}</strong></div>
-            <div><span>{t("market.storage")}</span><strong>{api.storage.length}</strong></div>
-            <div><span>{t("market.lng")}</span><strong>{api.lng.length}</strong></div>
-            <div><span>{t("market.routes")}</span><strong>{api.routeCandidates.length}</strong></div>
-            <div><span>{t("market.tso_access")}</span><strong>{api.tsoAccess.length}</strong></div>
-          </div>
+          <h2>{t("market.network_today")}</h2>
+          {networkToday ? (
+            <div className="metric-grid two-column compact-metrics">
+              <div className={networkToday.outagesNow ? "is-alert" : undefined}><span>{t("map.situation.outages_now")}</span><strong>{networkToday.outagesNow}</strong></div>
+              <div><span>{t("map.situation.outages_scheduled")}</span><strong>{networkToday.outagesScheduled}</strong></div>
+              <div><span>{t("map.situation.cargoes_at_sea")}</span><strong>{networkToday.cargoesAtSea}</strong></div>
+              <div><span>{t("map.situation.slots")}</span><strong>{networkToday.slots}</strong></div>
+              <div><span>{t("market.flows_measured")}</span><strong>{networkToday.flowGwhD == null ? "–" : `${Math.round(networkToday.flowGwhD).toLocaleString("en-GB")} GWh/d`}</strong></div>
+              <div><span>{t("map.situation.contracts")}</span><strong>{networkToday.contracts}</strong></div>
+            </div>
+          ) : (
+            <p className="muted">{t("market.network_today_none")}</p>
+          )}
+          <button type="button" className="secondary-button" onClick={() => navigation.openWorkspace("network")}>{t("market.open_map")}</button>
         </section>
         <section className="workspace-panel">
           <h2>{t("market.opportunities")}</h2>
@@ -311,6 +338,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         </section>
       </aside>
 
+      {comparisonRows.some((row) => row.spread != null) && (
       <section className="market-spread-strip" aria-label={t("market.spread_strip")}>
         {comparisonRows.map((row) => (
           <div key={row.hub} title={row.contextTitle}>
@@ -319,6 +347,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           </div>
         ))}
       </section>
+      )}
 
       {aiAction && (
         <CopilotHost

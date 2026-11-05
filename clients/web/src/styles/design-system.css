@@ -813,6 +813,29 @@
     box-shadow: none;
   }
 
+  /* Market overview context line: label and value pairs, spaced, the refresh at the end. */
+  .market-context-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2) var(--ds-space-5);
+    padding: var(--ds-space-2) 0;
+  }
+
+  .market-context-strip > span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--ds-space-2);
+  }
+
+  .market-context-strip > span small {
+    color: var(--ds-text-3);
+  }
+
+  .market-context-strip > button {
+    margin-left: auto;
+  }
+
   /* Live map: the selected object's card, docked on the map's right edge. */
   .map-detail-panel {
     position: absolute;

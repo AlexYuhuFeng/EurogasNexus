@@ -36,6 +36,12 @@ version lives under [docs/release/notes](docs/release/notes).
 
 - The legend floated over the zoom controls; facility kinds and route warnings showed as
   codes.
+- Market → Overview priced TTF in GBP and showed each hub's latest observation of any
+  tenor, so one hub had two unexplained prices; it now shows day-ahead (else month-ahead)
+  in the hub's own unit, named, from the same rows as the hub board. Counts of loaded rows
+  ("Flow rows 0") gave way to "Today on the network" (outages now and scheduled, our
+  cargoes at sea, regas slots, measured entry flows, contracts); the context line no
+  longer runs its labels and values together.
 
 ## [0.7.0] - 2026-11-01
 
