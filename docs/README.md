@@ -58,6 +58,7 @@ role: [Trader](user/manual/TRADER.md) · [Risk](user/manual/RISK.md) ·
 ## Product planning
 
 - [Platform strategy](product/PLATFORM_STRATEGY.md): Windows, macOS, iPad, iPhone, Android, HarmonyOS
+- [Connectors](product/CONNECTORS.md): one model for data feeds, imports and model services; plugins
 - [Commercial readiness backlog](product/COMMERCIAL_READINESS_BACKLOG.md)
 - [Scheduled agent state](product/SCHEDULED_AGENT_STATE.md)
 - [Product information architecture](product/PRODUCT_INFORMATION_ARCHITECTURE.md)
