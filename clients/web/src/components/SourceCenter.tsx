@@ -381,7 +381,12 @@ export function SourceCenter({
                   <td>
                     <button type="button" className="source-row-select" onClick={() => onSourceSelect(source.source_id)}>
                       <strong>{source.source_system}</strong>
-                      <small>{sourceLabel("sources.category", source.category)}</small>
+                      <small>
+                        {sourceLabel("sources.category", source.category)}
+                        {source.integration && source.integration !== "api"
+                          ? ` · ${t(`sources.integration.${source.integration}`)}`
+                          : ""}
+                      </small>
                     </button>
                   </td>
                   <td>
@@ -493,6 +498,7 @@ export function SourceCenter({
             )}
             <div className="metric-grid two-column source-detail-metrics">
               <div><span>{t("sources.category_label")}</span><strong>{sourceLabel("sources.category", selectedSource.category)}</strong></div>
+              <div><span>{t("sources.integration_label")}</span><strong>{t(`sources.integration.${selectedSource.integration ?? "api"}`)}</strong></div>
               <div><span>{t("sources.native_status")}</span><strong>{sourceLabel("sources.status", selectedSource.connectivity_status)}</strong></div>
               <div><span>{t("sources.credential_state")}</span><strong>{sourceLabel("sources.credential", selectedSource.credential_state)}</strong></div>
               <div><span>{t("sources.freshness")}</span><strong>{selectedSource.freshness_expectation_minutes ? `${selectedSource.freshness_expectation_minutes}m` : "n/a"}</strong></div>

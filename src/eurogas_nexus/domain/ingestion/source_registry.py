@@ -32,6 +32,7 @@ def _source_row(
     entitled: bool,
     *,
     freshness_minutes: int,
+    integration: str = "api",
 ) -> dict:
     """Build one registered-source record (static fields only).
 
@@ -44,6 +45,11 @@ def _source_row(
         "source_system": system,
         "category": category,
         "category_label": CATEGORY_LABELS[category],
+        # How the data arrives, apart from whether it is running (#33): "api" (a connector
+        # fetches it), "file_import" (an operator imports the desk's own export; no
+        # connection, no schedule), "template" (a placeholder for a vendor not chosen yet;
+        # nothing reads it), "model_service" (a model endpoint, not a data feed).
+        "integration": integration,
         "datasets": list(datasets),
         "status": "registered",
         "connectivity_status": "registered",
@@ -346,9 +352,13 @@ def registered_sources() -> list[dict]:
             "Weather",
             "weather",
             ("temperature", "hdd", "cdd", "forecast"),
-            "Weather observations and forecast signals for HDD/CDD modelling.",
+            (
+                "Template for a licensed weather vendor the deployment has not chosen yet; "
+                "no connector reads it. ECMWF Open Data is the implemented weather source."
+            ),
             True,
             freshness_minutes=180,
+            integration="template",
         ),
         _source_row(
             "src-entsoe",
@@ -409,6 +419,7 @@ def registered_sources() -> list[dict]:
             ),
             False,
             freshness_minutes=60,
+            integration="file_import",
         ),
         _source_row(
             "src-ecmwf-open-data",
@@ -427,8 +438,52 @@ def registered_sources() -> list[dict]:
             "DEEPSEEK",
             "ai",
             ("analysis", "reporting", "qa"),
-            "DeepSeek LLM analysis provider for operator-reviewed reports.",
+            (
+                "Model endpoint for operator-reviewed analysis: any OpenAI-compatible "
+                "chat-completions service (DeepSeek by default; provider, URL and model are "
+                "set by EUROGAS_NEXUS_LLM_PROVIDER_NAME, _BASE_URL and _MODEL). A service, "
+                "not a data feed: it has no freshness or ingestion schedule."
+            ),
             True,
             freshness_minutes=0,
+            integration="model_service",
         ),
+        *_licensed_fx_fixings(),
     ]
+
+
+def _licensed_fx_fixings() -> list[dict]:
+    """WM/Reuters and Bloomberg BFIX: licensed fixes the desk imports from its own export.
+
+    There is no connection to either vendor and no schedule: the operator exports the
+    fixes from the firm's own terminal or data service and runs
+    ``scripts/ops/import_fx_fixings.py``. Rows are served only to principals holding the
+    ``WMR`` or ``BFIX`` data-scope grant (#33).
+    """
+
+    rows = []
+    for source_id, system, datasets, description in (
+        (
+            "src-wmr",
+            "WMR",
+            ("wmr-1600-ldn", "wmr-1100-ldn"),
+            "WM/Reuters (LSEG) London closing and intraday spot fixes, imported from the "
+            "desk's licensed export (scripts/ops/import_fx_fixings.py --source WMR). The "
+            "fix most LNG contracts name; ECB reference rates are not a substitute.",
+        ),
+        (
+            "src-bfix",
+            "BFIX",
+            ("bfix-1600-ldn",),
+            "Bloomberg BFIX fixes, imported from the desk's licensed export "
+            "(scripts/ops/import_fx_fixings.py --source BFIX).",
+        ),
+    ):
+        row = _source_row(
+            source_id, system, "fx", datasets, description, False,
+            freshness_minutes=1440, integration="file_import",
+        )
+        row["entitlement_scope"] = "licensed"
+        row["export_restrictions"] = ["license-controlled"]
+        rows.append(row)
+    return rows

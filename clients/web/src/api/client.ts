@@ -617,6 +617,8 @@ export interface SourceSystemDTO {
   source_id: string; source_system: string; datasets: string[];
   status: string; description: string; live_record_count: number;
   category: string; category_label: string; connectivity_status: string;
+  /** How the data arrives: a connector, an operator's file import, a vendor template or a model service (#33). */
+  integration?: "api" | "file_import" | "template" | "model_service";
   operational_status: string; workflow_ready: boolean;
   effective_source_system: string; effective_record_count: number;
   effective_last_success_at_utc: string | null;

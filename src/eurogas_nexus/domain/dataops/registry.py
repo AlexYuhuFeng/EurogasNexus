@@ -198,6 +198,19 @@ _SOURCE_OVERRIDES: dict[str, dict] = {
         "freshness_policy": FreshnessPolicy(180, 360, 720),
         "licensed_data": LicensedDataPolicy(),
     },
+    # Licensed FX fixes arrive only through the operator's import (#33).
+    "src-wmr": {
+        "source_class": SourceClass.PUBLIC,
+        "access_mode": AccessMode.FILE_UPLOAD,
+        "schedulable": False,
+        "enabled_default": False,
+    },
+    "src-bfix": {
+        "source_class": SourceClass.PUBLIC,
+        "access_mode": AccessMode.FILE_UPLOAD,
+        "schedulable": False,
+        "enabled_default": False,
+    },
     "src-deepseek": {
         "source_class": SourceClass.MODEL,
         "access_mode": AccessMode.KEYED_HTTP,
