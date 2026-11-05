@@ -65,7 +65,7 @@ test("the map states an absent or unusable basemap instead of drawing nothing", 
 
   assert.match(map, /mapTileBasemapState\(mapTileProvider, configuredMapTileToken\(\)\)/);
   assert.match(map, /basemapState !== "configured"/);
-  assert.match(map, /t\(\s*basemapState === "no-basemap"\s*\?\s*"map\.basemap\.none"\s*:\s*"map\.basemap\.unavailable",?\s*\)/);
+  assert.match(map, /basemapState === "no-basemap"\s*\?\s*"map\.basemap\.none"\s*:\s*basemapState === "fallback" \? "map\.basemap\.fallback" : "map\.basemap\.unavailable"/);
   assert.match(map, /map\.basemap\.none_detail/);
   assert.match(map, /map\.basemap\.unavailable_detail/);
 
@@ -134,4 +134,31 @@ test("the deployment can choose its own source without touching code", () => {
     assert.ok(source.includes(variable), variable);
   }
   assert.match(source, /MAP_TILE_STORAGE_KEY/);
+});
+
+test("a vector basemap stays quiet under the network at overview", async () => {
+  const { quietBasemapMinZoom } = await import("../src/app/mapTileProviders.ts");
+  // Countries, seas and capitals keep their own zoom range.
+  for (const id of ["label_country_1", "label_city_capital", "place_city_large", "water_name_point_label"]) {
+    assert.equal(quietBasemapMinZoom(id, 3), null, id);
+  }
+  // Other places wait until the view narrows to a region.
+  assert.equal(quietBasemapMinZoom("label_city", 3), 5.5);
+  assert.equal(quietBasemapMinZoom("label_town", 6), 7.5);
+  assert.equal(quietBasemapMinZoom("place_village", undefined), 7.5);
+  assert.equal(quietBasemapMinZoom("label_state", 5), 6);
+  // A layer that already starts later keeps its later start.
+  assert.equal(quietBasemapMinZoom("label_other", 8), 8);
+});
+
+test("a basemap that cannot be reached falls back to the bundled outline and says so", () => {
+  const map = readWebSource("src/components/GasNetworkMap.tsx");
+  assert.match(map, /setUnreachableBasemap\(mapTileProvider\.id\)/);
+  assert.match(map, /mapTileProviderById\("outline"\)/);
+  for (const name of ["en", "zh"] as const) {
+    assert.ok(locale(name)["map.basemap.fallback"]?.includes("{{provider}}"), name);
+    assert.ok(locale(name)["map.basemap.fallback_detail"], name);
+  }
+  // Dark mode reads OpenFreeMap's dark style, not the light one.
+  assert.match(readWebSource("src/app/mapTileProviders.ts"), /dark: "https:\/\/tiles\.openfreemap\.org\/styles\/dark"/);
 });

@@ -38,6 +38,8 @@ import {
 import {
   buildMapStyle,
   configuredMapTileProvider,
+  mapTileProviderById,
+  quietBasemapMinZoom,
   configuredMapTileToken,
   labelBudgetForZoom,
   mapTileBasemapState,
@@ -55,7 +57,7 @@ import { useApiStore } from "@/stores/api";
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
 setWorkerUrl(mapLibreWorkerUrl);
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 interface GasNetworkMapProps {
   nodes: NodeDTO[];
@@ -261,10 +263,17 @@ export function GasNetworkMap({
   selectForRef.current = selectFor;
   const summaryMarkersRef = useRef<Marker[]>([]);
   const effectiveTheme = resolveEffectiveTheme(themeMode);
-  const mapTileProvider = useMemo(configuredMapTileProvider, []);
+  // The deployment profile names the installation's default basemap; it can arrive after the
+  // map first mounts, so the provider follows it. A vector basemap that cannot be reached (an
+  // office proxy, an air-gapped network) falls back to the bundled outline and says so.
+  const deploymentMapDefault = useApiStore((state) => state.runtimeRelease?.deployment?.map_default_provider ?? null);
+  const [unreachableBasemap, setUnreachableBasemap] = useState<string | null>(null);
+  const configuredProvider = useMemo(configuredMapTileProvider, [deploymentMapDefault]);
+  const basemapFellBack = unreachableBasemap === configuredProvider.id;
+  const mapTileProvider = basemapFellBack ? mapTileProviderById("outline")! : configuredProvider;
   const basemapState = useMemo(
-    () => mapTileBasemapState(mapTileProvider, configuredMapTileToken()),
-    [mapTileProvider],
+    () => basemapFellBack ? "fallback" as const : mapTileBasemapState(mapTileProvider, configuredMapTileToken()),
+    [basemapFellBack, mapTileProvider],
   );
   const toMapCoordinates = (lon: number, lat: number): [number, number] =>
     transformCoordinate(mapTileProvider.id, lon, lat);
@@ -401,15 +410,21 @@ export function GasNetworkMap({
     return index >= 0 && fallbackLabelPriorityIds.has(node.id);
   }
 
+  // A vector basemap has its own light and dark style, so the map is rebuilt when the theme
+  // changes; a raster or outline basemap is recoloured in place (below).
+  const basemapStyleKey = `${mapTileProvider.id}:${mapTileProvider.styleUrl ? effectiveTheme : "any"}`;
+  const lastViewRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const mapTileProvider = configuredMapTileProvider();
     const mapTileToken = configuredMapTileToken();
+    const view = lastViewRef.current;
     const map = new MapLibreMap({
       container: containerRef.current,
-      center: toMapCoordinates(7.8, 51.2),
-      zoom: 4.0,
+      // North-west Europe with the Norwegian shelf below the toolbar.
+      center: view?.center ?? toMapCoordinates(6.5, 55.2),
+      zoom: view?.zoom ?? 3.65,
       ...mapZoomRange(mapTileProvider.id),
       attributionControl: false,
       style: buildMapStyle(
@@ -429,7 +444,31 @@ export function GasNetworkMap({
 
     map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new AttributionControl({ compact: true }), "bottom-left");
-    map.on("load", () => setMapReady(true));
+    let loaded = false;
+    map.on("load", () => {
+      loaded = true;
+      // At overview zoom the map is drawn as a globe, so the Norwegian shelf is not stretched
+      // against the Mediterranean as on a flat Mercator map; MapLibre flattens it as the view
+      // narrows to a region.
+      map.setProjection({ type: "globe" });
+      if (mapTileProvider.styleUrl) {
+        for (const layer of map.getStyle().layers) {
+          if (layer.type !== "symbol") continue;
+          const from = quietBasemapMinZoom(layer.id, layer.minzoom);
+          if (from !== null) map.setLayerZoomRange(layer.id, from, layer.maxzoom ?? 24);
+          map.setPaintProperty(layer.id, "text-opacity", 0.72);
+        }
+      }
+      setMapReady(true);
+    });
+    let unreachable: ReturnType<typeof setTimeout> | undefined;
+    if (mapTileProvider.styleUrl) {
+      const fallBack = () => {
+        if (!loaded) setUnreachableBasemap(mapTileProvider.id);
+      };
+      map.on("error", fallBack);
+      unreachable = setTimeout(fallBack, 12_000);
+    }
     // Clicking empty map clears the selection; clicking an object selects it (below).
     map.on("click", (event) => {
       const interactive = ["nodes-circle", "node-clusters", ...SITUATION_HOVER_LAYERS, "situation-cargo-sailed", "situation-cargo-ahead"]
@@ -442,19 +481,23 @@ export function GasNetworkMap({
     map.on("zoomend", syncTier);
     mapRef.current = map;
     return () => {
+      clearTimeout(unreachable);
+      const center = map.getCenter();
+      lastViewRef.current = { center: [center.lng, center.lat], zoom: map.getZoom() };
       setMapReady(false);
       map.remove();
       mapRef.current = null;
     };
-  }, []);
+  }, [basemapStyleKey]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    // "load" (mapReady) means the style can be edited. isStyleLoaded() is also false while a
+    // vector basemap's tiles are still arriving, which skipped this update for good.
+    if (!map || !mapReady) return;
 
-    if (!map.isStyleLoaded()) return;
-
-    if (map.getLayer("background")) {
+    // A vector basemap's own "background" layer is its land colour; leave it to the style.
+    if (!mapTileProvider.styleUrl && map.getLayer("background")) {
       map.setPaintProperty("background", "background-color", mapColors.background);
     }
     if (map.getLayer("outline-land")) {
@@ -514,7 +557,7 @@ export function GasNetworkMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !map.isStyleLoaded()) return;
+    if (!map || !mapReady) return;
 
     const nodeFeatures = filteredNodes.map((node) => ({
       type: "Feature" as const,
@@ -1623,10 +1666,11 @@ export function GasNetworkMap({
         </div>
       )}
       {/*
-        Owner decision D4: no third-party basemap is a default, so the map has to say which of the
-        two honest states it is in. "No basemap configured" is a choice the deployment made and the
-        geometry is unaffected; "the configured basemap cannot be drawn" is a deployment fault the
-        operator has to see. Rendering neither would leave a blank map looking like a data failure.
+        Owner decision D4 (amended 2026-11-05): a global installation defaults to OpenFreeMap, an
+        open basemap licensed for commercial use; China installations to the bundled outline. The
+        map says which state it is in when it draws no imagery: "no basemap" is the deployment's
+        choice, "cannot be drawn" a configuration fault, and "fallback" a basemap the network
+        could not reach, replaced by the outline. A blank map would look like a data failure.
       */}
       {basemapState !== "configured" && (
         <p className={`map-basemap-state is-${basemapState}`} role="status">
@@ -1634,14 +1678,15 @@ export function GasNetworkMap({
             {t(
               basemapState === "no-basemap"
                 ? "map.basemap.none"
-                : "map.basemap.unavailable",
+                : basemapState === "fallback" ? "map.basemap.fallback" : "map.basemap.unavailable",
+              { provider: configuredProvider.label },
             )}
           </strong>
           <small>
             {t(
               basemapState === "no-basemap"
                 ? "map.basemap.none_detail"
-                : "map.basemap.unavailable_detail",
+                : basemapState === "fallback" ? "map.basemap.fallback_detail" : "map.basemap.unavailable_detail",
             )}
           </small>
         </p>

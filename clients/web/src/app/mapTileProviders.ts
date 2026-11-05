@@ -126,7 +126,7 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
       + "Hosted outside mainland China.",
     styleUrl: {
       light: "https://tiles.openfreemap.org/styles/positron",
-      dark: "https://tiles.openfreemap.org/styles/positron",
+      dark: "https://tiles.openfreemap.org/styles/dark",
     },
     attribution: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap",
   },
@@ -542,4 +542,20 @@ export function buildMapStyle(
   }
   style.layers.push({ id: "basemap-raster", type: "raster", source: "basemap", paint });
   return style;
+}
+
+/**
+ * Keep a vector basemap quiet under the network, as a control-room map does: at overview
+ * only countries, seas and capitals are named, so a basemap city never competes with a hub,
+ * terminal or field label. Smaller places appear as the view narrows.
+ *
+ * Returns the zoom from which a basemap symbol layer should show, or null to leave it.
+ */
+export function quietBasemapMinZoom(layerId: string, minzoom: number | undefined): number | null {
+  const id = layerId.toLowerCase();
+  if (/country|capital|city_large|water_name/.test(id)) return null;
+  if (/state/.test(id)) return Math.max(minzoom ?? 0, 6);
+  if (/city/.test(id)) return Math.max(minzoom ?? 0, 5.5);
+  if (/town|village|suburb|other|airport/.test(id)) return Math.max(minzoom ?? 0, 7.5);
+  return null;
 }

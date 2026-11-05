@@ -2096,6 +2096,8 @@
   "settings.map_tile_licence_deployment": "由本部署自行获得授权",
   "map.basemap.unavailable_detail": "所选提供商需要 token 或瓦片 URL，而本部署未提供，因此不显示影像。管网几何不受影响。",
   "map.basemap.unavailable": "已配置的底图无法绘制",
+  "map.basemap.fallback": "无法连接 {{provider}}：已改用离线轮廓底图",
+  "map.basemap.fallback_detail": "海岸线随应用一同提供，管网仍可正常阅读。请在代理中放行该底图地址，或在“设置 - 显示偏好”中选择其他底图。",
   "map.basemap.none_detail": "管网绘制在纯色背景之上。如需影像底图，请在“设置 - 显示偏好”中配置您已获授权的瓦片来源。",
   "map.basemap.none": "未配置底图",
   "settings.map_tile_token": "地图瓦片 token",

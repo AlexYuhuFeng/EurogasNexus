@@ -688,6 +688,16 @@ Two consequences, both now recorded rather than latent:
    cannot hide it. The CSS "floor" a first pass added to the map column on the wrong premise was
    reverted with it.
 
+**Amended 2026-11-05 by the owner: a real basemap by default.** A coastline-only map read as
+"distorted, without map information" next to a reference control-room map. The licence concern
+behind D4 does not apply to OpenFreeMap (OpenStreetMap data under ODbL, OpenMapTiles schema, free
+and permitted for commercial use with attribution), so a global installation's deployment
+profile names it as the default, in its light or dark style with the theme. What remains of D4:
+the map draws the network above a *quiet* basemap (countries, seas and capitals at overview), a
+China installation defaults to the bundled outline, and a basemap the browser cannot reach (proxy,
+air gap) falls back to the outline and says so rather than leaving a blank map. The map also
+reads at overview as a globe, so northern fields are not stretched by Mercator.
+
 ### D5 — where can the native host and RC/GA work proceed?
 
 **DECIDED 2026-09-19 — the native host is deferred to a machine with the Rust toolchain, and RC/GA

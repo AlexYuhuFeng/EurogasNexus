@@ -2109,6 +2109,9 @@
 .gas-map > .maplibre-canvas {
   position: absolute;
   inset: 0;
+  /* Place labels and summary cards are HTML markers with their own z-index; keep them in
+     the map's own stacking context so they never draw over the toolbar or the panels. */
+  isolation: isolate;
 }
 
 /* Map popups follow the theme (unlayered for the same reason as above). */
