@@ -1958,8 +1958,13 @@ export interface PortfolioOptimizationResultDTO {
     gross_sale_price_gbp_mwh: number; total_cost_gbp_mwh: number;
     early_cash_value_gbp_mwh: number; net_margin_gbp_mwh: number;
     // The financing rate that slice used (its contract's own, else the scenario default) (#14).
-    financing_rate_pct?: number | null; financing_rate_source?: "contract" | "scenario_default" | null;
+    financing_rate_pct?: number | null; financing_rate_source?: "contract" | "contract_tranches" | "scenario_default" | null;
     financing_day_count?: "ACT/365F" | "ACT/360" | null;
+    /** Per funding segment when the contract is funded by several lenders (#14). */
+    financing_tranches?: Array<{
+      lender: string; principal: number; share: number; annual_rate_pct: number;
+      day_count: "ACT/365F" | "ACT/360"; lag_days: number; early_cash_value_gbp_mwh: number;
+    }>;
     net_pnl_gbp_per_day: number; warnings: string[];
   }>;
   missing_inputs: string[]; assumptions: string[]; warnings: string[]; source_refs: string[];

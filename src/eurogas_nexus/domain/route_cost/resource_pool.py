@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from eurogas_nexus.domain.constraints.access import (
     inaccessible_tsos,
@@ -75,6 +75,23 @@ def _optional_lag_days(value: object, field_name: str) -> int | None:
     if value is None:
         return None
     return _strict_lag_days(value, field_name)
+
+
+class FinancingTranche(BaseModel):
+    """One funding segment of a contract: a lender's principal at its own rate (#14).
+
+    The principal is in the contract's own currency, so the segments of one contract
+    can be weighed against each other. A contract funded by bank A (100 at 3 %) and
+    bank B (200 at 2 %) values its early cash as A's value plus B's value, each with its
+    own day count, never with an average rate.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    lender: str = Field(min_length=1, max_length=128)
+    principal: float = Field(gt=0, allow_inf_nan=False)
+    annual_rate_pct: float = Field(ge=0, allow_inf_nan=False)
+    day_count: Literal["ACT/365F", "ACT/360"] = "ACT/365F"
 
 
 class PortfolioResource(BaseModel):
@@ -138,6 +155,8 @@ class PortfolioResource(BaseModel):
     source_refs: list[str] = Field(default_factory=list)
     annual_financing_rate_pct: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     financing_day_count: Literal["ACT/365F", "ACT/360"] = "ACT/365F"
+    #: Funding segments; when present they price early cash and the single rate is unused.
+    financing_tranches: list[FinancingTranche] = Field(default_factory=list, max_length=32)
 
     @field_validator("upstream_payment_lag_days", mode="before")
     @classmethod
@@ -342,6 +361,8 @@ class PortfolioAllocation(BaseModel):
     financing_rate_pct: float | None = None
     financing_rate_source: str | None = None
     financing_day_count: str | None = None
+    #: Per-segment early-cash value when the contract is funded in segments (#14).
+    financing_tranches: list[dict] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -399,6 +420,7 @@ class _Bid(BaseModel):
     early_cash: float
     financing_rate_pct: float | None = None
     financing_rate_source: str | None = None
+    financing_tranches: list[dict] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -504,11 +526,21 @@ def optimize_resource_pool(
                 if own_rate
                 else scenario.annual_financing_rate_pct
             )
-            early_cash = _early_cash_value_gbp_mwh(
-                resource,
-                annual_financing_rate_pct=rate_pct,
-                screen_sale_cash_lag_days=screen_lag_days,
-            )
+            tranche_rows: list[dict] = []
+            if resource.financing_tranches:
+                # Funded in segments: each lender's share at its own rate and day count.
+                early_cash, tranche_rows = _tranched_early_cash_gbp_mwh(
+                    resource, screen_sale_cash_lag_days=screen_lag_days
+                )
+                rate_source = "contract_tranches"
+                rate_pct = None
+            else:
+                early_cash = _early_cash_value_gbp_mwh(
+                    resource,
+                    annual_financing_rate_pct=rate_pct,
+                    screen_sale_cash_lag_days=screen_lag_days,
+                )
+                rate_source = "contract" if own_rate else "scenario_default"
             total_cost = (
                 resource.contract_cost_gbp_mwh
                 + resource.variable_cost_gbp_mwh
@@ -526,7 +558,8 @@ def optimize_resource_pool(
                     total_cost=total_cost,
                     early_cash=early_cash,
                     financing_rate_pct=rate_pct,
-                    financing_rate_source="contract" if own_rate else "scenario_default",
+                    financing_rate_source=rate_source,
+                    financing_tranches=tranche_rows,
                     warnings=_unique(pair_warnings),
                 )
             )
@@ -732,7 +765,10 @@ def _solve_min_cost_flow(
                 early_cash_value_gbp_mwh=round(bid.early_cash, 4),
                 financing_rate_pct=bid.financing_rate_pct,
                 financing_rate_source=bid.financing_rate_source,
-                financing_day_count=bid.resource.financing_day_count,
+                financing_day_count=(
+                    None if bid.financing_tranches else bid.resource.financing_day_count
+                ),
+                financing_tranches=bid.financing_tranches,
                 net_margin_gbp_mwh=bid.margin,
                 net_pnl_gbp_per_day=pnl,
                 warnings=_unique(bid.warnings),
@@ -1051,6 +1087,45 @@ def _early_cash_value_gbp_mwh(
         + _fuel_loss_cost_gbp_mwh(resource)
     )
     return round(base_cost * annual_rate * lag_days / year_days, 4)
+
+
+def _tranched_early_cash_gbp_mwh(
+    resource: PortfolioResource,
+    *,
+    screen_sale_cash_lag_days: int,
+) -> tuple[float, list[dict]]:
+    """Early cash of a contract funded in segments, and each segment's part.
+
+    Each segment funds its principal's share of the delivered cost, at its own rate and
+    day count; the contract's value is the sum of the segments' values.
+    """
+
+    lag_days = max(resource.upstream_payment_lag_days - screen_sale_cash_lag_days, 0)
+    base_cost = (
+        resource.contract_cost_gbp_mwh
+        + resource.variable_cost_gbp_mwh
+        + _fuel_loss_cost_gbp_mwh(resource)
+    )
+    total_principal = sum(tranche.principal for tranche in resource.financing_tranches)
+    rows: list[dict] = []
+    total = 0.0
+    for tranche in resource.financing_tranches:
+        share = tranche.principal / total_principal
+        year_days = 360 if tranche.day_count == "ACT/360" else 365
+        value = base_cost * share * tranche.annual_rate_pct / 100 * lag_days / year_days
+        total += value
+        rows.append(
+            {
+                "lender": tranche.lender,
+                "principal": tranche.principal,
+                "share": round(share, 6),
+                "annual_rate_pct": tranche.annual_rate_pct,
+                "day_count": tranche.day_count,
+                "lag_days": lag_days,
+                "early_cash_value_gbp_mwh": round(value, 4),
+            }
+        )
+    return round(total, 4), rows
 
 
 def _fuel_loss_cost_gbp_mwh(resource: PortfolioResource) -> float:
