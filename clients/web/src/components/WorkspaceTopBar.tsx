@@ -203,8 +203,10 @@ export function WorkspaceTopBar({
         </summary>
         {(!narrowHeader || contextDisclosureOpen) && (
           <div className="topbar-context-disclosure-content">
-        <div className="topbar-trading-context" aria-label={t("context.title")}>
-          {usesTradingContext && (<>
+        {/* Rendered only where the page uses it: an empty labelled box is an
+            accessibility fault (axe aria-prohibited-attr). */}
+        {usesTradingContext && (
+        <div className="topbar-trading-context" role="group" aria-label={t("context.title")}>
           <label>
             <span>{t("context.gas_day")}</span>
             <input
@@ -238,8 +240,8 @@ export function WorkspaceTopBar({
               ))}
             </select>
           </label>
-          </>)}
         </div>
+        )}
           </div>
         )}
       </details>
