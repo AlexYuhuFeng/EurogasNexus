@@ -776,7 +776,9 @@ def test_unknown_effective_sale_lag_refuses_the_pair_without_zero_credit() -> No
     assert any("assumed receipt day" in assumption for assumption in result.assumptions)
 
 
-def _financed(resource_id: str, rate: float | None, day_count: str = "ACT/365F") -> PortfolioResource:
+def _financed(
+    resource_id: str, rate: float | None, day_count: str = "ACT/365F"
+) -> PortfolioResource:
     return PortfolioResource(
         resource_id=resource_id,
         resource_name=resource_id,
@@ -824,7 +826,8 @@ def test_each_contract_prices_its_early_cash_with_its_own_rate() -> None:
     assert by_id["B"].early_cash_value_gbp_mwh == pytest.approx(round(100 * 0.02 * 30 / 365, 4))
     assert by_id["A"].financing_rate_pct == 3.0 and by_id["A"].financing_rate_source == "contract"
     # Order of the contracts does not change anyone's figure.
-    swapped = {item.resource_id: item for item in _pool([_financed("B", 2.0), _financed("A", 3.0)]).allocations}
+    swapped_pool = _pool([_financed("B", 2.0), _financed("A", 3.0)])
+    swapped = {item.resource_id: item for item in swapped_pool.allocations}
     assert swapped["A"].early_cash_value_gbp_mwh == by_id["A"].early_cash_value_gbp_mwh
 
 

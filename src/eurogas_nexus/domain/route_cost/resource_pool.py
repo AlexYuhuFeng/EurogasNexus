@@ -257,9 +257,10 @@ class PortfolioOptimizationScenario(BaseModel):
             this declaration) is unknown is refused, never defaulted.
         annual_financing_rate_pct: REQUIRED default annual financing rate for early-cash
             valuation, in percent per year, for resources that declare no rate of their
-            own (a resource from a saved contract carries that contract's rate). There is deliberately no default:
-            the rate credits unit margin, so a server-filled value would price a
-            margin from an assumption the caller never declared. Omission,
+            own (a resource from a saved contract carries that contract's rate). There
+            is deliberately no default: the rate credits unit margin, so a
+            server-filled value would price a margin from an assumption the caller
+            never declared. Omission,
             ``null``, booleans, strings and non-finite numbers are refused; an
             explicit ``0`` is a recorded zero (a zero early-cash term).
         objective: Objective key (only ``MAX_DAILY_PNL`` is implemented).
@@ -499,7 +500,9 @@ def optimize_resource_pool(
             # A at 3 % and B at 2 %); the scenario rate only covers resources without one.
             own_rate = resource.annual_financing_rate_pct is not None
             rate_pct = (
-                resource.annual_financing_rate_pct if own_rate else scenario.annual_financing_rate_pct
+                resource.annual_financing_rate_pct
+                if own_rate
+                else scenario.annual_financing_rate_pct
             )
             early_cash = _early_cash_value_gbp_mwh(
                 resource,
