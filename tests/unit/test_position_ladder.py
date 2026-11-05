@@ -83,3 +83,23 @@ def test_a_gap_in_the_closes_is_not_a_one_day_move():
     var, n = historical_var({"TTF": 100_000}, {"TTF": closes})
     assert n == 29
     assert var == pytest.approx(200_000)
+
+
+def test_hub_net_flat_calendar_spread_has_no_hub_only_var():
+    legs = [
+        PositionLeg("financial", "TTF", NOV, NOV, 100),
+        PositionLeg("financial", "TTF", DEC, DEC, -100),
+    ]
+    report = ladder_report(legs, horizon_start=NOV, horizon_end=DEC, daily_closes_by_hub={})
+    assert [row.net_mwh for row in report.rows] == [100, -100]
+    assert report.var_95_1d is None
+    assert any("offsetting delivery months at TTF" in warning for warning in report.warnings)
+
+
+def test_same_month_offset_remains_flat_under_hub_only_var():
+    legs = [
+        PositionLeg("physical", "TTF", NOV, NOV, 100),
+        PositionLeg("financial", "TTF", NOV, NOV, -100),
+    ]
+    report = ladder_report(legs, horizon_start=NOV, horizon_end=NOV, daily_closes_by_hub={})
+    assert report.var_95_1d == 0

@@ -82,7 +82,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
       </div>
       <div>
         <span>{t("position.var")}</span>
-        <strong title={t("position.var_help", { count: ladder.var_observations })}>{money(ladder.var_95_1d)}</strong>
+        <strong title={ladder.var_95_1d == null ? undefined : t("position.var_help", { count: ladder.var_observations })}>{money(ladder.var_95_1d)}</strong>
       </div>
     </div>
   );
