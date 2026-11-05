@@ -5,6 +5,8 @@ services:
     name: eurogas-mobile-preview
     runtime: python
     branch: deploy/render-mobile-preview
+    # main is promoted only after CI and merged-tree checks, before this push.
+    autoDeployTrigger: commit
     plan: free
     region: ohio
     buildCommand: bash scripts/uat/build_mobile_preview.sh
