@@ -1,4 +1,9 @@
 {
+  "palette.glossary_term": "Glossary term",
+  "experience.palette.group.glossary": "Glossary",
+  "data_product.why": "Why",
+  "data_product.served_by": "Served by",
+  "research.capabilities.show": "Show the {{count}} declared capabilities (developer detail)",
   "access.grant.wildcard": "All data (*)",
   "access.permission.area.account": "Own account",
   "access.permission.area.market": "Market",

@@ -32,7 +32,7 @@ import type {
   InspectorSubjectKind,
 } from "./vocabulary.ts";
 
-export type PaletteCommandGroup = "navigate" | "inspect" | "ai" | "utility";
+export type PaletteCommandGroup = "navigate" | "glossary" | "inspect" | "ai" | "utility";
 
 export interface PaletteCommand {
   readonly id: string;
@@ -41,13 +41,47 @@ export interface PaletteCommand {
   readonly labelKey: string;
   readonly consequence: ActionConsequence;
   readonly placement: ActionPlacement;
+  /** A literal label (a glossary term) used instead of translating `labelKey`. */
+  readonly label?: string;
+  /** Extra words that find this command (a term's aliases, in either language). */
+  readonly keywords?: readonly string[];
   readonly target: {
+    /** A glossary term to open the glossary at. */
+    readonly term?: string;
     readonly page?: WorkspacePageId;
     readonly primary?: PrimaryWorkspaceId;
     readonly aiAction?: AiActionKind;
     readonly inspector?: InspectorSubjectKind;
     readonly utility?: "access-identity" | "sign-out";
   };
+}
+
+/** Glossary terms as palette results (#34): "NBP" finds the NBP entry, aliases included. */
+export function glossaryCommands(
+  terms: ReadonlyArray<{ term: string; aliases?: readonly string[]; definition_zh_cn?: string }>,
+): PaletteCommand[] {
+  return terms.map((entry) => ({
+    id: `glossary.${entry.term}`,
+    group: "glossary" as const,
+    labelKey: "palette.glossary_term",
+    label: entry.term,
+    keywords: [...(entry.aliases ?? [])],
+    consequence: "read" as const,
+    placement: actionPlacement("read"),
+    target: { page: "glossary" as WorkspacePageId, term: entry.term },
+  }));
+}
+
+/**
+ * The keyboard shortcut a command has, from the same declaration the key handler reads
+ * (`workspaceShortcutCommand`): the n-th primary workspace is Ctrl+Shift+n (⌘ on a Mac).
+ */
+export function paletteShortcut(command: PaletteCommand, mac: boolean): string | null {
+  const match = /^navigate\.primary\.(.+)$/.exec(command.id);
+  if (!match) return null;
+  const index = primaryWorkspaces.findIndex((primary) => primary.id === match[1]);
+  if (index < 0 || index > 5) return null;
+  return `${mac ? "⌘" : "Ctrl"}+Shift+${index + 1}`;
 }
 
 /** One command per durable work domain, then one per technical page. */
@@ -224,14 +258,28 @@ export function filterPaletteCommands(
   labelFor: (command: PaletteCommand) => string,
   limit: number = DEFAULT_PALETTE_LIMIT,
 ): PaletteCommand[] {
+  // One row per destination and label: a primary and the page it opens under the same
+  // name ("Market" and "Market") are one result (#34).
+  const seen = new Set<string>();
+  const unique = commands.filter((command) => {
+    const key = `${labelFor(command).toLowerCase()}|${command.target.page ?? command.id}|${command.target.term ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   const needle = query.trim().toLowerCase();
-  if (!needle) return commands.slice(0, limit);
+  if (!needle) return unique.filter((command) => command.group !== "glossary").slice(0, limit);
   const prefix: PaletteCommand[] = [];
   const contains: PaletteCommand[] = [];
-  for (const command of commands) {
+  for (const command of unique) {
     const label = labelFor(command).toLowerCase();
-    if (label.startsWith(needle)) prefix.push(command);
-    else if (label.includes(needle) || command.id.toLowerCase().includes(needle)) {
+    const keywords = (command.keywords ?? []).map((word) => word.toLowerCase());
+    if (label.startsWith(needle) || keywords.some((word) => word.startsWith(needle))) prefix.push(command);
+    else if (
+      label.includes(needle) ||
+      keywords.some((word) => word.includes(needle)) ||
+      (command.group !== "glossary" && command.id.toLowerCase().includes(needle))
+    ) {
       contains.push(command);
     }
   }

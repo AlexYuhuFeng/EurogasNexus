@@ -985,6 +985,84 @@
     }
   }
 
+  /* Data Products (#28): name, id and description each on their own line; the table fits
+     its panel and long explanations wrap instead of being cut off. */
+  .data-product-catalogue .research-semantic-table {
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  .data-product-catalogue .research-semantic-table th:first-child {
+    width: 32%;
+  }
+
+  .data-product-catalogue .research-semantic-table th[scope="row"] > strong,
+  .data-product-catalogue .research-semantic-table th[scope="row"] > code,
+  .data-product-catalogue .research-semantic-table th[scope="row"] > small,
+  .data-product-catalogue .research-semantic-table td > small {
+    display: block;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .data-product-catalogue .research-semantic-table th[scope="row"] > code {
+    margin: 2px 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: normal;
+  }
+
+  .data-product-catalogue .research-semantic-table th[scope="row"] > small {
+    color: var(--ds-text-2);
+    font-weight: normal;
+  }
+
+  .data-product-catalogue .research-semantic-table td,
+  .data-product-catalogue .research-semantic-table th[scope="row"] {
+    white-space: normal;
+    vertical-align: top;
+  }
+
+  .data-product-more > summary {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    cursor: pointer;
+  }
+
+  .data-product-catalogue .research-table-wrap {
+    overflow-x: visible;
+  }
+
+  .research-capability-details > summary {
+    color: var(--ds-accent);
+    cursor: pointer;
+  }
+
+  .capability-tag {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    white-space: normal;
+  }
+
+  /* A heading that starts with an eyebrow is a title group: the eyebrow above the title,
+     both left-aligned (#10). "Title ... meta" headings keep their spread. */
+  .section-heading:has(> .eyebrow:first-child) {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 2px;
+  }
+
+  .command-palette-kbd {
+    margin-left: auto;
+    padding: 0 var(--ds-space-1);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    color: var(--ds-text-3);
+    font-family: var(--ds-font-mono, monospace);
+    font-size: var(--ds-text-xs);
+  }
+
   /* Personal preferences beside the organisation defaults they override (#19). */
   .settings-preference-pair {
     grid-column: 1 / -1;

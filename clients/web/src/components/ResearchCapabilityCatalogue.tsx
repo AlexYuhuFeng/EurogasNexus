@@ -65,7 +65,11 @@ export function ResearchCapabilityCatalogue({ t }: ResearchCapabilityCataloguePr
       {capabilities.length === 0 ? (
         <p className="muted">{t("research.capabilities.empty")}</p>
       ) : (
-        <div className="data-table" tabIndex={0}>
+        // Developer detail (#28): what a capability is, as the research domain declares it.
+        // Folded by default; the business view of the data is the product catalogue above.
+        <details className="research-capability-details">
+        <summary>{t("research.capabilities.show").replace("{{count}}", String(capabilities.length))}</summary>
+        <div className="data-table research-capability-table" tabIndex={0}>
           <div className="data-table-row header six">
             <span>{t("research.capabilities.name")}</span>
             <span>{t("research.capabilities.class")}</span>
@@ -77,15 +81,15 @@ export function ResearchCapabilityCatalogue({ t }: ResearchCapabilityCataloguePr
           {capabilities.map((capability) => (
             <div key={capability.name} className="data-table-row six">
               <strong title={capability.description}>{capability.name}</strong>
-              <span className="status-badge">
+              <span className="capability-tag">
                 {t(readWriteClassKey(capability.readWriteClass) ?? capability.readWriteClass)}
               </span>
-              <span className="status-badge">
+              <span className="capability-tag">
                 {capability.deterministic
                   ? t("research.capabilities.deterministic")
                   : t("research.capabilities.non_deterministic")}
               </span>
-              <span className="status-badge">
+              <span className="capability-tag">
                 {t(sideEffectClassKey(capability.sideEffectClass) ?? capability.sideEffectClass)}
               </span>
               <span>{capability.requiredPermission}</span>
@@ -93,6 +97,7 @@ export function ResearchCapabilityCatalogue({ t }: ResearchCapabilityCataloguePr
             </div>
           ))}
         </div>
+        </details>
       )}
     </section>
   );

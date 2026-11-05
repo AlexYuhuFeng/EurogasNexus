@@ -1,4 +1,9 @@
 {
+  "palette.glossary_term": "术语",
+  "experience.palette.group.glossary": "术语表",
+  "data_product.why": "原因",
+  "data_product.served_by": "提供方",
+  "research.capabilities.show": "显示 {{count}} 项已声明能力（开发者详情）",
   "access.grant.wildcard": "全部数据（*）",
   "access.permission.area.account": "本人账户",
   "access.permission.area.market": "市场",

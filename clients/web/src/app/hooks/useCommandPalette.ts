@@ -19,6 +19,7 @@ import {
   DEFAULT_PALETTE_LIMIT,
   buildPaletteCommands,
   filterPaletteCommands,
+  glossaryCommands,
   inspectionCommands,
   isPaletteDismissKey,
   isPaletteShortcut,
@@ -33,7 +34,7 @@ import type { WorkspacePageId } from "@/workspaceNavigation";
 
 import { listenDesktopCommands } from "@/app/host/desktopCommands";
 
-const GROUP_ORDER = ["navigate", "inspect", "ai", "utility"] as const;
+const GROUP_ORDER = ["navigate", "glossary", "inspect", "ai", "utility"] as const;
 
 export interface CommandPaletteOptions {
   activeWorkspace: WorkspacePageId;
@@ -60,6 +61,8 @@ export interface CommandPaletteOptions {
    */
   evidenceRefs?: readonly CopilotEvidenceRef[];
   labels: (command: PaletteCommand) => string;
+  /** Glossary terms the palette can find. */
+  glossaryTerms?: ReadonlyArray<{ term: string; aliases?: readonly string[] }>;
   onNavigate: (command: PaletteCommand) => void;
   onInspect: (kind: InspectorSubjectKind, ref: string) => void;
   onUtility: (utility: "access-identity" | "sign-out") => void;
@@ -101,9 +104,12 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
           (offersAiCommands && command.group === "ai"),
       ),
       ...inspectionCommands(options.context, options.activeWorkspace),
+      // Glossary terms are found by name or alias (#34); they never show for an empty query.
+      ...glossaryCommands(options.glossaryTerms ?? []),
     ],
     [
       offersAiCommands,
+      options.glossaryTerms,
       options.activeWorkspace,
       options.context.routeId,
       options.context.resourceId,

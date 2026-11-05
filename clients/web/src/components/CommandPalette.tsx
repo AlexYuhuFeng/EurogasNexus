@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { PaletteCommand } from "@/app/experience/commandPalette";
+import { paletteShortcut, type PaletteCommand } from "@/app/experience/commandPalette";
 import type { AiActionKind } from "@/app/experience/vocabulary";
 import { CopilotHost } from "@/components/CopilotPanel";
 import "./CommandPalette.css";
@@ -243,6 +243,12 @@ export function CommandPalette({
                 >
                   <span className="command-palette-group">{t(`experience.palette.group.${command.group}`)}</span>
                   <span className="command-palette-label">{labelFor(command)}</span>
+                  {/* The shortcut, from the declaration the key handler reads (#34). */}
+                  {paletteShortcut(command, /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "")) && (
+                    <kbd className="command-palette-kbd">
+                      {paletteShortcut(command, /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? ""))}
+                    </kbd>
+                  )}
                   {reason && <span className="command-palette-reason">{t(reason)}</span>}
                 </button>
               </li>

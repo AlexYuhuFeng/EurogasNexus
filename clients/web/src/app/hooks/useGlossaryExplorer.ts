@@ -24,7 +24,14 @@ export function useGlossaryExplorer({
 }: GlossaryExplorerParams) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
-  const [selectedTerm, setSelectedTerm] = useState<string | null>(null);
+  // A link (or a palette result) may name the term to open: ?workspace=glossary&term=NBP.
+  const [selectedTerm, setSelectedTerm] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("term");
+    } catch {
+      return null;
+    }
+  });
   const [durationStart, setDurationStart] = useState("2026-05-31T06:00");
   const [durationEnd, setDurationEnd] = useState("2026-06-01T06:00");
   const glossaryLanguage = language.startsWith("zh") ? "zh-CN" : "en";

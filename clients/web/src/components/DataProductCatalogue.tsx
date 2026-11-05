@@ -148,7 +148,13 @@ export function DataProductCatalogue({ t }: DataProductCatalogueProps) {
                   <StatusBadge variant="source" status={row.availabilityState}>
                     {t(dataProductAvailabilityKey(row.availabilityState))}
                   </StatusBadge>
-                  {row.availabilityNote && <small>{row.availabilityNote}</small>}
+                  {/* The state leads; why it is so, and its limits, open on request (#28). */}
+                  {row.availabilityNote && (
+                    <details className="data-product-more">
+                      <summary>{t("data_product.why")}</summary>
+                      <small>{row.availabilityNote}</small>
+                    </details>
+                  )}
                 </td>
                 <td>
                   {t(dataProductTimeBasisKey(row.timeBasis))}
@@ -166,7 +172,12 @@ export function DataProductCatalogue({ t }: DataProductCatalogueProps) {
                       {t("data_product.simulated")}: {row.simulatedFamilies.join(", ")}
                     </small>
                   )}
-                  {row.servedBy.length > 0 && <small>{row.servedBy.join(", ")}</small>}
+                  {row.servedBy.length > 0 && (
+                    <details className="data-product-more">
+                      <summary>{t("data_product.served_by")}</summary>
+                      <small>{row.servedBy.join(", ")}</small>
+                    </details>
+                  )}
                 </td>
                 <td>
                   {/* A restricted product says why, and never shows a count in its place. */}

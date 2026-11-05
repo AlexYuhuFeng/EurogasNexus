@@ -210,11 +210,20 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     },
     capabilities: composition.effectiveCapabilities,
     activeContextComplete: Boolean(composition.available),
-    labels: (command: PaletteCommand) => t(command.labelKey),
+    labels: (command: PaletteCommand) => command.label ?? t(command.labelKey),
+    glossaryTerms: api.glossaryTerms,
     onNavigate: (command: PaletteCommand) => {
       const page = command.target.page;
       if (command.target.primary) navigation.openPrimaryWorkspace(command.target.primary);
-      else if (page) navigation.openWorkspace(page);
+      else if (page) {
+        navigation.openWorkspace(page);
+        if (command.target.term) {
+          // The glossary opens at the term it was found by.
+          const url = new URL(window.location.href);
+          url.searchParams.set("term", command.target.term);
+          window.history.replaceState(window.history.state, "", url);
+        }
+      }
     },
     onInspect: (kind, ref) =>
       inspector.open({
