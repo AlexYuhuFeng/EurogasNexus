@@ -13,11 +13,10 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ## [0.7.0] - 2026-11-01
 
-Desk operations for a trading house: what every role does in a day, walked through in the
-product and written up with screenshots in the [user manual](docs/user/manual/README.md).
-
 ### Added
 
+- **User manual by role**: what every role does in a day, walked through in the product
+  and written up with screenshots in the [user manual](docs/user/manual/README.md).
 - **Daily gas balance** (Portfolio → Resources): per gas day at a hub, expected supply
   (contracts corrected by how they deliver), exchange and bilateral purchases and sales,
   the residual still to close, and what the TSO's cash-out would cost if it is left open.
