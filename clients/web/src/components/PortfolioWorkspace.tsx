@@ -328,6 +328,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             updateContractText={contractEditor.updateContractText}
             updateContractNumber={contractEditor.updateContractNumber}
             updateContractList={contractEditor.updateContractList}
+            updateContractTranches={contractEditor.updateContractTranches}
             routeCandidates={api.routeCandidates}
             resetContractDraft={contractEditor.resetContractDraft}
             importContractDraftFile={contractEditor.importContractDraftFile}

@@ -42,6 +42,39 @@ export interface StoredContractEdit {
  * *optional* route field: "not declared". The write route types each of them `float | None`,
  * so a blank control is representable as recorded absence rather than an assumed zero.
  */
+/** One lender's share of a contract's funding, as entered (#14). */
+export interface FinancingTrancheDraft {
+  lender: string;
+  /** Principal in the contract's own currency. */
+  principal: number | null;
+  annual_rate_pct: number | null;
+  day_count: "ACT/365F" | "ACT/360";
+}
+
+/** Segments ready to save: complete rows only; an incomplete row is a validation error. */
+export function financingTranchesForSave(rows: FinancingTrancheDraft[]): {
+  tranches: Array<{ lender: string; principal: number; annual_rate_pct: number; day_count: "ACT/365F" | "ACT/360" }>;
+  incomplete: number;
+} {
+  const tranches = [];
+  let incomplete = 0;
+  for (const row of rows) {
+    const complete = row.lender.trim() && row.principal !== null && row.principal > 0
+      && row.annual_rate_pct !== null && row.annual_rate_pct >= 0;
+    if (!complete) {
+      incomplete += 1;
+      continue;
+    }
+    tranches.push({
+      lender: row.lender.trim(),
+      principal: row.principal as number,
+      annual_rate_pct: row.annual_rate_pct as number,
+      day_count: row.day_count,
+    });
+  }
+  return { tranches, incomplete };
+}
+
 export interface ContractDraft {
   contract_id: string;
   contract_name: string;
@@ -77,6 +110,8 @@ export interface ContractDraft {
   upstream_payment_lag_days: number | null;
   screen_sale_cash_lag_days: number | null;
   annual_financing_rate_pct: number | null;
+  /** Funding segments (#14); empty when the contract is funded at the single rate. */
+  financing_tranches: FinancingTrancheDraft[];
   owned_entry_capacity_mwh_per_day: number | null;
   owned_exit_capacity_mwh_per_day: number | null;
   allowed_exit_points: string[];
@@ -160,6 +195,9 @@ export function contractValidationIssueKeys(contract: ContractDraft): string[] {
   }
   if (!isNonNegativeTerm(contract.contract_price_gbp_mwh)) {
     issues.push("contracts.validation.price");
+  }
+  if (financingTranchesForSave(contract.financing_tranches ?? []).incomplete > 0) {
+    issues.push("contracts.validation.financing_tranches");
   }
   if (
     !isNonNegativeTerm(contract.variable_cost_gbp_mwh) ||

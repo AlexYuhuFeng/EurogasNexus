@@ -147,6 +147,26 @@ function storedEditFromRecord(
   return { contract_id: contractId, edit_token: editToken };
 }
 
+/** Funding segments from a stored record or an import file; anything malformed is dropped. */
+function tranchesFromRecord(
+  value: unknown,
+  fallback: ContractDraft["financing_tranches"],
+): ContractDraft["financing_tranches"] {
+  if (!Array.isArray(value)) return fallback;
+  const toNumber = (raw: unknown) => {
+    const parsed = typeof raw === "number" ? raw : Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  return value
+    .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
+    .map((row) => ({
+      lender: typeof row.lender === "string" ? row.lender : "",
+      principal: toNumber(row.principal),
+      annual_rate_pct: toNumber(row.annual_rate_pct),
+      day_count: row.day_count === "ACT/360" ? "ACT/360" : "ACT/365F",
+    }));
+}
+
 export function contractDraftFromRecord(
   record: Record<string, unknown>,
   current: ContractDraft,
@@ -224,6 +244,10 @@ export function contractDraftFromRecord(
     annual_financing_rate_pct: number(
       "annual_financing_rate_pct",
       current.annual_financing_rate_pct,
+    ),
+    financing_tranches: tranchesFromRecord(
+      mergedRecord.financing_tranches,
+      base === "stored" ? [] : current.financing_tranches,
     ),
     owned_entry_capacity_mwh_per_day: number(
       "owned_entry_capacity_mwh_per_day",

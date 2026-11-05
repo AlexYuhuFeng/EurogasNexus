@@ -1727,6 +1727,8 @@ export interface UpstreamContractDTO {
   settlement_frequency: string; upstream_payment_lag_days: number; screen_sale_cash_lag_days: number;
   delivery_tolerance_pct: number; nomination_tolerance_pct: number;
   tolerance_risk_allowance_gbp_mwh?: number | null; annual_financing_rate_pct: number;
+  /** Funding segments (#14); [] when the contract is funded at its single rate. */
+  financing_tranches?: Array<{ lender: string; principal: number; annual_rate_pct: number; day_count: "ACT/365F" | "ACT/360" }>;
   owned_entry_capacity_mwh_per_day?: number | null; owned_exit_capacity_mwh_per_day?: number | null;
   allowed_exit_points: string[]; eligible_sale_modes: string[]; updated_at_utc?: string;
   variable_cost_gbp_mwh?: number; regas_fee_gbp_mwh?: number; fuel_loss_allowance_pct?: number;

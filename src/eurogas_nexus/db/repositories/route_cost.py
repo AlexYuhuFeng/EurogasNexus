@@ -421,12 +421,43 @@ def _normalized_contract_values(data: Mapping[str, object]) -> dict[str, object]
     }
     if "payment_terms" in data:
         values["payment_terms_json"] = _encoded_payment_terms(data["payment_terms"])
+    if "financing_tranches" in data:
+        # Presence semantics: an omitted list keeps the row's; [] or null clears it.
+        values["financing_tranches"] = contract_financing_tranches(data["financing_tranches"])
     if data.get("contract_price_currency") is not None:
         # Presence semantics, as for payment terms: an omitted currency keeps the row's.
         values["contract_price_currency"] = contract_price_currency(
             data["contract_price_currency"]
         )
     return values
+
+
+def contract_financing_tranches(value: object) -> list[dict] | None:
+    """Validate funding segments; return their stored form, or ``None`` for none.
+
+    The same rules as the contract revision (#14): a lender, a positive principal in
+    the contract's currency, a non-negative rate and ACT/365F or ACT/360.
+
+    Raises:
+        ValueError: When a segment is malformed.
+    """
+
+    from eurogas_nexus.domain.route_cost.contract_revision import (
+        financing_tranches_from_payload,
+    )
+
+    records = financing_tranches_from_payload(value)
+    if not records:
+        return None
+    return [
+        {
+            "lender": record.lender,
+            "principal": float(record.principal),
+            "annual_rate_pct": float(record.annual_rate_pct),
+            "day_count": record.day_count,
+        }
+        for record in records
+    ]
 
 
 #: Currencies a supply contract may be priced in.
@@ -1233,6 +1264,7 @@ def _contract_payload(
         "nomination_tolerance_pct": row.nomination_tolerance_pct,
         "tolerance_risk_allowance_gbp_mwh": row.tolerance_risk_allowance_gbp_mwh,
         "annual_financing_rate_pct": row.annual_financing_rate_pct,
+        "financing_tranches": row.financing_tranches or [],
         "owned_entry_capacity_mwh_per_day": row.owned_entry_capacity_mwh_per_day,
         "owned_exit_capacity_mwh_per_day": row.owned_exit_capacity_mwh_per_day,
         "allowed_exit_points": row.allowed_exit_points,

@@ -777,3 +777,55 @@ def test_a_gbp_contract_keeps_the_v1_revision_schema(tmp_path, monkeypatch) -> N
         snapshot = list_upstream_contract_revisions(session, CONTRACT_ID)[0]["snapshot"]
         assert snapshot["schema_version"] == "upstream-contract-revision/v1"
         assert "contract_price_currency" not in snapshot
+
+
+def test_funding_segments_are_recorded_in_a_v4_revision(tmp_path, monkeypatch) -> None:
+    """#14: a contract funded by two lenders keeps both segments, audited as v4."""
+
+    url = _prepare_db(tmp_path, monkeypatch)
+    client = _deployment_client()
+    tranches = [
+        {"lender": "Bank A", "principal": 100, "annual_rate_pct": 3, "day_count": "ACT/365F"},
+        {"lender": "Bank B", "principal": 200, "annual_rate_pct": 2, "day_count": "ACT/360"},
+    ]
+    created = client.post(CONTRACT_PATH, json=_body(financing_tranches=tranches))
+    assert created.status_code == 200, created.text
+    assert [row["lender"] for row in created.json()["data"]["financing_tranches"]] == [
+        "Bank A",
+        "Bank B",
+    ]
+    with _session(url) as session:
+        snapshot = list_upstream_contract_revisions(session, CONTRACT_ID)[0]["snapshot"]
+        assert snapshot["schema_version"] == "upstream-contract-revision/v4"
+        assert snapshot["financing_tranches"][1] == {
+            "lender": "Bank B",
+            "principal": "200.0",
+            "annual_rate_pct": "2.0",
+            "day_count": "ACT/360",
+        }
+
+    # A client that does not send segments keeps them.
+    body = _body(contract_price_gbp_mwh=31.0)
+    body["expected_edit_token"] = _read_token(client)
+    kept = client.post(CONTRACT_PATH, json=body)
+    assert kept.status_code == 200, kept.text
+    assert len(kept.json()["data"]["financing_tranches"]) == 2
+
+    # A malformed segment is refused with a stable code.
+    refused = client.post(
+        CONTRACT_PATH,
+        json={
+            **_body(financing_tranches=[{"lender": "", "principal": 1, "annual_rate_pct": 1}]),
+            "expected_edit_token": _read_token(client),
+        },
+    )
+    assert refused.status_code == 422
+    assert refused.json()["detail"]["code"] == "financing_tranches_invalid"
+
+    # An empty list clears them; the contract returns to its single rate.
+    cleared = client.post(
+        CONTRACT_PATH,
+        json={**_body(financing_tranches=[]), "expected_edit_token": _read_token(client)},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["data"]["financing_tranches"] == []

@@ -91,6 +91,7 @@ CONTRACT_EDIT_TOKEN_FIELDS = (
     "notes",
     "book_id",
     "payment_terms_json",
+    "financing_tranches",
     "created_at_utc",
     "updated_at_utc",
     "retired_at_utc",
@@ -229,6 +230,18 @@ def _canonical_value(value: object, name: str) -> object:
     if isinstance(value, Sequence):
         entries = []
         for item in value:
+            if isinstance(item, Mapping):
+                # A flat record (a funding segment): string keys, scalar values.
+                record = {}
+                for key, field_value in item.items():
+                    if not isinstance(key, str) or isinstance(field_value, (Mapping, list, tuple)):
+                        raise ContractEditTokenError(
+                            "contract_edit_token_state_value_unsupported",
+                            f"{name} records must be flat with string keys",
+                        )
+                    record[key] = _canonical_value(field_value, f"{name}.{key}")
+                entries.append(record)
+                continue
             if not isinstance(item, str):
                 raise ContractEditTokenError(
                     "contract_edit_token_state_value_unsupported",

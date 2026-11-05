@@ -124,6 +124,12 @@ CONTRACT_REVISION_SCHEMA_VERSION_V2 = "upstream-contract-revision/v2"
 #: which also may carry declared payment terms like v2.
 CONTRACT_REVISION_SCHEMA_VERSION_V3 = "upstream-contract-revision/v3"
 
+#: Schema version that records funding segments (#14): v3 plus
+#: ``financing_tranches``, each a lender's principal (in the contract's currency) at
+#: its own rate and day count. Produced only for a contract that declares segments, so
+#: every v1-v3 revision keeps its bytes and hash.
+CONTRACT_REVISION_SCHEMA_VERSION_V4 = "upstream-contract-revision/v4"
+
 #: Every version this module accepts. v1 and v2 declare the same complete field
 #: set; v3 adds ``contract_price_currency``.
 _REVIEWED_REVISION_SCHEMA_VERSIONS = frozenset(
@@ -131,8 +137,18 @@ _REVIEWED_REVISION_SCHEMA_VERSIONS = frozenset(
         CONTRACT_REVISION_SCHEMA_VERSION,
         CONTRACT_REVISION_SCHEMA_VERSION_V2,
         CONTRACT_REVISION_SCHEMA_VERSION_V3,
+        CONTRACT_REVISION_SCHEMA_VERSION_V4,
     }
 )
+
+#: Versions that record the price currency (v4 is a superset of v3).
+_CURRENCY_SCHEMA_VERSIONS = frozenset(
+    {CONTRACT_REVISION_SCHEMA_VERSION_V3, CONTRACT_REVISION_SCHEMA_VERSION_V4}
+)
+_TRANCHES_FIELD = "financing_tranches"
+_TRANCHE_DAY_COUNTS = frozenset({"ACT/365F", "ACT/360"})
+_TRANCHE_FIELDS = frozenset({"lender", "principal", "annual_rate_pct", "day_count"})
+_MAX_TRANCHES = 32
 
 #: Currencies a contract price may be recorded in; v1/v2 imply GBP.
 _CONTRACT_PRICE_CURRENCIES = frozenset({"GBP", "EUR", "USD"})
@@ -227,6 +243,109 @@ _CANONICAL_DOCUMENT_FIELDS = frozenset(
     }
 )
 _CANONICAL_DOCUMENT_FIELDS_V3 = _CANONICAL_DOCUMENT_FIELDS | {_PRICE_CURRENCY_FIELD}
+_CANONICAL_DOCUMENT_FIELDS_V4 = _CANONICAL_DOCUMENT_FIELDS_V3 | {_TRANCHES_FIELD}
+
+
+@dataclass(frozen=True)
+class FinancingTrancheRecord:
+    """One funding segment as recorded: lender, principal, rate and day count."""
+
+    lender: str
+    principal: Decimal
+    annual_rate_pct: Decimal
+    day_count: str = "ACT/365F"
+
+    def __post_init__(self) -> None:
+        lender = _required_text(self.lender, "financing_tranches.lender")
+        if len(lender) > 128:
+            raise ContractRevisionPayloadError(
+                "tranche_lender_too_long", "financing_tranches.lender exceeds 128 characters"
+            )
+        principal = _finite_decimal(self.principal, "financing_tranches.principal")
+        if principal <= 0:
+            raise ContractRevisionPayloadError(
+                "tranche_principal_not_positive", "financing_tranches.principal must be > 0"
+            )
+        rate = _finite_decimal(self.annual_rate_pct, "financing_tranches.annual_rate_pct")
+        if rate < 0:
+            raise ContractRevisionPayloadError(
+                "tranche_rate_negative", "financing_tranches.annual_rate_pct must be >= 0"
+            )
+        if self.day_count not in _TRANCHE_DAY_COUNTS:
+            raise ContractRevisionPayloadError(
+                "tranche_day_count_unknown",
+                f"financing_tranches.day_count must be one of {sorted(_TRANCHE_DAY_COUNTS)}",
+            )
+
+    def canonical_document(self) -> dict[str, object]:
+        return {
+            "lender": self.lender,
+            "principal": _decimal_text(self.principal, "financing_tranches.principal"),
+            "annual_rate_pct": _decimal_text(
+                self.annual_rate_pct, "financing_tranches.annual_rate_pct"
+            ),
+            "day_count": self.day_count,
+        }
+
+
+def financing_tranches_from_payload(value: object) -> tuple[FinancingTrancheRecord, ...]:
+    """Validate a caller's or stored list of segments into records (exact decimals)."""
+
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)):
+        raise ContractRevisionPayloadError(
+            "tranches_not_list", "financing_tranches must be a list of segments"
+        )
+    if len(value) > _MAX_TRANCHES:
+        raise ContractRevisionPayloadError(
+            "tranches_too_many", f"at most {_MAX_TRANCHES} financing segments"
+        )
+    records = []
+    for item in value:
+        if not isinstance(item, Mapping) or set(item) - _TRANCHE_FIELDS:
+            raise ContractRevisionPayloadError(
+                "tranche_fields_invalid",
+                f"each segment has exactly the fields {sorted(_TRANCHE_FIELDS)}",
+            )
+        records.append(
+            FinancingTrancheRecord(
+                lender=item.get("lender"),
+                principal=_legacy_decimal(item.get("principal"), "financing_tranches.principal"),
+                annual_rate_pct=_legacy_decimal(
+                    item.get("annual_rate_pct"), "financing_tranches.annual_rate_pct"
+                ),
+                day_count=item.get("day_count") or "ACT/365F",
+            )
+        )
+    return tuple(records)
+
+
+def _canonical_tranches(value: object) -> tuple[FinancingTrancheRecord, ...]:
+    """Decode the canonical v4 segment list strictly (exact decimal strings)."""
+
+    if not isinstance(value, list) or not value or len(value) > _MAX_TRANCHES:
+        raise ContractRevisionPayloadError(
+            "canonical_tranches_invalid",
+            "financing_tranches must be a non-empty list in upstream-contract-revision/v4",
+        )
+    records = []
+    for item in value:
+        if not isinstance(item, Mapping) or set(item) != _TRANCHE_FIELDS:
+            raise ContractRevisionPayloadError(
+                "canonical_tranches_invalid", "a segment does not have the canonical fields"
+            )
+        records.append(
+            FinancingTrancheRecord(
+                lender=item["lender"],
+                principal=_canonical_decimal(item["principal"], "financing_tranches.principal"),
+                annual_rate_pct=_canonical_decimal(
+                    item["annual_rate_pct"], "financing_tranches.annual_rate_pct"
+                ),
+                day_count=item["day_count"],
+            )
+        )
+    return tuple(records)
 
 
 class ContractRevisionPayloadError(ValueError):
@@ -564,6 +683,8 @@ class UpstreamContractEconomicSnapshot:
     #: ISO currency of ``contract_price_gbp_mwh`` (the field name predates it).
     #: Only v3 may record a currency other than GBP.
     contract_price_currency: str = field(default="GBP", kw_only=True)
+    #: Funding segments; non-empty only in v4.
+    financing_tranches: tuple[FinancingTrancheRecord, ...] = field(default=(), kw_only=True)
 
     def __post_init__(self) -> None:
         """Validate every field and deep-freeze the sequence fields.
@@ -619,7 +740,19 @@ class UpstreamContractEconomicSnapshot:
                 f"contract_price_currency must be one of"
                 f" {sorted(_CONTRACT_PRICE_CURRENCIES)}, got {currency!r}",
             )
-        if currency != "GBP" and version != CONTRACT_REVISION_SCHEMA_VERSION_V3:
+        tranches = tuple(self.financing_tranches)
+        if not all(isinstance(item, FinancingTrancheRecord) for item in tranches):
+            raise ContractRevisionPayloadError(
+                "tranches_not_typed", "financing_tranches must be FinancingTrancheRecord values"
+            )
+        object.__setattr__(self, "financing_tranches", tranches)
+        if (version == CONTRACT_REVISION_SCHEMA_VERSION_V4) != bool(tranches):
+            raise ContractRevisionPayloadError(
+                "tranches_need_v4",
+                f"financing segments are recorded in {CONTRACT_REVISION_SCHEMA_VERSION_V4},"
+                " and that version requires at least one",
+            )
+        if currency != "GBP" and version not in _CURRENCY_SCHEMA_VERSIONS:
             raise ContractRevisionPayloadError(
                 "price_currency_needs_v3",
                 f"a {currency} price is recorded only in"
@@ -677,8 +810,12 @@ class UpstreamContractEconomicSnapshot:
         }
         for name in _DECIMAL_FIELD_NAMES:
             document[name] = _decimal_text(getattr(self, name), name)
-        if self.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V3:
+        if self.schema_version in _CURRENCY_SCHEMA_VERSIONS:
             document[_PRICE_CURRENCY_FIELD] = self.contract_price_currency
+        if self.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V4:
+            document[_TRANCHES_FIELD] = [
+                tranche.canonical_document() for tranche in self.financing_tranches
+            ]
         return document
 
     def canonical_json(self) -> str:
@@ -738,11 +875,10 @@ class UpstreamContractEconomicSnapshot:
                 f"document must be a mapping, got {type(document).__name__}",
             )
         keys = set(document)
-        expected = (
-            _CANONICAL_DOCUMENT_FIELDS_V3
-            if document.get("schema_version") == CONTRACT_REVISION_SCHEMA_VERSION_V3
-            else _CANONICAL_DOCUMENT_FIELDS
-        )
+        expected = {
+            CONTRACT_REVISION_SCHEMA_VERSION_V3: _CANONICAL_DOCUMENT_FIELDS_V3,
+            CONTRACT_REVISION_SCHEMA_VERSION_V4: _CANONICAL_DOCUMENT_FIELDS_V4,
+        }.get(document.get("schema_version"), _CANONICAL_DOCUMENT_FIELDS)
         if keys != expected:
             missing = sorted(str(key) for key in expected - keys)
             unexpected = sorted(str(key) for key in keys - expected)
@@ -810,8 +946,13 @@ class UpstreamContractEconomicSnapshot:
             payment_terms=terms,
             contract_price_currency=(
                 document[_PRICE_CURRENCY_FIELD]
-                if version == CONTRACT_REVISION_SCHEMA_VERSION_V3
+                if version in _CURRENCY_SCHEMA_VERSIONS
                 else "GBP"
+            ),
+            financing_tranches=(
+                _canonical_tranches(document[_TRANCHES_FIELD])
+                if version == CONTRACT_REVISION_SCHEMA_VERSION_V4
+                else ()
             ),
             **numbers,
             **lags,
@@ -1088,6 +1229,7 @@ def map_legacy_contract_payload(contract: Mapping[str, object]) -> LegacyContrac
         )
     raw_currency = contract.get(_PRICE_CURRENCY_FIELD)
     currency = "GBP" if raw_currency is None else raw_currency
+    tranches = financing_tranches_from_payload(contract.get(_TRANCHES_FIELD))
 
     economic_snapshot = UpstreamContractEconomicSnapshot(
         contract_id=_required_text(contract.get("contract_id"), "contract_id"),
@@ -1113,13 +1255,17 @@ def map_legacy_contract_payload(contract: Mapping[str, object]) -> LegacyContrac
         ),
         numeric_source_precision=SOURCE_PRECISION_LEGACY_FLOAT64,
         mapping_issues=tuple(issues),
-        # A GBP contract maps exactly as before (v1); only another currency needs v3.
+        # A GBP contract maps exactly as before (v1); another currency needs v3, and
+        # funding segments need v4.
         schema_version=(
-            CONTRACT_REVISION_SCHEMA_VERSION
+            CONTRACT_REVISION_SCHEMA_VERSION_V4
+            if tranches
+            else CONTRACT_REVISION_SCHEMA_VERSION
             if currency == "GBP"
             else CONTRACT_REVISION_SCHEMA_VERSION_V3
         ),
         contract_price_currency=currency,
+        financing_tranches=tranches,
         **numbers,
     )
     return LegacyContractSnapshot(
@@ -1165,8 +1311,8 @@ def with_declared_payment_terms(
         snapshot,
         # v3 already carries terms and the currency; v1 becomes v2.
         schema_version=(
-            CONTRACT_REVISION_SCHEMA_VERSION_V3
-            if snapshot.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V3
+            snapshot.schema_version
+            if snapshot.schema_version in _CURRENCY_SCHEMA_VERSIONS
             else CONTRACT_REVISION_SCHEMA_VERSION_V2
         ),
         payment_terms=payment_terms,

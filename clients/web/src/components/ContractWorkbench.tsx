@@ -126,6 +126,61 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 export type ContractTaskView = "source" | "terms" | "impact" | "lng_economics" | "library";
 type ClauseView = "agreement" | "product" | "delivery" | "quantity" | "costs" | "capacity" | "settlement" | "restrictions";
 
+/** Funding segments (#14): one row per lender, each priced at its own rate and day count. */
+function FundingSegments({
+  rows,
+  currency,
+  t,
+  onChange,
+}: {
+  rows: ContractDraft["financing_tranches"];
+  currency: string;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  onChange: (rows: ContractDraft["financing_tranches"]) => void;
+}) {
+  const update = (index: number, patch: Partial<ContractDraft["financing_tranches"][number]>) =>
+    onChange(rows.map((row, position) => (position === index ? { ...row, ...patch } : row)));
+  const number = (value: string) => (value.trim() === "" || !Number.isFinite(Number(value)) ? null : Number(value));
+  return (
+    <div className="funding-segments">
+      <h4>{t("contracts.tranches.title")}</h4>
+      <p className="muted">{t("contracts.tranches.hint")} {t("contracts.tranches.currency_note", { currency })}</p>
+      {rows.length === 0 ? (
+        <p className="muted">{t("contracts.tranches.none")}</p>
+      ) : (
+        <div className="funding-segments-grid" role="table" aria-label={t("contracts.tranches.title")}>
+          <div className="funding-segments-row is-head" role="row">
+            <span role="columnheader">{t("contracts.tranches.lender")}</span>
+            <span role="columnheader">{t("contracts.tranches.principal")}</span>
+            <span role="columnheader">{t("contracts.tranches.rate")}</span>
+            <span role="columnheader">{t("contracts.tranches.day_count")}</span>
+            <span role="columnheader" aria-label={t("contracts.tranches.remove")} />
+          </div>
+          {rows.map((row, index) => (
+            <div className="funding-segments-row" role="row" key={index}>
+              <input role="cell" aria-label={t("contracts.tranches.lender")} value={row.lender} onChange={(event) => update(index, { lender: event.target.value })} />
+              <input role="cell" aria-label={t("contracts.tranches.principal")} type="number" min="0" value={row.principal ?? ""} onChange={(event) => update(index, { principal: number(event.target.value) })} />
+              <input role="cell" aria-label={t("contracts.tranches.rate")} type="number" min="0" step="0.01" value={row.annual_rate_pct ?? ""} onChange={(event) => update(index, { annual_rate_pct: number(event.target.value) })} />
+              <select role="cell" aria-label={t("contracts.tranches.day_count")} value={row.day_count} onChange={(event) => update(index, { day_count: event.target.value === "ACT/360" ? "ACT/360" : "ACT/365F" })}>
+                <option value="ACT/365F">ACT/365F</option>
+                <option value="ACT/360">ACT/360</option>
+              </select>
+              <button role="cell" type="button" className="link-button" aria-label={`${t("contracts.tranches.remove")}: ${row.lender || index + 1}`} onClick={() => onChange(rows.filter((_, position) => position !== index))}>{t("contracts.tranches.remove_short")}</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        className="secondary"
+        onClick={() => onChange([...rows, { lender: "", principal: null, annual_rate_pct: null, day_count: "ACT/365F" }])}
+      >
+        {t("contracts.tranches.add")}
+      </button>
+    </div>
+  );
+}
+
 interface ContractWorkbenchProps {
   contract: ContractDraft;
   upstreamContracts: UpstreamContractDTO[];
@@ -162,6 +217,8 @@ interface ContractWorkbenchProps {
   updateContractText: (key: ContractTextKey, value: string) => void;
   updateContractNumber: (key: ContractNumberKey, value: string) => void;
   updateContractList: (key: ContractListKey, value: string) => void;
+  /** Replace the draft's funding segments (#14). */
+  updateContractTranches?: (rows: ContractDraft["financing_tranches"]) => void;
   /** Route network the delivery and exit points are chosen from. */
   routeCandidates?: readonly RouteCandidateDTO[];
   resetContractDraft: () => void;
@@ -197,7 +254,7 @@ export function ContractWorkbench({
   onOpenStrategyForResource, contractImportRef, contractImportMessage,
   contractIntake = null, onDismissContractIntake, onContractLifecycle,
   contractSaveMessage, contractSaveConflict, t,
-  updateContractText, updateContractNumber, updateContractList, routeCandidates = [],
+  updateContractText, updateContractNumber, updateContractList, updateContractTranches, routeCandidates = [],
   resetContractDraft, importContractDraftFile, loadPersistedContract,
 }: ContractWorkbenchProps) {
   // Wave 9: object detail goes to the canonical Inspector instead of growing a third
@@ -414,7 +471,16 @@ export function ContractWorkbench({
               <label>{t("economics.finance_rate")}<input type="number" min="0" value={contract.annual_financing_rate_pct ?? ""} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
               <FinancingRateHelper t={t} onApply={(rate) => updateContractNumber("annual_financing_rate_pct", String(rate))} />
               <label className="span-2">{t("contracts.governing_law")}<ChoiceSelect value={contract.governing_law} options={GOVERNING_LAWS} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("governing_law", value)} /></label>
-            </div><ContractPaymentTerms read={contract.persisted_payment_terms} t={t} /></fieldset>}
+            </div>
+            {updateContractTranches && (
+              <FundingSegments
+                rows={contract.financing_tranches ?? []}
+                currency={priceCurrency}
+                t={t}
+                onChange={updateContractTranches}
+              />
+            )}
+            <ContractPaymentTerms read={contract.persisted_payment_terms} t={t} /></fieldset>}
             {clauseView === "restrictions" && <fieldset><legend>{t("contracts.restrictions")}</legend><p>{t("contracts.section_help.restrictions")}</p><div className="contract-field-grid">
               <ChoiceChecks label={t("contracts.allowed_exit_points_pick")} values={contract.allowed_exit_points} options={points.map((point) => ({ value: point, label: point }))} onChange={(values) => updateContractList("allowed_exit_points", values.join(", "))} />
               <ChoiceChecks label={t("contracts.eligible_sale_modes_pick")} values={contract.eligible_sale_modes} options={SALE_MODES.map((mode) => ({ value: mode, label: t(`contracts.sale_mode.${mode}`) }))} onChange={(values) => updateContractList("eligible_sale_modes", values.join(", "))} />

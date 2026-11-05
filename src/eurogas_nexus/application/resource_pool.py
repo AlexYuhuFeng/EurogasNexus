@@ -609,6 +609,8 @@ def portfolio_resource_from_contract(
         "screen_sale_cash_lag_days": contract["screen_sale_cash_lag_days"],
         # The contract's own financing rate prices its early cash (#14).
         "annual_financing_rate_pct": contract.get("annual_financing_rate_pct"),
+        # A contract funded by several lenders prices each segment at its own rate.
+        "financing_tranches": contract.get("financing_tranches") or [],
         "settlement_frequency": contract["settlement_frequency"],
         "required_tso_access": [],
         "accessible_tsos": list(company_accessible_tsos or []) or None,

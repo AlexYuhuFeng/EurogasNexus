@@ -132,6 +132,9 @@ class UpstreamContractUpsertRequest(BaseModel):
     fuel_loss_allowance_pct: float = Field(default=0, ge=0, lt=100)
     notes: str | None = None
     payment_terms: Any = None
+    #: Funding segments (#14): [{lender, principal, annual_rate_pct, day_count}], the
+    #: principal in the contract's currency. Omitted keeps the stored segments; [] clears.
+    financing_tranches: list[dict[str, Any]] | None = Field(default=None, max_length=32)
     expected_edit_token: str | None = None
 
 
@@ -372,6 +375,7 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
         from eurogas_nexus.db.repositories.route_cost import (
             ContractPaymentTermsRefusal,
             ContractRevisionPersistenceError,
+            contract_financing_tranches,
             upsert_upstream_contract_governed,
         )
         from eurogas_nexus.db.session import get_session_factory
@@ -399,6 +403,16 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
                 # every other field keeps its existing replacement semantics.
                 if "payment_terms" not in body.model_fields_set:
                     data.pop("payment_terms", None)
+                if "financing_tranches" not in body.model_fields_set:
+                    data.pop("financing_tranches", None)
+                else:
+                    try:
+                        contract_financing_tranches(data["financing_tranches"])
+                    except ValueError as exc:
+                        raise HTTPException(
+                            status_code=422,
+                            detail={"code": "financing_tranches_invalid", "message": str(exc)},
+                        ) from exc
                 expected_edit_token = data.pop("expected_edit_token", None)
                 result = upsert_upstream_contract_governed(
                     session,

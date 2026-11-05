@@ -112,6 +112,12 @@ export function useContractEditor(
     commitDraft((current) => ({ ...current, [key]: items }));
   }
 
+  function updateContractTranches(rows: ContractDraft["financing_tranches"]) {
+    draftGenerationRef.current += 1;
+    setDraftDirty(true);
+    commitDraft((current) => ({ ...current, financing_tranches: rows }));
+  }
+
   function loadPersistedContract(saved: UpstreamContractDTO) {
     beginDraftSession();
     // A persisted row hydrates with the `"stored"` base: terms the row does not carry stay
@@ -219,6 +225,7 @@ export function useContractEditor(
     updateContractNumber,
     updateContractText,
     updateContractList,
+    updateContractTranches,
     loadPersistedContract,
     resetContractDraft,
     importContractDraftFile,

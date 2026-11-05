@@ -3033,3 +3033,52 @@
     margin-top: var(--ds-space-3);
   }
 }
+
+/* ------------------------------------------------------------ funding segments (#14) */
+@layer ds-components {
+  .funding-segments {
+    display: grid;
+    gap: var(--ds-space-2);
+    margin-top: var(--ds-space-4);
+    padding-top: var(--ds-space-3);
+    border-top: 1px solid var(--ds-border);
+  }
+
+  .funding-segments h4 {
+    margin: 0;
+    font-size: var(--ds-text-base);
+  }
+
+  .funding-segments-grid {
+    display: grid;
+    gap: var(--ds-space-2);
+  }
+
+  .funding-segments-row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(112px, 0.9fr) auto;
+    gap: var(--ds-space-2);
+    align-items: center;
+  }
+
+  .funding-segments-row.is-head span {
+    text-align: left;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .funding-segments-row input,
+  .funding-segments-row select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .funding-segments-row .link-button {
+    white-space: nowrap;
+  }
+
+  .funding-segments > button {
+    justify-self: start;
+  }
+}

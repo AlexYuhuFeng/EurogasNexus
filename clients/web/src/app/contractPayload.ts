@@ -4,6 +4,7 @@ import { contractPriceCurrency } from "./contractChoices.ts";
 import {
   contractValidationIssueKeys,
   draftExpectedEditToken,
+  financingTranchesForSave,
   isRecordedNumber,
 } from "./model/contractDraftModel.ts";
 
@@ -147,6 +148,7 @@ export function buildContractPayload(contract: RecordedContractDraft): UpstreamC
     nomination_tolerance_pct: contract.nomination_tolerance_pct,
     tolerance_risk_allowance_gbp_mwh: contract.tolerance_risk_allowance_gbp_mwh,
     annual_financing_rate_pct: contract.annual_financing_rate_pct,
+    financing_tranches: financingTranchesForSave(contract.financing_tranches ?? []).tranches,
     owned_entry_capacity_mwh_per_day: contract.owned_entry_capacity_mwh_per_day,
     owned_exit_capacity_mwh_per_day: contract.owned_exit_capacity_mwh_per_day,
     allowed_exit_points: contract.allowed_exit_points,

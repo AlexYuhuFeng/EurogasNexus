@@ -66,6 +66,7 @@ def _state(**overrides: object) -> dict[str, object]:
         "notes": '{"operator_notes": "operator draft", "variable_cost_gbp_mwh": 0.75}',
         "book_id": None,
         "payment_terms_json": None,
+        "financing_tranches": None,
         "created_at_utc": _NOW,
         "updated_at_utc": _NOW,
         "retired_at_utc": None,
@@ -128,6 +129,11 @@ def test_equal_states_hash_to_one_token_and_the_schema_is_discriminated() -> Non
             '"flow_direction":"OUTFLOW","item_id":"supply","source_reference":"invoice"}],'
             '"quantity_basis_reference":"invoiced",'
             '"schema_version":"contract-payment-terms/v1"}',
+        ),
+        (
+            "financing_tranches",
+            [{"lender": "Bank A", "principal": 100.0, "annual_rate_pct": 3.0,
+              "day_count": "ACT/365F"}],
         ),
         ("updated_at_utc", _NOW + timedelta(seconds=1)),
         ("retired_at_utc", _NOW + timedelta(days=1)),

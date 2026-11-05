@@ -151,6 +151,8 @@ def test_snapshot_field_set_is_the_reviewed_payload_contract() -> None:
         "schema_version",
         "payment_terms",
         "contract_price_currency",
+        # v4 (#14): funding segments.
+        "financing_tranches",
     ]
 
 
@@ -997,3 +999,64 @@ def test_with_declared_payment_terms_refuses_untyped_terms_without_echoing() -> 
 
     assert refused.value.code == "payment_terms_not_typed"
     assert _SENTINEL not in str(refused.value)
+
+
+# --- v4: funding segments (#14) --------------------------------------------
+
+_TRANCHES = [
+    {"lender": "Bank A", "principal": 100, "annual_rate_pct": 3, "day_count": "ACT/365F"},
+    {"lender": "Bank B", "principal": "200", "annual_rate_pct": "2.5", "day_count": "ACT/360"},
+]
+
+
+def test_a_contract_with_segments_is_captured_as_v4_and_round_trips() -> None:
+    snapshot = map_legacy_contract_payload(
+        _legacy_payload(financing_tranches=_TRANCHES)
+    ).economic_snapshot
+    assert snapshot.schema_version == contract_revision.CONTRACT_REVISION_SCHEMA_VERSION_V4
+    document = json.loads(snapshot.canonical_json())
+    assert document["financing_tranches"] == [
+        {"lender": "Bank A", "principal": "100", "annual_rate_pct": "3", "day_count": "ACT/365F"},
+        {"lender": "Bank B", "principal": "200", "annual_rate_pct": "2.5", "day_count": "ACT/360"},
+    ]
+    assert "contract_price_currency" in document
+    restored = UpstreamContractEconomicSnapshot.from_canonical_document(document)
+    assert restored == snapshot
+    assert restored.content_hash() == snapshot.content_hash()
+
+
+def test_a_contract_without_segments_keeps_its_v1_bytes() -> None:
+    plain = map_legacy_contract_payload(_legacy_payload()).economic_snapshot
+    empty = map_legacy_contract_payload(_legacy_payload(financing_tranches=[])).economic_snapshot
+    assert plain.schema_version == contract_revision.CONTRACT_REVISION_SCHEMA_VERSION
+    assert empty.canonical_json() == plain.canonical_json()
+
+
+def test_segments_change_the_hash_and_are_ordered_as_recorded() -> None:
+    first = map_legacy_contract_payload(_legacy_payload(financing_tranches=_TRANCHES))
+    second = map_legacy_contract_payload(
+        _legacy_payload(financing_tranches=list(reversed(_TRANCHES)))
+    )
+    assert first.economic_snapshot.content_hash() != second.economic_snapshot.content_hash()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        [{"lender": "", "principal": 1, "annual_rate_pct": 1}],
+        [{"lender": "A", "principal": 0, "annual_rate_pct": 1}],
+        [{"lender": "A", "principal": 1, "annual_rate_pct": -1}],
+        [{"lender": "A", "principal": 1, "annual_rate_pct": 1, "day_count": "30/360"}],
+        [{"lender": "A", "principal": 1, "annual_rate_pct": 1, "currency": "EUR"}],
+        "not a list",
+    ],
+)
+def test_invalid_segments_are_refused(bad) -> None:
+    with pytest.raises(contract_revision.ContractRevisionPayloadError):
+        map_legacy_contract_payload(_legacy_payload(financing_tranches=bad))
+
+
+def test_v4_without_segments_is_refused() -> None:
+    snapshot = map_legacy_contract_payload(_legacy_payload()).economic_snapshot
+    with pytest.raises(contract_revision.ContractRevisionPayloadError):
+        replace(snapshot, schema_version=contract_revision.CONTRACT_REVISION_SCHEMA_VERSION_V4)

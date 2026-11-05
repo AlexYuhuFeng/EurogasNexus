@@ -96,6 +96,9 @@ class UpstreamResourceContractRecord(Base):
     #: canonical JSON; reads decode it strictly rather than treating a corrupt
     #: value as absent.
     payment_terms_json: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    #: Funding segments (#14): [{lender, principal, annual_rate_pct, day_count}], the
+    #: principal in the contract's currency; NULL when funded at the single rate.
+    financing_tranches: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     #: Lifecycle: a retired contract keeps its row, revisions and audit trail but leaves
