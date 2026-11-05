@@ -568,7 +568,7 @@ jobs:
 
   desktop-macos:
     name: Build desktop client (macos-universal)
-    runs-on: macos-14
+    runs-on: macos-15
     needs: validate
     permissions:
       contents: read

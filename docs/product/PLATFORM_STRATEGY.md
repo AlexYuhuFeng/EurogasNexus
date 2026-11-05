@@ -32,7 +32,7 @@ Tauri builds a universal `.app` from the same source, released as
 `Eurogas-Nexus-Client-{VERSION}-macos-universal.dmg` next to the Windows and Linux
 installers (`docs/release/INSTALL_MACOS.md`):
 
-1. `desktop-macos` in `release.yml` runs on `macos-14` and builds
+1. `desktop-macos` in `release.yml` runs on `macos-15` and builds
    `--target universal-apple-darwin` with the `app` and `dmg` bundle targets. Native
    acceptance builds the same image on every push to `main`, so a release never meets a
    macOS build failure for the first time.

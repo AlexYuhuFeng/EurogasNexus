@@ -237,7 +237,7 @@ def test_native_workflow_pins_the_authoritative_matrix() -> None:
     document = _load_workflow(WORKFLOW)
     assert list(document["jobs"]) == ["native-build", "macos-build"]
     macos = document["jobs"]["macos-build"]
-    assert macos["runs-on"] == "macos-14"
+    assert macos["runs-on"] == "macos-15"
     build = next(step for step in macos["steps"] if step["name"] == "Build universal disk image")
     assert "--target universal-apple-darwin" in build["run"]
     assert "--locked" in build["run"]

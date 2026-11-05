@@ -37,7 +37,7 @@ Code signing is the deploying firm's decision, as on Windows
 
 ## Validation matrix
 
-- Every push to `main` builds the universal disk image on `macos-14` (native acceptance),
+- Every push to `main` builds the universal disk image on `macos-15` (native acceptance),
   checks both architecture slices, the code signature and the image, and records its
   SHA-256. That is build evidence, not an installed-UI acceptance.
 - Install, first launch under Gatekeeper, sign-in and upgrade need a recorded check on a

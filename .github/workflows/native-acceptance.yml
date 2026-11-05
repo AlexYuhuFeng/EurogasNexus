@@ -159,7 +159,7 @@ jobs:
   # notarisation happen only in release.yml when the deploying firm provides its keys.
   macos-build:
     name: Build-only native acceptance (macos-universal)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 90
     steps:
       - name: Check out the dispatched commit
