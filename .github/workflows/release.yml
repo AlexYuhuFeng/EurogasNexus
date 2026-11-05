@@ -577,11 +577,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
+      # actions/setup-python publishes no 3.11.12 build for macOS arm64. This job only runs
+      # small standard-library helpers, so the runner's own python3 serves.
       - name: Download release metadata
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -652,7 +649,7 @@ jobs:
           set -euo pipefail
           bundle=clients/desktop/src-tauri/target/universal-apple-darwin/release/bundle
           bash scripts/ci/verify_macos_bundle.sh "$bundle"
-          RELEASE_VERSION=$(python -c "import json; print(json.load(open('release-context/release-context.json'))['release_version'].lstrip('v'))")
+          RELEASE_VERSION=$(python3 -c "import json; print(json.load(open('release-context/release-context.json'))['release_version'].lstrip('v'))")
           name="Eurogas-Nexus-Client-${RELEASE_VERSION}-macos-universal.dmg"
           mkdir -p release-assets
           cp "$bundle"/dmg/*.dmg "release-assets/$name"
@@ -666,7 +663,7 @@ jobs:
             state=unsigned_pending_external
             detail="ad-hoc signed; Gatekeeper asks the user to confirm the first launch"
           fi
-          python - "$name" "$state" "$detail" <<'PY'
+          python3 - "$name" "$state" "$detail" <<'PY'
           import json, sys
           name, state, detail = sys.argv[1:4]
           record = {name: {"signing_state": state, "method": "codesign", "verified": state != "unsigned_pending_external", "detail": detail}}

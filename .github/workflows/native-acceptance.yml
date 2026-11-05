@@ -169,13 +169,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
+      # actions/setup-python publishes no 3.11.12 build for macOS arm64. This job only runs
+      # small standard-library helpers, so the runner's own python3 serves.
       - name: Enforce canonical toolchain declarations
-        run: python scripts/ci/check_toolchain_versions.py
+        run: python3 scripts/ci/check_toolchain_versions.py
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
