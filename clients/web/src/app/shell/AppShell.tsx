@@ -16,7 +16,8 @@ import {
 } from "@/app/experience/experienceProfile";
 import type { PaletteCommand } from "@/app/experience/commandPalette";
 import { paletteUnavailableReasonKey } from "@/app/experience/commandPalette";
-import { isControlPlanePage } from "@/app/navigation/productNavigation";
+import { isCommercialPage, isControlPlanePage } from "@/app/navigation/productNavigation";
+import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
 import { inspectorDetailFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
@@ -167,6 +168,19 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
   const controlPlaneRestricted =
     isControlPlanePage(navigation.activeWorkspace) &&
     !compositionSeesAdministration(composition);
+  // An administrator without a commercial role lands on, or deep-links into, a business page:
+  // take them to their own surface instead of mounting panels whose every read is refused.
+  const commercialRestricted =
+    api.currentUser !== null &&
+    isCommercialPage(navigation.activeWorkspace) &&
+    !needsCommercialWorkspaceReads(api.currentUser);
+  const ownSurface = compositionSeesAdministration(composition) ? "sources" : "settings";
+  const openWorkspace = navigation.openWorkspace;
+  const profileReady = composition.available;
+  useEffect(() => {
+    // Wait for the identity profile: it decides whether the own surface is administration.
+    if (commercialRestricted && profileReady) openWorkspace(ownSurface);
+  }, [commercialRestricted, profileReady, ownSurface, openWorkspace]);
 
   // The layout class names the page whose layout is on screen, not only the page the URL named:
   // the market primary resolves a task inside its own shell, so the map task - chosen by tab, by
@@ -288,7 +302,7 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
             here, which meant its surface was mounted outside the registry that declares it;
             it is now composed by the market primary like every other page of that primary
             (conflicting register C9). */}
-        {controlPlaneRestricted ? <RestrictedSurface t={t} /> : <WorkspaceRenderer controller={controller} />}
+        {controlPlaneRestricted || commercialRestricted ? <RestrictedSurface t={t} /> : <WorkspaceRenderer controller={controller} />}
       </main>
 
       {inspector.subject && (

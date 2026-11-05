@@ -11,6 +11,7 @@ import type {
 } from "@/api/client";
 import { api as apiClient } from "@/api/client";
 import { useApiStore } from "@/stores/api";
+import { needsCommercialWorkspaceReads, runsGovernedResearch } from "@/stores/workspaceReadScope";
 
 import {
   STRATEGY_TASKS,
@@ -436,10 +437,15 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
     [strategies],
   );
 
+  // The renderer keeps this controller mounted for every page, so its reads follow the role:
+  // strategies are business data an administrator-only identity cannot read, and backtest
+  // experiments are the analyst's governed research.
+  const readsStrategies = useApiStore((state) => needsCommercialWorkspaceReads(state.currentUser));
+  const researches = useApiStore((state) => runsGovernedResearch(state.currentUser));
   useEffect(() => {
-    void refreshStrategies();
-    void refreshExperiments();
-  }, [refreshExperiments, refreshStrategies]);
+    if (readsStrategies) void refreshStrategies();
+    if (readsStrategies && researches) void refreshExperiments();
+  }, [refreshExperiments, refreshStrategies, readsStrategies, researches]);
 
   useEffect(() => {
     if (strategyId) {

@@ -1,4 +1,5 @@
 {
+  "strategy_lab.spread_analysts_only": "The spread lab is the analysts' research tool. Your role reads strategies, their backtests and shadow runs in the other tabs.",
   "contracts.contract_price": "Contract price",
   "contracts.price_per_mwh": "Contract price {{currency}}/MWh",
   "contracts.price_currency": "Price currency",

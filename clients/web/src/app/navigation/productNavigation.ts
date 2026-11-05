@@ -22,11 +22,18 @@ export interface PrimaryWorkspace {
    * request independently.
    */
   controlPlane?: boolean;
+  /**
+   * Business data surface: prices, positions, contracts, strategies, decisions. A platform
+   * administrator without a commercial role (separation of duties) is not offered it and a
+   * deep link sends them to their own surface; the backend refuses its reads regardless.
+   */
+  commercial?: boolean;
 }
 
 export const primaryWorkspaces: PrimaryWorkspace[] = [
   {
     id: "market",
+    commercial: true,
     labelKey: "nav.primary.market",
     descriptionKey: "nav.primary.market.description",
     // Prices first: an experienced trader opens the desk to the hub board, not a map.
@@ -35,6 +42,7 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
   },
   {
     id: "portfolio",
+    commercial: true,
     labelKey: "nav.primary.portfolio",
     descriptionKey: "nav.primary.portfolio.description",
     pages: ["contracts", "orders"],
@@ -42,6 +50,7 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
   },
   {
     id: "strategy",
+    commercial: true,
     labelKey: "nav.primary.strategy",
     descriptionKey: "nav.primary.strategy.description",
     pages: ["strategy"],
@@ -49,6 +58,7 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
   },
   {
     id: "decision",
+    commercial: true,
     labelKey: "nav.primary.decision",
     descriptionKey: "nav.primary.decision.description",
     pages: ["scenario", "review"],
@@ -114,6 +124,11 @@ export function defaultWorkspacePageForPrimary(
 /** Whether a page belongs to the control plane rather than the business workspace. */
 export function isControlPlanePage(page: WorkspacePageId): boolean {
   return primaryWorkspaceForPage(page).controlPlane === true;
+}
+
+/** Whether a page shows business data (see `PrimaryWorkspace.commercial`). */
+export function isCommercialPage(page: WorkspacePageId): boolean {
+  return primaryWorkspaceForPage(page).commercial === true;
 }
 
 /** The control-plane primaries. There is one today; the helper keeps it declarative. */

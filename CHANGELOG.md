@@ -41,6 +41,11 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ### Fixed
 
+- Pages no longer ask the server for what the role may not read: an administrator without
+  a trading role sees System and Admin only and lands on Data sources (the trading pages
+  asked for 13 reads that were all refused); a risk reviewer's strategy lab no longer asks
+  for the analysts' spread series and backtest experiments, and its spread tab says it is
+  the analysts' tool.
 - The legend floated over the zoom controls; facility kinds and route warnings showed as
   codes.
 - Market → Overview priced TTF in GBP and showed each hub's latest observation of any

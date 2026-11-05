@@ -1,4 +1,5 @@
 {
+  "strategy_lab.spread_analysts_only": "价差实验室是分析师的研究工具。您的角色可在其他标签页查看策略、回测和影子运行。",
   "contracts.contract_price": "合同价格",
   "contracts.price_per_mwh": "合同价格 {{currency}}/MWh",
   "contracts.price_currency": "计价币种",

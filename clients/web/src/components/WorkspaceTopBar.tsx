@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
 import {
   SUPPORTED_HUB_IDS,
   type SupportedHubId,
@@ -115,9 +116,14 @@ export function WorkspaceTopBar({
   // capability. Presentation only - the backend authorises every request - and it
   // fails closed, so an absent profile hides the surface instead of showing it.
   const composition = compositionFromProfile(currentUser?.experience);
-  const visiblePrimaries = compositionSeesAdministration(composition)
-    ? primaryWorkspaces
-    : primaryWorkspaces.filter((primary) => primary.controlPlane !== true);
+  // Separation of duties, the other way round: an administrator without a commercial role is
+  // not offered the business workspaces whose reads the backend would refuse.
+  const seesCommercial = needsCommercialWorkspaceReads(currentUser);
+  const visiblePrimaries = primaryWorkspaces.filter(
+    (primary) =>
+      (primary.controlPlane !== true || compositionSeesAdministration(composition)) &&
+      (primary.commercial !== true || seesCommercial),
+  );
   const primaryTabs = visiblePrimaries.map((primary) => ({
     id: primary.id,
     label: t(primary.labelKey),

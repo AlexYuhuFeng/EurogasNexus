@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
+import { useApiStore } from "@/stores/api";
+import { runsGovernedResearch } from "@/stores/workspaceReadScope";
 import type { StrategyLabController, StrategyTaskId } from "@/app/model/useStrategyLab";
 import type { StrategyLabSelection } from "@/app/model/useStrategyLab";
 import {
@@ -48,13 +50,17 @@ export function StrategyLabWorkspace({
   t,
   designDraft,
 }: StrategyLabWorkspaceProps) {
+  // The spread lab is the analyst's research tool; a reviewer reads strategies and runs.
+  const researches = useApiStore((state) => runsGovernedResearch(state.currentUser));
   const tabs = useMemo(
     () =>
-      (Object.keys(TASK_LABEL_KEYS) as StrategyTaskId[]).map((id) => ({
-        id,
-        label: t(TASK_LABEL_KEYS[id]),
-      })),
-    [t],
+      (Object.keys(TASK_LABEL_KEYS) as StrategyTaskId[])
+        .filter((id) => id !== "spread" || researches)
+        .map((id) => ({
+          id,
+          label: t(TASK_LABEL_KEYS[id]),
+        })),
+    [t, researches],
   );
 
   // Action geography (`app/experience/actionGeography.ts`): running a backtest is a `compute`
@@ -142,7 +148,7 @@ export function StrategyLabWorkspace({
         // The spread lab works on market series, not on a saved strategy, so it takes the full
         // width without the strategy navigator.
         <div id="strategy-lab-panel" role="tabpanel" aria-label={t(TASK_LABEL_KEYS.spread)}>
-          <SpreadLabWorkspace t={t} />
+          {researches ? <SpreadLabWorkspace t={t} /> : <p className="panel-copy">{t("strategy_lab.spread_analysts_only")}</p>}
         </div>
       ) : (
       <div className="strategy-lab-grid" id="strategy-lab-panel">

@@ -26,3 +26,14 @@ export function workspaceReadNeeded(key: string, user: CurrentUserDTO | null): b
   }
   return !COMMERCIAL_WORKSPACE_KEYS.has(key) || needsCommercialWorkspaceReads(user);
 }
+
+/**
+ * Whether the identity runs governed research (spread lab, backtest experiments). The server
+ * keeps those routes to the analyst role; a risk reviewer reads strategies and their runs but
+ * does not issue these reads. Composition only: the backend authorises every request, and an
+ * unknown identity composes the read rather than hiding it.
+ */
+export function runsGovernedResearch(user: CurrentUserDTO | null): boolean {
+  if (!user || !Array.isArray(user.permissions)) return true;
+  return user.permissions.includes("strategy.create");
+}

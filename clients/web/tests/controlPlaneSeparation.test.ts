@@ -98,8 +98,9 @@ test("the shell hides the administrative primary and refuses its deep links", ()
   const restricted = readWebSource("components/RestrictedSurface.tsx");
 
   // The tab row is filtered by the composition, not by a client-side role check.
-  assert.match(topBar, /const visiblePrimaries = compositionSeesAdministration\(composition\)/);
-  assert.match(topBar, /primary\.controlPlane !== true/);
+  assert.match(topBar, /primary\.controlPlane !== true \|\| compositionSeesAdministration\(composition\)/);
+  // Separation of duties the other way: business workspaces need a commercial composition.
+  assert.match(topBar, /primary\.commercial !== true \|\| seesCommercial/);
   assert.match(topBar, /visiblePrimaries\.map/);
   assert.equal(topBar.includes("groupedMenuOpen"), false);
 
@@ -111,7 +112,7 @@ test("the shell hides the administrative primary and refuses its deep links", ()
   // composes through the workspace renderer (conflicting register C9).
   assert.match(
     shell,
-    /controlPlaneRestricted \? <RestrictedSurface t=\{t\} \/> : <WorkspaceRenderer controller=\{controller\} \/>/,
+    /controlPlaneRestricted \|\| commercialRestricted \? <RestrictedSurface t=\{t\} \/> : <WorkspaceRenderer controller=\{controller\} \/>/,
   );
   assert.equal(shell.includes("activeWorkspace === "), false);
 
