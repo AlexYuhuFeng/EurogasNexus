@@ -1,48 +1,65 @@
-# Risk, middle office, finance and settlement guide
+# Risk, middle office and finance guide
 
-**You land on Portfolio → Exposure.**
+[简体中文](RISK_AND_FINANCE-CN.md) · [Client guide](README.md)
 
-| Task | Where |
-|---|---|
-| Physical and financial positions by hub and month, hedge ratio | Portfolio → Exposure → Position ladder |
-| Mark-to-market and indicative one-day 95 % VaR | Position ladder summary |
-| Screen orders and P&L snapshots | Portfolio → Exposure |
-| Contract terms, payment terms, early-cash value with SONIA/€STR/SOFR | Portfolio → Resources |
-| Capacity billing and route costs | Portfolio → Routes |
-| Decisions to review (four-eyes) | Decision Center |
+Use this workflow to reconcile the represented position, interpret valuation and investigate
+limit exceptions. Select the relevant books, valuation date and reporting currency first.
 
-## How to read the risk figures
+## Review exposure
 
-- Marks come from a monthly forward curve per hub built from the latest licensed quotes:
-  month quotes as quoted, months inside a quarter, season or year derived so that their
-  day-weighted average equals the product price, and the current month from the prompt
-  product. The **Mark** column shows the price and, on hover, how it was obtained. A month
-  with no curve quote is marked flat at the hub's latest daily close and the warnings
-  count it. Simulated prices are never used.
-- VaR is historical simulation of price moves on the open position: no volume, basis,
-  shape or credit risk. Your risk system remains the book of record.
-- A leg priced in a currency other than its hub's mark is shown unvalued and counted, not
-  converted silently.
+1. Open the **Portfolio** exposure view and position ladder.
+2. Confirm the book scope, delivery horizon, physical contracts and imported trade legs.
+3. Inspect net position and hedge measures by hub and delivery month.
+4. Review unvalued positions, missing FX and marking warnings before reading the totals.
+5. Reconcile a sample of contracts and trades against the firm's position system.
 
-## Controls
+**Result:** an exposure review with a clear population and identified exceptions.
+A grouping by region or business is an analytical aggregation; access boundaries come
+from the deployment's permissions and supported scoping controls.
 
-**Credit and mandates** (Portfolio → Exposure). Record each counterparty's approved line
-(limit, collateral, rating, approval expiry, the supply contracts that face it and the
-names it carries in the ETRM extract) and each trader's mandate (books, hubs, net MWh per
-hub-month, tenor, physical/financial). Exposure is netted replacement cost at the ladder's
-marks plus unpaid receivables less collateral; *watch* from 75 % used, *breach* above
-100 %; an expired approval counts with the breaches. Only a REVIEWER can change a line or
-a mandate, nobody can set their own, and every change is audited. Open-ended contracts
-are valued to the ladder's 36-month horizon. Excel and PDF exports serve the credit
-committee pack.
+## Understand the marks
 
-You cannot approve a decision you opened (four-eyes). Every grant, decision and setting
-change is in the audit log (Administration → Audit, for reviewers).
+The monthly curve uses quoted months and longer delivery products. Longer-product prices
+are allocated consistently with delivery-hour weights, including daylight-saving changes.
+The position view can fill uncovered months using the hub's latest daily close and labels
+that marking method as flat.
 
-## Books and reporting currency
+Distinguish a quoted month, a derived month and a flat fallback in a valuation review.
+The curve builder and the position view have different responsibilities: an uncovered
+curve month and a subsequent position-mark fallback are separate steps.
 
-Portfolio → Exposure rolls the ladder up by firm, legal entity, region, business or book
-(*Roll up by*) and reports mark-to-market and VaR in one currency (*Currency*). Each hub's
-own currency is converted at the latest ECB reference rate; a position without a rate is
-left unvalued and named in the warnings. Middle office defines books and assigns contracts
-and trades to them in the *Trading books* panel (operator role).
+The indicative VaR view measures historical price moves on the represented position.
+Read the displayed horizon, confidence level, available history and warnings with the
+result. Volume uncertainty, shape, basis and credit exposures require their own assessment.
+
+See [Calculation basis](../user/DATA_STATUS_AND_PROVENANCE.md#calculation-basis) for the
+marking and input conventions used in a review.
+
+## Review credit and mandates
+
+1. Open **Credit and mandates** in the exposure view.
+2. Check counterparty mapping, approved line, collateral, approval expiry and utilisation.
+3. Inspect trader mandates by book, hub, tenor and permitted instrument.
+4. Review contract-level hedge approvals where applicable.
+5. Record the exception, owner and follow-up through your firm's control process.
+
+Use the authorised risk controls to change approvals. Reconcile approved changes with the
+firm's limit record and retain the audit reference.
+The [risk walkthrough](../user/manual/RISK.md) covers the forms and review steps.
+
+## Check cash and financing assumptions
+
+Inspect each contract's currency, payment dates/lags and recorded financing terms.
+Check the benchmark, spread, day-count and valuation date supported by the selected
+calculation. A percentage annual rate and a cash amount per day are different measures.
+
+For resource-pool comparisons, check each allocation's contract rate or scenario-default
+rate, and its day-count basis. The [portfolio workflow](../user/PORTFOLIO_WORKFLOW.md)
+explains which default applies when a contract rate is absent.
+[Interest-rate sources](../operations/INTEREST_RATES.md) describe available benchmark inputs.
+
+## Retain the review
+
+Save or export the permitted position view and its context, identify any omitted or unvalued
+legs, and link the relevant decision and audit references. The firm's risk system and
+finance ledger provide the reconciled records for its control and accounting processes.

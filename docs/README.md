@@ -2,6 +2,14 @@
 
 Mandarin companion: [README-CN.md](README-CN.md)
 
+## Client documentation
+
+For day-to-day use, start with the [Client guide](guides/README.md). It links first sign-in,
+role workflows, data interpretation, support and client handover. Read the matching
+[Chinese edition](guides/README-CN.md) for Chinese operating instructions.
+
+The sections below are the technical documentation index for specialists and contributors.
+
 This index is the authoritative entry point for repository documentation. It
 separates current/normative material from runbooks, design references, and
 historical public references. If two documents disagree, follow
@@ -96,7 +104,7 @@ behavior.
 - [Public API conventions](api/API_CONVENTIONS.md)
 - [Database contract](architecture/DB_CONTRACT.md)
 - [Runtime store contract](architecture/RUNTIME_STORE_CONTRACT.md)
-- [SDK and CLI contract](clients/SDK_CLI_CONTRACT.md)
+- [SDK and CLI contract](clients/SDK_CLI_CONTRACT.md) / [CN](clients/SDK_CLI_CONTRACT-CN.md)
 - [Resource-pool contract EN](architecture/RESOURCE_POOL_CONTRACT-EN.md) /
   [CN](architecture/RESOURCE_POOL_CONTRACT-CN.md)
 - [Testing contract](architecture/TESTING_CONTRACT.md)

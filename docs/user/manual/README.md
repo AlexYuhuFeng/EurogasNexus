@@ -1,10 +1,9 @@
-# User manual
+# Illustrated workflow reference
 
-Step-by-step instructions for each role, with screenshots taken by signing in as that
-role and doing the work in the real client: typing contracts and limits, retiring and
-reinstating, reporting a problem and resolving it. The test data is fictitious (a UK and
-a Dutch book, two pipeline supply contracts, a handful of screen and ETRM trades, ninety
-days of deliveries); every figure on a screenshot is what the product calculated from it.
+For current task instructions, start with the [Client guide](../../guides/README.md) or
+[Chinese client guide](../../guides/README-CN.md). This reference provides screenshot-based
+examples of contract entry, risk controls and administration using illustrative test records.
+The role guides describe current navigation and operating conventions.
 
 | Role | Manual | Short guide |
 |---|---|---|
@@ -17,7 +16,7 @@ Roles and what each may change: [ROLES_AND_RESPONSIBILITIES.md](../../product/RO
 The product supports decisions; it does not execute trades, enter orders, nominate or
 settle. Every screen that could be read that way says so.
 
-## Every workflow, by role
+## Workflow reference by role
 
 What each role does in a working week, where it is done, and where it is described. "Steps"
 means the manual walks through it with screenshots; "Guide" means the short role guide
@@ -76,30 +75,9 @@ Limits are set by the risk function only (REVIEWER role); a trader cannot set th
 | Set-up | Users, roles, job functions and data scopes; SSO | Admin → Access & Identity | [Steps](ADMIN.md#2-people-and-access) |
 | Set-up | Market-data licences and the customer's own credentials | Admin → Data Sources | Guide |
 
-## Findings from the walkthrough
+## Screenshot context
 
-Doing the work as each role found problems that tests had not; all were fixed before
-these screenshots were taken:
-
-- A new contract draft carried invented facts ("Operator draft counterparty", gas year
-  2025+) that could be saved as recorded terms. They now start blank.
-- Trades that add to a position showed as a negative hedge ratio (-222 %). They read
-  "adds 222 %" and are flagged.
-- A trader with an NBP and a TTF mandate saw an NBP-book trade reported as a breach of
-  the TTF mandate.
-- Filled trades showed 0 MWh (the unfilled remainder).
-- Screens showed internal principal ids instead of people's names.
-- The IT desk's inbox was three clicks deep under Governance.
-- With six workspaces (operators, administrators) the account menu went off screen on
-  1280–1680 px monitors.
-- Registration forms had no layout; checkboxes rendered as text boxes; buttons nobody had
-  styled fell back to the browser's grey bevel.
-- Hubs, exit points, sale routes, index and law were free text, so a typo silently took a
-  contract out of positions or routing. They are chosen from lists now, and the template
-  no longer pre-selects a delivery hub.
-- The risk officer could not see which contracts to approve a hedge band for (the
-  contract library is a trader's read); the approvals list its own contracts, without
-  prices.
-
-Since 2026-11-05 a contract's price is recorded in GBP, EUR or USD, so a contract delivered
-at TTF or another euro hub is marked to market against its hub in EUR.
+The screenshots show reference walkthrough records, rather than client positions or current
+market observations. Use the interface labels and release supplied for your installation.
+Earlier walkthrough findings are preserved in the
+[engineering documentation review](../../engineering/DOCUMENTATION_DELIVERY_REVIEW.md#earlier-walkthrough-record).

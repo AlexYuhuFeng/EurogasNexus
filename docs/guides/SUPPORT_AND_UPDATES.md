@@ -1,42 +1,76 @@
-# Support, bug reports and updates
+# Support, troubleshooting and updates
 
-## Supported platforms
+[简体中文](SUPPORT_AND_UPDATES-CN.md) · [Client guide](README.md)
 
-| Client | Supported |
-|---|---|
-| Web | Current and previous major version of Chrome, Edge, Firefox and Safari on desktop; 1440x900 and larger screens |
-| Desktop | Windows 10 and 11 (x64) installer; macOS and Linux builds where the release lists them |
-| Python SDK | Python 3.11 to 3.13 |
-| Server | Linux x64 container or Python 3.11+ with PostgreSQL 15+ |
+## Choose the right support route
 
-## Reporting a problem
+| Problem | First contact | Useful evidence |
+| --- | --- | --- |
+| Sign-in or a restricted workspace | Firm's IT/access administrator | Environment, username through the approved channel, time and visible error |
+| Missing or stale source data | Data operator | Source, dataset/hub, delivery period, last successful run and timestamp |
+| A questionable price, valuation or allocation | Desk/risk owner and application support | Saved result ID, context, unit, assumptions and expected comparison |
+| Page, control or device issue | Application support through the IT desk | Version, browser/device, viewport/orientation and a redacted screenshot |
+| Suspected security incident | Firm's security incident route | Time, affected account/service and incident reference |
 
-1. **Settings → About & Diagnostics**, then copy or save the diagnostics bundle. The bundle holds the
-   client and server versions, the release channel, which sources are stale or failing
-   and recent request failures. It is built from an allowlist: no prices, positions,
-   contract terms, credentials or personal data.
-2. Note what you did, what you expected and what you saw, and the time (UTC).
-3. Send both to the firm's IT desk. IT adds the server log lines for that time
-   (`request_id` is in each failed response) and forwards to the vendor support channel
-   named in the support agreement.
+The client handover identifies the firm's support contact and the vendor escalation route.
+Service hours, response targets and restoration commitments come from the agreed support
+arrangement; record them in the [onboarding record](CLIENT_ONBOARDING.md).
 
-Severity used by support: **P1** nobody can sign in or the server is down; **P2** a
-workflow is blocked (no positions, a source down) with no workaround; **P3** wrong or
-unclear output with a workaround; **P4** cosmetic or a request.
+## Check common symptoms
 
-A figure that looks wrong is worth reporting even if you are unsure: every number in the
-product names its source and as-of time, so support can trace it.
+| Symptom | Check |
+| --- | --- |
+| Service is reachable, prices are empty | Quote import/feed, entitlement, selected dates and the first ingestion result |
+| ECB or ENTSOG is empty | Source enablement, scheduler run and query scope; ENTSOG also has a certification gate |
+| Provider key was added but nothing changed | Active credential source, disabled state, connector implementation and source activation |
+| Refresh shows old application code | Render/deployment completion and the live commit; reload after a successful deploy |
+| Number differs from another screen | Currency/unit, tenor, source timestamp, FX fixing and calculation assumptions |
+| A control is missing on a phone | Orientation, browser and screen size; report an unreachable control as a functional issue |
 
-## Updates
+## Submit a useful report
 
-* The firm's IT desk decides when to update; nothing updates itself (see
-  [UPDATE_POLICY.md](../release/UPDATE_POLICY.md)). Desktop installers upgrade in place and
-  keep settings; uninstall removes the program but not the firm's database.
-* Each release publishes the installer, the server image, `SHA256SUMS`, a release
-  manifest, SBOMs and provenance attestations. IT verifies the checksum before rollout.
-* The web client and the server must be the same minor version; the client warns when
-  they are not.
-* Database changes run as migrations (`alembic upgrade head`) with a preflight check and
-  a backup first (see [DB_MIGRATIONS.md](../operations/DB_MIGRATIONS.md) and
-  [RELEASE_ROLLBACK.md](../operations/RELEASE_ROLLBACK.md)).
-* Release notes say what changed for each role.
+1. Record the task and the steps that produced the issue.
+2. State the expected result and the actual result.
+3. Record the time with its time zone, affected environment and version/build information.
+4. Include the saved case/run/source identifiers and request/correlation ID where available.
+5. Attach relevant diagnostics or a screenshot through the approved support channel.
+
+Open **System → Settings** and use **About & Diagnostics**. Review attachments before sending;
+share only the information needed for the investigation. Keep credentials and sensitive
+trading information in the firm's approved channels.
+
+If the page cannot open, send the URL path, visible error and timestamp. The operator can
+find matching server events using the correlation ID or time window.
+
+## Set the incident priority
+
+| Level | Business impact | Initial action |
+| --- | --- | --- |
+| SEV1 | Widespread outage, suspected security compromise or material data-integrity incident | Contact the incident owner immediately; preserve evidence and agree containment |
+| SEV2 | A major desk workflow is blocked without a reliable workaround | Escalate with affected users/books and the operational deadline |
+| SEV3 | Limited degradation with a usable workaround | Record the workaround, scope and follow-up |
+| Improvement | A usability or capability request without an active incident | Record the user task and expected benefit |
+
+Priority follows impact. A misleading valuation can be more urgent than a cosmetic defect,
+even when the application remains accessible.
+Operators use the [incident runbook](../operations/INCIDENT_RESPONSE.md) for recovery.
+
+## Install and update
+
+Use the package, checksum and installation guide supplied for your release and platform.
+The release manifest and acceptance evidence identify the tested build and signing state.
+Package/build availability and a recorded installed-client test are different evidence.
+
+- **Browser:** the application changes when the service successfully deploys a new build.
+  Reload the page after deployment.
+- **Windows/Linux/macOS desktop:** IT distributes the applicable installer or disk image
+  and schedules the upgrade. The current desktop release uses managed/manual updates.
+- **Render test service:** `main` changes deploy after CI passes. **Restart service** reuses
+  the deployed commit; **Deploy latest commit** fetches source for a manual deployment.
+- **Server/database:** use the release's migration preflight, backup and rollback procedure.
+  Restoring application code and reversing a database change require separate planning.
+
+The compatibility screen uses release metadata, API contract and declared minimum client/server
+versions. Resolve a blocking mismatch through the supplied release set.
+See [Update policy](../release/UPDATE_POLICY.md), [Deployment](../deployment/DEPLOYMENT_ROLES-EN.md),
+[macOS installation](../release/INSTALL_MACOS.md) and [Rollback](../operations/RELEASE_ROLLBACK.md).

@@ -1,62 +1,83 @@
-# Platform administrator and data operator guide
+# Administration and data operations guide
 
-**You land on Administration → Access (admin) or System → Sources (data operator).**
+[简体中文](ADMIN_AND_OPERATIONS-CN.md) · [Client guide](README.md)
 
-## Install and run
+**Outcome:** users can access their assigned work, required sources refresh, and operational
+exceptions have an owner.
 
-Deployment roles, prerequisites and the Windows deployment tool:
-[DEPLOYMENT_ROLES-EN.md](../deployment/DEPLOYMENT_ROLES-EN.md). Global topology:
-[GLOBAL_DEPLOYMENT.md](../architecture/GLOBAL_DEPLOYMENT.md). Configuration is validated
-at start-up (`python scripts/ops/check_config.py --strict`).
+## Prepare the installation
 
-## People and access
+Use the release's [deployment guide](../deployment/DEPLOYMENT_ROLES-EN.md) for server and
+client installation. Record the service address, installed version/channel, database schema,
+sign-in method, operational owner and backup/restore procedure.
 
-- Create users or let SSO provision them; assign **roles** and **data scopes** only against
-  a request approved by the desk head. You cannot change your own grants.
-- Set job functions and office (Access → Job profile). They choose landing pages; they
-  grant nothing.
-- Organisation defaults (language, theme, landing views, profit colour, languages offered):
-  Settings → Organisation defaults.
+Complete [Client onboarding](CLIENT_ONBOARDING.md) with the desk before handing over access.
 
-## Data sources
+## Configure people and access
 
-| Source | How it runs | Guide |
-|---|---|---|
-| ENTSOG, GIE, ECB FX | Data-ops scheduler (`scripts/ops/run_dataops_scheduler.py`) | Source Center |
-| SONIA, €STR, SOFR | Data-ops scheduler, once a business day after each publication | [INTEREST_RATES.md](../operations/INTEREST_RATES.md) |
-| ENTSO-E power | Data-ops scheduler, hourly; enable in Source Center once `ENTSOE_SECURITY_TOKEN` is set | [POWER_DATA.md](../operations/POWER_DATA.md) |
-| ECMWF temperature | `scripts/ops/ingest_ecmwf_forecasts.py` | [ECMWF_FORECAST_OPERATIONS.md](../data/ECMWF_FORECAST_OPERATIONS.md) |
-| National Gas demand | `scripts/ops/ingest_national_gas_rest.py` | [NATIONAL_GAS_REST_OPERATIONS.md](../data/NATIONAL_GAS_REST_OPERATIONS.md) |
-| REMIT outages (UMMs) | `scripts/ops/import_remit_umm.py` | [REMIT_OUTAGES.md](../operations/REMIT_OUTAGES.md) |
-| Licensed settlements (EUA, UKA, API2, power, gas, Henry Hub, AECO) | `scripts/ops/import_settlements.py` | [MARKET_DATA_SOURCING.md](../operations/MARKET_DATA_SOURCING.md) |
-| Henry Hub spot (EIA) | Data-ops scheduler, daily; set `EIA_API_KEY` | [MARKET_DATA_SOURCING.md](../operations/MARKET_DATA_SOURCING.md) |
-| Licensed quotes, FX fixings | `scripts/ops/import_market_quotes.py`, `import_fx_fixings.py` | [LIVE_PRICE_SOURCES.md](../operations/LIVE_PRICE_SOURCES.md), [FX_FIXINGS.md](../operations/FX_FIXINGS.md) |
-| Weather-demand model | `scripts/ops/fit_weather_demand.py` | [WEATHER_DEMAND_MODEL_OPERATOR.md](../operations/WEATHER_DEMAND_MODEL_OPERATOR.md) |
+1. Configure the firm's sign-in method using [Enterprise SSO](../operations/ENTERPRISE_SSO.md).
+2. In **Admin → Access & Identity**, assign the approved roles and data scopes.
+3. Set the person's job functions and office to organise the workspace.
+4. Test the account using a representative permitted task.
+5. Check a restricted task with a separate test identity and retain the outcome.
 
-Scheduled sources get retries, freshness SLAs (on time, late, stale) and run history in
-Source Center. ECMWF, National Gas and the operator imports still run as scripts: schedule
-them with cron or the Windows Task Scheduler.
+The business owner approves commercial access; the administrator applies the approved change.
+Platform administration and commercial-data access are separate permissions.
 
-## Keep it healthy
+## Connect a source
 
-Backups and restore drill (`backup_runtime.py`, `backup_restore_drill.py`), retention
-(`prune_audit_events.py`, `prune_runtime_data.py`), stale jobs (`recover_stale_jobs.py`),
-health at `/api/health/ready`, metrics at `/api/runtime/metrics`. Operations index:
-[docs/operations](../operations).
+1. Open **Admin → Data Sources** and inspect the source's connector status.
+2. Configure the supported credential method, if required.
+3. Complete the source's access/certification checks where applicable.
+4. Enable the source and confirm its ingestion schedule or import process.
+5. Run or observe the first ingestion. Inspect its result, record count and source timestamp.
+6. Open the corresponding market or physical view and verify one record against its source.
 
-## Market-data licences
+**Check the result:** a configured credential, an enabled source, a successful ingestion and
+fresh records are distinct states. Check each one when commissioning a source.
 
-The firm, not each user, holds market-data licences. Record every licence under
-Administration → Access → Catalogue → Market-data licences (vendor, source family,
-enterprise, site or named-user, display or non-display use, validity, seats). A licensed
-data scope (EEX, ICE_ENDEX, TRAYPORT, ...) can then be granted to a person only when an
-active licence covers their office and, for named-user licences, a seat is free. The holder
-list is the usage report a vendor asks for in an audit. Vendor API credentials are stored
-once on the server (Administration → Credentials), never in personal preferences.
+| Data | Credential/setup | Operational reference |
+| --- | --- | --- |
+| ECB reference FX | Public endpoint; no API key | [Public-data ingestion](../../scripts/ops/ingest_public_sources.py) |
+| ENTSOG flows, capacity and network | No API key; explicit query scope and source certification | [Scheduler](../../scripts/ops/run_dataops_scheduler.py) |
+| GIE storage/LNG | GIE key and source certification | [Provider credentials](../deployment/PROVIDER_CREDENTIALS.md) |
+| BoE, ECB €STR, New York Fed rates | Public endpoints | [Interest rates](../operations/INTEREST_RATES.md) |
+| ENTSO-E power / EIA Henry Hub | Provider token/key | [Power](../operations/POWER_DATA.md), [market-data sourcing](../operations/MARKET_DATA_SOURCING.md) |
+| Licensed quotes, settlements and FX fixings | Entitled feed or approved import | [Live prices](../operations/LIVE_PRICE_SOURCES.md), [FX fixings](../operations/FX_FIXINGS.md) |
+| ECMWF forecasts and National Gas demand | Dataset-specific ingestion setup | [ECMWF](../data/ECMWF_FORECAST_OPERATIONS.md), [National Gas](../data/NATIONAL_GAS_REST_OPERATIONS.md) |
 
-## Single sign-on
+The credential catalogue identifies implemented connectors. A future connector can have a
+stored credential without a working data feed. Simulation sources appear through the
+explicit test-source option in Data Sources.
 
-OIDC (Entra ID, Okta, Ping, Keycloak) is configured directly; SAML, Kerberos and vendor SSO
-agents in a dedicated network go through an authenticating gateway. Both map groups to roles
-and data scopes the same way. See [ENTERPRISE_SSO.md](../operations/ENTERPRISE_SSO.md).
+## Reuse test credentials
 
+Copy the repository's `.env.testing.example` to private `.env.testing` and fill the services
+you use. Load it explicitly in the test runtime, or import its entries into the Render service's
+Environment panel. Keep database addresses and installation secrets in their own deployment
+configuration.
+
+The current credential contract supports GIE, EIA, ENTSO-E and the configured LLM endpoint.
+An administrator-disabled provider remains disabled. Otherwise resolution uses the supported
+environment variable, supported key file, then the encrypted store. Inspect
+`effective_source` in `GET /api/credentials/providers` to identify the active method.
+[Provider credentials](../deployment/PROVIDER_CREDENTIALS.md) lists exact variables and aliases.
+
+## Monitor and recover
+
+Check **Data Sources** for source failures and freshness, and **Admin → Runtime** for
+operational readiness and problem reports. Distinguish service connectivity from actual
+source coverage. A reference-rate source may update daily while a quote feed has another cadence.
+
+For a failed source, inspect the last run, scope, provider response and next retry before
+requesting another run. For a platform incident use
+[Incident response](../operations/INCIDENT_RESPONSE.md), [Backup and restore](../operations/BACKUP_RESTORE.md)
+and [Rollback](../operations/RELEASE_ROLLBACK.md).
+[Support and updates](SUPPORT_AND_UPDATES.md) explains the evidence to collect.
+
+## Render test installation
+
+The [Render preview](../deployment/RENDER_MOBILE_PREVIEW.md) starts its scheduler and initial
+public-data work at startup. Certification and credential requirements still apply.
+The scheduler runs while the service is awake; review source timestamps after an idle period.
+Use the managed server deployment for the firm's agreed operating and recovery requirements.

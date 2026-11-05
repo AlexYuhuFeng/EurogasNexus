@@ -21,7 +21,7 @@ is changed in the deployment's configuration and takes effect on restart or rede
 
 ## Providers
 
-| Provider | Variables | Connector |
+| Provider | Variables | Credential-based connector |
 |---|---|---|
 | GIE AGSI+/ALSI | `GIE_API_KEY`, `GIE_API_KEY_FILE` | Implemented; also needs a certification record |
 | US EIA | `EIA_API_KEY` | Implemented (Henry Hub) |
@@ -46,8 +46,16 @@ Keep provider keys apart from deployment values (database URL, session and encry
 secrets, login passwords): the Blueprint generates those, and copying them across
 environments would detach the database or sign everyone out.
 
-## Configuration is not activation
+## Activation and source checks
 
-A key does not enable a source, schedule an ingestion, permit external model calls
-(`EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED` decides) or grant a market-data licence
-(the licence register decides). Each of those stays a visible, separate step.
+For a managed installation, check source enablement, ingestion scheduling, certification
+and licensed use as part of commissioning. External model calls follow
+`EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED`; licensed uses follow the licence register.
+
+The Render test bootstrap enables EIA and ENTSO-E when their designated environment keys
+are present, and queues initial runs for enabled sources. Review the first run and data
+in the UI after startup. Other source prerequisites continue to apply; see
+[Render preview](RENDER_MOBILE_PREVIEW.md).
+
+EEX public TTF NGP reference observations use a separate bounded download route. The
+connector column above concerns credential-based licensed feeds.
