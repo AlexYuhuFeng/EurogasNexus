@@ -11,6 +11,7 @@ import {
   Popup,
   setWorkerUrl,
 } from "maplibre-gl";
+import type { ExpressionSpecification } from "maplibre-gl";
 import mapLibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, FacilityDTO, MapSituationDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
@@ -35,6 +36,7 @@ import {
   networkLineMatchesRoute,
   type NetworkHighlightedRoute,
 } from "@/app/networkMapLines";
+import { lineMatters, NO_ROUTES_MATTER, type RoutesThatMatter } from "@/app/routeEmphasis";
 import {
   buildMapStyle,
   configuredMapTileProvider,
@@ -68,6 +70,8 @@ interface GasNetworkMapProps {
   searchTerm: string;
   t: Translate;
   highlightedRoute?: NetworkHighlightedRoute;
+  /** Routes the decision's allocations flow on (by route and pipeline segment): drawn bright. */
+  routesInUse?: { routeIds: string[]; edgeIds: string[] };
   /**
    * Hand a clicked node to the canonical Inspector. Omitted where the page's composition
    * does not declare `network-node` as an inspectable subject, so no surface promises
@@ -104,18 +108,24 @@ const VIEW_EMPHASIS: Record<"network" | "book", Record<string, unknown>> = {
   network: {
     "nodes-circle": ["case", ["==", ["get", "node_type"], "hub"], 0.85, 0.5],
     "node-clusters": 0.45,
-    "verified-pipeline-lines": ["case", ["==", ["get", "display_kind"], "network_link"], 0.22, 0.38],
-    "indicative-route-lines": 0.35,
+    // Context routes dimmed; a route the book uses at full strength.
+    "verified-pipeline-lines": ["case", ["==", ["get", "matters"], true], 0.95, ["==", ["get", "display_kind"], "network_link"], 0.16, 0.28],
+    "indicative-route-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.24],
     "situation-facilities": 0.55,
   },
   book: {
     "nodes-circle": ["case", ["==", ["get", "node_type"], "hub"], 0.55, 0.22],
     "node-clusters": 0.2,
-    "verified-pipeline-lines": 0.14,
-    "indicative-route-lines": 0.14,
+    "verified-pipeline-lines": ["case", ["==", ["get", "matters"], true], 0.95, 0.12],
+    "indicative-route-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.12],
     "situation-facilities": 0.2,
   },
 };
+
+/** Context pipelines in the neutral edge colour, routes the book uses in the route colour. */
+function routeLineColor(colors: { edge: string; route: string }): ExpressionSpecification {
+  return ["case", ["==", ["get", "matters"], true], colors.route, colors.edge];
+}
 
 const SITUATION_HOVER_LAYERS = [
   "situation-outages",
@@ -231,6 +241,7 @@ export function GasNetworkMap({
   searchTerm,
   t,
   highlightedRoute,
+  routesInUse,
   onInspectNode,
   situation = null,
   facilities = [],
@@ -311,15 +322,42 @@ export function GasNetworkMap({
     () => buildVisibleMapNetworkLines({ nodes, edges, activeLayers, searchTerm, highlightedRoute }),
     [activeLayers, edges, highlightedRoute, nodes, searchTerm],
   );
+  // Routes are context, drawn dimmed so a trader sees there is a way through. A route that
+  // carries the book (an allocation's route, or a pipeline landing gas where the book has a
+  // live contract, slot or cargo) is drawn bright. "Routes" off hides the context routes.
+  const routesMatter = useMemo<RoutesThatMatter>(() => {
+    const pointIds = new Set<string>();
+    for (const contract of situation?.contracts ?? []) if (contract.location.ref_id) pointIds.add(contract.location.ref_id);
+    for (const slot of situation?.regas_slots ?? []) if (slot.location.ref_id) pointIds.add(slot.location.ref_id);
+    for (const cargo of situation?.cargoes ?? []) {
+      if (cargo.own && cargo.status !== "delivered" && cargo.status !== "ballast" && cargo.destination?.ref_id) {
+        pointIds.add(cargo.destination.ref_id);
+      }
+    }
+    if (!routesInUse && pointIds.size === 0) return NO_ROUTES_MATTER;
+    return {
+      routeIds: new Set(routesInUse?.routeIds ?? []),
+      edgeIds: new Set(routesInUse?.edgeIds ?? []),
+      pointIds,
+    };
+  }, [routesInUse, situation]);
+  const showContextRoutes = activeLayers.includes("routes");
+  const matteringLineIds = useMemo(
+    () => new Set(visibleLines.filter((line) => lineMatters(line, routesMatter)).map((line) => line.id)),
+    [routesMatter, visibleLines],
+  );
   const verifiedPipelineLines = useMemo(
     // Surveyed pipelines and topology links share one layer: both are the network; a link is
     // drawn thinner and its card says the path is schematic.
-    () => visibleLines.filter((line) => line.displayKind === "verified_pipeline" || line.displayKind === "network_link"),
-    [visibleLines],
+    () => visibleLines.filter((line) =>
+      (line.displayKind === "verified_pipeline" || line.displayKind === "network_link")
+      && (showContextRoutes || matteringLineIds.has(line.id))),
+    [matteringLineIds, showContextRoutes, visibleLines],
   );
   const indicativeRouteLines = useMemo(
-    () => visibleLines.filter((line) => line.displayKind === "indicative_route"),
-    [visibleLines],
+    () => visibleLines.filter((line) =>
+      line.displayKind === "indicative_route" && (showContextRoutes || matteringLineIds.has(line.id))),
+    [matteringLineIds, showContextRoutes, visibleLines],
   );
   const highlightedRoutePoints = useMemo(() => {
     if (!highlightedRoute) return null;
@@ -515,7 +553,7 @@ export function GasNetworkMap({
     if (!mapReady) return;
 
     if (map.getLayer("verified-pipeline-lines")) {
-      map.setPaintProperty("verified-pipeline-lines", "line-color", mapColors.edge);
+      map.setPaintProperty("verified-pipeline-lines", "line-color", routeLineColor(mapColors));
     }
     if (map.getLayer("indicative-route-lines")) {
       map.setPaintProperty("indicative-route-lines", "line-color", mapColors.route);
@@ -598,6 +636,7 @@ export function GasNetworkMap({
           capacity_mwh_d: capacity,
           live_flow_mwh_d: flow,
           utilization_pct: utilization,
+          matters: matteringLineIds.has(line.id),
         },
         geometry: {
           type: "LineString" as const,
@@ -616,6 +655,7 @@ export function GasNetworkMap({
           route_id: line.routeId,
           route_leg_sequence: line.routeLegSequence,
           route_geometry_state: line.routeGeometryState,
+          matters: matteringLineIds.has(line.id),
           display_kind: "indicative_route",
           geometry_basis: line.geometryBasis,
           geometry_verification: "unverified",
@@ -643,10 +683,13 @@ export function GasNetworkMap({
         source: "verified-pipeline-lines",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": mapColors.edge,
-          // Thin context lines: utilisation still widens a busy pipe, but nothing shouts.
+          "line-color": routeLineColor(mapColors),
+          // Thin context lines: utilisation still widens a busy pipe, but nothing shouts. A
+          // route the book uses is drawn wider in the route colour.
           "line-width": [
             "case",
+            ["==", ["get", "matters"], true],
+            3,
             ["==", ["get", "display_kind"], "network_link"],
             1,
             ["interpolate", ["linear"], ["get", "utilization_pct"], 0, 1.1, 0.65, 1.8, 0.9, 2.6],

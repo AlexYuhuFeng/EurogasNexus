@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -57,6 +58,24 @@ def changelog_unreleased() -> str:
     return changelog_section(None)
 
 
+_MENTION = re.compile(r"(?<![\w`/.@-])@([A-Za-z0-9][A-Za-z0-9-]*)")
+_CODE = re.compile(r"(```.*?```|`[^`\n]*`)", re.S)
+
+
+def neutralise_mentions(text: str) -> str:
+    """Put every bare ``@name`` in a code span, outside existing code.
+
+    GitHub turns ``@name`` in a release body into a mention: it notifies that account and
+    lists it as a contributor (an image reference written ``@sha256:`` once notified a user
+    called sha256). Names inside backticks are not mentions.
+    """
+
+    parts = _CODE.split(text)
+    for index in range(0, len(parts), 2):
+        parts[index] = _MENTION.sub(lambda match: f"`@{match.group(1)}`", parts[index])
+    return "".join(parts)
+
+
 def draft_notes(context: dict) -> str:
     notes = [
         (
@@ -96,9 +115,9 @@ def draft_notes(context: dict) -> str:
         "## Rollback guidance",
         "",
         "Follow docs/operations/RELEASE_ROLLBACK.md; container rollback uses the",
-        "immutable @sha256: digest recorded in release-manifest.json.",
+        "immutable `sha256:` image digest recorded in release-manifest.json.",
     ]
-    return "\n".join(notes) + "\n"
+    return neutralise_mentions("\n".join(notes) + "\n")
 
 
 def validate_stable_notes(path: Path, context: dict) -> list[str]:
@@ -134,7 +153,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"ok": False, "errors": errors}, indent=2))
             return 1
         Path(args.output).write_text(
-            (Path(args.stable_notes_file or "RELEASE_NOTES_STABLE.md")).read_text(encoding="utf-8"),
+            neutralise_mentions(
+                Path(args.stable_notes_file or "RELEASE_NOTES_STABLE.md").read_text(
+                    encoding="utf-8"
+                )
+            ),
             encoding="utf-8",
         )
         print(json.dumps({"ok": True, "output": args.output, "reviewed": True}, indent=2))

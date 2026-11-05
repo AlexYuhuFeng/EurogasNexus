@@ -35,6 +35,7 @@ import {
   decisionProvenanceMismatch,
 } from "@/app/model/decisionResultProvenance";
 import type { ApiState } from "@/stores/api";
+import { routesInUse } from "@/app/routeEmphasis";
 
 interface PortfolioDecisionModelParams {
   api: ApiState;
@@ -450,6 +451,11 @@ export function usePortfolioDecisionModel({
       t,
     ],
   );
+  // The routes the book's allocations flow on: drawn bright on the map, the rest dimmed.
+  const routesInUseByDecision = useMemo(
+    () => routesInUse(resourcePoolMapPaths, routeGeometryEdgesByRouteId),
+    [resourcePoolMapPaths, routeGeometryEdgesByRouteId],
+  );
   const nodeIdByPointName = useMemo(() => buildNodeIdByPointName(api.nodes), [api.nodes]);
   const highlightedRoute = useMemo(
     () => buildHighlightedResourcePoolRoute(resourcePoolMapPaths, nodeIdByPointName),
@@ -580,6 +586,7 @@ export function usePortfolioDecisionModel({
     commercialDiagnostics,
     resourcePoolMapPaths,
     highlightedRoute,
+    routesInUse: routesInUseByDecision,
     reviewEvidenceItems,
     networkGeometryState,
   };

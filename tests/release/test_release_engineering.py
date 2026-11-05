@@ -335,3 +335,27 @@ def test_dispatch_channel_reaches_the_release_resolver() -> None:
     step = workflow[workflow.index("- name: Resolve release identity") :]
     step = step[: step.index("- name:", 10)]
     assert "EUROGAS_NEXUS_RELEASE_CHANNEL: ${{ inputs.release_channel }}" in step
+
+
+def test_release_notes_never_mention_a_github_user() -> None:
+    from scripts.release.generate_release_notes import draft_notes, neutralise_mentions
+
+    # A bare @name in a release body notifies that GitHub account and lists it as a
+    # contributor; "@sha256:" once did exactly that.
+    assert neutralise_mentions("rollback uses the @sha256: digest") == (
+        "rollback uses the `@sha256`: digest"
+    )
+    assert neutralise_mentions("thanks @someone, see `@types/node`") == (
+        "thanks `@someone`, see `@types/node`"
+    )
+    assert neutralise_mentions("ghcr.io/x/api@sha256:abc and a@b.com") == (
+        "ghcr.io/x/api@sha256:abc and a@b.com"
+    )
+    assert neutralise_mentions("```\n@raw in a fence\n```") == "```\n@raw in a fence\n```"
+    context = resolve_release_context(
+        channel="preview", git_sha="033df92a856e8820dd0f4d2a02367b21a285664d", build_run_number=7
+    )
+    import re
+
+    outside_code = re.sub(r"`[^`\n]*`", "", draft_notes(context))
+    assert not re.search(r"(?<![\w`/.@-])@[A-Za-z0-9]", outside_code)

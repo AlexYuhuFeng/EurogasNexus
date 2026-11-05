@@ -323,3 +323,4 @@ export function buildVisibleMapNetworkLines(params: MapNetworkLinesParams): Rend
     : null;
   return syntheticLine ? [...baseLines, syntheticLine] : baseLines;
 }
+

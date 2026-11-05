@@ -334,6 +334,8 @@
   "context.market_updated": "行情时点",
   "context.no_market_update": "暂无市场更新",
   "map.search": "搜索终端、枢纽、TSO、平衡点、气田或数据源",
+  "map.layer.routes": "路线",
+  "map.layer.routes_hint": "管道与路线作为淡化背景。账簿正在使用的路线即使关闭此项也会高亮显示。",
   "map.layer.network": "其他网络点",
   "map.layer.lng": "LNG",
   "map.layer.ips": "入口与互联点",

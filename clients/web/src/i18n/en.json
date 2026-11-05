@@ -334,6 +334,8 @@
   "context.market_updated": "Market as of",
   "context.no_market_update": "No market update yet",
   "map.search": "Search terminal, hub, TSO, balancing point, field, source",
+  "map.layer.routes": "Routes",
+  "map.layer.routes_hint": "Pipelines and routes as dimmed context. Routes your book uses stay bright even when this is off.",
   "map.layer.network": "Other points",
   "map.layer.lng": "LNG",
   "map.layer.ips": "Entry & interconnection",

@@ -236,10 +236,11 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           edges={api.edges}
           routes={api.routes}
           themeMode={theme.mode}
-          activeLayers={["hubs", "network"]}
+          activeLayers={["routes", "hubs", "network"]}
           searchTerm={controls.searchTerm}
           t={t}
           highlightedRoute={portfolio.highlightedRoute}
+          routesInUse={portfolio.routesInUse}
           compact
         />
       </section>
@@ -447,6 +448,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             activeLayers={controls.activeLayers}
             searchTerm={controls.searchTerm}
             highlightedRoute={portfolio.highlightedRoute}
+            routesInUse={portfolio.routesInUse}
             resourcePoolMapPaths={portfolio.resourcePoolMapPaths}
             poolInputBlockers={portfolio.poolInputBlockers}
             commercialDiagnostics={portfolio.commercialDiagnostics}

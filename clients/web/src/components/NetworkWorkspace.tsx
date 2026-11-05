@@ -59,6 +59,7 @@ interface NetworkWorkspaceProps {
   activeLayers: string[];
   searchTerm: string;
   highlightedRoute: ComponentProps<typeof GasNetworkMap>["highlightedRoute"];
+  routesInUse?: ComponentProps<typeof GasNetworkMap>["routesInUse"];
   resourcePoolMapPaths: ResourcePoolMapPath[];
   poolInputBlockers: string[];
   commercialDiagnostics: CommercialDiagnosticItem[];
@@ -119,6 +120,7 @@ export function NetworkWorkspace({
   activeLayers,
   searchTerm,
   highlightedRoute,
+  routesInUse,
   resourcePoolMapPaths,
   poolInputBlockers,
   commercialDiagnostics,
@@ -383,7 +385,7 @@ export function NetworkWorkspace({
           <button className="chip reset-chip" type="button" onClick={onResetSearch}>
             {t("map.reset")}
           </button>
-          {["network", "lng", "ips", "hubs"].map((layer) => (
+          {["routes", "network", "lng", "ips", "hubs"].map((layer) => (
             <button
               key={layer}
               type="button"
@@ -394,7 +396,7 @@ export function NetworkWorkspace({
               }
               aria-pressed={activeLayers.includes(layer)}
               aria-label={t(`map.layer.${layer}`)}
-              title={t(`map.layer.${layer}`)}
+              title={t(layer === "routes" ? "map.layer.routes_hint" : `map.layer.${layer}`)}
               onClick={() => onToggleLayer(layer)}
             >
               <span className="layer-label">{t(`map.layer.${layer}`)}</span>
@@ -439,6 +441,7 @@ export function NetworkWorkspace({
             searchTerm={searchTerm}
             t={t}
             highlightedRoute={highlightedRoute}
+            routesInUse={routesInUse}
             onInspectNode={openNodeInspector}
             situation={situation}
             facilities={facilities}

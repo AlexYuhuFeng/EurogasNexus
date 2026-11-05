@@ -6258,6 +6258,21 @@ button.glossary-related-chip {
   background: var(--eg-map-cyan);
 }
 
+/* Routes: a short line, not a dot. */
+.map-layer-chip.layer-routes::before {
+  flex-basis: 14px;
+  width: 14px;
+  height: 3px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--eg-map-pipeline);
+}
+
+.map-layer-chip.active.layer-routes {
+  border-color: var(--eg-map-pipeline);
+  color: var(--eg-ink);
+}
+
 .map-layer-chip.active.layer-network {
   border-color: rgb(0 124 240 / 48%);
   background: rgb(0 124 240 / 16%);
