@@ -52,8 +52,15 @@ const FACILITY_TYPE_KEYS: Readonly<Record<string, string>> = {
 };
 
 /** The translation key for a declared facility type, or null when it is not one this build knows. */
+const MAP_FACILITY_TYPES = new Set([
+  "production_platform", "field", "liquefaction", "storage", "processing_plant",
+  "compressor", "power_plant", "lng_terminal", "border_point",
+]);
+
 export function facilityTypeKey(value: string): string | null {
-  return FACILITY_TYPE_KEYS[value] ?? null;
+  // The register uses the map's desk words for kinds it has no key of its own for, so a
+  // "processing_plant" never reaches the screen as a code.
+  return FACILITY_TYPE_KEYS[value] ?? (MAP_FACILITY_TYPES.has(value) ? `map.situation.facility_${value}` : null);
 }
 
 /** Facility rows, ordered by name so two reads render the same way. */

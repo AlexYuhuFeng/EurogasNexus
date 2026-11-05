@@ -363,7 +363,8 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     assert "fallback-flow-path endpoint-link" not in map_component
     assert 't("map.route_corridors_only")' in network_workspace
     assert 't("map.visual_legend")' in network_workspace
-    assert 't("map.verified_pipeline_lines")' in network_workspace
+    # The key names a line as a connection, schematic where no surveyed route exists.
+    assert 't("map.key.connection")' in network_workspace
     assert 't("map.indicative_route_lines")' in network_workspace
     assert 't("map.suppressed_route_lines")' not in network_workspace
     assert "unmatchedRouteLegsWarning" in resource_pool_paths

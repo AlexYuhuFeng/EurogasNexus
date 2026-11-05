@@ -387,16 +387,20 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
     assert "trade-result-panel" in network_workspace
 
-    assert "topbar-search" in app_and_topbar
-    assert "hasMapSearch" in topbar
-    assert "{hasMapSearch && (" in topbar
+    # Finding a place on the map is the map's own finder; the top bar no longer carries a
+    # second map search (it duplicated the finder and pushed the account menu off screen).
+    gas_network_map = (
+        ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
+    ).read_text(encoding="utf-8")
+    assert "<MapFinder places={finderPlaces}" in gas_network_map
+    assert "topbar-search" not in topbar
     assert "workspace-topbar-page" in topbar
     assert "topbar-icon-button" not in app
     assert "workspace-nav" not in app
     assert "workspace-primary-tabs" in topbar
     assert "workspaceMenuOpen" not in app
     assert "groupedMenuOpen" not in topbar
-    assert "workspace-local-task" in app_and_topbar
+    assert "workspace-local-task" not in topbar  # went with the duplicate map search
     assert "topbar-menu-glyph" not in app_and_topbar
     assert "workspace-page" in app
     assert "workspace-page-tabs" in app
@@ -527,7 +531,9 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     )
     assert "release-cockpit-override" in css
     assert "workspace-topbar-only" in css
-    assert "map-layer-chip compact" in network_workspace
+    # Network chips carry their words, not only a colour dot (unlabelled dots were unreadable).
+    assert "chip map-layer-chip layer-${layer}" in network_workspace
+    assert "map-layer-chip compact" not in network_workspace
     assert "aria-pressed={activeLayers.includes(layer)}" in network_workspace
     assert "MapLibre controls sit outside both decision rails" in css
     assert "route_candidate" in line_model

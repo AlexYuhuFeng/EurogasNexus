@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState } from "react";
 import {
   SUPPORTED_HUB_IDS,
   type SupportedHubId,
@@ -33,7 +33,6 @@ import "./WorkspaceTopBar.css";
 interface WorkspaceTopBarProps {
   activeWorkspace: WorkspacePageId;
   activePrimaryWorkspace: PrimaryWorkspace;
-  searchTerm: string;
   dataStatus: string;
   loading: boolean;
   streamingActive: boolean;
@@ -57,7 +56,6 @@ interface WorkspaceTopBarProps {
     | "analyzeMonitoringAlert"
   >;
   t: (key: string, options?: Record<string, unknown>) => string;
-  onSearchTermChange: Dispatch<SetStateAction<string>>;
   onGasDayChange: (gasDay: string) => void;
   onDeliveryProductChange: (product: string) => void;
   onHubChange: (hubId: string | null) => void;
@@ -75,7 +73,6 @@ interface WorkspaceTopBarProps {
 export function WorkspaceTopBar({
   activeWorkspace,
   activePrimaryWorkspace,
-  searchTerm,
   dataStatus,
   loading,
   streamingActive,
@@ -90,7 +87,6 @@ export function WorkspaceTopBar({
   currentUser,
   monitoring,
   t,
-  onSearchTermChange,
   onGasDayChange,
   onDeliveryProductChange,
   onHubChange,
@@ -103,7 +99,6 @@ export function WorkspaceTopBar({
   onLanguageChange,
   onModeChange,
 }: WorkspaceTopBarProps) {
-  const hasMapSearch = activeWorkspace === "network";
   const sourceSummary = buildSourceSummary(sourceStats, {
     loading,
     sourceError: sourceEndpointError,
@@ -152,7 +147,9 @@ export function WorkspaceTopBar({
 
   return (
     <header
-      className={`app-header cockpit-topbar workspace-topbar-only ${hasMapSearch ? "has-map-search" : "workspace-topbar-page"}`}
+      // The network map has its own finder ("Find a hub, terminal, field or vessel"); the top bar no
+      // longer carries a second map search, which pushed the account menu off a 1440 px screen.
+      className="app-header cockpit-topbar workspace-topbar-only workspace-topbar-page"
       data-shell-region="global-context"
     >
       <WorkspaceTabs
@@ -176,20 +173,6 @@ export function WorkspaceTopBar({
           <span>{t("topbar.command")}</span>
           <kbd aria-hidden="true">{/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K"}</kbd>
         </button>
-      )}
-      {hasMapSearch && (
-        <span className="workspace-local-task" aria-label={t("topbar.current_task")}>
-          <span>{t("topbar.task_label")}</span>
-          <strong>{t(`nav.${activeWorkspace}`)}</strong>
-        </span>
-      )}
-      {hasMapSearch && (
-        <input
-          className="topbar-search"
-          value={searchTerm}
-          onChange={(event) => onSearchTermChange(event.target.value)}
-          placeholder={t("map.search")}
-        />
       )}
       {/* The Active Context this shell is displaying, in machine-readable form. It is the context
           every projection read is issued for (`app/model/projectionContext.ts`), so the browser

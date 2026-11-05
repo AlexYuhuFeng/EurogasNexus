@@ -763,6 +763,230 @@
     }
   }
 
+  /* The network page is map-first: the map takes the full width; the resource and
+     decision rails sit side by side below it instead of squeezing it to half the screen. */
+  .workspace-network .network-workspace-shell {
+    flex: 0 0 auto;
+    grid-template-areas: "map map" "left right" "ladder ladder";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(520px, 68vh) auto auto;
+  }
+
+  @media (max-width: 1100px) {
+    .workspace-network .network-workspace-shell {
+      grid-template-areas: "map" "ladder" "left" "right";
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(420px, 60vh) auto auto auto;
+    }
+  }
+
+  /* Generic network points are neutral on the map; the chip's swatch matches. */
+  .map-layer-chip.layer-network::before,
+  .node-swatch.network {
+    background: var(--ds-text-3);
+  }
+
+  /* The line key: one quiet line in the map's bottom-right corner. */
+  .workspace-network .map-visual-legend,
+  .map-visual-legend {
+    top: auto;
+    right: var(--ds-space-3);
+    bottom: var(--ds-space-3);
+    display: flex;
+    width: auto;
+    min-width: 0;
+    gap: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    padding: 2px var(--ds-space-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .map-visual-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    border: 0;
+    background: none;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  /* Live map: the selected object's card, docked on the map's right edge. */
+  .map-detail-panel {
+    position: absolute;
+    z-index: 4;
+    top: var(--ds-space-3);
+    right: 56px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-3);
+    width: 320px;
+    max-height: calc(100% - 24px);
+    overflow-y: auto;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-md);
+    padding: var(--ds-space-4);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-detail-close {
+    position: absolute;
+    top: var(--ds-space-2);
+    right: var(--ds-space-3);
+    font-size: var(--ds-text-lg);
+  }
+
+  .map-detail-header h3 {
+    margin: 0 var(--ds-space-5) 2px 0;
+    font-size: var(--ds-text-md);
+  }
+
+  .map-detail-header p {
+    margin: 0;
+  }
+
+  .map-detail-roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1);
+    margin-top: var(--ds-space-2);
+  }
+
+  /* Roles are words; colour only for the firm's own items and for outages. */
+  .map-role {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface-2);
+    padding: 1px var(--ds-space-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    white-space: nowrap;
+  }
+
+  .map-role.is-own {
+    border-color: var(--ds-accent);
+    color: var(--ds-accent);
+  }
+
+  .map-role.is-alert {
+    border-color: var(--ds-negative);
+    color: var(--ds-negative);
+  }
+
+  .map-role.is-watch {
+    border-color: var(--ds-warning);
+    color: var(--ds-warning);
+  }
+
+  .map-detail-figures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--ds-space-3);
+  }
+
+  .map-detail-figure {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .map-detail-figure > span {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .map-detail-figure > strong {
+    font-family: var(--ds-font-mono);
+    font-size: var(--ds-text-md);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-detail-none {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .map-detail-section h4 {
+    margin: 0 0 var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .map-detail-section p {
+    margin: 0;
+  }
+
+  .map-detail-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px var(--ds-space-2);
+    border-top: 1px solid var(--ds-border);
+    padding: var(--ds-space-1) 0;
+  }
+
+  .map-detail-row small {
+    flex-basis: 100%;
+  }
+
+  .map-detail-voyage {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--ds-space-2);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .map-detail-progress {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--ds-surface-3, var(--ds-surface-2));
+  }
+
+  .map-detail-progress > i {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--ds-accent);
+  }
+
+  .map-detail-footer {
+    border-top: 1px solid var(--ds-border);
+    padding-top: var(--ds-space-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .map-detail-inspect {
+    align-self: flex-start;
+  }
+
+  .map-selection-label {
+    border: 1px solid var(--ds-accent);
+    color: var(--ds-accent);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  @media (max-width: 720px) {
+    .map-detail-panel {
+      top: auto;
+      right: var(--ds-space-2);
+      bottom: var(--ds-space-2);
+      left: var(--ds-space-2);
+      width: auto;
+      max-height: 55%;
+    }
+  }
+
   /* ------------------------------------------------------------------ tabs */
   [role="tablist"]:not(.workspace-primary-tabs) {
     gap: var(--ds-space-1);
@@ -1765,7 +1989,7 @@
 
   .report-dialog-header h2 {
     margin: 0;
-    font-size: var(--ds-text-lg, 16px);
+    font-size: var(--ds-text-lg);
   }
 
   .report-form {

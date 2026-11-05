@@ -591,16 +591,17 @@ test("every hand-over goes through one composition-checked builder", () => {
 
 test("the network map hands a clicked node over instead of only popup detail", () => {
   const map = readWebSource("components/GasNetworkMap.tsx");
+  const card = readWebSource("components/MapDetailPanel.tsx");
   const workspace = readWebSource("components/NetworkWorkspace.tsx");
 
-  // The map keeps its quick context and adds the hand-over, so it does not become a
-  // second detail pane.
+  // The map's docked card is its quick context (desk figures, roles, provenance) and hands
+  // the point to the canonical Inspector, so the map does not become a second detail pane.
   assert.match(map, /onInspectNode\?: \(nodeId: string, label: string\) => void;/);
-  assert.match(map, /if \(onInspectNode && nodeId\) \{/);
-  assert.match(map, /inspect\.textContent = t\("map\.inspect_node"\);/);
-  assert.match(map, /onInspectNode\(nodeId, nodeLabel\);/);
-  // The handler is registered with the effect, so a new callback cannot be ignored.
-  assert.match(map, /mapReady, onInspectNode, t, verifiedPipelineLines\]/);
+  assert.match(map, /onInspect=\{onInspectNode\}/);
+  assert.match(card, /\{onInspect && node && site && \(/);
+  assert.match(card, /onClick=\{\(\) => onInspect\(node\.id, site\.name\)\}/);
+  assert.match(card, /t\("map\.inspect_node"\)/);
+  assert.equal(card.includes("fetch("), false);
 
   // The workspace owns the page identity, so the composition rule is applied there.
   assert.match(workspace, /import \{ inspectorSubjectFor \} from "@\/app\/model\/inspectorDetail"/);

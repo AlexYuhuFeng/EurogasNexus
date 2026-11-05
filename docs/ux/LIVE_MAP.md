@@ -78,6 +78,49 @@ licence (public reports put the basic tier at about CNY 50,000 a year; confirm w
 AMap's public endpoint is listed for evaluation only. The outline is rebuilt with
 `scripts/ui/build_offline_basemap.py`.
 
+## Selecting: what each thing tells you
+
+Like a control tower, the map has one selection at a time. Hovering shows a name and one
+figure; clicking selects. The selected object's card docks on the map's right edge, the
+object and what it relates to are drawn on top in the accent colour, and everything else
+steps back to 30 %. Escape, the card's ×, or a click on empty map clears it. The card is
+the map's quick context; **Inspect** hands a network point to the app's Inspector for full
+detail and provenance, so the map never grows a second detail page.
+
+| Selected | The card leads with | Highlighted |
+|---|---|---|
+| **Hub** (NBP, TTF …) | Day-ahead and month-ahead prices from the same rows as the hub board, change on the previous close, source and time; the zone today: outages now and planned, outages one pipeline upstream (Nyhamna feeding NBP through Langeled), flow measured in and out at the zone's points, our supply delivering in the zone | The hub |
+| **Site** (a place: Easington, Bacton, Isle of Grain …) | Its roles as words; operator; flow in or out today (gas day stated) against capacity, with utilisation only when both are the same point's; tank storage for a terminal; outages (REMIT) with window and reason; our supply there with DCQ and entry capacity; cargoes heading to it; our regas slots; the pipelines connecting it | Its points, every connection to it, the legs of cargoes heading to it |
+| **Cargo** | Our or market cargo, status; load port → destination with progress; ETA (or how overdue); size in GWh and m³ LNG; the regas slot waiting for it | Track sailed (solid), indicative leg ahead (dashed), load port and destination ringed and labelled |
+
+**One place, several roles.** Network points and facilities within 3 km are one site,
+named by what its points share ("Bacton IUK" and "Bacton BBL" are Bacton). Its roles are
+listed as plain chips, in a fixed order: what it is (entry point, interconnection point,
+LNG terminal, gas terminal, production, storage), what connects to it ("Langeled
+pipeline"), which zone it is in ("NBP zone"), the firm's stake ("Our supply", "Our regas
+slot") and its state ("Outage now", "Outage planned"). Easington reads *Entry point · Gas
+terminal · Langeled pipeline · NBP zone · Our supply*.
+
+**Roles are words, not colours.** Colour on the map is reserved for state (rule 3), so a
+role chip is neutral text unless it is the firm's own (accent) or an outage (red, amber).
+A colour per role would need a legend nobody remembers and would collide with state.
+
+**No operator logos.** Operators are named in text. Logos are trademarks that need each
+owner's permission in a commercially sold product (AGENTS rule 18), are illegible at map
+scale, and add colour that competes with state.
+
+## Topology over geometry
+
+What netbacks and flow reasoning need is the topology: which point connects to which,
+through which interconnector, into which zone. A pipe's surveyed path matters little. So
+a known connection without surveyed geometry is drawn as a thin curve between its
+endpoints (key: "Connection, schematic where no surveyed route"); a surveyed pipeline is
+drawn along its geometry. Correctness is checked instead of assumed: a connection must end
+at known points, may cross a border only at an entry or interconnection point (or an LNG,
+production or storage site), entry and interconnection points must connect to something,
+and nothing is recorded twice. Problems show on the status line ("Topology: 2 to check")
+with the details on hover.
+
 ## Rules
 
 1. **Placed only where a source places it.** An outage is drawn only when its EIC code or
@@ -98,9 +141,14 @@ AMap's public endpoint is listed for evaluation only. The outline is rebuilt wit
 5. **Same access as the tables.** Contracts, cargoes and slots in books follow portfolio
    isolation (a regional head sees only their books); market cargoes and outages follow
    the caller's data scopes. The map is never a side door.
-6. **Decluttered by default.** Four situation chips, separate from the network chips;
-   facilities appear only from zoom 5; labels only for hubs and the highlighted route;
-   co-located contracts share one pin.
+6. **Decluttered by default.** Labelled chips for the network (hubs, LNG, entry and
+   interconnection points, other points) and, separately, the situation (outages, flows,
+   our positions, infrastructure); production fields and platforms appear only when
+   Infrastructure is on; labels only for hubs and the highlighted route; co-located
+   contracts share one pin. Generic points and clusters are neutral grey, because blue
+   means ours.
+7. **Map first.** On the Network page the map takes the full width; the contract list and
+   the decision rail sit below it. One way to find a place: the in-map finder.
 
 ## Decisions
 

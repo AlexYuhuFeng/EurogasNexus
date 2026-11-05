@@ -214,7 +214,6 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
       <WorkspaceTopBar
         activeWorkspace={navigation.activeWorkspace}
         activePrimaryWorkspace={navigation.activePrimaryWorkspace}
-        searchTerm={controls.searchTerm}
         dataStatus={api.dataStatus}
         loading={api.loading}
         streamingActive={api.streamingActive}
@@ -229,7 +228,6 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         currentUser={api.currentUser}
         monitoring={api}
         t={t}
-        onSearchTermChange={controls.setSearchTerm}
         onGasDayChange={traderContext.setGasDay}
         onDeliveryProductChange={traderContext.setDeliveryProduct}
         onHubChange={traderContext.setHubId}

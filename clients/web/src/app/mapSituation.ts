@@ -74,6 +74,7 @@ export function outageFeatures(outages: MapOutageDTO[], project: Project): Colle
       point(project, outage.location.lon, outage.location.lat, {
         kind: "outage",
         id: outage.event_id,
+        ref: outage.location.ref_id ?? "",
         status: outage.status,
         // Radius grows with the share of capacity out; unknown share draws the minimum.
         share: outage.unavailable_share ?? 0,
@@ -91,6 +92,7 @@ export function flowFeatures(flows: MapPointFlowDTO[], project: Project): Collec
         point(project, flow.location.lon, flow.location.lat, {
           kind: "flow",
           id: `${flow.point_id}|${flow.direction}`,
+          ref: flow.location.ref_id ?? "",
           gwh_d: flow.gwh_d ?? 0,
           direction: flow.direction,
           name: flow.point_name,
@@ -111,6 +113,7 @@ export function contractFeatures(contracts: MapContractDTO[], project: Project):
       point(project, group[0].location.lon, group[0].location.lat, {
         kind: "contract",
         id: group.map((item) => item.contract_id).join(","),
+        ref: group[0].location.ref_id ?? "",
         count: group.length,
         mwh_d: group.reduce((sum, item) => sum + item.delivery_mwh_d, 0),
         name: group[0].delivery_point,
@@ -127,6 +130,7 @@ export function slotTerminalFeatures(slots: MapRegasSlotDTO[], project: Project)
       point(project, group[0].location.lon, group[0].location.lat, {
         kind: "regas",
         id: terminal,
+        ref: group[0].location.ref_id ?? "",
         count: group.length,
         active: group.some((slot) => slot.active),
         name: terminal,

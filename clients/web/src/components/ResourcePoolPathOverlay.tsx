@@ -272,7 +272,7 @@ export function ResourcePoolPathOverlay({ paths, blockers, t, defaultOpen = fals
         <div className="resource-path-empty">
           <strong>{t("home.path_unavailable")}</strong>
           {(blockers.length > 0 ? blockers : [t("home.draft_contract_note")]).slice(0, 3).map((blocker) => (
-            <span key={`path-blocker-${blocker}`}>{blocker}</span>
+            <span key={`path-blocker-${blocker}`} title={blocker}>{warningLabel(blocker, t)}</span>
           ))}
         </div>
       )}

@@ -54,7 +54,7 @@ const PROVIDED_BY_PRIMITIVE: Readonly<Record<string, Partial<Record<DisclosureKi
     warning: { file: "components/ui/StatusBadge.tsx", marker: "StatusBadgeVariant" },
   },
   map: {
-    provenance: { file: "components/GasNetworkMap.tsx", marker: "map.node_popup_source" },
+    provenance: { file: "components/MapDetailPanel.tsx", marker: "map.node_popup_source" },
   },
   "time-series": {
     units: { file: "components/strategy/StrategyLabCharts.tsx", marker: "unit" },

@@ -11,6 +11,32 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ## [Unreleased]
 
+### Added
+
+- **Live map selection** (Market → Network): click a hub, a place or a cargo and its card
+  docks on the right while the map highlights it and what it relates to. A hub shows its
+  day-ahead and month-ahead prices, its zone's outages (including those one pipeline
+  upstream), measured flows and our supply. A place shows its roles in words (Easington:
+  entry point · gas terminal · Langeled pipeline · NBP zone · our supply), operator, flow
+  against capacity, outages, our contracts, cargoes heading in and our regas slots. A
+  cargo shows its voyage, ETA, size and the slot waiting for it, with its track and leg
+  ahead drawn.
+- **Topology over geometry**: every known connection is drawn, as a schematic curve where
+  no surveyed route exists, and a topology check flags connections to unknown points,
+  border crossings that do not land at an entry or interconnection point, unconnected
+  points and duplicates.
+
+### Changed
+
+- The Network page is map-first (full width; rails below it); the duplicate top-bar map
+  search is gone; layer chips are labelled; LNG terminals and entry and interconnection
+  points show by default; generic points and clusters are neutral grey (blue means ours).
+
+### Fixed
+
+- The legend floated over the zoom controls; facility kinds and route warnings showed as
+  codes.
+
 ## [0.7.0] - 2026-11-01
 
 ### Added

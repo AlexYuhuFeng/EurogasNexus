@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ComponentProps } from "react";
 import type {
   EdgeDTO,
@@ -19,6 +19,7 @@ import {
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
+import { topologyIssues } from "@/app/mapSelection";
 import { useMapSituation } from "@/app/hooks/useMapSituation";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
@@ -156,20 +157,23 @@ export function NetworkWorkspace({
   const inspector = useInspectorStore();
   const { situation, facilities } = useMapSituation();
   const summary = situationSummary(situation);
+  // What netbacks rely on: every connection ends at known points and crosses a border only
+  // at an entry or interconnection point. Problems are named here, not silently drawn.
+  const topology = useMemo(() => topologyIssues(nodes, edges), [edges, nodes]);
   const openNodeInspector = (nodeId: string, label: string) => {
     const subject = inspectorSubjectFor("network-node", nodeId, label, "network");
     if (subject) inspector.open(subject);
   };
   const displayedNetworkCount = nodes.filter(
     (node) =>
-      !["hub", "lng", "interconnection"].includes(node.node_type) &&
+      !["hub", "lng", "interconnection", "entry_point"].includes(node.node_type) &&
       isMapEligibleNode(node),
   ).length;
   const displayedLngCount = nodes.filter(
     (node) => node.node_type === "lng" && isMapEligibleNode(node),
   ).length;
   const displayedIpCount = nodes.filter(
-    (node) => node.node_type === "interconnection" && isMapEligibleNode(node),
+    (node) => (node.node_type === "interconnection" || node.node_type === "entry_point") && isMapEligibleNode(node),
   ).length;
   const displayedHubCount = nodes.filter((node) => node.node_type === "hub").length;
   const visibleMapLines = buildVisibleMapNetworkLines({
@@ -180,7 +184,7 @@ export function NetworkWorkspace({
     highlightedRoute,
   });
   const verifiedPipelineCount = visibleMapLines.filter(
-    (line) => line.displayKind === "verified_pipeline",
+    (line) => line.displayKind === "verified_pipeline" || line.displayKind === "network_link",
   ).length;
   const indicativeRouteCount = visibleMapLines.filter(
     (line) => line.displayKind === "indicative_route",
@@ -316,8 +320,8 @@ export function NetworkWorkspace({
               type="button"
               className={
                 activeLayers.includes(layer)
-                  ? `chip map-layer-chip compact layer-${layer} active`
-                  : `chip map-layer-chip compact layer-${layer}`
+                  ? `chip map-layer-chip layer-${layer} active`
+                  : `chip map-layer-chip layer-${layer}`
               }
               aria-pressed={activeLayers.includes(layer)}
               aria-label={t(`map.layer.${layer}`)}
@@ -362,6 +366,11 @@ export function NetworkWorkspace({
           {summary && (
             <div className="map-situation-strip" role="status" aria-live="polite">
               <span className="map-situation-live">{t("map.situation.live")}</span>
+              {topology.length > 0 && (
+                <span className="is-alert" title={topology.map((issue) => `${t(`map.topology.${issue.kind}`)}: ${issue.detail}`).join("\n")}>
+                  <i className="situation-dot outage-scheduled" />{t("map.topology.count").replace("{{count}}", String(topology.length))}
+                </span>
+              )}
               {summary.outagesNow > 0 && (
                 <span className="is-alert"><i className="situation-dot outage-active" />{t("map.situation.outages_now")} <b>{summary.outagesNow}</b></span>
               )}
@@ -390,13 +399,11 @@ export function NetworkWorkspace({
               <small>{t("map.empty_help")}</small>
             </div>
           )}
+          {/* The chips are the key for points; this one line keys the lines. A connection
+              without surveyed geometry is still drawn: topology is what netbacks need. */}
           {mapHasVisibleEvidence && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
-            <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{displayedNetworkCount}</strong></span>
-            <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{displayedLngCount}</strong></span>
-            <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{displayedIpCount}</strong></span>
-            <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{displayedHubCount}</strong></span>
-            <span><i className="line-swatch verified" />{t("map.verified_pipeline_lines")}<strong>{verifiedPipelineCount}</strong></span>
-            <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}<strong>{indicativeRouteCount}</strong></span>
+            <span><i className="line-swatch verified" />{t("map.key.connection")}</span>
+            {indicativeRouteCount > 0 && <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}</span>}
           </div>}
         </div>
       </section>

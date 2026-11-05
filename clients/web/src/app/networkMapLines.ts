@@ -7,7 +7,14 @@ import {
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
 
 export type LineCoordinate = [number, number];
-export type NetworkLineDisplayKind = "verified_pipeline" | "indicative_route";
+/**
+ * - verified_pipeline: a reference connection with surveyed geometry;
+ * - network_link: a reference connection without it, drawn as a gentle curve between its
+ *   endpoints. The topology (which point connects to which, through which interconnector)
+ *   is what netbacks and flow reasoning need; the pipe's exact path is not.
+ * - indicative_route: a route candidate's schematic corridor.
+ */
+export type NetworkLineDisplayKind = "verified_pipeline" | "network_link" | "indicative_route";
 export type NetworkLineGeometryBasis =
   | "verified_geometry"
   | "backend_route_geometry_coordinates"
@@ -170,7 +177,23 @@ export function buildRenderableNetworkLine(
     };
   }
 
-  if (!isRouteCandidateEdge(edge) || edge.from_node_id === edge.to_node_id) return null;
+  if (edge.from_node_id === edge.to_node_id) return null;
+  if (!isRouteCandidateEdge(edge)) {
+    const sequence = metadataNumber(edge.metadata_json, "route_leg_sequence", 1);
+    return {
+      id: edge.id,
+      edge,
+      from,
+      to,
+      geometryCoordinates: buildSchematicRouteCoordinates(from, to, sequence),
+      displayKind: "network_link",
+      routeCandidate: false,
+      geometryBasis: "schematic_endpoint_curve",
+      routeId: routeEdgeRouteId(edge) ?? edge.source_record_id ?? "",
+      routeLegSequence: sequence,
+      routeGeometryState: routeGeometryStateFromMetadata(edge, "directLineFallback"),
+    };
+  }
 
   const metadata = edge.metadata_json ?? {};
   const explicitCoordinates = validLineCoordinates(metadata.geometry_coordinates);
@@ -263,8 +286,9 @@ export function buildVisibleNetworkNodes({
     const layerMatch =
       (activeLayers.includes("hubs") && node.node_type === "hub") ||
       (activeLayers.includes("lng") && node.node_type === "lng") ||
-      (activeLayers.includes("ips") && node.node_type === "interconnection") ||
-      (activeLayers.includes("network") && !["hub", "lng", "interconnection"].includes(node.node_type));
+      // Entry points and interconnection points are where gas crosses into a zone: one layer.
+      (activeLayers.includes("ips") && (node.node_type === "interconnection" || node.node_type === "entry_point")) ||
+      (activeLayers.includes("network") && !["hub", "lng", "interconnection", "entry_point"].includes(node.node_type));
     const searchMatch = !term ||
       node.name.toLowerCase().includes(term) ||
       node.country.toLowerCase().includes(term) ||

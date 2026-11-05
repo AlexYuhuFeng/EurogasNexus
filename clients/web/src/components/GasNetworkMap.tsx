@@ -47,6 +47,9 @@ import {
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
 import { FACILITY_ICON, drawFacilityIcon } from "@/app/mapIcons";
 import { MapFinder, type MapFinderPlace } from "@/components/MapFinder";
+import { MapDetailPanel } from "@/components/MapDetailPanel";
+import { buildSites, siteOf, sitePipelines, siteSituation, type MapSelection, type Site } from "@/app/mapSelection";
+import { useApiStore } from "@/stores/api";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -198,6 +201,23 @@ export function GasNetworkMap({
   const labelMarkersRef = useRef<Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [tier, setTier] = useState<ZoomTier>("overview");
+  // The "control tower" selection: one object at a time, its card docked on the right, the
+  // object and what it relates to highlighted and the rest dimmed.
+  const [selection, setSelection] = useState<MapSelection | null>(null);
+  const sites = useMemo(() => buildSites(nodes, facilities), [facilities, nodes]);
+  const sitesRef = useRef<Site[]>(sites);
+  sitesRef.current = sites;
+  const marketRows = useApiStore((state) => state.normalizedMarkets);
+  /** The selection a clicked network point, facility or located item stands for. */
+  const selectFor = (refId: string, nodeType = ""): MapSelection | null => {
+    // Anything located at a hub (a contract delivering "at NBP") selects the hub.
+    const hub = nodes.find((node) => node.id === refId && (nodeType === "hub" || node.node_type === "hub"));
+    if (hub) return { kind: "hub", id: hub.name.toUpperCase() };
+    const site = siteOf(sitesRef.current, refId);
+    return site ? { kind: "site", id: site.id } : null;
+  };
+  const selectForRef = useRef(selectFor);
+  selectForRef.current = selectFor;
   const summaryMarkersRef = useRef<Marker[]>([]);
   const effectiveTheme = resolveEffectiveTheme(themeMode);
   const mapTileProvider = useMemo(configuredMapTileProvider, []);
@@ -213,7 +233,8 @@ export function GasNetworkMap({
           background: "#080808",
           edge: "#737373",
           route: "#50e3c2",
-          node: "#3291ff",
+          // Generic points are neutral: blue on this map means the firm's own positions.
+          node: "#94a3b8",
           hub: "#50e3c2",
           lng: "#b978ff",
           interconnection: "#f5a623",
@@ -223,7 +244,7 @@ export function GasNetworkMap({
           background: "#eeeeee",
           edge: "#6b7280",
           route: "#00b871",
-          node: "#007cf0",
+          node: "#64748b",
           hub: "#50e3c2",
           lng: "#7928ca",
           interconnection: "#f5a623",
@@ -241,7 +262,9 @@ export function GasNetworkMap({
     [activeLayers, edges, highlightedRoute, nodes, searchTerm],
   );
   const verifiedPipelineLines = useMemo(
-    () => visibleLines.filter((line) => line.displayKind === "verified_pipeline"),
+    // Surveyed pipelines and topology links share one layer: both are the network; a link is
+    // drawn thinner and its card says the path is schematic.
+    () => visibleLines.filter((line) => line.displayKind === "verified_pipeline" || line.displayKind === "network_link"),
     [visibleLines],
   );
   const indicativeRouteLines = useMemo(
@@ -366,6 +389,12 @@ export function GasNetworkMap({
     map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new AttributionControl({ compact: true }), "bottom-left");
     map.on("load", () => setMapReady(true));
+    // Clicking empty map clears the selection; clicking an object selects it (below).
+    map.on("click", (event) => {
+      const interactive = ["nodes-circle", "node-clusters", ...SITUATION_HOVER_LAYERS, "situation-cargo-sailed", "situation-cargo-ahead"]
+        .filter((layerId) => map.getLayer(layerId));
+      if (!map.queryRenderedFeatures(event.point, { layers: interactive }).length) setSelection(null);
+    });
     // Semantic zoom: the tier decides what the map shows, not only how big it is.
     const syncTier = () => setTier(zoomTier(map.getZoom()));
     syncTier();
@@ -476,9 +505,10 @@ export function GasNetworkMap({
           id: line.id,
           from_node_id: line.from.id,
           to_node_id: line.to.id,
-          display_kind: "verified_pipeline",
-          geometry_basis: "verified_geometry",
-          geometry_verification: "verified",
+          display_kind: line.displayKind,
+          geometry_basis: line.geometryBasis,
+          geometry_verification: line.displayKind === "verified_pipeline" ? "verified" : "schematic",
+          name: String(metadata.name ?? ""),
           is_schematic_corridor: false,
           operator: String(metadata.operator ?? ""),
           capacity_mwh_d: capacity,
@@ -530,8 +560,13 @@ export function GasNetworkMap({
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": mapColors.edge,
-          "line-width": ["interpolate", ["linear"], ["get", "utilization_pct"], 0, 1.4, 0.65, 2.6, 0.9, 3.6],
-          "line-opacity": 0.94,
+          "line-width": [
+            "case",
+            ["==", ["get", "display_kind"], "network_link"],
+            1.3,
+            ["interpolate", ["linear"], ["get", "utilization_pct"], 0, 1.6, 0.65, 2.6, 0.9, 3.6],
+          ],
+          "line-opacity": ["case", ["==", ["get", "display_kind"], "network_link"], 0.7, 0.94],
         },
       });
     } else {
@@ -650,6 +685,8 @@ export function GasNetworkMap({
             mapColors.lng,
             "interconnection",
             mapColors.interconnection,
+            "entry_point",
+            mapColors.interconnection,
             mapColors.node,
           ],
           "circle-stroke-color": mapColors.stroke,
@@ -688,43 +725,12 @@ export function GasNetworkMap({
         const feature = event.features?.[0];
         if (!feature) return;
         const props = feature.properties ?? {};
-        const coordinateQuality = propertyText(props.coordinate_quality, t("data.unavailable"));
-        const source = propertyText(props.source_system, t("data.unavailable"));
         const nodeId = propertyText(props.id, "");
-        const nodeLabel = propertyText(props.name, nodeId);
         const pointAt = (feature.geometry as { coordinates?: [number, number] }).coordinates;
         if (pointAt) focusOn(map, pointAt, Math.max(map.getZoom(), 7));
-        const popup = new Popup({ closeButton: false })
-          .setLngLat(event.lngLat)
-          .setHTML(
-            `<div class="node-popup">
-              <strong>${escapeHtml(props.name)}</strong>
-              <span>${escapeHtml(props.node_type)} / ${escapeHtml(props.country)}</span>
-              <small>${escapeHtml(t("map.node_popup_source"))} ${escapeHtml(source)}</small>
-              <small>${escapeHtml(t("map.node_popup_coordinate_quality"))} ${escapeHtml(coordinateQuality)}</small>
-              ${coordinateQuality === "display_approximation"
-                ? `<em>${escapeHtml(t("map.node_popup_approximate_coordinate"))}</em>`
-                : ""}
-            </div>`
-          )
-          .addTo(map);
-        // Wave 9: the popup stays the map's quick context, and the canonical Inspector
-        // carries the object's detail. The map hands the node over rather than growing a
-        // second detail pane of its own.
-        if (onInspectNode && nodeId) {
-          const container = popup.getElement()?.querySelector(".node-popup");
-          if (container) {
-            const inspect = document.createElement("button");
-            inspect.type = "button";
-            inspect.className = "node-popup-inspect";
-            inspect.textContent = t("map.inspect_node");
-            inspect.addEventListener("click", () => {
-              onInspectNode(nodeId, nodeLabel);
-              popup.remove();
-            });
-            container.appendChild(inspect);
-          }
-        }
+        // The docked card is the map's quick context; it hands the point to the canonical
+        // Inspector for full detail (see MapDetailPanel's "Inspect").
+        setSelection(selectForRef.current(nodeId, propertyText(props.node_type, "")));
       });
       map.on("mouseenter", "nodes-circle", () => {
         map.getCanvas().style.cursor = "pointer";
@@ -940,22 +946,25 @@ export function GasNetworkMap({
           map.getCanvas().style.cursor = "";
           hover.remove();
         });
-        // Click focuses: the map flies to the item and pins its card until closed.
+        // Click selects: the map flies to the item and docks its card on the right.
         map.on("click", layerId, (event) => {
           const feature = event.features?.[0];
           if (!feature) return;
-          const html = cardFor(layerId, feature.properties ?? {});
-          if (!html) return;
+          const props = feature.properties ?? {};
           const coordinates = (feature.geometry as { coordinates?: [number, number] }).coordinates;
           const target = Array.isArray(coordinates) && typeof coordinates[0] === "number"
             ? coordinates
             : [event.lngLat.lng, event.lngLat.lat] as [number, number];
           hover.remove();
-          focusOn(map, target, Math.max(map.getZoom(), layerId === "situation-facilities" ? 11 : 8));
-          new Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: "320px", className: "is-pinned" })
-            .setLngLat(target)
-            .setHTML(html)
-            .addTo(map);
+          focusOn(map, target, Math.max(map.getZoom(), layerId === "situation-facilities" ? 9 : 7));
+          if (props.kind === "cargo") setSelection({ kind: "cargo", id: String(props.id) });
+          else setSelection(selectForRef.current(String(layerId === "situation-facilities" ? props.id : props.ref ?? "")));
+        });
+      }
+      for (const layerId of ["situation-cargo-sailed", "situation-cargo-ahead"]) {
+        map.on("click", layerId, (event) => {
+          const id = event.features?.[0]?.properties?.id;
+          if (id) setSelection({ kind: "cargo", id: String(id) });
         });
       }
     }
@@ -1014,6 +1023,146 @@ export function GasNetworkMap({
       if (map.getLayer(layerId)) map.setPaintProperty(layerId, property as never, value as never);
     }
   }, [activeLayers, effectiveTheme, facilities, mapReady, situation, t, verifiedPipelineLines]);
+
+  // Selection: draw the selected object and what it relates to on top, dim everything else.
+  const selectionMarkersRef = useRef<Marker[]>([]);
+  const dimmedRef = useRef<Map<string, unknown>>(new Map());
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const accent = SITUATION_COLOURS[effectiveTheme].own;
+    type Coord = [number, number];
+    const lines: Array<{ part: string; coords: Coord[] }> = [];
+    const points: Array<{ part: string; at: Coord }> = [];
+    const labels: Array<{ at: Coord; text: string }> = [];
+    if (selection?.kind === "cargo" && situation) {
+      const cargo = situation.cargoes.find((item) => item.cargo_id === selection.id);
+      if (cargo) {
+        const at = cargo.position ?? cargo.origin;
+        const track: Coord[] = cargo.track.length > 1
+          ? cargo.track.map(([lon, lat]) => [lon, lat] as Coord)
+          : cargo.origin && cargo.position ? [[cargo.origin.lon, cargo.origin.lat], [cargo.position.lon, cargo.position.lat]] : [];
+        if (track.length > 1) lines.push({ part: "sailed", coords: track });
+        if (at && cargo.destination) lines.push({ part: "ahead", coords: [[at.lon, at.lat], [cargo.destination.lon, cargo.destination.lat]] });
+        if (cargo.origin) {
+          points.push({ part: "end", at: [cargo.origin.lon, cargo.origin.lat] });
+          labels.push({ at: [cargo.origin.lon, cargo.origin.lat], text: cargo.load_port });
+        }
+        if (cargo.destination) {
+          points.push({ part: "end", at: [cargo.destination.lon, cargo.destination.lat] });
+          labels.push({ at: [cargo.destination.lon, cargo.destination.lat], text: `${cargo.destination_terminal ?? ""} · ETA ${(cargo.eta_utc ?? "").slice(5, 10)}` });
+        }
+        if (at) points.push({ part: "current", at: [at.lon, at.lat] });
+      }
+    } else if (selection?.kind === "site") {
+      const site = sites.find((item) => item.id === selection.id);
+      if (site) {
+        const ids = new Set(site.members.map((member) => member.id));
+        for (const node of nodes) if (ids.has(node.id)) points.push({ part: "current", at: [node.lon, node.lat] });
+        for (const facility of facilities) if (ids.has(facility.id)) points.push({ part: "current", at: [facility.lon, facility.lat] });
+        for (const line of verifiedPipelineLines) {
+          if (ids.has(line.from.id) || ids.has(line.to.id)) lines.push({ part: "link", coords: line.geometryCoordinates as Coord[] });
+        }
+        if (situation) {
+          for (const cargo of siteSituation(site, situation).inbound) {
+            const at = cargo.position ?? cargo.origin;
+            if (at) {
+              lines.push({ part: "ahead", coords: [[at.lon, at.lat], [site.lon, site.lat]] });
+              points.push({ part: "end", at: [at.lon, at.lat] });
+              labels.push({ at: [at.lon, at.lat], text: `${cargo.vessel_name} · ETA ${(cargo.eta_utc ?? "").slice(5, 10)}` });
+            }
+          }
+        }
+        if (!sitePipelines(site, edges).length && !points.length) points.push({ part: "current", at: [site.lon, site.lat] });
+      }
+    } else if (selection?.kind === "hub") {
+      const hub = nodes.find((node) => node.node_type === "hub" && node.name.toUpperCase() === selection.id);
+      if (hub) points.push({ part: "current", at: [hub.lon, hub.lat] });
+    }
+    const lineData = {
+      type: "FeatureCollection" as const,
+      features: lines.map((line) => ({
+        type: "Feature" as const,
+        properties: { part: line.part },
+        geometry: { type: "LineString" as const, coordinates: line.coords.map(([lon, lat]) => toMapCoordinates(lon, lat)) },
+      })),
+    };
+    const pointData = {
+      type: "FeatureCollection" as const,
+      features: points.map((item) => ({
+        type: "Feature" as const,
+        properties: { part: item.part },
+        geometry: { type: "Point" as const, coordinates: toMapCoordinates(item.at[0], item.at[1]) },
+      })),
+    };
+    if (upsertSource(map, "selection-lines", lineData)) {
+      map.addLayer({
+        id: "selection-lines",
+        type: "line",
+        source: "selection-lines",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": accent, "line-width": 3.4, "line-opacity": 0.95 },
+      });
+      map.addLayer({
+        id: "selection-lines-ahead",
+        type: "line",
+        source: "selection-lines",
+        filter: ["==", ["get", "part"], "ahead"],
+        layout: { "line-cap": "round" },
+        paint: { "line-color": accent, "line-width": 2.6, "line-dasharray": [1.5, 1.8] },
+      });
+      map.setFilter("selection-lines", ["!=", ["get", "part"], "ahead"]);
+    }
+    if (upsertSource(map, "selection-points", pointData)) {
+      map.addLayer({
+        id: "selection-points",
+        type: "circle",
+        source: "selection-points",
+        paint: {
+          "circle-radius": ["case", ["==", ["get", "part"], "current"], 11, 7],
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-color": accent,
+          "circle-stroke-width": ["case", ["==", ["get", "part"], "current"], 3, 2],
+        },
+      });
+    }
+    map.setPaintProperty("selection-lines", "line-color", accent);
+    map.setPaintProperty("selection-lines-ahead", "line-color", accent);
+    map.setPaintProperty("selection-points", "circle-stroke-color", accent);
+    // Everything else steps back while something is selected.
+    const dimmable: Array<[string, string]> = [
+      ["nodes-circle", "circle-opacity"],
+      ["verified-pipeline-lines", "line-opacity"],
+      ["indicative-route-lines", "line-opacity"],
+      ["situation-facilities", "icon-opacity"],
+      ["situation-flows", "circle-opacity"],
+      ["situation-pipeline-flow", "line-opacity"],
+      ["situation-cargo-sailed", "line-opacity"],
+      ["situation-cargo-ahead", "line-opacity"],
+      ["situation-regas", "circle-opacity"],
+      ["situation-contracts", "circle-opacity"],
+      ["situation-cargo-positions", "circle-opacity"],
+      ["situation-outages", "circle-opacity"],
+    ];
+    for (const [layerId, property] of dimmable) {
+      if (!map.getLayer(layerId)) continue;
+      const key = `${layerId}|${property}`;
+      if (selection) {
+        if (!dimmedRef.current.has(key)) dimmedRef.current.set(key, map.getPaintProperty(layerId, property as never) ?? 1);
+        map.setPaintProperty(layerId, property as never, 0.3 as never);
+      } else if (dimmedRef.current.has(key)) {
+        map.setPaintProperty(layerId, property as never, dimmedRef.current.get(key) as never);
+        dimmedRef.current.delete(key);
+      }
+    }
+    selectionMarkersRef.current.forEach((marker) => marker.remove());
+    selectionMarkersRef.current = labels.map((label) => {
+      const element = document.createElement("div");
+      element.className = "map-node-label map-selection-label";
+      element.textContent = label.text;
+      return new Marker({ element, anchor: "left", offset: [12, 0] }).setLngLat(toMapCoordinates(label.at[0], label.at[1])).addTo(map);
+    });
+  }, [edges, effectiveTheme, facilities, mapReady, nodes, selection, situation, sites, verifiedPipelineLines]);
 
   // Motion that carries meaning only: gas moving along flowing pipelines, the firm's laden
   // cargoes heading in, and a slow pulse on capacity that is out now. Off under
@@ -1247,7 +1396,7 @@ export function GasNetworkMap({
       kind: t(`map.find.kind_${node.node_type === "hub" || node.node_type === "lng" || node.node_type === "interconnection" ? node.node_type : "point"}`),
       lon: node.lon,
       lat: node.lat,
-      zoom: node.node_type === "hub" ? 6 : 9,
+      zoom: node.node_type === "hub" ? 6 : 7,
     }));
     for (const facility of activeLayers.includes("infrastructure") ? facilities : []) {
       places.push({
@@ -1256,7 +1405,7 @@ export function GasNetworkMap({
         kind: t(`map.situation.facility_${facility.facility_type}`),
         lon: facility.lon,
         lat: facility.lat,
-        zoom: 12,
+        zoom: 9,
       });
     }
     for (const cargo of activeLayers.includes("positions") ? situation?.cargoes ?? [] : []) {
@@ -1298,7 +1447,20 @@ export function GasNetworkMap({
     <div className="gas-map" aria-label={t("map.gas_network_map")}>
       <div ref={containerRef} className="maplibre-canvas" />
       {mapReady && <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} />}
-      {mapReady && (
+      {selection && (
+        <MapDetailPanel
+          selection={selection}
+          sites={sites}
+          edges={edges}
+          situation={situation}
+          marketRows={marketRows}
+          nodes={nodes}
+          onClose={() => setSelection(null)}
+          onInspect={onInspectNode}
+          t={t as (key: string, options?: Record<string, unknown>) => string}
+        />
+      )}
+      {mapReady && !selection && (
         <div className="map-zoom-tier" role="status" aria-live="polite">
           <span className={`map-zoom-tier-name is-${tier}`}>{t(`map.tier.${tier}`)}</span>
           <small>{t(`map.tier.${tier}_hint`)}</small>
