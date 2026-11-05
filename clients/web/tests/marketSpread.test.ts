@@ -135,10 +135,9 @@ test("the premium equals the TTF-to-hub directional spread, not its reverse", ()
   );
 });
 
-test("TTF's premium over itself is zero rather than null", () => {
-  const premium = premiumOverTtf(SEEDED, "TTF", "day-ahead");
-  assert.ok(premium, "the strip renders TTF as 0, so this must not be null");
-  assert.equal(premium.value_eur_mwh, 0);
+test("TTF's premium over itself is not computed from spread rows (#29)", () => {
+  // Spread rows carry no TTF price: a zero would read as a market result with nothing known.
+  assert.equal(premiumOverTtf(SEEDED, "TTF", "day-ahead"), null);
 });
 
 test("hub and period matching is case-insensitive and period-specific", () => {

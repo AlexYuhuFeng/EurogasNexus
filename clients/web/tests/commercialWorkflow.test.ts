@@ -522,3 +522,15 @@ test("warning aggregation preserves order and removes duplicates", () => {
     ["PORTFOLIO_VOLUME_UNALLOCATED", "ROUTE_CAPACITY_SHORTFALL", "OPTIONS_WARNING"],
   );
 });
+
+test("every decision task round-trips through the URL, including nomination and dispatch (#16)", () => {
+  for (const task of DECISION_TASKS) {
+    const search = decisionTaskToSearch("?gasDay=2026-11-05", task);
+    assert.equal(decisionTaskFromLocation(`?${search}`), task, task);
+    // The context the URL carried survives.
+    assert.equal(new URLSearchParams(search).get("gasDay"), "2026-11-05");
+  }
+  // Legacy and unknown links keep their documented fallbacks.
+  assert.equal(decisionTaskFromLocation("?workspace=review"), "review");
+  assert.equal(decisionTaskFromLocation("?workspace=scenario&task=nonsense"), "scenario");
+});

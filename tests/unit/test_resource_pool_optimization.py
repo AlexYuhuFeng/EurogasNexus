@@ -774,3 +774,69 @@ def test_unknown_effective_sale_lag_refuses_the_pair_without_zero_credit() -> No
     assert "SALE_CASH_LAG_MISSING:lag-resource:lag-option" in result.missing_inputs
     assert "SALE_CASH_LAG_UNKNOWN:lag-resource:lag-option" in result.warnings
     assert any("assumed receipt day" in assumption for assumption in result.assumptions)
+
+
+def _financed(resource_id: str, rate: float | None, day_count: str = "ACT/365F") -> PortfolioResource:
+    return PortfolioResource(
+        resource_id=resource_id,
+        resource_name=resource_id,
+        resource_type=SourceResourceType.PIPELINE_IMPORT,
+        delivery_mode=DeliveryMode.VIRTUAL_HUB_SALE,
+        location_point_name="NBP",
+        available_quantity_mwh_per_day=100,
+        contract_cost_gbp_mwh=100,
+        upstream_payment_lag_days=31,
+        annual_financing_rate_pct=rate,
+        financing_day_count=day_count,
+    )
+
+
+def _pool(resources: list[PortfolioResource], default_rate: float = 9.0):
+    return optimize_resource_pool(
+        PortfolioOptimizationScenario(
+            portfolio_id="financing",
+            annual_financing_rate_pct=default_rate,
+            resources=resources,
+            sale_options=[
+                PortfolioSaleOption(
+                    option_id="nbp",
+                    label="NBP",
+                    delivery_mode=DeliveryMode.VIRTUAL_HUB_SALE,
+                    target_point_name="NBP",
+                    sale_price_gbp_mwh=120,
+                    route_cost_gbp_mwh=0,
+                    capacity_limit_mwh_per_day=10_000,
+                    capacity_status=CapacityStatus.NOT_REQUIRED,
+                    screen_sale_cash_lag_days=1,
+                ),
+            ],
+        )
+    )
+
+
+def test_each_contract_prices_its_early_cash_with_its_own_rate() -> None:
+    """#14: A funded at 3 %, B at 2 %: each slice uses its own rate, never the first one's."""
+
+    result = _pool([_financed("A", 3.0), _financed("B", 2.0)])
+    by_id = {item.resource_id: item for item in result.allocations}
+    # 30 days of early cash on a 100/MWh cost, ACT/365F.
+    assert by_id["A"].early_cash_value_gbp_mwh == pytest.approx(round(100 * 0.03 * 30 / 365, 4))
+    assert by_id["B"].early_cash_value_gbp_mwh == pytest.approx(round(100 * 0.02 * 30 / 365, 4))
+    assert by_id["A"].financing_rate_pct == 3.0 and by_id["A"].financing_rate_source == "contract"
+    # Order of the contracts does not change anyone's figure.
+    swapped = {item.resource_id: item for item in _pool([_financed("B", 2.0), _financed("A", 3.0)]).allocations}
+    assert swapped["A"].early_cash_value_gbp_mwh == by_id["A"].early_cash_value_gbp_mwh
+
+
+def test_the_scenario_rate_covers_only_resources_without_their_own() -> None:
+    result = _pool([_financed("manual", None)], default_rate=4.0)
+    (slice_,) = result.allocations
+    assert slice_.financing_rate_pct == 4.0
+    assert slice_.financing_rate_source == "scenario_default"
+
+
+def test_act_360_and_act_365f_differ_as_their_day_counts_do() -> None:
+    act365 = _pool([_financed("A", 3.0)]).allocations[0].early_cash_value_gbp_mwh
+    act360 = _pool([_financed("A", 3.0, "ACT/360")]).allocations[0].early_cash_value_gbp_mwh
+    assert act360 == pytest.approx(round(100 * 0.03 * 30 / 360, 4))
+    assert act360 > act365

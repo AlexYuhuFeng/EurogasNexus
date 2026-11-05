@@ -203,8 +203,9 @@ export function createHubSpreadResolver(rows: readonly MarketSpreadDTO[]) {
  * negative, and the sign could flip with the API's row order.
  *
  * Returns `null` when the response carries no row from which the premium can be
- * established. TTF itself has no premium over TTF, so it resolves to a plain zero rather
- * than `null`, matching how the strip displays it.
+ * established. TTF over itself is also `null`: spread rows carry no TTF price, so a zero
+ * here would read as a market result when nothing is known (#29). A view with a TTF price
+ * may show the reference row's own premium as 0 itself.
  */
 export function premiumOverTtf(
   rows: readonly MarketSpreadDTO[],
@@ -212,17 +213,7 @@ export function premiumOverTtf(
   period: string,
 ): ResolvedHubSpread | null {
   const normalisedHub = normalise(hub);
-  if (normalisedHub === "TTF") {
-    return {
-      value_eur_mwh: 0,
-      from_hub: "TTF",
-      to_hub: "TTF",
-      period,
-      from_venue: "",
-      to_venue: "",
-      derived_from_reverse: false,
-    };
-  }
+  if (normalisedHub === "TTF") return null;
   return createHubSpreadResolver(rows)("TTF", normalisedHub, period);
 }
 

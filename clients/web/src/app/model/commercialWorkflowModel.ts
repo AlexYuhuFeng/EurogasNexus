@@ -36,7 +36,9 @@ export function decisionTaskFromLocation(search: string): DecisionTask {
   const workspace = params.get("workspace");
   // Legacy deep links: ?workspace=review must open Review, not Scenario.
   if (workspace === "review") return "review";
-  if (task === "optimize" || task === "review") return task;
+  // Every declared task round-trips (decisionTaskToSearch writes any of them); a value that
+  // names none falls back to Scenario. Nomination and dispatch used to fall back too (#16).
+  if ((DECISION_TASKS as readonly string[]).includes(task ?? "")) return task as DecisionTask;
   if (workspace === "optimize") return "optimize";
   return "scenario";
 }

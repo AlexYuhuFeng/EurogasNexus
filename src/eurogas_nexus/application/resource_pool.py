@@ -607,6 +607,8 @@ def portfolio_resource_from_contract(
         "tolerance_risk_allowance_gbp_mwh": contract.get("tolerance_risk_allowance_gbp_mwh") or 0.0,
         "upstream_payment_lag_days": contract["upstream_payment_lag_days"],
         "screen_sale_cash_lag_days": contract["screen_sale_cash_lag_days"],
+        # The contract's own financing rate prices its early cash (#14).
+        "annual_financing_rate_pct": contract.get("annual_financing_rate_pct"),
         "settlement_frequency": contract["settlement_frequency"],
         "required_tso_access": [],
         "accessible_tsos": list(company_accessible_tsos or []) or None,

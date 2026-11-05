@@ -107,6 +107,12 @@ class PortfolioResource(BaseModel):
         accessible_tsos: Company's accessible TSOs, or None when unknown.
         pricing_method: Pricing method tag (e.g. ``FIXED_PRICE``).
         source_refs: Provenance references for the resource data.
+        annual_financing_rate_pct: This resource's own financing rate (percent per year,
+            simple interest), from its contract. Each contract can be funded by a different
+            bank at a different rate, so a pool never prices one contract's early cash with
+            another's rate; ``None`` falls back to the scenario's default rate.
+        financing_day_count: Day-count convention for that rate: ``ACT/365F`` (default)
+            or ``ACT/360``. The lag is in actual days either way.
     """
 
     resource_id: str
@@ -130,6 +136,8 @@ class PortfolioResource(BaseModel):
     accessible_tsos: list[str] | None = None
     pricing_method: str = "FIXED_PRICE"
     source_refs: list[str] = Field(default_factory=list)
+    annual_financing_rate_pct: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    financing_day_count: Literal["ACT/365F", "ACT/360"] = "ACT/365F"
 
     @field_validator("upstream_payment_lag_days", mode="before")
     @classmethod
@@ -247,8 +255,9 @@ class PortfolioOptimizationScenario(BaseModel):
             ``screen_sale_cash_lag_days`` (whole days, or an explicit ``None``
             for unknown); a pair whose effective lag (resource override, else
             this declaration) is unknown is refused, never defaulted.
-        annual_financing_rate_pct: REQUIRED annual financing rate for early-cash
-            valuation, in percent per year. There is deliberately no default:
+        annual_financing_rate_pct: REQUIRED default annual financing rate for early-cash
+            valuation, in percent per year, for resources that declare no rate of their
+            own (a resource from a saved contract carries that contract's rate). There is deliberately no default:
             the rate credits unit margin, so a server-filled value would price a
             margin from an assumption the caller never declared. Omission,
             ``null``, booleans, strings and non-finite numbers are refused; an
@@ -312,6 +321,10 @@ class PortfolioAllocation(BaseModel):
         gross_sale_price_gbp_mwh: Gross sale price (same currency/unit).
         total_cost_gbp_mwh: Total unit cost incl. early-cash credit.
         early_cash_value_gbp_mwh: Early-cash financing value per MWh.
+        financing_rate_pct: The rate that early-cash value used (the resource's own
+            contract rate, else the scenario default), percent per year.
+        financing_rate_source: ``contract`` or ``scenario_default``.
+        financing_day_count: ``ACT/365F`` or ``ACT/360``.
         net_margin_gbp_mwh: Unit margin (price - total cost).
         net_pnl_gbp_per_day: Daily PnL of this slice.
         warnings: Slice-level warnings (TSO/capacity/currency issues).
@@ -325,6 +338,9 @@ class PortfolioAllocation(BaseModel):
     early_cash_value_gbp_mwh: float
     net_margin_gbp_mwh: float
     net_pnl_gbp_per_day: float
+    financing_rate_pct: float | None = None
+    financing_rate_source: str | None = None
+    financing_day_count: str | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -380,6 +396,8 @@ class _Bid(BaseModel):
     margin: float
     total_cost: float
     early_cash: float
+    financing_rate_pct: float | None = None
+    financing_rate_source: str | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -477,9 +495,15 @@ def optimize_resource_pool(
                     f"SALE_CASH_LAG_UNKNOWN:{resource.resource_id}:{option.option_id}"
                 )
                 continue
+            # Each contract is priced with its own financing rate (A at 3 %, B at 2 % stay
+            # A at 3 % and B at 2 %); the scenario rate only covers resources without one.
+            own_rate = resource.annual_financing_rate_pct is not None
+            rate_pct = (
+                resource.annual_financing_rate_pct if own_rate else scenario.annual_financing_rate_pct
+            )
             early_cash = _early_cash_value_gbp_mwh(
                 resource,
-                annual_financing_rate_pct=scenario.annual_financing_rate_pct,
+                annual_financing_rate_pct=rate_pct,
                 screen_sale_cash_lag_days=screen_lag_days,
             )
             total_cost = (
@@ -498,6 +522,8 @@ def optimize_resource_pool(
                     margin=margin,
                     total_cost=total_cost,
                     early_cash=early_cash,
+                    financing_rate_pct=rate_pct,
+                    financing_rate_source="contract" if own_rate else "scenario_default",
                     warnings=_unique(pair_warnings),
                 )
             )
@@ -701,6 +727,9 @@ def _solve_min_cost_flow(
                 gross_sale_price_gbp_mwh=bid.option.sale_price_gbp_mwh,
                 total_cost_gbp_mwh=round(bid.total_cost, 4),
                 early_cash_value_gbp_mwh=round(bid.early_cash, 4),
+                financing_rate_pct=bid.financing_rate_pct,
+                financing_rate_source=bid.financing_rate_source,
+                financing_day_count=bid.resource.financing_day_count,
                 net_margin_gbp_mwh=bid.margin,
                 net_pnl_gbp_per_day=pnl,
                 warnings=_unique(bid.warnings),
@@ -1012,12 +1041,13 @@ def _early_cash_value_gbp_mwh(
 
     lag_days = max(resource.upstream_payment_lag_days - screen_sale_cash_lag_days, 0)
     annual_rate = annual_financing_rate_pct / 100
+    year_days = 360 if resource.financing_day_count == "ACT/360" else 365
     base_cost = (
         resource.contract_cost_gbp_mwh
         + resource.variable_cost_gbp_mwh
         + _fuel_loss_cost_gbp_mwh(resource)
     )
-    return round(base_cost * annual_rate * lag_days / 365, 4)
+    return round(base_cost * annual_rate * lag_days / year_days, 4)
 
 
 def _fuel_loss_cost_gbp_mwh(resource: PortfolioResource) -> float:

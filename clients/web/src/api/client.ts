@@ -1945,6 +1945,9 @@ export interface PortfolioOptimizationResultDTO {
     resource_id: string; option_id: string; allocated_quantity_mwh_per_day: number;
     gross_sale_price_gbp_mwh: number; total_cost_gbp_mwh: number;
     early_cash_value_gbp_mwh: number; net_margin_gbp_mwh: number;
+    // The financing rate that slice used (its contract's own, else the scenario default) (#14).
+    financing_rate_pct?: number | null; financing_rate_source?: "contract" | "scenario_default" | null;
+    financing_day_count?: "ACT/365F" | "ACT/360" | null;
     net_pnl_gbp_per_day: number; warnings: string[];
   }>;
   missing_inputs: string[]; assumptions: string[]; warnings: string[]; source_refs: string[];

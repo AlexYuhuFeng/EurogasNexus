@@ -496,7 +496,13 @@ export function MarketTerminal({
   /** The hub's premium over TTF for one tenor: live mid-to-mid, else the persisted spread. */
   const premiumOverTtf = (hub: string, tenor: string, row: HubTerminalRow | undefined) => {
     const quote = latestQuoteByHubTenor.get(`${hub}:${tenor}`);
-    if (hub === "TTF") return { value: 0, unit: quote ? `${quote.currency}/${quote.unit}` : "EUR/MWh" };
+    if (hub === "TTF") {
+      // TTF over itself is zero only when there is a TTF price to be zero against; with no
+      // quote and no mark it is not computable, not 0.00 (#29).
+      const ttfPrice = quoteMid(quote) ?? row?.latest?.price ?? null;
+      if (ttfPrice === null || !Number.isFinite(ttfPrice)) return { value: null, unit: undefined };
+      return { value: 0, unit: quote ? `${quote.currency}/${quote.unit}` : row?.latest?.unit };
+    }
     const ttfQuote = latestQuoteByHubTenor.get(`TTF:${tenor}`);
     // A spread is only a difference of like with like: an NBP row in GBP next to TTF in EUR
     // is not subtracted (the backend spread, which converts with a declared FX, is used instead).

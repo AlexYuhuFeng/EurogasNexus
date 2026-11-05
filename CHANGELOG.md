@@ -56,6 +56,12 @@ version lives under [docs/release/notes](docs/release/notes).
   deployment token is checked. The desktop now holds its session in memory and presents it
   in its own header (development and SSO logins alike); sign-out revokes it on the server;
   live updates reach the desktop too. Browsers keep the HttpOnly cookie and CSRF guard.
+- Decision Center: Nomination and Storage dispatch open again; every decision task now
+  survives a link, a refresh and Back/Forward (#16).
+- TTF's spread to itself shows "—" when there is no TTF price, instead of +0.00 (#29).
+- Early-cash value: each contract prices its early cash with its own financing rate
+  (A at 3 %, B at 2 %), never the first contract's; ACT/365F or ACT/360 per resource; each
+  allocation shows the rate and convention it used (#14).
 - Forward curve: months inside a quarter, season or year weigh by delivery hours, so the
   23- and 25-hour gas days of the summer-time change count as the exchanges count them; a
   product whose months are all quoted is repriced and a mismatch over 0.5 % is reported.
