@@ -1,4 +1,8 @@
 {
+  "contracts.contract_price": "Contract price",
+  "contracts.price_per_mwh": "Contract price {{currency}}/MWh",
+  "contracts.price_currency": "Price currency",
+  "contracts.currency_translated": "Priced in {{currency}}: positions translate it into {{hubCurrency}} at the latest ECB reference rate to mark it against {{hub}}, and route costs translate it into GBP.",
   "nativeCapacity.title": "Native ENTSOG capacity context",
   "nativeCapacity.subtitle": "Compare ENTSOG flow and firm technical capacity for a selected point, with periods and source evidence available for review.",
   "nativeCapacity.form_label": "Query by ENTSOG point_id",
@@ -1461,7 +1465,6 @@
   "contracts.doc_status.PDF_EXTRACTED_REVIEW_REQUIRED": "Read from PDF, to review",
   "contracts.choose": "Choose…",
   "contracts.as_recorded": "as recorded",
-  "contracts.currency_gap": "Prices are recorded in GBP/MWh. A {{hub}} contract is shown in positions but not marked to market until contract currency is added; keep its valuation in the ETRM.",
   "contracts.point_not_hub": "This point is not a hub: positions place it at the hub its name contains, and route costing uses the network point.",
   "contracts.allowed_exit_points_pick": "Where the gas may be taken",
   "contracts.eligible_sale_modes_pick": "How it may be sold",

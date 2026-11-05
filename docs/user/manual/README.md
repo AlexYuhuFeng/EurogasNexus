@@ -101,7 +101,5 @@ these screenshots were taken:
   contract library is a trader's read); the approvals list its own contracts, without
   prices.
 
-Known gap, not yet fixed: a contract's price is recorded in GBP/MWh only, so a contract
-delivered at TTF or another euro hub is shown but not marked to market, and its credit
-exposure is reported as "Incomplete, not valued". Until contract currency is added, keep
-euro-hub contracts' valuation in the ETRM.
+Since 2026-11-05 a contract's price is recorded in GBP, EUR or USD, so a contract delivered
+at TTF or another euro hub is marked to market against its hub in EUR.

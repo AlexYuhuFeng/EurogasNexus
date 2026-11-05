@@ -221,7 +221,7 @@ Still needed, and only people outside engineering can provide them:
   (scripts/release/policy/stable_gate_policy.json), the GitHub `production` environment
   with required reviewers, and branch protection on `main`.
 - On the customer's side: enterprise IdP acceptance against their identity provider,
-  deployment migration to head `0056_hedge_approvals`, and an incident-response drill.
+  deployment migration to head `0057_contract_price_currency`, and an incident-response drill.
 
 ## Product Boundary
 

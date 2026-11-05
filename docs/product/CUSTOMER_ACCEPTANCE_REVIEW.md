@@ -49,9 +49,10 @@ implemented in the same change where they could be, and the rest are listed with
 | TSO registration / capacity at the entry point | Entry/exit capacity on the contract; TSO access read path | TSO now shown per contract on the delivery view; booking and nomination stay in the TSO portals (product boundary: no nomination) |
 
 **Would accept** for analysis and decision support. **Worries left:** live licensed price
-connectors (Trayport/ICE) depend on the customer's licence and a certified connector; the
-contract price field is GBP/MWh for historical reasons, so a EUR contract price is shown
-by intake but must be recorded in notes until the multi-currency price field lands.
+connectors (Trayport/ICE) depend on the customer's licence and a certified connector.
+(Closed 2026-11-05: a contract's price is recorded in GBP, EUR or USD; PDF intake fills the
+currency it reads, positions mark it against its hub in the hub's currency, and route
+costs translate it into GBP at the ECB rate or leave the contract out without one.)
 
 ### Analyst
 
@@ -128,6 +129,7 @@ desktop installer, Python SDK. Bug reports and client updates: see
 3. **G18** customer UAT with their data and users.
 4. Encryption at rest and encrypted backups configured in the customer's infrastructure
    (deferred by the owner on the product side).
-5. Multi-currency contract price field (EUR/USD contracts recorded natively).
+5. ~~Multi-currency contract price field~~: done 2026-11-05 (migration
+   `0057_contract_price_currency`, revision schema v3).
 6. Daily feeds the customer wires to their scheduler: allocations (TSO/ETRM), ETRM trades,
    vessel positions (their Kpler/Spire licence).

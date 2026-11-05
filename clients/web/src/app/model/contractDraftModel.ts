@@ -51,7 +51,10 @@ export interface ContractDraft {
   delivery_point_name: string;
   gas_year: string;
   delivery_quantity_mwh_per_day: number | null;
+  /** Price per MWh in `contract_price_currency` (the field name predates the currency). */
   contract_price_gbp_mwh: number | null;
+  /** GBP, EUR or USD; blank means the delivery hub's own currency. */
+  contract_price_currency: string;
   nbp_sale_price_gbp_mwh: number | null;
   physical_exit_sale_price_gbp_mwh: number | null;
   physical_exit_point_name: string;

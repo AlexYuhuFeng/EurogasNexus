@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import FrozenInstanceError, fields
+from dataclasses import FrozenInstanceError, fields, replace
 from datetime import date
 from decimal import ROUND_DOWN, Decimal, localcontext
 
@@ -150,6 +150,7 @@ def test_snapshot_field_set_is_the_reviewed_payload_contract() -> None:
         "mapping_issues",
         "schema_version",
         "payment_terms",
+        "contract_price_currency",
     ]
 
 
@@ -586,9 +587,41 @@ def test_canonical_roundtrip_is_lossless_and_strict() -> None:
 
     with pytest.raises(ContractRevisionPayloadError) as wrong_version:
         UpstreamContractEconomicSnapshot.from_canonical_document(
-            {**document, "schema_version": "upstream-contract-revision/v3"}
+            {**document, "schema_version": "upstream-contract-revision/v9"}
         )
     assert wrong_version.value.code == "canonical_schema_version_unknown"
+
+    # v3 declares one more field; a v1 body relabelled v3 is a field-set violation.
+    with pytest.raises(ContractRevisionPayloadError) as v3_without_currency:
+        UpstreamContractEconomicSnapshot.from_canonical_document(
+            {**document, "schema_version": "upstream-contract-revision/v3"}
+        )
+    assert v3_without_currency.value.code == "canonical_field_set_mismatch"
+
+
+def test_a_euro_contract_is_captured_as_v3_and_gbp_contracts_keep_their_v1_bytes() -> None:
+    gbp = _mapped_snapshot(_legacy_payload())
+    assert gbp.schema_version == "upstream-contract-revision/v1"
+    assert "contract_price_currency" not in gbp.canonical_document()
+    # An explicit GBP currency maps to the very same v1 bytes and hash.
+    explicit = _mapped_snapshot({**_legacy_payload(), "contract_price_currency": "GBP"})
+    assert explicit.content_hash() == gbp.content_hash()
+
+    eur = _mapped_snapshot({**_legacy_payload(), "contract_price_currency": "EUR"})
+    assert eur.schema_version == "upstream-contract-revision/v3"
+    document = eur.canonical_document()
+    assert document["contract_price_currency"] == "EUR"
+    assert eur.content_hash() != gbp.content_hash()
+    rebuilt = UpstreamContractEconomicSnapshot.from_canonical_document(document)
+    assert rebuilt == eur and rebuilt.content_hash() == eur.content_hash()
+
+    with pytest.raises(ContractRevisionPayloadError) as unknown:
+        _mapped_snapshot({**_legacy_payload(), "contract_price_currency": "JPY"})
+    assert unknown.value.code == "price_currency_unknown"
+    # v1 and v2 hold GBP prices only: another currency there is refused.
+    with pytest.raises(ContractRevisionPayloadError) as old_schema:
+        replace(gbp, contract_price_currency="EUR")
+    assert old_schema.value.code == "price_currency_needs_v3"
 
 
 def test_canonical_decode_rejects_noncanonical_decimal_spellings() -> None:

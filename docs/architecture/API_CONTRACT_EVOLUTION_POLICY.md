@@ -551,3 +551,26 @@ The contract write also refuses an unknown sale mode (422 `contract_sale_mode_un
 
 Public census: 231 paths / 248 operations.
 
+### Contract price currency (2026-11-05)
+
+Migration `0057_contract_price_currency` adds `upstream_resource_contracts.contract_price_currency`
+(`GBP`, `EUR` or `USD`; existing rows read `GBP`, which is what every price recorded so far
+was). Additive and backward compatible:
+
+- `POST /api/route-cost/upstream-contracts` accepts an optional `contract_price_currency`.
+  Omitted keeps the stored currency (GBP for a new contract), so an older client never
+  changes it; any other value is a 422 from request validation.
+- Contract reads carry `contract_price_currency`. `contract_price_gbp_mwh` keeps its name
+  and now means the price per MWh **in that currency**; the name predates the field.
+- The edit token covers the new column, so an edit made against an older read is a 409.
+- Revisions: a GBP contract is still captured as `upstream-contract-revision/v1` (or v2
+  with declared payment terms), byte for byte as before, so existing hashes hold. A EUR or
+  USD contract is captured as `upstream-contract-revision/v3`, which adds
+  `contract_price_currency` to the canonical document and may carry payment terms.
+- Positions mark a contract against its hub in the hub's quote currency, translating a
+  price in another currency at the latest ECB reference rate (with a warning naming it).
+  The GBP route-cost engines translate with the as-of FX rule; a contract without a rate
+  is left out with blocker `CONTRACT_PRICE_FX_MISSING:<id>:<currency>`
+  (`runtime_decision_input_blocked` on the portfolio-network optimisation).
+
+Public census unchanged: 231 paths / 248 operations.

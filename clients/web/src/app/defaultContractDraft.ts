@@ -25,6 +25,7 @@ export const defaultContractDraft: ContractDraft = {
   gas_year: currentGasYear(new Date()),
   delivery_quantity_mwh_per_day: 0,
   contract_price_gbp_mwh: 0,
+  contract_price_currency: "",
   nbp_sale_price_gbp_mwh: 0,
   physical_exit_sale_price_gbp_mwh: 0,
   physical_exit_point_name: "",

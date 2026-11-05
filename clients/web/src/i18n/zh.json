@@ -1,4 +1,8 @@
 {
+  "contracts.contract_price": "合同价格",
+  "contracts.price_per_mwh": "合同价格 {{currency}}/MWh",
+  "contracts.price_currency": "计价币种",
+  "contracts.currency_translated": "以 {{currency}} 计价：头寸按最新 ECB 参考汇率折算为 {{hubCurrency}} 后对 {{hub}} 盯市，路线成本折算为 GBP。",
   "nativeCapacity.title": "ENTSOG 原生容量背景",
   "nativeCapacity.subtitle": "比较所选点位的 ENTSOG 流量与固定技术容量，并查看对应时段和来源证据。",
   "nativeCapacity.form_label": "按 ENTSOG point_id 查询",
@@ -1735,7 +1739,6 @@
   "contracts.doc_status.PDF_EXTRACTED_REVIEW_REQUIRED": "PDF 读取，待复核",
   "contracts.choose": "请选择…",
   "contracts.as_recorded": "按记录",
-  "contracts.currency_gap": "价格以 GBP/MWh 记录。{{hub}} 合同会显示在头寸中，但在加入合同币种前不做盯市；其估值请在 ETRM 中维护。",
   "contracts.point_not_hub": "该点不是枢纽：头寸按名称所含枢纽归集，路线成本使用网络点。",
   "contracts.allowed_exit_points_pick": "可提气地点",
   "contracts.eligible_sale_modes_pick": "可用销售方式",

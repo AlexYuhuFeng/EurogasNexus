@@ -275,6 +275,9 @@ def compose_resource_pool_options(
     if not candidates:
         blockers.append("ROUTE_CANDIDATES_MISSING")
 
+    contracts, fx_blockers, fx_warnings = contracts_priced_in_gbp(contracts, fx_rows, gas_day)
+    blockers += fx_blockers
+    warnings += fx_warnings
     price_by_point = latest_market_price_by_point(market_rows)
     resources = [
         portfolio_resource_from_contract(
@@ -764,6 +767,46 @@ def candidate_route_cost(
         blockers,
         source_refs,
     )
+
+
+def contracts_priced_in_gbp(
+    contracts: list[dict], fx_rows: list, asof_date: date | None
+) -> tuple[list[dict], list[str], list[str]]:
+    """The contracts with their price in GBP/MWh, as the route-cost engines work in GBP.
+
+    A contract recorded in EUR or USD is translated with the as-of FX rule of
+    :func:`value_in_gbp`. One without a usable rate is left out with a blocker
+    rather than costed at a guessed rate; a translated one is named in a warning.
+
+    Returns:
+        ``(contracts, blockers, warnings)``; the input dicts are not changed.
+    """
+
+    priced: list[dict] = []
+    blockers: list[str] = []
+    warnings: list[str] = []
+    for contract in contracts:
+        currency = str(contract.get("contract_price_currency") or "GBP").upper()
+        if currency == "GBP":
+            priced.append(contract)
+            continue
+        value, _provenance, fx_warning = value_in_gbp(
+            float(contract["contract_price_gbp_mwh"]),
+            currency,
+            f"{currency}/MWh",
+            asof_date,
+            fx_rows,
+        )
+        if value is None:
+            blockers.append(f"CONTRACT_PRICE_FX_MISSING:{contract['contract_id']}:{currency}")
+            continue
+        warnings.append(f"CONTRACT_PRICE_FX_TRANSLATED:{contract['contract_id']}:{currency}->GBP")
+        if fx_warning:
+            warnings.append(fx_warning)
+        priced.append(
+            {**contract, "contract_price_gbp_mwh": value, "contract_price_currency": "GBP"}
+        )
+    return priced, blockers, warnings
 
 
 def value_in_gbp(

@@ -19,6 +19,20 @@ export function hubCurrency(hub: string | null): "GBP" | "EUR" | null {
   return hub === "NBP" ? "GBP" : "EUR";
 }
 
+/** Currencies a contract may be priced in. */
+export const PRICE_CURRENCIES = ["GBP", "EUR", "USD"] as const;
+export type PriceCurrency = (typeof PRICE_CURRENCIES)[number];
+
+/**
+ * The currency a contract's price is recorded in: the one chosen, else the delivery hub's own,
+ * else GBP (every contract recorded before the currency existed was priced in GBP).
+ */
+export function contractPriceCurrency(chosen: string | null | undefined, deliveryPoint: string): PriceCurrency {
+  const code = (chosen ?? "").trim().toUpperCase();
+  if ((PRICE_CURRENCIES as readonly string[]).includes(code)) return code as PriceCurrency;
+  return hubCurrency(hubOfPoint(deliveryPoint)) ?? "GBP";
+}
+
 /** The hub a point name belongs to ("NBP St Fergus" is NBP), or null when it names none. */
 export function hubOfPoint(point: string): string | null {
   const upper = (point || "").toUpperCase();

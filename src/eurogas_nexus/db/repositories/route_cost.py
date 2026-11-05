@@ -421,7 +421,31 @@ def _normalized_contract_values(data: Mapping[str, object]) -> dict[str, object]
     }
     if "payment_terms" in data:
         values["payment_terms_json"] = _encoded_payment_terms(data["payment_terms"])
+    if data.get("contract_price_currency") is not None:
+        # Presence semantics, as for payment terms: an omitted currency keeps the row's.
+        values["contract_price_currency"] = contract_price_currency(
+            data["contract_price_currency"]
+        )
     return values
+
+
+#: Currencies a supply contract may be priced in.
+CONTRACT_PRICE_CURRENCIES = ("GBP", "EUR", "USD")
+
+
+def contract_price_currency(value: object) -> str:
+    """Return the ISO code of a contract price currency, refusing anything else.
+
+    Raises:
+        ValueError: When the value is not one of :data:`CONTRACT_PRICE_CURRENCIES`.
+    """
+
+    code = str(value).strip().upper()
+    if code not in CONTRACT_PRICE_CURRENCIES:
+        raise ValueError(
+            f"contract_price_currency must be one of {', '.join(CONTRACT_PRICE_CURRENCIES)}"
+        )
+    return code
 
 
 def _apply_contract_values(
@@ -1201,6 +1225,7 @@ def _contract_payload(
         "gas_year": row.gas_year,
         "delivery_quantity_mwh_per_day": row.delivery_quantity_mwh_per_day,
         "contract_price_gbp_mwh": row.contract_price_gbp_mwh,
+        "contract_price_currency": row.contract_price_currency or "GBP",
         "settlement_frequency": row.settlement_frequency,
         "upstream_payment_lag_days": row.upstream_payment_lag_days,
         "screen_sale_cash_lag_days": row.screen_sale_cash_lag_days,

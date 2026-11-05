@@ -13,6 +13,13 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ### Added
 
+- **Contract currency**: a supply contract's price is recorded in GBP, EUR or USD
+  (the workbench offers the delivery hub's own currency first). Positions mark a EUR
+  contract at TTF against TTF in EUR, and translate a price in another currency at the
+  latest ECB reference rate, saying so; route costs translate into GBP or leave the
+  contract out when no rate exists. PDF intake fills the currency it reads instead of
+  asking for the price to be kept in notes.
+
 - **Live map selection** (Market → Network): click a hub, a place or a cargo and its card
   docks on the right while the map highlights it and what it relates to. A hub shows its
   day-ahead and month-ahead prices, its zone's outages (including those one pipeline

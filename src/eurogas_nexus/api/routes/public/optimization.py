@@ -641,6 +641,25 @@ def optimize_portfolio_network(body: PortfolioNetworkOptimizationRequest) -> dic
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
 
+    from eurogas_nexus.application.resource_pool import contracts_priced_in_gbp
+
+    contract_rows, fx_blockers, _fx_warnings = contracts_priced_in_gbp(
+        contract_rows, [_fx_fact(row) for row in fx_rows], body.gas_day
+    )
+    if fx_blockers:
+        # A contract priced in EUR or USD without a rate is not costed at a guess.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "runtime_decision_input_blocked",
+                "message": "A contract price cannot be translated into GBP.",
+                "blockers": fx_blockers,
+                "warnings": [],
+                "missing_inputs": ["fx_rate"],
+                "research_only": True,
+                "human_review_required": True,
+            },
+        )
     composition = compose_portfolio_network(
         contracts=[_contract_fact(row) for row in contract_rows],
         routes=[_route_fact(row) for row in route_rows],

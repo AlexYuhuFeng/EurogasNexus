@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -78,7 +78,11 @@ class UpstreamContractUpsertRequest(BaseModel):
         delivery_point_name: Delivery point name.
         gas_year: Contract gas year.
         delivery_quantity_mwh_per_day: Daily volume (positive).
-        contract_price_gbp_mwh: All-in contract price per MWh.
+        contract_price_gbp_mwh: All-in contract price per MWh, in
+            ``contract_price_currency`` (the name predates the currency).
+        contract_price_currency: GBP, EUR or USD. Omitted keeps the stored
+            currency (GBP for a new contract), so an older client never
+            changes it.
         settlement_frequency: Settlement frequency tag.
         upstream_payment_lag_days: Upstream payment lag (days).
         screen_sale_cash_lag_days: Screen-sale cash lag (days).
@@ -111,6 +115,7 @@ class UpstreamContractUpsertRequest(BaseModel):
     gas_year: str = Field(min_length=1, max_length=16)
     delivery_quantity_mwh_per_day: float = Field(gt=0)
     contract_price_gbp_mwh: float = Field(ge=0)
+    contract_price_currency: Literal["GBP", "EUR", "USD"] | None = None
     settlement_frequency: str = Field(min_length=1, max_length=32)
     upstream_payment_lag_days: int = Field(ge=0)
     screen_sale_cash_lag_days: int = Field(ge=0)

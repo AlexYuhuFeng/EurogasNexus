@@ -200,6 +200,7 @@ export function contractDraftFromRecord(
       current.delivery_quantity_mwh_per_day,
     ),
     contract_price_gbp_mwh: number("contract_price_gbp_mwh", current.contract_price_gbp_mwh),
+    contract_price_currency: text("contract_price_currency", current.contract_price_currency),
     nbp_sale_price_gbp_mwh: number("nbp_sale_price_gbp_mwh", current.nbp_sale_price_gbp_mwh),
     physical_exit_sale_price_gbp_mwh: number(
       "physical_exit_sale_price_gbp_mwh",

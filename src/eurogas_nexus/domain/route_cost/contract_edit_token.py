@@ -76,6 +76,7 @@ CONTRACT_EDIT_TOKEN_FIELDS = (
     "gas_year",
     "delivery_quantity_mwh_per_day",
     "contract_price_gbp_mwh",
+    "contract_price_currency",
     "settlement_frequency",
     "upstream_payment_lag_days",
     "screen_sale_cash_lag_days",

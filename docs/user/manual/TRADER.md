@@ -44,9 +44,10 @@ the Validation box on the right says what is missing.
 
    ![Quantity and tolerance](img/tr-05-quantity.png)
 
-5. **Price & costs**: the contract price in GBP/MWh (`30.85`) and any variable costs.
-   Prices are recorded in GBP/MWh today; a contract delivered at a euro hub says so and is
-   not marked to market (keep its valuation in the ETRM).
+5. **Price & costs**: the contract price (`30.85`) in its currency, and any variable
+   costs. The currency defaults to the delivery hub's (GBP at NBP, EUR at TTF); choose USD
+   for a dollar-priced cargo. A price in another currency than the hub's is translated at
+   the latest ECB reference rate for positions, and the form says so.
 
    ![Price](img/tr-06-price.png)
 

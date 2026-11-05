@@ -23,6 +23,8 @@ import {
   GOVERNING_LAWS,
   SALE_MODES,
   hubCurrency,
+  contractPriceCurrency,
+  PRICE_CURRENCIES,
   hubOfPoint,
   indexOptions,
   pointOptions,
@@ -108,7 +110,8 @@ export type ContractTextKey =
   | "source_reference"
   | "governing_law"
   | "gas_year"
-  | "settlement_frequency";
+  | "settlement_frequency"
+  | "contract_price_currency";
 
 export type ContractListKey = "allowed_exit_points" | "eligible_sale_modes";
 
@@ -226,6 +229,7 @@ export function ContractWorkbench({
   // Desk words for where the draft came from; an unknown code is shown as recorded.
   const points = useMemo(() => pointOptions(routeCandidates), [routeCandidates]);
   const deliveryHub = hubOfPoint(contract.delivery_point_name);
+  const priceCurrency = contractPriceCurrency(contract.contract_price_currency, contract.delivery_point_name);
   const stagedCode = contract.document_status || "MANUAL_DRAFT";
   const stagedLabel = t(`contracts.doc_status.${stagedCode}`);
   const stagedStatus = stagedLabel === `contracts.doc_status.${stagedCode}` ? stagedCode : stagedLabel;
@@ -382,7 +386,6 @@ export function ContractWorkbench({
               <label>{t("contracts.beach_delivery_point")}<ChoiceSelect value={contract.beach_delivery_point} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("beach_delivery_point", value)} /></label>
               <label>{t("contracts.physical_exit_point")}<ChoiceSelect value={contract.physical_exit_point_name} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("physical_exit_point_name", value)} /></label>
             </div>
-              {deliveryHub && hubCurrency(deliveryHub) !== "GBP" && <div className="contract-model-boundary">{t("contracts.currency_gap", { hub: deliveryHub })}</div>}
               {contract.delivery_point_name && !deliveryHub && <div className="contract-model-boundary">{t("contracts.point_not_hub")}</div>}
             </fieldset>}
             {clauseView === "quantity" && <fieldset><legend>{t("contracts.quantity_tolerance")}</legend><p>{t("contracts.section_help.quantity")}</p><div className="contract-field-grid">
@@ -392,11 +395,12 @@ export function ContractWorkbench({
               <label>{t("contracts.fuel_loss")}<input type="number" min="0" max="99.99" value={contract.fuel_loss_allowance_pct ?? ""} onChange={(event) => updateContractNumber("fuel_loss_allowance_pct", event.target.value)} /></label>
             </div><div className="contract-model-boundary">{t("contracts.minimum_take_not_modeled")}</div></fieldset>}
             {clauseView === "costs" && <fieldset><legend>{t("contracts.price_costs")}</legend><p>{t("contracts.section_help.costs")}</p><div className="contract-field-grid">
-              <label>{t("economics.contract_price")}<input type="number" min="0" value={contract.contract_price_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
+              <label>{t("contracts.price_per_mwh", { currency: priceCurrency })}<input type="number" min="0" value={contract.contract_price_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
+              <label>{t("contracts.price_currency")}<select value={priceCurrency} onChange={(event) => updateContractText("contract_price_currency", event.target.value)}>{PRICE_CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
               <label>{t("contracts.balancing_allowance")}<input type="number" min="0" value={contract.tolerance_risk_allowance_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("tolerance_risk_allowance_gbp_mwh", event.target.value)} /></label>
               <label>{t("contracts.variable_cost")}<input type="number" min="0" value={contract.variable_cost_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("variable_cost_gbp_mwh", event.target.value)} /></label>
               <label>{t("contracts.regas_fee")}<input type="number" min="0" value={contract.regas_fee_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("regas_fee_gbp_mwh", event.target.value)} /></label>
-            </div></fieldset>}
+            </div>{deliveryHub && hubCurrency(deliveryHub) !== priceCurrency && <div className="contract-model-boundary">{t("contracts.currency_translated", { currency: priceCurrency, hub: deliveryHub, hubCurrency: hubCurrency(deliveryHub) })}</div>}</fieldset>}
             {clauseView === "capacity" && <fieldset><legend>{t("contracts.capacity_rights")}</legend><p>{t("contracts.section_help.capacity")}</p><div className="contract-field-grid">
               <label>{t("contracts.terminal_access")}<input value={contract.terminal_access} onChange={(event) => updateContractText("terminal_access", event.target.value)} /></label>
               <label>{t("contracts.capacity_expiry")}{/^\d{4}-\d{2}-\d{2}$/.test(contract.capacity_expiry) || !contract.capacity_expiry ? <input type="date" value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} /> : <input value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} />}</label>
@@ -463,7 +467,7 @@ export function ContractWorkbench({
                 <div><span>{t("contracts.resource_id")}</span><strong>{selectedResource?.resource_id ?? selectedPersistedTerm?.contract_id}</strong></div>
                 <div><span>{t("contracts.delivery_point")}</span><strong>{selectedResource?.location_point_name ?? selectedPersistedTerm?.delivery_point_name ?? "n/a"}</strong></div>
                 <div><span>{t("economics.volume")}</span><strong>{formatQuantity(selectedResource?.available_quantity_mwh_per_day ?? selectedPersistedTerm?.delivery_quantity_mwh_per_day)}</strong></div>
-                <div><span>{t("economics.contract_price")}</span><strong>{formatMoney(selectedResource?.contract_cost_gbp_mwh ?? selectedPersistedTerm?.contract_price_gbp_mwh)}</strong></div>
+                <div><span>{t("contracts.contract_price")}</span><strong>{selectedPersistedTerm ? `${formatMoney(selectedPersistedTerm.contract_price_gbp_mwh)} ${selectedPersistedTerm.contract_price_currency ?? "GBP"}/MWh` : `${formatMoney(selectedResource?.contract_cost_gbp_mwh)} GBP/MWh`}</strong></div>
                 <div><span>{t("contracts.source_reference")}</span><strong>{selectedResource?.source_refs?.join(", ") || selectedPersistedSourceReference || t("contracts.no_source_reference")}</strong></div>
               </div>
               {selectedPersistedTerm && (
@@ -482,7 +486,7 @@ export function ContractWorkbench({
           {/* One shared column set for the header and every row: the load control owns the four
               data cells and the row's last track is the actions cell, so a header can never drift
               away from the values underneath it (`docs/release/acceptance/05_CONTRACT_FLOW_RECHECK.md`, P2). */}
-          <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("economics.contract_price")}</span><span>{t("panel.status")}</span><span>{t("strategy_lab.actions")}</span></div>
+          <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("contracts.contract_price")}</span><span>{t("panel.status")}</span><span>{t("strategy_lab.actions")}</span></div>
           <div className="contract-library-list">{upstreamContracts.map((saved) => {
             const resourceInPool = portfolioResources.some((resource) => resource.resource_id === saved.contract_id);
             const selected = selectedResourceId === saved.contract_id || saved.contract_id === contract.contract_id;
@@ -499,7 +503,7 @@ export function ContractWorkbench({
                 <button type="button" className="contract-library-load" onClick={() => loadTerm(saved)}>
                   <span><strong>{saved.contract_name}</strong><small>{saved.contract_id} · {saved.delivery_point_name} · {saved.gas_year}</small></span>
                   <span><strong>{formatQuantity(saved.delivery_quantity_mwh_per_day)}</strong></span>
-                  <span><strong>{formatMoney(saved.contract_price_gbp_mwh)}</strong><small>GBP/MWh</small></span>
+                  <span><strong>{formatMoney(saved.contract_price_gbp_mwh)}</strong><small>{saved.contract_price_currency ?? "GBP"}/MWh</small></span>
                   <span><strong>{t("contracts.persisted")}</strong><small>{formatTimestamp(saved.updated_at_utc)}</small></span>
                 </button>
                 <div className="contract-library-row-actions">

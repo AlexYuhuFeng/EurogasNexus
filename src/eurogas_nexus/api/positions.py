@@ -184,6 +184,39 @@ def ecb_rates(session) -> dict[str, float]:
     return {"EUR": 1.0, **{quote: rate for quote, (_d, rate) in rates.items()}}
 
 
+def contract_price_in_hub_currency(
+    price: float,
+    currency: str,
+    hub_currency: str | None,
+    eur_rates: dict[str, float],
+) -> tuple[float | None, str | None]:
+    """A contract price in its hub's quote currency, for marking against that hub.
+
+    A price in the hub's own currency is used as recorded. Another currency is
+    translated at the latest ECB reference rates (units per EUR), which is how the
+    mark-to-market of a fixed foreign-currency price is reported; without a rate the
+    leg keeps its volume but is not valued, and the reason is returned.
+
+    Returns:
+        ``(price or None, warning or None)``.
+    """
+
+    currency = (currency or "GBP").upper()
+    if hub_currency is None:
+        return None, f"no quote currency for its hub; the {currency} price is not marked"
+    if currency == hub_currency:
+        return price, None
+    from_rate, to_rate = eur_rates.get(currency), eur_rates.get(hub_currency)
+    if not from_rate or not to_rate:
+        return None, (
+            f"no ECB rate to translate its {currency} price into {hub_currency};"
+            " volume shown, not valued"
+        )
+    return price * to_rate / from_rate, (
+        f"{currency} price translated into {hub_currency} at the latest ECB reference rate"
+    )
+
+
 def fx_by_hub_for(hubs, reporting_currency: str, eur_rates: dict[str, float]):
     """Multiplier from each hub's quote currency into the reporting currency (shared FX table)."""
 
@@ -298,6 +331,14 @@ def ladder_inputs(request: Request, today, horizon_start, horizon_end) -> Ladder
             )
             continue
         hub = hub_from_text(contract.delivery_point_name)
+        price, price_warning = contract_price_in_hub_currency(
+            float(contract.contract_price_gbp_mwh),
+            contract.contract_price_currency or "GBP",
+            HUB_CURRENCY.get(hub),
+            eur_rates,
+        )
+        if price_warning:
+            warnings.append(f"contract {contract.contract_id}: {price_warning}")
         legs.append(
             PositionLeg(
                 kind="physical",
@@ -305,10 +346,7 @@ def ladder_inputs(request: Request, today, horizon_start, horizon_end) -> Ladder
                 first_gas_day=window[0],
                 last_gas_day=window[1],
                 mwh_per_day=float(contract.delivery_quantity_mwh_per_day),
-                # Contract prices are stored in GBP/MWh; they value only against a GBP mark.
-                price=float(contract.contract_price_gbp_mwh)
-                if HUB_CURRENCY.get(hub) == "GBP"
-                else None,
+                price=price,
                 reference=contract.contract_id,
                 book_id=contract.book_id or "",
             )

@@ -736,3 +736,44 @@ def test_create_race_loser_refuses_conflict_and_keeps_the_winner(
         assert row.contract_price_gbp_mwh == 28.0
         assert session.query(UpstreamContractRevisionRecord).count() == 0
     assert _audit_rows(url) == []
+
+
+def test_a_euro_price_is_recorded_as_euro_and_omitting_the_currency_keeps_it(
+    tmp_path, monkeypatch
+) -> None:
+    url = _prepare_db(tmp_path, monkeypatch)
+    client = _deployment_client()
+
+    created = client.post(CONTRACT_PATH, json=_body(contract_price_currency="EUR"))
+    assert created.status_code == 200, created.text
+    data = created.json()["data"]
+    assert data["contract_price_currency"] == "EUR"
+
+    with _session(url) as session:
+        revisions = list_upstream_contract_revisions(session, CONTRACT_ID)
+        assert revisions[0]["snapshot"]["schema_version"] == "upstream-contract-revision/v3"
+        assert revisions[0]["snapshot"]["contract_price_currency"] == "EUR"
+
+    # An older client that does not send the currency never turns the price into GBP.
+    body = _body(contract_price_gbp_mwh=31.0)
+    body["expected_edit_token"] = _read_token(client)
+    updated = client.post(CONTRACT_PATH, json=body)
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["data"]["contract_price_currency"] == "EUR"
+
+    refused = client.post(
+        CONTRACT_PATH,
+        json={**_body(contract_price_currency="JPY"), "expected_edit_token": _read_token(client)},
+    )
+    assert refused.status_code == 422
+
+
+def test_a_gbp_contract_keeps_the_v1_revision_schema(tmp_path, monkeypatch) -> None:
+    url = _prepare_db(tmp_path, monkeypatch)
+    response = _deployment_client().post(CONTRACT_PATH, json=_body())
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["contract_price_currency"] == "GBP"
+    with _session(url) as session:
+        snapshot = list_upstream_contract_revisions(session, CONTRACT_ID)[0]["snapshot"]
+        assert snapshot["schema_version"] == "upstream-contract-revision/v1"
+        assert "contract_price_currency" not in snapshot

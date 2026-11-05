@@ -118,10 +118,25 @@ CONTRACT_REVISION_SCHEMA_VERSION = "upstream-contract-revision/v1"
 #: caller must declare it and supply a validated terms value or ``null``.
 CONTRACT_REVISION_SCHEMA_VERSION_V2 = "upstream-contract-revision/v2"
 
-#: Every version this module accepts; both declare the same complete field set.
+#: Schema version that records the contract price currency. v1 and v2 predate
+#: the currency and every price they hold is GBP/MWh, so their bytes and hashes
+#: stay as they are; a contract priced in another currency is captured as v3,
+#: which also may carry declared payment terms like v2.
+CONTRACT_REVISION_SCHEMA_VERSION_V3 = "upstream-contract-revision/v3"
+
+#: Every version this module accepts. v1 and v2 declare the same complete field
+#: set; v3 adds ``contract_price_currency``.
 _REVIEWED_REVISION_SCHEMA_VERSIONS = frozenset(
-    {CONTRACT_REVISION_SCHEMA_VERSION, CONTRACT_REVISION_SCHEMA_VERSION_V2}
+    {
+        CONTRACT_REVISION_SCHEMA_VERSION,
+        CONTRACT_REVISION_SCHEMA_VERSION_V2,
+        CONTRACT_REVISION_SCHEMA_VERSION_V3,
+    }
 )
+
+#: Currencies a contract price may be recorded in; v1/v2 imply GBP.
+_CONTRACT_PRICE_CURRENCIES = frozenset({"GBP", "EUR", "USD"})
+_PRICE_CURRENCY_FIELD = "contract_price_currency"
 
 #: Reviewed capture-origin label for the first persistence slice (S1b): the
 #: revision records what the mutable legacy row contained when a caller
@@ -211,6 +226,7 @@ _CANONICAL_DOCUMENT_FIELDS = frozenset(
         *_LIST_FIELD_NAMES,
     }
 )
+_CANONICAL_DOCUMENT_FIELDS_V3 = _CANONICAL_DOCUMENT_FIELDS | {_PRICE_CURRENCY_FIELD}
 
 
 class ContractRevisionPayloadError(ValueError):
@@ -545,6 +561,9 @@ class UpstreamContractEconomicSnapshot:
         default=CONTRACT_REVISION_SCHEMA_VERSION, kw_only=True
     )
     payment_terms: ContractPaymentTerms | None = field(default=None, kw_only=True)
+    #: ISO currency of ``contract_price_gbp_mwh`` (the field name predates it).
+    #: Only v3 may record a currency other than GBP.
+    contract_price_currency: str = field(default="GBP", kw_only=True)
 
     def __post_init__(self) -> None:
         """Validate every field and deep-freeze the sequence fields.
@@ -592,6 +611,19 @@ class UpstreamContractEconomicSnapshot:
                 "schema_version_unknown",
                 "schema_version must be one of the reviewed revision schema"
                 f" versions {sorted(_REVIEWED_REVISION_SCHEMA_VERSIONS)}",
+            )
+        currency = self.contract_price_currency
+        if not isinstance(currency, str) or currency not in _CONTRACT_PRICE_CURRENCIES:
+            raise ContractRevisionPayloadError(
+                "price_currency_unknown",
+                f"contract_price_currency must be one of"
+                f" {sorted(_CONTRACT_PRICE_CURRENCIES)}, got {currency!r}",
+            )
+        if currency != "GBP" and version != CONTRACT_REVISION_SCHEMA_VERSION_V3:
+            raise ContractRevisionPayloadError(
+                "price_currency_needs_v3",
+                f"a {currency} price is recorded only in"
+                f" {CONTRACT_REVISION_SCHEMA_VERSION_V3}; v1 and v2 prices are GBP",
             )
         if version == CONTRACT_REVISION_SCHEMA_VERSION:
             if self.payment_terms is not None:
@@ -645,6 +677,8 @@ class UpstreamContractEconomicSnapshot:
         }
         for name in _DECIMAL_FIELD_NAMES:
             document[name] = _decimal_text(getattr(self, name), name)
+        if self.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V3:
+            document[_PRICE_CURRENCY_FIELD] = self.contract_price_currency
         return document
 
     def canonical_json(self) -> str:
@@ -704,9 +738,14 @@ class UpstreamContractEconomicSnapshot:
                 f"document must be a mapping, got {type(document).__name__}",
             )
         keys = set(document)
-        if keys != _CANONICAL_DOCUMENT_FIELDS:
-            missing = sorted(str(key) for key in _CANONICAL_DOCUMENT_FIELDS - keys)
-            unexpected = sorted(str(key) for key in keys - _CANONICAL_DOCUMENT_FIELDS)
+        expected = (
+            _CANONICAL_DOCUMENT_FIELDS_V3
+            if document.get("schema_version") == CONTRACT_REVISION_SCHEMA_VERSION_V3
+            else _CANONICAL_DOCUMENT_FIELDS
+        )
+        if keys != expected:
+            missing = sorted(str(key) for key in expected - keys)
+            unexpected = sorted(str(key) for key in keys - expected)
             raise ContractRevisionPayloadError(
                 "canonical_field_set_mismatch",
                 f"missing={missing} unexpected={unexpected}",
@@ -769,6 +808,11 @@ class UpstreamContractEconomicSnapshot:
             numeric_source_precision=precision,
             schema_version=version,
             payment_terms=terms,
+            contract_price_currency=(
+                document[_PRICE_CURRENCY_FIELD]
+                if version == CONTRACT_REVISION_SCHEMA_VERSION_V3
+                else "GBP"
+            ),
             **numbers,
             **lags,
         )
@@ -1042,6 +1086,8 @@ def map_legacy_contract_payload(contract: Mapping[str, object]) -> LegacyContrac
         numbers[name] = _legacy_structured_number(
             contract, structured_notes, name, issues
         )
+    raw_currency = contract.get(_PRICE_CURRENCY_FIELD)
+    currency = "GBP" if raw_currency is None else raw_currency
 
     economic_snapshot = UpstreamContractEconomicSnapshot(
         contract_id=_required_text(contract.get("contract_id"), "contract_id"),
@@ -1067,6 +1113,13 @@ def map_legacy_contract_payload(contract: Mapping[str, object]) -> LegacyContrac
         ),
         numeric_source_precision=SOURCE_PRECISION_LEGACY_FLOAT64,
         mapping_issues=tuple(issues),
+        # A GBP contract maps exactly as before (v1); only another currency needs v3.
+        schema_version=(
+            CONTRACT_REVISION_SCHEMA_VERSION
+            if currency == "GBP"
+            else CONTRACT_REVISION_SCHEMA_VERSION_V3
+        ),
+        contract_price_currency=currency,
         **numbers,
     )
     return LegacyContractSnapshot(
@@ -1110,6 +1163,11 @@ def with_declared_payment_terms(
         )
     return replace(
         snapshot,
-        schema_version=CONTRACT_REVISION_SCHEMA_VERSION_V2,
+        # v3 already carries terms and the currency; v1 becomes v2.
+        schema_version=(
+            CONTRACT_REVISION_SCHEMA_VERSION_V3
+            if snapshot.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V3
+            else CONTRACT_REVISION_SCHEMA_VERSION_V2
+        ),
         payment_terms=payment_terms,
     )

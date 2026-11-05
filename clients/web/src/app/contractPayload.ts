@@ -1,5 +1,6 @@
 import type { UpstreamContractInputDTO } from "@/api/client";
 import type { ContractDraft } from "./defaultContractDraft";
+import { contractPriceCurrency } from "./contractChoices.ts";
 import {
   contractValidationIssueKeys,
   draftExpectedEditToken,
@@ -138,6 +139,7 @@ export function buildContractPayload(contract: RecordedContractDraft): UpstreamC
     gas_year: contract.gas_year.trim(),
     delivery_quantity_mwh_per_day: contract.delivery_quantity_mwh_per_day,
     contract_price_gbp_mwh: contract.contract_price_gbp_mwh,
+    contract_price_currency: contractPriceCurrency(contract.contract_price_currency, contract.delivery_point_name),
     settlement_frequency: contract.settlement_frequency,
     upstream_payment_lag_days: contract.upstream_payment_lag_days,
     screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,

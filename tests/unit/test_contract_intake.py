@@ -50,8 +50,11 @@ def test_terms_are_recognised_with_page_and_evidence():
     assert terms["gas_year"].value == "2026"
     assert terms["delivery_quantity_mwh_per_day"].value == pytest.approx(28_800.0)
     assert "kWh/h" in terms["delivery_quantity_mwh_per_day"].note
-    assert terms["_contract_price"].value == 34.25 and terms["_contract_price"].unit == "EUR/MWh"
-    assert "contract_price_gbp_mwh" not in terms  # a EUR price never lands in the GBP field
+    # A EUR price is recorded as EUR, never put into the price field as if it were GBP.
+    assert terms["contract_price_gbp_mwh"].value == 34.25
+    assert terms["contract_price_gbp_mwh"].unit == "EUR/MWh"
+    assert terms["contract_price_currency"].value == "EUR"
+    assert "_contract_price" not in terms
     assert terms["delivery_tolerance_pct"].value == 5.0
     assert terms["nomination_tolerance_pct"].value == 2.0
     assert "England" in terms["governing_law"].value
@@ -59,7 +62,7 @@ def test_terms_are_recognised_with_page_and_evidence():
     record = result.record()
     assert record["document_status"] == "PDF_EXTRACTED_REVIEW_REQUIRED"
     assert not any(key.startswith("_") for key in record)
-    assert any("EUR/MWh" in warning for warning in result.warnings)
+    assert record["contract_price_currency"] == "EUR"
 
 
 def test_pence_per_therm_and_therms_are_converted_to_mwh():

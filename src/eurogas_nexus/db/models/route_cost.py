@@ -69,7 +69,13 @@ class UpstreamResourceContractRecord(Base):
     delivery_point_name: Mapped[str] = mapped_column(String(256), nullable=False)
     gas_year: Mapped[str] = mapped_column(String(16), nullable=False)
     delivery_quantity_mwh_per_day: Mapped[float] = mapped_column(Float, nullable=False)
+    #: Contract price per MWh in ``contract_price_currency`` (the column name predates
+    #: the currency; it is kept for API compatibility).
     contract_price_gbp_mwh: Mapped[float] = mapped_column(Float, nullable=False)
+    #: ISO currency of the contract price: GBP, EUR or USD.
+    contract_price_currency: Mapped[str] = mapped_column(
+        String(3), nullable=False, default="GBP", server_default="GBP"
+    )
     settlement_frequency: Mapped[str] = mapped_column(String(32), nullable=False)
     upstream_payment_lag_days: Mapped[int] = mapped_column(nullable=False)
     screen_sale_cash_lag_days: Mapped[int] = mapped_column(nullable=False)

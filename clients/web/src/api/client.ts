@@ -1640,6 +1640,8 @@ export interface TsoTariffsResultDTO {
 export interface UpstreamContractDTO {
   contract_id: string; contract_name: string; resource_type: string; delivery_point_name: string;
   gas_year: string; delivery_quantity_mwh_per_day: number; contract_price_gbp_mwh: number;
+  // Currency of contract_price_gbp_mwh (the name predates it); absent from older servers = GBP.
+  contract_price_currency?: "GBP" | "EUR" | "USD";
   settlement_frequency: string; upstream_payment_lag_days: number; screen_sale_cash_lag_days: number;
   delivery_tolerance_pct: number; nomination_tolerance_pct: number;
   tolerance_risk_allowance_gbp_mwh?: number | null; annual_financing_rate_pct: number;

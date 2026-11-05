@@ -464,8 +464,14 @@ def extract_terms(pages: list[str], *, own_names: set[str] | None = None) -> dic
     put("delivery_quantity_mwh_per_day", _quantity(pages))
     fixed, index = _price(pages)
     if fixed is not None:
-        if fixed.unit == "GBP/MWh":
+        currency = fixed.unit.split("/")[0]
+        if currency in {"GBP", "EUR", "USD"}:
+            # The price field holds the price in the contract's own currency.
             put("contract_price_gbp_mwh", fixed)
+            put(
+                "contract_price_currency",
+                Term(currency, fixed.page, fixed.evidence, note=fixed.note),
+            )
         else:
             put("_contract_price", fixed)
     put("index_basis", index)
@@ -523,8 +529,8 @@ def intake_pdf(
     price = result.terms.get("_contract_price")
     if price is not None:
         result.warnings.append(
-            f"The fixed price is {price.value} {price.unit}; the workbench price field is "
-            "GBP/MWh, so enter it there only after converting, or record it in the notes."
+            f"The fixed price is {price.value} {price.unit}; contracts are priced in GBP, "
+            "EUR or USD, so enter it only after converting, or record it in the notes."
         )
     missing = [
         label
