@@ -202,6 +202,8 @@ def _sources_with_runtime_status() -> list[dict]:
             if latest_run
             else None
         )
+        if source["category"] == "ai":
+            source["model_service"] = _model_service_endpoint()
         connectivity_status = _connectivity_status(source, count, credential_state, latest_run)
         source["connectivity_status"] = connectivity_status
         source["status"] = connectivity_status
@@ -419,6 +421,27 @@ def _attach_operational_status(sources: list[dict]) -> None:
             source["effective_source_system"] = source["source_system"]
             source["effective_record_count"] = source["live_record_count"]
             source["effective_last_success_at_utc"] = source["last_success_at_utc"]
+
+
+def _model_service_endpoint() -> dict[str, str] | None:
+    """The configured model endpoint, so the UI names what is configured (#33).
+
+    Provider, model and host only: the key never leaves the backend, and a path or query
+    on the base URL is not shown.
+    """
+    from urllib.parse import urlsplit
+
+    from eurogas_nexus.llm.provider import LlmEndpointError, configured_endpoint
+
+    try:
+        endpoint = configured_endpoint()
+    except LlmEndpointError:
+        return None
+    return {
+        "provider_name": endpoint.provider_name,
+        "model": endpoint.model,
+        "host": urlsplit(endpoint.base_url).hostname or "",
+    }
 
 
 def _credential_state(source: dict, credential: dict[str, Any] | None) -> str:

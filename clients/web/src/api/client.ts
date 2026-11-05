@@ -639,6 +639,8 @@ export interface SourceSystemDTO {
   source_age_seconds: number | null;
   certification_state: string | null; entitlement_state: string | null;
   adapter_version: string | null;
+  /** The configured model endpoint of a model service (#33); never a key. */
+  model_service?: { provider_name: string; model: string; host: string } | null;
 }
 
 export interface SourceCategoryPostureDTO {

@@ -1612,3 +1612,23 @@ def test_gie_source_status_respects_a_disabled_runtime_operation_with_external_k
 
     assert gie["credential_state"] != "configured"
     assert "external-owner-key-value" not in response.text
+
+
+def test_model_service_names_the_configured_endpoint_without_the_key(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The AI source shows the configured provider and model, not a hard-coded name (#33)."""
+    monkeypatch.setenv("EUROGAS_NEXUS_LLM_PROVIDER_NAME", "acme-llm")
+    monkeypatch.setenv("EUROGAS_NEXUS_LLM_MODEL", "acme-chat-2")
+    monkeypatch.setenv("EUROGAS_NEXUS_LLM_BASE_URL", "https://llm.acme.example/v1")
+    monkeypatch.setenv("EUROGAS_NEXUS_LLM_API_KEY", "sk-test-not-a-real-key")
+    data = client.get("/api/sources").json()["data"]
+    ai = [source for source in data if source["category"] == "ai"]
+    assert ai
+    assert ai[0]["model_service"] == {
+        "provider_name": "ACME-LLM",
+        "model": "acme-chat-2",
+        "host": "llm.acme.example",
+    }
+    assert "sk-test-not-a-real-key" not in str(data)
+    assert all("model_service" not in source for source in data if source["category"] != "ai")

@@ -95,6 +95,12 @@ interface SourceCenterProps {
   formatSourceTimestamp: (value: string | null | undefined) => string;
 }
 
+/** A source's name as the desk knows it: a model service shows its configured provider and model. */
+function sourceDisplayName(source: SourceSystemDTO): string {
+  const service = source.model_service;
+  return service ? `${service.provider_name} · ${service.model}` : source.source_system;
+}
+
 function sourcePriority(source: SourceSystemDTO): number {
   if (!source.workflow_ready && ["error", "failed", "unreachable", "degraded"].includes(source.connectivity_status)) return 0;
   if (!source.workflow_ready && (source.credential_state === "missing" || source.connectivity_status === "credential_required")) return 1;
@@ -149,7 +155,7 @@ function ConnectorCatalogue({
                     onClick={() => onSelect(source.source_id)}
                   >
                     <span className="connector-card-head">
-                      <strong>{source.source_system}</strong>
+                      <strong>{sourceDisplayName(source)}</strong>
                       <span className={`connector-status connector-status-${card.group}`}>{t(card.statusKey)}</span>
                     </span>
                     <span className="connector-card-body">{source.description}</span>
@@ -454,7 +460,7 @@ export function SourceCenter({
                   </td>
                   <td>
                     <button type="button" className="source-row-select" onClick={() => onSourceSelect(source.source_id)}>
-                      <strong>{source.source_system}</strong>
+                      <strong>{sourceDisplayName(source)}</strong>
                       <small>
                         {sourceLabel("sources.category", source.category)}
                         {source.integration && source.integration !== "api"
@@ -514,7 +520,7 @@ export function SourceCenter({
         data-record-id={selectedSource?.source_id}
       >
         <PanelHeader
-          title={selectedSource?.source_system ?? t("sources.no_source")}
+          title={selectedSource ? sourceDisplayName(selectedSource) : t("sources.no_source")}
           meta={selectedSource ? (
             <StatusBadge variant="source" status={selectedSource.operational_status}>
               {sourceLabel("sources.status", selectedSource.operational_status)}
