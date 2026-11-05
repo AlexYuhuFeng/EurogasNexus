@@ -176,7 +176,7 @@ desk when it does.
 
 ## 8. Look up a term
 
-System → **Glossary**: 74 desk terms with unit, formula, a worked example, where the term
+Help & Settings → **Glossary**: 74 desk terms with unit, formula, a worked example, where the term
 appears in the product and the regulation behind it, in English and Chinese.
 
 ![Glossary](img/tr-23-glossary.png)

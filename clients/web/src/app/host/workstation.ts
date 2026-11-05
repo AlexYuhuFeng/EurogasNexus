@@ -102,7 +102,7 @@ export const WORKSTATION_PROFILES: readonly WorkstationProfile[] = [
   {
     id: "research-desk",
     labelKey: "experience.workstation.profile.research_desk",
-    primary: "system",
+    primary: "strategy",
     windows: [
       { windowId: "research", page: "research", task: null, role: "primary", requires: ["multiWindow"] },
       {

@@ -36,7 +36,7 @@ test("primary workspace defaults match the accepted architecture", () => {
     portfolio: "contracts",
     strategy: "strategy",
     decision: "scenario",
-    system: "research",
+    system: "manual",
     administration: "sources",
   });
 });
@@ -86,8 +86,8 @@ test("old technical workspace ids continue to resolve", () => {
     settings: "system",
     manual: "system",
     glossary: "system",
-    research: "system",
-    agents: "system",
+    research: "strategy",
+    agents: "strategy",
   };
   for (const [page, primary] of Object.entries(expected)) {
     assert.equal(primaryWorkspaceForPage(page as keyof typeof expected).id, primary);

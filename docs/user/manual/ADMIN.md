@@ -3,12 +3,12 @@
 For the platform administrator (ADMIN role): who is told what by email, and who may do
 what. Administrators manage the platform, not the trading: an administrator does not see
 the firm's strategies or market data unless also granted them. The top bar therefore shows
-only System and Admin, the sign-in lands on Data sources, and a link into a trading page
+only Help & Settings and Admin, the sign-in lands on Data sources, and a link into a trading page
 brings the administrator back to their own surface.
 
 ## 1. Route email notifications
 
-System → **Settings** → **Notifications**. Alerts go by email through the firm's own SMTP
+Help & Settings → **Settings** → **Notifications**. Alerts go by email through the firm's own SMTP
 relay (`EUROGAS_NEXUS_SMTP_*` on the server); nothing leaves the firm by another route.
 
 1. Channel ID (`risk-desk`) and a name (`Risk desk`).

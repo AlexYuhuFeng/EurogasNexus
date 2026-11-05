@@ -40,8 +40,8 @@ covers it.
 | Capacity | Cost a route with entry/exit tariffs; compare alternatives | Portfolio → Routes | Guide |
 | Yearly | Track each TSO's indicative and final tariffs for the next gas year | Portfolio → Routes → Tariff publications | [Steps](TRADER.md#7-track-tso-tariff-publications) |
 | Reporting | Export the ladder, credit and mandate tables to Excel, PDF or CSV | Export buttons on each table | [Steps](TRADER.md#4-monitor-the-book-position) |
-| Research | Back-test a spread or benchmark strategy | Strategy Lab | Guide |
-| Any time | Look up a term, its unit, formula and where it appears | System → Glossary | [Steps](TRADER.md#8-look-up-a-term) |
+| Research | Back-test a spread or benchmark strategy | Research → Strategy | Guide |
+| Any time | Look up a term, its unit, formula and where it appears | Help & Settings → Glossary | [Steps](TRADER.md#8-look-up-a-term) |
 | Any time | Report a problem to the IT desk with diagnostics attached | Top bar "?" | [Steps](TRADER.md#9-report-a-problem) |
 
 ### Risk and middle office
@@ -54,7 +54,7 @@ covers it.
 | On change | Set a trader mandate, including a legal hedge cap (e.g. 80 %) and allowed instruments (no options) | Mandate… | [Steps](RISK.md#3-set-a-mandate-with-a-hedge-cap) |
 | Per deal | Approve a hedge band for one contract (80 % for one, 50 % for another) and watch the linked trades' cover | Portfolio → Exposure → Deal hedge approvals | [Steps](RISK.md#4-approve-a-hedge-band-for-a-deal) |
 | Monthly | Review delivery performance per contract (shortfalls against tolerance) | Portfolio → Resources | [Steps](RISK.md#5-delivery-performance) |
-| Audit | Show who changed a limit, retired a contract or resolved a report, and when | Audit trail (System, export) | Guide |
+| Audit | Show who changed a limit, retired a contract or resolved a report, and when | Audit trail (Admin → Access & Identity → Audit, export) | Guide |
 
 Limits are set by the risk function only (REVIEWER role); a trader cannot set their own.
 
@@ -71,7 +71,7 @@ Limits are set by the risk function only (REVIEWER role); a trader cannot set th
 
 | When | Workflow | Where | Described |
 |---|---|---|---|
-| Set-up | Route email notifications (alerts, IT desk reports, limit breaches, tariff deadlines, source outages) | System → Settings → Notifications | [Steps](ADMIN.md#1-route-email-notifications) |
+| Set-up | Route email notifications (alerts, IT desk reports, limit breaches, tariff deadlines, source outages) | Help & Settings → Settings → Notifications | [Steps](ADMIN.md#1-route-email-notifications) |
 | Set-up | Users, roles, job functions and data scopes; SSO | Admin → Access & Identity | [Steps](ADMIN.md#2-people-and-access) |
 | Set-up | Market-data licences and the customer's own credentials | Admin → Data Sources | Guide |
 

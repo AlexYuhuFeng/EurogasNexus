@@ -222,7 +222,7 @@ test("header composition is read from the registry, not from a local primary lis
   const consolidated = primaryWorkspaces
     .filter((primary) => primary.pages.some((page) => usesConsolidatedHeader(page)))
     .map((primary) => primary.id);
-  assert.deepEqual(consolidated.sort(), ["decision", "market", "portfolio", "strategy"]);
+  assert.deepEqual(consolidated.sort(), ["decision", "market", "portfolio"]);
   for (const primary of primaryWorkspaces) {
     const modes = new Set(primary.pages.map((page) => headerModeForPage(page)));
     assert.equal(modes.size, 1, `${primary.id} mixes header modes across its pages`);

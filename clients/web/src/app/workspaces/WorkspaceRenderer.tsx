@@ -121,7 +121,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <DecisionWorkspace controller={controller} />
       )}
 
-      {activePrimaryWorkspace.id === "strategy" && (
+      {activeWorkspace === "strategy" && (
         <StrategyLabWorkspace
           controller={strategyLab}
           designDraft={designDraft}

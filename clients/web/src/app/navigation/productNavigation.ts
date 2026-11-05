@@ -53,7 +53,9 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
     commercial: true,
     labelKey: "nav.primary.strategy",
     descriptionKey: "nav.primary.strategy.description",
-    pages: ["strategy"],
+    // One research line (#30): the strategy lifecycle, the data it is built on and the
+    // assisted research that cites it, so preparing data no longer means leaving for System.
+    pages: ["strategy", "research", "agents"],
     defaultPage: "strategy",
   },
   {
@@ -68,8 +70,9 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
     id: "system",
     labelKey: "nav.primary.system",
     descriptionKey: "nav.primary.system.description",
-    pages: ["research", "agents", "settings", "manual", "glossary"],
-    defaultPage: "research",
+    // Personal preferences and help, reachable from every page (#30): no business data here.
+    pages: ["settings", "manual", "glossary"],
+    defaultPage: "manual",
   },
   {
     id: "administration",

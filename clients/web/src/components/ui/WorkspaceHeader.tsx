@@ -53,6 +53,27 @@ export function WorkspaceHeader<T extends string>({
       })
     : primaryAction;
 
+  if (titleLevel === 2) {
+    // Under the shell's page title (local-tabs pages) a second visible title repeats it
+    // ("Research Data" twice, #30): keep the heading for assistive technology only and let
+    // the task tabs and the primary action form one row.
+    return (
+      <header className="workspace-page-header workspace-subheader">
+        <h2 className="visually-hidden">{title}</h2>
+        <WorkspaceTabs
+          idPrefix={idPrefix}
+          label={tabLabel}
+          tabs={tabs}
+          activeId={activeId}
+          panelId={panelId}
+          className={tabsClassName}
+          onActivate={onActivate}
+        />
+        <div className="workspace-page-header-actions">{markedPrimaryAction}</div>
+      </header>
+    );
+  }
+
   const heading =
     titleLevel === 1 ? (
       <h1>{title}</h1>

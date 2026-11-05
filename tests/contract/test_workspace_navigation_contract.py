@@ -43,9 +43,9 @@ EXPECTED_PAGES = [
 EXPECTED_PRIMARY_CHILDREN = {
     "market": ["market", "network", "capacity"],
     "portfolio": ["contracts", "orders"],
-    "strategy": ["strategy"],
+    "strategy": ["strategy", "research", "agents"],
     "decision": ["scenario", "review"],
-    "system": ["research", "agents", "settings", "manual", "glossary"],
+    "system": ["settings", "manual", "glossary"],
     "administration": ["sources", "runtime", "access"],
 }
 
@@ -54,7 +54,7 @@ EXPECTED_DEFAULTS = {
     "portfolio": "contracts",
     "strategy": "strategy",
     "decision": "scenario",
-    "system": "research",
+    "system": "manual",
     "administration": "sources",
 }
 

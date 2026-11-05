@@ -107,7 +107,9 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
     page: "strategy",
     primary: "strategy",
     pattern: "ANALYSE",
-    headerMode: "consolidated",
+    // The research line has three pages (#30); the shell's page tabs switch between them and
+    // the strategy lifecycle tabs sit under the page title.
+    headerMode: "local-tabs",
     rationale: "Research-question-led strategy lifecycle: design, backtest, compare, shadow.",
     inspectorSubjects: ["strategy-version", "strategy-run"],
     panels: ["context-summary", "time-series", "comparison", "run-result", "evidence", "warnings"],
@@ -187,7 +189,7 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
   },
   {
     page: "research",
-    primary: "system",
+    primary: "strategy",
     pattern: "EXPLORE",
     headerMode: "local-tabs",
     rationale: "Research dataset/feature/target catalogue plus the governed build-and-validate flow.",
@@ -196,7 +198,7 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
   },
   {
     page: "agents",
-    primary: "system",
+    primary: "strategy",
     pattern: "REVIEW",
     headerMode: "local-tabs",
     rationale: "Governed capability catalogue, research orchestration and observable run replay.",

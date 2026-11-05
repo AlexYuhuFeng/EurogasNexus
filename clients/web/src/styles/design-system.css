@@ -642,6 +642,24 @@
     border-bottom: 1px solid var(--ds-border);
   }
 
+  /* A task row under the shell's page title: tabs first, the primary action at the end. */
+  .workspace-page-header.workspace-subheader {
+    align-items: center;
+    padding: var(--ds-space-2) 0 0;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   /* The page's one primary action sits at the end of the task tabs, styled as the primary
      button, so "Save to pool" or "Run" reads as the page's commit, not a stray control. */
   .workspace-page-header-actions {
