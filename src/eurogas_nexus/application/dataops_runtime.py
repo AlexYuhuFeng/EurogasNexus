@@ -8,6 +8,7 @@ production runner wraps the existing public-source ingestor subprocess).
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -132,6 +133,7 @@ def execute_claimed_runs(
     runs = dataops_repository.claim_queued_runs(session, now_utc=now, limit=limit)
     sleep = sleeper or _default_sleep
     outcomes: list[dict[str, Any]] = []
+    pending: list[_RunProgress] = []
     for run in runs:
         definition = definitions_by_id.get(run.source_id)
         if definition is None:
@@ -149,30 +151,37 @@ def execute_claimed_runs(
                 error_message=f"no source definition for {run.source_id!r}",
             )
             continue
-        # Wave 8: one claimed run is one tracked job. The runtime reports failure in its
-        # return value rather than by raising, so the outcome is stated on the handle and
-        # the job records what really happened to the run.
-        with _ingestion_job(session, run=run) as job:
-            outcome = _execute_one(
-                session,
-                run=run,
-                definition=definition,
-                runner=runner,
-                now_utc=now,
-                sleeper=sleep,
-            )
-            if outcome["status"] in {
-                IngestionRunStatus.SUCCEEDED.value,
-                IngestionRunStatus.SUCCEEDED_WITH_WARNINGS.value,
-            }:
-                job.add_output(f"ingestion_run:{run.run_id}")
-            else:
-                job.mark_failed(
-                    run.error_code or "INGESTION_RUN_FAILED",
-                    f"run {run.run_id} finished {outcome['status']}"
-                    + (f" ({run.error_category})" if run.error_category else ""),
+        pending.append(_RunProgress(run=run, definition=definition))
+
+    # Attempts interleave across runs: while one source waits out its retry backoff, the
+    # next source runs, so a provider that is slow or failing never holds up the others.
+    # Time is what was slept plus what attempts took; a test's sleeper makes it exact.
+    started = time.monotonic()
+    slept = 0.0
+
+    def elapsed() -> float:
+        return slept + (time.monotonic() - started)
+
+    finished: dict[str, dict[str, Any]] = {}
+    while pending:
+        ready = [item for item in pending if item.ready_at <= elapsed()]
+        if not ready:
+            wait = min(item.ready_at for item in pending) - elapsed()
+            if wait > 0:
+                sleep(wait)
+                slept += wait
+            continue
+        for item in ready:
+            if _attempt_once(item, runner=runner):
+                pending.remove(item)
+                finished[item.run.run_id] = _finish_run(
+                    session, item=item, now_utc=now
                 )
-        outcomes.append(outcome)
+            else:
+                item.ready_at = elapsed() + item.retry_delay_seconds
+    for run in runs:
+        if run.run_id in finished:
+            outcomes.append(finished[run.run_id])
     session.flush()
     return {
         "executed_at_utc": now.isoformat(),
@@ -247,53 +256,85 @@ def _track_ingestion_run(
             job.mark_failed(error_code, error_message)
 
 
-def _execute_one(
-    session: Session,
-    *,
-    run: IngestionRunRecord,
-    definition: SourceDefinition,
-    runner: RunAttempt,
-    now_utc: datetime,
-    sleeper: Callable[[float], None],
-) -> dict:
-    policy = definition.retry_policy
-    payload = dataops_repository.ingestion_run_payload(run)
+@dataclass
+class _RunProgress:
+    """One claimed run between attempts."""
+
+    run: IngestionRunRecord
+    definition: SourceDefinition
+    attempts: int = 0
     last_attempt: IngestionAttemptResult | None = None
     classification: FailureClassification | None = None
-    attempts = 0
-    for attempt in range(max(0, policy.retry_max) + 1):
-        attempts += 1
-        run.attempt_number = attempts
-        try:
-            result = runner(payload, attempts)
-        except Exception as exc:
-            result = IngestionAttemptResult(
-                succeeded=False,
-                classification=classify_failure(error=exc).category,
-                error_message=str(exc),
-            )
-        last_attempt = result
-        if result.succeeded:
-            classification = None
-            break
-        classification = (
-            classify_failure(
-                error=None,
-                message=f"{result.classification.value} {result.error_message}",
-            )
-            if result.classification is not None
-            else classify_failure(error=None, message=result.error_message)
-        )
-        decision = retry_decision(
-            classification,
-            attempt=attempt,
-            policy=policy,
-            retry_after_seconds=result.retry_after_seconds,
-        )
-        if not decision.retry:
-            break
-        sleeper(decision.delay_seconds)
+    ready_at: float = 0.0
+    retry_delay_seconds: float = 0.0
 
+
+def _attempt_once(item: _RunProgress, *, runner: RunAttempt) -> bool:
+    """Make one attempt; True when the run is finished (succeeded or no retry left)."""
+
+    policy = item.definition.retry_policy
+    item.attempts += 1
+    item.run.attempt_number = item.attempts
+    try:
+        result = runner(dataops_repository.ingestion_run_payload(item.run), item.attempts)
+    except Exception as exc:
+        result = IngestionAttemptResult(
+            succeeded=False,
+            classification=classify_failure(error=exc).category,
+            error_message=str(exc),
+        )
+    item.last_attempt = result
+    if result.succeeded:
+        item.classification = None
+        return True
+    item.classification = (
+        classify_failure(
+            error=None,
+            message=f"{result.classification.value} {result.error_message}",
+        )
+        if result.classification is not None
+        else classify_failure(error=None, message=result.error_message)
+    )
+    if item.attempts > max(0, policy.retry_max):
+        return True
+    decision = retry_decision(
+        item.classification,
+        attempt=item.attempts - 1,
+        policy=policy,
+        retry_after_seconds=result.retry_after_seconds,
+    )
+    if not decision.retry:
+        return True
+    item.retry_delay_seconds = decision.delay_seconds
+    return False
+
+
+def _finish_run(session: Session, *, item: _RunProgress, now_utc: datetime) -> dict:
+    """Record a finished run and its tracked job."""
+
+    run = item.run
+    # Wave 8: one claimed run is one tracked job. The runtime reports failure in its
+    # return value rather than by raising, so the outcome is stated on the handle and
+    # the job records what really happened to the run.
+    with _ingestion_job(session, run=run) as job:
+        outcome = _finalize(session, item=item, now_utc=now_utc)
+        if outcome["status"] in {
+            IngestionRunStatus.SUCCEEDED.value,
+            IngestionRunStatus.SUCCEEDED_WITH_WARNINGS.value,
+        }:
+            job.add_output(f"ingestion_run:{run.run_id}")
+        else:
+            job.mark_failed(
+                run.error_code or "INGESTION_RUN_FAILED",
+                f"run {run.run_id} finished {outcome['status']}"
+                + (f" ({run.error_category})" if run.error_category else ""),
+            )
+    return outcome
+
+
+def _finalize(session: Session, *, item: _RunProgress, now_utc: datetime) -> dict:
+    run = item.run
+    last_attempt = item.last_attempt
     success = bool(last_attempt and last_attempt.succeeded)
     issues = tuple(last_attempt.quality_issues) if last_attempt else ()
     warning_count = sum(issue.severity.value == "WARNING" for issue in issues)
@@ -308,8 +349,8 @@ def _execute_one(
     dataops_repository.finalize_run(
         session,
         run,
-        definition,
-        classification=classification,
+        item.definition,
+        classification=item.classification,
         quality_result=quality_result,
         quality_warning_count=warning_count,
         quality_error_count=error_count,
@@ -330,7 +371,7 @@ def _execute_one(
         "run_id": run.run_id,
         "source_id": run.source_id,
         "status": run.status,
-        "attempts": attempts,
+        "attempts": item.attempts,
         "error_category": run.error_category,
     }
 

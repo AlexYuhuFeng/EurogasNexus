@@ -222,6 +222,44 @@ def test_retryable_failure_retries_then_succeeds(engine) -> None:
         assert row.lineage_refs == ["test-run:lineage"]
 
 
+def test_a_source_waiting_to_retry_does_not_hold_up_the_next(engine) -> None:
+    """While one provider backs off, the next queued source runs; then the first retries."""
+
+    slow = _test_definition(source_id="src-slow")
+    fast = _test_definition(source_id="src-fast")
+    calls: list[tuple[str, int]] = []
+
+    def runner(payload: dict, attempt: int) -> IngestionAttemptResult:
+        calls.append((payload["source_id"], attempt))
+        if payload["source_id"] == "src-slow" and attempt == 1:
+            return IngestionAttemptResult(
+                succeeded=False,
+                classification=FailureCategory.NETWORK_TRANSIENT,
+                error_message="timeout",
+            )
+        return IngestionAttemptResult(succeeded=True, rows_received=1, rows_accepted=1)
+
+    with Session(engine) as session:
+        _queue_run(session, slow, NOW)
+        _queue_run(session, fast, NOW + timedelta(seconds=1))
+        session.commit()
+    with Session(engine) as session:
+        result = execute_claimed_runs(
+            session,
+            runner=runner,
+            definitions=(slow, fast),
+            now_utc=NOW + timedelta(seconds=2),
+            sleeper=lambda _seconds: None,
+        )
+        session.commit()
+
+    assert calls == [("src-slow", 1), ("src-fast", 1), ("src-slow", 2)]
+    assert [outcome["status"] for outcome in result["outcomes"]] == [
+        IngestionRunStatus.SUCCEEDED.value,
+        IngestionRunStatus.SUCCEEDED.value,
+    ]
+
+
 def test_authentication_failure_does_not_retry_endlessly(engine) -> None:
     definition = _test_definition()
     calls: list[int] = []

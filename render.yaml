@@ -1,5 +1,7 @@
-# Disposable empty-database mobile preview, explicitly authorized by the owner.
-# No production data, provider secrets, simulated prices, or background workers.
+# Disposable mobile preview, explicitly authorized by the owner. Startup loads published
+# reference data and runs the data scheduler beside the web server, so open sources (ECB
+# FX, SONIA, €STR, SOFR) load at once and keyed ones when their key is set below. No
+# production data, no simulated prices. Keys are entered in Render, never in this file.
 services:
   - type: web
     name: eurogas-mobile-preview
@@ -47,6 +49,14 @@ services:
       # Render's public service is reachable only through its TLS-terminating ingress.
       - key: FORWARDED_ALLOW_IPS
         value: "*"
+      # Provider keys: Render asks for these on the first Blueprint apply; leave a key
+      # empty to skip that source. ENTSOG and GIE also need a certification record.
+      - key: EIA_API_KEY
+        sync: false
+      - key: ENTSOE_SECURITY_TOKEN
+        sync: false
+      - key: GIE_API_KEY
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: eurogas-mobile-preview-db

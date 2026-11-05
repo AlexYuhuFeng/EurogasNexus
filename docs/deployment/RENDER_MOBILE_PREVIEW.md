@@ -53,6 +53,32 @@ old branch keeps running its last deployment but receives no updates:
 Moving the branch does not reset data or environment values. Normal startup migrations
 still run.
 
+## Data in the preview
+
+Startup loads published reference data (TSO tariffs, the public NBP to TTF route templates
+over IUK and BBL, the hub master, the glossary) and starts the data scheduler beside the
+web server. Every enabled source runs once at startup, then on its normal schedule:
+
+| Source | Needs | Shows |
+|---|---|---|
+| ECB reference rates | nothing | FX |
+| Bank of England, ECB, New York Fed | nothing | SONIA, €STR, SOFR (early-cash financing) |
+| US EIA | `EIA_API_KEY` | Henry Hub daily spot |
+| ENTSO-E | `ENTSOE_SECURITY_TOKEN` | Day-ahead power, load, wind and solar |
+| ENTSOG | a certification record | The pipeline network, flows and capacity on the map |
+| GIE AGSI+/ALSI | `GIE_API_KEY` and a certification record | Storage and LNG send-out |
+
+Enter keys under the service's **Environment**; never commit them. ENTSOG and GIE stay
+blocked until an operator records a certification (`POST
+/api/source-certifications/{source_id}/certify`, stage `live_validated` with the checks
+`simulated_shape_match` and `live_sample_validation`). That record states that a live
+sample was checked, so it is made by a person, not by the preview. Until then the map shows
+the hubs and route templates but no pipeline network. Hub prices come only from the desk's
+own licensed feed or screen import; the preview has none, so price boards stay empty
+rather than showing simulated prices.
+
+The scheduler runs only while the service is awake (Free sleeps after 15 minutes).
+
 ## Free-instance scope
 
 Render Free sleeps after 15 minutes without traffic; waking takes about a minute.

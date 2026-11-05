@@ -79,8 +79,21 @@ LEGACY_FIXTURE_CONTRACT_IDS = [
 ]
 
 
-def main() -> int:
-    """    Seed preview runtime data into the DB (development only)."""
+def main(argv: list[str] | None = None) -> int:
+    """    Seed preview runtime data into the DB (development only).
+
+    ``--public-only`` seeds only published reference data (TSO tariffs, the public
+    route templates over IUK and BBL, the hub master and the glossary) and none of the
+    simulated prices, preview contract or preview TSO access. It is allowed wherever
+    simulated sources are not, because nothing it writes is simulated.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Seed preview runtime data.")
+    parser.add_argument("--public-only", action="store_true")
+    args = parser.parse_args(argv)
+    if args.public_only:
+        return _seed_public_only()
     if not simulated_sources_allowed():
         print("Simulated/preview seed data is not allowed in trial or release environments.")
         return 2
@@ -107,6 +120,26 @@ def main() -> int:
     print(
         "Seeded public tariff rows, DB-resident simulated price rows, "
         "preview portfolio contract, public route templates, glossary terms, "
+        f"and {edge_summary['created_or_updated']} route-candidate map edges."
+    )
+    return 0
+
+
+def _seed_public_only() -> int:
+    database_url = resolve_database_url()
+    if not database_url:
+        print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")
+        return 2
+    now = datetime.now(UTC)
+    with get_session_factory(database_url=database_url)() as session:
+        _seed_public_tariffs(session, now)
+        _seed_public_route_templates(session, now)
+        _seed_market_hubs(session, now)
+        _seed_glossary(session, now)
+        session.commit()
+    edge_summary = materialize_route_candidate_edges(database_url=database_url)
+    print(
+        "Seeded published tariffs, public route templates, the hub master and the glossary, "
         f"and {edge_summary['created_or_updated']} route-candidate map edges."
     )
     return 0
