@@ -153,6 +153,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           sourcePostureRows={sources.sourcePostureRows}
           filteredSources={sources.filteredSources}
           selectedSource={sources.selectedSource}
+          missingSourceId={sources.missingSourceId}
           selectedCredentialProvider={sources.selectedCredentialProvider}
           credentialProviders={api.credentialProviders}
           credentialProvider={sources.credentialProvider}

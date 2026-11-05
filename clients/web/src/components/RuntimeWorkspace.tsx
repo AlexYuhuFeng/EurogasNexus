@@ -20,6 +20,7 @@ import {
 import { JobTimeline } from "@/components/JobTimeline";
 import { SupportInboxPanel } from "@/components/SupportInboxPanel";
 import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
+import { useUrlView } from "@/app/navigation/useUrlView";
 
 type Translate = (key: string) => string;
 type ReadinessState = "ready" | "partial" | "blocked";
@@ -97,7 +98,7 @@ export function RuntimeWorkspace({
   onRefreshHealth,
   onOpenSources,
 }: RuntimeWorkspaceProps) {
-  const [activeView, setActiveView] = useState<RuntimeViewId>("readiness");
+  const [activeView, setActiveView] = useUrlView<RuntimeViewId>("runtime", "readiness");
   const health = pipelineHealth;
   const freshnessEntries = health ? Object.entries(health.quote_freshness) : [];
   const endpointFailureCount = Object.keys(endpointErrors).length;

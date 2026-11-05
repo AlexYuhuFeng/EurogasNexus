@@ -1667,6 +1667,7 @@
   "sources.integration.file_import": "File import",
   "sources.integration.template": "Template: vendor not chosen",
   "sources.integration.model_service": "Model service",
+  "sources.requested_missing": "The source in the link ({{id}}) is not in this list: it may be hidden, removed or not readable for you. Showing the first source instead.",
   "sources.category_label": "Category",
   "sources.entitlement": "Entitlement",
   "sources.native_status": "Native connector",

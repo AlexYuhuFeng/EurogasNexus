@@ -71,7 +71,7 @@ test("palette commands are derived from the registries", () => {
   );
   assert.deepEqual(
     navigationCommands()
-      .filter((command) => command.target.page && !command.target.primary)
+      .filter((command) => command.target.page && !command.target.primary && !command.target.view)
       .map((command) => command.target.page),
     workspacePageIds,
   );

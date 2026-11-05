@@ -21,6 +21,7 @@ import type {
   StorageObsDTO,
   TsoTariffDTO,
 } from "@/api/client";
+import { useUrlView } from "@/app/navigation/useUrlView";
 
 interface SourceStats {
   total: number;
@@ -71,6 +72,8 @@ interface SourceCenterProps {
   latestCapacityRows: CapacityObsDTO[];
   onSourceCategoryChange: (category: string, nextSourceId: string | null) => void;
   onSourceSelect: (sourceId: string) => void;
+  /** A source the URL asked for that is not listed; the page says so (#31). */
+  missingSourceId?: string | null;
   /** What the surface knows about its own registry read (pending / failed / measured). */
   registryRead: SourceRegistryReadSurface;
   /** The store's existing bounded retry path, offered here for this surface's own read. */
@@ -199,6 +202,7 @@ export function SourceCenter({
   latestCapacityRows,
   onSourceCategoryChange,
   onSourceSelect,
+  missingSourceId = null,
   registryRead,
   onRegistryRetry,
   onCredentialProviderChange,
@@ -216,7 +220,7 @@ export function SourceCenter({
   formatSourceTimestamp,
 }: SourceCenterProps) {
   const inspector = useInspectorStore();
-  const [activeView, setActiveView] = useState<SourceViewId>("attention");
+  const [activeView, setActiveView] = useUrlView<SourceViewId>("sources", "attention");
   const sortedSources = [...filteredSources].sort((left, right) => {
     const priorityDelta = sourcePriority(left) - sourcePriority(right);
     return priorityDelta || left.source_system.localeCompare(right.source_system);
@@ -323,6 +327,9 @@ export function SourceCenter({
 
       {activeView !== "infrastructure" && (
       <div id="source-active-panel" role="tabpanel" aria-labelledby={`source-tab-${activeView}`} className="workspace-panel span-2 source-catalog-panel">
+        {missingSourceId && (
+          <p className="source-missing-notice" role="status">{t("sources.requested_missing").replace("{{id}}", missingSourceId)}</p>
+        )}
         {testSourceCount > 0 && onShowTestSourcesChange && (
           <label className="settings-checkbox source-test-toggle">
             <input

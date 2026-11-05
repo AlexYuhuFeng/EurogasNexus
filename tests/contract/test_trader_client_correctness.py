@@ -150,7 +150,7 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
         'const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance", "support"]'
         in runtime_workspace
     )
-    assert 'useState<RuntimeViewId>("readiness")' in runtime_workspace
+    assert 'useUrlView<RuntimeViewId>("runtime", "readiness")' in runtime_workspace
     assert 'role="tablist"' in runtime_workspace
     assert 'id="runtime-active-panel"' in runtime_workspace
     assert 'activeView === "readiness"' in runtime_workspace
@@ -199,7 +199,7 @@ def test_source_center_mounts_task_specific_operating_views() -> None:
         '["attention", "catalog", "access", "infrastructure"]'
         in source_center
     )
-    assert 'useState<SourceViewId>("attention")' in source_center
+    assert 'useUrlView<SourceViewId>("sources", "attention")' in source_center
     assert "attentionSources" in source_center
     assert "accessSources" in source_center
     assert "displayedSources" in source_center

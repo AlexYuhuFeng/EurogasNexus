@@ -10,7 +10,9 @@ import {
 } from "../src/app/experience/commandPalette.ts";
 
 const labels: Record<string, string> = { "nav.primary.market": "Market", "nav.market": "Market", "nav.network": "Network" };
-const labelFor = (command: PaletteCommand) => command.label ?? labels[command.labelKey] ?? command.labelKey;
+const labelFor = (command: PaletteCommand) =>
+  command.label ??
+  [command.labelKey, command.subLabelKey].filter(Boolean).map((key) => labels[key!] ?? key).join(" · ");
 
 test("a glossary term is found by its name and by an alias, never for an empty query", () => {
   const terms = glossaryCommands([
@@ -34,4 +36,9 @@ test("primary workspaces show the shortcut the key handler binds", () => {
   assert.equal(paletteShortcut(first, false), "Ctrl+Shift+1");
   assert.equal(paletteShortcut(first, true), "⌘+Shift+1");
   assert.equal(paletteShortcut(navigationCommands().find((c) => c.id === "navigate.page.network")!, false), null);
+});
+
+test("a sub-view is found by the words of its page and its view (#31)", () => {
+  const found = filterPaletteCommands(navigationCommands(), "nav.runtime runtime.view.deliv", labelFor);
+  assert.ok(found.some((command) => command.id === "navigate.view.runtime.delivery"));
 });

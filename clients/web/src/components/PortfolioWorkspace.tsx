@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useUrlObject } from "@/app/navigation/useUrlView";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
@@ -228,6 +229,24 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
     if (selection.resourceId) setContractView("library");
   }, [selection.resourceId]);
 
+  // The contract open in the workbench is in the URL (#31): a link or a refresh reopens it.
+  const [contractParam, setContractParam] = useUrlObject("contracts", "contract");
+  const openedFromUrl = useRef<string | null>(null);
+  useEffect(() => {
+    if (!contractParam || openedFromUrl.current === contractParam) return;
+    const stored = api.upstreamContracts.find((item) => item.contract_id === contractParam);
+    if (!stored) return;
+    openedFromUrl.current = contractParam;
+    if (contractEditor.contract.contract_id !== contractParam) contractEditor.loadPersistedContract(stored);
+    setTask("resources");
+    setContractView("terms");
+  }, [api.upstreamContracts, contractEditor, contractParam]);
+  const loadPersistedContractAndLink = (saved: Parameters<typeof contractEditor.loadPersistedContract>[0]) => {
+    contractEditor.loadPersistedContract(saved);
+    openedFromUrl.current = saved.contract_id;
+    setContractParam(saved.contract_id);
+  };
+
   function openTask(next: PortfolioTask) {
     setTask(next);
     navigation.openWorkspace("contracts", next);
@@ -332,7 +351,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             routeCandidates={api.routeCandidates}
             resetContractDraft={contractEditor.resetContractDraft}
             importContractDraftFile={contractEditor.importContractDraftFile}
-            loadPersistedContract={contractEditor.loadPersistedContract}
+            loadPersistedContract={loadPersistedContractAndLink}
           />
         )}
         {task === "resources" && <DeliveryPerformancePanel t={t} />}

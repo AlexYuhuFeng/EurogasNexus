@@ -68,12 +68,32 @@ export function coerceWorkspacePageId(
   return isWorkspacePageId(value) ? value : fallback;
 }
 
+/**
+ * URL parameters that name an object on one page (#31): a selected source, an open contract,
+ * a glossary term. They belong to that page and are cleared when another page opens, so a
+ * stale id never selects something on the wrong page.
+ */
+export const PAGE_OBJECT_PARAMS: Partial<Record<WorkspacePageId, readonly string[]>> = {
+  sources: ["source"],
+  contracts: ["contract"],
+  glossary: ["term"],
+};
+
 export function workspaceTaskSearch(
   search: string,
   page: WorkspacePageId,
   task?: string,
 ): string {
   const next = new URLSearchParams(search);
+  const previous = next.get("workspace");
+  if (previous !== page) {
+    // A sub-view and object ids belong to the page they were chosen on.
+    next.delete("view");
+    for (const [owner, names] of Object.entries(PAGE_OBJECT_PARAMS)) {
+      if (owner === page) continue;
+      for (const name of names ?? []) next.delete(name);
+    }
+  }
   next.set("workspace", page);
   if (page === "scenario" || page === "review" || task) {
     next.set("task", task ?? page);

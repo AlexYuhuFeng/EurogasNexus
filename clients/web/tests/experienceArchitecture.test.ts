@@ -467,7 +467,7 @@ test("the command palette is derived from the navigation, AI and utility registr
     primaryWorkspaces.map((primary) => primary.id),
   );
   assert.deepEqual(
-    navigation.filter((command) => command.target.page && !command.target.primary).map((command) => command.target.page),
+    navigation.filter((command) => command.target.page && !command.target.primary && !command.target.view).map((command) => command.target.page),
     workspacePageIds,
   );
   assert.deepEqual(

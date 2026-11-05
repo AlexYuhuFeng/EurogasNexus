@@ -23,6 +23,7 @@ import {
   type PrimaryWorkspaceId,
 } from "../navigation/productNavigation.ts";
 import { workspacePageIds, type WorkspacePageId } from "../../workspaceNavigation.ts";
+import { registeredViews } from "../navigation/viewRegistry.ts";
 import { actionPlacement, detailPlacement, type ActionConsequence } from "./actionGeography.ts";
 import { ADMINISTRATION_CAPABILITIES } from "./experienceProfile.ts";
 import { aiActionIsAvailable, aiActions } from "./aiActions.ts";
@@ -43,12 +44,16 @@ export interface PaletteCommand {
   readonly placement: ActionPlacement;
   /** A literal label (a glossary term) used instead of translating `labelKey`. */
   readonly label?: string;
+  /** A second translation key shown after the first ("Sources · Catalog"). */
+  readonly subLabelKey?: string;
   /** Extra words that find this command (a term's aliases, in either language). */
   readonly keywords?: readonly string[];
   readonly target: {
     /** A glossary term to open the glossary at. */
     readonly term?: string;
     readonly page?: WorkspacePageId;
+    /** A sub-view of `page` from the view registry (#31). */
+    readonly view?: string;
     readonly primary?: PrimaryWorkspaceId;
     readonly aiAction?: AiActionKind;
     readonly inspector?: InspectorSubjectKind;
@@ -102,7 +107,28 @@ export function navigationCommands(): PaletteCommand[] {
     placement: actionPlacement("read"),
     target: { page },
   }));
-  return [...primaries, ...pages];
+  // Every sub-view the URL registry declares, so the palette, links and tabs share one
+  // list of destinations (#31). The glossary's single view adds nothing over its page.
+  const views: PaletteCommand[] = registeredViews()
+    .filter((entry) => entry.page !== "glossary")
+    .map((entry) => ({
+      id: `navigate.view.${entry.page}.${entry.view}`,
+      group: "navigate",
+      labelKey: `nav.${entry.page}`,
+      subLabelKey: entry.labelKey,
+      keywords: [entry.view],
+      consequence: "read",
+      placement: actionPlacement("read"),
+      target: { page: entry.page, view: entry.view },
+    }));
+  return [...primaries, ...pages, ...views];
+}
+
+/** The text a command is listed under, translated. */
+export function paletteLabel(command: PaletteCommand, t: (key: string) => string): string {
+  if (command.label) return command.label;
+  const main = t(command.labelKey);
+  return command.subLabelKey ? `${main} · ${t(command.subLabelKey)}` : main;
 }
 
 /** One command per canonical AI action; availability is decided at call time. */
@@ -262,7 +288,7 @@ export function filterPaletteCommands(
   // name ("Market" and "Market") are one result (#34).
   const seen = new Set<string>();
   const unique = commands.filter((command) => {
-    const key = `${labelFor(command).toLowerCase()}|${command.target.page ?? command.id}|${command.target.term ?? ""}`;
+    const key = `${labelFor(command).toLowerCase()}|${command.target.page ?? command.id}|${command.target.view ?? ""}|${command.target.term ?? ""}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -278,6 +304,8 @@ export function filterPaletteCommands(
     else if (
       label.includes(needle) ||
       keywords.some((word) => word.includes(needle)) ||
+      // "runtime deliv" finds "Runtime · Delivery": every word appears somewhere.
+      (needle.includes(" ") && needle.split(/\s+/).every((part) => label.includes(part))) ||
       (command.group !== "glossary" && command.id.toLowerCase().includes(needle))
     ) {
       contains.push(command);

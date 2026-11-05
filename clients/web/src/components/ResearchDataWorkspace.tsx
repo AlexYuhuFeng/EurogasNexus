@@ -57,6 +57,7 @@ import {
 } from "@/app/model/researchDataModel";
 import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import "@/styles/researchDataWorkspace.css";
+import { useUrlView } from "@/app/navigation/useUrlView";
 
 type Translate = (key: string) => string;
 type ResearchViewId = "datasets" | "products" | "features" | "targets";
@@ -603,7 +604,7 @@ function RegistryTable({ t, type, features, targets, loading, error }: { t: Tran
 
 export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
   const identityKey = useApiStore((state) => state.currentUser?.principal_id ?? "anonymous");
-  const [activeView, setActiveView] = useState<ResearchViewId>("datasets");
+  const [activeView, setActiveView] = useUrlView<ResearchViewId>("research", "datasets");
   const [features, setFeatures] = useState<ResearchFeatureDTO[]>([]);
   const [targets, setTargets] = useState<ResearchTargetDTO[]>([]);
   const [datasets, setDatasets] = useState<ResearchDatasetDTO[]>([]);

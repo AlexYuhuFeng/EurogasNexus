@@ -15,7 +15,8 @@ import {
   compositionSeesAdministration,
 } from "@/app/experience/experienceProfile";
 import type { PaletteCommand } from "@/app/experience/commandPalette";
-import { paletteUnavailableReasonKey } from "@/app/experience/commandPalette";
+import { paletteLabel, paletteUnavailableReasonKey } from "@/app/experience/commandPalette";
+import { PAGE_VIEW_REGISTRY, viewToSearch } from "@/app/navigation/viewRegistry";
 import { isCommercialPage, isControlPlanePage } from "@/app/navigation/productNavigation";
 import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
 import { workspaceFromLocation } from "@/app/hooks/useWorkspaceNavigation";
@@ -210,13 +211,22 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     },
     capabilities: composition.effectiveCapabilities,
     activeContextComplete: Boolean(composition.available),
-    labels: (command: PaletteCommand) => command.label ?? t(command.labelKey),
+    labels: (command: PaletteCommand) => paletteLabel(command, t),
     glossaryTerms: api.glossaryTerms,
     onNavigate: (command: PaletteCommand) => {
       const page = command.target.page;
       if (command.target.primary) navigation.openPrimaryWorkspace(command.target.primary);
       else if (page) {
-        navigation.openWorkspace(page);
+        const view = command.target.view;
+        const entry = PAGE_VIEW_REGISTRY[page];
+        navigation.openWorkspace(page, view && entry?.param === "task" ? view : undefined);
+        if (view && entry?.param === "view") {
+          // An administration or research sub-view: write it and let a mounted page follow.
+          const url = new URL(window.location.href);
+          url.search = viewToSearch(url.search, page, view);
+          window.history.replaceState(window.history.state, "", url);
+          window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+        }
         if (command.target.term) {
           // The glossary opens at the term it was found by.
           const url = new URL(window.location.href);
@@ -337,7 +347,7 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         results={palette.results}
         activeIndex={palette.activeIndex}
         unavailable={palette.unavailable}
-        labelFor={(command) => t(command.labelKey)}
+        labelFor={(command) => paletteLabel(command, t)}
         reasonFor={(command) => paletteUnavailableReasonKey(command, palette.availability)}
         t={t}
         onQueryChange={palette.setQuery}

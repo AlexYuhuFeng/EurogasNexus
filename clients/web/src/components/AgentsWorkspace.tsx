@@ -39,6 +39,7 @@ import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import { useApiStore } from "@/stores/api";
 import { useInspectorStore } from "@/stores/inspector";
 import { MetricStrip, PanelHeader, WorkspaceHeader } from "@/components/ui";
+import { useUrlView } from "@/app/navigation/useUrlView";
 
 /**
  * The surface's translation function. It takes interpolation options like every other surface's
@@ -89,7 +90,7 @@ function AgentIssueList({
 export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: AgentsWorkspaceProps) {
   const publishAgentRunsRead = useApiStore((state) => state.publishAgentRunsRead);
   const inspector = useInspectorStore();
-  const [activeView, setActiveView] = useState<AgentsViewId>("capabilities");
+  const [activeView, setActiveView] = useUrlView<AgentsViewId>("agents", "capabilities");
   const [capabilities, setCapabilities] = useState<CapabilityDTO[]>([]);
   const [runs, setRuns] = useState<AgentRunDTO[]>([]);
   const [selectedRun, setSelectedRun] = useState<AgentReplayDTO | null>(null);

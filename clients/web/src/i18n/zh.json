@@ -1948,6 +1948,7 @@
   "sources.integration.file_import": "文件导入",
   "sources.integration.template": "模板：尚未选定供应商",
   "sources.integration.model_service": "模型服务",
+  "sources.requested_missing": "链接中的数据源（{{id}}）不在此列表中：可能已隐藏、已删除或您无权查看。现显示第一个数据源。",
   "sources.category_label": "分类",
   "sources.entitlement": "权限",
   "sources.native_status": "原生连接器",

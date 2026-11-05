@@ -26,6 +26,7 @@ import {
   isExternallyManagedCredential,
 } from "@/app/model/credentialProviderModel";
 import type { ApiState } from "@/stores/api";
+import { useUrlObject } from "@/app/navigation/useUrlView";
 
 /**
  * The registry lane's own read state, straight from the store: whether the workspace batch (or
@@ -94,7 +95,8 @@ export function useSourceCenterController({
   const [credentialLabel, setCredentialLabel] = useState("default");
   const [credentialValue, setCredentialValue] = useState("");
   const [sourceCategory, setSourceCategory] = useState("all");
-  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  // The selected source is in the URL (#31): a link or a refresh opens that source.
+  const [selectedSourceId, setSelectedSourceId] = useUrlObject("sources", "source");
   const [showTestSources, setShowTestSources] = useState(false);
   const testSourceCount = useMemo(() => allSources.filter(isTestSource).length, [allSources]);
   const sources = useMemo(
@@ -118,6 +120,17 @@ export function useSourceCenterController({
   const selectedSource = useMemo(
     () => sources.find((source) => source.source_id === selectedSourceId) ?? filteredSources[0] ?? sources[0] ?? null,
     [filteredSources, selectedSourceId, sources],
+  );
+  /**
+   * A source the URL asked for that is not in the list (unknown, hidden test source, or not
+   * readable for this identity). The detail falls back to the first source, and the page says
+   * so instead of presenting that one as the one asked for.
+   */
+  const missingSourceId = useMemo(
+    () => (selectedSourceId && allSources.length > 0 && !sources.some((source) => source.source_id === selectedSourceId)
+      ? selectedSourceId
+      : null),
+    [allSources.length, selectedSourceId, sources],
   );
   const selectedSourceCredentialProvider = useMemo(() => {
     const providerId = credentialProviderIdForSource(selectedSource, credentialProviders);
@@ -208,6 +221,7 @@ export function useSourceCenterController({
     registryRead: registryReadSurface,
     filteredSources,
     selectedSource,
+    missingSourceId,
     selectedCredentialProvider,
     selectedSourceCredentialProvider,
     credentialProvider,

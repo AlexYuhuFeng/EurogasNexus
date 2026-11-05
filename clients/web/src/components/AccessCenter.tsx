@@ -20,6 +20,7 @@ import {
 import { PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
 import { LicenceRegisterPanel } from "@/components/LicenceRegisterPanel";
 import { groupPermissions } from "@/app/permissionVocabulary";
+import { useUrlView } from "@/app/navigation/useUrlView";
 
 type AccessViewId = "users" | "api_keys" | "catalogue" | "audit" | "sso";
 const ACCESS_VIEWS: AccessViewId[] = ["users", "api_keys", "catalogue", "audit", "sso"];
@@ -36,7 +37,7 @@ function formatTime(value: string | null | undefined): string {
 }
 
 export function AccessCenter({ currentUser, t }: AccessCenterProps) {
-  const [activeView, setActiveView] = useState<AccessViewId>("users");
+  const [activeView, setActiveView] = useUrlView<AccessViewId>("access", "users");
   const [users, setUsers] = useState<AccessUserDTO[]>([]);
   const [keys, setKeys] = useState<AccessApiKeyDTO[]>([]);
   const [audit, setAudit] = useState<AuditEventDTO[]>([]);
