@@ -4,18 +4,18 @@ services:
   - type: web
     name: eurogas-mobile-preview
     runtime: python
-    branch: deploy/render-mobile-preview
-    # main is promoted only after CI and merged-tree checks, before this push.
-    autoDeployTrigger: commit
+    branch: main
+    # Deploy main only after its GitHub CI checks pass.
+    autoDeployTrigger: checksPass
     plan: free
     region: ohio
     buildCommand: bash scripts/uat/build_mobile_preview.sh
     startCommand: python scripts/uat/start_mobile_preview.py
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.11
+        value: 3.11.12
       - key: NODE_VERSION
-        value: 24.22.1
+        value: 24.13.1
       - key: PYTHONPATH
         value: src:packages/python-sdk/src:.
       - key: EUROGAS_NEXUS_MOBILE_PREVIEW

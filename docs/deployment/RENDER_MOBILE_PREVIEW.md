@@ -1,72 +1,69 @@
 # Render mobile preview
 
-This Blueprint serves the built web client and API from one HTTPS origin, using
-an independent empty PostgreSQL database. It provisions only a disposable UAT
-identity; it imports no local database, provider credentials or market data.
-This is an owner-authorized test deployment, not production security acceptance.
+The optional Blueprint on `main` serves the built web client and API from one
+HTTPS origin, using an independent test PostgreSQL database. It provisions a
+UAT identity; it imports no local database or provider credentials. This is an
+owner-authorized test deployment, not production security acceptance. Keeping
+this optional deployment in main does not enable it in other installations.
 
 ## Deploy
 
-1. In Render choose **New > Blueprint**, then this repository and the preview
-   branch containing `render.yaml`. Keep both resource plans **Free**.
-2. Apply the Blueprint. It creates a web service and a PostgreSQL database in
-   Ohio. Build installs the locked Python dependencies and builds the web client.
+1. In Render choose **New > Blueprint**, select this repository and branch
+   **main**, and use `render.yaml`. Keep both resource plans **Free**.
+2. Apply the Blueprint. It creates a web service and PostgreSQL database in
+   Ohio. Build installs locked Python dependencies and builds the web client.
    Startup migrates the database, provisions the test login and starts the API.
-3. Open the web service's `onrender.com` URL. Username: `mobile-tester`.
-   Retrieve `EUROGAS_NEXUS_DEV_LOGIN_PASSWORD` from that service's Environment
-   page; Render generates it. Do not commit or share the password in an issue.
-4. Test login, refresh and logout from the mobile browser. The API uses the
-   same origin, so no separate API URL or CORS setup is required.
-
-Render Free sleeps after 15 minutes without traffic; waking takes about a minute.
-The free PostgreSQL database expires after 30 days. Export anything you want to
-retain before expiry. Only one free PostgreSQL database is allowed per workspace.
-See https://render.com/docs/free for current limits.
-
-The preview explicitly disables anonymous callers, simulated sources and external
-LLM providers. Do not put production data or provider keys into this environment.
-The UAT identity has ADMIN and ANALYST assignments for broad functional testing;
-this does not validate other personas or commercial data entitlements.
+3. Open the service's `onrender.com` URL. Username: `mobile-tester`. Retrieve
+   `EUROGAS_NEXUS_DEV_LOGIN_PASSWORD` from its Environment page; Render generates
+   it. Never commit or put that value in an issue.
+4. Test login, refresh and logout from the mobile browser.
 
 ## Automatic updates from main
 
-Once `.github/workflows/sync-render-preview.yml` is merged into `main`, a
-successful **CI** push run for the current `main` commit triggers **Sync Render
-preview**. The workflow merges that commit into `deploy/render-mobile-preview`,
-builds the merged web client and runs the mandatory pre-push checks before
-publishing. Existing preview changes are preserved by a normal merge. It never
-force-pushes or automatically resolves conflicts. Concurrent preview changes,
-an advanced main commit, merge conflicts or failed checks stop publication.
-Inspect the Actions run's summary and logs when a sync fails.
+The web service links directly to **main**, with **Auto-Deploy: After CI Checks
+Pass** (`autoDeployTrigger: checksPass`). Keep its GitHub integration connected.
+There is no synchronization workflow, personal access token, Render API secret
+or permanent deployment branch to maintain.
 
-The initial merge includes the same-origin preview entry point and configuration
-in main as well, so subsequent changes can be maintained and reviewed there.
-The preview branch remains a deployment target, not a separate development line.
-Develop ordinary changes through main; make necessary preview-specific changes
-explicitly and expect a conflict to require a reviewed resolution.
+The sequence is **main push → GitHub CI passes → Render builds and deploys →
+browser refresh**. New source is not live until the Render deployment succeeds.
+Failed checks prevent automatic deployment; a failed build leaves the previous
+successful deployment available. Check GitHub Actions and Render Events for the
+exact commit and outcome. Existing open browser tabs need to reload after the
+new deployment; an API process restart cannot replace their loaded JavaScript.
 
-The Blueprint sets **Auto-Deploy: On Commit**. Keep the GitHub integration
-connected in Render and verify this setting on the existing web service after
-syncing the updated Blueprint. The GitHub workflow already gates publication;
-do not select **After CI Checks Pass** for the generated preview commit, which
-does not start another GitHub Actions CI run with the default workflow token.
-No personal access token or Render API secret is required for normal auto-deploy.
+Render **Restart service** restarts the currently deployed commit. It does not
+fetch new source. **Deploy latest commit** is a manual deployment, so first
+verify the main commit's CI result. Waking an idle Free service does not fetch
+new code either. See https://render.com/docs/deploys for current semantics.
 
-The sequence is **main CI success → checked preview merge → Render build/deploy
-success → browser refresh**. A failed or still-running build does not make new
-code live. Render **Restart service** restarts the currently deployed commit;
-it does not fetch new source. For a manual retry use **Deploy latest commit**.
-Reload the browser after the deploy completes; an already-open client does not
-replace its JavaScript simply because the server restarted. An idle Free
-service waking up likewise does not pull a new commit.
+## Migrate the existing preview without replacing resources
 
-For recovery, run **Sync Render preview → Run workflow** on main. It still
-requires successful push CI for the exact current main SHA. Repeating it with
-no new changes makes no additional deployment commit. The workflow must first
-exist on main; adding it only to the preview branch cannot activate this trigger.
+After the deployment files are merged into main and main CI is green:
+
+1. In the existing **Eurogas Nexus Blueprint > Settings**, change its tracked
+   branch from `deploy/render-mobile-preview` to **main**, retaining the path
+   `render.yaml`. Sync the Blueprint and review its changes.
+2. Verify the existing **eurogas-mobile-preview** service now uses **main** and
+   **After CI Checks Pass**. Retain the resource names, database, generated
+   password and environment credentials. Do not create a second Blueprint or
+   replace/delete the database to make this change.
+3. Check Render Events for the successful main deployment and test login on the
+   existing public URL. Only then delete the old `deploy/render-mobile-preview`
+   branch. If the service is switched without the Blueprint, a later Blueprint
+   sync could otherwise restore the old branch setting.
 
 Source updates do not initialize public-source ingestion or schedule refreshes.
-Existing Render environment secrets and database data are not copied or reset;
-normal startup migrations still run and should be reviewed for compatibility.
-Monitor the workflow and Render deployment separately: this automation does not
-claim cloud health until Render reports a successful deployment.
+Existing data and environment credentials are not reset by moving the source
+branch. Normal startup migrations still run; review compatibility before updates.
+
+## Free-instance scope
+
+Render Free sleeps after 15 minutes without traffic; waking takes about a minute.
+Its free PostgreSQL database expires after 30 days and only one free database is
+allowed per workspace. Export anything needed before expiry. See
+https://render.com/docs/free for current limits.
+
+The preview disables anonymous callers, simulated sources and external LLM
+providers. The UAT identity has ADMIN and ANALYST assignments for broad functional
+testing; it does not validate other personas or commercial data entitlements.
