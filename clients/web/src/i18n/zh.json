@@ -1322,7 +1322,7 @@
   "runtime.stream_delivery_partial_detail": "SSE 未打开；客户端正在使用轮询兜底。",
   "runtime.commercial_source_certification": "商业数据源认证",
   "runtime.commercial_sources": "商业数据源",
-  "runtime.commercial_source_blocked_detail": "后端暂无授权商业数据源态势。",
+  "runtime.commercial_source_blocked_detail": "尚未连接授权数据源；本部署仅使用公开数据。",
   "runtime.active_commercial_sources": "个商业数据源",
   "runtime.credential_blockers": "个凭据阻断",
   "runtime.certification_blockers": "个认证阻断",
@@ -1402,8 +1402,8 @@
   "access.audit_outcome": "结果",
   "access.audit_detail": "详情",
   "access.sso_title": "SSO 配置",
-  "runtime.view.readiness": "就绪检查",
-  "runtime.view.delivery": "数据交付",
+  "runtime.view.readiness": "发布检查",
+  "runtime.view.delivery": "运行状况",
   "runtime.view.governance": "治理",
   "runtime.view.support": "问题报告",
   "runtime.open_source_center": "前往数据源处理",
@@ -4488,5 +4488,6 @@
   "connectors.action.connect": "连接",
   "connectors.action.import": "导入文件",
   "connectors.action.configure": "配置",
-  "connectors.action.set_up": "设置"
+  "connectors.action.set_up": "设置",
+  "settings.service_access_moved": "供应商密钥、采集计划与连接状态在 管理 → 数据源 中统一管理。"
 }

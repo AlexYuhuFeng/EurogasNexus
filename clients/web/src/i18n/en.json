@@ -1322,7 +1322,7 @@
   "runtime.stream_delivery_partial_detail": "SSE is not open; the client is using polling fallback.",
   "runtime.commercial_source_certification": "Commercial source certification",
   "runtime.commercial_sources": "Commercial data sources",
-  "runtime.commercial_source_blocked_detail": "No licensed commercial source posture is available from the backend.",
+  "runtime.commercial_source_blocked_detail": "No licensed source is connected; this deployment runs on public data only.",
   "runtime.active_commercial_sources": "commercial sources",
   "runtime.credential_blockers": "credential blockers",
   "runtime.certification_blockers": "certification blockers",
@@ -1402,8 +1402,8 @@
   "access.audit_outcome": "Outcome",
   "access.audit_detail": "Detail",
   "access.sso_title": "SSO configuration",
-  "runtime.view.readiness": "Readiness",
-  "runtime.view.delivery": "Delivery",
+  "runtime.view.readiness": "Release checks",
+  "runtime.view.delivery": "Health",
   "runtime.view.governance": "Governance",
   "runtime.view.support": "Problem reports",
   "runtime.open_source_center": "Resolve in Data Sources",
@@ -4488,5 +4488,6 @@
   "connectors.action.connect": "Connect",
   "connectors.action.import": "Import a file",
   "connectors.action.configure": "Configure",
-  "connectors.action.set_up": "Set up"
+  "connectors.action.set_up": "Set up",
+  "settings.service_access_moved": "Provider keys, schedules and connection health are managed in Admin → Data Sources."
 }

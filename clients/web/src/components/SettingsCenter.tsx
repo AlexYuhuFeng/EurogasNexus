@@ -99,12 +99,6 @@ export function SettingsCenter({
     setApiBaseUrl(configuredApiBaseUrl());
   }, [dataStatus]);
 
-  const configuredCredentials = credentialProviders.filter((provider) => provider.configured).length;
-  const missingCredentials = credentialProviders.filter(
-    (provider) => provider.credential_required && !provider.configured,
-  ).length;
-  const activeSources = sources.filter((source) => source.workflow_ready).length;
-  const licensedServices = sources.filter((source) => source.entitlement_scope === "licensed").length;
 
   const testAndApplyApiBase = async (value: string, useDefault = false) => {
     setTestingApi(true);
@@ -135,15 +129,6 @@ export function SettingsCenter({
           <strong>{t("settings.title")}</strong>
         </div>
         <p className="panel-copy">{t("settings.subtitle")}</p>
-        <div className="metric-grid four-column settings-status-strip">
-          <div><span>{t("settings.active_sources")}</span><strong>{activeSources}</strong></div>
-          <div><span>{t("settings.api_services")}</span><strong>{credentialProviders.length}</strong></div>
-          <div>
-            <span>{t(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY)}</span>
-            <strong>{t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}</strong>
-          </div>
-          <div><span>{t("settings.runtime_db")}</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "n/a"}</strong></div>
-        </div>
       </div>
 
       {/* Personal preferences and the organisation defaults they override are one pair:
@@ -342,18 +327,14 @@ export function SettingsCenter({
         )}
       </div>
 
-      <div className="workspace-panel settings-service-panel">
-        {/* A summary only: supplier credentials are managed in one place, Data Sources
-            (#26). The full per-service list lived here too and duplicated it. */}
-        <h2>{t("settings.service_access")}</h2>
-        <div className="metric-grid two-column">
-          <div><span>{t("settings.configured")}</span><strong>{configuredCredentials}</strong></div>
-          <div><span>{t("settings.missing")}</span><strong>{missingCredentials}</strong></div>
-          <div><span>{t("settings.licensed_services")}</span><strong>{licensedServices}</strong></div>
-          <div><span>{t("panel.records")}</span><strong>{sources.reduce((total, source) => total + source.effective_record_count, 0)}</strong></div>
+      {canManageOrganisation && (
+        <div className="workspace-panel settings-service-panel">
+          {/* Supplier connections have one home, Admin → Data Sources (#26): no counts here. */}
+          <h2>{t("settings.service_access")}</h2>
+          <p className="panel-copy">{t("settings.service_access_moved")}</p>
+          <button type="button" className="secondary-button" onClick={onOpenSources}>{t("settings.open_data_sources")}</button>
         </div>
-        <button type="button" className="secondary-button" onClick={onOpenSources}>{t("settings.open_data_sources")}</button>
-      </div>
+      )}
 
       <div className="workspace-panel settings-boundary-panel">
         <h2>{t("settings.backend_boundary")}</h2>

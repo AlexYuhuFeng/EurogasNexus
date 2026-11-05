@@ -21,13 +21,15 @@ import { JobTimeline } from "@/components/JobTimeline";
 import { SupportInboxPanel } from "@/components/SupportInboxPanel";
 import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 import { useUrlView } from "@/app/navigation/useUrlView";
+import { groupConnectors } from "@/app/model/connectorCatalogModel";
 
 type Translate = (key: string) => string;
 type ReadinessState = "ready" | "partial" | "blocked";
 type RuntimeViewId = "readiness" | "delivery" | "governance" | "support";
 
 // Problem reports get their own tab: the IT desk works them daily, not as governance.
-const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance", "support"];
+// Daily health first; release checks are a separate, occasional view (#26).
+const RUNTIME_VIEWS: RuntimeViewId[] = ["delivery", "readiness", "governance", "support"];
 
 interface ReleaseReadinessRow {
   key: string;
@@ -98,7 +100,7 @@ export function RuntimeWorkspace({
   onRefreshHealth,
   onOpenSources,
 }: RuntimeWorkspaceProps) {
-  const [activeView, setActiveView] = useUrlView<RuntimeViewId>("runtime", "readiness");
+  const [activeView, setActiveView] = useUrlView<RuntimeViewId>("runtime", "delivery");
   const health = pipelineHealth;
   const freshnessEntries = health ? Object.entries(health.quote_freshness) : [];
   const endpointFailureCount = Object.keys(endpointErrors).length;
@@ -107,7 +109,6 @@ export function RuntimeWorkspace({
       runtimeDb.connectivity.ok &&
       runtimeDb.missing_tables.length === 0,
   );
-  const workflowReadySources = sources.filter((source) => source.workflow_ready).length;
   const scheduledSources = sources.filter((source) => source.scheduler_enabled);
   const staleSources = sources.filter((source) => (
     source.freshness_state === "STALE" || source.freshness_state === "MISSING"
@@ -123,13 +124,19 @@ export function RuntimeWorkspace({
   const schedulerDetail = scheduledSources.length === 0
     ? t("runtime.scheduler_blocked_detail")
     : `${staleSources.length} ${t("runtime.stale_sources")} / ${failedSources.length} ${t("runtime.failed_sources")}`;
-  const commercialSourceRows = sources.filter(isLicensedCommercialSource);
+  // Sources are judged by the Connectors rule (#26): an optional provider nobody connected is
+  // offered, not a blocker, and a licensed source counts once it has been set up.
+  const connectorGroups = groupConnectors(sources);
+  const availableIds = new Set(connectorGroups.available.map(({ source }) => source.source_id));
+  const commercialSourceRows = sources.filter(
+    (source) => isLicensedCommercialSource(source) && !availableIds.has(source.source_id),
+  );
   const credentialBlockers = commercialSourceRows.filter(needsCredential);
   const certificationBlockers = commercialSourceRows.filter(needsLiveCertification);
   const noExecutionBoundaryReady = Boolean(meta?.research_only && meta.human_review_required);
-  const sourceAttentionCount = sources.length - workflowReadySources;
+  const sourceAttentionCount = connectorGroups.attention.length;
   const sourceOperationsState: ReadinessState =
-    sources.length === 0 || workflowReadySources === 0
+    sources.length === 0 || connectorGroups.connected.length === 0
       ? "blocked"
       : endpointFailureCount > 0 || sourceAttentionCount > 0
         ? "partial"
@@ -137,7 +144,7 @@ export function RuntimeWorkspace({
   const sourceOperationsDetail =
     sources.length === 0
       ? t("runtime.no_sources")
-      : workflowReadySources === 0
+      : connectorGroups.connected.length === 0
         ? t("runtime.no_workflow_ready_sources")
       : endpointFailureCount > 0
         ? `${endpointFailureCount} ${t("runtime.endpoint_failures")}`
@@ -146,7 +153,7 @@ export function RuntimeWorkspace({
         : t("runtime.source_operations_detail");
   const commercialCertificationState: ReadinessState =
     commercialSourceRows.length === 0
-      ? "blocked"
+      ? "partial"
       : credentialBlockers.length === 0 && certificationBlockers.length === 0
         ? "ready"
         : "blocked";
@@ -178,7 +185,7 @@ export function RuntimeWorkspace({
       key: "source_operations",
       label: t("runtime.source_operations"),
       state: sourceOperationsState,
-      value: `${workflowReadySources}/${sources.length} ${t("runtime.workflow_ready_sources")}`,
+      value: `${connectorGroups.connected.length} ${t("connectors.group.connected")} · ${connectorGroups.attention.length} ${t("connectors.group.attention")}`,
       detail: sourceOperationsDetail,
     },
     {
@@ -224,7 +231,7 @@ export function RuntimeWorkspace({
   const releaseBlockers = [
     ...(!dbReady ? [t("runtime.runtime_schema_blocked_detail")] : []),
     ...(sources.length === 0 ? [t("runtime.no_sources")] : []),
-    ...(commercialSourceRows.length === 0 ? [t("runtime.commercial_source_blocked_detail")] : []),
+    ...(sourceAttentionCount > 0 ? [`${sourceAttentionCount} ${t("runtime.source_attention_required")}`] : []),
     ...Object.keys(endpointErrors).map(
       // Render the shared endpoint label, never the internal loader key: the
       // release-blocker list is user-facing text.
@@ -233,8 +240,8 @@ export function RuntimeWorkspace({
           ENDPOINT_FAILURE_LABEL_KEYS[key] ?? UNKNOWN_ENDPOINT_FAILURE_LABEL_KEY,
         )}`,
     ),
-    ...credentialBlockers.map((source) => `${t("runtime.credential_blockers")}: ${source.source_system}`),
-    ...certificationBlockers.map((source) => `${t("runtime.certification_blockers")}: ${source.source_system}`),
+    ...(credentialBlockers.length > 0 ? [`${credentialBlockers.length} ${t("runtime.credential_blockers")}`] : []),
+    ...(certificationBlockers.length > 0 ? [`${certificationBlockers.length} ${t("runtime.certification_blockers")}`] : []),
     t("runtime.security_acceptance_detail"),
   ];
   const readyGateCount = releaseReadinessRows.filter((row) => row.state === "ready").length;

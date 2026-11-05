@@ -133,7 +133,7 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     assert "endpointErrors={api.endpointErrors}" in renderer
     assert 'onOpenSources={() => navigation.openWorkspace("sources")}' in renderer
     assert "releaseReadinessRows" in runtime_workspace
-    assert 'sources.length === 0 || workflowReadySources === 0' in runtime_workspace
+    assert 'sources.length === 0 || connectorGroups.connected.length === 0' in runtime_workspace
     assert 'endpointFailureCount > 0 || sourceAttentionCount > 0' in runtime_workspace
     assert "runtime-release-readiness" in runtime_workspace
     assert "runtime-readiness-row" in runtime_workspace
@@ -147,10 +147,10 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     assert 'key: "no_execution_boundary"' in runtime_workspace
     assert 'streamingActive ? t("stream.live") : t("stream.polling_fallback")' in runtime_workspace
     assert (
-        'const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance", "support"]'
+        'const RUNTIME_VIEWS: RuntimeViewId[] = ["delivery", "readiness", "governance", "support"]'
         in runtime_workspace
     )
-    assert 'useUrlView<RuntimeViewId>("runtime", "readiness")' in runtime_workspace
+    assert 'useUrlView<RuntimeViewId>("runtime", "delivery")' in runtime_workspace
     assert 'role="tablist"' in runtime_workspace
     assert 'id="runtime-active-panel"' in runtime_workspace
     assert 'activeView === "readiness"' in runtime_workspace
@@ -167,7 +167,7 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     assert en["runtime.release_blockers"] == "Release blockers"
     assert en["runtime.security_acceptance"] == "Security acceptance"
     assert en["runtime.security_acceptance_detail"].startswith("External security acceptance")
-    assert en["runtime.view.readiness"] == "Readiness"
+    assert en["runtime.view.readiness"] == "Release checks"
     assert en["runtime.open_source_center"] == "Resolve in Data Sources"
     assert en["runtime.refresh_pipeline_health"] == "Refresh pipeline health"
     assert zh["runtime.release_readiness"] == "\u5546\u4e1a\u53d1\u5e03\u5c31\u7eea"
@@ -282,15 +282,15 @@ def test_topbar_controls_and_source_credentials_have_accessible_names() -> None:
 def test_settings_distinguish_public_sources_from_missing_credentials() -> None:
     """A public source is never counted as a missing credential.
 
-    Settings keeps a summary only (#26: one place manages supplier credentials); its missing
-    count includes only providers that require a credential, and the per-source wording
-    ("not required") lives in Data Sources.
+    Settings no longer counts credentials at all (#26: one place manages supplier
+    credentials); the per-source wording ("not required") lives in Data Sources.
     """
 
     settings = _read(WEB / "components" / "SettingsCenter.tsx")
     sources = _read(WEB / "components" / "SourceCenter.tsx")
 
-    assert "provider.credential_required && !provider.configured" in settings
+    assert "missingCredentials" not in settings
+    assert 't("settings.service_access_moved")' in settings
     assert 't("credentials.not_required")' in sources
 
 

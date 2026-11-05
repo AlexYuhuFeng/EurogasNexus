@@ -39,7 +39,7 @@ export const PAGE_VIEW_REGISTRY: Partial<Record<WorkspacePageId, PageViews>> = {
     objectParams: PAGE_OBJECT_PARAMS.sources,
     labelPrefix: "sources.view.",
   },
-  runtime: { param: "view", views: ["readiness", "delivery", "governance", "support"], defaultView: "readiness", labelPrefix: "runtime.view." },
+  runtime: { param: "view", views: ["delivery", "readiness", "governance", "support"], defaultView: "delivery", labelPrefix: "runtime.view." },
   access: { param: "view", views: ["users", "api_keys", "catalogue", "audit", "sso"], defaultView: "users", labelPrefix: "access.view." },
   research: { param: "view", views: ["datasets", "products", "features", "targets"], defaultView: "datasets", labelPrefix: "research.tab." },
   agents: { param: "view", views: ["capabilities", "research", "runs"], defaultView: "capabilities", labelPrefix: "agents.tab." },
