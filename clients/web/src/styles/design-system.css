@@ -642,6 +642,73 @@
     border-bottom: 1px solid var(--ds-border);
   }
 
+  /* The contract work chain (#32): four steps in one quiet row; the next step is the one in ink. */
+  .contract-chain ol {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: var(--ds-space-2);
+    margin: var(--ds-space-3) 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .contract-chain-step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    min-width: 0;
+  }
+
+  .contract-chain-step button {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .contract-chain-step button:disabled {
+    cursor: default;
+  }
+
+  .contract-chain-index {
+    display: inline-grid;
+    place-items: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    border: 1px solid var(--ds-border);
+    font-size: 0.75rem;
+  }
+
+  .contract-chain-reason {
+    color: var(--ds-text-2);
+    font-size: 0.8125rem;
+  }
+
+  .contract-chain-step.chain-next button[aria-current="step"] .contract-chain-index {
+    background: var(--ds-ink);
+    color: var(--ds-on-ink);
+    border-color: transparent;
+  }
+
+  .contract-chain-step.chain-done .contract-chain-index {
+    border-color: var(--ds-positive, var(--ds-border));
+  }
+
+  .contract-chain-step.chain-blocked {
+    opacity: 0.6;
+  }
+
   /* A task row under the shell's page title: tabs first, the primary action at the end. */
   .workspace-page-header.workspace-subheader {
     align-items: center;

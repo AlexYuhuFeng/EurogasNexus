@@ -4446,5 +4446,22 @@
   "auth.brand_point_market": "枢纽、曲线、流量与停运一览无余",
   "auth.brand_point_portfolio": "基于公司账簿的头寸、交付、LNG 与风险",
   "auth.brand_point_control": "风控可签核的限额、审计与报告",
-  "auth.brand_foot": "决策支持。公司数据保留在公司自己的服务器上。"
+  "auth.brand_foot": "决策支持。公司数据保留在公司自己的服务器上。",
+  "chain.title": "合同工作链",
+  "chain.step.terms": "条款",
+  "chain.step.routes": "路线经济",
+  "chain.step.allocation": "资源池分配",
+  "chain.step.review": "审阅",
+  "chain.terms.none": "选择已保存的合同或新建合同",
+  "chain.terms.saved": "已保存版本",
+  "chain.terms.draft": "草稿，尚未保存",
+  "chain.terms.unsaved_changes": "有未保存的修改",
+  "chain.blocked.save_first": "请先保存条款",
+  "chain.blocked.allocate_first": "请先运行资源池分配",
+  "chain.routes.none": "当前上下文没有候选路线",
+  "chain.routes.ready": "按本合同计算各路线成本",
+  "chain.allocation.ready": "将本合同分配到路线与销售",
+  "chain.allocation.done": "已在当前运行中分配",
+  "chain.allocation.stale": "上次运行的输入已变，请重新运行",
+  "chain.review.ready": "连同依据记录决策"
 }

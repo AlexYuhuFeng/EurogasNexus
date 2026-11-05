@@ -4446,5 +4446,22 @@
   "auth.brand_point_market": "Hubs, curves, flows and outages in one view",
   "auth.brand_point_portfolio": "Positions, deliveries, LNG and risk on your own books",
   "auth.brand_point_control": "Limits, audit and reports your risk team can sign off",
-  "auth.brand_foot": "Decision support. Your firm's data stays on your firm's servers."
+  "auth.brand_foot": "Decision support. Your firm's data stays on your firm's servers.",
+  "chain.title": "Contract work chain",
+  "chain.step.terms": "Terms",
+  "chain.step.routes": "Route economics",
+  "chain.step.allocation": "Pool allocation",
+  "chain.step.review": "Review",
+  "chain.terms.none": "Choose a stored contract or start a new one",
+  "chain.terms.saved": "Saved version",
+  "chain.terms.draft": "Draft - not saved yet",
+  "chain.terms.unsaved_changes": "Unsaved changes",
+  "chain.blocked.save_first": "Save the terms first",
+  "chain.blocked.allocate_first": "Run the pool allocation first",
+  "chain.routes.none": "No route candidates in this context",
+  "chain.routes.ready": "Cost each route for this contract",
+  "chain.allocation.ready": "Allocate this contract across routes and sales",
+  "chain.allocation.done": "Allocated in the current run",
+  "chain.allocation.stale": "Last run used other inputs - run again",
+  "chain.review.ready": "Record a decision with its evidence"
 }

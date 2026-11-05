@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
+import { ContractChainStrip } from "@/components/ContractChainStrip";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
@@ -243,6 +244,9 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   }, [api.upstreamContracts, contractEditor, contractParam]);
   const loadPersistedContractAndLink = (saved: Parameters<typeof contractEditor.loadPersistedContract>[0]) => {
     contractEditor.loadPersistedContract(saved);
+    // The opened contract is the selected resource, so the next step (routes, allocation,
+    // strategy) carries it (#32).
+    selection.setResourceId(saved.contract_id);
     openedFromUrl.current = saved.contract_id;
     setContractParam(saved.contract_id);
   };
@@ -317,6 +321,31 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
         </section>
         {task === "overview" && <PositionRiskSummary t={t} />}
         {task === "overview" && <PortfolioOverview controller={controller} />}
+        {task === "resources" && (
+          <ContractChainStrip
+            t={t}
+            facts={{
+              contractId: contractEditor.contract.contract_id.trim() || null,
+              persisted: api.upstreamContracts.some(
+                (item) => item.contract_id === contractEditor.contract.contract_id.trim(),
+              ),
+              draftDirty: contractEditor.draftDirty,
+              routeCount: api.routeCandidates.length,
+              allocated: (portfolio.currentResourcePoolResult?.allocations ?? []).some(
+                (item) =>
+                  item.resource_id === contractEditor.contract.contract_id.trim() &&
+                  item.allocated_quantity_mwh_per_day > 0,
+              ),
+              allocationStale: portfolio.resultsContextMismatch,
+            }}
+            onOpen={(step) => {
+              // Each step carries the contract: the selection holds it across pages.
+              if (step === "routes") openTask("routes");
+              else if (step === "allocation") navigation.openWorkspace("scenario", "optimize");
+              else if (step === "review") navigation.openWorkspace("review");
+            }}
+          />
+        )}
         {task === "resources" && (
           <ContractWorkbench
             contract={contractEditor.contract}
