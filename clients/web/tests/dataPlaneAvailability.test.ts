@@ -70,7 +70,8 @@ test("the labels are runtime-data statements in both locales, never readiness or
   const en = readLocale("en");
   const zh = readLocale("zh");
   for (const [locale, translations] of [["en", en], ["zh", zh]] as const) {
-    const subject = locale === "en" ? /runtime data/i : /运行时数据/;
+    // The runtime store and its data: a reachable store is not business data being present.
+    const subject = locale === "en" ? /runtime (data|store)/i : /运行时(数据库|数据)/;
     for (const state of STATES) {
       const key = runtimeDataAvailabilityLabelKey(state);
       const label = translations[key];

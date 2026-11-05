@@ -2012,6 +2012,15 @@
     background: var(--ds-positive);
   }
 
+  .map-situation-live.is-empty {
+    color: var(--ds-text-2);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .map-situation-live.is-empty::before {
+    background: var(--ds-text-3);
+  }
+
   .situation-dot {
     width: 8px;
     height: 8px;

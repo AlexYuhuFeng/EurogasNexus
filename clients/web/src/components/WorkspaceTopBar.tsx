@@ -242,7 +242,11 @@ export function WorkspaceTopBar({
             className={sourceSummary.viewState === "ready" ? "context-freshness" : "context-freshness issue"}
             title={t(`context.sources_${sourceSummary.viewState}`)}
           >
-            <strong>{t(`context.sources_${sourceSummary.viewState}`)}</strong>
+            <strong>
+              {sourceSummary.viewState === "partial" && sourceSummary.showCounts && sourceSummary.issues > 0
+                ? t("context.sources_need_action", { count: sourceSummary.issues })
+                : t(`context.sources_${sourceSummary.viewState}`)}
+            </strong>
             {sourceSummary.showCounts && (
               <small>
                 {sourceSummary.active}/{sourceSummary.total} {t("context.active")} · {sourceSummary.issues} {t("context.issues")}

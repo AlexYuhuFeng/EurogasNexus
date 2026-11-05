@@ -476,7 +476,12 @@ export function NetworkWorkspace({
           )}
           {summary && (
             <div className="map-situation-strip" role="status" aria-live="polite">
-              <span className="map-situation-live">{t("map.situation.live")}</span>
+              {/* "Live" only when the read carries something in force now; a reachable
+                  server with nothing to show is not live data (#35). */}
+              {summary.outagesNow + summary.outagesScheduled + summary.contracts + summary.cargoesAtSea
+                + summary.slots > 0 || summary.entryGwhD !== null
+                ? <span className="map-situation-live">{t("map.situation.live")}</span>
+                : <span className="map-situation-live is-empty">{t("map.situation.no_live_data")}</span>}
               {topology.length > 0 && (
                 <span className="is-alert" title={topology.map((issue) => `${t(`map.topology.${issue.kind}`)}: ${issue.detail}`).join("\n")}>
                   <i className="situation-dot outage-scheduled" />{t("map.topology.count").replace("{{count}}", String(topology.length))}
