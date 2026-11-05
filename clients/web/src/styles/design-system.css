@@ -1370,9 +1370,10 @@
     border-bottom-left-radius: 0;
   }
 
+  /* The active chip keeps the chip's own filled state (its contrast is checked); the
+     accent border marks it as the chosen view. */
   .map-view-switch .chip.active {
     border-color: var(--ds-accent);
-    color: var(--ds-accent);
   }
 
   /* Our book: the firm's deals by what needs a decision first, docked on the left. */
@@ -1518,7 +1519,8 @@
 
   .map-fullscreen-chip[aria-pressed="true"] {
     border-color: var(--ds-accent);
-    color: var(--ds-accent);
+    background: var(--ds-accent);
+    color: var(--ds-on-accent);
   }
 
   .map-situation-strip {
