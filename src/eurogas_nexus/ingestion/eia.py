@@ -11,7 +11,6 @@ about a one-business-day lag.
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from urllib.parse import urlencode
@@ -55,11 +54,15 @@ class EiaPrice:
 
 
 def resolve_eia_key(environ: dict[str, str] | None = None) -> str | None:
-    """The API key from ``EIA_API_KEY``, or ``None``."""
+    """The EIA key: ``EIA_API_KEY``, else the encrypted store; ``None`` when neither.
 
-    env = os.environ if environ is None else environ
-    key = str(env.get("EIA_API_KEY") or "").strip()
-    return key or None
+    With an explicit ``environ`` only that mapping is read (no store), as tests expect.
+    """
+
+    from eurogas_nexus.security.provider_credentials import resolve_provider_credential
+
+    resolved = resolve_provider_credential("EIA", environ)
+    return resolved.value if resolved else None
 
 
 def request_url(api_key: str, start: date, series: str = HENRY_HUB_SPOT_SERIES) -> str:

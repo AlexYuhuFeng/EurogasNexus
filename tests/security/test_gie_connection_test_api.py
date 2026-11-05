@@ -320,3 +320,22 @@ def test_connection_test_response_never_carries_provider_payload(
     assert "raw_payload" not in body
     assert SECRET not in body
     assert datetime.now(UTC).year  # keep the import meaningful for the metadata claim
+
+
+def test_provider_list_reports_where_each_key_comes_from_without_the_key(
+    runtime_db, monkeypatch
+) -> None:
+    """#38: every credential-bearing provider states its effective source, not its value."""
+
+    monkeypatch.setenv("EIA_API_KEY", SECRET)
+    monkeypatch.delenv("ENTSOE_SECURITY_TOKEN", raising=False)
+    response = _client().get("/api/credentials/providers")
+    by_id = {item["provider_id"]: item for item in response.json()["data"]}
+
+    assert SECRET not in response.text
+    assert by_id["EIA"]["effective_source"] == "env"
+    assert by_id["EIA"]["effective_variable"] == "EIA_API_KEY"
+    assert by_id["ENTSOE"]["effective_source"] == "missing"
+    assert by_id["ENTSOE"]["credential_env_vars"] == ["ENTSOE_SECURITY_TOKEN"]
+    assert by_id["EEX"]["connector_implemented"] is False
+    assert "effective_source" not in by_id["ECB"]

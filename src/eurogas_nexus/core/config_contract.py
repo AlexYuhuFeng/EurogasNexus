@@ -673,6 +673,25 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_LLM_API_KEY",
+        scope="OPERATOR",
+        purpose="API key for the configured model endpoint (DeepSeek or any OpenAI-compatible).",
+        sensitivity="secret",
+        required_when="An external model endpoint is enabled and no key is in the credential store",
+        notes=(
+            "Overrides the encrypted credential store unless an administrator disabled the "
+            "provider. Setting it does not permit external calls: "
+            "EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED still decides.",
+        ),
+    ),
+    ConfigVar(
+        name="DEEPSEEK_API_KEY",
+        scope="OPERATOR",
+        purpose="Accepted alias of EUROGAS_NEXUS_LLM_API_KEY for the DeepSeek provider.",
+        sensitivity="secret",
+        notes=("Prefer EUROGAS_NEXUS_LLM_API_KEY; when both are set the canonical name wins.",),
+    ),
+    ConfigVar(
         name="EIA_API_KEY",
         scope="OPERATOR",
         purpose="API key for the US EIA open-data API (Henry Hub daily spot price).",

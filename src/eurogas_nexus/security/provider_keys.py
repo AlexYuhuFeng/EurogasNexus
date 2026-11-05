@@ -1,26 +1,22 @@
-"""Runtime-only provider key retrieval from encrypted PostgreSQL records."""
+"""Runtime-only provider key retrieval (see ``provider_credentials`` for the contract)."""
 
 from __future__ import annotations
 
 
 def load_provider_api_key(provider_id: str) -> str | None:
-    """Return an enabled provider key for backend use without logging it."""
+    """Return the key a backend call should use, without logging it.
 
-    from eurogas_nexus.db.session import resolve_database_url
+    The provider's environment variables, then its key file, then the encrypted store;
+    a credential an administrator disabled is never used.
+    """
 
-    if resolve_database_url() is None:
-        return None
+    from eurogas_nexus.security.provider_credentials import (
+        CredentialFileError,
+        resolve_provider_credential,
+    )
+
     try:
-        from eurogas_nexus.db.models import ProviderCredentialRecord
-        from eurogas_nexus.db.session import get_session_factory
-        from eurogas_nexus.security.credentials import decrypt_credential_payload
-
-        with get_session_factory()() as session:
-            row = session.get(ProviderCredentialRecord, provider_id)
-            if row is None or row.status == "disabled":
-                return None
-            payload = decrypt_credential_payload(row.encrypted_payload)
-            value = str(payload.get("api_key") or "").strip()
-            return value or None
-    except Exception:
+        resolved = resolve_provider_credential(provider_id)
+    except CredentialFileError:
         return None
+    return resolved.value if resolved else None

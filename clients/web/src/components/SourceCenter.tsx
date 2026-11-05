@@ -39,7 +39,7 @@ interface SourceCenterProps {
   testSourceCount?: number;
   showTestSources?: boolean;
   onShowTestSourcesChange?: (show: boolean) => void;
-  t: (key: string) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
   sources: SourceSystemDTO[];
   sourceCategories: string[];
   sourceCategory: string;
@@ -636,6 +636,20 @@ export function SourceCenter({
                   `credentials.source_kind.${selectedCredentialProvider.credential_source_kind}`,
                 )}
               </small>
+            )}
+            {!selectedCredentialProvider.credential_source_kind && selectedCredentialProvider.effective_source && (
+              <small>
+                {t("credentials.source_kind")}: {t(`credentials.effective.${selectedCredentialProvider.effective_source}`, {
+                  variable: selectedCredentialProvider.effective_variable ?? "",
+                  variables: (selectedCredentialProvider.credential_env_vars ?? []).join(", ") || "—",
+                })}
+              </small>
+            )}
+            {(selectedCredentialProvider.effective_source === "env" || selectedCredentialProvider.effective_source === "file") && (
+              <small>{t("credentials.effective.env_managed")}</small>
+            )}
+            {selectedCredentialProvider.connector_implemented === false && (
+              <small>{t("credentials.connector_pending")}</small>
             )}
             {selectedCredentialProvider.credential_diagnostics && selectedCredentialProvider.credential_diagnostics.length > 0 && (
               <small>

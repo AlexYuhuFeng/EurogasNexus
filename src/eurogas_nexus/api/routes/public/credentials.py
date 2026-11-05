@@ -8,12 +8,16 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.security.provider_credentials import effective_credential_source
+
 router = APIRouter(tags=["credentials"])
 
 ProviderId = Literal[
     "ECB",
     "ENTSOG",
     "GIE",
+    "EIA",
+    "ENTSOE",
     "EEX",
     "ICE_OCM",
     "ICIS",
@@ -39,6 +43,12 @@ PROVIDERS: tuple[dict[str, object], ...] = (
     {"provider_id": "ECB", "display_name": "ECB", "credential_required": False},
     {"provider_id": "ENTSOG", "display_name": "ENTSOG", "credential_required": False},
     {"provider_id": "GIE", "display_name": "GIE AGSI/ALSI", "credential_required": True},
+    {"provider_id": "EIA", "display_name": "US EIA open data", "credential_required": True},
+    {
+        "provider_id": "ENTSOE",
+        "display_name": "ENTSO-E Transparency",
+        "credential_required": True,
+    },
     {"provider_id": "EEX", "display_name": "EEX", "credential_required": True},
     {"provider_id": "ICE_OCM", "display_name": "ICE OCM", "credential_required": True},
     {"provider_id": "ICIS", "display_name": "ICIS", "credential_required": True},
@@ -99,6 +109,10 @@ def list_credential_providers() -> dict:
         row = rows.get(provider_id)
         status = _provider_status(provider, row)
         status["connection_test_supported"] = provider_id in CONNECTION_TEST_PROVIDERS
+        if provider_id not in PUBLIC_PROVIDERS:
+            # Where the key a call would use comes from (environment, key file, encrypted
+            # store), never the key itself (#38).
+            status.update(effective_credential_source(provider_id))
         if provider_id == "GIE":
             status.update(gie_status)
         data.append(status)

@@ -21,7 +21,6 @@ Fetching is separate from parsing so the parser is tested against stored documen
 
 from __future__ import annotations
 
-import os
 import re
 import urllib.parse
 import urllib.request
@@ -35,11 +34,15 @@ ENTSOE_TOKEN_ENV = "ENTSOE_SECURITY_TOKEN"
 
 
 def resolve_entsoe_token(environ: dict[str, str] | None = None) -> str | None:
-    """The Transparency Platform token from ``ENTSOE_SECURITY_TOKEN``, or ``None``."""
+    """The Transparency Platform token: ``ENTSOE_SECURITY_TOKEN``, else the encrypted store.
 
-    env = os.environ if environ is None else environ
-    token = str(env.get("ENTSOE_SECURITY_TOKEN") or "").strip()
-    return token or None
+    With an explicit ``environ`` only that mapping is read (no store), as tests expect.
+    """
+
+    from eurogas_nexus.security.provider_credentials import resolve_provider_credential
+
+    resolved = resolve_provider_credential("ENTSOE", environ)
+    return resolved.value if resolved else None
 
 #: Bidding-zone EIC codes for the zones gas desks watch most.
 BIDDING_ZONES: dict[str, str] = {

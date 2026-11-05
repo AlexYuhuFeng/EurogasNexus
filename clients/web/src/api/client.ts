@@ -1639,6 +1639,16 @@ export interface CredentialProviderDTO {
   credential_diagnostics?: string[];
   /** GIE-only: declared backend support flags (connection_test, agsi, alsi). */
   support_flags?: string[];
+  /** Where the key a backend call would use comes from (#38); never the key itself. */
+  effective_source?: "env" | "file" | "credential_store" | "disabled" | "missing";
+  /** The variable that set it, when it came from the environment or a key file. */
+  effective_variable?: string | null;
+  effective_source_detail?: string;
+  /** Environment variables (and key-file variable) that can carry this provider's key. */
+  credential_env_vars?: string[];
+  /** False when a key can be stored but no connector reads it yet. */
+  connector_implemented?: boolean;
+  credential_note?: string;
   /** GIE-only: the existing certification gate state, reported separately from connectivity. */
   certification?: { stage: string; allows_live: boolean; reason: string } | null;
 }
