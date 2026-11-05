@@ -1,3 +1,4 @@
+import { connectorCard } from "./model/connectorCatalogModel.ts";
 import type {
   EdgeDTO,
   NodeDTO,
@@ -11,12 +12,35 @@ type WarningCarrier = {
 };
 
 type SourceLike = {
+  source_id?: string;
   connectivity_status: string;
   operational_status?: string;
   workflow_ready?: boolean;
   credential_state: string;
   live_record_count: number;
+  integration?: "api" | "file_import" | "template" | "model_service";
+  scheduler_enabled?: boolean;
+  last_success_at_utc?: string | null;
+  effective_last_success_at_utc?: string | null;
+  consecutive_failures?: number;
 };
+
+/** Whether a source needs someone's attention, by the Connectors rule (#26, #33). */
+function sourceNeedsAttention(source: SourceLike): boolean {
+  return (
+    connectorCard({
+      source_id: source.source_id ?? "",
+      connectivity_status: source.connectivity_status,
+      operational_status: source.operational_status ?? source.connectivity_status,
+      integration: source.integration,
+      credential_state: source.credential_state,
+      scheduler_enabled: source.scheduler_enabled ?? false,
+      last_success_at_utc: source.last_success_at_utc ?? null,
+      effective_last_success_at_utc: source.effective_last_success_at_utc ?? null,
+      consecutive_failures: source.consecutive_failures ?? 0,
+    }).group === "attention"
+  );
+}
 
 type FlowLike = {
   source_system?: string;
@@ -95,17 +119,14 @@ export function buildReviewWarnings(
 }
 
 export function buildSourceStats(sources: SourceLike[]): SourceStats {
-  const issueStatuses = new Set<string>(SOURCE_ISSUE_STATUSES);
   return {
     total: sources.length,
     active: sources.filter(
       (source) => source.workflow_ready ?? source.connectivity_status === "active",
     ).length,
-    issues: sources.filter(
-      (source) =>
-        !(source.workflow_ready ?? source.connectivity_status === "active") &&
-        issueStatuses.has(source.connectivity_status),
-    ).length,
+    // An optional provider nobody connected is offered, not broken: only what was set up and
+    // stopped working counts, as on the Connectors page.
+    issues: sources.filter(sourceNeedsAttention).length,
     records: sources.reduce((total, source) => total + source.live_record_count, 0),
     missingCredentials: sources.filter((source) => source.credential_state === "missing").length,
   };

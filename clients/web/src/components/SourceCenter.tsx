@@ -22,6 +22,7 @@ import type {
   TsoTariffDTO,
 } from "@/api/client";
 import { useUrlView } from "@/app/navigation/useUrlView";
+import { CONNECTOR_GROUPS, groupConnectors } from "@/app/model/connectorCatalogModel";
 
 interface SourceStats {
   total: number;
@@ -107,6 +108,61 @@ function sourceMode(source: SourceSystemDTO, t: (key: string) => string): string
   if (source.preview_substitute_status === "active") return t("sources.mode_simulated");
   if (source.credential_provider_id) return t("sources.mode_licensed");
   return t("sources.mode_public");
+}
+
+/**
+ * The connector catalogue (#26, #33): what needs attention, what is connected and what is
+ * available, each card with one status word and one action. The action selects the source;
+ * its one detail panel holds the credential, schedule, certification and run controls.
+ */
+function ConnectorCatalogue({
+  sources,
+  selectedId,
+  t,
+  onSelect,
+}: {
+  sources: SourceSystemDTO[];
+  selectedId: string | null;
+  t: (key: string) => string;
+  onSelect: (sourceId: string) => void;
+}) {
+  const groups = groupConnectors(sources);
+  return (
+    <div className="connector-catalogue">
+      {CONNECTOR_GROUPS.map((group) => (
+        <section key={group} className={`connector-group connector-group-${group}`} aria-label={t(`connectors.group.${group}`)}>
+          <h3>
+            {t(`connectors.group.${group}`)} <span className="connector-group-count">{groups[group].length}</span>
+          </h3>
+          {groups[group].length === 0 ? (
+            <p className="muted">{t(`connectors.group.${group}.empty`)}</p>
+          ) : (
+            <ul className="connector-grid">
+              {groups[group].map(({ source, card }) => (
+                <li key={source.source_id}>
+                  <button
+                    type="button"
+                    className={`connector-card${selectedId === source.source_id ? " active" : ""}`}
+                    data-record="connector-card"
+                    data-record-id={source.source_id}
+                    aria-pressed={selectedId === source.source_id}
+                    onClick={() => onSelect(source.source_id)}
+                  >
+                    <span className="connector-card-head">
+                      <strong>{source.source_system}</strong>
+                      <span className={`connector-status connector-status-${card.group}`}>{t(card.statusKey)}</span>
+                    </span>
+                    <span className="connector-card-body">{source.description}</span>
+                    <span className="connector-card-action">{t(`connectors.action.${card.action}`)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -236,6 +292,8 @@ export function SourceCenter({
     : activeView === "access"
       ? accessSources
       : sortedSources;
+  // The strip counts the same three groups the Connectors view lists (#26).
+  const connectorGroups = groupConnectors(sources);
   const simulatedOrPreviewSources = sources.filter((source) => (
     source.operational_status === "active_simulated"
     || source.preview_substitute_status === "active"
@@ -264,9 +322,9 @@ export function SourceCenter({
           <MetricStrip
             className="metric-grid four-column source-kpi-grid"
             items={[
-              { label: t("sources.total_sources"), value: sourceStats.total },
-              { label: t("sources.workflow_ready"), value: sourceStats.active },
-              { label: t("sources.action_required"), value: attentionSources.length },
+              { label: t("connectors.group.connected"), value: connectorGroups.connected.length },
+              { label: t("connectors.group.attention"), value: connectorGroups.attention.length },
+              { label: t("connectors.group.available"), value: connectorGroups.available.length },
               {
                 label: t("sources.runtime_records"),
                 value: sourceStats.records.toLocaleString(),
@@ -292,7 +350,7 @@ export function SourceCenter({
         onActivate={activateView}
       />
 
-      {registryRead.hasReading && (
+      {registryRead.hasReading && activeView !== "attention" && (
       <div className="workspace-panel span-3 source-posture-board">
         <PanelHeader title={t("sources.posture_board")} meta={t("sources.next_action")} />
         <div className="source-category-filter source-posture-grid compact" aria-label={t("sources.categories")}>
@@ -340,8 +398,17 @@ export function SourceCenter({
             {t("sources.show_test_sources").replace("{{count}}", String(testSourceCount))}
           </label>
         )}
+        {activeView === "attention" && registryRead.hasReading && (
+          <ConnectorCatalogue
+            sources={sortedSources}
+            selectedId={selectedSource?.source_id ?? null}
+            t={t}
+            onSelect={onSourceSelect}
+          />
+        )}
+        {activeView !== "attention" && (<>
         <PanelHeader
-          title={activeView === "attention" ? t("sources.attention_queue") : activeView === "access" ? t("sources.access_queue") : t("sources.registered_feeds")}
+          title={activeView === "access" ? t("sources.access_queue") : t("sources.registered_feeds")}
           meta={registryRead.hasReading
             ? `${displayedSources.length} / ${sources.length} · ${sourceStats.missingCredentials} ${t("sources.missing_credentials")}`
             : t("sources.registry.title")}
@@ -433,6 +500,7 @@ export function SourceCenter({
             <p className="muted">{t(registryRead.noticeKey ?? "sources.registry.title")}</p>
           )}
         </div>
+        </>)}
       </div>
       )}
 

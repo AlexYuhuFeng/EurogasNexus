@@ -211,9 +211,9 @@ def test_source_center_mounts_task_specific_operating_views() -> None:
     assert ".source-view-tabs" in css
     assert ".source-readiness-strip" in css
     assert ".source-view-access .source-credential-panel" in css
-    assert en["sources.view.attention"] == "Attention"
+    assert en["sources.view.attention"] == "Connectors"
     assert en["sources.view.access"] == "Access & certification"
-    assert zh["sources.view.attention"] == "待处理"
+    assert zh["sources.view.attention"] == "连接器"
     assert zh["sources.view.access"] == "接入与认证"
 
 
