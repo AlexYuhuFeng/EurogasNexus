@@ -718,15 +718,121 @@
     gap: var(--ds-space-2);
   }
 
-  .contract-field-grid .choice-checks input[type="checkbox"],
-  .choice-checks input[type="checkbox"],
-  .notify-categories input[type="checkbox"] {
+  /* Every checkbox and radio is a small square, whatever form styles its container gives text
+     inputs (#18): one rule instead of a fix per form. */
+  input[type="checkbox"],
+  input[type="radio"] {
     width: 16px;
     height: 16px;
+    min-width: 16px;
     min-height: 0;
     margin: 0;
     padding: 0;
     flex: 0 0 auto;
+    accent-color: var(--ds-accent);
+  }
+
+  /* A checkbox and its words sit on one line, and the whole label is the click target. */
+  .settings-checkbox {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--ds-space-2);
+    margin-right: var(--ds-space-4);
+    cursor: pointer;
+  }
+
+  .settings-language-set {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  /* Data Sources (#21, #23, #33). The status badge keeps to its own column: the column is
+     sized for the longest status and the badge never wraps under the next column. */
+  .source-operations-table th:nth-child(1) {
+    width: 150px;
+  }
+
+  .source-operations-table td:first-child .status-badge,
+  .source-operations-table td:first-child [class*="badge"] {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .source-operations-table td:nth-child(2) {
+    padding-left: var(--ds-space-3);
+  }
+
+  .source-operations-table tr.source-row {
+    cursor: pointer;
+  }
+
+  .source-operations-table tr.source-row:hover td {
+    background: var(--ds-surface-2);
+  }
+
+  /* Categories are a filter, not a dashboard: one wrapping row of compact chips. */
+  .source-posture-grid.compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+  }
+
+  .source-posture-grid.compact .source-posture-row {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 132px;
+    min-height: 0;
+    padding: var(--ds-space-2) var(--ds-space-3);
+  }
+
+  .source-test-toggle {
+    margin: 0 0 var(--ds-space-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  /* Decision assessments (nomination, storage dispatch): a form grid, each label above its
+     field, instead of labels and inputs running together in one line. */
+  .decision-assessment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: var(--ds-space-3) var(--ds-space-4);
+    margin: var(--ds-space-3) 0;
+  }
+
+  .decision-assessment-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-1);
+    min-width: 0;
+  }
+
+  .decision-assessment-field input,
+  .decision-assessment-field select {
+    width: 100%;
+  }
+
+  /* Personal preferences beside the organisation defaults they override (#19). */
+  .settings-preference-pair {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+    gap: var(--ds-space-4);
+    align-items: start;
+  }
+
+  .settings-reference-counts {
+    margin: var(--ds-space-3) 0 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
   }
 
   /* Tablets and phones: a table wider than its panel scrolls inside the panel instead of
@@ -1015,7 +1121,97 @@
     gap: var(--ds-space-1);
   }
 
+  /* Level 2 navigation: one style for every page and task tab row (#17, #20, #27). The
+     primary workspaces in the top bar are level 1 (filled); segmented controls choose a mode
+     or a filter (boxed). Rows never scroll vertically; a row too long for its width scrolls
+     sideways with its focus ring visible. */
+  .source-view-tabs,
+  .runtime-view-tabs,
+  .strategy-view-tabs,
+  .access-view-tabs,
+  .agents-task-tabs,
+  .commercial-task-tabs,
+  .market-cockpit-tabs,
+  .research-task-tabs,
+  .strategy-lab-task-tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--ds-space-1);
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 0;
+    border-bottom: 1px solid var(--ds-border);
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+  }
+
   .workspace-page-header-actions [role="tab"],
+  .workspace-page-tabs button,
+  .source-view-tabs button,
+  .runtime-view-tabs button,
+  .strategy-view-tabs button,
+  .access-view-tabs button,
+  .agents-task-tabs button,
+  .commercial-task-tabs button,
+  .market-cockpit-tabs button,
+  .research-task-tabs button,
+  .strategy-lab-task-tabs button {
+    flex: 0 0 auto;
+    min-width: 0;
+    height: var(--ds-control-sm);
+    min-height: 0;
+    padding: 0 var(--ds-space-3);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-medium);
+    white-space: nowrap;
+    box-shadow: none;
+  }
+
+  .source-view-tabs button::after,
+  .runtime-view-tabs button::after,
+  .strategy-view-tabs button::after {
+    content: none;
+  }
+
+  .workspace-page-header-actions [role="tab"]:hover,
+  .workspace-page-tabs button:hover,
+  .source-view-tabs button:hover,
+  .runtime-view-tabs button:hover,
+  .strategy-view-tabs button:hover,
+  .access-view-tabs button:hover,
+  .agents-task-tabs button:hover,
+  .commercial-task-tabs button:hover,
+  .market-cockpit-tabs button:hover,
+  .research-task-tabs button:hover,
+  .strategy-lab-task-tabs button:hover {
+    background: transparent;
+    color: var(--ds-text-1);
+  }
+
+  .workspace-page-header-actions [role="tab"][aria-selected="true"],
+  .workspace-page-tabs button.active,
+  .source-view-tabs button.active,
+  .runtime-view-tabs button.active,
+  .strategy-view-tabs button.active,
+  .access-view-tabs button.active,
+  .agents-task-tabs button.active,
+  .commercial-task-tabs button.active,
+  .market-cockpit-tabs button.active,
+  .research-task-tabs button.active,
+  .strategy-lab-task-tabs button.active,
+  .workspace-page-header-actions [role="tab"].active {
+    background: transparent;
+    color: var(--ds-text-1);
+    border-bottom-color: var(--ds-text-1);
+  }
+
   .segmented-control [role="tab"],
   .segmented-control button {
     height: var(--ds-control-sm);
@@ -1031,14 +1227,12 @@
     letter-spacing: 0;
   }
 
-  .workspace-page-header-actions [role="tab"]:hover,
   .segmented-control [role="tab"]:hover,
   .segmented-control button:hover {
     background: var(--ds-surface-2);
     color: var(--ds-text-1);
   }
 
-  .workspace-page-header-actions [role="tab"][aria-selected="true"],
   .segmented-control [role="tab"][aria-selected="true"],
   .segmented-control button.active,
   .segmented-control button[aria-pressed="true"] {

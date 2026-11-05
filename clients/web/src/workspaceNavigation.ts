@@ -37,6 +37,26 @@ export const workspacePageIds: WorkspacePageId[] = [
 
 export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "market";
 
+/**
+ * Pages whose reads take the trading context (gas day, delivery product, hub focus). Only
+ * these show the context controls in the top bar; on the others (administration, settings,
+ * research, the manual) a gas day or a hub would change nothing, and showing them reads as a
+ * filter that is not there (#35). The context itself is kept and returns with these pages.
+ */
+const TRADING_CONTEXT_PAGES: ReadonlySet<WorkspacePageId> = new Set([
+  "market",
+  "network",
+  "capacity",
+  "contracts",
+  "orders",
+  "scenario",
+  "review",
+]);
+
+export function pageUsesTradingContext(page: WorkspacePageId): boolean {
+  return TRADING_CONTEXT_PAGES.has(page);
+}
+
 export function isWorkspacePageId(value: string | null | undefined): value is WorkspacePageId {
   return workspacePageIds.includes(value as WorkspacePageId);
 }

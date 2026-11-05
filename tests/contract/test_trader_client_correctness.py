@@ -277,11 +277,18 @@ def test_topbar_controls_and_source_credentials_have_accessible_names() -> None:
 
 
 def test_settings_distinguish_public_sources_from_missing_credentials() -> None:
-    settings = _read(WEB / "components" / "SettingsCenter.tsx")
+    """A public source is never counted as a missing credential.
 
-    assert "if (!provider.credential_required)" in settings
-    assert 'return t("credentials.not_required")' in settings
-    assert 'provider.configured ? t("settings.configured")' in settings
+    Settings keeps a summary only (#26: one place manages supplier credentials); its missing
+    count includes only providers that require a credential, and the per-source wording
+    ("not required") lives in Data Sources.
+    """
+
+    settings = _read(WEB / "components" / "SettingsCenter.tsx")
+    sources = _read(WEB / "components" / "SourceCenter.tsx")
+
+    assert "provider.credential_required && !provider.configured" in settings
+    assert 't("credentials.not_required")' in sources
 
 
 def test_visible_literal_translation_keys_exist_in_both_locales() -> None:

@@ -1,4 +1,6 @@
 {
+  "sources.show_test_sources": "Show test sources ({{count}}): simulated feeds for development and acceptance, never real prices",
+  "settings.open_data_sources": "Manage source credentials in Data Sources",
   "map.view.label": "Map view",
   "map.view.network": "Network",
   "map.view.book": "Our book",

@@ -18,6 +18,7 @@ import type { PaletteCommand } from "@/app/experience/commandPalette";
 import { paletteUnavailableReasonKey } from "@/app/experience/commandPalette";
 import { isCommercialPage, isControlPlanePage } from "@/app/navigation/productNavigation";
 import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
+import { workspaceFromLocation } from "@/app/hooks/useWorkspaceNavigation";
 import { inspectorDetailFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
@@ -179,7 +180,12 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
   const profileReady = composition.available;
   useEffect(() => {
     // Wait for the identity profile: it decides whether the own surface is administration.
-    if (commercialRestricted && profileReady) openWorkspace(ownSurface);
+    // Judge by the page the URL asks for, not the page still on screen: right after sign-in
+    // the shell shows the default page for a moment before it applies the deep link, and
+    // redirecting on that would drop an administrator's link to Access or Settings.
+    if (!commercialRestricted || !profileReady) return;
+    if (!isCommercialPage(workspaceFromLocation())) return;
+    openWorkspace(ownSurface);
   }, [commercialRestricted, profileReady, ownSurface, openWorkspace]);
 
   // The layout class names the page whose layout is on screen, not only the page the URL named:

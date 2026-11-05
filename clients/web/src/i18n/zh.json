@@ -1,4 +1,6 @@
 {
+  "sources.show_test_sources": "显示测试数据源（{{count}}）：用于开发和验收的模拟数据源，并非真实价格",
+  "settings.open_data_sources": "在数据源中管理数据源凭据",
   "map.view.label": "地图视图",
   "map.view.network": "管网",
   "map.view.book": "我方头寸",

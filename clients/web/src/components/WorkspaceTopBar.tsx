@@ -14,7 +14,7 @@ import {
   compositionSeesAdministration,
 } from "@/app/experience/experienceProfile";
 import { StatusBadge, WorkspaceTabs } from "@/components/ui";
-import type { WorkspacePageId } from "@/workspaceNavigation";
+import { pageUsesTradingContext, type WorkspacePageId } from "@/workspaceNavigation";
 import type { ApiState } from "@/stores/api";
 import type { ThemeMode } from "@/stores/theme";
 import type { CurrentUserDTO } from "@/api/client";
@@ -111,6 +111,8 @@ export function WorkspaceTopBar({
    * store can answer while the readings inside it are stale or missing.
    */
   const runtimeAvailability = runtimeDataAvailability(dataStatus);
+  // Gas day, product and hub only where the page's reads take them (#35).
+  const usesTradingContext = pageUsesTradingContext(activeWorkspace);
   // Architecture V2 control-plane boundary: the administration primary is only
   // offered to an identity whose composition includes an administration
   // capability. Presentation only - the backend authorises every request - and it
@@ -196,11 +198,12 @@ export function WorkspaceTopBar({
       >
         <summary aria-label={t("topbar.context_status")}>
           <strong>{t("topbar.context_status")}</strong>
-          <span>{gasDay} · {productLabel} · {hubId ?? t("context.no_hub_focus")}</span>
+          {usesTradingContext && <span>{gasDay} · {productLabel} · {hubId ?? t("context.no_hub_focus")}</span>}
         </summary>
         {(!narrowHeader || contextDisclosureOpen) && (
           <div className="topbar-context-disclosure-content">
         <div className="topbar-trading-context" aria-label={t("context.title")}>
+          {usesTradingContext && (<>
           <label>
             <span>{t("context.gas_day")}</span>
             <input
@@ -234,6 +237,7 @@ export function WorkspaceTopBar({
               ))}
             </select>
           </label>
+          </>)}
           <span
             className={sourceSummary.viewState === "ready" ? "context-freshness" : "context-freshness issue"}
             title={t(`context.sources_${sourceSummary.viewState}`)}

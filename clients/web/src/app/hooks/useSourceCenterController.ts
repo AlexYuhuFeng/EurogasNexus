@@ -69,8 +69,17 @@ function credentialProviderIdForSource(
   )?.provider_id ?? null;
 }
 
+/**
+ * Development and UAT test sources (the simulated price generators, `*_Sim`). They are kept,
+ * with their history and lineage, but a customer's daily source list, its counts and its
+ * to-do queue are about real suppliers (#22): test sources are shown only on request.
+ */
+export function isTestSource(source: SourceSystemDTO): boolean {
+  return /_sim$/i.test(source.source_system);
+}
+
 export function useSourceCenterController({
-  sources,
+  sources: allSources,
   credentialProviders,
   sourcePostureCategories,
   saveProviderCredential,
@@ -86,6 +95,12 @@ export function useSourceCenterController({
   const [credentialValue, setCredentialValue] = useState("");
   const [sourceCategory, setSourceCategory] = useState("all");
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const [showTestSources, setShowTestSources] = useState(false);
+  const testSourceCount = useMemo(() => allSources.filter(isTestSource).length, [allSources]);
+  const sources = useMemo(
+    () => (showTestSources ? allSources : allSources.filter((source) => !isTestSource(source))),
+    [allSources, showTestSources],
+  );
 
   const selectedCredentialProvider = useMemo(
     () => credentialProviders.find((provider) => provider.provider_id === credentialProvider),
@@ -181,6 +196,10 @@ export function useSourceCenterController({
   }
 
   return {
+    visibleSources: sources,
+    testSourceCount,
+    showTestSources,
+    setShowTestSources,
     sourceCategories: SOURCE_CATEGORIES,
     sourceCategory,
     sourceCategoryCounts,

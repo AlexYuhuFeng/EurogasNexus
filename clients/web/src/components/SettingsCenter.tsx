@@ -105,12 +105,6 @@ export function SettingsCenter({
   ).length;
   const activeSources = sources.filter((source) => source.workflow_ready).length;
   const licensedServices = sources.filter((source) => source.entitlement_scope === "licensed").length;
-  const serviceRows = credentialProviders.slice(0, 8);
-  const credentialStatusLabel = (provider: CredentialProviderDTO) => {
-    if (!provider.credential_required) return t("credentials.not_required");
-    if (provider.status === "disabled") return t("sources.credential.disabled");
-    return provider.configured ? t("settings.configured") : t("settings.missing");
-  };
 
   const testAndApplyApiBase = async (value: string, useDefault = false) => {
     setTestingApi(true);
@@ -152,8 +146,12 @@ export function SettingsCenter({
         </div>
       </div>
 
-      <PersonalPreferencesPanel t={t} principalId={principalId} />
-      <OrganisationDefaultsPanel t={t} canManage={canManageOrganisation} />
+      {/* Personal preferences and the organisation defaults they override are one pair:
+          side by side across the full width, not two thirds of a three-column row (#19). */}
+      <div className="span-3 settings-preference-pair">
+        <PersonalPreferencesPanel t={t} principalId={principalId} />
+        <OrganisationDefaultsPanel t={t} canManage={canManageOrganisation} />
+      </div>
       {canManageOrganisation && (
         <div className="workspace-panel span-3">
           <NotificationChannelsPanel t={t} />
@@ -345,30 +343,16 @@ export function SettingsCenter({
       </div>
 
       <div className="workspace-panel settings-service-panel">
-        <div className="panel-title-row">
-          <h2>{t("settings.service_access")}</h2>
-          <button type="button" onClick={onOpenSources}>{t("settings.manage_api_keys")}</button>
-        </div>
+        {/* A summary only: supplier credentials are managed in one place, Data Sources
+            (#26). The full per-service list lived here too and duplicated it. */}
+        <h2>{t("settings.service_access")}</h2>
         <div className="metric-grid two-column">
           <div><span>{t("settings.configured")}</span><strong>{configuredCredentials}</strong></div>
           <div><span>{t("settings.missing")}</span><strong>{missingCredentials}</strong></div>
           <div><span>{t("settings.licensed_services")}</span><strong>{licensedServices}</strong></div>
           <div><span>{t("panel.records")}</span><strong>{sources.reduce((total, source) => total + source.effective_record_count, 0)}</strong></div>
         </div>
-        <div className="settings-service-list">
-          {serviceRows.map((provider) => (
-            <div key={`settings-provider-${provider.provider_id}`} className="settings-service-row">
-              <span>
-                <strong>{provider.display_name}</strong>
-                <small>{provider.provider_id}</small>
-              </span>
-              <em className={!provider.credential_required || provider.configured ? "ready" : "attention"}>
-                {credentialStatusLabel(provider)}
-              </em>
-            </div>
-          ))}
-          {serviceRows.length === 0 && <p className="panel-copy">{t("settings.no_api_services")}</p>}
-        </div>
+        <button type="button" className="secondary-button" onClick={onOpenSources}>{t("settings.open_data_sources")}</button>
       </div>
 
       <div className="workspace-panel settings-boundary-panel">
@@ -380,15 +364,10 @@ export function SettingsCenter({
           <span>{t("settings.human_review")}</span>
           <span>{t("settings.decision_support_only")}</span>
         </div>
-      </div>
-
-      <div className="workspace-panel">
-        <h2>{t("app.title")}</h2>
-        <div className="metric-grid">
-          <div><span>{t("map.nodes")}</span><strong>{counts.nodes}</strong></div>
-          <div><span>{t("map.edges")}</span><strong>{counts.edges}</strong></div>
-          <div><span>{t("map.routes")}</span><strong>{counts.routes}</strong></div>
-        </div>
+        {/* What this deployment's network reference holds; one line, not a card of its own. */}
+        <p className="settings-reference-counts">
+          {t("map.nodes")} <strong>{counts.nodes}</strong> · {t("map.edges")} <strong>{counts.edges}</strong> · {t("map.routes")} <strong>{counts.routes}</strong>
+        </p>
       </div>
     </div>
   );

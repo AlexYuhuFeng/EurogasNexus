@@ -1626,7 +1626,9 @@ def test_source_center_shows_category_operational_posture_board() -> None:
     assert "sourcePostureRows={sources.sourcePostureRows}" in app
     assert "source-posture-board" in source_center
     assert "source-posture-row" in source_center
-    assert "sources_needing_attention" in source_center
+    # Issues per category are counted from the listed sources (#22): the server's posture
+    # totals include the hidden test sources, which must not add issues.
+    assert "sourcePriority(source) < 5).length" in source_center
     assert "sources.posture_board" in source_center
     assert "source-operations-table" in source_center
     assert "source-posture-board" in css

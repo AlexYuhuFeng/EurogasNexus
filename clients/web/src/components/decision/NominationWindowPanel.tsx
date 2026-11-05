@@ -78,18 +78,20 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
         <p className="panel-copy">{t("decision.nomination.note")}</p>
 
         <div className="decision-assessment-grid">
-          <label className="field-label" htmlFor="nomination-initial">
-            {t("decision.nomination.initial_quantity")}
-          </label>
-          <input
-            id="nomination-initial"
-            type="text"
-            inputMode="decimal"
-            value={draft.initialQuantity}
-            onChange={(event) =>
-              updateDraft((current) => ({ ...current, initialQuantity: event.target.value }))
-            }
-          />
+          <span className="decision-assessment-field">
+            <label className="field-label" htmlFor="nomination-initial">
+              {t("decision.nomination.initial_quantity")}
+            </label>
+            <input
+              id="nomination-initial"
+              type="text"
+              inputMode="decimal"
+              value={draft.initialQuantity}
+              onChange={(event) =>
+                updateDraft((current) => ({ ...current, initialQuantity: event.target.value }))
+              }
+            />
+          </span>
         </div>
 
         <div className="section-heading">

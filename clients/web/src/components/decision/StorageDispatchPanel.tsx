@@ -82,18 +82,20 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
         <p className="panel-copy">{t("decision.dispatch.note")}</p>
 
         <div className="decision-assessment-grid">
-          <label className="field-label" htmlFor="dispatch-facility">
-            {t("decision.dispatch.facility_id")}
-          </label>
-          <input
-            id="dispatch-facility"
-            type="text"
-            maxLength={128}
-            value={draft.facilityId}
-            onChange={(event) =>
-              updateDraft((current) => ({ ...current, facilityId: event.target.value }))
-            }
-          />
+          <span className="decision-assessment-field">
+            <label className="field-label" htmlFor="dispatch-facility">
+              {t("decision.dispatch.facility_id")}
+            </label>
+            <input
+              id="dispatch-facility"
+              type="text"
+              maxLength={128}
+              value={draft.facilityId}
+              onChange={(event) =>
+                updateDraft((current) => ({ ...current, facilityId: event.target.value }))
+              }
+            />
+          </span>
           {facilityFields.map((field) => (
             <span key={field.key} className="decision-assessment-field">
               <label className="field-label" htmlFor={`dispatch-${field.key}`}>

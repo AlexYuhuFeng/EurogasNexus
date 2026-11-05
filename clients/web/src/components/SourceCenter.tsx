@@ -35,6 +35,10 @@ type SourceViewId = "attention" | "catalog" | "access" | "infrastructure";
 const SOURCE_VIEWS: SourceViewId[] = ["attention", "catalog", "access", "infrastructure"];
 
 interface SourceCenterProps {
+  /** Test sources (`*_Sim`) hidden from the list and counts unless shown on request (#22). */
+  testSourceCount?: number;
+  showTestSources?: boolean;
+  onShowTestSourcesChange?: (show: boolean) => void;
   t: (key: string) => string;
   sources: SourceSystemDTO[];
   sourceCategories: string[];
@@ -168,6 +172,9 @@ function SourceRegistryNotice({
 export function SourceCenter({
   t,
   sources,
+  testSourceCount = 0,
+  showTestSources = false,
+  onShowTestSourcesChange,
   sourceCategories,
   sourceCategory,
   sourceCategoryCounts,
@@ -305,7 +312,8 @@ export function SourceCenter({
               >
                 <strong>{sourceLabel("sources.category", category)}</strong>
                 <span>{posture ? `${posture.workflow_ready_sources}/${sourceCategoryCounts.get(category) ?? posture.registered_sources}` : `${sourceStats.active}/${sources.length}`} {t("sources.workflow_ready")}</span>
-                <small>{posture?.sources_needing_attention ?? attentionSources.length} {t("context.issues")}</small>
+                {/* Counted from the listed sources, so hidden test sources never add issues. */}
+                <small>{sources.filter((source) => (category === "all" || source.category === category) && sourcePriority(source) < 5).length} {t("context.issues")}</small>
               </button>
             );
           })}
@@ -315,6 +323,16 @@ export function SourceCenter({
 
       {activeView !== "infrastructure" && (
       <div id="source-active-panel" role="tabpanel" aria-labelledby={`source-tab-${activeView}`} className="workspace-panel span-2 source-catalog-panel">
+        {testSourceCount > 0 && onShowTestSourcesChange && (
+          <label className="settings-checkbox source-test-toggle">
+            <input
+              type="checkbox"
+              checked={showTestSources}
+              onChange={(event) => onShowTestSourcesChange(event.target.checked)}
+            />
+            {t("sources.show_test_sources").replace("{{count}}", String(testSourceCount))}
+          </label>
+        )}
         <PanelHeader
           title={activeView === "attention" ? t("sources.attention_queue") : activeView === "access" ? t("sources.access_queue") : t("sources.registered_feeds")}
           meta={registryRead.hasReading
@@ -349,7 +367,11 @@ export function SourceCenter({
                   // the page's copy (`scripts/uat/readToRender.mjs`).
                   data-record="source-row"
                   data-record-id={source.source_id}
-                  className={selectedSource?.source_id === source.source_id ? "active" : undefined}
+                  className={selectedSource?.source_id === source.source_id ? "source-row active" : "source-row"}
+                  aria-selected={selectedSource?.source_id === source.source_id}
+                  // The whole row selects the source (#21); its buttons stay the keyboard
+                  // targets, and their own clicks select the same source.
+                  onClick={() => onSourceSelect(source.source_id)}
                 >
                   <td>
                     <StatusBadge variant="source" status={source.operational_status}>

@@ -142,7 +142,10 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       {activeWorkspace === "sources" && (
         <SourceCenter
           t={t}
-          sources={api.sources}
+          sources={sources.visibleSources}
+          testSourceCount={sources.testSourceCount}
+          showTestSources={sources.showTestSources}
+          onShowTestSourcesChange={sources.setShowTestSources}
           sourceCategories={sources.sourceCategories}
           sourceCategory={sources.sourceCategory}
           sourceCategoryCounts={sources.sourceCategoryCounts}
