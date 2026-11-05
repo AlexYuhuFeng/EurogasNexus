@@ -242,10 +242,15 @@ def forecast_balance(
             )
         )
     if model is None:
-        result.warnings.append(
-            "No heating-degree-day forecast supplied: the call is the seasonal normal plus "
-            "the recent anomaly, not a weather forecast."
-        )
+        if not hdd:
+            result.warnings.append(
+                "No heating-degree-day inputs supplied; the call uses the historical baseline."
+            )
+        else:
+            result.warnings.append(
+                "Heating-degree-day inputs could not fit a model: at least 30 matched "
+                "days with independent HDD and weekend effects are required."
+            )
     elif model.r2 < 0.6:
         result.warnings.append(f"Weather model fit is weak (R² {model.r2:.2f}).")
     return result

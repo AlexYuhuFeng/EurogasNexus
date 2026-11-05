@@ -6,6 +6,19 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-05 — functional engine improvement branch, F01
+
+- Owner requested isolated functional implementations for later review/merge. Branch
+  `feature/functional-engine-improvements` starts from main a40dafc3, independently
+  of the documentation PR. No main changes or deployment.
+- F01 adds explicit HDD supply-call scenarios at POST `/api/market/nwe-balance`,
+  governed permission, SDK, replayable inputs/hash and identical-baseline comparison.
+  The original GET and all solver implementations remain unchanged.
+- Scenario evidence is caller-declared; no automatic live ECMWF composition or model
+  promotion. Production integration and F02–F09 acceptance remain in the
+  [functional plan](FUNCTIONAL_ENGINE_IMPROVEMENTS.md).
+- Focused API/SDK tests pass. Required pre-push gates are recorded in the branch PR.
+
 ## 2026-10-30 — spread lab, training datasets, settings tiers, global topology, storage
 
 - ce2a9e6 Spread lab (Strategy Lab → Spread, default task): weighted spreads of daily

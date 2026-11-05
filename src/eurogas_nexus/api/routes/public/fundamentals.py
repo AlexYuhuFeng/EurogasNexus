@@ -13,6 +13,10 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.api.csv_export import report_response
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+from eurogas_nexus.application.nwe_balance_scenario import (
+    NweBalanceScenarioRequest,
+    run_nwe_balance_scenario,
+)
 from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
 from eurogas_nexus.domain.ontology.markets import Commodity, find_market, markets
 from eurogas_nexus.domain.power.gas_for_power import (
@@ -381,6 +385,21 @@ def _daily_sum(session, column_expr, model, filters, first: date):
         for value, total in query.group_by(day).all()
         if value is not None
     }
+
+
+@router.post("/api/market/nwe-balance")
+def calculate_nwe_balance_scenario(payload: NweBalanceScenarioRequest) -> dict:
+    """Compare caller-declared HDD inputs with the same supply-call baseline.
+
+    Inputs are explicit scenario evidence. This operation does not read or
+    certify a provider dataset, and never changes the live GET projection.
+    """
+    try:
+        return run_nwe_balance_scenario(payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": "invalid_balance_scenario", "message": str(exc)}
+        ) from exc
 
 
 @router.get("/api/market/nwe-balance")

@@ -280,6 +280,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
 # legacy path registry intact for compatibility, and resolve these overrides
 # only when the caller supplies an HTTP method.
 METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
+    ("POST", "/api/market/nwe-balance", Permission.GOVERNED),
     ("GET", "/api/strategies", Permission.READ),
     ("GET", "/api/strategies/{strategy_id}/versions", Permission.READ),
     ("GET", "/api/strategy-runs", Permission.READ),
