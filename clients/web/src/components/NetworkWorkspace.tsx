@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import type {
   EdgeDTO,
@@ -20,7 +20,8 @@ import {
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
 import { topologyIssues } from "@/app/mapSelection";
-import { useMapSituation } from "@/app/hooks/useMapSituation";
+import { MAP_SITUATION_REFRESH_MS, useMapSituation } from "@/app/hooks/useMapSituation";
+import { useFullscreen } from "@/app/hooks/useFullscreen";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
@@ -155,8 +156,15 @@ export function NetworkWorkspace({
   // `network-node` as an inspectable subject, so the hand-over is legal here; the builder
   // refuses it everywhere the composition does not declare it.
   const inspector = useInspectorStore();
-  const { situation, facilities } = useMapSituation();
+  const { situation, facilities, error: situationError, readAt } = useMapSituation();
   const summary = situationSummary(situation);
+  // Full screen: the map column (chips, map, live strip, card, key) as a wall or
+  // second-monitor view; the situation keeps refreshing while it is up.
+  const mapColumnRef = useRef<HTMLElement | null>(null);
+  const fullscreen = useFullscreen(mapColumnRef);
+  // A read that keeps failing leaves the last good picture up; say so once it is old.
+  const situationStale = Boolean(situationError) && readAt !== null
+    && Date.now() - readAt.getTime() > 2 * MAP_SITUATION_REFRESH_MS;
   // What netbacks rely on: every connection ends at known points and crosses a border only
   // at an entry or interconnection point. Problems are named here, not silently drawn.
   const topology = useMemo(() => topologyIssues(nodes, edges), [edges, nodes]);
@@ -309,7 +317,11 @@ export function NetworkWorkspace({
         </div>
       </aside>
 
-      <section className="network-map-column" aria-label={t("network.map_column_label")}>
+      <section
+        ref={mapColumnRef}
+        className={`network-map-column${fullscreen.active ? " is-fullscreen" : ""}${fullscreen.expanded ? " is-expanded" : ""}`}
+        aria-label={t("network.map_column_label")}
+      >
         <div className="map-toolbar">
           <button className="chip reset-chip" type="button" onClick={onResetSearch}>
             {t("map.reset")}
@@ -348,6 +360,16 @@ export function NetworkWorkspace({
               <span className="layer-label">{t(`map.layer.${layer}`)}</span>
             </button>
           ))}
+          <span className="map-toolbar-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="chip map-fullscreen-chip"
+            aria-pressed={fullscreen.active}
+            title={t(fullscreen.active ? "map.fullscreen.exit_hint" : "map.fullscreen.enter_hint")}
+            onClick={fullscreen.toggle}
+          >
+            {t(fullscreen.active ? "map.fullscreen.exit" : "map.fullscreen.enter")}
+          </button>
         </div>
         <div className="map-container map-stage network-map-stage" id="map">
           <GasNetworkMap
@@ -386,8 +408,16 @@ export function NetworkWorkspace({
               {summary.slots > 0 && (
                 <span><i className="situation-dot own ring" />{t("map.situation.slots")} <b>{summary.slots}</b></span>
               )}
+              {summary.regasNow > 0 && (
+                <span><i className="situation-dot own" />{t("map.situation.regas_now")} <b>{summary.regasNow}</b></span>
+              )}
+              {summary.entryGwhD != null && (
+                <span>{t("map.situation.entry_flow")} <b>{Math.round(summary.entryGwhD).toLocaleString()}</b> GWh/d</span>
+              )}
+              {situationStale && <span className="is-alert">{t("map.situation.stale")}</span>}
               <small title={t("map.situation.unlocated_hint")}>
                 {t("map.situation.as_of")} {summary.asOf.slice(11, 16)} UTC
+                {readAt ? ` · ${t("map.situation.read_at")} ${readAt.toISOString().slice(11, 16)} UTC` : ""}
                 {summary.unlocated > 0 ? ` · ${t("map.situation.unlocated")} ${summary.unlocated}` : ""}
               </small>
             </div>

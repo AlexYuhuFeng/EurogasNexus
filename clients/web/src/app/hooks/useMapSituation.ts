@@ -12,6 +12,8 @@ export function useMapSituation(enabled = true) {
   const [situation, setSituation] = useState<MapSituationDTO | null>(null);
   const [facilities, setFacilities] = useState<FacilityDTO[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // When the picture on screen was last read: a wall display has to say how fresh it is.
+  const [readAt, setReadAt] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -23,6 +25,7 @@ export function useMapSituation(enabled = true) {
           if (!live) return;
           setSituation(response.data && "outages" in response.data ? response.data : null);
           setError(null);
+          setReadAt(new Date());
         })
         .catch((caught: unknown) => live && setError(caught instanceof Error ? caught.message : String(caught)));
     };
@@ -38,5 +41,5 @@ export function useMapSituation(enabled = true) {
     };
   }, [enabled]);
 
-  return { situation, facilities, error };
+  return { situation, facilities, error, readAt };
 }

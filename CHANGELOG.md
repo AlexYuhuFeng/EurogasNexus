@@ -28,6 +28,10 @@ version lives under [docs/release/notes](docs/release/notes).
   against capacity, outages, our contracts, cargoes heading in and our regas slots. A
   cargo shows its voyage, ETA, size and the slot waiting for it, with its track and leg
   ahead drawn.
+- **Full-screen live map**: the map's last chip shows it alone on the display, for a
+  wall or a second monitor, with the layer chips, finder, live strip and selection card. It
+  keeps refreshing; the strip adds regas open now and the measured entry flow (GWh/d),
+  says when the screen last read the situation, and says so when reads stop succeeding.
 - **Topology over geometry**: every known connection is drawn, as a schematic curve where
   no surveyed route exists, and a topology check flags connections to unknown points,
   border crossings that do not land at an entry or interconnection point, unconnected

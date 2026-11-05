@@ -214,6 +214,14 @@ export function situationSummary(situation: MapSituationDTO | null) {
     contracts: situation.contracts.length,
     cargoesAtSea: situation.cargoes.filter((item) => item.own && item.status === "laden").length,
     slots: situation.regas_slots.length,
+    /** Our regas slots whose window is open now: send-out in progress. */
+    regasNow: situation.regas_slots.filter((item) => item.active).length,
+    /** Measured entry flow over the latest gas day, GWh/d, or null when none is measured. */
+    entryGwhD: situation.flows.some((item) => item.direction === "entry" && item.gwh_d != null)
+      ? situation.flows
+          .filter((item) => item.direction === "entry")
+          .reduce((sum, item) => sum + (item.gwh_d ?? 0), 0)
+      : null,
     unlocated: Object.values(situation.unlocated).reduce((sum, value) => sum + value, 0),
     asOf: situation.as_of_utc,
   };

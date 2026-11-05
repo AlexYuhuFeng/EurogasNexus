@@ -1,4 +1,12 @@
 {
+  "map.fullscreen.enter": "Full screen",
+  "map.fullscreen.exit": "Exit full screen",
+  "map.fullscreen.enter_hint": "Show the live map alone on this screen, for a wall or second monitor; it keeps refreshing. Esc leaves.",
+  "map.fullscreen.exit_hint": "Back to the page (Esc)",
+  "map.situation.regas_now": "Regas now",
+  "map.situation.entry_flow": "Entry flow",
+  "map.situation.read_at": "read",
+  "map.situation.stale": "Not refreshed: showing the last good read",
   "strategy_lab.spread_analysts_only": "The spread lab is the analysts' research tool. Your role reads strategies, their backtests and shadow runs in the other tabs.",
   "contracts.contract_price": "Contract price",
   "contracts.price_per_mwh": "Contract price {{currency}}/MWh",

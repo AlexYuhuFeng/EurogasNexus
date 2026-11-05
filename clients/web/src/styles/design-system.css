@@ -1334,6 +1334,30 @@
 
 /* Live map situation: one quiet status strip, compact hover cards, meaning-only colour. */
 @layer ds-components {
+  /* Full-screen live map: the map column alone, for a wall or second monitor. The native
+     element full screen fills the display; the fallback expands it over the page. */
+  .workspace-network .network-map-column.is-fullscreen {
+    border: 0;
+    border-radius: 0;
+    background: var(--ds-bg);
+  }
+
+  .workspace-network .network-map-column.is-expanded {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+  }
+
+  .network-map-column.is-fullscreen .map-situation-strip {
+    max-width: min(900px, calc(100% - 2 * var(--ds-space-3)));
+    font-size: var(--ds-text-md);
+  }
+
+  .map-fullscreen-chip[aria-pressed="true"] {
+    border-color: var(--ds-accent);
+    color: var(--ds-accent);
+  }
+
   .map-situation-strip {
     position: absolute;
     z-index: 40;

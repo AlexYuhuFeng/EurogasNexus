@@ -1,4 +1,12 @@
 {
+  "map.fullscreen.enter": "全屏",
+  "map.fullscreen.exit": "退出全屏",
+  "map.fullscreen.enter_hint": "在本屏单独显示实时地图，适用于墙面或副显示器；数据持续刷新。按 Esc 退出。",
+  "map.fullscreen.exit_hint": "返回页面（Esc）",
+  "map.situation.regas_now": "正在气化",
+  "map.situation.entry_flow": "入口流量",
+  "map.situation.read_at": "读取于",
+  "map.situation.stale": "未刷新：显示上次成功读取的数据",
   "strategy_lab.spread_analysts_only": "价差实验室是分析师的研究工具。您的角色可在其他标签页查看策略、回测和影子运行。",
   "contracts.contract_price": "合同价格",
   "contracts.price_per_mwh": "合同价格 {{currency}}/MWh",

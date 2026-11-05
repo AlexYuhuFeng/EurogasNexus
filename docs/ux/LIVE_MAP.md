@@ -109,6 +109,28 @@ A colour per role would need a legend nobody remembers and would collide with st
 owner's permission in a commercially sold product (AGENTS rule 18), are illegible at map
 scale, and add colour that competes with state.
 
+## Full screen: the wall view
+
+The map normally sits on the Network page with the resource and decision rails below it: a
+cockpit, where the trader reads the map next to the numbers. A desk also wants the map on
+its own, on a wall screen or a second monitor, watching the day: cargoes moving along their
+tracks, regas windows open, outages, measured entry flows. **Full screen** (the last chip on
+the map's toolbar) shows the map column alone on the display:
+
+- Everything that belongs to the map comes along: the layer chips, the place finder, the
+  live strip, the selection card and the line key. Nothing else does.
+- It keeps refreshing on the same five-minute cycle as the page. The strip says when the
+  situation is as of and when this screen last read it; when reads keep failing it says
+  so ("Not refreshed: showing the last good read") instead of showing an old picture as
+  live.
+- The strip adds what a wall view watches: regas slots open now and the measured entry flow
+  of the latest gas day in GWh/d, next to outages, contracts and cargoes at sea.
+- It uses the browser's own full screen (the desktop app, Edge, Chrome, Safari on iPad),
+  so Esc leaves it. Where the browser has no element full screen (Safari on iPhone), the
+  map expands over the page instead and Esc or the same chip closes it.
+
+It is a view, not a mode: it holds no state of its own and grants nothing.
+
 ## Topology over geometry
 
 What netbacks and flow reasoning need is the topology: which point connects to which,
