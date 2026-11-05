@@ -8,6 +8,7 @@ Branch proposal: `POST /api/market/nwe-balance` adds caller-declared weather sce
 alongside the existing GET. It has the governed permission floor, no persistence,
 an input hash and a Python SDK method. See the
 [functional engine plan](../engineering/FUNCTIONAL_ENGINE_IMPROVEMENTS.md).
+Branch census: 231 paths / 249 operations; earlier dated census entries remain historical.
 
 The public `/api` surface is a shared product contract consumed by five
 surfaces: Web, Python SDK, CLI, Windows/Linux desktop shells, and the
