@@ -1,6 +1,6 @@
 # 功能引擎改进计划
 
-当前在 `feature/functional-engine-improvements` 分支开发，尚未合入 main。
+F01 已于 2026-11-05 合入 main；F02–F09 仍为计划。
 
 英文版本：[Functional engine improvements](FUNCTIONAL_ENGINE_IMPROVEMENTS.md)。
 

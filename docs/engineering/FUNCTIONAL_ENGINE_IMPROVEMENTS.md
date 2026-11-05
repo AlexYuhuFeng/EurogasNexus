@@ -1,6 +1,6 @@
 # Functional engine improvements
 
-Status: in progress on `feature/functional-engine-improvements`; no main merge.
+Status: F01 merged to main on 2026-11-05; F02–F09 planned.
 
 Chinese companion: [FUNCTIONAL_ENGINE_IMPROVEMENTS-CN.md](FUNCTIONAL_ENGINE_IMPROVEMENTS-CN.md).
 

@@ -1,6 +1,6 @@
 # API 契约演化策略
 
-分支提案：新增 `POST /api/market/nwe-balance`，与原有 GET 并存，用于调用方显式提供
+2026-11-05 新增 `POST /api/market/nwe-balance`，与原有 GET 并存，用于调用方显式提供
 数据的天气情景对比。要求 governed 权限，不写数据库，返回输入指纹并提供 Python SDK。
 详见[功能引擎改进计划](../engineering/FUNCTIONAL_ENGINE_IMPROVEMENTS-CN.md)。
 

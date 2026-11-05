@@ -31,9 +31,9 @@ users can find the support route in [Support and updates](docs/guides/SUPPORT_AN
 | **Decisions** | Evidence-backed decision cases with four-eyes approval, alerts with optional LLM explanations, full audit trail |
 | **Platform** | SSO (OIDC), RBAC with commercial data scopes, per-user preferences and organisation defaults, English and Chinese, light/dark, green-up or red-up P&L colours, keyboard-first navigation |
 
-**Workflow:** market and portfolio analysis leads to a recorded human review. Trade
-execution, nomination submission and settlement processing remain in the firm's operating
-systems. Licensed market prices use the firm's entitled sources or approved imports;
+**Boundary:** the product does not enter orders, execute trades, nominate or settle.
+Market and portfolio analysis leads to a recorded human review; execution, nominations and
+settlement stay in the firm's operating systems. Licensed market prices use the firm's entitled sources or approved imports;
 test observations carry simulation labels.
 
 ## Who uses it

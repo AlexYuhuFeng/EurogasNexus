@@ -17,7 +17,7 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
 - Scenario evidence is caller-declared; no automatic live ECMWF composition or model
   promotion. Production integration and F02–F09 acceptance remain in the
   [functional plan](FUNCTIONAL_ENGINE_IMPROVEMENTS.md).
-- Focused API/SDK tests pass. Required pre-push gates are recorded in the branch PR.
+- Focused API/SDK tests pass. Reviewed and merged to main on 2026-11-05 after the pre-push gate.
 
 ## 2026-10-30 — spread lab, training datasets, settings tiers, global topology, storage
 

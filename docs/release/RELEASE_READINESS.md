@@ -51,7 +51,7 @@ by a CLI flag.
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
 - OpenAPI public surface: **231 paths / 249 operations**
-  (branch proposal adds the NWE balance scenario POST; no new release acceptance).
+  (the NWE balance scenario POST, merged 2026-11-05; not yet in a release acceptance run).
   (`/api/runtime/release`, CR-14 research data routes, CR-15 agent/capability
   routes, and the development-only `/api/dev/auth/login` added), pinned and
   permission-declared. Measure it rather than quoting this line:
