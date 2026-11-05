@@ -2106,6 +2106,32 @@
  * `.maplibregl-map { position: relative; overflow: hidden }` beats every layered rule and
  * collapsed the map container to 0 px (everything clipped). This one rule must win.
  */
+/*
+ * One page gutter for every workspace and every state (normal, empty, loading, error,
+ * restricted), including the map-first Network page, whose map used to take the gutter
+ * away from its heading and context strip too (#43). Phone safe areas widen it, never
+ * narrow it. Unlayered so the legacy per-workspace padding rules cannot win.
+ */
+:root {
+  --eg-page-gutter: 16px;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --eg-page-gutter: 12px;
+  }
+}
+
+.cockpit-app .app-main {
+  padding-left: max(var(--eg-page-gutter), env(safe-area-inset-left));
+  padding-right: max(var(--eg-page-gutter), env(safe-area-inset-right));
+}
+
+.cockpit-app.workspace-network .app-main {
+  padding-top: var(--eg-page-gutter);
+  padding-bottom: max(var(--eg-page-gutter), env(safe-area-inset-bottom));
+}
+
 .gas-map > .maplibre-canvas {
   position: absolute;
   inset: 0;
@@ -2907,3 +2933,4 @@
     }
   }
 }
+

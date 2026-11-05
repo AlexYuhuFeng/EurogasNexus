@@ -255,6 +255,12 @@ export function WorkspaceTopBar({
             </small>
           </span>
         </div>
+          </div>
+        )}
+      </details>
+      {/* Alerts, status and the account menu stay on the bar at every width: on a phone the
+          context disclosure is folded, and the account menu (Settings, language, sign out)
+          used to fold away with it (#39). */}
           <div className="header-controls">
           <AlertCenter
             alerts={monitoring.monitoringAlerts}
@@ -329,9 +335,6 @@ export function WorkspaceTopBar({
             )}
           </div>
         </div>
-  
-          </div>
-        )}
-      </details>    </header>
+    </header>
   );
 }

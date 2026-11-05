@@ -6270,6 +6270,7 @@ button.glossary-related-chip {
 
 .map-layer-chip.active.layer-routes {
   border-color: var(--eg-map-pipeline);
+  background: color-mix(in srgb, var(--eg-map-pipeline) 18%, transparent);
   color: var(--eg-ink);
 }
 
