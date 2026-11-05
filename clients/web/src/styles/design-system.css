@@ -820,6 +820,171 @@
     width: 100%;
   }
 
+  /* Access & Identity (#24, #25). A grant reads as its values; "Change" opens a checkbox
+     list in place, sized to its content, with a filter when long. */
+  .access-grant-picker {
+    min-width: 0;
+  }
+
+  .access-grant-picker > summary {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ds-space-2);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .access-grant-picker > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .access-grant-summary {
+    overflow: hidden;
+    color: var(--ds-text-1);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .access-grant-edit {
+    flex: 0 0 auto;
+    color: var(--ds-accent);
+    font-size: var(--ds-text-sm);
+  }
+
+  .access-grant-picker.is-changed .access-grant-summary {
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .access-grant-picker.is-changed .access-grant-summary::after {
+    content: " *";
+    color: var(--ds-accent);
+  }
+
+  .access-grant-picker fieldset {
+    margin: var(--ds-space-2) 0 0;
+    padding: var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+  }
+
+  .access-grant-picker legend {
+    padding: 0 var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .access-grant-filter {
+    width: 100%;
+    margin-bottom: var(--ds-space-2);
+  }
+
+  .access-grant-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--ds-space-1) var(--ds-space-3);
+  }
+
+  .access-role-row {
+    align-items: start;
+  }
+
+  .access-role-grants dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--ds-space-1) var(--ds-space-4);
+    margin: 0;
+  }
+
+  .access-role-grants dl > div {
+    display: contents;
+  }
+
+  .access-role-grants dt {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  .access-role-grants dd {
+    margin: 0;
+  }
+
+  .access-technical-keys {
+    margin-top: var(--ds-space-2);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .access-technical-keys code {
+    display: block;
+    margin-top: var(--ds-space-1);
+    overflow-wrap: anywhere;
+  }
+
+  /* Licence entry (#25): fields in rows of a sensible width, not seven abreast. */
+  .licence-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: var(--ds-space-3) var(--ds-space-4);
+  }
+
+  /* Market overview (#13): the rail is as tall as its content (no scroll trap inside the
+     page) and the map row takes the extra height, so the rail's last panel is never cut off. */
+  .market-cockpit-overview {
+    /* Sized by its content, not by the panel around it, so the rows can grow. */
+    flex: 0 0 auto;
+    height: auto;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "context context"
+      "main rail"
+      "spread spread";
+  }
+
+  .market-overview-main {
+    grid-area: main;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .market-context-rail {
+    /* The legacy wide-screen rule contained the rail's size so it would scroll inside the
+       board's height; that scroll trap is what cut Portfolio relevance off (#13). */
+    contain: none;
+    min-height: auto;
+    overflow: visible;
+  }
+
+  /* The rail's panels keep their content height, so the row grows with them. */
+  .market-context-rail > * {
+    flex: 0 0 auto;
+  }
+
+  /* Rail action rows wrap to the rail's width instead of running off its edge. */
+  .market-context-rail .market-handoff-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+  }
+
+  .market-overview-main > * {
+    width: 100%;
+  }
+
+  .market-overview-main .market-overview-map {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 280px;
+  }
+
+  @media (max-width: 1240px) {
+    .market-cockpit-overview {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "context" "main" "rail" "spread";
+    }
+  }
+
   /* Personal preferences beside the organisation defaults they override (#19). */
   .settings-preference-pair {
     grid-column: 1 / -1;

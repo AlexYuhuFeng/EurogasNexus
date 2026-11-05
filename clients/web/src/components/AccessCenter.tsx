@@ -19,6 +19,7 @@ import {
 } from "@/app/model/accessCatalogueModel";
 import { PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
 import { LicenceRegisterPanel } from "@/components/LicenceRegisterPanel";
+import { groupPermissions } from "@/app/permissionVocabulary";
 
 type AccessViewId = "users" | "api_keys" | "catalogue" | "audit" | "sso";
 const ACCESS_VIEWS: AccessViewId[] = ["users", "api_keys", "catalogue", "audit", "sso"];
@@ -203,19 +204,22 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
                 <strong>{user.display_name}</strong>
                 <span>{user.identity_source}</span>
                 <StatusBadge variant="source" status={user.status.toLowerCase()}>{user.status}</StatusBadge>
-                {(["roles", "data_scopes"] as const).map((field) => (
-                  <label key={field} className="access-grant-editor">
-                    <span>{t(field === "roles" ? "access.roles" : "access.data_access")}</span>
-                    <select multiple aria-label={`${user.display_name} · ${t(field === "roles" ? "access.roles" : "access.data_access")}`}
-                      disabled={busyRows[user.principal_id] || !roles || !scopeCatalogue}
-                      value={(userDrafts[user.principal_id] ?? user)[field]}
-                      onChange={(event) => editUser(user, field, Array.from(event.target.selectedOptions, (option) => option.value))}>
-                      {[...new Set([...(field === "roles" ? Object.keys(roles ?? {}).sort() : availableScopes), ...user[field]])].map((value) => (
-                        <option key={value} value={value}>{value}{!(field === "roles" ? Object.hasOwn(roles ?? {}, value) : availableScopes.includes(value)) ? ` (${t("access.user.stored_grant")})` : ""}</option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
+                {(["roles", "data_scopes"] as const).map((field) => {
+                  const offered = field === "roles" ? Object.keys(roles ?? {}).sort() : availableScopes;
+                  return (
+                    <GrantPicker
+                      key={field}
+                      label={`${user.display_name} · ${t(field === "roles" ? "access.roles" : "access.data_access")}`}
+                      options={[...new Set([...offered, ...user[field]])]}
+                      storedOnly={(value) => !offered.includes(value)}
+                      selected={(userDrafts[user.principal_id] ?? user)[field]}
+                      changed={Boolean(userDrafts[user.principal_id]) && (userDrafts[user.principal_id]![field].join("|") !== user[field].join("|"))}
+                      disabled={Boolean(busyRows[user.principal_id]) || !roles || !scopeCatalogue}
+                      t={t}
+                      onChange={(values) => editUser(user, field, values)}
+                    />
+                  );
+                })}
                 <span className="access-row-actions">
                   <JobProfileEditor
                     user={user}
@@ -376,9 +380,29 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
                   <span>{t("access.catalogue.permissions")}</span>
                 </div>
                 {roleRows(roles).map((row) => (
-                  <div key={row.role} className="data-table-row two">
+                  <div key={row.role} className="data-table-row two access-role-row">
                     <strong>{row.role}</strong>
-                    <span>{row.permissions.length > 0 ? row.permissions.join(", ") : t("access.catalogue.grants_nothing")}</span>
+                    {row.permissions.length > 0 ? (
+                      <div className="access-role-grants">
+                        {/* By business area, in plain words; the exact keys on request (#25). */}
+                        <dl>
+                          {groupPermissions(row.permissions).map((group) => (
+                            <div key={group.area}>
+                              <dt>{t(`access.permission.area.${group.area}`)}</dt>
+                              <dd>
+                                {group.actions.map((action) => (action.actionKey ? t(action.actionKey) : action.key)).join(" · ")}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <details className="access-technical-keys">
+                          <summary>{t("access.permission.technical_keys")}</summary>
+                          <code>{row.permissions.join(", ")}</code>
+                        </details>
+                      </div>
+                    ) : (
+                      <span>{t("access.catalogue.grants_nothing")}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -496,6 +520,74 @@ function JobProfileEditor({
       <button type="button" disabled={busy} onClick={() => void onSave({ job_functions: functions, office: office || null })}>
         {t("access.save")}
       </button>
+    </details>
+  );
+}
+
+/**
+ * A user's roles or data scopes (#24): the current grants as a readable summary, and a
+ * labelled checkbox list (with a filter when long) to change them. Replaces the native
+ * multi-select, which hid most options and the selection and needed Ctrl/Shift to use.
+ * Changes stay a draft until the row's Save; nothing here widens a grant on its own.
+ */
+function GrantPicker({
+  label,
+  options,
+  selected,
+  storedOnly,
+  changed,
+  disabled,
+  t,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  storedOnly: (value: string) => boolean;
+  changed: boolean;
+  disabled: boolean;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  onChange: (values: string[]) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const shown = filter ? options.filter((option) => option.toLowerCase().includes(filter.toLowerCase())) : options;
+  // "*" is the wildcard scope: say what it covers instead of showing a bare asterisk.
+  const word = (value: string) => (value === "*" ? t("access.grant.wildcard") : value);
+  const summary = selected.length === 0 ? t("access.grant.none") : selected.map(word).join(", ");
+  return (
+    <details className={`access-grant-picker${changed ? " is-changed" : ""}`}>
+      <summary aria-label={label} title={summary}>
+        <span className="access-grant-summary">{summary}</span>
+        <span className="access-grant-edit">{t("access.grant.edit")}</span>
+      </summary>
+      <fieldset disabled={disabled}>
+        <legend>{label} · {t("access.grant.selected").replace("{{count}}", String(selected.length))}</legend>
+        {options.length > 8 && (
+          <input
+            type="search"
+            className="access-grant-filter"
+            placeholder={t("access.grant.filter")}
+            aria-label={t("access.grant.filter")}
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+        )}
+        <div className="access-grant-options">
+          {shown.map((value) => (
+            <label key={value} className="settings-checkbox">
+              <input
+                type="checkbox"
+                checked={selected.includes(value)}
+                onChange={(event) =>
+                  onChange(event.target.checked ? [...selected, value] : selected.filter((item) => item !== value))
+                }
+              />
+              {word(value)}
+              {storedOnly(value) && <small> ({t("access.user.stored_grant")})</small>}
+            </label>
+          ))}
+        </div>
+      </fieldset>
     </details>
   );
 }

@@ -84,6 +84,11 @@ interface GasNetworkMapProps {
   view?: "network" | "book";
   /** A completed deal being replayed: the whole path faint, the part sailed so far and the vessel. */
   replay?: { path: Array<[number, number]>; sailed: Array<[number, number]>; at: [number, number]; label: string } | null;
+  /**
+   * A preview (the Market overview's mini-map): no place finder and no zoom-tier card, which
+   * would cover most of a small map; the full map is one click away (#12).
+   */
+  compact?: boolean;
   /** Select and fly to a place or a cargo from outside the map (the book list); `nonce` re-fires it. */
   focus?: { refId?: string | null; cargoId?: string; nonce: number } | null;
 }
@@ -228,6 +233,7 @@ export function GasNetworkMap({
   situation = null,
   facilities = [],
   view = "network",
+  compact = false,
   replay = null,
   focus = null,
 }: GasNetworkMapProps) {
@@ -1589,7 +1595,7 @@ export function GasNetworkMap({
   return (
     <div className="gas-map" aria-label={t("map.gas_network_map")}>
       <div ref={containerRef} className="maplibre-canvas" />
-      {mapReady && <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} />}
+      {mapReady && !compact && <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} />}
       {selection && (
         <MapDetailPanel
           selection={selection}
@@ -1603,7 +1609,7 @@ export function GasNetworkMap({
           t={t as (key: string, options?: Record<string, unknown>) => string}
         />
       )}
-      {mapReady && !selection && (
+      {mapReady && !selection && !compact && (
         <div className="map-zoom-tier" role="status" aria-live="polite">
           {view === "network" && (
             <>

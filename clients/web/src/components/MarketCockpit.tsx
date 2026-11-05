@@ -183,6 +183,9 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         <button type="button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
       </section>
 
+      {/* Board and preview map form the left column; the rail beside them is as tall as its
+          content and the map stretches to match, so nothing scrolls inside the page (#13). */}
+      <div className="market-overview-main">
       <aside className="market-hub-board" aria-label={t("market.hub_board")}>
         <div className="data-table">
           <div className="data-table-row header six">
@@ -237,8 +240,10 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           searchTerm={controls.searchTerm}
           t={t}
           highlightedRoute={portfolio.highlightedRoute}
+          compact
         />
       </section>
+      </div>
 
       <aside className="market-context-rail" aria-label={t("market.context_rail")}>
         {/* What is happening on the network now, from the same live read as the map, instead

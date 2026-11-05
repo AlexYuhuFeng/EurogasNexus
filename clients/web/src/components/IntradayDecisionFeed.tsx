@@ -55,10 +55,13 @@ export function IntradayDecisionFeed({
       aria-label={t("intraday.title")}
     >
       <div className="panel-title-row intraday-feed-heading">
-        <div>
-          <span className="eyebrow">{t("intraday.eyebrow")}</span>
-          <h2>{t("intraday.title")}</h2>
-        </div>
+        {/* In a rail the panel's own heading already names it: no second and third title (#13). */}
+        {!compact && (
+          <div>
+            <span className="eyebrow">{t("intraday.eyebrow")}</span>
+            <h2>{t("intraday.title")}</h2>
+          </div>
+        )}
         <span className={`intraday-feed-counter ${actionableCount > 0 ? "active" : ""}`}>
           {actionableCount} {t("intraday.active")}
         </span>
