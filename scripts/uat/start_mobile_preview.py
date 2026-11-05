@@ -46,6 +46,11 @@ def main() -> int:
             dsn = "postgresql+pg8000://" + dsn[len(prefix):]
             break
     os.environ["RUNTIME_STORE_DATABASE_URL"] = dsn
+    # Render names the deployed commit; the release endpoint reports it, so a tester can
+    # tell which build is live.
+    render_commit = os.environ.get("RENDER_GIT_COMMIT", "").strip()
+    if render_commit and not os.environ.get("EUROGAS_NEXUS_BUILD_GIT_SHA"):
+        os.environ["EUROGAS_NEXUS_BUILD_GIT_SHA"] = render_commit
     subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True)
     subprocess.run([sys.executable, "scripts/uat/seed_browser_identity.py"], check=True)
     subprocess.run(
