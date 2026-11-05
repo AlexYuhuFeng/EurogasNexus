@@ -28,6 +28,7 @@ import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { AlertCenter } from "./AlertCenter";
 import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
 import { ReportProblemDialog } from "./ReportProblemDialog";
+import { TopBarStatus, dataHealth } from "./TopBarStatus";
 import { requestProblemReport } from "@/app/model/supportReport";
 import "./WorkspaceTopBar.css";
 
@@ -238,26 +239,6 @@ export function WorkspaceTopBar({
             </select>
           </label>
           </>)}
-          <span
-            className={sourceSummary.viewState === "ready" ? "context-freshness" : "context-freshness issue"}
-            title={t(`context.sources_${sourceSummary.viewState}`)}
-          >
-            <strong>
-              {sourceSummary.viewState === "partial" && sourceSummary.showCounts && sourceSummary.issues > 0
-                ? t("context.sources_need_action", { count: sourceSummary.issues })
-                : t(`context.sources_${sourceSummary.viewState}`)}
-            </strong>
-            {sourceSummary.showCounts && (
-              <small>
-                {sourceSummary.active}/{sourceSummary.total} {t("context.active")} · {sourceSummary.issues} {t("context.issues")}
-              </small>
-            )}
-            <small>
-              {marketLastUpdatedAtUtc
-                ? `${t("context.updated")} ${formatUtcTimestamp(marketLastUpdatedAtUtc)}`
-                : t("context.no_market_update")}
-            </small>
-          </span>
         </div>
           </div>
         )}
@@ -276,48 +257,25 @@ export function WorkspaceTopBar({
             onAcknowledge={monitoring.acknowledgeMonitoringAlert}
             onAnalyze={monitoring.analyzeMonitoringAlert}
           />
-          {/* Polling is normal operation, so only a live stream earns a chip; the polling
-              state stays in the data-status chip's title instead of a second badge. */}
-          {streamingActive && (
-            <span className="stream-status-badge stream-live" aria-label={t("stream.live")}>
-              {t("stream.live")}
-            </span>
-          )}
-          {/*
-            The shell owns runtime/data status, so the badge stays - but it names
-            runtime data availability rather than an overall readiness, and it is
-            the canonical StatusBadge, which reads as state instead of as a control
-            beside the context selects. The store is named in the title detail
-            only. It is absent while loading: the source-posture block beside it
-            already says "checking", and a badge that flipped to red mid-load would
-            report a failure that has not happened.
-          */}
-          {!loading && (
-            <StatusBadge
-              variant="runtime-readiness-state"
-              status={dataPlaneState(dataStatus)}
-              className="topbar-data-status"
-              title={`${t("data.runtime_detail")} · ${streamingActive ? t("stream.live") : t("stream.polling_fallback")}`}
-            >
-              {t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}
-            </StatusBadge>
-          )}
-          {!loading && currentUser && dataPlaneState(dataStatus) !== "ready" && (
-            <button
-              type="button"
-              className="link-button topbar-report-hint"
-              title={t("support.hint_title")}
-              onClick={() =>
-                requestProblemReport({
-                  category: "data",
-                  severity: "P2",
-                  summary: t("support.hint_summary", { state: t(runtimeDataAvailabilityLabelKey(runtimeAvailability)) }),
-                })
-              }
-            >
-              {t("support.hint")}
-            </button>
-          )}
+          {/* One data-status chip; the store, the push connection and the source counts
+              are in the panel it opens, not on the bar a trader reads all day. */}
+          <TopBarStatus
+            t={t}
+            health={dataHealth(sourceSummary, dataPlaneState(dataStatus), loading)}
+            sourceSummary={sourceSummary}
+            storeState={dataPlaneState(dataStatus)}
+            storeLabel={t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}
+            storeDetail={t("data.runtime_detail")}
+            streamingActive={streamingActive}
+            marketLastUpdatedAtUtc={marketLastUpdatedAtUtc}
+            showSourceCounts={compositionSeesAdministration(composition)}
+            onReportProblem={currentUser ? () =>
+              requestProblemReport({
+                category: "data",
+                severity: "P2",
+                summary: t("support.hint_summary", { state: t(runtimeDataAvailabilityLabelKey(runtimeAvailability)) }),
+              }) : undefined}
+          />
           <div className="topbar-user-menu">
             {currentUser ? (
               <>

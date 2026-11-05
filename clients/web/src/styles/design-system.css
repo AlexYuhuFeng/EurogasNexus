@@ -2943,3 +2943,93 @@
   }
 }
 
+
+/* ------------------------------------------------------------ top-bar data status */
+@layer ds-components {
+  .topbar-status {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .topbar-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    height: var(--ds-control);
+    padding: 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .topbar-status-chip i {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-text-3);
+  }
+
+  .topbar-status.is-ok .topbar-status-chip i { background: var(--ds-positive); }
+  .topbar-status.is-attention .topbar-status-chip i { background: var(--ds-warning); }
+  .topbar-status.is-down .topbar-status-chip i { background: var(--ds-negative); }
+  .topbar-status.is-down .topbar-status-chip { color: var(--ds-text-1); }
+
+  .topbar-status-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 60;
+    width: min(320px, calc(100vw - 24px));
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-3, 0 8px 24px rgb(0 0 0 / 18%));
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  /* Hovering into the panel must not close it: bridge the gap above. */
+  .topbar-status-panel::before {
+    content: "";
+    position: absolute;
+    inset: -8px 0 auto;
+    height: 8px;
+  }
+
+  .topbar-status-panel dl {
+    display: grid;
+    gap: var(--ds-space-2);
+    margin: 0;
+  }
+
+  .topbar-status-panel dl > div {
+    display: grid;
+    grid-template-columns: 112px 1fr;
+    gap: var(--ds-space-2);
+    align-items: baseline;
+  }
+
+  .topbar-status-panel dt {
+    color: var(--ds-text-3);
+  }
+
+  .topbar-status-panel dd {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+  }
+
+  .topbar-status-panel dd small {
+    color: var(--ds-text-3);
+  }
+
+  .topbar-status-panel .link-button {
+    margin-top: var(--ds-space-3);
+  }
+}

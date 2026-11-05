@@ -105,7 +105,10 @@ def test_review_workspace_records_persisted_decisions_with_the_identity_as_actor
 def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     runtime_workspace = _read(WEB / "components" / "RuntimeWorkspace.tsx")
     css = _read(WEB / "styles" / "app.css")
-    topbar = _read(WEB / "components" / "WorkspaceTopBar.tsx")
+    # The stream mode is shown in the top bar's data-status panel.
+    topbar = _read(WEB / "components" / "WorkspaceTopBar.tsx") + _read(
+        WEB / "components" / "TopBarStatus.tsx"
+    )
     shell = _read(WEB / "app" / "shell" / "AppShell.tsx")
     renderer = _read(WEB / "app" / "workspaces" / "WorkspaceRenderer.tsx")
     client = _read(WEB / "api" / "client.ts")

@@ -33,7 +33,8 @@ test("evidence-heavy workspaces use the shared block and explicit time basis", (
   const glossary = readWebSource("components/GlossaryWiki.tsx");
   const market = readWebSource("components/MarketTerminal.tsx");
   const runtime = readWebSource("components/RuntimeWorkspace.tsx");
-  const topbar = readWebSource("components/WorkspaceTopBar.tsx");
+  // The top bar shows the market-data time in its status panel.
+  const topbar = readWebSource("components/TopBarStatus.tsx");
 
   assert.match(sourceController, /formatUtcTimestamp\(value\)/);
   assert.match(sources, /<EvidenceBlock/);
