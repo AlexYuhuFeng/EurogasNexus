@@ -481,6 +481,16 @@ async function activateTaskTab(page, tabId) {
     .catch(() => false);
 }
 
+// The registry contains test sources, but the daily catalog hides them by default.
+// Use its real opt-in control before comparing the complete unfiltered API read.
+async function setCatalogTestSources(page, checked) {
+  const toggle = page.locator('.source-test-toggle input[type="checkbox"]');
+  if ((await toggle.count()) === 0) return null;
+  const previous = await toggle.isChecked();
+  await toggle.setChecked(checked);
+  return previous;
+}
+
 /**
  * The functional check for one workspace: is the requested page displayed, is its heading the
  * expected one, has loading finished, and does it render what its own API returned?
@@ -675,6 +685,8 @@ async function inspectSurfaceFunction(
         );
       }
     }
+    const restoreTestSources = workspace === "sources"
+      ? await setCatalogTestSources(page, true) : null;
     const groups = signal.readToRender.map((group) => readGroupRows(state.apiBody, group));
     let compared = null;
     try {
@@ -691,6 +703,7 @@ async function inspectSurfaceFunction(
         source: readSourceLabel(state.apiBody),
       });
     } finally {
+      if (restoreTestSources !== null) await setCatalogTestSources(page, restoreTestSources);
       for (const tabId of tabsToRestore.reverse()) {
         if (!(await activateTaskTab(page, tabId))) {
           recordFailure(
@@ -1753,6 +1766,15 @@ async function sourceCenterSelectionInteraction(page, failures) {
       return;
     }
 
+    const dailyIds = sources.filter((row) => !/_sim$/i.test(row.system)).map((row) => row.id);
+    const testToggle = page.locator('.source-test-toggle input[type="checkbox"]');
+    if (dailyIds.length !== sources.length) {
+      if ((await testToggle.count()) !== 1 || await testToggle.isChecked()) {
+        throw new Error("test sources must have an explicit opt-in and be hidden by default");
+      }
+    }
+    await page.waitForFunction(catalogRendersExactly, dailyIds, { timeout: 5_000 });
+    await setCatalogTestSources(page, true);
     const readIds = sources.map((row) => row.id);
     const catalogIds = await renderedRowIds();
     const missing = readIds.filter((id) => !catalogIds.includes(id));
@@ -2081,6 +2103,15 @@ async function sourceRegistryFailureInteraction(page, failures) {
       return refusal;
     }
     await page.locator("[data-source-registry-retry]").first().click();
+    // The opt-in is absent while the registry is failed/empty; wait for the
+    // successful retry to mount it before asking to compare every registry row.
+    await page.waitForFunction(
+      () => document.querySelector("[data-source-registry-state]")
+        ?.getAttribute("data-source-registry-state") === "ready",
+      null,
+      { timeout: 15_000 },
+    );
+    await setCatalogTestSources(page, true);
     const recovered = await page
       .waitForFunction(registryRecovered, readRows, { timeout: 15_000 })
       .then(() => true)

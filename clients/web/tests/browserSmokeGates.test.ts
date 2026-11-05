@@ -872,3 +872,32 @@ test("the route-state badges are rendered and measured in every language and vie
   assert.equal(/exclude|threshold|disableRules/.test(axe), false);
   assert.equal(source.includes("disableRules"), false);
 });
+
+test("full-registry checks use the test-source opt-in and restore normal screenshots", async () => {
+  const helper = block("async function setCatalogTestSources(", "/**\n * The functional check");
+  const setCatalogTestSources = runInNewContext(`${helper}; setCatalogTestSources`);
+  let checked = false;
+  const page = {
+    locator: () => ({
+      count: async () => 1,
+      isChecked: async () => checked,
+      setChecked: async (value: boolean) => { checked = value; },
+    }),
+  };
+  const previous = await setCatalogTestSources(page, true);
+  assert.equal(previous, false);
+  assert.equal(checked, true);
+  await setCatalogTestSources(page, previous);
+  assert.equal(checked, false);
+  assert.equal(await setCatalogTestSources({ locator: () => ({ count: async () => 0 }) }, true), null);
+
+  const functional = block("if (signal.readToRender) {", "} else if (signal.quotedBoard) {");
+  assert.ok(functional.indexOf("setCatalogTestSources(page, true)") < functional.indexOf("collectVisibleElements"));
+  assert.match(functional, /setCatalogTestSources\(page, restoreTestSources\)/);
+  const selection = block("async function sourceCenterSelectionInteraction(", "\nfunction catalogRendersExactly(");
+  assert.match(selection, /test sources must have an explicit opt-in and be hidden by default/);
+  assert.match(selection, /waitForFunction\(catalogRendersExactly, dailyIds/);
+  assert.match(selection, /setCatalogTestSources\(page, true\)/);
+  const recovery = block("async function sourceRegistryFailureInteraction(", "\nasync function ");
+  assert.ok(recovery.indexOf("setCatalogTestSources(page, true)") < recovery.indexOf(".waitForFunction(registryRecovered"));
+});
