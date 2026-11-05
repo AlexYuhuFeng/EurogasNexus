@@ -28,6 +28,7 @@ def expected_artifacts(context: dict) -> list[str]:
         f"Eurogas-Nexus-Client-{version}-windows-x64-setup.exe",
         f"Eurogas-Nexus-Client-{version}-linux-x64.deb",
         f"Eurogas-Nexus-Client-{version}-linux-arm64.deb",
+        f"Eurogas-Nexus-Client-{version}-macos-universal.dmg",
         f"Eurogas-Nexus-Server-{version}.zip",
         f"eurogas-nexus-web-{version}.tar.gz",
         f"eurogas-nexus-sboms-{version}.tar.gz",
@@ -76,6 +77,7 @@ def validate(
                 f"Eurogas-Nexus-Client-{context['release_version'].lstrip('v')}-linux-x64.deb",
                 f"Eurogas-Nexus-Client-{context['release_version'].lstrip('v')}-linux-arm64.deb",
                 f"Eurogas-Nexus-Client-{context['release_version'].lstrip('v')}-windows-x64-setup.exe",
+                f"Eurogas-Nexus-Client-{context['release_version'].lstrip('v')}-macos-universal.dmg",
             }:
                 warnings.append(f"platform artifact not present in local dry-run: {expected}")
             else:
@@ -95,6 +97,7 @@ def validate(
         if item["channel" if False else "signing_state"] in {
             "authenticode_verified",
             "gpg_signed_verified",
+            "developer_id_notarized_verified",
             "checksum_attestation_baseline",
             "unsigned_pending_external",
         }:

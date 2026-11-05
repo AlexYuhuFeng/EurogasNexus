@@ -51,6 +51,8 @@ def artifact_platform_arch(name: str) -> tuple[str, str]:
     lowered = name.lower()
     if "windows" in lowered or lowered.endswith(".exe") or lowered.endswith(".msi"):
         platform = "windows"
+    elif "macos" in lowered or lowered.endswith(".dmg"):
+        platform = "macos"
     elif "linux-arm64" in lowered or "arm64" in lowered:
         platform = "linux"
     elif "linux" in lowered or lowered.endswith(".deb") or lowered.endswith(".appimage"):
@@ -61,7 +63,9 @@ def artifact_platform_arch(name: str) -> tuple[str, str]:
         platform = "windows"
     else:
         platform = "generic"
-    if "arm64" in lowered:
+    if "universal" in lowered:
+        arch = "universal"
+    elif "arm64" in lowered:
         arch = "arm64"
     elif "x64" in lowered or "amd64" in lowered:
         arch = "x64"
@@ -78,6 +82,8 @@ def artifact_type(name: str) -> str:
         return "windows-msi-installer"
     if lowered.endswith(".deb"):
         return "debian-package"
+    if lowered.endswith(".dmg"):
+        return "macos-disk-image"
     if lowered.endswith(".tar.gz") and "web" in lowered:
         return "web-bundle"
     if lowered.endswith(".zip"):
@@ -89,7 +95,7 @@ def artifact_type(name: str) -> str:
 
 #: Files a release publishes. SHA256SUMS covers exactly these, so a customer can verify
 #: every downloaded asset and nothing in it names a file the release page does not have.
-PUBLISHED_SUFFIXES = (".exe", ".msi", ".deb", ".zip", ".tar.gz")
+PUBLISHED_SUFFIXES = (".exe", ".msi", ".deb", ".dmg", ".zip", ".tar.gz")
 PUBLISHED_NAMES = frozenset({"release-manifest.json", "signing-state.json"})
 
 

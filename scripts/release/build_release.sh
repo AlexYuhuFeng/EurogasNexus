@@ -83,5 +83,5 @@ fi
 
 step "Release artifacts"
 find "${DESKTOP_DIR}/src-tauri/target/release/bundle" -type f \
-  \( -name "*.exe" -o -name "*.msi" -o -name "*.deb" -o -name "*.AppImage" \) \
+  \( -name "*.exe" -o -name "*.msi" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" \) \
   -print

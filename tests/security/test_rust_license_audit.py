@@ -1084,21 +1084,21 @@ def test_all_rust_setup_actions_supply_the_repository_toolchain_pin() -> None:
 
     # CI has one local Rust step (dependency-audit) and delegates the native
     # build to the reviewed local reusable workflow. The latter declares one
-    # Rust setup step that the runner applies to each of its three matrix legs,
-    # so the authoritative CI Rust setup graph is exactly these two steps.
+    # Rust setup step for its three-platform matrix and one for the macOS
+    # universal build, so the authoritative CI Rust setup graph is these three.
     ci = _workflow_payload("ci.yml")
     desktop = ci["jobs"]["desktop-client-build"]
     assert desktop.get("uses") == "./.github/workflows/native-acceptance.yml"
     assert "if" not in desktop
     assert counts.get("ci.yml") == 1
     assert setup_jobs.get("ci.yml") == {"dependency-audit"}
-    assert counts.get("native-acceptance.yml") == 1
-    assert setup_jobs.get("native-acceptance.yml") == {"native-build"}
-    assert counts["ci.yml"] + counts["native-acceptance.yml"] == 2
+    assert counts.get("native-acceptance.yml") == 2
+    assert setup_jobs.get("native-acceptance.yml") == {"native-build", "macos-build"}
+    assert counts["ci.yml"] + counts["native-acceptance.yml"] == 3
 
-    # release.yml keeps its two existing authoritative Rust jobs.
-    assert counts.get("release.yml") == 2
-    assert setup_jobs.get("release.yml") == {"dependency-scan", "desktop"}
+    # release.yml: the dependency scan, the Windows/Linux matrix and the macOS build.
+    assert counts.get("release.yml") == 3
+    assert setup_jobs.get("release.yml") == {"dependency-scan", "desktop", "desktop-macos"}
 
     # The SDK workflow has no Rust action, so no RUST_TOOLCHAIN env is required.
     assert counts.get("sdk-acceptance.yml") == 0

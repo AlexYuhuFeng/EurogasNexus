@@ -115,7 +115,8 @@ def test_installer_reads_only_runner_infrastructure_environment() -> None:
 
 
 def test_workflow_uses_the_fallback_only_on_windows() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
+    # The three-platform matrix job; the macOS job after it has no Windows leg.
+    text = WORKFLOW.read_text(encoding="utf-8").split("\n  macos-build:\n", 1)[0]
     blocks = re.split(r"(?m)^      - name: ", text)
     steps = {block.splitlines()[0]: block for block in blocks[1:] if block.strip()}
 

@@ -280,6 +280,7 @@ Operational procedures and operator-facing guides:
 - [Update policy](release/UPDATE_POLICY.md)
 - [Install Windows](release/INSTALL_WINDOWS.md)
 - [Install Linux](release/INSTALL_LINUX.md)
+- [Install macOS](release/INSTALL_MACOS.md)
 - [Third-party notices](../THIRD_PARTY_NOTICES.md)
 - [Security acceptance evidence EN](release/SECURITY_ACCEPTANCE_EVIDENCE.md) /
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)

@@ -76,6 +76,10 @@ artifact:
 - Linux DEB: `gpg_signed_verified` (key configured and signature verified) or
   `checksum_attestation_baseline` (SHA-256 + GitHub attestation; no APT
   repository is published).
+- macOS DMG (`release.yml` job `desktop-macos`, not this script; Tauri signs during the
+  build): `developer_id_notarized_verified` (Developer ID signed, notarised, stapled and
+  accepted by `spctl`) or `unsigned_pending_external` (ad-hoc signed; no Apple keys
+  configured). See `docs/release/INSTALL_MACOS.md`.
 
 Tauri updater signing is a separate trust mechanism and is not enabled in this
 release. Do not confuse updater `.sig` files with Windows Authenticode.

@@ -90,7 +90,7 @@ try {
 
     Write-Host "==> Release artifacts"
     Get-ChildItem -Path (Join-Path $DesktopDir "src-tauri\target\release\bundle") -Recurse -File |
-        Where-Object { $_.Extension -in ".exe", ".msi", ".deb", ".AppImage" } |
+        Where-Object { $_.Extension -in ".exe", ".msi", ".deb", ".dmg", ".AppImage" } |
         Select-Object FullName, Length
 }
 finally {

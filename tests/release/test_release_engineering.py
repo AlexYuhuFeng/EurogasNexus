@@ -313,9 +313,12 @@ def test_release_artifact_names_follow_contract() -> None:
     assert "linux-x64" in names[1]
     assert "linux-arm64" in names[2]
     assert names[3] == (
+        f"Eurogas-Nexus-Client-{APPLICATION_VERSION}-preview.7.033df92a856e-macos-universal.dmg"
+    )
+    assert names[4] == (
         f"Eurogas-Nexus-Server-{APPLICATION_VERSION}-preview.7.033df92a856e.zip"
     )
-    assert names[4] == f"eurogas-nexus-web-{APPLICATION_VERSION}-preview.7.033df92a856e.tar.gz"
+    assert names[5] == f"eurogas-nexus-web-{APPLICATION_VERSION}-preview.7.033df92a856e.tar.gz"
 
 
 def test_dispatched_rc_takes_the_next_free_number() -> None:
