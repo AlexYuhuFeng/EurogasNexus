@@ -112,7 +112,14 @@ def list_credential_providers() -> dict:
         if provider_id not in PUBLIC_PROVIDERS:
             # Where the key a call would use comes from (environment, key file, encrypted
             # store), never the key itself (#38).
-            status.update(effective_credential_source(provider_id))
+            # The rows were read once above; no second session per provider.
+            status.update(
+                effective_credential_source(
+                    provider_id,
+                    stored_status=lambda row=row: getattr(row, "status", None),
+                    stored_value=lambda row=row: _stored_api_key(row),
+                )
+            )
         if provider_id == "GIE":
             status.update(gie_status)
         data.append(status)
@@ -656,6 +663,20 @@ def delete_provider_credential(provider_id: ProviderId) -> dict:
         return _env({"provider_id": provider_id, "configured": False})
     except sqlalchemy_error as exc:
         raise _credential_store_unavailable(exc.__class__.__name__) from exc
+
+
+def _stored_api_key(row: object | None) -> str | None:
+    """The decrypted key of an already-read credential row, or ``None``."""
+
+    if row is None:
+        return None
+    try:
+        from eurogas_nexus.security.credentials import decrypt_credential_payload
+
+        payload = decrypt_credential_payload(row.encrypted_payload)
+    except Exception:
+        return None
+    return str(payload.get("api_key") or "").strip() or None
 
 
 def _credential_rows() -> dict[str, object]:

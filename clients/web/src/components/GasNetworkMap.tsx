@@ -501,11 +501,18 @@ export function GasNetworkMap({
     });
     let unreachable: ReturnType<typeof setTimeout> | undefined;
     if (mapTileProvider.styleUrl) {
+      // Reachable means the provider's style arrived; a slow or failed tile afterwards is
+      // not a reason to drop the basemap. Only a style that never loads falls back.
+      let styleArrived = false;
+      map.on("style.load", () => {
+        styleArrived = true;
+        clearTimeout(unreachable);
+      });
       const fallBack = () => {
-        if (!loaded) setUnreachableBasemap(mapTileProvider.id);
+        if (!loaded && !styleArrived) setUnreachableBasemap(mapTileProvider.id);
       };
       map.on("error", fallBack);
-      unreachable = setTimeout(fallBack, 12_000);
+      unreachable = setTimeout(fallBack, 20_000);
     }
     // Clicking empty map clears the selection; clicking an object selects it (below).
     map.on("click", (event) => {
