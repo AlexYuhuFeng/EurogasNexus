@@ -92,8 +92,14 @@ def build_map_situation(
     entitled: RowFilter,
     include_positions: bool = True,
     outage_horizon_days: int = 14,
+    history_days: int = 0,
 ) -> dict[str, Any]:
-    """The live map payload. ``entitled`` filters market rows by the caller's data scopes."""
+    """The live map payload. ``entitled`` filters market rows by the caller's data scopes.
+
+    ``history_days`` also returns the firm's own cargoes delivered and regas slots ended in
+    that many past days, so a completed deal can be looked back at (and replayed along its
+    timed track); market cargoes keep the short ``CARGO_HISTORY_DAYS`` tail.
+    """
 
     from eurogas_nexus.application.remit_outages import load_outage_rows
     from eurogas_nexus.db.models import (
@@ -221,12 +227,14 @@ def build_map_situation(
             )
 
         history_cutoff = now - timedelta(days=CARGO_HISTORY_DAYS)
+        own_history_cutoff = now - timedelta(days=max(CARGO_HISTORY_DAYS, history_days))
         market_cargoes = []
         for record in session.query(LngCargoRecord).all():
             eta = _aware(record.eta_utc)
-            if record.status == "delivered" and (eta is None or eta < history_cutoff):
-                continue
             own = record.book_id is not None
+            cutoff = own_history_cutoff if own else history_cutoff
+            if record.status == "delivered" and (eta is None or eta < cutoff):
+                continue
             if own and not _own(record.book_id, allowed):
                 continue
             position = (
@@ -274,6 +282,10 @@ def build_map_situation(
                 "position": position,
                 "destination": destination,
                 "track": [point[:2] for point in (record.track or [])],
+                # When the vessel was at each track point (ISO, or null when not reported).
+                "track_times": [
+                    point[2] if len(point) > 2 else None for point in (record.track or [])
+                ],
             }
             (cargoes if own else market_cargoes).append(item)
         cargoes.extend(entitled(market_cargoes))
@@ -281,7 +293,12 @@ def build_map_situation(
         slot_cutoff = now + timedelta(days=SLOT_HORIZON_DAYS)
         for record in session.query(RegasSlotRecord).all():
             start, end = _aware(record.window_start_utc), _aware(record.window_end_utc)
-            if end is None or end < now or start is None or start > slot_cutoff:
+            if (
+                end is None
+                or end < now - timedelta(days=history_days)
+                or start is None
+                or start > slot_cutoff
+            ):
                 continue
             # Slots are always the firm's; an unbooked one is head-office only.
             if not (_own(record.book_id, allowed) if record.book_id else allowed is None):

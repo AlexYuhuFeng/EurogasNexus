@@ -151,6 +151,12 @@ def seeded(tmp_path, monkeypatch):
             f"{(now + timedelta(days=3)).isoformat()},62.0,4.5,{now.isoformat()},"
             f"23.6 70.68 {(now - timedelta(days=2)).isoformat()};4.5 62.0 {now.isoformat()},"
             "950,uk-nbp\n"
+            f"C0,Arctic Voyager,delivered,Hammerfest,70.68,23.6,Gate terminal,"
+            f"{(now - timedelta(days=30)).isoformat()},51.95,4.0,"
+            f"{(now - timedelta(days=30)).isoformat()},"
+            f"23.6 70.68 {(now - timedelta(days=36)).isoformat()};"
+            f"4.0 51.95 {(now - timedelta(days=30)).isoformat()},"
+            "940,uk-nbp\n"
         )
         for row in parse_lng_cargoes(
             cargo_csv, source_system="ETRM", source_reference="t", now_utc=now
@@ -273,3 +279,18 @@ def test_infrastructure_import_accepts_only_commercial_licences():
         parse_infrastructure(
             geojson, dataset="X", licence="CC-BY-NC-4.0", attribution="x", facility_type="field"
         )
+
+
+def test_a_delivered_cargo_comes_back_with_its_timed_track_only_when_history_is_asked(seeded):
+    client, headers = seeded
+    live = client.get("/api/portfolio/map-situation", headers=headers["head"]).json()["data"]
+    assert [c["cargo_id"] for c in live["cargoes"]] == ["C1"]
+    assert len(live["cargoes"][0]["track_times"]) == 2
+
+    looked_back = client.get(
+        "/api/portfolio/map-situation?history_days=90", headers=headers["head"]
+    ).json()["data"]
+    delivered = next(c for c in looked_back["cargoes"] if c["cargo_id"] == "C0")
+    assert delivered["status"] == "delivered"
+    assert delivered["track"] == [[23.6, 70.68], [4.0, 51.95]]
+    assert all(isinstance(when, str) for when in delivered["track_times"])

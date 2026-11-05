@@ -2499,6 +2499,8 @@ export interface MapCargoDTO {
   position: MapLocationDTO | null;
   destination: MapLocationDTO | null;
   track: Array<[number, number]>;
+  /** When the vessel was at each track point (ISO, null when not reported); newer servers. */
+  track_times?: Array<string | null>;
 }
 
 export interface MapRegasSlotDTO {
@@ -4690,8 +4692,14 @@ export const api = {
     get<NweBalanceDTO>("/market/nwe-balance", { days: String(days) }, options),
   gasForPower: (zone = "DE_LU", days = 14, options?: ApiRequestOptions) =>
     get<GasForPowerDayDTO[]>("/market/gas-for-power", { zone, days: String(days) }, options),
-  mapSituation: (outageHorizonDays = 14, options?: ApiRequestOptions) =>
-    get<MapSituationDTO>("/portfolio/map-situation", { outage_horizon_days: String(outageHorizonDays) }, options),
+  mapSituation: (outageHorizonDays = 14, options?: ApiRequestOptions, historyDays = 0) =>
+    get<MapSituationDTO>(
+      "/portfolio/map-situation",
+      historyDays > 0
+        ? { outage_horizon_days: String(outageHorizonDays), history_days: String(historyDays) }
+        : { outage_horizon_days: String(outageHorizonDays) },
+      options,
+    ),
   outages: (horizonDays = 90, options?: ApiRequestOptions) =>
     get<OutageEventDTO[]>("/physical/outages", { horizon_days: String(horizonDays) }, options),
   positionLadder: (

@@ -8,7 +8,7 @@ export const MAP_SITUATION_REFRESH_MS = 5 * 60 * 1000;
  * The live map's situation and located infrastructure. A failed read keeps the last good
  * picture and reports the error, so the map never blanks on a transient fault.
  */
-export function useMapSituation(enabled = true) {
+export function useMapSituation(enabled = true, historyDays = 0) {
   const [situation, setSituation] = useState<MapSituationDTO | null>(null);
   const [facilities, setFacilities] = useState<FacilityDTO[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export function useMapSituation(enabled = true) {
     let live = true;
     const load = () => {
       api
-        .mapSituation(14)
+        .mapSituation(14, undefined, historyDays)
         .then((response) => {
           if (!live) return;
           setSituation(response.data && "outages" in response.data ? response.data : null);
@@ -39,7 +39,7 @@ export function useMapSituation(enabled = true) {
       live = false;
       window.clearInterval(timer);
     };
-  }, [enabled]);
+  }, [enabled, historyDays]);
 
   return { situation, facilities, error, readAt };
 }

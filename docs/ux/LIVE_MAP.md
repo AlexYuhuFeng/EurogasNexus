@@ -109,6 +109,40 @@ A colour per role would need a legend nobody remembers and would collide with st
 owner's permission in a commercially sold product (AGENTS rule 18), are illegible at map
 scale, and add colour that competes with state.
 
+## Two views: the network and our book
+
+**Network (default).** The infrastructure is the stage, not the subject. Points are small
+and muted (hubs a little stronger), connections are thin and faint, and utilisation
+widens a busy pipe only slightly: lines show how gas can move, which helps reading the
+picture, but they are not what a decision turns on. Everything stays clickable. What
+carries colour is the live situation and our positions: outages in red and amber, flows,
+cargoes, and our contracts and slots in the accent.
+
+**Our book.** Only the firm's own deals that still need a decision, in the order they
+need it. A list on the left groups them:
+
+| Group | Cargo | Regas slot | Supply contract |
+|---|---|---|---|
+| In progress | loading, at sea, discharging | window open now | inside its gas year |
+| Next 7 days | sails within a week | opens within a week | gas year starts within a week |
+| Later | sails later | opens later | starts later |
+| History (folded) | delivered | window ended | gas year ended |
+
+Within a group the soonest comes first (ETA, window, start). The map draws only what is
+in play: our cargoes with their voyage, our slots and contracts at every zoom (not folded
+into country totals), and outages in force, since they can stop a delivery; other
+companies' cargoes and flows stay in the network view, and the network steps further
+back. Completed deals never sit in the live picture; they are history. Clicking an item
+selects it on the map with its card, as a click on the map does.
+
+**Replay.** A completed cargo with a timed track (the vessel feed's positions with their
+times) can be replayed from History: the map frames the voyage, draws the whole route
+faintly and the part sailed by the replay clock in the accent, and moves the vessel
+along it. The whole voyage plays in about eight seconds; the slider scrubs it and shows
+the date and time; under reduced motion it opens on the finished voyage and the slider
+still works. Only reported, timed positions are replayed; the path between untimed
+points is not invented. The map asks for 120 days of completed deals in the book view.
+
 ## Full screen: the wall view
 
 The map normally sits on the Network page with the resource and decision rails below it: a

@@ -28,6 +28,11 @@ version lives under [docs/release/notes](docs/release/notes).
   against capacity, outages, our contracts, cargoes heading in and our regas slots. A
   cargo shows its voyage, ETA, size and the slot waiting for it, with its track and leg
   ahead drawn.
+- **Map views: Network and Our book.** The network is quiet context by default: small,
+  muted points and faint lines under the live situation. "Our book" shows only our deals
+  still in play, listed by what needs a decision first (in progress, next 7 days, later),
+  drawn at every zoom; completed deals sit under History, where a delivered cargo can be
+  replayed along its timed track with a play button and a time slider.
 - **Full-screen live map**: the map's last chip shows it alone on the display, for a
   wall or a second monitor, with the layer chips, finder, live strip and selection card. It
   keeps refreshing; the strip adds regas open now and the measured entry flow (GWh/d),

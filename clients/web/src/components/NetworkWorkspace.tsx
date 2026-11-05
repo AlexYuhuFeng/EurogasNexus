@@ -22,6 +22,9 @@ import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
 import { topologyIssues } from "@/app/mapSelection";
 import { MAP_SITUATION_REFRESH_MS, useMapSituation } from "@/app/hooks/useMapSituation";
 import { useFullscreen } from "@/app/hooks/useFullscreen";
+import { bookItems, bookSituation, liveSituation, replayTrack, type BookItem } from "@/app/mapBook";
+import { MapBookPanel, MapReplayBar, useReplay } from "@/components/MapBookPanel";
+import type { MapCargoDTO } from "@/api/client";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
@@ -156,8 +159,47 @@ export function NetworkWorkspace({
   // `network-node` as an inspectable subject, so the hand-over is legal here; the builder
   // refuses it everywhere the composition does not declare it.
   const inspector = useInspectorStore();
-  const { situation, facilities, error: situationError, readAt } = useMapSituation();
-  const summary = situationSummary(situation);
+  // Network: the whole picture with the infrastructure as quiet context. Our book: only the
+  // firm's deals still in play, prioritised, with completed ones kept for looking back.
+  const [mapView, setMapView] = useState<"network" | "book">(() => {
+    try {
+      return window.localStorage.getItem("egn.map.view") === "book" ? "book" : "network";
+    } catch {
+      return "network";
+    }
+  });
+  const chooseMapView = (next: "network" | "book") => {
+    setMapView(next);
+    try {
+      window.localStorage.setItem("egn.map.view", next);
+    } catch {
+      // A blocked store only means the choice is not remembered.
+    }
+  };
+  // The book view also reads 120 days of completed deals for its history.
+  const { situation: rawSituation, facilities, error: situationError, readAt } = useMapSituation(true, mapView === "book" ? 120 : 0);
+  const nowMs = readAt?.getTime() ?? Date.now();
+  const situation = useMemo(
+    () => (mapView === "book" ? bookSituation(rawSituation, nowMs) : liveSituation(rawSituation, nowMs)),
+    [mapView, nowMs, rawSituation],
+  );
+  const book = useMemo(() => bookItems(rawSituation, nowMs), [nowMs, rawSituation]);
+  const [focus, setFocus] = useState<{ refId?: string | null; cargoId?: string; nonce: number } | null>(null);
+  const [replayCargo, setReplayCargo] = useState<MapCargoDTO | null>(null);
+  const replayPath = useMemo(() => (replayCargo ? replayTrack(replayCargo) : null), [replayCargo]);
+  const replay = useReplay(replayPath);
+  const focusItem = (item: BookItem) => {
+    setReplayCargo(null);
+    if (item.kind === "cargo" && item.phase !== "completed") setFocus({ cargoId: item.id, nonce: Date.now() });
+    else if (item.cargo && item.phase === "completed") setReplayCargo(item.cargo);
+    else setFocus({ refId: item.refId, nonce: Date.now() });
+  };
+  const summary = situationSummary(liveSituation(rawSituation, nowMs));
+  // The book view always draws our positions and the outages that can stop them.
+  const mapLayers = useMemo(
+    () => (mapView === "book" ? [...new Set([...activeLayers, "positions", "outages"])] : activeLayers),
+    [activeLayers, mapView],
+  );
   // Full screen: the map column (chips, map, live strip, card, key) as a wall or
   // second-monitor view; the situation keeps refreshing while it is up.
   const mapColumnRef = useRef<HTMLElement | null>(null);
@@ -323,6 +365,21 @@ export function NetworkWorkspace({
         aria-label={t("network.map_column_label")}
       >
         <div className="map-toolbar">
+          <div className="map-view-switch" role="group" aria-label={t("map.view.label")}>
+            {(["network", "book"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`chip${mapView === option ? " active" : ""}`}
+                aria-pressed={mapView === option}
+                title={t(`map.view.${option}_hint`)}
+                onClick={() => chooseMapView(option)}
+              >
+                {t(`map.view.${option}`)}
+              </button>
+            ))}
+          </div>
+          <span className="map-toolbar-divider" aria-hidden="true" />
           <button className="chip reset-chip" type="button" onClick={onResetSearch}>
             {t("map.reset")}
           </button>
@@ -377,14 +434,43 @@ export function NetworkWorkspace({
             edges={edges}
             routes={routes}
             themeMode={mode}
-            activeLayers={activeLayers}
+            // The book view always draws our positions and the outages that can stop them.
+            activeLayers={mapLayers}
             searchTerm={searchTerm}
             t={t}
             highlightedRoute={highlightedRoute}
             onInspectNode={openNodeInspector}
             situation={situation}
             facilities={facilities}
+            view={mapView}
+            focus={focus}
+            replay={
+              replayCargo && replayPath && replay.frame
+                ? { path: replayPath.coords, sailed: replay.frame.sailed, at: replay.frame.at, label: replayCargo.vessel_name }
+                : null
+            }
           />
+          {mapView === "book" && (
+            <MapBookPanel
+              items={book}
+              t={t as (key: string, options?: Record<string, unknown>) => string}
+              onFocus={focusItem}
+              onReplay={setReplayCargo}
+              replayingId={replayCargo?.cargo_id ?? null}
+            />
+          )}
+          {replayCargo && replayPath && replay.moment !== null && (
+            <MapReplayBar
+              cargo={replayCargo}
+              track={replayPath}
+              moment={replay.moment}
+              playing={replay.playing}
+              onMoment={replay.setMoment}
+              onPlaying={replay.setPlaying}
+              onClose={() => setReplayCargo(null)}
+              t={t as (key: string, options?: Record<string, unknown>) => string}
+            />
+          )}
           {summary && (
             <div className="map-situation-strip" role="status" aria-live="polite">
               <span className="map-situation-live">{t("map.situation.live")}</span>

@@ -1353,6 +1353,169 @@
     font-size: var(--ds-text-md);
   }
 
+  /* Network / Our book switch: two chips that read as one control. */
+  .map-view-switch {
+    display: inline-flex;
+    gap: 0;
+  }
+
+  .map-view-switch .chip:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .map-view-switch .chip:last-child {
+    margin-left: -1px;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .map-view-switch .chip.active {
+    border-color: var(--ds-accent);
+    color: var(--ds-accent);
+  }
+
+  /* Our book: the firm's deals by what needs a decision first, docked on the left. */
+  .map-book-panel {
+    position: absolute;
+    z-index: 41;
+    top: calc(var(--ds-space-8) * 2 + var(--ds-space-4));
+    left: var(--ds-space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+    width: min(300px, calc(100% - 2 * var(--ds-space-3)));
+    max-height: calc(100% - var(--ds-space-8) * 5);
+    overflow-y: auto;
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
+    backdrop-filter: blur(8px);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-book-panel header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+  }
+
+  .map-book-panel header small,
+  .map-book-group h3 span,
+  .map-book-history-toggle span,
+  .map-book-empty {
+    color: var(--ds-text-3);
+  }
+
+  .map-book-group h3,
+  .map-book-history-toggle {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .map-book-history-toggle {
+    width: 100%;
+    padding: var(--ds-space-1) 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .map-book-group ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: var(--ds-space-1) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .map-book-group li {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  .map-book-item {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border: 1px solid transparent;
+    border-left: 3px solid var(--ds-accent);
+    border-radius: var(--ds-radius-sm);
+    background: none;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .map-book-item:hover,
+  .map-book-group li.is-replaying .map-book-item {
+    border-color: var(--ds-border);
+    border-left-color: var(--ds-accent);
+    background: var(--ds-surface-2);
+  }
+
+  .map-book-item small {
+    overflow: hidden;
+    max-width: 100%;
+    color: var(--ds-text-3);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .map-book-group.is-later .map-book-item {
+    border-left-color: color-mix(in srgb, var(--ds-accent) 40%, transparent);
+  }
+
+  .map-book-group.is-completed .map-book-item {
+    border-left-color: var(--ds-border);
+  }
+
+  /* Replay of a completed deal: play, scrub, close, centred under the toolbar. */
+  .map-replay-bar {
+    position: absolute;
+    z-index: 43;
+    top: calc(var(--ds-space-8) + var(--ds-space-4));
+    left: 50%;
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-3);
+    width: min(560px, calc(100% - 2 * var(--ds-space-3)));
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-accent);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    transform: translateX(-50%);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-replay-track {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .map-replay-track small {
+    color: var(--ds-text-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-replay-track input[type="range"] {
+    width: 100%;
+    accent-color: var(--ds-accent);
+  }
+
   .map-fullscreen-chip[aria-pressed="true"] {
     border-color: var(--ds-accent);
     color: var(--ds-accent);
