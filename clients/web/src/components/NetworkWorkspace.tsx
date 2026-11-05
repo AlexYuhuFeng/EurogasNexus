@@ -90,7 +90,6 @@ interface NetworkWorkspaceProps {
   strategyContextMismatch: boolean;
   activeWarning: string | null;
   reviewEvidenceItems: ReviewEvidenceItem[];
-  marketLastUpdatedAtUtc: string | null;
   intradayOpportunities: IntradayOpportunityDTO[];
   resultsContextMismatch: boolean;
   onResetSearch: () => void;
@@ -149,7 +148,6 @@ export function NetworkWorkspace({
   strategyContextMismatch,
   activeWarning,
   reviewEvidenceItems,
-  marketLastUpdatedAtUtc,
   intradayOpportunities,
   resultsContextMismatch,
   onResetSearch,
@@ -558,7 +556,6 @@ export function NetworkWorkspace({
               <div className="panel intraday-home-panel">
                 <IntradayDecisionFeed
                   opportunities={intradayOpportunities}
-                  lastUpdatedAtUtc={marketLastUpdatedAtUtc}
                   t={t}
                   compact
                 />

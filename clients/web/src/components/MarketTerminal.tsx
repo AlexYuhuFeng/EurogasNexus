@@ -732,7 +732,6 @@ export function MarketTerminal({
       <div className="workspace-panel span-3 market-opportunity-panel">
         <IntradayDecisionFeed
           opportunities={intradayOpportunities}
-          lastUpdatedAtUtc={lastUpdatedAtUtc}
           t={t}
         />
       </div>
