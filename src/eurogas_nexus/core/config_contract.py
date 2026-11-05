@@ -547,6 +547,14 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
     ),
     # --- Development-only credential login ---------------------------------
     ConfigVar(
+        name="EUROGAS_NEXUS_MOBILE_PREVIEW",
+        scope="TOOLING",
+        purpose="Explicit opt-in to the isolated same-origin mobile test preview.",
+        sensitivity="internal",
+        profiles=("development",),
+        notes=("Requires test environment and authenticated callers; never production.",),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DEV_LOGIN_USERNAME",
         scope="OPERATOR",
         purpose="Development-only credential login username.",

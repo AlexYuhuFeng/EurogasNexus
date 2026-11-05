@@ -113,3 +113,11 @@ def test_deployment_context_survives_a_bare_object() -> None:
     """An application built without the usual lifespan state must not raise."""
 
     assert deployment_cookie_context(object()) == (None, None)
+
+
+@pytest.mark.parametrize("scheme, expected", [("https", True), ("http", False)])
+def test_real_starlette_request_scheme(scheme: str, expected: bool) -> None:
+    from starlette.requests import Request
+
+    request = Request({"type": "http", "scheme": scheme, "path": "/", "headers": []})
+    assert request_cookie_secure(request, api_profile="development") is expected

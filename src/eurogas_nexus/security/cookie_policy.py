@@ -74,7 +74,11 @@ def request_cookie_secure(
     """Return the cookie policy decision for one request."""
 
     return session_cookie_secure(
-        scheme=getattr(request, "scheme", "") or "",
+        scheme=(
+            getattr(request, "scheme", "")
+            or getattr(request, "scope", {}).get("scheme", "")
+            or getattr(getattr(request, "url", None), "scheme", "")
+        ),
         api_profile=api_profile,
         environment=environment,
     )

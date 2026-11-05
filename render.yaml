@@ -1,0 +1,55 @@
+# Disposable empty-database mobile preview, explicitly authorized by the owner.
+# No production data, provider secrets, simulated prices, or background workers.
+services:
+  - type: web
+    name: eurogas-mobile-preview
+    runtime: python
+    branch: deploy/render-mobile-preview
+    plan: free
+    region: ohio
+    buildCommand: bash scripts/uat/build_mobile_preview.sh
+    startCommand: python scripts/uat/start_mobile_preview.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: PYTHONPATH
+        value: src:packages/python-sdk/src:.
+      - key: EUROGAS_NEXUS_MOBILE_PREVIEW
+        value: "1"
+      - key: EUROGAS_NEXUS_ENV
+        value: test
+      - key: EUROGAS_NEXUS_API_PROFILE
+        value: development
+      - key: EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED
+        value: "1"
+      - key: EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS
+        value: "0"
+      - key: EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES
+        value: "0"
+      - key: EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED
+        value: "0"
+      - key: EUROGAS_NEXUS_DB_POOL_SIZE
+        value: "2"
+      - key: EUROGAS_NEXUS_DB_MAX_OVERFLOW
+        value: "1"
+      - key: EUROGAS_NEXUS_DEV_LOGIN_USERNAME
+        value: mobile-tester
+      - key: EUROGAS_NEXUS_DEV_LOGIN_PASSWORD
+        generateValue: true
+      - key: EUROGAS_NEXUS_PUBLIC_API_TOKEN
+        generateValue: true
+      - key: EUROGAS_NEXUS_SECRET_KEY
+        generateValue: true
+      # Render's public service is reachable only through its TLS-terminating ingress.
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: eurogas-mobile-preview-db
+          property: connectionString
+databases:
+  - name: eurogas-mobile-preview-db
+    plan: free
+    region: ohio
