@@ -10,6 +10,8 @@ an input hash and a Python SDK method. See the
 [functional engine plan](../engineering/FUNCTIONAL_ENGINE_IMPROVEMENTS.md).
 Census after the merge: 231 paths / 249 operations; earlier dated census entries remain historical.
 
+The functional branch exposes 240 paths and 260 operations, including the governed task and model operations.
+
 The public `/api` surface is a shared product contract consumed by five
 surfaces: Web, Python SDK, CLI, Windows/Linux desktop shells, and the
 bilingual operator documentation. Every consumer is a thin client of the same

@@ -13,10 +13,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.api.csv_export import report_response
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
-from eurogas_nexus.application.nwe_balance_scenario import (
-    NweBalanceScenarioRequest,
-    run_nwe_balance_scenario,
-)
+from eurogas_nexus.api.schemas.nwe_balance import NweBalanceRequest
+from eurogas_nexus.application.nwe_balance_scenario import run_nwe_balance_scenario
 from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
 from eurogas_nexus.domain.ontology.markets import Commodity, find_market, markets
 from eurogas_nexus.domain.power.gas_for_power import (
@@ -371,7 +369,7 @@ def _utc_date(session, column):
     return func.date(column)
 
 
-def _daily_sum(session, column_expr, model, filters, first: date):
+def _daily_sum(session, column_expr, model, filters, first: date, as_of=None):
     from sqlalchemy import func
 
     day = _utc_date(session, model.period_start_utc)
@@ -380,6 +378,8 @@ def _daily_sum(session, column_expr, model, filters, first: date):
     )
     for condition in filters:
         query = query.filter(condition)
+    if as_of is not None:
+        query = query.filter(model.observed_at_utc <= as_of, model.period_end_utc <= as_of)
     return {
         (value if isinstance(value, date) else date.fromisoformat(str(value))): float(total or 0)
         for value, total in query.group_by(day).all()
@@ -388,14 +388,22 @@ def _daily_sum(session, column_expr, model, filters, first: date):
 
 
 @router.post("/api/market/nwe-balance")
-def calculate_nwe_balance_scenario(payload: NweBalanceScenarioRequest) -> dict:
+def calculate_nwe_balance_scenario(payload: NweBalanceRequest, request: Request) -> dict:
     """Compare caller-declared HDD inputs with the same supply-call baseline.
 
     Inputs are explicit scenario evidence. This operation does not read or
     certify a provider dataset, and never changes the live GET projection.
     """
     try:
-        return run_nwe_balance_scenario(payload)
+        from eurogas_nexus.api.balance_weather import compose_balance_weather
+
+        resolved, evidence, warnings = compose_balance_weather(payload, request)
+        result = run_nwe_balance_scenario(resolved)
+        result["meta"]["warnings"].extend(warnings)
+        result["data"]["weather_evidence"] = evidence
+        if payload.persisted_weather:
+            result["data"]["weather_basis"] = "PERSISTED_ECMWF_CALLER_WEIGHTED"
+        return result
     except ValueError as exc:
         raise HTTPException(
             status_code=422, detail={"code": "invalid_balance_scenario", "message": str(exc)}
@@ -406,6 +414,7 @@ def calculate_nwe_balance_scenario(payload: NweBalanceScenarioRequest) -> dict:
 def get_nwe_balance(
     request: Request,
     days: int = Query(14, ge=1, le=31),
+    history_days: int = Query(28, ge=7, le=800),
     format: str = Query("json", pattern="^(json|csv|xlsx|pdf)$"),
 ):
     """North-west Europe daily balance: call on Norway, LNG and storage, and its forecast.
@@ -438,6 +447,7 @@ def get_nwe_balance(
     today = datetime.now(UTC).date()
     first = today - timedelta(days=800)
     mcm_to_gwh = NORWEGIAN_GCV_KWH_M3  # 1 mcm x kWh/m3 = GWh
+    cutoff = datetime.now(UTC)
     try:
         with session:
             norway = _daily_sum(
@@ -454,6 +464,7 @@ def get_nwe_balance(
                     FlowObservationRecord.direction.ilike("entry"),
                 ],
                 first,
+                as_of=cutoff,
             )
             lng = _daily_sum(
                 session,
@@ -461,6 +472,7 @@ def get_nwe_balance(
                 LngObservationRecord,
                 [LngObservationRecord.country.in_(NWE_COUNTRIES)],
                 first,
+                as_of=cutoff,
             )
             withdrawal = _daily_sum(
                 session,
@@ -468,6 +480,7 @@ def get_nwe_balance(
                 StorageObservationRecord,
                 [StorageObservationRecord.country.in_(NWE_COUNTRIES)],
                 first,
+                as_of=cutoff,
             )
             injection = _daily_sum(
                 session,
@@ -475,6 +488,7 @@ def get_nwe_balance(
                 StorageObservationRecord,
                 [StorageObservationRecord.country.in_(NWE_COUNTRIES)],
                 first,
+                as_of=cutoff,
             )
             latest_storage_day = max(withdrawal, default=None)
             inventory = capacity = None
@@ -493,18 +507,45 @@ def get_nwe_balance(
                     )
                     .one()
                 )
-            cutoff = datetime.now(UTC)
+            from sqlalchemy import func
+
+            latest_messages = (
+                session.query(
+                    RemitUmmRecord.record_id.label("record_id"),
+                    func.row_number()
+                    .over(
+                        partition_by=RemitUmmRecord.message_id,
+                        order_by=(
+                            RemitUmmRecord.version.desc(),
+                            RemitUmmRecord.published_at_utc.desc(),
+                            RemitUmmRecord.ingested_at_utc.desc(),
+                            RemitUmmRecord.record_id.desc(),
+                        ),
+                    )
+                    .label("version_rank"),
+                )
+                .filter(
+                    RemitUmmRecord.published_at_utc <= cutoff,
+                    RemitUmmRecord.ingested_at_utc <= cutoff,
+                )
+                .subquery()
+            )
             remit = (
                 session.query(RemitUmmRecord)
+                .join(latest_messages, RemitUmmRecord.record_id == latest_messages.c.record_id)
+                .filter(latest_messages.c.version_rank == 1)
                 .filter(RemitUmmRecord.balancing_zone.ilike("%NO%"))
                 .filter(
                     or_(
                         RemitUmmRecord.event_stop_utc.is_(None),
-                        RemitUmmRecord.event_stop_utc > _bound(session, cutoff.date()),
+                        RemitUmmRecord.event_stop_utc > _bound(session, first),
                     )
                 )
+                .limit(10001)
                 .all()
             )
+            if len(remit) > 10000:
+                raise HTTPException(503, detail={"code": "balance_outage_history_overflow"})
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=503,
@@ -566,7 +607,7 @@ def get_nwe_balance(
                 "lng_gwh": round(h.lng_gwh, 1),
                 "storage_net_withdrawal_gwh": round(h.storage_net_withdrawal_gwh, 1),
             }
-            for h in history[-28:]
+            for h in history[-history_days:]
         ]
         forecasted = [{**d.as_dict(), "kind": "forecast"} for d in forecast.days]
         return report_response(
@@ -576,6 +617,7 @@ def get_nwe_balance(
         {
             "region": list(NWE_COUNTRIES),
             "unit": "GWh/d",
+            "history_read_as_of_utc": cutoff.isoformat(),
             "history": [
                 {
                     "day": h.day.isoformat(),
@@ -584,13 +626,17 @@ def get_nwe_balance(
                     "lng_gwh": round(h.lng_gwh, 1),
                     "storage_net_withdrawal_gwh": round(h.storage_net_withdrawal_gwh, 1),
                 }
-                for h in history[-28:]
+                for h in history[-history_days:]
             ],
             "forecast": [d.as_dict() for d in forecast.days],
             "norway_outages": len(outages),
             "assumptions": {
                 "norwegian_gcv_kwh_m3": NORWEGIAN_GCV_KWH_M3,
                 "norwegian_entry_points": list(NORWEGIAN_ENTRY_POINTS),
+                "outage_adjustment": (
+                    "future unavailable capacity minus the last seven observations' "
+                    "unavailable capacity"
+                ),
                 "storage_inventory_day": latest_storage_day.isoformat()
                 if latest_storage_day
                 else None,

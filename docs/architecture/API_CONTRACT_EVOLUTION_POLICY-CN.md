@@ -158,3 +158,6 @@ scopes; see [API keys](../operations/API_KEYS.md).
 任务所有权补充：迁移 0041 增加独立的 `owner_principal_id` 外键，由服务端具名身份绑定。
 `principal` 仅保留为归属展示和进一步过滤条件；旧的仅含名称的任务暂不授权读取或取消。
 名称与身份 ID 相同也不构成访问授权，不自动推断或回填所有者。
+
+
+功能改进分支新增持久化任务、版本对账、模型冻结与影子评价接口。当前分支共 240 条路径、260 项操作。见[功能引擎改进](../engineering/FUNCTIONAL_ENGINE_IMPROVEMENTS-CN.md)。

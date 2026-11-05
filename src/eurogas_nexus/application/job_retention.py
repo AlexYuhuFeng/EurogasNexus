@@ -56,7 +56,9 @@ def prune_expired_job_records(
         ValueError: ``retention_days`` is outside the supported bounds.
     """
 
-    from eurogas_nexus.db.models import JobRecord
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models import FunctionalRunRecord, JobRecord
     from eurogas_nexus.domain.operations.jobs import TERMINAL_JOB_STATES
 
     if not MIN_JOB_RETENTION_DAYS <= retention_days <= MAX_JOB_RETENTION_DAYS:
@@ -72,6 +74,7 @@ def prune_expired_job_records(
     eligible = session.query(JobRecord).filter(
         JobRecord.created_at_utc < cutoff,
         JobRecord.status.in_(terminal_states),
+        JobRecord.job_id.notin_(select(FunctionalRunRecord.job_id)),
     )
     eligible_count = eligible.count()
     deleted = 0 if dry_run else eligible.delete(synchronize_session=False)

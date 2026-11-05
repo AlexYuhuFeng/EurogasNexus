@@ -49,6 +49,9 @@ def main(argv: list[str] | None = None) -> int:
     _add_optimize(subparsers)
     _add_optimization_run(subparsers)
     _add_analyze(subparsers)
+    from eurogas_nexus.cli.functional import register as register_functional
+
+    register_functional(subparsers)
 
     args = parser.parse_args(argv)
     handler: CommandHandler = args.handler
@@ -201,7 +204,7 @@ def _status_of_result(result: object) -> str | None:
 def _exit_code_for_result(result: object) -> int:
     """Map command outcomes onto exit codes (BLOCKED/infeasible -> non-zero)."""
 
-    if _status_of_result(result) in {"BLOCKED", "INFEASIBLE"}:
+    if _status_of_result(result) in {"BLOCKED", "INFEASIBLE", "FAILED", "CANCELLED", "EXPIRED"}:
         return EXIT_BLOCKED
     return EXIT_OK
 

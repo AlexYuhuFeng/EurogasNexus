@@ -3,6 +3,7 @@
 import json
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -25,7 +26,10 @@ def _common(day, ref):
     )
 
 
-def test_balance_history_and_forecast_with_a_norwegian_outage(tmp_path, monkeypatch):
+@pytest.mark.parametrize("future_publication", [False, True])
+def test_balance_history_and_forecast_with_a_norwegian_outage(
+    tmp_path, monkeypatch, future_publication
+):
     url = f"sqlite+pysqlite:///{(tmp_path / 'nwe.sqlite').as_posix()}"
     engine = create_engine(url, future=True)
     Base.metadata.create_all(engine)
@@ -78,6 +82,7 @@ def test_balance_history_and_forecast_with_a_norwegian_outage(tmp_path, monkeypa
             {
                 "messageId": "TROLL-1",
                 "version": 1,
+                "publishedAt": (now + timedelta(days=2) if future_publication else now).isoformat(),
                 "eventStart": (today + timedelta(days=1)).isoformat(),
                 "eventStop": (today + timedelta(days=3)).isoformat(),
                 "affectedAssetName": "Troll",
@@ -106,7 +111,27 @@ def test_balance_history_and_forecast_with_a_norwegian_outage(tmp_path, monkeypa
     forecast = {row["day"]: row for row in data["forecast"]}
     plain = forecast[today.date().isoformat()]
     hit = forecast[(today + timedelta(days=1)).date().isoformat()]
+    if future_publication:
+        assert hit["norway_gwh"] == 1100.0
+        assert data["norway_outages"] == 0
+        return
     assert plain["norway_gwh"] == 1100.0 and hit["norway_gwh"] == 880.0  # 20 mcm/d off
     assert hit["storage_net_withdrawal_gwh"] == plain["storage_net_withdrawal_gwh"] + 220.0
     assert plain["methods"]["norway"] == "7_day_average_less_remit_outages"
     assert data["norway_outages"] == 1 and plain["fill_pct"] is not None
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
+
+    runtime = TestClient(create_app(), headers={"X-Eurogas-Api-Key": "test-public-api-token"}).post(
+        "/api/market/nwe-balance",
+        json={
+            "use_runtime_history": True,
+            "history": [],
+            "prediction_origin": now.isoformat(),
+            "start": gas_day_label(now),
+            "days": 2,
+        },
+    )
+    assert runtime.status_code == 200, runtime.text
+    resolved = runtime.json()["data"]
+    assert resolved["inputs"]["history"][-1]["norway_gwh"] == 1100.0
+    assert resolved["weather_evidence"][0]["evidence_kind"] == "RUNTIME_BALANCE_CURRENT_AGGREGATE"

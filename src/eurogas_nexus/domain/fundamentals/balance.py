@@ -85,6 +85,7 @@ class BalanceDay:
     methods: dict[str, str]
     hdd: float | None = None
     norway_outage_gwh: float = 0.0
+    norway_recent_outage_baseline_gwh: float = 0.0
     flags: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
@@ -93,6 +94,7 @@ class BalanceDay:
             "call_gwh": round(self.call_gwh, 1),
             "norway_gwh": round(self.norway_gwh, 1),
             "norway_outage_gwh": round(self.norway_outage_gwh, 1),
+            "norway_recent_outage_baseline_gwh": round(self.norway_recent_outage_baseline_gwh, 1),
             "lng_gwh": round(self.lng_gwh, 1),
             "storage_net_withdrawal_gwh": round(self.storage_net_withdrawal_gwh, 1),
             "inventory_twh": None if self.inventory_twh is None else round(self.inventory_twh, 2),
@@ -199,6 +201,9 @@ def forecast_balance(
     anomaly = mean(anomalies) if len(anomalies) >= 7 else None
     max_recent_withdrawal = max(h.storage_net_withdrawal_gwh for h in last28)
     outages = list(norway_outages)
+    recent_outage_baseline = mean(
+        sum(o.unavailable_gwh_d for o in outages if o.on(h.day)) for h in last7
+    )
     inventory = inventory_twh
     for offset in range(days):
         day = start + timedelta(days=offset)
@@ -209,7 +214,7 @@ def forecast_balance(
         else:
             call, call_method = mean(h.call_gwh for h in last28), "28_day_average"
         outage = sum(o.unavailable_gwh_d for o in outages if o.on(day))
-        norway = max(0.0, norway_base - outage)
+        norway = max(0.0, norway_base + recent_outage_baseline - outage)
         storage = call - norway - lng_base
         flags = []
         if storage > max_recent_withdrawal * 1.25 and storage > 0:
@@ -232,9 +237,12 @@ def forecast_balance(
                 fill_pct=fill,
                 hdd=hdd.get(day),
                 norway_outage_gwh=outage,
+                norway_recent_outage_baseline_gwh=recent_outage_baseline,
                 methods={
                     "call": call_method,
-                    "norway": "7_day_average_less_remit_outages",
+                    "norway": "7_day_average_adjusted_for_outage_change"
+                    if recent_outage_baseline
+                    else "7_day_average_less_remit_outages",
                     "lng": "14_day_average",
                     "storage": "residual",
                 },

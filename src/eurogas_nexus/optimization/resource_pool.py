@@ -11,7 +11,7 @@ def _validate_inputs(resources: list[SupplyResource], sale_options: list[SaleOpt
     validate_sale_options(sale_options)
 
 
-def optimize_resource_pool(
+def _partial_infeasible_allocation(
     resources: list[SupplyResource],
     sale_options: list[SaleOption],
     accessible_tsos: set[str] | None = None,
@@ -105,5 +105,86 @@ def optimize_resource_pool(
             "resource_count": len(resource_by_id),
             "sale_option_count": len(sale_options),
             "eligible_pair_count": len(eligible_pairs),
+        },
+    )
+
+
+def optimize_resource_pool(resources, sale_options, accessible_tsos=None) -> OptimizationResult:
+    """Solve minimum-take and discretionary allocation with the shared residual kernel.
+
+    The old placement is retained solely for partial diagnostics when hard lower
+    bounds are infeasible. Such a result always remains infeasible.
+    """
+    from .circulation import Arc, solve_circulation
+
+    _validate_inputs(resources, sale_options)
+    arcs, pairs = [], {}
+    for resource in resources:
+        arcs.append(
+            Arc(
+                f"s:{resource.resource_id}",
+                "source",
+                f"r:{resource.resource_id}",
+                resource.minimum_take_mwh,
+                resource.effective_maximum_mwh,
+                resource.unit_cost_gbp_mwh,
+            )
+        )
+        for option in sale_options:
+            required = set(resource.required_tso_access) | set(option.required_tso_access)
+            if accessible_tsos is not None and not required.issubset(accessible_tsos):
+                continue
+            arc_id = f"pair:{len(pairs)}"
+            pairs[arc_id] = (resource, option)
+            arcs.append(
+                Arc(
+                    arc_id,
+                    f"r:{resource.resource_id}",
+                    f"o:{option.option_id}",
+                    0,
+                    min(resource.effective_maximum_mwh, option.capacity_mwh),
+                    0,
+                )
+            )
+    for option in sale_options:
+        arcs.append(
+            Arc(
+                f"o:{option.option_id}",
+                f"o:{option.option_id}",
+                "sink",
+                0,
+                option.capacity_mwh,
+                option.variable_cost_gbp_mwh - option.sale_price_gbp_mwh,
+            )
+        )
+    total = sum(r.effective_maximum_mwh for r in resources)
+    arcs.append(Arc("return", "sink", "source", 0, total, 0))
+    result = solve_circulation(arcs)
+    if result["status"] == "infeasible":
+        return _partial_infeasible_allocation(resources, sale_options, accessible_tsos)
+    allocations = []
+    for arc_id, (resource, option) in pairs.items():
+        quantity = result["flows"][arc_id]
+        if quantity <= 1e-9:
+            continue
+        margin = (
+            option.sale_price_gbp_mwh - option.variable_cost_gbp_mwh - resource.unit_cost_gbp_mwh
+        )
+        allocations.append(
+            ResourceAllocation(
+                resource.resource_id, option.option_id, quantity, margin, quantity * margin
+            )
+        )
+    unsold = total - sum(row.quantity_mwh for row in allocations)
+    return OptimizationResult(
+        status="optimal",
+        objective_value_gbp=-result["cost"],
+        allocations=tuple(allocations),
+        unsold_volume_mwh=max(0, unsold),
+        warnings=("Some available resource volume remains unallocated.",) if unsold > 1e-9 else (),
+        diagnostics={
+            "resource_count": len(resources),
+            "sale_option_count": len(sale_options),
+            "eligible_pair_count": len(pairs),
         },
     )

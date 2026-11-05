@@ -18,7 +18,7 @@ from eurogas_nexus.domain.fundamentals.balance import (
     Outage,
     forecast_balance,
 )
-from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
+from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_for_date
 
 ENGINE_VERSION = "nwe-balance-scenario/1"
 
@@ -49,7 +49,7 @@ class WeatherInput(ScenarioModel):
     heating_base_c: float = Field(ge=-50, le=50)
     gas_day_calendar: str = Field(min_length=1, max_length=64)
     history: tuple[HddInput, ...] = Field(min_length=1, max_length=800)
-    forecast: tuple[HddInput, ...] = Field(min_length=1, max_length=31)
+    forecast: tuple[HddInput, ...] = Field(default=(), max_length=31)
 
 
 class OutageInput(ScenarioModel):
@@ -67,6 +67,8 @@ class OutageInput(ScenarioModel):
 
 
 class NweBalanceScenarioRequest(ScenarioModel):
+    gas_day_calendar: str = "EU-CAM-UTC-2025"
+    maximum_history_lag_days: int = Field(default=0, ge=0, le=31)
     prediction_origin: AwareDatetime
     start: date
     days: int = Field(ge=1, le=31)
@@ -78,21 +80,35 @@ class NweBalanceScenarioRequest(ScenarioModel):
 
     @model_validator(mode="after")
     def validate_evidence(self):
-        if self.start < self.prediction_origin.date():
+        current_day = date.fromisoformat(
+            gas_day_label(self.prediction_origin, self.gas_day_calendar)
+        )
+        if self.start < current_day:
             raise ValueError("scenario start must not precede prediction origin date")
+        if len(self.history) < 7:
+            if not self.history and getattr(self, "use_runtime_history", False):
+                return self
+            raise ValueError("at least seven historical gas days are required")
         if len({row.day for row in self.history}) != len(self.history):
             raise ValueError("balance history contains duplicate days")
         ordered = sorted(row.day for row in self.history)
-        if ordered[-1] != self.start - timedelta(days=1) or any(
+        last_complete = current_day - timedelta(days=1)
+        if (
+            not last_complete - timedelta(days=self.maximum_history_lag_days)
+            <= ordered[-1]
+            <= last_complete
+        ) or any(
             right - left != timedelta(days=1)
             for left, right in zip(ordered, ordered[1:], strict=False)
         ):
-            raise ValueError("balance history must be consecutive and end the day before start")
+            raise ValueError("history must be consecutive, completed and within the declared lag")
         evidence = list(self.history) + list(self.outages)
         if any(row.day >= self.start for row in self.history):
             raise ValueError("balance history must precede scenario start")
         if self.weather is not None:
             weather = self.weather
+            if weather.gas_day_calendar != self.gas_day_calendar:
+                raise ValueError("weather and balance must use the same gas-day calendar")
             gas_day_start_for_date(self.start, weather.gas_day_calendar)
             for rows, historical in ((weather.history, True), (weather.forecast, False)):
                 if len({row.day for row in rows}) != len(rows):
@@ -140,6 +156,12 @@ def run_nwe_balance_scenario(payload: NweBalanceScenarioRequest) -> dict:
         else ("WEATHER_COMPLETE" if weather_days == payload.days else "WEATHER_PARTIAL")
     )
     warnings = list(selected.warnings)
+    current_day = date.fromisoformat(
+        gas_day_label(payload.prediction_origin, payload.gas_day_calendar)
+    )
+    lag = (current_day - timedelta(days=1) - history[-1].day).days
+    if lag:
+        warnings.append(f"BALANCE_HISTORY_LAG_DAYS:{lag}")
     if weather is not None and selected.model is None:
         warnings.append(
             "HDD_MODEL_NOT_FITTED: at least 30 matched, non-singular training days are required."

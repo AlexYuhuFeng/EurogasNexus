@@ -13,6 +13,15 @@ the documented route count) in the same change.
 from apps.api.main import app
 
 PINNED_PUBLIC_PATHS = {
+    "/api/functional-models",
+    "/api/functional-models/{model_id}",
+    "/api/functional-models/{model_id}/predict",
+    "/api/functional-models/{model_id}/evaluate",
+    "/api/functional-runs",
+    "/api/functional-runs/reconcile",
+    "/api/functional-runs/{run_id}",
+    "/api/functional-runs/{run_id}/compare",
+    "/api/functional-runs/{run_id}/replay",
     "/api/portfolio/daily-balance",
     "/api/portfolio/hedge-approvals",
     "/api/portfolio/hedge-approvals/{contract_id}",
