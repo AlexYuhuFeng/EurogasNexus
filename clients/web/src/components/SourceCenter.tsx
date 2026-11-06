@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { type FormEventHandler, useState } from "react";
 import type { SourceRunOutcome, SourceRunReadiness } from "@/app/model/sourceRunModel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
@@ -347,7 +348,7 @@ export function SourceCenter({
         label={t("sources.workspace_views")}
         tabs={SOURCE_VIEWS.map((view) => ({
           id: view,
-          label: t(`sources.view.${view}`),
+          ...tabLabels(t, `sources.view.${view}`),
           controls: "source-active-panel",
         }))}
         activeId={activeView}

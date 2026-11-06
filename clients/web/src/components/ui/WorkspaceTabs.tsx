@@ -4,8 +4,12 @@ import { getNextWorkspaceTabIndex, workspaceTabButtonId } from "./tabKeyboard";
 export interface WorkspaceTabItem<T extends string> {
   id: T;
   label: ReactNode;
+  /** A shorter label shown at compact width (an abbreviation or one word); the full label
+      stays the tab's accessible name (docs/product/ADAPTIVE_CLIENT.md). */
+  shortLabel?: string;
   controls?: string;
 }
+
 
 /**
  * Canonical shell region marker (Architecture V2 Wave 1).
@@ -78,8 +82,16 @@ export function WorkspaceTabs<T extends string>({
             className={isActive ? "active" : undefined}
             onClick={() => onActivate(tab.id)}
             onKeyDown={(event) => handleKeyDown(event, tab.id)}
+            aria-label={tab.shortLabel && typeof tab.label === "string" ? tab.label : undefined}
           >
-            {tab.label}
+            {tab.shortLabel ? (
+              <>
+                <span className="tab-label-full">{tab.label}</span>
+                <span className="tab-label-short" aria-hidden="true">{tab.shortLabel}</span>
+              </>
+            ) : (
+              tab.label
+            )}
           </button>
         );
       })}

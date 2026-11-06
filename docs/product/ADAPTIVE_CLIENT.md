@@ -30,12 +30,22 @@ authorises every read.
 
 | Region | Compact | Medium | Wide |
 |---|---|---|---|
-| Primary navigation | Menu button with the current line's name; a drawer lists the lines and Help & Settings | Tabs, may scroll | Tabs |
-| Search / palette | Icon button (no keycap) | Button with keycap | Button with keycap |
-| Trading context (gas day, product, hub) | In the drawer, with a one-line summary under the page title | Disclosure | Inline |
-| Alerts, data status, account | Always on the bar; the status chip shows its dot only, and its panel opens on tap | Same, with short labels | Full labels |
-| Page tabs (sub-views) | One scrollable row under the title | Row | Row |
+| Primary navigation | Menu button with the current line's name; a drawer lists the lines and Help & Settings | Below 1024 px the same drawer; 1024–1199 px tabs | Tabs |
+| Search / palette | Icon button | Icon button; a keycap only with a fine pointer | Button with text, keycap with a fine pointer |
+| Trading context (gas day, product, hub) | In the drawer; a one-line summary on the menu button | A "Context" button that opens a dropdown panel | Inline |
+| Alerts, data status, account | Always on the bar: bell icon with count, status dot, account initials | Short labels | Full labels |
+| Page tabs (sub-views) | One row with short labels (`<key>.short`, e.g. "Curves", "Keys", "Infra") | Full labels | Full labels |
+| Explanatory panels (scope, context strips) | Folded to their title; open on demand | Open | Open |
 | Inspector / detail | Full-screen sheet with Back | Side pane when it fits, else a sheet | Side pane |
+
+**Keyboard affordances follow the input, not the device name.** Keycaps (Ctrl K, ⌘K), the
+"Keyboard shortcuts" menu entry and shortcut hints in the command palette appear only where the
+primary pointer is fine (a mouse or trackpad) and the window is not compact. A phone or tablet
+reader is never shown keys they do not have. The shortcuts still work when a keyboard is attached.
+
+**Icons and abbreviations before truncation.** When a word does not fit, use a recognised icon
+(bell, magnifier, menu) or an agreed short form, and keep the full word as the accessible name.
+Do not let text wrap into vertical fragments or ellipsise mid-word.
 
 Account, Settings, language, appearance and sign-out are reachable at every width (#39).
 

@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { useMemo, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
 import { useApiStore } from "@/stores/api";
@@ -58,7 +59,7 @@ export function StrategyLabWorkspace({
         .filter((id) => id !== "spread" || researches)
         .map((id) => ({
           id,
-          label: t(TASK_LABEL_KEYS[id]),
+          ...tabLabels(t, TASK_LABEL_KEYS[id]),
         })),
     [t, researches],
   );

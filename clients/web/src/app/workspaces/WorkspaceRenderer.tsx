@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import type { AppController } from "@/app/hooks/useAppController";
 import { AccessCenter } from "@/components/AccessCenter";
 import { AgentsWorkspace } from "@/components/AgentsWorkspace";
@@ -65,7 +66,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
     ? []
     : activePrimaryWorkspace.pages.map((page) => ({
         id: page,
-        label: t(`nav.${page}`),
+        ...tabLabels(t, `nav.${page}`),
       }));
 
   // The page's own read lifecycle (`unread | loading | settled`), published so a measurement can

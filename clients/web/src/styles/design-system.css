@@ -428,8 +428,9 @@
     margin-left: auto;
   }
 
-  /* Wide screens show the context inline; narrow screens keep the disclosure summary. */
-  @media (min-width: 901px) {
+  /* Wide screens (the "wide" width class, >= 1200 px) show the context inline; narrower
+     screens keep the disclosure summary (ADAPTIVE_CLIENT.md). */
+  @media (min-width: 1200px) {
     .topbar-context-disclosure > summary {
       display: none;
     }
@@ -3271,7 +3272,8 @@
    status dot, account - with the lines of work and the trading context in a drawer. Keyed to
    the width class the shell publishes, not to a breakpoint of its own. */
 @layer ds-components {
-  [data-width-class="compact"] .app-header.cockpit-topbar {
+  [data-width-class="compact"] .app-header.cockpit-topbar,
+  [data-width-class="medium"] .app-header.cockpit-topbar {
     flex-direction: row;
     align-items: center;
     flex-wrap: nowrap;
@@ -3280,7 +3282,8 @@
     padding: var(--ds-space-1) var(--ds-space-3);
   }
 
-  [data-width-class="compact"] .app-header .header-controls {
+  [data-width-class="compact"] .app-header .header-controls,
+  [data-width-class="medium"] .app-header .header-controls {
     width: auto;
     margin-left: auto;
     flex-wrap: nowrap;
@@ -3577,5 +3580,150 @@
   .empty-state strong {
     color: var(--ds-text-1);
     font-weight: 600;
+  }
+}
+
+/* Short tab labels and keyboard hints by input and width (ADAPTIVE_CLIENT.md). A tab shows its
+   abbreviation at compact width; its full label stays its accessible name. Keycaps (Ctrl K,
+   shortcut hints) appear only where a keyboard is the primary input: a phone or tablet reader
+   is not asked to press keys it does not have. */
+@layer ds-components {
+  .tab-label-short {
+    display: none;
+  }
+
+  [data-width-class="compact"] .tab-label-full {
+    display: none;
+  }
+
+  [data-width-class="compact"] .tab-label-short {
+    display: inline;
+  }
+
+  [data-pointer="coarse"] kbd,
+  [data-width-class="compact"] kbd {
+    display: none;
+  }
+}
+
+/* Compact: icons for words, folded context (#39 follow-up). The alert word becomes a bell; a
+   context strip's summary keeps its as-of and freshness only, the basis is in the open strip's
+   slices; panels that explain scope fold to their title. */
+@layer ds-components {
+  .alert-trigger-icon {
+    display: none;
+  }
+
+  [data-width-class="compact"] .alert-trigger-icon {
+    display: inline-block;
+  }
+
+  [data-width-class="compact"] .alert-trigger-mark {
+    display: none;
+  }
+
+  [data-width-class="compact"] .projection-context-summary .projection-context-basis,
+  [data-width-class="compact"] .projection-context-summary .eyebrow {
+    display: none;
+  }
+
+  [data-width-class="compact"] .projection-context-summary {
+    flex-wrap: nowrap;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .scope-fold > summary {
+    cursor: pointer;
+    font-weight: 600;
+    list-style: none;
+  }
+
+  .scope-fold > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .scope-fold > summary::after {
+    content: " ▾";
+    color: var(--ds-text-2);
+  }
+
+  .scope-fold:not([open]) > summary::after {
+    content: " ▸";
+  }
+}
+
+/* Medium width: the context disclosure is one compact control on the bar, never a row. */
+@layer ds-components {
+  [data-width-class="medium"] .app-header .topbar-context-disclosure {
+    flex: 0 1 auto;
+    min-width: 0;
+    width: auto;
+  }
+
+  [data-width-class="medium"] .app-header .topbar-context-disclosure > summary > span {
+    display: none;
+  }
+}
+
+/* Medium width: page title, then its tabs, both from the left edge. */
+@layer ds-components {
+  [data-width-class="medium"] .workspace-page-header:not(.workspace-subheader) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  [data-width-class="medium"] .workspace-page-heading {
+    text-align: left;
+  }
+}
+
+/* Medium width: the trading context is a summary button whose controls open as a dropdown
+   panel under it, so the bar keeps one row and the gas day stays reachable. */
+@layer ds-components {
+  [data-width-class="medium"] .app-header .topbar-context-disclosure {
+    display: block;
+    position: relative;
+  }
+
+  [data-width-class="medium"] .app-header .topbar-context-disclosure > summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    cursor: pointer;
+    list-style: none;
+    white-space: nowrap;
+  }
+
+  [data-width-class="medium"] .app-header .topbar-context-disclosure-content {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 6px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ds-space-2);
+    min-width: 260px;
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  }
+
+  [data-width-class="medium"] .app-header .topbar-context-disclosure-content .topbar-trading-context {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  [data-width-class="medium"] .app-header .topbar-context-disclosure-content select,
+  [data-width-class="medium"] .app-header .topbar-context-disclosure-content input {
+    max-width: none;
+    width: 100%;
   }
 }

@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { useMemo, useState } from "react";
 import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
 import { CapacityContractBook } from "@/components/CapacityContractBook";
@@ -412,7 +413,7 @@ export function CapacityWorkspace({
             label={t("capacity.views")}
             tabs={(["network", "storage", "lng"] as CapacityView[]).map((view) => ({
               id: view,
-              label: t(`capacity.view_${view}`),
+              ...tabLabels(t, `capacity.view_${view}`),
             }))}
             activeId={activeView}
             panelId="capacity-active-panel"

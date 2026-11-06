@@ -75,6 +75,7 @@ export function AlertCenter({
         onClick={() => setOpen((current) => !current)}
       >
         <span className="alert-trigger-mark" aria-hidden="true" />
+        <svg className="alert-trigger-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M9 2.5a4.5 4.5 0 0 0-4.5 4.5v3L3 12.5h12L13.5 10V7A4.5 4.5 0 0 0 9 2.5zM7.2 14.5a1.9 1.9 0 0 0 3.6 0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
         <span>{isChinese ? "告警" : "Alerts"}</span>
         <strong>{summary.open_count}</strong>
       </button>

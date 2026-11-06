@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
@@ -393,7 +394,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
     navigation.openWorkspace("market", next);
   };
 
-  const tabs = MARKET_TASKS.map((id) => ({ id, label: t(`market.task.${id}`) }));
+  const tabs = MARKET_TASKS.map((id) => ({ id, ...tabLabels(t, `market.task.${id}`) }));
 
   return (
     <div className="market-cockpit">

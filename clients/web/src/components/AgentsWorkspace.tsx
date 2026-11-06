@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useState } from "react";
 import {
   AgentReplayDTO,
@@ -137,7 +138,7 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
   }, []);
 
   const tabs = useMemo(
-    () => VIEWS.map((id) => ({ id, label: t(`agents.tab.${id}`) })),
+    () => VIEWS.map((id) => ({ id, ...tabLabels(t, `agents.tab.${id}`) })),
     [t],
   );
 

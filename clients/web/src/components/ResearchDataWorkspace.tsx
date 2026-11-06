@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ResearchDatasetDTO,
@@ -758,7 +759,7 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
     buildCoordinator.cancel();
   }, [buildCoordinator, exportCoordinator, validateCoordinator]);
 
-  const tabs = useMemo(() => VIEWS.map((id) => ({ id, label: t(`research.tab.${id}`) })), [t]);
+  const tabs = useMemo(() => VIEWS.map((id) => ({ id, ...tabLabels(t, `research.tab.${id}`) })), [t]);
   const catalogVisible = catalogIdentityKey === identityKey;
   const visibleDatasets = catalogVisible ? datasets : [];
   const visibleFeatures = catalogVisible ? features : [];

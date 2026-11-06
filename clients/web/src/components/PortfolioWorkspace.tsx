@@ -1,5 +1,7 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
+import { useShellLayout } from "@/app/shell/useShellLayout";
 import { ContractChainStrip } from "@/components/ContractChainStrip";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
@@ -205,6 +207,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   onOpenStrategyForResource: (resourceId: string) => void;
 }) {
   const { t, api, portfolio, selection, navigation, contractEditor } = controller;
+  const compactLayout = useShellLayout().widthClass === "compact";
   const currentUser = api.currentUser;
   const canMaintainRisk = currentUser?.role === "REVIEWER"
     || (currentUser?.roles.includes("REVIEWER") ?? false);
@@ -259,7 +262,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
     navigation.openWorkspace("contracts", next);
   }
 
-  const tabs = PORTFOLIO_TASKS.map((id) => ({ id, label: t(`portfolio.task.${id}`) }));
+  const tabs = PORTFOLIO_TASKS.map((id) => ({ id, ...tabLabels(t, `portfolio.task.${id}`) }));
 
   // Action geography (`app/experience/actionGeography.ts`): writing a reviewed contract
   // draft is a `persist` consequence, so it occupies this workspace's single primary slot
@@ -319,8 +322,11 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
       <div id="portfolio-task-panel">
         <PortfolioContextStrip projection={api.portfolioSnapshot} t={t} />
         <section className="workspace-panel" aria-label={t("portfolio.scope.title")}>
-          <strong>{t("portfolio.scope.title")}</strong>
-          <p className="panel-copy">{t(task === "exposure" ? "portfolio.scope.observations" : "portfolio.scope.scenario")}</p>
+          {/* Folds to its title on a phone (ADAPTIVE_CLIENT.md); open on wider screens. */}
+          <details className="scope-fold" open={!compactLayout}>
+            <summary>{t("portfolio.scope.title")}</summary>
+            <p className="panel-copy">{t(task === "exposure" ? "portfolio.scope.observations" : "portfolio.scope.scenario")}</p>
+          </details>
         </section>
         {task === "overview" && <PositionRiskSummary t={t} />}
         {task === "overview" && <PortfolioOverview controller={controller} />}

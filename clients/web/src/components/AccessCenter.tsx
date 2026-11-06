@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useState } from "react";
 import {
   api,
@@ -178,7 +179,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
         label={t("access.workspace_views")}
         tabs={ACCESS_VIEWS.map((view) => ({
           id: view,
-          label: t(`access.view.${view}`),
+          ...tabLabels(t, `access.view.${view}`),
           controls: "access-active-panel",
         }))}
         activeId={activeView}

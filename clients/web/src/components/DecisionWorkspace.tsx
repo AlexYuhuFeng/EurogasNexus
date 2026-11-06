@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
@@ -229,7 +230,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
     navigation.openWorkspace(next === "review" ? "review" : "scenario", next);
   }
 
-  const tabs = DECISION_TASKS.map((id) => ({ id, label: t(`decision.task.${id}`) }));
+  const tabs = DECISION_TASKS.map((id) => ({ id, ...tabLabels(t, `decision.task.${id}`) }));
 
   // Action geography (`app/experience/actionGeography.ts`): running the pool optimiser is the
   // primary act of the Optimize task and comparing route options is the primary act of the

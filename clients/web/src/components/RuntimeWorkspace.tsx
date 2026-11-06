@@ -1,3 +1,4 @@
+import { tabLabels } from "@/components/ui/tabLabels";
 import type {
   ApiMeta,
   PipelineHealthDTO,
@@ -272,7 +273,7 @@ export function RuntimeWorkspace({
         label={t("runtime.workspace_views")}
         tabs={RUNTIME_VIEWS.map((view) => ({
           id: view,
-          label: t(`runtime.view.${view}`),
+          ...tabLabels(t, `runtime.view.${view}`),
           controls: "runtime-active-panel",
         }))}
         activeId={activeView}

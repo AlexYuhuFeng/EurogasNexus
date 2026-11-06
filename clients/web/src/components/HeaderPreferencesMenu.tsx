@@ -3,6 +3,7 @@ import type { CurrentUserDTO } from "@/api/client";
 import type { ThemeMode } from "@/stores/theme";
 import { LOCALES } from "@/i18n/locales";
 import { isShortcutHelpKey, KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
+import { showsKeyboardHints, useShellLayout } from "@/app/shell/useShellLayout";
 
 /** "Jane Smith" → "JS"; a single name gives its first two letters. */
 export function accountInitials(name: string): string {
@@ -39,6 +40,7 @@ export function HeaderPreferencesMenu({
 }: HeaderPreferencesMenuProps) {
   const [open, setOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const keyboardHints = showsKeyboardHints(useShellLayout());
   const displayName = currentUser.display_name ?? currentUser.name;
   const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
 
@@ -198,9 +200,12 @@ export function HeaderPreferencesMenu({
             <button type="button" role="menuitem" onClick={() => select(onOpenSettings)}>
               {t("topbar.open_settings")}
             </button>
-            <button type="button" role="menuitem" onClick={() => select(() => setShortcutsOpen(true))}>
-              {t("topbar.keyboard_shortcuts")} <kbd>?</kbd>
-            </button>
+            {/* Shortcuts are offered only where a keyboard is the primary input. */}
+            {keyboardHints && (
+              <button type="button" role="menuitem" onClick={() => select(() => setShortcutsOpen(true))}>
+                {t("topbar.keyboard_shortcuts")} <kbd>?</kbd>
+              </button>
+            )}
             {currentUser.permissions.includes("identity.manage") && (
               <button type="button" role="menuitem" onClick={() => select(onOpenAccess)}>
                 {t("topbar.access_identity")}

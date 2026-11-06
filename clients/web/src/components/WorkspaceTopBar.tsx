@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useShellLayout } from "@/app/shell/useShellLayout";
+import { showsKeyboardHints, useShellLayout } from "@/app/shell/useShellLayout";
 import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
 import {
   SUPPORTED_HUB_IDS,
@@ -135,12 +135,12 @@ export function WorkspaceTopBar({
   }));
 
   const [narrowHeader, setNarrowHeader] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1199px)").matches,
   );
   const [contextDisclosureOpen, setContextDisclosureOpen] = useState(false);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 900px)");
+    const media = window.matchMedia("(max-width: 1199px)");
     const update = () => setNarrowHeader(media.matches);
     update();
     media.addEventListener("change", update);
@@ -199,14 +199,19 @@ export function WorkspaceTopBar({
 
   // Compact width (docs/product/ADAPTIVE_CLIENT.md): one row - menu, search, alerts, status dot,
   // account - and a drawer holding the lines of work and the trading context (#39, #40).
-  const { widthClass } = useShellLayout();
+  const shellLayout = useShellLayout();
+  const { widthClass } = shellLayout;
+  const keyboardHints = showsKeyboardHints(shellLayout);
   const compact = widthClass === "compact";
+  // The drawer holds the lines of work below 1024 px (phones, tablet portrait); the trading
+  // context joins it only at compact width, where the bar has no room for its disclosure.
+  const drawerNav = shellLayout.drawerNav;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!compact) setDrawerOpen(false);
-  }, [compact]);
+    if (!drawerNav) setDrawerOpen(false);
+  }, [drawerNav]);
   useEffect(() => {
     if (!drawerOpen) return;
     drawerRef.current?.querySelector<HTMLElement>("button, select, input")?.focus();
@@ -231,7 +236,7 @@ export function WorkspaceTopBar({
       className="app-header cockpit-topbar workspace-topbar-only workspace-topbar-page"
       data-shell-region="global-context"
     >
-      {compact && (
+      {drawerNav && (
         <button
           ref={menuButtonRef}
           type="button"
@@ -240,19 +245,19 @@ export function WorkspaceTopBar({
           aria-controls="topbar-drawer"
           aria-label={t("topbar.menu")}
           // The Active Context in machine-readable form, as on the wide bar's disclosure.
-          data-context-gas-day={gasDay}
-          data-context-product={deliveryProduct}
-          data-context-hub={hubId ?? ""}
+          data-context-gas-day={compact ? gasDay : undefined}
+          data-context-product={compact ? deliveryProduct : undefined}
+          data-context-hub={compact ? hubId ?? "" : undefined}
           onClick={() => setDrawerOpen((open) => !open)}
         >
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
           <span className="topbar-menu-label">
             <span>{t(activePrimaryWorkspace.labelKey)}</span>
-            {usesTradingContext && <small>{gasDay} · {productLabel}{hubId ? ` · ${hubId}` : ""}</small>}
+            {compact && usesTradingContext && <small>{gasDay} · {productLabel}{hubId ? ` · ${hubId}` : ""}</small>}
           </span>
         </button>
       )}
-      {compact && drawerOpen && createPortal(
+      {drawerNav && drawerOpen && createPortal(
         // Portalled to <body>: the header's backdrop blur would otherwise contain the fixed
         // drawer inside the header's own box.
         <div className="topbar-drawer-backdrop" onClick={closeDrawer}>
@@ -284,7 +289,7 @@ export function WorkspaceTopBar({
                 ))}
               </ul>
             </nav>
-            {tradingContextControls && (
+            {compact && tradingContextControls && (
               <section className="topbar-drawer-context" aria-label={t("context.title")}>
                 <h2>{t("context.title")}</h2>
                 {tradingContextControls}
@@ -294,7 +299,7 @@ export function WorkspaceTopBar({
         </div>,
         document.body,
       )}
-      {!compact && (
+      {!drawerNav && (
       <WorkspaceTabs
         idPrefix="workspace-primary"
         label={t("topbar.primary_navigation")}
@@ -312,14 +317,13 @@ export function WorkspaceTopBar({
           className="topbar-command"
           aria-label={t("topbar.command")}
           onClick={onOpenCommandPalette}
-          aria-keyshortcuts="Control+K Meta+K"
+          aria-keyshortcuts={keyboardHints ? "Control+K Meta+K" : undefined}
         >
-          {compact ? (
-            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M12 12l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-          ) : (
+          <svg className="topbar-command-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 18 18"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M12 12l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+          {!compact && (
           <>
           <span>{t("topbar.command")}</span>
-          <kbd aria-hidden="true">{/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K"}</kbd>
+          {keyboardHints && <kbd aria-hidden="true">{/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K"}</kbd>}
           </>
           )}
         </button>

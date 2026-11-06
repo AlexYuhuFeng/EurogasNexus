@@ -13,6 +13,8 @@ export type PointerKind = "coarse" | "fine";
 
 export const COMPACT_MAX_PX = 719;
 export const MEDIUM_MAX_PX = 1199;
+/** Below this width the lines of work move into the drawer (tablet portrait, narrow windows). */
+export const DRAWER_NAV_MAX_PX = 1023;
 
 export function widthClassFor(width: number): WidthClass {
   if (width <= COMPACT_MAX_PX) return "compact";
@@ -20,19 +22,36 @@ export function widthClassFor(width: number): WidthClass {
   return "wide";
 }
 
-function read(): { widthClass: WidthClass; pointer: PointerKind } {
-  if (typeof window === "undefined") return { widthClass: "wide", pointer: "fine" };
-  const pointer: PointerKind = window.matchMedia?.("(pointer: coarse)").matches ? "coarse" : "fine";
-  return { widthClass: widthClassFor(window.innerWidth), pointer };
+export interface ShellLayout {
+  widthClass: WidthClass;
+  pointer: PointerKind;
+  /** Whether the primary navigation is a drawer (true below 1024 px) or tabs. */
+  drawerNav: boolean;
 }
 
-function publish(layout: { widthClass: WidthClass; pointer: PointerKind }): void {
+function read(): ShellLayout {
+  if (typeof window === "undefined") return { widthClass: "wide", pointer: "fine", drawerNav: false };
+  const pointer: PointerKind = window.matchMedia?.("(pointer: coarse)").matches ? "coarse" : "fine";
+  return {
+    widthClass: widthClassFor(window.innerWidth),
+    pointer,
+    drawerNav: window.innerWidth <= DRAWER_NAV_MAX_PX,
+  };
+}
+
+function publish(layout: ShellLayout): void {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.widthClass = layout.widthClass;
   document.documentElement.dataset.pointer = layout.pointer;
+  document.documentElement.dataset.nav = layout.drawerNav ? "drawer" : "tabs";
 }
 
-export function useShellLayout(): { widthClass: WidthClass; pointer: PointerKind } {
+/** Whether keyboard affordances (keycaps, a shortcuts reference) belong on screen. */
+export function showsKeyboardHints(layout: { widthClass: WidthClass; pointer: PointerKind }): boolean {
+  return layout.pointer === "fine" && layout.widthClass !== "compact";
+}
+
+export function useShellLayout(): ShellLayout {
   const [layout, setLayout] = useState(read);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -40,7 +59,11 @@ export function useShellLayout(): { widthClass: WidthClass; pointer: PointerKind
       const next = read();
       publish(next);
       setLayout((current) =>
-        current.widthClass === next.widthClass && current.pointer === next.pointer ? current : next,
+        current.widthClass === next.widthClass &&
+        current.pointer === next.pointer &&
+        current.drawerNav === next.drawerNav
+          ? current
+          : next,
       );
     };
     update();

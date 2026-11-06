@@ -135,11 +135,11 @@ test("the header preferences menu owns preference and lifecycle actions with key
   assert.match(menu, /onSignOut/);
 });
 
-test("the narrow header collapses context and status behind one disclosure", () => {
+test("below the wide width class the header folds the trading context behind one disclosure", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
   const css = readWebSource("styles/app.css");
 
-  assert.match(bar, /matchMedia\("\(max-width: 900px\)"\)/);
+  assert.match(bar, /matchMedia\("\(max-width: 1199px\)"\)/);
   assert.match(bar, /className="topbar-context-disclosure"/);
   assert.match(bar, /<summary aria-label=\{t\("topbar\.context_status"\)\}>/);
   assert.match(bar, /\(!narrowHeader \|\| contextDisclosureOpen\)/);
