@@ -37,6 +37,11 @@ class DecisionCaseRecord(Base):
     # Reproducibility reference (Architecture V2 Analysis Snapshot).
     snapshot_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
 
+    # Decision deadline (#58); null for cases without one, including every legacy case.
+    decision_due_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     assumptions_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     alternatives_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     evidence_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

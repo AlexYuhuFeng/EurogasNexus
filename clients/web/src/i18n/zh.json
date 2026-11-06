@@ -4514,5 +4514,10 @@
   "nav.research.short": "数据",
   "nav.agents.short": "智能体",
   "nav.sources.short": "数据源",
-  "nav.access.short": "访问"
+  "nav.access.short": "访问",
+  "decision_case.due": "决策截止（本地时间）",
+  "decision_case.deadline.due": "待决",
+  "decision_case.deadline.overdue": "已逾期",
+  "decision_case.deadline.on_time": "按时决策",
+  "decision_case.deadline.late": "逾期决策"
 }

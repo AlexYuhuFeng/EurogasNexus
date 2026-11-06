@@ -26,6 +26,8 @@ from eurogas_nexus.domain.decision import (
     DecisionRecord,
     case_is_decidable,
     case_summary,
+    deadline_sort_key,
+    deadline_state,
     decision_blockers,
     record_decision,
     reopen_case,
@@ -44,6 +46,7 @@ def create_decision_case(
     hub_id: str = "",
     portfolio_ref: str = "",
     snapshot_id: str = "",
+    decision_due_at_utc: datetime | None = None,
     now_utc: datetime | None = None,
 ) -> dict:
     """Create a case in DRAFT state and return its payload.
@@ -69,6 +72,7 @@ def create_decision_case(
         hub_id=hub_id,
         portfolio_ref=portfolio_ref,
         snapshot_id=snapshot_id,
+        decision_due_at_utc=_as_utc(decision_due_at_utc) if decision_due_at_utc else None,
         assumptions_json=[],
         alternatives_json=[],
         evidence_json=[],
@@ -84,7 +88,8 @@ def create_decision_case(
         resource=f"decision_case:{case_id}",
         outcome="created",
         severity="info",
-        detail=f"gas_day={gas_day}",
+        detail=f"gas_day={gas_day}"
+        + (f" due={_as_utc(decision_due_at_utc).isoformat()}" if decision_due_at_utc else ""),
         source_system="decision",
         now_utc=now,
     )
@@ -112,7 +117,9 @@ def list_decision_cases(
         .limit(max(1, min(limit, 200)))
         .all()
     )
-    return [case_summary(domain) for domain in _to_domains(session, rows)]
+    # Open cases in due-time order (no deadline last), then decided ones (#58).
+    domains = sorted(_to_domains(session, rows), key=deadline_sort_key)
+    return [case_summary(domain) for domain in domains]
 
 
 def get_decision_case(session: Session, case_id: str) -> dict | None:
@@ -286,6 +293,8 @@ def decision_case_payload(session: Session, row: DecisionCaseRecord) -> dict:
         "hub_id": domain.hub_id,
         "portfolio_ref": domain.portfolio_ref,
         "snapshot_id": domain.snapshot_id,
+        "decision_due_at_utc": domain.decision_due_at_utc or None,
+        "deadline_state": deadline_state(domain),
         "reproducible": domain.reproducible,
         "assumptions": [
             {"key": item.key, "value": item.value, "source": item.source.value, "note": item.note}
@@ -377,6 +386,9 @@ def _to_domain(
         hub_id=row.hub_id or "",
         portfolio_ref=row.portfolio_ref or "",
         snapshot_id=row.snapshot_id or "",
+        decision_due_at_utc=(
+            _as_utc(row.decision_due_at_utc).isoformat() if row.decision_due_at_utc else ""
+        ),
         assumptions=tuple(
             DecisionAssumption(
                 key=str(item.get("key", "")),

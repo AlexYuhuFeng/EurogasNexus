@@ -1138,6 +1138,8 @@ export interface DecisionCaseDTO {
   created_by: string; created_at_utc: string;
   gas_day: string; delivery_product: string; hub_id: string;
   portfolio_ref: string; snapshot_id: string; reproducible: boolean;
+  /** Decision deadline (#58), UTC; null when none was set. */
+  decision_due_at_utc?: string | null; deadline_state?: string;
   assumptions: DecisionCaseAssumptionDTO[];
   alternatives: DecisionCaseAlternativeDTO[];
   evidence: DecisionCaseEvidenceDTO[];
@@ -1160,6 +1162,7 @@ export interface DecisionCaseSummaryDTO {
   gas_day: string; delivery_product: string; hub_id: string;
   evidence_count: number; alternative_count: number; assumption_count: number;
   record_count: number; reproducible: boolean;
+  decision_due_at_utc?: string | null; deadline_state?: string;
   last_record: { outcome: string; actor: string; recorded_at_utc: string } | null;
 }
 
@@ -1167,6 +1170,8 @@ export interface DecisionCaseCreateInputDTO {
   objective: string;
   gas_day?: string; delivery_product?: string; hub_id?: string;
   portfolio_ref?: string; snapshot_id?: string;
+  /** ISO-8601 with an explicit offset; the API refuses a naive time. */
+  decision_due_at_utc?: string | null;
 }
 
 export interface DecisionCaseEvidenceInputDTO {

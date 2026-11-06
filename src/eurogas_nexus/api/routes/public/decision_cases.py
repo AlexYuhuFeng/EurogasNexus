@@ -35,6 +35,8 @@ class DecisionCaseCreateRequest(BaseModel):
     hub_id: str = Field(default="", max_length=16)
     portfolio_ref: str = Field(default="", max_length=128)
     snapshot_id: str = Field(default="", max_length=64)
+    # Optional decision deadline (#58): ISO-8601 with an explicit offset; naive times refused.
+    decision_due_at_utc: str | None = Field(default=None, max_length=40)
 
 
 class DecisionCaseEvidenceRequest(BaseModel):
@@ -68,6 +70,12 @@ def post_decision_case(body: DecisionCaseCreateRequest, request: Request) -> dic
     """Open a decision case (governed write)."""
 
     principal = _actor(request)
+    from eurogas_nexus.domain.decision import parse_decision_due
+
+    try:
+        due = parse_decision_due(body.decision_due_at_utc)
+    except ValueError as exc:
+        raise _validation_error(str(exc)) from exc
     warnings: list[str] = []
     data: dict | None = None
     if not _db_is_configured():
@@ -87,6 +95,7 @@ def post_decision_case(body: DecisionCaseCreateRequest, request: Request) -> dic
                     hub_id=body.hub_id,
                     portfolio_ref=body.portfolio_ref,
                     snapshot_id=body.snapshot_id,
+                    decision_due_at_utc=due,
                 )
                 session.commit()
         except ValueError as exc:

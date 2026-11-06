@@ -250,3 +250,40 @@ def test_unknown_case_and_unknown_values_are_explicit(tmp_path, monkeypatch) -> 
         json={"objective": ""},
     )
     assert empty_objective.status_code == 422
+
+
+def test_cases_carry_a_structured_deadline_and_list_in_due_order(tmp_path, monkeypatch) -> None:
+    """#58: an optional, timezone-explicit deadline; open cases sort by it."""
+    database_url = _prepare(tmp_path, monkeypatch)
+    analyst = _identity(database_url, name="deadline-analyst", role="ANALYST")
+    client = TestClient(create_app(Settings(api_profile="release")))
+
+    naive = client.post(
+        "/api/decision-cases",
+        headers=_headers(analyst),
+        json={"objective": "Naive deadline", "decision_due_at_utc": "2026-11-06T16:00:00"},
+    )
+    assert naive.status_code == 422
+    assert "decision_due_timezone_required" in str(naive.json())
+
+    later = client.post(
+        "/api/decision-cases",
+        headers=_headers(analyst),
+        json={"objective": "Later", "decision_due_at_utc": "2026-11-06T17:00:00+01:00"},
+    ).json()["data"]
+    sooner = client.post(
+        "/api/decision-cases",
+        headers=_headers(analyst),
+        json={"objective": "Sooner", "decision_due_at_utc": "2026-11-06T10:00:00Z"},
+    ).json()["data"]
+    legacy = client.post(
+        "/api/decision-cases", headers=_headers(analyst), json={"objective": "No deadline"}
+    ).json()["data"]
+
+    assert later["decision_due_at_utc"] == "2026-11-06T16:00:00+00:00"
+    assert legacy["decision_due_at_utc"] is None
+    assert legacy["deadline_state"] == "none"
+
+    listed = client.get("/api/decision-cases", headers=_headers(analyst)).json()["data"]
+    ids = [row["case_id"] for row in listed]
+    assert ids.index(sooner["case_id"]) < ids.index(later["case_id"]) < ids.index(legacy["case_id"])

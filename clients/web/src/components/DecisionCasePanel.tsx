@@ -17,6 +17,7 @@
  * A Decision Record is evidence and rationale, never approval to execute anything.
  */
 
+import { deadlineStateKey, formatDeadlineUtc, localDeadlineToUtc } from "@/app/model/decisionDeadline";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api } from "@/api/client";
@@ -93,6 +94,9 @@ export function DecisionCasePanel({
   const selected = loadedCase?.case_id === selectedCaseId ? loadedCase : null;
   const [view, setView] = useState<PanelView>("open");
   const [objective, setObjective] = useState("");
+  // Optional deadline, typed in local time and confirmed in UTC before saving (#58).
+  const [dueLocal, setDueLocal] = useState("");
+  const dueUtc = localDeadlineToUtc(dueLocal);
   const [evidenceKind, setEvidenceKind] =
     useState<DecisionCaseEvidenceInputDTO["kind"]>("MARKET_CONTEXT");
   const [evidenceRef, setEvidenceRef] = useState("");
@@ -226,6 +230,7 @@ export function DecisionCasePanel({
         gas_day: gasDay,
         delivery_product: deliveryProduct,
         hub_id: hubId ?? "",
+        decision_due_at_utc: dueUtc,
       });
       const updated = await withPack(response.data);
       if (!isCurrent()) return false;
@@ -233,6 +238,7 @@ export function DecisionCasePanel({
       if (!isCurrent()) return;
       setSelected(updated);
       setObjective("");
+      setDueLocal("");
       setBusy(false);
       onSelectCaseId(response.data.case_id);
     } catch (error) {
@@ -300,6 +306,15 @@ export function DecisionCasePanel({
             onChange={(event) => setObjective(event.target.value)}
           />
         </label>
+        <label>
+          <span>{t("decision_case.due")}</span>
+          <input
+            type="datetime-local"
+            value={dueLocal}
+            onChange={(event) => setDueLocal(event.target.value)}
+          />
+          {dueUtc && <small className="muted">= {formatDeadlineUtc(dueUtc)}</small>}
+        </label>
         <button type="button" disabled={busy || !objective.trim()} onClick={() => void openCase()}>
           {t("decision_case.create")}
         </button>
@@ -332,6 +347,12 @@ export function DecisionCasePanel({
             <span>
               {t("decision_case.evidence_count", { count: row.evidence_count })}
             </span>
+            {row.decision_due_at_utc && (
+              <span className={`decision-deadline deadline-${row.deadline_state ?? "none"}`}>
+                {formatDeadlineUtc(row.decision_due_at_utc)}
+                {deadlineStateKey(row.deadline_state) && ` · ${t(deadlineStateKey(row.deadline_state)!)}`}
+              </span>
+            )}
             {row.last_record && (
               <span>{t(outcomeLabelKey(row.last_record.outcome))}</span>
             )}

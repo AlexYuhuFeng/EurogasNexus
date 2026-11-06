@@ -4514,5 +4514,10 @@
   "nav.research.short": "Data",
   "nav.agents.short": "Agents",
   "nav.sources.short": "Sources",
-  "nav.access.short": "Access"
+  "nav.access.short": "Access",
+  "decision_case.due": "Decision due (your local time)",
+  "decision_case.deadline.due": "due",
+  "decision_case.deadline.overdue": "overdue",
+  "decision_case.deadline.on_time": "decided on time",
+  "decision_case.deadline.late": "decided late"
 }

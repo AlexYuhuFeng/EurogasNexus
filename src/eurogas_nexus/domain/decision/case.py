@@ -125,6 +125,9 @@ class DecisionCase:
     hub_id: str = ""
     portfolio_ref: str = ""
     snapshot_id: str = ""
+    # When the decision is due (#58), UTC ISO-8601, or "" when none was set. It is the desk's
+    # decision deadline, separate from the gas day and from any nomination cut-off.
+    decision_due_at_utc: str = ""
     assumptions: tuple[DecisionAssumption, ...] = ()
     alternatives: tuple[DecisionAlternative, ...] = ()
     evidence: tuple[DecisionEvidence, ...] = ()
@@ -246,6 +249,59 @@ def add_evidence(case: DecisionCase, evidence: DecisionEvidence) -> DecisionCase
     return replace(case, evidence=(*case.evidence, evidence), snapshot_id=snapshot_id)
 
 
+def parse_decision_due(value: str | None) -> datetime | None:
+    """A decision deadline from client input, as an aware UTC datetime (#58).
+
+    The value must carry an explicit offset (``Z`` or ``+01:00``): a naive local time is
+    ambiguous across desks and daylight-saving changes, so it is refused.
+
+    Raises:
+        ValueError: ``decision_due_invalid`` or ``decision_due_timezone_required``.
+    """
+
+    if value is None or not value.strip():
+        return None
+    text = value.strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("decision_due_invalid") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("decision_due_timezone_required")
+    return parsed.astimezone(UTC)
+
+
+def deadline_state(case: DecisionCase, now_utc: datetime | None = None) -> str:
+    """Where a case stands against its deadline (#58).
+
+    ``none`` (no deadline), ``due`` (open, before the deadline), ``overdue`` (open, past it),
+    ``decided_on_time`` or ``decided_late`` (the first decision against the deadline). A late
+    decision keeps its outcome and evidence; the label only reports the timing.
+    """
+
+    if not case.decision_due_at_utc:
+        return "none"
+    due = datetime.fromisoformat(case.decision_due_at_utc)
+    if case.records:
+        decided = datetime.fromisoformat(case.records[0].recorded_at_utc)
+        if decided.tzinfo is None:
+            decided = decided.replace(tzinfo=UTC)
+        return "decided_on_time" if decided <= due else "decided_late"
+    now = now_utc or datetime.now(UTC)
+    return "due" if now <= due else "overdue"
+
+
+def deadline_sort_key(case: DecisionCase) -> tuple[int, str, str]:
+    """Open cases by due time (no deadline last), then a stable id; decided cases after."""
+
+    open_case = case.status not in (DecisionCaseStatus.DECIDED, DecisionCaseStatus.RETIRED)
+    if not open_case:
+        return (2, "", case.case_id)
+    if case.decision_due_at_utc:
+        return (0, case.decision_due_at_utc, case.case_id)
+    return (1, "", case.case_id)
+
+
 def case_summary(case: DecisionCase) -> dict[str, object]:
     """Compact, safe summary for a list view: no free-text body, no secrets."""
 
@@ -256,6 +312,8 @@ def case_summary(case: DecisionCase) -> dict[str, object]:
         "gas_day": case.gas_day,
         "delivery_product": case.delivery_product,
         "hub_id": case.hub_id,
+        "decision_due_at_utc": case.decision_due_at_utc or None,
+        "deadline_state": deadline_state(case),
         "evidence_count": len(case.evidence),
         "alternative_count": len(case.alternatives),
         "assumption_count": len(case.assumptions),

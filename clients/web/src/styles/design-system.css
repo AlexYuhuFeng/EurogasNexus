@@ -3727,3 +3727,12 @@
     width: 100%;
   }
 }
+
+/* Decision deadlines (#58): overdue and late read as warnings, never as success. */
+@layer ds-components {
+  .decision-deadline.deadline-overdue,
+  .decision-deadline.deadline-decided_late {
+    color: var(--ds-warning, var(--ds-negative, currentColor));
+    font-weight: 600;
+  }
+}
