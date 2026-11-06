@@ -65,3 +65,19 @@ def test_weather_regression_recovers_the_hdd_slope():
     result = forecast_balance(history, start=START, days=1, hdd=hdd)
     assert result.days[0].methods["call"] == "weather_regression"
     assert round(result.days[0].call_gwh) == 1500 + 120 * 12 + (-200 if START.weekday() >= 5 else 0)
+
+
+def test_existing_outage_is_not_subtracted_twice_and_ending_outage_restores_supply():
+    history = [
+        BalanceHistoryDay(START - timedelta(days=i), 800, 400, 1800) for i in range(40, 0, -1)
+    ]
+    result = forecast_balance(
+        history,
+        start=START,
+        days=3,
+        norway_outages=[Outage(START - timedelta(days=10), START + timedelta(days=2), 200)],
+    )
+    assert result.days[0].norway_gwh == 800
+    assert result.days[1].norway_gwh == 800
+    assert result.days[2].norway_gwh == 1000
+    assert result.days[0].norway_recent_outage_baseline_gwh == 200

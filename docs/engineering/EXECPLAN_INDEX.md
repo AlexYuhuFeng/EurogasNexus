@@ -6,7 +6,7 @@ RFC or ADR. Use [EXECPLAN_TEMPLATE.md](EXECPLAN_TEMPLATE.md) for a new plan.
 
 | ID | Title | Status | Related RFC/ADR | Record |
 | --- | --- | --- | --- | --- |
-| FUNCTIONAL | Reproducible functional engine workflows | F01 implemented; further slices planned | API evolution | [Plan](FUNCTIONAL_ENGINE_IMPROVEMENTS.md) |
+| FUNCTIONAL | Reproducible functional engine workflows | F01–F09 implemented on review branch | API evolution | [Plan](FUNCTIONAL_ENGINE_IMPROVEMENTS.md) |
 | DELIVERY-RECOVERY | Reconstruct and verify full delivery | In progress | API evolution and source/security contracts | [Plan](DELIVERY_RECOVERY_EXECPLAN.md) |
 | UX-01 | Professional workstation convergence | In progress: audit | UI and content standards; Constitution RFC pending | [Plan](UX01_EXECPLAN.md) |
 

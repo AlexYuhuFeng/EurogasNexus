@@ -36,6 +36,10 @@ class EnforcementStatus(StrEnum):
 # (path pattern, permission). Longest matching pattern wins, so exact routes
 # listed here override their prefix families regardless of order.
 ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
+    ("/api/functional-runs", Permission.GOVERNED),
+    ("/api/functional-runs/", Permission.GOVERNED),
+    ("/api/functional-models", Permission.GOVERNED),
+    ("/api/functional-models/", Permission.GOVERNED),
     # --- health / bootstrap ---
     ("/api/health", Permission.PUBLIC),
     ("/api/health/live", Permission.PUBLIC),
@@ -280,6 +284,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
 # legacy path registry intact for compatibility, and resolve these overrides
 # only when the caller supplies an HTTP method.
 METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
+    ("PATCH", "/api/functional-models/{model_id}", Permission.REVIEW),
     ("POST", "/api/market/nwe-balance", Permission.GOVERNED),
     ("GET", "/api/strategies", Permission.READ),
     ("GET", "/api/strategies/{strategy_id}/versions", Permission.READ),
@@ -337,6 +342,8 @@ ROLE_REQUIREMENTS: dict[Permission, str] = {
 # commercial evidence stays commercial through /api/agent/ and the governed
 # invoke path).
 COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
+    "/api/functional-runs/",
+    "/api/functional-models/",
     "/api/market/",
     "/api/monitoring/",
     "/api/projections/",

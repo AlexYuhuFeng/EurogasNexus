@@ -12,7 +12,7 @@ START = date(2026, 11, 8)
 
 
 def scenario():
-    origin = datetime(2026, 11, 7, 23, tzinfo=UTC).isoformat()
+    origin = datetime(2026, 11, 8, 6, tzinfo=UTC).isoformat()
     history, weather = [], []
     for back in range(60, 0, -1):
         day = START - timedelta(days=back)

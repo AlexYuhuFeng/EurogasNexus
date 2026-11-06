@@ -38,6 +38,16 @@ class DataScienceFunction:
 
 FUNCTION_CATALOG: tuple[DataScienceFunction, ...] = (
     DataScienceFunction(
+        name="functional_analysis",
+        description="Run reproducible weather, readiness and joint resource/network/storage tasks.",
+        rest_path="/api/functional-runs",
+        method="POST",
+        sdk="eurogas_nexus_sdk.functional.submit_run",
+        mcp=None,
+        decision_context="sandbox",
+        persisted_run=True,
+    ),
+    DataScienceFunction(
         name="route_cost",
         description="Calculate route cost from explicit tariff legs.",
         rest_path="/api/route-cost/calculate",

@@ -17,6 +17,7 @@ from pydantic import (
     model_validator,
 )
 
+from eurogas_nexus.domain.economics.financing import FundingTerms
 from eurogas_nexus.domain.market.gas_day import (
     DEFAULT_GAS_DAY_CALENDAR,
     EU_CAM_UTC_CALENDAR,
@@ -63,13 +64,9 @@ class BacktestDecisionSchedule(BaseModel):
     @model_validator(mode="after")
     def _validate(self) -> BacktestDecisionSchedule:
         if self.timezone != "UTC":
-            raise ValueError(
-                "CR-04 decision clock supports UTC only; no local-time ambiguity"
-            )
+            raise ValueError("CR-04 decision clock supports UTC only; no local-time ambiguity")
         if self.gas_day_calendar not in {DEFAULT_GAS_DAY_CALENDAR, EU_CAM_UTC_CALENDAR}:
-            raise ValueError(
-                f"Unsupported gas-day calendar: {self.gas_day_calendar!r}"
-            )
+            raise ValueError(f"Unsupported gas-day calendar: {self.gas_day_calendar!r}")
         return self
 
 
@@ -83,9 +80,22 @@ class BacktestCostComponent(BaseModel):
     unit: str = "GBP/MWh"
     source_refs: list[str] = Field(default_factory=list)
     rationale: str = ""
+    financing: FundingTerms | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> BacktestCostComponent:
+        if self.financing is not None:
+            if (
+                self.code != "FINANCING_COST"
+                or self.treatment != CostTreatment.MODELED_COST
+                or self.currency != "GBP"
+                or self.unit != "GBP/MWh"
+            ):
+                raise ValueError("funding terms require a modeled GBP/MWh FINANCING_COST")
+            calculated = self.financing.amount_gbp_mwh()
+            if self.amount_gbp_mwh is not None and abs(self.amount_gbp_mwh - calculated) > 1e-9:
+                raise ValueError("financing amount conflicts with declared funding terms")
+            self.amount_gbp_mwh = calculated
         if self.treatment in {CostTreatment.KNOWN_COST, CostTreatment.MODELED_COST}:
             if self.amount_gbp_mwh is None:
                 raise ValueError(
@@ -113,9 +123,7 @@ class BacktestEconomicAssumptions(BaseModel):
             self.missing_data_policy == MissingDataPolicy.USE_APPROVED_FALLBACK_SOURCE
             and not self.fallback_sources
         ):
-            raise ValueError(
-                "USE_APPROVED_FALLBACK_SOURCE requires fallback_sources"
-            )
+            raise ValueError("USE_APPROVED_FALLBACK_SOURCE requires fallback_sources")
         codes = [item.code for item in self.cost_components]
         if len(codes) != len(set(codes)):
             raise ValueError("duplicate cost component code")
@@ -128,8 +136,7 @@ class BacktestEconomicAssumptions(BaseModel):
         return [
             item
             for item in self.cost_components
-            if item.treatment
-            in {CostTreatment.KNOWN_COST, CostTreatment.MODELED_COST}
+            if item.treatment in {CostTreatment.KNOWN_COST, CostTreatment.MODELED_COST}
         ]
 
 
@@ -167,9 +174,7 @@ class BacktestObservation(BaseModel):
     price_basis: str | None = None
 
     @model_serializer(mode="wrap")
-    def _serialize_observation(
-        self, handler: SerializerFunctionWrapHandler
-    ) -> dict[str, Any]:
+    def _serialize_observation(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         """Omit the new normalized evidence fields when they are unknown."""
 
         data = handler(self)
@@ -177,7 +182,6 @@ class BacktestObservation(BaseModel):
             if data.get(key) is None:
                 data.pop(key, None)
         return data
-
 
 
 class BacktestFxRate(BaseModel):
@@ -237,11 +241,7 @@ class BacktestEvidencePool(BaseModel):
 
     def observation_refs(self) -> list[str]:
         return sorted(
-            {
-                item.source_reference
-                for item in self.observations
-                if item.source_reference
-            }
+            {item.source_reference for item in self.observations if item.source_reference}
         )
 
     def fx_refs(self) -> list[str]:
@@ -292,9 +292,7 @@ class BacktestDecisionEvent(BaseModel):
     human_review_required: bool = True
 
     @model_serializer(mode="wrap")
-    def _serialize_event(
-        self, handler: SerializerFunctionWrapHandler
-    ) -> dict[str, Any]:
+    def _serialize_event(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         """Omit the selection trace when there is none.
 
         A legacy engine/1 event (and any shadow event) keeps its existing JSON

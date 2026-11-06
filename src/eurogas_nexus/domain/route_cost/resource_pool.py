@@ -28,6 +28,7 @@ from eurogas_nexus.domain.constraints.access import (
     inaccessible_tsos,
     tso_access_status,
 )
+from eurogas_nexus.domain.economics.financing import simple_interest
 from eurogas_nexus.domain.ontology.vocabulary import (
     AccessStatus,
     CapacityStatus,
@@ -213,9 +214,7 @@ class PortfolioSaleOption(BaseModel):
     label: str
     delivery_mode: DeliveryMode
     target_point_name: str
-    route_topology_kind: Literal["LOCAL_MARKET_DISPOSITION", "NETWORK_ROUTE"] = (
-        "NETWORK_ROUTE"
-    )
+    route_topology_kind: Literal["LOCAL_MARKET_DISPOSITION", "NETWORK_ROUTE"] = "NETWORK_ROUTE"
     sale_price_gbp_mwh: float
     sale_price_currency: str = "GBP"
     sale_price_unit: str = "GBP/MWh"
@@ -325,9 +324,7 @@ class PortfolioOptimizationScenario(BaseModel):
                 " default rate"
             )
         if isinstance(value, float) and not math.isfinite(value):
-            raise ValueError(
-                f"annual_financing_rate_pct must be finite, got {value!r}"
-            )
+            raise ValueError(f"annual_financing_rate_pct must be finite, got {value!r}")
         return value
 
 
@@ -476,9 +473,7 @@ def optimize_resource_pool(
                 and resource.resource_id not in option.eligible_resource_ids
             ):
                 continue
-            required_access = _unique(
-                [*resource.required_tso_access, *option.required_tso_access]
-            )
+            required_access = _unique([*resource.required_tso_access, *option.required_tso_access])
             access_status = tso_access_status(required_access, resource.accessible_tsos)
             if access_status is AccessStatus.UNKNOWN:
                 # 访问状态未知：fail-closed，该组合不可用。
@@ -514,9 +509,7 @@ def optimize_resource_pool(
                 missing_inputs.append(
                     f"SALE_CASH_LAG_MISSING:{resource.resource_id}:{option.option_id}"
                 )
-                warnings.append(
-                    f"SALE_CASH_LAG_UNKNOWN:{resource.resource_id}:{option.option_id}"
-                )
+                warnings.append(f"SALE_CASH_LAG_UNKNOWN:{resource.resource_id}:{option.option_id}")
                 continue
             # Each contract is priced with its own financing rate (A at 3 %, B at 2 % stay
             # A at 3 % and B at 2 %); the scenario rate only covers resources without one.
@@ -612,8 +605,7 @@ def optimize_resource_pool(
             "pair whose effective sale-cash lag is undeclared is refused and "
             "reported (missing input), never credited with an assumed receipt "
             "day.",
-            "The result is decision support only; it does not execute trades "
-            "or nominations.",
+            "The result is decision support only; it does not execute trades or nominations.",
         ],
         warnings=_unique(warnings),
         source_refs=_unique(source_refs),
@@ -803,12 +795,8 @@ def _add_arc(
 
     forward_index = len(graph[source])
     reverse_index = len(graph[target])
-    graph[source].append(
-        _ResidualArc(target, reverse_index, capacity, unit_cost)
-    )
-    graph[target].append(
-        _ResidualArc(source, forward_index, 0.0, -unit_cost)
-    )
+    graph[source].append(_ResidualArc(target, reverse_index, capacity, unit_cost))
+    graph[target].append(_ResidualArc(source, forward_index, 0.0, -unit_cost))
     return forward_index
 
 
@@ -960,9 +948,7 @@ def _currencies_compatible(resource: PortfolioResource, option: PortfolioSaleOpt
 def _units_compatible(resource: PortfolioResource, option: PortfolioSaleOption) -> bool:
     """Whether the cost and sale price units match (normalised)."""
 
-    return _normalise_unit(resource.contract_cost_unit) == _normalise_unit(
-        option.sale_price_unit
-    )
+    return _normalise_unit(resource.contract_cost_unit) == _normalise_unit(option.sale_price_unit)
 
 
 def _normalise_currency(value: str) -> str:
@@ -1079,14 +1065,17 @@ def _early_cash_value_gbp_mwh(
     """
 
     lag_days = max(resource.upstream_payment_lag_days - screen_sale_cash_lag_days, 0)
-    annual_rate = annual_financing_rate_pct / 100
-    year_days = 360 if resource.financing_day_count == "ACT/360" else 365
     base_cost = (
         resource.contract_cost_gbp_mwh
         + resource.variable_cost_gbp_mwh
         + _fuel_loss_cost_gbp_mwh(resource)
     )
-    return round(base_cost * annual_rate * lag_days / year_days, 4)
+    return round(
+        simple_interest(
+            base_cost, annual_financing_rate_pct, lag_days, resource.financing_day_count
+        ),
+        4,
+    )
 
 
 def _tranched_early_cash_gbp_mwh(

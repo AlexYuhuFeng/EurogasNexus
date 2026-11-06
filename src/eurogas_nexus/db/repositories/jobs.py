@@ -262,7 +262,7 @@ def _to_domain(row: JobRecord) -> Job:
 
 
 def _require_job(session: Session, job_id: str) -> JobRecord:
-    row = session.get(JobRecord, job_id)
+    row = session.get(JobRecord, job_id, with_for_update=True, populate_existing=True)
     if row is None:
         raise ValueError("unknown_job")
     return row

@@ -227,6 +227,9 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="identity_groups", introduced_in="0040_strategy_owner_sharing"),
     RequiredTable(name="identity_group_members", introduced_in="0040_strategy_owner_sharing"),
     RequiredTable(name="strategy_group_shares", introduced_in="0040_strategy_owner_sharing"),
+    RequiredTable(name="functional_runs", introduced_in="0059_functional_runs"),
+    RequiredTable(name="functional_models", introduced_in="0059_functional_runs"),
+    RequiredTable(name="functional_dependencies", introduced_in="0059_functional_runs"),
 )
 
 

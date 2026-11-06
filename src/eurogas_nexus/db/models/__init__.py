@@ -40,6 +40,11 @@ from eurogas_nexus.db.models.decision import (
     DecisionCaseRecord,
 )
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
+from eurogas_nexus.db.models.functional import (
+    FunctionalDependencyRecord,
+    FunctionalModelRecord,
+    FunctionalRunRecord,
+)
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
 from eurogas_nexus.db.models.identity import (
     IdentityApiKeyRecord,
@@ -253,6 +258,9 @@ class IngestionRunRecord(Base):
 
 
 __all__ = [
+    "FunctionalDependencyRecord",
+    "FunctionalRunRecord",
+    "FunctionalModelRecord",
     "StrategyShadowAlertRecord",
     "StrategyShadowCandidateRecord",
     "StrategyShadowDriftSnapshotRecord",

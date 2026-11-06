@@ -1360,6 +1360,11 @@ def _envelope_run(
     output: object,
     warnings: tuple[str, ...],
 ) -> dict:
+    from eurogas_nexus.application.calculation_manifest import calculation_manifest
+
+    manifest = calculation_manifest(
+        optimization_type, f"optimization-{optimization_type}/1", body.model_dump(mode="json")
+    )
     run_id = _persist_run(
         optimization_type=optimization_type,
         decision_context=body.decision_context,
@@ -1377,6 +1382,7 @@ def _envelope_run(
             "warnings": list(warnings),
             "run_id": run_id,
             "decision_context": body.decision_context,
+            "calculation_manifest": manifest,
         },
     }
 
@@ -1409,6 +1415,14 @@ def _persist_run(
 
     if not _db_is_configured():
         return None
+    from eurogas_nexus.application.calculation_manifest import calculation_manifest
+
+    input_snapshot = {
+        **input_snapshot,
+        "calculation_manifest": calculation_manifest(
+            optimization_type, f"optimization-{optimization_type}/1", input_snapshot
+        ),
+    }
     run_id = f"opt-{uuid4().hex[:16]}"
     try:
         from eurogas_nexus.db.repositories.optimization import (

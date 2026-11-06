@@ -50,8 +50,8 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **231 paths / 249 operations**
-  (the NWE balance scenario POST, merged 2026-11-05; not yet in a release acceptance run).
+- OpenAPI public surface: **240 paths / 260 operations**
+  (functional branch adds task/model operations; no new release acceptance).
   (`/api/runtime/release`, CR-14 research data routes, CR-15 agent/capability
   routes, and the development-only `/api/dev/auth/login` added), pinned and
   permission-declared. Measure it rather than quoting this line:
@@ -222,7 +222,7 @@ Still needed, and only people outside engineering can provide them:
   (scripts/release/policy/stable_gate_policy.json), the GitHub `production` environment
   with required reviewers, and branch protection on `main`.
 - On the customer's side: enterprise IdP acceptance against their identity provider,
-  deployment migration to head `0057_contract_price_currency`, and an incident-response drill.
+  deployment migration to head `0059_functional_runs`, and an incident-response drill.
 
 ## Product Boundary
 

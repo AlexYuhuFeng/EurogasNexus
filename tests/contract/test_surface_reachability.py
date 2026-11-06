@@ -63,6 +63,15 @@ def _marker(path: str) -> str:
 
 #: Paths the SDK (or CLI/MCP) call by design, and the product does not need on a screen.
 MACHINE_SURFACE: dict[str, str] = {
+    "/api/functional-runs": "functional task submission and inventory (SDK/CLI)",
+    "/api/functional-runs/{run_id}": "functional run status and evidence (SDK/CLI)",
+    "/api/functional-runs/{run_id}/replay": "frozen-input task replay (SDK/CLI)",
+    "/api/functional-runs/{run_id}/compare": "scenario attribution and comparison (SDK/CLI)",
+    "/api/functional-runs/reconcile": "dependency revision reconciliation (SDK/CLI)",
+    "/api/functional-models": "research model registration (SDK/CLI)",
+    "/api/functional-models/{model_id}": "research model inspection and review (SDK/CLI)",
+    "/api/functional-models/{model_id}/predict": "frozen-model prediction (SDK/CLI)",
+    "/api/functional-models/{model_id}/evaluate": "shadow model evaluation (SDK/CLI)",
     "/api/weather/degree-days": (
         "caller-weighted degree-day computation (typed weather_degree_days SDK)"
     ),

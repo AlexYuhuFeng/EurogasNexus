@@ -88,7 +88,8 @@ def _checks() -> list[dict]:
     # and the sell-down plan add three (221 / 237); problem reports, notification channels
     # and the tariff publication register add seven paths, eight operations (228 / 245);
     # per-deal hedge approvals and the daily gas balance add three of each (231 / 248).
-    check("public_surface_bounded", len(paths) == 231, f"public paths={len(paths)}")
+    # Functional run, evidence and model operations extend the surface to 240 paths.
+    check("public_surface_bounded", len(paths) == 240, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

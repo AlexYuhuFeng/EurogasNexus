@@ -801,6 +801,16 @@ def post_resource_pool_optimization(
         # invent. ``add_output`` is the seam the day this result is persisted.
         result = optimize_resource_pool(body)
         payload = result.model_dump(mode="json")
+        from eurogas_nexus.application.calculation_manifest import calculation_manifest
+
+        payload["calculation_manifest"] = calculation_manifest(
+            "commercial-resource-pool",
+            "commercial-resource-pool/1",
+            body.model_dump(mode="json"),
+            versions={"analysis_snapshot": body.analysis_snapshot_id}
+            if body.analysis_snapshot_id
+            else {},
+        )
         if body.analysis_snapshot_id:
             payload["analysis_snapshot_id"] = body.analysis_snapshot_id
         else:

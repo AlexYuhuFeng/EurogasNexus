@@ -210,6 +210,8 @@ def _persist_run_row(
     engine_version: str,
 ) -> StrategyRunRecord:
     metrics = result.metrics.model_dump(mode="json")
+    from eurogas_nexus.application.calculation_manifest import calculation_manifest
+
     result_snapshot = {
         "run_type": "BACKTEST",
         "strategy_name": (version.definition_json or {}).get("strategy_name")
@@ -224,6 +226,19 @@ def _persist_run_row(
         "modeled_costs_gbp": metrics.get("modeled_costs_gbp", 0.0),
         "net_indicative_pnl_gbp": metrics.get("net_indicative_pnl_gbp", 0.0),
         "hit": bool((metrics.get("net_indicative_pnl_gbp") or 0.0) > 0),
+        "calculation_manifest": calculation_manifest(
+            "backtest",
+            engine_version,
+            {
+                "definition": definition.model_dump(mode="json"),
+                "strategy": version.definition_json,
+                "evidence_manifest": manifest.model_dump(mode="json"),
+            },
+            versions={
+                "dataset_snapshot": snapshot_id,
+                "strategy_version": version.strategy_version_id,
+            },
+        ),
     }
     run = StrategyRunRecord(
         run_id=run_id,
@@ -496,9 +511,7 @@ def _require_unambiguous_leg_names(component: StrategyComponentSpec) -> None:
             normalized = name.strip().upper()
             previous = first_key_by_name.get(normalized)
             if previous is not None and previous != key:
-                _raise_evidence_mapping_ambiguous(
-                    component.component_id, normalized, previous, key
-                )
+                _raise_evidence_mapping_ambiguous(component.component_id, normalized, previous, key)
             first_key_by_name[normalized] = key
 
 
