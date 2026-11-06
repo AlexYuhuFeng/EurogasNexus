@@ -270,8 +270,22 @@ def ladder_report(
             )
     if daily_closes_by_hub is not None:
         net_by_hub: dict[str, float] = {}
+        long_hubs: set[str] = set()
+        short_hubs: set[str] = set()
         for row in rows:
             net_by_hub[row.hub] = net_by_hub.get(row.hub, 0.0) + row.net_mwh
+            if row.net_mwh > 1e-9:
+                long_hubs.add(row.hub)
+            elif row.net_mwh < -1e-9:
+                short_hubs.add(row.hub)
+        offsetting_hubs = long_hubs & short_hubs
+        if offsetting_hubs:
+            hubs = ", ".join(sorted(offsetting_hubs))
+            result.warnings.append(
+                f"VaR unavailable: offsetting delivery months at {hubs} require tenor-level "
+                "price history."
+            )
+            return result
         result.var_95_1d, result.var_observations = historical_var(
             net_by_hub, daily_closes_by_hub, fx_by_hub=fx_by_hub
         )
