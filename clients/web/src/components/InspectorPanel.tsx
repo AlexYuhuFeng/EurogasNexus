@@ -16,7 +16,10 @@
  * current object announced politely when it changes.
  */
 
+import { useRef } from "react";
 import type { InspectorSubject } from "@/app/experience/inspectorContract";
+import { useSheetFocus } from "@/app/shell/useSheetFocus";
+import { useShellLayout } from "@/app/shell/useShellLayout";
 import type { InspectorDetail } from "@/app/model/inspectorDetail";
 
 interface InspectorPanelProps {
@@ -36,19 +39,31 @@ export function InspectorPanel({
   onClose,
   onBack,
 }: InspectorPanelProps) {
+  // On a phone the detail is a full-screen sheet with Back (docs/product/ADAPTIVE_CLIENT.md,
+  // slice A4): focus moves into it on open and returns to whatever opened it on close.
+  const sheet = useShellLayout().widthClass === "compact";
+  const focusRef = useRef<HTMLDivElement>(null);
+  useSheetFocus(sheet, focusRef, onClose);
   return (
     <aside
-      className="inspector-panel"
+      className={sheet ? "inspector-panel inspector-sheet" : "inspector-panel"}
       data-shell-region="inspector"
       aria-label={t("experience.inspector.title")}
+      role={sheet ? "dialog" : undefined}
+      aria-modal={sheet ? true : undefined}
     >
       <header className="inspector-panel-header">
-        <div>
+        {sheet && (
+          <button type="button" className="inspector-sheet-back" onClick={canGoBack ? onBack : onClose}>
+            <span aria-hidden="true">‹</span> {t("experience.inspector.back")}
+          </button>
+        )}
+        <div ref={focusRef} tabIndex={-1} className="inspector-sheet-focus">
           <span className="eyebrow">{t(`experience.inspect.${subject.kind}`)}</span>
           <h2>{detail.label ?? subject.label}</h2>
         </div>
         <div className="inspector-panel-actions">
-          {canGoBack && (
+          {!sheet && canGoBack && (
             <button type="button" onClick={onBack}>
               {t("experience.inspector.back")}
             </button>

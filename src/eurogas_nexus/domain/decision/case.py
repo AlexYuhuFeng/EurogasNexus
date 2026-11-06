@@ -292,14 +292,16 @@ def deadline_state(case: DecisionCase, now_utc: datetime | None = None) -> str:
 
 
 def deadline_sort_key(case: DecisionCase) -> tuple[int, str, str]:
-    """Open cases by due time (no deadline last), then a stable id; decided cases after."""
+    """Open cases with a deadline first, by due time then a stable id (#58).
+
+    Every other case keeps the order it was listed in (newest first): the key is the same for
+    all of them and Python's sort is stable, so adding deadlines never reshuffles the rest.
+    """
 
     open_case = case.status not in (DecisionCaseStatus.DECIDED, DecisionCaseStatus.RETIRED)
-    if not open_case:
-        return (2, "", case.case_id)
-    if case.decision_due_at_utc:
+    if open_case and case.decision_due_at_utc:
         return (0, case.decision_due_at_utc, case.case_id)
-    return (1, "", case.case_id)
+    return (1, "", "")
 
 
 def case_summary(case: DecisionCase) -> dict[str, object]:

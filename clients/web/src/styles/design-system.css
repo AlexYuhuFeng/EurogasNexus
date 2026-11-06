@@ -3803,3 +3803,62 @@
     font-size: 0.875rem;
   }
 }
+
+/* Inspector as a full-screen sheet on a phone (ADAPTIVE_CLIENT.md A4). */
+@layer ds-components {
+  .inspector-panel.inspector-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    width: 100%;
+    max-width: none;
+    border-left: 0;
+    box-shadow: none;
+    padding: var(--ds-space-3) var(--ds-space-4) calc(var(--ds-space-4) + env(safe-area-inset-bottom));
+  }
+
+  .inspector-sheet .inspector-panel-header {
+    flex-wrap: wrap;
+  }
+
+  .inspector-sheet-back {
+    flex: 1 0 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .inspector-sheet-focus:focus {
+    outline: none;
+  }
+}
+
+/* Source detail on a phone (A4): folded away until a source is opened, then full screen. */
+@layer ds-components {
+  .source-detail-panel.source-detail-folded {
+    display: none;
+  }
+
+  .source-detail-panel.source-detail-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    overflow-y: auto;
+    margin: 0;
+    border-radius: 0;
+    padding: var(--ds-space-3) var(--ds-space-4) calc(var(--ds-space-4) + env(safe-area-inset-bottom));
+    background: var(--ds-surface);
+  }
+
+  .source-detail-focus:focus {
+    outline: none;
+  }
+}

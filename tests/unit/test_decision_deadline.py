@@ -45,8 +45,10 @@ def test_open_cases_sort_by_due_time_regardless_of_creation_order() -> None:
         "2026-11-06T09:00:00+00:00",
         status=DecisionCaseStatus.DECIDED,
     )
-    ordered = sorted([none, late, decided, early], key=deadline_sort_key)
-    assert [case.case_id for case in ordered] == ["case-z", "case-b", "case-a", "case-c"]
+    # The input order stands for the listing order (newest first); only open cases with a
+    # deadline move ahead of it.
+    ordered = sorted([decided, none, late, early], key=deadline_sort_key)
+    assert [case.case_id for case in ordered] == ["case-z", "case-b", "case-c", "case-a"]
 
 
 def test_due_overdue_and_decision_timing() -> None:

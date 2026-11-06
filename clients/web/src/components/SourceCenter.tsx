@@ -1,5 +1,5 @@
 import { tabLabels } from "@/components/ui/tabLabels";
-import { type FormEventHandler, useState } from "react";
+import { type FormEventHandler, useEffect, useRef, useState } from "react";
 import type { SourceRunOutcome, SourceRunReadiness } from "@/app/model/sourceRunModel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import type { SourceRegistryReadSurface } from "@/app/model/sourceRegistryRead";
@@ -23,6 +23,7 @@ import type {
   TsoTariffDTO,
 } from "@/api/client";
 import { useUrlView } from "@/app/navigation/useUrlView";
+import { useShellLayout } from "@/app/shell/useShellLayout";
 import { CONNECTOR_GROUPS, groupConnectors } from "@/app/model/connectorCatalogModel";
 
 interface SourceStats {
@@ -284,6 +285,37 @@ export function SourceCenter({
 }: SourceCenterProps) {
   const inspector = useInspectorStore();
   const [activeView, setActiveView] = useUrlView<SourceViewId>("sources", "attention");
+  // On a phone the source detail is a full-screen sheet opened from the list, with Back
+  // (ADAPTIVE_CLIENT.md A4); wider screens keep the side-by-side detail panel.
+  const compact = useShellLayout().widthClass === "compact";
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  const sheetOpenerRef = useRef<HTMLElement | null>(null);
+  const detailHeadingRef = useRef<HTMLDivElement>(null);
+  const openSource = (sourceId: string) => {
+    onSourceSelect(sourceId);
+    if (compact) {
+      sheetOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setDetailSheetOpen(true);
+      window.requestAnimationFrame(() => detailHeadingRef.current?.focus());
+    }
+  };
+  const closeSheet = () => {
+    setDetailSheetOpen(false);
+    const opener = sheetOpenerRef.current;
+    if (opener?.isConnected) window.requestAnimationFrame(() => opener.focus());
+  };
+  useEffect(() => {
+    if (!compact) setDetailSheetOpen(false);
+  }, [compact]);
+  useEffect(() => {
+    if (!detailSheetOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeSheet();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailSheetOpen]);
   const sortedSources = [...filteredSources].sort((left, right) => {
     const priorityDelta = sourcePriority(left) - sourcePriority(right);
     return priorityDelta || left.source_system.localeCompare(right.source_system);
@@ -410,7 +442,7 @@ export function SourceCenter({
             sources={sortedSources}
             selectedId={selectedSource?.source_id ?? null}
             t={t}
-            onSelect={onSourceSelect}
+            onSelect={openSource}
           />
         )}
         {activeView !== "attention" && (<>
@@ -452,7 +484,7 @@ export function SourceCenter({
                   aria-selected={selectedSource?.source_id === source.source_id}
                   // The whole row selects the source (#21); its buttons stay the keyboard
                   // targets, and their own clicks select the same source.
-                  onClick={() => onSourceSelect(source.source_id)}
+                  onClick={() => openSource(source.source_id)}
                 >
                   <td>
                     <StatusBadge variant="source" status={source.operational_status}>
@@ -460,7 +492,7 @@ export function SourceCenter({
                     </StatusBadge>
                   </td>
                   <td>
-                    <button type="button" className="source-row-select" onClick={() => onSourceSelect(source.source_id)}>
+                    <button type="button" className="source-row-select" onClick={(event) => { event.stopPropagation(); openSource(source.source_id); }}>
                       <strong>{sourceDisplayName(source)}</strong>
                       <small>
                         {sourceLabel("sources.category", source.category)}
@@ -490,7 +522,7 @@ export function SourceCenter({
                   </td>
                   <td><span>{source.consecutive_failures}</span></td>
                   <td>
-                    <button type="button" className="source-diagnostic-action" onClick={() => onSourceSelect(source.source_id)}>
+                    <button type="button" className="source-diagnostic-action" onClick={(event) => { event.stopPropagation(); openSource(source.source_id); }}>
                       {sourceNextAction(source)}
                     </button>
                   </td>
@@ -513,13 +545,27 @@ export function SourceCenter({
 
       {activeView !== "infrastructure" && (
       <div
-        className={activeView === "access" ? "workspace-panel span-3 source-detail-panel" : "workspace-panel source-detail-panel"}
+        className={[
+          "workspace-panel",
+          activeView === "access" ? "span-3" : "",
+          "source-detail-panel",
+          compact ? (detailSheetOpen ? "source-detail-sheet" : "source-detail-folded") : "",
+        ].filter(Boolean).join(" ")}
+        role={compact && detailSheetOpen ? "dialog" : undefined}
+        aria-modal={compact && detailSheetOpen ? true : undefined}
+        aria-label={compact && detailSheetOpen && selectedSource ? sourceDisplayName(selectedSource) : undefined}
         // The detail panel declares the record it is showing, so the browser sweep's source
         // interaction can hold the selection to the exact row that was clicked instead of
         // comparing the page's own copy with itself (`browser_workflow_smoke.mjs`).
         data-record="source-detail"
         data-record-id={selectedSource?.source_id}
       >
+        {compact && detailSheetOpen && (
+          <button type="button" className="inspector-sheet-back" onClick={closeSheet}>
+            <span aria-hidden="true">‹</span> {t("experience.inspector.back")}
+          </button>
+        )}
+        <div ref={detailHeadingRef} tabIndex={-1} className="source-detail-focus">
         <PanelHeader
           title={selectedSource ? sourceDisplayName(selectedSource) : t("sources.no_source")}
           meta={selectedSource ? (
@@ -528,6 +574,7 @@ export function SourceCenter({
             </StatusBadge>
           ) : undefined}
         />
+        </div>
         {selectedSource && (
           <>
             <p>{selectedSource.description}</p>
