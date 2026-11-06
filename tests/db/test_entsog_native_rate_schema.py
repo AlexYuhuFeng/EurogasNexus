@@ -275,7 +275,7 @@ def test_schema_revision_and_model_native_contract():
 
     # The ENTSOG native-rate migration is no longer head; it stays in the chain.
     assert migration.revision == "0044_entsog_native_rates"
-    assert DB_SCHEMA_REVISION == "0060_decision_due"
+    assert DB_SCHEMA_REVISION == "0061_audit_keyset_index"
     assert migration.down_revision == "0043_national_gas_rest_evidence"
 
     for model, volume_column, check_name in (

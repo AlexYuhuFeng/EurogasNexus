@@ -295,6 +295,8 @@ class AuditEventRecord(Base):
     __tablename__ = "audit_events"
     __table_args__ = (
         Index("ix_audit_events_actor_action", "principal", "action"),
+        # Keyset order of the investigation walk (#59): newest first, stable under ties.
+        Index("ix_audit_events_ts_id", "event_ts_utc", "event_id"),
     )
 
 

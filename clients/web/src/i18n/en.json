@@ -4519,5 +4519,10 @@
   "decision_case.deadline.due": "due",
   "decision_case.deadline.overdue": "overdue",
   "decision_case.deadline.on_time": "decided on time",
-  "decision_case.deadline.late": "decided late"
+  "decision_case.deadline.late": "decided late",
+  "access.audit_from": "From (local time)",
+  "access.audit_to": "To (local time)",
+  "access.audit_search": "Search",
+  "access.audit_more": "Load more",
+  "access.audit_shown": "{{count}} events shown, newest first"
 }

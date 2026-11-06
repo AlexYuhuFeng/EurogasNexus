@@ -748,13 +748,54 @@ def list_audit(
     action: str | None = Query(default=None, max_length=64),
     resource: str | None = Query(default=None, max_length=128),
     outcome: str | None = Query(default=None, max_length=32),
+    start_utc: str | None = Query(default=None, max_length=40),
+    end_utc: str | None = Query(default=None, max_length=40),
+    cursor: str | None = Query(default=None, max_length=1024),
 ) -> dict:
+    """Audit events, newest first, walkable past any page size (#59).
+
+    The first page is anchored to a high-water mark (``end_utc``, else the request time), so
+    events written while an investigator pages - including the audit of this read - never
+    shift the walk. Order is (timestamp, event id) descending, stable under tied timestamps.
+    ``meta.continuation.cursor`` continues the walk; it is bound to the filters and refused
+    with any other set. ``audit.read`` is checked on every page.
+    """
+
+    from eurogas_nexus.application.audit_paging import (
+        AuditCursorError,
+        AuditFilters,
+        decode_cursor,
+        encode_cursor,
+        parse_window_bound,
+    )
+
     admin = _require_admin(request, Permission.AUDIT_READ)
     _require_db()
+    filters = AuditFilters(
+        actor=actor or "",
+        action=action or "",
+        resource=resource or "",
+        outcome=outcome or "",
+        start_utc=start_utc or "",
+        end_utc=end_utc or "",
+    )
+    try:
+        start = parse_window_bound(start_utc, "start_utc")
+        end = parse_window_bound(end_utc, "end_utc")
+        position = decode_cursor(cursor, filters) if cursor else None
+    except AuditCursorError as exc:
+        raise HTTPException(
+            status_code=400, detail={"error_code": exc.code, "message": str(exc)}
+        ) from exc
+    anchor = position.anchor if position else (end or datetime.now(UTC))
     with _session() as session:
+        from sqlalchemy import and_, or_
+
         from eurogas_nexus.db.models import AuditEventRecord
 
-        query = session.query(AuditEventRecord)
+        query = session.query(AuditEventRecord).filter(AuditEventRecord.event_ts_utc <= anchor)
+        if start:
+            query = query.filter(AuditEventRecord.event_ts_utc >= start)
         if actor:
             query = query.filter(AuditEventRecord.principal == actor)
         if action:
@@ -763,21 +804,57 @@ def list_audit(
             query = query.filter(AuditEventRecord.resource.ilike(f"%{resource}%"))
         if outcome:
             query = query.filter(AuditEventRecord.outcome == outcome)
-        rows = query.order_by(AuditEventRecord.event_ts_utc.desc()).limit(limit).all()
+        if position:
+            query = query.filter(
+                or_(
+                    AuditEventRecord.event_ts_utc < position.last_ts,
+                    and_(
+                        AuditEventRecord.event_ts_utc == position.last_ts,
+                        AuditEventRecord.event_id < position.last_id,
+                    ),
+                )
+            )
+        rows = (
+            query.order_by(AuditEventRecord.event_ts_utc.desc(), AuditEventRecord.event_id.desc())
+            .limit(limit + 1)
+            .all()
+        )
+        has_more = len(rows) > limit
+        rows = rows[:limit]
         data = [
             {column.name: getattr(row, column.name) for column in row.__table__.columns}
             for row in rows
         ]
+        next_cursor = (
+            encode_cursor(
+                anchor=anchor,
+                last_ts=rows[-1].event_ts_utc,
+                last_id=rows[-1].event_id,
+                filters=filters,
+            )
+            if has_more and rows
+            else None
+        )
         _audit_admin(
             session,
             actor=admin.principal_id,
             action="access.audit.list",
             resource="audit_events",
             outcome="listed",
-            detail=f"limit={limit}",
+            detail=f"limit={limit}" + (" continuation" if position else ""),
         )
         session.commit()
-    return _env(data)
+    envelope = _env(data)
+    envelope["meta"]["continuation"] = {
+        "anchor_utc": _iso_utc(anchor),
+        "has_more": has_more,
+        "cursor": next_cursor,
+    }
+    return envelope
+
+
+def _iso_utc(value: datetime) -> str:
+    return (value if value.tzinfo else value.replace(tzinfo=UTC)).astimezone(UTC).isoformat()
 
 
 @router.get("/api/access/sso")

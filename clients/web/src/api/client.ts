@@ -5131,8 +5131,11 @@ export const api = {
     post<AccessApiKeyDTO & { api_key: string }>("/access/api-keys", body),
   revokeAccessApiKey: (keyId: string) =>
     post<{ key_id: string; revoked: boolean }>(`/access/api-keys/${encodeURIComponent(keyId)}/revoke`, {}),
-  auditEvents: (params?: { actor?: string; action?: string; resource?: string; outcome?: string; limit?: string }) =>
-    get<AuditEventDTO[]>("/audit", params),
+  auditEvents: (params?: {
+    actor?: string; action?: string; resource?: string; outcome?: string; limit?: string;
+    /** Window bounds, ISO-8601 with an offset, and the continuation cursor (#59). */
+    start_utc?: string; end_utc?: string; cursor?: string;
+  }) => get<AuditEventDTO[], ApiMeta & { continuation?: AuditContinuationDTO }>("/audit", params),
   ssoProfile: () => get<Record<string, unknown>>("/access/sso"),
 };
 
@@ -5254,6 +5257,13 @@ export interface DataScopeCatalogueDTO {
   public_baseline: string[];
   commercial: string[];
   wildcard: string;
+}
+
+/** Where an audit walk stands (#59): the anchor, whether more matches exist, the next cursor. */
+export interface AuditContinuationDTO {
+  anchor_utc: string;
+  has_more: boolean;
+  cursor: string | null;
 }
 
 export interface AuditEventDTO {

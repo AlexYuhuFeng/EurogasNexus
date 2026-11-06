@@ -4519,5 +4519,10 @@
   "decision_case.deadline.due": "待决",
   "decision_case.deadline.overdue": "已逾期",
   "decision_case.deadline.on_time": "按时决策",
-  "decision_case.deadline.late": "逾期决策"
+  "decision_case.deadline.late": "逾期决策",
+  "access.audit_from": "起始（本地时间）",
+  "access.audit_to": "截止（本地时间）",
+  "access.audit_search": "查询",
+  "access.audit_more": "加载更多",
+  "access.audit_shown": "已显示 {{count}} 条，最新在前"
 }

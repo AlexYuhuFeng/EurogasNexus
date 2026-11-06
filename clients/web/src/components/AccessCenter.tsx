@@ -1,3 +1,4 @@
+import { localDeadlineToUtc } from "@/app/model/decisionDeadline";
 import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useState } from "react";
 import {
@@ -42,6 +43,44 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
   const [users, setUsers] = useState<AccessUserDTO[]>([]);
   const [keys, setKeys] = useState<AccessApiKeyDTO[]>([]);
   const [audit, setAudit] = useState<AuditEventDTO[]>([]);
+  // Investigation walk (#59): an explicit window and filter, and a continuation that pages
+  // past any page size without repeating or skipping an event.
+  const [auditFrom, setAuditFrom] = useState("");
+  const [auditTo, setAuditTo] = useState("");
+  const [auditAction, setAuditAction] = useState("");
+  const [auditCursor, setAuditCursor] = useState<string | null>(null);
+  const [auditBusy, setAuditBusy] = useState(false);
+  const auditParams = () => ({
+    limit: "100",
+    action: auditAction.trim(),
+    start_utc: localDeadlineToUtc(auditFrom) ?? "",
+    end_utc: localDeadlineToUtc(auditTo) ?? "",
+  });
+  const searchAudit = async () => {
+    setAuditBusy(true);
+    try {
+      const response = await api.auditEvents(auditParams());
+      setAudit(response.data);
+      setAuditCursor(response.meta.continuation?.cursor ?? null);
+    } catch {
+      setError("access.load_failed");
+    } finally {
+      setAuditBusy(false);
+    }
+  };
+  const moreAudit = async () => {
+    if (!auditCursor) return;
+    setAuditBusy(true);
+    try {
+      const response = await api.auditEvents({ ...auditParams(), cursor: auditCursor });
+      setAudit((current) => [...current, ...response.data]);
+      setAuditCursor(response.meta.continuation?.cursor ?? null);
+    } catch {
+      setError("access.load_failed");
+    } finally {
+      setAuditBusy(false);
+    }
+  };
   const [sso, setSso] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The two published catalogues. They are the deployment's own declaration of what a role grants
@@ -101,7 +140,10 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
     Promise.all([
       api.accessUsers().then((response) => setUsers(response.data)),
       api.accessApiKeys().then((response) => setKeys(response.data)),
-      api.auditEvents({ limit: "100" }).then((response) => setAudit(response.data)),
+      api.auditEvents({ limit: "100" }).then((response) => {
+        setAudit(response.data);
+        setAuditCursor(response.meta.continuation?.cursor ?? null);
+      }),
       api.ssoProfile().then((response) => setSso(response.data)),
       api.accessRoles().then((response) => setRoles(response.data)),
       api.accessDataScopes().then((response) => setScopeCatalogue(response.data)),
@@ -433,6 +475,27 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
 
       {activeView === "audit" && (
         <div id="access-active-panel" role="tabpanel" aria-labelledby="access-tab-audit" className="workspace-panel span-3">
+          <form
+            className="access-audit-filters"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void searchAudit();
+            }}
+          >
+            <label>
+              <span>{t("access.audit_from")}</span>
+              <input type="datetime-local" value={auditFrom} onChange={(event) => setAuditFrom(event.target.value)} />
+            </label>
+            <label>
+              <span>{t("access.audit_to")}</span>
+              <input type="datetime-local" value={auditTo} onChange={(event) => setAuditTo(event.target.value)} />
+            </label>
+            <label>
+              <span>{t("access.audit_action")}</span>
+              <input value={auditAction} maxLength={64} onChange={(event) => setAuditAction(event.target.value)} />
+            </label>
+            <button type="submit" disabled={auditBusy}>{t("access.audit_search")}</button>
+          </form>
           <div className="data-table" tabIndex={0}>
             <div className="data-table-row header six">
               <span>{t("access.audit_time")}</span>
@@ -453,6 +516,14 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
               </div>
             ))}
           </div>
+          <p className="access-audit-continuation">
+            <span className="muted">{t("access.audit_shown").replace("{{count}}", String(audit.length))}</span>
+            {auditCursor && (
+              <button type="button" className="secondary-button" disabled={auditBusy} onClick={() => void moreAudit()}>
+                {t("access.audit_more")}
+              </button>
+            )}
+          </p>
         </div>
       )}
 
