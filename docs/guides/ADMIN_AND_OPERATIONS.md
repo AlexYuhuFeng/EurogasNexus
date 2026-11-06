@@ -26,7 +26,8 @@ Platform administration and commercial-data access are separate permissions.
 
 ## Connect a source
 
-1. Open **Admin → Data Sources** and inspect the source's connector status.
+1. Open **Admin → Data Sources**. The **Connectors** view groups sources as Needs attention,
+   Connected and Available; choose the source and read its detail panel.
 2. Configure the supported credential method, if required.
 3. Complete the source's access/certification checks where applicable.
 4. Enable the source and confirm its ingestion schedule or import process.

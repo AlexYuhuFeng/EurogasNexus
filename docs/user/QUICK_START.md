@@ -17,7 +17,7 @@ to use for the first check. Administrators configure the sources your desk needs
    account are different sign-in arrangements; use the one assigned to this installation.
 3. On a managed desktop, confirm the preconfigured service address. If IT asks you to
    enter it, use the supplied HTTPS API address ending in `/api`.
-4. Open **System → Settings**. Set your language, appearance and preferred market display.
+4. Open **Help & Settings → Settings**. Set your language, appearance and preferred market display.
 
 **Check the result:** your name appears in the account menu and you can open the workspaces
 assigned to you. If sign-in succeeds but a workspace is restricted, ask IT to check your

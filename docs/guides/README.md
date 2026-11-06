@@ -37,7 +37,7 @@ The available workspaces depend on your access and job profile. A job profile or
 your workspace; roles and data scopes determine the actions and information available.
 See [Roles and responsibilities](../product/ROLES_AND_RESPONSIBILITIES.md).
 
-Open **System → Settings** for language, appearance and personal display preferences.
+Open **Help & Settings → Settings** for language, appearance and personal display preferences.
 The account menu opens the same settings and provides sign out. Keyboard users can open
 search with **Ctrl+K**, or **⌘K** where supported; touch users can select the search control.
 

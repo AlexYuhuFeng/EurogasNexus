@@ -29,7 +29,7 @@ The provider must register the backend callback URI (default
 2. Open `/api/auth/oidc/login`; the provider authorization page appears.
 3. After login, `GET /api/me` returns principal, roles, permissions, scopes
    and a session CSRF token.
-4. Admin sees the SSO profile under System → Access & Identity → SSO.
+4. Admin sees the SSO profile under Admin → Access & Identity → SSO.
 
 ## Failure modes
 

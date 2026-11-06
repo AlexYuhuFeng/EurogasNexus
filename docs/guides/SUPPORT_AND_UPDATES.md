@@ -35,7 +35,7 @@ arrangement; record them in the [onboarding record](CLIENT_ONBOARDING.md).
 4. Include the saved case/run/source identifiers and request/correlation ID where available.
 5. Attach relevant diagnostics or a screenshot through the approved support channel.
 
-Open **System → Settings** and use **About & Diagnostics**. Review attachments before sending;
+Open **Help & Settings → Settings** and use **About & Diagnostics**. Review attachments before sending;
 share only the information needed for the investigation. Keep credentials and sensitive
 trading information in the firm's approved channels.
 

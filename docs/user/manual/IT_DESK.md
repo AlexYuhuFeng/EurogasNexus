@@ -30,14 +30,18 @@ under Admin → **Runtime** → **Problem reports**.
 
 ## 2. Check the platform
 
-Admin → **Data Sources** lists every source with its state, last success, freshness and
-failures. A source that needs the customer's own key (GIE, ENTSO-E, EEX, ICE) says so;
-it is not an outage.
+Admin → **Data Sources** opens on **Connectors**: *Needs attention* (something that was set
+up and stopped working: a failure, a stale feed, a lost key), *Connected* and *Available*
+(offered but never set up). An optional provider that needs the customer's own key (GIE,
+ENTSO-E, EEX, ICE) sits under Available until it is connected; it is not an outage. The
+**Catalog** tab keeps the full table with freshness, next run and failures.
 
 ![Data sources](img/it-05-sources.png)
 
-Admin → **Runtime** shows the release gates (database and schema, scheduler, realtime
-delivery, certification, security acceptance), the job timeline and diagnostics.
+Admin → **Runtime** opens on **Health** (dependencies, pipeline runs, quote freshness).
+**Release checks** holds the release gates (database and schema, scheduler, realtime
+delivery, certification, security acceptance); **Governance** and **Problem reports**
+follow.
 
 Scheduled operations the IT desk runs (cron or the Windows task scheduler):
 

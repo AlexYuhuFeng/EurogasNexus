@@ -31,7 +31,7 @@ period and costs. Create a new draft when changing a frozen specification.
 
 ## Build a research dataset
 
-1. Open **System → Research Data → Datasets**.
+1. Open **Research → Research Data → Datasets**.
 2. Select registered targets, features, entities and the observation window.
 3. Set the relevant resampling and history options, then validate the specification.
 4. Build a snapshot after validation succeeds.
