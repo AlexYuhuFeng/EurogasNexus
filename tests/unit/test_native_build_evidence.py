@@ -235,14 +235,9 @@ def test_native_workflow_is_reusable_and_manually_dispatchable_read_only() -> No
 
 def test_native_workflow_pins_the_authoritative_matrix() -> None:
     document = _load_workflow(WORKFLOW)
-    assert list(document["jobs"]) == ["native-build", "macos-build"]
-    macos = document["jobs"]["macos-build"]
-    assert macos["runs-on"] == "macos-15"
-    build = next(step for step in macos["steps"] if step["name"] == "Build universal disk image")
-    assert "--target universal-apple-darwin" in build["run"]
-    assert "--locked" in build["run"]
-    # Build acceptance never holds signing keys: the image is ad-hoc signed.
-    assert build["env"] == {"APPLE_SIGNING_IDENTITY": "-"}
+    # macOS is not built: the owner dropped it (2026-11-06) after its runner queue turned
+    # main red without a code fault. Windows and Linux are the supported desktops.
+    assert list(document["jobs"]) == ["native-build"]
     job = document["jobs"]["native-build"]
     matrix = job["strategy"]["matrix"]["include"]
 

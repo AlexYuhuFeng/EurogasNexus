@@ -11,7 +11,7 @@ FastAPI, React, Tauri, PostgreSQL). No platform gets its own business logic.
 | Windows 10/11 x64 | Tauri desktop app, NSIS installer (English and Simplified Chinese) | Shipped | Traders, risk, IT: the full workstation on a multi-monitor desk |
 | Any desktop browser (Edge, Chrome, Safari, Firefox) | Web client served by the deployment | Shipped | Everyone, where installing is not allowed |
 | Linux x64 | Tauri `.deb` | Shipped | IT, analysts |
-| macOS 13+ (Apple silicon and Intel) | Tauri `.app` in a universal `.dmg` | Shipped from 0.7.x: built on every push; notarised when the firm provides its Developer ID, otherwise ad-hoc signed | Management, analysts on Macs |
+| macOS | Not built | Dropped 2026-11-06: the scarce macOS CI runners turned `main` red without a code fault, and few desks need it. The Tauri source still compiles for macOS if a customer asks; reinstating it means restoring the `desktop-macos` release job and its native-acceptance build. | – |
 | iPadOS 16+ | Web client in Safari, added to the home screen; managed by the firm's MDM | Supported (responsive layout, 40 px touch targets) | Risk and management reviewing positions, limits and approvals away from the desk |
 | iOS 16+ (phone) | Web client, monitoring views | Supported for reading | Alerts, daily balance, positions and approvals on the move; no data entry |
 | Android 12+ (tablet, phone) | Web client in Chrome; managed by MDM | Supported as iPadOS / iOS | Same as iPad and iPhone |
@@ -24,30 +24,16 @@ A gas trader works on two to six monitors next to Trayport or exchange screens, 
 keyboard. The desktop app gives them window placement that survives restarts, a branded
 installer the firm's IT can push silently, the firm's proxy and certificate store, and
 no browser extensions in the way. Windows dominates trading floors, so Windows ships
-first; the same build compiles for macOS and Linux.
+first, with Linux beside it.
 
 ## macOS
 
-Tauri builds a universal `.app` from the same source, released as
-`Eurogas-Nexus-Client-{VERSION}-macos-universal.dmg` next to the Windows and Linux
-installers (`docs/release/INSTALL_MACOS.md`):
-
-1. `desktop-macos` in `release.yml` runs on `macos-15` and builds
-   `--target universal-apple-darwin` with the `app` and `dmg` bundle targets. Native
-   acceptance builds the same image on every push to `main`, so a release never meets a
-   macOS build failure for the first time.
-2. Signing follows the Windows policy: the deploying firm decides. With
-   `vars.MACOS_CODE_SIGNING_ENABLED=true` and the secrets `APPLE_CERTIFICATE` (base64
-   Developer ID Application `.p12`), `APPLE_CERTIFICATE_PASSWORD`,
-   `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`, `APPLE_API_KEY` and `APPLE_API_KEY_P8`
-   (App Store Connect key), the app is signed with the hardened runtime, notarised and
-   stapled, and the job checks Gatekeeper accepts it. Without them it is ad-hoc signed
-   (required for Apple silicon to run it) and recorded as `unsigned_pending_external`;
-   the first launch needs **Open Anyway** or an MDM approval.
-3. Desktop sign-in works as on Windows and Linux: the session travels in the
-   `X-Eurogas-Session` header, since `tauri://localhost` is cross-site to the API.
-4. The splash and window chrome follow the system appearance; `⌘` shortcuts are shown on
-   macOS (the command palette reads `⌘K`).
+Not built or shipped (owner decision, 2026-11-06). The universal `.dmg` job ran on
+`macos-15` runners whose queue cancelled it often enough to turn `main` red with no code
+fault, and trading floors run Windows. Mac users use the web client. The Tauri source is
+unchanged, so a macOS build can be restored from git history (`desktop-macos` in
+`release.yml`, `macos-build` in `native-acceptance.yml`, `scripts/ci/verify_macos_bundle.sh`)
+if a customer needs it.
 
 ## iPad, iPhone and Android
 

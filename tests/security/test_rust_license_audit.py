@@ -1092,13 +1092,13 @@ def test_all_rust_setup_actions_supply_the_repository_toolchain_pin() -> None:
     assert "if" not in desktop
     assert counts.get("ci.yml") == 1
     assert setup_jobs.get("ci.yml") == {"dependency-audit"}
-    assert counts.get("native-acceptance.yml") == 2
-    assert setup_jobs.get("native-acceptance.yml") == {"native-build", "macos-build"}
-    assert counts["ci.yml"] + counts["native-acceptance.yml"] == 3
+    assert counts.get("native-acceptance.yml") == 1
+    assert setup_jobs.get("native-acceptance.yml") == {"native-build"}
+    assert counts["ci.yml"] + counts["native-acceptance.yml"] == 2
 
-    # release.yml: the dependency scan, the Windows/Linux matrix and the macOS build.
-    assert counts.get("release.yml") == 3
-    assert setup_jobs.get("release.yml") == {"dependency-scan", "desktop", "desktop-macos"}
+    # release.yml: the dependency scan and the Windows/Linux matrix (macOS is not built).
+    assert counts.get("release.yml") == 2
+    assert setup_jobs.get("release.yml") == {"dependency-scan", "desktop"}
 
     # The SDK workflow has no Rust action, so no RUST_TOOLCHAIN env is required.
     assert counts.get("sdk-acceptance.yml") == 0

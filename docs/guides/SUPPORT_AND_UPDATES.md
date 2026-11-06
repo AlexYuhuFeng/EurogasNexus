@@ -63,7 +63,7 @@ Package/build availability and a recorded installed-client test are different ev
 
 - **Browser:** the application changes when the service successfully deploys a new build.
   Reload the page after deployment.
-- **Windows/Linux/macOS desktop:** IT distributes the applicable installer or disk image
+- **Windows/Linux desktop:** IT distributes the applicable installer
   and schedules the upgrade. The current desktop release uses managed/manual updates.
 - **Render test service:** `main` changes deploy after CI passes. **Restart service** reuses
   the deployed commit; **Deploy latest commit** fetches source for a manual deployment.
@@ -73,4 +73,4 @@ Package/build availability and a recorded installed-client test are different ev
 The compatibility screen uses release metadata, API contract and declared minimum client/server
 versions. Resolve a blocking mismatch through the supplied release set.
 See [Update policy](../release/UPDATE_POLICY.md), [Deployment](../deployment/DEPLOYMENT_ROLES-EN.md),
-[macOS installation](../release/INSTALL_MACOS.md) and [Rollback](../operations/RELEASE_ROLLBACK.md).
+and [Rollback](../operations/RELEASE_ROLLBACK.md).

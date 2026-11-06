@@ -199,7 +199,6 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
 - [更新策略](release/UPDATE_POLICY.md)
 - [Windows 安装](release/INSTALL_WINDOWS.md)
 - [Linux 安装](release/INSTALL_LINUX.md)
-- [macOS 安装](release/INSTALL_MACOS.md)
 - [第三方声明](../THIRD_PARTY_NOTICES.md)
 - [安全验收证据 EN](release/SECURITY_ACCEPTANCE_EVIDENCE.md) /
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)

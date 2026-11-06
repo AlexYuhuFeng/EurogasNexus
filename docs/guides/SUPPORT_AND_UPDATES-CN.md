@@ -53,10 +53,10 @@
 使用交付版本配套的安装包、校验和及安装指南。发布清单和验收材料标明已检查的构建及签名状态；安装包构建完成与已完成实际安装测试分别记录。
 
 - **浏览器：**服务部署新构建成功后，重新加载页面。
-- **Windows、Linux、macOS 桌面客户端：**由 IT 分发适用安装包或磁盘映像，安排升级。当前桌面版本采用受管或手动更新。
+- **Windows、Linux 桌面客户端：**由 IT 分发适用安装包，安排升级。当前桌面版本采用受管或手动更新。
 - **Render 测试服务：**`main` 的 CI 通过后自动部署。“Restart service”使用已部署提交重启；手动获取代码部署使用“Deploy latest commit”。
 - **服务器与数据库：**按版本要求执行迁移预检、备份和回退。应用代码回退与数据库变更恢复分别规划。
 
 兼容性页面依据发布元数据、API 契约和最低客户端或服务器版本判断。出现阻断性不匹配时，使用交付方提供的配套版本处理。
 
-参阅[更新政策](../release/UPDATE_POLICY.md)、[部署说明](../deployment/DEPLOYMENT_ROLES-CN.md)、[macOS 安装](../release/INSTALL_MACOS.md)、[回退流程](../operations/RELEASE_ROLLBACK.md)。
+参阅[更新政策](../release/UPDATE_POLICY.md)、[部署说明](../deployment/DEPLOYMENT_ROLES-CN.md)、[回退流程](../operations/RELEASE_ROLLBACK.md)。

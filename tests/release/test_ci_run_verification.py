@@ -319,8 +319,6 @@ REUSABLE_ACCEPTANCE_LEAVES = (
     "Build-only native acceptance (linux-x64)",
     "Native desktop build (Windows x64, Linux x64/ARM64) / "
     "Build-only native acceptance (linux-arm64)",
-    "Native desktop build (Windows x64, Linux x64/ARM64) / "
-    "Build-only native acceptance (macos-universal)",
     "SDK installed-wheel acceptance / Installed SDK (windows-x64)",
     "SDK installed-wheel acceptance / Installed SDK (linux-x64)",
     "Weather model numerical acceptance (internal, NumPy 2.3.5) / "

@@ -57,7 +57,7 @@ role: [Trader](user/manual/TRADER.md) · [Risk](user/manual/RISK.md) ·
 
 ## Product planning
 
-- [Platform strategy](product/PLATFORM_STRATEGY.md): Windows, macOS, iPad, iPhone, Android, HarmonyOS
+- [Platform strategy](product/PLATFORM_STRATEGY.md): Windows, Linux, iPad, iPhone, Android, HarmonyOS (macOS not built)
 - [Connectors](product/CONNECTORS.md): one model for data feeds, imports and model services; plugins
 - [Commercial readiness backlog](product/COMMERCIAL_READINESS_BACKLOG.md)
 - [Scheduled agent state](product/SCHEDULED_AGENT_STATE.md)
@@ -289,7 +289,6 @@ Operational procedures and operator-facing guides:
 - [Update policy](release/UPDATE_POLICY.md)
 - [Install Windows](release/INSTALL_WINDOWS.md)
 - [Install Linux](release/INSTALL_LINUX.md)
-- [Install macOS](release/INSTALL_MACOS.md)
 - [Third-party notices](../THIRD_PARTY_NOTICES.md)
 - [Security acceptance evidence EN](release/SECURITY_ACCEPTANCE_EVIDENCE.md) /
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
