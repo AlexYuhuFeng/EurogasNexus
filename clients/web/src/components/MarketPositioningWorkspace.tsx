@@ -39,20 +39,20 @@ export function MarketPositioningWorkspace({
 }: MarketPositioningWorkspaceProps) {
   return (
     <div className="workspace-grid orders-page">
-      <div className="workspace-panel span-3">
-        <div className="section-heading">
-          <strong>{t("orders.title")}</strong>
-        </div>
-        <p className="panel-copy">{t("orders.subtitle")}</p>
-        <div className="metric-grid four-column">
-          <div><span>{t("portfolio.indicative_pnl")}</span><strong className={pnlClass(portfolioSummary?.total_indicative_pnl_gbp)}>{formatGbpTotal(portfolioSummary?.total_indicative_pnl_gbp, t)}</strong></div>
-          <div><span>{t("portfolio.cash_value")}</span><strong>{formatGbpTotal(portfolioSummary?.total_cash_value_gbp, t)}</strong></div>
-          <div><span>{t("portfolio.open_orders")}</span><strong>{portfolioSummary?.open_order_count ?? screenOrders.length}</strong></div>
-          <div><span>{t("orders.filled_orders")}</span><strong>{portfolioSummary?.filled_order_count ?? "n/a"}</strong></div>
-        </div>
+      {/* One line of counts, not four tiles of "Unknown"; the read-only note is the heading's
+          tooltip (#69). PnL totals show only when the backend measured them. */}
+      <div className="span-3 metric-inline orders-summary" title={t("orders.subtitle")}>
+        {portfolioSummary?.total_indicative_pnl_gbp != null && (
+          <div><span>{t("portfolio.indicative_pnl")}</span><strong className={pnlClass(portfolioSummary.total_indicative_pnl_gbp)}>{formatGbpTotal(portfolioSummary.total_indicative_pnl_gbp, t)}</strong></div>
+        )}
+        {portfolioSummary?.total_cash_value_gbp != null && (
+          <div><span>{t("portfolio.cash_value")}</span><strong>{formatGbpTotal(portfolioSummary.total_cash_value_gbp, t)}</strong></div>
+        )}
+        <div><span>{t("portfolio.open_orders")}</span><strong>{portfolioSummary?.open_order_count ?? screenOrders.length}</strong></div>
+        <div><span>{t("orders.filled_orders")}</span><strong>{portfolioSummary?.filled_order_count ?? "n/a"}</strong></div>
       </div>
       <div className="workspace-panel span-3">
-        <h2>{t("orders.screen_orders")}</h2>
+        <h2 title={t("orders.subtitle")}>{t("orders.screen_orders")}</h2>
         <div className="data-table orders-table" tabIndex={0}>
           <div className="data-table-row header six"><span>{t("orders.col.venue")}</span><span>{t("orders.col.side")}</span><span>{t("orders.col.hub")}</span><span>{t("orders.col.quantity")}</span><span>{t("orders.col.price")}</span><span>{t("orders.col.status")}</span></div>
           {screenOrders.map((order) => (
@@ -71,10 +71,16 @@ export function MarketPositioningWorkspace({
             </div>
           ))}
           {screenOrders.length === 0 && (
-            <div className="data-table-row six" data-empty-state="screen-orders"><span>n/a</span><span>n/a</span><span>n/a</span><strong>{t("status.unknown")}</strong><span>n/a</span><span>{t("data.unavailable")}</span></div>
+            <p className="muted panel-empty-line" data-empty-state="screen-orders">{t("orders.none_screen")}</p>
           )}
         </div>
       </div>
+      {pnlSnapshots.length === 0 ? (
+        // No snapshot is one line under the table above, not a table with a row of n/a (#69).
+        <p className="span-3 muted panel-empty-line" data-empty-state="pnl-snapshots">
+          {t("orders.pnl_snapshots")}: {t("orders.none_pnl")}
+        </p>
+      ) : (
       <div className="workspace-panel span-3">
         <h2>{t("orders.pnl_snapshots")}</h2>
         <div className="data-table" tabIndex={0}>
@@ -96,11 +102,9 @@ export function MarketPositioningWorkspace({
               <span>{snapshot.valuation_basis}</span>
             </div>
           ))}
-          {pnlSnapshots.length === 0 && (
-            <div className="data-table-row six" data-empty-state="pnl-snapshots"><strong>n/a</strong><span>n/a</span><span>{t("status.unknown")}</span><span>n/a</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
-          )}
         </div>
       </div>
+      )}
     </div>
   );
 }

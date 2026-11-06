@@ -77,6 +77,11 @@ export function ScenarioWorkspace({
           )}
         </div>
       )}
+      {/* With no route candidate and no economics, an empty list and four n/a tiles become
+          one line; the allocation panel below names what is missing (#69). */}
+      {routeCandidates.length === 0 && routeEconomics.purchasePrice == null && routeEconomics.salePrice == null && routeEconomics.routeCharge == null && routeEconomics.allocatedVolumeMwhPerDay == null ? (
+        <p className="span-3 muted panel-empty-line">{t("scenario.no_routes_yet")}</p>
+      ) : (<>
       <div className="workspace-panel span-2">
         <div className="section-heading"><span className="eyebrow">{t("home.recommended_paths")}</span><strong>{t("panel.routes")}</strong></div>
         <div className="route-list">
@@ -113,6 +118,7 @@ export function ScenarioWorkspace({
           </div>
         </div>
       </div>
+      </>)}
       <div className="workspace-panel span-3">
         <div className="section-heading"><span className="eyebrow">{t("home.resource_pool")}</span><strong>{t("panel.route_allocation")}</strong></div>
         <div className="economics-grid wide">
@@ -136,8 +142,11 @@ export function ScenarioWorkspace({
               ? t("scenario.financing_rate_from_draft_fallback")
               : t("scenario.financing_rate_unknown")}
         </p>
-        <p className="panel-copy">{t("scenario.compare_location")}</p>
-        <p className="panel-copy">{t("scenario.optimizer_location")}</p>
+        <details className="panel-help">
+          <summary>{t("panel.how_to_read")}</summary>
+          <p className="panel-copy">{t("scenario.compare_location")}</p>
+          <p className="panel-copy">{t("scenario.optimizer_location")}</p>
+        </details>
         {poolInputBlockers.length > 0 && (
           <div className="runtime-blocker-list compact">
             <strong>{t("home.optimizer_blocked")}</strong>

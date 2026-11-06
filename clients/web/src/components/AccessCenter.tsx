@@ -23,6 +23,7 @@ import { PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
 import { LicenceRegisterPanel } from "@/components/LicenceRegisterPanel";
 import { groupPermissions } from "@/app/permissionVocabulary";
 import { useUrlView } from "@/app/navigation/useUrlView";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type AccessViewId = "users" | "api_keys" | "catalogue" | "audit" | "sso";
 const ACCESS_VIEWS: AccessViewId[] = ["users", "api_keys", "catalogue", "audit", "sso"];
@@ -209,12 +210,10 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
 
   return (
     <div className={`workspace-grid access-page access-view-${activeView}`}>
-      <div className="workspace-panel span-3 access-admin-strip">
-        <PanelHeader
-          title={t("access.title")}
-          meta={currentUser ? `${currentUser.display_name ?? currentUser.name} · ${currentUser.role}` : ""}
-        />
-        <p className="panel-copy">{t("access.subtitle")}</p>
+      {/* The page header names the page; this line adds only who is signed in (#69). */}
+      <div className="span-3 access-admin-strip access-admin-line">
+        <PanelHelp text={t("access.subtitle")} label={t("panel.how_to_read")} />
+        {currentUser && <span className="muted">{`${currentUser.display_name ?? currentUser.name} · ${currentUser.role}`}</span>}
       </div>
       <WorkspaceTabs
         idPrefix="access-tab"
@@ -277,9 +276,12 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
                   <button type="button" disabled={busyRows[user.principal_id]} onClick={() => void toggleUserStatus(user)}>
                     {user.status === "ACTIVE" ? t("access.disable") : t("access.enable")}
                   </button>
-                  <button type="button" disabled={busyRows[user.principal_id] || !userDrafts[user.principal_id] || Boolean(userAccessBlocker(userDrafts[user.principal_id] ?? user, user, roles, scopeCatalogue))} onClick={() => void updateUserAccess(user)}>
+                  {/* Save appears once a role or scope has been changed on this row (#69). */}
+                  {userDrafts[user.principal_id] && (
+                  <button type="button" className="button-primary" disabled={busyRows[user.principal_id] || Boolean(userAccessBlocker(userDrafts[user.principal_id] ?? user, user, roles, scopeCatalogue))} onClick={() => void updateUserAccess(user)}>
                     {t("access.save")}
                   </button>
+                  )}
                   {userAccessBlocker(userDrafts[user.principal_id] ?? user, user, roles, scopeCatalogue) && <span role="status">{t(userAccessBlocker(userDrafts[user.principal_id] ?? user, user, roles, scopeCatalogue)!)}</span>}
                   {rowErrors[user.principal_id] && <span role="alert">{t(rowErrors[user.principal_id]!)}</span>}
                 </span>
@@ -300,7 +302,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
               is what the route promises - it is never stored and never re-read. */}
           <section className="access-key-create" aria-label={t("access.key.create")}>
             <h3>{t("access.key.create")}</h3>
-            <p className="panel-copy">{t("access.key.create_note")}</p>
+            <PanelHelp text={t("access.key.create_note")} label={t("panel.how_to_read")} />
             <div className="access-key-form">
               <label>
                 {t("access.key.owner")}

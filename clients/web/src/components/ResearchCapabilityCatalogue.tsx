@@ -9,6 +9,7 @@ import {
   sideEffectClassKey,
   type ResearchCapabilityRow,
 } from "@/app/model/accessCatalogueModel";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -60,7 +61,7 @@ export function ResearchCapabilityCatalogue({ t }: ResearchCapabilityCataloguePr
             : t("data.unavailable")
         }
       />
-      <p className="panel-copy">{t("research.capabilities.note")}</p>
+      <PanelHelp text={t("research.capabilities.note")} label={t("panel.how_to_read")} />
       {failure && <p className="strategy-error">{failure.title}</p>}
       {capabilities.length === 0 ? (
         <p className="muted">{t("research.capabilities.empty")}</p>

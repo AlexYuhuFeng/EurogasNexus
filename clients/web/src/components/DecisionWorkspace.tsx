@@ -33,6 +33,7 @@ import {
   type DecisionTask,
 } from "@/app/model/commercialWorkflowModel";
 import "./commercial-workflow.css";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 function money(value: number | null | undefined, suffix = ""): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
@@ -68,7 +69,7 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
           title={t("decision.preflight")}
           meta={blockers.length === 0 ? t("decision.ready") : `${blockers.length} ${t("portfolio.warnings")}`}
         />
-        <p className="panel-copy">{t("decision.preflight_help")}</p>
+        <PanelHelp text={t("decision.preflight_help")} label={t("panel.how_to_read")} />
         {blockers.length === 0 ? (
           <span className="status-badge status-complete">{t("decision.ready")}</span>
         ) : (
@@ -371,7 +372,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
              payload as current evidence. */
           <details className="review-supporting-tools" open={Boolean(selection.strategyRunId)}>
           <summary>{t("review.supporting_tools")}</summary>
-          <p className="panel-copy">{t("review.supporting_tools_help")}</p>
+          <PanelHelp text={t("review.supporting_tools_help")} label={t("panel.how_to_read")} />
           <ReviewWorkspace
             allocations={portfolio.poolAllocations}
             saleOptionById={portfolio.saleOptionById}

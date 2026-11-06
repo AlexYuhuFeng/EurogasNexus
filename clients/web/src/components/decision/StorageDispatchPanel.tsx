@@ -13,6 +13,7 @@ import type {
   OptimizationRunRecord,
 } from "@/app/model/useOptimizationAssessment";
 import type { StorageDispatchResultDTO } from "@/api/client";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -79,7 +80,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
           title={t("decision.dispatch.title")}
           meta={t("decision.dispatch.assessment_only")}
         />
-        <p className="panel-copy">{t("decision.dispatch.note")}</p>
+        <PanelHelp text={t("decision.dispatch.note")} label={t("panel.how_to_read")} />
 
         <div className="decision-assessment-grid">
           <span className="decision-assessment-field">

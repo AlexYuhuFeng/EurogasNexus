@@ -21,6 +21,7 @@ import {
 } from "@/app/model/lngEconomicsModel";
 import type { LngEconomicsController } from "@/app/model/useLngEconomicsOnly";
 import "./lng-economics.css";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -189,7 +190,7 @@ export function LngEconomicsPanel({
               : t("contracts.lng_economics.not_run")
         }
       />
-      <p className="panel-copy">{t("contracts.lng_economics.note")}</p>
+      <PanelHelp text={t("contracts.lng_economics.note")} label={t("panel.how_to_read")} />
 
       <div className="route-cost-issues" role="note">
         <strong>{t("contracts.lng_economics.sandbox_notice")}</strong>
@@ -224,7 +225,7 @@ export function LngEconomicsPanel({
 
       <fieldset className="lng-economics-section" disabled={busy}>
         <legend>{t("contracts.lng_economics.scope_section")}</legend>
-        <p className="panel-copy">{t("contracts.lng_economics.scope_help")}</p>
+        <PanelHelp text={t("contracts.lng_economics.scope_help")} label={t("panel.how_to_read")} />
         <div className="contract-field-grid">
           <label>
             {t("contracts.lng_economics.contract_id")}
@@ -458,7 +459,7 @@ export function LngEconomicsPanel({
             </select>
           </label>
         </div>
-        <p className="panel-copy">{t("contracts.lng_economics.energy_stages_help")}</p>
+        <PanelHelp text={t("contracts.lng_economics.energy_stages_help")} label={t("panel.how_to_read")} />
         {draft.energyStages.map((stage, index) => (
           <fieldset className="lng-economics-row" key={`energy-stage-${index}`}>
             <legend>
@@ -585,7 +586,7 @@ export function LngEconomicsPanel({
 
       <fieldset className="lng-economics-section" disabled={busy}>
         <legend>{t("contracts.lng_economics.costs_section")}</legend>
-        <p className="panel-copy">{t("contracts.lng_economics.costs_help")}</p>
+        <PanelHelp text={t("contracts.lng_economics.costs_help")} label={t("panel.how_to_read")} />
         {draft.downstreamCosts.map((cost, index) => (
           <fieldset className="lng-economics-row" key={`downstream-cost-${index}`}>
             <legend>
@@ -688,7 +689,7 @@ export function LngEconomicsPanel({
 
       <fieldset className="lng-economics-section" disabled={busy}>
         <legend>{t("contracts.lng_economics.discounts_section")}</legend>
-        <p className="panel-copy">{t("contracts.lng_economics.discounts_help")}</p>
+        <PanelHelp text={t("contracts.lng_economics.discounts_help")} label={t("panel.how_to_read")} />
         {draft.discountFactors.map((discount, index) => (
           <fieldset className="lng-economics-row" key={`discount-factor-${index}`}>
             <legend>

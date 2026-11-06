@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, type DailyBalanceDTO } from "@/api/client";
 import { formatQuantity } from "@/app/model/riskLimitsModel";
 import { GAS_HUBS } from "@/app/contractChoices";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -57,7 +58,7 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
   return (
     <section className="workspace-panel span-3 daily-balance-panel" aria-labelledby="daily-balance-title">
       <h2 id="daily-balance-title">{t("balance.title")}</h2>
-      <p className="panel-copy">{t("balance.copy")}</p>
+      <PanelHelp text={t("balance.copy")} label={t("panel.how_to_read")} />
       <div className="licence-form">
         <label>
           <span>{t("selldown.hub")}</span>

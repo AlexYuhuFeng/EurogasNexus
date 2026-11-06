@@ -14,6 +14,7 @@ import type {
   OptimizationRunRecord,
 } from "@/app/model/useOptimizationAssessment";
 import type { NominationScheduleResultDTO } from "@/api/client";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -75,7 +76,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
           title={t("decision.nomination.title")}
           meta={t("decision.nomination.assessment_only")}
         />
-        <p className="panel-copy">{t("decision.nomination.note")}</p>
+        <PanelHelp text={t("decision.nomination.note")} label={t("panel.how_to_read")} />
 
         <div className="decision-assessment-grid">
           <span className="decision-assessment-field">

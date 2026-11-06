@@ -7,6 +7,7 @@ import {
   type LngTerminalTermsInput,
 } from "@/api/client";
 import { formatMoney, formatPrice, nextMonth } from "@/app/model/riskLimitsModel";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -130,7 +131,7 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
   return (
     <section className="workspace-panel span-3 lng-bid-panel" aria-labelledby="lng-bid-title">
       <h2 id="lng-bid-title">{t("lngbid.title")}</h2>
-      <p className="panel-copy">{t("lngbid.copy")}</p>
+      <PanelHelp text={t("lngbid.copy")} label={t("panel.how_to_read")} />
       <div className="licence-form lng-bid-inputs">
         <label>
           <span>{t("lngbid.size")}</span>

@@ -8,6 +8,7 @@ import {
   type AgentReviewGate,
 } from "@/app/model/agentReplayModel";
 import { PanelHeader, StatusBadge } from "@/components/ui";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -49,7 +50,7 @@ export function AgentReviewGate({
   return (
     <div className="agents-gate">
       <PanelHeader title={t("agents.gate.title")} meta={gate.entityType} />
-      <p className="panel-copy">{t("agents.gate.help")}</p>
+      <PanelHelp text={t("agents.gate.help")} label={t("panel.how_to_read")} />
 
       {!gate.available && gate.unavailableReason && (
         <p className="alert">{t(UNAVAILABLE_KEYS[gate.unavailableReason])}</p>

@@ -41,6 +41,7 @@ import { useApiStore } from "@/stores/api";
 import { useInspectorStore } from "@/stores/inspector";
 import { MetricStrip, PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { useUrlView } from "@/app/navigation/useUrlView";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 /**
  * The surface's translation function. It takes interpolation options like every other surface's
@@ -652,7 +653,7 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
               <span className="eyebrow">{t("agents.profiles")}</span>
               <strong>{profiles.length}</strong>
             </div>
-            <p className="panel-copy">{t("agents.profiles_note")}</p>
+            <PanelHelp text={t("agents.profiles_note")} label={t("panel.how_to_read")} />
             {profiles.length === 0 ? (
               // An unread catalogue and a catalogue that declares nothing are different statements,
               // and only the second one is a fact about the deployment.

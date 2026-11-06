@@ -8765,24 +8765,13 @@ button.glossary-related-chip {
   font-size: var(--ds-text-sm);
 }
 
+/* Release facts as label/value lines (#69): the shared .kv-list carries the layout. */
 .settings-about-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.settings-about-grid div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px;
-  border: 1px solid var(--eg-border, #263341);
-  border-radius: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
 }
 
 .settings-about-grid span {
-  opacity: 0.72;
   font-size: var(--ds-text-sm);
 }
 
@@ -9973,4 +9962,38 @@ button.glossary-related-chip {
   align-items: baseline;
   padding: 0;
   border-right: 0;
+}
+
+/* An occasional tool folded under its name (#69). */
+.tool-fold {
+  margin: var(--space-2) 0;
+}
+
+.tool-fold > summary {
+  padding: var(--space-2) 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* A panel's standing explanation, folded (#69). */
+.panel-help {
+  margin: 0 0 var(--space-2);
+}
+
+.panel-help > summary {
+  width: fit-content;
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+  cursor: pointer;
+}
+
+.panel-help[open] > summary {
+  margin-bottom: var(--space-1);
+}
+
+.access-admin-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
 }

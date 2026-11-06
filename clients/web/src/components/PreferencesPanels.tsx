@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, type OrganisationSettingsDTO, type PreferenceKey, type PreferencesDTO } from "@/api/client";
 import { LOCALES } from "@/i18n/locales";
 import { applyEffectivePreferences } from "@/app/preferences/remotePreferences";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -90,7 +91,7 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
   return (
     <section className="workspace-panel settings-panel settings-personal-panel" aria-labelledby="settings-personal-title">
       <h2 id="settings-personal-title">{t("preferences.personal_title")}</h2>
-      <p className="panel-copy">{t("preferences.personal_help")}</p>
+      <PanelHelp text={t("preferences.personal_help")} label={t("panel.how_to_read")} />
       {error && <p className="settings-backend-message" role="alert">{error}</p>}
       {state &&
         KEYS.map((key) => {

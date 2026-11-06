@@ -118,9 +118,24 @@ A new panel states, in a code comment or in its meaning line, the question it an
 checks it against the rules above before merging. Most empty states should follow rule 3; the
 `EmptyState` component in `COMPONENTS.md` is the shared form.
 
-## Not yet audited in depth
+## Second pass (same day)
 
-Research (strategy, backtests, datasets), Portfolio › Resources/Routes/Exposure, Decision Center ›
-Scenario/Optimize/Nomination/Storage dispatch, Admin › Runtime and Access, and Help & Settings were
-walked but not changed in this pass. They follow the same rules, and the next pass takes them in
-that order.
+**Shared rule, applied everywhere.** A panel's standing explanation (keys ending `.copy`,
+`.note`, `.help`, `.subtitle`) now sits under a "How to read this" fold, using the shared
+`components/ui/PanelHelp.tsx`. That covers 45 explanations across 25 components. State messages
+stay visible: "unavailable", "stale result", "no pool result", and the one-time API key warning.
+The Manual is itself help, so it is unchanged.
+
+| Page | Change |
+|---|---|
+| Portfolio › Exposure | The "Market Positioning" tiles become one line, and PnL totals appear only when measured. Empty screen observations and empty PnL snapshots are one line each; the acceptance markers are kept. The "add a book" form and the hedge-band explanation are folded. |
+| Portfolio › Routes | The capacity billing calculator (research only, eleven required inputs) is folded under its name. An empty route comparison is one line instead of a row of n/a. |
+| Portfolio › Resources | The daily balance and sell-down explanations are folded. The editor itself is the work and is kept. |
+| Decision Center › Scenario | With no route and no economics, the empty route list and four n/a tiles become one line. The comparison and allocation basis paragraphs are folded. |
+| Research › Data | The required-field mark stays on the label's line instead of taking a row. Before anything has run, "not validated / not built" is one line instead of two headed sections. The note is folded. |
+| Settings | The panel that only repeated the page title is removed. Release facts are label/value lines instead of eight tiles. The four constant boundary badges become one line. "Add a channel" is folded. |
+| Admin › Runtime | The gate strip is one line. Empty telemetry tables drop their column headings. |
+| Admin › Access | The header panel that repeated the page title is gone, leaving one line with who is signed in. "Save access" appears on a user row only after something on it changed. |
+
+Network, Review, Optimize, Nomination, Storage dispatch, Strategy and Agents were walked; they
+already follow the rules or are working forms.

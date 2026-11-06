@@ -18,6 +18,7 @@ import {
   readState,
   type ReadState,
 } from "@/app/model/readPosture";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -120,7 +121,7 @@ export function ReferenceNetworkCatalogue({ t }: ReferenceNetworkCatalogueProps)
         title={t("network.reference.title")}
         meta={facilityRead.source ?? t("status.unknown")}
       />
-      <p className="panel-copy">{t("network.reference.note")}</p>
+      <PanelHelp text={t("network.reference.note")} label={t("panel.how_to_read")} />
       {/* This panel's own read, named as such: the workspace is not loading because one panel is. */}
       {loading && <p className="muted">{t("network.reference.loading")}</p>}
       {failure && (

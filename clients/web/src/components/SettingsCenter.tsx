@@ -34,6 +34,7 @@ import {
 } from "@/app/model/dataPlaneStatus";
 import { StatusBadge } from "@/components/ui";
 import { OrganisationDefaultsPanel, PersonalPreferencesPanel } from "@/components/PreferencesPanels";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -124,11 +125,9 @@ export function SettingsCenter({
 
   return (
     <div className="workspace-grid settings-page settings-preference-center">
-      <div className="workspace-panel span-3 settings-overview-panel">
-        <div className="section-heading">
-          <strong>{t("settings.title")}</strong>
-        </div>
-        <p className="panel-copy">{t("settings.subtitle")}</p>
+      {/* The page header already names the page: its explanation is one fold, not a panel. */}
+      <div className="span-3">
+        <PanelHelp text={t("settings.subtitle")} label={t("panel.how_to_read")} />
       </div>
 
       {/* Personal preferences and the organisation defaults they override are one pair:
@@ -147,13 +146,13 @@ export function SettingsCenter({
         <div className="panel-title-row">
           <div>
             <h2>{t("release.about_title")}</h2>
-            <p className="panel-copy">{t("release.about_subtitle")}</p>
+            <PanelHelp text={t("release.about_subtitle")} label={t("panel.how_to_read")} />
           </div>
           <span className={`status-badge status-${releaseCompatibility?.state === "compatible" ? "runtime" : "unavailable"}`}>
             {t(releaseCompatibility?.messageKey ?? "release.compat_unknown")}
           </span>
         </div>
-        <div className="settings-about-grid">
+        <div className="kv-list settings-about-grid">
           <div><span>{t("release.product")}</span><strong>Eurogas Nexus</strong></div>
           <div><span>{t("release.client_version")}</span><strong>{CLIENT_APPLICATION_VERSION}</strong></div>
           <div><span>{t("release.channel")}</span><strong>{CLIENT_RELEASE_CHANNEL}</strong></div>
@@ -174,7 +173,7 @@ export function SettingsCenter({
         <div className="panel-title-row">
           <div>
             <h2>{t("settings.backend_api")}</h2>
-            <p className="panel-copy">{t("settings.backend_api_help")}</p>
+            <PanelHelp text={t("settings.backend_api_help")} label={t("panel.how_to_read")} />
           </div>
           <StatusBadge
             variant="runtime-readiness-state"
@@ -210,7 +209,7 @@ export function SettingsCenter({
           </p>
         )}
         <div className="settings-auth-form" aria-label={t("settings.auth_help")}>
-          <p className="panel-copy">{t("settings.auth_help")}</p>
+          <PanelHelp text={t("settings.auth_help")} label={t("panel.how_to_read")} />
           <div className="settings-auth-grid">
             <label className="settings-auth-field">
               <span>{t("settings.api_token")}</span>
@@ -257,7 +256,7 @@ export function SettingsCenter({
 
       <div className="workspace-panel settings-panel settings-unit-panel">
         <h2>{t("preferences.workstation_title")}</h2>
-        <p className="panel-copy">{t("preferences.workstation_help")}</p>
+        <PanelHelp text={t("preferences.workstation_help")} label={t("panel.how_to_read")} />
         <label>
           {t("settings.map_tile_provider")}
           <select
@@ -338,13 +337,11 @@ export function SettingsCenter({
 
       <div className="workspace-panel settings-boundary-panel">
         <h2>{t("settings.backend_boundary")}</h2>
-        <p className="panel-copy">{t("settings.boundary_copy")}</p>
-        <div className="settings-guardrail-list">
-          <span>{t("settings.no_client_db_url")}</span>
-          <span>{t("settings.no_client_secret_storage")}</span>
-          <span>{t("settings.human_review")}</span>
-          <span>{t("settings.decision_support_only")}</span>
-        </div>
+        <PanelHelp text={t("settings.boundary_copy")} label={t("panel.how_to_read")} />
+        {/* Four constant guarantees: a one-line list, not four badges (#69). */}
+        <p className="settings-guardrail-line muted">
+          {[t("settings.no_client_db_url"), t("settings.no_client_secret_storage"), t("settings.human_review"), t("settings.decision_support_only")].join(" · ")}
+        </p>
         {/* What this deployment's network reference holds; one line, not a card of its own. */}
         <p className="settings-reference-counts">
           {t("map.nodes")} <strong>{counts.nodes}</strong> · {t("map.edges")} <strong>{counts.edges}</strong> · {t("map.routes")} <strong>{counts.routes}</strong>

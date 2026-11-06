@@ -79,6 +79,9 @@ export function TradingBooksPanel({ t }: { t: Translate }) {
       {books && (books.unassigned.contracts > 0 || books.unassigned.orders > 0) && (
         <p className="muted">{t("books.unassigned", books.unassigned)}</p>
       )}
+      {/* Adding a book is occasional set-up, not a reading: folded under its action (#69). */}
+      <details className="scope-fold">
+        <summary>{t("books.add")}</summary>
       <div className="licence-form">
         <label><span>{t("books.book_id")}</span><input value={draft.book_id} onChange={field("book_id")} /></label>
         <label><span>{t("books.name")}</span><input value={draft.name} onChange={field("name")} /></label>
@@ -100,6 +103,7 @@ export function TradingBooksPanel({ t }: { t: Translate }) {
           {t("books.save")}
         </button>
       </div>
+      </details>
       {message && <p role="status">{message}</p>}
     </section>
   );

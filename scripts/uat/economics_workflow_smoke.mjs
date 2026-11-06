@@ -437,6 +437,10 @@ async function gotoContracts(page, config, language, task, summary) {
       { timeout: 5_000 },
     )
     .catch(() => {});
+  // Occasional tools are folded under their names (#69): open them as a user would.
+  for (const summaryElement of await page.locator("details.tool-fold:not([open]) > summary").all()) {
+    await summaryElement.click().catch(() => {});
+  }
   const htmlLang = await page.evaluate(() => document.documentElement.lang);
   verify(
     summary,

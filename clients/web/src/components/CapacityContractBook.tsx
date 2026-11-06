@@ -10,6 +10,7 @@ import {
   type CapacityContractRow,
 } from "@/app/model/capacityContractModel";
 import { readState, type ReadState } from "@/app/model/readPosture";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -73,7 +74,7 @@ export function CapacityContractBook({ t }: CapacityContractBookProps) {
         meta={read.source ?? t("status.unknown")}
       />
       {/* The explanation of how to read the rows is shown only when there are rows (#69). */}
-      {rows.length > 0 && <p className="panel-copy">{t("capacity.contracts.note")}</p>}
+      {rows.length > 0 && <PanelHelp text={t("capacity.contracts.note")} label={t("panel.how_to_read")} />}
       {/* This panel's own read, named as such: the workspace is not loading because one panel is. */}
       {loading && <p className="muted">{t("capacity.contracts.loading")}</p>}
       {failure && (

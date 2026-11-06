@@ -251,7 +251,7 @@ export function RuntimeWorkspace({
     <div className={`workspace-grid runtime-page runtime-view-${activeView}`}>
       <div className="workspace-panel span-3 runtime-operations-strip">
         <MetricStrip
-          className="metric-grid four-column"
+          className="metric-inline"
           items={[
             { label: t("runtime.ready_gates"), value: `${readyGateCount}/${releaseReadinessRows.length}` },
             { label: t("runtime.blocked_gates"), value: blockedGateCount },
@@ -422,12 +422,14 @@ export function RuntimeWorkspace({
           {t("runtime.refresh_pipeline_health")}
         </button>
         <div className="data-table" tabIndex={0} role="region" aria-label={t("runtime.pipeline_health")}>
+          {(health?.sources ?? []).length > 0 && (
           <div className="data-table-row header four">
             <span>{t("panel.source")}</span>
             <span>{t("runtime.source_status")}</span>
             <span>{t("runtime.consecutive_failures")}</span>
             <span>{t("runtime.last_success")}</span>
           </div>
+          )}
           {(health?.sources ?? []).map((source) => (
             <div
               key={`pipeline-source-${source.source_name}`}
@@ -453,11 +455,14 @@ export function RuntimeWorkspace({
       <div className="workspace-panel span-3">
         <h2>{t("runtime.quote_freshness")}</h2>
         <div className="data-table" tabIndex={0} role="region" aria-label={t("runtime.quote_freshness")}>
+          {/* Column headings only over rows; an empty read is one line (#69). */}
+          {freshnessEntries.length > 0 && (
           <div className="data-table-row header three">
             <span>{t("panel.source")}</span>
             <span>{t("runtime.recent_5m")}</span>
             <span>{t("runtime.latest_observation")}</span>
           </div>
+          )}
           {freshnessEntries.map(([source, entry]) => (
             <div key={`freshness-${source}`} className="data-table-row three">
               <strong>{source}</strong>

@@ -4572,5 +4572,13 @@
   "nwe.meaning": "What NW Europe draws from Norway, LNG and storage each gas day: last 7 days measured, next 14 forecast.",
   "nwe.empty": "Needs ENTSOG (Norwegian entry), GIE ALSI and AGSI history; none overlapping yet.",
   "gfp.meaning": "Gas burned for power and whether gas or coal is in the merit order (clean spark vs clean dark), per delivery day.",
-  "portfolio.no_scenario_run": "No scenario run yet"
+  "portfolio.no_scenario_run": "No scenario run yet",
+  "orders.none_screen": "No screen observations imported yet.",
+  "orders.none_pnl": "none imported yet.",
+  "books.add": "Add or change a book",
+  "panel.how_to_read": "How to read this",
+  "portfolio.capacity_billing.fold": "Capacity billing calculator (research only)",
+  "portfolio.no_routes": "No route candidates for this context yet: declare resources and destinations in Scenario.",
+  "scenario.no_routes_yet": "Route options and their economics appear once the scenario has a route candidate; the allocation below says what is missing.",
+  "notify.add": "Add or change a channel"
 }

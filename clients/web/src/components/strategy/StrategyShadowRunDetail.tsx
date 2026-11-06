@@ -30,6 +30,7 @@ import {
   type PriceBasisId,
 } from "@/app/model/shadowRunPresentation";
 import { useApiStore } from "@/stores/api";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -179,7 +180,7 @@ export function StrategyShadowRunDetail({ language, t }: StrategyShadowRunDetail
             },
           ]}
         />
-        <p className="panel-copy">{t("strategy.shadow_detail_note")}</p>
+        <PanelHelp text={t("strategy.shadow_detail_note")} label={t("panel.how_to_read")} />
       </section>
 
       <StrategyPriceBasisBoard
@@ -212,13 +213,13 @@ export function StrategyShadowRunDetail({ language, t }: StrategyShadowRunDetail
               : t("data.unavailable")
           }
         />
-        <p className="panel-copy">{t("strategy.contract_pnl_note")}</p>
+        <PanelHelp text={t("strategy.contract_pnl_note")} label={t("panel.how_to_read")} />
         <StrategyContractPnlAttribution rows={contracts} t={t} />
       </section>
 
       <section className="workspace-panel strategy-market-tape">
         <PanelHeader title={t("strategy.market_tape")} meta={`${tape.length} ${t("panel.records")}`} />
-        <p className="panel-copy">{t("strategy.market_tape_note")}</p>
+        <PanelHelp text={t("strategy.market_tape_note")} label={t("panel.how_to_read")} />
         {tape.length === 0 ? (
           <p className="muted">{t("data.unavailable")}</p>
         ) : (
@@ -265,7 +266,7 @@ export function StrategyShadowRunDetail({ language, t }: StrategyShadowRunDetail
           title={t("strategy.allocation_targets")}
           meta={`${allocations.length} ${t("panel.records")}`}
         />
-        <p className="panel-copy">{t("strategy.allocation_note")}</p>
+        <PanelHelp text={t("strategy.allocation_note")} label={t("panel.how_to_read")} />
         {allocations.length === 0 ? (
           <p className="muted">{t("strategy.awaiting_shadow_run")}</p>
         ) : (
@@ -293,7 +294,7 @@ export function StrategyShadowRunDetail({ language, t }: StrategyShadowRunDetail
           title={t("strategy.paper_state")}
           meta={provenance.run ? provenance.run.status : t("strategy.awaiting_shadow_run")}
         />
-        <p className="panel-copy">{t("strategy.paper_state_note")}</p>
+        <PanelHelp text={t("strategy.paper_state_note")} label={t("panel.how_to_read")} />
         <div className="strategy-provenance-facts">
           <div>
             <span>{t("strategy.paper_pnl")}</span>
@@ -334,7 +335,7 @@ export function StrategyShadowRunDetail({ language, t }: StrategyShadowRunDetail
           title={t("strategy.run_provenance")}
           meta={provenance.run ? provenance.run.status : t("data.unavailable")}
         />
-        <p className="panel-copy">{t("strategy.run_provenance_note")}</p>
+        <PanelHelp text={t("strategy.run_provenance_note")} label={t("panel.how_to_read")} />
         {/* The evidence behind the figures, in the shared block: where the run says its data came
             from, the instant it read to, and the review boundary it carries. */}
         <EvidenceBlock

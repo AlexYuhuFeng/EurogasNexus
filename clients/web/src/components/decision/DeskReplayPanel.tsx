@@ -15,6 +15,7 @@ import {
   type DeskReplayResultDTO,
 } from "@/api/client";
 import { EmptyState, PanelHeader } from "@/components/ui";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -83,7 +84,7 @@ export function DeskReplayPanel({ t }: { t: Translate }) {
       <PanelHeader title={<span id="desk-replay-title">{t("desk_replay.title")}</span>} meta={t("desk_replay.assessment_only")} />
       <details className="scope-fold">
         <summary>{t("desk_replay.how")}</summary>
-        <p className="panel-copy">{t("desk_replay.help")}</p>
+        <PanelHelp text={t("desk_replay.help")} label={t("panel.how_to_read")} />
       </details>
       <div className="desk-replay-input">
         <label>

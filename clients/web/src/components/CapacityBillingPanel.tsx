@@ -9,6 +9,7 @@ import {
 } from "@/app/model/capacityBillingModel";
 import type { CapacityBillingController } from "@/app/model/useCapacityBilling";
 import "./capacity-billing.css";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -123,7 +124,7 @@ export function CapacityBillingPanel({ t, capacityBilling }: CapacityBillingPane
               : t("portfolio.capacity_billing.not_run")
         }
       />
-      <p className="panel-copy">{t("portfolio.capacity_billing.note")}</p>
+      <PanelHelp text={t("portfolio.capacity_billing.note")} label={t("panel.how_to_read")} />
 
       <div className="route-cost-issues" role="status">
         <strong>{t("portfolio.capacity_billing.sandbox_notice")}</strong>

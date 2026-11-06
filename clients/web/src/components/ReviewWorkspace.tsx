@@ -17,6 +17,7 @@ import type {
   ReviewDecisionDTO,
   ReviewDecisionInputDTO,
 } from "@/api/client";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -157,7 +158,7 @@ export function ReviewWorkspace({
           <span className="eyebrow">{t("nav.review")}</span>
           <strong>{t("review.title")}</strong>
         </div>
-        <p className="panel-copy">{t("review.subtitle")}</p>
+        <PanelHelp text={t("review.subtitle")} label={t("panel.how_to_read")} />
         <div className="data-table" tabIndex={0}>
           <div className="data-table-row header four"><span>{t("result.optimal")}</span><span>{t("home.allocated")}</span><span>{t("result.route_cost")}</span><span>PnL</span></div>
           {allocations.map((allocation) => {
@@ -189,7 +190,7 @@ export function ReviewWorkspace({
           <span className="eyebrow">{t("nav.review")}</span>
           <strong>{t("review.evidence_pack")}</strong>
         </div>
-        <p className="panel-copy">{t("review.evidence_help")}</p>
+        <PanelHelp text={t("review.evidence_help")} label={t("panel.how_to_read")} />
         {poolResult ? (
           <div className="review-evidence-grid" aria-label={t("review.evidence_pack")}>
             <div className="review-evidence-row">
@@ -352,7 +353,7 @@ export function ReviewWorkspace({
       </div>
       <div className="workspace-panel span-3 analysis-panel review-report-panel">
         <h2>{t("analysis.report")}</h2>
-        <p className="panel-copy">{t("review.report_help")}</p>
+        <PanelHelp text={t("review.report_help")} label={t("panel.how_to_read")} />
         {/* Wave 4: a run may cite the reproducibility reference it was computed against. The
             choices are the snapshots the deployment recorded; with none recorded (or none
             listable in this deployment) the report still runs and cites nothing. */}
@@ -418,7 +419,7 @@ export function ReviewWorkspace({
       </div>
       <div className="workspace-panel span-3 review-copilot-panel" aria-label={t("experience.copilot.title")}>
         <h2>{t("experience.copilot.title")}</h2>
-        <p className="panel-copy">{t("experience.copilot.subtitle")}</p>
+        <PanelHelp text={t("experience.copilot.subtitle")} label={t("panel.how_to_read")} />
         {/* Wave 7 convergence: this panel used to carry its own question box and an
             "invoke the provider" switch, which made a sixth AI entry point beside the
             canonical five. The five declared actions are offered here instead, gated by the

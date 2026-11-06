@@ -200,7 +200,7 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
           );
         })}
         {routes.length === 0 && (
-          <div className="data-table-row six"><span>{t("data.unavailable")}</span><span>n/a</span><span>n/a</span><span>UNKNOWN</span><span>n/a</span><span>n/a</span></div>
+          <p className="muted panel-empty-line">{t("portfolio.no_routes")}</p>
         )}
       </div>
     </section>
@@ -417,7 +417,12 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
                 )
               }
             />
-            <CapacityBillingPanel t={t} capacityBilling={capacityBilling} />
+            {/* A research-only tariff calculator with eleven required inputs: folded under its
+                name so the route tools above it stay on screen (#69). */}
+            <details className="tool-fold">
+              <summary>{t("portfolio.capacity_billing.fold")}</summary>
+              <CapacityBillingPanel t={t} capacityBilling={capacityBilling} />
+            </details>
             <LngCargoBidPanel t={t} />
             <TariffPublicationsPanel t={t} />
           </>

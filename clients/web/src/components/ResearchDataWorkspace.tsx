@@ -59,6 +59,7 @@ import {
 import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import "@/styles/researchDataWorkspace.css";
 import { useUrlView } from "@/app/navigation/useUrlView";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 type ResearchViewId = "datasets" | "products" | "features" | "targets";
@@ -260,14 +261,17 @@ function ResearchSpecPanel({
   return (
     <section className="research-spec-panel" aria-labelledby="research-spec-title">
       <PanelHeader title={<span id="research-spec-title">{t("research.spec_build_title")}</span>} meta={t("research.spec_build_help")} />
-      <p className="research-muted">{t("research.spec_build_note")}</p>
+      <PanelHelp text={t("research.spec_build_note")} label={t("panel.how_to_read")} />
       <fieldset className="research-spec-fieldset" disabled={busy}>
         <legend className="visually-hidden">{t("research.spec_build_title")}</legend>
         <div className="research-spec-grid">
           {SPEC_TEXT_FIELDS.map((field) => (
             <label key={field.key} className={field.key === "description" ? "span-2" : undefined}>
-              {t(SPEC_FIELD_LABELS[field.key])}
-              {SPEC_REQUIRED_KEYS.includes(field.key) ? <span aria-hidden="true"> *</span> : null}
+              {/* Label and its required mark on one line, not the mark on a row of its own. */}
+              <span>
+                {t(SPEC_FIELD_LABELS[field.key])}
+                {SPEC_REQUIRED_KEYS.includes(field.key) ? <span aria-hidden="true"> *</span> : null}
+              </span>
               <input
                 type="text"
                 value={draft[field.key]}
@@ -291,6 +295,11 @@ function ResearchSpecPanel({
         <span className="research-muted" role="status">{t(researchBuildGateLockKey(gate.reason))}</span>
       </div>
 
+      {/* Before anything has run, one line says so instead of two headed empty sections (#69). */}
+      {validationState.status === "idle" && buildState.status === "idle" && (
+        <p className="research-muted">{t("research.validation_not_run")} {t("research.build_not_run")}</p>
+      )}
+      {(validationState.status !== "idle" || buildState.status !== "idle") && (<>
       <section className="research-run-result" aria-labelledby="research-validation-result">
         <h3 id="research-validation-result">{t("research.validation_result")}</h3>
         {validationState.status === "idle" && <p className="research-muted">{t("research.validation_not_run")}</p>}
@@ -354,6 +363,7 @@ function ResearchSpecPanel({
           </>
         )}
       </section>
+      </>)}
     </section>
   );
 }

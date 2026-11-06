@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { api, type SellDownPlanDTO } from "@/api/client";
 import { formatMoney, formatQuantity } from "@/app/model/riskLimitsModel";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -42,7 +43,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
   return (
     <section className="workspace-panel span-3 sell-down-panel" aria-labelledby="sell-down-title">
       <h2 id="sell-down-title">{t("selldown.title")}</h2>
-      <p className="panel-copy">{t("selldown.copy")}</p>
+      <PanelHelp text={t("selldown.copy")} label={t("panel.how_to_read")} />
       <div className="licence-form">
         <label>
           <span>{t("selldown.hub")}</span>

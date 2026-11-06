@@ -13,6 +13,7 @@ import {
 } from "@/app/model/routeCostModel";
 import type { RouteCandidateDTO } from "@/api/client";
 import type { RouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -78,7 +79,7 @@ export function RouteCostWhatIfPanel({
             : t("portfolio.route_cost.not_run")
         }
       />
-      <p className="panel-copy">{t("portfolio.route_cost.note")}</p>
+      <PanelHelp text={t("portfolio.route_cost.note")} label={t("panel.how_to_read")} />
 
       <div className="route-cost-identity">
         <label className="field-label" htmlFor="route-cost-name">

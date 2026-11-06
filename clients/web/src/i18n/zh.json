@@ -4572,5 +4572,13 @@
   "nwe.meaning": "西北欧每个燃气日从挪威、LNG 和储气库调用的气量：过去 7 天为实测，未来 14 天为预测。",
   "nwe.empty": "需要 ENTSOG（挪威入口）、GIE ALSI 和 AGSI 的历史数据；目前尚无重叠数据。",
   "gfp.meaning": "每个交割日的燃气发电用气量，以及燃气与燃煤谁在调度序列中（清洁火花价差对清洁暗价差）。",
-  "portfolio.no_scenario_run": "尚未运行情景"
+  "portfolio.no_scenario_run": "尚未运行情景",
+  "orders.none_screen": "尚未导入屏幕成交观测。",
+  "orders.none_pnl": "尚未导入。",
+  "books.add": "新增或修改账簿",
+  "panel.how_to_read": "如何阅读",
+  "portfolio.capacity_billing.fold": "容量计费计算器（仅供研究）",
+  "portfolio.no_routes": "当前情境尚无路径候选：请在情景中声明资源和目的地。",
+  "scenario.no_routes_yet": "情景有路径候选后，这里显示路径选项及其经济性；下方的分配说明缺少什么。",
+  "notify.add": "新增或修改通知渠道"
 }

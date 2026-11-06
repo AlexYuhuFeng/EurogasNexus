@@ -25,6 +25,7 @@ import {
 
 import { useApiStore } from "@/stores/api";
 import { strategyPriceCatalogue, type StrategyPriceChoice } from "@/app/model/strategyPriceCatalogue";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -371,7 +372,7 @@ export function StrategyDesignWorkspace({
           reversible from the surface that triggers it. */}
       <section className="strategy-version-actions" aria-label={t("strategy_lab.version_actions")}>
         <span className="eyebrow">{t("strategy_lab.version_actions")}</span>
-        <p className="panel-copy">{t("strategy_lab.version_actions_note")}</p>
+        <PanelHelp text={t("strategy_lab.version_actions_note")} label={t("panel.how_to_read")} />
         <div className="strategy-design-actions">
           {frozen && (
             <button type="button" disabled={busy || readOnly} onClick={() => void draft.createNewVersion()}>
@@ -392,7 +393,7 @@ export function StrategyDesignWorkspace({
           this object's lifecycle acts already are. */}
       <section className="strategy-version-actions" aria-label={t("strategy_lab.identity_actions")}>
         <span className="eyebrow">{t("strategy_lab.identity_actions")}</span>
-        <p className="panel-copy">{t("strategy_lab.identity_actions_note")}</p>
+        <PanelHelp text={t("strategy_lab.identity_actions_note")} label={t("panel.how_to_read")} />
         {!strategy ? (
           <p className="muted">{t("strategy_lab.no_strategy_selected")}</p>
         ) : (

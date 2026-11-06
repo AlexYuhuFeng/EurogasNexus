@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, type TariffPublicationDTO } from "@/api/client";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -48,7 +49,7 @@ export function TariffPublicationsPanel({ t }: { t: Translate }) {
   return (
     <section className="workspace-panel span-3 tariff-publications" aria-labelledby="tariff-pub-title">
       <h2 id="tariff-pub-title">{t("tariffs.title")}</h2>
-      <p className="panel-copy">{t("tariffs.copy")}</p>
+      <PanelHelp text={t("tariffs.copy")} label={t("panel.how_to_read")} />
       {rows && rows.length === 0 && <p className="muted">{t("tariffs.empty")}</p>}
       {rows && rows.length > 0 && (
         <table className="position-ladder">

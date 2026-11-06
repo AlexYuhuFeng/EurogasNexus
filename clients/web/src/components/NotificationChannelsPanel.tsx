@@ -78,6 +78,9 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
           </tbody>
         </table>
       )}
+      {/* Adding a channel is occasional set-up: folded under its action (#69). */}
+      <details className="scope-fold">
+        <summary>{t("notify.add")}</summary>
       <div className="licence-form">
         <label><span>{t("notify.channel_id")}</span><input value={draft.channel_id} onChange={(event) => setDraft({ ...draft, channel_id: event.target.value })} /></label>
         <label><span>{t("notify.name")}</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -99,6 +102,7 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
         </fieldset>
         <button type="button" disabled={!draft.channel_id.trim() || !draft.name.trim() || !draft.recipients.includes("@")} onClick={save}>{t("notify.save")}</button>
       </div>
+      </details>
       {message && <p role="status">{message}</p>}
     </section>
   );

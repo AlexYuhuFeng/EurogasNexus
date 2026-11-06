@@ -18,6 +18,7 @@ import {
 } from "@/app/model/strategyExperimentModel";
 import { useInspectorStore } from "@/stores/inspector";
 import { StrategyLineChart } from "./StrategyLabCharts";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -341,7 +342,7 @@ export function StrategyBacktestWorkspace({
           experiment here groups the run this task starts. */}
       <section className="workspace-panel strategy-experiments" aria-label={t("strategy_lab.experiments")}>
         <h2>{t("strategy_lab.experiments")}</h2>
-        <p className="panel-copy">{t("strategy_lab.experiments_note")}</p>
+        <PanelHelp text={t("strategy_lab.experiments_note")} label={t("panel.how_to_read")} />
         <div className="strategy-form-grid">
           <label>{t("strategy_lab.experiment.name")}
             <input

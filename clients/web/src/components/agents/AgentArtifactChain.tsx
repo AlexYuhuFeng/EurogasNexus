@@ -14,6 +14,7 @@ import {
   type AgentValueList,
 } from "@/app/model/agentReplayModel";
 import { MetricStrip, PanelHeader, StatusBadge } from "@/components/ui";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
 
@@ -436,7 +437,7 @@ export function AgentArtifactChain({ replay, t }: AgentArtifactChainProps) {
         title={t("agents.chain")}
         meta={replay.artifact_chain?.chain_hash ? replay.artifact_chain.chain_hash : absent}
       />
-      <p className="panel-copy">{t("agents.chain_help")}</p>
+      <PanelHelp text={t("agents.chain_help")} label={t("panel.how_to_read")} />
 
       <MetricStrip
         className="metric-grid agents-chain-metrics"

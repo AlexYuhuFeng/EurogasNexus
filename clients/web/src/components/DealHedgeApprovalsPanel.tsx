@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, type HedgeApprovalRowDTO } from "@/api/client";
 import { formatQuantity } from "@/app/model/riskLimitsModel";
+import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -66,7 +67,7 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
   return (
     <section className="workspace-panel span-3 deal-hedge-panel" aria-labelledby="deal-hedge-title">
       <h2 id="deal-hedge-title">{t("hedgeapproval.title")}</h2>
-      <p className="panel-copy">{t("hedgeapproval.copy")}</p>
+        <PanelHelp text={t("hedgeapproval.copy")} label={t("panel.how_to_read")} />
       {rows && rows.length === 0 && <p className="muted">{t("hedgeapproval.empty")}</p>}
       {rows && rows.length > 0 && (
         <table className="position-ladder">
