@@ -1623,7 +1623,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p promotion-evidence
-          CHANNEL_TAG=$(python -c "import json; c=json.load(open('release-assets/release-context.json')); print(c['app_version'] if c['channel'] == 'stable' else c['app_version'] + '-' + c['channel'])")
+          CHANNEL_TAG=$(python -c "import json; c=json.load(open('release-assets/release-context.json')); print(c['app_version'] if c['channel'] == 'stable' else c['release_version'].removeprefix('v'))")
           python scripts/release/promote_image.py \
             --metadata release-assets/image-metadata/image-metadata.json \
             --tag "$CHANNEL_TAG" \
@@ -1718,7 +1718,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p promotion-evidence
-          CHANNEL_TAG=$(python -c "import json; c=json.load(open('release-assets/release-context.json')); print(c['app_version'] if c['channel'] == 'stable' else c['app_version'] + '-' + c['channel'])")
+          CHANNEL_TAG=$(python -c "import json; c=json.load(open('release-assets/release-context.json')); print(c['app_version'] if c['channel'] == 'stable' else c['release_version'].removeprefix('v'))")
           python scripts/release/promote_image.py \
             --metadata release-assets/image-metadata/image-metadata.json \
             --tag "$CHANNEL_TAG" \

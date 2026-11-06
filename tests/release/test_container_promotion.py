@@ -1060,3 +1060,16 @@ def test_plan_records_the_bounded_implementation_without_overclaiming() -> None:
         "the tag state is UNKNOWN",
     ):
         assert phrase in text, phrase
+
+
+def test_each_release_candidate_promotes_to_its_own_immutable_tag() -> None:
+    """rc.2 must not collide with rc.1: promotion refuses to move a tag (fail-closed), so a
+    per-version 'X.Y.Z-rc' tag blocked every candidate after the first. Candidates are
+    promoted to their full release version (0.8.0-rc.2); stable to the bare version."""
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    expression = (
+        "print(c['app_version'] if c['channel'] == 'stable' "
+        "else c['release_version'].removeprefix('v'))"
+    )
+    assert text.count(expression) == 2
+    assert "c['app_version'] + '-' + c['channel']" not in text
