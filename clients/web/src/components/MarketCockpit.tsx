@@ -268,8 +268,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         <section className="workspace-panel">
           <h2>{t("market.opportunities")}</h2>
           <IntradayDecisionFeed
-            opportunities={api.intradayOpportunities.slice(0, 3)}
-            lastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
+            opportunities={api.intradayOpportunities}
             t={t}
             compact
           />
@@ -477,7 +476,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             strategyContextMismatch={portfolio.strategyContextMismatch}
             activeWarning={portfolio.activeWarning}
             reviewEvidenceItems={portfolio.reviewEvidenceItems}
-            marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
             intradayOpportunities={api.intradayOpportunities}
             resultsContextMismatch={portfolio.resultsContextMismatch}
             onResetSearch={() => controls.setSearchTerm("")}

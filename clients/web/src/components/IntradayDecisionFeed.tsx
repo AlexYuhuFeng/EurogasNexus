@@ -5,7 +5,6 @@ type Translate = (key: string) => string;
 
 interface IntradayDecisionFeedProps {
   opportunities: IntradayOpportunityDTO[];
-  lastUpdatedAtUtc: string | null;
   t: Translate;
   compact?: boolean;
 }
@@ -23,7 +22,6 @@ function statusKey(status: string): string {
 
 export function IntradayDecisionFeed({
   opportunities,
-  lastUpdatedAtUtc,
   t,
   compact = false,
 }: IntradayDecisionFeedProps) {
@@ -46,7 +44,7 @@ export function IntradayDecisionFeed({
     .filter((row) => showExpired || row.status !== "EXPIRED")
     .slice(0, compact ? 3 : 8);
 
-  const actionableCount = latest.filter((row) => row.status === "ACTIONABLE_REVIEW").length;
+  const actionableCount = deduplicated.filter((row) => row.status === "ACTIONABLE_REVIEW").length;
 
   return (
     <section
@@ -80,8 +78,8 @@ export function IntradayDecisionFeed({
 
       {latest.length === 0 ? (
         <div className="intraday-empty-state">
-          <strong>{t("intraday.monitoring")}</strong>
-          <span>{t("intraday.no_candidates")}</span>
+          <strong>{t("intraday.no_current_candidates")}</strong>
+          <span>{t(expiredCount ? "intraday.expired_only" : "intraday.coverage_unknown")}</span>
         </div>
       ) : (
         <div className="intraday-opportunity-list">
@@ -132,11 +130,6 @@ export function IntradayDecisionFeed({
 
       <div className="intraday-feed-footer">
         <span>{t("intraday.refresh_10s")}</span>
-        <strong>
-          {lastUpdatedAtUtc
-            ? new Date(lastUpdatedAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-            : "n/a"}
-        </strong>
       </div>
     </section>
   );
