@@ -12,6 +12,7 @@ import { DayBoardPanel } from "@/components/decision/DayBoardPanel";
 import { DecisionActionStatus } from "@/components/decision/DecisionActionStatus";
 import { NominationWindowPanel } from "@/components/decision/NominationWindowPanel";
 import { StorageDispatchPanel } from "@/components/decision/StorageDispatchPanel";
+import { DeskReplayPanel } from "@/components/decision/DeskReplayPanel";
 import {
   useNominationAssessment,
   useOptimizationRunRecord,
@@ -312,6 +313,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             resultCurrent={!portfolio.routeRecommendationContextMismatch}
           />
         )}
+        {task === "scenario" && <DeskReplayPanel t={t} />}
         {task === "scenario" && (
           <ScenarioWorkspace
             routeCandidates={api.routeCandidates}

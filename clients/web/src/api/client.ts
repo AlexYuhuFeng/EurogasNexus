@@ -1174,6 +1174,40 @@ export interface DecisionCaseCreateInputDTO {
   decision_due_at_utc?: string | null;
 }
 
+/** One response to a revised outage: what it covers, or why it is blocked (#49). */
+export interface DeskReplayAlternativeDTO {
+  record_id: string;
+  kind: "BUY_GAS" | "CHANGE_ROUTE" | "WITHDRAW_STORAGE";
+  blocked?: string[];
+  quantity_mwh?: string;
+  remaining_gap_mwh?: string;
+  incremental_cost?: string;
+  incremental_credit?: string | null;
+  action_deadline?: string;
+}
+
+export interface DeskReplayResourceDTO {
+  resource_id: string;
+  position_record_ids: string[];
+  committed_mwh: string | null;
+  deliverable_mwh: string | null;
+  outage_loss_mwh: string;
+  remaining_mwh: string | null;
+  prior_gap_mwh: string | null;
+  keep_plan_gap_mwh: string | null;
+  alternatives: DeskReplayAlternativeDTO[];
+}
+
+export interface DeskReplayResultDTO {
+  engine_version: string;
+  input_sha256: string;
+  frozen_inputs: Record<string, unknown>;
+  delivery_start: string;
+  delivery_end: string;
+  unmatched_record_ids: string[];
+  resources: DeskReplayResourceDTO[];
+}
+
 export interface DecisionCaseEvidenceInputDTO {
   kind:
     | "MARKET_CONTEXT"
@@ -4467,6 +4501,12 @@ export const api = {
 
   createDecisionCase: (body: DecisionCaseCreateInputDTO) =>
     post<DecisionCaseDTO>("/decision-cases", body),
+
+  /**
+   * Reconcile one book, hub and gas day as it was knowable and compare responses to a revised
+   * outage (#48-#50). Read-only compute over caller-supplied evidence; nothing is executed.
+   */
+  deskReplay: (evidence: unknown) => post<DeskReplayResultDTO>("/portfolio/desk-replay", evidence),
 
   attachDecisionCaseEvidence: (caseId: string, body: DecisionCaseEvidenceInputDTO) =>
     post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/evidence`, body),

@@ -545,8 +545,10 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "Connector plugins an administrator has enabled: comma-separated entry-point "
             "names of installed eurogas_nexus.connectors plugins."
         ),
-        default="(none)",
+        default="",
+        example="",
         notes=(
+            "Empty: no plugin runs. Example: kpler_cargo,acme_curves",
             "An installed plugin that is not listed appears as available and never runs.",
             "Enabling a plugin grants no data scope, licence or certification.",
         ),

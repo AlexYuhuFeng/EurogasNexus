@@ -179,3 +179,19 @@ def fetch_live_summary(base_url: str) -> PortfolioLiveSummary:
 
     data = _get(f"{base_url.rstrip('/')}/api/portfolio/live-summary")["data"]
     return PortfolioLiveSummary(**data)
+
+
+def replay_desk_evidence(base_url: str, evidence: dict) -> dict:
+    """Reconcile one book, hub and gas day as it was knowable and compare responses.
+
+    ``evidence`` is the normalized, authorised evidence (positions, outages, alternatives)
+    the server's ``DeskReplay`` model accepts. The result freezes the revisions available at
+    ``as_of`` with an input fingerprint; replaying ``result["frozen_inputs"]`` reproduces it.
+    Responses are assessed, never executed (#48-#50).
+    """
+
+    response = _http.post(
+        f"{base_url.rstrip('/')}/api/portfolio/desk-replay", json=evidence, timeout=30
+    )
+    response.raise_for_status()
+    return response.json()["data"]

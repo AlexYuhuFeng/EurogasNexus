@@ -1,5 +1,10 @@
 # API 契约演化策略
 
+2026-11-06 新增 `POST /api/portfolio/desk-replay`：按调用方提供的已授权证据，对单一账簿、枢纽与
+燃气日做时点对账，并比较针对修订后停运的应对方案（#48-#50）。只读计算、不写数据库，位于商业
+`/api/portfolio/` 前缀下，返回输入指纹与冻结输入以便重放，提供 Python SDK 方法与决策中心面板。
+方案仅评估，从不执行。接口统计：241 条路径 / 261 个操作。
+
 2026-11-05 新增 `POST /api/market/nwe-balance`，与原有 GET 并存，用于调用方显式提供
 数据的天气情景对比。要求 governed 权限，不写数据库，返回输入指纹并提供 Python SDK。
 详见[功能引擎改进计划](../engineering/FUNCTIONAL_ENGINE_IMPROVEMENTS-CN.md)。

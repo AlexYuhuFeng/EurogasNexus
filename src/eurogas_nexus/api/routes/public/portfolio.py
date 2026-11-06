@@ -10,6 +10,8 @@ Every response field of every endpoint below is unchanged.
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -527,3 +529,41 @@ def _parse_tenor_shocks(values: list[str]) -> dict[tuple[str, str], float]:
             )
         shocks[(match.group(1).upper(), match.group(2))] = float(match.group(3))
     return shocks
+
+
+@router.post("/api/portfolio/desk-replay")
+def post_desk_replay(request: Request, body: dict) -> dict:
+    """Reconcile one book, hub and gas day as it was knowable, and compare responses (#48-#50).
+
+    The caller supplies normalized, authorised evidence: positions (availability and confirmed
+    commitments per resource), versioned outages and evaluated alternatives. Only revisions
+    available at ``as_of`` count; the result freezes them with an input fingerprint so the same
+    decision can be replayed later. Missing evidence yields an unknown remaining quantity, never
+    zero. Alternatives are assessed, never executed: no trade, nomination or dispatch is sent.
+    """
+
+    from pydantic import ValidationError
+
+    from eurogas_nexus.domain.portfolio.desk_replay import DeskReplay, replay
+
+    try:
+        evidence = DeskReplay.model_validate(body)
+        result = replay(evidence)
+    except (ValidationError, ValueError) as exc:
+        message = exc.errors()[0]["msg"] if isinstance(exc, ValidationError) else str(exc)
+        raise HTTPException(
+            status_code=422, detail={"error_code": "desk_replay_invalid", "message": message}
+        ) from exc
+    return _env(
+        json.loads(json.dumps(result, default=str)),
+        request,
+        source="caller-evidence",
+        warnings=[
+            "Assessment only: alternatives are compared, never executed.",
+            *(
+                [f"{len(result['unmatched_record_ids'])} records match no position resource"]
+                if result["unmatched_record_ids"]
+                else []
+            ),
+        ],
+    )

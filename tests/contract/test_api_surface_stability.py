@@ -23,6 +23,7 @@ PINNED_PUBLIC_PATHS = {
     "/api/functional-runs/{run_id}/compare",
     "/api/functional-runs/{run_id}/replay",
     "/api/portfolio/daily-balance",
+    "/api/portfolio/desk-replay",
     "/api/portfolio/hedge-approvals",
     "/api/portfolio/hedge-approvals/{contract_id}",
     "/api/agent/plans/validate",

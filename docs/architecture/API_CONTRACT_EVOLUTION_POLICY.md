@@ -4,6 +4,13 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Added 2026-11-06: `POST /api/portfolio/desk-replay` reconciles one book, hub and gas day from
+caller-supplied, authorised evidence and compares responses to a revised outage (#48-#50).
+It is read-only compute (no persistence), sits under the commercial `/api/portfolio/` prefix,
+returns an input fingerprint and the frozen inputs for replay, and has a Python SDK method
+(`portfolio.replay_desk_evidence`) and a Decision Center panel. Responses are assessed, never
+executed. Census: 241 paths / 261 operations.
+
 Added 2026-11-05: `POST /api/market/nwe-balance` adds caller-declared weather scenarios
 alongside the existing GET. It has the governed permission floor, no persistence,
 an input hash and a Python SDK method. See the
