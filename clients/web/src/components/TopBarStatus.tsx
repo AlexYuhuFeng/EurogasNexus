@@ -92,6 +92,8 @@ export function TopBarStatus({
       <button
         type="button"
         className="topbar-status-chip"
+        // At compact width only the dot shows; the words stay the button's name.
+        aria-label={chipLabel}
         aria-expanded={open}
         aria-controls="topbar-status-panel"
         onClick={() => setPinned((value) => !value)}

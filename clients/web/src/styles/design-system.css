@@ -3265,3 +3265,296 @@
     font-size: var(--ds-text-sm);
   }
 }
+
+
+/* Compact shell (docs/product/ADAPTIVE_CLIENT.md, #39/#40): one row - menu, search, alerts,
+   status dot, account - with the lines of work and the trading context in a drawer. Keyed to
+   the width class the shell publishes, not to a breakpoint of its own. */
+@layer ds-components {
+  [data-width-class="compact"] .app-header.cockpit-topbar {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--ds-space-2);
+    min-height: 52px;
+    padding: var(--ds-space-1) var(--ds-space-3);
+  }
+
+  [data-width-class="compact"] .app-header .header-controls {
+    width: auto;
+    margin-left: auto;
+    flex-wrap: nowrap;
+    gap: var(--ds-space-1);
+  }
+
+  .topbar-menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-height: 44px;
+    min-width: 0;
+    padding: 0 var(--ds-space-2);
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+  }
+
+  .topbar-menu-label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    line-height: 1.2;
+  }
+
+  .topbar-menu-label > * {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar-menu-label small {
+    color: var(--ds-text-2);
+    font-weight: 400;
+    font-size: 0.75rem;
+  }
+
+  [data-width-class="compact"] .topbar-command {
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  [data-width-class="compact"] .alert-trigger > span:not(.alert-trigger-mark),
+  [data-width-class="compact"] .topbar-status-chip > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  [data-width-class="compact"] .alert-trigger,
+  [data-width-class="compact"] .topbar-status-chip,
+  [data-width-class="compact"] .topbar-help {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .topbar-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: color-mix(in srgb, var(--ds-ink) 32%, transparent);
+  }
+
+  .topbar-drawer {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(320px, 86vw);
+    overflow-y: auto;
+    padding: var(--ds-space-4) var(--ds-space-3);
+    background: var(--ds-surface);
+    border-right: 1px solid var(--ds-border);
+  }
+
+  .topbar-drawer ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .topbar-drawer nav button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    min-height: 52px;
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+
+  .topbar-drawer nav button small {
+    color: var(--ds-text-2);
+  }
+
+  .topbar-drawer nav button[aria-current="page"] {
+    background: var(--ds-surface-2, color-mix(in srgb, var(--ds-ink) 6%, transparent));
+  }
+
+  .topbar-drawer-context {
+    margin-top: var(--ds-space-4);
+    padding-top: var(--ds-space-3);
+    border-top: 1px solid var(--ds-border);
+  }
+
+  .topbar-drawer-context h2 {
+    margin: 0 0 var(--ds-space-2);
+    font-size: 0.8125rem;
+    color: var(--ds-text-2);
+  }
+
+  .topbar-drawer-context .topbar-trading-context {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topbar-drawer-context .topbar-trading-context label {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ds-space-1);
+  }
+
+  .topbar-drawer-context .topbar-trading-context label > span {
+    position: static;
+    width: auto;
+    height: auto;
+    clip: auto;
+    color: var(--ds-text-2);
+    font-size: 0.8125rem;
+  }
+
+  .topbar-drawer-context select,
+  .topbar-drawer-context input {
+    min-height: 44px;
+    max-width: none;
+  }
+}
+
+
+/* Map layer panel at compact width (#39): one labelled control with the active count; the
+   switches open below it as a wrapping list instead of a row of squeezed pills. */
+@layer ds-components {
+  .map-layers-panel {
+    position: relative;
+  }
+
+  .map-layers-panel > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    min-height: 44px;
+    padding: 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    cursor: pointer;
+    list-style: none;
+    white-space: nowrap;
+  }
+
+  .map-layers-panel > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .map-layers-count {
+    color: var(--ds-text-2);
+  }
+
+  .map-layers-panel-body {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    left: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+    width: min(320px, calc(100vw - 32px));
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  }
+
+  .map-layers-panel-body .map-toolbar-divider {
+    display: none;
+  }
+
+  .map-layers-panel-body .map-layer-chip {
+    min-height: 40px;
+    writing-mode: horizontal-tb;
+    white-space: nowrap;
+  }
+
+  [data-width-class="compact"] .map-toolbar {
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+  }
+}
+
+/* Admin forms and tables at compact width (#39, ADAPTIVE_CLIENT.md rules 1-2): one column,
+   labels above fields, 44 px scope rows; table rows reflow into two lines instead of
+   scrolling sideways. Responsive changes never preselect or widen any grant. */
+@layer ds-components {
+  [data-width-class="compact"] .access-key-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-3);
+  }
+
+  [data-width-class="compact"] .access-key-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-1);
+    width: 100%;
+  }
+
+  [data-width-class="compact"] .access-key-form select,
+  [data-width-class="compact"] .access-key-form input {
+    width: 100%;
+    min-height: 44px;
+    max-width: none;
+  }
+
+  [data-width-class="compact"] .access-key-scopes {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+  }
+
+  [data-width-class="compact"] .access-key-scope {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-height: 44px;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid var(--ds-border);
+  }
+
+  [data-width-class="compact"] .access-key-secret {
+    overflow-wrap: anywhere;
+  }
+
+  [data-width-class="compact"] .workspace-panel .data-table-row:not(.header) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    align-items: center;
+  }
+
+  [data-width-class="compact"] .workspace-panel .data-table-row:not(.header) > strong {
+    flex: 1 0 100%;
+  }
+
+  [data-width-class="compact"] .workspace-panel .data-table-row.header {
+    display: none;
+  }
+}

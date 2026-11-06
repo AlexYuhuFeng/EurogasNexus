@@ -1661,7 +1661,7 @@
   "topbar.access_identity": "访问与身份",
   "topbar.current_task": "当前任务",
   "topbar.task_label": "任务",
-  "topbar.menu": "打开工作区菜单",
+  "topbar.menu": "菜单",
   "topbar.workspace_label": "工具",
   "topbar.workspace_menu": "工作区菜单",
   "topbar.workspace_tools": "工具",
@@ -4489,5 +4489,6 @@
   "connectors.action.import": "导入文件",
   "connectors.action.configure": "配置",
   "connectors.action.set_up": "设置",
-  "settings.service_access_moved": "供应商密钥、采集计划与连接状态在 管理 → 数据源 中统一管理。"
+  "settings.service_access_moved": "供应商密钥、采集计划与连接状态在 管理 → 数据源 中统一管理。",
+  "map.layers_panel": "图层"
 }

@@ -1987,7 +1987,7 @@
   "topbar.access_identity": "Access & Identity",
   "topbar.current_task": "Active task",
   "topbar.task_label": "Task",
-  "topbar.menu": "Open workspace menu",
+  "topbar.menu": "Menu",
   "topbar.workspace_label": "TOOLS",
   "topbar.workspace_menu": "Workspace menu",
   "topbar.workspace_tools": "Tools",
@@ -4489,5 +4489,6 @@
   "connectors.action.import": "Import a file",
   "connectors.action.configure": "Configure",
   "connectors.action.set_up": "Set up",
-  "settings.service_access_moved": "Provider keys, schedules and connection health are managed in Admin → Data Sources."
+  "settings.service_access_moved": "Provider keys, schedules and connection health are managed in Admin → Data Sources.",
+  "map.layers_panel": "Layers"
 }

@@ -390,7 +390,7 @@ export function RuntimeWorkspace({
           <span className="eyebrow">{t("nav.runtime")}</span>
           <strong>{t("runtime.dependency_health")}</strong>
         </div>
-        <div className="data-table">
+        <div className="data-table" tabIndex={0} role="region" aria-label={t("runtime.dependency_health")}>
           <div className="data-table-row header three">
             <span>{t("runtime.dependency")}</span>
             <span>{t("runtime.dependency_state")}</span>
@@ -420,7 +420,7 @@ export function RuntimeWorkspace({
         <button type="button" className="runtime-health-refresh" onClick={() => void onRefreshHealth()}>
           {t("runtime.refresh_pipeline_health")}
         </button>
-        <div className="data-table">
+        <div className="data-table" tabIndex={0} role="region" aria-label={t("runtime.pipeline_health")}>
           <div className="data-table-row header four">
             <span>{t("panel.source")}</span>
             <span>{t("runtime.source_status")}</span>
@@ -428,7 +428,14 @@ export function RuntimeWorkspace({
             <span>{t("runtime.last_success")}</span>
           </div>
           {(health?.sources ?? []).map((source) => (
-            <div key={`pipeline-source-${source.source_name}`} className="data-table-row four">
+            <div
+              key={`pipeline-source-${source.source_name}`}
+              className="data-table-row four"
+              // The row carries the source's own name, so the acceptance sweep compares the table
+              // with the pipeline-health read by exact id (`scripts/uat/readToRender.mjs`).
+              data-record="pipeline-source"
+              data-record-id={source.source_name}
+            >
               <strong>{source.source_name}</strong>
               <StatusBadge variant="pipeline" status={source.status}>{source.status}</StatusBadge>
               <span>{source.consecutive_failures}</span>
@@ -438,13 +445,13 @@ export function RuntimeWorkspace({
             </div>
           ))}
           {(health?.sources ?? []).length === 0 && (
-            <div className="data-table-row four"><strong>{t("runtime.no_sources")}</strong><span>n/a</span><span>n/a</span><span>n/a</span></div>
+            <p className="panel-copy" data-empty-state="pipeline-sources">{t("runtime.no_sources")}</p>
           )}
         </div>
       </div>
       <div className="workspace-panel span-3">
         <h2>{t("runtime.quote_freshness")}</h2>
-        <div className="data-table">
+        <div className="data-table" tabIndex={0} role="region" aria-label={t("runtime.quote_freshness")}>
           <div className="data-table-row header three">
             <span>{t("panel.source")}</span>
             <span>{t("runtime.recent_5m")}</span>
@@ -458,7 +465,7 @@ export function RuntimeWorkspace({
             </div>
           ))}
           {freshnessEntries.length === 0 && (
-            <div className="data-table-row three"><strong>{t("runtime.no_sources")}</strong><span>n/a</span><span>n/a</span></div>
+            <p className="panel-copy">{t("runtime.no_sources")}</p>
           )}
         </div>
       </div>

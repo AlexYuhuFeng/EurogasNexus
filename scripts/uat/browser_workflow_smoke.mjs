@@ -164,7 +164,7 @@ const SURFACE_SIGNALS = {
   // Context the surfaces are showing, so the probe reads that projection for the *displayed* gas
   // day, product and hub; `quotedBoard` declares the hub scope the board prices and how its cards
   // are compared with the rows they name.
-  market: { heading: /market/i, apiPath: "/api/projections/market-context", displayedContext: ".topbar-context-disclosure", quotedBoard: { hubScope: ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"] } },
+  market: { heading: /market/i, apiPath: "/api/projections/market-context", displayedContext: "[data-context-gas-day]", quotedBoard: { hubScope: ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"] } },
   scenario: { heading: /decision/i, apiPath: "/api/decision-cases?limit=5" },
   // Match the client's upstream-terms read; this endpoint has no limit parameter. One persisted
   // contract is rendered in two places - the pool row the Portfolio Overview task draws from the
@@ -198,7 +198,9 @@ const SURFACE_SIGNALS = {
   // bounds its own list at 40 terms, which five cannot exceed, and it renders its declared empty
   // state (`data-empty-state="glossary-terms"`) when it has no terms at all.
   glossary: { heading: /glossary/i, apiPath: "/api/glossary?limit=5", readToRender: [{ label: "glossary term index", rowsPath: "data", recordIdField: "term_id", rowSelectors: ['[data-record="glossary-term"]'], emptySelector: '[data-empty-state="glossary-terms"]' }] },
-  runtime: { heading: /runtime/i, apiPath: "/api/runtime/pipeline-health" },
+  // Runtime opens on Health (#26): every source the pipeline-health read returns must be a row of
+  // the pipeline table, by the source's own name, or the table states its declared empty state.
+  runtime: { heading: /runtime/i, apiPath: "/api/runtime/pipeline-health", readToRender: [{ label: "pipeline health sources", rowsPath: "data.sources", recordIdField: "source_name", rowSelectors: ['[data-record="pipeline-source"]'], emptySelector: '[data-empty-state="pipeline-sources"]' }] },
   settings: { heading: /settings/i, apiPath: "/api/runtime/release" },
   manual: { heading: /manual/i, apiPath: null },
   access: { heading: /access/i, apiPath: "/api/access/users" },
@@ -1412,17 +1414,27 @@ async function interactionChecks(page, failures) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${BASE}/?workspace=network`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(350);
+  // Compact shell (docs/product/ADAPTIVE_CLIENT.md): one row, and the lines of work plus the
+  // trading context in a drawer that starts closed, opens from the menu button, shows the context
+  // controls, and closes on Escape with focus back on the button. The account menu stays on the
+  // bar (#39).
   try {
-    const disclosure = page.locator("details.topbar-context-disclosure");
-    const initiallyOpen = await disclosure.getAttribute("open");
-    if (initiallyOpen !== null) {
-      recordFailure(failures, "interaction/narrow-disclosure", "narrow context disclosure should start closed");
+    const menu = page.locator("button.topbar-menu-button");
+    await menu.waitFor({ state: "visible", timeout: 10_000 });
+    if ((await menu.getAttribute("aria-expanded")) !== "false") {
+      recordFailure(failures, "interaction/narrow-disclosure", "the compact drawer should start closed");
     }
-    await disclosure.locator("summary").click();
-    await page.locator(".topbar-context-disclosure-content").waitFor({
-      state: "visible",
-      timeout: 5_000,
-    });
+    if ((await page.locator(".topbar-preferences-trigger").count()) === 0) {
+      recordFailure(failures, "interaction/narrow-disclosure", "the account menu is not on the compact bar");
+    }
+    await menu.click();
+    await page.locator("#topbar-drawer .topbar-trading-context").waitFor({ state: "visible", timeout: 5_000 });
+    await page.keyboard.press("Escape");
+    await page.locator("#topbar-drawer").waitFor({ state: "detached", timeout: 5_000 });
+    const focusBack = await menu.evaluate((element) => document.activeElement === element);
+    if (!focusBack) {
+      recordFailure(failures, "interaction/narrow-disclosure", "Escape did not return focus to the menu button");
+    }
   } catch (error) {
     recordFailure(failures, "interaction/narrow-disclosure", error);
   }

@@ -78,6 +78,7 @@ WORKSPACE_COMPONENTS: dict[str, tuple[Path, ...]] = {
     "glossary": (WEB_SRC / "GlossaryWiki.tsx",),
     "orders": (WEB_SRC / "MarketPositioningWorkspace.tsx",),
     "review": (WEB_SRC / "ReviewWorkspace.tsx",),
+    "runtime": (WEB_SRC / "RuntimeWorkspace.tsx",),
     "sources": (WEB_SRC / "SourceCenter.tsx",),
 }
 
@@ -268,13 +269,15 @@ def test_every_scoped_read_declares_its_own_rows_and_record_id() -> None:
         "glossary",
         "orders",
         "review",
+        "runtime",
         "sources",
     }, (
-        "exactly the contracts, glossary, orders, review and sources surfaces declare the "
-        "scoped comparison"
+        "exactly the contracts, glossary, orders, review, runtime and sources surfaces declare "
+        "the scoped comparison"
     )
-    assert len(groups) == 6, (
-        "contracts, glossary, review and sources declare one group each, orders declares two"
+    assert len(groups) == 7, (
+        "contracts, glossary, review, runtime and sources declare one group each, orders "
+        "declares two"
     )
 
     for workspace, group in groups:
@@ -679,7 +682,7 @@ def test_the_market_board_is_issued_for_the_context_the_shell_displays() -> None
         'data-context-hub={hubId ?? ""}',
     ):
         assert attribute in topbar, f"the shell displays {attribute}"
-    assert ".topbar-context-disclosure" in _market_signal()
+    assert "[data-context-gas-day]" in _market_signal()
 
     context_model = PROJECTION_CONTEXT_MODEL.read_text(encoding="utf-8")
     assert (

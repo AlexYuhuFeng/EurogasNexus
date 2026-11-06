@@ -395,7 +395,7 @@ test("the market hub board is compared with the projection rows it priced, for t
   const signals = block("const SURFACE_SIGNALS = {", "\n};");
   const market = block("market: { heading: /market/i", "scenario: {");
   assert.match(market, /apiPath: "\/api\/projections\/market-context"/);
-  assert.match(market, /displayedContext: "\.topbar-context-disclosure"/);
+  assert.match(market, /displayedContext: "\[data-context-gas-day\]"/);
   assert.match(market, /hubScope: \["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"\]/);
   // The lane's own read replaces the probe that read a different endpoint.
   assert.doesNotMatch(signals, /apiPath: "\/api\/market\/observations/);

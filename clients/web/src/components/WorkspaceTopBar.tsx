@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useShellLayout } from "@/app/shell/useShellLayout";
 import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
 import {
   SUPPORTED_HUB_IDS,
@@ -154,58 +156,10 @@ export function WorkspaceTopBar({
           ? t("context.month_ahead")
           : t("context.all_products");
 
-  return (
-    <header
-      // The network map has its own finder ("Find a hub, terminal, field or vessel"); the top bar no
-      // longer carries a second map search, which pushed the account menu off a 1440 px screen.
-      className="app-header cockpit-topbar workspace-topbar-only workspace-topbar-page"
-      data-shell-region="global-context"
-    >
-      <WorkspaceTabs
-        idPrefix="workspace-primary"
-        label={t("topbar.primary_navigation")}
-        tabs={primaryTabs}
-        activeId={activePrimaryWorkspace.id}
-        panelId="workspace-primary-content"
-        className="workspace-primary-tabs"
-        shellRegion="navigation"
-        onActivate={(primary) => onOpenPrimaryWorkspace(primary as PrimaryWorkspaceId)}
-      />
-      {onOpenCommandPalette && (
-        <button
-          type="button"
-          className="topbar-command"
-          aria-label={t("topbar.command")}
-          onClick={onOpenCommandPalette}
-          aria-keyshortcuts="Control+K Meta+K"
-        >
-          <span>{t("topbar.command")}</span>
-          <kbd aria-hidden="true">{/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K"}</kbd>
-        </button>
-      )}
-      {/* The Active Context this shell is displaying, in machine-readable form. It is the context
-          every projection read is issued for (`app/model/projectionContext.ts`), so the browser
-          sweep can read the context the surfaces are showing and compare a payload read for that
-          context instead of a generic, unfiltered one. The labels beside it stay the display. */}
-      <details
-        className="topbar-context-disclosure"
-        data-context-gas-day={gasDay}
-        data-context-product={deliveryProduct}
-        data-context-hub={hubId ?? ""}
-        open={!narrowHeader || contextDisclosureOpen}
-        onToggle={(event) => {
-          if (narrowHeader) setContextDisclosureOpen(event.currentTarget.open);
-        }}
-      >
-        <summary aria-label={t("topbar.context_status")}>
-          <strong>{t("topbar.context_status")}</strong>
-          {usesTradingContext && <span>{gasDay} · {productLabel} · {hubId ?? t("context.no_hub_focus")}</span>}
-        </summary>
-        {(!narrowHeader || contextDisclosureOpen) && (
-          <div className="topbar-context-disclosure-content">
-        {/* Rendered only where the page uses it: an empty labelled box is an
-            accessibility fault (axe aria-prohibited-attr). */}
-        {usesTradingContext && (
+  // Gas day, product and hub controls, shared by the inline disclosure and the compact drawer.
+  // Rendered only where the page uses them: an empty labelled box is an accessibility fault
+  // (axe aria-prohibited-attr).
+  const tradingContextControls = usesTradingContext ? (
         <div className="topbar-trading-context" role="group" aria-label={t("context.title")}>
           <label>
             <span>{t("context.gas_day")}</span>
@@ -241,10 +195,163 @@ export function WorkspaceTopBar({
             </select>
           </label>
         </div>
-        )}
+  ) : null;
+
+  // Compact width (docs/product/ADAPTIVE_CLIENT.md): one row - menu, search, alerts, status dot,
+  // account - and a drawer holding the lines of work and the trading context (#39, #40).
+  const { widthClass } = useShellLayout();
+  const compact = widthClass === "compact";
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!compact) setDrawerOpen(false);
+  }, [compact]);
+  useEffect(() => {
+    if (!drawerOpen) return;
+    drawerRef.current?.querySelector<HTMLElement>("button, select, input")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDrawerOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    menuButtonRef.current?.focus();
+  };
+
+  return (
+    <header
+      // The network map has its own finder ("Find a hub, terminal, field or vessel"); the top bar no
+      // longer carries a second map search, which pushed the account menu off a 1440 px screen.
+      className="app-header cockpit-topbar workspace-topbar-only workspace-topbar-page"
+      data-shell-region="global-context"
+    >
+      {compact && (
+        <button
+          ref={menuButtonRef}
+          type="button"
+          className="topbar-menu-button"
+          aria-expanded={drawerOpen}
+          aria-controls="topbar-drawer"
+          aria-label={t("topbar.menu")}
+          // The Active Context in machine-readable form, as on the wide bar's disclosure.
+          data-context-gas-day={gasDay}
+          data-context-product={deliveryProduct}
+          data-context-hub={hubId ?? ""}
+          onClick={() => setDrawerOpen((open) => !open)}
+        >
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+          <span className="topbar-menu-label">
+            <span>{t(activePrimaryWorkspace.labelKey)}</span>
+            {usesTradingContext && <small>{gasDay} · {productLabel}{hubId ? ` · ${hubId}` : ""}</small>}
+          </span>
+        </button>
+      )}
+      {compact && drawerOpen && createPortal(
+        // Portalled to <body>: the header's backdrop blur would otherwise contain the fixed
+        // drawer inside the header's own box.
+        <div className="topbar-drawer-backdrop" onClick={closeDrawer}>
+          <div
+            id="topbar-drawer"
+            ref={drawerRef}
+            className="topbar-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("topbar.menu")}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <nav aria-label={t("topbar.primary_navigation")}>
+              <ul>
+                {visiblePrimaries.map((primary) => (
+                  <li key={primary.id}>
+                    <button
+                      type="button"
+                      aria-current={primary.id === activePrimaryWorkspace.id ? "page" : undefined}
+                      onClick={() => {
+                        onOpenPrimaryWorkspace(primary.id);
+                        closeDrawer();
+                      }}
+                    >
+                      <strong>{t(primary.labelKey)}</strong>
+                      <small>{t(primary.descriptionKey)}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            {tradingContextControls && (
+              <section className="topbar-drawer-context" aria-label={t("context.title")}>
+                <h2>{t("context.title")}</h2>
+                {tradingContextControls}
+              </section>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )}
+      {!compact && (
+      <WorkspaceTabs
+        idPrefix="workspace-primary"
+        label={t("topbar.primary_navigation")}
+        tabs={primaryTabs}
+        activeId={activePrimaryWorkspace.id}
+        panelId="workspace-primary-content"
+        className="workspace-primary-tabs"
+        shellRegion="navigation"
+        onActivate={(primary) => onOpenPrimaryWorkspace(primary as PrimaryWorkspaceId)}
+      />
+      )}
+      {onOpenCommandPalette && (
+        <button
+          type="button"
+          className="topbar-command"
+          aria-label={t("topbar.command")}
+          onClick={onOpenCommandPalette}
+          aria-keyshortcuts="Control+K Meta+K"
+        >
+          {compact ? (
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M12 12l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+          ) : (
+          <>
+          <span>{t("topbar.command")}</span>
+          <kbd aria-hidden="true">{/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K"}</kbd>
+          </>
+          )}
+        </button>
+      )}
+      {/* The Active Context this shell is displaying, in machine-readable form. It is the context
+          every projection read is issued for (`app/model/projectionContext.ts`), so the browser
+          sweep can read the context the surfaces are showing and compare a payload read for that
+          context instead of a generic, unfiltered one. The labels beside it stay the display. */}
+      {!compact && (
+      <details
+        className="topbar-context-disclosure"
+        data-context-gas-day={gasDay}
+        data-context-product={deliveryProduct}
+        data-context-hub={hubId ?? ""}
+        open={!narrowHeader || contextDisclosureOpen}
+        onToggle={(event) => {
+          if (narrowHeader) setContextDisclosureOpen(event.currentTarget.open);
+        }}
+      >
+        <summary aria-label={t("topbar.context_status")}>
+          <strong>{t("topbar.context_status")}</strong>
+          {usesTradingContext && <span>{gasDay} · {productLabel} · {hubId ?? t("context.no_hub_focus")}</span>}
+        </summary>
+        {(!narrowHeader || contextDisclosureOpen) && (
+          <div className="topbar-context-disclosure-content">
+        {/* Rendered only where the page uses it: an empty labelled box is an
+            accessibility fault (axe aria-prohibited-attr). */}
+        {tradingContextControls}
           </div>
         )}
       </details>
+      )}
       {/* Alerts, status and the account menu stay on the bar at every width: on a phone the
           context disclosure is folded, and the account menu (Settings, language, sign out)
           used to fold away with it (#39). */}

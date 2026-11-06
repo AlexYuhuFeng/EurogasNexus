@@ -13,6 +13,23 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ### Added
 
+- **Funding segments** on a supply contract (#14): early cash can be financed in tranches
+  (share, rate, day count, currency), each recorded in the contract's revision history and
+  used by the early-cash valuation.
+- **Contract work chain** (Portfolio → Resources, #32): Terms → Route economics → Pool
+  allocation → Review, each step done, next or blocked with the one rule that blocks it.
+- **Connectors** (Admin → Data Sources, #26, #33): sources grouped as Needs attention,
+  Connected and Available, each with one status word and one action. An optional provider
+  nobody set up is no longer counted as a problem anywhere, including the top bar. The model
+  service shows the provider and model actually configured.
+- **Links to every view** (#31): each page's tab and selected source, contract or term is in
+  the address, so refresh, Back/Forward and shared links return to it; Ctrl+K lists every view.
+- **Phone layout** (#39, #40): below 720 px the top bar is one row (menu, search, alerts,
+  data status, account) and a drawer holds the lines of work and the gas day, product and hub;
+  map layers sit in one Layers panel; admin forms are one column. See
+  `docs/product/ADAPTIVE_CLIENT.md`.
+- **macOS** builds (universal disk image) in the release and native-acceptance pipelines.
+
 - **Contract currency**: a supply contract's price is recorded in GBP, EUR or USD
   (the workbench offers the delivery hub's own currency first). Positions mark a EUR
   contract at TTF against TTF in EUR, and translate a price in another currency at the
@@ -44,7 +61,14 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ### Changed
 
-- The Network page is map-first (full width; rails below it); the duplicate top-bar map
+- **Menus** (#30, #36): Strategy, Research Data and Agent Research are one line, *Research*;
+  *System* is now *Help & Settings* (preferences, manual, glossary). Old links still open.
+  A page shows its title once.
+- **Admin** (#26): Settings holds preferences only; Runtime opens on Health, with release
+  checks as a separate view that no longer lists unconfigured optional providers as blockers.
+- Routes on the map are dimmed until they matter to a position (for example NBP→TTF via IUK or
+  BBL) and can be hidden.
+- The network map is map-first (full width; rails below it); the duplicate top-bar map
   search is gone; layer chips are labelled; LNG terminals and entry and interconnection
   points show by default; generic points and clusters are neutral grey (blue means ours).
 

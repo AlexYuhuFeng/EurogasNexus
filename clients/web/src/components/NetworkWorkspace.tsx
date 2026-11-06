@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
+import { useShellLayout } from "@/app/shell/useShellLayout";
 import type {
   EdgeDTO,
   IntradayOpportunityDTO,
@@ -157,6 +158,7 @@ export function NetworkWorkspace({
   onOpenReview,
   onOpenScenario,
 }: NetworkWorkspaceProps) {
+  const compactLayout = useShellLayout().widthClass === "compact";
   // Wave 9: map nodes hand their detail to the canonical Inspector. This page declares
   // `network-node` as an inspectable subject, so the hand-over is legal here; the builder
   // refuses it everywhere the composition does not declare it.
@@ -385,6 +387,14 @@ export function NetworkWorkspace({
           <button className="chip reset-chip" type="button" onClick={onResetSearch}>
             {t("map.reset")}
           </button>
+          {compactLayout ? (
+            // Phone width (docs/product/ADAPTIVE_CLIENT.md): the layer switches live in one
+            // labelled panel with the active count, so they never cover the map (#39).
+            <details className="map-layers-panel">
+              <summary>
+                {t("map.layers_panel")} <span className="map-layers-count">{activeLayers.length}</span>
+              </summary>
+              <div className="map-layers-panel-body">
           {["routes", "network", "lng", "ips", "hubs"].map((layer) => (
             <button
               key={layer}
@@ -419,6 +429,46 @@ export function NetworkWorkspace({
               <span className="layer-label">{t(`map.layer.${layer}`)}</span>
             </button>
           ))}
+              </div>
+            </details>
+          ) : (
+            <>
+          {["routes", "network", "lng", "ips", "hubs"].map((layer) => (
+            <button
+              key={layer}
+              type="button"
+              className={
+                activeLayers.includes(layer)
+                  ? `chip map-layer-chip layer-${layer} active`
+                  : `chip map-layer-chip layer-${layer}`
+              }
+              aria-pressed={activeLayers.includes(layer)}
+              aria-label={t(`map.layer.${layer}`)}
+              title={t(layer === "routes" ? "map.layer.routes_hint" : `map.layer.${layer}`)}
+              onClick={() => onToggleLayer(layer)}
+            >
+              <span className="layer-label">{t(`map.layer.${layer}`)}</span>
+            </button>
+          ))}
+          <span className="map-toolbar-divider" aria-hidden="true" />
+          {SITUATION_LAYERS.map((layer) => (
+            <button
+              key={layer}
+              type="button"
+              className={
+                activeLayers.includes(layer)
+                  ? `chip map-layer-chip situation-chip layer-${layer} active`
+                  : `chip map-layer-chip situation-chip layer-${layer}`
+              }
+              aria-pressed={activeLayers.includes(layer)}
+              title={t(`map.layer.${layer}_hint`)}
+              onClick={() => onToggleLayer(layer)}
+            >
+              <span className="layer-label">{t(`map.layer.${layer}`)}</span>
+            </button>
+          ))}
+            </>
+          )}
           <span className="map-toolbar-divider" aria-hidden="true" />
           <button
             type="button"
