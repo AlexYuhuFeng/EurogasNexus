@@ -3094,7 +3094,18 @@ export interface ForwardCurvePointDTO {
 
 export interface PositionLadderDTO {
   rows: PositionLadderRowDTO[];
-  totals: { physical_mwh: number; financial_mwh: number; net_mwh: number };
+  totals: { physical_mwh: number; financial_mwh: number; net_mwh: number; gross_tenor_mwh?: number };
+  /** Per hub: net and gross (sum of |net| over months) MWh (#53). */
+  tenor_exposure?: { hub: string; net_mwh: number; gross_mwh: number; months_held: number }[];
+  /** Hubs long in one delivery month and short in another; hub-net VaR is withheld for them. */
+  offsetting_hubs?: string[];
+  /** Tenor shock scenario, when shocks were requested. */
+  scenario?: {
+    pnl: number;
+    contributions: { hub: string; month: string; net_mwh: number; shock_per_mwh: number; pnl: number }[];
+    unshocked: string[];
+    excluded_no_fx: string[];
+  } | null;
   mark_to_market: number | null;
   unpriced_rows: number;
   var_95_1d: number | null;
@@ -4804,17 +4815,15 @@ export const api = {
   positionLadder: (
     months = 12,
     options?: ApiRequestOptions,
-    view: { groupBy?: string; reportingCurrency?: string } = {},
-  ) =>
-    get<PositionLadderDTO>(
-      "/portfolio/position-ladder",
-      {
-        months: String(months),
-        ...(view.groupBy && view.groupBy !== "hub" ? { group_by: view.groupBy } : {}),
-        ...(view.reportingCurrency ? { reporting_currency: view.reportingCurrency } : {}),
-      },
-      options,
-    ),
+    view: { groupBy?: string; reportingCurrency?: string; shocks?: string[] } = {},
+  ) => {
+    const params = new URLSearchParams({ months: String(months) });
+    if (view.groupBy && view.groupBy !== "hub") params.set("group_by", view.groupBy);
+    if (view.reportingCurrency) params.set("reporting_currency", view.reportingCurrency);
+    // Tenor shocks (#53), repeated: HUB:YYYY-MM:delta per MWh.
+    for (const shock of view.shocks ?? []) params.append("shock", shock);
+    return get<PositionLadderDTO>("/portfolio/position-ladder", params, options);
+  },
   creditExposure: (options?: ApiRequestOptions) =>
     get<{ rows: CreditExposureRowDTO[]; as_of: string }>("/portfolio/credit-exposure", undefined, options),
   mandateUsage: (options?: ApiRequestOptions) =>

@@ -103,3 +103,42 @@ def test_same_month_offset_remains_flat_under_hub_only_var():
     ]
     report = ladder_report(legs, horizon_start=NOV, horizon_end=NOV, daily_closes_by_hub={})
     assert report.var_95_1d == 0
+
+
+def test_a_hub_flat_calendar_spread_still_shows_gross_tenor_exposure() -> None:
+    """#53: long 100 MWh TTF Jan, short 100 MWh TTF Feb is net 0 but gross 200."""
+    from datetime import date
+
+    from eurogas_nexus.domain.portfolio.position_ladder import PositionLeg, ladder_report
+
+    legs = [
+        PositionLeg("financial", "TTF", date(2027, 1, 1), date(2027, 1, 31), 100 / 31),
+        PositionLeg("financial", "TTF", date(2027, 2, 1), date(2027, 2, 28), -100 / 28),
+    ]
+    report = ladder_report(
+        legs,
+        horizon_start=date(2027, 1, 1),
+        horizon_end=date(2027, 2, 28),
+        daily_closes_by_hub={},
+        tenor_shocks={("TTF", "2027-01"): -2.0},
+    ).as_dict()
+    assert report["totals"]["net_mwh"] == 0.0
+    assert report["totals"]["gross_tenor_mwh"] == 200.0
+    assert report["offsetting_hubs"] == ["TTF"]
+    assert report["var_95_1d"] is None
+    # EUR 2/MWh fall in January, February unchanged: a EUR 200 loss, not zero.
+    assert report["scenario"]["pnl"] == -200.0
+    assert report["scenario"]["unshocked"] == ["TTF 2027-02"]
+
+
+def test_a_tenor_shock_without_an_fx_rate_is_excluded_and_named() -> None:
+    from eurogas_nexus.domain.portfolio.position_ladder import LadderRow, tenor_scenario
+
+    rows = [LadderRow("NBP", "2027-01", 0.0, 100.0), LadderRow("TTF", "2027-01", 0.0, 50.0)]
+    result = tenor_scenario(
+        rows,
+        {("NBP", "2027-01"): 1.0, ("TTF", "2027-01"): 1.0},
+        fx_by_hub={"TTF": 1.0},
+    )
+    assert result["pnl"] == 50.0
+    assert result["excluded_no_fx"] == ["NBP"]

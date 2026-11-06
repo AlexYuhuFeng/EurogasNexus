@@ -84,6 +84,9 @@ class LadderResult:
     var_observations: int = 0
     warnings: list[str] = field(default_factory=list)
     reporting_currency: str | None = None
+    # Hubs whose months are long in one delivery month and short in another (#53).
+    offsetting_hubs: list[str] = field(default_factory=list)
+    scenario: dict[str, object] | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -102,7 +105,13 @@ class LadderResult:
                 "physical_mwh": round(sum(r.physical_mwh for r in self.rows), 1),
                 "financial_mwh": round(sum(r.financial_mwh for r in self.rows), 1),
                 "net_mwh": round(sum(r.net_mwh for r in self.rows), 1),
+                # Gross tenor exposure (#53): what a curve shock acts on. A hub-flat calendar
+                # spread has net 0 and gross 2x its size; neither is zero risk.
+                "gross_tenor_mwh": round(sum(abs(r.net_mwh) for r in self.rows), 1),
             },
+            "tenor_exposure": tenor_exposure(self.rows),
+            "offsetting_hubs": list(self.offsetting_hubs),
+            "scenario": self.scenario,
             "mark_to_market": None
             if self.mark_to_market is None
             else round(self.mark_to_market, 2),
@@ -112,6 +121,74 @@ class LadderResult:
             "reporting_currency": self.reporting_currency,
             "warnings": list(self.warnings),
         }
+
+
+def tenor_exposure(rows: Sequence[LadderRow]) -> list[dict[str, object]]:
+    """Per hub: the net and the gross (sum of |net| over delivery months) position (#53)."""
+
+    by_hub: dict[str, dict[str, float]] = {}
+    for row in rows:
+        entry = by_hub.setdefault(row.hub, {"net": 0.0, "gross": 0.0, "months": 0.0})
+        entry["net"] += row.net_mwh
+        entry["gross"] += abs(row.net_mwh)
+        entry["months"] += 1 if abs(row.net_mwh) > 1e-9 else 0
+    return [
+        {
+            "hub": hub,
+            "net_mwh": round(values["net"], 1),
+            "gross_mwh": round(values["gross"], 1),
+            "months_held": int(values["months"]),
+        }
+        for hub, values in sorted(by_hub.items())
+    ]
+
+
+def tenor_scenario(
+    rows: Sequence[LadderRow],
+    shocks: Mapping[tuple[str, str], float],
+    *,
+    fx_by_hub: Mapping[str, float] | None = None,
+) -> dict[str, object]:
+    """P&L of a price shock per (hub, delivery month) on the open position (#53).
+
+    Each month's net MWh moves with its own shock, so a calendar spread that is flat at the
+    hub level still loses when one leg moves and the other does not. Months held with no
+    shock are listed as unshocked rather than assumed to move by zero silently; a hub with no
+    FX rate to the reporting currency is excluded and named.
+    """
+
+    contributions: list[dict[str, object]] = []
+    unshocked: list[str] = []
+    no_fx: set[str] = set()
+    total = 0.0
+    for row in rows:
+        if abs(row.net_mwh) < 1e-9:
+            continue
+        key = (row.hub, row.month)
+        if key not in shocks:
+            unshocked.append(f"{row.hub} {row.month}")
+            continue
+        rate = 1.0 if fx_by_hub is None else fx_by_hub.get(row.hub)
+        if rate is None:
+            no_fx.add(row.hub)
+            continue
+        pnl = row.net_mwh * shocks[key] * rate
+        total += pnl
+        contributions.append(
+            {
+                "hub": row.hub,
+                "month": row.month,
+                "net_mwh": round(row.net_mwh, 1),
+                "shock_per_mwh": shocks[key],
+                "pnl": round(pnl, 2),
+            }
+        )
+    return {
+        "pnl": round(total, 2),
+        "contributions": contributions,
+        "unshocked": unshocked,
+        "excluded_no_fx": sorted(no_fx),
+    }
 
 
 def _month_key(day: date) -> str:
@@ -252,9 +329,15 @@ def ladder_report(
     daily_closes_by_hub: Mapping[str, Mapping[date, float]] | None = None,
     fx_by_hub: Mapping[str, float] | None = None,
     reporting_currency: str | None = None,
+    tenor_shocks: Mapping[tuple[str, str], float] | None = None,
 ) -> LadderResult:
     rows = build_ladder(legs, horizon_start=horizon_start, horizon_end=horizon_end)
     result = LadderResult(rows=rows, reporting_currency=reporting_currency)
+    long_by_hub = {row.hub for row in rows if row.net_mwh > 1e-9}
+    short_by_hub = {row.hub for row in rows if row.net_mwh < -1e-9}
+    result.offsetting_hubs = sorted(long_by_hub & short_by_hub)
+    if tenor_shocks:
+        result.scenario = tenor_scenario(rows, tenor_shocks, fx_by_hub=fx_by_hub)
     result.warnings.append(
         "Indicative: price risk on the open position only; volume, basis, shape and credit "
         "risk are not included. Not a substitute for the risk system."
@@ -283,7 +366,8 @@ def ladder_report(
             hubs = ", ".join(sorted(offsetting_hubs))
             result.warnings.append(
                 f"VaR unavailable: offsetting delivery months at {hubs} require tenor-level "
-                "price history."
+                "price history. Gross tenor exposure and a tenor shock scenario are shown "
+                "instead."
             )
             return result
         result.var_95_1d, result.var_observations = historical_var(

@@ -80,9 +80,22 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
         <span>{t("position.mtm")}{ladder.reporting_currency ? ` (${ladder.reporting_currency})` : ""}</span>
         <strong className={pnlClass(ladder.mark_to_market)}>{money(ladder.mark_to_market)}</strong>
       </div>
+      {ladder.totals.gross_tenor_mwh !== undefined && (
+        <div>
+          <span>{t("position.gross_tenor")}</span>
+          <strong title={t("position.gross_tenor_help")}>{mwh(ladder.totals.gross_tenor_mwh)} MWh</strong>
+        </div>
+      )}
       <div>
         <span>{t("position.var")}</span>
-        <strong title={ladder.var_95_1d == null ? undefined : t("position.var_help", { count: ladder.var_observations })}>{money(ladder.var_95_1d)}</strong>
+        {ladder.offsetting_hubs && ladder.offsetting_hubs.length > 0 ? (
+          // A calendar spread is never shown as zero risk (#53).
+          <strong className="position-var-withheld" title={t("position.var_withheld_help")}>
+            {t("position.var_withheld").replace("{{hubs}}", ladder.offsetting_hubs.join(", "))}
+          </strong>
+        ) : (
+          <strong title={ladder.var_95_1d == null ? undefined : t("position.var_help", { count: ladder.var_observations })}>{money(ladder.var_95_1d)}</strong>
+        )}
       </div>
     </div>
   );
@@ -221,11 +234,97 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
               )}
             </tbody>
           </table>
+          <TenorShockScenario ladder={ladder} months={months} currency={currency} t={t} />
           <ul className="position-notes">
             {ladder.warnings.map((warning) => <li key={warning}>{warning}</li>)}
           </ul>
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * A price shock per hub and delivery month applied to the open position (#53). Each month moves
+ * on its own, so a calendar spread that is flat at the hub shows the loss a curve twist causes.
+ * Months held without a shock are listed, never assumed to move by zero silently.
+ */
+function TenorShockScenario({
+  ladder,
+  months,
+  currency,
+  t,
+}: {
+  ladder: PositionLadderDTO;
+  months: number;
+  currency: string;
+  t: Translate;
+}) {
+  const keys = useMemo(
+    () => ladder.rows.filter((row) => Math.abs(row.net_mwh) > 1e-9).map((row) => `${row.hub}:${row.month}`),
+    [ladder],
+  );
+  const [shocks, setShocks] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<PositionLadderDTO["scenario"]>(null);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  if (keys.length === 0) return null;
+  const run = async () => {
+    const list = Object.entries(shocks)
+      .filter(([, value]) => value.trim() !== "" && Number.isFinite(Number(value)))
+      .map(([key, value]) => `${key}:${Number(value)}`);
+    if (list.length === 0) return;
+    setBusy(true);
+    setFailure(null);
+    try {
+      const response = await api.positionLadder(months, undefined, {
+        reportingCurrency: currency || undefined,
+        shocks: list,
+      });
+      setResult(response.data.scenario ?? null);
+    } catch (caught) {
+      setFailure(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <details className="position-scenario" data-position-scenario="true">
+      <summary>{t("position.scenario_title")}</summary>
+      <p className="muted">{t("position.scenario_help")}</p>
+      <div className="position-scenario-grid">
+        {keys.map((key) => {
+          const [hub, month] = key.split(":");
+          return (
+            <label key={key}>
+              <span>{hub} {ladderMonthLabel(month ?? "")}</span>
+              <input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                value={shocks[key] ?? ""}
+                placeholder="0.00"
+                onChange={(event) => setShocks((current) => ({ ...current, [key]: event.target.value }))}
+              />
+            </label>
+          );
+        })}
+      </div>
+      <button type="button" disabled={busy} onClick={() => void run()}>{t("position.scenario_run")}</button>
+      {failure && <p role="alert">{failure}</p>}
+      {result && (
+        <div className="position-scenario-result" role="status">
+          <strong className={pnlClass(result.pnl)}>
+            {t("position.scenario_pnl")}: {money(result.pnl)} {ladder.reporting_currency ?? ""}
+          </strong>
+          {result.unshocked.length > 0 && (
+            <small className="muted">{t("position.scenario_unshocked")}: {result.unshocked.join(", ")}</small>
+          )}
+          {result.excluded_no_fx.length > 0 && (
+            <small className="muted">{t("position.scenario_no_fx")}: {result.excluded_no_fx.join(", ")}</small>
+          )}
+        </div>
+      )}
+    </details>
   );
 }

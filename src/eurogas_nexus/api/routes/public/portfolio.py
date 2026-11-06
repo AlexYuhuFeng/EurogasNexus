@@ -148,6 +148,11 @@ def get_position_ladder(
     group_by: str = Query("hub", pattern="^(hub|firm|legal_entity|region|business|book)$"),
     reporting_currency: str | None = Query(None, pattern="^[A-Z]{3}$"),
     format: str = Query("json", pattern="^(json|csv|xlsx|pdf)$"),
+    shock: list[str] = Query(
+        default_factory=list,
+        max_length=60,
+        description="Tenor price shock, HUB:YYYY-MM:delta per MWh in the hub's currency (#53)",
+    ),
 ):
     """Physical and financial positions by hub and delivery month, MtM and indicative VaR.
 
@@ -192,6 +197,7 @@ def get_position_ladder(
             f"No ECB rate to {reporting_currency} for {', '.join(sorted(missing_fx))}; "
             "positions in those currencies are not valued."
         )
+    tenor_shocks = _parse_tenor_shocks(shock)
     report = ladder_report(
         legs,
         horizon_start=horizon_start,
@@ -200,6 +206,7 @@ def get_position_ladder(
         daily_closes_by_hub=closes,
         fx_by_hub=fx_by_hub,
         reporting_currency=reporting_currency,
+        tenor_shocks=tenor_shocks or None,
     )
     if flat_months:
         warnings.append(
@@ -237,6 +244,21 @@ def get_position_ladder(
         from eurogas_nexus.api.csv_export import report_response
 
         about = [("Horizon", f"{horizon_start.isoformat()} to {horizon_end.isoformat()}")]
+        totals = payload["totals"]
+        about.append(("Net position (MWh)", str(totals["net_mwh"])))
+        about.append(("Gross tenor exposure (MWh)", str(totals["gross_tenor_mwh"])))
+        if payload["offsetting_hubs"]:
+            about.append(
+                (
+                    "Offsetting delivery months",
+                    ", ".join(payload["offsetting_hubs"])
+                    + " - hub-net VaR withheld; see gross tenor exposure",
+                )
+            )
+        if payload.get("scenario"):
+            about.append(
+                ("Tenor shock scenario P&L", f"{payload['scenario']['pnl']} {reporting_currency}")
+            )
         about += [("Warning", item) for item in [*warnings, *report.warnings][:20]]
         if group_by != "hub":
             rows = [{**row, "currency": reporting_currency} for row in payload["rollup"]]
@@ -485,3 +507,23 @@ def map_situation(
         if count
     ]
     return _env(data, request, source="runtime-postgresql:map-situation", warnings=warnings)
+
+
+def _parse_tenor_shocks(values: list[str]) -> dict[tuple[str, str], float]:
+    """``HUB:YYYY-MM:delta`` items as {(hub, month): delta}; a malformed item is a 422."""
+
+    import re
+
+    shocks: dict[tuple[str, str], float] = {}
+    for item in values:
+        match = re.fullmatch(r"([A-Za-z_]{2,16}):(\d{4}-\d{2}):(-?\d+(?:\.\d+)?)", item.strip())
+        if not match:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error_code": "tenor_shock_invalid",
+                    "message": f"shock {item!r} is not HUB:YYYY-MM:delta",
+                },
+            )
+        shocks[(match.group(1).upper(), match.group(2))] = float(match.group(3))
+    return shocks

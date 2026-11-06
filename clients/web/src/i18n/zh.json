@@ -4524,5 +4524,15 @@
   "access.audit_to": "截止（本地时间）",
   "access.audit_search": "查询",
   "access.audit_more": "加载更多",
-  "access.audit_shown": "已显示 {{count}} 条，最新在前"
+  "access.audit_shown": "已显示 {{count}} 条，最新在前",
+  "position.gross_tenor": "按月总敞口",
+  "position.gross_tenor_help": "各交割月净头寸绝对值之和：曲线变动作用的规模。枢纽层面持平的跨月价差净值为0，总敞口为其规模的两倍。",
+  "position.var_withheld": "暂不计算：{{hubs}} 存在月份对冲",
+  "position.var_withheld_help": "枢纽层面的 VaR 会抵消多空交割月。请使用按月总敞口与月度冲击情景。",
+  "position.scenario_title": "月度价格冲击情景",
+  "position.scenario_help": "为任一枢纽与月份输入每MWh价格变动（枢纽报价币种）。各月分别变动。",
+  "position.scenario_run": "运行情景",
+  "position.scenario_pnl": "情景损益",
+  "position.scenario_unshocked": "持有但未冲击",
+  "position.scenario_no_fx": "无汇率，已排除"
 }

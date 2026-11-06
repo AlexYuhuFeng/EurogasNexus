@@ -4524,5 +4524,15 @@
   "access.audit_to": "To (local time)",
   "access.audit_search": "Search",
   "access.audit_more": "Load more",
-  "access.audit_shown": "{{count}} events shown, newest first"
+  "access.audit_shown": "{{count}} events shown, newest first",
+  "position.gross_tenor": "Gross by month",
+  "position.gross_tenor_help": "Sum of the absolute net position of every delivery month: what a curve move acts on. A hub-flat calendar spread has net 0 and a gross of twice its size.",
+  "position.var_withheld": "Withheld: offsetting months at {{hubs}}",
+  "position.var_withheld_help": "Hub-level VaR would cancel long and short delivery months. Use gross by month and the tenor shock scenario.",
+  "position.scenario_title": "Tenor shock scenario",
+  "position.scenario_help": "Enter a price change per MWh for any hub and month, in the hub's quote currency. Each month moves on its own.",
+  "position.scenario_run": "Run scenario",
+  "position.scenario_pnl": "Scenario P&L",
+  "position.scenario_unshocked": "Held but not shocked",
+  "position.scenario_no_fx": "Excluded, no FX rate"
 }
