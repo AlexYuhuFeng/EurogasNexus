@@ -368,6 +368,8 @@ export async function inspectNativeCapacityInteraction({
       .catch(() => false);
     if (!settled) fail("the capacity workspace read never settled");
 
+    // The point-id query is folded under its title on the page (#69): open it as a user would.
+    await page.locator("details.capacity-native-fold:not([open]) > summary").first().click().catch(() => {});
     const panel = page.locator("[data-native-panel-state]");
     await panel.waitFor({ state: "visible", timeout: 15_000 });
     const input = page.locator("[data-native-point-id]");

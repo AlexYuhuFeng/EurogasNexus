@@ -27,12 +27,9 @@ test("the numeric task mounts no map while the map task mounts the map", () => {
   assert.equal(numeric.includes("GasNetworkMap"), false);
   assert.match(mapView, /<NetworkWorkspace/);
 
-  // The fused overview dashboard is the only map mount inside the market shell,
-  // and it is not the implicit landing task.
-  assert.equal((market.match(/<GasNetworkMap/g) ?? []).length, 1);
-  const mapMountIndex = market.indexOf("<GasNetworkMap");
-  assert.ok(mapMountIndex > market.indexOf("function MarketOverview("));
-  assert.ok(mapMountIndex < market.indexOf("export function MarketCockpit("));
+  // The map lives on the network task only: the overview no longer repeats a smaller copy
+  // of it (#69), so the market shell itself mounts no map.
+  assert.equal(market.includes("<GasNetworkMap"), false);
 
   // The numeric terminal itself never mounts a map.
   assert.equal(readWebSource("components/MarketTerminal.tsx").includes("GasNetworkMap"), false);

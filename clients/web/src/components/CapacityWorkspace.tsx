@@ -361,6 +361,9 @@ export function CapacityWorkspace({
       : boardRead.measured && filtersApplied && filteredRows.length === 0
         ? { key: "capacity.no_matching_points", marker: "capacity-filter-no-match" }
         : null;
+  // The runtime served no point at all: filters, zero counts and an empty inspector would only
+  // repeat that, so the board is one line until data arrives (#69).
+  const boardEmpty = boardRead.measured && operatingRows.length === 0;
   const selected = operatingRows.find((row) => row.key === selectedKey) ?? filteredRows[0] ?? null;
   const selectedAccess = selected
     ? tsoAccess.filter((row) => row.point_id === selected.pointId || normalize(row.point_name) === normalize(selected.pointName))
@@ -422,7 +425,16 @@ export function CapacityWorkspace({
           />
         </div>
 
-        {activeView === "network" && (
+        {/* A measured empty board still states its measurement, in one line: the runtime
+            answered with no point, which is not the same as a read that did not answer. */}
+        {activeView === "network" && boardEmpty && (
+          <div className="capacity-kpi-strip metric-inline">
+            <div><span>{t("capacity.physical_flow_records")}</span><strong>{counts.flowPublished}</strong></div>
+            <div><span>{t("capacity.technical_records")}</span><strong>{counts.technicalPublished}</strong></div>
+            <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestOperationalAt)}</strong></div>
+          </div>
+        )}
+        {activeView === "network" && !boardEmpty && (
           <>
             <div className="capacity-command-bar">
               <input value={query} onChange={(event) => { setQuery(event.target.value); resetPage(); }} placeholder={t("capacity.search_points")} aria-label={t("capacity.search_points")} />
@@ -493,7 +505,7 @@ export function CapacityWorkspace({
         aria-labelledby={`capacity-view-${activeView}`}
       >
       {activeView === "network" && (
-        <div className="capacity-network-layout">
+        <div className={`capacity-network-layout${boardEmpty ? " is-empty" : ""}`}>
           <section className="workspace-panel capacity-board-panel">
             <div className="panel-title-row">
               <div><h2>{t("capacity.operating_board")}</h2><p>{t("capacity.operating_board_note")}</p></div>
@@ -556,6 +568,7 @@ export function CapacityWorkspace({
             )}
           </section>
 
+          {!boardEmpty && (
           <aside className="workspace-panel capacity-point-inspector">
             <div className="panel-title-row">
               <h2>{t("capacity.point_inspector")}</h2>
@@ -645,6 +658,7 @@ export function CapacityWorkspace({
               </div>
             )}
           </aside>
+          )}
         </div>
       )}
 
@@ -668,7 +682,13 @@ export function CapacityWorkspace({
         </section>
       )}
 
-      {activeView === "network" && <NativeCapacityContextPanel t={t} />}
+      {/* A query by exact ENTSOG point id is an analyst's tool, not a reading: folded (#69). */}
+      {activeView === "network" && (
+        <details className="capacity-native-fold">
+          <summary>{t("nativeCapacity.title")}</summary>
+          <NativeCapacityContextPanel t={t} />
+        </details>
+      )}
 
       {/* The capacity the operator has declared, behind the board's measured and technical
           capacity: the profiles the runtime stores, on the same page as the points they belong to

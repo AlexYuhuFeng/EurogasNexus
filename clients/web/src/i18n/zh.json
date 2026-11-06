@@ -4566,5 +4566,11 @@
   "desk_replay.attach_to": "在决策案例中引用",
   "desk_replay.choose_case": "选择未决案例",
   "desk_replay.attach": "附加",
-  "desk_replay.attached": "已作为证据附加。"
+  "desk_replay.attached": "已作为证据附加。",
+  "market.no_price_hubs": "任何已连接数据源均无价格：",
+  "market.no_opportunities": "日内扫描：当前无价差候选。",
+  "nwe.meaning": "西北欧每个燃气日从挪威、LNG 和储气库调用的气量：过去 7 天为实测，未来 14 天为预测。",
+  "nwe.empty": "需要 ENTSOG（挪威入口）、GIE ALSI 和 AGSI 的历史数据；目前尚无重叠数据。",
+  "gfp.meaning": "每个交割日的燃气发电用气量，以及燃气与燃煤谁在调度序列中（清洁火花价差对清洁暗价差）。",
+  "portfolio.no_scenario_run": "尚未运行情景"
 }

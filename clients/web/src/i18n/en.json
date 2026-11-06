@@ -4566,5 +4566,11 @@
   "desk_replay.attach_to": "Cite in decision case",
   "desk_replay.choose_case": "Choose an open case",
   "desk_replay.attach": "Attach",
-  "desk_replay.attached": "Attached as evidence."
+  "desk_replay.attached": "Attached as evidence.",
+  "market.no_price_hubs": "No price from any connected source:",
+  "market.no_opportunities": "Intraday scan: no spread candidates now.",
+  "nwe.meaning": "What NW Europe draws from Norway, LNG and storage each gas day: last 7 days measured, next 14 forecast.",
+  "nwe.empty": "Needs ENTSOG (Norwegian entry), GIE ALSI and AGSI history; none overlapping yet.",
+  "gfp.meaning": "Gas burned for power and whether gas or coal is in the merit order (clean spark vs clean dark), per delivery day.",
+  "portfolio.no_scenario_run": "No scenario run yet"
 }

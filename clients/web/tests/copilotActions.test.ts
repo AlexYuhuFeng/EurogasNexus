@@ -115,7 +115,10 @@ test("a workspace mounts the Copilot with the same rule the palette applies", ()
   // offer the contract produced rather than with a copy of the rule.
   assert.match(cockpit, /import \{ copilotOffers \} from "@\/app\/model\/copilotModel"/);
   assert.match(cockpit, /import \{ CopilotHost \} from "@\/components\/CopilotPanel"/);
-  assert.match(cockpit, /copilotOffers\(copilotSources\.context, copilotSources\.evidenceRefs\)\.map/);
+  // When every action is withheld the panel is one line with the first withheld reason.
+  assert.match(cockpit, /const offers = copilotOffers\(copilotSources\.context, copilotSources\.evidenceRefs\);/);
+  assert.match(cockpit, /offers\.map\(\(offer\) =>/);
+  assert.match(cockpit, /offers\.every\(\(offer\) => !offer\.available\)/);
   assert.match(cockpit, /disabled=\{!offer\.available\}/);
   assert.match(
     cockpit,

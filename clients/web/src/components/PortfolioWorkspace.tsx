@@ -1,7 +1,6 @@
 import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
-import { useShellLayout } from "@/app/shell/useShellLayout";
 import { ContractChainStrip } from "@/components/ContractChainStrip";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
@@ -67,9 +66,17 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
       <section className="commercial-metric-strip" aria-label={t("portfolio.overview")}>
         <span><small>{t("portfolio.scope.quantity")}</small><strong>{totalVolume.toLocaleString()} MWh/d</strong></span>
         <span><small>{t("portfolio.weighted_cost")}</small><strong>{weightedCost === null ? "n/a" : `${weightedCost.toFixed(2)} GBP/MWh`}</strong></span>
-        <span><small>{t("portfolio.scope.allocated")}</small><strong>{poolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
-        <span><small>{t("portfolio.scope.unallocated")}</small><strong>{poolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
-        <span><small>{t("portfolio.net_indicative")}</small><strong>{money(poolResult?.total_net_pnl_gbp_per_day, "/d")}</strong></span>
+        {/* Allocation figures exist only after a scenario run; before one, three "n/a" cells
+            become one statement (#69). */}
+        {poolResult ? (
+          <>
+            <span><small>{t("portfolio.scope.allocated")}</small><strong>{poolResult.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
+            <span><small>{t("portfolio.scope.unallocated")}</small><strong>{poolResult.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
+            <span><small>{t("portfolio.net_indicative")}</small><strong>{money(poolResult.total_net_pnl_gbp_per_day, "/d")}</strong></span>
+          </>
+        ) : (
+          <span><small>{t("portfolio.scope.allocated")}</small><strong className="muted">{t("portfolio.no_scenario_run")}</strong></span>
+        )}
         <span><small>{t("portfolio.warnings")}</small><strong>{diagnostics.length}</strong></span>
       </section>
       {resultsStale && (
@@ -125,14 +132,12 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
           emptyLabel={t("review.no_warnings")}
         />
       </section>
-      <section className="workspace-panel">
-        <PanelHeader title={t("portfolio.handoffs")} />
-        <div className="commercial-handoff-actions">
-          <button type="button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
-          <button type="button" onClick={() => navigation.openWorkspace("strategy")}>{t("portfolio.inspect_strategy")}</button>
-          <button type="button" onClick={() => navigation.openWorkspace("scenario")}>{t("portfolio.open_scenario")}</button>
-        </div>
-      </section>
+      {/* Three links do not need a panel and a heading of their own (#69). */}
+      <nav className="commercial-handoff-actions inline-links" aria-label={t("portfolio.handoffs")}>
+        <button type="button" className="link-button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
+        <button type="button" className="link-button" onClick={() => navigation.openWorkspace("strategy")}>{t("portfolio.inspect_strategy")}</button>
+        <button type="button" className="link-button" onClick={() => navigation.openWorkspace("scenario")}>{t("portfolio.open_scenario")}</button>
+      </nav>
     </div>
   );
 }
@@ -207,7 +212,6 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   onOpenStrategyForResource: (resourceId: string) => void;
 }) {
   const { t, api, portfolio, selection, navigation, contractEditor } = controller;
-  const compactLayout = useShellLayout().widthClass === "compact";
   const currentUser = api.currentUser;
   const canMaintainRisk = currentUser?.role === "REVIEWER"
     || (currentUser?.roles.includes("REVIEWER") ?? false);
@@ -322,8 +326,8 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
       <div id="portfolio-task-panel">
         <PortfolioContextStrip projection={api.portfolioSnapshot} t={t} />
         <section className="workspace-panel" aria-label={t("portfolio.scope.title")}>
-          {/* Folds to its title on a phone (ADAPTIVE_CLIENT.md); open on wider screens. */}
-          <details className="scope-fold" open={!compactLayout}>
+          {/* A standing caveat read once, not every visit: folded to its title (#69). */}
+          <details className="scope-fold">
             <summary>{t("portfolio.scope.title")}</summary>
             <p className="panel-copy">{t(task === "exposure" ? "portfolio.scope.observations" : "portfolio.scope.scenario")}</p>
           </details>

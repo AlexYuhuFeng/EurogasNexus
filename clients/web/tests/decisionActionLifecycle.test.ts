@@ -707,7 +707,7 @@ test("every consumer derives from the model's results provenanced to the current
   );
   assert.match(portfolio, /classifyRouteFeasibility\(\s*route,\s*recommendation,\s*poolResult,\s*api\.resourcePoolOptions,\s*\)/);
   assert.match(portfolio, /const allocation = poolResult\?\.allocations\.find\(/);
-  assert.match(portfolio, /money\(poolResult\?\.total_net_pnl_gbp_per_day, "\/d"\)/);
+  assert.match(portfolio, /money\(poolResult\??\.total_net_pnl_gbp_per_day, "\/d"\)/);
   // ...the map does the same for its decision rail and strategy signal, and states a stale
   // strategy result rather than showing the previous one as live...
   assert.match(market, /routeRecommendation=\{portfolio\.currentRouteRecommendation\}/);

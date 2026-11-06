@@ -36,12 +36,16 @@ export function GasForPowerPanel({ t }: { t: Translate }) {
     };
   }, [zone]);
   const currency = rows?.[0]?.currency ?? "";
+  const hasRows = Boolean(rows && rows.length > 0);
+  const empty = rows !== null && !hasRows;
 
+  // The zone picker stays when the panel is empty, because another zone may have data; the
+  // export buttons do not (#69).
   return (
-    <section className="workspace-panel span-3 gas-for-power-panel" aria-labelledby="gas-for-power-title">
+    <section className={`workspace-panel span-3 gas-for-power-panel${empty ? " is-empty" : ""}`} aria-labelledby="gas-for-power-title">
       <div className="panel-title-row">
-        <h2 id="gas-for-power-title">{t("gfp.title")}</h2>
-        <ReportExport t={t} path="/market/gas-for-power" params={{ zone, days: "14" }} />
+        <h2 id="gas-for-power-title" title={t("gfp.meaning")}>{t("gfp.title")}</h2>
+        {hasRows && <ReportExport t={t} path="/market/gas-for-power" params={{ zone, days: "14" }} />}
         <label className="position-horizon">
           <span>{t("gfp.zone")}</span>
           <select value={zone} onChange={(event) => setZone(event.target.value)}>
@@ -50,7 +54,12 @@ export function GasForPowerPanel({ t }: { t: Translate }) {
         </label>
       </div>
       {error && <p role="alert">{error}</p>}
-      {rows && rows.length > 0 && (
+      {empty ? (
+        <p className="panel-empty-line">{notes[0] ?? t("gfp.empty")}</p>
+      ) : (
+        <p className="panel-meaning">{t("gfp.meaning")}</p>
+      )}
+      {rows && hasRows && (
         <table className="position-ladder" data-gas-for-power="true">
           <thead>
             <tr>
@@ -82,9 +91,9 @@ export function GasForPowerPanel({ t }: { t: Translate }) {
           </tbody>
         </table>
       )}
-      {rows && (
+      {hasRows && notes.length > 0 && (
         <ul className="position-notes">
-          {(rows.length === 0 && notes.length === 0 ? [t("gfp.empty")] : notes).map((note) => <li key={note}>{note}</li>)}
+          {notes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       )}
     </section>

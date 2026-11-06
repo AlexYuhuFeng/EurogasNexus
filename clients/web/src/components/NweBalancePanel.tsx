@@ -47,15 +47,24 @@ export function NweBalancePanel({ t }: { t: Translate }) {
     };
   }, []);
   const methods = balance?.forecast[0]?.methods;
+  const hasRows = Boolean(balance && (balance.history.length > 0 || balance.forecast.length > 0));
+  const empty = balance !== null && !hasRows;
 
+  // With no rows the panel is one line: what it is, and the one reason it is empty. Export
+  // buttons for an empty table are not offered (#69).
   return (
-    <section className="workspace-panel span-3 nwe-balance-panel" aria-labelledby="nwe-balance-title">
+    <section className={`workspace-panel span-3 nwe-balance-panel${empty ? " is-empty" : ""}`} aria-labelledby="nwe-balance-title">
       <div className="panel-title-row">
-        <h2 id="nwe-balance-title">{t("nwe.title")}</h2>
-        <ReportExport t={t} path="/market/nwe-balance" params={{ days: "14" }} />
+        <h2 id="nwe-balance-title" title={t("nwe.meaning")}>{t("nwe.title")}</h2>
+        {hasRows && <ReportExport t={t} path="/market/nwe-balance" params={{ days: "14" }} />}
       </div>
       {error && <p role="alert">{error}</p>}
-      {balance && (balance.history.length > 0 || balance.forecast.length > 0) && (
+      {empty ? (
+        <p className="panel-empty-line">{notes.at(-1) ?? t("nwe.empty")}</p>
+      ) : (
+        <p className="panel-meaning">{t("nwe.meaning")}</p>
+      )}
+      {balance && hasRows && (
         <table className="position-ladder" data-nwe-balance="true">
           <thead>
             <tr>
@@ -73,10 +82,12 @@ export function NweBalancePanel({ t }: { t: Translate }) {
           </tbody>
         </table>
       )}
-      <ul className="position-notes">
-        {methods && <li>{t("nwe.methods", { call: methods.call, norway: methods.norway, lng: methods.lng })}</li>}
-        {notes.map((note) => <li key={note}>{note}</li>)}
-      </ul>
+      {hasRows && (
+        <ul className="position-notes">
+          {methods && <li>{t("nwe.methods", { call: methods.call, norway: methods.norway, lng: methods.lng })}</li>}
+          {notes.map((note) => <li key={note}>{note}</li>)}
+        </ul>
+      )}
     </section>
   );
 }

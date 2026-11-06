@@ -72,7 +72,8 @@ export function CapacityContractBook({ t }: CapacityContractBookProps) {
         title={t("capacity.contracts.title")}
         meta={read.source ?? t("status.unknown")}
       />
-      <p className="panel-copy">{t("capacity.contracts.note")}</p>
+      {/* The explanation of how to read the rows is shown only when there are rows (#69). */}
+      {rows.length > 0 && <p className="panel-copy">{t("capacity.contracts.note")}</p>}
       {/* This panel's own read, named as such: the workspace is not loading because one panel is. */}
       {loading && <p className="muted">{t("capacity.contracts.loading")}</p>}
       {failure && (

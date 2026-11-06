@@ -37,7 +37,8 @@ test("commercial workspaces use shared panel hierarchy and canonical tokens", ()
 
   assert.match(portfolio, /import \{ PanelHeader, WorkspaceHeader \}/);
   assert.match(decision, /import \{ PanelHeader, WorkspaceHeader \}/);
-  assert.ok((portfolio.match(/<PanelHeader/g) ?? []).length >= 4);
+  // Hand-off links sit in a link row, not a headed panel (#69).
+  assert.ok((portfolio.match(/<PanelHeader/g) ?? []).length >= 3);
   assert.ok((decision.match(/<PanelHeader/g) ?? []).length >= 5);
   for (const legacy of [
     "var(--border",

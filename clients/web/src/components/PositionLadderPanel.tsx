@@ -80,7 +80,9 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
         <span>{t("position.mtm")}{ladder.reporting_currency ? ` (${ladder.reporting_currency})` : ""}</span>
         <strong className={pnlClass(ladder.mark_to_market)}>{money(ladder.mark_to_market)}</strong>
       </div>
-      {ladder.totals.gross_tenor_mwh !== undefined && (
+      {/* Gross by month adds information only when months offset; equal to |net| it repeats it. */}
+      {ladder.totals.gross_tenor_mwh !== undefined &&
+        Math.abs(ladder.totals.gross_tenor_mwh) !== Math.abs(ladder.totals.net_mwh) && (
         <div>
           <span>{t("position.gross_tenor")}</span>
           <strong title={t("position.gross_tenor_help")}>{mwh(ladder.totals.gross_tenor_mwh)} MWh</strong>

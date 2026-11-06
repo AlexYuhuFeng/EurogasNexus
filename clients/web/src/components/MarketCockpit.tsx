@@ -10,7 +10,6 @@ import { MarketTerminal } from "@/components/MarketTerminal";
 import { TraderDeskPanel } from "@/components/TraderDeskPanel";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
-import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
 import { marketObservationSubject } from "@/app/model/inspectorDetail";
@@ -107,7 +106,7 @@ interface MarketOverviewProps {
 }
 
 function MarketOverview({ controller }: MarketOverviewProps) {
-  const { api, portfolio, traderContext, selection, controls, t, navigation, theme } = controller;
+  const { api, portfolio, traderContext, selection, t, navigation } = controller;
   const markets = api.normalizedMarkets;
   const quotes = api.marketQuotes;
   const inspector = useInspectorStore();
@@ -171,30 +170,46 @@ function MarketOverview({ controller }: MarketOverviewProps) {
       String(resource.resource_name ?? "").toUpperCase().includes(focusedHub),
   );
 
+  // Hubs with no price from any source collapse into one line: six rows of "n/a" said less
+  // than one sentence does (#69). Bid/offer and spread columns appear only when some hub has
+  // a live quote, because without one every cell in them would be empty.
+  const pricedHubs = MAJOR_HUBS.filter(
+    (hub) => comparisonByHub.get(hub)?.quote || hubPrices(hub, markets)[0] || latestMarketByHub.get(hub),
+  );
+  const unpricedHubs = MAJOR_HUBS.filter((hub) => !pricedHubs.includes(hub));
+  const showQuotes = comparisonRows.some((row) => row.quote);
+  const showSpread = comparisonRows.some((row) => row.spread != null);
+  const boardColumns = [
+    "minmax(56px, 0.6fr)",
+    ...(showQuotes ? ["minmax(150px, 1.5fr)"] : []),
+    "minmax(150px, 1.4fr)",
+    ...(showSpread ? ["minmax(110px, 1fr)"] : []),
+    "minmax(100px, 1fr)",
+    "minmax(56px, 0.5fr)",
+  ].join(" ");
+
   return (
     <div className="market-cockpit-overview">
-      <section className="market-context-strip" aria-label={controller.t("context.title")}>
-        <span><small>{t("context.gas_day")}</small><strong>{traderContext.gasDay}</strong></span>
-        <span><small>{t("context.product")}</small><strong>{traderContext.deliveryProduct}</strong></span>
-        <span><small>{t("context.hub")}</small><strong>{focusedHub ?? t("context.all_hubs")}</strong></span>
-        <span className={dataPlaneState(api.dataStatus) === "ready" ? "ready" : "issue"}>
-          <small>{t(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY)}</small>
-          <strong>{t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}</strong>
-        </span>
-        <button type="button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
-      </section>
-
-      {/* Board and preview map form the left column; the rail beside them is as tall as its
-          content and the map stretches to match, so nothing scrolls inside the page (#13). */}
+      {/* Gas day, product and hub are already in the top bar; the board carries only what the
+          top bar does not: whether the runtime store answered, and a refresh. */}
       <div className="market-overview-main">
       <aside className="market-hub-board" aria-label={t("market.hub_board")}>
-        <div className="data-table">
-          <div className="data-table-row header six">
-            <span>{t("market.hub")}</span><span>{t("market.bid_ask")}</span>
-            <span>{t("market.price")}</span><span>{t("market.spread_to_ttf")}</span>
+        <div className="market-hub-board-head">
+          <h2>{t("market.hub_board")}</h2>
+          <span className={`market-runtime-chip ${dataPlaneState(api.dataStatus) === "ready" ? "ready" : "issue"}`} title={t(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY)}>
+            {t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}
+          </span>
+          <button type="button" className="link-button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
+        </div>
+        <div className="data-table" style={{ ["--board-columns" as string]: boardColumns }}>
+          <div className="data-table-row header board-row">
+            <span>{t("market.hub")}</span>
+            {showQuotes && <span>{t("market.bid_ask")}</span>}
+            <span>{t("market.price")}</span>
+            {showSpread && <span>{t("market.spread_to_ttf")}</span>}
             <span>{t("market.source")}</span><span>{t("market.freshness")}</span>
           </div>
-          {MAJOR_HUBS.map((hub) => {
+          {pricedHubs.map((hub) => {
             const observation = latestMarketByHub.get(hub);
             // Day-ahead, else month-ahead, named: the same rows and rule as the hub board and
             // the map's hub card, so one hub never shows two unexplained prices.
@@ -206,13 +221,13 @@ function MarketOverview({ controller }: MarketOverviewProps) {
               <button
                 key={hub}
                 type="button"
-                className={`data-table-row six ${selected ? "selected" : ""}`}
+                className={`data-table-row board-row ${selected ? "selected" : ""}`}
                 onClick={() => traderContext.setHubId(selected ? null : hub)}
                 aria-pressed={selected}
                 title={quote ? comparison?.contextTitle : observationContextTitle(observation) ?? comparison?.contextTitle}
               >
                 <strong>{hub}</strong>
-                <span>{quote ? formatQuoteBidAsk(comparison.bid, comparison.ask, comparison.priceUnit) : "n/a"}</span>
+                {showQuotes && <span>{quote ? formatQuoteBidAsk(comparison.bid, comparison.ask, comparison.priceUnit) : "–"}</span>}
                 {/* Each hub in its own unit (TTF in EUR/MWh, NBP in GBP/MWh), as on the hub
                     board: a converted price would give the same hub two numbers. */}
                 <span>
@@ -220,31 +235,39 @@ function MarketOverview({ controller }: MarketOverviewProps) {
                     ? formatPrice(comparison.mid, comparison.priceUnit)
                     : boardPrice
                       ? <>{formatPrice(boardPrice.price, boardPrice.unit)} <small className="muted">{t(boardPrice.tenor === "day-ahead" ? "map.detail.day_ahead" : "map.detail.month_ahead")}</small></>
-                      : "n/a"}
+                      : "–"}
                 </span>
-                <span>{formatSpread(comparison?.spread ?? null, comparison?.spreadUnit ?? null)}</span>
-                <span>{quote?.source_system ?? boardPrice?.source ?? observation?.source_system ?? "n/a"}</span>
+                {showSpread && <span>{formatSpread(comparison?.spread ?? null, comparison?.spreadUnit ?? null)}</span>}
+                <span>{quote?.source_system ?? boardPrice?.source ?? observation?.source_system ?? "–"}</span>
                 <span>{formatAge(quote?.observed_at_utc ?? boardPrice?.observedAt ?? observation?.observed_at_utc)}</span>
               </button>
             );
           })}
         </div>
+        {unpricedHubs.length > 0 && (
+          <p className="market-hub-board-missing">
+            <span>{t("market.no_price_hubs")}</span>
+            {unpricedHubs.map((hub) => (
+              <button
+                key={hub}
+                type="button"
+                className="link-button"
+                aria-pressed={focusedHub === hub}
+                onClick={() => traderContext.setHubId(focusedHub === hub ? null : hub)}
+              >
+                {hub}
+              </button>
+            ))}
+          </p>
+        )}
       </aside>
 
-      <section className="market-overview-map" aria-label={t("market.overview_map")} title={t("market.map_context_note")}>
-        <GasNetworkMap
-          nodes={api.nodes}
-          edges={api.edges}
-          routes={api.routes}
-          themeMode={theme.mode}
-          activeLayers={["routes", "hubs", "network"]}
-          searchTerm={controls.searchTerm}
-          t={t}
-          highlightedRoute={portfolio.highlightedRoute}
-          routesInUse={portfolio.routesInUse}
-          compact
-        />
-      </section>
+      {/* Fundamentals sit under the prices they explain. The map lives on the Network task
+          only: a second, smaller copy here repeated it without adding a reading (#69). */}
+      <div className="market-overview-fundamentals">
+        <NweBalancePanel t={t} />
+        <GasForPowerPanel t={t} />
+      </div>
       </div>
 
       <aside className="market-context-rail" aria-label={t("market.context_rail")}>
@@ -264,16 +287,22 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           ) : (
             <p className="muted">{t("market.network_today_none")}</p>
           )}
-          <button type="button" className="secondary-button" onClick={() => navigation.openWorkspace("network")}>{t("market.open_map")}</button>
+          <button type="button" className="link-button" onClick={() => navigation.openWorkspace("network")}>{t("market.open_map")}</button>
         </section>
-        <section className="workspace-panel">
-          <h2>{t("market.opportunities")}</h2>
-          <IntradayDecisionFeed
-            opportunities={api.intradayOpportunities}
-            t={t}
-            compact
-          />
-        </section>
+        {/* The intraday scan earns a panel only when it returned candidates; otherwise one
+            line says so, instead of a badge, a heading and an empty-state card. */}
+        {api.intradayOpportunities.length > 0 ? (
+          <section className="workspace-panel">
+            <h2>{t("market.opportunities")}</h2>
+            <IntradayDecisionFeed
+              opportunities={api.intradayOpportunities}
+              t={t}
+              compact
+            />
+          </section>
+        ) : (
+          <p className="muted market-rail-note">{t("market.no_opportunities")}</p>
+        )}
         <section className="workspace-panel">
           <h2>{t("market.portfolio_relevance")}</h2>
           {relevantResources.length === 0 ? (
@@ -297,8 +326,10 @@ function MarketOverview({ controller }: MarketOverviewProps) {
             </ul>
           )}
           <div className="market-handoff-actions">
-            <button type="button" onClick={() => navigation.openWorkspace("scenario")}>{t("market.open_in_scenario")}</button>            <button
+            <button type="button" className="link-button" onClick={() => navigation.openWorkspace("scenario")}>{t("market.open_in_scenario")}</button>
+            <button
               type="button"
+              className="link-button"
               onClick={() => {
                 if (focusedHub) traderContext.setHubId(focusedHub);
                 navigation.openWorkspace("strategy");
@@ -308,7 +339,8 @@ function MarketOverview({ controller }: MarketOverviewProps) {
             </button>
             <button
               type="button"
-              disabled={!inspectedObservation}
+              className="link-button"
+              hidden={!inspectedObservation}
               onClick={() => {
                 const subject = marketObservationSubject(
                   inspectedObservation,
@@ -322,26 +354,38 @@ function MarketOverview({ controller }: MarketOverviewProps) {
             </button>
           </div>
         </section>
-        <section className="workspace-panel" aria-label={t("experience.copilot.title")}>
-          <h2>{t("experience.copilot.title")}</h2>
-          <p className="panel-copy">{t("experience.copilot.subtitle")}</p>
-          {/* Wave 7 convergence on this workspace: the five canonical actions are offered
-              here, gated by the same rule the palette and the Copilot apply. An action that
-              would be withheld says so instead of opening a panel that refuses it. */}
-          <div className="market-handoff-actions">
-            {copilotOffers(copilotSources.context, copilotSources.evidenceRefs).map((offer) => (
-              <button
-                key={offer.action}
-                type="button"
-                disabled={!offer.available}
-                title={offer.withheldReasonKey ? t(offer.withheldReasonKey) : undefined}
-                onClick={() => setAiAction(offer.action)}
-              >
-                {t(offer.labelKey)}
-              </button>
-            ))}
-          </div>
-        </section>
+        {(() => {
+          // Five disabled buttons said only "not now"; when no action is available the
+          // Copilot is one line with the reason the first action gives (#69).
+          const offers = copilotOffers(copilotSources.context, copilotSources.evidenceRefs);
+          const withheld = offers.every((offer) => !offer.available);
+          return (
+            <section className="workspace-panel" aria-label={t("experience.copilot.title")}>
+              <h2 title={t("experience.copilot.subtitle")}>{t("experience.copilot.title")}</h2>
+              {withheld ? (
+                <p className="muted market-rail-note">
+                  {offers[0]?.withheldReasonKey ? t(offers[0].withheldReasonKey) : t("experience.copilot.subtitle")}
+                </p>
+              ) : (
+                <div className="market-handoff-actions">
+                  {/* Wave 7 convergence on this workspace: the five canonical actions are
+                      offered here, gated by the same rule the palette and the Copilot apply. */}
+                  {offers.map((offer) => (
+                    <button
+                      key={offer.action}
+                      type="button"
+                      disabled={!offer.available}
+                      title={offer.withheldReasonKey ? t(offer.withheldReasonKey) : undefined}
+                      onClick={() => setAiAction(offer.action)}
+                    >
+                      {t(offer.labelKey)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })()}
       </aside>
 
       {comparisonRows.some((row) => row.spread != null) && (
@@ -415,8 +459,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
       <div id="market-cockpit-panel" className="market-cockpit-panel">
         <MarketContextStrip projection={api.marketContext} t={t} />
         {task === "overview" && <MarketOverview controller={controller} task={task} />}
-        {task === "overview" && <NweBalancePanel t={t} />}
-        {task === "overview" && <GasForPowerPanel t={t} />}
         {task === "curves" && (
           <>
           <MarketTerminal
@@ -499,6 +541,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           <ReferenceNetworkCatalogue t={t} />
           </>
         )}
+        {/* Outages first: they are the time-critical events on this task (#69). */}
+        {task === "capacity" && <OutagesPanel t={t} />}
         {task === "capacity" && (
           <CapacityWorkspace
             flows={api.flows}
@@ -537,7 +581,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             t={t}
           />
         )}
-        {task === "capacity" && <OutagesPanel t={t} />}
       </div>
     </div>
   );

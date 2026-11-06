@@ -2070,7 +2070,7 @@ async function sourceRegistryFailureInteraction(page, failures) {
       failedNotice: document.querySelector('[data-registry-notice="failed"]') !== null,
       rows: document.querySelectorAll('[data-record="source-row"]').length,
       measuredEmpty: document.querySelectorAll('[data-empty-state="source-rows"]').length,
-      kpiStrips: document.querySelectorAll(".source-readiness-strip .metric-grid").length,
+      kpiStrips: document.querySelectorAll(".source-readiness-strip .metric-inline").length,
       retryControls: document.querySelectorAll("[data-source-registry-retry]").length,
       retryDisabled: document.querySelector("[data-source-registry-retry]")?.disabled ?? null,
     }));

@@ -729,12 +729,17 @@ export function MarketTerminal({
         </div>
       </div>
 
-      <div className="workspace-panel span-3 market-opportunity-panel">
-        <IntradayDecisionFeed
-          opportunities={intradayOpportunities}
-          t={t}
-        />
-      </div>
+      {/* An empty scan is one line, not a 200 px panel with a badge and an empty card (#69). */}
+      {intradayOpportunities.length > 0 ? (
+        <div className="workspace-panel span-3 market-opportunity-panel">
+          <IntradayDecisionFeed
+            opportunities={intradayOpportunities}
+            t={t}
+          />
+        </div>
+      ) : (
+        <p className="span-3 muted market-rail-note market-opportunity-empty">{t("market.no_opportunities")}</p>
+      )}
 
       {/* Per-source detail and reference indices are evidence, not the board: one click away. */}
       <details className="workspace-panel span-3 market-source-details">

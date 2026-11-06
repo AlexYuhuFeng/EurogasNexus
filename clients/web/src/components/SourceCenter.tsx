@@ -135,40 +135,64 @@ function ConnectorCatalogue({
   onSelect: (sourceId: string) => void;
 }) {
   const groups = groupConnectors(sources);
+  // One line per connector: name, what it is, its state, its action. Cards three to a row
+  // spent a 120 px box on a status word (#69). The available group, the long tail an admin
+  // reads only when adding a source, is folded unless the selected connector is in it.
+  const selectedAvailable = groups.available.some(({ source }) => source.source_id === selectedId);
+  const rows = (group: (typeof CONNECTOR_GROUPS)[number]) => (
+    <ul className="connector-list">
+      {groups[group].map(({ source, card }) => (
+        <li key={source.source_id}>
+          <button
+            type="button"
+            className={`connector-row${selectedId === source.source_id ? " active" : ""}`}
+            data-record="connector-card"
+            data-record-id={source.source_id}
+            aria-pressed={selectedId === source.source_id}
+            title={source.description ?? undefined}
+            onClick={() => onSelect(source.source_id)}
+          >
+            <strong className="connector-row-name">{sourceDisplayName(source)}</strong>
+            <span className="connector-row-body">{source.description}</span>
+            <span className={`connector-status connector-status-${card.group}`}>{t(card.statusKey)}</span>
+            <span className="connector-row-action">{t(`connectors.action.${card.action}`)}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
   return (
     <div className="connector-catalogue">
-      {CONNECTOR_GROUPS.map((group) => (
-        <section key={group} className={`connector-group connector-group-${group}`} aria-label={t(`connectors.group.${group}`)}>
-          <h3>
+      {CONNECTOR_GROUPS.map((group) => {
+        const heading = (
+          <>
             {t(`connectors.group.${group}`)} <span className="connector-group-count">{groups[group].length}</span>
-          </h3>
-          {groups[group].length === 0 ? (
-            <p className="muted">{t(`connectors.group.${group}.empty`)}</p>
-          ) : (
-            <ul className="connector-grid">
-              {groups[group].map(({ source, card }) => (
-                <li key={source.source_id}>
-                  <button
-                    type="button"
-                    className={`connector-card${selectedId === source.source_id ? " active" : ""}`}
-                    data-record="connector-card"
-                    data-record-id={source.source_id}
-                    aria-pressed={selectedId === source.source_id}
-                    onClick={() => onSelect(source.source_id)}
-                  >
-                    <span className="connector-card-head">
-                      <strong>{sourceDisplayName(source)}</strong>
-                      <span className={`connector-status connector-status-${card.group}`}>{t(card.statusKey)}</span>
-                    </span>
-                    <span className="connector-card-body">{source.description}</span>
-                    <span className="connector-card-action">{t(`connectors.action.${card.action}`)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+          </>
+        );
+        if (group === "available" && groups[group].length > 0) {
+          return (
+            <details
+              key={group}
+              className={`connector-group connector-group-${group}`}
+              aria-label={t(`connectors.group.${group}`)}
+              open={selectedAvailable || undefined}
+            >
+              <summary><h3>{heading}</h3></summary>
+              {rows(group)}
+            </details>
+          );
+        }
+        return (
+          <section key={group} className={`connector-group connector-group-${group}`} aria-label={t(`connectors.group.${group}`)}>
+            <h3>{heading}</h3>
+            {groups[group].length === 0 ? (
+              <p className="muted">{t(`connectors.group.${group}.empty`)}</p>
+            ) : (
+              rows(group)
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -359,7 +383,7 @@ export function SourceCenter({
             zero, and rows held from an earlier read are not a fresh count. */}
         {registryRead.hasReading && (
           <MetricStrip
-            className="metric-grid four-column source-kpi-grid"
+            className="metric-inline"
             items={[
               { label: t("connectors.group.connected"), value: connectorGroups.connected.length },
               { label: t("connectors.group.attention"), value: connectorGroups.attention.length },
@@ -625,7 +649,7 @@ export function SourceCenter({
             {selectedSource.source_system === "ECMWF_OPEN_DATA" && (
               <WeatherForecastEvidence key={selectedSource.source_id} t={t} />
             )}
-            <div className="metric-grid two-column source-detail-metrics">
+            <div className="kv-list source-detail-metrics">
               <div><span>{t("sources.category_label")}</span><strong>{sourceLabel("sources.category", selectedSource.category)}</strong></div>
               <div><span>{t("sources.integration_label")}</span><strong>{t(`sources.integration.${selectedSource.integration ?? "api"}`)}</strong></div>
               <div><span>{t("sources.native_status")}</span><strong>{sourceLabel("sources.status", selectedSource.connectivity_status)}</strong></div>
