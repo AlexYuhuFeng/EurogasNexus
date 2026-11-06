@@ -10,7 +10,7 @@
 risk, management and compliance staff read prices, fundamentals, positions and research
 in one place, in desk units (p/th, EUR/MWh, MWh/d), on their own licensed market data.
 
-Package version: `0.7.0` · Channel: `preview` · Status: release candidate for the tested
+Package version: `0.8.0` · Channel: `preview` · Status: release candidate for the tested
 local scope, not a production or GA release.
 
 ## Client documentation

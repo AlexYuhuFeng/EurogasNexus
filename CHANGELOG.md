@@ -3,13 +3,15 @@
 All notable changes to Eurogas Nexus are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/) as described in
-[docs/release/RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md). The current package version `0.7.0`
+[docs/release/RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md). The current package version `0.8.0`
 is on the `preview` channel and is not a production (GA) release.
 
 Each entry says what changed for the people using the product. Engineering detail for a
 version lives under [docs/release/notes](docs/release/notes).
 
 ## [Unreleased]
+
+## [0.8.0] - 2026-11-06
 
 ### Added
 
