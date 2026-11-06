@@ -68,7 +68,7 @@ export function AppShell({ controller }: AppShellProps) {
               <dd>{compatibility.apiContractVersion ?? t("release.not_reported")}</dd>
             </div>
           </dl>
-          <button type="button" className="primary-button" onClick={() => window.location.reload()}>
+          <button type="button" className="button-primary" onClick={() => window.location.reload()}>
             {t("release.compat_retry")}
           </button>
         </div>

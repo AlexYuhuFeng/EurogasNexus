@@ -286,7 +286,7 @@ function ResearchSpecPanel({
         </p>
       )}
       <div className="research-spec-actions">
-        <button type="button" className="button" onClick={onValidate} disabled={busy || !ready}>{validationState.status === "busy" ? t("status.loading") : t("research.validate_action")}</button>
+        <button type="button" onClick={onValidate} disabled={busy || !ready}>{validationState.status === "busy" ? t("status.loading") : t("research.validate_action")}</button>
         {/* The build is the workspace's primary action; this line reports what locks it. */}
         <span className="research-muted" role="status">{t(researchBuildGateLockKey(gate.reason))}</span>
       </div>
@@ -475,7 +475,7 @@ function DatasetDetailRail({
     return <aside className="research-detail-rail" aria-label={t("research.detail")} aria-busy="true"><div className="research-detail-loading">{t("status.loading")}</div></aside>;
   }
   if (detailState.status === "error") {
-    return <aside className="research-detail-rail" aria-label={t("research.detail")}><div className="research-detail-error" role="alert"><strong>{t("research.detail_error")}</strong><span>{detailState.message}</span><button type="button" className="research-text-button" onClick={onRetry}>{t("research.retry")}</button></div></aside>;
+    return <aside className="research-detail-rail" aria-label={t("research.detail")}><div className="research-detail-error" role="alert"><strong>{t("research.detail_error")}</strong><span>{detailState.message}</span><button type="button" className="link-button" onClick={onRetry}>{t("research.retry")}</button></div></aside>;
   }
   if (detailState.status === "idle") return null;
   if (detailState.status === "ready" && !isResearchDetailForSelection(selectedId, detailState.detail.dataset_snapshot_id)) {

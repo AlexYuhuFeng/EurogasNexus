@@ -79,7 +79,7 @@ export function StrategyNavigator({
                           hands the subject over rather than restating it in the rail. */}
                       <button
                         type="button"
-                        className="text-action"
+                        className="link-button"
                         onClick={() => {
                           const subject = inspectorSubjectFor(
                             "strategy-version",

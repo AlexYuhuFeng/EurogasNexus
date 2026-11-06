@@ -782,7 +782,7 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
               <div className="action-row">
                 <button
                   type="button"
-                  className="text-action"
+                  className="link-button"
                   onClick={() => {
                     const subject = inspectorSubjectFor(
                       "agent-run",

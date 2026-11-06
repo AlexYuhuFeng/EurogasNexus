@@ -226,7 +226,7 @@ export function StrategyBacktestWorkspace({
             <span>{metrics?.temporal_integrity ?? "n/a"}</span>
             <button
               type="button"
-              className="text-action"
+              className="link-button"
               onClick={() => {
                 const subject = inspectorSubjectFor(
                   "strategy-run",
@@ -449,7 +449,7 @@ export function StrategyBacktestWorkspace({
               <button
                 key={item.run_id}
                 type="button"
-                className="text-action"
+                className="link-button"
                 onClick={() => {
                   controller.selectRun(item.run_id);
                   setMode("result");
@@ -464,7 +464,7 @@ export function StrategyBacktestWorkspace({
               <button
                 key={runId}
                 type="button"
-                className="text-action"
+                className="link-button"
                 onClick={() => {
                   void controller.loadRegistryRun(runId).then((loaded) => {
                     if (loaded) {

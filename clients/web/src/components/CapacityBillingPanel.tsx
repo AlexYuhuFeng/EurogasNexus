@@ -331,7 +331,7 @@ export function CapacityBillingPanel({ t, capacityBilling }: CapacityBillingPane
       <div className="route-cost-component-actions">
         <button
           type="button"
-          className="button"
+         
           disabled={busy || !readiness.canSubmit}
           title={`${busy ? t("portfolio.capacity_billing.loading") : submitHint} (Ctrl+Enter)`}
           aria-keyshortcuts="Control+Enter"

@@ -35,7 +35,6 @@
 .research-task-tabs button:focus-visible,
 .research-row-button:focus-visible,
 .research-semantic-table tr:focus-visible,
-.research-text-button:focus-visible,
 .research-export-controls select:focus-visible,
 .research-export-controls button:focus-visible,
 .research-spec-grid input:focus-visible,
@@ -314,18 +313,6 @@
 
 .research-artifact-result {
   color: var(--eg-positive, var(--accent));
-}
-
-.research-text-button {
-  width: fit-content;
-  min-height: var(--control-compact);
-  border: 0;
-  background: transparent;
-  color: var(--eg-link, var(--accent));
-  cursor: pointer;
-  font-size: var(--text-control);
-  padding: 0;
-  text-decoration: underline;
 }
 
 .research-detail-empty,

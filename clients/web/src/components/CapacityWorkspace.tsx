@@ -566,7 +566,7 @@ export function CapacityWorkspace({
               {selected?.capacityObservationId && (
                 <button
                   type="button"
-                  className="text-action"
+                  className="link-button"
                   onClick={() => {
                     const subject = inspectorSubjectFor(
                       "capacity",

@@ -197,7 +197,7 @@ export function DataProductCatalogue({ t }: DataProductCatalogueProps) {
                       catalogue hands the subject over rather than growing a detail pane. */}
                   <button
                     type="button"
-                    className="text-action"
+                    className="link-button"
                     onClick={() => {
                       const subject = inspectorSubjectFor(
                         "data-product",

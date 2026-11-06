@@ -792,7 +792,7 @@ export function LngEconomicsPanel({
       <div className="route-cost-component-actions">
         <button
           type="button"
-          className="button"
+         
           disabled={busy || !readiness.canSubmit}
           title={t(readiness.firstBlockerKey ?? "contracts.lng_economics.ready")}
           aria-keyshortcuts="Control+Enter"

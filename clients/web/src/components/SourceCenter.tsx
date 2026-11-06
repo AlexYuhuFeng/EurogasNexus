@@ -583,7 +583,7 @@ export function SourceCenter({
                 it already received is what the Inspector resolves against - no fetch. */}
             <button
               type="button"
-              className="text-action"
+              className="link-button"
               onClick={() => {
                 const subject = inspectorSubjectFor(
                   "provider-connection",

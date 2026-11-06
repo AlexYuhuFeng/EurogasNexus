@@ -333,7 +333,7 @@ export function ReviewWorkspace({
                   {resolved ? (
                     <button
                       type="button"
-                      className="text-action"
+                      className="link-button"
                       onClick={() => onInspectEvidence(entityRef, `${row.entity_type}: ${row.entity_id}`)}
                     >
                       {t("review.inspect_evidence")}

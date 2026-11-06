@@ -208,7 +208,7 @@ export function CopilotPanel({
           </label>
           <p className="copilot-question-note">{t("experience.copilot.question_default")}</p>
           <div className="copilot-invoke-actions">
-            <button type="button" className="primary-button" disabled={!canRun} onClick={() => void run()}>
+            <button type="button" className="button-primary" disabled={!canRun} onClick={() => void run()}>
               {state === "running" ? t("experience.copilot.running") : t("experience.copilot.run")}
             </button>
             <span className="copilot-invoke-route">

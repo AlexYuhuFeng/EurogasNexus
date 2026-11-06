@@ -4930,17 +4930,6 @@ body {
   gap: 10px;
 }
 
-.text-action {
-  border: 0;
-  background: transparent;
-  color: var(--eg-link);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--ds-text-sm);
-  font-weight: 600;
-  padding: 0;
-}
-
 .runtime-blocker-list {
   display: grid;
   gap: 7px;

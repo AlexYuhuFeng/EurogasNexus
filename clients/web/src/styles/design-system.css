@@ -3862,3 +3862,28 @@
     outline: none;
   }
 }
+
+/* One control per meaning (#27, docs/product/COMPONENTS.md): primary (button-primary /
+   button.primary / submit), secondary (a plain button), link (link-button), danger
+   (button.danger). Touch input gets 44 px targets for every one of them, checkboxes included. */
+@layer ds-components {
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--ds-ink);
+  }
+
+  [data-pointer="coarse"] input[type="checkbox"],
+  [data-pointer="coarse"] input[type="radio"] {
+    width: 20px;
+    height: 20px;
+  }
+
+  [data-pointer="coarse"] button,
+  [data-pointer="coarse"] .link-button,
+  [data-pointer="coarse"] select,
+  [data-pointer="coarse"] input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 44px;
+  }
+}

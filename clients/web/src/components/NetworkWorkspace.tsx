@@ -738,7 +738,7 @@ export function NetworkWorkspace({
             <div className="panel evidence-stack-panel">
               <div className="panel-title-row">
                 <h2>{t("home.evidence_stack")}</h2>
-                <button type="button" className="text-action" onClick={onOpenReview}>
+                <button type="button" className="link-button" onClick={onOpenReview}>
                   {t("home.review_warnings")}
                 </button>
               </div>
