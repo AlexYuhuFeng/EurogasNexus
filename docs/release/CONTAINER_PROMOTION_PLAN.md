@@ -35,7 +35,7 @@ registry behaviours still need a controlled rehearsal.
 `runtime-image` builds `deploy/runtime/Dockerfile.api` for
 `linux/amd64,linux/arm64` and pushes two tags at build time: the semantic
 channel tag (`X.Y.Z` stable, `X.Y.Z-rc.N` for each release candidate - from
-`app_version` + `channel`, never `release_version`) and the SHA-named
+`app_version` for stable and `release_version` for a candidate) and the SHA-named
 `sha-<full GITHUB_SHA>`, both from `validate` alone, before every remaining
 job. The digest then travels as `image-metadata` into the ZIP identity
 (`scripts/release/package_deployment_bundle.py:347`), G19, the manifest and
