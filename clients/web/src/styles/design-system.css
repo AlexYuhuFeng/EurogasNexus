@@ -3558,3 +3558,24 @@
     display: none;
   }
 }
+
+/* One empty state (#27): a reason and the next step on one quiet line, never a grid of n/a. */
+@layer ds-components {
+  .empty-state {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2) var(--ds-space-3);
+    padding: var(--ds-space-3) 0;
+    color: var(--ds-text-2);
+  }
+
+  .empty-state p {
+    margin: 0;
+  }
+
+  .empty-state strong {
+    color: var(--ds-text-1);
+    font-weight: 600;
+  }
+}

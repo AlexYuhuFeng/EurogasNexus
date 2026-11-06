@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui";
 import { intlLocaleFor } from "@/i18n/locales";
 import type { StrategyRunDTO, StrategySummaryDTO } from "@/api/client";
 import {
@@ -100,6 +101,14 @@ export function StrategyPriceBasisBoard({
         <h2>{t("strategy.price_basis_board")}</h2>
         <span>{rows.reduce((total, row) => total + row.observationCount, 0)} {t("panel.records")}</span>
       </div>
+      {rows.every((row) => row.observationCount === 0) ? (
+        <EmptyState
+          id="strategy-price-basis"
+          reason={t("strategy.empty.price_basis")}
+          next={t("strategy.empty.price_basis_next")}
+        />
+      ) : (
+      <>
       <div className="strategy-data-quality-banner">
         <div>
           <span>{t("strategy.simulated_basis_count")}</span>
@@ -127,8 +136,14 @@ export function StrategyPriceBasisBoard({
           </button>
         ))}
       </div>
+      {rows.some((row) => row.observationCount === 0) && (
+        <p className="panel-copy">
+          {t("strategy.empty.bases_without_prices")}:{" "}
+          {rows.filter((row) => row.observationCount === 0).map((row) => t(basisLabelKey(row.basis))).join(", ")}
+        </p>
+      )}
       <div className="strategy-price-basis-grid">
-        {rows.map((row) => (
+        {rows.filter((row) => row.observationCount > 0).map((row) => (
           <div key={`strategy-basis-${row.basis}`} className="strategy-price-basis-card">
             <span>{t(basisLabelKey(row.basis))}</span>
             <strong>
@@ -155,6 +170,8 @@ export function StrategyPriceBasisBoard({
           </div>
         ))}
       </div>
+      </>
+      )}
     </section>
   );
 }
@@ -166,6 +183,9 @@ export function StrategyBasisExposureLadder({ rows, t }: StrategyBasisExposureLa
         <h2>{t("strategy.basis_exposure_ladder")}</h2>
         <span>{t("strategy.pool_pnl_at_risk")}</span>
       </div>
+      {rows.every((row) => row.poolPnlAtRiskGbpPerDay === null) ? (
+        <EmptyState id="strategy-basis-exposure" reason={t("strategy.empty.pnl")} next={t("strategy.empty.pnl_next")} />
+      ) : (
       <div className="strategy-basis-exposure-list">
         {rows.map((row) => {
           const isNegative = (row.poolPnlAtRiskGbpPerDay ?? 0) < 0;
@@ -197,6 +217,7 @@ export function StrategyBasisExposureLadder({ rows, t }: StrategyBasisExposureLa
           );
         })}
       </div>
+      )}
     </section>
   );
 }
@@ -214,6 +235,10 @@ export function StrategyPnlCurvePanel({
         <h2>{t("strategy.pnl_curve")}</h2>
         <span>{t("home.resource_pool")}</span>
       </div>
+      {rows.every((row) => row.pnlGbpPerDay === null) ? (
+        <EmptyState id="strategy-pnl-curve" reason={t("strategy.empty.pnl")} next={t("strategy.empty.pnl_next")} />
+      ) : (
+      <>
       <div className="strategy-pool-baseline">
         <div>
           <span>{t("strategy.weighted_pool_cost")}</span>
@@ -250,6 +275,8 @@ export function StrategyPnlCurvePanel({
           );
         })}
       </div>
+      </>
+      )}
     </section>
   );
 }

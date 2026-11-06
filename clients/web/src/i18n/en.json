@@ -4490,5 +4490,10 @@
   "connectors.action.configure": "Configure",
   "connectors.action.set_up": "Set up",
   "settings.service_access_moved": "Provider keys, schedules and connection health are managed in Admin → Data Sources.",
-  "map.layers_panel": "Layers"
+  "map.layers_panel": "Layers",
+  "strategy.empty.price_basis": "No prices for any basis yet.",
+  "strategy.empty.price_basis_next": "They appear when a price source is connected in Admin → Data Sources.",
+  "strategy.empty.bases_without_prices": "No prices yet for",
+  "strategy.empty.pnl": "No pool PnL to show.",
+  "strategy.empty.pnl_next": "It needs stored contracts in the pool and a price for each basis."
 }

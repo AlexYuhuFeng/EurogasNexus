@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui";
 import { intlLocaleFor } from "@/i18n/locales";
 import { useEffect, useMemo, useState } from "react";
 import type { StrategyLabController } from "@/app/model/useStrategyLab";
@@ -97,10 +98,8 @@ export function StrategyCompareWorkspace({
       <section className="workspace-panel">
         <h2>{t("strategy_lab.select_runs")} (2–5)</h2>
         {runs.length === 0 ? (
-          <div className="empty-state" role="status">
-            <strong>{t("strategy_lab.compare_not_ready")}</strong>
-            <p className="muted">{t("strategy_lab.compare_need_runs")}</p>
-          </div>
+          // One statement, not three (#27): no runs means nothing to select and nothing to judge.
+          <EmptyState id="strategy-compare-runs" reason={t("strategy_lab.compare_need_runs")} />
         ) : (
           <div className="strategy-compare-selector">
             {runs.map((run) => (
@@ -117,6 +116,7 @@ export function StrategyCompareWorkspace({
             ))}
           </div>
         )}
+        {runs.length > 0 && (
         <p>
           {t("strategy_lab.compatibility")}:{" "}
           {status === "NOT_READY" ? (
@@ -127,6 +127,7 @@ export function StrategyCompareWorkspace({
             <strong className={`status-badge status-${status.toLowerCase().replaceAll("_", "-")}`}>{status}</strong>
           )}
         </p>
+        )}
         {runs.length > 0 && status === "NOT_READY" && (
           <p className="muted">{t("strategy_lab.compare_select_two")}</p>
         )}

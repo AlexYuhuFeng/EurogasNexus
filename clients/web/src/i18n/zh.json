@@ -4490,5 +4490,10 @@
   "connectors.action.configure": "配置",
   "connectors.action.set_up": "设置",
   "settings.service_access_moved": "供应商密钥、采集计划与连接状态在 管理 → 数据源 中统一管理。",
-  "map.layers_panel": "图层"
+  "map.layers_panel": "图层",
+  "strategy.empty.price_basis": "各价格基准暂无价格。",
+  "strategy.empty.price_basis_next": "在 管理 → 数据源 连接价格来源后显示。",
+  "strategy.empty.bases_without_prices": "暂无价格的基准",
+  "strategy.empty.pnl": "暂无资源池损益可显示。",
+  "strategy.empty.pnl_next": "需要资源池中有已保存的合同，且各基准有价格。"
 }
