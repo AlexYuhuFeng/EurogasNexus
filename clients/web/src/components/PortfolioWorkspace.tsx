@@ -205,6 +205,9 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   onOpenStrategyForResource: (resourceId: string) => void;
 }) {
   const { t, api, portfolio, selection, navigation, contractEditor } = controller;
+  const currentUser = api.currentUser;
+  const canMaintainRisk = currentUser?.role === "REVIEWER"
+    || (currentUser?.roles.includes("REVIEWER") ?? false);
   const [task, setTask] = useState<PortfolioTask>(() =>
     portfolioTaskFromLocation(window.location.search),
   );
@@ -410,8 +413,8 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
           </>
         )}
         {task === "exposure" && <PositionLadderPanel t={t} />}
-        {task === "exposure" && <RiskLimitsPanel t={t} />}
-        {task === "exposure" && <DealHedgeApprovalsPanel t={t} />}
+        {task === "exposure" && <RiskLimitsPanel t={t} canMaintainRisk={canMaintainRisk} />}
+        {task === "exposure" && <DealHedgeApprovalsPanel t={t} canMaintainRisk={canMaintainRisk} />}
         {task === "exposure" && <TradingBooksPanel t={t} />}
         {task === "exposure" && (
           <MarketPositioningWorkspace

@@ -13,7 +13,7 @@ const EMPTY = { contract_id: "", min: "", max: "", ref: "", valid_until: "", not
  * ETRM links to each contract, month by month. Set by the risk function (REVIEWER), never by
  * the trader who booked the deal; the mandate's band still applies to the whole book.
  */
-export function DealHedgeApprovalsPanel({ t }: { t: Translate }) {
+export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; canMaintainRisk: boolean }) {
   const [rows, setRows] = useState<HedgeApprovalRowDTO[] | null>(null);
   const [contracts, setContracts] = useState<{ contract_id: string; contract_name: string; hub: string }[]>([]);
   const [draft, setDraft] = useState(EMPTY);
@@ -77,7 +77,7 @@ export function DealHedgeApprovalsPanel({ t }: { t: Translate }) {
               <th scope="col">{t("hedgeapproval.hedged")}</th>
               <th scope="col" className="num">{t("hedgeapproval.room")}</th>
               <th scope="col">{t("hedgeapproval.status")}</th>
-              <th scope="col" />
+              {canMaintainRisk && <th scope="col" />}
             </tr>
           </thead>
           <tbody>
@@ -98,7 +98,7 @@ export function DealHedgeApprovalsPanel({ t }: { t: Translate }) {
                     <span className="limit-badge" data-status={row.status === "ok" ? "ok" : "breach"}>{t(`hedgeapproval.status_${row.status}`)}</span>
                     {row.breaches.length > 0 && <div className="limit-breaches"><small>{row.breaches.join("; ")}</small></div>}
                   </td>
-                  <td><button type="button" className="link-button" onClick={() => edit(row)}>{t("hedgeapproval.change")}</button></td>
+                  {canMaintainRisk && <td><button type="button" className="link-button" onClick={() => edit(row)}>{t("hedgeapproval.change")}</button></td>}
                 </tr>
               );
             })}
@@ -106,12 +106,14 @@ export function DealHedgeApprovalsPanel({ t }: { t: Translate }) {
         </table>
       )}
       <div className="limit-actions">
-        <button type="button" className="secondary-button" onClick={() => { setDraft(EMPTY); setEditing(!editing); }}>
-          {t("hedgeapproval.add")}
-        </button>
+        {canMaintainRisk && (
+          <button type="button" className="secondary-button" onClick={() => { setDraft(EMPTY); setEditing(!editing); }}>
+            {t("hedgeapproval.add")}
+          </button>
+        )}
         <small className="muted">{t("hedgeapproval.who")}</small>
       </div>
-      {editing && (
+      {canMaintainRisk && editing && (
         <div className="licence-form">
           <label>
             <span>{t("hedgeapproval.contract")}</span>

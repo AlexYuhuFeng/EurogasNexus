@@ -63,7 +63,7 @@ const EMPTY_MANDATE = {
  * positions against their mandate. Risk (REVIEWER) maintains both; everyone in the book sees
  * the utilisation, so a breach is visible to the trader and the desk head at the same time.
  */
-export function RiskLimitsPanel({ t }: { t: Translate }) {
+export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaintainRisk: boolean }) {
   const [credit, setCredit] = useState<CreditExposureRowDTO[] | null>(null);
   const [mandates, setMandates] = useState<MandateUsageRowDTO[] | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -241,15 +241,17 @@ export function RiskLimitsPanel({ t }: { t: Translate }) {
       )}
 
       <div className="limit-actions">
-        <button type="button" className="secondary-button" onClick={() => setEditing(editing === "credit" ? "none" : "credit")}>
-          {t("limits.edit_credit")}
-        </button>
-        <button type="button" className="secondary-button" onClick={() => setEditing(editing === "mandate" ? "none" : "mandate")}>
-          {t("limits.edit_mandate")}
-        </button>
+        {canMaintainRisk && (<>
+          <button type="button" className="secondary-button" onClick={() => setEditing(editing === "credit" ? "none" : "credit")}>
+            {t("limits.edit_credit")}
+          </button>
+          <button type="button" className="secondary-button" onClick={() => setEditing(editing === "mandate" ? "none" : "mandate")}>
+            {t("limits.edit_mandate")}
+          </button>
+        </>)}
         <small className="muted">{t("limits.who_edits")}</small>
       </div>
-      {editing === "credit" && (
+      {canMaintainRisk && editing === "credit" && (
         <div className="licence-form">
           <label><span>{t("limits.counterparty_id")}</span><input value={line.counterparty_id} onChange={lineField("counterparty_id")} /></label>
           <label><span>{t("limits.counterparty")}</span><input value={line.name} onChange={lineField("name")} /></label>
@@ -270,7 +272,7 @@ export function RiskLimitsPanel({ t }: { t: Translate }) {
           </button>
         </div>
       )}
-      {editing === "mandate" && (
+      {canMaintainRisk && editing === "mandate" && (
         <div className="licence-form">
           <label><span>{t("limits.mandate_id")}</span><input value={mandate.mandate_id} onChange={mandateField("mandate_id")} /></label>
           <label><span>{t("limits.trader")}</span><input value={mandate.trader} onChange={mandateField("trader")} /></label>
