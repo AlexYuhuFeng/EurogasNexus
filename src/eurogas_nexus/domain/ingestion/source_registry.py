@@ -84,406 +84,43 @@ def _source_row(
 
 
 def registered_sources() -> list[dict]:
-    """Return the full static registry of 26 source systems.
+    """Return the full static registry of source systems, one row per connector manifest.
 
-    返回全部注册来源的静态登记记录列表。
+    返回全部注册来源的静态登记记录列表（由连接器清单派生）。
 
     Returns:
         List of source records; each carries identity, category, datasets,
         entitlement scope, freshness expectation, credential requirements
         and certification state. Runtime fields (record counts, last
         success/failure) are initialised empty here and overlaid by the
-        Source Center API from the runtime store.
+        Source Center API from the runtime store. Each row is derived from the
+        provider's connector manifest (``eurogas_nexus.domain.connectors``), the one
+        place a provider is declared.
     """
 
-    return [
-        _source_row(
-            "src-ecb",
-            "ECB",
-            "fx",
-            ("eurofxref-daily", "fx-reference-rates"),
-            "European Central Bank FX reference rates.",
-            False,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-entsog",
-            "ENTSOG",
-            "infrastructure",
-            ("connection-points", "operator-directions", "flows", "capacity", "outages", "ip"),
-            "ENTSOG Transparency Platform infrastructure, flows, capacities, IPs, and outages.",
-            False,
-            freshness_minutes=60,
-        ),
-        _source_row(
-            "src-gie",
-            "GIE",
-            "infrastructure",
-            ("agsi-storage", "alsi-lng"),
-            "Gas Infrastructure Europe AGSI storage and ALSI LNG data.",
-            True,
-            freshness_minutes=360,
-        ),
-        _source_row(
-            "src-national-gas-nts",
-            "NationalGasNTS",
-            "tariff",
-            ("transportation-statement", "entry-tariffs", "exit-tariffs", "commodity-charges"),
-            "National Gas NTS transportation tariff references for explicit-leg route costing.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _source_row(
-            "src-bbl",
-            "BBL",
-            "tariff",
-            ("interconnector-tariffs", "forward-flow", "reverse-flow"),
-            "BBL Company public interconnector capacity tariff references.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _source_row(
-            "src-iuk",
-            "IUK",
-            "tariff",
-            ("interconnector-tariffs", "bacton", "zeebrugge"),
-            "Interconnector UK public charging statement and capacity tariff references.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _source_row(
-            "src-gts",
-            "GTS",
-            "tariff",
-            ("netherlands-transmission-tariffs", "entry-exit"),
-            "Gasunie Transport Services Dutch transmission tariff references.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _source_row(
-            "src-natran",
-            "NaTran",
-            "tariff",
-            ("france-transmission-tariffs", "entry-exit", "peg"),
-            "French transmission tariff references for NaTran/GRTgaz/Terega context.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _source_row(
-            "src-german-tso",
-            "GermanTSO",
-            "tariff",
-            ("germany-transmission-tariffs", "the-market-area", "entry-exit"),
-            "German gas transmission tariff references for THE market-area routing.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _source_row(
-            "src-fluxys-belgium",
-            "FluxysBelgium",
-            "tariff",
-            ("belgium-transmission-tariffs", "ztp", "interconnection"),
-            "Fluxys Belgium transmission tariff references for ZTP and border routing.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _source_row(
-            "src-cnmc-enagas",
-            "CNMCEnagas",
-            "tariff",
-            ("spain-access-tolls", "transmission", "regasification"),
-            "Spanish CNMC/Enagas gas access toll and tariff references.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _source_row(
-            "src-eex",
-            "EEX",
-            "price",
-            ("gas-futures", "gas-spot", "screen-trades", "settlements"),
-            "European Energy Exchange gas market prices and screen observations.",
-            True,
-            freshness_minutes=1,
-        ),
-        _source_row(
-            "src-eex-sim",
-            "EEX_Sim",
-            "price",
-            ("gas-spot", "day-ahead", "weekend", "month-ahead", "simulated"),
-            (
-                "EEX-shaped simulated gas market prices injected into the runtime DB "
-                "at a continuous worker cadence for decision-support testing."
-            ),
-            False,
-            freshness_minutes=1,
-        ),
-        _source_row(
-            "src-ice-ocm",
-            "ICE_OCM",
-            "price",
-            ("within-day", "day-ahead", "screen-orders", "live-marks"),
-            "ICE OCM live within-day and day-ahead market observations.",
-            True,
-            freshness_minutes=1,
-        ),
-        _source_row(
-            "src-ice-ocm-sim",
-            "ICE_OCM_Sim",
-            "price",
-            ("within-day", "day-ahead", "screen-marks", "simulated"),
-            (
-                "ICE OCM-shaped simulated within-day and day-ahead marks injected "
-                "through the runtime DB path at a high-frequency worker cadence."
-            ),
-            False,
-            freshness_minutes=1,
-        ),
-        _source_row(
-            "src-trayport",
-            "Trayport",
-            "price",
-            ("broker-screens", "market-data", "screen-orders"),
-            "Trayport screen and broker market data.",
-            True,
-            freshness_minutes=1,
-        ),
-        _source_row(
-            "src-trayport-sim",
-            "Trayport_Sim",
-            "price",
-            ("broker-screens", "within-day", "day-ahead", "simulated"),
-            (
-                "Trayport-shaped simulated broker-screen marks injected through "
-                "the canonical runtime DB path at a realtime worker cadence."
-            ),
-            False,
-            freshness_minutes=1,
-        ),
-        _source_row(
-            "src-ice-endex",
-            "ICE_ENDEX",
-            "price",
-            ("ttf-nbp-futures", "eua-uka-futures", "api2-coal-futures", "settlements"),
-            (
-                "ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 "
-                "Rotterdam coal and power. Licensed; imported from the customer's ICE "
-                "Report Center export until a connector is licensed."
-            ),
-            True,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-cme",
-            "CME",
-            "price",
-            ("henry-hub-futures", "settlements"),
-            "CME NYMEX Henry Hub futures settlements. Licensed (CME DataMine).",
-            True,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-ngx",
-            "NGX",
-            "price",
-            ("aeco-indices", "settlements"),
-            "NGX (ICE) Canadian gas: AECO-C/NIT indices and settlements. Licensed.",
-            True,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-eia",
-            "EIA",
-            "price",
-            ("henry-hub-spot",),
-            (
-                "US EIA open data: Henry Hub daily spot price (public domain; free API key). "
-                "Reference for US LNG export economics."
-            ),
-            False,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-platts",
-            "Platts",
-            "price",
-            ("assessments", "forward-curves", "indices"),
-            "Platts licensed gas price assessments and curves.",
-            True,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-icis",
-            "ICIS",
-            "price",
-            ("heren-assessments", "day-ahead", "indices", "curves"),
-            "ICIS Heren licensed gas assessments and reference prices.",
-            True,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-icis-sim",
-            "ICIS_Sim",
-            "price",
-            ("heren-assessments", "day-ahead", "daily-assessment", "simulated"),
-            "ICIS Heren-shaped simulated daily assessment rows injected into market observations.",
-            False,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-argus",
-            "Argus",
-            "price",
-            ("assessments", "indices", "curves"),
-            "Argus licensed gas assessments and market references.",
-            True,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-kpler",
-            "Kpler",
-            "price",
-            ("lng-flows", "cargo-tracking", "market-data"),
-            "Kpler licensed LNG and market intelligence feeds.",
-            True,
-            freshness_minutes=60,
-        ),
-        _source_row(
-            "src-weather",
-            "Weather",
-            "weather",
-            ("temperature", "hdd", "cdd", "forecast"),
-            (
-                "Template for a licensed weather vendor the deployment has not chosen yet; "
-                "no connector reads it. ECMWF Open Data is the implemented weather source."
-            ),
-            True,
-            freshness_minutes=180,
-            integration="template",
-        ),
-        _source_row(
-            "src-entsoe",
-            "ENTSOE",
-            "power",
-            ("day-ahead-prices", "actual-load", "generation-per-type"),
-            (
-                "ENTSO-E Transparency Platform day-ahead power prices, load, and wind, solar "
-                "and gas-fired generation: the drivers of gas burned for power. Free; "
-                "requires a registered security token; attribution: ENTSO-E."
-            ),
-            True,
-            freshness_minutes=120,
-        ),
-        _source_row(
-            "src-boe",
-            "BOE",
-            "rates",
-            ("sonia",),
-            (
-                "Bank of England SONIA overnight fixing (Interactive Database series "
-                "IUDSOIA): financing and early-cash valuation in GBP. Free; attribution."
-            ),
-            False,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-ecb-estr",
-            # Stored fixings carry source_system "ECB"; the registry needs a label of its own.
-            "ECB_ESTR",
-            "rates",
-            ("estr",),
-            "ECB euro short-term rate (€STR) from the ECB Data Portal: financing in EUR.",
-            False,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-nyfed",
-            "NYFED",
-            "rates",
-            ("sofr",),
-            (
-                "Federal Reserve Bank of New York SOFR from the Markets API: financing in "
-                "USD for LNG and cross-currency contracts. Free; attribution."
-            ),
-            False,
-            freshness_minutes=1440,
-        ),
-        _source_row(
-            "src-remit-umm",
-            "REMIT",
-            "infrastructure",
-            ("gas-umm-outages",),
-            (
-                "REMIT urgent market messages: planned and unplanned outages of gas "
-                "production, storage, LNG and transmission, imported from the desk's "
-                "inside-information platform export (scripts/ops/import_remit_umm.py)."
-            ),
-            False,
-            freshness_minutes=60,
-            integration="file_import",
-        ),
-        _source_row(
-            "src-ecmwf-open-data",
-            "ECMWF_OPEN_DATA",
-            "weather",
-            ("ifs_0p25_oper_2t_forecasts",),
-            (
-                "ECMWF Open Data IFS 0.25° 2 m temperature forecasts. Actual public "
-                "source under CC BY 4.0; attribution: ECMWF."
-            ),
-            False,
-            freshness_minutes=720,
-        ),
-        _source_row(
-            "src-deepseek",
-            "DEEPSEEK",
-            "ai",
-            ("analysis", "reporting", "qa"),
-            (
-                "Model endpoint for operator-reviewed analysis: any OpenAI-compatible "
-                "chat-completions service (DeepSeek by default; provider, URL and model are "
-                "set by EUROGAS_NEXUS_LLM_PROVIDER_NAME, _BASE_URL and _MODEL). A service, "
-                "not a data feed: it has no freshness or ingestion schedule."
-            ),
-            True,
-            freshness_minutes=0,
-            integration="model_service",
-        ),
-        *_licensed_fx_fixings(),
-    ]
+    from eurogas_nexus.domain.connectors.registry import connector_manifests
+
+    return [_row_from_manifest(manifest) for manifest in connector_manifests()]
 
 
-def _licensed_fx_fixings() -> list[dict]:
-    """WM/Reuters and Bloomberg BFIX: licensed fixes the desk imports from its own export.
+def _row_from_manifest(manifest) -> dict:
+    from eurogas_nexus.domain.connectors.plugins import plugin_enabled
 
-    There is no connection to either vendor and no schedule: the operator exports the
-    fixes from the firm's own terminal or data service and runs
-    ``scripts/ops/import_fx_fixings.py``. Rows are served only to principals holding the
-    ``WMR`` or ``BFIX`` data-scope grant (#33).
-    """
-
-    rows = []
-    for source_id, system, datasets, description in (
-        (
-            "src-wmr",
-            "WMR",
-            ("wmr-1600-ldn", "wmr-1100-ldn"),
-            "WM/Reuters (LSEG) London closing and intraday spot fixes, imported from the "
-            "desk's licensed export (scripts/ops/import_fx_fixings.py --source WMR). The "
-            "fix most LNG contracts name; ECB reference rates are not a substitute.",
-        ),
-        (
-            "src-bfix",
-            "BFIX",
-            ("bfix-1600-ldn",),
-            "Bloomberg BFIX fixes, imported from the desk's licensed export "
-            "(scripts/ops/import_fx_fixings.py --source BFIX).",
-        ),
-    ):
-        row = _source_row(
-            source_id, system, "fx", datasets, description, False,
-            freshness_minutes=1440, integration="file_import",
-        )
+    row = _source_row(
+        manifest.source_id,
+        manifest.system,
+        manifest.category,
+        tuple(manifest.datasets),
+        manifest.description,
+        manifest.entitled,
+        freshness_minutes=manifest.freshness_minutes,
+        integration=manifest.integration,
+    )
+    if manifest.licensed_import:
+        # Licensed fixes the desk imports from its own export: served only to principals
+        # holding the matching data scope, though no key is configured for them (#33).
         row["entitlement_scope"] = "licensed"
         row["export_restrictions"] = ["license-controlled"]
-        rows.append(row)
-    return rows
+    if manifest.plugin:
+        row["plugin"] = {"name": manifest.plugin, "enabled": plugin_enabled(manifest)}
+    return row

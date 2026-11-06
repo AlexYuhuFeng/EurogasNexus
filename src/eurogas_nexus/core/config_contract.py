@@ -539,6 +539,19 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_CONNECTOR_PLUGINS",
+        scope="OPERATOR",
+        purpose=(
+            "Connector plugins an administrator has enabled: comma-separated entry-point "
+            "names of installed eurogas_nexus.connectors plugins."
+        ),
+        default="(none)",
+        notes=(
+            "An installed plugin that is not listed appears as available and never runs.",
+            "Enabling a plugin grants no data scope, licence or certification.",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES",
         scope="OPERATOR",
         purpose="Permit simulated market price sources.",

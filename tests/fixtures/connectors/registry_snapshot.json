@@ -1,0 +1,3771 @@
+{
+ "provider_credential_env_vars": [
+  "GIE_API_KEY",
+  "GIE_API_KEY_FILE",
+  "EIA_API_KEY",
+  "ENTSOE_SECURITY_TOKEN",
+  "EUROGAS_NEXUS_LLM_API_KEY",
+  "DEEPSEEK_API_KEY"
+ ],
+ "provider_credential_specs": [
+  {
+   "display_name": "GIE AGSI/ALSI",
+   "env_vars": [
+    "GIE_API_KEY"
+   ],
+   "file_env": "GIE_API_KEY_FILE",
+   "implemented": true,
+   "note": "Also needs a certification record before live ingestion.",
+   "provider_id": "GIE"
+  },
+  {
+   "display_name": "US EIA open data",
+   "env_vars": [
+    "EIA_API_KEY"
+   ],
+   "file_env": null,
+   "implemented": true,
+   "note": "",
+   "provider_id": "EIA"
+  },
+  {
+   "display_name": "ENTSO-E Transparency",
+   "env_vars": [
+    "ENTSOE_SECURITY_TOKEN"
+   ],
+   "file_env": null,
+   "implemented": true,
+   "note": "",
+   "provider_id": "ENTSOE"
+  },
+  {
+   "display_name": "DeepSeek",
+   "env_vars": [
+    "EUROGAS_NEXUS_LLM_API_KEY",
+    "DEEPSEEK_API_KEY"
+   ],
+   "file_env": null,
+   "implemented": true,
+   "note": "External calls stay off until EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED allows them.",
+   "provider_id": "DEEPSEEK"
+  },
+  {
+   "display_name": "OpenAI-compatible model endpoint",
+   "env_vars": [
+    "EUROGAS_NEXUS_LLM_API_KEY"
+   ],
+   "file_env": null,
+   "implemented": true,
+   "note": "External calls stay off until EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED allows them.",
+   "provider_id": "LLM"
+  },
+  {
+   "display_name": "EEX",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "Licensed feed; connector pending.",
+   "provider_id": "EEX"
+  },
+  {
+   "display_name": "ICE OCM",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "",
+   "provider_id": "ICE_OCM"
+  },
+  {
+   "display_name": "Trayport",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "",
+   "provider_id": "Trayport"
+  },
+  {
+   "display_name": "Platts",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "",
+   "provider_id": "Platts"
+  },
+  {
+   "display_name": "ICIS",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "",
+   "provider_id": "ICIS"
+  },
+  {
+   "display_name": "Argus",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "",
+   "provider_id": "Argus"
+  },
+  {
+   "display_name": "Kpler",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "",
+   "provider_id": "Kpler"
+  },
+  {
+   "display_name": "Weather",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "",
+   "provider_id": "Weather"
+  }
+ ],
+ "registered_sources": [
+  {
+   "category": "fx",
+   "category_label": "FX",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "eurofxref-daily",
+    "fx-reference-rates"
+   ],
+   "description": "European Central Bank FX reference rates.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ECB",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-ecb",
+   "source_system": "ECB",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "infrastructure",
+   "category_label": "Infrastructure",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "connection-points",
+    "operator-directions",
+    "flows",
+    "capacity",
+    "outages",
+    "ip"
+   ],
+   "description": "ENTSOG Transparency Platform infrastructure, flows, capacities, IPs, and outages.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ENTSOG",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 60,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-entsog",
+   "source_system": "ENTSOG",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "infrastructure",
+   "category_label": "Infrastructure",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "GIE",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "agsi-storage",
+    "alsi-lng"
+   ],
+   "description": "Gas Infrastructure Europe AGSI storage and ALSI LNG data.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "GIE",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 360,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-gie",
+   "source_system": "GIE",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "transportation-statement",
+    "entry-tariffs",
+    "exit-tariffs",
+    "commodity-charges"
+   ],
+   "description": "National Gas NTS transportation tariff references for explicit-leg route costing.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "NationalGasNTS",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-national-gas-nts",
+   "source_system": "NationalGasNTS",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "interconnector-tariffs",
+    "forward-flow",
+    "reverse-flow"
+   ],
+   "description": "BBL Company public interconnector capacity tariff references.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "BBL",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-bbl",
+   "source_system": "BBL",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "interconnector-tariffs",
+    "bacton",
+    "zeebrugge"
+   ],
+   "description": "Interconnector UK public charging statement and capacity tariff references.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "IUK",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-iuk",
+   "source_system": "IUK",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "netherlands-transmission-tariffs",
+    "entry-exit"
+   ],
+   "description": "Gasunie Transport Services Dutch transmission tariff references.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "GTS",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-gts",
+   "source_system": "GTS",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "france-transmission-tariffs",
+    "entry-exit",
+    "peg"
+   ],
+   "description": "French transmission tariff references for NaTran/GRTgaz/Terega context.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "NaTran",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-natran",
+   "source_system": "NaTran",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "germany-transmission-tariffs",
+    "the-market-area",
+    "entry-exit"
+   ],
+   "description": "German gas transmission tariff references for THE market-area routing.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "GermanTSO",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-german-tso",
+   "source_system": "GermanTSO",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "belgium-transmission-tariffs",
+    "ztp",
+    "interconnection"
+   ],
+   "description": "Fluxys Belgium transmission tariff references for ZTP and border routing.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "FluxysBelgium",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-fluxys-belgium",
+   "source_system": "FluxysBelgium",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "spain-access-tolls",
+    "transmission",
+    "regasification"
+   ],
+   "description": "Spanish CNMC/Enagas gas access toll and tariff references.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "CNMCEnagas",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-cnmc-enagas",
+   "source_system": "CNMCEnagas",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "EEX",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "gas-futures",
+    "gas-spot",
+    "screen-trades",
+    "settlements"
+   ],
+   "description": "European Energy Exchange gas market prices and screen observations.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "EEX",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-eex",
+   "source_system": "EEX",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "gas-spot",
+    "day-ahead",
+    "weekend",
+    "month-ahead",
+    "simulated"
+   ],
+   "description": "EEX-shaped simulated gas market prices injected into the runtime DB at a continuous worker cadence for decision-support testing.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "EEX_Sim",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-eex-sim",
+   "source_system": "EEX_Sim",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "ICE_OCM",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "within-day",
+    "day-ahead",
+    "screen-orders",
+    "live-marks"
+   ],
+   "description": "ICE OCM live within-day and day-ahead market observations.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ICE_OCM",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-ice-ocm",
+   "source_system": "ICE_OCM",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "within-day",
+    "day-ahead",
+    "screen-marks",
+    "simulated"
+   ],
+   "description": "ICE OCM-shaped simulated within-day and day-ahead marks injected through the runtime DB path at a high-frequency worker cadence.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ICE_OCM_Sim",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-ice-ocm-sim",
+   "source_system": "ICE_OCM_Sim",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "Trayport",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "broker-screens",
+    "market-data",
+    "screen-orders"
+   ],
+   "description": "Trayport screen and broker market data.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "Trayport",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-trayport",
+   "source_system": "Trayport",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "broker-screens",
+    "within-day",
+    "day-ahead",
+    "simulated"
+   ],
+   "description": "Trayport-shaped simulated broker-screen marks injected through the canonical runtime DB path at a realtime worker cadence.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "Trayport_Sim",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-trayport-sim",
+   "source_system": "Trayport_Sim",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "ICE_ENDEX",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "ttf-nbp-futures",
+    "eua-uka-futures",
+    "api2-coal-futures",
+    "settlements"
+   ],
+   "description": "ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 Rotterdam coal and power. Licensed; imported from the customer's ICE Report Center export until a connector is licensed.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ICE_ENDEX",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-ice-endex",
+   "source_system": "ICE_ENDEX",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "CME",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "henry-hub-futures",
+    "settlements"
+   ],
+   "description": "CME NYMEX Henry Hub futures settlements. Licensed (CME DataMine).",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "CME",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-cme",
+   "source_system": "CME",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "NGX",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "aeco-indices",
+    "settlements"
+   ],
+   "description": "NGX (ICE) Canadian gas: AECO-C/NIT indices and settlements. Licensed.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "NGX",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-ngx",
+   "source_system": "NGX",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "henry-hub-spot"
+   ],
+   "description": "US EIA open data: Henry Hub daily spot price (public domain; free API key). Reference for US LNG export economics.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "EIA",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-eia",
+   "source_system": "EIA",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "Platts",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "assessments",
+    "forward-curves",
+    "indices"
+   ],
+   "description": "Platts licensed gas price assessments and curves.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "Platts",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-platts",
+   "source_system": "Platts",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "ICIS",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "heren-assessments",
+    "day-ahead",
+    "indices",
+    "curves"
+   ],
+   "description": "ICIS Heren licensed gas assessments and reference prices.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ICIS",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-icis",
+   "source_system": "ICIS",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "heren-assessments",
+    "day-ahead",
+    "daily-assessment",
+    "simulated"
+   ],
+   "description": "ICIS Heren-shaped simulated daily assessment rows injected into market observations.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ICIS_Sim",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-icis-sim",
+   "source_system": "ICIS_Sim",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "Argus",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "assessments",
+    "indices",
+    "curves"
+   ],
+   "description": "Argus licensed gas assessments and market references.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "Argus",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-argus",
+   "source_system": "Argus",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "Kpler",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "lng-flows",
+    "cargo-tracking",
+    "market-data"
+   ],
+   "description": "Kpler licensed LNG and market intelligence feeds.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "Kpler",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 60,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-kpler",
+   "source_system": "Kpler",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "weather",
+   "category_label": "Weather",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "Weather",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "temperature",
+    "hdd",
+    "cdd",
+    "forecast"
+   ],
+   "description": "Template for a licensed weather vendor the deployment has not chosen yet; no connector reads it. ECMWF Open Data is the implemented weather source.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "Weather",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 180,
+   "integration": "template",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-weather",
+   "source_system": "Weather",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "power",
+   "category_label": "Power",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "ENTSOE",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "day-ahead-prices",
+    "actual-load",
+    "generation-per-type"
+   ],
+   "description": "ENTSO-E Transparency Platform day-ahead power prices, load, and wind, solar and gas-fired generation: the drivers of gas burned for power. Free; requires a registered security token; attribution: ENTSO-E.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ENTSOE",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 120,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-entsoe",
+   "source_system": "ENTSOE",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "rates",
+   "category_label": "Interest rates",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "sonia"
+   ],
+   "description": "Bank of England SONIA overnight fixing (Interactive Database series IUDSOIA): financing and early-cash valuation in GBP. Free; attribution.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "BOE",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-boe",
+   "source_system": "BOE",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "rates",
+   "category_label": "Interest rates",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "estr"
+   ],
+   "description": "ECB euro short-term rate (\u20acSTR) from the ECB Data Portal: financing in EUR.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ECB_ESTR",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-ecb-estr",
+   "source_system": "ECB_ESTR",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "rates",
+   "category_label": "Interest rates",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "sofr"
+   ],
+   "description": "Federal Reserve Bank of New York SOFR from the Markets API: financing in USD for LNG and cross-currency contracts. Free; attribution.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "NYFED",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-nyfed",
+   "source_system": "NYFED",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "infrastructure",
+   "category_label": "Infrastructure",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "gas-umm-outages"
+   ],
+   "description": "REMIT urgent market messages: planned and unplanned outages of gas production, storage, LNG and transmission, imported from the desk's inside-information platform export (scripts/ops/import_remit_umm.py).",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "REMIT",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 60,
+   "integration": "file_import",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-remit-umm",
+   "source_system": "REMIT",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "weather",
+   "category_label": "Weather",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "ifs_0p25_oper_2t_forecasts"
+   ],
+   "description": "ECMWF Open Data IFS 0.25\u00b0 2 m temperature forecasts. Actual public source under CC BY 4.0; attribution: ECMWF.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ECMWF_OPEN_DATA",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 720,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-ecmwf-open-data",
+   "source_system": "ECMWF_OPEN_DATA",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "ai",
+   "category_label": "LLM",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "DEEPSEEK",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "analysis",
+    "reporting",
+    "qa"
+   ],
+   "description": "Model endpoint for operator-reviewed analysis: any OpenAI-compatible chat-completions service (DeepSeek by default; provider, URL and model are set by EUROGAS_NEXUS_LLM_PROVIDER_NAME, _BASE_URL and _MODEL). A service, not a data feed: it has no freshness or ingestion schedule.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "DEEPSEEK",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 0,
+   "integration": "model_service",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-deepseek",
+   "source_system": "DEEPSEEK",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "fx",
+   "category_label": "FX",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "wmr-1600-ldn",
+    "wmr-1100-ldn"
+   ],
+   "description": "WM/Reuters (LSEG) London closing and intraday spot fixes, imported from the desk's licensed export (scripts/ops/import_fx_fixings.py --source WMR). The fix most LNG contracts name; ECB reference rates are not a substitute.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "WMR",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "file_import",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-wmr",
+   "source_system": "WMR",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "fx",
+   "category_label": "FX",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "bfix-1600-ldn"
+   ],
+   "description": "Bloomberg BFIX fixes, imported from the desk's licensed export (scripts/ops/import_fx_fixings.py --source BFIX).",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "BFIX",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "file_import",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-bfix",
+   "source_system": "BFIX",
+   "status": "registered",
+   "workflow_ready": false
+  }
+ ],
+ "source_definitions": [
+  {
+   "access_mode": "public_http",
+   "adapter_version": "public-source-ingestor/1",
+   "calendar": "weekdays_only",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "eurofxref-daily",
+   "datasets": [
+    "eurofxref-daily",
+    "fx-reference-rates"
+   ],
+   "description": "European Central Bank FX reference rates.",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ECB",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 4,
+    "min_spacing_seconds": 60.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 300.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": "16:10",
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "DAILY",
+    "timezone": "Europe/Berlin"
+   },
+   "source_class": "public",
+   "source_id": "src-ecb"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "public-source-ingestor/1",
+   "calendar": "gas_market",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "connection-points",
+   "datasets": [
+    "connection-points",
+    "operator-directions",
+    "flows",
+    "capacity",
+    "outages",
+    "ip"
+   ],
+   "description": "ENTSOG Transparency Platform infrastructure, flows, capacities, IPs, and outages.",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 120,
+    "normal_max_age_minutes": 60,
+    "stale_after_minutes": 360
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ENTSOG",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 6,
+    "min_spacing_seconds": 5.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 600.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": 3600,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "INTERVAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-entsog"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "public-source-ingestor/1",
+   "calendar": "gas_market",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "agsi-storage",
+   "datasets": [
+    "agsi-storage",
+    "alsi-lng"
+   ],
+   "description": "Gas Infrastructure Europe AGSI storage and ALSI LNG data.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 720,
+    "normal_max_age_minutes": 360,
+    "stale_after_minutes": 1440
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": true,
+    "retention_note": "bounded archive; never served through public API"
+   },
+   "provider": "GIE",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 12,
+    "min_spacing_seconds": 10.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": "09:00",
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "DAILY",
+    "timezone": "Europe/Brussels"
+   },
+   "source_class": "public",
+   "source_id": "src-gie"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "transportation-statement",
+   "datasets": [
+    "transportation-statement",
+    "entry-tariffs",
+    "exit-tariffs",
+    "commodity-charges"
+   ],
+   "description": "National Gas NTS transportation tariff references for explicit-leg route costing.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "NationalGasNTS",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-national-gas-nts"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "interconnector-tariffs",
+   "datasets": [
+    "interconnector-tariffs",
+    "forward-flow",
+    "reverse-flow"
+   ],
+   "description": "BBL Company public interconnector capacity tariff references.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "BBL",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-bbl"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "interconnector-tariffs",
+   "datasets": [
+    "interconnector-tariffs",
+    "bacton",
+    "zeebrugge"
+   ],
+   "description": "Interconnector UK public charging statement and capacity tariff references.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "IUK",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-iuk"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "netherlands-transmission-tariffs",
+   "datasets": [
+    "netherlands-transmission-tariffs",
+    "entry-exit"
+   ],
+   "description": "Gasunie Transport Services Dutch transmission tariff references.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "GTS",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-gts"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "france-transmission-tariffs",
+   "datasets": [
+    "france-transmission-tariffs",
+    "entry-exit",
+    "peg"
+   ],
+   "description": "French transmission tariff references for NaTran/GRTgaz/Terega context.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "NaTran",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-natran"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "germany-transmission-tariffs",
+   "datasets": [
+    "germany-transmission-tariffs",
+    "the-market-area",
+    "entry-exit"
+   ],
+   "description": "German gas transmission tariff references for THE market-area routing.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "GermanTSO",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-german-tso"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "belgium-transmission-tariffs",
+   "datasets": [
+    "belgium-transmission-tariffs",
+    "ztp",
+    "interconnection"
+   ],
+   "description": "Fluxys Belgium transmission tariff references for ZTP and border routing.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "FluxysBelgium",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-fluxys-belgium"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "spain-access-tolls",
+   "datasets": [
+    "spain-access-tolls",
+    "transmission",
+    "regasification"
+   ],
+   "description": "Spanish CNMC/Enagas gas access toll and tariff references.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "CNMCEnagas",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-cnmc-enagas"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "gas-futures",
+   "datasets": [
+    "gas-futures",
+    "gas-spot",
+    "screen-trades",
+    "settlements"
+   ],
+   "description": "European Energy Exchange gas market prices and screen observations.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 5,
+    "normal_max_age_minutes": 1,
+    "stale_after_minutes": 30
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "EEX",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "exchange",
+   "source_id": "src-eex"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "gas-spot",
+   "datasets": [
+    "gas-spot",
+    "day-ahead",
+    "weekend",
+    "month-ahead",
+    "simulated"
+   ],
+   "description": "EEX-shaped simulated gas market prices injected into the runtime DB at a continuous worker cadence for decision-support testing.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "EEX_Sim",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "simulated",
+   "source_id": "src-eex-sim"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "within-day",
+   "datasets": [
+    "within-day",
+    "day-ahead",
+    "screen-orders",
+    "live-marks"
+   ],
+   "description": "ICE OCM live within-day and day-ahead market observations.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 5,
+    "normal_max_age_minutes": 1,
+    "stale_after_minutes": 30
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ICE_OCM",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "exchange",
+   "source_id": "src-ice-ocm"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "within-day",
+   "datasets": [
+    "within-day",
+    "day-ahead",
+    "screen-marks",
+    "simulated"
+   ],
+   "description": "ICE OCM-shaped simulated within-day and day-ahead marks injected through the runtime DB path at a high-frequency worker cadence.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ICE_OCM_Sim",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "simulated",
+   "source_id": "src-ice-ocm-sim"
+  },
+  {
+   "access_mode": "socket_feed",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "broker-screens",
+   "datasets": [
+    "broker-screens",
+    "market-data",
+    "screen-orders"
+   ],
+   "description": "Trayport screen and broker market data.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 5,
+    "normal_max_age_minutes": 1,
+    "stale_after_minutes": 30
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "Trayport",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "broker",
+   "source_id": "src-trayport"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "broker-screens",
+   "datasets": [
+    "broker-screens",
+    "within-day",
+    "day-ahead",
+    "simulated"
+   ],
+   "description": "Trayport-shaped simulated broker-screen marks injected through the canonical runtime DB path at a realtime worker cadence.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "Trayport_Sim",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "simulated",
+   "source_id": "src-trayport-sim"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "ttf-nbp-futures",
+   "datasets": [
+    "ttf-nbp-futures",
+    "eua-uka-futures",
+    "api2-coal-futures",
+    "settlements"
+   ],
+   "description": "ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 Rotterdam coal and power. Licensed; imported from the customer's ICE Report Center export until a connector is licensed.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ICE_ENDEX",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-ice-endex"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "henry-hub-futures",
+   "datasets": [
+    "henry-hub-futures",
+    "settlements"
+   ],
+   "description": "CME NYMEX Henry Hub futures settlements. Licensed (CME DataMine).",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "CME",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-cme"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "aeco-indices",
+   "datasets": [
+    "aeco-indices",
+    "settlements"
+   ],
+   "description": "NGX (ICE) Canadian gas: AECO-C/NIT indices and settlements. Licensed.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "NGX",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-ngx"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "eia-open-data-v2",
+   "calendar": "weekdays_only",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "henry-hub-spot",
+   "datasets": [
+    "henry-hub-spot"
+   ],
+   "description": "US EIA open data: Henry Hub daily spot price (public domain; free API key). Reference for US LNG export economics.",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 5760,
+    "normal_max_age_minutes": 2880,
+    "stale_after_minutes": 8640
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "EIA",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 4,
+    "min_spacing_seconds": 60.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 300.0,
+    "jitter": true,
+    "max_delay_seconds": 3600.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": "17:10",
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "DAILY",
+    "timezone": "America/New_York"
+   },
+   "source_class": "public",
+   "source_id": "src-eia"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "assessments",
+   "datasets": [
+    "assessments",
+    "forward-curves",
+    "indices"
+   ],
+   "description": "Platts licensed gas price assessments and curves.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "Platts",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "licensed",
+   "source_id": "src-platts"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "heren-assessments",
+   "datasets": [
+    "heren-assessments",
+    "day-ahead",
+    "indices",
+    "curves"
+   ],
+   "description": "ICIS Heren licensed gas assessments and reference prices.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ICIS",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "licensed",
+   "source_id": "src-icis"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "heren-assessments",
+   "datasets": [
+    "heren-assessments",
+    "day-ahead",
+    "daily-assessment",
+    "simulated"
+   ],
+   "description": "ICIS Heren-shaped simulated daily assessment rows injected into market observations.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ICIS_Sim",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "simulated",
+   "source_id": "src-icis-sim"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "assessments",
+   "datasets": [
+    "assessments",
+    "indices",
+    "curves"
+   ],
+   "description": "Argus licensed gas assessments and market references.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "Argus",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "licensed",
+   "source_id": "src-argus"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "lng-flows",
+   "datasets": [
+    "lng-flows",
+    "cargo-tracking",
+    "market-data"
+   ],
+   "description": "Kpler licensed LNG and market intelligence feeds.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 180,
+    "normal_max_age_minutes": 60,
+    "stale_after_minutes": 720
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "Kpler",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "licensed",
+   "source_id": "src-kpler"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "temperature",
+   "datasets": [
+    "temperature",
+    "hdd",
+    "cdd",
+    "forecast"
+   ],
+   "description": "Template for a licensed weather vendor the deployment has not chosen yet; no connector reads it. ECMWF Open Data is the implemented weather source.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 360,
+    "normal_max_age_minutes": 180,
+    "stale_after_minutes": 720
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "Weather",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "licensed",
+   "source_id": "src-weather"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "entsoe-transparency-xml-v1",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "security_token"
+   ],
+   "dataset": "day-ahead-prices",
+   "datasets": [
+    "day-ahead-prices",
+    "actual-load",
+    "generation-per-type"
+   ],
+   "description": "ENTSO-E Transparency Platform day-ahead power prices, load, and wind, solar and gas-fired generation: the drivers of gas burned for power. Free; requires a registered security token; attribution: ENTSO-E.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 360,
+    "normal_max_age_minutes": 120,
+    "stale_after_minutes": 1440
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ENTSOE",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 4,
+    "min_spacing_seconds": 60.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 120.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": 3600,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "INTERVAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-entsoe"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "interest-rate-ingest/1",
+   "calendar": "weekdays_only",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "sonia",
+   "datasets": [
+    "sonia"
+   ],
+   "description": "Bank of England SONIA overnight fixing (Interactive Database series IUDSOIA): financing and early-cash valuation in GBP. Free; attribution.",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 5760,
+    "normal_max_age_minutes": 2880,
+    "stale_after_minutes": 8640
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "BOE",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 4,
+    "min_spacing_seconds": 60.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 300.0,
+    "jitter": true,
+    "max_delay_seconds": 3600.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": "10:15",
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "DAILY",
+    "timezone": "Europe/London"
+   },
+   "source_class": "public",
+   "source_id": "src-boe"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "interest-rate-ingest/1",
+   "calendar": "weekdays_only",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "estr",
+   "datasets": [
+    "estr"
+   ],
+   "description": "ECB euro short-term rate (\u20acSTR) from the ECB Data Portal: financing in EUR.",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 5760,
+    "normal_max_age_minutes": 2880,
+    "stale_after_minutes": 8640
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ECB_ESTR",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 4,
+    "min_spacing_seconds": 60.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 300.0,
+    "jitter": true,
+    "max_delay_seconds": 3600.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": "08:15",
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "DAILY",
+    "timezone": "Europe/Berlin"
+   },
+   "source_class": "public",
+   "source_id": "src-ecb-estr"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "interest-rate-ingest/1",
+   "calendar": "weekdays_only",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "sofr",
+   "datasets": [
+    "sofr"
+   ],
+   "description": "Federal Reserve Bank of New York SOFR from the Markets API: financing in USD for LNG and cross-currency contracts. Free; attribution.",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 5760,
+    "normal_max_age_minutes": 2880,
+    "stale_after_minutes": 8640
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "NYFED",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 4,
+    "min_spacing_seconds": 60.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 300.0,
+    "jitter": true,
+    "max_delay_seconds": 3600.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": "08:30",
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "DAILY",
+    "timezone": "America/New_York"
+   },
+   "source_class": "public",
+   "source_id": "src-nyfed"
+  },
+  {
+   "access_mode": "file_upload",
+   "adapter_version": "remit-umm-acer-fields-v1",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "gas-umm-outages",
+   "datasets": [
+    "gas-umm-outages"
+   ],
+   "description": "REMIT urgent market messages: planned and unplanned outages of gas production, storage, LNG and transmission, imported from the desk's inside-information platform export (scripts/ops/import_remit_umm.py).",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 60,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "REMIT",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-remit-umm"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "ifs_0p25_oper_2t_forecasts",
+   "datasets": [
+    "ifs_0p25_oper_2t_forecasts"
+   ],
+   "description": "ECMWF Open Data IFS 0.25\u00b0 2 m temperature forecasts. Actual public source under CC BY 4.0; attribution: ECMWF.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 720,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ECMWF_OPEN_DATA",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-ecmwf-open-data"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "analysis",
+   "datasets": [
+    "analysis",
+    "reporting",
+    "qa"
+   ],
+   "description": "Model endpoint for operator-reviewed analysis: any OpenAI-compatible chat-completions service (DeepSeek by default; provider, URL and model are set by EUROGAS_NEXUS_LLM_PROVIDER_NAME, _BASE_URL and _MODEL). A service, not a data feed: it has no freshness or ingestion schedule.",
+   "enabled_default": false,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 0,
+    "normal_max_age_minutes": 0,
+    "stale_after_minutes": 0
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "DEEPSEEK",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "model",
+   "source_id": "src-deepseek"
+  },
+  {
+   "access_mode": "file_upload",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "wmr-1600-ldn",
+   "datasets": [
+    "wmr-1600-ldn",
+    "wmr-1100-ldn"
+   ],
+   "description": "WM/Reuters (LSEG) London closing and intraday spot fixes, imported from the desk's licensed export (scripts/ops/import_fx_fixings.py --source WMR). The fix most LNG contracts name; ECB reference rates are not a substitute.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "WMR",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-wmr"
+  },
+  {
+   "access_mode": "file_upload",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "bfix-1600-ldn",
+   "datasets": [
+    "bfix-1600-ldn"
+   ],
+   "description": "Bloomberg BFIX fixes, imported from the desk's licensed export (scripts/ops/import_fx_fixings.py --source BFIX).",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "BFIX",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-bfix"
+  }
+ ]
+}

@@ -18,7 +18,6 @@ from eurogas_nexus.domain.dataops.contracts import (
     LicensedDataPolicy,
     RateLimitPolicy,
     RetryPolicy,
-    ScheduleType,
     SourceCalendar,
     SourceClass,
     SourceDefinition,
@@ -26,200 +25,14 @@ from eurogas_nexus.domain.dataops.contracts import (
 )
 from eurogas_nexus.domain.ingestion.source_registry import registered_sources
 
-# source_id -> semantics not present in the static display registry.
 
+def _operations_by_source() -> dict[str, dict]:
+    """Operations policy per source, from each provider's connector manifest (C1)."""
 
-def _tariff_override() -> dict:
-    return {
-        "source_class": SourceClass.REFERENCE,
-        "access_mode": AccessMode.PUBLIC_HTTP,
-        "freshness_policy": FreshnessPolicy(43200, 64800, 129600),
-        "retry_policy": RetryPolicy(2, 60.0, 1800.0),
-    }
+    from eurogas_nexus.domain.connectors.registry import connector_manifests
 
+    return {manifest.source_id: dict(manifest.operations) for manifest in connector_manifests()}
 
-def _exchange_override(provider: str) -> dict:
-    return {
-        "source_class": SourceClass.EXCHANGE,
-        "access_mode": AccessMode.KEYED_HTTP,
-        "credential_fields": ("api_key",),
-        "certification_required": True,
-        "freshness_policy": FreshnessPolicy(1, 5, 30),
-        "licensed_data": LicensedDataPolicy(),
-    }
-
-
-def _licensed_override(normal: int, late: int, stale: int) -> dict:
-    return {
-        "source_class": SourceClass.LICENSED,
-        "access_mode": AccessMode.KEYED_HTTP,
-        "credential_fields": ("api_key",),
-        "certification_required": True,
-        "freshness_policy": FreshnessPolicy(normal, late, stale),
-        "licensed_data": LicensedDataPolicy(),
-    }
-
-
-def _rate_override(daily_at: str, timezone: str) -> dict:
-    return {
-        "source_class": SourceClass.PUBLIC,
-        "access_mode": AccessMode.PUBLIC_HTTP,
-        "schedulable": True,
-        "enabled_default": True,
-        "schedule": SourceScheduleSpec(
-            schedule_type=ScheduleType.DAILY, daily_at=daily_at, timezone=timezone
-        ),
-        "calendar": SourceCalendar.WEEKDAYS_ONLY,
-        # A fixing a day; a long weekend or holiday leaves three to four days without one.
-        "freshness_policy": FreshnessPolicy(1440 * 2, 1440 * 4, 1440 * 6),
-        "retry_policy": RetryPolicy(3, 300.0, 3600.0),
-        "rate_limit_policy": RateLimitPolicy(4, 3600.0, 60.0, 1),
-        "adapter_version": "interest-rate-ingest/1",
-    }
-
-
-_SOURCE_OVERRIDES: dict[str, dict] = {
-    "src-ecb": {
-        "source_class": SourceClass.PUBLIC,
-        "access_mode": AccessMode.PUBLIC_HTTP,
-        "schedulable": True,
-        "enabled_default": True,
-        "schedule": SourceScheduleSpec(
-            schedule_type=ScheduleType.DAILY,
-            daily_at="16:10",
-            timezone="Europe/Berlin",
-        ),
-        "calendar": SourceCalendar.WEEKDAYS_ONLY,
-        "freshness_policy": FreshnessPolicy(1440, 2880, 4320),
-        "retry_policy": RetryPolicy(3, 300.0, 1800.0),
-        "rate_limit_policy": RateLimitPolicy(4, 3600.0, 60.0, 1),
-        "adapter_version": "public-source-ingestor/1",
-    },
-    "src-entsog": {
-        "source_class": SourceClass.PUBLIC,
-        "access_mode": AccessMode.PUBLIC_HTTP,
-        "schedulable": True,
-        "enabled_default": True,
-        "schedule": SourceScheduleSpec(
-            schedule_type=ScheduleType.INTERVAL,
-            interval_seconds=3600,
-        ),
-        "calendar": SourceCalendar.GAS_MARKET,
-        "freshness_policy": FreshnessPolicy(60, 120, 360),
-        "retry_policy": RetryPolicy(3, 30.0, 600.0),
-        "rate_limit_policy": RateLimitPolicy(6, 60.0, 5.0, 1),
-        "adapter_version": "public-source-ingestor/1",
-    },
-    # Run by the scheduler through scripts/ops/ingest_power.py (token from
-    # ENTSOE_SECURITY_TOKEN); off until an operator enables it with the token in place.
-    "src-entsoe": {
-        "source_class": SourceClass.PUBLIC,
-        "access_mode": AccessMode.KEYED_HTTP,
-        "credential_fields": ("security_token",),
-        "certification_required": True,
-        "schedulable": True,
-        "enabled_default": False,
-        "schedule": SourceScheduleSpec(
-            schedule_type=ScheduleType.INTERVAL,
-            interval_seconds=3600,
-        ),
-        # Day-ahead prices publish once a day; load and generation hourly.
-        "freshness_policy": FreshnessPolicy(120, 360, 1440),
-        "retry_policy": RetryPolicy(3, 120.0, 1800.0),
-        "rate_limit_policy": RateLimitPolicy(4, 3600.0, 60.0, 1),
-        "adapter_version": "entsoe-transparency-xml-v1",
-    },
-    # Benchmark overnight rates, run by the scheduler through scripts/ops/ingest_interest_rates.py
-    # once a business day after each administrator publishes.
-    "src-boe": _rate_override("10:15", "Europe/London"),
-    # Henry Hub spot through scripts/ops/ingest_eia.py, after EIA's daily update.
-    "src-eia": {
-        **_rate_override("17:10", "America/New_York"),
-        "adapter_version": "eia-open-data-v2",
-    },
-    "src-ecb-estr": _rate_override("08:15", "Europe/Berlin"),
-    "src-nyfed": _rate_override("08:30", "America/New_York"),
-    # Operator file import (scripts/ops/import_remit_umm.py); nothing for the scheduler to run.
-    "src-remit-umm": {
-        "source_class": SourceClass.PUBLIC,
-        "access_mode": AccessMode.FILE_UPLOAD,
-        "schedulable": False,
-        "enabled_default": False,
-        "adapter_version": "remit-umm-acer-fields-v1",
-    },
-    "src-gie": {
-        "source_class": SourceClass.PUBLIC,
-        "access_mode": AccessMode.KEYED_HTTP,
-        "credential_fields": ("api_key",),
-        "certification_required": True,
-        "schedulable": True,
-        "enabled_default": False,
-        "schedule": SourceScheduleSpec(
-            schedule_type=ScheduleType.DAILY,
-            daily_at="09:00",
-            timezone="Europe/Brussels",
-        ),
-        "calendar": SourceCalendar.GAS_MARKET,
-        "freshness_policy": FreshnessPolicy(360, 720, 1440),
-        "retry_policy": RetryPolicy(3, 60.0, 1800.0),
-        "rate_limit_policy": RateLimitPolicy(12, 3600.0, 10.0, 1),
-        "adapter_version": "public-source-ingestor/1",
-        "licensed_data": LicensedDataPolicy(
-            raw_retention_allowed=True,
-            retention_note="bounded archive; never served through public API",
-        ),
-    },
-    "src-national-gas-nts": _tariff_override(),
-    "src-bbl": _tariff_override(),
-    "src-iuk": _tariff_override(),
-    "src-gts": _tariff_override(),
-    "src-natran": _tariff_override(),
-    "src-german-tso": _tariff_override(),
-    "src-fluxys-belgium": _tariff_override(),
-    "src-cnmc-enagas": _tariff_override(),
-    "src-eex": _exchange_override("EEX"),
-    "src-ice-ocm": _exchange_override("ICE_OCM"),
-    "src-trayport": {
-        "source_class": SourceClass.BROKER,
-        "access_mode": AccessMode.SOCKET_FEED,
-        "certification_required": True,
-        "freshness_policy": FreshnessPolicy(1, 5, 30),
-        "licensed_data": LicensedDataPolicy(),
-    },
-    "src-platts": _licensed_override(1440, 2880, 4320),
-    "src-icis": _licensed_override(1440, 2880, 4320),
-    "src-argus": _licensed_override(1440, 2880, 4320),
-    "src-kpler": _licensed_override(60, 180, 720),
-    "src-weather": {
-        "source_class": SourceClass.LICENSED,
-        "access_mode": AccessMode.KEYED_HTTP,
-        "credential_fields": ("api_key",),
-        "certification_required": True,
-        "freshness_policy": FreshnessPolicy(180, 360, 720),
-        "licensed_data": LicensedDataPolicy(),
-    },
-    # Licensed FX fixes arrive only through the operator's import (#33).
-    "src-wmr": {
-        "source_class": SourceClass.PUBLIC,
-        "access_mode": AccessMode.FILE_UPLOAD,
-        "schedulable": False,
-        "enabled_default": False,
-    },
-    "src-bfix": {
-        "source_class": SourceClass.PUBLIC,
-        "access_mode": AccessMode.FILE_UPLOAD,
-        "schedulable": False,
-        "enabled_default": False,
-    },
-    "src-deepseek": {
-        "source_class": SourceClass.MODEL,
-        "access_mode": AccessMode.KEYED_HTTP,
-        "credential_fields": ("api_key",),
-        "certification_required": True,
-        "freshness_policy": FreshnessPolicy(0, 0, 0),
-        "licensed_data": LicensedDataPolicy(),
-    },
-}
 
 _SIMULATED_SOURCES = {
     "src-eex-sim": ("EEX", SourceClass.SIMULATED),
@@ -250,11 +63,12 @@ def source_definitions() -> tuple[SourceDefinition, ...]:
     """Return typed operational descriptors for every registered source."""
 
     definitions: list[SourceDefinition] = []
+    operations = _operations_by_source()
     for row in registered_sources():
         source_id = str(row["source_id"])
         provider = str(row["source_system"])
         datasets = tuple(str(dataset) for dataset in row["datasets"])
-        override = _SOURCE_OVERRIDES.get(source_id, {})
+        override = operations.get(source_id, {})
         entitlement_scope = "licensed" if row["credential_requirements"] else "public"
         credential_fields: tuple[str, ...] = ()
         if row["credential_requirements"]:

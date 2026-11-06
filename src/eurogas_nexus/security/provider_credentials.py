@@ -25,51 +25,30 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-_LLM_NOTE = "External calls stay off until EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED allows them."
+from eurogas_nexus.domain.connectors.manifest import ProviderCredentialSpec
 
 CredentialSource = Literal["env", "file", "credential_store"]
 EffectiveSource = Literal["env", "file", "credential_store", "disabled", "missing"]
 
 
-@dataclass(frozen=True)
-class ProviderCredentialSpec:
-    provider_id: str
-    display_name: str
-    env_vars: tuple[str, ...] = ()
-    file_env: str | None = None
-    implemented: bool = True
-    note: str = ""
+def _declared_specs() -> tuple[ProviderCredentialSpec, ...]:
+    """Every credential the connector manifests declare (C1), implemented ones first.
+
+    ``implemented=False`` means a key may be stored for a future connector but nothing reads
+    it yet; declaring it does not make a connector work or grant an entitlement.
+    """
+
+    from eurogas_nexus.domain.connectors.registry import connector_manifests
+
+    specs = [spec for manifest in connector_manifests() for spec in manifest.credentials]
+    return tuple(
+        [spec for spec in specs if spec.implemented]
+        + [spec for spec in specs if not spec.implemented]
+    )
 
 
-#: Every provider the credential manager knows. ``implemented=False`` means a key may be
-#: stored for a future connector but nothing reads it yet; declaring it does not make a
-#: connector work or grant an entitlement.
-PROVIDER_CREDENTIAL_SPECS: tuple[ProviderCredentialSpec, ...] = (
-    ProviderCredentialSpec(
-        "GIE", "GIE AGSI/ALSI", ("GIE_API_KEY",), file_env="GIE_API_KEY_FILE",
-        note="Also needs a certification record before live ingestion.",
-    ),
-    ProviderCredentialSpec("EIA", "US EIA open data", ("EIA_API_KEY",)),
-    ProviderCredentialSpec("ENTSOE", "ENTSO-E Transparency", ("ENTSOE_SECURITY_TOKEN",)),
-    ProviderCredentialSpec(
-        "DEEPSEEK", "DeepSeek", ("EUROGAS_NEXUS_LLM_API_KEY", "DEEPSEEK_API_KEY"),
-        note=_LLM_NOTE,
-    ),
-    ProviderCredentialSpec(
-        "LLM", "OpenAI-compatible model endpoint", ("EUROGAS_NEXUS_LLM_API_KEY",),
-        note=_LLM_NOTE,
-    ),
-    ProviderCredentialSpec(
-        "EEX", "EEX", implemented=False, note="Licensed feed; connector pending."
-    ),
-    ProviderCredentialSpec("ICE_OCM", "ICE OCM", implemented=False),
-    ProviderCredentialSpec("ICIS", "ICIS", implemented=False),
-    ProviderCredentialSpec("Argus", "Argus", implemented=False),
-    ProviderCredentialSpec("Trayport", "Trayport", implemented=False),
-    ProviderCredentialSpec("Kpler", "Kpler", implemented=False),
-    ProviderCredentialSpec("Platts", "Platts", implemented=False),
-    ProviderCredentialSpec("Weather", "Weather", implemented=False),
-)
+#: Every provider the credential manager knows, derived from the connector manifests.
+PROVIDER_CREDENTIAL_SPECS: tuple[ProviderCredentialSpec, ...] = _declared_specs()
 
 _SPECS = {spec.provider_id: spec for spec in PROVIDER_CREDENTIAL_SPECS}
 
