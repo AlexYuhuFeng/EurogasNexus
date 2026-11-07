@@ -65,7 +65,7 @@ export interface CommandPaletteOptions {
   glossaryTerms?: ReadonlyArray<{ term: string; aliases?: readonly string[] }>;
   onNavigate: (command: PaletteCommand) => void;
   onInspect: (kind: InspectorSubjectKind, ref: string) => void;
-  onUtility: (utility: "access-identity" | "sign-out") => void;
+  onUtility: (utility: NonNullable<PaletteCommand["target"]["utility"]>) => void;
   onAiAction?: (command: PaletteCommand) => void;
 }
 

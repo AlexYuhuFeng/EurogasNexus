@@ -9,7 +9,7 @@ caller-supplied, authorised evidence and compares responses to a revised outage 
 It is read-only compute (no persistence), sits under the commercial `/api/portfolio/` prefix,
 returns an input fingerprint and the frozen inputs for replay, and has a Python SDK method
 (`portfolio.replay_desk_evidence`) and a Decision Center panel. Responses are assessed, never
-executed. Census: 242 paths / 262 operations.
+executed. Census: 243 paths / 263 operations.
 
 Added 2026-11-05: `POST /api/market/nwe-balance` adds caller-declared weather scenarios
 alongside the existing GET. It has the governed permission floor, no persistence,

@@ -5,6 +5,7 @@ import { RestrictedSurface } from "@/components/RestrictedSurface";
 import { SignInScreen } from "@/components/SignInScreen";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import { ShellTicker } from "@/components/ShellTicker";
+import { DeskBriefDialog, openDeskBrief } from "@/components/DeskBriefDialog";
 import type { AppController } from "@/app/hooks/useAppController";
 import { useCommandPalette } from "@/app/hooks/useCommandPalette";
 import {
@@ -245,6 +246,8 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
       }),
     onUtility: (utility) => {
       if (utility === "access-identity") navigation.openWorkspace("access");
+      else if (utility === "brief-morning") openDeskBrief("morning");
+      else if (utility === "brief-eod") openDeskBrief("eod");
       else void api.signOut();
     },
   });
@@ -343,6 +346,8 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
           onBack={inspector.back}
         />
       )}
+
+      <DeskBriefDialog language={i18n.language} t={t} />
 
       <CommandPalette
         open={palette.open}

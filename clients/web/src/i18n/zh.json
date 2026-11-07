@@ -4601,5 +4601,20 @@
   "why.basis_rule": "规则生成",
   "why.basis_model": "模型据证据简述，已校验",
   "why.simulated": "使用模拟演示价格",
-  "why.close": "关闭"
+  "why.close": "关闭",
+  "brief.morning": "起草晨报",
+  "brief.eod": "起草日终报告",
+  "brief.title": "交易台简报",
+  "brief.kind_morning": "晨报",
+  "brief.kind_eod": "日终",
+  "brief.loading": "正在根据交易台数据起草…",
+  "brief.failed": "无法生成草稿：交易台数据读取失败。",
+  "brief.edit_hint": "这是草稿：请编辑后自行发送，本系统不会发送。",
+  "brief.copy": "复制",
+  "brief.copied": "已复制",
+  "brief.download": "下载 .txt",
+  "brief.email": "用邮件打开",
+  "brief.lead_model": "开头几行是模型对下列各节的概括，已与之核对。",
+  "brief.close": "关闭",
+  "brief.open": "交易台简报"
 }

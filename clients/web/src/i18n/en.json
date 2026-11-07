@@ -4601,5 +4601,20 @@
   "why.basis_rule": "From the rules",
   "why.basis_model": "Model summary of the evidence, checked",
   "why.simulated": "Uses simulated demo prices",
-  "why.close": "Close"
+  "why.close": "Close",
+  "brief.morning": "Draft the morning brief",
+  "brief.eod": "Draft the end-of-day report",
+  "brief.title": "Desk brief",
+  "brief.kind_morning": "Morning",
+  "brief.kind_eod": "End of day",
+  "brief.loading": "Drafting from the desk's data…",
+  "brief.failed": "The draft could not be built: the desk's data could not be read.",
+  "brief.edit_hint": "A draft: edit it, then send it yourself. Nothing is sent from here.",
+  "brief.copy": "Copy",
+  "brief.copied": "Copied",
+  "brief.download": "Download .txt",
+  "brief.email": "Open in email",
+  "brief.lead_model": "The opening lines are a model summary of the sections below, checked against them.",
+  "brief.close": "Close",
+  "brief.open": "Desk brief"
 }

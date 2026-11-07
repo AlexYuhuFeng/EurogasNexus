@@ -1744,6 +1744,19 @@ export interface ExplanationDTO {
   as_of: string;
 }
 
+/** A morning brief or end-of-day draft (``POST /api/analysis/brief``). */
+export interface DeskBriefDTO {
+  kind: "morning" | "eod";
+  title: string;
+  lead: string | null;
+  lead_basis: "model" | "none";
+  sections: { key: string; heading: string; lines: string[]; sources: string[] }[];
+  text: string;
+  simulated: boolean;
+  warnings: string[];
+  as_of: string;
+}
+
 export interface MonitoringAlertDTO {
   alert_id: string; fingerprint: string; category: string; alert_type: string;
   severity: "info" | "warning" | "critical";
@@ -4657,6 +4670,9 @@ export const api = {
 
   explain: (subject: ExplainSubject, id: string, language: "en" | "zh-CN") =>
     post<ExplanationDTO>("/analysis/explain", { subject, id, language }),
+
+  deskBrief: (kind: "morning" | "eod", language: "en" | "zh-CN") =>
+    post<DeskBriefDTO>("/analysis/brief", { kind, language }),
 
   acknowledgeMonitoringAlert: (alertId: string) =>
     post<MonitoringAlertDTO>(`/monitoring/alerts/${encodeURIComponent(alertId)}/acknowledge`, {}),

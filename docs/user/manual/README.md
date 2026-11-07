@@ -41,8 +41,9 @@ covers it.
 | Yearly | Track each TSO's indicative and final tariffs for the next gas year | Portfolio → Routes → Tariff publications | [Steps](TRADER.md#7-track-tso-tariff-publications) |
 | Reporting | Export the ladder, credit and mandate tables to Excel, PDF or CSV | Export buttons on each table | [Steps](TRADER.md#4-monitor-the-book-position) |
 | Research | Back-test a spread or benchmark strategy | Research → Strategy | Guide |
-| Any time | Look up a term, its unit, formula and where it appears | Help & Settings → Glossary | [Steps](TRADER.md#8-look-up-a-term) |
-| Any time | Report a problem to the IT desk with diagnostics attached | Top bar "?" | [Steps](TRADER.md#9-report-a-problem) |
+| Start and end of day | Draft the morning brief or end-of-day report | Market → Overview → Desk brief, or Ctrl K | [Steps](TRADER.md#8-draft-the-morning-brief-or-end-of-day-report) |
+| Any time | Look up a term, its unit, formula and where it appears | Help & Settings → Glossary | [Steps](TRADER.md#9-look-up-a-term) |
+| Any time | Report a problem to the IT desk with diagnostics attached | Top bar "?" | [Steps](TRADER.md#10-report-a-problem) |
 
 ### Risk and middle office
 

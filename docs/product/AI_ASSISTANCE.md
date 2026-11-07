@@ -50,7 +50,7 @@ three places, each at the moment it is useful.
 |---|---|---|---|
 | 1 | Outage, breach and price-move alerts, explained | "Warn me in time": the explanation turns a REMIT line into "this is 8 % of NBP supply and we are long" | Done: outages, and credit and mandate breaches from `application/limits_service.py` |
 | 2 | "Why?" on alerts, outages, breaches and P&L | Answers the first question a trader asks, in place | Done: `POST /api/analysis/explain`, `WhyButton` |
-| 3 | Morning brief and end-of-day report drafts | Saves the half hour every desk spends writing them | Yes: the report exports exist; the model drafts the narrative |
+| 3 | Morning brief and end-of-day report drafts | Saves the half hour every desk spends writing them | Done: `POST /api/analysis/brief`, Ctrl K "Draft the morning brief" or Market → Desk brief |
 | 4 | Contract and confirmation reading | Turn a PDF into terms and flag deviations from the template | OCR exists; extraction into the draft is a short step |
 | 5 | Ask in the search box | One place to ask anything, with sources | Yes: route palette questions to the Copilot |
 | 6 | Strategy and data assistance | Draft a spread spec, explain a backtest result, suggest features | Agent research exists; wire it into the Research pages |

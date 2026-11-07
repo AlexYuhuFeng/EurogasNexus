@@ -1,4 +1,4 @@
-""""Why?" next to an alert, an outage, a credit line, a mandate or a P&L figure.
+""""Why?" next to an alert, an outage, a credit line, a mandate or a P&L figure; desk briefs.
 
 ``POST /api/analysis/explain`` takes only the object's kind and id; the server loads the
 evidence the caller may see and returns two to four deterministic lines with their sources.
@@ -6,6 +6,9 @@ When the deployment enables a provider and the caller holds the analysis capabil
 model condenses them into one desk note that must pass ``application/ai_style`` checks;
 otherwise the rule text is returned. The model never sees licensed rows the caller is not
 entitled to, and every model call is audited under the caller's identity.
+
+``POST /api/analysis/brief`` drafts the morning brief or end-of-day report from the same
+reads (``application/desk_brief.py``) for a person to edit and send.
 """
 
 from __future__ import annotations
@@ -57,7 +60,7 @@ def post_explain(body: ExplainRequest, request: Request) -> dict:
                 model=model,
             )
             if model is not None:
-                _audit(session, request, principal, body, result.basis)
+                _audit(session, request, principal, f"{body.subject}:{body.id}", result.basis)
                 session.commit()
     except NotFound as exc:
         raise HTTPException(status_code=404, detail={"code": "not_found"}) from exc
@@ -67,6 +70,45 @@ def post_explain(body: ExplainRequest, request: Request) -> dict:
             detail={"code": "runtime_db_unavailable", "error_class": exc.__class__.__name__},
         ) from exc
     return _env(result.as_dict(), request, "runtime-postgresql", result.warnings)
+
+
+class BriefRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["morning", "eod"] = "morning"
+    language: Literal["en", "zh-CN"] = "en"
+
+
+@router.post("/api/analysis/brief")
+def post_brief(body: BriefRequest, request: Request) -> dict:
+    """A morning brief or end-of-day draft from the caller's view of the desk, to edit and send.
+
+    晨报/日终报告草稿：按调用者可见的数据分节生成，供人工编辑后发送。
+    """
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.caller import Caller
+    from eurogas_nexus.application.desk_brief import build_brief
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    if resolve_database_url() is None:
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    principal = ai_caller(request)
+    model = _model_for(principal)
+    try:
+        with get_session_factory()() as session:
+            brief = build_brief(
+                session, Caller(principal), body.kind, model=model, language=body.language
+            )
+            if model is not None:
+                _audit(session, request, principal, f"brief:{body.kind}", brief.lead_basis)
+                session.commit()
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "runtime_db_unavailable", "error_class": exc.__class__.__name__},
+        ) from exc
+    return _env(brief.as_dict(), request, "runtime-postgresql", brief.warnings)
 
 
 def _model_for(principal):
@@ -95,7 +137,7 @@ def _model_for(principal):
     return call
 
 
-def _audit(session, request: Request, principal, body: ExplainRequest, basis: str) -> None:
+def _audit(session, request: Request, principal, resource: str, basis: str) -> None:
     from eurogas_nexus.db.repositories.audit import record_audit_event
 
     request_id = getattr(request.state, "request_id", None)
@@ -104,10 +146,10 @@ def _audit(session, request: Request, principal, body: ExplainRequest, basis: st
         event_type="governance.policy",
         principal=principal.principal_id[:64],
         action="ai.explain",
-        resource=f"{body.subject}:{body.id}"[:128],
+        resource=resource[:128],
         outcome=basis,
         severity="info",
-        detail=f"explain {body.subject}; shown={basis}",
+        detail=f"{resource.split(':')[0]}; shown={basis}",
         source_system="analysis",
         now_utc=datetime.now(UTC),
         correlation_id=request_id[:64] if request_id else None,

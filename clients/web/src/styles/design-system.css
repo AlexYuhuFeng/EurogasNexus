@@ -4557,3 +4557,114 @@
     gap: var(--ds-space-1);
   }
 }
+
+@layer ds-components {
+  /* Desk brief (DeskBriefDialog.tsx): a modal editor, phone-safe. */
+  .desk-brief {
+    width: min(760px, calc(100vw - 24px));
+    max-height: calc(100vh - 48px);
+    padding: var(--ds-space-4);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-lg);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    box-shadow: var(--ds-shadow-lg);
+  }
+
+  .desk-brief[open] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-3);
+  }
+
+  .desk-brief::backdrop {
+    background: rgb(0 0 0 / 35%);
+  }
+
+  .desk-brief-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-3);
+  }
+
+  .desk-brief-head h2 {
+    margin: 0;
+    font-size: var(--ds-text-lg);
+  }
+
+  .desk-brief-kinds {
+    display: inline-flex;
+    gap: var(--ds-space-1);
+  }
+
+  .desk-brief-kinds button,
+  .desk-brief-actions button,
+  .desk-brief-actions .button-link {
+    min-height: var(--ds-control, 32px);
+    padding: 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  .desk-brief-kinds button[aria-pressed="true"] {
+    border-color: var(--ds-accent);
+    background: var(--ds-accent-soft);
+  }
+
+  .desk-brief-close {
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--ds-border);
+    border-radius: 50%;
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+
+  .desk-brief-hint {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .desk-brief-text {
+    min-height: 340px;
+    width: 100%;
+    max-width: 100%;
+    resize: vertical;
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-1);
+    font-family: var(--ds-font-mono);
+    font-size: var(--ds-text-sm);
+    line-height: 1.5;
+  }
+
+  .desk-brief-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+  }
+
+  @media (pointer: coarse) {
+    .desk-brief-kinds button,
+    .desk-brief-actions button,
+    .desk-brief-actions .button-link,
+    .desk-brief-close {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+}

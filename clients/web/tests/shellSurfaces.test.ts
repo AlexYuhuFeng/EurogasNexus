@@ -81,7 +81,7 @@ test("palette commands are derived from the registries", () => {
   );
   assert.deepEqual(
     utilityCommands().map((command) => command.target.utility),
-    ["access-identity", "sign-out"],
+    ["access-identity", "brief-morning", "brief-eod", "sign-out"],
   );
 });
 

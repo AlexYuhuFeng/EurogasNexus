@@ -50,7 +50,7 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **242 paths / 262 operations**
+- OpenAPI public surface: **243 paths / 263 operations**
   (functional branch adds task/model operations; no new release acceptance).
   (`/api/runtime/release`, CR-14 research data routes, CR-15 agent/capability
   routes, and the development-only `/api/dev/auth/login` added), pinned and

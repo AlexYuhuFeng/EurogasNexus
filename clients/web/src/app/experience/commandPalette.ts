@@ -57,7 +57,7 @@ export interface PaletteCommand {
     readonly primary?: PrimaryWorkspaceId;
     readonly aiAction?: AiActionKind;
     readonly inspector?: InspectorSubjectKind;
-    readonly utility?: "access-identity" | "sign-out";
+    readonly utility?: "access-identity" | "sign-out" | "brief-morning" | "brief-eod";
   };
 }
 
@@ -158,6 +158,23 @@ export function utilityCommands(): PaletteCommand[] {
       target: { utility: "access-identity", page: "access" },
     },
     {
+      // Desk briefs are drafted from the desk's data for a person to edit and send.
+      id: "utility.brief-morning",
+      group: "utility",
+      labelKey: "brief.morning",
+      consequence: "read",
+      placement: actionPlacement("utility"),
+      target: { utility: "brief-morning" },
+    },
+    {
+      id: "utility.brief-eod",
+      group: "utility",
+      labelKey: "brief.eod",
+      consequence: "read",
+      placement: actionPlacement("utility"),
+      target: { utility: "brief-eod" },
+    },
+    {
       id: "utility.sign-out",
       group: "utility",
       labelKey: "topbar.sign_out",
@@ -251,6 +268,9 @@ export function paletteCommandAvailable(
   }
   if (command.target.utility === "access-identity") {
     return availability.capabilities.includes("access.manage");
+  }
+  if (command.target.utility === "brief-morning" || command.target.utility === "brief-eod") {
+    return availability.capabilities.includes("portfolio.read");
   }
   return true;
 }

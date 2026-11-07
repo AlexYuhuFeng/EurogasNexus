@@ -174,14 +174,24 @@ desk when it does.
 
 ![Tariff publication register](img/tr-18-tariffs.png)
 
-## 8. Look up a term
+## 8. Draft the morning brief or end-of-day report
+
+Market → Overview → **Desk brief**, or Ctrl K and type "brief". The draft has fixed
+sections from the desk's data, each line traceable to its source: alerts, outages in the
+next 36 hours, front-month prices and the day's change, positions today and for the front
+month, credit and mandates near or over their limits, and P&L. Edit it in place, then
+copy it, download it or open it in your email. Nothing is sent from Eurogas Nexus. When
+the firm enables a model, a short lead may head the draft; it is checked against the
+sections and says so. On a demo deployment the draft states that its prices are simulated.
+
+## 9. Look up a term
 
 Help & Settings → **Glossary**: 74 desk terms with unit, formula, a worked example, where the term
 appears in the product and the regulation behind it, in English and Chinese.
 
 ![Glossary](img/tr-23-glossary.png)
 
-## 9. Report a problem
+## 10. Report a problem
 
 The **?** in the top bar → **Report a problem**. Say what went wrong, the kind and the
 urgency, and the details. The page, versions, screen size and any failing reads are

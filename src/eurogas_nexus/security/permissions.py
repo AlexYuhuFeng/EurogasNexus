@@ -96,6 +96,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # "Why?" on one object: a read of evidence the caller may already see. The model is
     # used only after the route re-checks the caller's analysis capability (ai_authority).
     ("/api/analysis/explain", Permission.READ),
+    # Morning brief / end-of-day draft: the same reads, assembled; nothing is sent.
+    ("/api/analysis/brief", Permission.READ),
     ("/api/review/decisions", Permission.REVIEW),
     ("/api/ingestion-runs", Permission.READ),
     # --- read families ---

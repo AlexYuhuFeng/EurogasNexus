@@ -1,3 +1,4 @@
+import { openDeskBrief } from "@/components/DeskBriefDialog";
 import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
@@ -186,6 +187,8 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         <div className="market-hub-board-head">
           <h2>{t("market.hub_board")}</h2>
           <button type="button" className="link-button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
+          {/* Before noon the desk writes its morning brief; after, its end-of-day report. */}
+          <button type="button" className="link-button" onClick={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}>{t("brief.open")}</button>
         </div>
         <div className="data-table" style={{ ["--board-columns" as string]: boardColumns }}>
           <div className="data-table-row header board-row">
