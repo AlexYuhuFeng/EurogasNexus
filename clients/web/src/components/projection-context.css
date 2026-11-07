@@ -134,6 +134,14 @@
     min-height: var(--ds-control-sm);
   }
 
+  @media (pointer: coarse) {
+    .projection-context .trading-context-controls input,
+    .projection-context .trading-context-controls select {
+      height: 44px;
+      min-height: 44px;
+    }
+  }
+
   .projection-context .projection-context-details[open] {
     flex-basis: 100%;
     margin-left: 0;

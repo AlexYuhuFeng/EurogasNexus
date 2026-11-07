@@ -2156,6 +2156,8 @@
 @layer ds-components {
   /* Breaking-news ticker under the top bar (BreakingTicker.tsx). */
   .breaking-ticker {
+    /* Never squeezed: on full-height pages (the map) the page shrinks, not the news. */
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: var(--ds-space-2);
@@ -2277,7 +2279,16 @@
 
   @media (pointer: coarse) {
     .breaking-ticker {
-      height: 40px;
+      height: 44px;
+    }
+
+    .ticker-item button,
+    .ticker-pause {
+      min-height: 44px;
+    }
+
+    .ticker-pause {
+      min-width: 44px;
     }
   }
 }
@@ -4400,5 +4411,64 @@
     .cockpit-app .chip-row button {
       min-height: 44px;
     }
+  }
+}
+
+/* A form control never outgrows the cell it is placed in. Browsers give inputs a natural width
+   (a number input is about 20 characters), which spilled over the next column wherever a grid
+   gave its cell less: the persona walk found the spread-lab weight box over its series picker.
+   One rule here instead of a width per form. */
+@layer ds-base {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  label:has(> input, > select, > textarea) {
+    min-width: 0;
+  }
+}
+
+/* The network map column is a stack, not layers (#69 follow-up): the toolbar is a row above
+   the map that wraps when narrow, the map fills the rest, the finder sits at the map's top
+   left and zoom at its bottom right. Floating the toolbar over the map with hand-set offsets
+   let it collide with the zoom buttons and the finder at 1366 px, on a tablet and a phone. */
+@layer ds-components {
+  .workspace-network .network-map-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .workspace-network .network-map-column > .map-toolbar {
+    position: static;
+    inset: auto;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    row-gap: var(--ds-space-2);
+    padding: var(--ds-space-2);
+    border-bottom: 1px solid var(--ds-border);
+    background: var(--ds-surface);
+  }
+
+  .workspace-network .network-map-column > .network-map-stage {
+    position: relative;
+    inset: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .workspace-network .network-map-stage .map-finder {
+    top: var(--ds-space-3);
+  }
+}
+
+/* A panel's title row wraps when its controls do not fit beside the title (phones): a row of
+   pickers and export buttons that cannot wrap spills one control over the next. */
+@layer ds-components {
+  .panel-title-row {
+    flex-wrap: wrap;
+    row-gap: var(--ds-space-2);
   }
 }

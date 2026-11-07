@@ -480,7 +480,9 @@ export function GasNetworkMap({
       ),
     });
 
-    map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
+    // Zoom sits bottom-right: the top of the map belongs to the finder, the bar above to the
+    // toolbar, so no two control groups can meet at any width.
+    map.addControl(new NavigationControl({ visualizePitch: true }), "bottom-right");
     map.addControl(new AttributionControl({ compact: true }), "bottom-left");
     let loaded = false;
     map.on("load", () => {

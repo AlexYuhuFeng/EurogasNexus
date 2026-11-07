@@ -470,7 +470,8 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     ).read_text(encoding="utf-8")
 
     assert "fallback-network-map map-ready" in map_component
-    assert 'NavigationControl({ visualizePitch: true }), "top-right"' in map_component
+    # Zoom sits bottom-right: the toolbar is a row above the map and the finder its top left.
+    assert 'NavigationControl({ visualizePitch: true }), "bottom-right"' in map_component
     assert "coordinate_quality" in map_component
     assert "data_quality" in map_component
     assert "node-color-legend" in css

@@ -604,29 +604,50 @@ async function inspectSurfaceFunction(
         apiRows = null;
       }
     }
-    // Top-bar layout: no two visible controls may overlap (the hub picker once sat under the
-    // alerts button on 1366 px laptops). Flex layout should make this impossible; this proves it.
+    // Layout: no two visible controls may overlap anywhere on the page (the hub picker once
+    // sat under the alerts button on 1366 px laptops, the map toolbar over its zoom buttons).
+    // A control's visible part is its box cut by every clipping ancestor; content inside a
+    // closed fold is not on screen, and the ticker's looping copy is aria-hidden.
     const headerOverlaps = [];
-    const header = document.querySelector(".app-header");
-    if (header) {
-      const visible = (element) => {
+    {
+      const shown = (element) => {
         const box = element.getBoundingClientRect();
         const style = getComputedStyle(element);
-        return box.width > 0 && box.height > 0 && style.visibility !== "hidden";
+        if (!(box.width > 0 && box.height > 0 && style.visibility !== "hidden")) return false;
+        if (element.closest("[aria-hidden='true'], .maplibregl-ctrl-attrib")) return false;
+        const fold = element.closest("details:not([open])");
+        return !fold || element.closest("summary")?.parentElement === fold;
       };
-      const controls = [...header.querySelectorAll("button, select, input, a, summary")].filter(visible);
-      for (let i = 0; i < controls.length; i += 1) {
+      const clippedBox = (element) => {
+        const own = element.getBoundingClientRect();
+        let box = { l: own.left, t: own.top, r: own.right, b: own.bottom };
+        for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+          const style = getComputedStyle(parent);
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowX + style.overflowY)) {
+            const clip = parent.getBoundingClientRect();
+            box = {
+              l: Math.max(box.l, clip.left), t: Math.max(box.t, clip.top),
+              r: Math.min(box.r, clip.right), b: Math.min(box.b, clip.bottom),
+            };
+          }
+        }
+        return box;
+      };
+      const controls = [
+        ...document.querySelectorAll("button, select, input:not([type=hidden]), a[href], summary"),
+      ].filter(shown);
+      const boxes = controls.map(clippedBox);
+      const name = (element) =>
+        ((element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 32)
+          || `${element.tagName.toLowerCase()}.${String(element.className).split(" ")[0]}`);
+      for (let i = 0; i < controls.length && headerOverlaps.length < 4; i += 1) {
         for (let j = i + 1; j < controls.length; j += 1) {
           if (controls[i].contains(controls[j]) || controls[j].contains(controls[i])) continue;
-          const a = controls[i].getBoundingClientRect();
-          const b = controls[j].getBoundingClientRect();
-          const width = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-          const height = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          const a = boxes[i];
+          const b = boxes[j];
+          const width = Math.min(a.r, b.r) - Math.max(a.l, b.l);
+          const height = Math.min(a.b, b.b) - Math.max(a.t, b.t);
           if (width > 4 && height > 4) {
-            const name = (element) =>
-              (element.getAttribute("aria-label") || element.textContent || element.tagName)
-                .trim()
-                .slice(0, 32);
             headerOverlaps.push(`${name(controls[i])} x ${name(controls[j])}`);
           }
         }
@@ -679,7 +700,7 @@ async function inspectSurfaceFunction(
     }
   }
   if (state.headerOverlaps && state.headerOverlaps.length > 0) {
-    recordFailure(failures, scope, `top-bar controls overlap: ${state.headerOverlaps.join("; ")}`);
+    recordFailure(failures, scope, `controls overlap: ${state.headerOverlaps.join("; ")}`);
   }
     if (state.reactErrors && state.reactErrors.length > 0) {
     // A failure, with the captured stack: React's internal error is one per application mount and
