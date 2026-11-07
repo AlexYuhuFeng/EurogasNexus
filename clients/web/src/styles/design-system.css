@@ -1879,8 +1879,9 @@
   /* ---------------------------------------------------------------- badges */
   .status-badge,
   .source-status,
-  [class*="-pill"]:not([class*="row"]):not([class*="section"]),
-  [class*="-chip"]:not([class*="row"]):not([class*="section"]),
+  /* Badges label state; a chip that is a button is a control and is sized as one. */
+  [class*="-pill"]:not([class*="row"]):not([class*="section"]):not(button),
+  [class*="-chip"]:not([class*="row"]):not([class*="section"]):not(button),
   .badge,
   [class$="-badge"],
   [class*="-badge "],
@@ -1932,9 +1933,311 @@
     scrollbar-width: thin;
     scrollbar-color: var(--ds-border-strong) transparent;
   }
+
+  /* --- Top bar: one intrinsic layout, no per-width tuning (#69 follow-up) -------------
+     Flex items never overlap, they shrink: the lines of work, the search and the context
+     chip give up width (and truncate) first, while alerts, status and the account menu keep
+     theirs. The trading context opens as a popover over the page at every width. This rule
+     sits in ds-components, above the legacy per-breakpoint grids, so those no longer apply. */
+  .cockpit-app .app-header.workspace-topbar-page {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .cockpit-app .app-header.workspace-topbar-page > * {
+    min-width: 0;
+  }
+
+  /* The lines of work never shrink or clip: they are how a user moves. */
+  .cockpit-app .app-header [data-shell-region="navigation"] {
+    flex: 0 0 auto;
+  }
+
+  /* The search gives width up first, down to its icon; it hides its own words by the room
+     it actually has (a container query on itself), not by the window's width. */
+  .cockpit-app .app-header .topbar-command {
+    flex: 0 1 220px;
+    min-width: calc(var(--ds-control) + 4px);
+    overflow: hidden;
+    white-space: nowrap;
+    container-type: inline-size;
+  }
+
+  .cockpit-app .app-header .topbar-command > span {
+    display: inline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @container (max-width: 140px) {
+    .cockpit-app .app-header .topbar-command > span,
+    .cockpit-app .app-header .topbar-command > kbd {
+      display: none;
+    }
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure {
+    display: block;
+    position: relative;
+    flex: 0 1 auto;
+    width: auto;
+    margin-left: auto;
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    max-width: 100%;
+    min-height: var(--ds-control);
+    padding: 0 var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    cursor: pointer;
+    list-style: none;
+    white-space: nowrap;
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* The value speaks for itself; the label stays for screen readers (summary aria-label). */
+  .cockpit-app .app-header .topbar-context-disclosure > summary strong {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure > summary span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.8125rem;
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure::details-content {
+    display: contents;
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure-content {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 40;
+    display: grid;
+    width: max-content;
+    max-width: min(92vw, 520px);
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-lg);
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure-content .topbar-trading-context {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: var(--ds-space-3);
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure-content label {
+    display: grid;
+    gap: 4px;
+  }
+
+  .cockpit-app .app-header .topbar-context-disclosure-content label > span {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: nowrap;
+    display: block;
+    color: var(--ds-text-2);
+    font-size: 0.75rem;
+  }
+
+  /* Priorities: the menu button and the lines of work never shrink; the controls cluster
+     shrinks only through its one flexible item, the demo chip, which truncates first. */
+  /* The menu button keeps its icon; its label (page and context) truncates first. */
+  .cockpit-app .app-header .topbar-menu-button {
+    flex: 0 1 auto;
+    min-width: 44px;
+  }
+
+  .cockpit-app .app-header .topbar-menu-button > svg {
+    flex: 0 0 auto;
+  }
+
+  /* On a phone the page title and the drawer carry the page and context; the bar keeps the
+     icon so the menu is always findable. */
+  [data-width-class="compact"] .cockpit-app .app-header .topbar-menu-label {
+    display: none;
+  }
+
+  /* The controls keep their natural size (they are icons on a phone); the menu label and
+     the search are what give way. */
+  .cockpit-app .app-header .header-controls {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .cockpit-app .app-header .header-controls > * {
+    flex: 0 0 auto;
+  }
+
+  .cockpit-app .app-header .topbar-status {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  /* Without the context chip, the controls take the free space's right edge themselves. */
+  .cockpit-app .app-header:not(:has(.topbar-context-disclosure)) .header-controls {
+    margin-left: auto;
+  }
+
 }
 
 /* ------------------------------------------------------------------ motion */
+@layer ds-components {
+  /* Breaking-news ticker under the top bar (BreakingTicker.tsx). */
+  .breaking-ticker {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-width: 0;
+    height: 32px;
+    padding: 0 var(--ds-space-2);
+    border-bottom: 1px solid var(--ds-border);
+    background: var(--ds-surface-2);
+    font-size: 0.8125rem;
+    overflow: hidden;
+  }
+
+  .ticker-tag {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-text-2);
+    color: var(--ds-surface);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .breaking-ticker.has-critical .ticker-tag {
+    background: var(--ds-negative);
+  }
+
+  .ticker-viewport {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent, black 24px, black calc(100% - 24px), transparent);
+  }
+
+  .ticker-track {
+    display: flex;
+    width: max-content;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    animation: ticker-scroll linear infinite;
+  }
+
+  .breaking-ticker:hover .ticker-track,
+  .breaking-ticker:focus-within .ticker-track,
+  .breaking-ticker.is-paused .ticker-track {
+    animation-play-state: paused;
+  }
+
+  .ticker-item button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 0;
+    padding: 0 var(--ds-space-5) 0 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .ticker-item i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ds-text-2);
+  }
+
+  .ticker-item.is-warning i {
+    background: var(--ds-warning);
+  }
+
+  .ticker-item.is-critical i {
+    background: var(--ds-negative);
+  }
+
+  .ticker-item.is-critical button {
+    font-weight: 600;
+  }
+
+  .ticker-pause {
+    flex: 0 0 auto;
+    min-height: 24px;
+    padding: 0 8px;
+    font-size: 0.6875rem;
+  }
+
+  .breaking-ticker.is-flash {
+    animation: ticker-flash 1s ease-in-out 3;
+  }
+
+  @keyframes ticker-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  @keyframes ticker-flash {
+    50% { background: color-mix(in srgb, var(--ds-negative) 22%, var(--ds-surface-2)); }
+  }
+
+  /* Reduced motion: nothing moves; the items can be scrolled by hand. */
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track,
+    .breaking-ticker.is-flash {
+      animation: none;
+    }
+
+    .ticker-viewport {
+      overflow-x: auto;
+      mask-image: none;
+    }
+
+    .ticker-pause {
+      display: none;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .breaking-ticker {
+      height: 40px;
+    }
+  }
+}
+
 @layer ds-motion {
   @keyframes ds-enter {
     from {
@@ -4040,5 +4343,18 @@
     display: flex;
     flex-direction: column;
     gap: var(--ds-space-1);
+  }
+}
+
+/* Touch (coarse pointer): every tab and chip is a 44 px target, whatever its component sets
+   for a mouse. One rule here instead of a size per page; the persona walkthrough found the
+   page tabs at 28 px and the map layer chips at 20 px on phones and tablets. */
+@media (pointer: coarse) {
+  @layer ds-components {
+    .cockpit-app [role="tab"],
+    .cockpit-app button.chip,
+    .cockpit-app .chip-row button {
+      min-height: 44px;
+    }
   }
 }

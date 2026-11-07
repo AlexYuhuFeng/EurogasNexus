@@ -94,7 +94,8 @@ export function TopBarStatus({
     >
       {demoPrices && (
         <span className="topbar-demo-chip" title={t("status.demo_prices_help")}>
-          {t("status.demo_prices")}
+          <span className="tab-label-full">{t("status.demo_prices")}</span>
+          <span className="tab-label-short" aria-hidden="true">{t("status.demo_prices_short")}</span>
         </span>
       )}
       <button

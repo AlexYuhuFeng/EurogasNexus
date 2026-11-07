@@ -4584,5 +4584,12 @@
   "limits.open_ended": "{{count}} evergreen, to gas-year end",
   "limits.open_ended_help": "An open-ended contract renews each gas year and can be ended on notice, so replacement exposure counts its volume only to 30 September.",
   "status.demo_prices": "Demo prices",
-  "status.demo_prices_help": "This deployment values positions, credit and mandates with simulated demo prices. They are not market prices."
+  "status.demo_prices_help": "This deployment values positions, credit and mandates with simulated demo prices. They are not market prices.",
+  "ticker.label": "Latest alerts and outages",
+  "ticker.breaking": "Breaking",
+  "ticker.latest": "Latest",
+  "ticker.pause": "Pause the ticker",
+  "ticker.resume": "Resume the ticker",
+  "ticker.outage": "Outage: {{asset}} ({{zone}}) {{capacity}} · {{kind}}",
+  "status.demo_prices_short": "Demo"
 }

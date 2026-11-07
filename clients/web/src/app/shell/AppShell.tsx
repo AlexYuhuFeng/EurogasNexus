@@ -4,6 +4,7 @@ import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
 import { SignInScreen } from "@/components/SignInScreen";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
+import { ShellTicker } from "@/components/ShellTicker";
 import type { AppController } from "@/app/hooks/useAppController";
 import { useCommandPalette } from "@/app/hooks/useCommandPalette";
 import {
@@ -278,6 +279,14 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         onOpenCommandPalette={() => palette.setOpen(true)}
         onLanguageChange={chooseLanguage}
         onModeChange={chooseTheme}
+      />
+      {/* Breaking news under the menu: latest alerts and outages, without leaving the page. */}
+      <ShellTicker
+        alerts={api.monitoringAlerts}
+        language={i18n.language}
+        commercial={needsCommercialWorkspaceReads(api.currentUser)}
+        t={t}
+        onOpenOutages={() => navigation.openWorkspace("market", "capacity")}
       />
 
       {endpointFailures.total > 0 && (

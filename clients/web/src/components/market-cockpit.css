@@ -146,7 +146,8 @@
 
 .market-hub-board .data-table {
   margin: 0;
-  overflow: visible;
+  /* A grid too wide for its box scrolls inside it, never clips a price. */
+  overflow-x: auto;
   border: 0;
   border-radius: 0;
 }
@@ -163,6 +164,7 @@
 
 .market-hub-board .data-table-row.board-row {
   grid-template-columns: var(--board-columns);
+  min-width: max-content;
 }
 
 /* Numeric columns right-align; the source and age columns follow the price. */

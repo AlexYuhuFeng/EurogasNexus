@@ -134,18 +134,26 @@ export function WorkspaceTopBar({
     label: t(primary.labelKey),
   }));
 
-  const [narrowHeader, setNarrowHeader] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1199px)").matches,
-  );
+  // The trading context is one summary chip at every width; its controls open in a popover
+  // over the page, so they never compete with alerts or the account menu for bar width.
   const [contextDisclosureOpen, setContextDisclosureOpen] = useState(false);
-
+  const contextRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 1199px)");
-    const update = () => setNarrowHeader(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
+    if (!contextDisclosureOpen) return undefined;
+    const close = (event: KeyboardEvent | PointerEvent) => {
+      const outside =
+        event instanceof KeyboardEvent
+          ? event.key === "Escape"
+          : !contextRef.current?.contains(event.target as Node);
+      if (outside) setContextDisclosureOpen(false);
+    };
+    window.addEventListener("keydown", close);
+    window.addEventListener("pointerdown", close);
+    return () => {
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("pointerdown", close);
+    };
+  }, [contextDisclosureOpen]);
 
   const productLabel =
     deliveryProduct === "day-ahead"
@@ -332,22 +340,22 @@ export function WorkspaceTopBar({
           every projection read is issued for (`app/model/projectionContext.ts`), so the browser
           sweep can read the context the surfaces are showing and compare a payload read for that
           context instead of a generic, unfiltered one. The labels beside it stay the display. */}
-      {!compact && (
+      {/* Only pages that read the gas day, product and hub carry the chip. */}
+      {!compact && usesTradingContext && (
       <details
+        ref={contextRef}
         className="topbar-context-disclosure"
         data-context-gas-day={gasDay}
         data-context-product={deliveryProduct}
         data-context-hub={hubId ?? ""}
-        open={!narrowHeader || contextDisclosureOpen}
-        onToggle={(event) => {
-          if (narrowHeader) setContextDisclosureOpen(event.currentTarget.open);
-        }}
+        open={contextDisclosureOpen}
+        onToggle={(event) => setContextDisclosureOpen(event.currentTarget.open)}
       >
         <summary aria-label={t("topbar.context_status")}>
           <strong>{t("topbar.context_status")}</strong>
-          {usesTradingContext && <span>{gasDay} · {productLabel} · {hubId ?? t("context.no_hub_focus")}</span>}
+          <span>{gasDay} · {productLabel} · {hubId ?? t("context.no_hub_focus")}</span>
         </summary>
-        {(!narrowHeader || contextDisclosureOpen) && (
+        {contextDisclosureOpen && (
           <div className="topbar-context-disclosure-content">
         {/* Rendered only where the page uses it: an empty labelled box is an
             accessibility fault (axe aria-prohibited-attr). */}

@@ -135,17 +135,19 @@ test("the header preferences menu owns preference and lifecycle actions with key
   assert.match(menu, /onSignOut/);
 });
 
-test("below the wide width class the header folds the trading context behind one disclosure", () => {
+test("the trading context is one chip whose controls open over the page at every width", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
-  const css = readWebSource("styles/app.css");
+  const css = readWebSource("styles/design-system.css");
 
-  assert.match(bar, /matchMedia\("\(max-width: 1199px\)"\)/);
+  // No per-width tuning in the component: the chip is the same everywhere (#69 follow-up).
+  assert.equal(bar.includes("matchMedia"), false);
   assert.match(bar, /className="topbar-context-disclosure"/);
   assert.match(bar, /<summary aria-label=\{t\("topbar\.context_status"\)\}>/);
-  assert.match(bar, /\(!narrowHeader \|\| contextDisclosureOpen\)/);
-  assert.match(css, /grid-template-areas: "workspace" "context-disclosure";/);
-  assert.match(css, /grid-template-areas: "workspace" "task" "search" "context-disclosure";/);
-  assert.match(css, /\.topbar-context-disclosure-content[\s\S]*?display: grid;/);
+  assert.match(bar, /open=\{contextDisclosureOpen\}/);
+  assert.match(bar, /!compact && usesTradingContext && \(/);
+  // One intrinsic layout: flex items shrink instead of overlapping; the popover floats.
+  assert.match(css, /\.cockpit-app \.app-header\.workspace-topbar-page \{\s*display: flex;/);
+  assert.match(css, /\.topbar-context-disclosure-content \{\s*position: absolute;/);
 });
 
 test("the top bar shows who is signed in once, on the account menu", () => {

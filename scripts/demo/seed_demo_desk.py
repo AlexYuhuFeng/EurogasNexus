@@ -37,6 +37,7 @@ from eurogas_nexus.db.models import (
     FxObservationRecord,
     LngTerminalTermsRecord,
     MarketObservationRecord,
+    RemitUmmRecord,
     ScreenOrderObservationRecord,
     TraderMandateRecord,
     TradingBookRecord,
@@ -168,6 +169,9 @@ def _clear(session) -> None:
         synchronize_session=False
     )
     session.query(FxObservationRecord).filter(FxObservationRecord.source_system == SOURCE).delete(
+        synchronize_session=False
+    )
+    session.query(RemitUmmRecord).filter(RemitUmmRecord.source_system == "DEMO").delete(
         synchronize_session=False
     )
     session.query(LngTerminalTermsRecord).filter(
@@ -532,6 +536,25 @@ def seed(session, now: datetime) -> dict[str, dict]:
                 updated_at_utc=now,
             )
         )
+    # Two fictional outages for the ticker and the map: a large unplanned one and a derate.
+    for message_id, asset, zone, technical, unavailable, kind, hours_ago, reason in (
+        ("demo-umm-1", "Demo Haldor field", "NBP", 70.0, 52.0, "unplanned", 3,
+         "Compressor trip (demo)"),
+        ("demo-umm-2", "Demo Kestrel export line", "TTF", 40.0, 9.0, "planned", 30,
+         "Valve maintenance (demo)"),
+    ):
+        start = now - timedelta(hours=hours_ago)
+        session.add(RemitUmmRecord(
+            record_id=f"{message_id}:1", message_id=message_id, version=1,
+            published_at_utc=start, event_status="active", unavailability_type=kind,
+            event_start_utc=start, event_stop_utc=start + timedelta(days=3), asset_name=asset,
+            asset_eic=f"DEMO-{message_id}", asset_type="production", balancing_zone=zone,
+            direction="entry", unit="mcm/d", technical_capacity=technical,
+            available_capacity=technical - unavailable, unavailable_capacity=unavailable,
+            unavailable_mcm_d=unavailable, unavailable_gwh_d=round(unavailable * 10.83, 1),
+            reason=reason, market_participant="Demo operator", remarks="Fictional demo message.",
+            source_system="DEMO", source_reference="demo:umm", ingested_at_utc=now,
+        ))
     return sizing
 
 

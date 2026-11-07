@@ -4584,5 +4584,12 @@
   "limits.open_ended": "{{count}} 份长期滚动合同，计至本燃气年末",
   "limits.open_ended_help": "无固定期限合同按燃气年续约，可提前通知终止，因此替换敞口只计至 9 月 30 日的量。",
   "status.demo_prices": "演示价格",
-  "status.demo_prices_help": "此部署使用模拟演示价格计算头寸、信用和授权，它们不是市场价格。"
+  "status.demo_prices_help": "此部署使用模拟演示价格计算头寸、信用和授权，它们不是市场价格。",
+  "ticker.label": "最新告警与停运",
+  "ticker.breaking": "突发",
+  "ticker.latest": "最新",
+  "ticker.pause": "暂停滚动",
+  "ticker.resume": "继续滚动",
+  "ticker.outage": "停运：{{asset}}（{{zone}}）{{capacity}} · {{kind}}",
+  "status.demo_prices_short": "演示"
 }

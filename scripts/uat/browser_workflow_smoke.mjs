@@ -101,7 +101,9 @@ const LANGUAGES = [
 ];
 
 const VIEWPORTS = [
-  { id: "desktop-1440", width: 1440, height: 900 },
+  // 1366 x 768 is the common corporate laptop and the narrowest desktop: the top bar once
+  // overlapped there. A flex layout that holds at 1366 and 1920 holds between them.
+  { id: "laptop-1366", width: 1366, height: 768 },
   { id: "desktop-1920", width: 1920, height: 1080 },
   { id: "narrow-390", width: 390, height: 844 },
 ];
@@ -602,12 +604,41 @@ async function inspectSurfaceFunction(
         apiRows = null;
       }
     }
+    // Top-bar layout: no two visible controls may overlap (the hub picker once sat under the
+    // alerts button on 1366 px laptops). Flex layout should make this impossible; this proves it.
+    const headerOverlaps = [];
+    const header = document.querySelector(".app-header");
+    if (header) {
+      const visible = (element) => {
+        const box = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return box.width > 0 && box.height > 0 && style.visibility !== "hidden";
+      };
+      const controls = [...header.querySelectorAll("button, select, input, a, summary")].filter(visible);
+      for (let i = 0; i < controls.length; i += 1) {
+        for (let j = i + 1; j < controls.length; j += 1) {
+          if (controls[i].contains(controls[j]) || controls[j].contains(controls[i])) continue;
+          const a = controls[i].getBoundingClientRect();
+          const b = controls[j].getBoundingClientRect();
+          const width = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          const height = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          if (width > 4 && height > 4) {
+            const name = (element) =>
+              (element.getAttribute("aria-label") || element.textContent || element.tagName)
+                .trim()
+                .slice(0, 32);
+            headerOverlaps.push(`${name(controls[i])} x ${name(controls[j])}`);
+          }
+        }
+      }
+    }
     const reactErrors = (window.__reactErrorStacks || []).slice(0, 2).map((entry) => ({
       message: String(entry.message).slice(0, 160),
       stack: String(entry.stack).split("\n").slice(0, 8).join(" | ").slice(0, 900),
     }));
     return {
       displayed: Boolean(displayed),
+      headerOverlaps: headerOverlaps.slice(0, 4),
       reactErrors,
       markedWorkspace,
       heading,
@@ -647,7 +678,10 @@ async function inspectSurfaceFunction(
       recordFailure(failures, scope, "the surface still shows 'Loading workspace' after load");
     }
   }
-  if (state.reactErrors && state.reactErrors.length > 0) {
+  if (state.headerOverlaps && state.headerOverlaps.length > 0) {
+    recordFailure(failures, scope, `top-bar controls overlap: ${state.headerOverlaps.join("; ")}`);
+  }
+    if (state.reactErrors && state.reactErrors.length > 0) {
     // A failure, with the captured stack: React's internal error is one per application mount and
     // is a defect on every workspace it reaches, not a condition to be carried in a list.
     recordFailure(

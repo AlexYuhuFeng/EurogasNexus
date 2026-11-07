@@ -85,3 +85,36 @@ job already runs three viewports. The phone viewport is added to the same sweep.
 | A2 | Compact rows for operational tables (sources done via Connectors; API keys, users) | No table wider than the screen on Admin pages at 390 px |
 | A3 | Map layer panel and reserved control corners | No overlap at 390 px in EN/ZH |
 | A4 | Inspector as a sheet at compact width | Detail opens full-screen with Back, focus returns to the row |
+
+## Layout system: declare priorities, do not tune widths (2026-11-07)
+
+The top bar used to be tuned by hand at 1599, 1439, 1365 and 1199 px, and still overlapped on
+a 1366 px laptop. Terminals such as Bloomberg's, LSEG Workspace, Kpler and Platts render with
+web technology like this client; what keeps their layouts tidy is the layout model, not the
+shell. The rules now are:
+
+1. **Intrinsic layout first.** Rows are flex or grid with `min-width: 0`. Items shrink or
+   truncate; they never overlap. A breakpoint is a last resort, not a tuning knob.
+2. **Declared priorities.** Every bar states what gives way first. In the top bar the lines of
+   work and the controls (alerts, status, account) keep their size; the search shrinks to its
+   icon (a container query on its own width), the context chip truncates, and on a phone the
+   menu label goes while its icon stays.
+3. **Popovers over the page.** The trading context (gas day, product, hub) is one chip at every
+   width; its controls open over the page, so they never take bar width.
+4. **One rule per meaning.** A design-system rule decides once (for example "a chip that is a
+   button is a control, sized 44 px on touch"); a page does not carry its own size.
+5. **Tables scroll inside their box.** A grid too wide for its box scrolls there; it never clips
+   a price.
+6. **Checked by machine.** The browser acceptance sweep fails on any two overlapping top-bar
+   controls at 1366, 1920 and 390 px (`scripts/uat/browser_workflow_smoke.mjs`).
+
+The breaking-news ticker (`BreakingTicker.tsx`) sits under the bar. It shows open alerts and the
+outages active now, critical first. It reads "Breaking" and flashes once when a new critical item
+arrives, pauses on hover, focus or its own button, does not move with reduced motion, and is
+absent when there is nothing to report.
+
+**Shell choice.** Tauri renders the same web layout as the browser (WebView2 on Windows, WebKitGTK
+on Linux). Layout quality does not depend on the shell, so no shell change is needed for it. If
+users later want Bloomberg-style panels they arrange themselves, a docking layout library
+(Dockview, FlexLayout or Golden Layout, all MIT-licensed) can host the existing panels inside the
+same client.
