@@ -227,3 +227,33 @@ def test_deal_hedge_band_per_contract() -> None:
         "under the approved 60%"
         in deal_hedge_usage(floor, supply, sales, today=TODAY)["breaches"][0]
     )
+
+
+def test_an_evergreen_contract_is_owed_only_to_the_end_of_the_gas_year():
+    """A "2025+" contract renews yearly and can be ended on notice: later years are not owed.
+
+    Before this rule a 36-month horizon counted three years of an evergreen supply as firm,
+    which put a 10,000 MWh/d contract £45m over a £1.5m line in the walk-through data.
+    """
+
+    flat = {("TTF", f"{y}-{m:02d}"): 34.0 for y in (2026, 2027, 2028, 2029) for m in range(1, 13)}
+    leg = CounterpartyLeg(
+        "EVERGREEN", "supply_contract", "TTF", "EUR",
+        date(2025, 10, 1), date(2029, 9, 30), 1000.0, 30.0, open_ended=True,
+    )
+    result = credit_exposure(line(), [leg], today=TODAY, mark=lambda h, m: flat.get((h, m)), fx=FX)
+    # 1 Nov 2026 .. 30 Sep 2027 inclusive is 334 gas days, at 4 EUR/MWh in the firm's favour.
+    days = (date(2027, 9, 30) - TODAY).days + 1
+    assert days == 334
+    assert result.remaining_mwh == 1000.0 * days
+    assert result.replacement_exposure == 1000.0 * days * 4.0
+    assert result.open_ended_legs == 1
+    assert result.as_row()["open_ended_legs"] == 1
+
+    fixed = CounterpartyLeg(
+        "FIXED", "supply_contract", "TTF", "EUR",
+        date(2025, 10, 1), date(2029, 9, 30), 1000.0, 30.0,
+    )
+    firm = credit_exposure(line(), [fixed], today=TODAY, mark=lambda h, m: flat.get((h, m)), fx=FX)
+    assert firm.remaining_mwh > result.remaining_mwh  # a fixed term is owed in full
+    assert firm.open_ended_legs == 0

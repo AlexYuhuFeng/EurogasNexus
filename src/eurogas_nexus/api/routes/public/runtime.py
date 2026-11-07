@@ -100,7 +100,7 @@ def runtime_release_metadata(request: Request) -> dict:
     parsing installer filenames.
     """
 
-    from eurogas_nexus.core.config import Settings
+    from eurogas_nexus.core.config import Settings, demo_marks_allowed
     from eurogas_nexus.release.constants import (
         API_CONTRACT_VERSION,
         BACKTEST_ENGINE_VERSION,
@@ -135,6 +135,9 @@ def runtime_release_metadata(request: Request) -> dict:
             "strategy_run_schema_version": RUN_SCHEMA_VERSION,
             "solver_version": SOLVER_VERSION,
             "deployment": deployment_profile(),
+            # True only in a demo run with simulated demo marks; the client then labels every
+            # screen, since such prices must never be read as market prices.
+            "demo_marks": demo_marks_allowed(),
         },
         "meta": {
             "research_only": False,

@@ -560,6 +560,16 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         default="true (forced false in trial and release)",
         notes=("Simulated rows are labelled and are never provider acceptance",),
     ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_MARKS",
+        scope="OPERATOR",
+        purpose="Let positions, credit and mandates value against simulated demo prices.",
+        default="false (forced false in trial and release)",
+        notes=(
+            "For sales demos and training on scripts/demo/seed_demo_desk.py data only.",
+            "Every valued response then carries a warning that marks are demo prices.",
+        ),
+    ),
     # --- Development-only credential login ---------------------------------
     ConfigVar(
         name="EUROGAS_NEXUS_MOBILE_PREVIEW",

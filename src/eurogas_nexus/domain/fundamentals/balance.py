@@ -64,6 +64,7 @@ class WeatherModel:
     weekend_effect: float
     r2: float
     observations: int
+    residual_std_gwh: float = 0.0  # in-sample standard error of the fit, for the bands
 
     def call(self, hdd: float, day: date) -> float:
         return (
@@ -150,7 +151,8 @@ def fit_weather_model(
     ss_tot = sum((r[0] - mean_y) ** 2 for r in rows)
     ss_res = sum((r[0] - (a + b * r[1] + c * r[2])) ** 2 for r in rows)
     r2 = 1 - ss_res / ss_tot if ss_tot else 0.0
-    return WeatherModel(a, b, c, r2, n)
+    residual_std = (ss_res / (n - 3)) ** 0.5 if n > 3 else 0.0
+    return WeatherModel(a, b, c, r2, n, residual_std)
 
 
 def _day_of_year_distance(a: date, b: date) -> int:

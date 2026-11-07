@@ -85,7 +85,7 @@
 }
 
 .market-runtime-chip.issue {
-  color: var(--eg-warning, #c58a00);
+  color: var(--eg-warning);
 }
 
 .market-hub-board-missing {
@@ -641,7 +641,7 @@
 }
 
 .market-context-rail .metric-grid.compact-metrics > div.is-alert strong {
-  color: var(--eg-danger, #d9534f);
+  color: var(--eg-danger);
 }
 
 .market-relevant-resources button {

@@ -9997,3 +9997,16 @@ button.glossary-related-chip {
   align-items: baseline;
   gap: var(--space-3);
 }
+
+/* Demo runs only: simulated demo prices are valuing positions (#demo desk). */
+.topbar-demo-chip {
+  align-self: center;
+  margin-right: var(--space-1);
+  padding: 2px 8px;
+  border: 1px solid var(--eg-warning);
+  border-radius: 999px;
+  color: var(--eg-warning);
+  font-size: var(--text-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}

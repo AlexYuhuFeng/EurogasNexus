@@ -4580,5 +4580,9 @@
   "portfolio.capacity_billing.fold": "Capacity billing calculator (research only)",
   "portfolio.no_routes": "No route candidates for this context yet: declare resources and destinations in Scenario.",
   "scenario.no_routes_yet": "Route options and their economics appear once the scenario has a route candidate; the allocation below says what is missing.",
-  "notify.add": "Add or change a channel"
+  "notify.add": "Add or change a channel",
+  "limits.open_ended": "{{count}} evergreen, to gas-year end",
+  "limits.open_ended_help": "An open-ended contract renews each gas year and can be ended on notice, so replacement exposure counts its volume only to 30 September.",
+  "status.demo_prices": "Demo prices",
+  "status.demo_prices_help": "This deployment values positions, credit and mandates with simulated demo prices. They are not market prices."
 }

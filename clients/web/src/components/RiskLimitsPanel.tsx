@@ -180,6 +180,9 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
                 <td>
                   <LimitBadge status={row.status} t={t} />
                   {row.unvalued_legs > 0 && <small> {t("limits.unvalued", { count: row.unvalued_legs })}</small>}
+                  {(row.open_ended_legs ?? 0) > 0 && (
+                    <small title={t("limits.open_ended_help")}> {t("limits.open_ended", { count: row.open_ended_legs })}</small>
+                  )}
                 </td>
               </tr>
             ))}

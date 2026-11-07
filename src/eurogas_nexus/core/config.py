@@ -250,6 +250,18 @@ def simulated_sources_allowed() -> bool:
     )
 
 
+def demo_marks_allowed() -> bool:
+    """Whether simulated demo prices may value positions, credit and mandates.
+
+    Off by default, and never in trial or release: a demo price must not be read as a market
+    price (AGENTS.md rule 17), so every response that uses one says so.
+    """
+
+    if not simulated_sources_allowed():
+        return False
+    return parse_env_bool(os.getenv("EUROGAS_NEXUS_DEMO_MARKS"), default=False)
+
+
 @lru_cache
 def get_settings() -> Settings:
     """Return cached application settings."""

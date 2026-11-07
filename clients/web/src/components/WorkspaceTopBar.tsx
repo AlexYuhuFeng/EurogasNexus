@@ -17,7 +17,7 @@ import {
 } from "@/app/experience/experienceProfile";
 import { StatusBadge, WorkspaceTabs } from "@/components/ui";
 import { pageUsesTradingContext, type WorkspacePageId } from "@/workspaceNavigation";
-import type { ApiState } from "@/stores/api";
+import { useApiStore, type ApiState } from "@/stores/api";
 import type { ThemeMode } from "@/stores/theme";
 import type { CurrentUserDTO } from "@/api/client";
 import { buildSourceSummary, type SourceStats } from "@/app/workspaceDerivedData";
@@ -382,6 +382,7 @@ export function WorkspaceTopBar({
             streamingActive={streamingActive}
             marketLastUpdatedAtUtc={marketLastUpdatedAtUtc}
             showSourceCounts={compositionSeesAdministration(composition)}
+            demoPrices={useApiStore((state) => state.runtimeRelease?.demo_marks === true)}
             onReportProblem={currentUser ? () =>
               requestProblemReport({
                 category: "data",

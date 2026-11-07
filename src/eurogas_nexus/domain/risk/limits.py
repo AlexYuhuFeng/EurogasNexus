@@ -5,7 +5,9 @@ Credit (per counterparty, in the line's currency)
       the counterparty defaulted today. Per leg ``remaining MWh x (mark - price)`` for gas
       bought from them and ``(price - mark)`` for gas sold to them; legs are netted across the
       counterparty, as an EFET master agreement with close-out netting allows, and floored at
-      zero.
+      zero. An open-ended (evergreen) contract counts only to the end of the current gas year:
+      it renews annually and either side can end it on notice, so later years are not volume
+      the firm is owed. The row reports how many legs were cut this way.
     * **Receivable exposure**: gas already delivered to them and not yet paid for, taken as
       the last ``receivable_days`` gas days of sales at the contract price (the delivery
       month plus the payment term; 50 days fits monthly invoicing paid on the 20th).
@@ -56,6 +58,13 @@ class CounterpartyLeg:
     last_gas_day: date
     mwh_per_day: float
     price: float | None
+    open_ended: bool = False  # evergreen: committed only to the end of the current gas year
+
+
+def gas_year_end(day: date) -> date:
+    """Last gas day (30 September) of the gas year containing ``day``."""
+
+    return date(day.year if day.month < 10 else day.year + 1, 9, 30)
 
 
 @dataclass(frozen=True)
@@ -83,6 +92,7 @@ class CreditExposure:
     legs: int = 0
     unvalued_legs: int = 0
     remaining_mwh: float = 0.0
+    open_ended_legs: int = 0
     legal_entity: str | None = None
     rating: str | None = None
     valid_until: date | None = None
@@ -118,6 +128,7 @@ class CreditExposure:
             "remaining_mwh": round(self.remaining_mwh, 1),
             "legs": self.legs,
             "unvalued_legs": self.unvalued_legs,
+            "open_ended_legs": self.open_ended_legs,
             "valid_until": self.valid_until.isoformat() if self.valid_until else None,
             "status": self.status,
         }
@@ -179,8 +190,12 @@ def credit_exposure(
         valued = True
         replacement = 0.0
         start = max(leg.first_gas_day, today)
-        if start <= leg.last_gas_day:
-            for month, days in _days_by_month(start, leg.last_gas_day).items():
+        committed_last = leg.last_gas_day
+        if leg.open_ended:
+            result.open_ended_legs += 1
+            committed_last = min(committed_last, gas_year_end(today))
+        if start <= committed_last:
+            for month, days in _days_by_month(start, committed_last).items():
                 price = mark(leg.hub, month)
                 if price is None:
                     valued = False

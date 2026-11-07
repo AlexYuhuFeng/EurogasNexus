@@ -133,6 +133,7 @@ def get_credit_exposure(request: Request, format: str = Query("json", pattern=_F
                     last_gas_day=leg.last_gas_day,
                     mwh_per_day=leg.mwh_per_day,
                     price=leg.price,
+                    open_ended=leg.open_ended,
                 )
             )
         line = CreditLine(
@@ -167,7 +168,12 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
     交易员授权使用情况：净头寸、枢纽、期限与产品类型是否超出授权。
     """
 
-    from eurogas_nexus.domain.risk.limits import Mandate, MandateLeg, mandate_usage
+    from eurogas_nexus.domain.risk.limits import (
+        Mandate,
+        MandateLeg,
+        gas_year_end,
+        mandate_usage,
+    )
 
     if not _db_is_configured():
         return _not_configured(request)
@@ -198,7 +204,11 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
             book_id=leg.book_id,
             account=accounts.get(leg.reference, ""),
             first_gas_day=leg.first_gas_day,
-            last_gas_day=leg.last_gas_day,
+            # An evergreen contract is committed only to the end of the current gas year, so
+            # its tenor is not "to the horizon" (the same rule credit applies).
+            last_gas_day=min(leg.last_gas_day, gas_year_end(today))
+            if leg.open_ended
+            else leg.last_gas_day,
             mwh_per_day=leg.mwh_per_day,
             instrument="physical"
             if leg.kind == "physical"

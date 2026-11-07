@@ -18,6 +18,7 @@ from eurogas_nexus.api.routes.public.portfolio_common import (
     load_screen_orders,
     sqlalchemy_error_type,
 )
+from eurogas_nexus.core.config import demo_marks_allowed
 from eurogas_nexus.domain.ontology.markets import european_gas_hubs, quote_currency
 
 HUB_CODES = european_gas_hubs()
@@ -77,7 +78,9 @@ def curve_quotes(request: Request, date_from, date_to) -> list:
     rows = []
     for record in records:
         metadata = record.metadata_json or {}
-        if metadata.get("simulated") or record.source_system.endswith("_Sim"):
+        if (metadata.get("simulated") or record.source_system.endswith("_Sim")) and not (
+            demo_marks_allowed()
+        ):
             continue
         hub = str(metadata.get("hub") or record.product.split(" ")[0]).upper()
         if (record.currency or "").upper() != HUB_CURRENCY.get(hub, "EUR"):
@@ -167,21 +170,26 @@ def ecb_rates(session) -> dict[str, float]:
 
     from eurogas_nexus.db.models import FxObservationRecord
 
-    rates: dict[str, tuple[str, float]] = {}
-    for quote, value_date, rate in (
+    # Demo FX counts only when the operator runs a demo with demo marks, and a real ECB
+    # fixing for the same currency always wins over it.
+    sources = ("ECB", "DEMO_Sim") if demo_marks_allowed() else ("ECB",)
+    rates: dict[str, tuple[int, str, float]] = {}
+    for quote, value_date, rate, source in (
         session.query(
             FxObservationRecord.quote_currency,
             FxObservationRecord.value_date,
             FxObservationRecord.rate,
+            FxObservationRecord.source_system,
         )
         .filter(FxObservationRecord.base_currency == "EUR")
-        .filter(FxObservationRecord.source_system == "ECB")
+        .filter(FxObservationRecord.source_system.in_(sources))
         .all()
     ):
+        rank = 1 if source == "ECB" else 0
         held = rates.get(quote)
-        if rate and (held is None or value_date > held[0]):
-            rates[quote] = (value_date, float(rate))
-    return {"EUR": 1.0, **{quote: rate for quote, (_d, rate) in rates.items()}}
+        if rate and (held is None or (rank, value_date) > (held[0], held[1])):
+            rates[quote] = (rank, value_date, float(rate))
+    return {"EUR": 1.0, **{quote: rate for quote, (_r, _d, rate) in rates.items()}}
 
 
 def contract_price_in_hub_currency(
@@ -349,6 +357,7 @@ def ladder_inputs(request: Request, today, horizon_start, horizon_end) -> Ladder
                 price=price,
                 reference=contract.contract_id,
                 book_id=contract.book_id or "",
+                open_ended=(contract.gas_year or "").strip().endswith("+"),
             )
         )
     orders, _source, order_warnings = load_screen_orders(identity_id(request))
@@ -383,11 +392,15 @@ def ladder_inputs(request: Request, today, horizon_start, horizon_end) -> Ladder
         )
     closes: dict[str, dict] = {}
     simulated_skipped = 0
+    demo_marks_used = demo_marks_allowed()
     for row in _daily_rows(request, today - timedelta(days=400), today):
         if row["simulated"]:
-            # A simulated price must not become a mark or a risk figure (AGENTS.md rule 17).
-            simulated_skipped += 1
-            continue
+            # A simulated price must not become a mark or a risk figure (AGENTS.md rule 17),
+            # unless the operator runs a demo with EUROGAS_NEXUS_DEMO_MARKS, and then it says so.
+            if not demo_marks_allowed():
+                simulated_skipped += 1
+                continue
+            demo_marks_used = True
         tenor = row["tenor"]
         if tenor not in {"month-ahead", "day-ahead"}:
             continue
@@ -413,6 +426,11 @@ def ladder_inputs(request: Request, today, horizon_start, horizon_end) -> Ladder
                     mark_method[key] = "flat"
                     flat_months += 1
                 month = (month.replace(day=1) + timedelta(days=32)).replace(day=1)
+    if demo_marks_used:
+        warnings.append(
+            "DEMO: marks are simulated demo prices, not market prices "
+            "(EUROGAS_NEXUS_DEMO_MARKS is on)."
+        )
     return LadderInputs(
         legs=legs,
         warnings=warnings,

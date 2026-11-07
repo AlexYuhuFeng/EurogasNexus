@@ -4580,5 +4580,9 @@
   "portfolio.capacity_billing.fold": "容量计费计算器（仅供研究）",
   "portfolio.no_routes": "当前情境尚无路径候选：请在情景中声明资源和目的地。",
   "scenario.no_routes_yet": "情景有路径候选后，这里显示路径选项及其经济性；下方的分配说明缺少什么。",
-  "notify.add": "新增或修改通知渠道"
+  "notify.add": "新增或修改通知渠道",
+  "limits.open_ended": "{{count}} 份长期滚动合同，计至本燃气年末",
+  "limits.open_ended_help": "无固定期限合同按燃气年续约，可提前通知终止，因此替换敞口只计至 9 月 30 日的量。",
+  "status.demo_prices": "演示价格",
+  "status.demo_prices_help": "此部署使用模拟演示价格计算头寸、信用和授权，它们不是市场价格。"
 }

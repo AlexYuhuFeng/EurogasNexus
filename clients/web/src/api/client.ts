@@ -2749,6 +2749,8 @@ export interface CreditExposureRowDTO {
   remaining_mwh: number;
   legs: number;
   unvalued_legs: number;
+  /** Evergreen contracts counted only to the end of the current gas year. */
+  open_ended_legs?: number;
   valid_until: string | null;
   status: "ok" | "watch" | "breach" | "expired" | "incomplete";
 }
@@ -5329,6 +5331,8 @@ export interface RuntimeDependencyStateDTO {
 }
 
 export interface RuntimeReleaseDTO {
+  /** Simulated demo prices are valuing positions in this deployment (demo runs only). */
+  demo_marks?: boolean;
   application_version: string;
   release_channel: "preview" | "rc" | "stable";
   git_sha: string | null;

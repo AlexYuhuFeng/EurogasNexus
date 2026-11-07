@@ -53,6 +53,7 @@ class PositionLeg:
     price: float | None = None  # contract or trade price, in the hub's ladder currency/MWh
     reference: str = ""
     book_id: str = ""  # trading book; "" while unassigned
+    open_ended: bool = False  # evergreen contract ("2025+"): runs to the horizon, renews yearly
 
 
 @dataclass(frozen=True)

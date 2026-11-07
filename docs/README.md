@@ -26,6 +26,9 @@ the current/normative document listed here and report the conflict.
 role: [Trader](user/manual/TRADER.md) · [Risk](user/manual/RISK.md) ·
 [IT desk](user/manual/IT_DESK.md) · [Administrator](user/manual/ADMIN.md)
 
+[Demo desk](guides/DEMO_DESK.md): a fictional book for demonstrations and training, and how
+its credit, mandate and position figures are produced.
+
 ## Architecture and operations
 
 - [Architecture](architecture/ARCHITECTURE.md) and

@@ -35,6 +35,7 @@ export function TopBarStatus({
   marketLastUpdatedAtUtc,
   onReportProblem,
   showSourceCounts = false,
+  demoPrices = false,
 }: {
   t: Translate;
   health: DataHealth;
@@ -47,6 +48,8 @@ export function TopBarStatus({
   onReportProblem?: () => void;
   /** Only whoever administers sources sees their count on the bar; others see it inside. */
   showSourceCounts?: boolean;
+  /** The server values positions with simulated demo prices: say so on every screen. */
+  demoPrices?: boolean;
 }) {
   // Hover previews the panel; a click or tap pins it until Escape or a click elsewhere.
   const [hovered, setHovered] = useState(false);
@@ -89,6 +92,11 @@ export function TopBarStatus({
         if (!rootRef.current?.contains(event.relatedTarget as Node)) setOpen(false);
       }}
     >
+      {demoPrices && (
+        <span className="topbar-demo-chip" title={t("status.demo_prices_help")}>
+          {t("status.demo_prices")}
+        </span>
+      )}
       <button
         type="button"
         className="topbar-status-chip"

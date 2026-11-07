@@ -5,6 +5,9 @@ delivery performance. Limits are set by risk only. Your account needs the REVIEW
 (traders are analysts and cannot set their own limits, whatever their rank), and every
 change is audited with your name.
 
+The screenshots use the fictional demo desk (`docs/guides/DEMO_DESK.md`); every name in
+them is invented and its prices are demo prices, flagged as such on screen.
+
 Everything below is under Portfolio → **Exposure**, except delivery performance (under
 Resources).
 
@@ -17,7 +20,7 @@ Resources).
 | Column | Meaning |
 |---|---|
 | Limit | The approved line, in its currency |
-| Replacement | What replacing the remaining deliveries would cost today: volume × (mark − contract price), netted across the counterparty's deals, never below zero |
+| Replacement | What replacing the remaining deliveries would cost today: volume × (mark − contract price), netted across the counterparty's deals, never below zero. An open-ended (evergreen) contract counts only to the end of the current gas year, since it renews yearly and can be ended on notice; the status cell says "N evergreen, to gas-year end" |
 | Receivable | Gas delivered to them and not yet paid for, over their payment days |
 | Collateral | Letters of credit and guarantees held |
 | Net exposure | Replacement + receivable − collateral |
@@ -35,12 +38,12 @@ Each table exports to Excel, PDF or CSV for the daily risk report.
 
 **Credit line…** opens the form:
 
-1. Counterparty ID (`RWE`) and legal name (`RWE Supply & Trading GmbH`).
-2. Aliases, comma separated (`RWEST, RWE SUPPLY AND TRADING`): the names their trades
-   carry in the ETRM, so every deal is matched to the line.
-3. Limit and currency (`12000000`, `EUR`), collateral held (`2000000`), rating (`BBB+`).
-4. Contracts under the line (`stfergus-equinor-gy26`), days until receivables are paid
-   (`50`) and the approval's expiry (`2027-09-30`).
+1. Counterparty ID (`HGT`) and legal name (`Halvard Gas Trading AG`).
+2. Aliases, comma separated (`HALVARD, HGT AG`): the names their trades carry in the
+   ETRM, so every deal is matched to the line.
+3. Limit and currency (`6000000`, `EUR`), collateral held (`500000`), rating (`A-`).
+4. Contracts under the line (their supply contract IDs, if any), days until receivables
+   are paid (`50`) and the approval's expiry (`2027-09-30`).
 5. **Save**: "Saved and audited." The line appears on the board.
 
 ![Credit line form](img/rk-02-credit-form.png)

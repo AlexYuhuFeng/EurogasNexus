@@ -77,6 +77,9 @@ class NweBalanceScenarioRequest(ScenarioModel):
     outages: tuple[OutageInput, ...] = Field(default=(), max_length=256)
     inventory_twh: float | None = Field(default=None, ge=0)
     working_capacity_twh: float | None = Field(default=None, gt=0)
+    # The desk's own trigger, e.g. "buy prompt cover when the call exceeds X GWh/d". With it
+    # the result says whether the weather forecast changed that decision on any day (#50).
+    decision_threshold_gwh: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def validate_evidence(self):
@@ -170,6 +173,37 @@ def run_nwe_balance_scenario(payload: NweBalanceScenarioRequest) -> dict:
         warnings.append(
             "WEATHER_HORIZON_INCOMPLETE: baseline used on days without a fitted HDD prediction."
         )
+    # Uncertainty: a 95 % band from the fit's in-sample standard error on weather days. It
+    # is the regression's own error, not forecast skill; a vintage that is far out adds more.
+    sigma = selected.model.residual_std_gwh if selected.model is not None else None
+    bands = []
+    for row in selected.days:
+        weather_day = row.methods["call"] == "weather_regression" and sigma is not None
+        half = 1.96 * sigma if weather_day else None
+        bands.append({
+            "day": row.day.isoformat(),
+            "call_low_gwh": None if half is None else round(row.call_gwh - half, 1),
+            "call_high_gwh": None if half is None else round(row.call_gwh + half, 1),
+        })
+    decision = None
+    if payload.decision_threshold_gwh is not None:
+        threshold = payload.decision_threshold_gwh
+        changed, uncertain = [], []
+        for row, base, band in zip(selected.days, baseline.days, bands, strict=True):
+            if (row.call_gwh > threshold) != (base.call_gwh > threshold):
+                changed.append(row.day.isoformat())
+            low, high = band["call_low_gwh"], band["call_high_gwh"]
+            if low is not None and low <= threshold <= high:
+                uncertain.append(row.day.isoformat())
+        decision = {
+            "threshold_gwh": threshold,
+            "rule": "act when the call exceeds the threshold",
+            "baseline_days_over": sum(base.call_gwh > threshold for base in baseline.days),
+            "weather_days_over": sum(row.call_gwh > threshold for row in selected.days),
+            "changed": bool(changed),
+            "changed_days": changed,
+            "threshold_inside_band_days": uncertain,
+        }
     canonical = payload.model_dump(mode="json")
     canonical["history"] = sorted(canonical["history"], key=lambda row: row["day"])
     if weather is not None:
@@ -212,6 +246,8 @@ def run_nwe_balance_scenario(payload: NweBalanceScenarioRequest) -> dict:
                 for row, base in zip(selected.days, baseline.days, strict=True)
             ],
             "model": vars(selected.model) if selected.model is not None else None,
+            "uncertainty": bands,
+            "decision": decision,
             "inputs": canonical,
         },
         "meta": {

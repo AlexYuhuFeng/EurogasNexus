@@ -692,7 +692,7 @@
 
   .connector-row:hover,
   .connector-row.active {
-    background: var(--ds-surface-2, rgba(127, 127, 127, 0.08));
+    background: var(--ds-surface-2);
   }
 
   .connector-row.active {
