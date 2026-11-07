@@ -16,6 +16,7 @@ import type { UpstreamContractDTO } from "@/api/client";
 import { strategyFormForContract } from "./strategyResourceHandoff";
 import { draftVersionRecoveryKey, newStrategyDraftCreation, saveFirstStrategyDraft, type StrategyDraftCreation } from "./strategyDraftSave";
 import { useApiStore } from "@/stores/api";
+import { useUnsavedChangesGuard } from "@/app/hooks/useUnsavedChangesGuard";
 
 import { api as apiClient, configuredApiBaseUrl } from "@/api/client";
 import type { StrategyLabController, StrategyLabSelection } from "@/app/model/useStrategyLab";
@@ -78,6 +79,7 @@ export function useStrategyDesignDraft({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  useUnsavedChangesGuard(dirty);
   const [pendingContract, setPendingContract] = useState<UpstreamContractDTO | null>(null);
   const [resourceOrigin, setResourceOrigin] = useState<UpstreamContractDTO | null>(null);
   const newDraft = useRef<StrategyDesignFormState | null>(null);
