@@ -94,8 +94,7 @@ def test_same_condition_is_deduplicated_and_enriched_once(monkeypatch) -> None:
         return DeepSeekCallResult(
             status="success",
             content=(
-                '{"summary_en":"Review the spread evidence.",'
-                '"summary_zh_cn":"请复核价差证据。"}'
+                '{"summary_en":"Review the spread evidence.","summary_zh_cn":"请复核价差证据。"}'
             ),
         )
 
@@ -269,9 +268,9 @@ def test_source_failure_alerts_count_canonical_and_legacy_failures_identically()
             now_utc=now + timedelta(minutes=5),
             enrich_with_llm=False,
         )
-        alerts = session.query(MonitoringAlertRecord).order_by(
-            MonitoringAlertRecord.entity_id
-        ).all()
+        alerts = (
+            session.query(MonitoringAlertRecord).order_by(MonitoringAlertRecord.entity_id).all()
+        )
 
     assert result["active_count"] == 2
     assert [alert.entity_id for alert in alerts] == ["ENTSOG", "GIE"]
@@ -283,3 +282,103 @@ def test_source_failure_alerts_count_canonical_and_legacy_failures_identically()
     assert by_source["GIE"].severity == "critical"
     assert by_source["GIE"].evidence_snapshot["consecutive_failures"] == 3
     assert by_source["GIE"].evidence_snapshot["status"] == "failed"
+
+
+def _umm(message_id, *, start, technical, unavailable, gwh, now, stop_days=2, version=1):
+    from eurogas_nexus.db.models import RemitUmmRecord
+
+    return RemitUmmRecord(
+        record_id=f"{message_id}:{version}",
+        message_id=message_id,
+        version=version,
+        published_at_utc=start - timedelta(hours=1),
+        event_status="active",
+        unavailability_type="unplanned",
+        event_start_utc=start,
+        event_stop_utc=start + timedelta(days=stop_days),
+        asset_name=f"Asset {message_id}",
+        asset_eic=f"EIC-{message_id}",
+        asset_type="production",
+        balancing_zone="NBP",
+        direction="entry",
+        unit="mcm/d",
+        technical_capacity=technical,
+        available_capacity=technical - unavailable,
+        unavailable_capacity=unavailable,
+        unavailable_mcm_d=unavailable,
+        unavailable_gwh_d=gwh,
+        reason="Compressor trip",
+        market_participant="Operator",
+        remarks="",
+        source_system="REMIT",
+        source_reference="test",
+        ingested_at_utc=now,
+    )
+
+
+def test_outages_that_move_supply_become_alerts_and_resolve_when_they_end() -> None:
+    """Most of an asset out is critical, a large derate a warning; small or distant ones wait."""
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    now = datetime(2026, 11, 7, 9, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _umm(
+                    "big",
+                    start=now - timedelta(hours=2),
+                    technical=70,
+                    unavailable=52,
+                    gwh=563,
+                    now=now,
+                ),
+                _umm(
+                    "derate",
+                    start=now + timedelta(hours=6),
+                    technical=40,
+                    unavailable=12,
+                    gwh=130,
+                    now=now,
+                ),
+                _umm(
+                    "small",
+                    start=now - timedelta(hours=1),
+                    technical=100,
+                    unavailable=5,
+                    gwh=54,
+                    now=now,
+                ),
+                _umm(
+                    "later",
+                    start=now + timedelta(days=1, hours=6),
+                    technical=50,
+                    unavailable=50,
+                    gwh=540,
+                    now=now,
+                ),
+            ]
+        )
+        session.commit()
+        result = scan_monitoring_conditions(session, now_utc=now, enrich_with_llm=False)
+        alerts = {row.entity_id: row for row in session.query(MonitoringAlertRecord).all()}
+
+    assert result["active_count"] == 2
+    assert set(alerts) == {"big", "derate"}
+    assert alerts["big"].severity == "critical"
+    assert alerts["big"].category == "physical"
+    assert "out now" in alerts["big"].title_en
+    assert "74%" in alerts["big"].message_en
+    assert alerts["derate"].severity == "warning"
+    assert "from 07 Nov 15:00 UTC" in alerts["derate"].title_en
+
+    # The outage ends: the next scan resolves its alert by itself.
+    with Session(engine) as session:
+        from eurogas_nexus.db.models import RemitUmmRecord
+
+        row = session.get(RemitUmmRecord, "big:1")
+        row.event_stop_utc = now - timedelta(minutes=5)
+        session.commit()
+        scan_monitoring_conditions(session, now_utc=now, enrich_with_llm=False)
+        resolved = session.query(MonitoringAlertRecord).filter_by(entity_id="big").one()
+        assert resolved.resolved_at_utc is not None

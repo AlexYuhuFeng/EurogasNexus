@@ -64,6 +64,7 @@ def scan_monitoring_conditions(
         *_opportunity_candidates(session, now),
         *_strategy_candidates(session),
         *_source_failure_candidates(session),
+        *_outage_candidates(session, now),
     ]
     active_fingerprints = {candidate.fingerprint for candidate in candidates}
     rows = [
@@ -356,6 +357,88 @@ def _source_failure_candidates(session: Session) -> list[MonitoringCandidate]:
                 },
                 source_refs=[f"ingestion-run:{latest.run_id}"],
                 warnings=[latest.notes] if latest.notes else [],
+                human_review_required=True,
+            )
+        )
+    return candidates
+
+
+# An outage worth a trader's attention: most of the asset out, or a large volume either way.
+OUTAGE_CRITICAL_SHARE = 0.5
+OUTAGE_WARNING_SHARE = 0.25
+OUTAGE_WARNING_GWH_D = 100.0
+OUTAGE_LOOKAHEAD = timedelta(hours=24)
+
+
+def _outage_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
+    """REMIT outages active now or starting within 24 hours that move supply.
+
+    Deterministic: the share of technical capacity out and the GWh/d decide. The alert's
+    fingerprint is the message id, so it resolves by itself when the outage ends or is
+    dismissed, and a revision updates it in place.
+    """
+
+    from eurogas_nexus.application.remit_outages import load_outage_rows
+
+    candidates: list[MonitoringCandidate] = []
+    for row in load_outage_rows(session, now=now, horizon_days=2):
+        start = datetime.fromisoformat(str(row["start_utc"]))
+        if start > now + OUTAGE_LOOKAHEAD:
+            continue
+        technical = row.get("technical_capacity")
+        unavailable = row.get("unavailable_capacity")
+        share = (
+            float(unavailable) / float(technical)
+            if technical and unavailable is not None
+            else None
+        )
+        gwh = row.get("unavailable_gwh_d")
+        gwh = float(gwh) if gwh is not None else None
+        if share is not None and share >= OUTAGE_CRITICAL_SHARE:
+            severity = "critical"
+        elif (share is not None and share >= OUTAGE_WARNING_SHARE) or (
+            gwh is not None and gwh >= OUTAGE_WARNING_GWH_D
+        ):
+            severity = "warning"
+        else:
+            continue
+        asset = str(row["facility_name"])
+        zone = str(row.get("balancing_zone") or "")
+        active = row.get("status") == "active"
+        volume = f"{gwh:,.0f} GWh/d" if gwh is not None else f"{unavailable} {row.get('unit')}"
+        share_text = f" ({share:.0%} of capacity)" if share is not None else ""
+        when_en = "out now" if active else f"from {start:%d %b %H:%M} UTC"
+        when_zh = "目前停运" if active else f"自 {start:%m-%d %H:%M} UTC 起"
+        candidates.append(
+            MonitoringCandidate(
+                fingerprint=f"outage:{row['event_id']}",
+                category="physical",
+                alert_type="outage",
+                severity=severity,
+                title_en=f"{asset} ({zone}) {volume} {when_en}",
+                title_zh_cn=f"{asset}（{zone}）{volume} {when_zh}",
+                message_en=(
+                    f"{row.get('event_type', 'unspecified').capitalize()} outage at {asset}: "
+                    f"{volume}{share_text} unavailable, {when_en}. "
+                    f"Reason: {row.get('description') or 'not stated'}."
+                ),
+                message_zh_cn=(
+                    f"{asset} 停运：不可用 {volume}{share_text}，{when_zh}。"
+                    f"原因：{row.get('description') or '未说明'}。"
+                ),
+                entity_type="outage",
+                entity_id=str(row["event_id"]),
+                event_time_utc=start,
+                evidence_snapshot={
+                    key: row.get(key)
+                    for key in (
+                        "event_id", "version", "facility_name", "balancing_zone", "status",
+                        "event_type", "start_utc", "end_utc", "published_at_utc",
+                        "technical_capacity", "unavailable_capacity", "unavailable_gwh_d",
+                        "unit", "description", "market_participant",
+                    )
+                },
+                source_refs=[f"remit:{row['event_id']}:v{row.get('version')}"],
                 human_review_required=True,
             )
         )
