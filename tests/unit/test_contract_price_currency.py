@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from eurogas_nexus.api.positions import contract_price_in_hub_currency
+from eurogas_nexus.application.position_inputs import contract_price_in_hub_currency
 from eurogas_nexus.application.resource_pool import contracts_priced_in_gbp
 from eurogas_nexus.db.repositories.route_cost import contract_price_currency
 

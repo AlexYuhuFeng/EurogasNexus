@@ -29,7 +29,7 @@ import random
 import sys
 from datetime import UTC, date, datetime, timedelta
 
-from eurogas_nexus.api.positions import gas_year_window
+from eurogas_nexus.application.position_inputs import gas_year_window
 from eurogas_nexus.core.config import simulated_sources_allowed
 from eurogas_nexus.db.models import (
     ContractDeliveryRecord,

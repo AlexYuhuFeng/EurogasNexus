@@ -27,12 +27,12 @@ from eurogas_nexus.domain.ontology.markets import quote_currency
 router = APIRouter(tags=["portfolio"])
 
 _FORMAT = "^(json|csv|xlsx|pdf)$"
-_HORIZON_MONTHS = 36
 
 
 def _horizon(today: date) -> tuple[date, date]:
-    end = (today.replace(day=1) + timedelta(days=32 * _HORIZON_MONTHS)).replace(day=1)
-    return today, end - timedelta(days=1)
+    from eurogas_nexus.application.limits_service import horizon
+
+    return horizon(today)
 
 
 def _scope_note() -> list[str]:
@@ -75,90 +75,11 @@ def get_credit_exposure(request: Request, format: str = Query("json", pattern=_F
     gas days. Exchange-cleared screen trades carry no bilateral credit and are excluded.
     """
 
-    from eurogas_nexus.domain.risk.limits import (
-        CounterpartyLeg,
-        CreditLine,
-        credit_exposure,
-        fx_lookup,
+    from eurogas_nexus.application.limits_service import credit_exposure_rows
+
+    return _limits_report(
+        request, format, credit_exposure_rows, report="credit-exposure", title="Credit exposure"
     )
-
-    if not _db_is_configured():
-        return _not_configured(request)
-    today = datetime.now(UTC).date()
-    start, end = _horizon(today)
-    sqlalchemy_error = _sqlalchemy_error_type()
-    try:
-        from eurogas_nexus.db.models import CreditLineRecord
-        from eurogas_nexus.db.session import get_session_factory
-
-        with get_session_factory()() as session:
-            lines = session.query(CreditLineRecord).order_by(CreditLineRecord.name).all()
-            session.expunge_all()
-    except sqlalchemy_error as exc:
-        raise _db_unavailable(exc) from exc
-    # Receivables look back before today, so read legs from the earliest look-back.
-    lookback = max([line.receivable_days for line in lines] or [0])
-    inputs = ladder_inputs(request, today, start - timedelta(days=lookback), end)
-    warnings = [*inputs.warnings, *_scope_note()]
-    legs_by_ref = {leg.reference: leg for leg in inputs.legs}
-    etrm_by_name: dict[str, list[str]] = {}
-    for order in inputs.orders:
-        if str(order.provider_id).upper() == "ETRM":
-            etrm_by_name.setdefault(order.account_label.casefold(), []).append(
-                order.order_observation_id
-            )
-    fx = fx_lookup(inputs.eur_rates)
-
-    def mark(hub: str, month: str) -> float | None:
-        return inputs.marks.get((hub, month))
-
-    rows: list[dict] = []
-    for record in lines:
-        names = {record.name, record.counterparty_id, *(record.aliases or [])}
-        references = [*(record.contract_ids or [])]
-        for name in names:
-            references += etrm_by_name.get(str(name).casefold(), [])
-        legs = []
-        for reference in dict.fromkeys(references):
-            leg = legs_by_ref.get(reference)
-            if leg is None:
-                continue
-            legs.append(
-                CounterpartyLeg(
-                    reference=reference,
-                    kind="supply_contract" if leg.kind == "physical" else "otc_trade",
-                    hub=leg.hub,
-                    currency=quote_currency(leg.hub),
-                    first_gas_day=leg.first_gas_day,
-                    last_gas_day=leg.last_gas_day,
-                    mwh_per_day=leg.mwh_per_day,
-                    price=leg.price,
-                    open_ended=leg.open_ended,
-                )
-            )
-        line = CreditLine(
-            counterparty_id=record.counterparty_id,
-            name=record.name,
-            limit_amount=float(record.limit_amount),
-            currency=record.currency,
-            collateral_amount=float(record.collateral_amount or 0.0),
-            receivable_days=int(record.receivable_days or 0),
-            valid_until=record.valid_until,
-            legal_entity=record.legal_entity,
-            rating=record.rating,
-        )
-        rows.append(credit_exposure(line, legs, today=today, mark=mark, fx=fx).as_row())
-    if not lines:
-        warnings.append("No credit lines are recorded; risk adds them under Portfolio > Limits.")
-    if format != "json":
-        return _download(
-            rows,
-            report="credit-exposure",
-            title="Credit exposure",
-            format=format,
-            warnings=warnings,
-        )
-    return _env({"rows": rows, "as_of": today.isoformat()}, request, "runtime-postgresql", warnings)
 
 
 @router.get("/api/portfolio/mandate-usage")
@@ -168,103 +89,31 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
     交易员授权使用情况：净头寸、枢纽、期限与产品类型是否超出授权。
     """
 
-    from eurogas_nexus.domain.risk.limits import (
-        Mandate,
-        MandateLeg,
-        gas_year_end,
-        mandate_usage,
+    from eurogas_nexus.application.limits_service import mandate_usage_rows
+
+    return _limits_report(
+        request, format, mandate_usage_rows, report="mandate-usage", title="Trader mandates"
     )
+
+
+def _limits_report(request: Request, format: str, compute, *, report: str, title: str):
+    """Run a limits calculation for the caller and return it as JSON or a download."""
+
+    from eurogas_nexus.application.caller import caller_of
 
     if not _db_is_configured():
         return _not_configured(request)
     today = datetime.now(UTC).date()
-    start, end = _horizon(today)
-    sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.models import TraderMandateRecord
-        from eurogas_nexus.db.session import get_session_factory
-
-        with get_session_factory()() as session:
-            records = session.query(TraderMandateRecord).order_by(TraderMandateRecord.trader).all()
-            session.expunge_all()
-    except sqlalchemy_error as exc:
+        result = compute(caller_of(request), today)
+    except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
-    inputs = ladder_inputs(request, today, start, end)
-    accounts = {
-        order.order_observation_id: order.account_label
-        for order in inputs.orders
-        if str(order.provider_id).upper() != "ETRM"
-    }
-    instruments = {order.order_observation_id: _instrument(order) for order in inputs.orders}
-    legs = [
-        MandateLeg(
-            reference=leg.reference,
-            kind=leg.kind,
-            hub=leg.hub,
-            book_id=leg.book_id,
-            account=accounts.get(leg.reference, ""),
-            first_gas_day=leg.first_gas_day,
-            # An evergreen contract is committed only to the end of the current gas year, so
-            # its tenor is not "to the horizon" (the same rule credit applies).
-            last_gas_day=min(leg.last_gas_day, gas_year_end(today))
-            if leg.open_ended
-            else leg.last_gas_day,
-            mwh_per_day=leg.mwh_per_day,
-            instrument="physical"
-            if leg.kind == "physical"
-            else instruments.get(leg.reference, "future"),
-        )
-        for leg in inputs.legs
-    ]
-    rows = []
-    for record in records:
-        mandate = Mandate(
-            mandate_id=record.mandate_id,
-            trader=record.trader,
-            display_name=record.display_name,
-            book_ids=tuple(record.book_ids or ()),
-            hubs=tuple(record.hubs or ()),
-            max_net_mwh_per_month=record.max_net_mwh_per_month,
-            max_tenor_months=record.max_tenor_months,
-            physical_allowed=bool(record.physical_allowed),
-            financial_allowed=bool(record.financial_allowed),
-            valid_until=record.valid_until,
-            min_hedge_ratio_pct=record.min_hedge_ratio_pct,
-            max_hedge_ratio_pct=record.max_hedge_ratio_pct,
-            instruments=tuple(record.instruments or ()),
-        )
-        elsewhere = frozenset(
-            book
-            for other in records
-            if other.trader == record.trader and other.mandate_id != record.mandate_id
-            for book in (other.book_ids or ())
-        ) - set(mandate.book_ids)
-        rows.append(mandate_usage(mandate, legs, today=today, books_elsewhere=elsewhere).as_row())
-    warnings = [*inputs.warnings, *_scope_note()]
-    if not records:
-        warnings.append("No trader mandates are recorded; risk adds them under Portfolio > Limits.")
+    warnings = [*result.warnings, *_scope_note()]
     if format != "json":
-        return _download(
-            rows,
-            report="mandate-usage",
-            title="Trader mandates",
-            format=format,
-            warnings=warnings,
-        )
-    return _env({"rows": rows, "as_of": today.isoformat()}, request, "runtime-postgresql", warnings)
-
-
-def _instrument(order) -> str:
-    """What kind of financial trade a filled order is, for the mandate's instrument list."""
-
-    text = f"{order.product} {order.order_type} {order.contract_code}".casefold()
-    if "option" in text or " call" in text or " put" in text:
-        return "option"
-    if "swap" in text:
-        return "swap"
-    if str(order.provider_id).upper() == "ETRM":
-        return "forward"  # bilateral OTC from the ETRM
-    return "future"  # exchange screen trade
+        return _download(result.rows, report=report, title=title, format=format, warnings=warnings)
+    return _env(
+        {"rows": result.rows, "as_of": today.isoformat()}, request, "runtime-postgresql", warnings
+    )
 
 
 class CreditLineRequest(BaseModel):

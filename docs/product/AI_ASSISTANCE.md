@@ -18,7 +18,7 @@ and only data the user is entitled to reaches the model.
 |---|---|---|
 | Copilot actions (Ask, Explain, Compare, Challenge, Draft) | Market overview and Review; command palette | Answers over the user's current context and cited evidence; refuses without evidence |
 | Alert analysis | Alert centre | A bilingual explanation of each monitoring alert, generated once per new or escalated alert under a named service identity |
-| Monitoring | Worker, every few minutes | Deterministic alerts for intraday spread candidates, strategy drift, failed data feeds and (new) outages that move supply |
+| Monitoring | Worker, every few minutes | Deterministic alerts for intraday spread candidates, strategy drift, failed data feeds, outages that move supply, and credit and mandate breaches (category `limits`, scoped to who may see the books) |
 | Agent research | Research → Agent Research | Research runs over registered capabilities, with a human review gate |
 | MCP server | `src/eurogas_nexus/mcp/server.py` | 21 read and sandbox tools, so the firm's own AI assistants can query the product |
 | Contract intake | Portfolio → Resources → Import | OCR of a contract PDF into a draft for review (OCR, not an LLM) |
@@ -48,7 +48,7 @@ three places, each at the moment it is useful.
 
 | # | Capability | Why a trader cares | Feasible now? |
 |---|---|---|---|
-| 1 | Outage, breach and price-move alerts, explained | "Warn me in time": the explanation turns a REMIT line into "this is 8 % of NBP supply and we are long" | Outages done; credit and mandate breaches need the credit calculation as a service a worker can call (see the engineering review) |
+| 1 | Outage, breach and price-move alerts, explained | "Warn me in time": the explanation turns a REMIT line into "this is 8 % of NBP supply and we are long" | Done: outages, and credit and mandate breaches from `application/limits_service.py` |
 | 2 | "Why?" on alerts, outages, breaches and P&L | Answers the first question a trader asks, in place | Yes, through the existing Explain action with the object as evidence |
 | 3 | Morning brief and end-of-day report drafts | Saves the half hour every desk spends writing them | Yes: the report exports exist; the model drafts the narrative |
 | 4 | Contract and confirmation reading | Turn a PDF into terms and flag deviations from the template | OCR exists; extraction into the draft is a short step |

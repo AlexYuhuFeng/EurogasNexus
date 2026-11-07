@@ -54,6 +54,7 @@ def get_alerts(
         Enveloped alert list from the runtime DB.
     """
 
+    from eurogas_nexus.application.alert_scope import alert_visibility
     from eurogas_nexus.db.repositories.monitoring import list_monitoring_alerts
 
     with _session() as session:
@@ -63,6 +64,7 @@ def get_alerts(
             category=category,
             severity=severity,
             limit=limit,
+            visible=alert_visibility(session),
         )
     return _env(data)
 
@@ -77,10 +79,11 @@ def get_alert_summary() -> dict:
         Enveloped summary dict from the runtime DB.
     """
 
+    from eurogas_nexus.application.alert_scope import alert_visibility
     from eurogas_nexus.db.repositories.monitoring import monitoring_summary
 
     with _session() as session:
-        data = monitoring_summary(session)
+        data = monitoring_summary(session, alert_visibility(session))
     return _env(data)
 
 
@@ -111,14 +114,19 @@ def acknowledge_alert(alert_id: str, request: Request) -> dict:
             runtime database is not configured.
     """
 
+    from eurogas_nexus.application.alert_scope import alert_visibility
     from eurogas_nexus.db.repositories.monitoring import (
         acknowledge_monitoring_alert,
+        get_monitoring_alert,
         monitoring_alert_payload,
     )
 
     principal = require_acting_actor(request)
     now_utc = datetime.now(UTC)
     with _session() as session:
+        existing = get_monitoring_alert(session, alert_id)
+        if existing is not None and not alert_visibility(session)(existing):
+            raise _not_found(alert_id)
         result = acknowledge_monitoring_alert(session, alert_id, now_utc=now_utc)
         if result is None:
             raise _not_found(alert_id)
@@ -188,6 +196,7 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
 
     principal = require_ai_authority(request)
 
+    from eurogas_nexus.application.alert_scope import alert_visibility
     from eurogas_nexus.db.repositories.monitoring import (
         get_monitoring_alert,
         monitoring_alert_payload,
@@ -195,7 +204,7 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
 
     with _session() as session:
         row = get_monitoring_alert(session, alert_id)
-        if row is None:
+        if row is None or not alert_visibility(session)(row):
             raise _not_found(alert_id)
         alert_snapshot = monitoring_alert_payload(row)
 

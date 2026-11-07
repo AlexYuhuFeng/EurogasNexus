@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -66,7 +67,18 @@ def scan_monitoring_conditions(
         *_source_failure_candidates(session),
         *_outage_candidates(session, now),
     ]
+    limit_candidates, limits_failed = _limit_candidates(session, now, service_authority)
+    candidates += limit_candidates
     active_fingerprints = {candidate.fingerprint for candidate in candidates}
+    if limits_failed:
+        # A calculation that could not run is not an all-clear: keep open limit alerts open.
+        active_fingerprints |= {
+            fingerprint
+            for (fingerprint,) in session.query(MonitoringAlertRecord.fingerprint)
+            .filter(MonitoringAlertRecord.category == "limits")
+            .filter(MonitoringAlertRecord.resolved_at_utc.is_(None))
+            .all()
+        }
     rows = [
         upsert_monitoring_alert(session, candidate, now_utc=now)
         for candidate in candidates
@@ -443,6 +455,176 @@ def _outage_candidates(session: Session, now: datetime) -> list[MonitoringCandid
             )
         )
     return candidates
+
+
+_CURRENCY_SIGN = {"EUR": "€", "GBP": "£", "USD": "$"}
+
+
+def _money(amount: float | None, currency: str) -> str:
+    """``€2.30m``, ``£450k``: the figure a risk desk reads at a glance."""
+
+    if amount is None:
+        return "n/a"
+    sign = _CURRENCY_SIGN.get((currency or "").upper())
+    prefix = "-" if amount < 0 else ""
+    value = abs(float(amount))
+    text = (
+        f"{value / 1e6:.2f}m"
+        if value >= 1e6
+        else f"{value / 1e3:.0f}k"
+        if value >= 1e3
+        else f"{value:.0f}"
+    )
+    return f"{prefix}{sign}{text}" if sign else f"{prefix}{text} {currency}"
+
+
+def _limit_candidates(
+    session: Session, now: datetime, service_authority: ServiceAuthority | None
+) -> tuple[list[MonitoringCandidate], bool]:
+    """Credit lines and trader mandates in breach, on watch, expired or incomplete.
+
+    The figures are the risk pages' own (``application/limits_service``), computed firm-wide
+    under the service principal's data scopes (or a firm caller with no licensed scope). The
+    second value is True when the calculation could not run, so open alerts are kept.
+    """
+
+    from eurogas_nexus.application.caller import firm_caller
+    from eurogas_nexus.application.limits_service import (
+        credit_exposure_rows,
+        mandate_usage_rows,
+    )
+    from eurogas_nexus.db.models import CreditLineRecord, TraderMandateRecord
+
+    if (
+        session.query(CreditLineRecord.counterparty_id).first() is None
+        and session.query(TraderMandateRecord.mandate_id).first() is None
+    ):
+        return [], False
+    authority = service_authority or resolve_service_authority(session)
+    caller = firm_caller(authority.principal, session)
+    today = now.date()
+    try:
+        credit = credit_exposure_rows(caller, today)
+        mandates = mandate_usage_rows(caller, today)
+    except Exception:  # noqa: BLE001 - a failed calculation must not clear standing alerts
+        return [], True
+    candidates = [
+        candidate
+        for row, books in zip(credit.rows, credit.books, strict=True)
+        if (candidate := _credit_candidate(row, books, now)) is not None
+    ]
+    candidates += [
+        candidate
+        for row, books in zip(mandates.rows, mandates.books, strict=True)
+        if (candidate := _mandate_candidate(row, books, now)) is not None
+    ]
+    demo = [w for w in [*credit.warnings, *mandates.warnings] if w.startswith("DEMO")]
+    if demo:
+        # Figures on demo marks say so wherever the alert is shown (AGENTS.md rule 17).
+        candidates = [
+            replace(candidate, simulated=True, warnings=demo[:1]) for candidate in candidates
+        ]
+    return candidates, False
+
+
+def _credit_candidate(row: dict, books: tuple[str, ...], now: datetime):
+    status = row["status"]
+    name, currency = row["counterparty"], row["currency"]
+    net, limit = row["net_exposure"], row["limit"]
+    used = row["utilisation_pct"]
+    used_text = f"{used:.0f}%" if used is not None else "n/a"
+    figures = (
+        f"Net {_money(net, currency)} vs limit {_money(limit, currency)} ({used_text}); "
+        f"headroom {_money(row['headroom'], currency)}. Replacement "
+        f"{_money(row['replacement_exposure'], currency)}, receivables "
+        f"{_money(row['receivable_exposure'], currency)}, collateral "
+        f"{_money(row['collateral'], currency)}."
+    )
+    figures_zh = (
+        f"净敞口 {_money(net, currency)}，额度 {_money(limit, currency)}（{used_text}），"
+        f"余量 {_money(row['headroom'], currency)}。"
+    )
+    if status == "breach":
+        severity = "critical"
+        title_en = f"{name} credit breach: {used_text} of {_money(limit, currency)} limit"
+        title_zh = f"{name} 信用超限：占用 {used_text}"
+    elif status == "expired" and (net or 0) > 0:
+        severity = "critical"
+        exposure = _money(net, currency)
+        title_en = f"{name} credit line expired {row['valid_until']}, exposure {exposure}"
+        title_zh = f"{name} 授信已于 {row['valid_until']} 到期，敞口 {exposure}"
+    elif status == "watch":
+        severity = "warning"
+        title_en = f"{name} credit at {used_text} of limit"
+        title_zh = f"{name} 信用占用 {used_text}"
+    elif status == "incomplete":
+        severity = "warning"
+        title_en = f"{name} credit exposure incomplete: {row['unvalued_legs']} legs without a mark"
+        title_zh = f"{name} 信用敞口不完整：{row['unvalued_legs']} 笔无估值"
+    else:
+        return None
+    return MonitoringCandidate(
+        fingerprint=f"credit:{row['counterparty_id']}",
+        category="limits",
+        alert_type="credit",
+        severity=severity,
+        title_en=title_en,
+        title_zh_cn=title_zh,
+        message_en=figures,
+        message_zh_cn=figures_zh,
+        entity_type="credit_line",
+        entity_id=str(row["counterparty_id"]),
+        event_time_utc=now,
+        evidence_snapshot={**row, "book_ids": list(books)},
+        source_refs=[f"credit-line:{row['counterparty_id']}"],
+        human_review_required=True,
+    )
+
+
+def _mandate_candidate(row: dict, books: tuple[str, ...], now: datetime):
+    status = row["status"]
+    name = row["name"] or row["trader"]
+    used = row["utilisation_pct"]
+    used_text = f"{used:.0f}%" if used is not None else "n/a"
+    size = (
+        f"Largest net {row['largest_net_mwh']:,.0f} MWh ({row['largest_at']}) vs "
+        f"{row['max_net_mwh_per_month']:,.0f} MWh/month ({used_text})."
+        if row.get("max_net_mwh_per_month")
+        else ""
+    )
+    if status == "breach":
+        severity = "critical"
+        title_en = f"{name} mandate breach: {row['breaches'] or used_text}"
+        title_zh = f"{name} 授权超限：{row['breaches'] or used_text}"
+    elif status == "expired":
+        severity = "warning"
+        title_en = f"{name} mandate expired {row['valid_until']}"
+        title_zh = f"{name} 授权已于 {row['valid_until']} 到期"
+    elif status == "watch":
+        severity = "warning"
+        title_en = f"{name} mandate at {used_text} of size limit"
+        title_zh = f"{name} 授权规模占用 {used_text}"
+    else:
+        return None
+    message = " ".join(
+        part for part in (size, f"Books: {row['books']}. Hubs: {row['hubs']}.") if part
+    )
+    return MonitoringCandidate(
+        fingerprint=f"mandate:{row['mandate_id']}",
+        category="limits",
+        alert_type="mandate",
+        severity=severity,
+        title_en=title_en,
+        title_zh_cn=title_zh,
+        message_en=message,
+        message_zh_cn=f"规模占用 {used_text}；账簿：{row['books']}。",
+        entity_type="trader_mandate",
+        entity_id=str(row["mandate_id"]),
+        event_time_utc=now,
+        evidence_snapshot={**row, "book_ids": list(books)},
+        source_refs=[f"mandate:{row['mandate_id']}"],
+        human_review_required=True,
+    )
 
 
 def _enrich_pending_alerts(

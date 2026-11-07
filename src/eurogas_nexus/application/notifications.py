@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 
-SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "warning": 2, "high": 3, "critical": 4}
 CATEGORIES = ("alert", "support", "limits", "tariff", "source")
 KINDS = ("email",)
 MAX_ATTEMPTS = 3
@@ -94,7 +94,7 @@ def mirror_monitoring_alerts(session, *, now: datetime) -> int:
     ):
         queued += queue_notification(
             session,
-            category="alert",
+            category="limits" if alert.category == "limits" else "alert",
             severity=alert.severity,
             title=alert.title_en,
             body=alert.message_en,

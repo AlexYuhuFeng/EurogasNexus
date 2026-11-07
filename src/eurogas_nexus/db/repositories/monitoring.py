@@ -125,6 +125,7 @@ def list_monitoring_alerts(
     category: str | None = None,
     severity: str | None = None,
     limit: int = 100,
+    visible=None,
 ) -> list[dict]:
     """List monitoring alerts with optional filters, newest first.
 
@@ -136,6 +137,7 @@ def list_monitoring_alerts(
         category: Category filter, or None.
         severity: Severity filter, or None.
         limit: Max rows.
+        visible: Optional predicate over rows; rows it rejects are left out.
 
     Returns:
         List of alert payload dicts.
@@ -151,8 +153,10 @@ def list_monitoring_alerts(
     rows = query.order_by(
         MonitoringAlertRecord.updated_at_utc.desc(),
         MonitoringAlertRecord.detected_at_utc.desc(),
-    ).limit(limit)
-    return [monitoring_alert_payload(row) for row in rows.all()]
+    )
+    if visible is None:
+        return [monitoring_alert_payload(row) for row in rows.limit(limit).all()]
+    return [monitoring_alert_payload(row) for row in rows.all() if visible(row)][:limit]
 
 
 def get_monitoring_alert(session: Session, alert_id: str) -> MonitoringAlertRecord | None:
@@ -211,7 +215,7 @@ def acknowledge_monitoring_alert(
     return row, transitioned == 1
 
 
-def monitoring_summary(session: Session) -> dict:
+def monitoring_summary(session: Session, visible=None) -> dict:
     """Aggregate alert counts by status/severity/LLM state.
 
     汇总告警统计：按状态/级别/LLM 待处理/模拟数据计数。
@@ -223,7 +227,11 @@ def monitoring_summary(session: Session) -> dict:
         Dict of aggregate counters.
     """
 
-    rows = session.query(MonitoringAlertRecord).all()
+    rows = [
+        row
+        for row in session.query(MonitoringAlertRecord).all()
+        if visible is None or visible(row)
+    ]
     open_rows = [row for row in rows if row.status == "open"]
     return {
         "open_count": len(open_rows),
