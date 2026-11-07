@@ -32,7 +32,7 @@ its credit, mandate and position figures are produced.
 ## Architecture and operations
 
 - [Architecture](architecture/ARCHITECTURE.md) and
-  [global deployment](architecture/GLOBAL_DEPLOYMENT.md)
+  [global deployment](architecture/GLOBAL_DEPLOYMENT.md); [central data platform](architecture/CENTRAL_DATA_PLATFORM.md): how the firm's data reaches the product
 - [Assessment against a trading house's needs](product/TRADING_HOUSE_ASSESSMENT.md)
 - [Roles and responsibilities](product/ROLES_AND_RESPONSIBILITIES.md)
 - Data operations: [live prices](operations/LIVE_PRICE_SOURCES.md),

@@ -166,6 +166,18 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         sensitivity="secret",
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_CENTRAL_PLATFORM_URL",
+        scope="OPERATOR",
+        purpose="Read-only SQLAlchemy URL of the firm's central data platform.",
+        sensitivity="secret",
+        required_when="scripts/ops/sync_central_platform.py subscribes to platform feeds",
+        example="postgresql+pg8000://egn_reader:password@platform-host:5432/central",
+        notes=(
+            "Use a login that can only SELECT the published egn_* views.",
+            "May be the runtime store's own server (another schema) or a separate one.",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DB_ECHO",
         scope="OPERATOR",
         purpose="Echo SQL to the log. Development diagnosis only.",
