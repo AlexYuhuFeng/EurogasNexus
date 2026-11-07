@@ -4,6 +4,7 @@ import type {
   ScreenOrderObservationDTO,
 } from "@/api/client";
 import { pnlClass } from "@/app/model/pnlColor";
+import { WhyButton } from "./WhyButton";
 
 type Translate = (key: string) => string;
 
@@ -97,7 +98,10 @@ export function MarketPositioningWorkspace({
               <strong>{snapshot.portfolio_id}</strong>
               <span>{formatTimestamp(snapshot.valuation_time_utc)}</span>
               <span>{snapshot.quantity_mwh.toLocaleString()} MWh</span>
-              <span className={pnlClass(snapshot.indicative_pnl_gbp)}>GBP {Math.round(snapshot.indicative_pnl_gbp).toLocaleString()}</span>
+              <span className="limit-status-cell">
+                <span className={pnlClass(snapshot.indicative_pnl_gbp)}>GBP {Math.round(snapshot.indicative_pnl_gbp).toLocaleString()}</span>
+                <WhyButton subject="pnl" id={snapshot.pnl_snapshot_id} label={`P&L ${snapshot.portfolio_id}`} t={t} />
+              </span>
               <span>GBP {Math.round(snapshot.cash_value_gbp).toLocaleString()}</span>
               <span>{snapshot.valuation_basis}</span>
             </div>

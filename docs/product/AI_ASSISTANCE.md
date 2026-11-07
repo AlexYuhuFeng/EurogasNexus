@@ -49,11 +49,20 @@ three places, each at the moment it is useful.
 | # | Capability | Why a trader cares | Feasible now? |
 |---|---|---|---|
 | 1 | Outage, breach and price-move alerts, explained | "Warn me in time": the explanation turns a REMIT line into "this is 8 % of NBP supply and we are long" | Done: outages, and credit and mandate breaches from `application/limits_service.py` |
-| 2 | "Why?" on alerts, outages, breaches and P&L | Answers the first question a trader asks, in place | Yes, through the existing Explain action with the object as evidence |
+| 2 | "Why?" on alerts, outages, breaches and P&L | Answers the first question a trader asks, in place | Done: `POST /api/analysis/explain`, `WhyButton` |
 | 3 | Morning brief and end-of-day report drafts | Saves the half hour every desk spends writing them | Yes: the report exports exist; the model drafts the narrative |
 | 4 | Contract and confirmation reading | Turn a PDF into terms and flag deviations from the template | OCR exists; extraction into the draft is a short step |
 | 5 | Ask in the search box | One place to ask anything, with sources | Yes: route palette questions to the Copilot |
 | 6 | Strategy and data assistance | Draft a spread spec, explain a backtest result, suggest features | Agent research exists; wire it into the Research pages |
+
+## How the model writes
+
+Every prompt starts from `application/ai_style.py`: a desk note is at most three short
+sentences (an answer to a question at most five), figures with their units, the fact
+first, no preamble or filler, no advice to trade. The model receives the deterministic
+facts and may only condense and connect them. A note is shown only if it is valid JSON,
+within length, cites only the sources it was given and contains no number that is not in
+the evidence; otherwise the rule text is shown. The panel says which one the reader sees.
 
 ## Guardrails that stay
 

@@ -1729,6 +1729,21 @@ export interface TsoTariffDTO {
   source_table: string; source_page?: number | null; source_refs: string[]; manual_review_required: boolean;
 }
 
+/** "Why?" for one object (``POST /api/analysis/explain``). */
+export type ExplainSubject = "alert" | "outage" | "credit" | "mandate" | "pnl";
+export interface ExplanationDTO {
+  subject: ExplainSubject;
+  object_id: string;
+  title: string;
+  text: string;
+  lines: string[];
+  sources: string[];
+  basis: "rule" | "model";
+  simulated: boolean;
+  warnings: string[];
+  as_of: string;
+}
+
 export interface MonitoringAlertDTO {
   alert_id: string; fingerprint: string; category: string; alert_type: string;
   severity: "info" | "warning" | "critical";
@@ -4639,6 +4654,9 @@ export const api = {
     get<MonitoringAlertDTO[]>("/monitoring/alerts", { limit: "100" }, options),
 
   monitoringSummary: (options?: ApiRequestOptions) => get<MonitoringSummaryDTO>("/monitoring/summary", undefined, options),
+
+  explain: (subject: ExplainSubject, id: string, language: "en" | "zh-CN") =>
+    post<ExplanationDTO>("/analysis/explain", { subject, id, language }),
 
   acknowledgeMonitoringAlert: (alertId: string) =>
     post<MonitoringAlertDTO>(`/monitoring/alerts/${encodeURIComponent(alertId)}/acknowledge`, {}),

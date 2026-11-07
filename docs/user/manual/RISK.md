@@ -34,6 +34,15 @@ tenor, an instrument not allowed, over- or under-hedged).
 
 Each table exports to Excel, PDF or CSV for the daily risk report.
 
+**Why?** sits next to any status other than OK. It gives the figures behind the status in
+two or three lines and what would clear it (for a breach, the headroom needed), with the
+credit line or mandate it rests on. The same button is on outages, alerts and P&L rows.
+
+A breach, a watch, an expired line with exposure or an incomplete valuation also raises an
+alert: it appears in the ticker and the alert centre, and an administrator can send it by
+email through a channel subscribed to **limits** (Settings → Notifications). With portfolio
+isolation on, a limits alert is shown only to people who can see every book behind it.
+
 ## 2. Set a counterparty credit line
 
 **Credit line…** opens the form:

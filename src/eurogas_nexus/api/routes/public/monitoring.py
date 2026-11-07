@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from eurogas_nexus.api.dependencies.acting_actor import require_acting_actor
 from eurogas_nexus.api.dependencies.ai_authority import require_ai_authority
+from eurogas_nexus.application.ai_style import ANSWER_RULES
 from eurogas_nexus.llm import invoke_deepseek
 from eurogas_nexus.llm.provider import LlmEndpointError, configured_endpoint
 from eurogas_nexus.security.provider_keys import load_provider_api_key
@@ -233,7 +234,7 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
         api_key=api_key,
         messages=_analysis_messages(alert_snapshot, payload),
         temperature=0.15,
-        max_tokens=1600,
+        max_tokens=500,
     )
     analysis_id = f"monitoring-analysis-{uuid4().hex}"
     warnings = list(alert_snapshot.get("warnings") or [])
@@ -277,12 +278,8 @@ def _analysis_messages(
         {
             "role": "system",
             "content": (
-                "You are the governed live analysis layer of Eurogas Nexus. Use only "
-                "the supplied PostgreSQL alert snapshot and its cited evidence. "
-                "Clearly separate observed facts, simulated inputs, assumptions, and "
-                "missing data. Provide decision support and concrete checks, but never "
-                "claim to execute a trade, nomination, booking, or approval. "
-                f"{language_instruction} Human review is mandatory."
+                f"{ANSWER_RULES} Answer the analyst's question about the supplied alert "
+                f"and its evidence only. {language_instruction}"
             ),
         },
         {

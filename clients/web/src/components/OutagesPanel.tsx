@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api, type OutageEventDTO } from "@/api/client";
+import { WhyButton } from "./WhyButton";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -57,6 +58,7 @@ export function OutagesPanel({ t }: { t: Translate }) {
               <th scope="col">{t("outages.start")}</th>
               <th scope="col">{t("outages.end")}</th>
               <th scope="col">{t("outages.reason")}</th>
+              <th scope="col"><span className="visually-hidden">{t("why.button")}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -72,6 +74,9 @@ export function OutagesPanel({ t }: { t: Translate }) {
                 <td>{gasTime(row.start_utc)}</td>
                 <td>{gasTime(row.end_utc)}</td>
                 <td>{row.description}</td>
+                <td>
+                  <WhyButton subject="outage" id={row.event_id} label={row.facility_name || row.facility_id} t={t} />
+                </td>
               </tr>
             ))}
           </tbody>

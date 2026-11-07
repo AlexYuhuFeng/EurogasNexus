@@ -11,6 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial, ai_caller
+from eurogas_nexus.application.ai_style import ANSWER_RULES
 from eurogas_nexus.application.physical_native_rates import (
     NativeRateProjectionError,
     row_volume_admissible,
@@ -544,11 +545,9 @@ def _maybe_invoke_provider(
         {
             "role": "system",
             "content": (
-                "You are Eurogas Nexus analysis support. Use only the supplied "
-                "snapshot. Return decision-support analysis with citations, warnings, "
-                "missing inputs, research_only=true, and human_review_required=true. "
-                "Do not create orders, nominations, execution instructions, legal "
-                "advice, or official trading recommendations."
+                f"{ANSWER_RULES} Use only the supplied snapshot and cite the rows you "
+                "rely on by their source. Name any missing input in one sentence. No "
+                "legal advice or official trading recommendation."
             ),
         },
         {
@@ -568,7 +567,7 @@ def _maybe_invoke_provider(
         messages=messages,
         model=body.model,
         temperature=0.2,
-        max_tokens=1600,
+        max_tokens=600,
     )
     if result.status == "success":
         return result.content, "success"

@@ -4592,5 +4592,14 @@
   "ticker.outage": "Outage: {{asset}} ({{zone}}) {{capacity}} · {{kind}}",
   "context_line.fresh": "Data up to date",
   "context_line.stale": "{{count}} of {{total}} data feeds stale",
-  "status.prices": "Prices"
+  "status.prices": "Prices",
+  "why.button": "Why",
+  "why.label": "Why this matters: {{subject}}",
+  "why.loading": "Reading the evidence…",
+  "why.failed": "No explanation: the evidence could not be read.",
+  "why.sources": "Sources",
+  "why.basis_rule": "From the rules",
+  "why.basis_model": "Model summary of the evidence, checked",
+  "why.simulated": "Uses simulated demo prices",
+  "why.close": "Close"
 }

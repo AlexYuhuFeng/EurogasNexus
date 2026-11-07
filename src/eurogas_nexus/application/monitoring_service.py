@@ -11,6 +11,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.application.ai_style import DESK_NOTE_RULES
+from eurogas_nexus.application.desk_text import credit_lines, mandate_lines, money
 from eurogas_nexus.application.service_identity import (
     ServiceAuthority,
     bind_service_actor,
@@ -187,7 +189,7 @@ def enrich_monitoring_alert(
         messages=_alert_enrichment_messages(alert),
         model=DEEPSEEK_DEFAULT_MODEL,
         temperature=0.1,
-        max_tokens=900,
+        max_tokens=400,
     )
     alert.llm_status = result.status
     if result.status == "success" and result.content:
@@ -457,26 +459,6 @@ def _outage_candidates(session: Session, now: datetime) -> list[MonitoringCandid
     return candidates
 
 
-_CURRENCY_SIGN = {"EUR": "€", "GBP": "£", "USD": "$"}
-
-
-def _money(amount: float | None, currency: str) -> str:
-    """``€2.30m``, ``£450k``: the figure a risk desk reads at a glance."""
-
-    if amount is None:
-        return "n/a"
-    sign = _CURRENCY_SIGN.get((currency or "").upper())
-    prefix = "-" if amount < 0 else ""
-    value = abs(float(amount))
-    text = (
-        f"{value / 1e6:.2f}m"
-        if value >= 1e6
-        else f"{value / 1e3:.0f}k"
-        if value >= 1e3
-        else f"{value:.0f}"
-    )
-    return f"{prefix}{sign}{text}" if sign else f"{prefix}{text} {currency}"
-
 
 def _limit_candidates(
     session: Session, now: datetime, service_authority: ServiceAuthority | None
@@ -533,24 +515,18 @@ def _credit_candidate(row: dict, books: tuple[str, ...], now: datetime):
     net, limit = row["net_exposure"], row["limit"]
     used = row["utilisation_pct"]
     used_text = f"{used:.0f}%" if used is not None else "n/a"
-    figures = (
-        f"Net {_money(net, currency)} vs limit {_money(limit, currency)} ({used_text}); "
-        f"headroom {_money(row['headroom'], currency)}. Replacement "
-        f"{_money(row['replacement_exposure'], currency)}, receivables "
-        f"{_money(row['receivable_exposure'], currency)}, collateral "
-        f"{_money(row['collateral'], currency)}."
-    )
+    figures = " ".join(credit_lines(row))
     figures_zh = (
-        f"净敞口 {_money(net, currency)}，额度 {_money(limit, currency)}（{used_text}），"
-        f"余量 {_money(row['headroom'], currency)}。"
+        f"净敞口 {money(net, currency)}，额度 {money(limit, currency)}（{used_text}），"
+        f"余量 {money(row['headroom'], currency)}。"
     )
     if status == "breach":
         severity = "critical"
-        title_en = f"{name} credit breach: {used_text} of {_money(limit, currency)} limit"
+        title_en = f"{name} credit breach: {used_text} of {money(limit, currency)} limit"
         title_zh = f"{name} 信用超限：占用 {used_text}"
     elif status == "expired" and (net or 0) > 0:
         severity = "critical"
-        exposure = _money(net, currency)
+        exposure = money(net, currency)
         title_en = f"{name} credit line expired {row['valid_until']}, exposure {exposure}"
         title_zh = f"{name} 授信已于 {row['valid_until']} 到期，敞口 {exposure}"
     elif status == "watch":
@@ -586,12 +562,6 @@ def _mandate_candidate(row: dict, books: tuple[str, ...], now: datetime):
     name = row["name"] or row["trader"]
     used = row["utilisation_pct"]
     used_text = f"{used:.0f}%" if used is not None else "n/a"
-    size = (
-        f"Largest net {row['largest_net_mwh']:,.0f} MWh ({row['largest_at']}) vs "
-        f"{row['max_net_mwh_per_month']:,.0f} MWh/month ({used_text})."
-        if row.get("max_net_mwh_per_month")
-        else ""
-    )
     if status == "breach":
         severity = "critical"
         title_en = f"{name} mandate breach: {row['breaches'] or used_text}"
@@ -606,9 +576,7 @@ def _mandate_candidate(row: dict, books: tuple[str, ...], now: datetime):
         title_zh = f"{name} 授权规模占用 {used_text}"
     else:
         return None
-    message = " ".join(
-        part for part in (size, f"Books: {row['books']}. Hubs: {row['hubs']}.") if part
-    )
+    message = " ".join(mandate_lines(row))
     return MonitoringCandidate(
         fingerprint=f"mandate:{row['mandate_id']}",
         category="limits",
@@ -770,12 +738,10 @@ def _alert_enrichment_messages(alert: MonitoringAlertRecord) -> list[dict[str, s
         {
             "role": "system",
             "content": (
-                "You are the governed analysis layer of Eurogas Nexus. Explain the "
-                "provided deterministic European gas-market alert. Do not claim that "
-                "orders were or should automatically be executed. Distinguish facts, "
-                "assumptions, simulated inputs, and missing evidence. Return JSON only "
-                "with string fields summary_en and summary_zh_cn. Each summary must be "
-                "concise, operationally useful, and require human review."
+                f"{DESK_NOTE_RULES} The input is a deterministic monitoring alert; say why "
+                "it matters to a gas desk. If inputs are simulated, say so. Return JSON "
+                "only with string fields summary_en and summary_zh_cn, the same note in "
+                "English and Simplified Chinese."
             ),
         },
         {

@@ -9,6 +9,7 @@ import {
 } from "@/api/client";
 import { formatMoney, formatQuantity, splitList } from "@/app/model/riskLimitsModel";
 import { ReportExport } from "./ReportExport";
+import { WhyButton } from "./WhyButton";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -178,7 +179,12 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
                 <td className="num"><strong>{formatMoney(row.net_exposure, row.currency)}</strong></td>
                 <td><Utilisation pct={row.utilisation_pct} /></td>
                 <td>
-                  <LimitBadge status={row.status} t={t} />
+                  <span className="limit-status-cell">
+                    <LimitBadge status={row.status} t={t} />
+                    {row.status !== "ok" && (
+                      <WhyButton subject="credit" id={row.counterparty_id} label={row.counterparty} t={t} />
+                    )}
+                  </span>
                   {row.unvalued_legs > 0 && <small> {t("limits.unvalued", { count: row.unvalued_legs })}</small>}
                   {(row.open_ended_legs ?? 0) > 0 && (
                     <small title={t("limits.open_ended_help")}> {t("limits.open_ended", { count: row.open_ended_legs })}</small>
@@ -228,7 +234,12 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
                   {row.instruments !== "any" && <div className="muted"><small>{row.instruments}</small></div>}
                 </td>
                 <td>
-                  <LimitBadge status={row.status} t={t} />
+                  <span className="limit-status-cell">
+                    <LimitBadge status={row.status} t={t} />
+                    {row.status !== "ok" && (
+                      <WhyButton subject="mandate" id={row.mandate_id} label={row.name} t={t} />
+                    )}
+                  </span>
                   {row.breaches && <div className="limit-breaches">{row.breaches}</div>}
                 </td>
               </tr>

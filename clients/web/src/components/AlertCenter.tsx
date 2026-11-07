@@ -5,6 +5,7 @@ import type {
   MonitoringSummaryDTO,
 } from "@/api/client";
 import { aiActionContract, aiActionIsAvailable } from "@/app/experience/aiActions";
+import { WhyButton } from "./WhyButton";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -135,6 +136,7 @@ export function AlertCenter({
                     </div>
                   )}
                   <div className="monitoring-alert-actions">
+                    <WhyButton subject="alert" id={alert.alert_id} label={title} language={language} t={t} />
                     <button
                       type="button"
                       disabled={!askAvailable}

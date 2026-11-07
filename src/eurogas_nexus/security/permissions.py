@@ -93,6 +93,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # ANALYST-floor and remains inside the commercial-data boundary.
     ("/api/monitoring/alerts/{alert_id}/acknowledge", Permission.GOVERNED),
     ("/api/analysis/ontology", Permission.READ),
+    # "Why?" on one object: a read of evidence the caller may already see. The model is
+    # used only after the route re-checks the caller's analysis capability (ai_authority).
+    ("/api/analysis/explain", Permission.READ),
     ("/api/review/decisions", Permission.REVIEW),
     ("/api/ingestion-runs", Permission.READ),
     # --- read families ---

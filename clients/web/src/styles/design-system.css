@@ -4472,3 +4472,88 @@
     row-gap: var(--ds-space-2);
   }
 }
+
+@layer ds-components {
+  /* "Why?" next to the number (WhyButton.tsx): a small pill, and a note over the page. */
+  .why-button {
+    flex: 0 0 auto;
+    min-height: 24px;
+    padding: 0 var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    font: inherit;
+    font-size: var(--ds-text-xs);
+    line-height: 22px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .why-button:hover,
+  .why-button[aria-expanded="true"] {
+    border-color: var(--ds-accent);
+    color: var(--ds-accent);
+  }
+
+  .why-panel {
+    position: fixed;
+    z-index: 1000;
+    max-width: calc(100vw - 24px);
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-lg);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    line-height: 1.45;
+  }
+
+  .why-text {
+    margin: 0;
+  }
+
+  .why-text.is-muted,
+  .why-sources {
+    color: var(--ds-text-2);
+  }
+
+  .why-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+    margin-top: var(--ds-space-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .why-flag {
+    padding: 0 var(--ds-space-1);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-warning-soft);
+    color: var(--ds-text-1);
+  }
+
+  .why-sources {
+    margin: var(--ds-space-1) 0 0;
+    font-size: var(--ds-text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  @media (pointer: coarse) {
+    .why-button {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+}
+
+@layer ds-components {
+  .limit-status-cell {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+}
