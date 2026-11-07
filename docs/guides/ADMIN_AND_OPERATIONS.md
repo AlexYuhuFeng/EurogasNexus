@@ -54,8 +54,7 @@ explicit test-source option in Data Sources.
 ## Reuse test credentials
 
 Copy the repository's `.env.testing.example` to private `.env.testing` and fill the services
-you use. Load it explicitly in the test runtime, or import its entries into the Render service's
-Environment panel. Keep database addresses and installation secrets in their own deployment
+you use. Load it explicitly in the test runtime. Keep database addresses and installation secrets in their own deployment
 configuration.
 
 The current credential contract supports GIE, EIA, ENTSO-E and the configured LLM endpoint.
@@ -76,9 +75,4 @@ requesting another run. For a platform incident use
 and [Rollback](../operations/RELEASE_ROLLBACK.md).
 [Support and updates](SUPPORT_AND_UPDATES.md) explains the evidence to collect.
 
-## Render test installation
-
-The [Render preview](../deployment/RENDER_MOBILE_PREVIEW.md) starts its scheduler and initial
-public-data work at startup. Certification and credential requirements still apply.
-The scheduler runs while the service is awake; review source timestamps after an idle period.
 Use the managed server deployment for the firm's agreed operating and recovery requirements.

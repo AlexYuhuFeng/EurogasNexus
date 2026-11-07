@@ -479,7 +479,8 @@ test("the market hub board is compared with the projection rows it priced, for t
   ]) {
     assert.ok(terminal.includes(marker), `the market board declares ${marker}`);
   }
-  const topbar = readFileSync(new URL("../src/components/WorkspaceTopBar.tsx", import.meta.url), "utf8");
+  // The trading pages carry their own context controls (no longer the top bar).
+  const topbar = readFileSync(new URL("../src/components/TradingContextControls.tsx", import.meta.url), "utf8");
   for (const attribute of [
     "data-context-gas-day={gasDay}",
     "data-context-product={deliveryProduct}",

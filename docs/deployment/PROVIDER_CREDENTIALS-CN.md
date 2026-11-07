@@ -40,15 +40,11 @@ ECB、ENTSOG、英国央行、ECB €STR 和纽约联储的上述公开接口无
 set -a; . ./.env.testing; set +a
 ```
 
-4. 在 Render 中，打开服务的 Environment 页面，使用“Add from .env”导入同一文件的条目。
-
-该文件只保存供应商凭据。数据库地址、会话和加密密钥及登录密码保留在对应部署环境中；Render Blueprint 会生成其中的环境专用值。
+该文件只保存供应商凭据。数据库地址、会话和加密密钥及登录密码保留在对应部署环境中。
 
 ## 完成来源激活
 
 配置凭据后，继续核对来源启用状态、采集计划、所需认证和数据许可。外部模型调用还受 `EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED` 控制。
-
-Render 测试启动程序在指定环境变量含有 Key 时，会启用 EIA 和 ENTSO-E，并为已启用来源安排首次运行。启动后查看首次运行及页面数据，其他来源的配置要求继续按各自流程执行。详见[Render 测试部署](RENDER_MOBILE_PREVIEW.md)。
 
 EEX 公开 TTF NGP 参考观测采用单独的有界下载流程，上表连接器状态指通过供应商凭据接入授权行情的方式。
 

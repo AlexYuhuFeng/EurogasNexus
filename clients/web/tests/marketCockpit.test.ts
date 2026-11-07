@@ -120,9 +120,9 @@ test("the market overview renders the data status as a translated label", () => 
   // words are about runtime data availability, because "Ready" beside stale or
   // missing projection slices read as decision readiness (HMI audit, P1).
   assert.equal(cockpit.includes("<strong>{api.dataStatus}</strong>"), false);
-  assert.match(cockpit, /dataPlaneState\(api\.dataStatus\)/);
-  assert.match(cockpit, /t\(runtimeDataAvailabilityLabelKey\(runtimeAvailability\)\)/);
-  assert.match(cockpit, /t\(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY\)/);
+  // The runtime store's availability is the top bar's status chip, said once (#69): the
+  // market page no longer repeats it beside the hub board.
+  assert.equal(cockpit.includes("runtimeDataAvailabilityLabelKey("), false);
 
   // Every state the mapping can produce must stay translatable in both locales, and
   // none of them may stand in for the overall readiness word.

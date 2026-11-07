@@ -135,19 +135,19 @@ test("the header preferences menu owns preference and lifecycle actions with key
   assert.match(menu, /onSignOut/);
 });
 
-test("the trading context is one chip whose controls open over the page at every width", () => {
+test("the top bar carries no trading context; the trading pages set it in their context line", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
   const css = readWebSource("styles/design-system.css");
 
-  // No per-width tuning in the component: the chip is the same everywhere (#69 follow-up).
+  // Gas day, product and hub only change the trading pages: they are not on the bar (#69).
+  assert.equal(bar.includes("topbar-context-disclosure"), false);
+  assert.equal(bar.includes('type="date"'), false);
   assert.equal(bar.includes("matchMedia"), false);
-  assert.match(bar, /className="topbar-context-disclosure"/);
-  assert.match(bar, /<summary aria-label=\{t\("topbar\.context_status"\)\}>/);
-  assert.match(bar, /open=\{contextDisclosureOpen\}/);
-  assert.match(bar, /!compact && usesTradingContext && \(/);
-  // One intrinsic layout: flex items shrink instead of overlapping; the popover floats.
+  for (const page of ["MarketCockpit", "PortfolioWorkspace", "DecisionWorkspace"]) {
+    assert.match(readWebSource(`components/${page}.tsx`), /tradingContextControlsFor\(/);
+  }
+  // One intrinsic layout: flex items shrink instead of overlapping.
   assert.match(css, /\.cockpit-app \.app-header\.workspace-topbar-page \{\s*display: flex;/);
-  assert.match(css, /\.topbar-context-disclosure-content \{\s*position: absolute;/);
 });
 
 test("the top bar shows who is signed in once, on the account menu", () => {

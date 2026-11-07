@@ -1,3 +1,4 @@
+import type React from "react";
 /**
  * Portfolio context strip (Architecture V2 Wave 5, surface half).
  *
@@ -23,9 +24,11 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 interface PortfolioContextStripProps {
   projection: PortfolioSnapshotProjectionDTO | null;
   t: Translate;
+  /** The page\'s gas day, product and hub controls, shown in the context line. */
+  controls?: React.ReactNode;
 }
 
-export function PortfolioContextStrip({ projection, t }: PortfolioContextStripProps) {
+export function PortfolioContextStrip({ projection, t, controls }: PortfolioContextStripProps) {
   if (!projection) return null;
 
   return (
@@ -38,6 +41,7 @@ export function PortfolioContextStrip({ projection, t }: PortfolioContextStripPr
       asOf={snapshotAsOf(projection)}
       basis={snapshotTimeBasis(projection)}
       t={t}
+      controls={controls}
     />
   );
 }

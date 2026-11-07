@@ -12,6 +12,7 @@ import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
+import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { marketObservationSubject } from "@/app/model/inspectorDetail";
 import { copilotOffers } from "@/app/model/copilotModel";
 import { CopilotHost } from "@/components/CopilotPanel";
@@ -22,12 +23,6 @@ import type { AppController } from "@/app/hooks/useAppController";
 import { useMapSituation } from "@/app/hooks/useMapSituation";
 import { situationSummary } from "@/app/mapSituation";
 import { hubPrices } from "@/app/mapSelection";
-import {
-  RUNTIME_DATA_AVAILABILITY_CAPTION_KEY,
-  dataPlaneState,
-  runtimeDataAvailability,
-  runtimeDataAvailabilityLabelKey,
-} from "@/app/model/dataPlaneStatus";
 import "./market-cockpit.css";
 
 import {
@@ -143,12 +138,6 @@ function MarketOverview({ controller }: MarketOverviewProps) {
     [comparisonRows],
   );
   const focusedHub = traderContext.hubId;
-  /**
-   * The runtime store's own availability, as the workspace batch reported it. It is not
-   * this grid's readiness: the projection strip above discloses which slices are stale or
-   * missing, and these words must not stand in for that.
-   */
-  const runtimeAvailability = runtimeDataAvailability(api.dataStatus);
   // Wave 9 hand-over: the Inspector shows the object the hub board actually
   // displayed for the focused hub - the quote when one exists, otherwise the
   // normalized observation. It resolves detail from data this surface already
@@ -196,9 +185,6 @@ function MarketOverview({ controller }: MarketOverviewProps) {
       <aside className="market-hub-board" aria-label={t("market.hub_board")}>
         <div className="market-hub-board-head">
           <h2>{t("market.hub_board")}</h2>
-          <span className={`market-runtime-chip ${dataPlaneState(api.dataStatus) === "ready" ? "ready" : "issue"}`} title={t(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY)}>
-            {t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}
-          </span>
           <button type="button" className="link-button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
         </div>
         <div className="data-table" style={{ ["--board-columns" as string]: boardColumns }}>
@@ -457,7 +443,11 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           (app.css `.workspace-network`) expects the viewport height to arrive through the page,
           the cockpit and this element. */}
       <div id="market-cockpit-panel" className="market-cockpit-panel">
-        <MarketContextStrip projection={api.marketContext} t={t} />
+        <MarketContextStrip
+          projection={api.marketContext}
+          t={t}
+          controls={tradingContextControlsFor(traderContext, t)}
+        />
         {task === "overview" && <MarketOverview controller={controller} task={task} />}
         {task === "curves" && (
           <>

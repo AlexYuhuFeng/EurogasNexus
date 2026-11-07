@@ -675,7 +675,8 @@ def test_the_market_board_is_issued_for_the_context_the_shell_displays() -> None
     and a context it cannot read is a failure rather than a silent unfiltered read.
     """
 
-    topbar = WORKSPACE_TOP_BAR.read_text(encoding="utf-8")
+    # The trading pages carry the context controls (no longer the top bar).
+    topbar = (WORKSPACE_TOP_BAR.parent / "TradingContextControls.tsx").read_text(encoding="utf-8")
     for attribute in (
         "data-context-gas-day={gasDay}",
         "data-context-product={deliveryProduct}",

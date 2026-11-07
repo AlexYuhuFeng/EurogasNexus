@@ -153,7 +153,7 @@ test("the component passes every option its locales declare", () => {
   // prints braces, so the call sites are held to the placeholders the entries declare.
   const strip = readWebSource("components/ProjectionContextStrip.tsx");
   assert.match(strip, /t\(key\("as_of"\), \{ value: formatUtcTimestamp\(asOf, asOf\) \}\)/);
-  assert.match(strip, /t\(key\("degraded"\), \{ count: degraded\.length \}\)/);
+  assert.match(strip, /t\("context_line\.stale", \{ count: degraded\.length, total: readings\.length \}\)/);
   assert.match(strip, /t\(key\("rows"\), \{ count: reading\.rowCount \}\)/);
   assert.match(strip, /t\(key\("restricted"\), \{ count: reading\.filteredOut \}\)/);
 

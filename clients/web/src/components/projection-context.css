@@ -100,3 +100,60 @@
   font-weight: 600;
 }
 }
+
+/* The page's context line (#69 follow-up): the trading context controls on the left, the data
+   status in words on the right; the evidence opens under it. */
+@layer ds-components {
+  .projection-context .trading-context-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2) var(--ds-space-3);
+  }
+
+  .projection-context .trading-context-controls label {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  .projection-context .trading-context-controls label > span {
+    color: var(--ds-text-2);
+    font-size: 0.75rem;
+  }
+
+  .projection-context .projection-context-details {
+    flex: 0 0 auto;
+    width: auto;
+    margin-left: auto;
+  }
+
+  .projection-context .trading-context-controls input,
+  .projection-context .trading-context-controls select {
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+  }
+
+  .projection-context .projection-context-details[open] {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .projection-context .projection-context-summary {
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .projection-context .projection-context-summary span {
+    display: inline;
+  }
+
+  .projection-context-asof {
+    color: var(--ds-text-3);
+  }
+
+  .projection-context-basis {
+    margin: var(--ds-space-1) 0;
+    color: var(--ds-text-2);
+  }
+}

@@ -3,10 +3,6 @@ import { createPortal } from "react-dom";
 import { showsKeyboardHints, useShellLayout } from "@/app/shell/useShellLayout";
 import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
 import {
-  SUPPORTED_HUB_IDS,
-  type SupportedHubId,
-} from "@/app/context";
-import {
   primaryWorkspaces,
   type PrimaryWorkspace,
   type PrimaryWorkspaceId,
@@ -16,7 +12,7 @@ import {
   compositionSeesAdministration,
 } from "@/app/experience/experienceProfile";
 import { StatusBadge, WorkspaceTabs } from "@/components/ui";
-import { pageUsesTradingContext, type WorkspacePageId } from "@/workspaceNavigation";
+import type { WorkspacePageId } from "@/workspaceNavigation";
 import { useApiStore, type ApiState } from "@/stores/api";
 import type { ThemeMode } from "@/stores/theme";
 import type { CurrentUserDTO } from "@/api/client";
@@ -43,9 +39,6 @@ interface WorkspaceTopBarProps {
   /** Current interface language; persisted by the shared language writer. */
   language: string;
   mode: ThemeMode;
-  gasDay: string;
-  deliveryProduct: string;
-  hubId: SupportedHubId | null;
   marketLastUpdatedAtUtc: string | null;
   sourceStats: SourceStats;
   sourceEndpointError?: string;
@@ -60,9 +53,6 @@ interface WorkspaceTopBarProps {
     | "analyzeMonitoringAlert"
   >;
   t: (key: string, options?: Record<string, unknown>) => string;
-  onGasDayChange: (gasDay: string) => void;
-  onDeliveryProductChange: (product: string) => void;
-  onHubChange: (hubId: string | null) => void;
   onOpenPrimaryWorkspace: (primary: PrimaryWorkspaceId) => void;
   onSignIn: () => void;
   onSignOut: () => void;
@@ -82,18 +72,12 @@ export function WorkspaceTopBar({
   streamingActive,
   language,
   mode,
-  gasDay,
-  deliveryProduct,
-  hubId,
   marketLastUpdatedAtUtc,
   sourceStats,
   sourceEndpointError,
   currentUser,
   monitoring,
   t,
-  onGasDayChange,
-  onDeliveryProductChange,
-  onHubChange,
   onOpenPrimaryWorkspace,
   onSignIn,
   onSignOut,
@@ -115,7 +99,6 @@ export function WorkspaceTopBar({
    */
   const runtimeAvailability = runtimeDataAvailability(dataStatus);
   // Gas day, product and hub only where the page's reads take them (#35).
-  const usesTradingContext = pageUsesTradingContext(activeWorkspace);
   // Architecture V2 control-plane boundary: the administration primary is only
   // offered to an identity whose composition includes an administration
   // capability. Presentation only - the backend authorises every request - and it
@@ -133,77 +116,6 @@ export function WorkspaceTopBar({
     id: primary.id,
     label: t(primary.labelKey),
   }));
-
-  // The trading context is one summary chip at every width; its controls open in a popover
-  // over the page, so they never compete with alerts or the account menu for bar width.
-  const [contextDisclosureOpen, setContextDisclosureOpen] = useState(false);
-  const contextRef = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    if (!contextDisclosureOpen) return undefined;
-    const close = (event: KeyboardEvent | PointerEvent) => {
-      const outside =
-        event instanceof KeyboardEvent
-          ? event.key === "Escape"
-          : !contextRef.current?.contains(event.target as Node);
-      if (outside) setContextDisclosureOpen(false);
-    };
-    window.addEventListener("keydown", close);
-    window.addEventListener("pointerdown", close);
-    return () => {
-      window.removeEventListener("keydown", close);
-      window.removeEventListener("pointerdown", close);
-    };
-  }, [contextDisclosureOpen]);
-
-  const productLabel =
-    deliveryProduct === "day-ahead"
-      ? t("context.day_ahead")
-      : deliveryProduct === "within-day"
-        ? t("context.within_day")
-        : deliveryProduct === "month-ahead"
-          ? t("context.month_ahead")
-          : t("context.all_products");
-
-  // Gas day, product and hub controls, shared by the inline disclosure and the compact drawer.
-  // Rendered only where the page uses them: an empty labelled box is an accessibility fault
-  // (axe aria-prohibited-attr).
-  const tradingContextControls = usesTradingContext ? (
-        <div className="topbar-trading-context" role="group" aria-label={t("context.title")}>
-          <label>
-            <span>{t("context.gas_day")}</span>
-            <input
-              type="date"
-              value={gasDay}
-              onChange={(event) => onGasDayChange(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{t("context.product")}</span>
-            <select
-              value={deliveryProduct}
-              onChange={(event) => onDeliveryProductChange(event.target.value)}
-            >
-              <option value="all">{t("context.all_products")}</option>
-              <option value="day-ahead">{t("context.day_ahead")}</option>
-              <option value="within-day">{t("context.within_day")}</option>
-              <option value="month-ahead">{t("context.month_ahead")}</option>
-            </select>
-          </label>
-          <label>
-            <span>{t("context.hub")}</span>
-            <select
-              aria-label={t("context.hub")}
-              value={hubId ?? ""}
-              onChange={(event) => onHubChange(event.target.value || null)}
-            >
-              <option value="">{t("context.no_hub_focus")}</option>
-              {SUPPORTED_HUB_IDS.map((hub) => (
-                <option key={`context-hub-${hub}`} value={hub}>{hub}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-  ) : null;
 
   // Compact width (docs/product/ADAPTIVE_CLIENT.md): one row - menu, search, alerts, status dot,
   // account - and a drawer holding the lines of work and the trading context (#39, #40).
@@ -253,15 +165,11 @@ export function WorkspaceTopBar({
           aria-controls="topbar-drawer"
           aria-label={t("topbar.menu")}
           // The Active Context in machine-readable form, as on the wide bar's disclosure.
-          data-context-gas-day={compact ? gasDay : undefined}
-          data-context-product={compact ? deliveryProduct : undefined}
-          data-context-hub={compact ? hubId ?? "" : undefined}
           onClick={() => setDrawerOpen((open) => !open)}
         >
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
           <span className="topbar-menu-label">
             <span>{t(activePrimaryWorkspace.labelKey)}</span>
-            {compact && usesTradingContext && <small>{gasDay} · {productLabel}{hubId ? ` · ${hubId}` : ""}</small>}
           </span>
         </button>
       )}
@@ -297,12 +205,6 @@ export function WorkspaceTopBar({
                 ))}
               </ul>
             </nav>
-            {compact && tradingContextControls && (
-              <section className="topbar-drawer-context" aria-label={t("context.title")}>
-                <h2>{t("context.title")}</h2>
-                {tradingContextControls}
-              </section>
-            )}
           </div>
         </div>,
         document.body,
@@ -335,34 +237,6 @@ export function WorkspaceTopBar({
           </>
           )}
         </button>
-      )}
-      {/* The Active Context this shell is displaying, in machine-readable form. It is the context
-          every projection read is issued for (`app/model/projectionContext.ts`), so the browser
-          sweep can read the context the surfaces are showing and compare a payload read for that
-          context instead of a generic, unfiltered one. The labels beside it stay the display. */}
-      {/* Only pages that read the gas day, product and hub carry the chip. */}
-      {!compact && usesTradingContext && (
-      <details
-        ref={contextRef}
-        className="topbar-context-disclosure"
-        data-context-gas-day={gasDay}
-        data-context-product={deliveryProduct}
-        data-context-hub={hubId ?? ""}
-        open={contextDisclosureOpen}
-        onToggle={(event) => setContextDisclosureOpen(event.currentTarget.open)}
-      >
-        <summary aria-label={t("topbar.context_status")}>
-          <strong>{t("topbar.context_status")}</strong>
-          <span>{gasDay} · {productLabel} · {hubId ?? t("context.no_hub_focus")}</span>
-        </summary>
-        {contextDisclosureOpen && (
-          <div className="topbar-context-disclosure-content">
-        {/* Rendered only where the page uses it: an empty labelled box is an
-            accessibility fault (axe aria-prohibited-attr). */}
-        {tradingContextControls}
-          </div>
-        )}
-      </details>
       )}
       {/* Alerts, status and the account menu stay on the bar at every width: on a phone the
           context disclosure is folded, and the account menu (Settings, language, sign out)

@@ -90,7 +90,7 @@ test("the labels are runtime-data statements in both locales, never readiness or
 });
 
 test("all three renderers show the shared availability label, not the overall vocabulary", () => {
-  const captioned = ["components/SettingsCenter.tsx", "components/MarketCockpit.tsx"];
+  const captioned = ["components/SettingsCenter.tsx"];
   for (const file of [...captioned, "components/WorkspaceTopBar.tsx"]) {
     const source = readWebSource(file);
     assert.match(source, /runtimeDataAvailability\(/, file);
@@ -138,8 +138,6 @@ test("a runtime status beside stale or missing market slices never reads as over
   // The market grid's runtime cell is built from that label and the shared caption only,
   // and the projection strip beside it still carries the stale/missing disclosure.
   const cockpit = readWebSource("components/MarketCockpit.tsx");
-  assert.match(cockpit, /t\(runtimeDataAvailabilityLabelKey\(runtimeAvailability\)\)/);
-  assert.match(cockpit, /t\(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY\)/);
   assert.match(cockpit, /<MarketContextStrip/);
   assert.match(readWebSource("components/MarketContextStrip.tsx"), /degraded=\{degradedSlices\(/);
 });

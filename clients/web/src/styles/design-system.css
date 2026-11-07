@@ -2101,6 +2101,50 @@
     gap: var(--ds-space-1);
   }
 
+  /* One shape language for the bar: every control is one height; a control with words is a
+     pill, an icon-only control is a circle, both with the same hairline border. */
+  .cockpit-app .app-header .topbar-command,
+  .cockpit-app .app-header .alert-trigger,
+  .cockpit-app .app-header .topbar-status-chip {
+    height: var(--ds-control);
+    min-height: var(--ds-control);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface);
+  }
+
+  .cockpit-app .app-header .topbar-help,
+  .cockpit-app .app-header .topbar-preferences-trigger {
+    width: var(--ds-control);
+    min-width: var(--ds-control);
+    height: var(--ds-control);
+    min-height: var(--ds-control);
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .cockpit-app .app-header .topbar-help {
+    border: 1px solid var(--ds-border);
+    background: var(--ds-surface);
+  }
+
+  @media (pointer: coarse) {
+    .cockpit-app .app-header .topbar-command,
+    .cockpit-app .app-header .alert-trigger,
+    .cockpit-app .app-header .topbar-status-chip,
+    .cockpit-app .app-header .topbar-help,
+    .cockpit-app .app-header .topbar-preferences-trigger {
+      height: 44px;
+      min-height: 44px;
+    }
+
+    .cockpit-app .app-header .topbar-help,
+    .cockpit-app .app-header .topbar-preferences-trigger {
+      width: 44px;
+      min-width: 44px;
+    }
+  }
+
   /* Without the context chip, the controls take the free space's right edge themselves. */
   .cockpit-app .app-header:not(:has(.topbar-context-disclosure)) .header-controls {
     margin-left: auto;

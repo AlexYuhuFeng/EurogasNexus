@@ -23,9 +23,7 @@ to use for the first check. Administrators configure the sources your desk needs
 assigned to you. If sign-in succeeds but a workspace is restricted, ask IT to check your
 roles and data scopes.
 
-For the disposable Render installation, account retrieval is documented in the
-[Render preview guide](../deployment/RENDER_MOBILE_PREVIEW.md). Client installations use
-the credentials issued for that client environment.
+Each installation uses the credentials issued for that environment.
 
 ## Inspect your first market view
 

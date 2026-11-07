@@ -82,12 +82,12 @@ test("neither view resets trader context when it mounts", () => {
   assert.doesNotMatch(mapView, /deliveryProduct=\{traderContext\.deliveryProduct\}/);
   assert.doesNotMatch(mapView, /hubId=\{traderContext\.hubId\}/);
 
-  // Context stays owned by the global shell rather than being re-declared by
-  // the map task. The map still consumes market evidence and selection state.
-  const topbar = readWebSource("components/WorkspaceTopBar.tsx");
-  assert.match(topbar, /value=\{gasDay\}/);
-  assert.match(topbar, /value=\{deliveryProduct\}/);
-  assert.match(topbar, /value=\{hubId \?\? ""\}/);
+  // Context is one shared control, set in the trading pages' context line rather than
+  // re-declared by the map task. The map still consumes market evidence and selection state.
+  const controls = readWebSource("components/TradingContextControls.tsx");
+  assert.match(controls, /value=\{gasDay\}/);
+  assert.match(controls, /value=\{deliveryProduct\}/);
+  assert.match(controls, /value=\{hubId \?\? ""\}/);
 
   const numeric = block(market, NUMERIC_TASK, MAP_TASK);
   assert.match(numeric, /focusedHub=\{traderContext\.hubId\}/);

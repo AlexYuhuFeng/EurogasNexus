@@ -259,18 +259,12 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         streamingActive={api.streamingActive}
         language={i18n.language}
         mode={theme.mode}
-        gasDay={traderContext.gasDay}
-        deliveryProduct={traderContext.deliveryProduct}
-        hubId={traderContext.hubId}
         marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
         sourceStats={sources.sourceStats}
         sourceEndpointError={api.endpointErrors.sources}
         currentUser={api.currentUser}
         monitoring={api}
         t={t}
-        onGasDayChange={traderContext.setGasDay}
-        onDeliveryProductChange={traderContext.setDeliveryProduct}
-        onHubChange={traderContext.setHubId}
         onOpenPrimaryWorkspace={navigation.openPrimaryWorkspace}
         onSignIn={() => void api.signIn()}
         onSignOut={() => void api.signOut()}

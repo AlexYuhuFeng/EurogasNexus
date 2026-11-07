@@ -1,4 +1,5 @@
 import { tabLabels } from "@/components/ui/tabLabels";
+import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
 import { ContractChainStrip } from "@/components/ContractChainStrip";
@@ -324,7 +325,11 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
         onActivate={openTask}
       />
       <div id="portfolio-task-panel">
-        <PortfolioContextStrip projection={api.portfolioSnapshot} t={t} />
+        <PortfolioContextStrip
+          projection={api.portfolioSnapshot}
+          t={t}
+          controls={tradingContextControlsFor(controller.traderContext, t)}
+        />
         <section className="workspace-panel" aria-label={t("portfolio.scope.title")}>
           {/* A standing caveat read once, not every visit: folded to its title (#69). */}
           <details className="scope-fold">

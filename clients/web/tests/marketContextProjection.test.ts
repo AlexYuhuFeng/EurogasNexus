@@ -258,7 +258,7 @@ test("the market surface renders the coherent context and its vocabulary is bili
   const strip = readWebSource("components/MarketContextStrip.tsx");
 
   assert.match(cockpit, /import \{ MarketContextStrip \} from "@\/components\/MarketContextStrip"/);
-  assert.match(cockpit, /<MarketContextStrip projection=\{api\.marketContext\} t=\{t\} \/>/);
+  assert.match(cockpit, /<MarketContextStrip\s+projection=\{api\.marketContext\}\s+t=\{t\}\s+controls=\{tradingContextControlsFor\(traderContext, t\)\}/);
 
   // The strip renders the backend's reading; it does not fetch or recompute.
   assert.match(strip, /sliceReadings\(projection\)/);

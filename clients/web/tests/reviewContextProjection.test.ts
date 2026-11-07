@@ -248,7 +248,7 @@ test("the review surface reads the projection when it opens and never fetches it
 
   assert.match(workspace, /if \(task !== "review"\) return;/);
   assert.match(workspace, /void api\.fetchReviewContext\(\);/);
-  assert.match(workspace, /<ReviewContextStrip projection=\{api\.reviewContext\} t=\{t\} \/>/);
+  assert.match(workspace, /<ReviewContextStrip\s+projection=\{api\.reviewContext\}\s+t=\{t\}\s+controls=/);
 
   // The strip renders the backend's reading; it does not fetch or recompute.
   assert.match(strip, /reviewReadings\(projection\)/);

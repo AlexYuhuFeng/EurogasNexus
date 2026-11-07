@@ -774,7 +774,7 @@ test("the board is mounted in the Decision workspace, above every task's panel",
     /import \{ DayBoardPanel \} from "@\/components\/decision\/DayBoardPanel";/,
   );
   const panelIndex = workspace.indexOf("<DayBoardPanel");
-  const stripIndex = workspace.indexOf('{task === "review" && <ReviewContextStrip');
+  const stripIndex = workspace.indexOf("<ReviewContextStrip");
   assert.ok(panelIndex > 0, "the day board is mounted");
   assert.ok(stripIndex > panelIndex, "the day board sits above the per-task panels");
   // It is inside the task panel container, so it appears for every task rather than one page.

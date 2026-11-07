@@ -92,12 +92,6 @@ export function TopBarStatus({
         if (!rootRef.current?.contains(event.relatedTarget as Node)) setOpen(false);
       }}
     >
-      {demoPrices && (
-        <span className="topbar-demo-chip" title={t("status.demo_prices_help")}>
-          <span className="tab-label-full">{t("status.demo_prices")}</span>
-          <span className="tab-label-short" aria-hidden="true">{t("status.demo_prices_short")}</span>
-        </span>
-      )}
       <button
         type="button"
         className="topbar-status-chip"
@@ -113,6 +107,13 @@ export function TopBarStatus({
       {open && (
         <div id="topbar-status-panel" className="topbar-status-panel" role="dialog" aria-label={t("status.panel_title")}>
           <dl>
+            {/* A demo deployment says so here, in the status panel, not as a badge on the bar. */}
+            {demoPrices && (
+              <div>
+                <dt>{t("status.prices")}</dt>
+                <dd>{t("status.demo_prices_help")}</dd>
+              </div>
+            )}
             <div>
               <dt>{t("status.market_data")}</dt>
               <dd>

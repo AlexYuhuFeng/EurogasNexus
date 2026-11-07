@@ -1,3 +1,4 @@
+import type React from "react";
 /**
  * Review context strip (Architecture V2 Wave 5, surface half).
  *
@@ -24,9 +25,11 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 interface ReviewContextStripProps {
   projection: ReviewContextProjectionDTO | null;
   t: Translate;
+  /** The page\'s gas day, product and hub controls, shown in the context line. */
+  controls?: React.ReactNode;
 }
 
-export function ReviewContextStrip({ projection, t }: ReviewContextStripProps) {
+export function ReviewContextStrip({ projection, t, controls }: ReviewContextStripProps) {
   if (!projection) return null;
 
   const coverage = reviewEvidenceCoverage(projection);
@@ -41,6 +44,7 @@ export function ReviewContextStrip({ projection, t }: ReviewContextStripProps) {
       asOf={reviewAsOf(projection)}
       basis={reviewTimeBasis(projection)}
       t={t}
+      controls={controls}
     >
       {coverage && (
         <span className="projection-slice-count">

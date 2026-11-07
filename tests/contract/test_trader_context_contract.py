@@ -96,11 +96,12 @@ def test_high_value_cross_workspace_handoffs_are_explicit_actions() -> None:
 
 
 def test_context_ui_is_compact_accessible_and_clearable() -> None:
-    topbar = _read("components", "WorkspaceTopBar.tsx")
+    # The trading pages set the context in their own context line (no longer the top bar).
+    topbar = _read("components", "TradingContextControls.tsx")
     market = _read("components", "MarketTerminal.tsx")
 
     assert 'aria-label={t("context.hub")}' in topbar
-    assert 'onHubChange(event.target.value || null)' in topbar
+    assert "onHubChange(event.target.value || null)" in topbar
     assert "SUPPORTED_HUB_IDS" in topbar
     assert "aria-pressed={focusedHub === row.hub}" in market
     assert "onHubChange(focusedHub === row.hub ? null : row.hub)" in market

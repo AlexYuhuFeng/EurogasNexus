@@ -1461,8 +1461,10 @@ async function interactionChecks(page, failures) {
     if ((await page.locator(".topbar-preferences-trigger").count()) === 0) {
       recordFailure(failures, "interaction/narrow-disclosure", "the account menu is not on the compact bar");
     }
+    // The trading context is set in the page itself (its context line), on a phone too.
+    await page.locator(".trading-context-controls").first().waitFor({ state: "visible", timeout: 10_000 });
     await menu.click();
-    await page.locator("#topbar-drawer .topbar-trading-context").waitFor({ state: "visible", timeout: 5_000 });
+    await page.locator("#topbar-drawer nav").waitFor({ state: "visible", timeout: 5_000 });
     await page.keyboard.press("Escape");
     await page.locator("#topbar-drawer").waitFor({ state: "detached", timeout: 5_000 });
     const focusBack = await menu.evaluate((element) => document.activeElement === element);

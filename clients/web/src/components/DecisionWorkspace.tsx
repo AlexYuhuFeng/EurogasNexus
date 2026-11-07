@@ -1,4 +1,5 @@
 import { tabLabels } from "@/components/ui/tabLabels";
+import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
@@ -303,7 +304,16 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
           onOpenTask={openTask}
           onOpenAlerts={() => navigation.openWorkspace("market")}
         />
-        {task === "review" && <ReviewContextStrip projection={api.reviewContext} t={t} />}
+        {task === "review" ? (
+          <ReviewContextStrip
+            projection={api.reviewContext}
+            t={t}
+            controls={tradingContextControlsFor(traderContext, t)}
+          />
+        ) : (
+          // The other tasks have no projection line: the controls stand on their own.
+          <div className="projection-context">{tradingContextControlsFor(traderContext, t)}</div>
+        )}
         {task === "scenario" && (
           <DecisionActionStatus
             t={t}

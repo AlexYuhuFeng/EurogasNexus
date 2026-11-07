@@ -271,9 +271,10 @@ def test_topbar_controls_and_source_credentials_have_accessible_names() -> None:
     assert '<label key={key} className="settings-preference-row">' in panels
     assert 'aria-label={t("settings.language")}' in sign_in
 
-    # The controls the header does keep are still named.
-    assert 'aria-label={t("context.title")}' in topbar
+    # The controls the header keeps are named; the trading context lives in the pages.
     assert 'label={t("topbar.primary_navigation")}' in topbar
+    controls = _read(WEB / "components" / "TradingContextControls.tsx")
+    assert 'aria-label={t("context.title")}' in controls
 
     assert 'aria-label={t("panel.credentials")}' in source_center
     assert 'aria-label={t("credentials.api_key")}' in source_center

@@ -41,21 +41,14 @@ Git), fill the keys you have and load it explicitly:
 set -a; . ./.env.testing; set +a
 ```
 
-On Render, paste the same lines under the service's **Environment** ("Add from .env").
 Keep provider keys apart from deployment values (database URL, session and encryption
-secrets, login passwords): the Blueprint generates those, and copying them across
-environments would detach the database or sign everyone out.
+secrets, login passwords), which belong to each environment's own deployment configuration.
 
 ## Activation and source checks
 
 For a managed installation, check source enablement, ingestion scheduling, certification
 and licensed use as part of commissioning. External model calls follow
 `EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED`; licensed uses follow the licence register.
-
-The Render test bootstrap enables EIA and ENTSO-E when their designated environment keys
-are present, and queues initial runs for enabled sources. Review the first run and data
-in the UI after startup. Other source prerequisites continue to apply; see
-[Render preview](RENDER_MOBILE_PREVIEW.md).
 
 EEX public TTF NGP reference observations use a separate bounded download route. The
 connector column above concerns credential-based licensed feeds.

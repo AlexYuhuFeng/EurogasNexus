@@ -23,7 +23,7 @@ arrangement; record them in the [onboarding record](CLIENT_ONBOARDING.md).
 | Service is reachable, prices are empty | Quote import/feed, entitlement, selected dates and the first ingestion result |
 | ECB or ENTSOG is empty | Source enablement, scheduler run and query scope; ENTSOG also has a certification gate |
 | Provider key was added but nothing changed | Active credential source, disabled state, connector implementation and source activation |
-| Refresh shows old application code | Render/deployment completion and the live commit; reload after a successful deploy |
+| Refresh shows old application code | Deployment completion and the live commit; reload after a successful deploy |
 | Number differs from another screen | Currency/unit, tenor, source timestamp, FX fixing and calculation assumptions |
 | A control is missing on a phone | Orientation, browser and screen size; report an unreachable control as a functional issue |
 
@@ -65,8 +65,6 @@ Package/build availability and a recorded installed-client test are different ev
   Reload the page after deployment.
 - **Windows/Linux desktop:** IT distributes the applicable installer
   and schedules the upgrade. The current desktop release uses managed/manual updates.
-- **Render test service:** `main` changes deploy after CI passes. **Restart service** reuses
-  the deployed commit; **Deploy latest commit** fetches source for a manual deployment.
 - **Server/database:** use the release's migration preflight, backup and rollback procedure.
   Restoring application code and reversing a database change require separate planning.
 

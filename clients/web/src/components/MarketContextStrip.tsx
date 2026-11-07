@@ -1,3 +1,4 @@
+import type React from "react";
 /**
  * Market context strip (Architecture V2 Wave 5, surface half).
  *
@@ -26,9 +27,11 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 interface MarketContextStripProps {
   projection: MarketContextProjectionDTO | null;
   t: Translate;
+  /** The page\'s gas day, product and hub controls, shown in the context line. */
+  controls?: React.ReactNode;
 }
 
-export function MarketContextStrip({ projection, t }: MarketContextStripProps) {
+export function MarketContextStrip({ projection, t, controls }: MarketContextStripProps) {
   if (!projection) return null;
 
   return (
@@ -41,6 +44,7 @@ export function MarketContextStrip({ projection, t }: MarketContextStripProps) {
       asOf={contextAsOf(projection)}
       basis={contextTimeBasis(projection)}
       t={t}
+      controls={controls}
     />
   );
 }

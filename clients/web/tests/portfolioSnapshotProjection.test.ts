@@ -313,7 +313,7 @@ test("the portfolio surface renders the coherent context and its vocabulary is b
   const sharedStrip = readWebSource("components/ProjectionContextStrip.tsx");
 
   assert.match(workspace, /import \{ PortfolioContextStrip \} from "@\/components\/PortfolioContextStrip"/);
-  assert.match(workspace, /<PortfolioContextStrip projection=\{api\.portfolioSnapshot\} t=\{t\} \/>/);
+  assert.match(workspace, /<PortfolioContextStrip\s+projection=\{api\.portfolioSnapshot\}\s+t=\{t\}\s+controls=/);
 
   // The strip renders the backend's reading; it does not fetch or recompute.
   assert.match(strip, /portfolioReadings\(projection\)/);
