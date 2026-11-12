@@ -63,7 +63,7 @@ import os
 import re
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -321,6 +321,18 @@ class GieProduct:
             error_token="lng",
             signature_fields=("inventory", "dtmi", "sendOut"),
         )
+
+    def for_country(self, country: str) -> GieProduct:
+        """This product narrowed to one country's daily series (``country=DE``).
+
+        The provider labels the response ``EU > DE``; the Europe total stays the default.
+        Verified live on 2026-11-12 for AGSI and ALSI.
+        """
+
+        code = str(country or "").strip().upper()
+        if not re.fullmatch(r"[A-Z]{2}", code):
+            raise ValueError("A GIE country is a two-letter code.")
+        return replace(self, dataset=f"EU > {code}", selector=(("country", code),))
 
     @property
     def host(self) -> str:

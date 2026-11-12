@@ -60,3 +60,15 @@ def test_a_zero_flow_is_a_value_and_a_blank_is_a_placeholder():
 def test_missing_reports_only_fields_absent_from_every_record():
     records = [{"a": 1, "b": None}, {"a": 2}]
     assert certify._missing(records, ("a", "b", "c")) == ["c"]
+
+
+def test_gie_country_products_keep_the_europe_total_and_add_named_countries():
+    from eurogas_nexus.ingestion.gie_transport import GieProduct
+
+    germany = GieProduct.agsi().for_country("de")
+    assert germany.selector == (("country", "DE"),) and germany.dataset == "EU > DE"
+    assert GieProduct.agsi().selector == (("type", "eu"),)  # the default is unchanged
+    import pytest
+
+    with pytest.raises(ValueError):
+        GieProduct.alsi().for_country("Germany")

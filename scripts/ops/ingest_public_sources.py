@@ -229,6 +229,14 @@ def main() -> int:
     parser.add_argument("--entsog-page-size", type=int, default=100)
     parser.add_argument("--entsog-max-pages", type=int, default=50)
     parser.add_argument(
+        "--gie-country",
+        action="append",
+        default=None,
+        metavar="CC",
+        help="Also read this country's AGSI/ALSI series (repeatable); 'nwe' adds the "
+        "north-west Europe balance countries. Default: the Europe total only.",
+    )
+    parser.add_argument(
         "--entsog-point-direction",
         action="append",
         default=[],
@@ -429,13 +437,11 @@ def main() -> int:
                             point_directions=args.entsog_point_direction,
                         )
 
-                for gie_route, gie_product in (
-                    ("gie-agsi", GIE_AGSI_PRODUCT),
-                    ("gie-alsi", GIE_ALSI_PRODUCT),
+                for gie_route, gie_product, source_name in _gie_plan(
+                    getattr(args, "gie_country", None)
                 ):
                     if gie_route not in selected:
                         continue
-                    source_name = f"GIE-{gie_product.product}"
                     try:
                         gie_result = fetch_gie_product(
                             client,
@@ -1204,6 +1210,29 @@ def _ingest_entsog_source(
         report["warnings"].append(
             f"{source_name} refused canonical writes ({code}); existing rows kept."
         )
+
+
+def _gie_plan(countries) -> list[tuple[str, GieProduct, str]]:
+    """The GIE reads of one run: the Europe total, then each requested country.
+
+    The fundamentals read storage and LNG by country, so a deployment that ingests only
+    the Europe total leaves the north-west Europe balance empty. ``--gie-country nwe``
+    adds the balance's own countries.
+    """
+
+    codes: list[str] = []
+    for item in countries or ():
+        if str(item).strip().lower() == "nwe":
+            from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
+
+            codes += list(NWE_COUNTRIES)
+        else:
+            codes.append(str(item).strip().upper())
+    plan = [("gie-agsi", GIE_AGSI_PRODUCT, "GIE-AGSI"), ("gie-alsi", GIE_ALSI_PRODUCT, "GIE-ALSI")]
+    for code in dict.fromkeys(codes):
+        plan.append(("gie-agsi", GIE_AGSI_PRODUCT.for_country(code), f"GIE-AGSI-{code}"))
+        plan.append(("gie-alsi", GIE_ALSI_PRODUCT.for_country(code), f"GIE-ALSI-{code}"))
+    return plan
 
 
 def _normalize_gie_page(

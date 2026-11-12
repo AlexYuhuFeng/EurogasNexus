@@ -343,18 +343,7 @@ def get_gas_for_power(
     return _env(rows, "runtime-postgresql", warnings)
 
 
-#: ENTSOG entry points that land Norwegian pipeline gas in north-west Europe (Europipe I/II,
-#: Norpipe, Zeepipe, Franpipe, Vesterled, Langeled). Matched on the point name.
-NORWEGIAN_ENTRY_POINTS = (
-    "EMDEN",
-    "DORNUM",
-    "ZEEBRUGGE ZPT",
-    "DUNKERQUE",
-    "ST. FERGUS",
-    "ST FERGUS",
-    "EASINGTON",
-)
-#: Gross calorific value used to turn Norwegian volumes into energy (kWh per m3).
+#: Calorific value for outage volumes and pre-native flow rows (kWh per m3).
 NORWEGIAN_GCV_KWH_M3 = 11.0
 
 
@@ -429,7 +418,8 @@ def get_nwe_balance(
     from sqlalchemy import or_
     from sqlalchemy.exc import SQLAlchemyError
 
-    from eurogas_nexus.db.models import FlowObservationRecord, RemitUmmRecord
+    from eurogas_nexus.application.pipeline_supply import LANDING_POINTS, landed_supply
+    from eurogas_nexus.db.models import RemitUmmRecord
     from eurogas_nexus.db.models.observation import (
         LngObservationRecord,
         StorageObservationRecord,
@@ -450,22 +440,10 @@ def get_nwe_balance(
     cutoff = datetime.now(UTC)
     try:
         with session:
-            norway = _daily_sum(
-                session,
-                FlowObservationRecord.flow_mcm_d,
-                FlowObservationRecord,
-                [
-                    or_(
-                        *(
-                            FlowObservationRecord.point_name.ilike(f"%{name}%")
-                            for name in NORWEGIAN_ENTRY_POINTS
-                        )
-                    ),
-                    FlowObservationRecord.direction.ilike("entry"),
-                ],
-                first,
-                as_of=cutoff,
-            )
+            # Energy at the registry's landing points (application/pipeline_supply.py):
+            # ENTSOG point key and operator, not name fragments, and energy as published.
+            supply = landed_supply(session, first, as_of=cutoff)
+            norway = supply.by_day
             lng = _daily_sum(
                 session,
                 LngObservationRecord.send_out_twh_d,
@@ -555,7 +533,7 @@ def get_nwe_balance(
     history = [
         BalanceHistoryDay(
             day=day,
-            norway_gwh=norway[day] * mcm_to_gwh,
+            norway_gwh=norway[day],
             lng_gwh=lng[day] * 1000,
             storage_net_withdrawal_gwh=(withdrawal.get(day, 0.0) - injection.get(day, 0.0)) * 1000,
         )
@@ -632,7 +610,13 @@ def get_nwe_balance(
             "norway_outages": len(outages),
             "assumptions": {
                 "norwegian_gcv_kwh_m3": NORWEGIAN_GCV_KWH_M3,
-                "norwegian_entry_points": list(NORWEGIAN_ENTRY_POINTS),
+                "norwegian_entry_points": [point.label for point in LANDING_POINTS],
+                "pipeline_landings": [point.as_dict() for point in LANDING_POINTS],
+                "pipeline_landings_basis": supply.basis,
+                "pipeline_landings_note": (
+                    "Energy as ENTSOG publishes it, one row per physical landing. UK "
+                    "terminals carry UK shelf gas with Norwegian gas."
+                ),
                 "outage_adjustment": (
                     "future unavailable capacity minus the last seven observations' "
                     "unavailable capacity"
