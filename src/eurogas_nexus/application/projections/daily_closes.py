@@ -11,6 +11,7 @@ from typing import Any
 
 from eurogas_nexus.application.caller import caller_of
 from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
+from eurogas_nexus.domain.ontology.identity import resolve_hub
 
 
 class ObservationWindowTooLarge(ValueError):
@@ -84,11 +85,16 @@ def daily_rows(
         rows = []
         for record in records:
             metadata = record.metadata_json or {}
-            hub = str(metadata.get("hub") or record.product.split(" ")[0]).upper()
+            stated = metadata.get("hub") or record.product
+            resolution = resolve_hub(stated)
+            # An unresolved product keeps its own first word as a series name (the spread
+            # lab lists it) but is marked, so nothing values a hub with it.
+            hub = resolution.hub or str(stated).split(" ")[0].upper()
             tenor = str(metadata.get("tenor") or record.product).lower()
             rows.append(
                 {
                     "hub": hub,
+                    "hub_resolved": resolution.resolved,
                     "tenor": tenor,
                     "source_system": record.source_system,
                     "currency": record.currency,

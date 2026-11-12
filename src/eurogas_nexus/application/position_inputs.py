@@ -16,6 +16,7 @@ from typing import Any
 
 from eurogas_nexus.application.caller import caller_of
 from eurogas_nexus.core.config import demo_marks_allowed
+from eurogas_nexus.domain.ontology.identity import resolve_hub
 from eurogas_nexus.domain.ontology.markets import european_gas_hubs, quote_currency
 
 HUB_CODES = european_gas_hubs()
@@ -72,8 +73,9 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
             demo_marks_allowed()
         ):
             continue
-        hub = str(metadata.get("hub") or record.product.split(" ")[0]).upper()
-        if (record.currency or "").upper() != HUB_CURRENCY.get(hub, "EUR"):
+        # A quote prices a hub only if its stated hub or its product resolves to one.
+        hub = resolve_hub(metadata.get("hub") or record.product).hub
+        if hub is None or (record.currency or "").upper() != HUB_CURRENCY.get(hub, "EUR"):
             continue
         rows.append(
             {
@@ -99,9 +101,13 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
     ]
 
 
-def hub_from_text(text: str, default: str = "NBP") -> str:
-    upper = (text or "").upper()
-    return next((hub for hub in HUB_CODES if hub in upper), default)
+def hub_from_text(text: str, default: str | None = None) -> str | None:
+    """The hub a delivery point or product names, by the ontology's rules; else ``default``.
+
+    There is no default hub: an unresolved name is reported and mapped, not valued at NBP.
+    """
+
+    return resolve_hub(text).hub or default
 
 
 def gas_year_window(label: str, horizon_end) -> tuple | None:
@@ -332,6 +338,13 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
             )
             continue
         hub = hub_from_text(contract.delivery_point_name)
+        if hub is None:
+            warnings.append(
+                f"contract {contract.contract_id}: delivery point "
+                f"{contract.delivery_point_name!r} does not name a hub; the contract is left "
+                "out of positions and valuation until the point is mapped"
+            )
+            continue
         price, price_warning = contract_price_in_hub_currency(
             float(contract.contract_price_gbp_mwh),
             contract.contract_price_currency or "GBP",
@@ -387,6 +400,8 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
     simulated_skipped = 0
     demo_marks_used = demo_marks_allowed()
     for row in daily_rows(caller, today - timedelta(days=400), today):
+        if not row.get("hub_resolved", True):
+            continue  # a series whose product names no hub cannot mark a hub
         if row["simulated"]:
             # A simulated price must not become a mark or a risk figure (AGENTS.md rule 17),
             # unless the operator runs a demo with EUROGAS_NEXUS_DEMO_MARKS, and then it says so.
