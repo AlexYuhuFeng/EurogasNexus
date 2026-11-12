@@ -32,7 +32,10 @@ import zipfile
 from dataclasses import dataclass, field
 from xml.etree import ElementTree
 
-MWH_PER_MMBTU = 0.29307107
+from eurogas_nexus.domain.ontology.quantity import convert as _convert_units
+
+#: From the ontology's unit table, the one place a conversion factor is written.
+MWH_PER_MMBTU = _convert_units(1.0, "MMBtu", "MWh")
 FLUXYS_TARIFF_PAGE = (
     "https://www.fluxys.com/en/natural-gas-and-biomethane/empowering-you/tariffs/"
     "tariff_fluxyslng-lng"

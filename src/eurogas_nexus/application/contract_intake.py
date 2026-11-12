@@ -32,12 +32,15 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import date
 
+from eurogas_nexus.domain.ontology.quantity import convert as _convert_units
+
 OWN_NAMES_ENV = "EUROGAS_NEXUS_OWN_LEGAL_NAMES"
 MAX_PDF_BYTES = 20 * 1024 * 1024
 MAX_PAGES = 200
 _OCR_TIMEOUT_SECONDS = 60
-_THERM_MWH = 0.029307107
-_MMBTU_MWH = 0.29307107
+# Energy factors come from the ontology's unit table, the one place they are written.
+_THERM_MWH = _convert_units(1.0, "th", "MWh")
+_MMBTU_MWH = _convert_units(1.0, "MMBtu", "MWh")
 _HUBS = {
     "TTF": ("TTF", "Title Transfer Facility"),
     "NBP": ("NBP", "National Balancing Point"),

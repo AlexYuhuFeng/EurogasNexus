@@ -33,7 +33,10 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
-MWH_PER_MMBTU = 0.29307107
+from eurogas_nexus.domain.ontology.quantity import convert as _convert_units
+
+#: From the ontology's unit table, the one place a conversion factor is written.
+MWH_PER_MMBTU = _convert_units(1.0, "MMBtu", "MWh")
 
 
 @dataclass(frozen=True)

@@ -21,19 +21,20 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from eurogas_nexus.domain.ontology.markets import Commodity, MarketStatus, markets
+from eurogas_nexus.domain.ontology.quantity import UNITS as _ONTOLOGY_UNITS
+from eurogas_nexus.domain.ontology.quantity import Dimension as _Dimension
+from eurogas_nexus.domain.ontology.quantity import convert as _convert
 
 BTU_JOULES = 1055.05585262
 MJ_PER_MWH = 3600.0
 
-#: Amount of each energy unit that equals one MWh.
+#: Amount of each energy unit that equals one MWh. Derived from the ontology's unit table
+#: (``domain.ontology.quantity``), the one place a conversion factor is written; ``therm``
+#: is this module's historical spelling of the ontology's ``th``.
 ENERGY_UNITS_PER_MWH: dict[str, float] = {
-    "MWh": 1.0,
-    "kWh": 1000.0,
-    "GWh": 0.001,
-    "TWh": 0.000001,
-    "GJ": 3.6,
-    "therm": MJ_PER_MWH * 1e6 / (BTU_JOULES * 100_000),
-    "MMBtu": MJ_PER_MWH * 1e6 / (BTU_JOULES * 1_000_000),
+    ("therm" if code == "th" else code): 1.0 / unit.in_base
+    for code, unit in _ONTOLOGY_UNITS.items()
+    if unit.dimension is _Dimension.ENERGY and code != "MJ"
 }
 
 #: Supported price quotations: (currency, minor-unit divisor, energy unit).
@@ -95,11 +96,14 @@ def convert_energy(value: float, from_unit: str, to_unit: str) -> float:
         UnitConversionError: When either unit is unknown.
     """
 
-    try:
-        mwh = value / ENERGY_UNITS_PER_MWH[from_unit]
-        return mwh * ENERGY_UNITS_PER_MWH[to_unit]
-    except KeyError as exc:
-        raise UnitConversionError(f"unsupported energy unit: {exc.args[0]!r}") from exc
+    for name in (from_unit, to_unit):
+        if name not in ENERGY_UNITS_PER_MWH:
+            raise UnitConversionError(f"unsupported energy unit: {name!r}")
+    return _convert(value, _ontology_code(from_unit), _ontology_code(to_unit))
+
+
+def _ontology_code(unit: str) -> str:
+    return "th" if unit == "therm" else unit
 
 
 def volume_to_mwh(cubic_metres: float, gcv_kwh_per_m3: float) -> float:

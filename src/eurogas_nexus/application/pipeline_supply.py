@@ -77,14 +77,17 @@ class PipelineSupply:
 def row_energy_gwh(record: Any) -> tuple[float | None, bool]:
     """A flow row's energy for its gas day in GWh, and whether it came from legacy volume."""
 
-    unit = str(getattr(record, "original_unit", "") or "").strip().lower()
+    from eurogas_nexus.domain.ontology.quantity import UnitError, convert
+
+    unit = str(getattr(record, "original_unit", "") or "").strip()
     value = getattr(record, "original_value", None)
-    if value is not None and unit.startswith("kwh"):
-        return float(value) / 1_000_000.0, False
-    if value is not None and unit.startswith("mwh"):
-        return float(value) / 1_000.0, False
-    if value is not None and unit.startswith("gwh"):
-        return float(value), False
+    if value is not None and unit:
+        # A daily rate ("kWh/d") over its gas day is that much energy; the ontology owns
+        # the factor.
+        try:
+            return convert(float(value), unit.split("/")[0], "GWh"), False
+        except UnitError:
+            pass  # not an energy unit: fall through to the legacy volume, if any
     volume = getattr(record, "flow_mcm_d", None)
     if volume is not None:
         return float(volume) * LEGACY_GCV_KWH_M3, True
