@@ -7,7 +7,13 @@ offset traversal for these three endpoints. They also found that the documented
 ``total`` equalled the page count even when further pages existed. Consequently
 this transport never uses total as a grand total and requires the sort echo.
 
-Only a short/empty page establishes traversal exhaustion. ``complete`` means
+Live reads on 2026-11-12 (one gas day of Physical Flow, about 2,450 raw rows) refined
+this: ``offset`` and ``meta.total`` count the provider's raw rows, ``total`` is the raw
+rows left from the offset capped at the limit, a page may carry fewer records than its
+raw span (509 for a span of 1000), and a request past the last row answers 404. The
+reference endpoints instead report the grand total and answer 500 past it. So the stride
+is the requested limit and exhaustion is decided by ``_raw_rows_exhausted`` (or that 404);
+a short page alone does not establish it. ``complete`` means
 that this query's offset traversal exhausted, not that a consistent snapshot or
 complete history was obtained: ENTSOG supplies no snapshot token. Inserts or
 deletions during traversal can still cause undetectable omissions. Overlapping
@@ -391,6 +397,21 @@ def _parse_page(
     )
 
 
+def _raw_rows_exhausted(provider_total: int, *, limit: int, next_offset: int) -> bool:
+    """Whether a page's ``meta.total`` proves no raw row is left to read.
+
+    The endpoints differ (live reads, 2026-11-12). ``operationaldatas`` reports the raw
+    rows left from the offset, capped at the limit, so a total below the limit is the end.
+    ``connectionpoints`` reports the grand total (789 with a limit of 100) and answers
+    HTTP 500 past it, so a total above the limit is a grand total and the read ends once
+    the next offset reaches it. A total equal to the limit proves nothing: read on.
+    """
+
+    if provider_total < limit:
+        return True
+    return provider_total > limit and next_offset >= provider_total
+
+
 def fetch_entsog_dataset(
     client: httpx.Client,
     dataset: str,
@@ -408,8 +429,9 @@ def fetch_entsog_dataset(
 
     No limit=-1 and no lookahead outside the record/page budget. At a full budget
     boundary, exhaustion is unknown even if that happened to be the last record.
-    Positive offset is always explicit; changing the final limit is safe because
-    offsets address records, unlike page-number protocols.
+    Offsets and the record budget address the provider's raw rows: a page can carry
+    fewer records than its raw span, so ``record_count`` may be below the budget on a
+    complete read.
     """
     if dataset not in ENTSOG_DATASETS:
         raise ValueError("Unsupported ENTSOG dataset.")
@@ -464,18 +486,28 @@ def fetch_entsog_dataset(
                 expected_indicators=expected_indicators,
             )
         except EntsogTransportError as exc:
+            if pages and isinstance(exc, EntsogHttpError) and exc.status_code == 404:
+                # Past the last raw row the provider answers 404, not an empty page.
+                complete = True
+                stop_reason = "provider_offset_exhausted"
+                break
             if pages:
                 exc.validated_prefix_result = EntsogFetchResult(
                     dataset, tuple(pages), False, "transport_failed", max_records, max_pages
                 )
             raise
         pages.append(page)
-        offset += page.record_count
-        if page.record_count < limit:
+        # Measured on the live platform (2026-11-12): ``offset`` and ``meta.total`` count the
+        # provider's raw rows, and a page may return fewer records than that (509 of 1000)
+        # while thousands remain. So the stride is the requested limit, and the data is
+        # exhausted only when fewer raw rows remained than were asked for. Treating a short
+        # page as the end silently dropped most of a gas day.
+        offset += limit
+        if _raw_rows_exhausted(page.provider_total, limit=limit, next_offset=offset):
             complete = True
             stop_reason = "provider_offset_exhausted"
             break
-        if offset == max_records:
+        if offset >= max_records:
             stop_reason = "operator_record_budget"
             break
     return EntsogFetchResult(dataset, tuple(pages), complete, stop_reason, max_records, max_pages)

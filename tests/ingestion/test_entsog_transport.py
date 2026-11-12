@@ -442,13 +442,69 @@ def test_naive_receipt_clock_is_refused():
             et.fetch_entsog_dataset(client, "connectionpoints", clock=lambda: datetime(2026, 1, 1))
 
 
-def test_provider_total_is_preserved_without_assuming_its_semantics():
-    with _client(
-        lambda r: httpx.Response(200, json=_body(r, [{"id": "one"}], total=99999))
-    ) as client:
+def test_a_total_equal_to_the_limit_proves_nothing_and_the_404_past_the_end_does():
+    def handler(request):
+        if int(request.url.params["offset"]) > 0:
+            return httpx.Response(404, json={"message": "No data"})
+        return httpx.Response(200, json=_body(request, [{"id": "one"}], total=2))
+
+    with _client(handler) as client:
         result = et.fetch_entsog_dataset(client, "connectionpoints", page_size=2)
-    assert result.complete and result.pages[0].provider_total == 99999
-    assert json.loads(result.pages[0].raw_body)["meta"]["total"] == 99999
+    assert result.complete and result.stop_reason == "provider_offset_exhausted"
+    assert result.pages[0].provider_total == 2
+    assert json.loads(result.pages[0].raw_body)["meta"]["total"] == 2
+
+
+def test_a_grand_total_ends_the_read_without_asking_past_it():
+    """The reference endpoints report the grand total and answer 500 past it (live, 789)."""
+
+    requests = []
+
+    def handler(request):
+        offset = int(request.url.params["offset"])
+        requests.append(offset)
+        if offset >= 5:
+            return httpx.Response(500)
+        rows = [{"id": str(i)} for i in range(offset, min(offset + 2, 5))]
+        return httpx.Response(200, json=_body(request, rows, total=5))
+
+    with _client(handler) as client:
+        result = et.fetch_entsog_dataset(client, "connectionpoints", page_size=2, max_records=20)
+    assert requests == [0, 2, 4]
+    assert result.record_count == 5 and result.complete
+
+
+def test_a_short_page_is_not_the_end_while_raw_rows_remain():
+    """Measured live on 2026-11-12: 509 records came back for a raw span of 1000, with
+    thousands of rows still to read. The stride is the limit and the read goes on."""
+
+    served = {0: ["a"], 3: ["b", "c", "d"], 6: ["e"]}  # offset -> records in that raw span
+    raw_left = {0: 3, 3: 3, 6: 1}
+    requests = []
+
+    def handler(request):
+        offset = int(request.url.params["offset"])
+        requests.append(offset)
+        rows = [{"id": identifier} for identifier in served[offset]]
+        return httpx.Response(200, json=_body(request, rows, total=raw_left[offset]))
+
+    with _client(handler) as client:
+        result = et.fetch_entsog_dataset(client, "connectionpoints", page_size=3, max_records=30)
+    assert requests == [0, 3, 6]
+    assert result.record_count == 5 and result.complete
+    assert result.stop_reason == "provider_offset_exhausted"
+
+
+def test_the_record_budget_counts_raw_rows_and_leaves_the_read_incomplete():
+    def handler(request):
+        offset = int(request.url.params["offset"])
+        rows = [{"id": f"r{offset}"}]
+        return httpx.Response(200, json=_body(request, rows, total=2))
+
+    with _client(handler) as client:
+        result = et.fetch_entsog_dataset(client, "connectionpoints", page_size=2, max_records=4)
+    assert not result.complete and result.stop_reason == "operator_record_budget"
+    assert result.record_count == 2
 
 
 @pytest.mark.parametrize("indicator", [None, "Firm Booked", "physical flow", {}, []])

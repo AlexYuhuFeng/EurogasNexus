@@ -36,6 +36,21 @@ environment, adapter version, credential label (never the secret),
 entitlement scope, sample period, tests performed, evidence reference and
 expiry. `certified` additionally requires `evidence.live_test == "passed"`.
 
+For the public sources ENTSOG and GIE, one command performs the live test and records
+the evidence:
+
+```bash
+python scripts/ops/certify_public_source.py --source entsog --operator <your id>
+python scripts/ops/certify_public_source.py --source gie --operator <your id>
+```
+
+It reads a bounded live sample through the transport ingestion uses (for ENTSOG flows, one
+whole gas day), runs it through the same normaliser without storing an observation, and
+checks that the sample normalises and carries the fields the adapter was built on. Only
+then does it record `live_validated`, with the counts, the sample's SHA-256 and a 90-day
+expiry. A failed or empty sample records nothing above `connection_verified` and exits 1.
+`--dry-run` reports without recording. Ingestion stays blocked until this has passed.
+
 ## Unsafe actions
 
 - Do not mark a provider certified from mocked tests.

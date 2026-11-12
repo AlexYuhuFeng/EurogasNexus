@@ -72,7 +72,11 @@ def provider(responses):
 
 def envelope(ids, *, offset=0, limit=2):
     return {
-        "meta": {"limit": limit, "offset": offset, "count": len(ids), "total": 2, "sort": "id"},
+        # As the live platform answers: ``total`` is the raw rows left from this offset,
+        # never more than the limit.
+        "meta": {
+            "limit": limit, "offset": offset, "count": len(ids), "total": len(ids), "sort": "id",
+        },
         "operationaldatas": [{"id": identifier} for identifier in ids],
     }
 
