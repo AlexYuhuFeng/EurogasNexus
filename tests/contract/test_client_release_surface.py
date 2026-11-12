@@ -1103,7 +1103,7 @@ def test_web_client_network_page_shows_complete_resource_pool_path_ladder() -> N
     assert en["home.route_state.allocated"] == "Allocated"
     assert en["home.route_state.candidate"] == "Candidate"
     assert en["home.route_state.blocked"] == "Blocked"
-    assert en["home.path_unavailable"].startswith("No persisted resource")
+    assert en["home.path_unavailable"].startswith("No saved resource")
     assert en["map.visual_legend"] == "Map legend"
     assert en["map.verified_pipeline_lines"] == "Verified line geometry"
     assert en["map.indicative_route_lines"] == "Indicative route corridors"

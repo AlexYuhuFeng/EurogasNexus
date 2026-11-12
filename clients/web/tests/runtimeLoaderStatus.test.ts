@@ -91,7 +91,8 @@ test("the pending status has copy of its own, in both locales, that claims no co
     assert.equal(/not connected|disconnected|is unavailable/i.test(body), false, locale);
     assert.equal(body.includes("未连接"), false, locale);
     assert.equal(body.includes("不可用"), false, locale);
-    assert.match(body, locale === "en" ? /runtime database status/i : /运行时数据库状态/, locale);
+    // The pending state names the data store in the reader's words, not the system's.
+    assert.match(body, locale === "en" ? /data store has not answered/i : /数据存储/, locale);
 
     const blocker = translations["home.blocker_runtime_unknown"];
     assert.equal(typeof blocker, "string", `${locale} home.blocker_runtime_unknown`);
