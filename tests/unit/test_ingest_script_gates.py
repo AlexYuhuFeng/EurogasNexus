@@ -242,13 +242,14 @@ def test_main_ecb_gate_blocks_fetch_and_records_failed_run(
 
     result = script.main()
 
-    assert result == 0
+    # A gate refusal ingests nothing, so the run fails; it must not read as a clean pass.
+    assert result == 1
     assert _RecordingHttpClient.instances
     assert all(client.calls == [] for client in _RecordingHttpClient.instances)
     payload = json.loads(capsys.readouterr().out)
-    assert payload["ok"] is True
+    assert payload["ok"] is False
     assert payload["sources"] == {}
-    assert payload["failures"] == []
+    assert payload["failures"] == [{"source": "ECB", "code": "source_gate_blocked"}]
     assert payload["warnings"] == [
         f"ECB live ingestion blocked (fail-closed): {expected_blocker}"
     ]

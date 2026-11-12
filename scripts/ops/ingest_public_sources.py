@@ -326,6 +326,13 @@ def main() -> int:
                         report["failures"].append(
                             {"source": run_name, "code": code}
                         )
+                    else:
+                        # A source that ingested nothing because its gate refused is a
+                        # failed run (it is recorded as one above). Reporting ok with no
+                        # rows read like success on the first live run (2026-11-12).
+                        report["failures"].append(
+                            {"source": run_name, "code": "source_gate_blocked"}
+                        )
                     selected -= names
             gate_session.commit()
         gie_key: str | None = None

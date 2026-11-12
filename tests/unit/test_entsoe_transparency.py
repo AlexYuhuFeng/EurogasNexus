@@ -68,3 +68,39 @@ def test_backfilled_actuals_are_available_an_hour_after_the_period_not_at_downlo
     assert rows[0].period_end_utc == datetime(2026, 10, 30, 0, 30, tzinfo=UTC)
     assert rows[0].published_at_utc == datetime(2026, 10, 30, 1, 30, tzinfo=UTC)
     assert rows[-1].published_at_utc == datetime(2026, 10, 30, 2, 5, tzinfo=UTC)  # created earlier
+
+
+def test_only_the_coupling_auction_is_kept_when_a_zone_publishes_two():
+    """Live DE-LU documents (2026-11) carry two auctions per day at 15 minutes."""
+
+    tag = "classificationSequence_AttributeInstanceComponent.position"
+
+    def series(sequence: str, price: str) -> str:
+        return f"""
+  <TimeSeries>
+    <mRID>{sequence}</mRID>
+    <{tag}>{sequence}</{tag}>
+    <in_Domain.mRID codingScheme="A01">10Y1001A1001A82H</in_Domain.mRID>
+    <out_Domain.mRID codingScheme="A01">10Y1001A1001A82H</out_Domain.mRID>
+    <currency_Unit.name>EUR</currency_Unit.name>
+    <curveType>A03</curveType>
+    <Period>
+      <timeInterval><start>2026-11-08T23:00Z</start><end>2026-11-08T23:30Z</end></timeInterval>
+      <resolution>PT15M</resolution>
+      <Point><position>1</position><price.amount>{price}</price.amount></Point>
+      <Point><position>2</position><price.amount>{price}</price.amount></Point>
+    </Period>
+  </TimeSeries>"""
+
+    document = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Publication_MarketDocument '
+        'xmlns="urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3">'
+        "<type>A44</type><createdDateTime>2026-11-08T12:00:00Z</createdDateTime>"
+        + series("2", "70.00")
+        + series("1", "81.50")
+        + "</Publication_MarketDocument>"
+    ).encode()
+    rows = parse_document(document)
+    assert [row.value for row in rows] == [81.5, 81.5]
+    assert len({row.observation_id for row in rows}) == 2  # two quarter-hours, no collision

@@ -185,6 +185,13 @@ def parse_document(xml_bytes: bytes, *, source_reference: str = "entsoe") -> lis
             continue
         curve_type = _text(series, "curveType")
         if doc_type == "A44":
+            # A zone can publish several day-ahead auctions for the same hours (DE-LU
+            # carries two, at 15-minute resolution, since the 2025 change). The desk's
+            # day-ahead price is the single coupling auction, classification sequence 1;
+            # storing the others under the same id would overwrite it or collide.
+            sequence = _text(series, "classificationSequence_AttributeInstanceComponent.position")
+            if sequence not in (None, "1"):
+                continue
             zone_eic = _text(series, "in_Domain.mRID")
             metric = "day_ahead_price"
             unit = f"{_text(series, 'currency_Unit.name') or 'EUR'}/MWh"
