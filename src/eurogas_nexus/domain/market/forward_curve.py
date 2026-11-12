@@ -28,14 +28,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, timedelta
 from functools import lru_cache
-from zoneinfo import ZoneInfo
 
-#: Gas days run 06:00 to 06:00 Central European time (05:00 UK time for NBP, the same
-#: instants), so a gas day's length follows the EU summer-time change.
-_GAS_DAY_ZONE = ZoneInfo("Europe/Brussels")
-_GAS_DAY_START = time(6, 0)
+from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
 
 #: Strip repricing difference, as a share of the product price, worth reporting.
 STRIP_TOLERANCE = 0.005
@@ -100,10 +96,10 @@ def _month_key(day: date) -> str:
 def gas_day_hours(day: date) -> int:
     """Delivery hours of one gas day: 24, or 23/25 on the summer-time changes."""
 
-    start = datetime.combine(day, _GAS_DAY_START, _GAS_DAY_ZONE)
-    end = datetime.combine(day + timedelta(days=1), _GAS_DAY_START, _GAS_DAY_ZONE)
-    # Aware datetimes in one zone subtract by wall clock; the hours delivered are in UTC.
-    return round((end.astimezone(UTC) - start.astimezone(UTC)).total_seconds() / 3600)
+    # The gas-day calendar owns the boundary (domain/market/gas_day.py).
+    start = gas_day_start_for_date(day)
+    end = gas_day_start_for_date(day + timedelta(days=1))
+    return round((end - start).total_seconds() / 3600)
 
 
 def _months_in(first: date, end: date) -> dict[str, int]:

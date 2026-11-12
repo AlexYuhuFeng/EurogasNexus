@@ -24,7 +24,6 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from datetime import time as clock_time
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Final
 from urllib.parse import urlencode
@@ -204,9 +203,14 @@ def gas_day_period_utc(gas_day: date) -> tuple[datetime, datetime]:
     used for new data.
     """
 
-    start_local = datetime.combine(gas_day, clock_time(5), tzinfo=_GB_LOCAL)
-    end_local = datetime.combine(gas_day + timedelta(days=1), clock_time(5), tzinfo=_GB_LOCAL)
-    return start_local.astimezone(UTC), end_local.astimezone(UTC)
+    # 05:00 UK time and the CAM calendar are the same instants; the calendar is the one
+    # place a gas-day boundary is computed (domain/market/gas_day.py).
+    from eurogas_nexus.domain.market.gas_day import EU_CAM_UTC_CALENDAR, gas_day_start_for_date
+
+    return (
+        gas_day_start_for_date(gas_day, calendar=EU_CAM_UTC_CALENDAR),
+        gas_day_start_for_date(gas_day + timedelta(days=1), calendar=EU_CAM_UTC_CALENDAR),
+    )
 
 
 def parse_national_gas_csv(

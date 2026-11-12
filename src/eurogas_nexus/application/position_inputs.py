@@ -294,11 +294,12 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
     ``who`` is the API request or an explicit :class:`Caller` (a worker running firm-wide).
     """
 
-    from datetime import datetime, timedelta
+    from datetime import date, datetime, timedelta
 
     from eurogas_nexus.application.projections.daily_closes import daily_rows
     from eurogas_nexus.application.projections.portfolio_reads import screen_orders
     from eurogas_nexus.domain.market.forward_curve import build_forward_curve
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
     from eurogas_nexus.domain.portfolio.position_ladder import PositionLeg
 
     caller = caller_of(who)
@@ -362,7 +363,9 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
         )
         # Delivery windows run gas day start to gas day start (05:00/06:00 UTC), so the number
         # of gas days is the whole days between them, not the calendar date of the end.
-        first = start_at.date()
+        # The first gas day is the one the start instant falls in, by the gas-day calendar:
+        # a start before the morning boundary belongs to the previous gas day.
+        first = date.fromisoformat(gas_day_label(start_at))
         days = max(1, round((end_at - start_at).total_seconds() / 86_400))
         last = first + timedelta(days=days - 1)
         sign = 1.0 if str(order.side).lower() in {"buy", "bid", "b"} else -1.0
