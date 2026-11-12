@@ -87,10 +87,24 @@ def current_scope() -> BookScope | None:
     return _current.get()
 
 
-def visible_book_ids(session) -> set[str] | None:
-    """Book ids the caller may see; ``None`` means unrestricted."""
+_REQUEST_SCOPE = object()
 
-    scope = current_scope()
+
+def scope_for_principal(data_scopes: tuple[str, ...] | list[str] | None) -> BookScope | None:
+    """The scope of an explicit principal (a long-lived stream, a worker); ``None`` = all."""
+
+    return scope_from_data_scopes(data_scopes or ()) if isolation_enabled() else None
+
+
+def visible_book_ids(session, scope: object = _REQUEST_SCOPE) -> set[str] | None:
+    """Book ids the caller may see; ``None`` means unrestricted.
+
+    ``scope`` defaults to the current request's; a stream that outlives the request passes
+    the scope it re-derives from the principal.
+    """
+
+    if scope is _REQUEST_SCOPE:
+        scope = current_scope()
     if scope is None or scope.all_books:
         return None
     from eurogas_nexus.db.models import TradingBookRecord

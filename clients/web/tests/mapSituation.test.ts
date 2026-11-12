@@ -85,6 +85,17 @@ test("summary leads with what needs attention and counts unlocated items", () =>
   assert.equal(summary?.unlocated, 1);
 });
 
+test("counts include outages the map could not place, so they match the ticker", () => {
+  const withTotals = {
+    ...situation,
+    totals: { outages_active: 2, outages_scheduled: 3, contracts: 4, cargoes: 1, regas_slots: 0 },
+  };
+  const summary = situationSummary(withTotals);
+  assert.equal(summary?.outagesNow, 2);
+  assert.equal(summary?.outagesScheduled, 3);
+  assert.equal(summary?.contracts, 4);
+});
+
 test("hover cards are escaped and in desk units", () => {
   const outage = situationCardHtml("outage", "UMM-1", situation, t, escape);
   assert.match(outage, /Easington &lt;entry>/);

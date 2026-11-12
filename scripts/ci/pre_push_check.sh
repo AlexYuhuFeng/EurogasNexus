@@ -17,7 +17,7 @@ fi
 
 python -m ruff check .
 python -c "from apps.api.main import app; assert app.openapi()['paths']"
-python -m pytest -q -x -p no:cacheprovider tests/contract tests/unit
+python -m pytest -q -x -p no:cacheprovider tests/contract tests/unit tests/security tests/release
 if [ -d clients/web/node_modules ]; then
   (cd clients/web && npx tsc --noEmit -p . && npm test --silent >/dev/null)
 fi

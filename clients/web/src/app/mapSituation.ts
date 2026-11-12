@@ -207,11 +207,14 @@ export function facilityFeatures(facilities: FacilityDTO[], project: Project): C
 /** One line a manager reads first: what needs attention now. */
 export function situationSummary(situation: MapSituationDTO | null) {
   if (!situation) return null;
-  const outagesNow = situation.outages.filter((item) => item.status === "active").length;
+  // Counts come from the server's totals, which include assets it could not place on the
+  // map, so this number equals the ticker's and the events table's.
+  const placedNow = situation.outages.filter((item) => item.status === "active").length;
+  const outagesNow = situation.totals?.outages_active ?? placedNow;
   return {
     outagesNow,
-    outagesScheduled: situation.outages.length - outagesNow,
-    contracts: situation.contracts.length,
+    outagesScheduled: situation.totals?.outages_scheduled ?? situation.outages.length - placedNow,
+    contracts: situation.totals?.contracts ?? situation.contracts.length,
     cargoesAtSea: situation.cargoes.filter((item) => item.own && item.status === "laden").length,
     slots: situation.regas_slots.length,
     /** Our regas slots whose window is open now: send-out in progress. */

@@ -199,6 +199,9 @@ def test_situation_locates_what_sources_locate_and_counts_the_rest(seeded):
     assert outage["location"]["match"] == "eic"
     assert outage["unavailable_share"] == 0.25
     assert data["unlocated"]["outages"] == 1
+    # The count is of every outage, placed or not, so it agrees with the ticker.
+    totals = data["totals"]
+    assert totals["outages_active"] + totals["outages_scheduled"] == 2
 
     assert sorted(c["contract_id"] for c in data["contracts"]) == ["ca-import", "uk-norway"]
     assert data["unlocated"]["contracts"] == 1

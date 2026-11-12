@@ -5,6 +5,12 @@ polls for rows newer than a per-connection cursor (~1.5s cadence) and pushes
 only deltas. No in-memory truth, no new dependencies; clients keep HTTP polling
 as a fallback.
 
+Entitlement: a stream outlives the request that opened it, so every poll passes its rows
+through a guard built from the caller: quotes by licensed data scope (as the REST read
+does), spread opportunities by the scopes of both quotes behind them, and alerts by book
+scope. The guard re-reads the principal every ``REAUTH_SECONDS``; a disabled identity or a
+withdrawn scope takes effect on the open connection, and a disabled identity ends it.
+
 Resumability: every event carries an ``id:`` line encoding the row position as
 ``<timestamp ISO 8601>|<primary key>``. A client that reconnects sends
 ``Last-Event-ID`` and the stream resumes exactly after that row — including
@@ -29,6 +35,8 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["streaming"])
 
 POLL_SECONDS = 1.5
+#: How often an open stream re-reads its principal (status and data scopes).
+REAUTH_SECONDS = 30.0
 HEARTBEAT_SECONDS = 15.0
 PAGE_SIZE = 200
 
@@ -36,6 +44,8 @@ PAGE_SIZE = 200
 Cursor = tuple[datetime, str] | None
 
 FetchRows = Callable[[object, Cursor], list[dict]]
+#: Rows the caller may receive, or ``None`` when the caller may no longer stream at all.
+RowGuard = Callable[[object, list[dict]], list[dict] | None]
 
 
 def _sse(payload: object, *, event: str | None = None, event_id: str | None = None) -> str:
@@ -85,30 +95,41 @@ async def _event_stream(
     ts_field: str,
     pk_field: str,
     initial_cursor: Cursor,
+    guard: RowGuard | None = None,
 ) -> AsyncGenerator[str, None]:
     """Poll PostgreSQL for rows after the cursor and yield them as SSE events.
 
     Database unavailability emits an explicit warning event (never a silent
-    fallback) and the stream keeps retrying.
+    fallback) and the stream keeps retrying. With a ``guard``, only the rows the caller
+    may receive are sent; the cursor still moves past the others, so a withheld row is
+    never retried, and a caller who may no longer stream gets one ``revoked`` event and
+    the stream ends.
     """
 
     cursor: Cursor = initial_cursor
     last_heartbeat = datetime.now(UTC)
     while True:
         rows: list[dict] = []
+        allowed: list[dict] | None = []
         try:
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
                 rows = fetch(session, cursor)
+                allowed = rows if guard is None else guard(session, rows)
         except Exception:
+            rows, allowed = [], []
             yield _sse(
                 {"type": "warning", "message": "RUNTIME_POSTGRESQL_UNAVAILABLE"},
                 event="warning",
             )
-        for row in rows:
+        if allowed is None:
+            yield _sse({"type": "revoked", "message": "ACCESS_REVOKED"}, event="revoked")
+            return
+        for row in allowed:
             yield _sse(row, event=topic, event_id=_event_id(row.get(ts_field), row.get(pk_field)))
-            cursor = _row_cursor(row, ts_field, pk_field)
+        for row in rows:
+            cursor = _row_cursor(row, ts_field, pk_field) or cursor
         now = datetime.now(UTC)
         if (now - last_heartbeat).total_seconds() >= HEARTBEAT_SECONDS:
             yield ": ping\n\n"
@@ -224,10 +245,73 @@ def _stream_response(
 ) -> StreamingResponse:
     initial_cursor = _initial_cursor(request)
     return StreamingResponse(
-        _event_stream(topic, fetch, ts_field, pk_field, initial_cursor),
+        _event_stream(
+            topic, fetch, ts_field, pk_field, initial_cursor, guard=_guard_for(topic, request)
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _guard_for(topic: str, request: Request) -> RowGuard:
+    """The entitlement guard for one open stream, bound to the caller who opened it."""
+
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+
+    return StreamGuard(topic, current_principal(request))
+
+
+class StreamGuard:
+    """Filters each poll's rows for one caller and keeps that caller's access current."""
+
+    def __init__(self, topic: str, principal) -> None:
+        self.topic = topic
+        self.principal = principal
+        self._checked_at = datetime.now(UTC)
+
+    def __call__(self, session, rows: list[dict]) -> list[dict] | None:
+        if not self._still_authorised(session):
+            return None
+        if not rows:
+            return rows
+        if self.topic == "quotes":
+            from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
+
+            return filter_entitled_rows(self.principal, rows, source_key="source_system")
+        if self.topic == "opportunities":
+            from eurogas_nexus.application.projections.market_reads import (
+                filter_entitled_opportunities,
+            )
+
+            return filter_entitled_opportunities(session, self.principal, rows)
+        if self.topic == "alerts":
+            from eurogas_nexus.application.alert_scope import alert_visibility
+            from eurogas_nexus.security.portfolio_scope import scope_for_principal
+
+            visible = alert_visibility(
+                session, scope=scope_for_principal(self.principal.data_scopes)
+            )
+            return [row for row in rows if visible(row)]
+        return []  # an unknown topic sends nothing
+
+    def _still_authorised(self, session) -> bool:
+        """Re-read the stored identity every ``REAUTH_SECONDS``; the static token has none."""
+
+        if self.principal.auth_method == "legacy_public_token":
+            return True
+        now = datetime.now(UTC)
+        if (now - self._checked_at).total_seconds() < REAUTH_SECONDS:
+            return True
+        self._checked_at = now
+        from dataclasses import replace
+
+        from eurogas_nexus.db.models import IdentityPrincipalRecord
+
+        record = session.get(IdentityPrincipalRecord, self.principal.principal_id)
+        if record is None or str(record.status).upper() != "ACTIVE":
+            return False
+        self.principal = replace(self.principal, data_scopes=tuple(record.data_scopes or ()))
+        return True
 
 
 def _initial_cursor(request: Request) -> Cursor:

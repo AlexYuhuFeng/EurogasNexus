@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
 from eurogas_nexus.application.projections.market_reads import (
     derive_intraday_spreads,
+    filter_entitled_opportunities,
     filter_entitled_rows,
     fx_observation_row,
     fx_observations,
@@ -185,7 +186,11 @@ def list_opportunities(
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = intraday_opportunities(session, status=status, limit=limit)
+            rows = filter_entitled_opportunities(
+                session,
+                current_principal(request),
+                intraday_opportunities(session, status=status, limit=limit),
+            )
         return _env(rows, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
@@ -252,7 +257,9 @@ def list_spreads(request: Request) -> dict:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            opportunities = intraday_opportunities(session, limit=100)
+            opportunities = filter_entitled_opportunities(
+                session, current_principal(request), intraday_opportunities(session, limit=100)
+            )
         return _env(derive_intraday_spreads(opportunities), source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc

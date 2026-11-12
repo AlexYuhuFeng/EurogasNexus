@@ -110,6 +110,38 @@ def filter_entitled_rows(
     ]
 
 
+def filter_entitled_opportunities(
+    session: Session, principal: AuthenticatedPrincipal, rows: Iterable[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Keep spread opportunities whose two quotes both come from sources the caller holds.
+
+    An opportunity carries the bid and offer it was found on, so it is as licensed as the
+    quotes behind it. A quote that can no longer be found fails closed.
+    """
+
+    materialized = list(rows)
+    if principal.auth_method == "legacy_public_token" or not materialized:
+        return materialized
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    quote_ids = {
+        str(row.get(key)) for row in materialized for key in ("buy_quote_id", "sell_quote_id")
+    }
+    sources = dict(
+        session.query(MarketQuoteRecord.quote_id, MarketQuoteRecord.source_system)
+        .filter(MarketQuoteRecord.quote_id.in_(sorted(quote_ids)))
+        .all()
+    )
+    return [
+        row
+        for row in materialized
+        if all(
+            row_allowed(principal, sources.get(str(row.get(key))))
+            for key in ("buy_quote_id", "sell_quote_id")
+        )
+    ]
+
+
 def market_observations(session: Session) -> list[dict[str, Any]]:
     """Return every market observation row, newest first (undeduped).
 

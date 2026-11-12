@@ -2685,6 +2685,8 @@ export interface MapSituationDTO {
   cargoes: MapCargoDTO[];
   regas_slots: MapRegasSlotDTO[];
   unlocated: Record<"outages" | "contracts" | "cargoes" | "regas_slots", number>;
+  /** Counts of everything the caller may see, placed on the map or not. */
+  totals?: Record<"outages_active" | "outages_scheduled" | "contracts" | "cargoes" | "regas_slots", number>;
   positions_included: boolean;
 }
 

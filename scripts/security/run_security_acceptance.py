@@ -56,40 +56,19 @@ def _checks() -> list[dict]:
         not any(path.startswith("/api/workflows/") for path in paths),
         f"public paths={len(paths)}",
     )
-    # Bound includes the development-only credential login
-    # (/api/dev/auth/login); the internal and release profiles never mount it.
-    # 180 paths: 178 at Architecture V2 Waves 4-8 (the Data Platform surface
-    # (/api/data-products, /api/analysis-snapshots*), the Decision Case surface
-    # (/api/decision-cases*), the application projections (/api/projections/*) and
-    # the unified job surface (/api/jobs*) joined the surface), plus the desk clock
-    # read (/api/optimization/nomination-windows) added by the day view, which
-    # serves the declared nomination-window masters at the READ floor, plus the
-    # sandbox cash-valuation research route (/api/research/cash-valuation), which
-    # adapts the one shared cash engine with exact decimal strings and no entity
-    # resolution. Two reviewed GOVERNED, contract-scoped revision reads bring
-    # the current total to 182; neither captures nor mutates evidence.
-    # The count is a deliberate pin: a new public path must be declared in
-    # tests/contract/test_api_surface_stability.py and recorded in the API contract
-    # evolution policy in the same change.
-    # Five reviewed paths: strategy sharing, own group catalogue, group collection,
-    # group metadata, and membership management. Public remains authenticated.
-    # Two declared, authenticated ECMWF research paths add forecast reads and
-    # explicit caller-weighted degree-day computation (191 paths / 205 operations).
-    # Three READ-floor trader desk paths add product calendar, price conversion and
-    # storage-target trajectory reads (194 paths / 208 operations). Two READ-floor
-    # benchmark-rate paths add fixings and financing-rate resolution; the spread lab adds
-    # its series catalogue and analysis; preferences add the personal and
-    # organisation settings; the position ladder adds one read (201 / 217); gas-for-power
-    # adds one read (202 / 218); the market-data licence register adds two (204 / 220);
-    # the north-west Europe balance adds one read (205 / 221); trading books add a read and
-    # a middle-office write (207 / 223); the signed decision hand-off adds a read (208 / 224);
-    # the live map situation adds a read (209 / 225); risk limits, delivery performance,
-    # LNG cargo bids and contract intake add nine (218 / 234); contract retire/reinstate
-    # and the sell-down plan add three (221 / 237); problem reports, notification channels
-    # and the tariff publication register add seven paths, eight operations (228 / 245);
-    # per-deal hedge approvals and the daily gas balance add three of each (231 / 248).
-    # Functional run, evidence and model operations extend the surface to 240 paths.
-    check("public_surface_bounded", len(paths) == 241, f"public paths={len(paths)}")
+    # The bound is the reviewed path list, not a count: an unreviewed path fails here by
+    # name, and a reviewed one needs no second number to be kept in step.
+    from eurogas_nexus.security.public_surface import REVIEWED_PUBLIC_PATHS
+
+    unreviewed = sorted(paths - REVIEWED_PUBLIC_PATHS)
+    missing = sorted(REVIEWED_PUBLIC_PATHS - paths)
+    check(
+        "public_surface_bounded",
+        not unreviewed and not missing,
+        f"public paths={len(paths)}"
+        + (f"; unreviewed: {', '.join(unreviewed[:5])}" if unreviewed else "")
+        + (f"; missing: {', '.join(missing[:5])}" if missing else ""),
+    )
 
     from eurogas_nexus.security.permissions import permission_for_path
 

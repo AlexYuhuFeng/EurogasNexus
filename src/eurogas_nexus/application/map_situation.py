@@ -115,7 +115,11 @@ def build_map_situation(
     unlocated = {"outages": 0, "contracts": 0, "cargoes": 0, "regas_slots": 0}
 
     outages = []
+    # Counts are of every outage the caller may see, placed on the map or not: a count that
+    # dropped the unplaced ones would contradict the ticker and the events table.
+    outage_counts = {"active": 0, "scheduled": 0}
     for row in entitled(load_outage_rows(session, now=now, horizon_days=outage_horizon_days)):
+        outage_counts["active" if row.get("status") == "active" else "scheduled"] += 1
         location = locator.find(eic=str(row["facility_id"]), name=str(row["facility_name"]))
         if location is None:
             unlocated["outages"] += 1
@@ -343,5 +347,12 @@ def build_map_situation(
         "cargoes": cargoes,
         "regas_slots": slots,
         "unlocated": unlocated,
+        "totals": {
+            "outages_active": outage_counts["active"],
+            "outages_scheduled": outage_counts["scheduled"],
+            "contracts": len(contracts) + unlocated["contracts"],
+            "cargoes": len(cargoes) + unlocated["cargoes"],
+            "regas_slots": len(slots) + unlocated["regas_slots"],
+        },
         "positions_included": include_positions,
     }

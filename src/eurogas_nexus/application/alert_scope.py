@@ -15,12 +15,16 @@ from typing import Any
 BOOK_SCOPED_CATEGORIES = frozenset({"limits"})
 
 
-def alert_visibility(session) -> Callable[[Any], bool]:
-    """A predicate over alert rows (records or payload dicts) for the current caller."""
+def alert_visibility(session, **scope: Any) -> Callable[[Any], bool]:
+    """A predicate over alert rows (records or payload dicts) for the current caller.
+
+    Pass ``scope=<BookScope or None>`` to decide for an explicit principal instead of the
+    current request (the alert stream does, on every poll).
+    """
 
     from eurogas_nexus.security.portfolio_scope import visible_book_ids
 
-    allowed = visible_book_ids(session)
+    allowed = visible_book_ids(session, **scope)
     if allowed is None:
         return lambda _row: True
 
