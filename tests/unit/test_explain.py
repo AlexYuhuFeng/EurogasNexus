@@ -137,7 +137,7 @@ def test_the_route_explains_without_a_provider(desk):
 
 def test_note_checks():
     sources = ["s1"]
-    evidence = '{"net": 2300000, "pct": 115}'
+    evidence = '{"net": 2300000, "line": "Net exposure at 115% of limit."}'
     assert checked_note('{"text": "At 115% of limit.", "cites": ["s1"]}',
                         evidence_text=evidence, sources=sources)
     long = "One. Two. Three. Four."

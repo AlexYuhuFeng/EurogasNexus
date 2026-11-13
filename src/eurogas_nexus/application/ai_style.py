@@ -5,7 +5,9 @@ note: at most three short sentences, figures with units, the fact first, no prea
 filler, no advice to trade. The model is given the deterministic facts and may only
 reorder, condense and connect them. Its text is shown only if it passes
 :func:`checked_note`: valid JSON, within length, citing only the sources it was given,
-and with no number that is not in the evidence. Otherwise the rule text stands.
+with no number that is not in the evidence, and grounded in the ontology
+(``application/grounding.py``): no hub, unit, direction, superlative or name the evidence
+does not contain. Otherwise the rule text stands.
 """
 
 from __future__ import annotations
@@ -97,5 +99,10 @@ def checked_note(
         return None
     # Every figure the model writes must be one it was given.
     if not _numbers(text) <= _numbers(evidence_text):
+        return None
+    # And it must stay inside the evidence's hubs, units, directions and names.
+    from eurogas_nexus.application.grounding import check_grounding
+
+    if not check_grounding(text, evidence_text).ok:
         return None
     return CheckedNote(text=text, cites=cites)
