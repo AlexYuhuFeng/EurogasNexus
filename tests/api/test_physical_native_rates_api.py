@@ -481,7 +481,12 @@ def test_agent_malformed_native_row_is_not_an_empty_reading(
         session.commit()
 
     with Session(engine) as session:
-        assert db_bridge.flow_rows(session) == []
+        rows = db_bridge.flow_rows(session)
+    # The legacy ENTSOG volume is withheld; the native energy row is read as published
+    # energy, never as the stale 9.0 in the volume column.
+    assert [row["observation_id"] for row in rows] == ["agent-energy"]
+    assert rows[0]["flow_mcm_d"] is None
+    assert rows[0]["energy_gwh_d"] == pytest.approx(987654321.123456789 / 1e6, rel=1e-9)
 
     with Session(engine) as session:
         session.add(

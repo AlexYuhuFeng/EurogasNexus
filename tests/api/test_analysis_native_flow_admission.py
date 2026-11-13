@@ -143,7 +143,7 @@ def test_load_snapshot_retains_non_entsog_and_valid_native_volume(tmp_path, monk
     assert snapshot.warnings == []
 
 
-def test_load_snapshot_omits_legacy_entsog_and_native_energy_with_warning(
+def test_load_snapshot_omits_legacy_entsog_and_reads_native_energy_as_energy(
     tmp_path, monkeypatch
 ) -> None:
     engine, _ = _database(monkeypatch, tmp_path, "withheld-volume")
@@ -178,7 +178,12 @@ def test_load_snapshot_omits_legacy_entsog_and_native_energy_with_warning(
 
     snapshot = analysis_module._load_snapshot()
 
-    assert [row["point_name"] for row in snapshot.flow_observations] == ["Bacton"]
+    by_name = {row["point_name"]: row for row in snapshot.flow_observations}
+    assert set(by_name) == {"Native energy", "Bacton"}
+    # Energy as published; the stale 999.0 in the volume column is never read.
+    assert by_name["Native energy"]["flow_mcm_d"] is None
+    assert by_name["Native energy"]["flow_mwh_per_day"] == round(987654321.123456789 / 1000, 3)
+    assert by_name["Bacton"]["flow_mcm_d"] == 7.5
     warning_text = " ".join(snapshot.warnings).lower()
     assert "unverified" in warning_text
     assert "incompatible" in warning_text

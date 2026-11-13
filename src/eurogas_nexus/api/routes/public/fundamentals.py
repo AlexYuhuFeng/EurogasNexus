@@ -485,7 +485,11 @@ def get_nwe_balance(
     from sqlalchemy import or_
     from sqlalchemy.exc import SQLAlchemyError
 
-    from eurogas_nexus.application.pipeline_supply import LANDING_POINTS, landed_supply
+    from eurogas_nexus.application.pipeline_supply import (
+        COVERAGE_REFERENCE_DAYS,
+        LANDING_POINTS,
+        landed_supply,
+    )
     from eurogas_nexus.db.models import RemitUmmRecord
     from eurogas_nexus.db.models.observation import (
         LngObservationRecord,
@@ -535,6 +539,29 @@ def get_nwe_balance(
                 first,
                 as_of=cutoff,
             )
+            # The draw on the facilities whose stock and working capacity make the inventory
+            # and fill below: the projection must take its draw from the same facilities.
+            inventory_scope = [
+                StorageObservationRecord.country.in_(NWE_COUNTRIES),
+                StorageObservationRecord.working_capacity_twh.isnot(None),
+                StorageObservationRecord.inventory_twh.isnot(None),
+            ]
+            scope_withdrawal = _daily_sum(
+                session,
+                StorageObservationRecord.withdrawal_twh_d,
+                StorageObservationRecord,
+                inventory_scope,
+                first,
+                as_of=cutoff,
+            )
+            scope_injection = _daily_sum(
+                session,
+                StorageObservationRecord.injection_twh_d,
+                StorageObservationRecord,
+                inventory_scope,
+                first,
+                as_of=cutoff,
+            )
             complete_through, stalled_sources = _complete_through(
                 session,
                 (
@@ -552,10 +579,31 @@ def get_nwe_balance(
             )
             if complete_through is not None:
                 # The newest days hold only the sources that publish first (e.g. GB).
-                for series in (lng, withdrawal, injection):
+                for series in (lng, withdrawal, injection, scope_withdrawal, scope_injection):
                     for late_day in [day for day in series if day > complete_through]:
                         del series[late_day]
-            latest_storage_day = max(withdrawal, default=None)
+            history = [
+                BalanceHistoryDay(
+                    day=day,
+                    norway_gwh=norway[day],
+                    lng_gwh=lng[day] * 1000,
+                    storage_net_withdrawal_gwh=(
+                        withdrawal.get(day, 0.0) - injection.get(day, 0.0)
+                    )
+                    * 1000,
+                    inventory_scope_net_withdrawal_gwh=(
+                        (scope_withdrawal.get(day, 0.0) - scope_injection.get(day, 0.0)) * 1000
+                        if day in scope_withdrawal or day in scope_injection
+                        else None
+                    ),
+                )
+                for day in sorted(set(norway) & set(lng) & (set(withdrawal) | set(injection)))
+            ]
+            # The stock the projection starts from is the stock at the end of the last
+            # measured day, since the forecast's first day is the day after it.
+            latest_storage_day = (
+                history[-1].day if history else max(withdrawal, default=None)
+            )
             inventory = capacity = None
             if latest_storage_day is not None:
                 from sqlalchemy import func
@@ -567,9 +615,7 @@ def get_nwe_balance(
                         func.sum(StorageObservationRecord.inventory_twh),
                         func.sum(StorageObservationRecord.working_capacity_twh),
                     )
-                    .filter(StorageObservationRecord.country.in_(NWE_COUNTRIES))
-                    .filter(StorageObservationRecord.working_capacity_twh.isnot(None))
-                    .filter(StorageObservationRecord.inventory_twh.isnot(None))
+                    .filter(*inventory_scope)
                     .filter(
                         _utc_date(session, StorageObservationRecord.period_start_utc)
                         == latest_storage_day
@@ -621,15 +667,6 @@ def get_nwe_balance(
             detail={"code": "runtime_db_unavailable", "error_class": exc.__class__.__name__},
         ) from exc
 
-    history = [
-        BalanceHistoryDay(
-            day=day,
-            norway_gwh=norway[day],
-            lng_gwh=lng[day] * 1000,
-            storage_net_withdrawal_gwh=(withdrawal.get(day, 0.0) - injection.get(day, 0.0)) * 1000,
-        )
-        for day in sorted(set(norway) & set(lng) & (set(withdrawal) | set(injection)))
-    ]
     latest_version: dict[str, Any] = {}
     for record in remit:
         held = latest_version.get(record.message_id)
@@ -661,6 +698,17 @@ def get_nwe_balance(
         working_capacity_twh=float(capacity) if capacity else None,
     )
     warnings = list(forecast.warnings)
+    partial_tail = [
+        day
+        for day in supply.incomplete_days
+        if supply.complete_through is None or day > supply.complete_through
+    ]
+    if partial_tail:
+        warnings.append(
+            "ENTSOG pipeline landings are only partly reported for "
+            + ", ".join(day.isoformat() for day in partial_tail)
+            + "; those days are left out of the history and the forecast base."
+        )
     if stalled_sources:
         warnings.append(
             "Storage/LNG sources more than "
@@ -727,6 +775,23 @@ def get_nwe_balance(
                 "storage_inventory_basis": (
                     "facilities that publish a working capacity; GB stock (National Gas) "
                     "has none and is not in the inventory or fill"
+                ),
+                "storage_inventory_draw_basis": (
+                    "The supply call uses net withdrawal from all storage, GB included. "
+                    "The inventory and fill projection subtracts only the draw on the "
+                    "facilities in the inventory: each forecast day's storage residual "
+                    "less the 14-day average net withdrawal of the storage outside the "
+                    "inventory (GB)."
+                ),
+                "pipeline_complete_through": supply.complete_through.isoformat()
+                if supply.complete_through
+                else None,
+                "pipeline_incomplete_days": [day.isoformat() for day in supply.incomplete_days],
+                "pipeline_completeness_rule": (
+                    "A gas day's landings count only when at least as many registry landing "
+                    "points reported a value as the median over the "
+                    f"{COVERAGE_REFERENCE_DAYS} days before it; a point reporting zero has "
+                    "reported, so an outage still shows as low supply."
                 ),
             },
         },

@@ -558,6 +558,64 @@ def _diagnostics(
     return diagnostics
 
 
+#: Rate fixings are stored under their administrator (ECB also publishes FX), so they are
+#: attributed to a registered source by benchmark.
+_RATE_SOURCE_BY_BENCHMARK = {"SONIA": "BOE", "ESTR": "ECB_ESTR", "SOFR": "NYFED"}
+
+
+def _observation_counts_by_source_system(session: Any) -> dict[str, int]:
+    """Rows per ``source_system`` over every observation table, in one statement.
+
+    A connector that writes one of these tables under its registered ``source_system``
+    is counted without a change here (National Gas storage/LNG, Elexon and ENTSO-E
+    power, EIA prices, REMIT messages). Screen orders are counted separately because a
+    venue row can also name its provider.
+    """
+
+    from sqlalchemy import func, select, union_all
+
+    from eurogas_nexus.db.models import (
+        CapacityObservationRecord,
+        FlowObservationRecord,
+        FxObservationRecord,
+        InterestRateObservationRecord,
+        LngObservationRecord,
+        MarketObservationRecord,
+        PowerObservationRecord,
+        RemitUmmRecord,
+        StorageObservationRecord,
+    )
+
+    parts = [
+        select(model.source_system.label("system"), func.count().label("rows")).group_by(
+            model.source_system
+        )
+        for model in (
+            MarketObservationRecord,
+            FxObservationRecord,
+            FlowObservationRecord,
+            CapacityObservationRecord,
+            StorageObservationRecord,
+            LngObservationRecord,
+            PowerObservationRecord,
+            RemitUmmRecord,
+        )
+    ]
+    counts: dict[str, int] = {}
+    for system, rows in session.execute(union_all(*parts)):
+        if system is not None:
+            counts[str(system)] = counts.get(str(system), 0) + int(rows)
+    rates = InterestRateObservationRecord
+    for benchmark, administrator, rows in session.execute(
+        select(rates.benchmark_id, rates.source_system, func.count()).group_by(
+            rates.benchmark_id, rates.source_system
+        )
+    ):
+        system = _RATE_SOURCE_BY_BENCHMARK.get(str(benchmark), str(administrator))
+        counts[system] = counts.get(system, 0) + int(rows)
+    return counts
+
+
 def _runtime_source_counts() -> dict[str, int]:
     if not _db_is_configured():
         return {}
@@ -567,15 +625,9 @@ def _runtime_source_counts() -> dict[str, int]:
         from sqlalchemy import or_
 
         from eurogas_nexus.db.models import (
-            CapacityObservationRecord,
-            FlowObservationRecord,
-            FxObservationRecord,
-            LngObservationRecord,
-            MarketObservationRecord,
             ReferenceNode,
             ReferenceTsoAccessPoint,
             ScreenOrderObservationRecord,
-            StorageObservationRecord,
             TsoTariffRecord,
         )
         from eurogas_nexus.db.session import get_session_factory
@@ -594,11 +646,13 @@ def _runtime_source_counts() -> dict[str, int]:
                 "Trayport",
                 "Trayport_Sim",
             ]
-            # Grouped counts return the identical per-system numbers in one scan
-            # per table; the previous shape re-scanned the market history once
-            # per registered system (thirteen times) on every read.
-            market_counts = _row_counts_by_source_system(session, MarketObservationRecord)
-            counts = {system: market_counts.get(system, 0) for system in price_systems}
+            # One grouped statement over the observation tables; the previous shape
+            # re-scanned the market history once per registered system and named each
+            # source's tables by hand, so new connectors read 0 rows.
+            observation_counts = _observation_counts_by_source_system(session)
+            counts = dict(observation_counts)
+            for system in price_systems:
+                counts.setdefault(system, 0)
             screen_order_counts = _row_counts_by_source_system(
                 session,
                 ScreenOrderObservationRecord,
@@ -613,26 +667,13 @@ def _runtime_source_counts() -> dict[str, int]:
                 )
             return {
                 **counts,
-                "ECB": market_counts.get("ECB", 0)
-                + session.query(FxObservationRecord)
-                .filter(FxObservationRecord.source_system == "ECB")
-                .count(),
-                "ENTSOG": session.query(FlowObservationRecord)
-                .filter(FlowObservationRecord.source_system == "ENTSOG")
-                .count()
+                "ECB": observation_counts.get("ECB", 0),  # market and FX rows
+                "ENTSOG": observation_counts.get("ENTSOG", 0)  # flows and capacity
                 + session.query(ReferenceNode).filter(ReferenceNode.id.like("entsog-%")).count()
                 + session.query(ReferenceTsoAccessPoint)
                 .filter(ReferenceTsoAccessPoint.source_system == "ENTSOG")
-                .count()
-                + session.query(CapacityObservationRecord)
-                .filter(CapacityObservationRecord.source_system == "ENTSOG")
                 .count(),
-                "GIE": session.query(StorageObservationRecord)
-                .filter(StorageObservationRecord.source_system == "GIE")
-                .count()
-                + session.query(LngObservationRecord)
-                .filter(LngObservationRecord.source_system == "GIE")
-                .count(),
+                "GIE": observation_counts.get("GIE", 0),
                 "NationalGasNTS": session.query(TsoTariffRecord)
                 .filter(_national_gas_nts_tariff_filter(TsoTariffRecord, or_))
                 .count(),
@@ -657,7 +698,7 @@ def _runtime_source_counts() -> dict[str, int]:
                 "CNMCEnagas": session.query(TsoTariffRecord)
                 .filter(_spain_tariff_filter(TsoTariffRecord, or_))
                 .count(),
-                "Weather": market_counts.get("Weather", 0),
+                "Weather": observation_counts.get("Weather", 0),
                 "DEEPSEEK": 0,
             }
     except sqlalchemy_error:
@@ -703,6 +744,7 @@ def _runtime_source_latest_observed() -> dict[str, str]:
             FxObservationRecord,
             LngObservationRecord,
             MarketObservationRecord,
+            PowerObservationRecord,
             ScreenOrderObservationRecord,
             StorageObservationRecord,
         )
@@ -746,6 +788,13 @@ def _runtime_source_latest_observed() -> dict[str, str]:
                 ScreenOrderObservationRecord.source_system,
                 func.max(ScreenOrderObservationRecord.observed_at_utc),
             ).group_by(ScreenOrderObservationRecord.source_system):
+                track(str(row[0]), row[1])
+            # Power rows (ENTSO-E, Elexon) carry no observed_at; ingestion time is used,
+            # as the DataOps freshness read does.
+            for row in session.query(
+                PowerObservationRecord.source_system,
+                func.max(PowerObservationRecord.ingested_at_utc),
+            ).group_by(PowerObservationRecord.source_system):
                 track(str(row[0]), row[1])
         return {
             system: value.isoformat()

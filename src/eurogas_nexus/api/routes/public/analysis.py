@@ -38,8 +38,8 @@ if TYPE_CHECKING:  # pragma: no cover - a type-only import, never executed
 router = APIRouter(tags=["analysis"])
 
 _OMITTED_UNVERIFIED_VOLUME_WARNING = (
-    "Flow observations with an unverified or incompatible volume (legacy ENTSOG "
-    "or native energy) were omitted; their absence is NOT zero volume and does "
+    "Flow observations with an unverified or incompatible volume and no published "
+    "energy (legacy ENTSOG) were omitted; their absence is NOT zero volume and does "
     "not mean the source reported no flow."
 )
 _PHYSICAL_QUANTITY_INVALID_CODE = "physical_quantity_invalid"
@@ -430,20 +430,34 @@ def _db_snapshot(
                 .limit(50)
                 .all()
             )
+            from eurogas_nexus.application.pipeline_supply import (
+                row_energy_gwh,
+                select_operator_rows,
+            )
+
             admitted_flows: list[dict] = []
             omitted_unverified_volume = False
+            admissible_by_row: dict[int, bool] = {}
             for row in flows:
                 try:
-                    admissible = row_volume_admissible(
+                    admissible_by_row[id(row)] = row_volume_admissible(
                         row,
                         volume_field="flow_mcm_d",
                     )
                 except NativeRateProjectionError as exc:
                     raise _physical_quantity_invalid() from exc
-                if not admissible:
-                    omitted_unverified_volume = True
+            # One operator's report per point and gas day, so the two sides of an
+            # interconnection are not both counted (pipeline_supply.OPERATOR_SELECTION_RULE).
+            for row in select_operator_rows(flows):
+                if admissible_by_row[id(row)]:
+                    admitted_flows.append(_flow_row(row))
                     continue
-                admitted_flows.append(_flow_row(row))
+                energy, from_volume = row_energy_gwh(row)
+                if energy is not None and not from_volume and row.normalizer_version:
+                    # Native energy, read as published: no volume is implied.
+                    admitted_flows.append(_flow_row(row, energy_gwh=energy))
+                    continue
+                omitted_unverified_volume = True
             snapshot_warnings = (
                 [_OMITTED_UNVERIFIED_VOLUME_WARNING] if omitted_unverified_volume else []
             )
@@ -1080,14 +1094,23 @@ def _fx_row(row) -> dict:
     }
 
 
-def _flow_row(row) -> dict:
+def _flow_row(row, *, energy_gwh: float | None = None) -> dict:
+    """One flow for the analysis snapshot: a proven volume, or energy as published.
+
+    A native ENTSOG energy row (``energy_gwh``) carries ``flow_mwh_per_day`` and a NULL
+    ``flow_mcm_d``; its volume is unknown, not zero.
+    """
+
+    from eurogas_nexus.application.pipeline_supply import row_operator
     from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
 
     return {
         "point_name": row.point_name,
         "direction": row.direction,
         "kind": row.kind,
-        "flow_mcm_d": row.flow_mcm_d,
+        "flow_mcm_d": None if energy_gwh is not None else row.flow_mcm_d,
+        "flow_mwh_per_day": None if energy_gwh is None else round(energy_gwh * 1000, 3),
+        "operator_key": row_operator(row) or None,
         "period_start_utc": row.period_start_utc.isoformat(),
         "period_end_utc": row.period_end_utc.isoformat(),
         "source_system": row.source_system,

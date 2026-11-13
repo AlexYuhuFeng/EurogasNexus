@@ -49,8 +49,7 @@ storage withdrawal 2,516 GWh/d, supply call 9,304 GWh/d.
 1. **Flows are reported by both operators at an interconnection.** 593 point-days carry two
    rows. Any consumer that sums flows by point double counts. The balance is repaired;
    `physical.py`, `analysis.py`, `research_data.py` and the agent bridge still read the
-   legacy volume column, which is empty for native rows. To be fixed with the single
-   unit authority (NUM-01).
+   legacy volume column, which is empty for native rows. **Closed 2026-11-13**, see below.
 2. **Great Britain is absent from ENTSO-E and from GIE.** ENTSO-E returns no GB power
    data and AGSI carries no GB storage inventory. GB power needs Elexon; GB storage and
    LNG need National Gas. The balance's GB side is therefore pipeline landings only.
@@ -85,6 +84,65 @@ With GB included, the balance for 10 November reads LNG 2,740.2 GWh (was 2,158.9
 storage net withdrawal 2,953.0 GWh (was 2,515.7). The balance now stops at the last day
 every storage/LNG source has reported, since National Gas publishes a day or two before
 GIE; GB stock is left out of the fill figure because no GB working capacity is published.
+
+### Item 1 closed (2026-11-13): every flow reader takes one operator, energy as published
+
+Each operator at an interconnection reports the point from its own side: its `entry` is
+flow into its system, its `exit` flow out. At ITP-00011 on 10 November HR reported exit
+25.4 GWh and entry 0; HU reported entry 25.4 GWh and exit 0. Adding the operators' rows
+counts the flow twice, and choosing an operator per point *and direction* can take it once
+as entry and again as exit. The rule, in one place
+(`application/pipeline_supply.py`, `OPERATOR_SELECTION_RULE` / `select_operator_rows`):
+
+> One operator per ENTSOG point and gas day: the operator the landing registry names for
+> that point, else the operator key that sorts first among those reporting a value at that
+> point that day. Entry and exit are both that operator's report, so direction is relative
+> to its system; other operators' copies are not added.
+
+Energy comes from `row_energy_gwh` (the native payload's energy when no original value was
+kept). No reader turns energy into volume: none needs mcm/d, and no point-specific GCV is
+published.
+
+| Reader | Before | After |
+|---|---|---|
+| Agent bridge (`db_bridge.flow_rows`, `network.get_flow_context`) | native rows dropped: no flows at all | one operator; `energy_gwh_d`, `flow_mcm_d` null, `operator_key`; the rule in the result |
+| Analysis snapshot (`analysis.py`, glossary usage) | native rows dropped (0 of 50 live rows) | 47 rows with energy (`flow_mwh_per_day`), one operator; usage no longer averages entry with exit |
+| Research datasets (`research_data.py`) | `flow.mcm_d.*` empty; duplicates per day | new `flow.gwh_d.<point>.<dir>` (energy as published), one value per day; `flow.mcm_d` holds published volumes only |
+| Map situation (`map_situation.py`) | latest row per point/direction from whichever operator came first | chosen operator, `operator_key` shown; energy via the shared helper |
+| `/api/physical/flows` volume mode | native energy rows withheld silently | same rows (contract unchanged), plus a warning pointing to `quantity_basis=native` |
+
+Live per-day figures for gas day 10 November (GWh/d, after; before: no figure):
+
+| Point | Operator chosen | Exit | Entry |
+|---|---|---|---|
+| ITP-00011 (HR to HU) | HR-TSO-0001 | 25.425 | 0.0 |
+| ITP-00027 (HU to SK) | HU-TSO-0001 | 124.539 | 0.0 |
+| ITP-00005 | UK-TSO-0001 | 32.422 | not reported |
+
+Two points that publish one flow under different keys (Dornum ITP-00126 and ITP-00525)
+are still two points to a generic reader; only the landing registry knows they are one.
+
+### Pipeline completeness rule (2026-11-13)
+
+ENTSOG fills a gas day point by point over the following day or two (live: 7 of 10 landing
+points for 11 November, 2,907.9 GWh; 3 for 12 November, 258.2 GWh). `landed_supply` keeps
+a day only when at least as many registry landing points reported a value as the median
+over the 28 days before it. A point reporting zero has reported, so a genuine outage still
+shows as low supply. Left-out days are named in the balance's
+`assumptions.pipeline_incomplete_days`, with `pipeline_complete_through` and a warning.
+
+The projected inventory now subtracts only the draw on the facilities in it (GB storage,
+with no published working capacity, stays in the supply call but not in the fill): each
+forecast day's storage residual less the 14-day average GB net withdrawal. Live check: the
+AGSI inventory fell 2.53 TWh from 9 to 10 November against 2.52 TWh drawn from those
+facilities and 2.95 TWh region-wide. The projection also starts from the stock on the last
+measured day rather than the newest storage day.
+
+The Sources page counted rows only for sources named in its code, so National Gas, Elexon,
+ENTSO-E, EIA and the rate administrators read 0. It now counts by `source_system` over
+every observation table in one statement (rates by benchmark, since ECB also publishes
+FX). Live: NATIONAL_GAS 20, ELEXON 1,185, ENTSOE 13,908, EIA 27, ECB_ESTR 33, BOE 32,
+NYFED 30; ENTSOG, GIE and ECB unchanged.
 
 ## Reproducing
 

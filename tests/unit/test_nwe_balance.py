@@ -81,3 +81,26 @@ def test_existing_outage_is_not_subtracted_twice_and_ending_outage_restores_supp
     assert result.days[1].norway_gwh == 800
     assert result.days[2].norway_gwh == 1000
     assert result.days[0].norway_recent_outage_baseline_gwh == 200
+
+
+def test_inventory_projection_draws_only_on_the_facilities_in_the_inventory():
+    # 1,600 GWh/d net withdrawal region-wide, of which 400 from storage outside the
+    # inventory (GB publishes no working capacity, so its stock is not in inventory_twh).
+    history = [
+        BalanceHistoryDay(
+            START - timedelta(days=back), 1000.0, 400.0, 1600.0,
+            inventory_scope_net_withdrawal_gwh=1200.0,
+        )
+        for back in range(40, 0, -1)
+    ]
+    result = forecast_balance(
+        history, start=START, days=2, inventory_twh=100.0, working_capacity_twh=120.0
+    )
+    first, second = result.days
+    # The call still uses all storage: the regional draw is unchanged.
+    assert first.call_gwh == 3000.0 and first.storage_net_withdrawal_gwh == 1600.0
+    # The inventory falls by its own facilities' share only.
+    assert first.inventory_draw_gwh == 1200.0
+    assert first.inventory_twh == 100.0 - 1.2
+    assert second.inventory_twh == 100.0 - 2.4
+    assert first.methods["inventory_draw"] == "residual_less_14_day_average_outside_inventory"

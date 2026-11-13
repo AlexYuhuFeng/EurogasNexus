@@ -893,7 +893,12 @@ def _register_network_capabilities(registry) -> None:
                     "Runtime PostgreSQL is not configured",
                 )
             rows = flow_rows(session, point_id=arguments.get("point_id"))
-        return _result(definition, {"rows": rows, "count": len(rows)})
+        from eurogas_nexus.application.pipeline_supply import OPERATOR_SELECTION_RULE
+
+        return _result(
+            definition,
+            {"rows": rows, "count": len(rows), "operator_rule": OPERATOR_SELECTION_RULE},
+        )
 
     def get_storage_context(arguments, _context):
         definition = registry.get("network.get_storage_context")

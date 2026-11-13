@@ -831,9 +831,12 @@ def _fundamental_evidence(
     """Evidence for ``power.*``, ``storage.*``, ``lng.*`` and ``flow.*`` series a dataset uses.
 
     Series ids: ``power.<metric>.<zone>`` (ENTSO-E), ``storage.<metric>.<facility_id>`` and
-    ``lng.<metric>.<terminal_id>`` (GIE AGSI/ALSI, TWh or %), ``flow.mcm_d.<point_id>.<direction>``
-    (ENTSOG). Availability is the observation's ingestion time (power: the publication deadline),
-    so it is approximate rather than certified.
+    ``lng.<metric>.<terminal_id>`` (GIE AGSI/ALSI, TWh or %), ``flow.gwh_d.<point_id>.<direction>``
+    (ENTSOG energy as published) and ``flow.mcm_d.<point_id>.<direction>`` (a published volume
+    only; native ENTSOG rows have none). Flows take one operator's report per point and gas
+    day (``pipeline_supply.OPERATOR_SELECTION_RULE``). Availability is the observation's
+    ingestion time (power: the publication deadline), so it is approximate rather than
+    certified.
     """
 
     from eurogas_nexus.db.models import FlowObservationRecord
@@ -954,6 +957,11 @@ def _fundamental_evidence(
     entsog = source_by_system.get("entsog")
     wanted = by_prefix.get("flow")
     if entsog is not None and wanted:
+        from eurogas_nexus.application.pipeline_supply import (
+            row_energy_gwh,
+            select_operator_rows,
+        )
+
         points = {w[1] for w in wanted if len(w) > 2}
         rows = (
             session.query(FlowObservationRecord)
@@ -962,19 +970,35 @@ def _fundamental_evidence(
             .filter(FlowObservationRecord.period_start_utc < end)
             .all()
         )
-        for row in rows:
+        # One operator's report per point and gas day (OPERATOR_SELECTION_RULE): the other
+        # side of an interconnection publishes the same flow, so both would be a duplicate.
+        for row in select_operator_rows(rows):
             direction = str(row.direction or "").lower()
-            if ("mcm_d", row.point_id, direction) not in wanted:
-                continue
-            add(
-                f"flow.mcm_d.{row.point_id}.{direction}",
-                f"ent:point:{row.point_id}",
-                row.period_start_utc,
-                row.observed_at_utc,
-                row.observed_at_utc,
-                row.flow_mcm_d,
-                "mcm/d",
-                row,
-                entsog,
-            )
+            if ("mcm_d", row.point_id, direction) in wanted:
+                # A published volume only: native ENTSOG rows publish energy and leave the
+                # volume NULL, which is a missing value, not zero; read ``gwh_d`` for them.
+                add(
+                    f"flow.mcm_d.{row.point_id}.{direction}",
+                    f"ent:point:{row.point_id}",
+                    row.period_start_utc,
+                    row.observed_at_utc,
+                    row.observed_at_utc,
+                    row.flow_mcm_d,
+                    "mcm/d",
+                    row,
+                    entsog,
+                )
+            if ("gwh_d", row.point_id, direction) in wanted:
+                energy, from_volume = row_energy_gwh(row)
+                add(
+                    f"flow.gwh_d.{row.point_id}.{direction}",
+                    f"ent:point:{row.point_id}",
+                    row.period_start_utc,
+                    row.observed_at_utc,
+                    row.observed_at_utc,
+                    None if from_volume else energy,  # energy as published, no assumed GCV
+                    "GWh/d",
+                    row,
+                    entsog,
+                )
     return records, sources

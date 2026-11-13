@@ -13,6 +13,8 @@ from eurogas_nexus.application.pipeline_supply import (
     LANDING_POINTS,
     landed_supply,
     row_energy_gwh,
+    row_operator,
+    select_operator_rows,
 )
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import FlowObservationRecord
@@ -98,3 +100,96 @@ def test_row_energy_units():
     assert row_energy_gwh(Row(0.0, "kWh/d")) == (0.0, False)  # a zero flow is a value
     assert row_energy_gwh(Row(None, None, mcm=2.0)) == (22.0, True)
     assert row_energy_gwh(Row(None, None)) == (None, False)
+
+
+# --- One operator per point and gas day (the rule every flow reader shares) ----------
+
+
+def _rows(session):
+    return session.query(FlowObservationRecord).order_by(FlowObservationRecord.observation_id).all()
+
+
+def test_two_operators_at_an_interconnection_are_not_added(session):
+    # HR -> HU, 25.4 GWh: HR reports it as its exit, HU as its entry; each also reports
+    # zero for the other direction. Per point *and direction* the first operator would
+    # be HR for entry (0) and HR for exit (25.4); per point the choice stays on one side.
+    _flow(session, "a", "ITP-00011", "HR-TSO-0001", 0.0, direction="entry")
+    _flow(session, "b", "ITP-00011", "HR-TSO-0001", 25.4e6, direction="exit")
+    _flow(session, "c", "ITP-00011", "HU-TSO-0001", 25.4e6, direction="entry")
+    _flow(session, "d", "ITP-00011", "HU-TSO-0001", 0.0, direction="exit")
+    session.commit()
+
+    kept = select_operator_rows(_rows(session))
+    assert [row.observation_id for row in kept] == ["a", "b"]  # HR sorts first
+    by_direction = {row.direction: row_energy_gwh(row)[0] for row in kept}
+    assert by_direction == {"entry": 0.0, "exit": pytest.approx(25.4)}
+    # Summing the point's exit over the kept rows counts the flow once, not twice.
+    assert sum(row_energy_gwh(r)[0] for r in kept if r.direction == "exit") == pytest.approx(25.4)
+
+
+def test_the_registry_operator_wins_and_null_volume_is_not_zero(session):
+    # A native row: energy published, the legacy volume column NULL.
+    _flow(session, "a", "ITP-00106", "BE-TSO-0001", 480e6)
+    _flow(session, "b", "ITP-00106", "AA-TSO-0001", 480e6)  # sorts first, not the registry's
+    session.commit()
+
+    kept = select_operator_rows(_rows(session))
+    assert [row_operator(row) for row in kept] == ["BE-TSO-0001"]
+    assert kept[0].flow_mcm_d is None
+    assert row_energy_gwh(kept[0]) == (pytest.approx(480.0), False)
+
+
+def test_an_operator_with_no_value_that_day_is_not_chosen(session):
+    _flow(session, "a", "ITP-00500", "AA-TSO-0001", 1.0)
+    _flow(session, "b", "ITP-00500", "BB-TSO-0001", 12e6)
+    session.commit()
+    # AA's row is stored but carries no value for the day.
+    blank = session.get(FlowObservationRecord, "a")
+    blank.original_value = blank.original_unit = None
+    session.commit()
+    kept = select_operator_rows(_rows(session))
+    assert [row.observation_id for row in kept] == ["b"]
+
+
+def test_energy_comes_from_the_native_payload_when_no_original_value_was_kept():
+    class Row:
+        original_value = original_unit = flow_mcm_d = None
+        native_rate_json = {"energy_kwh_per_day": "7000000", "volume_mcm_per_day": None}
+
+    assert row_energy_gwh(Row()) == (pytest.approx(7.0), False)
+
+
+# --- Coverage: a partly reported newest day is left out --------------------------------
+
+
+def _full_day(session, day, scale=1.0, *, skip=()):
+    for index, point in enumerate(LANDING_POINTS):
+        if point.point_id in skip:
+            continue
+        _flow(session, f"{day:%m%d}-{index}", point.point_id, point.operator,
+              450e6 * scale, day=day)
+
+
+def test_a_partly_reported_day_is_left_out_but_a_low_complete_day_is_kept(session):
+    as_of = DAY + timedelta(days=12)
+    for offset in range(8):
+        _full_day(session, DAY + timedelta(days=offset))
+    # Day 9: every point reports, at a fifth of normal (an outage), one at zero.
+    outage_day = DAY + timedelta(days=8)
+    _full_day(session, outage_day, scale=0.2, skip={"ITP-00106"})
+    _flow(session, "outage-zero", "ITP-00106", "BE-TSO-0001", 0.0, day=outage_day)
+    # Days 10 and 11: ENTSOG has filled in only some points so far.
+    partial = [point.point_id for point in LANDING_POINTS[:7]]
+    _full_day(session, DAY + timedelta(days=9), skip=set(partial[:3]))
+    _full_day(session, DAY + timedelta(days=10), skip=set(partial))
+    session.commit()
+
+    supply = landed_supply(session, date(2026, 11, 1), as_of=as_of)
+    assert supply.incomplete_days == [
+        (DAY + timedelta(days=9)).date(),
+        (DAY + timedelta(days=10)).date(),
+    ]
+    assert supply.complete_through == outage_day.date()
+    # The outage day is low supply, not a gap: 9 points at 90 GWh, one at zero.
+    assert supply.by_day[outage_day.date()] == pytest.approx(9 * 90.0)
+    assert supply.points_reporting[(DAY + timedelta(days=10)).date()] == 3

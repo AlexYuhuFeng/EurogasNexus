@@ -1632,3 +1632,95 @@ def test_model_service_names_the_configured_endpoint_without_the_key(
     }
     assert "sk-test-not-a-real-key" not in str(data)
     assert all("model_service" not in source for source in data if source["category"] != "ai")
+
+
+def test_runtime_source_counts_cover_every_table_a_source_writes(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """National Gas, Elexon, ENTSO-E, EIA and the rate administrators show their rows."""
+
+    from datetime import UTC, date, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+    from eurogas_nexus.db.models import (
+        FxObservationRecord,
+        InterestRateObservationRecord,
+        LngObservationRecord,
+        MarketObservationRecord,
+        PowerObservationRecord,
+        StorageObservationRecord,
+    )
+
+    engine, _ = _runtime_store(tmp_path, "counts-every-table.sqlite", monkeypatch)
+    now = datetime(2026, 11, 12, 5, tzinfo=UTC)
+    common = dict(
+        period_start_utc=now, period_end_utc=now + timedelta(days=1), observed_at_utc=now,
+        source_reference="t", freshness="daily", research_only=True,
+    )
+    with Session(engine) as session:
+        for index, source in enumerate(("NATIONAL_GAS", "GIE", "GIE")):
+            session.add(
+                StorageObservationRecord(
+                    observation_id=f"s-{index}", source_dataset="x", facility_id=f"f{index}",
+                    facility_name="f", country="GB", source_system=source, **common,
+                )
+            )
+        session.add(
+            LngObservationRecord(
+                observation_id="l-ng", source_dataset="x", terminal_id="t", terminal_name="t",
+                country="GB", source_system="NATIONAL_GAS", **common,
+            )
+        )
+        for index, source in enumerate(("ELEXON", "ELEXON", "ENTSOE")):
+            session.add(
+                PowerObservationRecord(
+                    observation_id=f"p-{index}", zone="GB", metric="load_actual",
+                    period_start_utc=now, period_end_utc=now + timedelta(minutes=30),
+                    value=30_000, unit="MW", source_system=source, source_reference="t",
+                    published_at_utc=now, ingested_at_utc=now,
+                )
+            )
+        session.add(
+            MarketObservationRecord(
+                observation_id="hh", market_venue="NYMEX", product="Henry Hub", price=3.1,
+                unit="USD/MMBtu", currency="USD", source_system="EIA", source_record_id="1",
+                quality_score=1.0, metadata_json=None, **{**common, "research_only": False},
+            )
+        )
+        session.add(
+            FxObservationRecord(
+                observation_id="fx", pair="EURUSD", base_currency="EUR", quote_currency="USD",
+                rate=1.1, rate_type="reference", value_date="2026-11-11", observed_at_utc=now,
+                source_system="ECB", source_reference="t", source_record_id="1",
+                freshness="daily", research_only=False, metadata_json=None,
+            )
+        )
+        for benchmark, administrator in (("ESTR", "ECB"), ("SONIA", "BOE"), ("SOFR", "NYFED")):
+            session.add(
+                InterestRateObservationRecord(
+                    observation_id=f"r-{benchmark}", benchmark_id=benchmark, currency="EUR",
+                    value_date=date(2026, 11, 11), rate_pct=2.0, day_count="ACT/360",
+                    source_system=administrator, source_reference="t", ingested_at_utc=now,
+                )
+            )
+        session.commit()
+
+    counts = sources_routes._runtime_source_counts()
+
+    assert counts["NATIONAL_GAS"] == 2  # one storage, one LNG row
+    assert counts["GIE"] == 2
+    assert counts["ELEXON"] == 2
+    assert counts["ENTSOE"] == 1
+    assert counts["EIA"] == 1
+    # ECB's FX row is ECB's; its €STR fixing belongs to the €STR source.
+    assert counts["ECB"] == 1
+    assert counts["ECB_ESTR"] == 1 and counts["BOE"] == 1 and counts["NYFED"] == 1
+
+    by_system = {
+        source["source_system"]: source for source in sources_routes._sources_with_runtime_status()
+    }
+    assert by_system["NATIONAL_GAS"]["live_record_count"] == 2
+    assert by_system["ELEXON"]["live_record_count"] == 2
+    assert by_system["ELEXON"]["last_observed_at_utc"] is not None

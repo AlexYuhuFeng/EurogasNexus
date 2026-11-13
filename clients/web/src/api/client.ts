@@ -2581,6 +2581,8 @@ export interface NweBalanceDayDTO {
   norway_outage_gwh?: number;
   lng_gwh: number;
   storage_net_withdrawal_gwh: number;
+  /** Forecast days: the part of the storage draw taken from the facilities in `inventory_twh`. */
+  inventory_draw_gwh?: number | null;
   inventory_twh?: number | null;
   fill_pct?: number | null;
   methods?: Record<string, string>;
@@ -2626,6 +2628,8 @@ export interface MapPointFlowDTO {
   unit: string;
   gwh_d: number | null;
   source_system: string;
+  /** ENTSOG operator whose report is shown; direction is relative to its system. */
+  operator_key?: string | null;
   location: MapLocationDTO;
 }
 

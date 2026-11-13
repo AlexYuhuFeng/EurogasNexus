@@ -119,6 +119,19 @@ def latest_market_snapshot(
 
 
 def flow_rows(session, *, point_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+    """Flow rows for an agent: a proven volume, or energy as ENTSOG published it.
+
+    One operator's report per point and gas day (``pipeline_supply.OPERATOR_SELECTION_RULE``),
+    so an agent that adds rows does not count an interconnection twice. A native energy row
+    carries ``energy_gwh_d`` and ``flow_mcm_d`` None: no calorific value is assumed, and a
+    missing volume is never a zero flow. A row with neither is left out.
+    """
+
+    from eurogas_nexus.application.pipeline_supply import (
+        row_energy_gwh,
+        row_operator,
+        select_operator_rows,
+    )
     from eurogas_nexus.db.models import FlowObservationRecord
 
     query = session.query(FlowObservationRecord)
@@ -127,9 +140,20 @@ def flow_rows(session, *, point_id: str | None = None, limit: int = 200) -> list
     query = query.order_by(FlowObservationRecord.observed_at_utc.desc()).limit(
         max(1, min(limit, 500))
     )
+    records = query.all()
+    # Validate every row first: a malformed native row is a typed refusal, not a gap.
+    admissible = {id(row): _volume_admissible(row, "flow_mcm_d") for row in records}
     rows = []
-    for row in query.all():
-        if not _volume_admissible(row, "flow_mcm_d"):
+    for row in select_operator_rows(records):
+        energy, from_volume = row_energy_gwh(row)
+        volume_ok = admissible[id(row)]
+        native_energy = (
+            not volume_ok
+            and not from_volume
+            and energy is not None
+            and row.normalizer_version is not None
+        )
+        if not volume_ok and not native_energy:
             continue
         rows.append(
             {
@@ -138,7 +162,10 @@ def flow_rows(session, *, point_id: str | None = None, limit: int = 200) -> list
                 "point_name": row.point_name,
                 "direction": row.direction,
                 "kind": row.kind,
-                "flow_mcm_d": row.flow_mcm_d,
+                "flow_mcm_d": row.flow_mcm_d if volume_ok else None,
+                "energy_gwh_d": round(energy, 6) if native_energy else None,
+                "published_unit": row.original_unit if native_energy else "mcm/d",
+                "operator_key": row_operator(row) or None,
                 "period_start": row.period_start_utc.isoformat(),
                 "period_end": row.period_end_utc.isoformat(),
                 "observed_at": row.observed_at_utc.isoformat(),

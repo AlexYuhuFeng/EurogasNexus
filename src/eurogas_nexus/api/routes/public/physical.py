@@ -25,6 +25,12 @@ LEGACY_ENTSOG_EXCLUDED_WARNING = (
     "Legacy ENTSOG rows with an unverified assumed volume are excluded; their "
     "absence does not mean the source reported no flow or zero volume."
 )
+NATIVE_ENERGY_WITHHELD_WARNING = (
+    "ENTSOG rows that publish energy (kWh/d) and no volume are not listed in volume "
+    "mode; their absence is not a zero value. Read them with quantity_basis=native, where "
+    "each row names its reporting operator (operator_key): both operators at an "
+    "interconnection publish the point, each from its own side, so do not add them."
+)
 _NATIVE_RATE_INVALID_CODE = "native_rate_invalid"
 _NATIVE_QUERY_OVERFLOW_CODE = "native_query_overflow"
 _NATIVE_WINDOW_INVALID_CODE = "native_window_invalid"
@@ -485,6 +491,7 @@ def _project_rows(
 ) -> tuple[list[dict], list[str]]:
     rows: list[dict] = []
     legacy_entsog_withheld = False
+    native_energy_withheld = False
 
     for row in raw_rows:
         if quantity_basis == "native":
@@ -502,8 +509,13 @@ def _project_rows(
             rows.append(_flow_row(row) if volume_field == "flow_mcm_d" else _capacity_row(row))
         elif _is_legacy_entsog(row):
             legacy_entsog_withheld = True
+        elif getattr(row, "normalizer_version", None) is not None:
+            # A validated native row that publishes energy: it has no volume to list here.
+            native_energy_withheld = True
 
     warnings = [LEGACY_ENTSOG_EXCLUDED_WARNING] if legacy_entsog_withheld else []
+    if native_energy_withheld:
+        warnings.append(NATIVE_ENERGY_WITHHELD_WARNING)
     return rows, warnings
 
 

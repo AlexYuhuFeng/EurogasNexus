@@ -249,6 +249,14 @@ def _capacity_usage(
     ]
     if not matching_rows:
         return None
+    # Usage is for one direction, the newest row's (the payload reports it): averaging a
+    # point's entry with its exit would be a number that neither direction ever carried.
+    newest_direction = max(
+        matching_rows,
+        key=lambda row: _parse_datetime(row.get("period_end_utc"))
+        or datetime.min.replace(tzinfo=UTC),
+    ).get("direction")
+    matching_rows = [row for row in matching_rows if row.get("direction") == newest_direction]
 
     capacity = _first_capacity(
         snapshot,

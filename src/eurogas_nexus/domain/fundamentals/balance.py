@@ -20,6 +20,10 @@ day it produces:
 - lng: the 14-day average send-out (a cargo schedule from a licensed source replaces it).
 - storage: the residual, then rolled into an inventory trajectory against working
   capacity, flagged when it implies withdrawals the region has not delivered recently.
+  When the inventory covers only some of the region's storage (no working capacity is
+  published for GB), the history carries the net withdrawal of the covered facilities;
+  the trajectory then subtracts the residual less the 14-day average draw of the storage
+  outside the inventory, so stock and draw cover the same facilities.
 
 All quantities are energy, GWh per gas day, so no calorific value is assumed except where
 a volume source is converted, and that conversion is stated by the caller.
@@ -41,6 +45,9 @@ class BalanceHistoryDay:
     norway_gwh: float
     lng_gwh: float
     storage_net_withdrawal_gwh: float  # withdrawal positive, injection negative
+    #: Net withdrawal from only the facilities whose stock is the ``inventory_twh`` passed
+    #: to :func:`forecast_balance`; ``None`` when that is all storage.
+    inventory_scope_net_withdrawal_gwh: float | None = None
 
     @property
     def call_gwh(self) -> float:
@@ -88,6 +95,8 @@ class BalanceDay:
     norway_outage_gwh: float = 0.0
     norway_recent_outage_baseline_gwh: float = 0.0
     flags: tuple[str, ...] = ()
+    #: The part of ``storage_net_withdrawal_gwh`` drawn from the inventory's facilities.
+    inventory_draw_gwh: float | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -98,6 +107,9 @@ class BalanceDay:
             "norway_recent_outage_baseline_gwh": round(self.norway_recent_outage_baseline_gwh, 1),
             "lng_gwh": round(self.lng_gwh, 1),
             "storage_net_withdrawal_gwh": round(self.storage_net_withdrawal_gwh, 1),
+            "inventory_draw_gwh": None
+            if self.inventory_draw_gwh is None
+            else round(self.inventory_draw_gwh, 1),
             "inventory_twh": None if self.inventory_twh is None else round(self.inventory_twh, 2),
             "fill_pct": None if self.fill_pct is None else round(self.fill_pct, 1),
             "hdd": self.hdd,
@@ -207,6 +219,14 @@ def forecast_balance(
         sum(o.unavailable_gwh_d for o in outages if o.on(h.day)) for h in last7
     )
     inventory = inventory_twh
+    # Storage outside the inventory (e.g. GB, which publishes no working capacity) is in the
+    # call but its draw must not come out of the inventory: hold it at its recent average.
+    outside_draws = [
+        h.storage_net_withdrawal_gwh - h.inventory_scope_net_withdrawal_gwh
+        for h in last14
+        if h.inventory_scope_net_withdrawal_gwh is not None
+    ]
+    outside_draw = mean(outside_draws) if outside_draws else 0.0
     for offset in range(days):
         day = start + timedelta(days=offset)
         if model is not None and day in hdd:
@@ -222,8 +242,10 @@ def forecast_balance(
         if storage > max_recent_withdrawal * 1.25 and storage > 0:
             flags.append("withdrawal_above_recent_maximum")
         fill = None
+        inventory_draw = None
         if inventory is not None:
-            inventory = inventory - storage / 1000
+            inventory_draw = storage - outside_draw
+            inventory = inventory - inventory_draw / 1000
             if working_capacity_twh:
                 fill = 100 * inventory / working_capacity_twh
                 if inventory < 0 or (fill is not None and fill > 100):
@@ -247,8 +269,12 @@ def forecast_balance(
                     else "7_day_average_less_remit_outages",
                     "lng": "14_day_average",
                     "storage": "residual",
+                    "inventory_draw": "residual_less_14_day_average_outside_inventory"
+                    if outside_draws
+                    else "residual",
                 },
                 flags=tuple(flags),
+                inventory_draw_gwh=inventory_draw,
             )
         )
     if model is None:

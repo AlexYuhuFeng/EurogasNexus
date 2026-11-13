@@ -101,6 +101,11 @@ def build_map_situation(
     timed track); market cargoes keep the short ``CARGO_HISTORY_DAYS`` tail.
     """
 
+    from eurogas_nexus.application.pipeline_supply import (
+        row_energy_gwh,
+        row_operator,
+        select_operator_rows,
+    )
     from eurogas_nexus.application.remit_outages import load_outage_rows
     from eurogas_nexus.db.models import (
         FlowObservationRecord,
@@ -169,8 +174,10 @@ def build_map_situation(
         .limit(20_000)
         .all()
     )
+    # One operator's report per point and gas day (pipeline_supply.OPERATOR_SELECTION_RULE):
+    # both sides of an interconnection publish the point, each from its own side.
     latest: dict[tuple[str, str], Any] = {}
-    for record in flow_rows:
+    for record in select_operator_rows(flow_rows):
         latest.setdefault((record.point_id, record.direction), record)
     flows = []
     for (point_id, direction), record in latest.items():
@@ -179,10 +186,10 @@ def build_map_situation(
         )
         if location is None:
             continue
-        gwh_d = None
         unit = record.original_unit or ""
-        if record.original_value is not None and unit.lower().startswith("kwh"):
-            gwh_d = round(record.original_value / 1_000_000, 3)
+        energy, from_volume = row_energy_gwh(record)
+        # Energy as published only; a volume is not turned into energy at a guessed GCV.
+        gwh_d = round(energy, 3) if energy is not None and not from_volume else None
         flows.append(
             {
                 "point_id": point_id,
@@ -195,6 +202,7 @@ def build_map_situation(
                 "unit": unit or "mcm/d",
                 "gwh_d": gwh_d,
                 "source_system": record.source_system,
+                "operator_key": row_operator(record) or None,
                 "location": location,
             }
         )
