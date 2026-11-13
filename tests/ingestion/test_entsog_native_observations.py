@@ -418,8 +418,16 @@ def test_repository_compares_native_columns_and_accepts_legacy_replay(
         *,
         semantic_fields: tuple[str, ...],
         semantic_metadata_keys: tuple[str, ...],
+        revisions: Any,
     ) -> dict[str, int]:
         assert semantic_metadata_keys == ("operatorKey", "flowStatus", "periodType")
+        # Revisions are accepted for values and the flowStatus flag only (2026-11-13).
+        assert revisions.revisable("original_value")
+        assert revisions.revisable("native_rate_json")
+        assert revisions.revisable("metadata_json.flowStatus")
+        assert not revisions.revisable("metadata_json.operatorKey")
+        assert not revisions.revisable("source_system")
+        assert not revisions.revisable("period_start_utc")
         captured["rows"] = rows
         captured["fields"] = semantic_fields
         return {"inserted": len(rows), "verified": 0}
@@ -482,6 +490,7 @@ def test_repository_changed_native_content_is_typed_revision_refusal(
         *,
         semantic_fields: tuple[str, ...],
         semantic_metadata_keys: tuple[str, ...],
+        revisions: Any,
     ) -> dict[str, int]:
         assert semantic_metadata_keys == ("operatorKey", "flowStatus", "periodType")
         raise GieRevisionRequiresHistoryError("changed native content")
@@ -529,6 +538,7 @@ def test_repository_refuses_perturbed_native_volume_before_write(
         *,
         semantic_fields: tuple[str, ...],
         semantic_metadata_keys: tuple[str, ...],
+        revisions: Any,
     ) -> dict[str, int]:
         assert semantic_metadata_keys == ("operatorKey", "flowStatus", "periodType")
         calls.append(rows)

@@ -13,7 +13,10 @@ refuses an operator-disabled stored credential or disabled source operation
 regardless of GIE_API_KEY/GIE_API_KEY_FILE precedence.
 
 ENTSOG and GIE observations append absent natural keys and verify unchanged
-keys; semantic revisions are refused until append-only history is available.
+keys. A provider revision of a value (same source and natural key, received
+later) replaces the current row and appends the replaced version to
+``observation_revisions``; any other change is refused. See
+``docs/operations/DATA_REVISIONS.md``.
 ENTSOG reference replacement requires exhausted, nonempty bounded queries.
 Exhaustion proves traversal completion only; snapshot consistency is unproven.
 
@@ -61,7 +64,9 @@ from eurogas_nexus.db.repositories.entsog_observation_persistence import (
     EntsogObservationPersistenceError,
 )
 from eurogas_nexus.db.repositories.public_ingestion_upsert import (
+    GIE_REVISABLE_FIELDS,
     GieRevisionRequiresHistoryError,
+    RevisionPolicy,
     replace_reference_snapshot,
     upsert_observation_rows,
     upsert_revision_safe_observation_rows,
@@ -1299,9 +1304,14 @@ def _persist_gie_product(
       closed -- canonical rows are never written claiming archive lineage that
       does not exist;
     * a semantically unchanged existing row is left byte-for-byte unchanged; a
-      revised measurement is refused with ``gie_revision_requires_history`` and
-      the savepoint rollback leaves every original row untouched, with no
-      partial canonical write surviving the failure.
+      revised measurement (a quantity or the name, received later) replaces the
+      current row and writes the replaced version to ``observation_revisions`` in
+      the same savepoint;
+    * a change to the row's identity (source, dataset, facility, country,
+      period), or a change not received after the stored version, is refused
+      (``gie_revision_identity_conflict`` / ``gie_revision_not_newer``) and the
+      savepoint rollback leaves every original row untouched, with no partial
+      canonical write surviving the failure.
 
     Returns a report fragment with counts and, on failure, an explicit failure
     entry carrying only counts and observation ids -- never provider payload.
@@ -1361,7 +1371,16 @@ def _persist_gie_product(
             stamped_rows = _stamp_lineage(
                 rows, run_id=run_id, adapter_version="public-source-ingestor/1"
             )
-            outcome = upsert_revision_safe_observation_rows(session, model, stamped_rows)
+            outcome = upsert_revision_safe_observation_rows(
+                session,
+                model,
+                stamped_rows,
+                revisions=RevisionPolicy(
+                    GIE_REVISABLE_FIELDS[
+                        "storage_observations" if product.product == "AGSI" else "lng_observations"
+                    ]
+                ),
+            )
             session.flush()
     except GieRevisionRequiresHistoryError as exc:
         return _gie_persist_failure(
@@ -1373,10 +1392,9 @@ def _persist_gie_product(
             observation_ids=observation_ids,
             archived_pages=len(archive_refs),
             warning=(
-                f"{source_name} refused a revised measurement ({exc.code}); the "
-                "original rows are unchanged and no partial canonical write was kept. "
-                "Append-only revision history is required before revised values may be "
-                "stored."
+                f"{source_name} refused a changed row ({exc.code}); the original rows "
+                "are unchanged and no partial canonical write was kept. Only a later "
+                "value under the same source and natural key is stored as a revision."
             ),
         )
 
@@ -1395,7 +1413,9 @@ def _persist_gie_product(
         "counts": {
             "records": len(rows),
             "inserted": outcome["inserted"],
+            "updated": outcome["updated"],
             "unchanged": outcome["unchanged"],
+            "revised": outcome["revised"],
             "archived_pages": len(archive_refs),
         },
     }

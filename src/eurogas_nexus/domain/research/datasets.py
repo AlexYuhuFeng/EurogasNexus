@@ -448,6 +448,9 @@ def _as_of_candidates(
     """
 
     grouped: dict[str, list[DatasetEvidenceRecord]] = {}
+    # A revised observation arrives as one record per version, all with the same
+    # observed_at; the version known at the origin is the latest one available by then.
+    latest_version: dict[tuple[str, datetime], DatasetEvidenceRecord] = {}
     for record in records:
         if not as_of_eligible(record, origin, policy=spec.point_in_time_policy)[0]:
             continue
@@ -456,6 +459,14 @@ def _as_of_candidates(
             and record.observation_kind is ObservationKind.SIMULATED
         ):
             continue
+        if record.observation_kind is not ObservationKind.FORECAST and record.available_at:
+            key = (record.series_id, _utc(record.observed_at))
+            known = latest_version.get(key)
+            if known is not None:
+                if _utc(record.available_at) <= _utc(known.available_at):
+                    continue
+                grouped[record.series_id].remove(known)
+            latest_version[key] = record
         grouped.setdefault(record.series_id, []).append(record)
     return grouped
 

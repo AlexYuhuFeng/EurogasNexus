@@ -21,8 +21,9 @@ no row for any point is absent from the result, never zero.
 Every other reader of ENTSOG flows uses the same two helpers: :func:`row_energy_gwh` for the
 energy of one row and :func:`select_operator_rows` for choosing one operator's report per
 point and gas day (:data:`OPERATOR_SELECTION_RULE`), which also drops a second key's copy of
-one physical point (:data:`SAME_PHYSICAL_POINT`). :func:`published_after_close` tells a
-closed day's figure from a snapshot taken while the day was still open.
+one physical point (:data:`SAME_PHYSICAL_POINT`). :func:`published_after_close`
+(:data:`CLOSED_DAY_RULE`) tells a closed day's figure from a snapshot taken while the day
+was still open; every flow reader applies it through this module.
 
 The alias table lives here, beside the operator rule, rather than in
 ``domain/ontology/identity.py``: that module names hubs from text and reads no data, while an
@@ -194,20 +195,54 @@ def _utc(moment: datetime | None) -> datetime | None:
     return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment.astimezone(UTC)
 
 
+#: The closed-day rule every flow reader applies (one place: here).
+CLOSED_DAY_RULE = (
+    "A flow row is a closed gas day's figure only when its current value was received at or "
+    "after the period end. A value received while the day was open is a partial-day "
+    "snapshot: it is kept, offered only to a reader that asks for within-day data, and "
+    "flagged as open there; ingestion replaces it by the first receipt after the period end."
+)
+
+
+def received_at(record: Any) -> datetime | None:
+    """When the value a row carries was received (its revision, else its first receipt)."""
+
+    return _utc(getattr(record, "revised_at_utc", None)) or _utc(
+        getattr(record, "observed_at_utc", None)
+    )
+
+
 def published_after_close(record: Any) -> bool:
-    """Whether a daily row was received after its gas day ended.
+    """Whether a daily row's value was received after its gas day ended (:data:`CLOSED_DAY_RULE`).
 
     ENTSOG publishes the open gas day as it runs; a row stored then holds part of the day
     (live: Dornum 157.8 GWh for 12 November captured at 11:56 UTC that day, against about
     740 GWh on a full day). Once the day has closed such a row would read as the day's flow,
-    so a reader that wants a closed day's figure takes only rows received after the period
-    end. The stored snapshot is kept; it is simply not a day total.
+    so a reader that wants a closed day's figure takes only values received after the period
+    end. Ingestion replaces the snapshot by the first receipt after the period end and keeps
+    the snapshot in ``observation_revisions``; the replacement carries ``revised_at_utc``.
     """
 
-    end, seen = _utc(getattr(record, "period_end_utc", None)), _utc(
-        getattr(record, "observed_at_utc", None)
-    )
+    end, seen = _utc(getattr(record, "period_end_utc", None)), received_at(record)
     return end is not None and seen is not None and seen >= end
+
+
+def closed_day_clause(model: Any) -> Any:
+    """:func:`published_after_close` as a SQL condition, for filtering before a LIMIT."""
+
+    from sqlalchemy import func
+
+    return func.coalesce(model.revised_at_utc, model.observed_at_utc) >= model.period_end_utc
+
+
+def closed_day_rows(records: Iterable[Any], *, include_open: bool = False) -> list[Any]:
+    """Rows that are closed days' figures; with ``include_open`` every row is kept.
+
+    The open-day rows a reader asked for are recognised with :func:`published_after_close`
+    and must be shown as such (see the readers' ``open_gas_day`` flag), never as a total.
+    """
+
+    return [row for row in records if include_open or published_after_close(row)]
 
 
 @dataclass(frozen=True)
@@ -395,12 +430,18 @@ def landed_supply(session, first: date, *, as_of: datetime | None = None) -> Pip
     if as_of is not None:
         cutoff = as_of.replace(tzinfo=None) if naive else as_of
         query = query.filter(Flow.observed_at_utc <= cutoff, Flow.period_end_utc <= cutoff)
+    records = query.all()
+    if as_of is not None:
+        # A value revised after ``as_of`` is read as it was known then (its prior version).
+        from eurogas_nexus.db.repositories.observation_revisions import versions_as_of
+
+        records = versions_as_of(session, records, as_of)
 
     totals: dict[date, float] = defaultdict(float)
     scopes: dict[str, dict[date, float]] = defaultdict(lambda: defaultdict(float))
     reporting: dict[date, set[tuple[str, str]]] = defaultdict(set)
     registry_rows = legacy_rows = 0
-    for record in query.all():
+    for record in records:
         if not published_after_close(record):
             # A snapshot of the day while it was open (see published_after_close): not the
             # day's landing, and not a report for the coverage count either.

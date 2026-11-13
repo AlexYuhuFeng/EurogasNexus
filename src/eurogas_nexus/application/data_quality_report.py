@@ -14,13 +14,19 @@ the input to source alerts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import text
 
 #: A closed period is short when it holds less than this share of the usual entity count.
 COVERAGE_FLOOR = 0.9
+#: Provider revisions are counted over this many days (``observation_revisions``).
+REVISION_WINDOW_DAYS = 7
+#: Tables whose superseded values are kept in ``observation_revisions``.
+REVISED_TABLES = frozenset(
+    {"flow_observations", "capacity_observations", "storage_observations", "lng_observations"}
+)
 
 
 @dataclass(frozen=True)
@@ -118,6 +124,10 @@ class DatasetQuality:
     short_periods: list[str] = field(default_factory=list)
     usual_entities_per_period: int = 0
     median_lateness_hours: float | None = None
+    #: Rows whose value the provider revised in the last REVISION_WINDOW_DAYS (None: the
+    #: dataset keeps no revision history), and open-day snapshots replaced at day close.
+    revised_rows: int | None = None
+    closed_snapshots: int | None = None
     findings: list[dict[str, str]] = field(default_factory=list)
 
     def add(self, severity: str, message: str) -> None:
@@ -185,6 +195,8 @@ def measure(session, spec: DatasetSpec, now: datetime) -> DatasetQuality:
         _coverage(session, spec, result, entity, base, now)
     if spec.received and spec.received in columns:
         result.median_lateness_hours = _median_lateness(session, spec, base)
+    if spec.table in REVISED_TABLES:
+        _revisions(session, spec, result, now)
 
     if result.age_hours > spec.max_age_hours:
         result.add(
@@ -233,6 +245,25 @@ def _coverage(session, spec, result: DatasetQuality, entity: str, base: str, now
     result.short_periods = [day for day, count in closed if count < COVERAGE_FLOOR * usual]
 
 
+def _revisions(session, spec, result: DatasetQuality, now: datetime) -> None:
+    """Revision records of this dataset's rows written in the last REVISION_WINDOW_DAYS."""
+
+    if not _columns(session, "observation_revisions"):
+        return
+    since = now - timedelta(days=REVISION_WINDOW_DAYS)
+    counts = dict(session.execute(
+        text(
+            "SELECT reason, COUNT(DISTINCT observation_id) FROM observation_revisions "
+            "WHERE observation_table = :table AND recorded_at_utc >= :since "
+            f"AND observation_id IN (SELECT observation_id FROM {spec.table} "
+            f"WHERE {spec.where}) GROUP BY reason"
+        ),
+        {"table": spec.table, "since": since},
+    ).all())
+    result.revised_rows = int(counts.get("value_changed", 0))
+    result.closed_snapshots = int(counts.get("period_closed", 0))
+
+
 def _median_lateness(session, spec, base: str) -> float | None:
     """Median hours between a period's start and its receipt, over the latest 2,000 rows."""
 
@@ -272,7 +303,8 @@ def as_text(report: dict[str, Any]) -> str:
     lines = [
         f"Data quality, {report['generated_at_utc'][:16]} UTC",
         f"{'dataset':26} {'status':9} {'rows':>8} {'series':>6} {'last period':16} "
-        f"{'age h':>6} {'dup':>4} {'blank':>6} {'short days':>10}",
+        f"{'age h':>6} {'dup':>4} {'blank':>6} {'short days':>10} "
+        f"{f'rev {REVISION_WINDOW_DAYS}d':>6}",
     ]
     for item in report["datasets"]:
         lines.append(
@@ -280,7 +312,8 @@ def as_text(report: dict[str, Any]) -> str:
             f"{item['entities']:>6} {(item['last_period'] or '-')[:16]:16} "
             f"{item['age_hours'] if item['age_hours'] is not None else '-':>6} "
             f"{item['duplicate_keys']:>4} {item['blank_rows']:>6} "
-            f"{len(item['short_periods']):>4}/{item['closed_periods']:<5}"
+            f"{len(item['short_periods']):>4}/{item['closed_periods']:<5} "
+            f"{item.get('revised_rows') if item.get('revised_rows') is not None else '-':>6}"
         )
         for finding in item["findings"]:
             if finding["severity"] != "ok":

@@ -149,6 +149,12 @@ class FlowObservationRecord(Base):
     observed_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+    #: When the current value was received, if a provider revision replaced the first one
+    #: (``observed_at_utc`` stays the first receipt; the prior values are in
+    #: ``observation_revisions``). NULL: the value is the first one received.
+    revised_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
     source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -202,6 +208,12 @@ class CapacityObservationRecord(Base):
     observed_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+    #: When the current value was received, if a provider revision replaced the first one
+    #: (``observed_at_utc`` stays the first receipt; the prior values are in
+    #: ``observation_revisions``). NULL: the value is the first one received.
+    revised_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
     source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -244,6 +256,12 @@ class StorageObservationRecord(Base):
     observed_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+    #: When the current value was received, if a provider revision replaced the first one
+    #: (``observed_at_utc`` stays the first receipt; the prior values are in
+    #: ``observation_revisions``). NULL: the value is the first one received.
+    revised_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
     source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -278,12 +296,69 @@ class LngObservationRecord(Base):
     observed_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+    #: When the current value was received, if a provider revision replaced the first one
+    #: (``observed_at_utc`` stays the first receipt; the prior values are in
+    #: ``observation_revisions``). NULL: the value is the first one received.
+    revised_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
     source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class ObservationRevisionRecord(Base):
+    """One superseded value of a flow, capacity, storage or LNG observation (append-only).
+
+    Providers (ENTSOG, GIE) publish provisional values and revise them. The observation
+    table holds the provider's latest value; each time it is replaced, the version it
+    replaces is written here, in the same transaction, and never changed afterwards. The
+    version was the known value from ``prior_received_at_utc`` until
+    ``superseded_at_utc``, which is what an as-of read uses.
+
+    对应表 ``observation_revisions``；只追加，不更新、不删除。
+    """
+
+    __tablename__ = "observation_revisions"
+    __table_args__ = (
+        CheckConstraint(
+            "reason IN ('value_changed', 'period_closed')",
+            name="ck_observation_revisions_reason",
+        ),
+        CheckConstraint(
+            "observation_table IN ('flow_observations', 'capacity_observations', "
+            "'storage_observations', 'lng_observations')",
+            name="ck_observation_revisions_table",
+        ),
+        Index(
+            "ix_observation_revisions_observation",
+            "observation_table",
+            "observation_id",
+            "superseded_at_utc",
+        ),
+        Index("ix_observation_revisions_recorded", "observation_table", "recorded_at_utc"),
+    )
+
+    revision_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    observation_table: Mapped[str] = mapped_column(String(64), nullable=False)
+    observation_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: ``value_changed`` (the provider revised the figure) or ``period_closed`` (a row
+    #: received while its period was open, confirmed by a receipt after it ended).
+    reason: Mapped[str] = mapped_column(String(32), nullable=False)
+    changed_fields: Mapped[list] = mapped_column(JSON, nullable=False)
+    #: Every column of the superseded version, as stored (timestamps as ISO text).
+    prior_row_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    prior_received_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    superseded_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    prior_source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    superseding_source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    recorded_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AuditEventRecord(Base):

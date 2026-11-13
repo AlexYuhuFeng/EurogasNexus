@@ -52,6 +52,16 @@ _SCRIPT_COMMANDS = {
 }
 
 
+#: ENTSOG persistence refusals: a row changed in a field a revision may not change, or a
+#: changed value not received after the stored one. A provider revision of a value is
+#: stored with history and is not a failure (docs/operations/DATA_REVISIONS.md).
+_ENTSOG_REFUSAL_CODES = (
+    "entsog_revision_identity_conflict",
+    "entsog_revision_not_newer",
+    "entsog_revision_requires_history",
+)
+
+
 def run_ingestor_attempt(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     *,
@@ -144,15 +154,20 @@ def run_ingestor_attempt(
                 failures = (
                     failure_report.get("failures") if isinstance(failure_report, dict) else None
                 )
-                if isinstance(failures, list) and any(
-                    isinstance(failure, dict)
-                    and failure.get("code") == "entsog_revision_requires_history"
-                    for failure in failures
-                ):
+                refusal = next(
+                    (
+                        failure.get("code")
+                        for failure in (failures if isinstance(failures, list) else [])
+                        if isinstance(failure, dict)
+                        and failure.get("code") in _ENTSOG_REFUSAL_CODES
+                    ),
+                    None,
+                )
+                if refusal is not None:
                     action = (
-                        "Changed ENTSOG measurements were refused; original rows and raw evidence "
-                        "retained. Review revisions and implement approved append-only history "
-                        "before replay."
+                        "ENTSOG rows that differ from stored rows in more than a revisable value "
+                        "were refused; original rows and raw evidence retained. Review the "
+                        "identity change before replay."
                     )
                     emit_event(
                         event="ingestion.attempt.failed",
@@ -161,17 +176,15 @@ def run_ingestor_attempt(
                         run_id=str(payload.get("run_id") or ""),
                         attempt=attempt,
                         error_category=FailureCategory.QUALITY_REJECTED.value,
-                        details={"code": "entsog_revision_requires_history", "action": action},
+                        details={"code": refusal, "action": action},
                     )
                     return IngestionAttemptResult(
                         succeeded=False,
                         classification=FailureCategory.QUALITY_REJECTED,
-                        error_message=(
-                            f"QUALITY_REJECTED entsog_revision_requires_history: {action}"
-                        ),
+                        error_message=f"QUALITY_REJECTED {refusal}: {action}",
                         quality_issues=[
                             QualityIssue(
-                                quality_code="entsog_revision_requires_history",
+                                quality_code=refusal,
                                 severity=QualitySeverity.ERROR,
                                 message=action,
                             )
@@ -201,7 +214,15 @@ def run_ingestor_attempt(
                 error_message="Ingestor returned malformed JSON.",
             )
         sources = report.get("sources") if isinstance(report, dict) else None
-        counts = ("records", "received_records", "skipped_records", "inserted", "unchanged")
+        counts = (
+            "records",
+            "received_records",
+            "skipped_records",
+            "inserted",
+            "updated",
+            "unchanged",
+            "revised",
+        )
         if (
             not isinstance(report, dict)
             or report.get("ok") is not True
@@ -230,7 +251,11 @@ def run_ingestor_attempt(
             source_id=source_id,
             run_id=str(payload.get("run_id") or ""),
             attempt=attempt,
-            details={"rows": rows, "datasets": sorted(sources)},
+            details={
+                "rows": rows,
+                "datasets": sorted(sources),
+                "revised": sum(int(detail.get("revised") or 0) for detail in sources.values()),
+            },
         )
         partial_issues = []
         if window and window.rolling:

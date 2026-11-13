@@ -53,7 +53,8 @@ def _flow(point, day, value):
         original_unit="mcm/d",
         period_start_utc=at,
         period_end_utc=at + timedelta(days=1),
-        observed_at_utc=at + timedelta(hours=3),
+        # After the day closed: research series read closed days only (CLOSED_DAY_RULE).
+        observed_at_utc=at + timedelta(days=1, hours=3),
         source_system="ENTSOG",
         source_reference=f"entsog:{point}:{day}",
         source_record_id=None,

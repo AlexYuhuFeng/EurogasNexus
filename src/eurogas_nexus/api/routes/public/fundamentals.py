@@ -381,7 +381,14 @@ def _utc_date(session, column):
 
 
 def _daily_sum(session, column_expr, model, filters, first: date, as_of=None):
-    from sqlalchemy import func
+    """Sum a column per gas day; with ``as_of``, each row's value as it was known then.
+
+    Rows whose current value was received after ``as_of`` (a provider revision) are summed
+    with the version known at ``as_of`` from ``observation_revisions``, so a revision never
+    leaks into an earlier read.
+    """
+
+    from sqlalchemy import func, or_
 
     day = _utc_date(session, model.period_start_utc)
     query = session.query(day, func.sum(column_expr)).filter(
@@ -391,11 +398,29 @@ def _daily_sum(session, column_expr, model, filters, first: date, as_of=None):
         query = query.filter(condition)
     if as_of is not None:
         query = query.filter(model.observed_at_utc <= as_of, model.period_end_utc <= as_of)
-    return {
+        query = query.filter(or_(model.revised_at_utc.is_(None), model.revised_at_utc <= as_of))
+    totals = {
         (value if isinstance(value, date) else date.fromisoformat(str(value))): float(total or 0)
         for value, total in query.group_by(day).all()
         if value is not None
     }
+    if as_of is not None:
+        from eurogas_nexus.db.repositories.observation_revisions import versions_as_of
+
+        late = session.query(model).filter(model.period_start_utc >= _bound(session, first))
+        for condition in filters:
+            late = late.filter(condition)
+        late = late.filter(
+            model.observed_at_utc <= as_of,
+            model.period_end_utc <= as_of,
+            model.revised_at_utc > as_of,
+        ).all()
+        for version in versions_as_of(session, late, as_of):
+            start = version.period_start_utc
+            start = start.replace(tzinfo=UTC) if start.tzinfo is None else start.astimezone(UTC)
+            value = getattr(version, column_expr.key, None)
+            totals[start.date()] = totals.get(start.date(), 0.0) + float(value or 0)
+    return totals
 
 
 #: A storage/LNG source this many days behind the most recent one is treated as stalled.

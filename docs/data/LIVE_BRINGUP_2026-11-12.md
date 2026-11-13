@@ -63,7 +63,11 @@ storage withdrawal 2,516 GWh/d, supply call 9,304 GWh/d.
 6. **A 72-hour unattended scheduler run has not been done.** This run was operator-invoked
    commands. The scheduler run is the remaining part of DATA-01.
 7. **ENTSOG publishes rows for the open and the next gas day.** They are stored; consumers
-   that need closed days must filter on the period end, as the balance does.
+   that need closed days must filter on the period end, as the balance does. **Closed
+   2026-11-13** with item 8, see "Provider revisions and open gas days" below.
+8. **Provider revisions refused a whole batch.** Any changed value refused the refresh
+   (`*_revision_requires_history`), so the newest days kept their first values. **Closed
+   2026-11-13**, see below.
 
 ### Item 2 closed (2026-11-13)
 
@@ -199,6 +203,60 @@ to 12.8 TWh/d then. The balance now says so. From 17 Nov the days carry the flag
   DK 88.5. It is low for mid-November because German and Dutch stocks peaked near 61 % and
   66 % this season. This is not a calculation error.
 
+### Provider revisions and open gas days (2026-11-13)
+
+**Why the guard existed.** `upsert_revision_safe_observation_rows` (GIE, then ENTSOG via
+RFC-0005) refused any changed value because there was no history: overwriting would have
+carried the new value back to the row's first receipt, a look-ahead for any as-of read.
+RFC-0005 left provider revision history as separate work; no ADR forbids it.
+
+**Rule now** (`docs/operations/DATA_REVISIONS.md`, migration `0062_observation_revisions`):
+a later value under the same source and natural key replaces the current row and the
+replaced version is appended to `observation_revisions` in the same transaction; the row
+keeps its first receipt in `observed_at_utc` and records `revised_at_utc`. Identity changes
+and older replays are still refused. As-of reads (balance history, research datasets) take
+the version known at the time. An ENTSOG flow received while its gas day was open is
+stored, replaced by the first receipt after the close (reason `period_closed`), and never
+read as a closed day: `pipeline_supply.CLOSED_DAY_RULE` now gates the agent bridge, the
+analysis snapshot and research series as well as the balance and the map.
+
+**Live result**, refresh of 5-13 Nov over the 16 landing point-directions in one run (the
+run refused on 13 Nov): succeeded, 133 records: 7 inserted, 119 unchanged, 7 updated, of
+which 4 revised (exactly the four previously refused: ITP-00080, -00097, -00126, -00525
+entry for 12 Nov) and 3 open-day snapshots closed (the exit sides, value 0).
+
+| 12 Nov, entry | Before (received 12 Nov 11:56 UTC, day open) | After (received 13 Nov 14:50 UTC) |
+|---|---|---|
+| Dornum ITP-00126 (OGE) | 157.794 GWh | 756.730 GWh |
+| Dornum ITP-00525 (alias) | 157.794 GWh | 756.730 GWh |
+| Emden ITP-00080 (OGE) | 82.225 GWh | 387.237 GWh |
+| Nybro ITP-00097 | 18.228 GWh | 90.192 GWh |
+
+The Dornum revision record holds `original_value` 157793678.9 kWh/d, received
+2026-11-12 11:56:14 UTC, superseded 2026-11-13 14:50:36 UTC, reason `value_changed`, with
+both page references. GIE (NWE countries and the Europe total, `--limit 5`): the Europe
+AGSI total, refused on 13 Nov, now revises 4 days (7-10 Nov; inventory down by up to
+0.14 TWh, 8 Nov withdrawal 3.579 to 3.724 TWh/d); countries unchanged; AGSI LU still fails
+`gie_product_mismatch` (no storage in LU). The scheduler's own ENTSOG/GIE attempt
+(`run_ingestor_attempt`, 7-day rolling lookback): GIE succeeded with 10 revised; ENTSOG flow
+and capacity succeeded (capacity revised 4 in one run) but the attempt as a whole fails on
+two older defects in the bundled reference read, see below.
+
+**Balance.** 12 Nov is still left out, correctly: 8 of 10 landing points now report it as
+a closed day (3 before; 2,980.5 GWh from those 8), but ENTSOG has no 12 Nov row yet for
+Easington and St Fergus, and GIE publishes 12 Nov on the evening of 13 Nov. The balance
+reads through 11 Nov (landings 4,638.2 GWh/d), unchanged.
+
+**Open, found during this run.**
+
+- The scheduler runs `src-entsog` without `--limit`, so the ingestor's default of 20
+  records applies: the reference read is partial (`entsog_partial_reference_refused`) and
+  flows get 4 records.
+- Re-running the ENTSOG reference replacement fails on PostgreSQL: deleting
+  `reference_nodes` violates `reference_tso_access_points_point_id_fkey` (SQLAlchemy
+  `f405`). It worked on the first, empty-table run. Either blocks an unattended
+  `src-entsog` run.
+
 ## Reproducing
 
 ```bash
@@ -215,6 +273,9 @@ python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2025-0
 python scripts/ops/ingest_national_gas_supply.py --days 30 --end 2025-10-28 --commit
 python scripts/ops/flow_point_alias_candidates.py --days 30 --tolerance 0.0005
 python scripts/ops/data_quality_report.py
+python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2026-11-05 \
+  --entsog-to 2026-11-13 --entsog-point-direction <landing point-directions> \
+  --limit 5000 --entsog-page-size 1000
 ```
 
 Keys (GIE, ENTSO-E, EIA) come from the environment or the credential store, never from the

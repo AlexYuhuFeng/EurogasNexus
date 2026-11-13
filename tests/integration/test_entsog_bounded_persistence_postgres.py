@@ -21,6 +21,7 @@ from eurogas_nexus.db.models import (
     CapacityObservationRecord,
     FlowObservationRecord,
     IngestionRunRecord,
+    ObservationRevisionRecord,
     RawPayloadArchiveRecord,
     ReferenceFacility,
     ReferenceMarketHub,
@@ -29,7 +30,9 @@ from eurogas_nexus.db.models import (
 )
 from eurogas_nexus.db.repositories.entsog_observation_persistence import (
     EntsogInvalidObservationError,
+    EntsogRevisionIdentityConflictError,
     EntsogRevisionRequiresHistoryError,
+    EntsogStaleRevisionError,
     upsert_entsog_observation_rows,
 )
 from eurogas_nexus.ingestion import entsog_ingestion as persistence
@@ -72,6 +75,7 @@ def _session():
                 ReferenceTsoAccessPoint,
                 IngestionRunRecord,
                 AuditEventRecord,
+                ObservationRevisionRecord,
             ):
                 model.__table__.create(bind=connection)
             with Session(bind=connection) as session:
@@ -143,7 +147,17 @@ def test_real_insert_and_unchanged_poll_preserve_whole_row_and_separate_raw_arch
     "model,indicator",
     [(FlowObservationRecord, "Physical Flow"), (CapacityObservationRecord, "Firm Booked")],
 )
-def test_mixed_new_and_revised_batch_rolls_back_all_canonical_writes_retains_raw(model, indicator):
+def test_mixed_new_and_revised_batch_inserts_and_revises_with_one_history_record(
+    model, indicator
+):
+    """Changed 2026-11-13: a later value under the same key is a revision, not a refusal.
+
+    Before append-only history existed this batch was refused as a whole
+    (``entsog_revision_requires_history``). Now the new key is inserted, the revised key's
+    current row takes the provider's latest value and keeps its first receipt, and exactly
+    one revision record holds the prior value.
+    """
+
     first = query_result("operationaldatas", [observation(indicator=indicator)])
     revised = query_result(
         "operationaldatas",
@@ -154,21 +168,58 @@ def test_mixed_new_and_revised_batch_rolls_back_all_canonical_writes_retains_raw
         persistence.persist_entsog_observations(
             session, results=[first], model=model, run_id="first"
         )
-        snapshot = _rows(session, model)
-        with pytest.raises(EntsogRevisionRequiresHistoryError) as caught:
-            persistence.persist_entsog_observations(
-                session, results=[revised], model=model, run_id="refused"
-            )
-        assert caught.value.code == "entsog_revision_requires_history"
-        assert _rows(session, model) == snapshot
+        (before,) = _rows(session, model)
+        outcome = persistence.persist_entsog_observations(
+            session, results=[revised], model=model, run_id="revised"
+        )
+        rows = {row["observation_id"]: row for row in _rows(session, model)}
+        history = _rows(session, ObservationRevisionRecord)
         assert len(_rows(session, RawPayloadArchiveRecord)) == 2
+    assert outcome["inserted"] == 1 and outcome["updated"] == 1 and outcome["revised"] == 1
+    assert outcome["unchanged"] == 0
+    current = rows[before["observation_id"]]
+    assert current["original_value"] == 21000000
+    assert current["observed_at_utc"] == before["observed_at_utc"] == RECEIPT
+    assert current["revised_at_utc"] == RECEIPT + timedelta(hours=1)
+    assert current["metadata_json"]["ingestion_run_id"] == "revised"
+    assert len(history) == 1
+    (record,) = history
+    assert record["observation_id"] == before["observation_id"]
+    assert record["observation_table"] == model.__tablename__
+    assert record["reason"] == "value_changed"
+    assert "original_value" in record["changed_fields"]
+    assert record["prior_row_json"]["original_value"] == 10500000
+    assert record["prior_row_json"]["metadata_json"]["ingestion_run_id"] == "first"
+    assert record["prior_received_at_utc"] == RECEIPT
+    assert record["superseded_at_utc"] == RECEIPT + timedelta(hours=1)
+
+
+def test_replayed_older_capture_with_a_different_value_is_refused_not_rewound():
+    first = query_result("operationaldatas", [observation()])
+    older = query_result(
+        "operationaldatas", [observation(value=9000000)], receipt=RECEIPT - timedelta(hours=1)
+    )
+    with _session() as session:
+        persistence.persist_entsog_observations(
+            session, results=[first], model=FlowObservationRecord, run_id="first"
+        )
+        snapshot = _rows(session, FlowObservationRecord)
+        with pytest.raises(EntsogStaleRevisionError) as caught:
+            persistence.persist_entsog_observations(
+                session, results=[older], model=FlowObservationRecord, run_id="replay"
+            )
+        assert caught.value.code == "entsog_revision_not_newer"
+        assert _rows(session, FlowObservationRecord) == snapshot
+        assert _rows(session, ObservationRevisionRecord) == []
 
 
 @pytest.mark.parametrize(
     "model,indicator",
     [(FlowObservationRecord, "Physical Flow"), (CapacityObservationRecord, "Firm Technical")],
 )
-def test_same_quantity_changed_flow_status_metadata_refuses(model, indicator):
+def test_same_quantity_changed_flow_status_is_a_revision(model, indicator):
+    """Changed 2026-11-13: ``flowStatus`` is a quality flag a provider revises, not identity."""
+
     first = query_result(
         "operationaldatas", [observation(indicator=indicator)], indicator=indicator
     )
@@ -184,16 +235,15 @@ def test_same_quantity_changed_flow_status_metadata_refuses(model, indicator):
         persistence.persist_entsog_observations(
             session, results=[first], model=model, run_id="metadata-first"
         )
-        snapshot = _rows(session, model)
-        with pytest.raises(EntsogRevisionRequiresHistoryError) as caught:
-            persistence.persist_entsog_observations(
-                session, results=[changed], model=model, run_id="metadata-refused"
-            )
-        assert caught.value.code == "entsog_revision_requires_history"
-        assert "metadata_json.flowStatus" in str(caught.value)
-        assert "planned" not in str(caught.value)
-        assert _rows(session, model) == snapshot
-        assert len(_rows(session, RawPayloadArchiveRecord)) == 2
+        outcome = persistence.persist_entsog_observations(
+            session, results=[changed], model=model, run_id="metadata-revised"
+        )
+        (stored,) = _rows(session, model)
+        (record,) = _rows(session, ObservationRevisionRecord)
+    assert outcome["revised"] == 1
+    assert stored["metadata_json"]["flowStatus"] == "planned"
+    assert record["changed_fields"] == ["metadata_json.flowStatus"]
+    assert "flowStatus" not in record["prior_row_json"]["metadata_json"]
 
 
 @pytest.mark.parametrize("metadata_key", ["operatorKey", "periodType"])
@@ -211,11 +261,12 @@ def test_changed_identity_or_period_metadata_refuses(metadata_key):
             session, results=[first], model=FlowObservationRecord, run_id="identity-first"
         )
         snapshot = _rows(session, FlowObservationRecord)
-        with pytest.raises(EntsogRevisionRequiresHistoryError) as caught:
+        with pytest.raises(EntsogRevisionIdentityConflictError) as caught:
             persistence.persist_entsog_observations(
                 session, results=[changed], model=FlowObservationRecord, run_id="identity-refused"
             )
-        assert caught.value.code == "entsog_revision_requires_history"
+        # Code changed 2026-11-13: identity changes are refused as identity conflicts.
+        assert caught.value.code == "entsog_revision_identity_conflict"
         assert f"metadata_json.{metadata_key}" in str(caught.value)
         assert "changed-provider-metadata" not in str(caught.value)
         assert _rows(session, FlowObservationRecord) == snapshot
@@ -268,11 +319,11 @@ def test_malformed_existing_metadata_is_typed_revision_not_attribute_error():
             .execution_options(synchronize_session=False)
         )
         snapshot = _rows(session, FlowObservationRecord)
-        with pytest.raises(EntsogRevisionRequiresHistoryError) as caught:
+        with pytest.raises(EntsogRevisionIdentityConflictError) as caught:
             persistence.persist_entsog_observations(
                 session, results=[replay], model=FlowObservationRecord, run_id="malformed-replay"
             )
-        assert caught.value.code == "entsog_revision_requires_history"
+        assert caught.value.code == "entsog_revision_identity_conflict"
         assert "not-a-mapping" not in str(caught.value)
         assert _rows(session, FlowObservationRecord) == snapshot
 

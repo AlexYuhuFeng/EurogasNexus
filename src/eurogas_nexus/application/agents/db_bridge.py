@@ -118,16 +118,28 @@ def latest_market_snapshot(
     return {"rows": list(latest.values()), "count": len(latest)}
 
 
-def flow_rows(session, *, point_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+def flow_rows(
+    session,
+    *,
+    point_id: str | None = None,
+    limit: int = 200,
+    include_open_day: bool = False,
+) -> list[dict[str, Any]]:
     """Flow rows for an agent: a proven volume, or energy as ENTSOG published it.
 
     One operator's report per point and gas day (``pipeline_supply.OPERATOR_SELECTION_RULE``),
     so an agent that adds rows does not count an interconnection twice. A native energy row
     carries ``energy_gwh_d`` and ``flow_mcm_d`` None: no calorific value is assumed, and a
     missing volume is never a zero flow. A row with neither is left out.
+
+    Closed gas days only (``pipeline_supply.CLOSED_DAY_RULE``): a value received while its
+    day was open is a partial-day snapshot. ``include_open_day`` adds those rows, each with
+    ``open_gas_day`` true, for a caller that asks for within-day data.
     """
 
     from eurogas_nexus.application.pipeline_supply import (
+        closed_day_clause,
+        published_after_close,
         row_energy_gwh,
         row_operator,
         select_operator_rows,
@@ -137,6 +149,8 @@ def flow_rows(session, *, point_id: str | None = None, limit: int = 200) -> list
     query = session.query(FlowObservationRecord)
     if point_id:
         query = query.filter(FlowObservationRecord.point_id == point_id)
+    if not include_open_day:
+        query = query.filter(closed_day_clause(FlowObservationRecord))
     query = query.order_by(FlowObservationRecord.observed_at_utc.desc()).limit(
         max(1, min(limit, 500))
     )
@@ -169,6 +183,8 @@ def flow_rows(session, *, point_id: str | None = None, limit: int = 200) -> list
                 "period_start": row.period_start_utc.isoformat(),
                 "period_end": row.period_end_utc.isoformat(),
                 "observed_at": row.observed_at_utc.isoformat(),
+                "revised_at": row.revised_at_utc.isoformat() if row.revised_at_utc else None,
+                "open_gas_day": not published_after_close(row),
                 "source_system": row.source_system,
                 "source_reference": row.source_reference,
             }

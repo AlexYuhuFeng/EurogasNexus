@@ -121,7 +121,13 @@ def test_persist_stamps_the_exact_archive_id_and_hash_on_each_row(monkeypatch) -
     monkeypatch.setattr(
         script,
         "upsert_revision_safe_observation_rows",
-        lambda session_, model, rows: {"inserted": len(rows), "unchanged": 0},
+        # The script now passes a RevisionPolicy (provider revisions kept with history).
+        lambda session_, model, rows, revisions: {
+            "inserted": len(rows),
+            "updated": 0,
+            "unchanged": 0,
+            "revised": 0,
+        },
     )
 
     outcome = script._persist_gie_product(
@@ -152,7 +158,7 @@ def test_unarchived_payload_fails_closed_without_false_lineage(monkeypatch) -> N
     monkeypatch.setattr(
         script,
         "upsert_revision_safe_observation_rows",
-        lambda session_, model, rows: written.append(rows),
+        lambda session_, model, rows, revisions: written.append(rows),
     )
 
     outcome = script._persist_gie_product(
@@ -180,7 +186,7 @@ def test_revision_refusal_reports_counts_and_ids_only(monkeypatch) -> None:
         lambda session_, **kwargs: {"archive_id": "raw-1", "payload_sha256": "c" * 64},
     )
 
-    def refuse(session_, model, rows):
+    def refuse(session_, model, rows, revisions):
         raise GieRevisionRequiresHistoryError("refused")
 
     monkeypatch.setattr(script, "upsert_revision_safe_observation_rows", refuse)
@@ -218,7 +224,12 @@ def test_successful_batch_records_the_real_run_and_warning_path(monkeypatch) -> 
     monkeypatch.setattr(
         script,
         "upsert_revision_safe_observation_rows",
-        lambda session_, model, rows: {"inserted": 0, "unchanged": len(rows)},
+        lambda session_, model, rows, revisions: {
+            "inserted": 0,
+            "updated": 0,
+            "unchanged": len(rows),
+            "revised": 0,
+        },
     )
 
     outcome = script._persist_gie_product(

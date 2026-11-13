@@ -139,12 +139,46 @@ def test_worker_mixed_policy_refuses_before_clock_or_child():
         )
 
 
-def test_scheduler_revision_refusal_is_actionable_and_not_retryable():
-    report = {"ok": False, "failures": [{"code": "entsog_revision_requires_history"}]}
+@pytest.mark.parametrize(
+    "code",
+    [
+        # A value revision is now stored with history; only these remain refusals.
+        "entsog_revision_identity_conflict",
+        "entsog_revision_not_newer",
+        "entsog_revision_requires_history",
+    ],
+)
+def test_scheduler_revision_refusal_is_actionable_and_not_retryable(code):
+    report = {"ok": False, "failures": [{"code": code}]}
     result = scheduler.run_ingestor_attempt(
         lambda *args, **kwargs: SimpleNamespace(returncode=1, stderr="", stdout=json.dumps(report)),
         entsog_lookback_gas_days=2,
     )({"source_id": "src-entsog", "scheduled_for_utc": "2026-01-02T05:00:00+00:00"}, 1)
     assert not result.succeeded and result.classification == FailureCategory.QUALITY_REJECTED
-    assert result.quality_issues[0].quality_code == "entsog_revision_requires_history"
-    assert "Review revisions" in result.quality_issues[0].message
+    assert result.quality_issues[0].quality_code == code
+    assert "Review the identity change" in result.quality_issues[0].message
+
+
+def test_scheduler_success_report_with_revisions_is_accepted():
+    """A rolling refresh that revised rows succeeds; revised/updated are valid counters."""
+
+    report = {
+        "ok": True,
+        "sources": {
+            "ENTSOG": {
+                "records": 3,
+                "received_records": 3,
+                "skipped_records": 0,
+                "inserted": 1,
+                "updated": 1,
+                "unchanged": 1,
+                "revised": 1,
+            }
+        },
+    }
+    result = scheduler.run_ingestor_attempt(
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stderr="", stdout=json.dumps(report)),
+        entsog_lookback_gas_days=2,
+    )({"source_id": "src-entsog", "scheduled_for_utc": "2026-01-02T05:00:00+00:00"}, 1)
+    assert result.succeeded
+    assert result.rows_inserted == 1 and result.duplicate_count == 1

@@ -893,11 +893,19 @@ def _register_network_capabilities(registry) -> None:
                     "Runtime PostgreSQL is not configured",
                 )
             rows = flow_rows(session, point_id=arguments.get("point_id"))
-        from eurogas_nexus.application.pipeline_supply import OPERATOR_SELECTION_RULE
+        from eurogas_nexus.application.pipeline_supply import (
+            CLOSED_DAY_RULE,
+            OPERATOR_SELECTION_RULE,
+        )
 
         return _result(
             definition,
-            {"rows": rows, "count": len(rows), "operator_rule": OPERATOR_SELECTION_RULE},
+            {
+                "rows": rows,
+                "count": len(rows),
+                "operator_rule": OPERATOR_SELECTION_RULE,
+                "closed_day_rule": CLOSED_DAY_RULE,
+            },
         )
 
     def get_storage_context(arguments, _context):

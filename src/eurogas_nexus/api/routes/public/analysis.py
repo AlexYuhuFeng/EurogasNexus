@@ -380,7 +380,14 @@ def _db_snapshot(
                 .limit(20)
                 .all()
             )
-            flow_query = session.query(FlowObservationRecord)
+            from eurogas_nexus.application.pipeline_supply import closed_day_clause
+
+            # Closed gas days only (pipeline_supply.CLOSED_DAY_RULE): a value received while
+            # its day was open is a partial-day snapshot, never a day's flow. Filtered before
+            # the LIMIT so open and next-day rows cannot crowd closed days out.
+            flow_query = session.query(FlowObservationRecord).filter(
+                closed_day_clause(FlowObservationRecord)
+            )
             if duration_start_utc:
                 flow_query = flow_query.filter(
                     FlowObservationRecord.period_end_utc >= duration_start_utc

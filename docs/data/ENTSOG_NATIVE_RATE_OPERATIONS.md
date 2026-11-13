@@ -114,7 +114,7 @@ conflict handling in owned test schemas. SQLite fixture tests are fast mechanics
 only and do not substitute for those tests. See the execution checkpoint for
 current pipeline results and outstanding shared-client adoption.
 
-## Bounded provider-quality revision guard
+## Provider revisions
 
 The append-or-verify path compares stored and incoming canonical semantic columns
 and, for ENTSOG observations, only these explicit provider metadata keys:
@@ -124,13 +124,14 @@ compared exactly and are never normalized, guessed or converted through a CV.
 Unlisted metadata stays ignored, so a new receipt, raw archive, ingestion run,
 payload hash or label does not make an unchanged observation look revised.
 
-A changed quantity or an allowlisted identity/quality field refuses the canonical
-batch with the existing `entsog_revision_requires_history` error in its savepoint.
-Mixed new/changed batches roll back their canonical writes as a whole; raw
-archives already retained by the caller survive. The first-seen receipt and
-stored lineage of an unchanged row are preserved. This is a bounded semantic
-guard, not full provider revision history: there is no new history table, schema,
-observation ID, overwrite or source activation.
+Since migration `0062_observation_revisions` (2026-11-13), a later change to the
+quantity, native payload, point name or `flowStatus` is a provider revision: the
+current row takes it and the replaced version is appended to
+`observation_revisions` in the same savepoint. A change to `operatorKey`,
+`periodType` or any identity column is refused atomically
+(`entsog_revision_identity_conflict`), as is a changed value received no later
+than the stored one (`entsog_revision_not_newer`). Raw archives already retained
+by the caller survive a refusal. See `docs/operations/DATA_REVISIONS.md`.
 
 ## Shared client window selection
 

@@ -32,7 +32,9 @@ from eurogas_nexus.ingestion.entsog_native_units import (
 
 _PERIOD_START = datetime(2026, 6, 1, tzinfo=UTC)
 _PERIOD_END = datetime(2026, 6, 2, tzinfo=UTC)
-_OBSERVED_AT = datetime(2026, 6, 1, 12, tzinfo=UTC)
+# Received after the gas day closed: the snapshot reads closed days only
+# (pipeline_supply.CLOSED_DAY_RULE, 2026-11-13); was 12:00 on the open day.
+_OBSERVED_AT = datetime(2026, 6, 2, 6, tzinfo=UTC)
 _FORBIDDEN_NATIVE_MARKER = "secret-raw-value"
 _DB_ENV_NAMES = (
     "RUNTIME_STORE_DATABASE_URL",

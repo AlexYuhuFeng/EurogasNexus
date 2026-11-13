@@ -75,6 +75,7 @@ from eurogas_nexus.db.models.observation import (
     InterestRateObservationRecord,
     LngObservationRecord,
     MarketObservationRecord,
+    ObservationRevisionRecord,
     ProviderCredentialRecord,
     StorageObservationRecord,
 )
@@ -326,6 +327,7 @@ __all__ = [
     "DatasetSpecRecord",
     "FeatureDefinitionRecord",
     "ForecastObservationRecord",
+    "ObservationRevisionRecord",
     "ObservationTemporalMetadataRecord",
     "ResamplingPolicyRecord",
     "SeriesDefinitionRecord",

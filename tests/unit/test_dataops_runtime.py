@@ -457,7 +457,7 @@ def test_entsog_rolling_revision_failure_persists_action_and_never_advances_succ
             returncode=1,
             stderr="",
             stdout=json.dumps(
-                {"ok": False, "failures": [{"code": "entsog_revision_requires_history"}]}
+                {"ok": False, "failures": [{"code": "entsog_revision_identity_conflict"}]}
             ),
         )
 
@@ -476,9 +476,10 @@ def test_entsog_rolling_revision_failure_persists_action_and_never_advances_succ
         assert state.last_success_at_utc is None
         issue = session.execute(select(IngestionRunIssueRecord)).scalar_one()
         assert (
-            issue.quality_code == "entsog_revision_requires_history" and issue.severity == "ERROR"
+            issue.quality_code == "entsog_revision_identity_conflict"
+            and issue.severity == "ERROR"
         )
-        assert "Review revisions" in issue.message
+        assert "Review the identity change" in issue.message
         assert any("mode=rolling-gas-day" in ref for ref in stored.lineage_refs)
 
 

@@ -765,9 +765,15 @@ def _build_from_runtime(
         else:
             available_at = None
             integrity = TemporalIntegrityState.TEMPORAL_APPROXIMATE
+        superseded = getattr(row, "superseded_at_utc", None)
         records.append(
             DatasetEvidenceRecord(
-                record_id=row.observation_id,
+                # A historical version is a distinct record: the id names when it ended.
+                record_id=(
+                    row.observation_id
+                    if superseded is None
+                    else f"{row.observation_id}@{superseded.isoformat()}"
+                ),
                 series_id=series_id,
                 entity_id=entity_id,
                 observed_at=row.observed_at_utc,
@@ -864,9 +870,13 @@ def _fundamental_evidence(
     from National Gas, TWh or %), ``flow.gwh_d.<point_id>.<direction>``
     (ENTSOG energy as published) and ``flow.mcm_d.<point_id>.<direction>`` (a published volume
     only; native ENTSOG rows have none). Flows take one operator's report per point and gas
-    day (``pipeline_supply.OPERATOR_SELECTION_RULE``). Availability is the observation's
-    ingestion time (power: the publication deadline), so it is approximate rather than
-    certified.
+    day (``pipeline_supply.OPERATOR_SELECTION_RULE``) and closed gas days only
+    (``pipeline_supply.CLOSED_DAY_RULE``). Availability is the receipt of the value
+    (power: the publication deadline), so it is approximate rather than certified.
+
+    **Revisions.** A storage, LNG or flow value a provider revised yields one record per
+    version (``observation_revisions``), each available from its own receipt, so a dataset
+    built for an earlier origin takes the value known then, never the later revision.
 
     **Provenance per row.** A table holds more than one source (power: ENTSO-E and Elexon;
     storage and LNG: GIE and National Gas), so each row's source definition, export policy
@@ -880,6 +890,10 @@ def _fundamental_evidence(
         StorageObservationRecord,
     )
     from eurogas_nexus.db.models.power import PowerObservationRecord
+    from eurogas_nexus.db.repositories.observation_revisions import (
+        all_versions,
+        value_received_at,
+    )
 
     by_prefix: dict[str, set[tuple[str, ...]]] = {}
     for series_id in needed:
@@ -903,9 +917,15 @@ def _fundamental_evidence(
             moment.replace(tzinfo=UTC) if moment is not None and moment.tzinfo is None else moment
             for moment in (observed_at, available_at, ingested_at)
         )
+        superseded = getattr(row, "superseded_at_utc", None)
         records.append(
             DatasetEvidenceRecord(
-                record_id=row.observation_id,
+                # A historical version is a distinct record: the id names when it ended.
+                record_id=(
+                    row.observation_id
+                    if superseded is None
+                    else f"{row.observation_id}@{superseded.isoformat()}"
+                ),
                 series_id=series_id,
                 entity_id=entity_id,
                 observed_at=observed_at,
@@ -979,19 +999,20 @@ def _fundamental_evidence(
             .filter(model.period_start_utc < end)
             .all()
         )
-        for row in rows:
+        for row in all_versions(session, rows):
             definition = definition_of(row)
             if definition is None:
                 continue
             key = getattr(row, key_column)
+            received = value_received_at(row)
             for metric, unit in metrics.items():
                 if (metric, key) in wanted:
                     add(
                         f"{prefix}.{metric}.{key}",
                         f"ent:{entity_kind}:{key}",
                         row.period_start_utc,
-                        row.observed_at_utc,
-                        row.observed_at_utc,
+                        received,
+                        received,
                         getattr(row, metric),
                         unit,
                         row,
@@ -1001,6 +1022,7 @@ def _fundamental_evidence(
     wanted = by_prefix.get("flow")
     if wanted:
         from eurogas_nexus.application.pipeline_supply import (
+            published_after_close,
             row_energy_gwh,
             select_operator_rows,
         )
@@ -1016,8 +1038,12 @@ def _fundamental_evidence(
         # One operator's report per point and gas day (OPERATOR_SELECTION_RULE): the other
         # side of an interconnection publishes the same flow, so both would be a duplicate.
         # Only rows of a source the caller may read enter the choice.
-        for row in select_operator_rows(row for row in rows if definition_of(row) is not None):
+        chosen = select_operator_rows(row for row in rows if definition_of(row) is not None)
+        for row in all_versions(session, chosen):
+            if not published_after_close(row):
+                continue  # a partial-day snapshot (CLOSED_DAY_RULE), not the day's flow
             definition = definition_of(row)
+            received = value_received_at(row)
             direction = str(row.direction or "").lower()
             if ("mcm_d", row.point_id, direction) in wanted:
                 # A published volume only: native ENTSOG rows publish energy and leave the
@@ -1026,8 +1052,8 @@ def _fundamental_evidence(
                     f"flow.mcm_d.{row.point_id}.{direction}",
                     f"ent:point:{row.point_id}",
                     row.period_start_utc,
-                    row.observed_at_utc,
-                    row.observed_at_utc,
+                    received,
+                    received,
                     row.flow_mcm_d,
                     "mcm/d",
                     row,
@@ -1039,8 +1065,8 @@ def _fundamental_evidence(
                     f"flow.gwh_d.{row.point_id}.{direction}",
                     f"ent:point:{row.point_id}",
                     row.period_start_utc,
-                    row.observed_at_utc,
-                    row.observed_at_utc,
+                    received,
+                    received,
                     None if from_volume else energy,  # energy as published, no assumed GCV
                     "GWh/d",
                     row,

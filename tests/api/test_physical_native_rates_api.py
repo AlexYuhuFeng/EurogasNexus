@@ -7,7 +7,7 @@ root reviewer's authoritative environment.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -466,15 +466,19 @@ def test_agent_malformed_native_row_is_not_an_empty_reading(
     with Session(engine) as session:
         session.add_all(
             [
+                # Received after the gas day closed: the agent bridge reads closed days only
+                # (pipeline_supply.CLOSED_DAY_RULE, 2026-11-13).
                 _flow_observation(
                     observation_id="agent-legacy",
                     flow_mcm_d=5.5,
+                    observed_at_utc=_PERIOD_END + timedelta(hours=6),
                 ),
                 _flow_observation(
                     observation_id="agent-energy",
                     flow_mcm_d=9.0,
                     normalizer_version=native_energy["normalizer_version"],
                     native_rate_json=native_energy,
+                    observed_at_utc=_PERIOD_END + timedelta(hours=6),
                 ),
             ]
         )
@@ -495,6 +499,7 @@ def test_agent_malformed_native_row_is_not_an_empty_reading(
                 flow_mcm_d=1.0,
                 normalizer_version=NORMALIZER_VERSION,
                 native_rate_json={"broken": "secret-raw-value"},
+                observed_at_utc=_PERIOD_END + timedelta(hours=6),
             )
         )
         session.commit()

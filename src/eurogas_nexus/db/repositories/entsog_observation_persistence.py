@@ -1,17 +1,32 @@
-"""ENTSOG append-or-verify persistence without inventing revision history.
+"""ENTSOG append-or-verify persistence with append-only revision history.
 
 Reuse the existing row-lock/ON CONFLICT algorithm with ENTSOG semantic columns.
-The generic in-place upsert and GIE's field sets and error contract are unchanged.
-Each call owns a savepoint, never a commit: mixed revised/new batches roll back
-their canonical writes while the caller's previously archived raw pages survive.
+Each call owns a savepoint, never a commit: a refused batch rolls back its
+canonical writes while the caller's previously archived raw pages survive.
 
-RFC0005 native rows add the version and exact native wire payload to the semantic
-comparison.  They remain additive: a native row must use its new namespace, while
-both-NULL legacy rows stay replayable under their original ids.  A changed native
-payload is therefore a typed revision refusal, never a silent overwrite.  The
-explicit provider metadata allowlist (``operatorKey``, ``flowStatus`` and
-``periodType``) is also compared, so an identity/quality change is refused while
-receipt, archive, run and hash churn remains ignored.
+ENTSOG publishes provisional values and revises them. A change confined to the
+value fields (:data:`ENTSOG_REVISABLE_FIELDS`, plus the ``flowStatus`` quality
+flag) replaces the current row and writes the replaced version to
+``observation_revisions`` in the same transaction; the row keeps its first
+receipt in ``observed_at_utc`` and records the new receipt in
+``revised_at_utc``. A change to anything else compared (source, point,
+direction, period, kind/capacity type, unit, research flag, normalizer version,
+``operatorKey``, ``periodType``) is not a revision of the same observation and
+is still refused atomically.
+
+**Open gas days (flows only).** ENTSOG publishes the running gas day; a flow row
+received before its period ended is a partial-day snapshot. It is stored (a
+reader that asks for within-day data can have it) and is replaced, with its own
+history record, by the first receipt after the period end even when the value
+is equal (reason ``period_closed``). Closed-day readers take only values
+received at or after the period end (``pipeline_supply.published_after_close``),
+so the snapshot never passes as the day's flow. Capacity is published ahead of
+its period by nature and is not subject to this rule.
+
+RFC0005 native rows add the version and exact native wire payload to the
+semantic comparison. They remain additive: a native row must use its new
+namespace, while both-NULL legacy rows stay replayable under their original ids.
+Receipt, archive, run and hash churn remains ignored.
 """
 
 from __future__ import annotations
@@ -23,8 +38,11 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.repositories.public_ingestion_upsert import (
+    GieRevisionIdentityConflictError,
     GieRevisionRaceError,
     GieRevisionRequiresHistoryError,
+    GieStaleRevisionError,
+    RevisionPolicy,
     upsert_revision_safe_observation_rows,
 )
 from eurogas_nexus.ingestion.entsog_native_payloads import (
@@ -67,6 +85,19 @@ _NATIVE_NAMESPACES = {
 #: Provider identity/quality metadata that must not silently change under an
 #: unchanged natural key. Unlisted receipt/archive/run/hash fields stay ignored.
 _SEMANTIC_METADATA_KEYS = ("operatorKey", "flowStatus", "periodType")
+#: Fields a provider revision may change: the published quantity and its native
+#: payload, the descriptive point name and the ``flowStatus`` quality flag. The
+#: unit is part of the ENTSOG record id, so a different unit is a different record.
+ENTSOG_REVISABLE_FIELDS = {
+    "flow_observations": ("original_value", "flow_mcm_d", "native_rate_json", "point_name"),
+    "capacity_observations": (
+        "original_value",
+        "capacity_mcm_d",
+        "native_rate_json",
+        "point_name",
+    ),
+}
+_REVISABLE_METADATA_KEYS = ("flowStatus",)
 
 
 class EntsogObservationPersistenceError(RuntimeError):
@@ -75,6 +106,18 @@ class EntsogObservationPersistenceError(RuntimeError):
 
 class EntsogRevisionRequiresHistoryError(EntsogObservationPersistenceError):
     code = "entsog_revision_requires_history"
+
+
+class EntsogRevisionIdentityConflictError(EntsogRevisionRequiresHistoryError):
+    """An existing key differs in source, identity or period: not a revision."""
+
+    code = "entsog_revision_identity_conflict"
+
+
+class EntsogStaleRevisionError(EntsogRevisionRequiresHistoryError):
+    """A changed value not received after the stored version (an old capture replayed)."""
+
+    code = "entsog_revision_not_newer"
 
 
 class EntsogRevisionRaceError(EntsogObservationPersistenceError):
@@ -90,7 +133,11 @@ def upsert_entsog_observation_rows(
     model: Any,
     rows: list[dict[str, Any]],
 ) -> dict[str, int]:
-    """Insert absent keys; verify unchanged keys; refuse revisions atomically."""
+    """Insert absent keys, verify unchanged keys, revise value changes with history.
+
+    Returns ``inserted``/``updated``/``unchanged``/``revised`` counts; see the module
+    docstring for what is revised and what is refused.
+    """
     table_name = model.__table__.name
     fields = ENTSOG_SEMANTIC_FIELDS.get(table_name)
     if not rows or fields is None or table_name not in _NATIVE_NAMESPACES:
@@ -132,6 +179,11 @@ def upsert_entsog_observation_rows(
         prepared_row.setdefault("normalizer_version", None)
         prepared_row.setdefault("native_rate_json", None)
         prepared.append(prepared_row)
+    policy = RevisionPolicy(
+        revisable_fields=ENTSOG_REVISABLE_FIELDS[table_name],
+        revisable_metadata_keys=_REVISABLE_METADATA_KEYS,
+        close_open_periods=table_name == "flow_observations",
+    )
     try:
         with session.begin_nested():
             return upsert_revision_safe_observation_rows(
@@ -140,6 +192,7 @@ def upsert_entsog_observation_rows(
                 prepared,
                 semantic_fields=fields,
                 semantic_metadata_keys=_SEMANTIC_METADATA_KEYS,
+                revisions=policy,
             )
     except GieRevisionRequiresHistoryError as exc:
         changed = (
@@ -147,8 +200,18 @@ def upsert_entsog_observation_rows(
             if exc.changed_fields
             else ""
         )
+        if isinstance(exc, GieStaleRevisionError):
+            raise EntsogStaleRevisionError(
+                "ENTSOG changed value was not received after the stored version; original "
+                f"rows kept.{changed}"
+            ) from None
+        if isinstance(exc, GieRevisionIdentityConflictError):
+            raise EntsogRevisionIdentityConflictError(
+                "ENTSOG row differs from the stored row in a field a revision may not "
+                f"change; original rows kept.{changed}"
+            ) from None
         raise EntsogRevisionRequiresHistoryError(
-            "ENTSOG revised semantic content requires append-only history; original rows kept."
+            "ENTSOG revised semantic content was refused; original rows kept."
             f"{changed}"
         ) from None
     except GieRevisionRaceError:
