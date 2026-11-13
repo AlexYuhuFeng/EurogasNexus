@@ -1,6 +1,6 @@
 """DB-backed operational glossary context tests."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -67,7 +67,9 @@ def test_glossary_context_reads_capacity_flow_prices_and_contracts_from_db(
                 native_rate_json=_native_mcm_rate("6.0"),
                 period_start_utc=start,
                 period_end_utc=end,
-                observed_at_utc=observed,
+                # Received after the gas day closed: a measured flow received while the day
+                # was open is a partial-day snapshot (pipeline_supply.CLOSED_DAY_RULE).
+                observed_at_utc=end + timedelta(hours=2),
                 source_system="ENTSOG",
                 source_reference="entsog:ttf:bbl",
                 freshness="fresh",
@@ -251,7 +253,8 @@ def test_glossary_context_derives_non_profile_entry_point_from_runtime_records(
                     native_rate_json=_native_mcm_rate("20.0"),
                     period_start_utc=middle,
                     period_end_utc=end,
-                    observed_at_utc=observed,
+                    # After the close (CLOSED_DAY_RULE); was 12:00 on the open day.
+                    observed_at_utc=end + timedelta(hours=2),
                     source_system="ENTSOG",
                     source_reference="entsog:zeebrugge:day-2",
                     freshness="fresh",

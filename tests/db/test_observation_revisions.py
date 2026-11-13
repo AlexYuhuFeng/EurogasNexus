@@ -330,3 +330,20 @@ def test_research_builder_takes_the_version_known_at_each_origin():
     late = _as_of_candidates(versions, LATER_RECEIPT, spec=spec)
     assert [r.value for r in early["flow.gwh_d.ITP-00126.entry"]] == [157.8]
     assert [r.value for r in late["flow.gwh_d.ITP-00126.entry"]] == [740.1]
+
+
+def test_closed_day_rule_touches_measured_flows_only():
+    """Nominations, allocations and forecasts are published ahead of their period."""
+
+    from types import SimpleNamespace
+
+    from eurogas_nexus.application.pipeline_supply import closed_day_clause
+
+    def row(kind):
+        return SimpleNamespace(kind=kind, period_end_utc=END, observed_at_utc=OPEN_RECEIPT,
+                               revised_at_utc=None)
+
+    assert not published_after_close(row("actual"))
+    for kind in ("nomination", "allocation", "forecast"):
+        assert published_after_close(row(kind))
+    assert "kind" in str(closed_day_clause(FlowObservationRecord))

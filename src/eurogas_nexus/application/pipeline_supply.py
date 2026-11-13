@@ -197,8 +197,10 @@ def _utc(moment: datetime | None) -> datetime | None:
 
 #: The closed-day rule every flow reader applies (one place: here).
 CLOSED_DAY_RULE = (
-    "A flow row is a closed gas day's figure only when its current value was received at or "
-    "after the period end. A value received while the day was open is a partial-day "
+    "An actual (measured) flow row is a closed gas day's figure only when its current value "
+    "was received at or after the period end; nominations, allocations and forecasts are "
+    "published ahead of their period and are not affected. A measured value received while "
+    "the day was open is a partial-day "
     "snapshot: it is kept, offered only to a reader that asks for within-day data, and "
     "flagged as open there; ingestion replaces it by the first receipt after the period end."
 )
@@ -223,6 +225,8 @@ def published_after_close(record: Any) -> bool:
     the snapshot in ``observation_revisions``; the replacement carries ``revised_at_utc``.
     """
 
+    if str(getattr(record, "kind", None) or "actual").lower() != "actual":
+        return True  # published ahead of its period by nature: not a partial measurement
     end, seen = _utc(getattr(record, "period_end_utc", None)), received_at(record)
     return end is not None and seen is not None and seen >= end
 
@@ -230,9 +234,12 @@ def published_after_close(record: Any) -> bool:
 def closed_day_clause(model: Any) -> Any:
     """:func:`published_after_close` as a SQL condition, for filtering before a LIMIT."""
 
-    from sqlalchemy import func
+    from sqlalchemy import func, or_
 
-    return func.coalesce(model.revised_at_utc, model.observed_at_utc) >= model.period_end_utc
+    return or_(
+        model.kind != "actual",
+        func.coalesce(model.revised_at_utc, model.observed_at_utc) >= model.period_end_utc,
+    )
 
 
 def closed_day_rows(records: Iterable[Any], *, include_open: bool = False) -> list[Any]:
