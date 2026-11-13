@@ -271,6 +271,7 @@ def test_scheduler_loop_does_not_label_failed_configuration_as_ok(monkeypatch):
     ("source_id", "script", "flag"),
     [
         ("src-entsoe", "ingest_power.py", "--commit"),
+        ("src-elexon", "ingest_power_gb.py", "--commit"),
         ("src-boe", "ingest_interest_rates.py", "SONIA"),
         ("src-ecb-estr", "ingest_interest_rates.py", "ESTR"),
         ("src-nyfed", "ingest_interest_rates.py", "SOFR"),

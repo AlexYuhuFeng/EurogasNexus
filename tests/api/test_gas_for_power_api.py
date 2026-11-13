@@ -129,3 +129,61 @@ def test_unknown_zone_is_refused(monkeypatch):
         "/api/market/gas-for-power?zone=TTF"
     )
     assert response.status_code in (401, 403, 422)
+
+
+def test_gb_uses_elexon_wind_and_labels_the_market_index_price(tmp_path, monkeypatch):
+    """GB has no day-ahead price in store: the market index is used and said to be one."""
+    url = f"sqlite+pysqlite:///{(tmp_path / 'gb.sqlite').as_posix()}"
+    engine = create_engine(url, future=True)
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC)
+    day_start = datetime.combine(now.date(), datetime.min.time(), tzinfo=UTC)
+    with Session(engine) as session:
+        owner = create_identity_principal(
+            session, name="gb", display_name="GB", role="ANALYST", data_scopes=["*"]
+        )
+        _, bearer = create_identity_api_key(
+            session, owner.principal_id, display_name="g", scopes=["*"]
+        )
+        for period in range(48):
+            start = day_start + timedelta(minutes=30 * period)
+            for metric, value, unit in (
+                ("market_index_price", 80.0, "GBP/MWh"),
+                ("load_actual", 30_000.0, "MW"),
+                ("wind_generation", 10_000.0, "MW"),
+                ("gas_generation", 12_000.0, "MW"),
+            ):
+                session.add(
+                    PowerObservationRecord(
+                        observation_id=f"elexon:{metric}-{period}",
+                        zone="GB",
+                        metric=metric,
+                        process_type=None,
+                        period_start_utc=start,
+                        period_end_utc=start + timedelta(minutes=30),
+                        value=value,
+                        unit=unit,
+                        source_system="ELEXON",
+                        source_reference="t",
+                        published_at_utc=now,
+                        ingested_at_utc=now,
+                    )
+                )
+        session.commit()
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    response = TestClient(
+        create_app(),
+        headers={"X-Eurogas-Identity": bearer, "X-Eurogas-Api-Key": "test-public-api-token"},
+    ).get("/api/market/gas-for-power?zone=GB&days=2")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    (row,) = body["data"]
+    assert row["power_price"] == 80.0
+    assert row["residual_load_mw"] == 20_000  # single wind series, no solar
+    # Observed gas generation: 12 GW x 24 h / 0.5 = 576 GWh, half-hours weighted as such.
+    assert row["implied_gas_burn_gwh"] == 576.0
+    assert row["burn_basis"] == ["observed_generation"]
+    assert any("market index" in warning for warning in body["meta"]["warnings"])

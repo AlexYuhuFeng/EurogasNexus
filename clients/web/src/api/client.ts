@@ -2704,6 +2704,8 @@ export interface NweBalanceDTO {
 export interface GasForPowerDayDTO {
   day: string;
   power_price: number | null;
+  /** "day_ahead" (auction) or "market_index" (GB within-day reference). */
+  power_price_basis?: string | null;
   residual_load_mw: number | null;
   implied_gas_burn_gwh: number | null;
   burn_basis: string[];

@@ -1,7 +1,7 @@
 """Ingest ENTSO-E power data: day-ahead prices, load and generation by fuel.
 
 Usage:
-    python scripts/ops/ingest_power.py --zone GB --zone NL --days 7
+    python scripts/ops/ingest_power.py --zone NL --zone DE_LU --days 7
     python scripts/ops/ingest_power.py --file saved_a44.xml          # a stored document
 
 The token comes from ENTSOE_SECURITY_TOKEN and is never printed. Without --commit the run
@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
         start = end - timedelta(days=args.days)
-        for zone in args.zone or ["GB", "NL", "DE_LU"]:
+        for zone in args.zone or ["NL", "DE_LU", "BE", "FR"]:
             for document in args.documents.split(","):
                 url = request_url(token, document.strip(), zone, start, end)
                 reference = f"entsoe:{document.strip()}:{zone}:{start:%Y%m%d}-{end:%Y%m%d}"

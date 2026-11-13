@@ -30,6 +30,8 @@ PUBLIC_BASELINE_SOURCE_FAMILIES = frozenset(
         "NYFED",
         # ENTSO-E Transparency: free power-system data (token required, attribution).
         "ENTSOE",
+        # Elexon BMRS: Great Britain power-system data, open licence with attribution.
+        "ELEXON",
         # REMIT urgent market messages: inside information operators must publish.
         "REMIT",
         # US Energy Information Administration: public-domain government data.

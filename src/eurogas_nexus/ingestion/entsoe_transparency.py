@@ -95,11 +95,13 @@ class PowerObservation:
     published_at_utc: datetime
     source_reference: str
     process_type: str | None = None
+    #: Which publisher the row came from; part of the id so two publishers never collide.
+    source: str = "entsoe"
 
     @property
     def observation_id(self) -> str:
         return (
-            f"entsoe:{self.zone}:{self.metric}:{self.process_type or '-'}:"
+            f"{self.source}:{self.zone}:{self.metric}:{self.process_type or '-'}:"
             f"{self.period_start_utc:%Y%m%dT%H%M}"
         )
 

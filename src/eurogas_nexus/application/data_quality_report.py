@@ -79,8 +79,11 @@ SPECS: tuple[DatasetSpec, ...] = (
                 ("product",), ("price",), 1440, 264, where="source_system = 'EIA'",
                 received="observed_at_utc"),
     DatasetSpec("Power (ENTSO-E)", "ENTSOE", "power_observations", "period_start_utc",
-                ("zone", "metric"), ("value",), 15, 30, received="ingested_at_utc",
-                open_hours=3.0),
+                ("zone", "metric"), ("value",), 15, 30, where="source_system = 'ENTSOE'",
+                received="ingested_at_utc", open_hours=3.0),
+    DatasetSpec("GB power (Elexon)", "ELEXON", "power_observations", "period_start_utc",
+                ("zone", "metric"), ("value",), 30, 6, where="source_system = 'ELEXON'",
+                received="ingested_at_utc", open_hours=3.0),
     DatasetSpec("GB demand (National Gas)", "NationalGas", "national_gas_actual_demand",
                 # An append-only revision log: each publication of a gas day is its own row.
                 "gas_day", ("provider_item_id", "series_key", "applicable_at_raw"),

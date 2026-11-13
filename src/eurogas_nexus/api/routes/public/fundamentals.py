@@ -39,6 +39,10 @@ _POWER_METRICS = (
     "wind_offshore_generation",
     "solar_generation",
     "gas_generation",
+    # Great Britain, from Elexon: wind is not split on- and offshore, and the price is the
+    # market index, a within-day reference, not the day-ahead auction.
+    "wind_generation",
+    "market_index_price",
 )
 
 
@@ -240,11 +244,18 @@ def get_gas_for_power(
         by_day[start.date()].append(values)
 
     is_gb = power_market.code == "GB"
+    price_bases: set[str] = set()
     carbon_code = power_market.carbon_market
     rows = []
     for day in sorted(by_day):
         values = by_day[day]
         prices = [v["day_ahead_price"] for v in values if "day_ahead_price" in v]
+        price_basis = "day_ahead" if prices else None
+        if not prices:
+            prices = [v["market_index_price"] for v in values if "market_index_price" in v]
+            if prices:
+                price_basis = "market_index"
+                price_bases.add(price_basis)
         burn = 0.0
         burn_basis: set[str] = set()
         residuals = []
@@ -254,8 +265,11 @@ def get_gas_for_power(
                 continue
             hour = SystemHour(
                 load_mw=load,
-                wind_mw=v.get("wind_onshore_generation", 0.0)
-                + v.get("wind_offshore_generation", 0.0),
+                wind_mw=v.get(
+                    "wind_generation",
+                    v.get("wind_onshore_generation", 0.0)
+                    + v.get("wind_offshore_generation", 0.0),
+                ),
                 solar_mw=v.get("solar_generation", 0.0),
                 gas_generation_mw=v.get("gas_generation"),
             )
@@ -299,6 +313,7 @@ def get_gas_for_power(
             {
                 "day": day.isoformat(),
                 "power_price": None if power is None else round(power, 2),
+                "power_price_basis": price_basis,
                 "residual_load_mw": round(sum(residuals) / len(residuals), 0)
                 if residuals
                 else None,
@@ -317,7 +332,14 @@ def get_gas_for_power(
         )
     if not rows:
         warnings.append(
-            f"No ENTSO-E data for {power_market.code}; enable src-entsoe in Source Center."
+            "No Elexon data for GB; run scripts/ops/ingest_power_gb.py."
+            if is_gb
+            else f"No ENTSO-E data for {power_market.code}; enable src-entsoe in Source Center."
+        )
+    if "market_index" in price_bases:
+        warnings.append(
+            "The GB power price is the Elexon market index (a within-day reference), not the "
+            "day-ahead auction; spark spreads on it are indicative."
         )
     if rows and not gas:
         warnings.append(f"No licensed {power_market.gas_hub} closes; spark spreads are empty.")

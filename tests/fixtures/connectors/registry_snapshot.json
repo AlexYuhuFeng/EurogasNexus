@@ -1305,6 +1305,50 @@
    "workflow_ready": false
   },
   {
+   "category": "power",
+   "category_label": "Power",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": "ELEXON",
+   "credential_requirements": [
+    "api_key"
+   ],
+   "credential_state": "missing",
+   "credential_status": null,
+   "datasets": [
+    "generation-by-fuel",
+    "demand-outturn",
+    "market-index-price"
+   ],
+   "description": "Elexon Insights (BMRS) Great Britain half-hourly gas-fired and wind generation, national demand and the APX market index price: the GB side of gas burned for power, which ENTSO-E does not carry. Free, no key; attribution: Contains BMRS data \u00a9 Elexon Limited copyright and database right.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ELEXON",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 120,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-elexon",
+   "source_system": "ELEXON",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
    "category": "rates",
    "category_label": "Interest rates",
    "certification_allows_live": false,
@@ -3305,6 +3349,67 @@
    },
    "source_class": "public",
    "source_id": "src-entsoe"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "elexon-insights-json-v1",
+   "calendar": "always_open",
+   "certification_required": true,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [
+    "api_key"
+   ],
+   "dataset": "generation-by-fuel",
+   "datasets": [
+    "generation-by-fuel",
+    "demand-outturn",
+    "market-index-price"
+   ],
+   "description": "Elexon Insights (BMRS) Great Britain half-hourly gas-fired and wind generation, national demand and the APX market index price: the GB side of gas burned for power, which ENTSO-E does not carry. Free, no key; attribution: Contains BMRS data \u00a9 Elexon Limited copyright and database right.",
+   "enabled_default": true,
+   "entitlement_scope": "licensed",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 360,
+    "normal_max_age_minutes": 120,
+    "stale_after_minutes": 1440
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ELEXON",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 6,
+    "min_spacing_seconds": 30.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 120.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": 1800,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "INTERVAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-elexon"
   },
   {
    "access_mode": "public_http",
