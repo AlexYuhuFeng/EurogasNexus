@@ -301,11 +301,57 @@ def download_national_gas_csv(
 
     series = validate_provider_item_id(provider_item_id)
     validate_query_window(date_from, date_to)
+    target_url = build_download_url(series.provider_item_id, date_from, date_to)
+    body = fetch_official_csv(
+        target_url,
+        client=client,
+        timeout_seconds=timeout_seconds,
+        max_attempts=max_attempts,
+        sleep=sleep,
+    )
+    receipt = _require_aware_utc(received_at_utc or datetime.now(UTC), "received_at_utc")
+    rows = tuple(
+        parse_national_gas_csv(
+            body,
+            provider_item_id=series.provider_item_id,
+            date_from=date_from,
+            date_to=date_to,
+            received_at_utc=receipt,
+            available_at_utc=receipt,
+        )
+    )
+    return DemandDownload(
+        rows=rows,
+        raw_csv=body,
+        raw_sha256=hashlib.sha256(body).hexdigest(),
+        source_url=target_url,
+        received_at_utc=receipt,
+    )
+
+
+def fetch_official_csv(
+    target_url: str,
+    *,
+    client: httpx.Client | None = None,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bytes:
+    """GET one already-built portal download URL and return its bounded body.
+
+    The caller builds ``target_url`` from the fixed official origin; the response
+    must come back from exactly that URL.  Redirects are not followed and retries
+    are limited to 429/5xx and transport timeouts.
+    """
+
     if not 1 <= max_attempts <= 5:
         raise NationalGasDemandError("INVALID_RETRY_POLICY", "max_attempts must be 1..5")
     if not 1.0 <= timeout_seconds <= 30.0:
         raise NationalGasDemandError("INVALID_TIMEOUT", "timeout must be 1..30 seconds")
-    target_url = build_download_url(series.provider_item_id, date_from, date_to)
+    if not target_url.startswith(f"{DOWNLOAD_URL}?"):
+        raise NationalGasDemandError(
+            "UNTRUSTED_REQUEST_ORIGIN", "request URL is not the fixed official origin"
+        )
 
     import httpx
 
@@ -325,10 +371,9 @@ def download_national_gas_csv(
                 ) as response:
                     _assert_trusted_response(response, target_url)
                     if response.status_code == 200:
-                        body = _read_bounded(response)
-                    elif response.status_code in RETRYABLE_STATUSES and attempt < max_attempts:
+                        return _read_bounded(response)
+                    if response.status_code in RETRYABLE_STATUSES and attempt < max_attempts:
                         retry = True
-                        body = b""
                     elif response.status_code == 429:
                         raise NationalGasDemandError(
                             "HTTP_RATE_LIMITED", "official endpoint rate-limited the request"
@@ -351,39 +396,15 @@ def download_national_gas_csv(
                         "HTTP_TIMEOUT", "official endpoint timed out"
                     ) from exc
                 retry = True
-                body = b""
             except httpx.TransportError as exc:
                 if attempt >= max_attempts:
                     raise NationalGasDemandError(
                         "HTTP_TRANSPORT_ERROR", "official endpoint transport failed"
                     ) from exc
                 retry = True
-                body = b""
 
             if retry:
                 sleep(min(0.25 * (2 ** (attempt - 1)), 2.0))
-                continue
-
-            receipt = _require_aware_utc(
-                received_at_utc or datetime.now(UTC), "received_at_utc"
-            )
-            rows = tuple(
-                parse_national_gas_csv(
-                    body,
-                    provider_item_id=series.provider_item_id,
-                    date_from=date_from,
-                    date_to=date_to,
-                    received_at_utc=receipt,
-                    available_at_utc=receipt,
-                )
-            )
-            return DemandDownload(
-                rows=rows,
-                raw_csv=body,
-                raw_sha256=hashlib.sha256(body).hexdigest(),
-                source_url=target_url,
-                received_at_utc=receipt,
-            )
     finally:
         if owns_client:
             active_client.close()

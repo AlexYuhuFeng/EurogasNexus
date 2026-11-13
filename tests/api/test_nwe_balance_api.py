@@ -135,3 +135,78 @@ def test_balance_history_and_forecast_with_a_norwegian_outage(
     resolved = runtime.json()["data"]
     assert resolved["inputs"]["history"][-1]["norway_gwh"] == 1100.0
     assert resolved["weather_evidence"][0]["evidence_kind"] == "RUNTIME_BALANCE_CURRENT_AGGREGATE"
+
+
+def test_gb_rows_join_the_sums_but_not_the_fill_or_the_newest_partial_day(tmp_path, monkeypatch):
+    """GB (National Gas) has no working capacity and publishes a day before GIE."""
+
+    url = f"sqlite+pysqlite:///{(tmp_path / 'nwe-gb.sqlite').as_posix()}"
+    engine = create_engine(url, future=True)
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC)
+    today = datetime.combine(now.date(), datetime.min.time(), tzinfo=UTC) + timedelta(hours=5)
+    with Session(engine) as session:
+        for back in range(1, 31):
+            day = today - timedelta(days=back)
+            tag = day.date().isoformat()
+            session.add(
+                FlowObservationRecord(
+                    observation_id=f"f-{tag}", point_id="emden", point_name="Emden (EPT1)",
+                    direction="entry", flow_mcm_d=100.0, source_system="ENTSOG",
+                    **_common(day, f"f:{tag}"),
+                )
+            )
+            # National Gas reports yesterday; GIE does not have it yet.
+            session.add(
+                StorageObservationRecord(
+                    observation_id=f"gb-s-{tag}", source_dataset="NG-SUPPLY",
+                    facility_id="GB-NTS-STORAGE", facility_name="GB storage", country="GB",
+                    inventory_twh=10.0, working_capacity_twh=None, fill_pct=None,
+                    injection_twh_d=0.0, withdrawal_twh_d=0.3, source_system="NATIONAL_GAS",
+                    **_common(day, f"gb-s:{tag}"),
+                )
+            )
+            session.add(
+                LngObservationRecord(
+                    observation_id=f"gb-l-{tag}", source_dataset="NG-SUPPLY",
+                    terminal_id="GB-NTS-LNG", terminal_name="GB LNG", country="GB",
+                    send_out_twh_d=0.5, source_system="NATIONAL_GAS",
+                    **_common(day, f"gb-l:{tag}"),
+                )
+            )
+            if back == 1:
+                continue
+            session.add(
+                LngObservationRecord(
+                    observation_id=f"l-{tag}", source_dataset="alsi", terminal_id="gate",
+                    terminal_name="Gate", country="NL", send_out_twh_d=0.4, source_system="GIE",
+                    **_common(day, f"l:{tag}"),
+                )
+            )
+            session.add(
+                StorageObservationRecord(
+                    observation_id=f"s-{tag}", source_dataset="agsi", facility_id="rehden",
+                    facility_name="Rehden", country="DE", inventory_twh=40.0,
+                    working_capacity_twh=50.0, fill_pct=80.0, injection_twh_d=0.0,
+                    withdrawal_twh_d=0.5, source_system="GIE", **_common(day, f"s:{tag}"),
+                )
+            )
+        session.commit()
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    response = TestClient(create_app(), headers={"X-Eurogas-Api-Key": "test-public-api-token"}).get(
+        "/api/market/nwe-balance?days=3"
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    last = data["history"][-1]
+    # Yesterday holds only GB, so the history stops at the last day GIE also reported.
+    assert last["day"] == (today - timedelta(days=2)).date().isoformat()
+    assert last["lng_gwh"] == 900.0 and last["storage_net_withdrawal_gwh"] == 800.0
+    assert data["assumptions"]["storage_inventory_day"] == last["day"]
+    # Fill is 40 TWh over 50 TWh of capacity; GB's 10 TWh has no capacity behind it.
+    first = data["forecast"][0]
+    assert first["inventory_twh"] < 40.0
+    assert first["fill_pct"] == pytest.approx(100 * first["inventory_twh"] / 50.0, abs=0.1)

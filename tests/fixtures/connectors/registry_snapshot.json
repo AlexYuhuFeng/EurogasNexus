@@ -1312,11 +1312,9 @@
    "connectivity_status": "registered",
    "credential_last_test_status": null,
    "credential_last_tested_at_utc": null,
-   "credential_provider_id": "ELEXON",
-   "credential_requirements": [
-    "api_key"
-   ],
-   "credential_state": "missing",
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
    "credential_status": null,
    "datasets": [
     "generation-by-fuel",
@@ -1328,10 +1326,8 @@
    "effective_last_success_at_utc": null,
    "effective_record_count": 0,
    "effective_source_system": "ELEXON",
-   "entitlement_scope": "licensed",
-   "export_restrictions": [
-    "license-controlled"
-   ],
+   "entitlement_scope": "public",
+   "export_restrictions": [],
    "freshness_expectation_minutes": 120,
    "integration": "api",
    "last_failure_at_utc": null,
@@ -1345,6 +1341,45 @@
    "preview_substitute_status": null,
    "source_id": "src-elexon",
    "source_system": "ELEXON",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "infrastructure",
+   "category_label": "Infrastructure",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "gb-storage",
+    "gb-lng"
+   ],
+   "description": "National Gas data portal: Great Britain storage stock, withdrawal and injection, LNG tank stock and send-out into the NTS, per gas day. The GB side of the storage and LNG balance, which GIE AGSI/ALSI leave empty. Free, no key; open data with attribution to National Gas Transmission.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "NATIONAL_GAS",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-national-gas-supply",
+   "source_system": "NATIONAL_GAS",
    "status": "registered",
    "workflow_ready": false
   },
@@ -3354,15 +3389,13 @@
    "access_mode": "public_http",
    "adapter_version": "elexon-insights-json-v1",
    "calendar": "always_open",
-   "certification_required": true,
+   "certification_required": false,
    "circuit_policy": {
     "degraded_after_failures": 3,
     "open_after_failures": 6,
     "recovery_probe_after_seconds": 900
    },
-   "credential_fields": [
-    "api_key"
-   ],
+   "credential_fields": [],
    "dataset": "generation-by-fuel",
    "datasets": [
     "generation-by-fuel",
@@ -3371,7 +3404,7 @@
    ],
    "description": "Elexon Insights (BMRS) Great Britain half-hourly gas-fired and wind generation, national demand and the APX market index price: the GB side of gas burned for power, which ENTSO-E does not carry. Free, no key; attribution: Contains BMRS data \u00a9 Elexon Limited copyright and database right.",
    "enabled_default": true,
-   "entitlement_scope": "licensed",
+   "entitlement_scope": "public",
    "freshness_policy": {
     "basis": "observed_at_utc",
     "late_after_minutes": 360,
@@ -3410,6 +3443,64 @@
    },
    "source_class": "public",
    "source_id": "src-elexon"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "national-gas-supply-csv-v1",
+   "calendar": "gas_market",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "gb-storage",
+   "datasets": [
+    "gb-storage",
+    "gb-lng"
+   ],
+   "description": "National Gas data portal: Great Britain storage stock, withdrawal and injection, LNG tank stock and send-out into the NTS, per gas day. The GB side of the storage and LNG balance, which GIE AGSI/ALSI leave empty. Free, no key; open data with attribution to National Gas Transmission.",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2160,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "NATIONAL_GAS",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 6,
+    "min_spacing_seconds": 30.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 120.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": 10800,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "INTERVAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-national-gas-supply"
   },
   {
    "access_mode": "public_http",

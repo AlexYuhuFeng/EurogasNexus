@@ -398,6 +398,51 @@ def _daily_sum(session, column_expr, model, filters, first: date, as_of=None):
     }
 
 
+#: A storage/LNG source this many days behind the most recent one is treated as stalled.
+STALLED_SOURCE_DAYS = 7
+
+
+def _complete_through(session, specs, first: date, as_of) -> tuple[date | None, list[str]]:
+    """Last gas day every live storage/LNG source has reported, and the stalled sources.
+
+    GIE publishes D+1 evening and National Gas (GB) nominations D+1 04:00, so the
+    newest days hold only part of the region. A day is summed only when every source
+    that is reporting has it; a source more than :data:`STALLED_SOURCE_DAYS` behind
+    the newest one is named, not waited for.
+    """
+
+    from sqlalchemy import func, or_
+
+    from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
+
+    latest: dict[str, date] = {}
+    for model, columns in specs:
+        day = _utc_date(session, model.period_start_utc)
+        query = (
+            session.query(model.source_system, func.max(day))
+            .filter(model.country.in_(NWE_COUNTRIES))
+            .filter(model.period_start_utc >= _bound(session, first))
+            .filter(or_(*(column.isnot(None) for column in columns)))
+            .filter(model.observed_at_utc <= as_of, model.period_end_utc <= as_of)
+            .group_by(model.source_system)
+        )
+        for source, value in query.all():
+            if value is None:
+                continue
+            value = value if isinstance(value, date) else date.fromisoformat(str(value))
+            latest[source] = min(value, latest.get(source, value))
+    if not latest:
+        return None, []
+    newest = max(latest.values())
+    live = {
+        source: day
+        for source, day in latest.items()
+        if (newest - day).days <= STALLED_SOURCE_DAYS
+    }
+    stalled = sorted(set(latest) - set(live))
+    return min(live.values()), stalled
+
+
 @router.post("/api/market/nwe-balance")
 def calculate_nwe_balance_scenario(payload: NweBalanceRequest, request: Request) -> dict:
     """Compare caller-declared HDD inputs with the same supply-call baseline.
@@ -490,17 +535,41 @@ def get_nwe_balance(
                 first,
                 as_of=cutoff,
             )
+            complete_through, stalled_sources = _complete_through(
+                session,
+                (
+                    (LngObservationRecord, (LngObservationRecord.send_out_twh_d,)),
+                    (
+                        StorageObservationRecord,
+                        (
+                            StorageObservationRecord.withdrawal_twh_d,
+                            StorageObservationRecord.injection_twh_d,
+                        ),
+                    ),
+                ),
+                first,
+                cutoff,
+            )
+            if complete_through is not None:
+                # The newest days hold only the sources that publish first (e.g. GB).
+                for series in (lng, withdrawal, injection):
+                    for late_day in [day for day in series if day > complete_through]:
+                        del series[late_day]
             latest_storage_day = max(withdrawal, default=None)
             inventory = capacity = None
             if latest_storage_day is not None:
                 from sqlalchemy import func
 
+                # Fill is inventory over working capacity, so only facilities that
+                # publish a working capacity count; National Gas publishes none for GB.
                 inventory, capacity = (
                     session.query(
                         func.sum(StorageObservationRecord.inventory_twh),
                         func.sum(StorageObservationRecord.working_capacity_twh),
                     )
                     .filter(StorageObservationRecord.country.in_(NWE_COUNTRIES))
+                    .filter(StorageObservationRecord.working_capacity_twh.isnot(None))
+                    .filter(StorageObservationRecord.inventory_twh.isnot(None))
                     .filter(
                         _utc_date(session, StorageObservationRecord.period_start_utc)
                         == latest_storage_day
@@ -592,6 +661,12 @@ def get_nwe_balance(
         working_capacity_twh=float(capacity) if capacity else None,
     )
     warnings = list(forecast.warnings)
+    if stalled_sources:
+        warnings.append(
+            "Storage/LNG sources more than "
+            f"{STALLED_SOURCE_DAYS} days behind are left out of the newest days: "
+            + ", ".join(stalled_sources)
+        )
     if not history:
         warnings.append(
             "No overlapping ENTSOG Norwegian entry, ALSI and AGSI history for NW Europe; "
@@ -646,6 +721,13 @@ def get_nwe_balance(
                 "storage_inventory_day": latest_storage_day.isoformat()
                 if latest_storage_day
                 else None,
+                "storage_lng_complete_through": complete_through.isoformat()
+                if complete_through
+                else None,
+                "storage_inventory_basis": (
+                    "facilities that publish a working capacity; GB stock (National Gas) "
+                    "has none and is not in the inventory or fill"
+                ),
             },
         },
         "runtime-postgresql",

@@ -66,6 +66,26 @@ storage withdrawal 2,516 GWh/d, supply call 9,304 GWh/d.
 7. **ENTSOG publishes rows for the open and the next gas day.** They are stored; consumers
    that need closed days must filter on the period end, as the balance does.
 
+### Item 2 closed (2026-11-13)
+
+Great Britain is now loaded from two keyless sources: Elexon for power
+(`docs/operations/POWER_DATA.md`) and National Gas for storage and LNG
+(`docs/operations/GB_GAS_SUPPLY.md`, `scripts/ops/ingest_national_gas_supply.py`). The
+first run (`--days 10 --commit`) stored 10 storage and 10 LNG rows for gas days
+3-12 November; 12 November is nomination-based (provisional) and has no stock yet.
+
+| Gas day | GB storage stock TWh | Withdrawal GWh | Injection GWh | GB LNG stock TWh | LNG send-out GWh |
+|---|---|---|---|---|---|
+| 9 Nov | 10.407 | 612.6 | 0.0 | 9.002 | 570.0 |
+| 10 Nov | 9.969 | 437.3 | 0.0 | 8.418 | 581.3 |
+| 11 Nov | 9.780 | 213.4 | 4.3 | 8.854 | 544.4 |
+| 12 Nov (provisional) | - | 78.5 | 43.7 | - | 508.5 |
+
+With GB included, the balance for 10 November reads LNG 2,740.2 GWh (was 2,158.9) and
+storage net withdrawal 2,953.0 GWh (was 2,515.7). The balance now stops at the last day
+every storage/LNG source has reported, since National Gas publishes a day or two before
+GIE; GB stock is left out of the fill figure because no GB working capacity is published.
+
 ## Reproducing
 
 ```bash

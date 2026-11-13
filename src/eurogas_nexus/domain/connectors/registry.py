@@ -43,6 +43,7 @@ BUILTIN_MODULES: tuple[str, ...] = (
     "weather",
     "entsoe",
     "elexon",
+    "national_gas_supply",
     "boe",
     "ecb_estr",
     "nyfed",

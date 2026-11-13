@@ -22,7 +22,7 @@ MANIFEST = ConnectorManifest(
     "generation, national demand and the APX market index price: the GB side of gas "
     "burned for power, which ENTSO-E does not carry. Free, no key; attribution: "
     "Contains BMRS data © Elexon Limited copyright and database right.",
-    entitled=True,
+    entitled=False,
     freshness_minutes=120,
     # Run by the scheduler through scripts/ops/ingest_power_gb.py. No credential.
     operations={
