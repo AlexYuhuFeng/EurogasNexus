@@ -84,7 +84,10 @@ def _runtime_history(payload, request):
     from eurogas_nexus.domain.analysis_contracts import content_hash
     from eurogas_nexus.domain.market.gas_day import gas_day_label
 
-    require_derived_access(request, ("ENTSOG", "GIE", "REMIT"), resource="nwe_balance_history")
+    require_derived_access(
+        # GB storage and LNG in the history come from National Gas, not GIE.
+        request, ("ENTSOG", "GIE", "NATIONAL_GAS", "REMIT"), resource="nwe_balance_history"
+    )
     envelope = get_nwe_balance(request, days=payload.days, history_days=800, format="json")
     data = envelope["data"]
     if "history_read_as_of_utc" not in data:

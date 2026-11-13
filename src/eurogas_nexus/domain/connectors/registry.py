@@ -84,3 +84,13 @@ def manifest_for(source_id: str) -> ConnectorManifest | None:
         if manifest.source_id == source_id:
             return manifest
     return None
+
+
+def source_attribution(source_id: str | None) -> str:
+    """The attribution a source's terms require, from its manifest ("" when none recorded)."""
+
+    needle = (source_id or "").strip().casefold()
+    for manifest in connector_manifests():
+        if manifest.source_id.casefold() == needle:
+            return manifest.attribution
+    return ""

@@ -100,7 +100,7 @@ def submit_run(body: SubmitRun, request: Request, background: BackgroundTasks):
         if supplied.persisted_weather:
             scopes = ("ECMWF_OPEN_DATA",)
         if supplied.use_runtime_history:
-            scopes = (*scopes, "ENTSOG", "GIE", "REMIT")
+            scopes = (*scopes, "ENTSOG", "GIE", "NATIONAL_GAS", "REMIT")
         body = body.model_copy(update={"inputs": resolved.model_dump(mode="json")})
     return _submit(
         body,

@@ -483,7 +483,8 @@ DATA_PRODUCTS: tuple[DataProduct, ...] = (
             "withdrawal, plus LNG terminal inventory and send-out, on the CAM gas day."
         ),
         domain="physical",
-        source_families=("GIE",),
+        # GIE for the continent; National Gas for Great Britain, which AGSI/ALSI leave empty.
+        source_families=("GIE", "NATIONAL_GAS"),
         simulated_families=(),
         entitlement_families=(),
         time_basis=TimeBasis.GAS_DAY,
@@ -494,7 +495,8 @@ DATA_PRODUCTS: tuple[DataProduct, ...] = (
             "Implemented from the GIE AGSI (storage) and ALSI (LNG) public APIs. GIE is "
             "a registered credential-gated provider connection, but GIE is a public "
             "baseline entitlement family, so no commercial grant is required to read it; "
-            "provider connectivity and user entitlement stay separate concepts."
+            "provider connectivity and user entitlement stay separate concepts. Great "
+            "Britain comes from the National Gas data portal (keyless open data)."
         ),
         served_by=(
             _surface(
@@ -516,6 +518,11 @@ DATA_PRODUCTS: tuple[DataProduct, ...] = (
                 SurfaceKind.COMMAND,
                 "python scripts/ops/ingest_public_sources.py --source gie-agsi",
                 "Operator-run GIE ingestion (credential required).",
+            ),
+            _surface(
+                SurfaceKind.COMMAND,
+                "python scripts/ops/ingest_national_gas_supply.py --commit",
+                "Operator-run National Gas GB storage and LNG ingestion (no key).",
             ),
         ),
         provenance_tables=("storage_observations", "lng_observations"),

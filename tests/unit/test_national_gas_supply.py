@@ -148,3 +148,35 @@ def test_one_request_covers_every_item_and_the_stock_label_day() -> None:
     assert query["dateFrom"] == ["2026-11-03"] and query["dateTo"] == ["2026-11-13"]
     assert query["ids"] == [",".join(item.item_id for item in ITEMS)]
     assert query["latestFlag"] == ["Y"]
+
+
+def test_the_supply_script_backfills_a_window_ending_on_a_named_day(monkeypatch):
+    """--end lets a back-fill run in 30-day steps; the default stays N days to yesterday."""
+
+    import importlib.util
+    from datetime import UTC, date, datetime, timedelta
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import pytest
+
+    import eurogas_nexus.ingestion.national_gas_supply as module
+
+    path = Path(__file__).resolve().parents[2] / "scripts/ops/ingest_national_gas_supply.py"
+    spec = importlib.util.spec_from_file_location("ingest_national_gas_supply", path)
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    asked = []
+
+    def fake_fetch(first, last):
+        asked.append((first, last))
+        return SimpleNamespace(storage_rows=[], lng_rows=[])
+
+    monkeypatch.setattr(module, "fetch_national_gas_supply", fake_fetch)
+    script.main(["--days", "30", "--end", "2026-10-13"])
+    assert asked[-1] == (date(2026, 9, 14), date(2026, 10, 13))
+    script.main(["--days", "7"])
+    yesterday = datetime.now(UTC).date() - timedelta(days=1)
+    assert asked[-1] == (yesterday - timedelta(days=6), yesterday)
+    with pytest.raises(SystemExit):
+        script.main(["--end", datetime.now(UTC).date().isoformat()])

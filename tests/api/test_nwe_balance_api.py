@@ -19,7 +19,9 @@ def _common(day, ref):
     return dict(
         period_start_utc=day,
         period_end_utc=day + timedelta(days=1),
-        observed_at_utc=day + timedelta(hours=20),
+        # Received as the gas day closes: a row received while its day was open is a
+        # snapshot, not the day's figure (pipeline_supply.published_after_close).
+        observed_at_utc=day + timedelta(days=1),
         source_reference=ref,
         freshness="daily",
         research_only=True,

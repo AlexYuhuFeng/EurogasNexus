@@ -615,12 +615,14 @@ export interface TsoAccessPointDTO {
 
 export interface SourceSystemDTO {
   source_id: string; source_system: string; datasets: string[];
-  status: string; description: string; live_record_count: number;
+  status: string; description: string;
+  /** Rows held for this source; null when the server could not count them (unknown, not 0). */
+  live_record_count: number | null;
   category: string; category_label: string; connectivity_status: string;
   /** How the data arrives: a connector, an operator's file import, a vendor template or a model service (#33). */
   integration?: "api" | "file_import" | "template" | "model_service";
   operational_status: string; workflow_ready: boolean;
-  effective_source_system: string; effective_record_count: number;
+  effective_source_system: string; effective_record_count: number | null;
   effective_last_success_at_utc: string | null;
   entitlement_scope: string; freshness_expectation_minutes: number;
   credential_requirements: string[]; credential_provider_id: string | null;
@@ -652,7 +654,7 @@ export interface SourceCategoryPostureDTO {
   sources_needing_attention: number;
   missing_credentials: number;
   preview_substitutes_active: number;
-  runtime_records: number;
+  runtime_records: number | null;
   next_action: string;
 }
 
@@ -664,7 +666,7 @@ export interface SourcePostureSummaryDTO {
     sources_needing_attention: number;
     missing_credentials: number;
     preview_substitutes_active: number;
-    runtime_records: number;
+    runtime_records: number | null;
   };
   categories: SourceCategoryPostureDTO[];
 }
@@ -719,6 +721,16 @@ const SOURCE_CATEGORY_LABELS: Record<string, string> = {
 
 const SIMULATED_PRICE_SOURCE_SYSTEMS = ["EEX_Sim", "ICE_OCM_Sim", "Trayport_Sim", "ICIS_Sim"];
 
+/**
+ * A source's record count as sent: null is the server saying it could not count (the read
+ * failed), kept unknown rather than read as 0; an absent field (an older server) is 0.
+ */
+function parseRecordCount(value: unknown): number | null {
+  if (value === null) return null;
+  const count = Number(value ?? 0);
+  return Number.isFinite(count) ? count : null;
+}
+
 function sourceSystemKey(value: string): string {
   return value.trim().toUpperCase().replace(/[\s-]+/g, "_");
 }
@@ -735,13 +747,15 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
   const category = raw.category || SOURCE_CATEGORY_BY_SYSTEM[sourceKey] || "price";
   const credentialRequirements = asStringArray(raw.credential_requirements);
   const credentialRequired = credentialRequirements.length > 0;
-  const liveRecordCount = Number(raw.live_record_count ?? 0);
-  const status = raw.status || (liveRecordCount > 0 ? "active" : "registered");
+  // null is the server saying the count read failed: keep it unknown, never 0.
+  const liveRecordCount = parseRecordCount(raw.live_record_count);
+  const hasLiveRecords = (liveRecordCount ?? 0) > 0;
+  const status = raw.status || (hasLiveRecords ? "active" : "registered");
   const credentialState = raw.credential_state || (credentialRequired ? "missing" : "not_required");
   const connectivityStatus = raw.connectivity_status ||
     (credentialState === "missing"
       ? "needs_credential"
-      : liveRecordCount > 0
+      : hasLiveRecords
         ? "active"
         : status);
   const diagnostics = asStringArray(raw.diagnostics);
@@ -771,8 +785,9 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
       (operationalStatus === "active_simulated"
         ? raw.preview_substitute_source_system ?? sourceSystem
         : sourceSystem),
-    effective_record_count: Number(raw.effective_record_count ??
-      (operationalStatus === "active_simulated" ? previewSubstituteRecordCount : liveRecordCount)),
+    effective_record_count: raw.effective_record_count !== undefined
+      ? parseRecordCount(raw.effective_record_count)
+      : operationalStatus === "active_simulated" ? previewSubstituteRecordCount : liveRecordCount,
     effective_last_success_at_utc: raw.effective_last_success_at_utc ?? raw.last_success_at_utc ?? null,
     entitlement_scope: raw.entitlement_scope || (credentialRequired ? "licensed" : "public"),
     freshness_expectation_minutes: Number(raw.freshness_expectation_minutes ?? 0),
@@ -796,7 +811,7 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
     certification_allows_live: Boolean(raw.certification_allows_live),
     diagnostics: diagnostics.length > 0
       ? diagnostics
-      : liveRecordCount > 0
+      : hasLiveRecords
         ? ["live_records_available"]
         : credentialState === "missing"
           ? ["credential_missing"]
@@ -2623,7 +2638,10 @@ export interface MapPointFlowDTO {
   point_id: string;
   point_name: string;
   direction: string;
+  /** The closed gas day shown (its calendar date); the open day is never shown. */
+  gas_day?: string | null;
   gas_day_start_utc: string | null;
+  gas_day_end_utc?: string | null;
   value: number | null;
   unit: string;
   gwh_d: number | null;
@@ -2685,6 +2703,8 @@ export interface MapSituationDTO {
   as_of_utc: string;
   outages: MapOutageDTO[];
   flows: MapPointFlowDTO[];
+  /** How the flow shown at each point was chosen (closed gas day, one operator). */
+  flow_rule?: string;
   contracts: MapContractDTO[];
   cargoes: MapCargoDTO[];
   regas_slots: MapRegasSlotDTO[];

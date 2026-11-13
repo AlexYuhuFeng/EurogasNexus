@@ -17,6 +17,7 @@ from eurogas_nexus.domain.dataops.contracts import (
 MANIFEST = ConnectorManifest(
     source_id="src-entsog",
     system="ENTSOG",
+    attribution="Source: ENTSOG Transparency Platform",
     category="infrastructure",
     datasets=("connection-points", "operator-directions", "flows", "capacity", "outages", "ip"),
     description="ENTSOG Transparency Platform infrastructure, flows, capacities, IPs, and outages.",

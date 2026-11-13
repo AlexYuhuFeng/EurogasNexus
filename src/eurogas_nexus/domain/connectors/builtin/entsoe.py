@@ -16,6 +16,7 @@ from eurogas_nexus.domain.dataops.contracts import (
 MANIFEST = ConnectorManifest(
     source_id="src-entsoe",
     system="ENTSOE",
+    attribution="Source: ENTSO-E Transparency Platform",
     category="power",
     datasets=("day-ahead-prices", "actual-load", "generation-per-type"),
     description="ENTSO-E Transparency Platform day-ahead power prices, load, and wind, solar "

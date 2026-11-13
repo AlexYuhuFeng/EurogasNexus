@@ -16,6 +16,7 @@ from eurogas_nexus.domain.dataops.contracts import (
 MANIFEST = ConnectorManifest(
     source_id="src-elexon",
     system="ELEXON",
+    attribution="Contains BMRS data © Elexon Limited copyright and database right",
     category="power",
     datasets=("generation-by-fuel", "demand-outturn", "market-index-price"),
     description="Elexon Insights (BMRS) Great Britain half-hourly gas-fired and wind "

@@ -23,7 +23,17 @@ from typing import Any
 
 from eurogas_nexus.security.portfolio_scope import visible_book_ids
 
-FLOW_LOOKBACK_DAYS = 3
+#: Closed gas days read for flows: the newest one shown per point, the earlier ones only so
+#: the operator choice can follow the previous day (pipeline_supply.select_operator_rows).
+FLOW_LOOKBACK_DAYS = 5
+#: How the map chooses the flow it shows at a point; returned with the payload.
+FLOW_DAY_RULE = (
+    "Each point shows its newest closed gas day (the period ended before the current gas "
+    "day began, EU-CAM calendar) from rows received after that day closed; a snapshot "
+    "taken while the day was open is not a day's flow. One operator's report per point "
+    "and gas day, kept on the previous day's operator while it reports; direction is "
+    "relative to that operator's system."
+)
 SLOT_HORIZON_DAYS = 45
 CARGO_HISTORY_DAYS = 7
 
@@ -101,7 +111,9 @@ def build_map_situation(
     timed track); market cargoes keep the short ``CARGO_HISTORY_DAYS`` tail.
     """
 
+    from eurogas_nexus.application.pipeline_supply import gas_day as flow_gas_day
     from eurogas_nexus.application.pipeline_supply import (
+        published_after_close,
         row_energy_gwh,
         row_operator,
         select_operator_rows,
@@ -115,6 +127,7 @@ def build_map_situation(
         RegasSlotRecord,
         UpstreamResourceContractRecord,
     )
+    from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_utc
 
     locator = _Locator(session.query(ReferenceNode).all(), session.query(ReferenceFacility).all())
     unlocated = {"outages": 0, "contracts": 0, "cargoes": 0, "regas_slots": 0}
@@ -163,22 +176,38 @@ def build_map_situation(
     def bound(moment: datetime) -> datetime:
         return moment.replace(tzinfo=None) if naive else moment
 
+    # Closed gas days only, by the calendar every reader uses: the open day (and the next,
+    # which ENTSOG also publishes) is still being reported and would read as a low flow.
+    open_day_start = gas_day_start_utc(now)
     flow_rows = (
         session.query(FlowObservationRecord)
         .filter(
             FlowObservationRecord.period_start_utc
-            >= bound(now - timedelta(days=FLOW_LOOKBACK_DAYS))
+            >= bound(open_day_start - timedelta(days=FLOW_LOOKBACK_DAYS))
         )
+        .filter(FlowObservationRecord.period_end_utc <= bound(open_day_start))
         .filter(FlowObservationRecord.kind == "actual")
         .order_by(FlowObservationRecord.period_start_utc.desc())
         .limit(20_000)
         .all()
     )
     # One operator's report per point and gas day (pipeline_supply.OPERATOR_SELECTION_RULE):
-    # both sides of an interconnection publish the point, each from its own side.
+    # both sides of an interconnection publish the point, each from its own side. The
+    # helper keeps the previous day's operator while it reports, so the side the direction
+    # is read from does not flip between days.
+    selected = select_operator_rows(row for row in flow_rows if published_after_close(row))
+    newest_day: dict[str, Any] = {}
+    for record in selected:
+        if row_energy_gwh(record)[0] is None:
+            continue
+        day = flow_gas_day(record)
+        held = newest_day.get(record.point_id)
+        if held is None or day > held:
+            newest_day[record.point_id] = day
     latest: dict[tuple[str, str], Any] = {}
-    for record in select_operator_rows(flow_rows):
-        latest.setdefault((record.point_id, record.direction), record)
+    for record in selected:
+        if newest_day.get(record.point_id) == flow_gas_day(record):
+            latest.setdefault((record.point_id, record.direction), record)
     flows = []
     for (point_id, direction), record in latest.items():
         location = locator.by_node_id.get(point_id) or locator.by_node_id.get(
@@ -195,7 +224,9 @@ def build_map_situation(
                 "point_id": point_id,
                 "point_name": record.point_name,
                 "direction": direction,
+                "gas_day": gas_day_label(_aware(record.period_start_utc)),
                 "gas_day_start_utc": _iso(record.period_start_utc),
+                "gas_day_end_utc": _iso(record.period_end_utc),
                 "value": record.original_value
                 if record.original_value is not None
                 else record.flow_mcm_d,
@@ -351,6 +382,7 @@ def build_map_situation(
         "as_of_utc": now.isoformat(),
         "outages": outages,
         "flows": flows,
+        "flow_rule": FLOW_DAY_RULE,
         "contracts": contracts,
         "cargoes": cargoes,
         "regas_slots": slots,

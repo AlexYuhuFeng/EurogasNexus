@@ -104,3 +104,28 @@ def test_inventory_projection_draws_only_on_the_facilities_in_the_inventory():
     assert first.inventory_twh == 100.0 - 1.2
     assert second.inventory_twh == 100.0 - 2.4
     assert first.methods["inventory_draw"] == "residual_less_14_day_average_outside_inventory"
+
+
+def test_a_28_day_fallback_far_from_the_last_week_says_so():
+    # Live, 13 Nov 2026: a 46-day history, so no seasonal normal; the 28-day average call
+    # was 7.7 TWh/d against 9.9 TWh/d over the last week, and the storage draw fell to 0.5.
+    rising = forecast_balance(
+        _history(30, call=lambda d: 7000.0 if d < START - timedelta(days=7) else 10000.0),
+        start=START,
+        days=3,
+    )
+    assert rising.days[0].methods["call"] == "28_day_average"
+    assert any("likely understated" in w and "28-day average" in w for w in rising.warnings)
+    # A steady history gives no such warning.
+    steady = forecast_balance(_history(30), start=START, days=3)
+    assert not any("28-day average (" in w for w in steady.warnings)
+
+
+def test_a_seasonal_normal_from_one_year_says_it_replays_that_year():
+    # Live, 13 Nov 2026: 418 days of history, so the normal for mid-November is November
+    # 2025 alone, cold spell included.
+    one_year = forecast_balance(_history(400), start=START, days=3)
+    assert one_year.days[0].methods["call"] == "seasonal_normal_plus_recent_anomaly"
+    assert any("rests on one earlier year (2025)" in w for w in one_year.warnings)
+    two_years = forecast_balance(_history(800), start=START, days=3)
+    assert not any("rests on one earlier year" in w for w in two_years.warnings)

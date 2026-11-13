@@ -97,3 +97,19 @@ test("existing source statistics semantics remain unchanged for unknown source s
     "partial",
   );
 });
+
+test("a source count the server could not read stays unknown, never 0", async () => {
+  const { formatRecordCount } = await import("../src/app/model/recordCount.ts");
+  const { sumRecordCounts } = await import("../src/app/workspaceDerivedData.ts");
+  assert.equal(formatRecordCount(null), "\u2014");
+  assert.notEqual(formatRecordCount(null), "0");
+  const source = (count: number | null) => ({
+    connectivity_status: count === null ? "counts_unavailable" : "active",
+    credential_state: "not_required",
+    live_record_count: count,
+  });
+  assert.equal(buildSourceStats([source(null), source(4_800)]).records, null);
+  assert.equal(buildSourceStats([source(4_800)]).records, 4_800);
+  assert.equal(sumRecordCounts([1, 2, null]), null);
+  assert.equal(sumRecordCounts([]), 0);
+});

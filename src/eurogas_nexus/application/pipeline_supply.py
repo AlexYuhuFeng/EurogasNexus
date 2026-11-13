@@ -20,7 +20,14 @@ no row for any point is absent from the result, never zero.
 
 Every other reader of ENTSOG flows uses the same two helpers: :func:`row_energy_gwh` for the
 energy of one row and :func:`select_operator_rows` for choosing one operator's report per
-point and gas day (:data:`OPERATOR_SELECTION_RULE`).
+point and gas day (:data:`OPERATOR_SELECTION_RULE`), which also drops a second key's copy of
+one physical point (:data:`SAME_PHYSICAL_POINT`). :func:`published_after_close` tells a
+closed day's figure from a snapshot taken while the day was still open.
+
+The alias table lives here, beside the operator rule, rather than in
+``domain/ontology/identity.py``: that module names hubs from text and reads no data, while an
+alias is a fact about how ENTSOG publishes point keys, proved from flow rows and needed by
+the one helper every flow reader already calls.
 """
 
 from __future__ import annotations
@@ -28,7 +35,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from statistics import median
 from typing import Any
 
@@ -80,9 +87,42 @@ _REGISTRY_OPERATOR = {point.point_id: point.operator for point in LANDING_POINTS
 #: per point and gas day, and both directions are read from the chosen operator's side.
 OPERATOR_SELECTION_RULE = (
     "One operator per ENTSOG point and gas day: the operator the landing registry names "
-    "for that point, else the operator key that sorts first among those reporting a "
-    "value at that point that day. Entry and exit are both that operator's report, so "
-    "direction is relative to its system; other operators' copies are not added."
+    "for that point; else the operator chosen for that point on the previous gas day read, "
+    "if it reports a value that day; else the operator key that sorts first among those "
+    "reporting a value at that point that day. Entry and exit are both that operator's "
+    "report, so direction is relative to its system; other operators' copies are not added."
+)
+
+@dataclass(frozen=True)
+class PointAlias:
+    """A second ENTSOG point key that publishes the flow of another key's physical point."""
+
+    alias: str
+    canonical: str
+    evidence: str
+
+
+#: ENTSOG point keys that publish another key's physical flow, with the evidence. Only
+#: pairs the data proves belong here; :func:`identical_series_candidates` lists candidates
+#: for a person to check, and nothing is added from it automatically.
+SAME_PHYSICAL_POINT: dict[str, PointAlias] = {
+    alias.alias: alias
+    for alias in (
+        PointAlias(
+            "ITP-00525",
+            "ITP-00126",
+            "Dornum GASPOOL (OGE, no adjacent operator) publishes the same entry and exit "
+            "as Dornum / NETRA (OGE) to the kWh on every gas day from 27 Sep to 12 Nov 2026 "
+            "(47 days), while its bookings and nominations differ: one meter, two keys.",
+        ),
+    )
+}
+
+#: How an alias key's rows are treated by :func:`select_operator_rows`.
+SAME_PHYSICAL_POINT_RULE = (
+    "A point key listed as another key's alias (same physical point) is dropped for a gas "
+    "day on which the canonical key reported a value; it is kept only when the canonical "
+    "key has not reported, so the flow is never counted under both keys."
 )
 
 #: Days of history a gas day's landing coverage is compared with.
@@ -108,6 +148,15 @@ def select_operator_rows(records: Iterable[Any]) -> list[Any]:
     it. Rows of the chosen operator are kept even when one of its directions carries no
     value, so a reader sees a missing figure as missing, never as zero. The input order is
     preserved.
+
+    **Stable side.** When the first-sorting operator misses a day (live: at Bacton IUK,
+    ITP-00005, National Gas had not yet reported 11 November and IUK had), the choice falls
+    to the other side and stays there while that side keeps reporting, instead of flipping
+    back and forth and with it the meaning of ``entry``/``exit``. The chain starts at the
+    first gas day in ``records``.
+
+    **Same physical point.** Rows of a key in :data:`SAME_PHYSICAL_POINT` are dropped for a
+    gas day on which its canonical key reported a value (:data:`SAME_PHYSICAL_POINT_RULE`).
     """
 
     def point_day(record: Any) -> tuple[str, Any, date]:
@@ -120,13 +169,147 @@ def select_operator_rows(records: Iterable[Any]) -> list[Any]:
         if row_energy_gwh(record)[0] is not None:
             reporting[point_day(record)].add(row_operator(record))
     chosen: dict[tuple[str, Any, date], str] = {}
-    for key, operators in reporting.items():
+    previous: dict[tuple[str, Any], str] = {}
+    for key in sorted(reporting, key=lambda item: (item[0], str(item[1]), item[2])):
+        alias = SAME_PHYSICAL_POINT.get(str(key[1]))
+        if alias is not None and (key[0], alias.canonical, key[2]) in reporting:
+            continue  # the canonical key carries this physical flow today
+        operators = reporting[key]
         named = _REGISTRY_OPERATOR.get(key[1])
-        # Rows without an operator key sort after every named operator.
-        chosen[key] = (
-            named if named in operators else min(operators, key=lambda op: (op == "", op))
-        )
+        prior = previous.get(key[:2])
+        if named in operators:
+            operator = named
+        elif prior in operators:
+            operator = prior
+        else:
+            # Rows without an operator key sort after every named operator.
+            operator = min(operators, key=lambda op: (op == "", op))
+        chosen[key] = previous[key[:2]] = operator
     return [record for record in rows if chosen.get(point_day(record)) == row_operator(record)]
+
+
+def _utc(moment: datetime | None) -> datetime | None:
+    if moment is None:
+        return None
+    return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment.astimezone(UTC)
+
+
+def published_after_close(record: Any) -> bool:
+    """Whether a daily row was received after its gas day ended.
+
+    ENTSOG publishes the open gas day as it runs; a row stored then holds part of the day
+    (live: Dornum 157.8 GWh for 12 November captured at 11:56 UTC that day, against about
+    740 GWh on a full day). Once the day has closed such a row would read as the day's flow,
+    so a reader that wants a closed day's figure takes only rows received after the period
+    end. The stored snapshot is kept; it is simply not a day total.
+    """
+
+    end, seen = _utc(getattr(record, "period_end_utc", None)), _utc(
+        getattr(record, "observed_at_utc", None)
+    )
+    return end is not None and seen is not None and seen >= end
+
+
+@dataclass(frozen=True)
+class AliasCandidate:
+    """Two point series that carried the same values over a window (a person decides)."""
+
+    first: tuple[str, str, str]
+    second: tuple[str, str, str]
+    days: int
+    max_relative_difference: float
+    mean_gwh_d: float
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "first": {"point_id": self.first[0], "operator": self.first[1],
+                      "direction": self.first[2]},
+            "second": {"point_id": self.second[0], "operator": self.second[1],
+                       "direction": self.second[2]},
+            "days": self.days,
+            "max_relative_difference": self.max_relative_difference,
+            "mean_gwh_d": self.mean_gwh_d,
+            "already_listed": self.first[0] in SAME_PHYSICAL_POINT
+            or self.second[0] in SAME_PHYSICAL_POINT,
+        }
+
+
+def identical_series_candidates(
+    records: Iterable[Any],
+    *,
+    days: int = 14,
+    tolerance: float = 0.0,
+    min_gwh_d: float = 1.0,
+) -> list[AliasCandidate]:
+    """Point series (point, operator, direction) with the same daily values over ``days``.
+
+    A diagnostic, never applied: it lists candidates for :data:`SAME_PHYSICAL_POINT`. Each
+    series is read over its own newest ``days`` gas days, and only series covering the same
+    days with a mean of at least ``min_gwh_d`` are compared (all-zero series match each
+    other trivially). Two series
+    match when every day differs by at most ``tolerance`` relative to the larger value
+    (``0.0``: identical to the kWh). The same point under two operators is listed too:
+    that is the two sides of an interconnection, already handled by the operator rule, or
+    one meter published by two operators, which needs a person's check.
+    """
+
+    series: dict[tuple[str, str, str], dict[date, float]] = defaultdict(dict)
+    for record in records:
+        energy, from_volume = row_energy_gwh(record)
+        if energy is None or from_volume or not record.point_id:
+            continue
+        key = (str(record.point_id), row_operator(record), str(record.direction or "").lower())
+        series[key][gas_day(record)] = energy
+    # Each series over its own newest ``days`` gas days; only series covering the same days
+    # are compared (a day one of them has not reported makes the pair unproven).
+    groups: dict[tuple[str, tuple[date, ...]], dict[tuple[str, str, str], tuple[float, ...]]]
+    groups = defaultdict(dict)
+    for key, values in series.items():
+        window = tuple(sorted(values)[-days:]) if days > 0 else ()
+        if len(window) < max(days, 1):
+            continue
+        row = tuple(values[day] for day in window)
+        if sum(row) / len(row) >= min_gwh_d:
+            groups[(key[2], window)][key] = row
+    found = []
+    for members in groups.values():
+        keys = sorted(members)
+        for index, first in enumerate(keys):
+            a = members[first]
+            for second in keys[index + 1 :]:
+                b = members[second]
+                worst = 0.0
+                for x, y in zip(a, b, strict=True):
+                    scale = max(abs(x), abs(y))
+                    worst = max(worst, abs(x - y) / scale if scale else 0.0)
+                    if worst > tolerance:
+                        break
+                if worst <= tolerance:
+                    found.append(
+                        AliasCandidate(first, second, len(a), worst, sum(a) / len(a))
+                    )
+    return sorted(found, key=lambda item: (item.first, item.second))
+
+
+def load_alias_candidates(
+    session, *, days: int = 14, tolerance: float = 0.0, now: datetime | None = None
+) -> list[AliasCandidate]:
+    """:func:`identical_series_candidates` over the stored ENTSOG flow rows of closed days."""
+
+    from eurogas_nexus.db.models import FlowObservationRecord as Flow
+
+    now = now or datetime.now(UTC)
+    naive = session.get_bind().dialect.name == "sqlite"
+    start = now - timedelta(days=days + 3)
+    rows = (
+        session.query(Flow)
+        .filter(Flow.period_start_utc >= (start.replace(tzinfo=None) if naive else start))
+        .filter(Flow.period_end_utc <= (now.replace(tzinfo=None) if naive else now))
+        .all()
+    )
+    return identical_series_candidates(
+        [row for row in rows if published_after_close(row)], days=days, tolerance=tolerance
+    )
 
 
 @dataclass
@@ -218,6 +401,10 @@ def landed_supply(session, first: date, *, as_of: datetime | None = None) -> Pip
     reporting: dict[date, set[tuple[str, str]]] = defaultdict(set)
     registry_rows = legacy_rows = 0
     for record in query.all():
+        if not published_after_close(record):
+            # A snapshot of the day while it was open (see published_after_close): not the
+            # day's landing, and not a report for the coverage count either.
+            continue
         operator = row_operator(record)
         point = _REGISTRY.get((record.point_id, operator))
         energy, from_volume = row_energy_gwh(record)

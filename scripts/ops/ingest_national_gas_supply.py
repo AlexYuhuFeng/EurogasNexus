@@ -1,8 +1,10 @@
 """Ingest Great Britain storage and LNG from the National Gas data portal.
 
     python scripts/ops/ingest_national_gas_supply.py --days 7 --commit
+    python scripts/ops/ingest_national_gas_supply.py --days 30 --end 2026-10-13 --commit
 
-Loads the N completed gas days before today: storage stock, withdrawal and injection,
+Loads N completed gas days ending yesterday (or ending ``--end``, for a back-fill in
+30-day steps): storage stock, withdrawal and injection,
 LNG tank stock and send-out, in TWh. No key is needed. GIE AGSI/ALSI carry GB rows
 with no values; this is the GB side of the NW Europe storage and LNG balance. A later
 run replaces a provisional (nomination) value with the D+2 allocation and fills in
@@ -14,7 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +29,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--days", type=int, default=7, help="completed gas days ending yesterday (1..30)"
     )
+    parser.add_argument(
+        "--end", type=_iso_day, default=None,
+        help="last gas day to load, YYYY-MM-DD (default: yesterday; must be before today)",
+    )
     parser.add_argument("--commit", action="store_true", help="write to the runtime database")
     parser.add_argument("--json", action="store_true", help="print a JSON report (scheduler)")
     args = parser.parse_args(argv)
@@ -37,7 +43,10 @@ def main(argv: list[str] | None = None) -> int:
     from eurogas_nexus.ingestion.national_gas_supply import fetch_national_gas_supply
 
     today = datetime.now(UTC).date()
-    first, last = today - timedelta(days=args.days), today - timedelta(days=1)
+    last = args.end or today - timedelta(days=1)
+    if last >= today:
+        parser.error("--end must be a completed gas day (before today)")
+    first = last - timedelta(days=args.days - 1)
     storage_rows: list[dict] = []
     lng_rows: list[dict] = []
     failures = []
@@ -92,6 +101,13 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": ok, "failures": failures, "sources": {"national-gas-supply": {
             "records": records, "provisional": provisional, **stored}}}))
     return 0 if ok else 1
+
+
+def _iso_day(text: str) -> date:
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected YYYY-MM-DD") from None
 
 
 def _fmt(value: float | None, scale: float = 1.0) -> str:

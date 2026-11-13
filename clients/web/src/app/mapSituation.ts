@@ -325,7 +325,8 @@ export function situationCardHtml(
       <em class="situation-tag is-flow">${escape(t("map.situation.physical_flow"))} · ${escape(item.direction)}</em>
       ${rows([
         [t("map.situation.flow"), item.gwh_d != null ? `${number(item.gwh_d, 1)} GWh/d` : `${number(item.value)} ${item.unit}`],
-        [t("map.situation.gas_day"), (item.gas_day_start_utc ?? "").slice(0, 10) || "—"],
+        [t("map.situation.gas_day"), item.gas_day ?? ((item.gas_day_start_utc ?? "").slice(0, 10) || "—")],
+        [t("map.situation.reported_by"), item.operator_key ?? "—"],
       ])}
       <small>${escape(t("map.situation.source"))} ${escape(item.source_system)}</small>
     </div>`;

@@ -18,6 +18,7 @@ from eurogas_nexus.domain.dataops.contracts import (
 MANIFEST = ConnectorManifest(
     source_id="src-gie",
     system="GIE",
+    attribution="Source: GIE AGSI+/ALSI (Gas Infrastructure Europe)",
     category="infrastructure",
     datasets=("agsi-storage", "alsi-lng"),
     description="Gas Infrastructure Europe AGSI storage and ALSI LNG data.",

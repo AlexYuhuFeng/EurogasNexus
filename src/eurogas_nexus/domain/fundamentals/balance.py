@@ -37,6 +37,9 @@ from datetime import date, timedelta
 from statistics import mean
 
 NWE_COUNTRIES = ("GB", "NL", "BE", "DE", "FR", "DK", "LU")
+#: Relative gap between the 7-day and the 28-day measured call above which a forecast that
+#: falls back to the 28-day average says so.
+CALL_FALLBACK_GAP = 0.10
 
 
 @dataclass(frozen=True)
@@ -183,6 +186,16 @@ def _seasonal_normal(history: list[BalanceHistoryDay], day: date, window: int = 
     return mean(values) if len(values) >= 5 else None
 
 
+def _normal_years(history: list[BalanceHistoryDay], day: date, window: int = 3) -> set[int]:
+    """The earlier years whose same days of the year make :func:`_seasonal_normal` for ``day``."""
+
+    return {
+        h.day.year
+        for h in history
+        if h.day <= day - timedelta(days=300) and _day_of_year_distance(h.day, day) <= window
+    }
+
+
 def forecast_balance(
     history: Iterable[BalanceHistoryDay],
     *,
@@ -277,6 +290,34 @@ def forecast_balance(
                 inventory_draw_gwh=inventory_draw,
             )
         )
+    seasonal_days = [
+        d.day for d in result.days if d.methods.get("call") == "seasonal_normal_plus_recent_anomaly"
+    ]
+    if seasonal_days:
+        years = set().union(*(_normal_years(past, day) for day in seasonal_days))
+        if len(years) < 2:
+            # One year is one weather realisation: its cold spell or mild week becomes the
+            # "normal" (live, Nov 2026: the 17-21 Nov 2025 cold spell lifted the forecast call
+            # from 9.5 to 12.9 TWh/d). The method is kept; the reader is told.
+            result.warnings.append(
+                "The seasonal normal rests on one earlier year ("
+                + ", ".join(str(year) for year in sorted(years))
+                + "), so it carries that year's weather rather than an average; read the "
+                "call as a replay of that year's pattern, not as expected demand."
+            )
+    if any(d.methods.get("call") == "28_day_average" for d in result.days):
+        # The fallback lags a turning season: a forecast call far from the last week's
+        # measured call puts the difference into the storage residual, unannounced.
+        base = mean(h.call_gwh for h in last28)
+        recent = mean(h.call_gwh for h in last7)
+        if base and abs(recent - base) / base > CALL_FALLBACK_GAP:
+            direction = "understated" if recent > base else "overstated"
+            result.warnings.append(
+                f"The call is the 28-day average ({base:,.0f} GWh/d): no weather input and "
+                f"under a year of history for a seasonal normal. The last 7 measured days "
+                f"averaged {recent:,.0f} GWh/d, so the forecast storage draw is likely "
+                f"{direction}."
+            )
     if model is None:
         if not hdd:
             result.warnings.append(

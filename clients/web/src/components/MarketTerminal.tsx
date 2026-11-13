@@ -18,6 +18,7 @@ import type {
   SourceSystemDTO,
 } from "@/api/client";
 import { MarketLadder } from "@/components/MarketLadder";
+import { sumRecordCounts } from "@/app/workspaceDerivedData";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
 
@@ -478,7 +479,7 @@ export function MarketTerminal({
       registered: priceSources.length,
       active: priceSources.filter((source) => source.connectivity_status === "active").length,
       missingCredentials: priceSources.filter((source) => source.credential_state === "missing").length,
-      runtimeRecords: priceSources.reduce((total, source) => total + source.live_record_count, 0),
+      runtimeRecords: sumRecordCounts(priceSources.map((source) => source.live_record_count)),
       feeds: priceSources.filter((source) => gasPriceSources.has(source.source_system.toUpperCase())),
     };
   }, [sources]);

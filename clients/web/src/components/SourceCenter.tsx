@@ -25,14 +25,17 @@ import type {
 import { useUrlView } from "@/app/navigation/useUrlView";
 import { useShellLayout } from "@/app/shell/useShellLayout";
 import { CONNECTOR_GROUPS, groupConnectors } from "@/app/model/connectorCatalogModel";
+import { formatRecordCount as recordCount } from "@/app/model/recordCount";
 
 interface SourceStats {
   total: number;
   active: number;
   issues: number;
-  records: number;
+  /** null when any source's count is unknown. */
+  records: number | null;
   missingCredentials: number;
 }
+
 
 type SourceViewId = "attention" | "catalog" | "access" | "infrastructure";
 
@@ -390,7 +393,7 @@ export function SourceCenter({
               { label: t("connectors.group.available"), value: connectorGroups.available.length },
               {
                 label: t("sources.runtime_records"),
-                value: sourceStats.records.toLocaleString(),
+                value: recordCount(sourceStats.records),
                 detail: `${simulatedOrPreviewSources} ${t("sources.preview_substitutes_active")}`,
               },
             ]}
@@ -541,7 +544,7 @@ export function SourceCenter({
                   </td>
                   <td><span>{formatSourceTimestamp(source.effective_last_success_at_utc)}</span></td>
                   <td>
-                    <strong>{source.effective_record_count.toLocaleString()}</strong>
+                    <strong title={source.effective_record_count === null ? t("sources.count_unavailable") : undefined}>{recordCount(source.effective_record_count)}</strong>
                     {source.operational_status === "active_simulated" && <small>{source.effective_source_system}</small>}
                   </td>
                   <td><span>{source.consecutive_failures}</span></td>

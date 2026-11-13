@@ -106,3 +106,99 @@ def test_only_the_needed_fundamental_series_are_loaded(tmp_path):
     assert {"src-gie", "src-entsog", "src-entsoe"} == sources
     storage = next(r for r in records if r.series_id.startswith("storage"))
     assert storage.available_at == T0 + timedelta(hours=20)
+
+
+# --- Mixed-source tables: each row is credited to, and entitled by, its own source -------
+
+
+def _gb_storage(day, inventory):
+    row = _storage("GB-NTS", day, inventory)
+    row.observation_id = f"ng-{day}"
+    row.country, row.working_capacity_twh, row.fill_pct = "GB", None, None
+    row.source_system, row.source_dataset = "NATIONAL_GAS", "national-gas-supply"
+    return row
+
+
+def _power(observation_id, zone, source_system, value):
+    return PowerObservationRecord(
+        observation_id=observation_id, zone=zone, metric="gas_generation", process_type="A75",
+        period_start_utc=T0, period_end_utc=T0 + timedelta(minutes=30), value=value,
+        unit="MW", source_system=source_system, source_reference=f"{source_system}:test",
+        published_at_utc=T0 + timedelta(hours=1), ingested_at_utc=T0,
+    )
+
+
+def _mixed_session(tmp_path):
+    engine = create_engine(f"sqlite+pysqlite:///{(tmp_path / 'm.sqlite').as_posix()}", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    session.add(_storage("REHDEN", 0, 10.0))
+    session.add(_gb_storage(0, 9.97))
+    session.add(_power("pw-de", "DE_LU", "ENTSOE", 8_000))
+    session.add(_power("pw-gb", "GB", "ELEXON", 12_000))
+    session.commit()
+    return session
+
+
+NEEDED = {
+    "storage.inventory_twh.REHDEN", "storage.inventory_twh.GB-NTS",
+    "power.gas_generation.DE_LU", "power.gas_generation.GB",
+}
+
+
+def test_each_row_carries_its_own_sources_provenance(tmp_path):
+    definitions = {d.provider.casefold(): d for d in source_definitions()}
+    with _mixed_session(tmp_path) as session:
+        records, sources = _fundamental_evidence(
+            session, NEEDED, definitions, history_start=T0 - timedelta(days=1),
+            end=T0 + timedelta(days=2), requested_entity_ids=set(),
+        )
+    by_series = {r.series_id: r for r in records}
+    assert set(by_series) == NEEDED
+    # Before: GB storage was credited to GIE and GB power to ENTSO-E.
+    assert sources == {"src-gie", "src-national-gas-supply", "src-entsoe", "src-elexon"}
+
+
+def test_a_row_is_left_out_when_its_own_source_is_not_authorised(tmp_path):
+    # The caller may read GIE and ENTSO-E but not National Gas or Elexon: the GB rows in the
+    # same tables must not come through under the other source's entitlement.
+    definitions = {
+        d.provider.casefold(): d for d in source_definitions() if d.provider in {"GIE", "ENTSOE"}
+    }
+    with _mixed_session(tmp_path) as session:
+        records, sources = _fundamental_evidence(
+            session, NEEDED, definitions, history_start=T0 - timedelta(days=1),
+            end=T0 + timedelta(days=2), requested_entity_ids=set(),
+        )
+    assert {r.series_id for r in records} == {
+        "storage.inventory_twh.REHDEN", "power.gas_generation.DE_LU",
+    }
+    assert sources == {"src-gie", "src-entsoe"}
+    # And a caller with only National Gas sees only the GB storage row.
+    only_ng = {d.provider.casefold(): d for d in source_definitions()
+               if d.provider == "NATIONAL_GAS"}
+    (tmp_path / "ng").mkdir()
+    with _mixed_session(tmp_path / "ng") as session:
+        records, sources = _fundamental_evidence(
+            session, NEEDED, only_ng, history_start=T0 - timedelta(days=1),
+            end=T0 + timedelta(days=2), requested_entity_ids=set(),
+        )
+    assert [r.series_id for r in records] == ["storage.inventory_twh.GB-NTS"]
+    assert sources == {"src-national-gas-supply"}
+
+
+def test_snapshot_attributions_follow_the_sources_used():
+    from eurogas_nexus.api.routes.public.research_data import _source_attributions
+
+    attributions = {
+        item["provider"]: item["attribution"]
+        for item in _source_attributions(
+            {"trusted_source_ids": ["src-gie", "src-national-gas-supply", "src-elexon"]}
+        )
+    }
+    assert attributions["ELEXON"] == (
+        "Contains BMRS data © Elexon Limited copyright and database right"
+    )
+    assert "National Gas Transmission" in attributions["NATIONAL_GAS"]
+    assert "GIE" in attributions["GIE"]
+    assert _source_attributions(None) == []

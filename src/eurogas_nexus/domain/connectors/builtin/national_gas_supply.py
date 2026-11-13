@@ -17,6 +17,7 @@ from eurogas_nexus.domain.dataops.contracts import (
 MANIFEST = ConnectorManifest(
     source_id="src-national-gas-supply",
     system="NATIONAL_GAS",
+    attribution="Contains data from National Gas Transmission (data portal, open data)",
     category="infrastructure",
     datasets=("gb-storage", "gb-lng"),
     description="National Gas data portal: Great Britain storage stock, withdrawal and "

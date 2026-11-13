@@ -193,3 +193,101 @@ def test_a_partly_reported_day_is_left_out_but_a_low_complete_day_is_kept(sessio
     # The outage day is low supply, not a gap: 9 points at 90 GWh, one at zero.
     assert supply.by_day[outage_day.date()] == pytest.approx(9 * 90.0)
     assert supply.points_reporting[(DAY + timedelta(days=10)).date()] == 3
+
+
+# --- Same physical point, stable operator, closed-day rows, alias candidates -----------
+
+
+def test_a_second_key_for_one_physical_point_is_not_counted_twice(session):
+    from eurogas_nexus.application.pipeline_supply import SAME_PHYSICAL_POINT
+
+    # Live: Dornum GASPOOL (ITP-00525) publishes the OGE Dornum flow to the kWh.
+    assert SAME_PHYSICAL_POINT["ITP-00525"].canonical == "ITP-00126"
+    _flow(session, "a", "ITP-00126", "DE-TSO-0009", 742e6)
+    _flow(session, "b", "ITP-00525", "DE-TSO-0009", 742e6)
+    # The next day only the alias key has reported: it is kept, not lost.
+    _flow(session, "c", "ITP-00525", "DE-TSO-0009", 746e6, day=DAY + timedelta(days=1))
+    session.commit()
+
+    kept = select_operator_rows(_rows(session))
+    assert [row.observation_id for row in kept] == ["a", "c"]
+    # A reader that loads only the alias key still sees its rows.
+    alias_only = [row for row in _rows(session) if row.point_id == "ITP-00525"]
+    assert [row.observation_id for row in select_operator_rows(alias_only)] == ["b", "c"]
+
+
+def test_the_operator_stays_on_the_side_chosen_the_day_before(session):
+    # Bacton IUK, live: National Gas (UK-TSO-0001) had not reported 11 Nov, IUK had.
+    for offset, operators in enumerate(
+        (("UK-TSO-0001", "UK-TSO-0003"), ("UK-TSO-0003",), ("UK-TSO-0001", "UK-TSO-0003"))
+    ):
+        for operator in operators:
+            _flow(session, f"{offset}-{operator}", "ITP-00005", operator, 32e6,
+                  day=DAY + timedelta(days=offset))
+    session.commit()
+
+    kept = select_operator_rows(_rows(session))
+    by_day = {gas_day_of(row): row_operator(row) for row in kept}
+    assert list(by_day.values()) == ["UK-TSO-0001", "UK-TSO-0003", "UK-TSO-0003"]
+
+
+def gas_day_of(row):
+    return row.period_start_utc.date()
+
+
+def test_a_row_received_while_its_gas_day_was_open_is_not_the_days_flow(session):
+    from eurogas_nexus.application.pipeline_supply import published_after_close
+
+    for offset in range(4):
+        _full_day(session, DAY + timedelta(days=offset))
+    # Day 5: every point reported, but Dornum's row is a snapshot taken mid-day.
+    snapshot_day = DAY + timedelta(days=4)
+    _full_day(session, snapshot_day, skip={"ITP-00126"})
+    _flow(session, "snapshot", "ITP-00126", "DE-TSO-0009", 157e6, day=snapshot_day)
+    session.commit()
+    snapshot = session.get(FlowObservationRecord, "snapshot")
+    snapshot.observed_at_utc = snapshot_day + timedelta(hours=7)  # before the day ended
+    session.commit()
+
+    assert not published_after_close(snapshot)
+    supply = landed_supply(session, date(2026, 11, 1), as_of=DAY + timedelta(days=8))
+    # The snapshot is neither a flow nor a report: the day is incomplete, not low.
+    assert supply.incomplete_days == [snapshot_day.date()]
+    assert snapshot_day.date() not in supply.by_day
+
+
+def test_identical_series_are_listed_as_candidates_and_nothing_else(session):
+    from eurogas_nexus.application.pipeline_supply import (
+        identical_series_candidates,
+        load_alias_candidates,
+    )
+
+    for offset in range(5):
+        day = DAY + timedelta(days=offset)
+        value = (700 + offset * 10) * 1e6
+        _flow(session, f"a{offset}", "ITP-00126", "DE-TSO-0009", value, day=day)
+        _flow(session, f"b{offset}", "ITP-00525", "DE-TSO-0009", value, day=day)
+        _flow(session, f"c{offset}", "ITP-00188", "DE-TSO-0005", value * 1.0003, day=day)
+        _flow(session, f"d{offset}", "ITP-00106", "BE-TSO-0001", 480e6, day=day)
+        _flow(session, f"e{offset}", "ITP-00045", "FR-TSO-0003", 480e6, day=day)
+        # All-zero series match each other trivially and are not listed.
+        _flow(session, f"z{offset}", "ITP-00126", "DE-TSO-0009", 0.0, day=day,
+              direction="exit")
+        _flow(session, f"y{offset}", "ITP-00525", "DE-TSO-0009", 0.0, day=day,
+              direction="exit")
+    session.commit()
+
+    exact = identical_series_candidates(_rows(session), days=5)
+    pairs = {(c.first[0], c.second[0]) for c in exact}
+    # A flat 480 GWh at two unrelated points over five days matches too: a candidate is a
+    # question for a person, which is why nothing is applied automatically.
+    assert pairs == {("ITP-00126", "ITP-00525"), ("ITP-00045", "ITP-00106")}
+    listed = {(c.first[0], c.second[0]): c.as_dict()["already_listed"] for c in exact}
+    assert listed[("ITP-00126", "ITP-00525")] is True
+    near = identical_series_candidates(_rows(session), days=5, tolerance=0.0005)
+    assert ("ITP-00126", "ITP-00188") in {(c.first[0], c.second[0]) for c in near}
+    # Too few days to judge: nothing.
+    assert identical_series_candidates(_rows(session), days=6) == []
+    # The loader reads closed days from the store.
+    loaded = load_alias_candidates(session, days=5, now=DAY + timedelta(days=7))
+    assert {(c.first[0], c.second[0]) for c in loaded} == pairs

@@ -67,7 +67,7 @@ function SiteDetail({ site, edges, situation, t }: { site: Site; edges: readonly
           <Figure label={t(isTerminal ? "map.detail.send_out" : "map.detail.flow_in")} value={n(facts.flowEntryGwhD)} unit="GWh/d" hint={facts.gasDay ? t("map.detail.gas_day", { day: facts.gasDay.slice(0, 10) }) : undefined} />
         )}
         {facts.flowExitGwhD != null && facts.flowExitGwhD > 0 && (
-          <Figure label={t("map.detail.flow_out")} value={n(facts.flowExitGwhD)} unit="GWh/d" />
+          <Figure label={t("map.detail.flow_out")} value={n(facts.flowExitGwhD)} unit="GWh/d" hint={facts.gasDay ? t("map.detail.gas_day", { day: facts.gasDay.slice(0, 10) }) : undefined} />
         )}
         {facts.capacityGwhD != null && (
           <Figure

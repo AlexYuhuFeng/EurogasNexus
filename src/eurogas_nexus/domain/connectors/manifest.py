@@ -50,3 +50,6 @@ class ConnectorManifest:
     credentials: tuple[ProviderCredentialSpec, ...] = ()
     #: Set for a connector loaded from an installed plugin package (C2).
     plugin: str | None = None
+    #: The credit the provider's terms require wherever its data is shown or exported
+    #: (docs/legal/DATA_SOURCE_TERMS.md); empty when none is recorded.
+    attribution: str = ""

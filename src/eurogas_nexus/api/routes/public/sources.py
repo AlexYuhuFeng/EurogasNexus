@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from typing import Any
@@ -22,6 +23,18 @@ from eurogas_nexus.domain.ingestion.source_registry import (
 )
 
 router = APIRouter(tags=["sources"])
+logger = logging.getLogger(__name__)
+
+#: Shown when the runtime database is configured but the count read failed: every source's
+#: ``live_record_count`` is then null (unknown), never 0, which would read as "no data".
+COUNTS_UNAVAILABLE_WARNING = (
+    "Source row counts are unavailable: the runtime database read failed. Counts show as "
+    "unknown, not zero; see the server log for the error class."
+)
+LATEST_OBSERVED_UNAVAILABLE_WARNING = (
+    "Newest-observation times are unavailable: the runtime database read failed, so "
+    "freshness is unknown."
+)
 
 PREVIEW_SUBSTITUTE_SOURCE_SYSTEM_BY_LICENSED_SOURCE = {
     "EEX": "EEX_Sim",
@@ -79,12 +92,13 @@ SOURCE_ID_BY_NAME = {
 def list_sources(request: Request) -> dict:
     """List registered source systems with runtime DB counts when configured."""
 
-    sources = _sources_with_runtime_status()
+    sources, warnings = _sources_with_runtime_status()
     return _envelope(
         sources,
         request,
         source=_source_label(),
         source_posture_summary=_source_posture_summary(sources),
+        warnings=warnings,
     )
 
 
@@ -92,9 +106,10 @@ def list_sources(request: Request) -> dict:
 def get_source(source_id: str, request: Request) -> dict:
     """Get a single registered source by ID."""
 
-    for source in _sources_with_runtime_status():
+    sources, warnings = _sources_with_runtime_status()
+    for source in sources:
         if source["source_id"] == source_id:
-            return _envelope(source, request, source=_source_label())
+            return _envelope(source, request, source=_source_label(), warnings=warnings)
     raise HTTPException(status_code=404, detail=f"Source '{source_id}' not found.")
 
 
@@ -121,9 +136,10 @@ def _envelope(
     *,
     source: str,
     source_posture_summary: dict[str, Any] | None = None,
+    warnings: list[str] | None = None,
 ) -> dict:
     _ = request
-    warnings: list[str] = []
+    warnings = list(warnings or [])
     if source != "runtime-postgresql":
         warnings.append("Runtime database is not configured; live source counts are unavailable.")
     meta: dict[str, Any] = {
@@ -147,16 +163,25 @@ def _envelope(
     }
 
 
-def _sources_with_runtime_status() -> list[dict]:
+def _sources_with_runtime_status() -> tuple[list[dict], list[str]]:
+    """Registered sources with runtime status, and warnings for reads that failed."""
+
     sources = registered_sources()
     counts = _runtime_source_counts()
     latest_observed = _runtime_source_latest_observed()
+    warnings: list[str] = []
+    if counts is None:
+        warnings.append(COUNTS_UNAVAILABLE_WARNING)
+    if latest_observed is None:
+        warnings.append(LATEST_OBSERVED_UNAVAILABLE_WARNING)
+        latest_observed = {}
     ingestion_status = _latest_ingestion_status_by_source()
     credential_status = _credential_status_by_provider()
     certifications = _certification_by_source_system()
     runtime_states = _source_runtime_states_by_source_id()
     for source in sources:
-        count = counts.get(source["source_system"], 0)
+        # None: the count read failed, so the number is unknown (not zero).
+        count = None if counts is None else counts.get(source["source_system"], 0)
         source["live_record_count"] = count
         last_observed = latest_observed.get(source["source_system"])
         source["last_observed_at_utc"] = last_observed
@@ -219,7 +244,14 @@ def _sources_with_runtime_status() -> list[dict]:
         )
     _attach_preview_substitute_status(sources)
     _attach_operational_status(sources)
-    return sources
+    return sources, warnings
+
+
+def _record_total(sources: list[dict]) -> int | None:
+    """Sum of the sources' counts, or None when any count is unknown."""
+
+    counts = [source["live_record_count"] for source in sources]
+    return None if any(count is None for count in counts) else sum(int(c) for c in counts)
 
 
 def _source_runtime_states_by_source_id() -> dict[str, dict[str, Any]]:
@@ -289,7 +321,7 @@ def _source_posture_summary(sources: list[dict]) -> dict[str, Any]:
             "uncertified_active_sources": sum(
                 1 for source in sources if source["operational_status"] == "active_uncertified"
             ),
-            "runtime_records": sum(int(source["live_record_count"]) for source in sources),
+            "runtime_records": _record_total(sources),
         },
         "categories": categories,
     }
@@ -300,7 +332,7 @@ def _category_posture(category: str, label: str, sources: list[dict]) -> dict[st
     failed_sources = sum(1 for source in sources if source["connectivity_status"] == "failed")
     active_sources = sum(1 for source in sources if source["connectivity_status"] == "active")
     workflow_ready_sources = sum(1 for source in sources if source["workflow_ready"])
-    runtime_records = sum(int(source["live_record_count"]) for source in sources)
+    runtime_records = _record_total(sources)
     preview_substitutes_active = sum(
         1 for source in sources if source["preview_substitute_status"] == "active"
     )
@@ -336,6 +368,7 @@ def _source_needs_attention(source: dict) -> bool:
         "credential_disabled",
         "runtime_unconfigured",
         "no_records",
+        "counts_unavailable",
     }
 
 
@@ -344,12 +377,14 @@ def _category_next_action(
     missing_credentials: int,
     failed_sources: int,
     workflow_ready_sources: int,
-    runtime_records: int,
+    runtime_records: int | None,
 ) -> str:
     if missing_credentials > 0 and workflow_ready_sources == 0:
         return "add_credentials"
     if failed_sources > 0:
         return "inspect_failure"
+    if runtime_records is None:
+        return "inspect_failure"  # the count read failed: not a reason to ingest again
     if workflow_ready_sources == 0 or runtime_records == 0:
         return "run_ingestion"
     if missing_credentials > 0:
@@ -384,14 +419,14 @@ def _attach_operational_status(sources: list[dict]) -> None:
         certification_required = bool(source["credential_requirements"])
         native_active = (
             source["connectivity_status"] == "active"
-            and int(source["live_record_count"]) > 0
+            and (source["live_record_count"] or 0) > 0
             and (not certification_required or source["certification_allows_live"])
         )
         substitute = by_system.get(source["preview_substitute_source_system"])
         substitute_active = bool(
             substitute
             and substitute["connectivity_status"] == "active"
-            and int(substitute["live_record_count"]) > 0
+            and (substitute["live_record_count"] or 0) > 0
         )
         if native_active:
             source["operational_status"] = "active"
@@ -490,7 +525,7 @@ def _external_credential_configured(provider_id: str) -> bool:
 
 def _connectivity_status(
     source: dict,
-    live_record_count: int,
+    live_record_count: int | None,
     credential_state: str,
     latest_run: dict[str, Any] | None,
 ) -> str:
@@ -500,6 +535,8 @@ def _connectivity_status(
         return "credential_disabled"
     if latest_run and canonical_run_status(latest_run.get("status")) in FAILURE_RUN_STATUSES:
         return "failed"
+    if live_record_count is None:
+        return "counts_unavailable"
     if live_record_count > 0:
         # Audit item 3: records alone do not make a source live. A source whose
         # newest observation is older than its freshness expectation is stale.
@@ -515,7 +552,7 @@ def _connectivity_status(
 
 def _diagnostics(
     source: dict,
-    live_record_count: int,
+    live_record_count: int | None,
     credential_state: str,
     latest_run: dict[str, Any] | None,
     *,
@@ -543,7 +580,9 @@ def _diagnostics(
         # The exposed last_success_at_utc came from a warnings run; keep that
         # success visibly qualified even when a newer failed/pending run exists.
         diagnostics.append("last_ingestion_succeeded_with_warnings")
-    if live_record_count > 0:
+    if live_record_count is None:
+        diagnostics.append("record_count_unavailable")
+    elif live_record_count > 0:
         diagnostics.append("live_records_available")
         if source["credential_requirements"] and not source["certification_allows_live"]:
             diagnostics.append("certification_required")
@@ -616,7 +655,13 @@ def _observation_counts_by_source_system(session: Any) -> dict[str, int]:
     return counts
 
 
-def _runtime_source_counts() -> dict[str, int]:
+def _runtime_source_counts() -> dict[str, int] | None:
+    """Row counts per source system; None when the read failed (logged), {} without a DB.
+
+    A failed read used to return {} and every source showed 0 rows: a broken query looked
+    like an empty store.
+    """
+
     if not _db_is_configured():
         return {}
 
@@ -701,8 +746,12 @@ def _runtime_source_counts() -> dict[str, int]:
                 "Weather": observation_counts.get("Weather", 0),
                 "DEEPSEEK": 0,
             }
-    except sqlalchemy_error:
-        return {}
+    except sqlalchemy_error as exc:
+        logger.warning(
+            "source row counts unavailable: %s", type(exc).__name__,
+            extra={"error_class": type(exc).__name__},
+        )
+        return None
 
 
 def _row_counts_by_source_system(session: Any, model: Any, *dimensions: Any) -> dict[Any, int]:
@@ -726,11 +775,12 @@ def _row_counts_by_source_system(session: Any, model: Any, *dimensions: Any) -> 
     return counts
 
 
-def _runtime_source_latest_observed() -> dict[str, str]:
+def _runtime_source_latest_observed() -> dict[str, str] | None:
     """Return the newest observation timestamp per source system (ISO UTC).
 
     Drives the read-side freshness evaluation (audit item 3): a source is
     only ``active`` while its newest row satisfies the freshness expectation.
+    None when the read failed (logged), so the caller can say freshness is unknown.
     """
 
     if not _db_is_configured():
@@ -801,11 +851,14 @@ def _runtime_source_latest_observed() -> dict[str, str]:
             for system, value in latest.items()
             if hasattr(value, "isoformat")
         }
-    except Exception:
-        # Freshness annotation is best-effort: unavailability (including
-        # monkeypatched test environments without a DSN) yields no timestamps
-        # and sources evaluate as UNKNOWN rather than failing the registry.
-        return {}
+    except Exception as exc:  # noqa: BLE001 - freshness must not fail the registry
+        # Freshness annotation is best-effort: sources evaluate as UNKNOWN rather than
+        # failing the registry, but the failure is logged and reported, not silent.
+        logger.warning(
+            "source newest-observation times unavailable: %s", type(exc).__name__,
+            extra={"error_class": type(exc).__name__},
+        )
+        return None
 
 
 def _national_gas_nts_tariff_filter(tariff_model: Any, or_: Any) -> Any:

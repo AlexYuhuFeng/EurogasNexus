@@ -247,6 +247,31 @@ def _artifact_store_error(detail: str) -> HTTPException:
     )
 
 
+def _source_attributions(metadata: object) -> list[dict[str, str | None]]:
+    """Who supplied a snapshot's rows and the credit each source's terms require.
+
+    Derived from the snapshot's persisted ``trusted_source_ids`` (one per source whose rows
+    entered it, e.g. ``src-gie`` and ``src-national-gas-supply`` for NW Europe storage), so
+    a GB row is credited to National Gas or Elexon, not to the table's other source.
+    """
+
+    from eurogas_nexus.domain.connectors.registry import source_attribution
+    from eurogas_nexus.domain.dataops.registry import definition_for_source
+
+    source_ids = metadata.get("trusted_source_ids") if isinstance(metadata, dict) else None
+    out: list[dict[str, str | None]] = []
+    for source_id in source_ids or []:
+        definition = definition_for_source(str(source_id))
+        out.append(
+            {
+                "source_id": str(source_id),
+                "provider": definition.provider if definition else None,
+                "attribution": source_attribution(str(source_id)) or None,
+            }
+        )
+    return out
+
+
 def _request_principal(request: Request) -> AuthenticatedPrincipal:
     """Return the authenticated principal, preserving dev-token compatibility."""
 
@@ -477,9 +502,11 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
         # The tracked outcome commits with the work it describes; a validate-only
         # build persists nothing but its job record.
         session.commit()
+    metadata = result.as_metadata()
     return _env(
         {
-            **result.as_metadata(),
+            **metadata,
+            "source_attributions": _source_attributions(metadata),
             "rows": result.rows[:100],
             "temporal_integrity": result.quality_report["temporal_integrity"],
         },
@@ -516,6 +543,7 @@ def get_dataset(dataset_snapshot_id: str, request: Request) -> dict:
             "artifact_ref": row.artifact_ref,
             "status": row.status,
             "metadata": row.metadata_json,
+            "source_attributions": _source_attributions(row.metadata_json),
         }
     return _env(payload, request, source="runtime-postgresql")
 
@@ -623,6 +651,7 @@ def export_dataset(dataset_snapshot_id: str, body: DatasetExportRequest, request
             "artifact_sha256": artifact.sha256,
             "available_formats": available_formats,
             "entitlement_policy": policy,
+            "source_attributions": _source_attributions(row.metadata_json),
         }
     return _env(
         payload,
@@ -830,13 +859,19 @@ def _fundamental_evidence(
 ) -> tuple[list[DatasetEvidenceRecord], set[str]]:
     """Evidence for ``power.*``, ``storage.*``, ``lng.*`` and ``flow.*`` series a dataset uses.
 
-    Series ids: ``power.<metric>.<zone>`` (ENTSO-E), ``storage.<metric>.<facility_id>`` and
-    ``lng.<metric>.<terminal_id>`` (GIE AGSI/ALSI, TWh or %), ``flow.gwh_d.<point_id>.<direction>``
+    Series ids: ``power.<metric>.<zone>`` (ENTSO-E; GB from Elexon),
+    ``storage.<metric>.<facility_id>`` and ``lng.<metric>.<terminal_id>`` (GIE AGSI/ALSI; GB
+    from National Gas, TWh or %), ``flow.gwh_d.<point_id>.<direction>``
     (ENTSOG energy as published) and ``flow.mcm_d.<point_id>.<direction>`` (a published volume
     only; native ENTSOG rows have none). Flows take one operator's report per point and gas
     day (``pipeline_supply.OPERATOR_SELECTION_RULE``). Availability is the observation's
     ingestion time (power: the publication deadline), so it is approximate rather than
     certified.
+
+    **Provenance per row.** A table holds more than one source (power: ENTSO-E and Elexon;
+    storage and LNG: GIE and National Gas), so each row's source definition, export policy
+    and entitlement come from its own ``source_system``, never from the table. A row whose
+    source the caller is not authorised for (absent from ``source_by_system``) is left out.
     """
 
     from eurogas_nexus.db.models import FlowObservationRecord
@@ -853,6 +888,11 @@ def _fundamental_evidence(
             by_prefix.setdefault(parts[0], set()).add(parts[1:])
     records: list[DatasetEvidenceRecord] = []
     sources: set[str] = set()
+
+    def definition_of(row):
+        """The authorised source definition of this row's own source system, or None."""
+
+        return source_by_system.get(str(getattr(row, "source_system", "") or "").casefold())
 
     def add(
         series_id, entity_id, observed_at, available_at, ingested_at, value, unit, row, definition
@@ -881,8 +921,7 @@ def _fundamental_evidence(
         )
         sources.add(definition.source_id)
 
-    power_definition = source_by_system.get("entsoe")
-    if power_definition is not None and by_prefix.get("power"):
+    if by_prefix.get("power"):
         wanted = by_prefix["power"]
         rows = (
             session.query(PowerObservationRecord)
@@ -893,6 +932,9 @@ def _fundamental_evidence(
             .all()
         )
         for row in rows:
+            definition = definition_of(row)
+            if definition is None:
+                continue
             add(
                 f"power.{row.metric}.{row.zone}",
                 f"ent:bidding_zone:{row.zone}",
@@ -902,10 +944,9 @@ def _fundamental_evidence(
                 row.value,
                 row.unit,
                 row,
-                power_definition,
+                definition,
             )
 
-    gie = source_by_system.get("gie")
     for prefix, model, key_column, entity_kind, metrics in (
         (
             "storage",
@@ -928,7 +969,7 @@ def _fundamental_evidence(
         ),
     ):
         wanted = by_prefix.get(prefix)
-        if gie is None or not wanted:
+        if not wanted:
             continue
         column = getattr(model, key_column)
         rows = (
@@ -939,6 +980,9 @@ def _fundamental_evidence(
             .all()
         )
         for row in rows:
+            definition = definition_of(row)
+            if definition is None:
+                continue
             key = getattr(row, key_column)
             for metric, unit in metrics.items():
                 if (metric, key) in wanted:
@@ -951,12 +995,11 @@ def _fundamental_evidence(
                         getattr(row, metric),
                         unit,
                         row,
-                        gie,
+                        definition,
                     )
 
-    entsog = source_by_system.get("entsog")
     wanted = by_prefix.get("flow")
-    if entsog is not None and wanted:
+    if wanted:
         from eurogas_nexus.application.pipeline_supply import (
             row_energy_gwh,
             select_operator_rows,
@@ -972,7 +1015,9 @@ def _fundamental_evidence(
         )
         # One operator's report per point and gas day (OPERATOR_SELECTION_RULE): the other
         # side of an interconnection publishes the same flow, so both would be a duplicate.
-        for row in select_operator_rows(rows):
+        # Only rows of a source the caller may read enter the choice.
+        for row in select_operator_rows(row for row in rows if definition_of(row) is not None):
+            definition = definition_of(row)
             direction = str(row.direction or "").lower()
             if ("mcm_d", row.point_id, direction) in wanted:
                 # A published volume only: native ENTSOG rows publish energy and leave the
@@ -986,7 +1031,7 @@ def _fundamental_evidence(
                     row.flow_mcm_d,
                     "mcm/d",
                     row,
-                    entsog,
+                    definition,
                 )
             if ("gwh_d", row.point_id, direction) in wanted:
                 energy, from_volume = row_energy_gwh(row)
@@ -999,6 +1044,6 @@ def _fundamental_evidence(
                     None if from_volume else energy,  # energy as published, no assumed GCV
                     "GWh/d",
                     row,
-                    entsog,
+                    definition,
                 )
     return records, sources

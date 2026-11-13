@@ -17,7 +17,8 @@ type SourceLike = {
   operational_status?: string;
   workflow_ready?: boolean;
   credential_state: string;
-  live_record_count: number;
+  /** null: the server could not count this source's rows. */
+  live_record_count: number | null;
   integration?: "api" | "file_import" | "template" | "model_service";
   scheduler_enabled?: boolean;
   last_success_at_utc?: string | null;
@@ -69,8 +70,19 @@ export interface SourceStats {
   total: number;
   active: number;
   issues: number;
-  records: number;
+  /** null when any source's count is unknown: a partial sum would understate. */
+  records: number | null;
   missingCredentials: number;
+}
+
+/** Sum of record counts, or null when any of them is unknown (a failed count is not 0). */
+export function sumRecordCounts(counts: ReadonlyArray<number | null>): number | null {
+  let total = 0;
+  for (const count of counts) {
+    if (count === null) return null;
+    total += count;
+  }
+  return total;
 }
 
 export type SourceSummaryViewState =
@@ -127,7 +139,7 @@ export function buildSourceStats(sources: SourceLike[]): SourceStats {
     // An optional provider nobody connected is offered, not broken: only what was set up and
     // stopped working counts, as on the Connectors page.
     issues: sources.filter(sourceNeedsAttention).length,
-    records: sources.reduce((total, source) => total + source.live_record_count, 0),
+    records: sumRecordCounts(sources.map((source) => source.live_record_count)),
     missingCredentials: sources.filter((source) => source.credential_state === "missing").length,
   };
 }
@@ -200,7 +212,7 @@ export function buildSourcePostureRows(
       ).length,
       missing_credentials: categorySources.filter((source) => source.credential_state === "missing").length,
       preview_substitutes_active: categorySources.filter((source) => source.preview_substitute_status === "active").length,
-      runtime_records: categorySources.reduce((total, source) => total + source.live_record_count, 0),
+      runtime_records: sumRecordCounts(categorySources.map((source) => source.live_record_count)),
       next_action: categorySources.some((source) => source.credential_state === "missing")
         ? categorySources.some((source) => source.workflow_ready)
           ? "configure_live_credentials"

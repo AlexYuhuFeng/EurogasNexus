@@ -120,3 +120,19 @@ test("the map container rule stays outside cascade layers", async () => {
   for (const char of before) depth += char === "{" ? 1 : char === "}" ? -1 : 0;
   assert.ok(opened > 0 && depth === 0, "the rule must not sit inside an @layer block");
 });
+
+test("a flow card names the closed gas day and the operator whose side it is read from", () => {
+  const withFlow: MapSituationDTO = {
+    ...situation,
+    flows: [{
+      point_id: "ITP-00005", point_name: "Bacton (IUK)", direction: "entry", gas_day: "2026-11-11",
+      gas_day_start_utc: "2026-11-11T05:00:00+00:00", gas_day_end_utc: "2026-11-12T05:00:00+00:00",
+      value: 32_297_772, unit: "kWh/d", gwh_d: 32.298, source_system: "ENTSOG", operator_key: "UK-TSO-0003",
+      location: { lon: 1.46, lat: 52.85 },
+    }],
+  };
+  const html = situationCardHtml("flow", "ITP-00005|entry", withFlow, t, escape);
+  assert.match(html, /32\.3 GWh\/d/);
+  assert.match(html, /<small>map\.situation\.gas_day<\/small> 2026-11-11/);
+  assert.match(html, /<small>map\.situation\.reported_by<\/small> UK-TSO-0003/);
+});

@@ -84,7 +84,7 @@ function needsCredential(source: SourceSystemDTO): boolean {
 function needsLiveCertification(source: SourceSystemDTO): boolean {
   return (
     isLicensedCommercialSource(source) &&
-    source.live_record_count > 0 &&
+    (source.live_record_count ?? 0) > 0 &&
     !source.certification_allows_live
   );
 }

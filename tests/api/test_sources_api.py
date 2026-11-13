@@ -1719,8 +1719,50 @@ def test_runtime_source_counts_cover_every_table_a_source_writes(
     assert counts["ECB_ESTR"] == 1 and counts["BOE"] == 1 and counts["NYFED"] == 1
 
     by_system = {
-        source["source_system"]: source for source in sources_routes._sources_with_runtime_status()
+        source["source_system"]: source
+        for source in sources_routes._sources_with_runtime_status()[0]
     }
     assert by_system["NATIONAL_GAS"]["live_record_count"] == 2
     assert by_system["ELEXON"]["live_record_count"] == 2
     assert by_system["ELEXON"]["last_observed_at_utc"] is not None
+
+
+def test_a_failed_count_read_is_unknown_not_zero(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A broken count query used to show every source at 0 rows with no sign of failure."""
+
+    import logging
+
+    from sqlalchemy.exc import OperationalError
+
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+
+    def broken_factory():
+        raise OperationalError("SELECT count(*)", {}, Exception("relation is missing"))
+
+    monkeypatch.setattr(sources_routes, "_db_is_configured", lambda: True)
+    monkeypatch.setattr("eurogas_nexus.db.session.get_session_factory", broken_factory)
+    for name in (
+        "_latest_ingestion_status_by_source",
+        "_credential_status_by_provider",
+        "_certification_by_source_system",
+        "_source_runtime_states_by_source_id",
+    ):
+        monkeypatch.setattr(sources_routes, name, lambda: {})
+
+    with caplog.at_level(logging.WARNING, logger=sources_routes.__name__):
+        response = TestClient(create_app()).get("/api/sources")
+
+    assert response.status_code == 200
+    payload = response.json()
+    entsog = next(item for item in payload["data"] if item["source_system"] == "ENTSOG")
+    assert entsog["live_record_count"] is None
+    assert entsog["effective_record_count"] is None
+    assert entsog["connectivity_status"] == "counts_unavailable"
+    assert "record_count_unavailable" in entsog["diagnostics"]
+    assert "no_records_in_runtime_db" not in entsog["diagnostics"]
+    assert payload["meta"]["source_posture_summary"]["totals"]["runtime_records"] is None
+    assert sources_routes.COUNTS_UNAVAILABLE_WARNING in payload["meta"]["warnings"]
+    assert sources_routes.LATEST_OBSERVED_UNAVAILABLE_WARNING in payload["meta"]["warnings"]
+    assert "OperationalError" in caplog.text

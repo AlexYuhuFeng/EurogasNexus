@@ -268,7 +268,7 @@ export function siteFacts(site: Site, situation: MapSituationDTO | null) {
       ? (facts?.flows.filter((flow) => flow.location.ref_id === remit.location.ref_id).reduce((sum, flow) => sum + (flow.gwh_d ?? 0), 0) ?? 0)
       : 0;
   const comparable = hasFlow && capacity && (sendOut != null || facts?.flows.some((flow) => flow.location.ref_id === remit?.location.ref_id));
-  const gasDay = facts?.flows.map((flow) => flow.gas_day_start_utc).find(Boolean) ?? null;
+  const gasDay = facts?.flows.map((flow) => flow.gas_day ?? flow.gas_day_start_utc?.slice(0, 10)).find(Boolean) ?? null;
   return {
     operator,
     capacityGwhD: capacity,

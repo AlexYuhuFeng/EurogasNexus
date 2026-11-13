@@ -144,6 +144,61 @@ every observation table in one statement (rates by benchmark, since ECB also pub
 FX). Live: NATIONAL_GAS 20, ELEXON 1,185, ENTSOE 13,908, EIA 27, ECB_ESTR 33, BOE 32,
 NYFED 30; ENTSOG, GIE and ECB unchanged.
 
+### Data-correctness round and back-fill (2026-11-13)
+
+**Back-fill.** ENTSOG physical flows for the balance's landing points (16 point-directions:
+the registry's ten plus ITP-00525, ITP-00105 and exit sides) in 31-day windows, 20 Sep 2025
+to 4 Nov 2026 (`--entsog-from/--entsog-to`, `to` is inclusive; 496 rows a window, one 495);
+National Gas storage and LNG for 410 gas days (`ingest_national_gas_supply.py`, new `--end`
+for 30-day steps); GIE AGSI/ALSI per NWE country refreshed to 11 Nov (`--limit 5`). Refused,
+existing rows kept: a refresh of 5-13 Nov for ITP-00080, -00097, -00126, -00525 entry and the
+AGSI Europe total (`*_revision_requires_history`), and AGSI for LU (`gie_product_mismatch`).
+
+**Open-day snapshots.** 189 ENTSOG rows for 12 Nov were stored at 11:56 UTC that day, while
+the day was open (Dornum 157.8 GWh against about 740). The revision rule then refuses the
+full-day value, so the snapshot would read as the day's flow once the day closed.
+`pipeline_supply.published_after_close` (received at or after the period end) now gates the
+balance's landings and the map. Rows are kept; the ingestion of open days is unchanged.
+
+**Dornum.** ITP-00525 (Dornum GASPOOL, OGE, no adjacent operator) equals ITP-00126 (Dornum /
+NETRA, OGE) to the kWh on all 47 entry and 48 exit days held, with different bookings and
+nominations. It is the first entry of `SAME_PHYSICAL_POINT`, applied inside
+`select_operator_rows`. `scripts/ops/flow_point_alias_candidates.py` lists candidate pairs
+and changes nothing. Open candidate, not applied: ITP-00188 (GUD) and ITP-00126 (OGE) agree
+within 0.042 % on every day, through a 25 % swing, while their bookings differ 3x. If they
+are one meter, the registry counts about 0.7 TWh/d of Dornum twice. This needs Gassco's
+Dornum figure to decide.
+
+**Other changes.** The map shows each point's newest closed gas day with `gas_day` and
+`operator_key`; the operator rule now stays on the previous day's operator while it reports.
+Research datasets take provenance, export policy and entitlement from each row's own
+`source_system` (GB storage and LNG credited to National Gas, GB power to Elexon), with the
+attribution from the connector manifest. The Sources page reports a failed count as null
+with a warning, not 0. The balance warns when its call falls back to a 28-day average far
+from the last week, or when its seasonal normal rests on one year.
+
+**Balance after back-fill** (13 Nov, 14:20 UTC): 418 measured days, 20 Sep 2025 to 11 Nov
+2026; 12 Nov left out as partly reported.
+
+| Gas day | Call | Norway + UK terminals | LNG | Storage draw | Inventory TWh | Fill % |
+|---|---|---|---|---|---|---|
+| 11 Nov (measured) | 9,829.7 | 4,638.2 | 2,769.1 | 2,422.4 | - | - |
+| 12 Nov | 9,452 | 4,622 | 2,584 | 2,245 | 340.56 | 64.1 |
+| 15 Nov | 10,215 | 4,622 | 2,584 | 3,009 | 333.36 | 62.8 |
+| 19 Nov | 12,893 | 4,622 | 2,584 | 5,687 | 315.30 | 59.4 |
+
+Figures are GWh/d. The call method is the seasonal normal plus the recent anomaly. The only
+earlier year is 2025, so the forecast replays the 17-21 Nov 2025 cold spell: a call of 9.9
+to 12.8 TWh/d then. The balance now says so. From 17 Nov the days carry the flag
+`withdrawal_above_recent_maximum`. Plausibility:
+
+- LNG at 2.6-2.8 TWh/d is in range.
+- Landings split into Norway scope 3.01 TWh/d and UK terminals 1.6 TWh/d. Norway is in
+  range only with Dornum counted twice; see above.
+- Fill of 64.1 % matches GIE's own per-country fill: DE 57.7, NL 62.2, FR 79.1, BE 67.3,
+  DK 88.5. It is low for mid-November because German and Dutch stocks peaked near 61 % and
+  66 % this season. This is not a calculation error.
+
 ## Reproducing
 
 ```bash
@@ -155,6 +210,10 @@ python scripts/ops/ingest_public_sources.py --source entsog --source entsog-capa
 python scripts/ops/ingest_public_sources.py --source gie-agsi --source gie-alsi \
   --gie-country nwe --limit 600
 python scripts/ops/ingest_public_sources.py --source ecb
+python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2025-09-20 \
+  --entsog-to 2025-10-20 --entsog-point-direction <landing point-directions> --limit 5000
+python scripts/ops/ingest_national_gas_supply.py --days 30 --end 2025-10-28 --commit
+python scripts/ops/flow_point_alias_candidates.py --days 30 --tolerance 0.0005
 python scripts/ops/data_quality_report.py
 ```
 
