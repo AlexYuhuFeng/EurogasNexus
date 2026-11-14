@@ -225,7 +225,11 @@ export function situationSummary(situation: MapSituationDTO | null) {
           .filter((item) => item.direction === "entry")
           .reduce((sum, item) => sum + (item.gwh_d ?? 0), 0)
       : null,
-    unlocated: Object.values(situation.unlocated).reduce((sum, value) => sum + value, 0),
+    unlocated: Object.values(situation.unlocated).reduce((sum, value) => sum + (value ?? 0), 0),
+    /** Every network point the reference knows, placed or not; null from older servers. */
+    networkPoints: situation.totals?.network_points ?? null,
+    /** Points no source places: listed by name, never drawn at a guessed position. */
+    unlocatedPoints: situation.unlocated_network_points ?? [],
     asOf: situation.as_of_utc,
   };
 }

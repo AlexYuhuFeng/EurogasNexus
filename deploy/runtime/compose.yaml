@@ -75,6 +75,19 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  reference-seed:
+    # Loads the shipped NWE reference network bundle (ENTSOG points, schematic zone links)
+    # into an empty store, so the map shows the network before ENTSOG is first read or on an
+    # installation without outbound network. A store holding a live ENTSOG read is left as it
+    # is. No network access; real reference metadata, not simulated data.
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    environment: *runtime-environment
+    command: ["python", "scripts/ops/seed_reference_network.py", "--json"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   api:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     restart: unless-stopped

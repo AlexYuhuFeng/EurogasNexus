@@ -3,7 +3,8 @@
 本目录是 `Server` 和 `Server` 使用的服务器运行时定义。正常实施应运行
 `Deploy-EurogasNexus.ps1`，不应手工修改或逐个启动 Compose 服务。
 
-服务包括 PostgreSQL 16、一次性配置预检、一次性 Alembic 迁移、FastAPI、
+服务包括 PostgreSQL 16、一次性配置预检、一次性 Alembic 迁移、一次性参考管网加载
+（`reference-seed`：随产品交付的西北欧管网包，无需联网；已有 ENTSOG 实时参考数据时跳过）、FastAPI、
 Caddy HTTPS 网关和可选公开数据采集。客户交付不包含模拟价格或预览种子服务。
 PostgreSQL 与 API 仅
 绑定回环地址，客户通过 HTTPS 网关访问。目录中不包含任何密钥。

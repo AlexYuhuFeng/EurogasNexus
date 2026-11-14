@@ -5,7 +5,8 @@ This directory is the committed server-runtime definition used by `Server` and
 should not edit or invoke individual Compose services during normal install.
 
 Services: PostgreSQL 16, a one-shot configuration preflight, one-shot Alembic
-migration, FastAPI, Caddy HTTPS gateway and opt-in public ingestion tools.
+migration, a one-shot reference network seed (`reference-seed`: the shipped NWE network
+bundle, offline, skipped when a live ENTSOG read is present), FastAPI, Caddy HTTPS gateway and opt-in public ingestion tools.
 Simulation and preview seed services are absent from customer delivery.
 PostgreSQL and the API are loopback-bound;
 customer access enters through the HTTPS gateway. No secret is committed in this

@@ -431,6 +431,9 @@ function Install-OrRepairRuntime {
     # --no-deps skips Compose's migration dependency, so run the gate explicitly.
     Invoke-Compose @("run", "--rm", "--no-deps", "config-check")
     Invoke-Compose @("run", "--rm", "--no-deps", "migrate")
+    # The shipped reference network, so the map shows NW Europe with no outbound network;
+    # a store that already holds a live ENTSOG read is left unchanged.
+    Invoke-Compose @("run", "--rm", "--no-deps", "reference-seed")
     Invoke-Compose @("up", "-d", "--no-deps", "api")
     Invoke-Compose @(
         "--profile", "monitoring", "up", "-d",

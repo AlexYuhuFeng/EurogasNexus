@@ -8,6 +8,7 @@ confirm each provider's current terms before a production deployment.
 | Source | Use in product | Commercial-use position | How the product enforces it |
 |---|---|---|---|
 | ENTSOG Transparency Platform | flows, capacity, tariffs | Free public data; attribution | Live ingest gated by a provider certification record |
+| ENTSOG Transparency Platform, shipped reference bundle | NWE network points, operators and approximate positions on a fresh or offline installation | TP Terms of Use (Rev. 3, 10 Nov 2026) Art. 5: download, store and use in good faith with the source and download date cited; no clause excludes commercial use or redistribution (see "Reference network bundle" below) | `src/eurogas_nexus/reference_data/nwe_reference_network.json` carries the citation; positions marked approximate; links marked schematic |
 | GIE AGSI+/ALSI | storage, LNG | Free with a registered API key; attribution | Key held server-side; certification gate |
 | ECB reference rates, €STR | FX, €STR fixings | Free; reuse permitted with source attribution | Public baseline family `ECB` |
 | Bank of England (SONIA) | SONIA fixings | Free; administrator terms (attribution, no endorsement) | Public baseline family `BOE`; attribution returned with every resolved rate |
@@ -33,3 +34,46 @@ confirm each provider's current terms before a production deployment.
 Simulated price sources (`*_Sim`) generate synthetic numbers locally. They carry no
 third-party data, but they must never be shown as market prices. They are disabled in
 `trial` and `release` environments (`simulated_sources_allowed()`).
+
+## Reference network bundle (MAP-01, decided 2026-11-14)
+
+The product ships a north-west Europe reference network so the map works on a fresh
+installation with no outbound network (`docs/operations/REFERENCE_NETWORK_BUNDLE.md`).
+
+**Dataset.** ENTSOG Transparency Platform reference metadata only: connection points
+(point key, EIC, label, type, ENTSOG's own map position `tpMapX/tpMapY`) and operator point
+directions (operators, adjacent operators, booking platform, product flags), as read by the
+product's own ENTSOG reference ingestion. No flow, capacity or tariff value is shipped.
+
+**Terms, as checked on 2026-11-14.** The ENTSOG website terms (Art. 4.2) forbid
+redistributing website content without consent, but state that data published on the
+Transparency Platform is governed by the platform's own terms. Those are the "ENTSOG TP
+Privacy & T&C of Use", LAG0689-26 Rev. 3 dated 10 November 2026
+(entsog.eu, linked from "Privacy Policy and terms of use"). Article 5.1: "you may download,
+store and use the contents of the ENTSOG TP in good faith and always complying with good
+business practices regarding the re-use of publicly available data, and provided you keep
+intact all trademark, copyright and other proprietary notices"; 5.2: cite the source and the
+download date as "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/", and do not imply
+ENTSOG endorsement; 5.3: ENTSOG may ask for circulation statistics; 5.5: ENTSOG disclaims
+responsibility for processed data. Nothing in the terms excludes commercial use or requires
+share-alike. Article 3 reserves property rights "unless otherwise stated", and Article 5 is
+that statement for TP data; it is a use permission, not an explicit redistribution licence.
+
+**Decision.** Ship the bundle with the citation "ENTSOG TP [14-11-2026]
+https://transparency.entsog.eu/" in the file and in every seeded row's metadata, and present
+it as ENTSOG reference metadata, never as ENTSOG-endorsed. Because the grant is a use
+permission rather than an express redistribution licence, legal should confirm it, or obtain
+ENTSOG's written confirmation (transparency@entsog.eu), before the first customer release
+that includes the bundle; until then this is an engineering position, as is every row above.
+
+**Positions.** ENTSOG publishes map coordinates, not WGS84. The bundle carries the same
+approximate lon/lat transform the live ingestion stores (`display_approximation`, never
+`verified`). 51 NWE points (including the Dornum and Emden landings) have no ENTSOG map
+position; they carry no coordinate, are counted as "not located" and are never placed.
+
+**Lines.** ENTSOG's API publishes no route geometry, and its map drawings are ENTSOG
+property; no OpenStreetMap or other share-alike geometry is used. The bundle's edges are
+schematic zone links (a point to the trading point of the entry-exit zone its operator
+belongs to), flagged `schematic`, drawn as thin straight links and labelled "schematic where
+no surveyed route"; they are never presented as pipeline routes.
+

@@ -49,6 +49,10 @@ eurogas-nexus = "eurogas_nexus.cli.main:main"
 [tool.setuptools.packages.find]
 where = ["src", "packages/python-sdk/src"]
 
+[tool.setuptools.package-data]
+# The NWE reference network bundle (MAP-01): seeded offline by scripts/ops/seed_reference_network.py.
+"eurogas_nexus.reference_data" = ["*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "packages/python-sdk/src", "."]

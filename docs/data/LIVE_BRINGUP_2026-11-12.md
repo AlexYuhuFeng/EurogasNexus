@@ -803,6 +803,17 @@ Outages (REMIT UMM)        ok            1588   1588 2026-11-14T06:13    7.4    
   readers: the hub readers never guess, but a flow or capacity row with an unmapped point
   key is still read by point key.
 
+### Reference network bundle (2026-11-14)
+
+The reference read of this store built the shipped NWE network bundle
+(`docs/operations/REFERENCE_NETWORK_BUNDLE.md`, licence position in
+`docs/legal/DATA_SOURCE_TERMS.md`): 318 points, 267 with an ENTSOG map position, 288
+schematic zone links. 64 of the 718 points in the operator point directions have no
+connection-point map position (51 in the NWE scope), among them five balance landing points:
+Dornum ITP-00126 and ITP-00188, Emden ITP-00080, ITP-00081 and ITP-00160. The map counts
+them, and the flows reported at them, as not located (`unlocated.network_points`,
+`unlocated.flows`) instead of dropping them silently. Read-only against this store.
+
 ## Reproducing
 
 ```bash
@@ -829,6 +840,8 @@ python scripts/ops/ingest_power.py --zone DE_LU --days 6 --commit
 python scripts/ops/ingest_public_sources.py --source entsog-reference --limit 50000 \
   --entsog-page-size 1000 --json        # also writes ENTSOG identity mappings; "identity"
 python scripts/ops/ingest_remit_iip.py --days 3 --json   # dry run; "quarantined"
+
+python scripts/ops/build_reference_network_bundle.py --version 2026-11-14 --downloaded 2026-11-14
 python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2026-11-05 \
   --entsog-to 2026-11-13 --entsog-point-direction <landing point-directions> \
   --limit 5000 --entsog-page-size 1000

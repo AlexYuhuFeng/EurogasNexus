@@ -10,8 +10,12 @@ locates it:
 - cargoes and slots by the coordinates the vessel feed or ETRM supplied, else the
   terminal's network point.
 
-Items that cannot be located are counted, never placed at a guessed position. Book-held
-items follow portfolio isolation; market items follow the caller's data scopes.
+Items that cannot be located are counted, never placed at a guessed position. That includes
+network points themselves: ENTSOG publishes some points (Dornum, Emden) in its operator point
+directions with no map position, so they are reference access rows with no node; they are
+counted in ``unlocated.network_points`` and listed, as are flows at points with no position
+(``unlocated.flows``). Book-held items follow portfolio isolation; market items follow the
+caller's data scopes.
 """
 
 from __future__ import annotations
@@ -213,13 +217,59 @@ def build_map_situation(
         LngCargoRecord,
         ReferenceFacility,
         ReferenceNode,
+        ReferenceTsoAccessPoint,
         RegasSlotRecord,
         UpstreamResourceContractRecord,
     )
+    from eurogas_nexus.db.models.reference_network import REFERENCE_RETIRED_QUALITY
     from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_utc
 
-    locator = _Locator(session.query(ReferenceNode).all(), session.query(ReferenceFacility).all())
-    unlocated = {"outages": 0, "contracts": 0, "cargoes": 0, "regas_slots": 0}
+    reference_nodes = [
+        node
+        for node in session.query(ReferenceNode).all()
+        if node.data_quality != REFERENCE_RETIRED_QUALITY
+    ]
+    locator = _Locator(reference_nodes, session.query(ReferenceFacility).all())
+    unlocated = {
+        "outages": 0,
+        "contracts": 0,
+        "cargoes": 0,
+        "regas_slots": 0,
+        "network_points": 0,
+        "flows": 0,
+    }
+
+    # Network points the reference knows (an operator publishes a direction at them) but no
+    # source gives a position for: counted and listed, never placed.
+    unlocated_points: dict[str, dict[str, Any]] = {}
+    for access in session.query(ReferenceTsoAccessPoint).all():
+        if access.data_quality == REFERENCE_RETIRED_QUALITY or access.point_key is None:
+            continue
+        if access.point_id and access.point_id in locator.by_node_id:
+            continue
+        if locator.by_node_id.get(f"entsog-{access.point_key.lower()}") is not None:
+            continue
+        held = unlocated_points.setdefault(
+            access.point_key,
+            {
+                "point_key": access.point_key,
+                "point_name": access.point_name,
+                "countries": set(),
+                "operators": set(),
+                "reason": "no_position_published",
+            },
+        )
+        held["countries"].add((access.country or "").upper())
+        held["operators"].add(access.operator_name)
+    unlocated_network_points = [
+        {
+            **item,
+            "countries": sorted(c for c in item["countries"] if c),
+            "operators": sorted(o for o in item["operators"] if o),
+        }
+        for _, item in sorted(unlocated_points.items())
+    ]
+    unlocated["network_points"] = len(unlocated_network_points)
 
     outages = []
     # Counts are of every outage the caller may see, placed on the map or not: a count that
@@ -316,11 +366,19 @@ def build_map_situation(
         if newest_day.get(record.point_id) == flow_gas_day(record):
             latest.setdefault((record.point_id, record.direction), record)
     flows = []
+    unplaced_flows: list[dict[str, Any]] = []
     for (point_id, direction), record in latest.items():
         location = locator.by_node_id.get(point_id) or locator.by_node_id.get(
             f"entsog-{point_id.lower()}"
         )
         if location is None:
+            unplaced_flows.append(
+                {
+                    "point_id": point_id,
+                    "direction": direction,
+                    "source_system": record.source_system,
+                }
+            )
             continue
         unit = record.original_unit or ""
         energy, from_volume = row_energy_gwh(record)
@@ -345,6 +403,9 @@ def build_map_situation(
             }
         )
     flows = entitled(flows)
+    # Counted after the scope filter, like the placed ones: a count must not reveal rows the
+    # caller may not see.
+    unlocated["flows"] = len(entitled(unplaced_flows))
 
     contracts: list[dict[str, Any]] = []
     cargoes: list[dict[str, Any]] = []
@@ -496,8 +557,10 @@ def build_map_situation(
         "unlocated": unlocated,
         "outage_units": outage_unit_summary(visible_outages),
         "unlocated_outages": unlocated_outages,
+        "unlocated_network_points": unlocated_network_points,
         "location_match_rule": LOCATION_MATCH_RULE,
         "totals": {
+            "network_points": len(reference_nodes) + unlocated["network_points"],
             "outages_active": outage_counts["active"],
             "outages_scheduled": outage_counts["scheduled"],
             "contracts": len(contracts) + unlocated["contracts"],

@@ -553,6 +553,19 @@ export function NetworkWorkspace({
               {summary.regasNow > 0 && (
                 <span><i className="situation-dot own" />{t("map.situation.regas_now")} <b>{summary.regasNow}</b></span>
               )}
+              {summary.networkPoints != null && summary.networkPoints > 0 && (
+                <span
+                  data-network-points={summary.networkPoints}
+                  title={summary.unlocatedPoints.length > 0
+                    ? `${t("map.situation.points_not_located_hint")}\n${summary.unlocatedPoints.map((point) => `${point.point_name} (${point.point_key})`).join("\n")}`
+                    : undefined}
+                >
+                  {t("map.situation.network_points")} <b>{summary.networkPoints.toLocaleString()}</b>
+                  {summary.unlocatedPoints.length > 0
+                    ? ` · ${t("map.situation.points_not_located").replace("{{count}}", String(summary.unlocatedPoints.length))}`
+                    : ""}
+                </span>
+              )}
               {summary.entryGwhD != null && (
                 <span>{t("map.situation.entry_flow")} <b>{Math.round(summary.entryGwhD).toLocaleString()}</b> GWh/d</span>
               )}

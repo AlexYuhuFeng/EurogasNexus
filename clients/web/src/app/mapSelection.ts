@@ -398,8 +398,12 @@ export function topologyIssues(nodes: readonly NodeDTO[], edges: readonly EdgeDT
     const key = [from.id, to.id].sort().join("|");
     if (seen.has(key)) issues.push({ kind: "duplicate_connection", edgeId: edge.id, detail: `${name}: ${from.name} – ${to.name}` });
     seen.add(key);
+    // A zone link joins a border point to the trading point of the zone on its other side:
+    // the hub end is the zone, not a landing, so only the point end must be a border landing.
+    const zoneLink = edge.metadata_json?.connection_basis === "entry_exit_zone";
     if (from.country !== to.country) {
       for (const end of [from, to]) {
+        if (zoneLink && end.node_type === "hub") continue;
         if (!BORDER_LANDINGS.has(end.node_type)) {
           issues.push({ kind: "cross_border_landing", edgeId: edge.id, nodeId: end.id, detail: `${name}: ${from.name} (${from.country}) – ${to.name} (${to.country}) lands at ${end.name}, a ${end.node_type}` });
         }

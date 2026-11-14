@@ -2731,6 +2731,14 @@ export interface MapRegasSlotDTO {
   location: MapLocationDTO;
 }
 
+export interface MapUnlocatedPointDTO {
+  point_key: string;
+  point_name: string;
+  countries: string[];
+  operators: string[];
+  reason: string;
+}
+
 export interface MapSituationDTO {
   as_of_utc: string;
   outages: MapOutageDTO[];
@@ -2740,9 +2748,14 @@ export interface MapSituationDTO {
   contracts: MapContractDTO[];
   cargoes: MapCargoDTO[];
   regas_slots: MapRegasSlotDTO[];
-  unlocated: Record<"outages" | "contracts" | "cargoes" | "regas_slots", number>;
+  /** `network_points` and `flows` on newer servers: points with no published position. */
+  unlocated: Record<"outages" | "contracts" | "cargoes" | "regas_slots", number> &
+    Partial<Record<"network_points" | "flows", number>>;
+  /** Network points the reference knows but no source places (newer servers). */
+  unlocated_network_points?: MapUnlocatedPointDTO[];
   /** Counts of everything the caller may see, placed on the map or not. */
-  totals?: Record<"outages_active" | "outages_scheduled" | "contracts" | "cargoes" | "regas_slots", number>;
+  totals?: Record<"outages_active" | "outages_scheduled" | "contracts" | "cargoes" | "regas_slots", number> &
+    Partial<Record<"network_points", number>>;
   positions_included: boolean;
 }
 

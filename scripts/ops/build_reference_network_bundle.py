@@ -1,0 +1,306 @@
+"""Regenerate the shipped NWE reference network bundle from the live reference tables.
+
+Reads ``reference_nodes`` and ``reference_tso_access_points`` (both from the ENTSOG
+Transparency Platform reference read, ``ingest_public_sources.py --source
+entsog-reference``) and writes ``src/eurogas_nexus/reference_data/nwe_reference_network.json``.
+Read-only against the store. Run it after a complete reference read, review the diff, and
+commit the file with a new ``--version``.
+
+Scope (``SCOPE_COUNTRIES``): points with an operator in BE, DE, DK, FR, GB, IE, LU, NL or NO
+(the balance's NWE countries plus Ireland and the Norwegian supply side). Distribution and
+final-consumer points are left out: neither the map nor the balance uses them. The
+balance's landing points are always included.
+
+Edges: each located point is linked to the virtual trading point of every entry-exit zone
+one of its operators belongs to (``ZONE_HUB_BY_OPERATOR``). They are schematic zone links,
+not pipelines: ENTSOG publishes no route geometry through its API.
+
+    RUNTIME_STORE_DATABASE_URL=... python scripts/ops/build_reference_network_bundle.py \
+        --version 2026-11-14 --downloaded 2026-11-14
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import defaultdict
+from datetime import UTC, date, datetime
+from pathlib import Path
+
+from eurogas_nexus.application.pipeline_supply import LANDING_POINTS
+from eurogas_nexus.db.models import ReferenceNode, ReferenceTsoAccessPoint
+from eurogas_nexus.db.models.reference_network import REFERENCE_RETIRED_QUALITY
+from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+from eurogas_nexus.reference_data.network_bundle import (
+    BUNDLE_SCHEMA,
+    bundle_path,
+    validate_bundle,
+)
+
+#: ENTSOG writes the United Kingdom as ``UK``; the bundle uses ISO 3166 ``GB`` throughout.
+COUNTRY_ALIASES = {"UK": "GB", "EL": "GR"}
+SCOPE_COUNTRIES = ("BE", "DE", "DK", "FR", "GB", "IE", "LU", "NL", "NO")
+#: Point families the map and the balance use (ENTSOG point key prefix -> node type).
+KEPT_PREFIXES = {
+    "ITP": "interconnection",
+    "UGS": "storage",
+    "LNG": "lng",
+    "PRD": "entry_point",
+    "VTP": "hub",
+}
+#: Virtual trading point of each operator's entry-exit zone (ENTSOG point keys). Operators
+#: not listed (Gassco, the Interconnector and BBL pipelines, Premier Transmission, GNI (UK))
+#: run no NWE trading zone of their own here: their points link through the other side.
+ZONE_HUB_BY_OPERATOR = {
+    "NL-TSO-0001": "VTP-00002",  # GTS: TTF
+    "BE-TSO-0001": "VTP-00016",  # Fluxys Belgium: ZTP
+    "LU-TSO-0001": "VTP-00016",  # Creos: BeLux zone, ZTP
+    "FR-TSO-0002": "VTP-00039",  # Terega: PEG
+    "FR-TSO-0003": "VTP-00039",  # NaTran: PEG
+    "UK-TSO-0001": "VTP-00006",  # National Gas: NBP
+    "DK-TSO-0001": "VTP-00001",  # Energinet: GTF
+    "IE-TSO-0002": "VTP-00005",  # GNI: IBP
+}
+DE_ZONE_HUB = "VTP-00045"  # every German TSO: THE
+#: Trading points kept besides the zone hubs. Others in scope are left out: PEG SUD and the
+#: TRS point were merged into PEG in 2018, and ENTSOG's map places PEG SUD in Poland.
+EXTRA_TRADING_POINTS = {"VTP-00029"}  # Zeebrugge Beach
+HUB_COUNTRY = {
+    "VTP-00002": "NL",
+    "VTP-00016": "BE",
+    "VTP-00039": "FR",
+    "VTP-00006": "GB",
+    "VTP-00001": "DK",
+    "VTP-00005": "IE",
+    "VTP-00045": "DE",
+}
+
+
+def _country(value: str | None) -> str | None:
+    text = (value or "").strip().upper()
+    return COUNTRY_ALIASES.get(text, text) or None
+
+
+def _hub_for(operator_key: str) -> str | None:
+    if operator_key.startswith("DE-TSO-"):
+        return DE_ZONE_HUB
+    return ZONE_HUB_BY_OPERATOR.get(operator_key)
+
+
+def build(session, *, version: str, downloaded: date) -> dict:
+    nodes_by_key = {}
+    for node in session.query(ReferenceNode).filter(ReferenceNode.source_system == "ENTSOG"):
+        if node.data_quality == REFERENCE_RETIRED_QUALITY:
+            continue
+        key = str((node.metadata_json or {}).get("point_key") or node.source_record_id or "")
+        if key:
+            nodes_by_key[key] = node
+    access_by_key: dict[str, list] = defaultdict(list)
+    for row in session.query(ReferenceTsoAccessPoint).filter(
+        ReferenceTsoAccessPoint.source_system == "ENTSOG"
+    ):
+        if row.data_quality != REFERENCE_RETIRED_QUALITY:
+            access_by_key[row.point_key].append(row)
+
+    landing = {point.point_id for point in LANDING_POINTS}
+    wanted = set()
+    for key, rows in access_by_key.items():
+        if key.split("-")[0] not in KEPT_PREFIXES:
+            continue
+        if key.startswith("VTP-") and key not in HUB_COUNTRY and key not in EXTRA_TRADING_POINTS:
+            continue
+        if key in landing or any(_country(row.country) in SCOPE_COUNTRIES for row in rows):
+            wanted.add(key)
+    wanted |= set(HUB_COUNTRY)
+
+    nodes, access, edges = [], [], []
+    operators_seen: dict[str, dict] = {}
+    platforms: dict[str, str | None] = {}
+    for key in sorted(wanted):
+        node = nodes_by_key.get(key)
+        rows = sorted(access_by_key.get(key, []), key=lambda r: (r.operator_key, r.direction))
+        if node is None and not rows:
+            continue
+        meta = (node.metadata_json or {}) if node is not None else {}
+        operators = sorted({row.operator_key for row in rows})
+        operator_countries = sorted(
+            {c for c in (_country(row.country) for row in rows) if c in SCOPE_COUNTRIES}
+        )
+        if key in HUB_COUNTRY:
+            country, basis = HUB_COUNTRY[key], "zone_of_trading_point"
+        elif node is not None and _country(node.country) in SCOPE_COUNTRIES:
+            country, basis = _country(node.country), "entsog_point"
+        elif operator_countries:
+            country, basis = operator_countries[0], "operator_country"
+        else:
+            country, basis = _country(rows[0].country) if rows else "EU", "operator_country"
+        located = node is not None
+        nodes.append(
+            {
+                "id": f"entsog-{key.lower()}",
+                "point_key": key,
+                "eic": meta.get("point_eic_code"),
+                "name": node.name if node is not None else rows[0].point_name,
+                "country": (country or "EU")[:2],
+                "country_basis": basis,
+                "type": KEPT_PREFIXES[key.split("-")[0]],
+                "point_type": meta.get("point_type"),
+                "infrastructure": meta.get("infrastructure_label"),
+                "operators": operators,
+                "located": located,
+                "lat": round(node.lat, 4) if located else None,
+                "lon": round(node.lon, 4) if located else None,
+                "coordinate_quality": "display_approximation" if located else None,
+                "verified": False,
+                "entsog_map_x": meta.get("entsog_map_x"),
+                "entsog_map_y": meta.get("entsog_map_y"),
+            }
+        )
+        for row in rows:
+            operators_seen[row.operator_key] = {
+                "name": row.operator_name.strip(),
+                "country": row.country,
+                "tso_eic": row.tso_eic_code,
+            }
+            if row.booking_platform:
+                platforms[row.booking_platform] = row.booking_platform_url
+            item = {
+                "access_id": row.access_id,
+                "point_key": key,
+                "operator_key": row.operator_key,
+                "direction": row.direction,
+                "adjacent_country": row.adjacent_country,
+                "adjacent_operator_key": row.adjacent_operator_key,
+                "connected_operators": row.connected_operators,
+                "booking_platform": row.booking_platform,
+                "flags": "".join(
+                    "1" if value else "0"
+                    for value in (
+                        row.annual_contracts_available,
+                        row.monthly_contracts_available,
+                        row.daily_contracts_available,
+                        row.day_ahead_contracts_available,
+                        row.is_cam_relevant,
+                        row.is_cmp_relevant,
+                    )
+                ),
+            }
+            access.append({k: v for k, v in item.items() if v is not None})
+
+    located_ids = {node["id"] for node in nodes if node["located"]}
+    seen = set()
+    for node in nodes:
+        if not node["located"] or node["type"] == "hub":
+            continue
+        for operator in node["operators"]:
+            hub = _hub_for(operator)
+            hub_id = f"entsog-{hub.lower()}" if hub else None
+            if hub_id is None or hub_id not in located_ids or hub_id == node["id"]:
+                continue
+            pair = (node["id"], hub_id)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            edges.append(
+                {
+                    "id": f"zone-{node['point_key'].lower()}-{hub.lower()}",
+                    "from": node["id"],
+                    "to": hub_id,
+                    "type": "virtual",
+                    "schematic": True,
+                    "basis": "entry_exit_zone",
+                    "operator_key": operator,
+                }
+            )
+
+    stamp = downloaded.strftime("%d-%m-%Y")
+    return {
+        "schema": BUNDLE_SCHEMA,
+        "version": version,
+        "built_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
+        "scope": {
+            "region": "north-west Europe",
+            "countries": list(SCOPE_COUNTRIES),
+            "rule": (
+                "ENTSOG interconnection, storage, LNG, production and trading points with an "
+                "operator in a scope country, plus the balance's landing points; distribution "
+                "and final-consumer points are left out."
+            ),
+        },
+        "source": {
+            "name": "ENTSOG Transparency Platform",
+            "datasets": ["connectionpoints", "operatorpointdirections"],
+            "downloaded": downloaded.isoformat(),
+            "attribution": f"ENTSOG TP [{stamp}] https://transparency.entsog.eu/",
+            "terms": (
+                "ENTSOG TP Privacy & T&C of Use, LAG0689-26 Rev. 3 (10 November 2026), "
+                "Article 5; see docs/legal/DATA_SOURCE_TERMS.md"
+            ),
+        },
+        "coordinate_rule": (
+            "Positions are ENTSOG's map coordinates (tpMapX/tpMapY) transformed to an "
+            "approximate lon/lat for display, as the live ingestion does; never surveyed. "
+            "A point ENTSOG publishes without a map position has no coordinate and is "
+            "counted as not located."
+        ),
+        "edge_rule": (
+            "Schematic zone links: each located point is joined by a straight line to the "
+            "virtual trading point of each entry-exit zone its operators belong to. They "
+            "show which zone a point connects to, not a pipeline route."
+        ),
+        "access_flags": "annual, monthly, daily, day-ahead products offered; CAM; CMP relevant",
+        "operators": dict(sorted(operators_seen.items())),
+        "booking_platforms": dict(sorted(platforms.items())),
+        "nodes": nodes,
+        "access": access,
+        "edges": edges,
+    }
+
+
+def write(bundle: dict, path: Path) -> None:
+    """One record per line: small, and a refresh reads as a line diff."""
+
+    head = {key: value for key, value in bundle.items() if key not in ("nodes", "access", "edges")}
+    lines = ["{"]
+    for key, value in head.items():
+        lines.append(f"  {json.dumps(key)}: {json.dumps(value, ensure_ascii=False)},")
+    for index, name in enumerate(("nodes", "access", "edges")):
+        items = bundle[name]
+        lines.append(f"  {json.dumps(name)}: [")
+        for position, item in enumerate(items):
+            comma = "," if position < len(items) - 1 else ""
+            lines.append("    " + json.dumps(item, ensure_ascii=False, sort_keys=True) + comma)
+        lines.append("  ]" + ("," if index < 2 else ""))
+    lines.append("}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--version", required=True)
+    parser.add_argument("--downloaded", type=date.fromisoformat, default=datetime.now(UTC).date())
+    parser.add_argument("--out", type=Path, default=bundle_path())
+    args = parser.parse_args(argv)
+    if not resolve_database_url():
+        print("RUNTIME_STORE_DATABASE_URL is required", file=sys.stderr)
+        return 2
+    with get_session_factory()() as session:
+        bundle = build(session, version=args.version, downloaded=args.downloaded)
+        session.rollback()  # read-only
+    problems = validate_bundle(bundle)
+    if problems:
+        print("bundle failed its checks:\n  " + "\n  ".join(problems[:20]), file=sys.stderr)
+        return 1
+    write(bundle, args.out)
+    located = sum(1 for node in bundle["nodes"] if node["located"])
+    print(
+        f"{args.out}: {len(bundle['nodes'])} nodes ({located} located, "
+        f"{len(bundle['nodes']) - located} without a published position), "
+        f"{len(bundle['access'])} operator point directions, {len(bundle['edges'])} schematic edges"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

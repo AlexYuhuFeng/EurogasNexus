@@ -166,3 +166,16 @@ test("the topology check catches a pipeline that lands inland across a border, i
   // The North Sea network as built is clean.
   assert.deepEqual(topologyIssues(nodes, edges), []);
 });
+
+test("a schematic zone link may end at the other zone's hub, but a plain link may not", async () => {
+  const { topologyIssues } = await import("../src/app/mapSelection.ts");
+  const border = node("oude", "Oude Statenzijl", "interconnection", "NL", 53.2, 7.2);
+  const the = node("the", "THE VTP (DE)", "hub", "DE", 50.7, 9.95);
+  const zoneLink: EdgeDTO = {
+    id: "zone-oude-the", from_node_id: "oude", to_node_id: "the", edge_type: "virtual", length_km: null,
+    metadata_json: { name: "Oude Statenzijl - THE (zone link)", schematic: true, connection_basis: "entry_exit_zone" },
+  };
+  assert.deepEqual(topologyIssues([border, the], [zoneLink]), []);
+  const plain: EdgeDTO = { ...zoneLink, id: "plain", metadata_json: { name: "Plain link" } };
+  assert.deepEqual(topologyIssues([border, the], [plain]).map((issue) => issue.kind), ["cross_border_landing"]);
+});
