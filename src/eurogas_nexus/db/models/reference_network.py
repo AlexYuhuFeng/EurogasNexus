@@ -7,6 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
 
+#: ``data_quality`` of a source-owned reference row the provider no longer publishes. The row is
+#: kept (flows, mappings and operator edges reference its id); readers that list the current
+#: network leave it out, and the next complete read that carries it again restores it.
+REFERENCE_RETIRED_QUALITY = "retired_by_provider"
+
 
 class ReferenceNode(Base):
     """A point on the European gas reference network."""

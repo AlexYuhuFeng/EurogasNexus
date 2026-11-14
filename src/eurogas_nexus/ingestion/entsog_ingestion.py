@@ -205,4 +205,5 @@ def persist_entsog_reference(
         "archived_pages": sum(map(len, archived)),
         "skipped_tables": summary["skipped_tables"],
         "replaced": summary["replaced"],
+        "retired": summary.get("retired", 0),
     }

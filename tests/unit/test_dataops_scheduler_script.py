@@ -102,31 +102,37 @@ def test_scheduler_refuses_invalid_report_shapes_and_counters(report):
     assert not result.succeeded and result.classification == FailureCategory.BAD_RESPONSE
 
 
-def test_entsog_window_pass_through_preserves_partial_warning_and_actual_counts():
+def _entsog_report(*, complete: bool) -> str:
+    return json.dumps(
+        {
+            "ok": True,
+            "sources": {
+                "ENTSOG": {
+                    "records": 3,
+                    "received_records": 4,
+                    "skipped_records": 1,
+                    "inserted": 1,
+                    "updated": 1,
+                    "unchanged": 1,
+                    "complete": complete,
+                    "status": "SUCCEEDED_WITH_WARNINGS",
+                },
+                "ENTSOG-reference": {
+                    "records": 0,
+                    "status": "skipped_fresh",
+                    "complete": None,
+                },
+            },
+        }
+    )
+
+
+def test_entsog_window_pass_through_preserves_skip_warning_and_actual_counts():
     commands = []
 
     def runner(command, **kwargs):
         commands.append(command)
-        return SimpleNamespace(
-            returncode=0,
-            stderr="",
-            stdout=json.dumps(
-                {
-                    "ok": True,
-                    "sources": {
-                        "ENTSOG": {
-                            "records": 3,
-                            "received_records": 4,
-                            "skipped_records": 1,
-                            "inserted": 1,
-                            "unchanged": 2,
-                            "complete": False,
-                            "status": "SUCCEEDED_WITH_WARNINGS",
-                        }
-                    },
-                }
-            ),
-        )
+        return SimpleNamespace(returncode=0, stderr="", stdout=_entsog_report(complete=True))
 
     result = run_ingestor_attempt(runner, entsog_from="2026-10-10", entsog_to="2026-10-11")(
         {"source_id": "src-entsog"}, 1
@@ -135,8 +141,62 @@ def test_entsog_window_pass_through_preserves_partial_warning_and_actual_counts(
     assert command[command.index("--entsog-from") + 1] == "2026-10-10"
     assert command[command.index("--entsog-to") + 1] == "2026-10-11"
     assert result.succeeded and result.rows_received == 4 and result.rows_accepted == 3
-    assert result.rows_rejected == 1 and result.rows_inserted == 1 and result.duplicate_count == 2
+    assert result.rows_rejected == 1 and result.rows_inserted == 1 and result.duplicate_count == 1
+    assert result.rows_updated == 1
     assert result.quality_issues[0].quality_code == "entsog_bounded_partial"
+
+
+def test_entsog_read_that_reaches_its_bound_fails_and_is_not_retried():
+    result = run_ingestor_attempt(
+        lambda *a, **k: SimpleNamespace(
+            returncode=0, stderr="", stdout=_entsog_report(complete=False)
+        ),
+        entsog_from="2026-10-10",
+        entsog_to="2026-10-11",
+    )({"source_id": "src-entsog"}, 1)
+    assert not result.succeeded
+    assert result.classification == FailureCategory.QUALITY_REJECTED
+    assert [i.quality_code for i in result.quality_issues] == ["entsog_read_bound_reached"]
+    assert "ENTSOG" in result.error_message and "ENTSOG-reference" not in result.error_message
+
+
+def test_scheduled_public_reads_carry_complete_read_bounds() -> None:
+    from eurogas_nexus.ingestion.entsog_transport import (
+        ENTSOG_HARD_MAX_PAGES,
+        ENTSOG_HARD_MAX_RECORDS,
+        ENTSOG_MAX_PAGE_SIZE,
+    )
+    from scripts.ops.ingest_public_sources import _gie_plan
+    from scripts.ops.run_dataops_scheduler import _SOURCE_BOUNDS
+
+    commands = []
+
+    def runner(command, **kwargs):
+        commands.append(command)
+        return SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout=json.dumps({"ok": True, "sources": {"x": {"records": 1}}}),
+        )
+
+    attempt = run_ingestor_attempt(runner, entsog_from="2026-10-10", entsog_to="2026-10-11")
+    attempt({"source_id": "src-entsog"}, 1)
+    attempt({"source_id": "src-gie"}, 1)
+    entsog, gie = commands
+
+    def value(command, flag):
+        return command[command.index(flag) + 1]
+
+    # Never the ingestor's sample default of 20 records.
+    assert int(value(entsog, "--limit")) == ENTSOG_HARD_MAX_RECORDS
+    assert int(value(entsog, "--entsog-page-size")) == ENTSOG_MAX_PAGE_SIZE
+    assert int(value(entsog, "--entsog-max-pages")) == ENTSOG_HARD_MAX_PAGES
+    # A reference read (~790 points, ~1,300 directions) fits many times over.
+    assert ENTSOG_HARD_MAX_RECORDS > 10 * 1300
+    assert float(value(entsog, "--entsog-reference-max-age-hours")) == 24
+    assert int(value(gie, "--limit")) >= 7 and value(gie, "--gie-country") == "nwe"
+    assert len(_gie_plan(["nwe"])) > 2
+    assert set(_SOURCE_BOUNDS) <= set(_SOURCE_ARGS)
 
 
 def test_ingestor_attempt_forwards_canonical_point_scope_only_to_entsog():

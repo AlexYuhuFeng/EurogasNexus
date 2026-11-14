@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import functools
 import os
 import shutil
 import uuid
@@ -144,6 +145,41 @@ def _no_ambient_runtime_store(
         "DATABASE_URL",
         "EUROGAS_NEXUS_DB_DSN",
     ):
+        monkeypatch.delenv(name, raising=False)
+
+
+@functools.lru_cache(maxsize=1)
+def _provider_credential_env_vars() -> tuple[str, ...]:
+    """Every environment variable a connector reads a credential from (its manifest says)."""
+
+    from eurogas_nexus.domain.connectors.registry import connector_manifests
+
+    names: set[str] = set()
+    for manifest in connector_manifests():
+        for spec in manifest.credentials:
+            names.update(spec.env_vars)
+            if spec.file_env:
+                names.add(spec.file_env)
+    return tuple(sorted(names))
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_provider_credentials(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep provider keys from the developer's shell out of the non-integration suites.
+
+    The same protection as ``_no_ambient_runtime_store``, for credentials. With
+    ``DEEPSEEK_API_KEY`` exported (as it is wherever live work is done), the security test
+    that pins the AI authority gate saw the provider called - a real request, answered 401 -
+    instead of ``LLM_PROVIDER_CREDENTIAL_MISSING``; a test must never depend on, or spend, a
+    key it did not configure. The names come from the connector manifests, so a new
+    connector's key is covered when it is declared. A test that wants a key sets it itself.
+    """
+
+    if "integration" in Path(str(request.path)).parts:
+        return
+    for name in _provider_credential_env_vars():
         monkeypatch.delenv(name, raising=False)
 
 

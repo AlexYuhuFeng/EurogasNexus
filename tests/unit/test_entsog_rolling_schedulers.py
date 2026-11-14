@@ -102,12 +102,18 @@ def test_persisted_scheduler_anchor_replays_identically_after_new_runner_and_kee
 
     first = scheduler.run_ingestor_attempt(run, entsog_lookback_gas_days=2)(payload, 1)
     second = scheduler.run_ingestor_attempt(run, entsog_lookback_gas_days=2)(payload, 2)
-    assert first.succeeded and second.succeeded and commands[0] == commands[1]
+    assert commands[0] == commands[1]
     assert first.lineage_refs == second.lineage_refs
     assert any("anchor=2026-07-02T03:59:59" in ref for ref in first.lineage_refs)
     codes = {issue.quality_code for issue in first.quality_issues}
-    assert "entsog_open_gas_day" in codes
-    assert ("entsog_bounded_partial" in codes) is (not complete)
+    if complete:
+        assert first.succeeded and second.succeeded
+        assert "entsog_open_gas_day" in codes
+    else:
+        # A read cut by its bound is never a success, on any attempt.
+        assert not first.succeeded and not second.succeeded
+        assert codes == {"entsog_read_bound_reached"}
+        assert first.classification == FailureCategory.QUALITY_REJECTED
 
 
 def test_both_entrypoints_pass_opt_in_policy(monkeypatch):

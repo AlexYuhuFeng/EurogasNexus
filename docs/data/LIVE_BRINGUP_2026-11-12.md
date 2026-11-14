@@ -57,11 +57,13 @@ storage withdrawal 2,516 GWh/d, supply call 9,304 GWh/d.
    St Fergus as terminal totals. The registry says so; a Norway-only figure needs
    Gassco's own publication.
 4. **The landing-point registry needs a practitioner's check** against Gassco totals. The
-   continental sum (about 278 mcm/d at 11 kWh/m3) is plausible, not verified.
+   continental sum (about 278 mcm/d at 11 kWh/m3) is plausible, not verified. See
+   "Dornum: independent opinion (2026-11-14)" below.
 5. **REMIT has no live collector** (DATA-03) and **ECMWF needs series bindings** before a
    first run.
 6. **A 72-hour unattended scheduler run has not been done.** This run was operator-invoked
-   commands. The scheduler run is the remaining part of DATA-01.
+   commands. The scheduler run is the remaining part of DATA-01. A 77-minute precursor ran
+   on 14 November, see "Unattended ingestion (2026-11-14)" below.
 7. **ENTSOG publishes rows for the open and the next gas day.** They are stored; consumers
    that need closed days must filter on the period end, as the balance does. **Closed
    2026-11-13** with item 8, see "Provider revisions and open gas days" below.
@@ -257,12 +259,158 @@ reads through 11 Nov (landings 4,638.2 GWh/d), unchanged.
   `f405`). It worked on the first, empty-table run. Either blocks an unattended
   `src-entsog` run.
 
+Both **closed 2026-11-14**, see below.
+
+### Unattended ingestion (2026-11-14)
+
+**Scheduler read bounds.** `run_dataops_scheduler.py` now passes each public source the
+bounds of a complete read, from one table (`_SOURCE_BOUNDS`, documented in
+`docs/operations/PRODUCTION_SOURCE_OPERATIONS.md`): ENTSOG `--limit 50000
+--entsog-page-size 1000 --entsog-max-pages 50` (the transport's hard cap), GIE `--limit 30
+--gie-country nwe`. An ENTSOG query that stops at its bound fails the attempt
+(`QUALITY_REJECTED entsog_read_bound_reached`, not retried); it no longer passes with a
+warning. Measured live, 7-day rolling window, all points: flows 6,742-6,777 raw records in
+7 pages, capacity 12,160-12,227 in 15 pages, every query `provider_offset_exhausted`.
+
+**Reference refresh.** The first bounded run exposed a third defect: an
+`operatorpointdirections` page of 1,000 rows is about 3 MB and was refused as
+`entsog_response_too_large` (2 MB limit; measured 302,522 bytes per 100 rows). That dataset
+now pages at 400 (`ENTSOG_DATASET_MAX_PAGE_SIZE`). The replacement no longer deletes:
+`upsert_reference_snapshot` upserts in place under the stable ids and **retires** a point the
+provider no longer publishes (`data_quality = 'retired_by_provider'`, `retired_at_utc` in
+its metadata) instead of deleting it, because flows, access points and operator mappings
+reference it; current-network listings leave retired rows out, a read by id still returns
+it, and a later read that carries the point restores it. The reference is re-read at most
+once a day (`--entsog-reference-max-age-hours 24`; a skipped refresh reports
+`status: skipped_fresh`), since the network changes rarely and the scheduler runs ENTSOG
+hourly. Live: complete read 789 + 1,283 records, 2,733 rows upserted, 0 retired, on the
+existing tables; repeated at once with no max age: same counts, no FK error.
+
+**Scheduler attempts** (`run_ingestor_attempt`, as `execute_claimed_runs` calls it, no
+extra flags), two in a row each:
+
+| Run | Source | Result | Inserted | Updated (revised) | Unchanged | Notes |
+|---|---|---|---|---|---|---|
+| 13 Nov 15:44 | src-gie | succeeded | 0 | 0 | 330 | 11 series, no LU failure |
+| 13 Nov 15:46 | src-entsog | succeeded | 0 | 0 | 16,727 | reference refreshed (2,733) |
+| 14 Nov 01:03 | src-gie | succeeded | 11 | 30 (30) | 289 | 12 Nov arrived; AGSI Europe total and NL revised 13 days each, ALSI Europe total and DE 2 each |
+| 14 Nov 01:03 | src-entsog | succeeded | 264 | 161 (161) | 16,424 | reference `skipped_fresh` |
+
+(The 15:44 GIE and ENTSOG run before the page-size fix had already stored this window:
+flows 1,035 inserted, 138 revised; capacity 1,929 inserted, 70 revised.)
+
+**GIE country set.** `--gie-country nwe` asked for every product in every NWE country.
+Checked live: AGSI for LU answers with an LNG-shaped placeholder (`gie_product_mismatch`),
+so every GIE run exited 1; GB answers "United Kingdom (Pre-Brexit)" with status N and "-"
+in every field for both products; ALSI for DK and LU answers status N placeholders. Now
+`GIE_UNPUBLISHED_COUNTRIES` (AGSI: GB, LU; ALSI: GB, DK, LU) is never requested, whether
+named or implied by `nwe` (a warning names each one left out), and a row with no value in
+any value column is not stored (`skipped_records`); a series that returns only such rows
+fails `gie_no_published_values`. The 601 AGSI GB and 1,803 ALSI DK/GB/LU rows already
+stored are exactly these placeholders (every value null; none has revision history; the
+raw pages stay archived). They should be removed:
+`scripts/ops/purge_gie_placeholder_rows.py` counts them (dry run, verified live: storage GB
+601; LNG DK 601, GB 601, LU 601) and `--commit` deletes them. **Not yet run against this
+store**: the deletion was held for the owner's approval. Until it runs the data-quality
+report still shows the 7 % / 20 % blank rows; afterwards blanks fall to zero because nothing
+that is not data is stored, while the blank check itself is unchanged.
+
+**National Gas revisions.** `ingest_national_gas_supply.py` wrote with the in-place upsert,
+so an allocation replacing a nomination, or stock arriving later, overwrote the row with no
+history under its first receipt (a look-ahead for as-of reads). It now writes through
+`upsert_revision_safe_observation_rows` with GIE's value fields plus the `basis` and
+`provisional` metadata as revisable; each change is a `value_changed` record whose
+`changed_fields` says what moved. Tested on PostgreSQL (nomination to allocation with stock
+filling in, an equal final figure, an identity change refused). The other writers to the
+four observation tables are the ENTSOG and GIE paths, already revision-safe. Power
+(`db/repositories/power.py`) still replaces in place; this is a documented limitation in
+`docs/operations/DATA_REVISIONS.md` (no look-ahead, earlier value lost).
+
+**Freshness.** The Sources page, the data-ops freshness read and the data-platform
+provenance summary took `max(observed_at_utc)`, so a source that only revised looked
+stale. They now take the later of first receipt and `revised_at_utc`
+(`last_received_column`); as-of reads and lateness keep first-seen semantics. The
+data-quality report's age is the newest period's age and is unchanged.
+
+**Test isolation.** `test_analysis_provider_path_checks_the_invocation_not_only_the_payload`
+failed whenever the live-work environment was sourced. The cause was not the database URL
+(the root `conftest.py` already clears it) but `DEEPSEEK_API_KEY`: the test made a real
+provider request (401 with a dummy key) instead of answering
+`LLM_PROVIDER_CREDENTIAL_MISSING`. The root conftest now also clears every credential
+variable the connector manifests declare (DeepSeek, GIE, EIA, ENTSO-E, the LLM key) outside
+`tests/integration`. Checked: `tests/security` and `tests/unit` pass with
+`RUNTIME_STORE_DATABASE_URL` pointing at a throwaway SQLite file and with dummy provider keys
+set.
+
+**Soak precursor (14 November, 01:11-02:28 UTC, 77 minutes).** The real loop,
+`run_dataops_scheduler.py --interval-seconds 60 --scan-limit 10 --run-limit 10
+--entsog-lookback-gas-days 7` (all ENTSOG points), against this store with the keys. The
+script has no option to shorten schedules and none was edited; an operator enabled GIE and
+ENTSO-E (`set_source_enabled`) and requested one run of every enabled source
+(`request_operator_run`, MANUAL) at the start, so each source ran at least once; the
+schedule then ran Elexon (30 min), ENTSOG and ENTSO-E (hourly). The daily sources were not
+due in the window. 71 loop iterations, all `ok`; no retry, no failure. Counts are the
+scheduler's own `ingestion_runs` rows; revisions are `observation_revisions` rows written
+in the window.
+
+| Source | Attempts | Succeeded | Failed | Received | Inserted | Updated | Unchanged | Revised |
+|---|---|---|---|---|---|---|---|---|
+| src-entsog | 2 (1 manual, 1 scheduled) | 2 (with warnings: open gas day, N/A exemptions skipped) | 0 | 38,006 | 13 | 127 | 33,556 | 127 (flows 119, capacity 8) |
+| src-gie | 1 | 1 | 0 | 330 | 0 | 0 | 330 | 0 |
+| src-national-gas-supply | 1 | 1 | 0 | 10 | 2 | 2 | 6 | 2 |
+| src-entsoe | 2 (1 + 1) | 2 | 0 | 8,738 | 3,456 | 44 | 5,238 | 44, no history (see DATA_REVISIONS) |
+| src-elexon | 3 (1 + 2) | 3 | 0 | 615 | 176 | 0 | 439 | 0 |
+| src-ecb | 1 | 1 | 0 | 12 | 12 | 0 | 0 | - |
+| src-ecb-estr | 1 | 1 | 0 | 7 | 1 | 0 | 6 | - |
+| src-boe | 1 | 1 | 0 | 6 | 1 | 0 | 5 | - |
+| src-nyfed | 1 | 1 | 0 | 6 | 2 | 0 | 4 | - |
+| src-eia | 1 | 1 | 0 | 8 | 6 | 0 | 2 | - |
+
+The National Gas revisions are the first live ones: gas day 12 November moved from
+nomination to allocation and received its stock (storage withdrawal 78.465 to 78.495 GWh,
+injection 43.698 to 43.740 GWh, stock 9.734 TWh; LNG send-out 508.46 to 509.55 GWh, stock
+9.162 TWh), each kept with its first receipt (13 Nov 09:36 UTC).
+
+**Found during the soak, not fixed.**
+
+- *ENTSOG capacity rows overlap.* The data-quality report now shows 531 capacity keys
+  (point, direction, type, operator, period start) held twice. ENTSOG publishes capacity
+  over validity ranges and re-splits them between reads (a value valid 12-13 Nov in the
+  12 Nov read is valid 12-14 Nov in the 13 Nov read); the observation id includes the
+  period end, so both rows stand. A reader that sums capacity per day can count a day
+  twice. It needs a rule for superseded ranges (the later receipt covering the same start
+  replaces the earlier), which is a change to the ENTSOG capacity identity, not done here.
+- *Power revisions are frequent*: 44 ENTSO-E values replaced in two runs, without history.
+- The soak covered no GIE or daily-rate scheduled slot; the 72-hour run will.
+- `tests/api/test_nwe_balance_api.py::test_partly_reported_newest_pipeline_days_are_left_out`
+  fails between 00:00 and 05:00 UTC (also on the unchanged tree): it builds "today's" gas
+  day from the calendar date, so before 05:00 UTC yesterday's gas day is still open.
+
+Output: the scratchpad's `soak/scheduler.jsonl` (loop and attempt events) and
+`soak/counts.txt`.
+
+### Dornum: independent opinion (2026-11-14)
+
+The owner obtained an independent opinion that the three Dornum records (OGE ITP-00126,
+GUD ITP-00188, Dornum GASPOOL ITP-00525) are the same physical gas, and that deduplicated
+ENTSOG deliveries matched Gassco's German country total within about 1 % in an independent
+reconstruction; Emden deliveries are separate and additive. This agrees with our own
+evidence (ITP-00188 tracks ITP-00126 within 0.042 % over 46 days, through a 25 % swing).
+
+Status: **probable double count of about 0.7 TWh/d in Norwegian landings** (the registry
+still counts ITP-00188 beside ITP-00126). The owner has deferred the fix. The pending step is
+verification against Gassco's published Dornum and Emden figures; only then is ITP-00188
+added to `SAME_PHYSICAL_POINT`. No code was changed for this.
+
 ## Reproducing
 
 ```bash
 python scripts/ops/certify_public_source.py --source entsog --operator <id>
 python scripts/ops/certify_public_source.py --source gie --operator <id>
-python scripts/ops/ingest_public_sources.py --source entsog-reference --limit 20000
+python scripts/ops/ingest_public_sources.py --source entsog-reference --limit 50000 \
+  --entsog-page-size 1000
+python scripts/ops/purge_gie_placeholder_rows.py   # dry run; --commit deletes
+python scripts/ops/run_dataops_scheduler.py --interval-seconds 60 --entsog-lookback-gas-days 7
 python scripts/ops/ingest_public_sources.py --source entsog --source entsog-capacity \
   --entsog-lookback-gas-days 7 --limit 50000 --entsog-page-size 1000
 python scripts/ops/ingest_public_sources.py --source gie-agsi --source gie-alsi \

@@ -27,6 +27,10 @@ python scripts/ops/ingest_power.py --file a75_nl.xml --commit
 ```
 
 Re-running is safe: a value already stored is unchanged; a revised value replaces it.
+Power keeps no revision history (documented limitation, see
+`docs/operations/DATA_REVISIONS.md`): the replaced value is lost, and the row's
+`published_at_utc`/`ingested_at_utc` move to the revision, so an as-of read before the
+revision sees no value for that period rather than a later one.
 The data-ops scheduler runs it hourly (source `src-entsoe`, last two days, NL, DE-LU,
 BE and FR) once an administrator enables the source in Source Center with the token set; a
 failed document fails the run so it is retried and shows as late rather than complete.

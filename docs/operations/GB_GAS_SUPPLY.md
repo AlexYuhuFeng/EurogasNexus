@@ -47,9 +47,15 @@ python scripts/ops/ingest_national_gas_supply.py
 python scripts/ops/ingest_national_gas_supply.py --days 10 --commit
 ```
 
-Re-running is safe and is how values firm up: rows are upserted by `observation_id`, so a
-nomination-based value is replaced by the allocation and stock published later fills in.
-`observed_at_utc` keeps the first time the gas day was seen. The scheduler runs it every
+Re-running is safe and is how values firm up. Since 2026-11-14 the write is revision-safe
+(`docs/operations/DATA_REVISIONS.md`): when a nomination-based value is replaced by the
+allocation, or stock published later fills in, the current row takes the new value and the
+replaced version is appended to `observation_revisions` (reason `value_changed`;
+`changed_fields` names the quantities and `metadata_json.basis` / `.provisional`, so a final
+figure equal to its nomination is still recorded as final). `observed_at_utc` keeps the
+first time the gas day was seen and `revised_at_utc` the receipt of the current value, so an
+as-of read never sees the allocation before it arrived. Any other change (source, facility,
+country, period) is refused and the run fails with nothing written. The scheduler runs it every
 3 hours over the last 5 gas days (source `src-national-gas-supply`, enabled by default).
 
 ## Limits

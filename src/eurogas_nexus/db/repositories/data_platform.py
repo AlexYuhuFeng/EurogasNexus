@@ -45,6 +45,7 @@ from eurogas_nexus.db.models import (
     TsoTariffRecord,
     UpstreamResourceContractRecord,
 )
+from eurogas_nexus.db.repositories.observation_revisions import last_received_column
 from eurogas_nexus.domain.data_platform.snapshots import (
     SnapshotDescriptor,
     descriptor_payload,
@@ -95,25 +96,25 @@ def _table_specs() -> tuple[_TableSpec, ...]:
             "flow_observations",
             FlowObservationRecord,
             FlowObservationRecord.source_system,
-            FlowObservationRecord.observed_at_utc,
+            last_received_column(FlowObservationRecord),
         ),
         _TableSpec(
             "capacity_observations",
             CapacityObservationRecord,
             CapacityObservationRecord.source_system,
-            CapacityObservationRecord.observed_at_utc,
+            last_received_column(CapacityObservationRecord),
         ),
         _TableSpec(
             "storage_observations",
             StorageObservationRecord,
             StorageObservationRecord.source_system,
-            StorageObservationRecord.observed_at_utc,
+            last_received_column(StorageObservationRecord),
         ),
         _TableSpec(
             "lng_observations",
             LngObservationRecord,
             LngObservationRecord.source_system,
-            LngObservationRecord.observed_at_utc,
+            last_received_column(LngObservationRecord),
         ),
         _TableSpec(
             "fx_observations",

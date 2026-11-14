@@ -38,6 +38,31 @@ _SOURCE_ARGS = {
     "src-gie": ("gie-agsi", "gie-alsi"),
 }
 
+#: Read bounds per scheduled public-source run, in one place. The ingestor's own default
+#: (``--limit 20``) is an operator's sample size, not a production read: under it the
+#: ENTSOG reference read was partial and refused, and flows fetched 4 records (live,
+#: 2026-11-13). Sizes measured live (docs/data/LIVE_BRINGUP_2026-11-12.md):
+#:
+#: * ENTSOG: 789 connection points and 1,283 operator point directions; a gas day of all
+#:   points is a few thousand raw rows per indicator, so a 7-day unscoped flow or capacity
+#:   query is some 20-30 thousand. Page size 1,000 is the platform maximum, and 50 pages of
+#:   1,000 (50,000 records) is the transport's hard cap, so a query can never be cut by a
+#:   smaller bound than the transport allows. A query that reaches the bound is incomplete
+#:   and the attempt fails (``entsog_read_bound_reached``); it never passes as complete.
+#:   The reference network changes rarely, so it is re-read at most once a day.
+#: * GIE: the newest 30 gas days of each product and country (one page each), which covers
+#:   the revisions seen live (up to 4 days back); history is a separate back-fill. The
+#:   per-country series the north-west Europe balance reads are included (``nwe``).
+_SOURCE_BOUNDS: dict[str, tuple[tuple[str, str], ...]] = {
+    "src-entsog": (
+        ("--limit", "50000"),
+        ("--entsog-page-size", "1000"),
+        ("--entsog-max-pages", "50"),
+        ("--entsog-reference-max-age-hours", "24"),
+    ),
+    "src-gie": (("--limit", "30"), ("--gie-country", "nwe")),
+}
+
 # Sources with their own ingest script; each prints the same JSON report with --json.
 _SCRIPT_COMMANDS = {
     "src-entsoe": ("ingest_power.py", "--commit", "--json", "--days", "2"),
@@ -99,6 +124,8 @@ def run_ingestor_attempt(
             command = [sys.executable, str(INGEST_SCRIPT), "--json"]
             for source in source_args:
                 command.extend(["--source", source])
+            for flag, value in _SOURCE_BOUNDS.get(source_id, ()):
+                command.extend([flag, value])
         window = None
         if source_id == "src-entsog":
             for point_direction in point_directions:
@@ -245,6 +272,40 @@ def run_ingestor_attempt(
                 classification=FailureCategory.BAD_RESPONSE,
                 error_message="Ingestor returned an invalid success report or source counters.",
             )
+        bounded = sorted(
+            name for name, detail in sources.items() if detail.get("complete") is False
+        )
+        if source_id == "src-entsog" and bounded:
+            # The rows that were read are stored and correct, but the window is not covered:
+            # widening the bound or narrowing the window is an operator decision, so the
+            # attempt fails without a retry that would hit the same bound.
+            action = (
+                f"ENTSOG {', '.join(bounded)} stopped at the read bound before the provider's "
+                "data was exhausted; the window is not covered. Raise the bound in "
+                "_SOURCE_BOUNDS or narrow the window."
+            )
+            emit_event(
+                event="ingestion.attempt.failed",
+                level="error",
+                source_id=source_id,
+                run_id=str(payload.get("run_id") or ""),
+                attempt=attempt,
+                error_category=FailureCategory.QUALITY_REJECTED.value,
+                details={"code": "entsog_read_bound_reached", "datasets": bounded},
+            )
+            return IngestionAttemptResult(
+                succeeded=False,
+                classification=FailureCategory.QUALITY_REJECTED,
+                error_message=f"QUALITY_REJECTED entsog_read_bound_reached: {action}",
+                quality_issues=[
+                    QualityIssue(
+                        quality_code="entsog_read_bound_reached",
+                        severity=QualitySeverity.ERROR,
+                        message=action,
+                    )
+                ],
+                lineage_refs=[window.reference] if window else [],
+            )
         rows = sum(int(detail.get("records") or 0) for detail in sources.values())
         emit_event(
             event="ingestion.attempt.succeeded",
@@ -270,43 +331,37 @@ def run_ingestor_attempt(
                 )
             )
         if source_id == "src-entsog" and any(
-            detail.get("complete") is False or detail.get("status") == "SUCCEEDED_WITH_WARNINGS"
-            for detail in sources.values()
+            detail.get("skipped_records") for detail in sources.values()
         ):
             partial_issues.append(
                 QualityIssue(
                     quality_code="entsog_bounded_partial",
                     severity=QualitySeverity.WARNING,
                     message=(
-                        "ENTSOG query is bounded partial or normalization skipped records; "
+                        "ENTSOG normalization skipped records (for example N/A exemptions); "
                         "snapshot consistency unproven."
                     ),
                 )
             )
-        entsog_counts = source_id == "src-entsog"
+
+        def total(field: str) -> int:
+            return sum(int(detail.get(field) or 0) for detail in sources.values())
+
+        # A report that states its write counters is taken at its word; one that states only
+        # ``records`` (older script reports) counts every record as written.
+        counted = any("inserted" in detail for detail in sources.values())
         return IngestionAttemptResult(
             succeeded=True,
             rows_received=(
-                sum(int(detail.get("received_records") or 0) for detail in sources.values())
-                if entsog_counts
+                total("received_records")
+                if any("received_records" in detail for detail in sources.values())
                 else rows
             ),
             rows_accepted=rows,
-            rows_rejected=(
-                sum(int(detail.get("skipped_records") or 0) for detail in sources.values())
-                if entsog_counts
-                else 0
-            ),
-            rows_inserted=(
-                sum(int(detail.get("inserted") or 0) for detail in sources.values())
-                if entsog_counts
-                else rows
-            ),
-            duplicate_count=(
-                sum(int(detail.get("unchanged") or 0) for detail in sources.values())
-                if entsog_counts
-                else 0
-            ),
+            rows_rejected=total("skipped_records"),
+            rows_inserted=total("inserted") if counted else rows,
+            rows_updated=total("updated"),
+            duplicate_count=total("unchanged"),
             lineage_refs=[f"public-source-ingestor:{source_id}"]
             + ([window.reference] if window else []),
             quality_issues=partial_issues,

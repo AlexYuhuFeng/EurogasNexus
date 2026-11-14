@@ -1,6 +1,6 @@
 # Provider revisions and open gas days
 
-ENTSOG and GIE publish provisional figures and correct them later. This page says what the
+ENTSOG, GIE and National Gas publish provisional figures and correct them later. This page says what the
 store does when a figure changes, where the earlier figure goes, and how a read "as of" an
 earlier time behaves. Schema: migration `0062_observation_revisions`.
 
@@ -15,6 +15,14 @@ key) with a **different value**. Only value fields may differ:
 | `capacity_observations` (ENTSOG) | `original_value`, `capacity_mcm_d`, `native_rate_json`, `point_name`, metadata `flowStatus` | as above, with capacity type |
 | `storage_observations` (GIE AGSI) | inventory, working capacity, fill, injection, withdrawal, facility name | source, dataset, facility, country, period |
 | `lng_observations` (GIE ALSI) | inventory, send-out, DTMI, terminal name | source, dataset, terminal, country, period |
+| `storage_observations`, `lng_observations` (National Gas, GB) | as GIE, plus metadata `basis` and `provisional` | as GIE |
+
+National Gas (since 2026-11-14): a nomination-based value replaced by the D+2 allocation, and
+a stock published after the first run, are revisions (`value_changed`); the record's
+`changed_fields` says which (for example `withdrawal_twh_d`, `inventory_twh`,
+`metadata_json.provisional`). A basis change alone (an allocation equal to its nomination)
+is still recorded, so the history shows when the figure became final. Before this date the
+script overwrote rows in place, so GB rows firmed up before 14 November have no history.
 
 A revision is accepted only when it was received after the version it replaces. Refused,
 with the whole batch rolled back and the stored rows untouched:
@@ -26,6 +34,19 @@ with the whole batch rolled back and the stored rows untouched:
 
 EEX and every other source keep the earlier rule: any change is refused
 (`*_revision_requires_history`).
+
+**Power is the exception, a documented limitation.** `power_observations` (ENTSO-E,
+Elexon) is written by `db/repositories/power.py`, which replaces a revised value in place and
+moves the row's `published_at_utc`/`ingested_at_utc` to the revision. No look-ahead
+follows (an as-of read before the revision sees no value for that period, not the later
+one), but the earlier value is lost. Revisions are not rare: the soak run of 14 November
+replaced 42 ENTSO-E values in one two-day read (actual generation and load are re-stated
+for days; day-ahead prices are final at publication). Power still gets no history in this
+change because the only as-of reader of power (research datasets) keys availability on
+`published_at_utc` and would need its own version reader; writing history without that
+reader would preserve values nobody can read as of a time. It is the next revision item:
+a `value_changed` record per replaced value (the generic `_append_revision` already writes
+any table; no migration is needed) plus a power version reader for research datasets.
 
 ## Where it is recorded
 
@@ -45,6 +66,16 @@ The ingest report counts `inserted`, `updated` (current rows replaced, each with
 history record), `unchanged` and `revised` (those of the updated rows whose value changed).
 `scripts/ops/data_quality_report.py` shows revised rows per dataset over the last 7 days
 (`rev 7d`; the JSON form also has `closed_snapshots`).
+
+## Freshness reads "last received"
+
+A source that only revises rows is still delivering. Freshness and monitoring take the later
+of `observed_at_utc` and `revised_at_utc` (`observation_revisions.last_received_column`):
+the Sources page (`_runtime_source_latest_observed`), the data-ops freshness evaluation
+(`dataops_runtime._latest_observation_for`) and the data-platform provenance summary.
+"First seen" stays where point-in-time availability is meant: as-of reads, research
+availability and the data-quality report's lateness. The data-quality report's age is the
+age of the newest *period*, which a revision does not change.
 
 ## Reading as of an earlier time
 

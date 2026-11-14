@@ -18,8 +18,8 @@ from eurogas_nexus.db.models import (
 )
 from eurogas_nexus.db.repositories.public_ingestion_upsert import (
     GieRevisionRaceError,
-    replace_reference_snapshot,
     upsert_observation_rows,
+    upsert_reference_snapshot,
     upsert_revision_safe_observation_rows,
 )
 
@@ -87,37 +87,54 @@ def test_observation_upsert_with_no_rows_does_not_touch_session() -> None:
 def test_reference_snapshot_with_empty_payload_keeps_existing_rows() -> None:
     session = MagicMock()
 
-    count = replace_reference_snapshot(session, ReferenceNode, [], source_system="ENTSOG")
+    outcome = upsert_reference_snapshot(session, ReferenceNode, [], source_system="ENTSOG")
 
-    assert count == 0
+    assert outcome == {"upserted": 0, "retired": 0}
     session.execute.assert_not_called()
 
 
-def test_reference_snapshot_scopes_delete_to_source_and_upserts() -> None:
+def test_reference_snapshot_upserts_in_place_and_never_deletes() -> None:
     session = MagicMock()
 
-    count = replace_reference_snapshot(
+    outcome = upsert_reference_snapshot(
         session, ReferenceNode, [_node_row()], source_system="ENTSOG"
     )
 
-    assert count == 1
-    delete_statement = session.execute.call_args_list[0].args[0]
-    delete_sql = str(delete_statement.compile(dialect=postgresql.dialect()))
-    assert "DELETE FROM reference_nodes" in delete_sql
-    assert "reference_nodes.source_system" in delete_sql
-    assert "%(source_system_1)s" in delete_sql
-
-    upsert_statement = session.execute.call_args_list[1].args[0]
-    upsert_sql = str(upsert_statement.compile(dialect=postgresql.dialect()))
+    assert outcome["upserted"] == 1
+    statements = [
+        str(call.args[0].compile(dialect=postgresql.dialect()))
+        for call in session.execute.call_args_list
+    ]
+    assert not any(sql.startswith("DELETE") for sql in statements)
+    upsert_sql = statements[0]
     assert "ON CONFLICT (id) DO UPDATE" in upsert_sql
     # first-created semantics: re-runs must not rewrite created_at_utc
     assert "created_at_utc = excluded.created_at_utc" not in upsert_sql
+    # the vanished-row scan is scoped to the source and skips rows already retired
+    assert "reference_nodes.source_system" in statements[1]
+    assert "NOT IN" in statements[1]
+
+
+def test_reference_snapshot_retires_rows_the_provider_no_longer_carries() -> None:
+    session = MagicMock()
+    session.execute.return_value.all.return_value = [("entsog-gone", {"point_key": "GONE"})]
+
+    outcome = upsert_reference_snapshot(
+        session, ReferenceNode, [_node_row()], source_system="ENTSOG"
+    )
+
+    assert outcome == {"upserted": 1, "retired": 1}
+    retire = session.execute.call_args_list[2].args[0]
+    params = retire.compile(dialect=postgresql.dialect()).params
+    assert params["data_quality"] == "retired_by_provider"
+    assert params["metadata_json"]["point_key"] == "GONE"
+    assert params["metadata_json"]["retired_reason"] == "absent_from_complete_provider_read"
 
 
 def test_reference_snapshot_requires_source_system_column() -> None:
     session = MagicMock()
     with pytest.raises(ValueError, match="no source_system column"):
-        replace_reference_snapshot(
+        upsert_reference_snapshot(
             session,
             NodeFacilityMapping,
             [{"id": "mapping-1"}],

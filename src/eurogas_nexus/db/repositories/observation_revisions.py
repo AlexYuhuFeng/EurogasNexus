@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
-from sqlalchemy import DateTime, select
+from sqlalchemy import DateTime, func, select
 
 _CHUNK = 500
 
@@ -35,6 +35,22 @@ def _utc(value: Any) -> datetime | None:
     if not isinstance(value, datetime):
         return None
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def last_received_column(model: Any) -> Any:
+    """SQL for when a row's current value was received: its revision's receipt, else the first.
+
+    "Last received" for freshness and monitoring: a source that only revises existing rows is
+    still delivering. ``observed_at_utc`` alone keeps first-seen semantics (point-in-time
+    availability, lateness) and is what as-of reads use. A model without ``revised_at_utc``
+    (rows never revised) answers with ``observed_at_utc``. A revision is accepted only when
+    received after the stored version, so ``revised_at_utc`` is never earlier.
+    """
+
+    revised = getattr(model, "revised_at_utc", None)
+    if revised is None:
+        return model.observed_at_utc
+    return func.coalesce(revised, model.observed_at_utc)
 
 
 def value_received_at(record: Any) -> datetime | None:

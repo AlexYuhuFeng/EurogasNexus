@@ -790,6 +790,7 @@ def _runtime_source_latest_observed() -> dict[str, str] | None:
         from sqlalchemy import func
 
         from eurogas_nexus.db.models import (
+            CapacityObservationRecord,
             FlowObservationRecord,
             FxObservationRecord,
             LngObservationRecord,
@@ -798,8 +799,11 @@ def _runtime_source_latest_observed() -> dict[str, str] | None:
             ScreenOrderObservationRecord,
             StorageObservationRecord,
         )
+        from eurogas_nexus.db.repositories.observation_revisions import last_received_column
         from eurogas_nexus.db.session import get_session_factory
 
+        # "Last received": a revision counts as a delivery, so a source that is only
+        # revising rows does not read as stale (first-seen semantics stay in as-of reads).
         latest: dict[str, datetime | None] = {}
 
         def track(system: str, value: datetime | None) -> None:
@@ -816,17 +820,22 @@ def _runtime_source_latest_observed() -> dict[str, str] | None:
                 track(str(row[0]), row[1])
             for row in session.query(
                 FlowObservationRecord.source_system,
-                func.max(FlowObservationRecord.observed_at_utc),
+                func.max(last_received_column(FlowObservationRecord)),
             ).group_by(FlowObservationRecord.source_system):
                 track(str(row[0]), row[1])
             for row in session.query(
+                CapacityObservationRecord.source_system,
+                func.max(last_received_column(CapacityObservationRecord)),
+            ).group_by(CapacityObservationRecord.source_system):
+                track(str(row[0]), row[1])
+            for row in session.query(
                 StorageObservationRecord.source_system,
-                func.max(StorageObservationRecord.observed_at_utc),
+                func.max(last_received_column(StorageObservationRecord)),
             ).group_by(StorageObservationRecord.source_system):
                 track(str(row[0]), row[1])
             for row in session.query(
                 LngObservationRecord.source_system,
-                func.max(LngObservationRecord.observed_at_utc),
+                func.max(last_received_column(LngObservationRecord)),
             ).group_by(LngObservationRecord.source_system):
                 track(str(row[0]), row[1])
             for row in session.query(

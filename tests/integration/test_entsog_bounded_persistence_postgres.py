@@ -434,13 +434,18 @@ def test_complete_reference_replacement_keeps_operator_rows_and_exact_page_links
             run_id="complete-ref",
             replace_network=script._replace_reference_network,
         )
-        nodes = _rows(session, ReferenceNode)
-        assert "old-entsog" not in {r["id"] for r in nodes}
-        assert "operator-node" in {r["id"] for r in nodes}
+        nodes = {r["id"]: r for r in _rows(session, ReferenceNode)}
+        # A point the provider no longer publishes is retired, never deleted.
+        assert nodes["old-entsog"]["data_quality"] == "retired_by_provider"
+        assert nodes["old-entsog"]["metadata_json"]["preserve"] is True
+        assert "retired_at_utc" in nodes["old-entsog"]["metadata_json"]
+        assert outcome["retired"] >= 1
+        assert "operator-node" in nodes
+        assert nodes["operator-node"]["data_quality"] != "retired_by_provider"
         assert outcome["records"] > 0
         for model in (ReferenceNode, ReferenceTsoAccessPoint):
             for row in _rows(session, model):
-                if row["source_system"] != "ENTSOG":
+                if row["source_system"] != "ENTSOG" or row["data_quality"] == "retired_by_provider":
                     continue
                 metadata = row["metadata_json"]
                 archive = session.get(RawPayloadArchiveRecord, metadata["archive_id"])
@@ -498,3 +503,47 @@ def test_rolling_run_persists_warning_policy_and_actual_archive_lineage(monkeypa
         archive = session.get(RawPayloadArchiveRecord, row["metadata_json"]["archive_id"])
         assert archive is not None and archive.payload_sha256 == result.pages[0].payload_sha256
         assert row["observed_at_utc"] == RECEIPT
+
+
+def test_repeat_reference_refresh_keeps_referenced_points_and_ids():
+    """The second live run failed: deleting reference_nodes violated
+    reference_tso_access_points_point_id_fkey. A repeat refresh now upserts in place."""
+
+    queries = [
+        query_result("connectionpoints", [connectionpoint()]),
+        query_result("operatorpointdirections", [operatorpoint()]),
+    ]
+    with _session() as session:
+        first = persistence.persist_entsog_reference(
+            session,
+            results=queries,
+            run_id="ref-1",
+            replace_network=script._replace_reference_network,
+        )
+        access = _rows(session, ReferenceTsoAccessPoint)
+        assert access and access[0]["point_id"] is not None
+        created = {r["id"]: r["created_at_utc"] for r in _rows(session, ReferenceNode)}
+        second = persistence.persist_entsog_reference(
+            session,
+            results=queries,
+            run_id="ref-2",
+            replace_network=script._replace_reference_network,
+        )
+        assert second["records"] == first["records"] and second["retired"] == 0
+        assert {r["id"]: r["created_at_utc"] for r in _rows(session, ReferenceNode)} == created
+        assert _rows(session, ReferenceTsoAccessPoint)[0]["point_id"] == access[0]["point_id"]
+
+        # The point disappears: kept for the access point that references it, but retired.
+        third = persistence.persist_entsog_reference(
+            session,
+            results=[
+                query_result("connectionpoints", [connectionpoint("ITP-OTHER")]),
+                query_result("operatorpointdirections", [operatorpoint("opd-two", "ITP-OTHER")]),
+            ],
+            run_id="ref-3",
+            replace_network=script._replace_reference_network,
+        )
+        assert third["retired"] >= 2
+        quality = {r["id"]: r["data_quality"] for r in _rows(session, ReferenceNode)}
+        assert quality[next(iter(created))] == "retired_by_provider"
+        assert len(_rows(session, ReferenceTsoAccessPoint)) == 2

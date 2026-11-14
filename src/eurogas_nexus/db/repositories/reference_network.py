@@ -7,9 +7,11 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models.reference_network import (
+    REFERENCE_RETIRED_QUALITY,
     ReferenceEdge,
     ReferenceFacility,
     ReferenceMarketHub,
@@ -244,7 +246,7 @@ class SqlAlchemyNodeRepository:
             NodeDTO list.
         """
 
-        q = self._session.query(ReferenceNode)
+        q = self._session.query(ReferenceNode).filter(_current(ReferenceNode))
         if country is not None:
             q = q.filter(ReferenceNode.country == country)
         if node_type is not None:
@@ -330,7 +332,7 @@ class SqlAlchemyFacilityRepository:
             FacilityDTO list.
         """
 
-        q = self._session.query(ReferenceFacility)
+        q = self._session.query(ReferenceFacility).filter(_current(ReferenceFacility))
         if facility_type is not None:
             q = q.filter(ReferenceFacility.facility_type == facility_type)
         if country is not None:
@@ -364,7 +366,9 @@ class SqlAlchemyMarketHubRepository:
             MarketHubDTO list.
         """
 
-        rows = self._session.query(ReferenceMarketHub).all()
+        rows = (
+            self._session.query(ReferenceMarketHub).filter(_current(ReferenceMarketHub)).all()
+        )
         return [_hub_to_dto(row) for row in rows]
 
     def get_by_id(self, hub_id: str) -> MarketHubDTO | None:
@@ -407,7 +411,9 @@ class SqlAlchemyTsoAccessPointRepository:
             TsoAccessPointDTO list.
         """
 
-        q = self._session.query(ReferenceTsoAccessPoint)
+        q = self._session.query(ReferenceTsoAccessPoint).filter(
+            _current(ReferenceTsoAccessPoint)
+        )
         if point_id is not None:
             q = q.filter(ReferenceTsoAccessPoint.point_id == point_id)
         if country is not None:
@@ -420,6 +426,12 @@ class SqlAlchemyTsoAccessPointRepository:
 
 
 # --- Row-to-DTO helpers ------------------------------------------------------
+
+
+def _current(model):
+    """Leave out source rows the provider no longer publishes (kept for history, by id)."""
+
+    return or_(model.data_quality.is_(None), model.data_quality != REFERENCE_RETIRED_QUALITY)
 
 
 def _node_to_dto(row: ReferenceNode) -> NodeDTO:

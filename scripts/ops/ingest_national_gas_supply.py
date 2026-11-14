@@ -8,7 +8,8 @@ Loads N completed gas days ending yesterday (or ending ``--end``, for a back-fil
 LNG tank stock and send-out, in TWh. No key is needed. GIE AGSI/ALSI carry GB rows
 with no values; this is the GB side of the NW Europe storage and LNG balance. A later
 run replaces a provisional (nomination) value with the D+2 allocation and fills in
-stock published after the first run. See docs/operations/GB_GAS_SUPPLY.md.
+stock published after the first run; each such change is kept as a revision
+(docs/operations/DATA_REVISIONS.md). See docs/operations/GB_GAS_SUPPLY.md.
 """
 
 from __future__ import annotations
@@ -69,26 +70,44 @@ def main(argv: list[str] | None = None) -> int:
         say(f"GB LNG     {day}  stock {_fmt(row['inventory_twh'])} TWh  "
             f"send-out {_fmt(row['send_out_twh_d'], 1000)} GWh  {_basis(row)}")
 
-    stored = {"storage": 0, "lng": 0}
+    stored: dict[str, int] = {"inserted": 0, "updated": 0, "unchanged": 0, "revised": 0}
     if args.commit and (storage_rows or lng_rows):
         from eurogas_nexus.db.models.observation import (
             LngObservationRecord,
             StorageObservationRecord,
         )
         from eurogas_nexus.db.repositories.public_ingestion_upsert import (
-            upsert_observation_rows,
+            GieRevisionRequiresHistoryError,
+            upsert_revision_safe_observation_rows,
         )
         from eurogas_nexus.db.session import get_session_factory
 
-        # Insert-or-update by observation_id: a provisional nomination is replaced by the
-        # allocation, and a stock published later fills in. observed_at_utc keeps the
-        # first-seen instant.
-        with get_session_factory()() as session:
-            stored["storage"] = upsert_observation_rows(
-                session, StorageObservationRecord, storage_rows
-            )
-            stored["lng"] = upsert_observation_rows(session, LngObservationRecord, lng_rows)
-            session.commit()
+        # Revision-safe: a provisional (nomination) value replaced by the allocation, or a
+        # stock published after the first run, replaces the current row and the replaced
+        # version goes to observation_revisions (docs/operations/DATA_REVISIONS.md).
+        # observed_at_utc keeps the first receipt, so an as-of read never sees the
+        # allocation before it arrived. Anything else that changed is refused.
+        try:
+            with get_session_factory()() as session:
+                for model, rows in (
+                    (StorageObservationRecord, storage_rows),
+                    (LngObservationRecord, lng_rows),
+                ):
+                    if not rows:
+                        continue
+                    outcome = upsert_revision_safe_observation_rows(
+                        session,
+                        model,
+                        rows,
+                        semantic_metadata_keys=NATIONAL_GAS_REVISABLE_METADATA,
+                        revisions=national_gas_revision_policy(model.__tablename__),
+                    )
+                    for name in stored:
+                        stored[name] += outcome.get(name, 0)
+                session.commit()
+        except GieRevisionRequiresHistoryError as exc:
+            failures.append({"source": "national-gas:supply", "code": exc.code})
+            say(f"national-gas:supply refused ({exc.code}); stored rows unchanged")
         say(f"stored: {stored}")
     elif not args.commit:
         say(f"{len(storage_rows) + len(lng_rows)} rows parsed; dry run (add --commit to store)")
@@ -101,6 +120,25 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": ok, "failures": failures, "sources": {"national-gas-supply": {
             "records": records, "provisional": provisional, **stored}}}))
     return 0 if ok else 1
+
+
+#: Metadata compared on a re-read: whether the value is nomination-based (provisional) and
+#: which basis each field has. A change from nomination to allocation is a revision even when
+#: the value happens to be equal, so the history shows when the figure became final.
+NATIONAL_GAS_REVISABLE_METADATA = ("basis", "provisional")
+
+
+def national_gas_revision_policy(table: str):
+    """The revision policy for National Gas storage/LNG rows: GIE's value fields + basis."""
+
+    from eurogas_nexus.db.repositories.public_ingestion_upsert import (
+        GIE_REVISABLE_FIELDS,
+        RevisionPolicy,
+    )
+
+    return RevisionPolicy(
+        GIE_REVISABLE_FIELDS[table], revisable_metadata_keys=NATIONAL_GAS_REVISABLE_METADATA
+    )
 
 
 def _iso_day(text: str) -> date:

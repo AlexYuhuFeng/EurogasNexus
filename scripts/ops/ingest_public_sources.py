@@ -39,7 +39,7 @@ import os
 import subprocess
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -67,8 +67,8 @@ from eurogas_nexus.db.repositories.public_ingestion_upsert import (
     GIE_REVISABLE_FIELDS,
     GieRevisionRequiresHistoryError,
     RevisionPolicy,
-    replace_reference_snapshot,
     upsert_observation_rows,
+    upsert_reference_snapshot,
     upsert_revision_safe_observation_rows,
 )
 from eurogas_nexus.db.session import (
@@ -104,6 +104,7 @@ from eurogas_nexus.ingestion.entsog_ingestion import (
 )
 from eurogas_nexus.ingestion.entsog_scope import validate_entsog_point_directions
 from eurogas_nexus.ingestion.entsog_transport import (
+    ENTSOG_DATASET_MAX_PAGE_SIZE,
     EntsogFetchResult,
     EntsogTransportError,
     fetch_entsog_dataset,
@@ -234,12 +235,20 @@ def main() -> int:
     parser.add_argument("--entsog-page-size", type=int, default=100)
     parser.add_argument("--entsog-max-pages", type=int, default=50)
     parser.add_argument(
+        "--entsog-reference-max-age-hours",
+        type=float,
+        default=None,
+        help="Skip the ENTSOG reference read when a complete one succeeded within this many "
+        "hours (the network changes rarely; a scheduler refreshes it at most daily).",
+    )
+    parser.add_argument(
         "--gie-country",
         action="append",
         default=None,
         metavar="CC",
         help="Also read this country's AGSI/ALSI series (repeatable); 'nwe' adds the "
-        "north-west Europe balance countries. Default: the Europe total only.",
+        "north-west Europe balance countries. A product GIE does not publish for a country "
+        "(GB; LU; DK LNG) is not requested. Default: the Europe total only.",
     )
     parser.add_argument(
         "--entsog-point-direction",
@@ -442,6 +451,11 @@ def main() -> int:
                             point_directions=args.entsog_point_direction,
                         )
 
+                if selected & {"gie-agsi", "gie-alsi"}:
+                    for skipped in _gie_unpublished(getattr(args, "gie_country", None)):
+                        report["warnings"].append(
+                            f"{skipped} not requested: GIE publishes no such series."
+                        )
                 for gie_route, gie_product, source_name in _gie_plan(
                     getattr(args, "gie_country", None)
                 ):
@@ -1077,6 +1091,21 @@ def _ingest_entsog_source(
         "snapshot_consistent": False,
     }
     report["sources"][source_name] = detail
+    if route == "entsog-reference":
+        refreshed_at = _recent_reference_refresh(
+            session, getattr(args, "entsog_reference_max_age_hours", None), now=started
+        )
+        if refreshed_at is not None:
+            # Not a read at all: nothing fetched, nothing written, no run row. The report says
+            # so, so a skipped refresh is never mistaken for a complete one.
+            detail.update(
+                {
+                    "status": "skipped_fresh",
+                    "complete": None,
+                    "last_refreshed_at_utc": refreshed_at.isoformat(),
+                }
+            )
+            return
     try:
         if route == "entsog-reference":
             queries = (
@@ -1113,7 +1142,10 @@ def _ingest_entsog_source(
                     dataset,
                     filters=filters,
                     max_records=args.limit,
-                    page_size=args.entsog_page_size,
+                    page_size=min(
+                        args.entsog_page_size,
+                        ENTSOG_DATASET_MAX_PAGE_SIZE.get(dataset, args.entsog_page_size),
+                    ),
                     max_pages=args.entsog_max_pages,
                 )
             )
@@ -1217,14 +1249,65 @@ def _ingest_entsog_source(
         )
 
 
-def _gie_plan(countries) -> list[tuple[str, GieProduct, str]]:
-    """The GIE reads of one run: the Europe total, then each requested country.
+#: Run statuses that mean the ENTSOG reference network was brought to a complete read.
+_REFERENCE_REFRESHED_STATUSES = ("succeeded", "SUCCEEDED_WITH_WARNINGS")
 
-    The fundamentals read storage and LNG by country, so a deployment that ingests only
-    the Europe total leaves the north-west Europe balance empty. ``--gie-country nwe``
-    adds the balance's own countries.
+
+def _recent_reference_refresh(session, max_age_hours, *, now: datetime) -> datetime | None:
+    """When the ENTSOG reference was last refreshed, if within ``max_age_hours`` of ``now``.
+
+    Only a run recorded as succeeded counts, and the reference route records success only
+    after both reference queries were exhausted, so a partial read never defers the next one.
     """
 
+    if max_age_hours is None:
+        return None
+    if not 0 < float(max_age_hours) <= 24 * 7:
+        raise ValueError("--entsog-reference-max-age-hours must be within (0, 168].")
+    latest = (
+        session.query(IngestionRunRecord.finished_at_utc)
+        .filter(
+            IngestionRunRecord.source_name == "ENTSOG-reference",
+            IngestionRunRecord.status.in_(_REFERENCE_REFRESHED_STATUSES),
+            IngestionRunRecord.finished_at_utc.is_not(None),
+        )
+        .order_by(IngestionRunRecord.finished_at_utc.desc())
+        .limit(1)
+        .scalar()
+    )
+    if latest is None:
+        return None
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=UTC)
+    return latest if now - latest < timedelta(hours=float(max_age_hours)) else None
+
+
+#: Countries for which GIE publishes no series of a product, checked live on 2026-11-13. GB has
+#: published nothing since Brexit ("United Kingdom (Pre-Brexit)", status N, every field "-";
+#: GB storage and LNG come from National Gas). LU has no storage (AGSI answers with an
+#: LNG-shaped placeholder, ``gie_product_mismatch``) and no LNG terminal; DK has storage but
+#: no LNG terminal (ALSI answers with status N placeholders). Such a combination is never
+#: requested: it can only fail or store rows with no value.
+GIE_UNPUBLISHED_COUNTRIES = {
+    "AGSI": frozenset({"GB", "LU"}),
+    "ALSI": frozenset({"GB", "DK", "LU"}),
+}
+
+#: The value columns of each GIE product. A normalized row with none of them is the provider's
+#: placeholder for a country/day it has no data for (status N), not an observation.
+GIE_VALUE_FIELDS = {
+    "AGSI": (
+        "inventory_twh",
+        "working_capacity_twh",
+        "fill_pct",
+        "injection_twh_d",
+        "withdrawal_twh_d",
+    ),
+    "ALSI": ("inventory_twh", "send_out_twh_d", "dtmi_twh"),
+}
+
+
+def _gie_countries(countries) -> list[str]:
     codes: list[str] = []
     for item in countries or ():
         if str(item).strip().lower() == "nwe":
@@ -1233,11 +1316,36 @@ def _gie_plan(countries) -> list[tuple[str, GieProduct, str]]:
             codes += list(NWE_COUNTRIES)
         else:
             codes.append(str(item).strip().upper())
+    return list(dict.fromkeys(codes))
+
+
+def _gie_plan(countries) -> list[tuple[str, GieProduct, str]]:
+    """The GIE reads of one run: the Europe total, then each requested country.
+
+    The fundamentals read storage and LNG by country, so a deployment that ingests only
+    the Europe total leaves the north-west Europe balance empty. ``--gie-country nwe``
+    adds the balance's own countries. A country/product combination GIE does not publish
+    (``GIE_UNPUBLISHED_COUNTRIES``) is left out, whether named or implied by ``nwe``.
+    """
+
     plan = [("gie-agsi", GIE_AGSI_PRODUCT, "GIE-AGSI"), ("gie-alsi", GIE_ALSI_PRODUCT, "GIE-ALSI")]
-    for code in dict.fromkeys(codes):
-        plan.append(("gie-agsi", GIE_AGSI_PRODUCT.for_country(code), f"GIE-AGSI-{code}"))
-        plan.append(("gie-alsi", GIE_ALSI_PRODUCT.for_country(code), f"GIE-ALSI-{code}"))
+    for code in _gie_countries(countries):
+        if code not in GIE_UNPUBLISHED_COUNTRIES["AGSI"]:
+            plan.append(("gie-agsi", GIE_AGSI_PRODUCT.for_country(code), f"GIE-AGSI-{code}"))
+        if code not in GIE_UNPUBLISHED_COUNTRIES["ALSI"]:
+            plan.append(("gie-alsi", GIE_ALSI_PRODUCT.for_country(code), f"GIE-ALSI-{code}"))
     return plan
+
+
+def _gie_unpublished(countries) -> list[str]:
+    """The requested country/product combinations left out because GIE does not publish them."""
+
+    return [
+        f"GIE-{product}-{code}"
+        for code in _gie_countries(countries)
+        for product in ("AGSI", "ALSI")
+        if code in GIE_UNPUBLISHED_COUNTRIES[product]
+    ]
 
 
 def _normalize_gie_page(
@@ -1357,6 +1465,24 @@ def _persist_gie_product(
     # Validate before any canonical side effect, so a synthetic / empty provider
     # payload fails the product without touching the observation tables.
     _reject_synthetic_gie_rows(rows, product=product.product)
+    # The provider's placeholder for a day it has no data for (status N, every value "-")
+    # is not an observation: storing it reads as a blank day. The page stays archived.
+    value_fields = GIE_VALUE_FIELDS[product.product]
+    received = len(rows)
+    rows = [row for row in rows if any(row.get(field) is not None for field in value_fields)]
+    valueless = received - len(rows)
+    if received and not rows:
+        _record_run(
+            session, source_name, "failed", started, 0, "no_published_values", run_id=run_id
+        )
+        return {
+            "failure": {"source": source_name, "code": "gie_no_published_values", "records": 0},
+            "warning": (
+                f"{source_name} returned {received} rows and none carries a value; GIE "
+                "publishes nothing for this series. Nothing was stored."
+            ),
+            "counts": {"records": 0, "inserted": 0, "unchanged": 0, "skipped_records": valueless},
+        }
     if not rows:
         _record_run(session, source_name, "failed", started, 0, "empty_response", run_id=run_id)
         return {
@@ -1416,6 +1542,7 @@ def _persist_gie_product(
             "updated": outcome["updated"],
             "unchanged": outcome["unchanged"],
             "revised": outcome["revised"],
+            "skipped_records": valueless,
             "archived_pages": len(archive_refs),
         },
     }
@@ -1621,10 +1748,15 @@ def _replace_reference_network(
     hubs: list[dict[str, Any]],
     tso_access_points: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Replace the ENTSOG reference snapshot table by table.
+    """Bring the ENTSOG reference snapshot to a complete read, table by table.
 
-    Each table is replaced only when its incoming payload is non-empty, so a
+    Each table is updated only when its incoming payload is non-empty, so a
     partial provider response can never wipe the existing reference network.
+    Rows are upserted in place under their stable ids; a point the provider no
+    longer publishes is retired (kept and marked), never deleted, because flows,
+    mappings and access points reference it. A repeat run is therefore safe on
+    PostgreSQL (deleting ``reference_nodes`` violated
+    ``reference_tso_access_points_point_id_fkey`` on the second live run).
     Operator-maintained tables (edges, node/facility mappings, topology/market
     mappings) and non-ENTSOG rows are never touched. The whole step runs inside
     the caller's transaction, so any failure (including a foreign-key conflict
@@ -1638,7 +1770,7 @@ def _replace_reference_network(
 
     node_ids = {row["id"] for row in nodes}
     now = datetime.now(UTC)
-    summary: dict[str, Any] = {"replaced": 0, "skipped_tables": []}
+    summary: dict[str, Any] = {"replaced": 0, "retired": 0, "skipped_tables": []}
     for model, rows in (
         (ReferenceNode, nodes),
         (ReferenceFacility, facilities),
@@ -1654,12 +1786,15 @@ def _replace_reference_network(
             if model is ReferenceTsoAccessPoint and prepared_row["point_id"] not in node_ids:
                 prepared_row["point_id"] = None
             prepared.append(prepared_row)
-        summary["replaced"] += replace_reference_snapshot(
+        outcome = upsert_reference_snapshot(
             session,
             model,
             prepared,
             source_system="ENTSOG",
+            retired_at_utc=now,
         )
+        summary["replaced"] += outcome["upserted"]
+        summary["retired"] += outcome["retired"]
     session.flush()
     return summary
 

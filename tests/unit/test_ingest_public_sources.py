@@ -71,8 +71,9 @@ def test_reference_replace_skips_empty_tables_and_reports_them() -> None:
         "reference_market_hubs",
         "reference_tso_access_points",
     ]
-    # one delete + one upsert for the non-empty node table
+    # one upsert and one vanished-row scan for the non-empty node table; no delete
     assert session.execute.call_count == 2
+    assert summary["retired"] == 0
 
 
 def test_record_run_writes_run_row_and_audit_event() -> None:
@@ -179,3 +180,63 @@ def test_reject_synthetic_gie_rows_refuses_mock_sim_and_cross_source(
         script._reject_synthetic_gie_rows(
             [{**_real_gie_row(), **override}], product="AGSI"
         )
+
+
+def test_reference_refresh_is_skipped_only_after_a_recent_complete_read() -> None:
+    from datetime import timedelta
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.db.models import IngestionRunRecord
+
+    script = _load_script()
+    engine = create_engine("sqlite://")
+    IngestionRunRecord.__table__.create(engine)
+    now = datetime(2026, 11, 13, 12, 0, tzinfo=UTC)
+
+    def run(run_id, status, hours_ago):
+        at = now - timedelta(hours=hours_ago)
+        return IngestionRunRecord(
+            run_id=run_id,
+            source_name="ENTSOG-reference",
+            status=status,
+            started_at_utc=at,
+            finished_at_utc=at,
+        )
+
+    with Session(engine) as session:
+        assert script._recent_reference_refresh(session, 24, now=now) is None
+        session.add_all([run("failed", "failed", 1), run("old", "succeeded", 30)])
+        session.flush()
+        # A failed (e.g. partial) read never defers the next one; an old one is due.
+        assert script._recent_reference_refresh(session, 24, now=now) is None
+        session.add(run("fresh", "SUCCEEDED_WITH_WARNINGS", 3))
+        session.flush()
+        refreshed = script._recent_reference_refresh(session, 24, now=now)
+        assert refreshed is not None and refreshed.replace(tzinfo=UTC) == now - timedelta(hours=3)
+        # Without a max age the reference is always read (operator runs).
+        assert script._recent_reference_refresh(session, None, now=now) is None
+        with pytest.raises(ValueError):
+            script._recent_reference_refresh(session, 0, now=now)
+
+
+def test_fresh_reference_is_reported_skipped_without_a_read() -> None:
+    from types import SimpleNamespace
+
+    script = _load_script()
+    script._recent_reference_refresh = lambda session, hours, *, now: now
+    report = {"sources": {}, "warnings": [], "failures": []}
+    client = MagicMock()
+    script._ingest_entsog_source(
+        client,
+        MagicMock(),
+        route="entsog-reference",
+        args=SimpleNamespace(entsog_reference_max_age_hours=24, entsog_point_direction=()),
+        started=datetime(2026, 11, 13, tzinfo=UTC),
+        report=report,
+    )
+    detail = report["sources"]["ENTSOG-reference"]
+    assert detail["status"] == "skipped_fresh" and detail["records"] == 0
+    assert detail["complete"] is None and not report["failures"]
+    client.get.assert_not_called()

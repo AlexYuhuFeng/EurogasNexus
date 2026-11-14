@@ -322,3 +322,96 @@ def test_connection_test_helper_reports_failure_codes_without_secrets() -> None:
     assert all(check.ok is False for check in checks)
     assert all(check.error_code == "gie_access_denied" for check in checks)
     assert SECRET not in repr(checks)
+
+
+def _placeholder_page(page: int = 2):
+    """GIE's answer for a country/day it has no data for (live, DK LNG and GB, 2026-11-13)."""
+
+    blank = _page(page)
+    blank.raw_payload = {
+        "data": [
+            {
+                "code": "DK",
+                "name": "DK",
+                "gasDayStart": "2026-10-09",
+                "gasDayEnd": "2026-10-10",
+                "gasInStorage": "-",
+                "workingGasVolume": "-",
+                "status": "N",
+            }
+        ]
+    }
+    return blank
+
+
+def _upsert_counting(stored):
+    def upsert(session_, model, rows, revisions):
+        stored.extend(rows)
+        return {"inserted": len(rows), "updated": 0, "unchanged": 0, "revised": 0}
+
+    return upsert
+
+
+def test_valueless_placeholder_rows_are_not_stored(monkeypatch) -> None:
+    script = _load_script()
+    stored: list[dict] = []
+    monkeypatch.setattr(
+        script,
+        "_archive_raw_payload",
+        lambda session_, **kwargs: {"archive_id": "raw-1", "payload_sha256": "d" * 64},
+    )
+    monkeypatch.setattr(script, "upsert_revision_safe_observation_rows", _upsert_counting(stored))
+
+    outcome = script._persist_gie_product(
+        _FakeSession(),
+        product=GieProduct.agsi(),
+        source_name="GIE-AGSI",
+        gie_result=_result([_page(), _placeholder_page()]),
+        model=object,
+        started=STARTED,
+    )
+
+    assert outcome["failure"] is None
+    assert len(stored) == 1 and stored[0]["inventory_twh"] is not None
+    assert outcome["counts"]["records"] == 1 and outcome["counts"]["skipped_records"] == 1
+
+
+def test_a_series_with_no_published_value_fails_and_stores_nothing(monkeypatch) -> None:
+    script = _load_script()
+    stored: list[dict] = []
+    monkeypatch.setattr(
+        script,
+        "_archive_raw_payload",
+        lambda session_, **kwargs: {"archive_id": "raw-1", "payload_sha256": "d" * 64},
+    )
+    monkeypatch.setattr(script, "upsert_revision_safe_observation_rows", _upsert_counting(stored))
+
+    outcome = script._persist_gie_product(
+        _FakeSession(),
+        product=GieProduct.agsi(),
+        source_name="GIE-AGSI-DK",
+        gie_result=_result([_placeholder_page(1)]),
+        model=object,
+        started=STARTED,
+    )
+
+    assert stored == []
+    assert outcome["failure"]["code"] == "gie_no_published_values"
+
+
+def test_nwe_plan_requests_only_published_country_products() -> None:
+    script = _load_script()
+
+    names = [name for _, _, name in script._gie_plan(["nwe"])]
+
+    assert names[:2] == ["GIE-AGSI", "GIE-ALSI"]
+    for code in ("NL", "BE", "DE", "FR", "DK"):
+        assert f"GIE-AGSI-{code}" in names
+    for code in ("NL", "BE", "DE", "FR"):
+        assert f"GIE-ALSI-{code}" in names
+    # LU: no storage, no LNG; GB: nothing since Brexit; DK: no LNG terminal.
+    for missing in ("GIE-AGSI-LU", "GIE-ALSI-LU", "GIE-AGSI-GB", "GIE-ALSI-GB", "GIE-ALSI-DK"):
+        assert missing not in names
+    # Named explicitly, an unpublished combination is still not requested, and says so.
+    assert [name for _, _, name in script._gie_plan(["lu"])] == ["GIE-AGSI", "GIE-ALSI"]
+    assert script._gie_unpublished(["LU", "DE"]) == ["GIE-AGSI-LU", "GIE-ALSI-LU"]

@@ -628,6 +628,7 @@ def _latest_observation_for(
         ScreenOrderObservationRecord,
         StorageObservationRecord,
     )
+    from eurogas_nexus.db.repositories.observation_revisions import last_received_column
 
     benchmark = _RATE_BENCHMARK_BY_SOURCE.get(source_id or "")
     if benchmark is not None:
@@ -652,22 +653,22 @@ def _latest_observation_for(
         (
             FlowObservationRecord,
             FlowObservationRecord.source_system,
-            FlowObservationRecord.observed_at_utc,
+            last_received_column(FlowObservationRecord),
         ),
         (
             CapacityObservationRecord,
             CapacityObservationRecord.source_system,
-            CapacityObservationRecord.observed_at_utc,
+            last_received_column(CapacityObservationRecord),
         ),
         (
             StorageObservationRecord,
             StorageObservationRecord.source_system,
-            StorageObservationRecord.observed_at_utc,
+            last_received_column(StorageObservationRecord),
         ),
         (
             LngObservationRecord,
             LngObservationRecord.source_system,
-            LngObservationRecord.observed_at_utc,
+            last_received_column(LngObservationRecord),
         ),
         (
             ScreenOrderObservationRecord,

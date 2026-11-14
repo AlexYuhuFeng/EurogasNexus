@@ -229,6 +229,8 @@ def test_partly_reported_newest_pipeline_days_are_left_out(tmp_path, monkeypatch
     Base.metadata.create_all(engine)
     now = datetime.now(UTC)
     today = datetime.combine(now.date(), datetime.min.time(), tzinfo=UTC) + timedelta(hours=5)
+    if now < today:
+        today -= timedelta(days=1)  # before 05:00 UTC the current gas day began yesterday
     landings = (("ITP-00106", "BE-TSO-0001"), ("ITP-00045", "FR-TSO-0003"),
                 ("ITP-00097", "DK-TSO-0001"))
     with Session(engine) as session:

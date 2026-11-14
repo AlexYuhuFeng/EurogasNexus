@@ -24,9 +24,11 @@ Semantics:
   receipt, archive, run or hash churn as a revision. The generic upsert above
   keeps its documented in-place-revision limitation for the other sources and is
   deliberately not changed here.
-- ``replace_reference_snapshot`` replaces only the rows of one source system
-  and only when the new payload is non-empty. An empty payload is treated as
-  provider failure, not as evidence that the reference data became empty.
+- ``upsert_reference_snapshot`` brings one source system's reference rows to a
+  complete provider read: upsert in place under stable ids, and rows the provider
+  no longer carries are retired (kept, marked), never deleted, because flows,
+  mappings and edges reference them. An empty payload is treated as provider
+  failure, not as evidence that the reference data became empty.
 
 Both helpers run inside the caller's transaction and never commit.
 """
@@ -40,9 +42,11 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+
+from eurogas_nexus.db.models.reference_network import REFERENCE_RETIRED_QUALITY
 
 OBSERVATION_PRESERVED_COLUMNS = ("observed_at_utc",)
 REFERENCE_PRESERVED_COLUMNS = ("created_at_utc",)
@@ -574,32 +578,60 @@ def _metadata_semantic_mismatches(
     return changed
 
 
-def replace_reference_snapshot(
+def upsert_reference_snapshot(
     session: Session,
     model: Any,
     rows: list[dict[str, Any]],
     *,
     source_system: str,
-) -> int:
-    """Replace one source system's snapshot of a reference table.
+    retired_at_utc: datetime | None = None,
+) -> dict[str, int]:
+    """Bring one source system's rows of a reference table to a complete provider read.
 
-    An empty payload leaves existing rows untouched. Deletion is scoped to the
-    given source system so operator-maintained rows are never wiped.
+    Rows are upserted in place under their stable ids, so nothing that references them is
+    touched and a repeat run is a no-op apart from refreshed attributes. A row of the same
+    source system that the read no longer carries is **retired, not deleted**
+    (``data_quality = REFERENCE_RETIRED_QUALITY`` plus ``retired_at_utc`` in its metadata):
+    other tables may reference it, and history must not vanish because a provider dropped a
+    point. An empty payload changes nothing (provider failure is not evidence that the
+    reference data became empty). Runs in the caller's transaction and never commits.
     """
 
     if not rows:
-        return 0
+        return {"upserted": 0, "retired": 0}
     table = model.__table__
     source_column = table.columns.get("source_system")
     if source_column is None:
         raise ValueError(
-            f"{table.name} has no source_system column; cannot scope the replace."
+            f"{table.name} has no source_system column; cannot scope the snapshot."
         )
-    session.execute(
-        delete(model).where(source_column == source_system),
-        execution_options={"synchronize_session": False},
-    )
-    return _upsert_rows(session, model, rows, preserve_columns=REFERENCE_PRESERVED_COLUMNS)
+    (key_column,) = table.primary_key.columns
+    upserted = _upsert_rows(session, model, rows, preserve_columns=REFERENCE_PRESERVED_COLUMNS)
+    incoming = {row[key_column.name] for row in rows}
+    quality = table.c.data_quality
+    stale = session.execute(
+        select(key_column, table.c.metadata_json).where(
+            source_column == source_system,
+            key_column.not_in(incoming),
+            (quality.is_(None)) | (quality != REFERENCE_RETIRED_QUALITY),
+        )
+    ).all()
+    stamp = (retired_at_utc or datetime.now(UTC)).isoformat()
+    for key, metadata in stale:
+        session.execute(
+            update(table)
+            .where(key_column == key)
+            .values(
+                data_quality=REFERENCE_RETIRED_QUALITY,
+                metadata_json={
+                    **(metadata if isinstance(metadata, dict) else {}),
+                    "retired_at_utc": stamp,
+                    "retired_reason": "absent_from_complete_provider_read",
+                },
+            ),
+            execution_options={"synchronize_session": False},
+        )
+    return {"upserted": upserted, "retired": len(stale)}
 
 
 def _upsert_rows(

@@ -46,6 +46,12 @@ ENTSOG_MAX_PAGE_SIZE = 1000
 ENTSOG_HARD_MAX_PAGES = 50
 ENTSOG_HARD_MAX_RECORDS = 50_000
 ENTSOG_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+#: Page sizes that keep one response under ``ENTSOG_MAX_RESPONSE_BYTES``, for datasets whose
+#: records are large. Measured live on 2026-11-13: an ``operatorpointdirections`` page of 100
+#: raw rows is 302,522 bytes (about 3 KB a row), so a page of 1,000 was refused as
+#: ``entsog_response_too_large``; 400 rows is about 1.2 MB. ``connectionpoints`` is about
+#: 0.7 KB a row and fits at the platform maximum.
+ENTSOG_DATASET_MAX_PAGE_SIZE = {"operatorpointdirections": 400}
 _RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 _FILTERS = frozenset(
     {
