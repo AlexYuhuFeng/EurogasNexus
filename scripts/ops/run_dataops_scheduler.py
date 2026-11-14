@@ -70,6 +70,10 @@ _SCRIPT_COMMANDS = {
     "src-national-gas-supply": (
         "ingest_national_gas_supply.py", "--commit", "--json", "--days", "5",
     ),
+    # Eight gas days cover the D+6 amendment of each day; every publication is appended.
+    "src-national-gas-demand": ("ingest_national_gas_demand.py", "--json", "--days", "8"),
+    # GIE IIP storage and LNG UMMs: two days of submissions, about two pages of 50.
+    "src-remit-umm": ("ingest_remit_iip.py", "--commit", "--json", "--days", "2"),
     "src-boe": ("ingest_interest_rates.py", "--json", "--benchmark", "SONIA", "--days", "10"),
     "src-ecb-estr": ("ingest_interest_rates.py", "--json", "--benchmark", "ESTR", "--days", "10"),
     "src-eia": ("ingest_eia.py", "--json", "--days", "14"),

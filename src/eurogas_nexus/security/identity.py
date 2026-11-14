@@ -34,6 +34,8 @@ PUBLIC_BASELINE_SOURCE_FAMILIES = frozenset(
         "ELEXON",
         # National Gas data portal: GB gas-system open data (attribution).
         "NATIONAL_GAS",
+        # The same portal's GB NTS demand (src-national-gas-demand), its own source system.
+        "NATIONAL_GAS_DEMAND",
         # REMIT urgent market messages: inside information operators must publish.
         "REMIT",
         # US Energy Information Administration: public-domain government data.

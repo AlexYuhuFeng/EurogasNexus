@@ -24,8 +24,8 @@ Measured with `scripts/ops/data_quality_report.py` after the run.
 | SONIA, €STR, SOFR | 95 | 3 | 28 Sep to 11 Nov | ok |
 | Henry Hub (EIA) | 27 | 1 | to 3 Nov | ok (EIA publishes about a week behind) |
 | ENTSO-E power: BE DE-LU FR NL | 13,908 | 24 | 4 to 12 Nov | ok; 15-minute prices |
-| GB demand (National Gas) | 107 | 86 | to 11 Nov | ok |
-| REMIT outages | 0 | – | – | not run: file import only, no live collector yet |
+| GB demand (National Gas) | 107 | 86 | to 11 Nov | ok (scheduled since 14 Nov, see below) |
+| REMIT outages | 0 | – | – | not run: file import only (GIE IIP collector since 14 Nov, see below) |
 | ECMWF forecasts | 0 | – | – | not run: needs series bindings first |
 
 With this data the north-west Europe balance returns measured history for the first time.
@@ -60,7 +60,9 @@ storage withdrawal 2,516 GWh/d, supply call 9,304 GWh/d.
    continental sum (about 278 mcm/d at 11 kWh/m3) is plausible, not verified. See
    "Dornum: independent opinion (2026-11-14)" below.
 5. **REMIT has no live collector** (DATA-03) and **ECMWF needs series bindings** before a
-   first run.
+   first run. REMIT **partly closed 2026-11-14**: storage and LNG UMMs from GIE IIP are
+   collected on the scheduler (see "Data defects, second round"); production and
+   transmission UMMs still need a file import. ECMWF unchanged.
 6. **A 72-hour unattended scheduler run has not been done.** This run was operator-invoked
    commands. The scheduler run is the remaining part of DATA-01. A 77-minute precursor ran
    on 14 November, see "Unattended ingestion (2026-11-14)" below.
@@ -373,7 +375,8 @@ injection 43.698 to 43.740 GWh, stock 9.734 TWh; LNG send-out 508.46 to 509.55 G
 
 **Found during the soak, not fixed.**
 
-- *ENTSOG capacity rows overlap.* The data-quality report now shows 531 capacity keys
+- *ENTSOG capacity rows overlap.* **Closed 2026-11-14**, see "Data defects, second
+  round". The data-quality report now shows 531 capacity keys
   (point, direction, type, operator, period start) held twice. ENTSOG publishes capacity
   over validity ranges and re-splits them between reads (a value valid 12-13 Nov in the
   12 Nov read is valid 12-14 Nov in the 13 Nov read); the observation id includes the
@@ -381,6 +384,7 @@ injection 43.698 to 43.740 GWh, stock 9.734 TWh; LNG send-out 508.46 to 509.55 G
   twice. It needs a rule for superseded ranges (the later receipt covering the same start
   replaces the earlier), which is a change to the ENTSOG capacity identity, not done here.
 - *Power revisions are frequent*: 44 ENTSO-E values replaced in two runs, without history.
+  **Closed 2026-11-14** (history kept since migration 0063), see below.
 - The soak covered no GIE or daily-rate scheduled slot; the 72-hour run will.
 - `tests/api/test_nwe_balance_api.py::test_partly_reported_newest_pipeline_days_are_left_out`
   fails between 00:00 and 05:00 UTC (also on the unchanged tree): it builds "today's" gas
@@ -388,6 +392,120 @@ injection 43.698 to 43.740 GWh, stock 9.734 TWh; LNG send-out 508.46 to 509.55 G
 
 Output: the scratchpad's `soak/scheduler.jsonl` (loop and attempt events) and
 `soak/counts.txt`.
+
+### Data defects, second round (2026-11-14)
+
+Four open items from the soak: overlapping ENTSOG capacity, power revisions without
+history, GB demand off the scheduler, and no live outage source. Migration
+`0063_resplit_power_revisions` (expand-only, reversible; applied to this store).
+
+**ENTSOG capacity: one value per gas day.** Measured first, 12,647 rows, 3,925 series: 539
+(point, direction, type, operator, start) keys held two or three times (480 twice, 59
+three times); 168 of them with different values, 371 the same value over a different end;
+the newer read's range was longer in 308 keys and shorter in 231; 462 further overlaps
+start on different days. The provider splits ranges at its query window's edge and re-dates
+day-ahead values: UGS-00397 firm technical entry was 13 Nov - 1 Dec 64.37 GWh/d in the
+12 Nov read and 13-14 Nov 28.13 GWh/d plus 14 Nov - 1 Dec 64.37 GWh/d in the 13 Nov read;
+FNC-00010 exit had a range to 2036 re-split at each read.
+
+Decision: keep the ranges and resolve them, not one row per gas day. Ranges reach 2036, so
+a daily table would hold millions of rows or cut forward capacity off at the query
+window, and changing the observation id would break replay of every stored row. Every
+range is the provider's statement at its receipt, so keeping them keeps as-of reads exact
+with no new store. The rule (`application/capacity_resolution.py`): per point, direction,
+type and instant, the covering range received last; one operator per point as for flows.
+Ingestion adds one thing: a range re-published after a later range had re-split it takes
+the new receipt, with a `range_resplit` history record
+(`db/repositories/capacity_ranges.py`), so going back to an earlier split is not lost.
+Readers through it: the physical capacity API (`/api/physical/capacity`, both modes; each
+row's period is where its value holds) and the agent bridge (`capacity_rows`, now with
+energy as published). The map, analysis/glossary usage, research datasets and route costing
+do not read `capacity_observations` (they read REMIT messages and contract
+`capacity_profiles`). After: UGS-00397 entry reads 7-13 Nov 24 kWh/d, 13-14 Nov
+28,127,976 kWh/d, 14 Nov - 1 Dec 64,367,976 kWh/d, one value a day; the data-quality report
+shows 0 duplicate keys and reports 1,431 overlapping ranges as a fact.
+
+Existing rows: nothing to delete (each is history). `scripts/ops/capacity_range_resplits.py`
+(dry run by default) counts overlaps and replays the archived ENTSOG pages with the new
+ingestion rule. Dry run on this store: 539 repeated keys (168 with different values), 1,431
+overlapping rows, 2,362 rows no instant is read from (superseded or the other operator's
+copy); replay of 5 archived reads (107 pages): 0 receipts to move, 0 series-days changed.
+`--commit` is not needed now and was not run.
+
+**Power revisions keep history.** `observation_revisions` had check constraints naming the
+four gas tables and two reasons, so a migration was needed (0063 widens both and adds
+`power_observations.revised_at_utc`). The row keeps its first `published_at_utc` and
+`ingested_at_utc`; a revision is available from its receipt. The parser caps
+`published_at_utc` at the regulatory deadline, the same for the first and the revised
+publication of an actual, so the earlier in-place update made a revised actual readable
+from the deadline: a look-ahead, not "no value" as DATA_REVISIONS said. Research datasets
+now take power through `all_versions`; gas-for-power and the fundamentals read current
+values only (no as-of read of power). First live run (`src-entsoe` through the scheduler's
+attempt, 06:54 UTC): 4,394 records, 297 inserted, 175 revised with history, 3,922 unchanged;
+Elexon 245 unchanged. The data-quality report's `rev 7d` now shows power (ENTSO-E 175,
+Elexon 0).
+
+**GB demand on the scheduler.** Its own connector `src-national-gas-demand` (system
+`NATIONAL_GAS_DEMAND`, every 6 h, on by default): one script, one table and one freshness,
+where GIE's AGSI and ALSI share `src-gie` because they share one ingestion path. The script
+gained `--days N --json` (the N gas days ending yesterday, both ids); the strict
+`--date-from/--date-to --ids` form is unchanged. Freshness and the Sources page read the
+demand table (it has no `source_system`). Live through the scheduler's attempt (06:33 UTC):
+36 publications read, 12 inserted, 24 already stored; the report shows the dataset `ok`
+(last gas day 12 Nov, 55 h, limit 72 h).
+
+**Outages: GIE IIP collector.** Probed live (no scraping): `https://iip.gie.eu/api` returns
+the UMMs as JSON, 50 a page, newest first, 13,204 messages in 265 pages, with earlier
+versions under `prev`; the GIE AGSI/ALSI key is accepted in `x-key` (HTTP 200).
+`https://api.gie.eu/api/v3/reports/umm`, which the platform calls behind it, answers 401
+("only accessible via mTLS or bearer token"). Registration and the key are mandatory per the
+API page; the API documentation is shown only after registration. Terms on the same page:
+reuse in any way with GIE clearly credited, matching `docs/legal/DATA_SOURCE_TERMS.md`.
+IIP carries storage (SSO) and LNG (LSO) operators only; no transmission operator publishes
+there. Built: `ingestion/gie_iip.py` maps records to ACER fields for the importer's own
+normaliser; `scripts/ops/ingest_remit_iip.py --days/--commit/--json`; `src-remit-umm` made
+schedulable (every 30 min, off by default, needs the GIE key). Live backfill (`--days 90`):
+25 pages, 1,250 messages, 1,588 versions stored (467 messages). The outage list then shows
+56 live or upcoming outages within 90 days (55 storage, 1 LNG); 5 active ones carry a
+daily figure, 192.4 GWh/d together (largest Bierwang 90.7 GWh/d, Bergermeer entry
+31.2 GWh/d to 17 Nov). The map places 7 of the outages within 14 days and counts 25 as
+unlocated (no matching EIC or name in the reference network). The balance reads Norwegian
+outages only (zone `NO`): none on IIP, so the balance is unchanged. 17 of the 56 are in
+kWh/h and some in GWh, GWh/h or TWh: they keep their unit and have no daily figure.
+The platform relays an upstream rate limit as HTTP 200 with an error envelope; two of four
+scheduler attempts in the minutes after the backfill failed `iip_upstream_refused` after
+two retries, the next two succeeded (245 versions unchanged).
+
+**Data quality after** (14 Nov 07:05 UTC):
+
+```
+dataset                    status        rows series last period       age h  dup  blank short days rev 7d
+ENTSOG flows               ok           13173    806 2026-11-14T05:00    2.1    0      0    0/419      265
+ENTSOG capacity            ok           12647   3925 2026-11-14T06:00    1.1    0      0    0/612      109
+GIE storage (AGSI)         ok            7812      6 2026-11-12T05:00   50.1    0      0    0/4802      28
+GIE LNG (ALSI)             ok            7210      5 2026-11-12T05:00   50.1    0      0    0/4802       4
+GB storage (National Gas)  ok             411      1 2026-11-13T05:00   26.1    0      0    0/410        1
+GB LNG (National Gas)      ok             411      1 2026-11-13T05:00   26.1    0      0    0/410        1
+ECB FX reference           ok              12      6 2026-11-13T00:00   31.1    0      0    0/1          -
+Overnight rates            ok              99      3 2026-11-12T00:00   55.1    0      0    0/0          -
+Henry Hub (EIA)            ok              33      1 2026-11-11T00:00   79.1    0      0    0/33         -
+Power (ENTSO-E)            warning      17661     24 2026-11-14T22:45  -15.7    0      0    2/10       175
+    warning: 2 of 10 closed days hold under 90% of the usual 24 series.
+GB power (Elexon)          ok            1397      4 2026-11-14T06:30    0.6    0      0    0/7          0
+GB demand (National Gas)   ok             119     96 2026-11-12T00:00   55.1    0      0    0/0          -
+Outages (REMIT UMM)        ok            1588   1588 2026-11-14T06:13    0.9    0      0    0/0          -
+```
+
+**Found, not fixed.**
+
+- GB demand D+1 publishes partial values in the morning (gas day 12 Nov: 0 at 10:20,
+  24.93 at 11:20, 242.62 at 12:20, 239.60 at 14:20 mscm). The research target mapper takes
+  the latest revision by `available_at` (local receipt), then `record_id`; every revision
+  downloaded in one run shares one receipt, so the "latest" is decided by a hash and can
+  be the 0 or the 24.93.
+- REMIT units: kWh/h, GWh, GWh/h and TWh messages carry no daily figure, so the outage
+  totals leave them out (17 of 56 upcoming outages are kWh/h).
+- Power (ENTSO-E) short days 4 and 11 Nov: not investigated here.
 
 ### Dornum: independent opinion (2026-11-14)
 
@@ -421,6 +539,9 @@ python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2025-0
 python scripts/ops/ingest_national_gas_supply.py --days 30 --end 2025-10-28 --commit
 python scripts/ops/flow_point_alias_candidates.py --days 30 --tolerance 0.0005
 python scripts/ops/data_quality_report.py
+python scripts/ops/capacity_range_resplits.py            # dry run; --commit records moves
+python scripts/ops/ingest_national_gas_demand.py --json --days 8
+python scripts/ops/ingest_remit_iip.py --days 90 --commit --json
 python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2026-11-05 \
   --entsog-to 2026-11-13 --entsog-point-direction <landing point-directions> \
   --limit 5000 --entsog-page-size 1000

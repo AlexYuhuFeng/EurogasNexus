@@ -1,8 +1,9 @@
 # Provider revisions and open gas days
 
-ENTSOG, GIE and National Gas publish provisional figures and correct them later. This page says what the
-store does when a figure changes, where the earlier figure goes, and how a read "as of" an
-earlier time behaves. Schema: migration `0062_observation_revisions`.
+ENTSOG, GIE, National Gas, ENTSO-E and Elexon publish provisional figures and correct them later. This
+page says what the store does when a figure changes, where the earlier figure goes, and how
+a read "as of" an earlier time behaves. Schema: migrations `0062_observation_revisions` and
+`0063_resplit_power_revisions` (power history, the `range_resplit` reason).
 
 ## What a revision is
 
@@ -16,6 +17,7 @@ key) with a **different value**. Only value fields may differ:
 | `storage_observations` (GIE AGSI) | inventory, working capacity, fill, injection, withdrawal, facility name | source, dataset, facility, country, period |
 | `lng_observations` (GIE ALSI) | inventory, send-out, DTMI, terminal name | source, dataset, terminal, country, period |
 | `storage_observations`, `lng_observations` (National Gas, GB) | as GIE, plus metadata `basis` and `provisional` | as GIE |
+| `power_observations` (ENTSO-E, Elexon) | `value` | source, zone, metric, process type, period, unit |
 
 National Gas (since 2026-11-14): a nomination-based value replaced by the D+2 allocation, and
 a stock published after the first run, are revisions (`value_changed`); the record's
@@ -35,18 +37,49 @@ with the whole batch rolled back and the stored rows untouched:
 EEX and every other source keep the earlier rule: any change is refused
 (`*_revision_requires_history`).
 
-**Power is the exception, a documented limitation.** `power_observations` (ENTSO-E,
-Elexon) is written by `db/repositories/power.py`, which replaces a revised value in place and
-moves the row's `published_at_utc`/`ingested_at_utc` to the revision. No look-ahead
-follows (an as-of read before the revision sees no value for that period, not the later
-one), but the earlier value is lost. Revisions are not rare: the soak run of 14 November
-replaced 42 ENTSO-E values in one two-day read (actual generation and load are re-stated
-for days; day-ahead prices are final at publication). Power still gets no history in this
-change because the only as-of reader of power (research datasets) keys availability on
-`published_at_utc` and would need its own version reader; writing history without that
-reader would preserve values nobody can read as of a time. It is the next revision item:
-a `value_changed` record per replaced value (the generic `_append_revision` already writes
-any table; no migration is needed) plus a power version reader for research datasets.
+**Power** (since 2026-11-14, migration `0063`). `db/repositories/power.py` appends the
+replaced value to `observation_revisions` (`value_changed`, `changed_fields: ["value"]`) and
+the row keeps its first `published_at_utc` and `ingested_at_utc`; `revised_at_utc` is the
+receipt of the current value. A migration was needed after all: `observation_revisions`
+had check constraints naming the four gas tables and the two reasons. Power's first version
+is available from `published_at_utc` (the provider's publication, capped at the regulatory
+deadline); a revision from its receipt by this store. The parser caps the publication time
+at the deadline, so the first and the revised publication of an actual carry the same time
+and cannot order versions; before this change the in-place update therefore made a revised
+actual readable from the deadline, a look-ahead. Refused, nothing of the batch kept: a stored
+id with another zone, metric, process type, period, unit or source
+(`power_revision_identity_conflict`). Values replaced before 14 November have no history
+(the soak run of 14 November replaced 44 ENTSO-E values in two runs). First live run with
+history (14 Nov 06:54 UTC, `src-entsoe`, two days): 175 revised values recorded.
+
+## ENTSOG capacity ranges re-split between reads
+
+ENTSOG publishes capacity over validity ranges and re-splits them between reads (12 Nov
+read: UGS-00397 firm technical entry 13 Nov - 1 Dec 64.37 GWh/d; 13 Nov read: 13-14 Nov
+28.13 GWh/d and 14 Nov - 1 Dec 64.37 GWh/d). The provider's record id contains the period
+end, so each range is its own observation and all are kept: each was the provider's
+statement when received, and an as-of read needs it. On 14 Nov 2026 the store held 539
+(point, direction, type, operator, start) keys two or three times, 168 with different
+values; 1,431 of 12,647 rows overlap another range of their series.
+
+Readers resolve the overlap (`application/capacity_resolution.py`,
+`CAPACITY_RESOLUTION_RULE`): per point, direction, capacity type and instant, the covering
+range whose value was received last (ties: later start, then shorter range), from one
+operator per point (the flow rule). As of `T`, only versions received by `T` compete
+(`resolve_capacity_as_of`). The physical capacity API and the agent bridge read through it;
+each returned row's period is the part of its published range where it holds.
+
+That order needs one thing from ingestion: an unchanged re-receipt keeps its first receipt,
+so if the provider goes back to a range it had re-split, the stale split would keep
+winning. When a stored range is re-published and a stored range of the same series that
+overlaps it was received later (and is not in this read), the range takes this receipt:
+its version goes to `observation_revisions` with reason `range_resplit` (no field changed)
+and `revised_at_utc` moves (`db/repositories/capacity_ranges.py`). The ENTSOG capacity ingest
+report counts these as `resplit` (inside `updated`). `scripts/ops/capacity_range_resplits.py`
+counts overlaps and replays the archived raw pages with this rule (dry run by default).
+
+The data-quality report keys capacity by range (start and end) and reports overlapping
+ranges as a fact (`overlapping_rows`), not as duplicates.
 
 ## Where it is recorded
 
@@ -55,9 +88,11 @@ In one transaction:
 1. the version being replaced is appended to `observation_revisions`: every column of the
    old row (`prior_row_json`), the changed field names, when it was received
    (`prior_received_at_utc`), when it was superseded (`superseded_at_utc`), the receipt
-   references of both versions, and the reason (`value_changed` or `period_closed`);
+   references of both versions, and the reason (`value_changed`, `period_closed` or
+   `range_resplit`);
 2. the observation row takes the provider's latest value and lineage. `observed_at_utc`
-   keeps the **first** receipt; `revised_at_utc` is the receipt of the current value.
+   keeps the **first** receipt (power: `published_at_utc`/`ingested_at_utc`);
+   `revised_at_utc` is the receipt of the current value.
 
 `observation_revisions` is append-only: no code updates or deletes it, and a schema
 downgrade refuses to drop it while it holds rows.
@@ -65,7 +100,7 @@ downgrade refuses to drop it while it holds rows.
 The ingest report counts `inserted`, `updated` (current rows replaced, each with one
 history record), `unchanged` and `revised` (those of the updated rows whose value changed).
 `scripts/ops/data_quality_report.py` shows revised rows per dataset over the last 7 days
-(`rev 7d`; the JSON form also has `closed_snapshots`).
+(`rev 7d`, power included; the JSON form also has `closed_snapshots` and `resplit_ranges`).
 
 ## Freshness reads "last received"
 
@@ -85,9 +120,11 @@ A version was the known value from its own receipt until the next one. A read as
 - for a row whose current value was received after `T`, uses the revision record whose
   interval contains `T`.
 
-`db/repositories/observation_revisions.py` does this (`versions_as_of`, `all_versions`).
-The north-west Europe balance's history (`landed_supply`, `_daily_sum`) reads through it.
-Research datasets get one evidence record per version, each available from its own receipt;
+`db/repositories/observation_revisions.py` does this (`versions_as_of`, `all_versions`;
+for power the first receipt is `published_at_utc`). The north-west Europe balance's history
+(`landed_supply`, `_daily_sum`) reads through it, and capacity through
+`resolve_capacity_as_of`. Research datasets (power, storage, LNG, flows) get one evidence
+record per version, each available from its own receipt;
 the builder takes, per series and period, the latest version available at each origin, so a
 backtest never sees a revision before it was received.
 
@@ -106,7 +143,8 @@ for the closed day).
   and the agent bridge apply it. The agent bridge's `flow_rows(include_open_day=True)`
   returns open-day rows with `open_gas_day: true`.
 
-Capacity is published ahead of its period by nature; the open-day rule does not apply.
+Capacity is published ahead of its period by nature; the open-day rule does not apply (its
+overlapping ranges are resolved instead, see above).
 
 ## Operator checks
 

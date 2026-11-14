@@ -133,6 +133,13 @@ current row takes it and the replaced version is appended to
 than the stored one (`entsog_revision_not_newer`). Raw archives already retained
 by the caller survive a refusal. See `docs/operations/DATA_REVISIONS.md`.
 
+Capacity is published over validity ranges that ENTSOG re-splits between reads, and the
+record id holds the period end, so overlapping ranges of one series are separate rows.
+Readers resolve each instant to the latest-received covering range, one operator per
+point (`application/capacity_resolution.py`); a range re-published after a later range
+had re-split it takes the new receipt with a `range_resplit` history record (migration
+`0063_resplit_power_revisions`, `db/repositories/capacity_ranges.py`).
+
 ## Shared client window selection
 
 The capacity network panel accepts an optional From/To pair with explicit UTC

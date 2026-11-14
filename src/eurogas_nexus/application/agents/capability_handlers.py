@@ -1061,7 +1061,12 @@ def _register_capacity_capabilities(registry) -> None:
                     "Runtime PostgreSQL is not configured",
                 )
             rows = capacity_rows(session, point_id=arguments.get("point_id"))
-        return _result(definition, {"rows": rows, "count": len(rows)})
+        from eurogas_nexus.application.capacity_resolution import CAPACITY_RESOLUTION_RULE
+
+        return _result(
+            definition,
+            {"rows": rows, "count": len(rows), "capacity_rule": CAPACITY_RESOLUTION_RULE},
+        )
 
     def check_route_feasibility(arguments, _context):
         definition = registry.get("capacity.check_route_feasibility")

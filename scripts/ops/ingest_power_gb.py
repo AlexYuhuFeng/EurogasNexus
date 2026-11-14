@@ -54,7 +54,8 @@ def main(argv: list[str] | None = None) -> int:
         counts[item.metric] = counts.get(item.metric, 0) + 1
     for metric, count in sorted(counts.items()):
         say(f"GB     {metric:24} {count:6d}")
-    stored = {"inserted": 0, "updated": 0, "unchanged": 0}
+    # "revised": values a later publication changed, each prior value kept in history.
+    stored = {"inserted": 0, "updated": 0, "unchanged": 0, "revised": 0}
     if args.commit:
         from eurogas_nexus.db.repositories.power import upsert_power_observations
         from eurogas_nexus.db.session import get_session_factory

@@ -1384,6 +1384,44 @@
    "workflow_ready": false
   },
   {
+   "category": "infrastructure",
+   "category_label": "Infrastructure",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "gb-nts-demand"
+   ],
+   "description": "National Gas data portal: Great Britain NTS actual demand per gas day, D+1 initial (PUBOB637) and D+6 amended (PUBOB652), each publication kept as a revision. Free, no key; open data with attribution to National Gas Transmission.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "NATIONAL_GAS_DEMAND",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-national-gas-demand",
+   "source_system": "NATIONAL_GAS_DEMAND",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
    "category": "rates",
    "category_label": "Interest rates",
    "certification_allows_live": false,
@@ -1512,15 +1550,15 @@
    "datasets": [
     "gas-umm-outages"
    ],
-   "description": "REMIT urgent market messages: planned and unplanned outages of gas production, storage, LNG and transmission, imported from the desk's inside-information platform export (scripts/ops/import_remit_umm.py).",
+   "description": "REMIT urgent market messages: planned and unplanned outages of gas storage and LNG collected from GIE's Inside Information Platform API (scripts/ops/ingest_remit_iip.py), plus production and transmission messages imported from the desk's inside-information platform export (scripts/ops/import_remit_umm.py).",
    "diagnostics": [],
    "effective_last_success_at_utc": null,
    "effective_record_count": 0,
    "effective_source_system": "REMIT",
    "entitlement_scope": "public",
    "export_restrictions": [],
-   "freshness_expectation_minutes": 60,
-   "integration": "file_import",
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -3504,6 +3542,63 @@
   },
   {
    "access_mode": "public_http",
+   "adapter_version": "national-gas-demand-csv-v1",
+   "calendar": "gas_market",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "gb-nts-demand",
+   "datasets": [
+    "gb-nts-demand"
+   ],
+   "description": "National Gas data portal: Great Britain NTS actual demand per gas day, D+1 initial (PUBOB637) and D+6 amended (PUBOB652), each publication kept as a revision. Free, no key; open data with attribution to National Gas Transmission.",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2160,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "NATIONAL_GAS_DEMAND",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 6,
+    "min_spacing_seconds": 30.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 120.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": 21600,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "INTERVAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-national-gas-demand"
+  },
+  {
+   "access_mode": "public_http",
    "adapter_version": "interest-rate-ingest/1",
    "calendar": "weekdays_only",
    "certification_required": false,
@@ -3674,9 +3769,9 @@
    "source_id": "src-nyfed"
   },
   {
-   "access_mode": "file_upload",
-   "adapter_version": "remit-umm-acer-fields-v1",
-   "calendar": "always_open",
+   "access_mode": "keyed_http",
+   "adapter_version": "remit-gie-iip-api-v1",
+   "calendar": "gas_market",
    "certification_required": false,
    "circuit_policy": {
     "degraded_after_failures": 3,
@@ -3688,14 +3783,14 @@
    "datasets": [
     "gas-umm-outages"
    ],
-   "description": "REMIT urgent market messages: planned and unplanned outages of gas production, storage, LNG and transmission, imported from the desk's inside-information platform export (scripts/ops/import_remit_umm.py).",
+   "description": "REMIT urgent market messages: planned and unplanned outages of gas storage and LNG collected from GIE's Inside Information Platform API (scripts/ops/ingest_remit_iip.py), plus production and transmission messages imported from the desk's inside-information platform export (scripts/ops/import_remit_umm.py).",
    "enabled_default": false,
    "entitlement_scope": "public",
    "freshness_policy": {
     "basis": "observed_at_utc",
     "late_after_minutes": 2880,
-    "normal_max_age_minutes": 60,
-    "stale_after_minutes": 4320
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 10080
    },
    "licensed_data": {
     "api_exposure_allowed": false,
@@ -3707,24 +3802,24 @@
    },
    "provider": "REMIT",
    "rate_limit_policy": {
-    "interval_seconds": 60.0,
+    "interval_seconds": 3600.0,
     "max_concurrency": 1,
-    "max_requests_per_interval": null,
-    "min_spacing_seconds": 0.0
+    "max_requests_per_interval": 6,
+    "min_spacing_seconds": 30.0
    },
    "retry_policy": {
-    "backoff_seconds": 30.0,
+    "backoff_seconds": 120.0,
     "jitter": true,
-    "max_delay_seconds": 900.0,
+    "max_delay_seconds": 1800.0,
     "retry_max": 3
    },
-   "schedulable": false,
+   "schedulable": true,
    "schedule": {
     "daily_at": null,
-    "interval_seconds": null,
+    "interval_seconds": 1800,
     "market_relative_offset_seconds": null,
     "missed_policy": "CATCH_UP_LIMITED",
-    "schedule_type": "EXTERNAL",
+    "schedule_type": "INTERVAL",
     "timezone": "UTC"
    },
    "source_class": "public",

@@ -1,0 +1,478 @@
+{
+ "data": [
+  {
+   "asset": {
+    "code": "21W0000000000087",
+    "name": "UGS Bergermeer"
+   },
+   "assetString": "UGS Bergermeer 21W0000000000087",
+   "available": {
+    "capacity": "384.000000000",
+    "unit": "GWh/d"
+   },
+   "availableString": "384.000000000 GWh/d",
+   "balancingZone": [
+    {
+     "code": "21YNL----TTF---1",
+     "name": "[21YNL----TTF---1] Balancing zone"
+    }
+   ],
+   "balancingZoneString": "21YNL----TTF---1 [21YNL----TTF---1] Balancing zone",
+   "direction": "Exit",
+   "duration": "1 week",
+   "from": "2026-12-07 05:00:00",
+   "marketParticipant": [
+    {
+     "code": "21X000000001120V",
+     "name": "TAQA Gas Storage B.V."
+    }
+   ],
+   "marketParticipantString": "21X000000001120V TAQA Gas Storage B.V.",
+   "message": {
+    "messageId": "25041521X000000001120V182_035",
+    "messageType": "Other unavailability",
+    "reportType": "unavailabilityOfGasFacilitiesReport",
+    "unavailabilityType": "Planned"
+   },
+   "messageString": "25041521X000000001120V182_035 Other unavailability Gas Planned",
+   "prev": [
+    {
+     "asset": {
+      "code": "21W0000000000087",
+      "name": "UGS Bergermeer"
+     },
+     "assetString": "UGS Bergermeer 21W0000000000087",
+     "available": {
+      "capacity": "384.000000000",
+      "unit": "GWh/d"
+     },
+     "availableString": "384.000000000 GWh/d",
+     "balancingZone": [
+      {
+       "code": "21YNL----TTF---1",
+       "name": "[21YNL----TTF---1] Balancing zone"
+      }
+     ],
+     "balancingZoneString": "21YNL----TTF---1 [21YNL----TTF---1] Balancing zone",
+     "direction": "Exit",
+     "duration": "1 week",
+     "from": "2026-12-07 05:00:00",
+     "marketParticipant": [
+      {
+       "code": "21X000000001120V",
+       "name": "TAQA Gas Storage B.V."
+      }
+     ],
+     "marketParticipantString": "21X000000001120V TAQA Gas Storage B.V.",
+     "message": {
+      "messageId": "25041521X000000001120V182_034",
+      "messageType": "Other unavailability",
+      "reportType": "unavailabilityOfGasFacilitiesReport",
+      "unavailabilityType": "Planned"
+     },
+     "messageString": "25041521X000000001120V182_034 Other unavailability Gas Planned",
+     "published": "2026-11-11 06:11:13",
+     "remarks": "Other unavailability",
+     "reportingEntity": {
+      "code": "21X000000001120V",
+      "name": "TAQA Gas Storage B.V.",
+      "type": "SSO"
+     },
+     "reportingEntityString": "TAQA Gas Storage B.V. 21X000000001120V SSO",
+     "status": "Active",
+     "submitted": "2026-11-11 06:06:14",
+     "technical": {
+      "capacity": "384.000000000",
+      "unit": "GWh/d"
+     },
+     "technicalString": "384.000000000 GWh/d",
+     "to": "2026-12-17 05:00:00",
+     "unavailabilityReason": "Other unavailability",
+     "unavailable": {
+      "capacity": "0.000000000",
+      "unit": "GWh/d"
+     },
+     "unavailableString": "0.000000000 GWh/d"
+    },
+    {
+     "asset": {
+      "code": "21W0000000000087",
+      "name": "UGS Bergermeer"
+     },
+     "assetString": "UGS Bergermeer 21W0000000000087",
+     "available": {
+      "capacity": "386.400000000",
+      "unit": "GWh/d"
+     },
+     "availableString": "386.400000000 GWh/d",
+     "balancingZone": [
+      {
+       "code": "21YNL----TTF---1",
+       "name": "[21YNL----TTF---1] Balancing zone"
+      }
+     ],
+     "balancingZoneString": "21YNL----TTF---1 [21YNL----TTF---1] Balancing zone",
+     "direction": "Exit",
+     "duration": "1 week",
+     "from": "2026-12-07 05:00:00",
+     "marketParticipant": [
+      {
+       "code": "21X000000001120V",
+       "name": "TAQA Gas Storage B.V."
+      }
+     ],
+     "marketParticipantString": "21X000000001120V TAQA Gas Storage B.V.",
+     "message": {
+      "messageId": "25041521X000000001120V182_033",
+      "messageType": "Other unavailability",
+      "reportType": "unavailabilityOfGasFacilitiesReport",
+      "unavailabilityType": "Planned"
+     },
+     "messageString": "25041521X000000001120V182_033 Other unavailability Gas Planned",
+     "published": "2026-11-07 05:15:17",
+     "remarks": "Other unavailability",
+     "reportingEntity": {
+      "code": "21X000000001120V",
+      "name": "TAQA Gas Storage B.V.",
+      "type": "SSO"
+     },
+     "reportingEntityString": "TAQA Gas Storage B.V. 21X000000001120V SSO",
+     "status": "Active",
+     "submitted": "2026-11-07 05:05:00",
+     "technical": {
+      "capacity": "386.400000000",
+      "unit": "GWh/d"
+     },
+     "technicalString": "386.400000000 GWh/d",
+     "to": "2026-12-15 05:00:00",
+     "unavailabilityReason": "Other unavailability",
+     "unavailable": {
+      "capacity": "0.000000000",
+      "unit": "GWh/d"
+     },
+     "unavailableString": "0.000000000 GWh/d"
+    }
+   ],
+   "published": "2026-11-14 06:13:20",
+   "remarks": "Other unavailability",
+   "reportingEntity": {
+    "code": "21X000000001120V",
+    "name": "TAQA Gas Storage B.V.",
+    "type": "SSO"
+   },
+   "reportingEntityString": "TAQA Gas Storage B.V. 21X000000001120V SSO",
+   "status": "Active",
+   "submitted": "2026-11-14 06:08:29",
+   "technical": {
+    "capacity": "384.000000000",
+    "unit": "GWh/d"
+   },
+   "technicalString": "384.000000000 GWh/d",
+   "to": "2026-12-15 05:00:00",
+   "unavailabilityReason": "Other unavailability",
+   "unavailable": {
+    "capacity": "0.000000000",
+    "unit": "GWh/d"
+   },
+   "unavailableString": "0.000000000 GWh/d"
+  },
+  {
+   "asset": {
+    "code": "21X000000001360B",
+    "name": "Terminale GNL Adriatico S.r.l."
+   },
+   "assetString": "Terminale GNL Adriatico S.r.l. 21X000000001360B",
+   "available": {
+    "capacity": "226.286852000",
+    "unit": "GWh/d"
+   },
+   "availableString": "226.286852000 GWh/d",
+   "balancingZone": [
+    {
+     "code": "21Y---A001A010-A",
+     "name": "[21Y---A001A010-A] Balancing zone"
+    }
+   ],
+   "balancingZoneString": "21Y---A001A010-A [21Y---A001A010-A] Balancing zone",
+   "direction": "Entry",
+   "duration": "2 days",
+   "from": "2027-09-29 04:00:00",
+   "marketParticipant": [
+    {
+     "code": "A00222748.IT",
+     "name": "Terminale GNL Adriatico S.r.l."
+    }
+   ],
+   "marketParticipantString": "A00222748.IT Terminale GNL Adriatico S.r.l.",
+   "message": {
+    "messageId": "26111321X000000001360B007_001",
+    "messageType": "Regasification plant unavailability",
+    "reportType": "unavailabilityOfGasFacilitiesReport",
+    "unavailabilityType": "Planned"
+   },
+   "messageString": "26111321X000000001360B007_001 Regasification plant unavailability Gas Planned",
+   "prev": [],
+   "published": "2026-11-13 14:39:54",
+   "remarks": "",
+   "reportingEntity": {
+    "code": "21X000000001360B",
+    "name": "Terminale GNL Adriatico S.r.l.",
+    "type": "LSO"
+   },
+   "reportingEntityString": "Terminale GNL Adriatico S.r.l. 21X000000001360B LSO",
+   "status": "Active",
+   "submitted": "2026-11-13 14:39:54",
+   "technical": {
+    "capacity": "293.449616000",
+    "unit": "GWh/d"
+   },
+   "technicalString": "293.449616000 GWh/d",
+   "to": "2027-10-01 04:00:00",
+   "unavailabilityReason": "Planned maintenance",
+   "unavailable": {
+    "capacity": "67.162764000",
+    "unit": "GWh/d"
+   },
+   "unavailableString": "67.162764000 GWh/d"
+  },
+  {
+   "asset": {
+    "code": null,
+    "name": null
+   },
+   "assetString": "",
+   "available": {
+    "capacity": null,
+    "unit": null
+   },
+   "availableString": "",
+   "balancingZone": [],
+   "balancingZoneString": "",
+   "direction": null,
+   "duration": "1 month",
+   "from": "2026-12-02 22:00:00",
+   "marketParticipant": [
+    {
+     "code": "66X000000000027Z",
+     "name": "Floating LNG Terminal Finland Oy"
+    }
+   ],
+   "marketParticipantString": "66X000000000027Z Floating LNG Terminal Finland Oy",
+   "message": {
+    "messageId": "26111366X000000000027Z003_001",
+    "messageType": null,
+    "reportType": "otherMarketInformationReport",
+    "unavailabilityType": null
+   },
+   "messageString": "26111366X000000000027Z003_001  Gas",
+   "prev": [],
+   "published": "2026-11-13 12:28:41",
+   "remarks": "Floating LNG Terminal Finland Oy (\u201cFLTF\u201d), a 100 % subsidiary of Gasgrid Finland Oy, as the terminal operator for the FSRU (Floating Storage and Regasification Unit) vessel Exemplar, which is moored in the port of Inkoo in December 2022, clarifies following regarding Q1/2027 Slot bookings;\r\n-As per terminal rules capacity allocation requests of Spot Slots / Late Spot Slots is possible when done at least 30 calendar days before the start of the requested Scheduled Slots as per Annual Service Schedule. For January 1 (2027) slot this means that the slot is bookable as a Spot Slot up until 2.12.2026. If January 1 slot is not booked as a Spot Slot, Adjusted Late Spot Slots or Extension Service can be booked into this scheduled slot from 3.12.2026 onwards. \r\n",
+   "reportingEntity": {
+    "code": "66X000000000027Z",
+    "name": "Floating LNG Terminal Finland Oy",
+    "type": "LSO"
+   },
+   "reportingEntityString": "Floating LNG Terminal Finland Oy 66X000000000027Z LSO",
+   "status": "Active",
+   "submitted": "2026-11-13 12:28:41",
+   "technical": {
+    "capacity": null,
+    "unit": null
+   },
+   "technicalString": "",
+   "to": "2027-01-18 22:00:00",
+   "unavailabilityReason": null,
+   "unavailable": {
+    "capacity": null,
+    "unit": null
+   },
+   "unavailableString": ""
+  },
+  {
+   "asset": {
+    "code": "21X000000001360B",
+    "name": "Terminale GNL Adriatico S.r.l."
+   },
+   "assetString": "Terminale GNL Adriatico S.r.l. 21X000000001360B",
+   "available": {
+    "capacity": "134.325528000",
+    "unit": "GWh/d"
+   },
+   "availableString": "134.325528000 GWh/d",
+   "balancingZone": [
+    {
+     "code": "21Y---A001A010-A",
+     "name": "[21Y---A001A010-A] Balancing zone"
+    }
+   ],
+   "balancingZoneString": "21Y---A001A010-A [21Y---A001A010-A] Balancing zone",
+   "direction": "Entry",
+   "duration": "19 hours",
+   "from": "2026-10-30 09:00:00",
+   "marketParticipant": [
+    {
+     "code": "A00222748.IT",
+     "name": "Terminale GNL Adriatico S.r.l."
+    }
+   ],
+   "marketParticipantString": "A00222748.IT Terminale GNL Adriatico S.r.l.",
+   "message": {
+    "messageId": "26103021X000000001360B002_002",
+    "messageType": "Regasification plant unavailability",
+    "reportType": "unavailabilityOfGasFacilitiesReport",
+    "unavailabilityType": "Unplanned"
+   },
+   "messageString": "26103021X000000001360B002_002 Regasification plant unavailability Gas Unplanned",
+   "prev": [
+    {
+     "asset": {
+      "code": "21X000000001360B",
+      "name": "Terminale GNL Adriatico S.r.l."
+     },
+     "assetString": "Terminale GNL Adriatico S.r.l. 21X000000001360B",
+     "available": {
+      "capacity": "134.325528000",
+      "unit": "GWh/d"
+     },
+     "availableString": "134.325528000 GWh/d",
+     "balancingZone": [
+      {
+       "code": "21Y---A001A010-A",
+       "name": "[21Y---A001A010-A] Balancing zone"
+      }
+     ],
+     "balancingZoneString": "21Y---A001A010-A [21Y---A001A010-A] Balancing zone",
+     "direction": "Entry",
+     "duration": "19 hours",
+     "from": "2026-10-30 09:00:00",
+     "marketParticipant": [
+      {
+       "code": "A00222748.IT",
+       "name": "Terminale GNL Adriatico S.r.l."
+      }
+     ],
+     "marketParticipantString": "A00222748.IT Terminale GNL Adriatico S.r.l.",
+     "message": {
+      "messageId": "26103021X000000001360B002_001",
+      "messageType": "Regasification plant unavailability",
+      "reportType": "unavailabilityOfGasFacilitiesReport",
+      "unavailabilityType": "Unplanned"
+     },
+     "messageString": "26103021X000000001360B002_001 Regasification plant unavailability Gas Unplanned",
+     "published": "2026-10-30 10:44:53",
+     "remarks": "",
+     "reportingEntity": {
+      "code": "21X000000001360B",
+      "name": "Terminale GNL Adriatico S.r.l.",
+      "type": "LSO"
+     },
+     "reportingEntityString": "Terminale GNL Adriatico S.r.l. 21X000000001360B LSO",
+     "status": "Active",
+     "submitted": "2026-10-30 10:44:53",
+     "technical": {
+      "capacity": "293.449616000",
+      "unit": "GWh/d"
+     },
+     "technicalString": "293.449616000 GWh/d",
+     "to": "2026-10-31 04:00:00",
+     "unavailabilityReason": "Bad weather",
+     "unavailable": {
+      "capacity": "159.124088000",
+      "unit": "GWh/d"
+     },
+     "unavailableString": "159.124088000 GWh/d"
+    }
+   ],
+   "published": "2026-11-06 10:53:44",
+   "remarks": "",
+   "reportingEntity": {
+    "code": "21X000000001360B",
+    "name": "Terminale GNL Adriatico S.r.l.",
+    "type": "LSO"
+   },
+   "reportingEntityString": "Terminale GNL Adriatico S.r.l. 21X000000001360B LSO",
+   "status": "Dismissed",
+   "submitted": "2026-11-06 10:53:44",
+   "technical": {
+    "capacity": "293.449616000",
+    "unit": "GWh/d"
+   },
+   "technicalString": "293.449616000 GWh/d",
+   "to": "2026-10-31 04:00:00",
+   "unavailabilityReason": "Bad weather",
+   "unavailable": {
+    "capacity": "159.124088000",
+    "unit": "GWh/d"
+   },
+   "unavailableString": "159.124088000 GWh/d"
+  },
+  {
+   "asset": {
+    "code": "21W000000000120D",
+    "name": "Etzel"
+   },
+   "assetString": "Etzel 21W000000000120D",
+   "available": {
+    "capacity": "0.000000000",
+    "unit": "kWh/h"
+   },
+   "availableString": "0.000000000 kWh/h",
+   "balancingZone": [
+    {
+     "code": "37Y005053MH0000R",
+     "name": "[37Y005053MH0000R] Balancing zone"
+    }
+   ],
+   "balancingZoneString": "37Y005053MH0000R [37Y005053MH0000R] Balancing zone",
+   "direction": "Entry",
+   "duration": "9 hours",
+   "from": "2026-11-18 07:00:00",
+   "marketParticipant": [
+    {
+     "code": "21X000000001138C",
+     "name": "VNG Gasspeicher GmbH"
+    }
+   ],
+   "marketParticipantString": "21X000000001138C VNG Gasspeicher GmbH",
+   "message": {
+    "messageId": "26111221X000000001138C011_001",
+    "messageType": "Storage unavailability",
+    "reportType": "unavailabilityOfGasFacilitiesReport",
+    "unavailabilityType": "Planned"
+   },
+   "messageString": "26111221X000000001138C011_001 Storage unavailability Gas Planned",
+   "prev": [],
+   "published": "2026-11-12 17:51:00",
+   "remarks": "",
+   "reportingEntity": {
+    "code": "21X000000001138C",
+    "name": "VNG Gasspeicher GmbH",
+    "type": "SSO"
+   },
+   "reportingEntityString": "VNG Gasspeicher GmbH 21X000000001138C SSO",
+   "status": "Active",
+   "submitted": "2026-11-12 17:22:42",
+   "technical": {
+    "capacity": "1218000.000000000",
+    "unit": "kWh/h"
+   },
+   "technicalString": "1218000.000000000 kWh/h",
+   "to": "2026-11-18 16:00:00",
+   "unavailabilityReason": "Maintenance: 100% reduction of injection rate.",
+   "unavailable": {
+    "capacity": "1218000.000000000",
+    "unit": "kWh/h"
+   },
+   "unavailableString": "1218000.000000000 kWh/h"
+  }
+ ],
+ "meta": {
+  "current_page": 1,
+  "from": 1,
+  "last_page": 265,
+  "per_page": 50,
+  "to": 50,
+  "total": 13204
+ }
+}

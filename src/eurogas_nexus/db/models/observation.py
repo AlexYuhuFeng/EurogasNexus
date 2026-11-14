@@ -311,7 +311,7 @@ class LngObservationRecord(Base):
 
 
 class ObservationRevisionRecord(Base):
-    """One superseded value of a flow, capacity, storage or LNG observation (append-only).
+    """One superseded value of a flow, capacity, storage, LNG or power observation (append-only).
 
     Providers (ENTSOG, GIE) publish provisional values and revise them. The observation
     table holds the provider's latest value; each time it is replaced, the version it
@@ -325,12 +325,12 @@ class ObservationRevisionRecord(Base):
     __tablename__ = "observation_revisions"
     __table_args__ = (
         CheckConstraint(
-            "reason IN ('value_changed', 'period_closed')",
+            "reason IN ('value_changed', 'period_closed', 'range_resplit')",
             name="ck_observation_revisions_reason",
         ),
         CheckConstraint(
             "observation_table IN ('flow_observations', 'capacity_observations', "
-            "'storage_observations', 'lng_observations')",
+            "'storage_observations', 'lng_observations', 'power_observations')",
             name="ck_observation_revisions_table",
         ),
         Index(

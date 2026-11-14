@@ -333,6 +333,8 @@ def test_scheduler_loop_does_not_label_failed_configuration_as_ok(monkeypatch):
         ("src-entsoe", "ingest_power.py", "--commit"),
         ("src-elexon", "ingest_power_gb.py", "--commit"),
         ("src-national-gas-supply", "ingest_national_gas_supply.py", "--commit"),
+        ("src-national-gas-demand", "ingest_national_gas_demand.py", "--days"),
+        ("src-remit-umm", "ingest_remit_iip.py", "--commit"),
         ("src-boe", "ingest_interest_rates.py", "SONIA"),
         ("src-ecb-estr", "ingest_interest_rates.py", "ESTR"),
         ("src-nyfed", "ingest_interest_rates.py", "SOFR"),

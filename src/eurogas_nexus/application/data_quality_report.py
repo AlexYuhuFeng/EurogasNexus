@@ -25,7 +25,13 @@ COVERAGE_FLOOR = 0.9
 REVISION_WINDOW_DAYS = 7
 #: Tables whose superseded values are kept in ``observation_revisions``.
 REVISED_TABLES = frozenset(
-    {"flow_observations", "capacity_observations", "storage_observations", "lng_observations"}
+    {
+        "flow_observations",
+        "capacity_observations",
+        "storage_observations",
+        "lng_observations",
+        "power_observations",
+    }
 )
 
 
@@ -54,6 +60,11 @@ class DatasetSpec:
     open_hours: float = 30.0
     #: False for series whose publication days differ by calendar or that log revisions.
     check_coverage: bool = True
+    #: For datasets published over validity ranges (ENTSOG capacity): the range end, part
+    #: of the natural key. Ranges that overlap another range of the same entity are counted
+    #: (``overlapping_rows``), not reported as duplicates: readers resolve them to one value
+    #: per instant (``capacity_resolution.CAPACITY_RESOLUTION_RULE``).
+    period_end: str | None = None
 
 
 #: The reporting operator, kept in the row's provider metadata.
@@ -68,7 +79,9 @@ SPECS: tuple[DatasetSpec, ...] = (
     DatasetSpec("ENTSOG capacity", "ENTSOG", "capacity_observations", "period_start_utc",
                 ("point_id", "direction", "capacity_type", OPERATOR), ("original_value",),
                 1440, 54,
-                where="source_system = 'ENTSOG'", received="observed_at_utc"),
+                where="source_system = 'ENTSOG'", received="observed_at_utc",
+                # ENTSOG re-splits validity ranges between reads; each range is a row.
+                period_end="period_end_utc"),
     DatasetSpec("GIE storage (AGSI)", "GIE", "storage_observations", "period_start_utc",
                 ("facility_id",), ("inventory_twh", "fill_pct"), 1440, 72,
                 where="source_system = 'GIE'", received="observed_at_utc"),
@@ -128,6 +141,11 @@ class DatasetQuality:
     #: dataset keeps no revision history), and open-day snapshots replaced at day close.
     revised_rows: int | None = None
     closed_snapshots: int | None = None
+    #: Capacity ranges re-published after a later range had re-split them (receipt moved).
+    resplit_ranges: int | None = None
+    #: Range datasets: rows overlapping another range of the same entity (resolved by
+    #: readers to the latest-received range; history, not duplicates).
+    overlapping_rows: int | None = None
     findings: list[dict[str, str]] = field(default_factory=list)
 
     def add(self, severity: str, message: str) -> None:
@@ -186,10 +204,13 @@ def measure(session, spec: DatasetSpec, now: datetime) -> DatasetQuality:
     result.blank_rows = int(row[4] or 0)
     result.age_hours = round((now - last).total_seconds() / 3600, 1)
 
+    key = f"{spec.period}, {spec.period_end}" if spec.period_end else spec.period
     result.duplicate_keys = int(session.execute(text(
-        f"SELECT COUNT(*) FROM (SELECT 1 {base} GROUP BY {entity}, {spec.period} "
+        f"SELECT COUNT(*) FROM (SELECT 1 {base} GROUP BY {entity}, {key} "
         "HAVING COUNT(*) > 1) AS repeated"
     )).scalar() or 0)
+    if spec.period_end:
+        _overlaps(session, spec, result)
 
     if spec.interval_minutes and spec.check_coverage:
         _coverage(session, spec, result, entity, base, now)
@@ -220,7 +241,33 @@ def measure(session, spec: DatasetSpec, now: datetime) -> DatasetQuality:
         )
     if not result.findings:
         result.add("ok", "Complete, current and unique.")
+    if result.overlapping_rows:
+        result.add(
+            "ok",
+            f"{result.overlapping_rows} validity ranges overlap another range of the same "
+            "series (the provider re-split them between reads); readers take the "
+            "latest-received range for each day.",
+        )
     return result
+
+
+def _overlaps(session, spec: DatasetSpec, result: DatasetQuality) -> None:
+    """Rows whose validity range overlaps another range of the same entity."""
+
+    def entity(alias: str) -> list[str]:
+        return [f"{alias}.{column}" for column in spec.entity]
+
+    same = " AND ".join(
+        f"COALESCE(CAST({a} AS TEXT), '') = COALESCE(CAST({b} AS TEXT), '')"
+        for a, b in zip(entity("a"), entity("b"), strict=True)
+    )
+    where = spec.where.replace("source_system", "{alias}.source_system")
+    result.overlapping_rows = int(session.execute(text(
+        f"SELECT COUNT(DISTINCT a.observation_id) FROM {spec.table} a JOIN {spec.table} b "
+        f"ON {same} AND a.observation_id <> b.observation_id "
+        f"AND a.{spec.period} < b.{spec.period_end} AND b.{spec.period} < a.{spec.period_end} "
+        f"WHERE {where.format(alias='a')} AND {where.format(alias='b')}"
+    )).scalar() or 0)
 
 
 def _coverage(session, spec, result: DatasetQuality, entity: str, base: str, now) -> None:
@@ -262,6 +309,7 @@ def _revisions(session, spec, result: DatasetQuality, now: datetime) -> None:
     ).all())
     result.revised_rows = int(counts.get("value_changed", 0))
     result.closed_snapshots = int(counts.get("period_closed", 0))
+    result.resplit_ranges = int(counts.get("range_resplit", 0))
 
 
 def _median_lateness(session, spec, base: str) -> float | None:

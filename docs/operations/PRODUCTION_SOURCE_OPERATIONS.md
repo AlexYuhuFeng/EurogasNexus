@@ -42,6 +42,8 @@ default of 20 records is a sample size, never a scheduled read.
 | `src-entsog` | `--limit 50000 --entsog-page-size 1000 --entsog-max-pages 50` | a 7-day unscoped flow read is about 6,800 records (7 pages), capacity about 12,200 (15 pages, 4 indicators); 50 x 1,000 is the transport's hard cap |
 | `src-entsog` reference | re-read at most every 24 h (`--entsog-reference-max-age-hours 24`) | 789 points and 1,283 operator directions change rarely; `operatorpointdirections` pages at 400 rows (3 KB a row; 1,000 rows exceed the 2 MB response limit) |
 | `src-gie` | `--limit 30 --gie-country nwe` | newest 30 gas days of the Europe total and the north-west Europe countries GIE publishes (revisions seen up to 4 days back); history is a separate back-fill |
+| `src-national-gas-demand` | `ingest_national_gas_demand.py --json --days 8` | GB NTS demand D+1 (PUBOB637) and D+6 (PUBOB652) for the 8 gas days ending yesterday, so each day's D+6 amendment is read; every publication is appended (`_SCRIPT_COMMANDS`) |
+| `src-remit-umm` | `ingest_remit_iip.py --commit --json --days 2` (`--max-pages 40`) | GIE IIP storage and LNG UMMs submitted in the last 2 days (about 2 pages of 50); a read that reaches the page bound fails `iip_read_bound_reached`. Needs `GIE_API_KEY`; off by default |
 
 An ENTSOG query that stops at its bound before the provider's data is exhausted fails the
 attempt as `QUALITY_REJECTED entsog_read_bound_reached` (not retried: the same bound would

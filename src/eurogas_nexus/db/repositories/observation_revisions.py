@@ -11,6 +11,11 @@ the next one:
 An as-of read at ``T`` therefore takes rows first received at or before ``T`` and, for a
 row revised after ``T``, the revision record whose interval contains ``T``. Nothing here
 writes.
+
+Power (``power_observations``) has no ``observed_at_utc``: a power row's first version is
+available from ``published_at_utc`` (the provider's publication, see
+``ingestion/entsoe_transparency``), and a revision from its own receipt (``revised_at_utc``).
+:func:`first_received_at` names that column per table, so the same readers serve power.
 """
 
 from __future__ import annotations
@@ -53,12 +58,25 @@ def last_received_column(model: Any) -> Any:
     return func.coalesce(revised, model.observed_at_utc)
 
 
+#: The column holding a row's first receipt, where it is not ``observed_at_utc``.
+_FIRST_RECEIPT_COLUMN = {"power_observations": "published_at_utc"}
+
+
+def _first_receipt_column(record: Any) -> str:
+    table = getattr(record, "__table__", None)
+    return _FIRST_RECEIPT_COLUMN.get(getattr(table, "name", ""), "observed_at_utc")
+
+
+def first_received_at(record: Any) -> datetime | None:
+    """When a row (or a historical version) was first known: its first receipt."""
+
+    return _utc(getattr(record, _first_receipt_column(record), None))
+
+
 def value_received_at(record: Any) -> datetime | None:
     """When the value a row (or a historical version) carries was received."""
 
-    return _utc(getattr(record, "revised_at_utc", None)) or _utc(
-        getattr(record, "observed_at_utc", None)
-    )
+    return _utc(getattr(record, "revised_at_utc", None)) or first_received_at(record)
 
 
 def revisions_by_observation(
@@ -85,9 +103,10 @@ def revisions_by_observation(
 def historical_version(record: Any, revision: Any) -> SimpleNamespace:
     """The version a revision record superseded, shaped like the observation row.
 
-    Timestamps come back as aware datetimes. ``observed_at_utc`` stays the row's first
-    receipt and ``revised_at_utc`` is this version's own receipt when it was itself a
-    revision, so :func:`value_received_at` works on it as on a row.
+    Timestamps come back as aware datetimes. The first-receipt column (``observed_at_utc``;
+    ``published_at_utc`` for power) stays the row's and ``revised_at_utc`` is this version's
+    own receipt when it was itself a revision, so :func:`value_received_at` works on it as
+    on a row.
     """
 
     table = record.__table__
@@ -98,9 +117,10 @@ def historical_version(record: Any, revision: Any) -> SimpleNamespace:
         if isinstance(column.type, DateTime):
             value = _utc(value)
         values[column.name] = value
-    first = _utc(getattr(record, "observed_at_utc", None))
+    first_column = _first_receipt_column(record)
+    first = first_received_at(record)
     received = _utc(revision.prior_received_at_utc)
-    values["observed_at_utc"] = first
+    values[first_column] = first
     values["revised_at_utc"] = received if received and first and received > first else None
     values["__table__"] = table
     values["superseded_at_utc"] = _utc(revision.superseded_at_utc)
@@ -118,7 +138,7 @@ def versions_as_of(session: Any, records: Sequence[Any], as_of: datetime) -> lis
     cutoff = _utc(as_of)
     if cutoff is None:
         raise ValueError("as_of must be a datetime")
-    known = [row for row in records if (_utc(row.observed_at_utc) or cutoff) <= cutoff]
+    known = [row for row in records if (first_received_at(row) or cutoff) <= cutoff]
     late = [row for row in known if (value_received_at(row) or cutoff) > cutoff]
     if not late:
         return known

@@ -431,25 +431,36 @@ def _load_capacity_observations(
     to_utc: datetime | None = None,
     request: Request | None = None,
 ) -> tuple[list[dict], list[str]] | None:
+    """Capacity resolved to one value per point, direction, type and instant.
+
+    ENTSOG re-splits its validity ranges between reads, so stored ranges overlap; every row
+    returned is the latest-received range over the part of its published period where it
+    holds, from one operator per point (``capacity_resolution.CAPACITY_RESOLUTION_RULE``).
+    ``period_start_utc``/``period_end_utc`` are that part. A window selects the results
+    that overlap it; they are not cut to it.
+    """
+
     if not _db_is_configured():
         return None
 
     sqlalchemy_error = _sqlalchemy_error_type()
+    from eurogas_nexus.application.capacity_resolution import (
+        overlap_extent,
+        resolve_capacity,
+    )
+
     try:
         from sqlalchemy import func, or_
 
         from eurogas_nexus.db.models import CapacityObservationRecord
         from eurogas_nexus.db.session import get_session_factory
 
-        with get_session_factory()() as session:
+        def load(session, low, high):
             query = session.query(CapacityObservationRecord)
             if point_id:
                 query = query.filter(CapacityObservationRecord.point_id == point_id)
             query = _apply_native_window(
-                query,
-                CapacityObservationRecord,
-                from_utc=from_utc,
-                to_utc=to_utc,
+                query, CapacityObservationRecord, from_utc=low, to_utc=high
             )
             if quantity_basis == "native":
                 query = query.filter(
@@ -459,28 +470,56 @@ def _load_capacity_observations(
                         CapacityObservationRecord.native_rate_json.is_not(None),
                     ),
                 )
-                query = query.order_by(
-                    CapacityObservationRecord.observed_at_utc.desc(),
-                    CapacityObservationRecord.observation_id.asc(),
-                )
-                raw_rows = query.limit(limit + 1).all()
-            else:
-                query = query.order_by(
-                    CapacityObservationRecord.point_name.asc(),
-                    CapacityObservationRecord.direction.asc(),
-                    CapacityObservationRecord.capacity_type.asc(),
-                    CapacityObservationRecord.observed_at_utc.desc(),
-                    CapacityObservationRecord.observation_id.asc(),
-                )
-                raw_rows = query.all()
+            return query.all()
+
+        with get_session_factory()() as session:
+            raw_rows = load(session, from_utc, to_utc)
+            extent = overlap_extent(raw_rows) if from_utc is not None else None
+            if extent is not None and (extent[0] < from_utc or extent[1] > to_utc):
+                # Ranges that reach outside the window are resolved against every range
+                # they overlap, so a later range outside the window still bounds them.
+                raw_rows = load(session, *extent)
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
-    return _project_rows(
-        _filter_raw_rows(raw_rows, request=request),
-        quantity_basis=quantity_basis,
-        volume_field="capacity_mcm_d",
+    visible = _filter_raw_rows(raw_rows, request=request)
+    resolved = resolve_capacity(visible, from_utc=from_utc, to_utc=to_utc)
+    if quantity_basis == "native":
+        resolved.sort(
+            key=lambda item: (
+                -(_received_ts(item)),
+                str(item.observation_id),
+                item.start,
+            )
+        )
+        resolved = resolved[: limit + 1]
+    else:
+        resolved.sort(
+            key=lambda item: (
+                str(item.point_name or ""),
+                str(item.direction or ""),
+                str(item.capacity_type or ""),
+                -(_received_ts(item)),
+                str(item.observation_id),
+                item.start,
+            )
+        )
+    rows, warnings = _project_rows(
+        resolved, quantity_basis=quantity_basis, volume_field="capacity_mcm_d"
     )
+    if quantity_basis != "native":
+        # Withheld-row warnings describe everything stored, not only the resolved values.
+        _all_rows, warnings = _project_rows(
+            visible, quantity_basis=quantity_basis, volume_field="capacity_mcm_d"
+        )
+    return rows, warnings
+
+
+def _received_ts(item) -> float:
+    from eurogas_nexus.db.repositories.observation_revisions import value_received_at
+
+    moment = value_received_at(item)
+    return moment.timestamp() if moment is not None else 0.0
 
 
 def _project_rows(

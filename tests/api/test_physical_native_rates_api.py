@@ -142,7 +142,12 @@ def _capacity_observation(**overrides) -> CapacityObservationRecord:
 def _window_native_records(
     *, capacity: bool
 ) -> list[FlowObservationRecord | CapacityObservationRecord]:
-    """Rows around a [2026-06-01, 2026-06-02) request window."""
+    """Rows around a [2026-06-01, 2026-06-02) request window.
+
+    Each row is its own point: overlapping ranges of one capacity series are resolved to the
+    latest-received one (``capacity_resolution``), which is tested separately; here only the
+    window's overlap boundaries are under test.
+    """
 
     native = _native_payload("100.5", volume=True)
     canonical_volume = float(native["volume_mcm_per_day"])
@@ -192,7 +197,7 @@ def _window_native_records(
         metadata["source_receipt_at_utc"] = start.isoformat()
         values = {
             "observation_id": f"{prefix}-{suffix}",
-            "point_id": "window-point",
+            "point_id": f"window-point-{suffix}",
             "point_name": "Window Point",
             "period_start_utc": start,
             "period_end_utc": end,
@@ -407,6 +412,57 @@ def test_native_volume_is_exact_in_both_modes_and_filter_is_invoked(
     assert row["payload_sha256"] == _PAYLOAD_SHA256
     assert row["received_at_utc"] == "2026-06-01T12:00:00+00:00"
     assert filter_calls == [1, 1]
+
+
+def test_capacity_re_split_ranges_read_as_one_value_per_instant(tmp_path, monkeypatch) -> None:
+    """ENTSOG re-splits a validity range between reads; the later range covers its days."""
+
+    engine = _database(monkeypatch, tmp_path, "capacity-resplit")
+    native = _native_payload("100.5", volume=True)
+    canonical_volume = float(native["volume_mcm_per_day"])
+    first_read = datetime(2026, 11, 12, 11, 56, tzinfo=UTC)
+    second_read = datetime(2026, 11, 13, 15, 45, tzinfo=UTC)
+    ranges = (
+        # (id, start day, end day, receipt): the 12 Nov read's long range, the 13 Nov split.
+        ("cap-long", 13, 30, first_read),
+        ("cap-day", 13, 14, second_read),
+    )
+    with Session(engine) as session:
+        for observation_id, first_day, last_day, receipt in ranges:
+            start = datetime(2026, 11, first_day, 5, tzinfo=UTC)
+            end = datetime(2026, 11, last_day, 5, tzinfo=UTC)
+            metadata = _metadata(f"archive-{observation_id}")
+            metadata["normalized_period_start_utc"] = start.isoformat()
+            metadata["normalized_period_end_utc"] = end.isoformat()
+            metadata["source_receipt_at_utc"] = receipt.isoformat()
+            session.add(
+                _capacity_observation(
+                    observation_id=observation_id,
+                    period_start_utc=start,
+                    period_end_utc=end,
+                    observed_at_utc=receipt,
+                    capacity_mcm_d=canonical_volume,
+                    normalizer_version=native["normalizer_version"],
+                    native_rate_json=native,
+                    metadata_json=metadata,
+                )
+            )
+        session.commit()
+
+    response = TestClient(create_app()).get(
+        "/api/physical/capacity?quantity_basis=native"
+        "&from_utc=2026-11-13T05:00:00Z&to_utc=2026-11-15T05:00:00Z"
+    )
+    assert response.status_code == 200
+    periods = {
+        row["observation_id"]: (row["period_start_utc"], row["period_end_utc"])
+        for row in response.json()["data"]
+    }
+    assert periods == {
+        "cap-day": ("2026-11-13T05:00:00+00:00", "2026-11-14T05:00:00+00:00"),
+        # The long range holds only after the later read's day; it is not cut to the window.
+        "cap-long": ("2026-11-14T05:00:00+00:00", "2026-11-30T05:00:00+00:00"),
+    }
 
 
 def test_capacity_native_volume_and_legacy_withheld(tmp_path, monkeypatch) -> None:

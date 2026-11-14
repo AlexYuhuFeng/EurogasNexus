@@ -644,6 +644,14 @@ def _observation_counts_by_source_system(session: Any) -> dict[str, int]:
     for system, rows in session.execute(union_all(*parts)):
         if system is not None:
             counts[str(system)] = counts.get(str(system), 0) + int(rows)
+    # GB demand (src-national-gas-demand) is a publication log without a source_system.
+    from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
+
+    demand_rows = session.execute(
+        select(func.count()).select_from(NationalGasActualDemandRecord)
+    ).scalar()
+    if demand_rows:
+        counts["NATIONAL_GAS_DEMAND"] = int(demand_rows)
     rates = InterestRateObservationRecord
     for benchmark, administrator, rows in session.execute(
         select(rates.benchmark_id, rates.source_system, func.count()).group_by(
@@ -849,12 +857,23 @@ def _runtime_source_latest_observed() -> dict[str, str] | None:
             ).group_by(ScreenOrderObservationRecord.source_system):
                 track(str(row[0]), row[1])
             # Power rows (ENTSO-E, Elexon) carry no observed_at; ingestion time is used,
-            # as the DataOps freshness read does.
+            # or the receipt of a revised value, as the DataOps freshness read does.
             for row in session.query(
                 PowerObservationRecord.source_system,
-                func.max(PowerObservationRecord.ingested_at_utc),
+                func.max(
+                    func.coalesce(
+                        PowerObservationRecord.revised_at_utc,
+                        PowerObservationRecord.ingested_at_utc,
+                    )
+                ),
             ).group_by(PowerObservationRecord.source_system):
                 track(str(row[0]), row[1])
+            from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
+
+            track(
+                "NATIONAL_GAS_DEMAND",
+                session.query(func.max(NationalGasActualDemandRecord.ingested_at_utc)).scalar(),
+            )
         return {
             system: value.isoformat()
             for system, value in latest.items()

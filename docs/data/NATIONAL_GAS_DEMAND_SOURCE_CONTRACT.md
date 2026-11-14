@@ -108,6 +108,23 @@ expose raw provider errors. It prints only counts and stable status codes. A
 successful ingestion is evidence of stored source rows, not forecast accuracy
 or production source activation.
 
+### Scheduled (since 2026-11-14)
+
+The data-ops scheduler runs the same script as source `src-national-gas-demand`
+(its own connector, system `NATIONAL_GAS_DEMAND`, keyless, on by default, every
+6 hours):
+
+```bash
+python scripts/ops/ingest_national_gas_demand.py --json --days 8
+```
+
+`--days N` reads the N gas days ending yesterday for both approved ids (`--ids`
+may narrow them); `--json` prints the scheduler's report on stdout
+(`sources.national_gas_demand`: records, inserted, unchanged = publications
+already stored). The strict form above (explicit dates and ids) is unchanged;
+the two forms cannot be mixed. Freshness is the newest `ingested_at_utc` in
+`national_gas_actual_demand` (the table has no `source_system`).
+
 ## Root verification, 2026-10-28
 
 The focused demand adapter/repository tests passed (18 tests). A separate live

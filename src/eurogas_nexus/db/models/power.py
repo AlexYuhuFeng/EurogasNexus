@@ -37,3 +37,9 @@ class PowerObservationRecord(Base):
     source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
     published_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ingested_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: When the current value was received, if it replaced an earlier one (migration 0063).
+    #: ``published_at_utc`` and ``ingested_at_utc`` stay the first version's; the replaced
+    #: values are in ``observation_revisions``. NULL: the value is the first one received.
+    revised_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

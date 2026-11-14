@@ -874,9 +874,10 @@ def _fundamental_evidence(
     (``pipeline_supply.CLOSED_DAY_RULE``). Availability is the receipt of the value
     (power: the publication deadline), so it is approximate rather than certified.
 
-    **Revisions.** A storage, LNG or flow value a provider revised yields one record per
-    version (``observation_revisions``), each available from its own receipt, so a dataset
-    built for an earlier origin takes the value known then, never the later revision.
+    **Revisions.** A power, storage, LNG or flow value a provider revised yields one record
+    per version (``observation_revisions``), each available from its own receipt (a power
+    row's first version from its publication), so a dataset built for an earlier origin
+    takes the value known then, never the later revision.
 
     **Provenance per row.** A table holds more than one source (power: ENTSO-E and Elexon;
     storage and LNG: GIE and National Gas), so each row's source definition, export policy
@@ -951,7 +952,9 @@ def _fundamental_evidence(
             .filter(PowerObservationRecord.period_start_utc < end)
             .all()
         )
-        for row in rows:
+        # One record per version: the first available from its publication, a revision from
+        # its receipt (``value_received_at``), so an earlier origin never sees a revision.
+        for row in all_versions(session, rows):
             definition = definition_of(row)
             if definition is None:
                 continue
@@ -959,7 +962,7 @@ def _fundamental_evidence(
                 f"power.{row.metric}.{row.zone}",
                 f"ent:bidding_zone:{row.zone}",
                 row.period_start_utc,
-                row.published_at_utc,
+                value_received_at(row),
                 row.ingested_at_utc,
                 row.value,
                 row.unit,

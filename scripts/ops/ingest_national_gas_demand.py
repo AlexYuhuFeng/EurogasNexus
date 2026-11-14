@@ -4,6 +4,14 @@ The CLI performs actual network and database work only when an operator invokes
 it explicitly.  It obtains the database URL from ``--database-url`` or the
 existing ``resolve_database_url`` precedence and never creates schema, grants
 access, activates a source, or prints provider response bodies.
+
+Two ways to name the window:
+
+- strict: ``--date-from``/``--date-to`` and ``--ids`` (an explicit operator capture);
+- rolling: ``--days N`` reads the N gas days ending yesterday for both approved ids
+  (``--ids`` may narrow them). The data-ops scheduler runs
+  ``--json --days 8`` (``src-national-gas-demand``): with ``--json`` stdout carries only
+  the scheduler's report.
 """
 
 from __future__ import annotations
@@ -11,7 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 
@@ -44,16 +52,44 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Explicit SQLAlchemy URL; otherwise use the existing DB URL precedence.",
     )
-    parser.add_argument("--date-from", required=True, type=date.fromisoformat)
-    parser.add_argument("--date-to", required=True, type=date.fromisoformat)
+    parser.add_argument("--date-from", default=None, type=date.fromisoformat)
+    parser.add_argument("--date-to", default=None, type=date.fromisoformat)
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        help="Rolling window: the N gas days ending yesterday (instead of explicit dates).",
+    )
     parser.add_argument(
         "--ids",
-        required=True,
+        default=None,
         nargs="+",
         choices=sorted(ALLOWED_PROVIDER_ITEM_IDS),
-        help="One or both approved public item ids.",
+        help="One or both approved public item ids (required with explicit dates).",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the data-ops scheduler's JSON report (ok, sources) on stdout.",
     )
     return parser
+
+
+def _window(args, parser: argparse.ArgumentParser) -> tuple[date, date, list[str]]:
+    """The gas days and ids to read: explicit (strict) or a rolling ``--days`` window."""
+
+    explicit = args.date_from is not None or args.date_to is not None
+    if args.days is not None:
+        if explicit:
+            parser.error("use --days or --date-from/--date-to, not both")
+        if args.days < 1:
+            parser.error("--days must be at least 1")
+        last = datetime.now(UTC).date() - timedelta(days=1)
+        ids = list(args.ids or sorted(ALLOWED_PROVIDER_ITEM_IDS))
+        return last - timedelta(days=args.days - 1), last, ids
+    if args.date_from is None or args.date_to is None or not args.ids:
+        parser.error("--date-from, --date-to and --ids are required without --days")
+    return args.date_from, args.date_to, list(args.ids)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -61,22 +97,25 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(argv)
-    publication_ids = list(dict.fromkeys(args.ids))
+    date_from, date_to, ids = _window(args, parser)
+    publication_ids = list(dict.fromkeys(ids))
     if len(publication_ids) > 2:
         parser.error("at most two approved publication ids are allowed")
 
     try:
-        validate_query_window(args.date_from, args.date_to)
+        validate_query_window(date_from, date_to)
     except NationalGasDemandError as exc:
         parser.error(exc.code)
 
+    def fail(code: str) -> int:
+        print(json.dumps({"status": "error", "code": code}), file=sys.stderr)
+        if args.json:
+            print(json.dumps({"ok": False, "failures": [{"code": code}], "sources": {}}))
+        return 2
+
     database_url = args.database_url or resolve_database_url()
     if not database_url:
-        print(
-            json.dumps({"status": "error", "code": "DATABASE_URL_REQUIRED"}),
-            file=sys.stderr,
-        )
-        return 2
+        return fail("DATABASE_URL_REQUIRED")
 
     try:
         with httpx.Client(
@@ -88,8 +127,8 @@ def main(argv: list[str] | None = None) -> int:
             downloads = [
                 download_national_gas_csv(
                     publication_id,
-                    date_from=args.date_from,
-                    date_to=args.date_to,
+                    date_from=date_from,
+                    date_to=date_to,
                     client=client,
                 )
                 for publication_id in publication_ids
@@ -101,12 +140,10 @@ def main(argv: list[str] | None = None) -> int:
                 insert_demand_rows(session, download.rows) for download in downloads
             ]
     except (NationalGasDemandError, DemandPersistenceError) as exc:
-        print(json.dumps({"status": "error", "code": exc.code}), file=sys.stderr)
-        return 2
+        return fail(exc.code)
     except Exception:
         # Do not expose credentials, URLs, SQL, or provider payloads.
-        print(json.dumps({"status": "error", "code": "INGESTION_FAILED"}), file=sys.stderr)
-        return 2
+        return fail("INGESTION_FAILED")
 
     payload = {
         "status": "ok",
@@ -122,8 +159,29 @@ def main(argv: list[str] | None = None) -> int:
         "inserted": sum(summary.inserted for summary in summaries),
         "duplicates": sum(summary.duplicates for summary in summaries),
     }
-    print(json.dumps(payload, sort_keys=True))
-    return 0
+    if not args.json:
+        print(json.dumps(payload, sort_keys=True))
+        return 0
+    # The scheduler's report: an append-only log, so a publication seen before is
+    # "unchanged" and nothing is ever updated or revised in place.
+    print(f"window {date_from} to {date_to}: {json.dumps(payload, sort_keys=True)}",
+          file=sys.stderr)
+    seen = sum(summary.rows_seen for summary in summaries)
+    report = {
+        "ok": seen > 0,
+        "failures": [] if seen else [{"code": "NO_ROWS_PUBLISHED"}],
+        "sources": {
+            "national_gas_demand": {
+                "records": seen,
+                "inserted": payload["inserted"],
+                "updated": 0,
+                "unchanged": payload["duplicates"],
+                "revised": 0,
+            }
+        },
+    }
+    print(json.dumps(report, sort_keys=True))
+    return 0 if seen else 1
 
 
 if __name__ == "__main__":

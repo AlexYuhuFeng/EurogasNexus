@@ -26,11 +26,17 @@ python scripts/ops/ingest_power.py --zone NL --zone DE_LU --days 7 --commit
 python scripts/ops/ingest_power.py --file a75_nl.xml --commit
 ```
 
-Re-running is safe: a value already stored is unchanged; a revised value replaces it.
-Power keeps no revision history (documented limitation, see
-`docs/operations/DATA_REVISIONS.md`): the replaced value is lost, and the row's
-`published_at_utc`/`ingested_at_utc` move to the revision, so an as-of read before the
-revision sees no value for that period rather than a later one.
+Re-running is safe: a value already stored is unchanged. A revised value (ENTSO-E and
+Elexon re-state actual load and generation for days) replaces the current row and the
+value it replaces is kept in `observation_revisions` (since migration
+`0063_resplit_power_revisions`, 14 November 2026; see `docs/operations/DATA_REVISIONS.md`).
+The row keeps its first `published_at_utc` and `ingested_at_utc`; `revised_at_utc` is
+when the current value was received. A revision is available from its receipt, not from
+the regulatory deadline: the parser caps `published_at_utc` at the deadline, which is the
+same for the first and the revised publication of an actual. Research datasets get one
+record per version, so a backtest takes the value known at each origin. Values replaced
+before 14 November have no history. The ingest report (`--json`) and the data-quality
+report (`rev 7d`) count revised values.
 The data-ops scheduler runs it hourly (source `src-entsoe`, last two days, NL, DE-LU,
 BE and FR) once an administrator enables the source in Source Center with the token set; a
 failed document fails the run so it is retried and shows as late rather than complete.

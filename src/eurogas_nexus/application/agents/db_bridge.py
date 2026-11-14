@@ -195,33 +195,64 @@ def flow_rows(
 def capacity_rows(
     session, *, point_id: str | None = None, limit: int = 200
 ) -> list[dict[str, Any]]:
+    """Capacity for an agent: one value per point, direction, type and period.
+
+    Stored ENTSOG ranges overlap when the provider re-splits them between reads; rows are
+    resolved by ``capacity_resolution.CAPACITY_RESOLUTION_RULE`` (latest-received range,
+    one operator per point) and ``period_start``/``period_end`` are the part of the
+    published range the value holds for, so an agent adding capacity per day counts each
+    day once. A native energy row carries ``energy_gwh_d`` and ``capacity_mcm_d`` None (no
+    calorific value is assumed); a row with neither is left out. Newest receipt first.
+    """
+
+    from eurogas_nexus.application.capacity_resolution import resolve_capacity
+    from eurogas_nexus.application.pipeline_supply import row_energy_gwh, row_operator
     from eurogas_nexus.db.models import CapacityObservationRecord
+    from eurogas_nexus.db.repositories.observation_revisions import value_received_at
 
     query = session.query(CapacityObservationRecord)
     if point_id:
         query = query.filter(CapacityObservationRecord.point_id == point_id)
-    query = query.order_by(CapacityObservationRecord.observed_at_utc.desc()).limit(
-        max(1, min(limit, 500))
+    records = query.all()
+    # Validate every row first: a malformed native row is a typed refusal, not a gap.
+    admissible = {id(row): _volume_admissible(row, "capacity_mcm_d") for row in records}
+    resolved = resolve_capacity(records)
+    resolved.sort(
+        key=lambda item: (value_received_at(item), str(item.observation_id), item.start),
+        reverse=True,
     )
     rows = []
-    for row in query.all():
-        if not _volume_admissible(row, "capacity_mcm_d"):
+    for item in resolved:
+        energy, from_volume = row_energy_gwh(item)
+        volume_ok = admissible[id(item.record)]
+        native_energy = (
+            not volume_ok
+            and not from_volume
+            and energy is not None
+            and item.normalizer_version is not None
+        )
+        if not volume_ok and not native_energy:
             continue
         rows.append(
             {
-                "observation_id": row.observation_id,
-                "point_id": row.point_id,
-                "point_name": row.point_name,
-                "direction": row.direction,
-                "capacity_type": row.capacity_type,
-                "capacity_mcm_d": row.capacity_mcm_d,
-                "period_start": row.period_start_utc.isoformat(),
-                "period_end": row.period_end_utc.isoformat(),
-                "observed_at": row.observed_at_utc.isoformat(),
-                "source_system": row.source_system,
-                "source_reference": row.source_reference,
+                "observation_id": item.observation_id,
+                "point_id": item.point_id,
+                "point_name": item.point_name,
+                "direction": item.direction,
+                "capacity_type": item.capacity_type,
+                "capacity_mcm_d": item.capacity_mcm_d if volume_ok else None,
+                "energy_gwh_d": round(energy, 6) if native_energy else None,
+                "published_unit": item.original_unit if native_energy else "mcm/d",
+                "operator_key": row_operator(item) or None,
+                "period_start": item.start.isoformat(),
+                "period_end": item.end.isoformat(),
+                "observed_at": item.observed_at_utc.isoformat(),
+                "source_system": item.source_system,
+                "source_reference": item.source_reference,
             }
         )
+        if len(rows) >= max(1, min(limit, 500)):
+            break
     return rows
 
 

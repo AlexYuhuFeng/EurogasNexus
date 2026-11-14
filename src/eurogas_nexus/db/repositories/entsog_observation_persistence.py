@@ -37,6 +37,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.db.repositories.capacity_ranges import reconfirm_resplit_ranges
 from eurogas_nexus.db.repositories.public_ingestion_upsert import (
     GieRevisionIdentityConflictError,
     GieRevisionRaceError,
@@ -136,7 +137,10 @@ def upsert_entsog_observation_rows(
     """Insert absent keys, verify unchanged keys, revise value changes with history.
 
     Returns ``inserted``/``updated``/``unchanged``/``revised`` counts; see the module
-    docstring for what is revised and what is refused.
+    docstring for what is revised and what is refused. Capacity also returns ``resplit``:
+    stored ranges re-published after a later overlapping range had re-split them, each
+    moved to this receipt with a ``range_resplit`` history record and counted in
+    ``updated`` (``capacity_ranges.reconfirm_resplit_ranges``).
     """
     table_name = model.__table__.name
     fields = ENTSOG_SEMANTIC_FIELDS.get(table_name)
@@ -186,7 +190,7 @@ def upsert_entsog_observation_rows(
     )
     try:
         with session.begin_nested():
-            return upsert_revision_safe_observation_rows(
+            outcome = upsert_revision_safe_observation_rows(
                 session,
                 model,
                 prepared,
@@ -194,6 +198,15 @@ def upsert_entsog_observation_rows(
                 semantic_metadata_keys=_SEMANTIC_METADATA_KEYS,
                 revisions=policy,
             )
+            if table_name == "capacity_observations":
+                # A range re-published after a later overlapping range takes this receipt,
+                # so readers resolving a day to the latest-received range see the provider's
+                # current split (capacity_ranges, CAPACITY_RESOLUTION_RULE).
+                moved = reconfirm_resplit_ranges(session, prepared)
+                outcome["resplit"] = moved
+                outcome["updated"] += moved
+                outcome["unchanged"] -= moved
+            return outcome
     except GieRevisionRequiresHistoryError as exc:
         changed = (
             f" Changed semantic field(s): [{', '.join(exc.changed_fields)}]."

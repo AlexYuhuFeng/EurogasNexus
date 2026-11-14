@@ -71,16 +71,13 @@ def main(argv: list[str] | None = None) -> int:
         print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")
         return 2
     print(f"Runtime DB: {redact_database_url(database_url)}")
-    from eurogas_nexus.db.models import RemitUmmRecord
+    from eurogas_nexus.db.repositories.remit import store_umm_messages
 
     now = datetime.now(UTC)
     with get_session_factory(database_url=database_url)() as session:
-        for message in messages:
-            session.merge(
-                RemitUmmRecord(**message.as_record(), source_system="REMIT", ingested_at_utc=now)
-            )
+        counts = store_umm_messages(session, messages, now=now)
         session.commit()
-    print(f"Stored {len(messages)} REMIT message versions.")
+    print(f"Stored {len(messages)} REMIT message versions: {counts}.")
     return 0
 
 

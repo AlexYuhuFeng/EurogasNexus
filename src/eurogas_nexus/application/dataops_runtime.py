@@ -630,6 +630,12 @@ def _latest_observation_for(
     )
     from eurogas_nexus.db.repositories.observation_revisions import last_received_column
 
+    if source_id == "src-national-gas-demand" or provider == "NATIONAL_GAS_DEMAND":
+        # GB demand is an append-only publication log without a source_system column.
+        from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
+
+        value = session.query(func.max(NationalGasActualDemandRecord.ingested_at_utc)).scalar()
+        return as_utc(value) if value is not None else None
     benchmark = _RATE_BENCHMARK_BY_SOURCE.get(source_id or "")
     if benchmark is not None:
         value = (
@@ -678,7 +684,10 @@ def _latest_observation_for(
         (
             PowerObservationRecord,
             PowerObservationRecord.source_system,
-            PowerObservationRecord.ingested_at_utc,
+            # A revised value is a delivery too: the later of first ingestion and revision.
+            func.coalesce(
+                PowerObservationRecord.revised_at_utc, PowerObservationRecord.ingested_at_utc
+            ),
         ),
         (
             RemitUmmRecord,

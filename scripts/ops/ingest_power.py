@@ -88,6 +88,9 @@ def main(argv: list[str] | None = None) -> int:
                     "inserted": counts["inserted"],
                     "unchanged": counts["unchanged"],
                     "updated": counts["updated"],
+                    # Values a later publication changed; each prior value is kept in
+                    # observation_revisions (docs/operations/DATA_REVISIONS.md).
+                    "revised": counts["revised"],
                 }
             },
         }
