@@ -233,7 +233,10 @@ def list_outages(
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
+    from eurogas_nexus.domain.observations.remit_umm import outage_unit_summary
+
     rows = filter_rows(request, rows)
+    summary = outage_unit_summary(rows)
     warnings = (
         []
         if rows
@@ -242,7 +245,15 @@ def list_outages(
             "scripts/ops/import_remit_umm.py."
         ]
     )
-    return _env(rows, source="runtime-postgresql:remit_umm_messages", warnings=warnings)
+    if summary["unconverted_count"]:
+        units = ", ".join(f"{u} {n}" for u, n in summary["unconverted_units"].items())
+        warnings.append(
+            f"{summary['unconverted_count']} of {summary['outage_count']} outages have no "
+            f"daily figure and are not in daily totals (units: {units}); see daily_basis."
+        )
+    envelope = _env(rows, source="runtime-postgresql:remit_umm_messages", warnings=warnings)
+    envelope["meta"]["unit_summary"] = summary
+    return envelope
 
 
 def _db_flow_observations(

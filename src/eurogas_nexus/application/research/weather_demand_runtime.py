@@ -43,6 +43,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from eurogas_nexus.application.research.demand_target_inputs import (
+    DEFAULT_REVISION_ORDER_POLICY,
     SUPPORTED_REGION,
     SUPPORTED_SOURCE_FORMATS,
     TARGET_UNIT,
@@ -236,9 +237,7 @@ class WeatherDemandRuntimeEvidence:
     model_selection_hash: str | None
     regional_weighting_evidence_ref: str
     regional_weighting_evidence_basis: str = REGIONAL_WEIGHTING_EVIDENCE_BASIS
-    target_revision_order_policy: RevisionOrderPolicy = (
-        RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
-    )
+    target_revision_order_policy: RevisionOrderPolicy = DEFAULT_REVISION_ORDER_POLICY
 
     def __post_init__(self) -> None:
         for name in (
@@ -296,9 +295,7 @@ class WeatherDemandRuntimeRequest:
     regional_weighting_evidence_ref: str
     target_read_limit: int = 1_000
     forecast_read_limit: int = MAX_FORECAST_READ_LIMIT
-    target_revision_order_policy: RevisionOrderPolicy = (
-        RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
-    )
+    target_revision_order_policy: RevisionOrderPolicy = DEFAULT_REVISION_ORDER_POLICY
 
     def __post_init__(self) -> None:
         if not isinstance(self.model_policy, DemandModelPolicy):

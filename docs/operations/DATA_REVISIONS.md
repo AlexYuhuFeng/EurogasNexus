@@ -128,6 +128,35 @@ record per version, each available from its own receipt;
 the builder takes, per series and period, the latest version available at each origin, so a
 backtest never sees a revision before it was received.
 
+## GB demand: staged publications (National Gas)
+
+`national_gas_actual_demand` is an append-only log: every publication of a gas day is a
+row. The D+1 item (`PUBOB637`) is published in stages; the D+6 item (`PUBOB652`) once.
+One download receives every stage at one instant, so the receipt time cannot order them.
+Every reader of demand values goes through `application/gb_demand.py`
+(`GB_DEMAND_DAY_RULE`):
+
+- **availability** stays the local receipt (`available_at_utc`); a provider clock never
+  makes a row available earlier;
+- **order** is the provider's clocks (generated, then applicable wall clock; an amendment
+  keeps its applicable time and carries a later generated time);
+- **D+6** is the settled figure once received;
+- **D+1** published before 12:00 on the day after the gas day is a build-up stage (09:20,
+  10:20, 11:20: 0 to 31 % of the day) and never the day's demand;
+- a complete D+1 publication is returned only when the complete publication before it
+  agrees within 2 % and was received no later (the provider has published 999,150 mscm,
+  38 mscm and 196 mscm at 12:20 and corrected each at the next publication);
+- otherwise no value, with the reason (`not_published`, `building`,
+  `awaiting_confirmation`, `revision_unconfirmed`).
+
+Research targets (`demand_target_inputs.build_demand_target_rows`) apply it under the
+default policy `PROVIDER_PUBLICATION_ORDER_V1` (diagnostics `D1_BUILD_UP_STAGE`,
+`D1_UNCONFIRMED`). The legacy `DERIVED_RECEIPT_ORDER` (receipt order; refuses equal
+receipts, which on live data meant every gas day) and the REST source-clock policy stay
+selectable only to reproduce earlier evidence; they do not apply the day rule. Evidence,
+measured over the provider's own history (1 Nov 2025 to 12 Nov 2026), is in
+`docs/data/LIVE_BRINGUP_2026-11-12.md`, "Data defects, third round".
+
 ## Open gas days (ENTSOG flows)
 
 ENTSOG publishes the running gas day; a flow row received before its period ended is a

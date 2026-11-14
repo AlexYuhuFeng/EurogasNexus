@@ -278,9 +278,12 @@ def _coverage(session, spec, result: DatasetQuality, entity: str, base: str, now
         f"SELECT SUBSTR(CAST({spec.period} AS TEXT), 1, 10) AS day, COUNT(DISTINCT {entity}) "
         f"{base} GROUP BY 1 ORDER BY 1"
     )).all()
+    # The first stored day is where the dataset's history begins: the first read's window
+    # starts inside it (ENTSO-E's history begins at 23:00 UTC on 4 Nov 2026, the CET
+    # midnight), so it is partial by construction and not judged.
     closed = [
         (str(day), int(count))
-        for day, count in rows
+        for day, count in rows[1:]
         if (now - _instant(day)).total_seconds() / 3600 > spec.open_hours + 24
     ]
     if not closed:

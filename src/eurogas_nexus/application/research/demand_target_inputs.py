@@ -15,13 +15,24 @@ revisions are refused instead of being forced into ACTUAL or ESTIMATED.  Source
 quality ``A`` means AMENDED, which has no admitted target mapping here, so it is
 refused rather than relabelled ACTUAL.
 
-By default, revisions are ranked by their actual receipt availability within each
-gas day.  That integer revision is derived receipt order, not a provider revision
-number.  Every admitted revision is returned so the domain model can resolve the
-latest revision genuinely available at each fold cutoff; this mapper never
-narrows the result to the latest revision at its own outer cutoff.  Two distinct
-publications with the same receipt time on the same gas day make selection
-ambiguous and are refused rather than resolved lexically.
+Under the default policy, ``application/gb_demand.GB_DEMAND_DAY_RULE`` decides
+which D+1 publications can be a target at all: a build-up stage (published before
+12:00 on the day after the gas day) never is, and a complete publication is only
+admitted when the complete publication before it agrees within 2 % (diagnostics
+``D1_BUILD_UP_STAGE`` and ``D1_UNCONFIRMED``).  The legacy policies below do not
+apply it and are kept only to reproduce evidence recorded under them.
+
+By default (``PROVIDER_PUBLICATION_ORDER_V1``, since 2026-11-14) revisions are
+ranked by the provider's own publication clocks (generated, then applicable).  One
+download receives every stage of a day at one instant, so receipt cannot rank
+them; availability stays the actual receipt, so a fold at cutoff ``T`` still sees
+only revisions received by ``T`` and takes the newest provider publication among
+them.  Distinct publications with identical provider clocks are refused as
+ambiguous.  The legacy ``DERIVED_RECEIPT_ORDER`` ranks by receipt and refuses
+equal receipts; on live data that refused every gas day.  Every admitted revision
+is returned so the domain model can resolve the latest revision genuinely
+available at each fold cutoff; this mapper never narrows the result to the latest
+revision at its own outer cutoff.
 
 An explicit opt-in ``DERIVED_REST_APPLICABILITY_ORDER_V1`` policy instead ranks
 admitted REST rows by one consensus provider applicability instant.  It is
@@ -62,6 +73,11 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from eurogas_nexus.application.gb_demand import (
+    D1Stage,
+    classify_d1_publications,
+    provider_publication_key,
+)
 from eurogas_nexus.domain.research.weather_demand import (
     DEMAND_TARGET_LABEL_METHOD_VERSION,
     MAX_DEMAND_VALUE,
@@ -107,6 +123,12 @@ class RevisionOrderPolicy(StrEnum):
 
     DERIVED_RECEIPT_ORDER = REVISION_ORDER_BASIS
     DERIVED_REST_APPLICABILITY_ORDER_V1 = "DERIVED_REST_APPLICABILITY_ORDER_V1"
+    PROVIDER_PUBLICATION_ORDER_V1 = "PROVIDER_PUBLICATION_ORDER_V1"
+
+
+# The default since 2026-11-14.  Receipt order cannot rank the publications of one
+# download (they share one receipt), so on live data it refused every gas day.
+DEFAULT_REVISION_ORDER_POLICY = RevisionOrderPolicy.PROVIDER_PUBLICATION_ORDER_V1
 
 
 # Discoverable compatibility spelling for callers that name the policy by domain.
@@ -169,6 +191,8 @@ class DemandTargetDiagnosticCode(StrEnum):
     SOURCE_CLOCK_INCONSISTENT = "SOURCE_CLOCK_INCONSISTENT"
     SOURCE_CLOCKS_DISAGREE = "SOURCE_CLOCKS_DISAGREE"
     SOURCE_CLOCK_AFTER_RECEIPT = "SOURCE_CLOCK_AFTER_RECEIPT"
+    D1_BUILD_UP_STAGE = "D1_BUILD_UP_STAGE"
+    D1_UNCONFIRMED = "D1_UNCONFIRMED"
 
 
 @dataclass(frozen=True)
@@ -299,9 +323,7 @@ def build_demand_target_rows(
     gas_day_to: date,
     available_at_utc: datetime,
     allow_provisional_targets: bool = False,
-    revision_order_policy: RevisionOrderPolicy = (
-        RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
-    ),
+    revision_order_policy: RevisionOrderPolicy = DEFAULT_REVISION_ORDER_POLICY,
     target_label_basis: DemandTargetLabelBasis = (
         DemandTargetLabelBasis.ACTUAL_RECEIPT
     ),
@@ -381,12 +403,52 @@ def build_demand_target_rows(
     by_gas_day: dict[date, list[_AdmittedRevision]] = {}
     for revision in admitted:
         by_gas_day.setdefault(revision.record.gas_day, []).append(revision)
+    # GB_DEMAND_DAY_RULE: a D+1 build-up stage, or a complete publication that the
+    # one before it does not confirm, is not the day's demand.  Part of the default
+    # policy; the two legacy policies are frozen to reproduce earlier evidence.
+    day_rule = (
+        selection.revision_order_policy
+        is RevisionOrderPolicy.PROVIDER_PUBLICATION_ORDER_V1
+    )
+    for gas_day, day_revisions in list(by_gas_day.items()) if day_rule else ():
+        stages = classify_d1_publications([item.record for item in day_revisions])
+        kept: list[_AdmittedRevision] = []
+        for item in day_revisions:
+            stage = stages.get(item.record.record_id)
+            if stage is D1Stage.BUILD_UP:
+                diagnostics.append(
+                    _diagnostic(
+                        DemandTargetDiagnosticCode.D1_BUILD_UP_STAGE,
+                        item.record,
+                        "D+1 publication before 12:00 on the next day is a partial "
+                        "build-up, not the day's demand",
+                    )
+                )
+            elif stage is D1Stage.UNCONFIRMED:
+                diagnostics.append(
+                    _diagnostic(
+                        DemandTargetDiagnosticCode.D1_UNCONFIRMED,
+                        item.record,
+                        "complete D+1 publication not confirmed by the one before it "
+                        "(within 2%)",
+                    )
+                )
+            else:
+                kept.append(item)
+        if kept:
+            by_gas_day[gas_day] = kept
+        else:
+            del by_gas_day[gas_day]
 
     target_rows: list[DemandTargetRow] = []
     provenance: dict[str, DemandTargetProvenance] = {}
     source_order = (
         selection.revision_order_policy
         is RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
+    )
+    publication_order = (
+        selection.revision_order_policy
+        is RevisionOrderPolicy.PROVIDER_PUBLICATION_ORDER_V1
     )
     label_basis = selection.target_label_basis
     for gas_day in sorted(by_gas_day):
@@ -399,6 +461,12 @@ def build_demand_target_rows(
                 ),
             )
             _refuse_equal_source_order_tie(gas_day, revisions)
+        elif publication_order:
+            revisions = sorted(
+                by_gas_day[gas_day],
+                key=lambda item: provider_publication_key(item.record),
+            )
+            _refuse_equal_publication_tie(gas_day, revisions)
         else:
             revisions = sorted(
                 by_gas_day[gas_day],
@@ -412,6 +480,7 @@ def build_demand_target_rows(
                 derived_revision=rank,
                 selected=latest_at_outer_cutoff,
                 target_label_basis=label_basis,
+                publication_order=publication_order,
             )
             label_at = (
                 _required_source_order_instant(revision)
@@ -435,7 +504,7 @@ def build_demand_target_rows(
                 )
             )
 
-    if source_order:
+    if source_order or publication_order:
         target_rows.sort(
             key=lambda row: (row.gas_day, row.revision, row.revision_id)
         )
@@ -1149,6 +1218,22 @@ def _source_ref(selection: _Selection, record: NationalGasActualDemandRecord) ->
     return reference
 
 
+def _refuse_equal_publication_tie(
+    gas_day: date,
+    revisions: Sequence[_AdmittedRevision],
+) -> None:
+    for previous, current in zip(revisions, revisions[1:], strict=False):
+        if (
+            provider_publication_key(previous.record)[:2]
+            != provider_publication_key(current.record)[:2]
+        ):
+            continue
+        raise DemandTargetAmbiguityError(
+            f"ambiguous target selection for {gas_day.isoformat()}: "
+            "distinct publications share one provider publication time"
+        )
+
+
 def _refuse_equal_receipt_tie(
     gas_day: date,
     revisions: Sequence[_AdmittedRevision],
@@ -1168,10 +1253,15 @@ def _provenance(
     derived_revision: int,
     selected: bool,
     target_label_basis: DemandTargetLabelBasis,
+    publication_order: bool = False,
 ) -> DemandTargetProvenance:
     record = revision.record
     if revision.source_order_at_utc is None:
-        revision_order_basis = REVISION_ORDER_BASIS
+        revision_order_basis = (
+            RevisionOrderPolicy.PROVIDER_PUBLICATION_ORDER_V1.value
+            if publication_order
+            else REVISION_ORDER_BASIS
+        )
         source_order_method_basis = None
     else:
         revision_order_basis = (

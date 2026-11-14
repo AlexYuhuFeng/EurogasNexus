@@ -33,6 +33,7 @@ from sqlalchemy import create_engine, event, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.application.research.demand_target_inputs import RevisionOrderPolicy
 from eurogas_nexus.application.research.weather_demand_inputs import (
     ForecastPointBinding,
     WeatherDemandBridgeConfig,
@@ -202,6 +203,9 @@ def _request(
         allow_provisional_targets=True,
         regional_weighting_evidence_ref=WEIGHT_EVIDENCE,
         target_read_limit=target_read_limit,
+        # Synthetic single-revision targets: the legacy receipt policy's contract. The
+        # default policy (GB demand day rule) is tested in test_gb_demand_day_rule.py.
+        target_revision_order_policy=RevisionOrderPolicy.DERIVED_RECEIPT_ORDER,
     )
 
 

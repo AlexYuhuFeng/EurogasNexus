@@ -72,8 +72,9 @@ def test_normalised_versions_keep_units_and_utc():
     lng = messages[("26111321X000000001360B007", 1)]
     assert lng.asset_type == "lng" and lng.unavailable_gwh_d == pytest.approx(67.162764)
     hourly = messages[("26111221X000000001138C011", 1)]
-    # kWh/h stays in its unit: no daily figure is invented.
-    assert hourly.unit == "kWh/h" and hourly.unavailable_gwh_d is None
+    # kWh/h keeps its unit; the daily figure is the hourly rate times the hours of the gas
+    # day the event starts in (18 Nov 2026: 24 h), through the unit authority.
+    assert hourly.unit == "kWh/h" and hourly.unavailable_gwh_d == pytest.approx(1.218 * 24)
     assert hourly.unavailable_capacity == 1_218_000.0
     assert messages[("26103021X000000001360B002", 2)].event_status == "dismissed"
 

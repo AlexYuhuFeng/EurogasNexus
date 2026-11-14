@@ -17,6 +17,7 @@ items follow portfolio isolation; market items follow the caller's data scopes.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -40,6 +41,14 @@ CARGO_HISTORY_DAYS = 7
 RowFilter = Callable[[Iterable[dict[str, Any]]], list[dict[str, Any]]]
 
 
+LOCATION_MATCH_RULE = (
+    "Outages, contracts and cargoes are placed by EIC exactly; else by exact name when it "
+    "names one place; else by site name without bracketed notes or generic words (UGS, "
+    "storage, LNG) when it names one place. An ambiguous or unknown name stays unlocated "
+    "with the reason."
+)
+
+
 def _key(text: str | None) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (text or "").casefold()).strip()
 
@@ -55,12 +64,47 @@ def _iso(moment: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
+# Words that name the kind of site, not the site: dropped for the facility-name step.
+_GENERIC_NAME_WORDS = frozenset(
+    {"ugs", "vgs", "cugs", "gas", "storage", "speicher", "gasspeicher", "lng", "terminal",
+     "fsru", "de", "nl", "h", "l"}
+)
+
+
+def _facility_keys(text: str | None) -> set[str]:
+    """Normalised site names: the whole name and each ``A / B`` side of an ENTSOG point,
+    without accents, bracketed operator notes or generic words (UGS, storage, LNG...)."""
+
+    keys: set[str] = set()
+    raw = text or ""
+    for part in [raw, *raw.split(" / ")]:
+        ascii_text = unicodedata.normalize("NFKD", part).encode("ascii", "ignore").decode()
+        cleaned = re.sub(r"\([^)]*\)", " ", ascii_text.casefold())
+        words = [w for w in re.split(r"[^a-z0-9]+", cleaned) if w and w not in _GENERIC_NAME_WORDS]
+        if words:
+            keys.add(" ".join(words))
+    return keys
+
+
 class _Locator:
-    """Network points and facilities indexed by EIC code and by normalised name."""
+    """Network points and facilities indexed by EIC code and by normalised name.
+
+    Matching, in order of reliability (``LOCATION_MATCH_RULE``):
+
+    1. ``eic``: the EIC code exactly (point or facility EIC in the reference metadata);
+    2. ``name``: the exact name (case and punctuation ignored), when it names one place;
+    3. ``facility_name``: the site name without bracketed notes or generic words (UGS,
+       storage, LNG...), compared with the whole name and each side of an ``A / B``
+       ENTSOG point, when it names one place.
+
+    A node and a facility at the same coordinates are one place.  Nothing fuzzy: a name
+    that names several places, or none, stays unlocated and ``explain`` says why.
+    """
 
     def __init__(self, nodes: list[Any], facilities: list[Any]) -> None:
         self.by_eic: dict[str, dict[str, Any]] = {}
-        self.by_name: dict[str, dict[str, Any]] = {}
+        self.by_name: dict[str, list[dict[str, Any]]] = {}
+        self.by_facility_key: dict[str, list[dict[str, Any]]] = {}
         self.by_node_id: dict[str, dict[str, Any]] = {}
         for item, kind in [(n, "node") for n in nodes] + [(f, "facility") for f in facilities]:
             meta = item.metadata_json or {}
@@ -69,6 +113,7 @@ class _Locator:
                 "lat": item.lat,
                 "ref_id": item.id,
                 "ref_kind": kind,
+                "ref_name": item.name,
                 "coordinate_quality": item.data_quality or "unknown",
                 "country": (item.country or "").upper() or None,
             }
@@ -79,14 +124,58 @@ class _Locator:
             for eic in (meta.get("point_eic_code"), meta.get("eic_code"), meta.get("eic")):
                 if eic:
                     self.by_eic.setdefault(str(eic).strip().upper(), location)
-            self.by_name.setdefault(_key(item.name), location)
+            self.by_name.setdefault(_key(item.name), []).append(location)
+            for facility_key in _facility_keys(item.name):
+                self.by_facility_key.setdefault(facility_key, []).append(location)
+
+    @staticmethod
+    def _places(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """One entry per coordinate; ``points_at_place`` counts the reference points there
+        (Etzel's operators' points share one site), so the named point is not over-read."""
+
+        unique: dict[tuple[float, float], dict[str, Any]] = {}
+        counts: dict[tuple[float, float], set[str]] = {}
+        for location in candidates:
+            place = (round(location["lat"], 5), round(location["lon"], 5))
+            unique.setdefault(place, location)
+            counts.setdefault(place, set()).add(location["ref_id"])
+        return [
+            {**location, "points_at_place": len(counts[place])}
+            for place, location in unique.items()
+        ]
+
+    def explain(
+        self, *, eic: str | None = None, name: str | None = None
+    ) -> tuple[dict[str, Any] | None, str]:
+        """The location and how it was found, or None and why not."""
+
+        if eic and (hit := self.by_eic.get(eic.strip().upper())):
+            return {**hit, "match": "eic"}, "eic"
+        if not name:
+            return None, "no_eic_match_and_no_name"
+        exact = self._places(self.by_name.get(_key(name), []))
+        if len(exact) == 1:
+            return {**exact[0], "match": "name"}, "name"
+        if len(exact) > 1:
+            return None, f"ambiguous_name:{len(exact)}_places"
+        pooled = [
+            location
+            for facility_key in _facility_keys(name)
+            for location in self.by_facility_key.get(facility_key, [])
+        ]
+        candidates = {
+            (round(location["lat"], 5), round(location["lon"], 5)): location
+            for location in self._places(pooled)
+        }
+        if len(candidates) == 1:
+            return {**next(iter(candidates.values())), "match": "facility_name"}, "facility_name"
+        if candidates:
+            names = sorted({c["ref_name"] for c in candidates.values()})[:4]
+            return None, f"ambiguous_facility_name:{len(candidates)}_places:" + "; ".join(names)
+        return None, "no_reference_match"
 
     def find(self, *, eic: str | None = None, name: str | None = None) -> dict[str, Any] | None:
-        if eic and (hit := self.by_eic.get(eic.strip().upper())):
-            return {**hit, "match": "eic"}
-        if name and (hit := self.by_name.get(_key(name))):
-            return {**hit, "match": "name"}
-        return None
+        return self.explain(eic=eic, name=name)[0]
 
 
 def _own(book_id: str | None, allowed: set[str] | None) -> bool:
@@ -136,11 +225,28 @@ def build_map_situation(
     # Counts are of every outage the caller may see, placed on the map or not: a count that
     # dropped the unplaced ones would contradict the ticker and the events table.
     outage_counts = {"active": 0, "scheduled": 0}
-    for row in entitled(load_outage_rows(session, now=now, horizon_days=outage_horizon_days)):
+    unlocated_outages: list[dict[str, Any]] = []
+    from eurogas_nexus.domain.observations.remit_umm import outage_unit_summary
+
+    visible_outages = list(
+        entitled(load_outage_rows(session, now=now, horizon_days=outage_horizon_days))
+    )
+    for row in visible_outages:
         outage_counts["active" if row.get("status") == "active" else "scheduled"] += 1
-        location = locator.find(eic=str(row["facility_id"]), name=str(row["facility_name"]))
+        location, how = locator.explain(
+            eic=str(row["facility_id"]), name=str(row["facility_name"])
+        )
         if location is None:
             unlocated["outages"] += 1
+            unlocated_outages.append(
+                {
+                    "event_id": row["event_id"],
+                    "facility_name": row["facility_name"],
+                    "facility_id": row["facility_id"],
+                    "market_participant": row.get("market_participant"),
+                    "reason": how,
+                }
+            )
             continue
         technical = row.get("technical_capacity") or 0
         unavailable = row.get("unavailable_capacity") or 0
@@ -161,6 +267,7 @@ def build_map_situation(
                         "technical_capacity",
                         "unavailable_capacity",
                         "unavailable_gwh_d",
+                        "daily_basis",
                         "description",
                         "market_participant",
                         "source_system",
@@ -387,6 +494,9 @@ def build_map_situation(
         "cargoes": cargoes,
         "regas_slots": slots,
         "unlocated": unlocated,
+        "outage_units": outage_unit_summary(visible_outages),
+        "unlocated_outages": unlocated_outages,
+        "location_match_rule": LOCATION_MATCH_RULE,
         "totals": {
             "outages_active": outage_counts["active"],
             "outages_scheduled": outage_counts["scheduled"],

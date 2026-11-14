@@ -8,9 +8,25 @@ module reads either and keeps ACER's field meanings.
 
 A message is identified by ``message_id`` and revised by ``version``: a later version
 replaces an earlier one, and ``Dismissed`` withdraws the event. Capacity stays in the unit
-the message states (mcm/d, MSm3/d, GWh/d, kWh/h...); ``unavailable_mcm_d`` and
-``unavailable_gwh_d`` are filled only when the stated unit converts without a calorific
-value assumption.
+the message states (mcm/d, MSm3/d, GWh/d, kWh/h...). The daily figures
+(``unavailable_mcm_d``, ``unavailable_gwh_d``) come from one function, ``daily_figure``,
+through the unit authority (``domain/ontology/quantity.py``), never across energy and
+volume (no calorific value is assumed):
+
+- a rate per day converts directly;
+- a rate per hour is multiplied by the hours of the gas day (23, 24 or 25 at the clock
+  changes, ``domain/market/gas_day.py``): the gas day containing the event start when
+  stored, the current gas day for a live event when read;
+- an energy or volume with no rate (GWh, TWh) is not a daily rate. For storage and LNG
+  it is working gas volume (live: Gas Storage Denmark technical 8,590 GWh, its working
+  volume), so no daily figure is derived; for other assets with a known duration a daily
+  average over the event is derived and labelled ``event_average``;
+- a figure whose technical (or unavailable) capacity would exceed
+  ``MAX_FACILITY_GWH_D`` per day for one facility is refused as a unit error (live:
+  EPE-H 469.2 "GWh/h", 11 TWh/d).
+
+Anything not converted keeps its unit, says why (``daily_basis``) and is counted by
+``outage_unit_summary``.
 """
 
 from __future__ import annotations
@@ -22,6 +38,10 @@ import re
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+
+from eurogas_nexus.domain.market.gas_day import gas_day_interval_utc
+from eurogas_nexus.domain.ontology.quantity import Dimension, UnitError, convert
+from eurogas_nexus.domain.ontology.quantity import unit as quantity_unit
 
 ASSET_TYPES = ("production", "storage", "lng", "transmission", "consumption", "other")
 EVENT_STATUSES = ("active", "inactive", "dismissed")
@@ -90,10 +110,158 @@ _ALIASES: dict[str, tuple[str, ...]] = {
     "remarks": ("remarks", "comment", "comments", "description"),
 }
 
-# Volume and energy per day; anything else (per hour, standard m3 at a different reference)
-# is kept in its stated unit only.
-_MCM_D = {"mcm/d": 1.0, "mm3/d": 1.0, "mcm/day": 1.0, "mm3/day": 1.0, "msm3/d": 1.0}
-_GWH_D = {"gwh/d": 1.0, "mwh/d": 1e-3, "kwh/d": 1e-6, "twh/d": 1e3, "gwh/day": 1.0}
+# Platform spellings of volume units, as the unit authority's codes.  MSm3 (standard
+# cubic metres) is read as mcm, as before: no reference-condition correction is applied.
+_VOLUME_ALIASES = {"mm3": "mcm", "msm3": "mcm", "mscm": "mcm", "mcm": "mcm", "sm3": "m3",
+                   "m3": "m3", "bcm": "bcm"}
+_PER_DAY = {"d", "day", "gd", "gasday"}
+_PER_HOUR = {"h", "hr", "hour"}
+# One facility above this per day is a unit error, not an outage (the largest single
+# gas facilities in Europe, Troll and the biggest storage sites, are about 1.3 TWh/d).
+MAX_FACILITY_GWH_D = 2_000.0
+MAX_FACILITY_MCM_D = 200.0
+_WORKING_VOLUME_ASSETS = {"storage", "lng"}
+
+
+@dataclass(frozen=True)
+class DailyFigure:
+    """The daily figure of a message's unavailable capacity, or why there is none.
+
+    ``basis``: ``per_day``, ``per_hour_x_<n>h`` (hourly rate times the gas day's
+    hours), ``event_average`` (an energy over a known event, averaged per 24 hours),
+    or ``unconverted:<reason>``.
+    """
+
+    gwh_d: float | None
+    mcm_d: float | None
+    basis: str
+    gwh_h: float | None = None
+    total_gwh: float | None = None
+
+    @property
+    def converted(self) -> bool:
+        return self.gwh_d is not None or self.mcm_d is not None
+
+
+def _split_unit(text: str) -> tuple[str, Dimension, str | None] | None:
+    """``(authority code, dimension, per)`` with per ``d``, ``h`` or None (no rate)."""
+
+    compact = re.sub(r"\s", "", text or "").casefold()
+    if not compact:
+        return None
+    numerator, _, per = compact.partition("/")
+    code = _VOLUME_ALIASES.get(numerator, numerator)
+    try:
+        found = quantity_unit(code)
+    except UnitError:
+        return None
+    if found.dimension not in (Dimension.ENERGY, Dimension.VOLUME):
+        return None
+    if not per:
+        return found.code, found.dimension, None
+    if per in _PER_DAY:
+        return found.code, found.dimension, "d"
+    if per in _PER_HOUR:
+        return found.code, found.dimension, "h"
+    return None
+
+
+def gas_day_hours(at: datetime) -> float:
+    """Hours of the gas day containing ``at`` (23, 24 or 25)."""
+
+    start, end = gas_day_interval_utc(at)
+    return (end - start).total_seconds() / 3600
+
+
+def daily_figure(
+    unit_text: str,
+    unavailable: float | None,
+    *,
+    technical: float | None = None,
+    asset_type: str = "",
+    start: datetime | None = None,
+    stop: datetime | None = None,
+    at: datetime | None = None,
+) -> DailyFigure:
+    """The one conversion of a message's unavailable capacity to a daily figure.
+
+    ``at`` picks the gas day whose length applies to an hourly rate (default: the
+    event start).
+    """
+
+    if unavailable is None:
+        return DailyFigure(None, None, "unconverted:no_unavailable_capacity")
+    parsed = _split_unit(unit_text)
+    if parsed is None:
+        return DailyFigure(None, None, f"unconverted:unknown_unit:{unit_text or '-'}")
+    code, dimension, per = parsed
+    target = "GWh" if dimension is Dimension.ENERGY else "mcm"
+    bound = MAX_FACILITY_GWH_D if dimension is Dimension.ENERGY else MAX_FACILITY_MCM_D
+
+    if per is None:
+        total = convert(unavailable, code, target)
+        if asset_type in _WORKING_VOLUME_ASSETS:
+            return DailyFigure(
+                None, None, "unconverted:working_volume_not_rate",
+                total_gwh=total if dimension is Dimension.ENERGY else None,
+            )
+        if start is None or stop is None or stop <= start:
+            return DailyFigure(
+                None, None, "unconverted:total_without_duration",
+                total_gwh=total if dimension is Dimension.ENERGY else None,
+            )
+        hours = (stop - start).total_seconds() / 3600
+        per_day = total * 24 / hours
+        basis = "event_average"
+        gwh_h = None
+    else:
+        reference = at or start
+        hours = 24.0 if per == "d" else (gas_day_hours(reference) if reference else None)
+        if hours is None:
+            return DailyFigure(None, None, "unconverted:hourly_rate_without_gas_day")
+        per_day = convert(unavailable, code, target) * (1 if per == "d" else hours)
+        basis = "per_day" if per == "d" else f"per_hour_x_{hours:g}h"
+        gwh_h = (
+            convert(unavailable, code, "GWh")
+            if per == "h" and dimension is Dimension.ENERGY
+            else None
+        )
+        total = None
+        technical_day = (
+            convert(technical, code, target) * (1 if per == "d" else hours)
+            if technical is not None
+            else None
+        )
+        if max(per_day, technical_day or 0.0) > bound:
+            return DailyFigure(None, None, f"unconverted:implausible_for_unit:{unit_text}")
+    if per_day > bound:
+        return DailyFigure(None, None, f"unconverted:implausible_for_unit:{unit_text}")
+    if dimension is Dimension.ENERGY:
+        return DailyFigure(per_day, None, basis, gwh_h=gwh_h, total_gwh=total)
+    return DailyFigure(None, per_day, basis)
+
+
+def outage_unit_summary(rows: Iterable[Mapping[str, object]]) -> dict[str, object]:
+    """How many outage rows carry a daily figure, and what stayed in its own unit."""
+
+    rows = list(rows)
+    unconverted = [
+        row for row in rows if str(row.get("daily_basis", "")).startswith("unconverted")
+    ]
+    reasons: dict[str, int] = {}
+    units: dict[str, int] = {}
+    for row in unconverted:
+        reason = str(row["daily_basis"]).split(":")[1]
+        reasons[reason] = reasons.get(reason, 0) + 1
+        unit_text = str(row.get("unit") or "-")
+        units[unit_text] = units.get(unit_text, 0) + 1
+    return {
+        "outage_count": len(rows),
+        "with_daily_figure": len(rows) - len(unconverted),
+        "unconverted_count": len(unconverted),
+        "unconverted_units": dict(sorted(units.items())),
+        "unconverted_reasons": dict(sorted(reasons.items())),
+    }
 
 
 def _key(name: str) -> str:
@@ -210,7 +378,17 @@ def _message(raw: Mapping[str, object], source_reference: str) -> UmmMessage:
     unavailable = _number(_field(raw, "unavailable_capacity"))
     if unavailable is None and technical is not None and available is not None:
         unavailable = technical - available
-    unit_key = unit.casefold().replace(" ", "")
+    event_start = _time(start, "event start", message_id)
+    event_stop = _time(stop, "event stop", message_id) if stop is not None else None
+    asset_type = _asset_type(_field(raw, "asset_type"))
+    figure = daily_figure(
+        unit,
+        unavailable,
+        technical=technical,
+        asset_type=asset_type,
+        start=event_start,
+        stop=event_stop,
+    )
     return UmmMessage(
         message_id=message_id[:64],
         version=int(_number(_field(raw, "version")) or 1),
@@ -219,23 +397,19 @@ def _message(raw: Mapping[str, object], source_reference: str) -> UmmMessage:
         else _time(start, "event start", message_id),
         event_status=_status(_field(raw, "event_status")),
         unavailability_type=_unavailability(_field(raw, "unavailability_type")),
-        event_start_utc=_time(start, "event start", message_id),
-        event_stop_utc=_time(stop, "event stop", message_id) if stop is not None else None,
+        event_start_utc=event_start,
+        event_stop_utc=event_stop,
         asset_name=str(_field(raw, "asset_name") or "")[:160],
         asset_eic=str(_field(raw, "asset_eic") or "")[:32],
-        asset_type=_asset_type(_field(raw, "asset_type")),
+        asset_type=asset_type,
         balancing_zone=str(_field(raw, "balancing_zone") or "")[:64],
         direction=str(_field(raw, "direction") or "")[:16].casefold(),
         unit=unit[:16],
         technical_capacity=technical,
         available_capacity=available,
         unavailable_capacity=unavailable,
-        unavailable_mcm_d=unavailable * _MCM_D[unit_key]
-        if unavailable is not None and unit_key in _MCM_D
-        else None,
-        unavailable_gwh_d=unavailable * _GWH_D[unit_key]
-        if unavailable is not None and unit_key in _GWH_D
-        else None,
+        unavailable_mcm_d=figure.mcm_d,
+        unavailable_gwh_d=figure.gwh_d,
         reason=str(_field(raw, "reason") or "")[:240],
         market_participant=str(_field(raw, "market_participant") or "")[:160],
         remarks=str(_field(raw, "remarks") or "")[:1000],
@@ -275,6 +449,24 @@ def outage_view(
         if m.event_start_utc > horizon:
             continue
         status = "active" if m.event_start_utc <= now else "scheduled"
+        # Re-derived from the stored unit and capacity, so rows stored before a
+        # conversion existed read the same as new ones.
+        figure = daily_figure(
+            m.unit,
+            m.unavailable_capacity,
+            technical=m.technical_capacity,
+            asset_type=m.asset_type,
+            start=m.event_start_utc,
+            stop=m.event_stop_utc,
+            at=max(now, m.event_start_utc),
+        )
+        if figure.gwh_d is None and m.unavailable_gwh_d is not None:
+            # A figure the message was stored with (an import that stated GWh/d beside a
+            # volume) is kept; the conversion never invents one across energy and volume.
+            figure = DailyFigure(
+                m.unavailable_gwh_d, figure.mcm_d or m.unavailable_mcm_d, "stored",
+                gwh_h=figure.gwh_h, total_gwh=figure.total_gwh,
+            )
         rows.append(
             {
                 "event_id": m.message_id,
@@ -293,8 +485,12 @@ def outage_view(
                 "technical_capacity": m.technical_capacity,
                 "available_capacity": m.available_capacity,
                 "unavailable_capacity": m.unavailable_capacity,
-                "capacity_impact_mcm_d": m.unavailable_mcm_d or 0.0,
-                "unavailable_gwh_d": m.unavailable_gwh_d,
+                "capacity_impact_mcm_d": figure.mcm_d or 0.0,
+                "unavailable_gwh_d": figure.gwh_d,
+                "unavailable_mcm_d": figure.mcm_d,
+                "unavailable_gwh_h": figure.gwh_h,
+                "unavailable_total_gwh": figure.total_gwh,
+                "daily_basis": figure.basis,
                 "description": m.reason or m.remarks,
                 "market_participant": m.market_participant,
                 "source_system": "REMIT",

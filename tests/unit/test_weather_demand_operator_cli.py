@@ -368,7 +368,7 @@ def test_ready_run_uses_read_only_postgresql_and_reports_actual_result(
     )
     assert (
         summary["source_basis"]["target_revision_order_policy"]
-        == "DERIVED_RECEIPT_ORDER"
+        == "PROVIDER_PUBLICATION_ORDER_V1"
     )
     assert (
         summary["source_basis"]["target_availability_basis"]
@@ -412,7 +412,7 @@ def test_request_hash_and_result_hashes_repeat(
     assert summaries[0]["counts"] == summaries[1]["counts"]
 
 
-def test_opt_in_policy_is_explicit_reported_and_legacy_hash_is_unchanged(
+def test_opt_in_policy_is_explicit_reported_and_default_is_provider_order(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -441,10 +441,12 @@ def test_opt_in_policy_is_explicit_reported_and_legacy_hash_is_unchanged(
     opt_in_path.write_text(json.dumps(opt_in_payload), encoding="utf-8")
     opt_in_request = operator_cli.load_request(str(opt_in_path))
 
+    # Since 2026-11-14 the default is provider publication order with the GB demand
+    # day rule; the legacy receipt policy stays selectable and hashes differently.
     assert default_request.target_revision_order_policy is (
-        RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
+        RevisionOrderPolicy.PROVIDER_PUBLICATION_ORDER_V1
     )
-    assert explicit_default_request.request_hash == default_request.request_hash
+    assert explicit_default_request.request_hash != default_request.request_hash
     assert opt_in_request.target_revision_order_policy is (
         RevisionOrderPolicy.DERIVED_REST_APPLICABILITY_ORDER_V1
     )

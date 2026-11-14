@@ -502,10 +502,10 @@ Outages (REMIT UMM)        ok            1588   1588 2026-11-14T06:13    0.9    
   24.93 at 11:20, 242.62 at 12:20, 239.60 at 14:20 mscm). The research target mapper takes
   the latest revision by `available_at` (local receipt), then `record_id`; every revision
   downloaded in one run shares one receipt, so the "latest" is decided by a hash and can
-  be the 0 or the 24.93.
+  be the 0 or the 24.93. **Closed 2026-11-14**, see "Data defects, third round".
 - REMIT units: kWh/h, GWh, GWh/h and TWh messages carry no daily figure, so the outage
-  totals leave them out (17 of 56 upcoming outages are kWh/h).
-- Power (ENTSO-E) short days 4 and 11 Nov: not investigated here.
+  totals leave them out (17 of 56 upcoming outages are kWh/h). **Closed 2026-11-14**.
+- Power (ENTSO-E) short days 4 and 11 Nov: not investigated here. **Closed 2026-11-14**.
 
 ### Dornum: independent opinion (2026-11-14)
 
@@ -519,6 +519,160 @@ Status: **probable double count of about 0.7 TWh/d in Norwegian landings** (the 
 still counts ITP-00188 beside ITP-00126). The owner has deferred the fix. The pending step is
 verification against Gassco's published Dornum and Emden figures; only then is ITP-00188
 added to `SAME_PHYSICAL_POINT`. No code was changed for this.
+
+**Verification attempt (2026-11-14): inconclusive against Gassco's figures.** Gassco
+publishes terminal flows only on Gassco FLOW (`umm.gassco.no`), which opens with a
+terms-and-conditions page that must be accepted before any data; accepting it on the
+owner's behalf was not permitted in this session, so no Gassco number was read. Gassco
+publishes nothing on ENTSOG for its side: ENTSOG lists ITP-00208 "Dornum (EPT1 & EPT2)",
+ITP-00209 "Emden (EPT1)" and ITP-00210 "Emden (NPT)" under Gassco (NO-TSO-0001) with
+`hasData` false, and operational data for them returns 404. What was found:
+
+- ENTSOG's own reference has **one** Norwegian-side Dornum point (ITP-00208) with **two**
+  adjacent German operators, GUD (DE-TSO-0005) and OGE (DE-TSO-0009). That fits both
+  readings (each reports the whole flow, or each its share).
+- Gassco's terminal page (gassco.eu, Germany) describes ERF Dornum as doing "fiscal
+  metering of quality and volume and flow control of the delivery into the downstream
+  NETRA system", with gas also routed 48 km to Emden for delivery there: one fiscal meter
+  into NETRA. Qualitative only.
+- ENTSOG, closed gas days, entry (GWh/d):
+
+| Gas day | ITP-00126 OGE | ITP-00188 GUD | GUD vs OGE | 126 + 188 | Emden ITP-00080 |
+|---|---|---|---|---|---|
+| 3 Nov | 738.3 | 738.0 | -0.042 % | 1,476.4 | 430.8 |
+| 4 Nov | 735.9 | 736.0 | +0.004 % | 1,471.9 | 432.3 |
+| 5 Nov | 780.4 | 780.3 | -0.013 % | 1,560.6 | 377.2 |
+| 6 Nov | 738.9 | 738.8 | -0.006 % | 1,477.7 | 429.2 |
+| 7 Nov | 735.4 | 735.3 | -0.017 % | 1,470.7 | 434.7 |
+| 8 Nov | 738.6 | 738.5 | -0.006 % | 1,477.1 | 433.1 |
+| 9 Nov | 734.8 | 734.8 | +0.006 % | 1,469.6 | 409.4 |
+| 10 Nov | 742.2 | 742.2 | +0.001 % | 1,484.4 | 411.2 |
+| 11 Nov | 746.0 | 745.9 | -0.014 % | 1,491.9 | 414.9 |
+| 12 Nov | 756.7 | 756.8 | +0.006 % | 1,513.5 | 387.2 |
+
+  At an assumed GCV of 11.1 kWh/Sm3 (about 40 MJ/Sm3; Gassco's own GCV not read), through
+  the unit authority: ITP-00126 alone is 66 to 70 mcm/d; ITP-00126 + ITP-00188 is 133 to
+  141 mcm/d.
+
+Conclusion: **inconclusive** by the brief's test (no Gassco figure compared). The evidence
+that exists still points to a duplicate: two operators equal to within 0.042 % every day
+through a 25 % swing while their bookings differ threefold, one Norwegian-side point and
+one fiscal meter into NETRA. The deciding step is a Gassco FLOW Dornum figure for 5-10
+gas days, which needs the owner to accept Gassco's terms (and, for anything beyond a
+one-off check, Gassco's written confirmation of reuse, `docs/legal/DATA_SOURCE_TERMS.md`).
+No balance code was changed; nothing from Gassco is stored.
+
+### Data defects, third round (2026-11-14)
+
+Five items: GB demand partial values, REMIT units, unplaced outages, ENTSO-E short days and
+the Dornum check (above).
+
+**GB demand: the day's figure, not a stage.** The research target mapper did not pick a
+hash in the end: its default receipt order refused equal receipts
+(`AMBIGUOUS_RECEIPT_TIE`), and on live data every gas day has several stages received
+together, so it refused every read; a tie-break by `(available_at, record_id)` would have
+returned 1.28 and 22.90 mscm for 3 and 4 Nov. The provider's own history (1 Nov 2025 to
+12 Nov 2026, 2,215 D+1 and 372 D+6 publications, read from the public portal into the
+scratchpad only) gives the shape: D+1 stages at 09:20, 10:20 and 11:20 are 0 to 31 % of
+the day; from 12:20 the figure is normally the full day (median 0.13 % from D+6), but the
+provider published 999,150 mscm (29 Aug), 38-40 mscm (2, 3, 8 May) and 196.27 against a
+settled 111.17 (28 Sep) at 12:20, each corrected at the next publication; D+6 arrives at
+10:20 (winter) or 11:20 (summer) on day X+6. The rule (`application/gb_demand.py`,
+`GB_DEMAND_DAY_RULE`; `docs/operations/DATA_REVISIONS.md`): order by the provider's clocks,
+availability stays the receipt; D+6 when received (`settled`); else the latest D+1 made at
+or after 12:00 on X+1 when the one before it agrees within 2 % (`provisional`); else no
+value, with the reason. Over that year it returned a value before D+6 for all but 6 gas
+days, never a stage or one of the outliers; the largest gap to D+6 among returned values
+(10.2 %, 28 Aug) is a provider revision made three days later. A 2 % tolerance withheld 10
+revision jumps for a day until confirmed (0.5 %: 36).
+
+Readers of `national_gas_actual_demand`: values are read only by the research target path
+(`read_demand_target_revisions` then `build_demand_target_rows`, used by the weather-demand
+runtime, its operator CLI and the prediction runtime); it now applies the rule under its new
+default policy `PROVIDER_PUBLICATION_ORDER_V1`. The Sources page, data-ops freshness and the
+data-quality report count rows or take receipt times, not values.
+`application/research/demand_inputs.project_rest_demand_targets` reads values but has no
+caller outside its own tests; it was left unchanged (it already orders by provider clock
+within one receipt) and should be routed through the rule or removed.
+
+Live, value returned for each gas day as of 14 Nov 12:20 UTC (mscm):
+
+| Gas day | Research targets before (receipt order) | Tie-break by (receipt, record id) | Research targets after | Day reader after |
+|---|---|---|---|---|
+| 3 Nov | refused (ambiguous receipt) | 1.28364 | 227.611 | 227.611 (settled) |
+| 4 Nov | refused | 22.9004 | 229.115 | 229.115 (settled) |
+| 5 Nov | refused | 249.797 | 249.797 | 249.797 (settled) |
+| 6 Nov | refused | 257.067 | 257.081 | 257.081 (settled) |
+| 7 Nov | refused | 252.06 | 252.06 | 252.06 (settled) |
+| 8 Nov | refused | 256.002 | 256.002 | 256.002 (provisional) |
+| 9 Nov | refused | 289.963 | 289.963 | 289.963 (provisional) |
+| 10 Nov | refused | 284.171 | 284.147 | 284.147 (provisional) |
+| 11 Nov | refused | 261.275 | 261.275 | 261.275 (provisional) |
+| 12 Nov | refused | 242.622 | 239.595 | 239.595 (provisional) |
+
+**REMIT units.** One conversion, `remit_umm.daily_figure`, applied by the normaliser and
+again on read (`docs/operations/REMIT_OUTAGES.md`, "Daily figures and units"): hourly rates
+times the gas day's 23/24/25 hours; GWh/TWh with no rate on storage is working gas volume,
+not a flow, so no daily figure (Gas Storage Denmark's 8,590 GWh technical is its working
+volume; an average over the event would read as a flow that does not exist); EPE-H's
+"469.2 GWh/h" (11 TWh/d for one site) is refused as a unit error. The balance's Norwegian
+outage read uses the same function. Of 56 live or upcoming outages: daily figure 36 before,
+53 after; GWh/d total 1,323.0 to 1,942.8 (active 192.4 to 343.6); unconverted 3, named
+(GWh 1, TWh 1, GWh/h 1). No stored row was rewritten.
+
+**Outages on the map.** Placed in the 14-day horizon: 7 of 32 before, 16 after (EIC 7,
+unique site name 9: Bierwang, Bergermeer x2, SEDIANE B, Etzel ESE x3, Etzel x2). The
+locator's name step used to take the first of several reference points with the same name;
+it now places only on one place and lists every miss with its reason. GIE's AGSI/ALSI
+listing gives facility identity (EIC, name, country, operator) but no coordinates, and its
+names placed nothing the message names did not, so no loader was built. Still unlocated
+(16 outages, 7 facilities):
+
+| Facility (message) | EIC | Operator | Outages | Why |
+|---|---|---|---|---|
+| EPE-H | 21W000000000066U | Uniper Energy Storage | 4 | "Epe" names two places in the reference network |
+| Gas Storage Denmark (GSD) | 45W000000000241K | GSD | 3 | two sites (Stenlille, Lille Torup); the message names neither |
+| UGS-Etzel-ESE-MET | 21W000000000055Z | MET Speicher | 3 | no reference point named Etzel ESE MET |
+| CUGS Mogilno | 53ZPL0000602319I | Gas Storage Poland | 2 | no ENTSOG point for Mogilno; not in GIE's listing |
+| GSF GIM Sanok - UGS PMG Brzeźnica | 53ZPL0000402311B | Gas Storage Poland | 2 | ENTSOG has the group (GIM Sanok), not the site |
+| Nüttermoor 4 H-Gas | 37W000000000105E | EWE Gasspeicher | 1 | ENTSOG names "Nüttermoor H1 and H4"; not an exact name |
+| Klaipeda LNG Terminal FSRU Independence | none | KN Energies | 1 | no EIC; ENTSOG names "Klaipeda (LNG)"; not an exact name |
+
+**ENTSO-E short days.** Two causes, neither the 15-minute/hourly mix (the rule counts
+series per day; Belgian hourly generation counts the same as 15-minute series) nor DST.
+4 Nov is where the stored history begins (day-ahead prices from 23:00 UTC, the CET midnight
+of 5 Nov; actuals from 5 Nov): partial by construction. The report no longer judges a
+dataset's first stored day. 11 Nov: DE-LU gas, solar and onshore wind generation (A75)
+were missing from 10 Nov 08:45 to 12 Nov 01:00 UTC. The provider has them; when the
+bring-up read on 12 Nov 12:13 they were not yet published, and the scheduler's rolling
+two-day window (`src-entsoe --days 2`) never reached back. The scheduler now reads seven
+days. Re-fetched through the normal script (`ingest_power.py --zone DE_LU --days 6
+--commit`): 480 inserted, 543 revised with history (late actuals, typically 50 MW on
+60 GW load), 2,512 unchanged. Power now shows 0 short days.
+
+**Data quality after** (14 Nov 12:34 UTC):
+
+```
+dataset                    status        rows series last period       age h  dup  blank short days rev 7d
+ENTSOG flows               ok           13173    806 2026-11-14T05:00    7.6    0      0    0/418      265
+ENTSOG capacity            ok           12647   3925 2026-11-14T06:00    6.6    0      0    0/611      109
+GIE storage (AGSI)         ok            7812      6 2026-11-12T05:00   55.6    0      0    0/4801      28
+GIE LNG (ALSI)             ok            7210      5 2026-11-12T05:00   55.6    0      0    0/4801       4
+GB storage (National Gas)  ok             411      1 2026-11-13T05:00   31.6    0      0    0/409        1
+GB LNG (National Gas)      ok             411      1 2026-11-13T05:00   31.6    0      0    0/409        1
+ECB FX reference           ok              12      6 2026-11-13T00:00   36.6    0      0    0/0          -
+Overnight rates            ok              99      3 2026-11-12T00:00   60.6    0      0    0/0          -
+Henry Hub (EIA)            ok              33      1 2026-11-11T00:00   84.6    0      0    0/32         -
+Power (ENTSO-E)            ok           18141     24 2026-11-14T22:45  -10.2    0      0    0/9        662
+GB power (Elexon)          warning       1397      4 2026-11-14T06:30    6.1    0      0    0/6          0
+    warning: Latest period is 6 h old; expected within 6 h.
+GB demand (National Gas)   ok             119     96 2026-11-12T00:00   60.6    0      0    0/0          -
+Outages (REMIT UMM)        ok            1588   1588 2026-11-14T06:13    6.4    0      0    0/0          -
+```
+
+The Elexon warning is age only: no scheduler ran after 06:54 UTC. The GIE placeholder rows
+(AGSI GB, ALSI DK/GB/LU) are no longer in the store (removed before this round, not by it),
+hence 0 blanks.
 
 ## Reproducing
 
@@ -542,6 +696,7 @@ python scripts/ops/data_quality_report.py
 python scripts/ops/capacity_range_resplits.py            # dry run; --commit records moves
 python scripts/ops/ingest_national_gas_demand.py --json --days 8
 python scripts/ops/ingest_remit_iip.py --days 90 --commit --json
+python scripts/ops/ingest_power.py --zone DE_LU --days 6 --commit
 python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2026-11-05 \
   --entsog-to 2026-11-13 --entsog-point-direction <landing point-directions> \
   --limit 5000 --entsog-page-size 1000

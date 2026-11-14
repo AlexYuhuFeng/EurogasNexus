@@ -187,9 +187,13 @@ def _request(
     point_bindings: tuple[ForecastPointBinding, ...] | None = None,
     revision_order_policy: RevisionOrderPolicy | str | None = None,
 ) -> WeatherDemandRuntimeRequest:
-    policy_args: dict[str, object] = {}
-    if revision_order_policy is not None:
-        policy_args["target_revision_order_policy"] = revision_order_policy
+    # These contracts are the legacy receipt policy's; the default policy (provider
+    # publication order with the GB demand day rule) is tested in
+    # tests/unit/test_gb_demand_day_rule.py.
+    policy_args: dict[str, object] = {
+        "target_revision_order_policy": revision_order_policy
+        or RevisionOrderPolicy.DERIVED_RECEIPT_ORDER
+    }
     return WeatherDemandRuntimeRequest(
         model_policy=_model_policy(
             policy,

@@ -80,6 +80,9 @@ def build(records: Any, **overrides: object):
         "gas_day_to": date(2026, 10, 31),
         "available_at_utc": CUTOFF,
         "allow_provisional_targets": True,
+        # Label-basis contracts are tested under the legacy receipt policy; the
+        # default policy is tested in tests/unit/test_gb_demand_day_rule.py.
+        "revision_order_policy": RevisionOrderPolicy.DERIVED_RECEIPT_ORDER,
     }
     arguments.update(overrides)
     return build_demand_target_rows(records, **arguments)

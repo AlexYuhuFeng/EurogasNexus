@@ -73,6 +73,18 @@ def test_a_short_day_a_repeat_a_blank_and_a_stale_feed_are_each_named(session):
     assert "old; expected within 48 h" in messages  # latest period is four days back
 
 
+def test_the_first_stored_day_is_where_history_begins_and_is_not_judged(session):
+    # ENTSO-E's history began at 23:00 UTC on 4 Nov 2026: one hour of prices that day.
+    for day in range(1, 8):
+        for point in ("A", "B", "C", "D"):
+            if day == 7 and point != "A":
+                continue
+            _add(session, day, point)
+    result = measure(session, SPEC, NOW)
+    assert result.short_periods == []
+    assert result.closed_periods == 5  # day 1 is still open; day 7 begins the history
+
+
 def test_the_report_summarises_by_status_and_prints_one_line_per_dataset(session):
     report = build_report(session, now=NOW)
     assert sum(report["summary"].values()) == len(report["datasets"])

@@ -65,7 +65,9 @@ _SOURCE_BOUNDS: dict[str, tuple[tuple[str, str], ...]] = {
 
 # Sources with their own ingest script; each prints the same JSON report with --json.
 _SCRIPT_COMMANDS = {
-    "src-entsoe": ("ingest_power.py", "--commit", "--json", "--days", "2"),
+    # Seven days: ENTSO-E actual generation arrives late (DE-LU A75 for 10-11 Nov 2026 was
+    # not yet published 36 h after the day), and a two-day window never read it again.
+    "src-entsoe": ("ingest_power.py", "--commit", "--json", "--days", "7"),
     "src-elexon": ("ingest_power_gb.py", "--commit", "--json", "--days", "2"),
     "src-national-gas-supply": (
         "ingest_national_gas_supply.py", "--commit", "--json", "--days", "5",

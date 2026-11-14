@@ -37,9 +37,15 @@ same for the first and the revised publication of an actual. Research datasets g
 record per version, so a backtest takes the value known at each origin. Values replaced
 before 14 November have no history. The ingest report (`--json`) and the data-quality
 report (`rev 7d`) count revised values.
-The data-ops scheduler runs it hourly (source `src-entsoe`, last two days, NL, DE-LU,
+The data-ops scheduler runs it hourly (source `src-entsoe`, last seven days, NL, DE-LU,
 BE and FR) once an administrator enables the source in Source Center with the token set; a
 failed document fails the run so it is retried and shows as late rather than complete.
+Seven days, not two (since 2026-11-14): actual generation arrives late. DE-LU generation
+by fuel for 10-11 Nov 2026 had reached only 10 Nov 08:30 UTC when read on 12 Nov 12:13,
+and a rolling two-day window never read those days again, so the store held no DE-LU gas,
+solar or onshore wind for 11 Nov while the provider had all of it. Late actuals are also
+revised for days (a seven-day re-read on 14 Nov revised 543 DE-LU values, typically
+50 MW on 60 GW of load, each kept in `observation_revisions`).
 
 ## Availability (point-in-time)
 
