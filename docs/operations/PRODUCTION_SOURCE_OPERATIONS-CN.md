@@ -38,6 +38,11 @@ python scripts/ops/run_public_ingestion_worker.py \
 
 ## 新鲜度 SLA
 
+新鲜度阈值以连接器清单为唯一来源（FRESH-01，见 [DATA_FRESHNESS.md](DATA_FRESHNESS.md)）：
+`/api/sources` 为每个来源返回按数据集的 `freshness_contract`（预期、最近接收、下次预期、状态）。
+TSO 费率来源为人工登记（`manual_register`），不会触发延迟或过期告警。下文旧表
+（`evaluate_source_sla`）在产品中无调用方，不是实际生效的阈值。
+
 `evaluate_source_sla(source_system, last_success_at_utc)` 依据上表返回
 `live`、`stale` 或 `unknown`。Source Center 继续按来源展示
 `freshness_status`。

@@ -158,7 +158,6 @@ def get_delivery_performance(
 
     from datetime import UTC, datetime, timedelta
 
-    from eurogas_nexus.api.positions import hub_from_text as _hub_from_text
     from eurogas_nexus.domain.risk.delivery import (
         DeliveryDay,
         DeliveryTerms,
@@ -200,6 +199,10 @@ def get_delivery_performance(
                 if contracts
                 else []
             )
+            # ONT-02: hubs through the one resolver, with the deployment's point mappings.
+            from eurogas_nexus.application.identity_resolution import load_resolver
+
+            identity = load_resolver(session)
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
     by_contract: dict[str, list] = {}
@@ -216,7 +219,7 @@ def get_delivery_performance(
         terms = DeliveryTerms(
             contract_id=key,
             contract_name=contract.contract_name,
-            hub=_hub_from_text(contract.delivery_point_name) or "",
+            hub=identity.hub(contract.delivery_point_name).hub or "",
             dcq_mwh=float(contract.delivery_quantity_mwh_per_day),
             nomination_tolerance_pct=float(contract.nomination_tolerance_pct or 0.0),
             delivery_tolerance_pct=float(contract.delivery_tolerance_pct or 0.0),

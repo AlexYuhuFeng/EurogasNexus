@@ -142,11 +142,10 @@ def main() -> int:
                     valid_from_utc=now - timedelta(days=365),
                     evidence="CR-14 canonical hub mapping; code identity, not display name.",
                 )
-        for source_id, name in (
-            ("BBL Company", "BBL Interconnector"),
-            ("Interconnector UK", "IUK Interconnector"),
+        for source_id, code, name in (
+            ("BBL Company", "BBL", "BBL Interconnector"),
+            ("Interconnector UK", "IUK", "IUK Interconnector"),
         ):
-            code = "BBL" if "BBL" in source_id else "IUK"
             canonical = canonical_entity_id("interconnector", code)
             upsert_canonical_entity(
                 session,

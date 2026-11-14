@@ -66,6 +66,13 @@ def main(argv: list[str] | None = None) -> int:
         by_metric[(item.zone, item.metric)] = by_metric.get((item.zone, item.metric), 0) + 1
     for (zone, metric), count in sorted(by_metric.items()):
         say(f"{zone:6} {metric:28} {count:6d}")
+    # ONT-02: every zone resolved to its canonical bidding zone, or listed as quarantined.
+    from eurogas_nexus.application.identity_resolution import check_identifiers
+
+    identity = check_identifiers("src-entsoe", "bidding_zone", (o.zone for o in observations))
+    say(f"identity: {identity['resolved']}/{identity['checked']} zones resolved")
+    for item in identity["quarantined"]:
+        say(f"quarantined zone {item['identifier']!r}: {item['reason']} ({item['rows']} rows)")
     if not args.commit:
         say(f"{len(observations)} observations parsed; dry run (add --commit to store)")
         return 0
@@ -91,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
                     # Values a later publication changed; each prior value is kept in
                     # observation_revisions (docs/operations/DATA_REVISIONS.md).
                     "revised": counts["revised"],
+                    "identity": identity,
                 }
             },
         }

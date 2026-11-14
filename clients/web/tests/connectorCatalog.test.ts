@@ -57,3 +57,17 @@ test("every source lands in exactly one group", () => {
   const groups = groupConnectors(sources);
   assert.equal(groups.attention.length + groups.connected.length + groups.available.length, sources.length);
 });
+
+test("a TSO tariff register is a manual register: never stale, never an alarm (DATA-05)", () => {
+  const register = { ...base, integration: "manual_register" as const, credential_state: "not_required" };
+  const empty = connectorCard({ ...register, connectivity_status: "manual_register", operational_status: "manual_register" });
+  assert.deepEqual(empty, { sourceId: "src-x", group: "available", statusKey: "connectors.status.manual_register", action: "open" });
+  const held = connectorCard({
+    ...register,
+    connectivity_status: "manual_register",
+    operational_status: "manual_register",
+    last_success_at_utc: "2025-01-01T00:00:00Z",
+  });
+  assert.equal(held.group, "connected");
+  assert.equal(held.statusKey, "connectors.status.manual_register");
+});

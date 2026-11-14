@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from eurogas_nexus.domain.connectors.manifest import ConnectorManifest
+from eurogas_nexus.domain.dataops.contracts import FreshnessPolicy
 
 MANIFEST = ConnectorManifest(
     source_id="src-ice-endex",
@@ -14,4 +15,6 @@ MANIFEST = ConnectorManifest(
     "Report Center export until a connector is licensed.",
     entitled=True,
     freshness_minutes=1440,
+    # Declared, not defaulted (FRESH-01); the values the registry default gave.
+    operations={"freshness_policy": FreshnessPolicy(1440, 2880, 4320)},
 )

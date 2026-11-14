@@ -771,7 +771,11 @@ def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
                 query = query.filter(
                     UpstreamResourceContractRecord.contract_id.in_(body.contract_ids)
                 )
-            contracts = [c for c in query.all() if hub_from_text(c.delivery_point_name) == hub]
+            contracts = [
+                c
+                for c in query.all()
+                if hub_from_text(c.delivery_point_name, session=session) == hub
+            ]
             ids = [c.contract_id for c in contracts]
             records = (
                 session.query(ContractDeliveryRecord)

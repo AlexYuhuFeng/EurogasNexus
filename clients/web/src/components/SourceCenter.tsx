@@ -675,6 +675,35 @@ export function SourceCenter({
                 ))}
               </div>
             </div>
+            {(selectedSource.freshness_contract ?? []).length > 0 && (
+              <div className="source-diagnostics source-freshness-contract">
+                <span>{t("sources.freshness_contract")}</span>
+                <div>
+                  {(selectedSource.freshness_contract ?? []).map((row) => (
+                    <strong
+                      key={`${selectedSource.source_id}-fc-${row.dataset}`}
+                      title={`${t("sources.freshness_contract.expected")}: ${row.expected.publication || row.expected.schedule_type} · ${t("sources.freshness_contract.next_expected")}: ${formatSourceTimestamp(row.next_expected_at_utc)}`}
+                    >
+                      {row.dataset}: {t(`sources.freshness_contract.state.${row.state}`)} · {t("sources.freshness_contract.last_received")} {formatSourceTimestamp(row.last_received_at_utc)}
+                    </strong>
+                  ))}
+                </div>
+              </div>
+            )}
+            {selectedSource.unresolved_identifiers !== undefined && (
+              <div className="source-diagnostics source-unresolved-identifiers">
+                <span title={t("sources.unresolved_identifiers.hint")}>{t("sources.unresolved_identifiers")}</span>
+                <div>
+                  {selectedSource.unresolved_identifiers.length === 0
+                    ? <strong>{t("sources.unresolved_identifiers.none")}</strong>
+                    : selectedSource.unresolved_identifiers.map((item) => (
+                      <strong key={`${selectedSource.source_id}-ui-${item.entity_type}-${item.identifier}`}>
+                        {item.entity_type} {item.identifier} · {item.reason} · {item.count}
+                      </strong>
+                    ))}
+                </div>
+              </div>
+            )}
             <div className="source-next-action">
               <span>{t("sources.next_action")}</span>
               <strong>{sourceNextAction(selectedSource)}</strong>

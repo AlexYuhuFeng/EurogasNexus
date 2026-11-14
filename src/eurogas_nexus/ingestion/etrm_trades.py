@@ -24,11 +24,21 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
-from eurogas_nexus.domain.ontology.markets import Commodity, find_market
-from eurogas_nexus.domain.ontology.quantity import UnitError, convert, convert_price, price_unit
+from eurogas_nexus.domain.ontology.boundary import check_boundary, refuse_if_invalid
+from eurogas_nexus.domain.ontology.quantity import UnitError, convert, convert_price
+
+#: Quantity units an ETRM extract may state; anything else is refused with a reason code.
+QUANTITY_UNITS = ("MWh", "MWh/d", "MWh/day", "MW", "th/d", "therm/d")
 
 MAX_ROWS = 200_000
 _CANCELLED = {"CANCELLED", "CANCELED", "DELETED", "VOID"}
+
+
+def _refused(message: str, check) -> EtrmImportError:
+    exc = EtrmImportError(message)
+    exc.reason_code = check.first.code.value  # type: ignore[attr-defined]
+    exc.boundary_issues = [item.as_dict() for item in check.issues]  # type: ignore[attr-defined]
+    return exc
 
 
 class EtrmImportError(ValueError):
@@ -93,16 +103,36 @@ def parse_etrm_trades(text: str, *, system: str, source_reference: str) -> EtrmI
         if cell(record, "status").upper() in _CANCELLED:
             cancelled.append(row_id)
             continue
-        market = find_market(cell(record, "hub"))
-        if market is None or market.commodity is not Commodity.NATURAL_GAS or not market.calendar:
-            raise EtrmImportError(f"line {line}: {cell(record, 'hub')!r} is not a gas hub")
+        hub_checked = check_boundary(market=cell(record, "hub"), gas_hub_required=True)
+        if hub_checked.first is not None and hub_checked.first.code.value == "market_unknown":
+            # Said as before ("... is not a gas hub"), with the reason code.
+            raise _refused(
+                f"line {line}: {cell(record, 'hub')!r} is not a gas hub [market_unknown]",
+                hub_checked,
+            )
+        refuse_if_invalid(hub_checked, EtrmImportError, f"line {line}: ")
+        market = hub_checked.market
+        if market is None:  # pragma: no cover - refused above
+            raise EtrmImportError(f"line {line}: hub did not resolve")
         side = cell(record, "side").upper()
         if side not in {"BUY", "SELL", "B", "S"}:
             raise EtrmImportError(f"line {line}: side must be BUY or SELL")
         first = _date(cell(record, "delivery_start"), line, "delivery_start")
         last = _date(cell(record, "delivery_end"), line, "delivery_end")
-        if last < first:
-            raise EtrmImportError(f"line {line}: delivery_end is before delivery_start")
+        period = check_boundary(
+            period_start=first,
+            period_end=last,
+            quantity_unit=cell(record, "quantity_unit"),
+            allowed_quantity_units=QUANTITY_UNITS,
+            market=market.code,
+            price_unit=cell(record, "price_unit"),
+            price_verb="trades",
+        )
+        if period.first is not None and period.first.code.value == "period_reversed":
+            raise _refused(
+                f"line {line}: delivery_end is before delivery_start [period_reversed]", period
+            )
+        refuse_if_invalid(period, EtrmImportError, f"line {line}: ")
         start = gas_day_start_for_date(first, market.calendar)
         end = gas_day_start_for_date(last + timedelta(days=1), market.calendar)
         days = (last - first).days + 1
@@ -118,13 +148,9 @@ def parse_etrm_trades(text: str, *, system: str, source_reference: str) -> EtrmI
                 total = quantity * hours
             elif unit in {"th/d", "therm/d"}:
                 total = convert(quantity, "th", "MWh") * days
-            else:
+            else:  # pragma: no cover - refused at the boundary above
                 raise EtrmImportError(f"line {line}: quantity_unit {unit!r} not supported")
             quote = cell(record, "price_unit")
-            if price_unit(quote).currency != market.currency:
-                raise EtrmImportError(
-                    f"line {line}: {market.code} trades in {market.currency}, not {quote}"
-                )
             per_mwh_unit = f"{market.currency}/MWh"
             price = convert_price(
                 _number(cell(record, "price"), line, "price"), quote, per_mwh_unit

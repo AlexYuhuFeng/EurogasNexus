@@ -54,6 +54,13 @@ def main(argv: list[str] | None = None) -> int:
         counts[item.metric] = counts.get(item.metric, 0) + 1
     for metric, count in sorted(counts.items()):
         say(f"GB     {metric:24} {count:6d}")
+    # ONT-02: the zone every row names, resolved or quarantined.
+    from eurogas_nexus.application.identity_resolution import check_identifiers
+
+    identity = check_identifiers("src-elexon", "bidding_zone", (o.zone for o in observations))
+    say(f"identity: {identity['resolved']}/{identity['checked']} zones resolved")
+    for item in identity["quarantined"]:
+        say(f"quarantined zone {item['identifier']!r}: {item['reason']} ({item['rows']} rows)")
     # "revised": values a later publication changed, each prior value kept in history.
     stored = {"inserted": 0, "updated": 0, "unchanged": 0, "revised": 0}
     if args.commit:
@@ -69,7 +76,8 @@ def main(argv: list[str] | None = None) -> int:
     ok = bool(observations) and not failures
     if args.json:
         print(json.dumps({"ok": ok, "failures": failures,
-                          "sources": {"elexon": {"records": len(observations), **stored}}}))
+                          "sources": {"elexon": {"records": len(observations), **stored,
+                                                 "identity": identity}}}))
     return 0 if ok else 1
 
 

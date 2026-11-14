@@ -37,6 +37,7 @@ from eurogas_nexus.domain.market_intelligence.normalized_view import (
     FxRateInput,
     convert_currency,
 )
+from eurogas_nexus.domain.ontology.identity import resolve_hub
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
 from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
@@ -1092,7 +1093,8 @@ def _market_row_matches(row: MarketObservationFact, target_keys: set[str]) -> bo
     metadata = row.metadata_json or {}
     keys = {
         _normalise_key(row.market_venue),
-        _normalise_key(row.product.split()[0] if row.product.strip() else ""),
+        # The hub the product names, by the ontology (ONT-02); never its first word.
+        _normalise_key(resolve_hub(row.product).hub),
         _normalise_key(metadata.get("hub")),
         _normalise_key(metadata.get("point_name")),
         _normalise_key(metadata.get("market_area")),

@@ -5,6 +5,7 @@ from __future__ import annotations
 from eurogas_nexus.domain.connectors.manifest import ConnectorManifest, ProviderCredentialSpec
 from eurogas_nexus.domain.dataops.contracts import (
     AccessMode,
+    DatasetFreshness,
     FreshnessPolicy,
     RateLimitPolicy,
     RetryPolicy,
@@ -45,5 +46,14 @@ MANIFEST = ConnectorManifest(
     },
     credentials=(
         ProviderCredentialSpec("ENTSOE", "ENTSO-E Transparency", ("ENTSOE_SECURITY_TOKEN",)),
+    ),
+    # The stored datasets and how old each one's newest period may be (FRESH-01).
+    dataset_freshness=(
+        DatasetFreshness(
+            "Power (ENTSO-E)",
+            30,
+            90,
+            "Day-ahead prices after the 12:00 CET auction; load and generation within the hour.",
+        ),
     ),
 )

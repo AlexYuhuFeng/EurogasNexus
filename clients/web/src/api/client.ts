@@ -620,7 +620,7 @@ export interface SourceSystemDTO {
   live_record_count: number | null;
   category: string; category_label: string; connectivity_status: string;
   /** How the data arrives: a connector, an operator's file import, a vendor template or a model service (#33). */
-  integration?: "api" | "file_import" | "template" | "model_service";
+  integration?: "api" | "file_import" | "template" | "model_service" | "manual_register";
   operational_status: string; workflow_ready: boolean;
   effective_source_system: string; effective_record_count: number | null;
   effective_last_success_at_utc: string | null;
@@ -641,8 +641,38 @@ export interface SourceSystemDTO {
   source_age_seconds: number | null;
   certification_state: string | null; entitlement_state: string | null;
   adapter_version: string | null;
+  /** FRESH-01: per dataset, what the manifest expects, the last receipt, the next expected
+   * update and the state (current, late, stale, never; manual for a register or an import). */
+  freshness_contract?: SourceFreshnessContractDTO[];
+  /** ONT-02: provider identifiers this source delivered that resolve to nothing, with counts. */
+  unresolved_identifiers?: UnresolvedIdentifierDTO[];
   /** The configured model endpoint of a model service (#33); never a key. */
   model_service?: { provider_name: string; model: string; host: string } | null;
+}
+
+export interface SourceFreshnessContractDTO {
+  source_id: string;
+  dataset: string;
+  expected: {
+    integration: string; schedule_type: string; interval_minutes: number | null;
+    daily_at: string | null; timezone: string; calendar: string;
+    normal_max_age_minutes: number; stale_after_minutes: number; publication: string;
+    period_late_hours: number | null; period_stale_hours: number | null;
+  };
+  last_received_at_utc: string | null;
+  last_period_at_utc: string | null;
+  next_expected_at_utc: string | null;
+  next_expected_basis: string;
+  /** The scheduler's next run has passed without a run (the scheduler is not running). */
+  next_expected_overdue?: boolean;
+  state: "current" | "late" | "stale" | "never" | "manual";
+}
+
+export interface UnresolvedIdentifierDTO {
+  entity_type: string;
+  identifier: string;
+  reason: string;
+  count: number;
 }
 
 export interface SourceCategoryPostureDTO {
@@ -667,6 +697,8 @@ export interface SourcePostureSummaryDTO {
     missing_credentials: number;
     preview_substitutes_active: number;
     runtime_records: number | null;
+    /** ONT-02: distinct provider identifiers quarantined across sources. */
+    unresolved_identifiers?: number;
   };
   categories: SourceCategoryPostureDTO[];
 }

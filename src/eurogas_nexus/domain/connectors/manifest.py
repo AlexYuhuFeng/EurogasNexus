@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
+from eurogas_nexus.domain.dataops.contracts import DatasetFreshness
+
 
 @dataclass(frozen=True)
 class ProviderCredentialSpec:
@@ -39,7 +41,8 @@ class ConnectorManifest:
     description: str
     entitled: bool
     freshness_minutes: int
-    #: How the data arrives: "api", "file_import", "template" or "model_service" (#33).
+    #: How the data arrives: "api", "file_import", "template", "model_service" (#33) or
+    #: "manual_register" (a register of published documents an operator keeps, DATA-05).
     integration: str = "api"
     #: A file-imported licensed dataset: served only to holders of its data scope even though
     #: no key is configured for it (WM/Reuters, BFIX).
@@ -53,3 +56,7 @@ class ConnectorManifest:
     #: The credit the provider's terms require wherever its data is shown or exported
     #: (docs/legal/DATA_SOURCE_TERMS.md); empty when none is recorded.
     attribution: str = ""
+    #: The stored datasets this connector delivers and how old each one's newest period may
+    #: become (FRESH-01). The data-quality report and the freshness service read this; no
+    #: second table holds an age threshold.
+    dataset_freshness: tuple[DatasetFreshness, ...] = ()

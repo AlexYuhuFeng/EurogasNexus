@@ -312,16 +312,20 @@ def _conversion_without_rates(
 
 
 def observation_hub(observation: MarketObservationInput) -> str:
-    """Extract the hub for an observation (metadata > product token > venue).
+    """The hub of an observation: its stated hub, else the hub its product names, else venue.
 
-    提取枢纽：优先 metadata_json.hub，其次 product 首词，最后 market_venue。
+    The product is resolved by the ontology (``resolve_hub``, ONT-02), never by its first
+    word; an unresolved product keeps the venue label, which names no hub.
+
+    提取枢纽：优先 metadata_json.hub，其次本体解析 product，最后 market_venue。
     """
+
+    from eurogas_nexus.domain.ontology.identity import resolve_hub
 
     metadata_hub = (observation.metadata_json or {}).get("hub")
     if isinstance(metadata_hub, str) and metadata_hub.strip():
         return metadata_hub.strip()
-    product_hub = observation.product.strip().split()[0] if observation.product.strip() else ""
-    return product_hub or observation.market_venue
+    return resolve_hub(observation.product).hub or observation.market_venue
 
 
 def observation_tenor(observation: MarketObservationInput) -> str:

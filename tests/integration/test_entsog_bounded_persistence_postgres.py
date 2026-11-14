@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models import (
     AuditEventRecord,
+    CanonicalEntityRecord,
     CapacityObservationRecord,
     FlowObservationRecord,
     IngestionRunRecord,
@@ -27,6 +28,7 @@ from eurogas_nexus.db.models import (
     ReferenceMarketHub,
     ReferenceNode,
     ReferenceTsoAccessPoint,
+    SourceEntityMappingRecord,
 )
 from eurogas_nexus.db.repositories.entsog_observation_persistence import (
     EntsogInvalidObservationError,
@@ -76,6 +78,9 @@ def _session():
                 IngestionRunRecord,
                 AuditEventRecord,
                 ObservationRevisionRecord,
+                # ONT-02: the reference refresh records point/operator identity mappings.
+                CanonicalEntityRecord,
+                SourceEntityMappingRecord,
             ):
                 model.__table__.create(bind=connection)
             with Session(bind=connection) as session:
@@ -530,6 +535,10 @@ def test_repeat_reference_refresh_keeps_referenced_points_and_ids():
             replace_network=script._replace_reference_network,
         )
         assert second["records"] == first["records"] and second["retired"] == 0
+        # ONT-02: the read's point and operator keys are mappings, recorded once.
+        mappings = _rows(session, SourceEntityMappingRecord)
+        assert mappings and {m["source_id"] for m in mappings} == {"src-entsog"}
+        assert len(_rows(session, SourceEntityMappingRecord)) == len(mappings)
         assert {r["id"]: r["created_at_utc"] for r in _rows(session, ReferenceNode)} == created
         assert _rows(session, ReferenceTsoAccessPoint)[0]["point_id"] == access[0]["point_id"]
 

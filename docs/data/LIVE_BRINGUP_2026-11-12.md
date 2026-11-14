@@ -674,6 +674,135 @@ The Elexon warning is age only: no scheduler ran after 06:54 UTC. The GIE placeh
 (AGSI GB, ALSI DK/GB/LU) are no longer in the store (removed before this round, not by it),
 hence 0 blanks.
 
+### Identity, boundary checks and the freshness contract (2026-11-14)
+
+Five items: ONT-01 (which ontology decides what), ONT-02 (identity resolved once, never
+guessed), ONT-03 (one boundary check for importers), FRESH-01 (one freshness contract) and
+DATA-05 (TSO tariffs are manual registers). No migration; no new route.
+
+**Authority.** [ONTOLOGY_AUTHORITY.md](../ontology/ONTOLOGY_AUTHORITY.md) names the three
+ontologies (the executable `domain/ontology/` package, the generated GRM OWL file, the
+research energy ontology with `source_entity_mappings`) and what each decides, and traces
+ENTSOG point ITP-00106 from the provider record (423,450,000 kWh/d) to the canonical id
+`ent:point:ITP-00106`, the stored row, the feature `flow.gwh_d.ITP-00106.entry`
+(423.45 GWh/d), a dataset snapshot and `/api/research/datasets`. The trace runs as
+`tests/contract/test_ontology_worked_example.py`.
+
+**Identity.** One resolver (`application/identity_resolution.py`) backed by
+`source_entity_mappings` and the built-in identities in
+`domain/ontology/source_identity.py` (GIE countries, ENTSO-E and Elexon zones, National
+Gas publications and aggregates). The ENTSOG reference ingest now writes the provider's
+point and operator keys as mappings. The heuristic call sites are gone: the first word of a
+product taken as a hub in `projections/daily_closes.py`, `storage_nomination_composition.py`,
+`db/repositories/backtest.py`, `market_intelligence/normalized_view.py` and
+`route_cost/portfolio_network.py`; the substring hub match in `contract_intake.py` and
+`desk_text.hub_for_zone` (which read THE out of "NETHERLANDS"); contract hubs now also
+consult the deployment's `delivery_point` mappings. Live, after a reference read through
+the normal script (`ingest_public_sources.py --source entsog-reference --limit 50000
+--entsog-page-size 1000`: 789 + 1,283 records, 2,733 rows upserted, 0 retired; 853 point
+and 53 operator mappings written):
+
+| Source | Identifiers stored | Resolved | Quarantined | Rows carrying them |
+|---|---|---|---|---|
+| ENTSOG | 751 | 730 | 21 (19 point keys, 2 operators) | 122 capacity rows |
+| GIE | 11 | 11 | 0 | 0 |
+| National Gas supply | 2 | 2 | 0 | 0 |
+| National Gas demand | 2 | 2 | 0 | 0 |
+| ENTSO-E | 4 | 4 | 0 | 0 |
+| Elexon | 1 | 1 | 0 | 0 |
+
+The 21 quarantined ENTSOG identifiers are all in `capacity_observations`, none in flows:
+capacity validity ranges for points ENTSOG no longer lists in its reference (ITP-00044
+Dragor 2014-2019, ITP-00199 Bunder-Tief to 2021, PRD-00158 to 00161, UGS-00394 Etzel ESE
+operated by DE-TSO-0013, and others) plus operators DE-TSO-0013 and FI-TSO-0001. They are
+listed on the Sources page (`unresolved_identifiers` on `src-entsog`, the total in the
+posture summary), not mapped by name. Dry runs of the other ingestors report the same
+check: ENTSO-E DE_LU, NL, BE, FR one zone each, resolved; Elexon GB resolved; National Gas
+supply storage and LNG resolved; the GIE IIP collector quarantined none of 245 message
+versions (3 days).
+
+**Boundary checks.** `domain/ontology/boundary.check_boundary` (market, hub, unit, product,
+period; reason codes in `BoundaryReason`) is called by the settlement, ETRM, quote and REMIT
+file imports and the contract save. Existing importer tests pass unchanged (the ETRM message keeps
+"trades in"); every code has a test (`tests/unit/test_boundary_validation.py`). The IIP
+collector quarantines a reversed event instead of refusing the page.
+
+**Freshness contract.** Each manifest declares its datasets' period thresholds
+(`DatasetFreshness`); the data-quality report reads them (its `max_age_hours` table is
+gone) and splits overnight rates into SONIA, €STR and SOFR, one per connector. Every
+manifest now declares its `FreshnessPolicy` explicitly; GIE's normal age moved from 360 to
+1,500 minutes because it is read once a day. Source Center's verdict now uses the policy
+(stale beyond `stale_after_minutes`), not the display field `freshness_minutes`. Live
+contract at 13:36 UTC (the scheduler was not running, so stored next runs are overdue):
+
+| Dataset | Expected | Last received (UTC) | Next expected (UTC) | State |
+|---|---|---|---|---|
+| ENTSOG flows | every 60 min; stale after 6 h; period 54 h | 14 Nov 02:12 | 14 Nov 03:11, overdue | stale |
+| ENTSOG capacity | every 60 min; stale after 6 h; period 54 h | 14 Nov 02:13 | 14 Nov 03:11, overdue | stale |
+| GIE storage (AGSI) | daily 09:00 Brussels; period 72 h | 14 Nov 01:03 | 14 Nov 08:00, overdue | current |
+| GIE LNG (ALSI) | daily 09:00 Brussels; period 72 h | 14 Nov 01:03 | 14 Nov 08:00, overdue | current |
+| GB storage (National Gas) | every 3 h; period 72 h | 14 Nov 01:15 | 14 Nov 04:11, overdue | current |
+| GB LNG (National Gas) | every 3 h; period 72 h | 14 Nov 01:15 | 14 Nov 04:11, overdue | current |
+| ECB FX reference | daily 16:10 Berlin, weekdays; period 96 h | 14 Nov 01:13 | 14 Nov 15:10 | current |
+| SONIA (BoE) | daily 10:15 London, weekdays; period 120 h | 14 Nov 01:13 | 14 Nov 10:15, overdue | current |
+| €STR (ECB) | daily 08:15 Berlin, weekdays; period 120 h | 14 Nov 01:13 | 14 Nov 07:15, overdue | current |
+| SOFR (NY Fed) | daily 08:30 New York, weekdays; period 120 h | 14 Nov 01:15 | 14 Nov 13:30, overdue | current |
+| Henry Hub (EIA) | daily 17:10 New York, weekdays; period 264 h | 11 Nov 18:00 | 14 Nov 22:10 | late |
+| Power (ENTSO-E) | every 60 min; period 30 h | 14 Nov 12:17 | 14 Nov 03:11, overdue | current |
+| GB power (Elexon) | every 30 min; period 6 h | 14 Nov 06:55 | 14 Nov 02:41, overdue | late |
+| GB demand (National Gas) | every 6 h; period 72 h | 14 Nov 06:33 | 14 Nov 19:36 (no scheduler state) | current |
+| Outages (REMIT UMM) | every 30 min; period 336 h | 14 Nov 06:39 | scheduler disabled | current |
+| 8 TSO tariff registers | manual register | - | not scheduled | manual |
+
+Licensed feeds and simulators not connected read `never`; WM/Reuters and BFIX imports,
+the weather template and the model service read `manual`.
+
+**Tariffs.** The eight TSO tariff connectors are `integration = manual_register`: the
+Sources page says "Manual register" (English and Chinese labels), the connector card is never in
+"Needs attention", the dataops freshness engine returns `NOT_EXPECTED`, the category's next
+action is "update the register". Registry snapshot: only the `integration` lines (8
+registered sources changed, a new `integration` field on 39 source definitions) and GIE's
+policy changed.
+
+**Data quality after** (14 Nov 13:37 UTC; thresholds from the manifests, the same values):
+
+```
+dataset                    status        rows series last period       age h  dup  blank short days rev 7d
+ENTSOG flows               ok           13173    806 2026-11-14T05:00    8.6    0      0    0/418      265
+ENTSOG capacity            ok           12647   3925 2026-11-14T06:00    7.6    0      0    0/611      109
+GIE storage (AGSI)         ok            7812      6 2026-11-12T05:00   56.6    0      0    0/4801      28
+GIE LNG (ALSI)             ok            7210      5 2026-11-12T05:00   56.6    0      0    0/4801       4
+GB storage (National Gas)  ok             411      1 2026-11-13T05:00   32.6    0      0    0/409        1
+GB LNG (National Gas)      ok             411      1 2026-11-13T05:00   32.6    0      0    0/409        1
+ECB FX reference           ok              12      6 2026-11-13T00:00   37.6    0      0    0/0          -
+SONIA (BoE)                ok              33      1 2026-11-11T00:00   85.6    0      0    0/0          -
+€STR (ECB)                 ok              34      1 2026-11-12T00:00   61.6    0      0    0/0          -
+SOFR (NY Fed)              ok              32      1 2026-11-12T00:00   61.6    0      0    0/0          -
+Henry Hub (EIA)            ok              33      1 2026-11-11T00:00   85.6    0      0    0/32         -
+Power (ENTSO-E)            ok           18141     24 2026-11-14T22:45   -9.1    0      0    0/9        662
+GB power (Elexon)          warning       1397      4 2026-11-14T06:30    7.1    0      0    0/6          0
+    warning: Latest period is 7 h old; expected within 6 h.
+GB demand (National Gas)   ok             119     96 2026-11-12T00:00   61.6    0      0    0/0          -
+Outages (REMIT UMM)        ok            1588   1588 2026-11-14T06:13    7.4    0      0    0/0          -
+```
+
+**Found, not fixed.**
+
+- `markets.py` lists ETF as an alias of TTF; the contract intake and desk text treat ETF as
+  the Danish hub. A contract naming ETF resolves to TTF (as positions already did).
+- Dataset entity ids `ent:point:`, `ent:storage_site:`, `ent:bidding_zone:` are not in the
+  research ontology's `CanonicalEntityType`; GIE "storage sites" are country aggregates.
+- `application/source_operations.py` keeps an older freshness-SLA table
+  (`evaluate_source_sla`) with no caller; it disagrees with the manifests (GIE 360 min).
+- `freshness_minutes` on each manifest is still a display field beside the policy (EIA
+  and the rate sources show 1,440 while their policy says 2,880).
+- `public_sources._market_hub_code` still takes the first word of an ENTSOG market-area
+  label as a code for reference market hubs; it is reference-network bundle code, left to
+  that work.
+- Rows whose provider identifier is quarantined are stored and listed, not withheld from
+  readers: the hub readers never guess, but a flow or capacity row with an unmapped point
+  key is still read by point key.
+
 ## Reproducing
 
 ```bash
@@ -697,6 +826,9 @@ python scripts/ops/capacity_range_resplits.py            # dry run; --commit rec
 python scripts/ops/ingest_national_gas_demand.py --json --days 8
 python scripts/ops/ingest_remit_iip.py --days 90 --commit --json
 python scripts/ops/ingest_power.py --zone DE_LU --days 6 --commit
+python scripts/ops/ingest_public_sources.py --source entsog-reference --limit 50000 \
+  --entsog-page-size 1000 --json        # also writes ENTSOG identity mappings; "identity"
+python scripts/ops/ingest_remit_iip.py --days 3 --json   # dry run; "quarantined"
 python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2026-11-05 \
   --entsog-to 2026-11-13 --entsog-point-direction <landing point-directions> \
   --limit 5000 --entsog-page-size 1000

@@ -5,6 +5,8 @@
  * - `attention`: something that was set up is not working (a failure, a stale feed, a disabled
  *   or lost credential, a scheduled feed that produces nothing, or no runtime store);
  * - `connected`: delivering data, or a model service with its credential in place;
+ * - a `manual_register` (TSO tariffs, DATA-05) is a register an operator keeps: shown as
+ *   such, never stale and never in `attention`;
  * - `available`: offered but never set up. An optional provider nobody connected is not an
  *   alarm, so it never counts as needing attention.
  * Grouping is a view: it grants nothing, and the backend decides every read.
@@ -16,7 +18,7 @@ export interface ConnectorSourceFacts {
   readonly source_id: string;
   readonly connectivity_status: string;
   readonly operational_status: string;
-  readonly integration?: "api" | "file_import" | "template" | "model_service";
+  readonly integration?: "api" | "file_import" | "template" | "model_service" | "manual_register";
   readonly credential_state: string;
   readonly scheduler_enabled: boolean;
   readonly last_success_at_utc: string | null;
@@ -40,6 +42,15 @@ export function connectorCard(source: ConnectorSourceFacts): ConnectorCard {
   const attention = (statusKey: string): ConnectorCard => ({ sourceId, group: "attention", statusKey, action: "fix" });
 
   if (status === "runtime_unconfigured") return attention("connectors.status.no_store");
+  // A TSO tariff register an operator keeps (DATA-05): not a feed, never stale, never an alarm.
+  if (source.integration === "manual_register" || status === "manual_register") {
+    return {
+      sourceId,
+      group: source.operational_status === "manual_register" && everWorked ? "connected" : "available",
+      statusKey: "connectors.status.manual_register",
+      action: "open",
+    };
+  }
   if (status === "failed" || source.consecutive_failures > 0) return attention("connectors.status.failing");
   if (status === "stale") return attention("connectors.status.stale");
   if (status === "credential_disabled") return attention("connectors.status.key_disabled");

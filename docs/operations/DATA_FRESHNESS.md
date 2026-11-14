@@ -6,6 +6,39 @@ Freshness is backend-owned and deterministic:
 `FRESH | LATE | STALE | MISSING | NOT_EXPECTED | UNKNOWN | RESTRICTED`.
 The frontend never computes authoritative freshness.
 
+## Freshness contract (FRESH-01)
+
+Every dataset declares its expectation in its connector manifest
+(`src/eurogas_nexus/domain/connectors/builtin/*.py`): the scheduler's schedule (cadence and
+time), the receipt thresholds (`FreshnessPolicy`: current within `normal_max_age_minutes`,
+late up to `stale_after_minutes`, stale beyond) and, for each stored dataset, how old its
+newest period may be (`DatasetFreshness`: `period_late_hours`, `period_stale_hours`, and
+the provider's publication in words). Nothing else holds an age threshold: the
+data-quality report (`scripts/ops/data_quality_report.py`) reads the period thresholds
+from the same declaration.
+
+One service, `application/freshness_contract.py`, returns per dataset:
+
+| Field | Meaning |
+|---|---|
+| `expected` | schedule, calendar, receipt thresholds, period thresholds, publication |
+| `last_received_at_utc` | the later of first receipt and a provider revision (`last_received_column`) |
+| `next_expected_at_utc` | the scheduler's own `next_run_at_utc` (basis `scheduler`), or what it would set on first sight (`schedule`); `next_expected_overdue` when that time has passed without a run |
+| `state` | `current`, `late`, `stale`, `never`; `manual` for a manual register (TSO tariffs), a file import, a vendor template or a model service |
+
+It is served on `GET /api/sources` as `freshness_contract` on each source (no new route),
+and the Sources page shows it in the source's detail. A weekday-only source (ECB, the rate
+administrators, EIA) does not count a weekend against its age. A schedulable source's
+`normal_max_age_minutes` is at least its schedule's cadence
+(`tests/unit/test_freshness_contract.py`); GIE moved from 360 to 1,500 minutes for that
+reason (one read a day at 09:00 Brussels).
+
+**TSO tariff registers** (`src-national-gas-nts`, `src-bbl`, `src-iuk`, `src-gts`,
+`src-natran`, `src-german-tso`, `src-fluxys-belgium`, `src-cnmc-enagas`) are
+`integration = manual_register`: the Sources page labels them "Manual register", the
+freshness engine returns `NOT_EXPECTED`, and no late or stale alarm fires for them. The
+category's next action is "update the register when the TSO publishes".
+
 ## Symptoms
 
 - Market/Strategy/Shadow surfaces show stale or degraded evidence.

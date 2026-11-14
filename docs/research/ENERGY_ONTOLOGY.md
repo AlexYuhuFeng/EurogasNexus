@@ -9,6 +9,9 @@
 
 ## Canonical identity
 
+Which ontology decides what (this one: canonical ids, mappings and the snapshot version) is
+stated in [ONTOLOGY_AUTHORITY.md](../ontology/ONTOLOGY_AUTHORITY.md).
+
 - Canonical identifiers are stable semantic keys, not display names:
   `ent:<entity_type>:<CODE>`.
 - Examples: `ent:market_hub:NBP`, `ent:interconnector:BBL`.

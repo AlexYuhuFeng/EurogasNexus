@@ -74,14 +74,21 @@ def main(argv: list[str] | None = None, *, get_page=None) -> int:
 
     fields = acer_messages(read.records)
     reference = source_reference_for("GIE_IIP", f"api:{now:%Y%m%dT%H%MZ}", terms_confirmed=False)
+    quarantined: list[dict] = []
     try:
         messages = (
-            parse_umm_export(json.dumps(fields), source_reference=reference) if fields else []
+            parse_umm_export(
+                json.dumps(fields), source_reference=reference, quarantine=quarantined
+            )
+            if fields
+            else []
         )
     except UmmParseError as exc:
         say(f"refused: {exc}")
         return fail("iip_umm_unreadable")
     live = current_messages(messages)
+    for item in quarantined:
+        say(f"quarantined {item['message_id']}: {item['reason']} ({item['detail']})")
     say(
         f"{read.pages} pages ({read.stop}), {len(read.records)} messages, "
         f"{len(messages)} unavailability versions, {len(live)} current events"
@@ -102,6 +109,8 @@ def main(argv: list[str] | None = None, *, get_page=None) -> int:
             "ok": bool(read.records),
             "failures": [] if read.records else [{"code": "iip_no_messages"}],
             "sources": {"gie_iip": {"records": len(messages), **counts, "revised": 0}},
+            # ONT-03: provider records refused at the boundary, with their reason codes.
+            "quarantined": quarantined,
         }, sort_keys=True))
     return 0 if read.records else 1
 

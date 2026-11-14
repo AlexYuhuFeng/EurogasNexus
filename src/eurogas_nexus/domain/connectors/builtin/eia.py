@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from eurogas_nexus.domain.connectors.manifest import ConnectorManifest, ProviderCredentialSpec
 from eurogas_nexus.domain.connectors.operations import rate_operations
+from eurogas_nexus.domain.dataops.contracts import DatasetFreshness
 
 MANIFEST = ConnectorManifest(
     source_id="src-eia",
@@ -20,4 +21,13 @@ MANIFEST = ConnectorManifest(
         "adapter_version": "eia-open-data-v2",
     },
     credentials=(ProviderCredentialSpec("EIA", "US EIA open data", ("EIA_API_KEY",)),),
+    # The stored datasets and how old each one's newest period may be (FRESH-01).
+    dataset_freshness=(
+        DatasetFreshness(
+            "Henry Hub (EIA)",
+            264,
+            792,
+            "EIA updates Henry Hub spot weekly to daily, about a week behind.",
+        ),
+    ),
 )

@@ -276,7 +276,7 @@
    "entitlement_scope": "public",
    "export_restrictions": [],
    "freshness_expectation_minutes": 43200,
-   "integration": "api",
+   "integration": "manual_register",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -316,7 +316,7 @@
    "entitlement_scope": "public",
    "export_restrictions": [],
    "freshness_expectation_minutes": 43200,
-   "integration": "api",
+   "integration": "manual_register",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -356,7 +356,7 @@
    "entitlement_scope": "public",
    "export_restrictions": [],
    "freshness_expectation_minutes": 43200,
-   "integration": "api",
+   "integration": "manual_register",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -395,7 +395,7 @@
    "entitlement_scope": "public",
    "export_restrictions": [],
    "freshness_expectation_minutes": 43200,
-   "integration": "api",
+   "integration": "manual_register",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -435,7 +435,7 @@
    "entitlement_scope": "public",
    "export_restrictions": [],
    "freshness_expectation_minutes": 43200,
-   "integration": "api",
+   "integration": "manual_register",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -475,7 +475,7 @@
    "entitlement_scope": "public",
    "export_restrictions": [],
    "freshness_expectation_minutes": 43200,
-   "integration": "api",
+   "integration": "manual_register",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -515,7 +515,7 @@
    "entitlement_scope": "public",
    "export_restrictions": [],
    "freshness_expectation_minutes": 43200,
-   "integration": "api",
+   "integration": "manual_register",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -555,7 +555,7 @@
    "entitlement_scope": "public",
    "export_restrictions": [],
    "freshness_expectation_minutes": 43200,
-   "integration": "api",
+   "integration": "manual_register",
    "last_failure_at_utc": null,
    "last_ingestion_message": null,
    "last_ingestion_status": null,
@@ -1763,6 +1763,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -1825,6 +1826,7 @@
     "normal_max_age_minutes": 60,
     "stale_after_minutes": 360
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -1881,10 +1883,11 @@
    "entitlement_scope": "licensed",
    "freshness_policy": {
     "basis": "observed_at_utc",
-    "late_after_minutes": 720,
-    "normal_max_age_minutes": 360,
-    "stale_after_minutes": 1440
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1500,
+    "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -1945,6 +1948,7 @@
     "normal_max_age_minutes": 43200,
     "stale_after_minutes": 129600
    },
+   "integration": "manual_register",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2004,6 +2008,7 @@
     "normal_max_age_minutes": 43200,
     "stale_after_minutes": 129600
    },
+   "integration": "manual_register",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2063,6 +2068,7 @@
     "normal_max_age_minutes": 43200,
     "stale_after_minutes": 129600
    },
+   "integration": "manual_register",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2121,6 +2127,7 @@
     "normal_max_age_minutes": 43200,
     "stale_after_minutes": 129600
    },
+   "integration": "manual_register",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2180,6 +2187,7 @@
     "normal_max_age_minutes": 43200,
     "stale_after_minutes": 129600
    },
+   "integration": "manual_register",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2239,6 +2247,7 @@
     "normal_max_age_minutes": 43200,
     "stale_after_minutes": 129600
    },
+   "integration": "manual_register",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2298,6 +2307,7 @@
     "normal_max_age_minutes": 43200,
     "stale_after_minutes": 129600
    },
+   "integration": "manual_register",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2357,6 +2367,7 @@
     "normal_max_age_minutes": 43200,
     "stale_after_minutes": 129600
    },
+   "integration": "manual_register",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2419,6 +2430,7 @@
     "normal_max_age_minutes": 1,
     "stale_after_minutes": 30
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2480,6 +2492,7 @@
     "normal_max_age_minutes": 1,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2542,6 +2555,7 @@
     "normal_max_age_minutes": 1,
     "stale_after_minutes": 30
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2602,6 +2616,7 @@
     "normal_max_age_minutes": 1,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2663,6 +2678,7 @@
     "normal_max_age_minutes": 1,
     "stale_after_minutes": 30
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2723,6 +2739,7 @@
     "normal_max_age_minutes": 1,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2785,6 +2802,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2845,6 +2863,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2905,6 +2924,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -2962,6 +2982,7 @@
     "normal_max_age_minutes": 2880,
     "stale_after_minutes": 8640
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3023,6 +3044,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3085,6 +3107,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3145,6 +3168,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3206,6 +3230,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3267,6 +3292,7 @@
     "normal_max_age_minutes": 60,
     "stale_after_minutes": 720
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3329,6 +3355,7 @@
     "normal_max_age_minutes": 180,
     "stale_after_minutes": 720
    },
+   "integration": "template",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3390,6 +3417,7 @@
     "normal_max_age_minutes": 120,
     "stale_after_minutes": 1440
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3449,6 +3477,7 @@
     "normal_max_age_minutes": 120,
     "stale_after_minutes": 1440
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3507,6 +3536,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3564,6 +3594,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3621,6 +3652,7 @@
     "normal_max_age_minutes": 2880,
     "stale_after_minutes": 8640
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3678,6 +3710,7 @@
     "normal_max_age_minutes": 2880,
     "stale_after_minutes": 8640
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3735,6 +3768,7 @@
     "normal_max_age_minutes": 2880,
     "stale_after_minutes": 8640
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3792,6 +3826,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 10080
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3849,6 +3884,7 @@
     "normal_max_age_minutes": 720,
     "stale_after_minutes": 4320
    },
+   "integration": "api",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3910,6 +3946,7 @@
     "normal_max_age_minutes": 0,
     "stale_after_minutes": 0
    },
+   "integration": "model_service",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -3968,6 +4005,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "file_import",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,
@@ -4025,6 +4063,7 @@
     "normal_max_age_minutes": 1440,
     "stale_after_minutes": 4320
    },
+   "integration": "file_import",
    "licensed_data": {
     "api_exposure_allowed": false,
     "export_allowed": false,

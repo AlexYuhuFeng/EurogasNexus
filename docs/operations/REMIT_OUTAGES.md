@@ -116,6 +116,14 @@ dismissed events. Capacity stays in the published unit; `capacity_impact_mcm_d` 
 only for volume units (mcm/d, MSm3/d) and `unavailable_gwh_d` only for energy units, so no
 calorific value is assumed.
 
+**Boundary check (ONT-03).** Every message's event period is checked by
+`domain/ontology/boundary.check_boundary`: an event that ends before it starts is refused
+with reason `period_reversed`. A file import is refused whole, naming the message and the
+reason; the scheduled IIP collector leaves that one message out and lists it under
+`quarantined` (message id, reason, detail) in its `--json` output, so one bad provider
+record does not refuse the page. A unit with no daily figure is not refused: it is stored as
+published and reported as `unconverted:<reason>` (above).
+
 Storage and LNG messages from GIE IIP arrive through the scheduled collector above; use
 the import for production and transmission messages (Gassco, EEX Transparency, PRISMA)
 until a collector for those platforms exists.

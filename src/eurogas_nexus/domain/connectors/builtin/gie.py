@@ -5,6 +5,7 @@ from __future__ import annotations
 from eurogas_nexus.domain.connectors.manifest import ConnectorManifest, ProviderCredentialSpec
 from eurogas_nexus.domain.dataops.contracts import (
     AccessMode,
+    DatasetFreshness,
     FreshnessPolicy,
     LicensedDataPolicy,
     RateLimitPolicy,
@@ -37,7 +38,8 @@ MANIFEST = ConnectorManifest(
             timezone="Europe/Brussels",
         ),
         "calendar": SourceCalendar.GAS_MARKET,
-        "freshness_policy": FreshnessPolicy(360, 720, 1440),
+        # One read a day after the 09:00 run: a receipt is up to a day old before the next.
+        "freshness_policy": FreshnessPolicy(1500, 2880, 4320),
         "retry_policy": RetryPolicy(3, 60.0, 1800.0),
         "rate_limit_policy": RateLimitPolicy(12, 3600.0, 10.0, 1),
         "adapter_version": "public-source-ingestor/1",
@@ -53,6 +55,21 @@ MANIFEST = ConnectorManifest(
             ("GIE_API_KEY",),
             file_env="GIE_API_KEY_FILE",
             note="Also needs a certification record before live ingestion.",
+        ),
+    ),
+    # The stored datasets and how old each one's newest period may be (FRESH-01).
+    dataset_freshness=(
+        DatasetFreshness(
+            "GIE storage (AGSI)",
+            72,
+            216,
+            "AGSI+ publishes gas day D at about 18:00 CET on D+1, corrected the next morning.",
+        ),
+        DatasetFreshness(
+            "GIE LNG (ALSI)",
+            72,
+            216,
+            "ALSI publishes gas day D at about 18:00 CET on D+1, corrected the next morning.",
         ),
     ),
 )

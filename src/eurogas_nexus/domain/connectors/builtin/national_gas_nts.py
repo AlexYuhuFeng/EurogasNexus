@@ -13,5 +13,8 @@ MANIFEST = ConnectorManifest(
     description="National Gas NTS transportation tariff references for explicit-leg route costing.",
     entitled=False,
     freshness_minutes=43200,
+    # A register of published tariff documents an operator keeps (DATA-05): no feed,
+    # no schedule, so no freshness or staleness alarm.
+    integration="manual_register",
     operations=tariff_operations(),
 )

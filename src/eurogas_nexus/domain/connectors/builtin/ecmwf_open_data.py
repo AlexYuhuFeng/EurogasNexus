@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from eurogas_nexus.domain.connectors.manifest import ConnectorManifest
+from eurogas_nexus.domain.dataops.contracts import FreshnessPolicy
 
 MANIFEST = ConnectorManifest(
     source_id="src-ecmwf-open-data",
@@ -13,4 +14,6 @@ MANIFEST = ConnectorManifest(
     "source under CC BY 4.0; attribution: ECMWF.",
     entitled=False,
     freshness_minutes=720,
+    # Declared, not defaulted (FRESH-01); the values the registry default gave.
+    operations={"freshness_policy": FreshnessPolicy(720, 2880, 4320)},
 )

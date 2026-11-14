@@ -46,12 +46,16 @@ def pct(value: float | None) -> str:
 def hub_for_zone(zone: str) -> str | None:
     """The hub a balancing zone trades as, if it names one."""
 
-    from eurogas_nexus.application.position_inputs import HUB_CODES
+    from eurogas_nexus.domain.ontology.identity import resolve_hub
 
     upper = (zone or "").upper()
-    for hub in HUB_CODES:
-        if hub in upper:
-            return hub
+    # ONT-02: a hub named as a word, by the ontology; "NETHERLANDS" no longer contains THE.
+    named = resolve_hub(zone).hub
+    if named is not None:
+        from eurogas_nexus.domain.ontology.markets import market
+
+        # A superseded hub (GASPOOL, NCG) trades as its successor (THE).
+        return market(named).superseded_by or named
     for key, hub in ZONE_HUB.items():
         if upper == key or upper.startswith(f"{key}-") or upper.endswith(f"-{key}"):
             return hub

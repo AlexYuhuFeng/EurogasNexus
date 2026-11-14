@@ -304,7 +304,9 @@ def test_sources_response_meta_includes_category_posture_summary(
     assert response.status_code == 200
     summary = response.json()["meta"]["source_posture_summary"]
     assert summary["totals"]["registered_sources"] >= 20
-    assert summary["totals"]["active_sources"] >= 5
+    # The NTS tariff register holds rows but is a manual register, not an active feed
+    # (DATA-05), so it no longer counts as an active source.
+    assert summary["totals"]["active_sources"] >= 4
     assert summary["totals"]["workflow_ready_sources"] >= 8
     assert summary["totals"]["preview_substitutes_active"] == 3
     assert summary["totals"]["runtime_records"] == 1493
@@ -318,6 +320,17 @@ def test_sources_response_meta_includes_category_posture_summary(
     assert categories["infrastructure"]["missing_credentials"] == 1
     assert categories["infrastructure"]["runtime_records"] == 152
     assert categories["tariff"]["runtime_records"] == 1315
+    assert categories["tariff"]["active_sources"] == 0
+    assert categories["tariff"]["next_action"] == "update_register"
+    nts = next(
+        item for item in response.json()["data"] if item["source_id"] == "src-national-gas-nts"
+    )
+    assert nts["integration"] == "manual_register"
+    assert nts["connectivity_status"] == nts["operational_status"] == "manual_register"
+    assert nts["workflow_ready"] is True
+    assert nts["diagnostics"][0] == "manual_register"
+    assert "data_stale" not in nts["diagnostics"]
+    assert nts["freshness_status"] == "not_expected"
 
 
 def test_source_records_include_diagnostics_and_credential_state(client: TestClient) -> None:
@@ -372,8 +385,9 @@ def test_national_gas_nts_source_uses_runtime_tariff_rows(monkeypatch: pytest.Mo
         item for item in response.json()["data"] if item["source_system"] == "NationalGasNTS"
     )
     assert source["live_record_count"] == 1315
-    assert source["connectivity_status"] == "active"
-    assert source["diagnostics"] == ["live_records_available"]
+    # A TSO tariff register is kept by an operator, not fed (DATA-05).
+    assert source["connectivity_status"] == "manual_register"
+    assert source["diagnostics"] == ["manual_register", "live_records_available"]
 
 
 def test_interconnector_sources_use_runtime_tariff_rows(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -393,9 +407,9 @@ def test_interconnector_sources_use_runtime_tariff_rows(monkeypatch: pytest.Monk
     assert response.status_code == 200
 
     sources = {item["source_system"]: item for item in response.json()["data"]}
-    assert sources["BBL"]["connectivity_status"] == "active"
+    assert sources["BBL"]["connectivity_status"] == "manual_register"
     assert sources["BBL"]["live_record_count"] == 2
-    assert sources["IUK"]["connectivity_status"] == "active"
+    assert sources["IUK"]["connectivity_status"] == "manual_register"
     assert sources["IUK"]["live_record_count"] == 4
 
 

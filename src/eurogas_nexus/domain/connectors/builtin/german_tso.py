@@ -13,5 +13,8 @@ MANIFEST = ConnectorManifest(
     description="German gas transmission tariff references for THE market-area routing.",
     entitled=False,
     freshness_minutes=43200,
+    # A register of published tariff documents an operator keeps (DATA-05): no feed,
+    # no schedule, so no freshness or staleness alarm.
+    integration="manual_register",
     operations=tariff_operations(),
 )

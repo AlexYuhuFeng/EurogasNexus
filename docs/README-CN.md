@@ -51,6 +51,7 @@
 - [测试合同](architecture/TESTING_CONTRACT.md)
 - [欧洲网络几何政策](architecture/EUROPEAN_NETWORK_GEOMETRY_POLICY.md)
 - [主体身份模型](architecture/ACTOR_IDENTITY_MODEL-CN.md)
+- [本体权威说明（英文）](ontology/ONTOLOGY_AUTHORITY.md)：三套本体各自的权威范围，含可执行的完整示例
 - [OWL 天然气角色模型 EN](ontology/OWL_GAS_ROLE_MODEL.md) /
   [CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [天然气主体架构](ontology/europe-natural-gas.md)

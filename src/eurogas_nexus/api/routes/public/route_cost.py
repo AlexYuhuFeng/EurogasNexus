@@ -433,14 +433,32 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
                 # keeps them and nothing is committed under this request.
                 session.rollback()
                 raise _contract_write_refused(result.refusal_code, result.refusal_detail)
+            # ONT-03: hub, gas year and price unit against the ontology, the hub through
+            # the one identity resolver (ONT-02). Reported with reason codes; a contract
+            # accepted before is still saved, and stays out of positions until mapped.
+            from eurogas_nexus.application.identity_resolution import load_resolver
+            from eurogas_nexus.domain.ontology.boundary import check_contract
+
+            boundary = check_contract(
+                delivery_point_name=body.delivery_point_name,
+                gas_year=body.gas_year,
+                price_currency=getattr(body, "contract_price_currency", None),
+                hub_points=load_resolver(session).points,
+            )
             data = {
                 **result.contract,
                 "human_review_required": True,
                 "write_outcome": result.outcome,
                 "latest_revision": result.latest_revision,
+                "boundary_issues": [issue.as_dict() for issue in boundary.issues],
             }
             session.commit()
-            return _env(data, request, source="runtime-postgresql")
+            return _env(
+                data,
+                request,
+                source="runtime-postgresql",
+                warnings=[issue.text() for issue in boundary.issues],
+            )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 

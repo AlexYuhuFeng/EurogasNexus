@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from eurogas_nexus.domain.connectors.manifest import ConnectorManifest
-from eurogas_nexus.domain.dataops.contracts import AccessMode, SourceClass
+from eurogas_nexus.domain.dataops.contracts import AccessMode, FreshnessPolicy, SourceClass
 
 MANIFEST = ConnectorManifest(
     source_id="src-bfix",
@@ -23,5 +23,7 @@ MANIFEST = ConnectorManifest(
         "access_mode": AccessMode.FILE_UPLOAD,
         "schedulable": False,
         "enabled_default": False,
+        # Declared, not defaulted (FRESH-01); the values the registry default gave.
+        "freshness_policy": FreshnessPolicy(1440, 2880, 4320),
     },
 )

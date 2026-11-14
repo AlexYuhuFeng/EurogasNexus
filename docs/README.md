@@ -119,6 +119,8 @@ behavior.
 - [European network geometry policy](architecture/EUROPEAN_NETWORK_GEOMETRY_POLICY.md)
 - [Actor identity model](architecture/ACTOR_IDENTITY_MODEL.md) /
   [CN](architecture/ACTOR_IDENTITY_MODEL-CN.md)
+- [Ontology authority](ontology/ONTOLOGY_AUTHORITY.md): which of the three ontologies decides
+  what, with a worked example run as a test
 - [OWL gas role model EN](ontology/OWL_GAS_ROLE_MODEL.md) /
   [CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [Natural-gas subject architecture](ontology/europe-natural-gas.md)

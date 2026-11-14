@@ -11,6 +11,7 @@ from __future__ import annotations
 from eurogas_nexus.domain.connectors.manifest import ConnectorManifest
 from eurogas_nexus.domain.dataops.contracts import (
     AccessMode,
+    DatasetFreshness,
     FreshnessPolicy,
     RateLimitPolicy,
     RetryPolicy,
@@ -52,4 +53,13 @@ MANIFEST = ConnectorManifest(
         "rate_limit_policy": RateLimitPolicy(6, 3600.0, 30.0, 1),
         "adapter_version": "remit-gie-iip-api-v1",
     },
+    # The stored datasets and how old each one's newest period may be (FRESH-01).
+    dataset_freshness=(
+        DatasetFreshness(
+            "Outages (REMIT UMM)",
+            336,
+            1008,
+            "Event-driven: a message when an outage is planned, changes or ends.",
+        ),
+    ),
 )

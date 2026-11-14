@@ -87,9 +87,10 @@ def daily_rows(
             metadata = record.metadata_json or {}
             stated = metadata.get("hub") or record.product
             resolution = resolve_hub(stated)
-            # An unresolved product keeps its own first word as a series name (the spread
-            # lab lists it) but is marked, so nothing values a hub with it.
-            hub = resolution.hub or str(stated).split(" ")[0].upper()
+            # An unresolved product keeps its stated text as its series name (the spread
+            # lab lists it) and is marked unresolved, so nothing values a hub with it. No
+            # first word is taken as a hub (ONT-02).
+            hub = resolution.hub or str(stated).strip().upper()
             tenor = str(metadata.get("tenor") or record.product).lower()
             rows.append(
                 {

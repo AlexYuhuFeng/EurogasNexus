@@ -19,7 +19,7 @@ type SourceLike = {
   credential_state: string;
   /** null: the server could not count this source's rows. */
   live_record_count: number | null;
-  integration?: "api" | "file_import" | "template" | "model_service";
+  integration?: "api" | "file_import" | "template" | "model_service" | "manual_register";
   scheduler_enabled?: boolean;
   last_success_at_utc?: string | null;
   effective_last_success_at_utc?: string | null;
@@ -256,6 +256,7 @@ export function sourceNextActionKey(source: SourceSystemDTO | null): string {
   if (source.operational_status === "active_simulated") {
     return "sources.action.configure_live_credential";
   }
+  if (source.connectivity_status === "manual_register") return "sources.action.update_register";
   if (source.connectivity_status === "active") return "sources.action.monitor";
   if (source.connectivity_status === "failed") return "sources.action.inspect_failure";
   if (source.credential_state === "missing") return "sources.action.add_credential";

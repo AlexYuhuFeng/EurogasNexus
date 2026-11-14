@@ -32,7 +32,8 @@ from eurogas_nexus.domain.market.units import (
     canonical_price_unit,
     convert_price,
 )
-from eurogas_nexus.domain.ontology.markets import Commodity, find_market
+from eurogas_nexus.domain.ontology.boundary import check_boundary, refuse_if_invalid
+from eurogas_nexus.domain.ontology.markets import Commodity
 
 #: Licensed families an import may be stored under, with the venue label.
 SETTLEMENT_SOURCES = {
@@ -131,11 +132,12 @@ def parse_settlements(
             raise SettlementImportError(f"export exceeds {MAX_ROWS} rows")
         trade_day = _date(cell(record, "date") or "", line)
         code = (cell(record, "market") or "").strip()
-        market = find_market(code)
-        if market is None:
-            raise SettlementImportError(
-                f"line {line}: market {code!r} is not in the reference model"
-            )
+        # ONT-03: market, unit and product against the ontology, one reason code per refusal.
+        checked = check_boundary(market=code)
+        refuse_if_invalid(checked, SettlementImportError, f"line {line}: market ")
+        market = checked.market
+        if market is None:  # pragma: no cover - refused above
+            raise SettlementImportError(f"line {line}: market {code!r} did not resolve")
         price = _number(cell(record, "settlement"), line, "settlement")
         if price is None:
             raise SettlementImportError(f"line {line}: settlement is required")
@@ -144,10 +146,16 @@ def parse_settlements(
         if unit_text and "/" not in unit_text:
             unit_text = f"{currency or market.currency}/{unit_text}"
         unit = unit_text or market.price_unit
-        if unit.split("/")[0].upper() != market.currency:
-            raise SettlementImportError(
-                f"line {line}: {market.code} quotes in {market.currency}, not {unit}"
-            )
+        refuse_if_invalid(
+            check_boundary(
+                market=market.code,
+                price_unit=unit,
+                product=cell(record, "product"),
+                product_required=True,
+            ),
+            SettlementImportError,
+            f"line {line}: ",
+        )
         native = {"price": price, "unit": unit}
         if market.commodity in (Commodity.NATURAL_GAS, Commodity.LNG):
             try:
@@ -157,8 +165,6 @@ def parse_settlements(
             except UnitConversionError as exc:
                 raise SettlementImportError(f"line {line}: {exc}") from exc
         product = (cell(record, "product") or "").strip()
-        if not product:
-            raise SettlementImportError(f"line {line}: product is required")
         start, end, tenor = _period(product, trade_day)
         # Settlements are end-of-day values: stamp them at 18:00 UTC on the trade date.
         observed = datetime.combine(trade_day, time(18), tzinfo=UTC)

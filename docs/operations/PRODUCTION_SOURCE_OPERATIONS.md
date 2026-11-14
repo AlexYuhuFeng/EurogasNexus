@@ -79,9 +79,13 @@ source of truth for per-run evidence.
 
 ## Freshness SLA
 
-`evaluate_source_sla(source_system, last_success_at_utc)` returns `live`,
-`stale`, or `unknown` using the table above. Source Center continues to render
-`freshness_status` per source.
+The freshness thresholds that decide Source Center's `freshness_status` and the
+data-quality report's age findings come from the connector manifests (FRESH-01, see
+[DATA_FRESHNESS.md](DATA_FRESHNESS.md#freshness-contract-fresh-01)); `/api/sources` carries
+the per-dataset `freshness_contract`. TSO tariff sources are manual registers and are never
+late or stale. `evaluate_source_sla(source_system, last_success_at_utc)` and the
+"Freshness SLA" column above are an older table in `application/source_operations.py` with
+no caller in the product; they are not the thresholds the product applies.
 
 ## Remaining production work
 

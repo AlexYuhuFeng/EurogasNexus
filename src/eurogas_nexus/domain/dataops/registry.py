@@ -101,6 +101,7 @@ def source_definitions() -> tuple[SourceDefinition, ...]:
             adapter_version=str(override.get("adapter_version", "unversioned")),
             licensed_data=override.get("licensed_data", LicensedDataPolicy()),
             description=str(row["description"]),
+            integration=str(row.get("integration") or "api"),
         )
         definitions.append(definition)
     return tuple(definitions)

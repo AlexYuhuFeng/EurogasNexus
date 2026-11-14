@@ -32,6 +32,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import date
 
+from eurogas_nexus.domain.ontology.identity import resolve_hub
 from eurogas_nexus.domain.ontology.quantity import convert as _convert_units
 
 OWN_NAMES_ENV = "EUROGAS_NEXUS_OWN_LEGAL_NAMES"
@@ -449,10 +450,12 @@ def extract_terms(pages: list[str], *, own_names: set[str] | None = None) -> dic
         put("counterparty", seller or buyer)
     point = _text_term(pages, r"delivery point" + _LABEL_END + r"([^\n]{3,120})")
     if point is not None:
-        upper = str(point.value).upper()
-        hub = next(
-            (code for code, names in _HUBS.items() if any(n.upper() in upper for n in names)), None
-        )
+        # ONT-02: the hub through the ontology's resolver, with the hub names a contract
+        # writes out as whole-phrase points; no substring match, no default hub.
+        hub = resolve_hub(
+            str(point.value),
+            points={name.upper(): code for code, names in _HUBS.items() for name in names},
+        ).hub
         put(
             "delivery_point_name",
             Term(

@@ -19,6 +19,8 @@ from typing import Any
 
 from sqlalchemy import text
 
+from eurogas_nexus.domain.dataops.contracts import DatasetFreshness
+
 #: A closed period is short when it holds less than this share of the usual entity count.
 COVERAGE_FLOOR = 0.9
 #: Provider revisions are counted over this many days (``observation_revisions``).
@@ -50,8 +52,9 @@ class DatasetSpec:
     values: tuple[str, ...]
     #: Expected spacing of periods per entity, in minutes (1440 = daily).
     interval_minutes: int
-    #: The latest period may be this old before the dataset is stale.
-    max_age_hours: float
+    #: The connector whose manifest declares this dataset's freshness (FRESH-01): how old
+    #: its newest period may be comes from there (``DatasetFreshness``), not from here.
+    source_id: str
     #: SQL condition selecting the dataset's rows in a shared table.
     where: str = "TRUE"
     #: When the row was received, for lateness (optional).
@@ -74,49 +77,64 @@ SPECS: tuple[DatasetSpec, ...] = (
     DatasetSpec("ENTSOG flows", "ENTSOG", "flow_observations", "period_start_utc",
                 # Both operators at an interconnection report it, so the operator is part
                 # of the key; a consumer summing by point must pick one side.
-                ("point_id", "direction", OPERATOR), ("original_value",), 1440, 54,
+                ("point_id", "direction", OPERATOR), ("original_value",), 1440, "src-entsog",
                 where="source_system = 'ENTSOG'", received="observed_at_utc"),
     DatasetSpec("ENTSOG capacity", "ENTSOG", "capacity_observations", "period_start_utc",
                 ("point_id", "direction", "capacity_type", OPERATOR), ("original_value",),
-                1440, 54,
+                1440, "src-entsog",
                 where="source_system = 'ENTSOG'", received="observed_at_utc",
                 # ENTSOG re-splits validity ranges between reads; each range is a row.
                 period_end="period_end_utc"),
     DatasetSpec("GIE storage (AGSI)", "GIE", "storage_observations", "period_start_utc",
-                ("facility_id",), ("inventory_twh", "fill_pct"), 1440, 72,
+                ("facility_id",), ("inventory_twh", "fill_pct"), 1440, "src-gie",
                 where="source_system = 'GIE'", received="observed_at_utc"),
     DatasetSpec("GIE LNG (ALSI)", "GIE", "lng_observations", "period_start_utc",
-                ("terminal_id",), ("inventory_twh", "send_out_twh_d", "dtmi_twh"), 1440, 72,
-                where="source_system = 'GIE'", received="observed_at_utc"),
+                ("terminal_id",), ("inventory_twh", "send_out_twh_d", "dtmi_twh"), 1440,
+                "src-gie", where="source_system = 'GIE'", received="observed_at_utc"),
     # GB storage and LNG: nominations D+1, stock D+1 afternoon, allocations D+2.
     DatasetSpec("GB storage (National Gas)", "NATIONAL_GAS", "storage_observations",
                 "period_start_utc", ("facility_id",),
-                ("inventory_twh", "withdrawal_twh_d", "injection_twh_d"), 1440, 72,
+                ("inventory_twh", "withdrawal_twh_d", "injection_twh_d"), 1440,
+                "src-national-gas-supply",
                 where="source_system = 'NATIONAL_GAS'", received="observed_at_utc"),
     DatasetSpec("GB LNG (National Gas)", "NATIONAL_GAS", "lng_observations",
                 "period_start_utc", ("terminal_id",), ("inventory_twh", "send_out_twh_d"),
-                1440, 72, where="source_system = 'NATIONAL_GAS'", received="observed_at_utc"),
+                1440, "src-national-gas-supply",
+                where="source_system = 'NATIONAL_GAS'", received="observed_at_utc"),
     DatasetSpec("ECB FX reference", "ECB", "fx_observations", "value_date",
-                ("pair",), ("rate",), 1440, 96, where="source_system = 'ECB'",
+                ("pair",), ("rate",), 1440, "src-ecb", where="source_system = 'ECB'",
                 received="observed_at_utc"),
-    DatasetSpec("Overnight rates", "BOE/ECB/NYFED", "interest_rate_observations", "value_date",
-                # Fixings follow three different holiday calendars: judged for age, not days.
-                ("benchmark_id",), ("rate_pct",), 1440, 120, check_coverage=False),
+    # One dataset per administrator: each fixing follows its own holiday calendar, so they
+    # are judged for age, not days, and each has its own connector.
+    DatasetSpec("SONIA (BoE)", "BOE", "interest_rate_observations", "value_date",
+                ("benchmark_id",), ("rate_pct",), 1440, "src-boe",
+                where="benchmark_id = 'SONIA'", received="ingested_at_utc",
+                check_coverage=False),
+    DatasetSpec("€STR (ECB)", "ECB_ESTR", "interest_rate_observations", "value_date",
+                ("benchmark_id",), ("rate_pct",), 1440, "src-ecb-estr",
+                where="benchmark_id = 'ESTR'", received="ingested_at_utc",
+                check_coverage=False),
+    DatasetSpec("SOFR (NY Fed)", "NYFED", "interest_rate_observations", "value_date",
+                ("benchmark_id",), ("rate_pct",), 1440, "src-nyfed",
+                where="benchmark_id = 'SOFR'", received="ingested_at_utc",
+                check_coverage=False),
     DatasetSpec("Henry Hub (EIA)", "EIA", "market_observations", "period_start_utc",
-                ("product",), ("price",), 1440, 264, where="source_system = 'EIA'",
+                ("product",), ("price",), 1440, "src-eia", where="source_system = 'EIA'",
                 received="observed_at_utc"),
     DatasetSpec("Power (ENTSO-E)", "ENTSOE", "power_observations", "period_start_utc",
-                ("zone", "metric"), ("value",), 15, 30, where="source_system = 'ENTSOE'",
-                received="ingested_at_utc", open_hours=3.0),
+                ("zone", "metric"), ("value",), 15, "src-entsoe",
+                where="source_system = 'ENTSOE'", received="ingested_at_utc", open_hours=3.0),
     DatasetSpec("GB power (Elexon)", "ELEXON", "power_observations", "period_start_utc",
-                ("zone", "metric"), ("value",), 30, 6, where="source_system = 'ELEXON'",
-                received="ingested_at_utc", open_hours=3.0),
+                ("zone", "metric"), ("value",), 30, "src-elexon",
+                where="source_system = 'ELEXON'", received="ingested_at_utc", open_hours=3.0),
     DatasetSpec("GB demand (National Gas)", "NationalGas", "national_gas_actual_demand",
                 # An append-only revision log: each publication of a gas day is its own row.
                 "gas_day", ("provider_item_id", "series_key", "applicable_at_raw"),
-                ("value_text",), 1440, 72, check_coverage=False),
+                ("value_text",), 1440, "src-national-gas-demand",
+                received="ingested_at_utc", check_coverage=False),
     DatasetSpec("Outages (REMIT UMM)", "REMIT", "remit_umm_messages", "published_at_utc",
-                ("message_id", "version"), ("unavailable_capacity",), 0, 24 * 14),
+                ("message_id", "version"), ("unavailable_capacity",), 0, "src-remit-umm",
+                received="ingested_at_utc"),
 )
 
 
@@ -130,7 +148,9 @@ class DatasetQuality:
     first_period: str | None = None
     last_period: str | None = None
     age_hours: float | None = None
+    #: The newest period's late and stale ages, from the connector manifest (FRESH-01).
     max_age_hours: float = 0.0
+    stale_age_hours: float = 0.0
     duplicate_keys: int = 0
     blank_rows: int = 0
     closed_periods: int = 0
@@ -173,8 +193,40 @@ def build_report(session, *, now: datetime | None = None) -> dict[str, Any]:
     }
 
 
-def measure(session, spec: DatasetSpec, now: datetime) -> DatasetQuality:
-    result = DatasetQuality(spec.dataset, spec.source, max_age_hours=spec.max_age_hours)
+def dataset_freshness(spec: DatasetSpec) -> DatasetFreshness:
+    """The freshness the spec's connector manifest declares for this dataset.
+
+    Raises ``LookupError`` when the manifest does not declare it: a dataset the report
+    measures must have one declared expectation (``tests/unit/test_freshness_contract.py``).
+    """
+
+    from eurogas_nexus.domain.connectors.registry import connector_manifests
+
+    for manifest in connector_manifests():
+        if manifest.source_id != spec.source_id:
+            continue
+        for declared in manifest.dataset_freshness:
+            if declared.dataset == spec.dataset:
+                return declared
+    raise LookupError(f"{spec.source_id} declares no freshness for {spec.dataset!r}")
+
+
+def measure(
+    session,
+    spec: DatasetSpec,
+    now: datetime,
+    *,
+    expectation: DatasetFreshness | None = None,
+) -> DatasetQuality:
+    """Measure one dataset; its age thresholds come from ``expectation`` or its manifest."""
+
+    expectation = expectation or dataset_freshness(spec)
+    result = DatasetQuality(
+        spec.dataset,
+        spec.source,
+        max_age_hours=float(expectation.period_late_hours),
+        stale_age_hours=float(expectation.period_stale_hours),
+    )
     columns = _columns(session, spec.table)
     if not columns:
         result.add("empty", "The table does not exist in this store.")
@@ -219,11 +271,11 @@ def measure(session, spec: DatasetSpec, now: datetime) -> DatasetQuality:
     if spec.table in REVISED_TABLES:
         _revisions(session, spec, result, now)
 
-    if result.age_hours > spec.max_age_hours:
+    if result.age_hours > result.max_age_hours:
         result.add(
-            "warning" if result.age_hours < 3 * spec.max_age_hours else "critical",
+            "warning" if result.age_hours < result.stale_age_hours else "critical",
             f"Latest period is {result.age_hours:.0f} h old; expected within "
-            f"{spec.max_age_hours:.0f} h.",
+            f"{result.max_age_hours:.0f} h.",
         )
     if result.duplicate_keys:
         result.add("critical", f"{result.duplicate_keys} natural keys occur more than once.")
@@ -249,6 +301,34 @@ def measure(session, spec: DatasetSpec, now: datetime) -> DatasetQuality:
             "latest-received range for each day.",
         )
     return result
+
+
+def last_received(session, spec: DatasetSpec) -> tuple[datetime | None, datetime | None]:
+    """(last received, newest period) of one dataset, or ``(None, None)`` with no rows.
+
+    "Last received" is the later of first receipt and a provider revision
+    (``observation_revisions.last_received_column``): a source that only revised rows has
+    still delivered. ``None`` when the table is absent or the spec names no receipt column.
+    """
+
+    columns = _columns(session, spec.table)
+    if not columns or spec.period not in columns:
+        return None, None
+    received = None
+    if spec.received and spec.received in columns:
+        received = (
+            f"COALESCE(revised_at_utc, {spec.received})"
+            if "revised_at_utc" in columns
+            else spec.received
+        )
+    row = session.execute(text(
+        f"SELECT MAX({received or 'NULL'}), MAX({spec.period}) "
+        f"FROM {spec.table} WHERE {spec.where}"
+    )).one()
+    return (
+        _instant(row[0]) if row[0] is not None else None,
+        _instant(row[1]) if row[1] is not None else None,
+    )
 
 
 def _overlaps(session, spec: DatasetSpec, result: DatasetQuality) -> None:

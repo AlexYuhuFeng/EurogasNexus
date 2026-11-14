@@ -5,6 +5,7 @@ from __future__ import annotations
 from eurogas_nexus.domain.connectors.manifest import ConnectorManifest
 from eurogas_nexus.domain.dataops.contracts import (
     AccessMode,
+    DatasetFreshness,
     FreshnessPolicy,
     RateLimitPolicy,
     RetryPolicy,
@@ -44,4 +45,19 @@ MANIFEST = ConnectorManifest(
         "rate_limit_policy": RateLimitPolicy(6, 3600.0, 30.0, 1),
         "adapter_version": "national-gas-supply-csv-v1",
     },
+    # The stored datasets and how old each one's newest period may be (FRESH-01).
+    dataset_freshness=(
+        DatasetFreshness(
+            "GB storage (National Gas)",
+            72,
+            216,
+            "Nominations D+1 04:00, stock D+1 afternoon, allocations D+2.",
+        ),
+        DatasetFreshness(
+            "GB LNG (National Gas)",
+            72,
+            216,
+            "Nominations D+1 04:00, stock D+1 afternoon, allocations D+2.",
+        ),
+    ),
 )

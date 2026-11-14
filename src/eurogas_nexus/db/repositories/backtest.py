@@ -421,7 +421,15 @@ def _quote_side_prices(row: MarketQuoteRecord) -> list[tuple[str, float | None]]
 
 
 def _hub_from_product(product: str, venue: str) -> str:
-    return product.strip().split()[0] if product.strip() else venue
+    """The hub a product names, by the ontology (ONT-02); else the venue label as stated.
+
+    No first word is taken as a hub: an unresolved product keeps its venue label, which no
+    hub reader matches, so it is never valued as a hub.
+    """
+
+    from eurogas_nexus.domain.ontology.identity import resolve_hub
+
+    return resolve_hub(product).hub or venue
 
 
 def _observation_price_type(metadata: dict) -> str:

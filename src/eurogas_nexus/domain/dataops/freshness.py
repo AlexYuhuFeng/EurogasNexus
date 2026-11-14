@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from eurogas_nexus.domain.dataops.contracts import (
+    MANUAL_REGISTER,
     FreshnessEvaluation,
     FreshnessState,
     SourceDefinition,
@@ -42,6 +43,15 @@ def evaluate_source_freshness(
     now = as_utc(now_utc or datetime.now(UTC))
     policy = definition.freshness_policy
     reason_parts: list[str] = []
+
+    if definition.integration == MANUAL_REGISTER:
+        # A register an operator keeps (TSO tariffs): no feed, so no freshness alarm.
+        return FreshnessEvaluation(
+            source_id=definition.source_id,
+            state=FreshnessState.NOT_EXPECTED,
+            reason="manual_register:no_scheduled_publication",
+            evaluated_at_utc=now.isoformat(),
+        )
 
     if definition.calendar is not None and not update_expected(
         definition, now_utc=now

@@ -101,12 +101,20 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
     ]
 
 
-def hub_from_text(text: str, default: str | None = None) -> str | None:
+def hub_from_text(
+    text: str, default: str | None = None, *, session=None
+) -> str | None:
     """The hub a delivery point or product names, by the ontology's rules; else ``default``.
 
     There is no default hub: an unresolved name is reported and mapped, not valued at NBP.
+    With ``session`` the deployment's ``delivery_point`` mappings in
+    ``source_entity_mappings`` are consulted first (ONT-02, the one identity resolver).
     """
 
+    if session is not None:
+        from eurogas_nexus.application.identity_resolution import load_resolver
+
+        return load_resolver(session).hub(text).hub or default
     return resolve_hub(text).hub or default
 
 
@@ -328,6 +336,10 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
         )
         books = books_by_id(session)
         order_books = book_of_order(session)
+        # ONT-02: the deployment's delivery-point mappings, loaded once for every contract.
+        from eurogas_nexus.application.identity_resolution import load_resolver
+
+        identity = load_resolver(session)
         eur_rates = ecb_rates(session)
         orders = screen_orders(session, principal_id=caller.principal_id)
     for contract in contracts:
@@ -337,7 +349,7 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
                 f"contract {contract.contract_id}: gas year {contract.gas_year!r} not understood"
             )
             continue
-        hub = hub_from_text(contract.delivery_point_name)
+        hub = identity.hub(contract.delivery_point_name).hub
         if hub is None:
             warnings.append(
                 f"contract {contract.contract_id}: delivery point "

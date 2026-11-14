@@ -540,6 +540,11 @@ def main() -> int:
                 report=report,
             )
 
+        # ONT-02: after the write, every ENTSOG and GIE identifier in the store resolved
+        # through source_entity_mappings, or listed as quarantined. Read-only; it never
+        # fails the run.
+        if any(source.startswith(("entsog", "gie")) for source in selected):
+            report["identity"] = _identity_summary(session_factory)
         report["ok"] = not report["failures"]
         return _emit(report, as_json=args.json)
     except (httpx.HTTPError, SQLAlchemyError, ValueError, RuntimeError) as exc:
@@ -1796,7 +1801,38 @@ def _replace_reference_network(
         summary["replaced"] += outcome["upserted"]
         summary["retired"] += outcome["retired"]
     session.flush()
+    # ONT-02: the provider's point and operator keys become source_entity_mappings, so every
+    # ENTSOG identifier resolves through one table; a key ENTSOG has never published stays
+    # unresolved and is listed on the Sources page.
+    from eurogas_nexus.application.identity_resolution import (
+        entsog_reference_identities,
+        record_identities,
+    )
+
+    summary["identity_mappings"] = record_identities(
+        session, entsog_reference_identities(nodes, tso_access_points)
+    )
     return summary
+
+
+def _identity_summary(session_factory) -> dict[str, Any]:
+    from eurogas_nexus.application.identity_resolution import identity_report
+
+    try:
+        with session_factory() as session:
+            report = identity_report(session)
+    except SQLAlchemyError as exc:
+        return {"error": exc.__class__.__name__}
+    return {
+        source_id: {
+            "checked": entry["checked"],
+            "resolved": entry["resolved"],
+            "rows_unresolved": entry["rows_unresolved"],
+            "unresolved": entry["unresolved"][:50],
+        }
+        for source_id, entry in report.items()
+        if source_id in {"src-entsog", "src-gie"}
+    }
 
 
 def _emit(payload: dict[str, Any], *, as_json: bool) -> int:

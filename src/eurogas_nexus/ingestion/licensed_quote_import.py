@@ -41,6 +41,7 @@ from eurogas_nexus.domain.market.units import (
     convert_energy,
     convert_price,
 )
+from eurogas_nexus.domain.ontology.boundary import check_boundary, refuse_if_invalid
 
 #: Licensed families an operator may import and the venue label stored with them.
 LICENSED_QUOTE_SOURCES = {
@@ -61,6 +62,14 @@ _PRODUCT_ALIASES = {
 }
 #: Board tenors the market terminal groups by; other products keep their desk label.
 _BOARD_TENOR = {"within_day": "within-day", "day_ahead": "day-ahead", "weekend": "weekend"}
+
+
+def _refused(message: str, check, default_code: str) -> QuoteImportError:
+    code = check.first.code.value if check.first is not None else default_code
+    exc = QuoteImportError(f"{message} [{code}]")
+    exc.reason_code = code  # type: ignore[attr-defined]
+    exc.boundary_issues = [item.as_dict() for item in check.issues]  # type: ignore[attr-defined]
+    return exc
 
 
 class QuoteImportError(ValueError):
@@ -155,13 +164,23 @@ def parse_quote_export(
             raise QuoteImportError(f"export exceeds {MAX_IMPORT_ROWS} rows")
         observed = _timestamp(cell(record, "timestamp") or "", line)
         hub = (cell(record, "hub") or "").strip().upper()
-        if hub not in SUPPORTED_HUBS:
-            raise QuoteImportError(f"line {line}: unsupported hub {hub!r}")
+        # ONT-03: hub and product against the ontology, with a reason code on refusal.
+        checked = check_boundary(market=hub, gas_hub_required=True)
+        if hub not in SUPPORTED_HUBS or not checked.ok:
+            raise _refused(f"line {line}: unsupported hub {hub!r}", checked, "hub_not_a_gas_hub")
         raw_product = (cell(record, "product") or "").strip()
         code = _PRODUCT_ALIASES.get(raw_product.upper(), raw_product)
+        refuse_if_invalid(
+            check_boundary(
+                product=code, product_required=True, product_strict=True,
+                trade_date=observed.date(),
+            ),
+            QuoteImportError,
+            f"line {line}: ",
+        )
         try:
             period = resolve_product(code, observed.date())
-        except ProductCodeError as exc:
+        except ProductCodeError as exc:  # pragma: no cover - refused at the boundary above
             raise QuoteImportError(f"line {line}: {exc}") from exc
         bid = _number(cell(record, "bid"), line, "bid", required=False)
         ask = _number(cell(record, "ask"), line, "ask", required=False)
@@ -187,6 +206,11 @@ def parse_quote_export(
             per_mwh_unit = "GBP/MWh" if native_unit == "GBp/th" else native_unit
             if not per_mwh_unit.endswith("/MWh"):
                 raise UnitConversionError(f"unsupported quote unit {native_unit}")
+            refuse_if_invalid(
+                check_boundary(market=hub, price_unit=native_unit),
+                QuoteImportError,
+                f"line {line}: ",
+            )
             bid_mwh, ask_mwh, last_mwh = (
                 None if value is None else round(convert_price(value, native_unit, per_mwh_unit), 6)
                 for value in (bid, ask, last)

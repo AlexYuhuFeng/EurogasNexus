@@ -20,6 +20,7 @@ from eurogas_nexus.domain.market_intelligence.normalized_view import (
     FxRateInput,
     convert_currency,
 )
+from eurogas_nexus.domain.ontology.identity import resolve_hub
 from eurogas_nexus.optimization.nomination import NominationWindow
 from eurogas_nexus.optimization.storage import StorageFacility, StoragePeriod
 
@@ -189,7 +190,8 @@ def _row_keys(row) -> set[str]:
     metadata = row.metadata_json or {}
     values = [
         row.market_venue,
-        row.product.split()[0] if row.product.strip() else "",
+        # The hub the product names, by the ontology (ONT-02); never its first word.
+        resolve_hub(row.product).hub,
         metadata.get("hub"),
         metadata.get("point_name"),
         metadata.get("market_area"),

@@ -4620,5 +4620,22 @@
   "brief.email": "用邮件打开",
   "brief.lead_model": "开头几行是模型对下列各节的概括，已与之核对。",
   "brief.close": "关闭",
-  "brief.open": "交易台简报"
+  "brief.open": "交易台简报",
+  "sources.integration.manual_register": "人工登记",
+  "sources.status.manual_register": "人工登记",
+  "sources.diagnostic.manual_register": "人工登记：由运营人员维护，无数据接入",
+  "sources.action.update_register": "TSO 发布新费率时更新登记",
+  "connectors.status.manual_register": "人工登记",
+  "sources.freshness_contract": "按数据集的新鲜度",
+  "sources.freshness_contract.expected": "预期",
+  "sources.freshness_contract.last_received": "最近接收",
+  "sources.freshness_contract.next_expected": "下次预期",
+  "sources.freshness_contract.state.current": "当前",
+  "sources.freshness_contract.state.late": "延迟",
+  "sources.freshness_contract.state.stale": "过期",
+  "sources.freshness_contract.state.never": "从未接收",
+  "sources.freshness_contract.state.manual": "人工",
+  "sources.unresolved_identifiers": "未解析的标识符",
+  "sources.unresolved_identifiers.none": "所有标识符均已解析。",
+  "sources.unresolved_identifiers.hint": "已隔离：未映射到规范实体，绝不猜测。请在 source_entity_mappings 中映射。"
 }

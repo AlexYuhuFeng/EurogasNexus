@@ -4620,5 +4620,22 @@
   "brief.email": "Open in email",
   "brief.lead_model": "The opening lines are a model summary of the sections below, checked against them.",
   "brief.close": "Close",
-  "brief.open": "Desk brief"
+  "brief.open": "Desk brief",
+  "sources.integration.manual_register": "Manual register",
+  "sources.status.manual_register": "Manual register",
+  "sources.diagnostic.manual_register": "Manual register: kept by an operator, no feed",
+  "sources.action.update_register": "Update the register when the TSO publishes",
+  "connectors.status.manual_register": "Manual register",
+  "sources.freshness_contract": "Freshness by dataset",
+  "sources.freshness_contract.expected": "Expected",
+  "sources.freshness_contract.last_received": "Last received",
+  "sources.freshness_contract.next_expected": "Next expected",
+  "sources.freshness_contract.state.current": "Current",
+  "sources.freshness_contract.state.late": "Late",
+  "sources.freshness_contract.state.stale": "Stale",
+  "sources.freshness_contract.state.never": "Never received",
+  "sources.freshness_contract.state.manual": "Manual",
+  "sources.unresolved_identifiers": "Unresolved identifiers",
+  "sources.unresolved_identifiers.none": "Every identifier resolved.",
+  "sources.unresolved_identifiers.hint": "Quarantined: not mapped to a canonical entity, never guessed. Map them in source_entity_mappings."
 }

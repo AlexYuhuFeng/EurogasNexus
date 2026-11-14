@@ -112,13 +112,27 @@ def main(argv: list[str] | None = None) -> int:
     elif not args.commit:
         say(f"{len(storage_rows) + len(lng_rows)} rows parsed; dry run (add --commit to store)")
     records = len(storage_rows) + len(lng_rows)
+    # ONT-02: the storage and LNG aggregates these rows name, resolved or quarantined.
+    from eurogas_nexus.application.identity_resolution import check_identifiers
+
+    identity = {
+        "storage": check_identifiers("src-national-gas-supply", "national_gas_storage",
+                                     (row["facility_id"] for row in storage_rows)),
+        "lng": check_identifiers("src-national-gas-supply", "national_gas_lng",
+                                 (row["terminal_id"] for row in lng_rows)),
+    }
+    for name, check in identity.items():
+        say(f"identity {name}: {check['resolved']}/{check['checked']} resolved")
+        for item in check["quarantined"]:
+            say(f"quarantined {item['identifier']!r}: {item['reason']} ({item['rows']} rows)")
     provisional = sum(
         1 for row in (*storage_rows, *lng_rows) if row["metadata_json"]["provisional"]
     )
     ok = bool(records) and not failures
     if args.json:
         print(json.dumps({"ok": ok, "failures": failures, "sources": {"national-gas-supply": {
-            "records": records, "provisional": provisional, **stored}}}))
+            "records": records, "provisional": provisional, **stored,
+            "identity": identity}}}))
     return 0 if ok else 1
 
 

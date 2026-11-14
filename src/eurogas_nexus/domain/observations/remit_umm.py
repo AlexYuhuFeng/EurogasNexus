@@ -334,8 +334,15 @@ def _asset_type(value: object) -> str:
     return next((kind for kind in ASSET_TYPES if kind in text), "other")
 
 
-def parse_umm_export(text: str, *, source_reference: str) -> list[UmmMessage]:
+def parse_umm_export(
+    text: str, *, source_reference: str, quarantine: list[dict] | None = None
+) -> list[UmmMessage]:
     """Messages from a JSON (list, or object with ``messages``/``data``) or CSV export.
+
+    With ``quarantine`` (the scheduled IIP collector), a message refused at the boundary
+    (ONT-03: an event that ends before it starts) is left out and appended there with its
+    reason code, so one bad provider record does not refuse the page; the operator's file
+    import passes none and the whole file is refused, as before.
 
     Raises:
         UmmParseError: when a message lacks an identifier or an event start, or a time is
@@ -357,8 +364,21 @@ def parse_umm_export(text: str, *, source_reference: str) -> list[UmmMessage]:
         ]
     else:
         raw_rows = list(csv.DictReader(io.StringIO(stripped)))
-    messages = [_message(row, source_reference) for row in raw_rows]
-    if not messages:
+    messages = []
+    for row in raw_rows:
+        try:
+            messages.append(_message(row, source_reference))
+        except UmmParseError as exc:
+            if quarantine is None or not getattr(exc, "reason_code", None):
+                raise
+            quarantine.append(
+                {
+                    "message_id": str(_field(row, "message_id") or ""),
+                    "reason": exc.reason_code,  # type: ignore[attr-defined]
+                    "detail": str(exc),
+                }
+            )
+    if not messages and not quarantine:
         raise UmmParseError("no messages found in the export")
     return messages
 
@@ -380,6 +400,16 @@ def _message(raw: Mapping[str, object], source_reference: str) -> UmmMessage:
         unavailable = technical - available
     event_start = _time(start, "event start", message_id)
     event_stop = _time(stop, "event stop", message_id) if stop is not None else None
+    # ONT-03: the event period against the ontology; an outage that ends before it starts
+    # is refused with its reason code, not stored. The unit is kept as published: a unit
+    # with no daily figure is reported by ``daily_figure`` (``unconverted:<reason>``).
+    from eurogas_nexus.domain.ontology.boundary import check_boundary, refuse_if_invalid
+
+    refuse_if_invalid(
+        check_boundary(period_start=event_start, period_end=event_stop),
+        UmmParseError,
+        f"{message_id}: ",
+    )
     asset_type = _asset_type(_field(raw, "asset_type"))
     figure = daily_figure(
         unit,

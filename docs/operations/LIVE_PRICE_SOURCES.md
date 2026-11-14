@@ -72,6 +72,21 @@ python scripts/ops/import_market_quotes.py --source Trayport --file trayport.csv
 - Your Trayport/venue licence governs who inside the company may see these prices.
   Grant the data scope accordingly.
 
+### Boundary check and reason codes (ONT-03)
+
+The quote, settlement (`import_settlements.py`) and ETRM (`import_etrm_trades.py`) imports
+check each row with one function, `domain/ontology/boundary.check_boundary`: market or hub
+against the reference model, unit against the unit authority and the market's currency,
+product against the product calendar, delivery period start before end. A refused file
+names the line and a reason code in brackets, for example
+`line 4: NBP quotes in GBP, not EUR/MWh [unit_currency_mismatch]`. Codes:
+`market_unknown`, `hub_not_a_gas_hub`, `hub_unresolved`, `unit_unknown`,
+`unit_not_allowed`, `unit_currency_mismatch`, `product_missing`, `product_unrecognised`,
+`period_missing`, `period_reversed`. Inputs accepted before are still accepted (a
+settlement's free product label, for example). Contract save runs the same check on the
+delivery point, gas year and price currency and returns `boundary_issues` with the write;
+a contract is still saved and stays out of positions until its point is mapped.
+
 ## Simulated sources
 
 `EEX_Sim`, `ICE_OCM_Sim`, `Trayport_Sim` and `ICIS_Sim` generate synthetic numbers for

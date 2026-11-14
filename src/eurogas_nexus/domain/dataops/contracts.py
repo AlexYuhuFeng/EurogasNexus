@@ -192,6 +192,29 @@ class FreshnessPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class DatasetFreshness:
+    """What one stored dataset promises about its newest period (FRESH-01).
+
+    Declared in the connector manifest beside the source's receipt policy
+    (:class:`FreshnessPolicy`) and schedule, so the data-quality report and the freshness
+    service read one declaration. ``dataset`` is the name the data-quality report prints.
+    The newest period may be ``period_late_hours`` old before it is late (a warning) and
+    ``period_stale_hours`` old before it is stale (critical).
+    """
+
+    dataset: str
+    period_late_hours: float
+    period_stale_hours: float
+    #: When the provider publishes, in words a desk recognises (shown, not computed).
+    publication: str = ""
+
+
+#: How a source arrives when nobody fetches it on a schedule: the operator keeps a register
+#: of published documents (TSO tariffs), so no freshness or staleness alarm applies.
+MANUAL_REGISTER = "manual_register"
+
+
+@dataclass(frozen=True, slots=True)
 class RetryPolicy:
     """Bounded exponential backoff with full jitter."""
 
@@ -270,6 +293,9 @@ class SourceDefinition:
     adapter_version: str = "unversioned"
     licensed_data: LicensedDataPolicy = field(default_factory=LicensedDataPolicy)
     description: str = ""
+    #: How the data arrives (the manifest's ``integration``): a ``manual_register`` source
+    #: is a register an operator keeps, never late or stale.
+    integration: str = "api"
 
 
 @dataclass(frozen=True, slots=True)

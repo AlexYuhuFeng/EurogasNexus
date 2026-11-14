@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from eurogas_nexus.domain.dataops.contracts import IngestionRunStatus
+from eurogas_nexus.domain.dataops.contracts import MANUAL_REGISTER, IngestionRunStatus
 from eurogas_nexus.domain.dataops.run_status import (
     FAILURE_RUN_STATUSES,
     SUCCESS_RUN_STATUSES,
@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 COUNTS_UNAVAILABLE_WARNING = (
     "Source row counts are unavailable: the runtime database read failed. Counts show as "
     "unknown, not zero; see the server log for the error class."
+)
+FRESHNESS_CONTRACT_UNAVAILABLE_WARNING = (
+    "The freshness contract could not be measured: the runtime database read failed, so "
+    "each dataset's last receipt is unknown."
 )
 LATEST_OBSERVED_UNAVAILABLE_WARNING = (
     "Newest-observation times are unavailable: the runtime database read failed, so "
@@ -179,13 +183,29 @@ def _sources_with_runtime_status() -> tuple[list[dict], list[str]]:
     credential_status = _credential_status_by_provider()
     certifications = _certification_by_source_system()
     runtime_states = _source_runtime_states_by_source_id()
+    from eurogas_nexus.domain.dataops.registry import source_definitions
+
+    definitions = {definition.source_id: definition for definition in source_definitions()}
+    contract = _freshness_contract_by_source(sources, latest_observed, runtime_states)
+    identities = _identity_report()
+    if contract is None:
+        warnings.append(FRESHNESS_CONTRACT_UNAVAILABLE_WARNING)
+        contract = {}
     for source in sources:
         # None: the count read failed, so the number is unknown (not zero).
         count = None if counts is None else counts.get(source["source_system"], 0)
         source["live_record_count"] = count
         last_observed = latest_observed.get(source["source_system"])
         source["last_observed_at_utc"] = last_observed
-        source["freshness_status"] = _source_freshness_status(source, last_observed)
+        # FRESH-01: per dataset, expected / last received / next expected / state.
+        source["freshness_contract"] = contract.get(source["source_id"], [])
+        # ONT-02: provider identifiers this source stored that resolve to nothing
+        # (quarantined, with reason and row count); absent for sources not checked.
+        if source["source_id"] in identities:
+            source["unresolved_identifiers"] = identities[source["source_id"]]["unresolved"]
+        source["freshness_status"] = _source_freshness_status(
+            source, last_observed, definitions.get(source["source_id"])
+        )
         source_id = source["source_id"]
         source_ingestion = ingestion_status.get(source_id, {})
         latest_run = source_ingestion.get("latest")
@@ -270,14 +290,94 @@ def _source_runtime_states_by_source_id() -> dict[str, dict[str, Any]]:
         return {}
 
 
-def _source_freshness_status(source: dict, last_observed_at_utc: str | None) -> str:
-    """Evaluate read-side freshness against the source expectation (audit item 3)."""
+def _source_freshness_status(
+    source: dict, last_observed_at_utc: str | None, definition: Any = None
+) -> str:
+    """Read-side freshness (audit item 3), judged by the freshness contract (FRESH-01).
 
-    from eurogas_nexus.domain.monitoring.freshness import evaluate_freshness
+    The source's receipt is judged against its manifest ``FreshnessPolicy``, as the
+    scheduler's freshness engine judges it: ``live`` (current or late), ``stale`` beyond
+    the stale threshold, ``unknown`` with nothing received, and ``not_expected`` for a
+    register an operator keeps (TSO tariffs), which never raises a staleness alarm.
+    """
 
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.application.freshness_contract import receipt_state
+    from eurogas_nexus.domain.dataops.registry import definition_for_source
+
+    definition = definition or definition_for_source(source["source_id"])
     observed = _parse_utc_datetime(last_observed_at_utc)
-    expectation = int(source.get("freshness_expectation_minutes") or 0)
-    return evaluate_freshness(expectation, observed).value
+    if definition is None:
+        return "unknown"
+    state = receipt_state(definition, observed, datetime.now(UTC))
+    if state == "manual":
+        return "not_expected" if definition.integration == MANUAL_REGISTER else "unknown"
+    return {"current": "live", "late": "live", "stale": "stale"}.get(state, "unknown")
+
+
+def _identity_report() -> dict[str, dict[str, Any]]:
+    """Per source, identifiers resolved and quarantined (ONT-02); {} when unavailable."""
+
+    if not _db_is_configured():
+        return {}
+    try:
+        from eurogas_nexus.application.identity_resolution import identity_report
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            return identity_report(session)
+    except Exception as exc:  # noqa: BLE001 - the identity list must not fail the registry
+        logger.warning(
+            "identity report unavailable: %s", type(exc).__name__,
+            extra={"error_class": type(exc).__name__},
+        )
+        return {}
+
+
+def _freshness_contract_by_source(
+    sources: list[dict],
+    latest_observed: dict[str, str],
+    runtime_states: dict[str, dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]] | None:
+    """The freshness contract rows per source id; None when the store read failed."""
+
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.application.freshness_contract import freshness_rows
+    from eurogas_nexus.domain.dataops.registry import source_definitions
+
+    by_system = {source["source_system"]: source["source_id"] for source in sources}
+    received_by_source = {
+        by_system[system]: _parse_utc_datetime(value)
+        for system, value in latest_observed.items()
+        if system in by_system
+    }
+    received_by_dataset: dict = {}
+    if _db_is_configured():
+        try:
+            from eurogas_nexus.application.freshness_contract import measured_receipts
+            from eurogas_nexus.db.session import get_session_factory
+
+            with get_session_factory()() as session:
+                received_by_dataset = measured_receipts(session)
+        except Exception as exc:  # noqa: BLE001 - the contract must not fail the registry
+            logger.warning(
+                "freshness contract unavailable: %s", type(exc).__name__,
+                extra={"error_class": type(exc).__name__},
+            )
+            return None
+    rows = freshness_rows(
+        source_definitions(),
+        now=datetime.now(UTC),
+        received_by_dataset=received_by_dataset,
+        received_by_source=received_by_source,
+        runtime_states=runtime_states,
+    )
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(row["source_id"], []).append(row)
+    return grouped
 
 
 def _parse_utc_datetime(value: str | None):
@@ -322,6 +422,10 @@ def _source_posture_summary(sources: list[dict]) -> dict[str, Any]:
                 1 for source in sources if source["operational_status"] == "active_uncertified"
             ),
             "runtime_records": _record_total(sources),
+            # ONT-02: quarantined provider identifiers across sources (distinct ids).
+            "unresolved_identifiers": sum(
+                len(source.get("unresolved_identifiers") or []) for source in sources
+            ),
         },
         "categories": categories,
     }
@@ -336,6 +440,15 @@ def _category_posture(category: str, label: str, sources: list[dict]) -> dict[st
     preview_substitutes_active = sum(
         1 for source in sources if source["preview_substitute_status"] == "active"
     )
+    if all(source.get("integration") == MANUAL_REGISTER for source in sources):
+        next_action = "update_register"  # DATA-05: kept by an operator, never ingested
+    else:
+        next_action = _category_next_action(
+            missing_credentials=missing_credentials,
+            failed_sources=failed_sources,
+            workflow_ready_sources=workflow_ready_sources,
+            runtime_records=runtime_records,
+        )
     return {
         "category": category,
         "category_label": label,
@@ -348,12 +461,7 @@ def _category_posture(category: str, label: str, sources: list[dict]) -> dict[st
         "missing_credentials": missing_credentials,
         "preview_substitutes_active": preview_substitutes_active,
         "runtime_records": runtime_records,
-        "next_action": _category_next_action(
-            missing_credentials=missing_credentials,
-            failed_sources=failed_sources,
-            workflow_ready_sources=workflow_ready_sources,
-            runtime_records=runtime_records,
-        ),
+        "next_action": next_action,
     }
 
 
@@ -428,7 +536,13 @@ def _attach_operational_status(sources: list[dict]) -> None:
             and substitute["connectivity_status"] == "active"
             and (substitute["live_record_count"] or 0) > 0
         )
-        if native_active:
+        if source["connectivity_status"] == "manual_register":
+            source["operational_status"] = "manual_register"
+            source["workflow_ready"] = (source["live_record_count"] or 0) > 0
+            source["effective_source_system"] = source["source_system"]
+            source["effective_record_count"] = source["live_record_count"]
+            source["effective_last_success_at_utc"] = source["last_success_at_utc"]
+        elif native_active:
             source["operational_status"] = "active"
             source["workflow_ready"] = True
             source["effective_source_system"] = source["source_system"]
@@ -537,6 +651,10 @@ def _connectivity_status(
         return "failed"
     if live_record_count is None:
         return "counts_unavailable"
+    if source.get("integration") == MANUAL_REGISTER:
+        # DATA-05: a register of published documents an operator keeps, not a feed. It is
+        # shown as such whether or not it holds rows, and is never "stale".
+        return "manual_register"
     if live_record_count > 0:
         # Audit item 3: records alone do not make a source live. A source whose
         # newest observation is older than its freshness expectation is stale.
@@ -592,6 +710,8 @@ def _diagnostics(
         diagnostics.append("runtime_db_not_configured")
     elif source["category"] != "ai":
         diagnostics.append("no_records_in_runtime_db")
+    if source.get("integration") == MANUAL_REGISTER:
+        diagnostics.insert(0, "manual_register")
     if not diagnostics:
         diagnostics.append("ready")
     return diagnostics
