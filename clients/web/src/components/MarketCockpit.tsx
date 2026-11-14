@@ -167,6 +167,15 @@ function MarketOverview({ controller }: MarketOverviewProps) {
     (hub) => comparisonByHub.get(hub)?.quote || hubPrices(hub, markets)[0] || latestMarketByHub.get(hub),
   );
   const unpricedHubs = MAJOR_HUBS.filter((hub) => !pricedHubs.includes(hub));
+  // A simulated price never reads as a market price: the board says so above the numbers
+  // whenever a shown price comes from a simulated source (AGENTS.md rule 17).
+  const simulatedOnBoard = pricedHubs.some((hub) => {
+    const quote = comparisonByHub.get(hub)?.quote;
+    if (quote) return Boolean(quote.simulated);
+    const shown = hubPrices(hub, markets)[0];
+    const source = shown?.source ?? latestMarketByHub.get(hub)?.source_system ?? "";
+    return /_sim$/i.test(String(source)) || latestMarketByHub.get(hub)?.metadata_json?.simulated === true;
+  });
   const showQuotes = comparisonRows.some((row) => row.quote);
   const showSpread = comparisonRows.some((row) => row.spread != null);
   const boardColumns = [
@@ -190,6 +199,12 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           {/* Before noon the desk writes its morning brief; after, its end-of-day report. */}
           <button type="button" className="link-button" onClick={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}>{t("brief.open")}</button>
         </div>
+        {simulatedOnBoard && (
+          <div className="market-simulated-banner" role="alert" data-simulated-board="true">
+            <strong>{t("market.simulated_banner_title")}</strong>
+            <span>{t("market.simulated_banner_body")}</span>
+          </div>
+        )}
         <div className="data-table" style={{ ["--board-columns" as string]: boardColumns }}>
           <div className="data-table-row header board-row">
             <span>{t("market.hub")}</span>

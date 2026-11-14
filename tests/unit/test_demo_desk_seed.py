@@ -90,3 +90,53 @@ def test_the_seed_refuses_release_and_demo_marks_stay_off_by_default(monkeypatch
     assert demo_marks_allowed() is False  # off unless asked for
     monkeypatch.setenv("EUROGAS_NEXUS_DEMO_MARKS", "true")
     assert demo_marks_allowed() is True
+
+
+def test_market_around_the_book_is_simulated_and_fills_the_balance_and_map(session):
+    from datetime import date
+
+    from eurogas_nexus.application.map_situation import build_map_situation
+    from eurogas_nexus.application.pipeline_supply import landed_supply
+    from eurogas_nexus.db.models import FlowObservationRecord, ReferenceNode
+    from eurogas_nexus.db.models.observation import (
+        LngObservationRecord,
+        StorageObservationRecord,
+    )
+    from eurogas_nexus.db.models.power import PowerObservationRecord
+
+    now = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    seed = _load()
+    seed.seed(session, now)
+    session.commit()
+
+    assert session.query(ReferenceNode).count() > 200  # the shipped reference network
+    for model in (FlowObservationRecord, StorageObservationRecord, LngObservationRecord):
+        rows = session.query(model).all()
+        assert rows
+        assert all(row.source_system == "DEMO_Sim" for row in rows)
+        assert all((row.metadata_json or {}).get("simulated") is True for row in rows)
+    power = session.query(PowerObservationRecord).all()
+    assert power and all(row.source_system == "DEMO_Sim" for row in power)
+    # No simulated power price: it could be read as a market price.
+    assert not {row.metric for row in power} & {"day_ahead_price", "market_index_price"}
+
+    supply = landed_supply(session, date(2025, 9, 1), as_of=now)
+    assert len(supply.by_day) >= 395  # 400 gas days, every landing point every day
+    assert supply.incomplete_days == []
+    assert 3_000 < max(supply.by_day.values()) < 7_000  # GWh/d, a believable NWE landing
+
+    payload = build_map_situation(session, now=now, entitled=lambda rows: list(rows))
+    assert len(payload["flows"]) >= 20
+
+
+def test_reseeding_keeps_one_copy_of_the_simulated_history(session):
+    from eurogas_nexus.db.models import FlowObservationRecord
+
+    seed = _load()
+    now = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    seed.seed(session, now)
+    session.commit()
+    first = session.query(FlowObservationRecord).count()
+    seed.seed(session, now)
+    session.commit()
+    assert session.query(FlowObservationRecord).count() == first

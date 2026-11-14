@@ -14,6 +14,15 @@ Credit limits are not typed in: the script values the demo book with the same cr
 function the API uses and sizes each limit from that, so on whatever day it runs risk sees
 one comfortable line, one on watch and one breach with a stated cause.
 
+A demo "working day" also needs a market around the book: the script loads the shipped NWE
+reference network (real ENTSOG reference metadata, ``eurogas_nexus.reference_data``) and
+writes 400 gas days of simulated pipeline landings, storage and LNG, a week of simulated
+flows at map points, a month of simulated power-system fundamentals (load and generation,
+never a power price) and 400 days of simulated month-ahead history. Their shapes come from
+``demo_profiles.json`` (monthly or hourly means of public series, see
+``build_demo_profiles.py``); every row is ``DEMO_Sim`` with ``metadata.simulated = true``
+where the table has metadata.
+
 Usage (local PostgreSQL or SQLite runtime store, migrations already applied):
 
     RUNTIME_STORE_DATABASE_URL=... python scripts/demo/seed_demo_desk.py
@@ -24,29 +33,46 @@ counterparties); it touches nothing else.
 
 from __future__ import annotations
 
+import json
 import math
 import random
 import sys
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
+from eurogas_nexus.application.pipeline_supply import LANDING_POINTS
 from eurogas_nexus.application.position_inputs import gas_year_window
 from eurogas_nexus.core.config import simulated_sources_allowed
 from eurogas_nexus.db.models import (
     ContractDeliveryRecord,
     CreditLineRecord,
+    FlowObservationRecord,
     FxObservationRecord,
     LngTerminalTermsRecord,
     MarketObservationRecord,
     RemitUmmRecord,
+    RouteCandidateRecord,
     ScreenOrderObservationRecord,
     TraderMandateRecord,
     TradingBookRecord,
     UpstreamResourceContractRecord,
 )
+from eurogas_nexus.db.models.observation import LngObservationRecord, StorageObservationRecord
+from eurogas_nexus.db.models.power import PowerObservationRecord
 from eurogas_nexus.db.session import get_session_factory
+from eurogas_nexus.domain.market.gas_day import gas_day_start_utc
 from eurogas_nexus.domain.risk.limits import CounterpartyLeg, CreditLine, credit_exposure
+from eurogas_nexus.reference_data.network_bundle import seed_reference_bundle
 
 SOURCE = "DEMO_Sim"
+PROFILES = Path(__file__).with_name("demo_profiles.json")
+HISTORY_DAYS = 400  # more than a gas year, so the balance has a seasonal normal
+MAP_FLOW_DAYS = 7
+POWER_DAYS = 31
+STORAGE_NAMES = {
+    "BE": "Belgium", "DE": "Germany", "DK": "Denmark", "FR": "France", "NL": "Netherlands",
+    "EU": "EU total",
+}
 HORIZON_MONTHS = 38  # covers the 36-month risk horizon from any day of the month
 CREDIT_HORIZON_MONTHS = 36
 
@@ -177,6 +203,18 @@ def _clear(session) -> None:
     session.query(LngTerminalTermsRecord).filter(
         LngTerminalTermsRecord.terminal_id.like("demo-%")
     ).delete(synchronize_session=False)
+    session.query(RouteCandidateRecord).filter(
+        RouteCandidateRecord.route_id.like("demo-%")
+    ).delete(synchronize_session=False)
+    for model in (
+        FlowObservationRecord,
+        StorageObservationRecord,
+        LngObservationRecord,
+        PowerObservationRecord,
+    ):
+        session.query(model).filter(model.source_system == SOURCE).delete(
+            synchronize_session=False
+        )
 
 
 def seed(session, now: datetime) -> dict[str, dict]:
@@ -204,7 +242,7 @@ def seed(session, now: datetime) -> dict[str, dict]:
             )
         )
 
-    # Prices: a full monthly curve for the risk horizon and 45 days of month-ahead history.
+    # Prices: a full monthly curve for the risk horizon and 400 days of month-ahead history.
     marks: dict[tuple[str, str], float] = {}
     for hub, currency in (("TTF", "EUR"), ("NBP", "GBP")):
         for offset in range(HORIZON_MONTHS):
@@ -232,9 +270,12 @@ def seed(session, now: datetime) -> dict[str, dict]:
                     metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True},
                 )
             )
-        front = _month_start(today, 1)
-        for back in range(45, 0, -1):
-            price = round(_curve_price(hub, front) + rng.gauss(0, 0.5) - back * 0.03, 3)
+        # A random walk around the seasonal curve; each day's month-ahead is the month after it.
+        drift = 0.0
+        for back in range(HISTORY_DAYS, 0, -1):
+            front = _month_start(today - timedelta(days=back), 1)
+            drift = 0.97 * drift + rng.gauss(0, 0.35)
+            price = round(_curve_price(hub, front) + drift - back * 0.003, 3)
             session.add(
                 MarketObservationRecord(
                     observation_id=f"demo-{hub}-ma-{back}",
@@ -555,7 +596,292 @@ def seed(session, now: datetime) -> dict[str, dict]:
             reason=reason, market_participant="Demo operator", remarks="Fictional demo message.",
             source_system="DEMO", source_reference="demo:umm", ingested_at_utc=now,
         ))
+    # A local-sale route for the TTF contract, so the scenario can allocate. The NBP contracts
+    # land at terminals; a route from there needs TSO entry tariffs, which the demo does not
+    # invent, so their volume stays unallocated and the scenario says so.
+    session.add(
+        RouteCandidateRecord(
+            route_id="demo-route-ttf-local",
+            route_name="Sell locally at TTF (demo)",
+            start_point_name="TTF",
+            target_point_name="TTF",
+            business_model="VIRTUAL_HUB_SALE",
+            route_legs=[],
+            required_entry_point_name=None,
+            required_exit_point_name=None,
+            required_tso_access=[],
+            source_systems=["demo_route_template"],
+            active=True,
+            created_at_utc=now,
+        )
+    )
+    seed_market_around_the_book(session, now, rng)
     return sizing
+
+
+# ---------------------------------------------------------------------------
+# The market around the book: reference network, flows, storage, LNG, power
+# ---------------------------------------------------------------------------
+
+
+def _shape(by_month: list[float | None], day: date) -> float:
+    """A monthly-mean shape read on one day: linear between mid-months, wrapping the year."""
+
+    values = [v or 0.0 for v in by_month]
+    position = (day.month - 1) + (day.day - 15) / 30.0
+    lower = math.floor(position)
+    weight = position - lower
+    return values[lower % 12] * (1 - weight) + values[(lower + 1) % 12] * weight
+
+
+class _Wobble:
+    """Multiplicative AR(1) noise: day-to-day persistence, as a real series has."""
+
+    def __init__(self, rng: random.Random, sigma: float, persistence: float = 0.8) -> None:
+        self.rng, self.sigma, self.persistence, self.state = rng, sigma, persistence, 0.0
+
+    def __call__(self) -> float:
+        self.state = self.persistence * self.state + self.rng.gauss(0, self.sigma)
+        return max(0.0, 1.0 + self.state)
+
+
+def _closed_gas_days(now: datetime, count: int) -> list[tuple[date, datetime, datetime]]:
+    """The ``count`` newest closed gas days, oldest first: (day, start UTC, end UTC)."""
+
+    open_start = gas_day_start_utc(now)
+    open_day = (open_start + timedelta(hours=7)).date()
+    days = []
+    for back in range(count, 0, -1):
+        day = open_day - timedelta(days=back)
+        noon = datetime.combine(day, datetime.min.time(), tzinfo=UTC).replace(hour=12)
+        start = gas_day_start_utc(noon)
+        end = gas_day_start_utc(start + timedelta(hours=30))
+        days.append((day, start, end))
+    return days
+
+
+def _received(end: datetime, now: datetime) -> datetime:
+    """A closed day's figure arrives a few hours after the day ends, never after ``now``."""
+
+    return min(end + timedelta(hours=3), now)
+
+
+def _flow_row(point_id, name, operator, direction, gwh, day, start, end, now):
+    kwh = round(gwh * 1_000_000, 1)
+    return FlowObservationRecord(
+        observation_id=f"demo-flow-{point_id}-{operator}-{direction}-{day:%Y%m%d}"[:64],
+        point_id=point_id,
+        point_name=name,
+        direction=direction,
+        kind="actual",
+        flow_mcm_d=None,
+        original_value=kwh,
+        original_unit="kWh/d",
+        period_start_utc=start,
+        period_end_utc=end,
+        observed_at_utc=_received(end, now),
+        source_system=SOURCE,
+        source_reference="demo:flows",
+        source_record_id=f"{point_id}-{operator}-{direction}-{day.isoformat()}",
+        freshness="daily",
+        research_only=True,
+        metadata_json={
+            "pointKey": point_id,
+            "operatorKey": operator,
+            "directionKey": direction,
+            "unit": "kWh/d",
+            "simulated": True,
+        },
+        normalizer_version="entsog-native-units-v1",
+        native_rate_json={
+            "unit_text": "kWh/d",
+            "normalized_unit": "kWh/day",
+            "quantity_kind": "energy",
+            "rate_basis": "day",
+            "energy_kwh_per_day": str(kwh),
+            "volume_mcm_per_day": None,
+            "normalizer_version": "entsog-native-units-v1",
+        },
+    )
+
+
+def seed_market_around_the_book(session, now: datetime, rng: random.Random) -> dict[str, int]:
+    """Reference network plus simulated physical history; returns row counts by table."""
+
+    profiles = json.loads(PROFILES.read_text(encoding="utf-8"))
+    counts: dict[str, int] = {}
+    reference = seed_reference_bundle(session, now=now)
+    counts["reference_points"] = (reference.get("nodes") or {}).get("upserted", 0)
+    days = _closed_gas_days(now, HISTORY_DAYS)
+    rows: list = []
+
+    # Pipeline landings: every registry point every day, so the coverage rule sees full days.
+    for point in LANDING_POINTS:
+        shape = profiles["landing_points"][point.point_id]["gwh_d_by_month"]
+        wobble = _Wobble(rng, 0.025)
+        for day, start, end in days:
+            gwh = _shape(shape, day) * wobble()
+            rows.append(
+                _flow_row(point.point_id, point.label, point.operator, "entry", gwh, day, start,
+                          end, now)
+            )
+    counts["landing_flows"] = len(rows)
+
+    # Map points: a week of flows at located points (landing points already have theirs).
+    landing_ids = {point.point_id for point in LANDING_POINTS}
+    before = len(rows)
+    for item in profiles["map_flows"]:
+        if item["point_id"] in landing_ids:
+            continue
+        wobble = _Wobble(rng, 0.04)
+        for day, start, end in days[-MAP_FLOW_DAYS:]:
+            rows.append(
+                _flow_row(item["point_id"], item["name"], item["operator"], item["direction"],
+                          item["gwh_d"] * wobble(), day, start, end, now)
+            )
+    counts["map_flows"] = len(rows) - before
+
+    # Storage (AGSI-shaped, per country and the EU total) and GB storage (National Gas-shaped).
+    before = len(rows)
+    for code, profile in profiles["storage"].items():
+        capacity = profile["working_capacity_twh"]
+        fill_noise, flow_noise = _Wobble(rng, 0.004, 0.97), _Wobble(rng, 0.06)
+        for day, start, end in days:
+            fill = min(100.0, _shape(profile["fill_pct_by_month"], day) * fill_noise())
+            rows.append(
+                StorageObservationRecord(
+                    observation_id=f"demo-agsi-{code}-{day:%Y%m%d}",
+                    source_dataset="AGSI",
+                    facility_id=code,
+                    facility_name=f"{STORAGE_NAMES[code]} (demo)",
+                    country=code,
+                    inventory_twh=round(capacity * fill / 100, 4),
+                    working_capacity_twh=capacity,
+                    fill_pct=round(fill, 2),
+                    injection_twh_d=round(
+                        _shape(profile["injection_twh_d_by_month"], day) * flow_noise(), 5
+                    ),
+                    withdrawal_twh_d=round(
+                        _shape(profile["withdrawal_twh_d_by_month"], day) * flow_noise(), 5
+                    ),
+                    period_start_utc=start,
+                    period_end_utc=end,
+                    observed_at_utc=_received(end, now),
+                    source_system=SOURCE,
+                    source_reference="demo:storage",
+                    source_record_id=f"{code}-{day.isoformat()}",
+                    freshness="daily",
+                    research_only=True,
+                    metadata_json={"code": code, "gasDayStart": day.isoformat(), "simulated": True},
+                )
+            )
+    gb = profiles["gb"]
+    gb_noise = _Wobble(rng, 0.08)
+    for day, start, end in days:
+        rows.append(
+            StorageObservationRecord(
+                observation_id=f"demo-ng-storage-GB-{day:%Y%m%d}",
+                source_dataset="NG-SUPPLY",
+                facility_id="GB-NTS-STORAGE",
+                facility_name="Great Britain storage (demo)",
+                country="GB",
+                inventory_twh=None,
+                working_capacity_twh=None,
+                fill_pct=None,
+                injection_twh_d=round(
+                        _shape(gb["storage_injection_twh_d_by_month"], day) * gb_noise(), 5
+                    ),
+                withdrawal_twh_d=round(
+                        _shape(gb["storage_withdrawal_twh_d_by_month"], day) * gb_noise(), 5
+                    ),
+                period_start_utc=start,
+                period_end_utc=end,
+                observed_at_utc=_received(end, now),
+                source_system=SOURCE,
+                source_reference="demo:storage",
+                source_record_id=f"GB-{day.isoformat()}",
+                freshness="daily",
+                research_only=True,
+                metadata_json={"gas_day": day.isoformat(), "simulated": True},
+            )
+        )
+    counts["storage"] = len(rows) - before
+
+    # LNG send-out (ALSI-shaped per country and the EU total; GB National Gas-shaped).
+    before = len(rows)
+    lng_series = [
+        (code, f"{STORAGE_NAMES[code]} LNG (demo)", "ALSI", profile)
+        for code, profile in profiles["lng"].items()
+    ]
+    lng_series.append(("GB", "Great Britain LNG (demo)", "NG-SUPPLY", None))
+    for code, name, dataset, profile in lng_series:
+        noise = _Wobble(rng, 0.07)
+        for day, start, end in days:
+            if profile is None:
+                send_out = _shape(gb["lng_send_out_twh_d_by_month"], day) * noise()
+                stock = dtmi = None
+            else:
+                send_out = _shape(profile["send_out_twh_d_by_month"], day) * noise()
+                stock = round(_shape(profile["inventory_twh_by_month"], day) * noise(), 4)
+                dtmi = _shape(profile["dtmi_twh_by_month"], day)
+            terminal = "GB-NTS-LNG" if profile is None else code
+            rows.append(
+                LngObservationRecord(
+                    observation_id=f"demo-lng-{terminal}-{day:%Y%m%d}",
+                    source_dataset=dataset,
+                    terminal_id=terminal,
+                    terminal_name=name,
+                    country=code,
+                    inventory_twh=stock,
+                    send_out_twh_d=round(send_out, 5),
+                    dtmi_twh=None if dtmi is None else round(dtmi, 4),
+                    period_start_utc=start,
+                    period_end_utc=end,
+                    observed_at_utc=_received(end, now),
+                    source_system=SOURCE,
+                    source_reference="demo:lng",
+                    source_record_id=f"{terminal}-{day.isoformat()}",
+                    freshness="daily",
+                    research_only=True,
+                    metadata_json={"code": code, "gasDayStart": day.isoformat(), "simulated": True},
+                )
+            )
+    counts["lng"] = len(rows) - before
+
+    # Power-system fundamentals by hour: load and generation only. No power price is written:
+    # a simulated power price could be read as a market price (AGENTS.md rule 17).
+    before = len(rows)
+    # Whole UTC days up to last midnight: a half-filled today would read as a drop in burn.
+    first_hour = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=POWER_DAYS)
+    for zone, metrics in profiles["power_hourly_mw"].items():
+        for metric, by_hour in metrics.items():
+            daily = _Wobble(rng, 0.08 if "wind" in metric else 0.03, 0.6)
+            level = 1.0
+            for hour in range(POWER_DAYS * 24):
+                start = first_hour + timedelta(hours=hour)
+                if start.hour == 0 or hour == 0:
+                    level = daily()
+                value = by_hour[start.hour] * level * (1 + rng.gauss(0, 0.01))
+                rows.append(
+                    PowerObservationRecord(
+                        observation_id=f"demo-pw-{zone}-{metric}-{start:%Y%m%d%H}",
+                        zone=zone,
+                        metric=metric,
+                        process_type="A16",
+                        period_start_utc=start,
+                        period_end_utc=start + timedelta(hours=1),
+                        value=round(max(0.0, value), 1),
+                        unit="MW",
+                        source_system=SOURCE,
+                        source_reference="demo:power",
+                        published_at_utc=start + timedelta(hours=1),
+                        ingested_at_utc=now,
+                    )
+                )
+    counts["power"] = len(rows) - before
+    session.add_all(rows)
+    session.flush()
+    return counts
 
 
 def main() -> int:

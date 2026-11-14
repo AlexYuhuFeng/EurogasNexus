@@ -10,8 +10,12 @@ training and manual screenshots. Nothing in it is real.
 | Counterparties | Aldermoor Energy plc, Nordvik Petroleum ASA, Rhinmark Handel GmbH |
 | Trades | One ETRM sale to Aldermoor; exchange hedges for `demo.trader` (NBP) and `demo.nl.trader` (TTF) |
 | Deliveries | 90 gas days of nominations and allocations; Haldor under-delivers in the last week |
-| Prices | A 38-month NBP and TTF curve and 45 days of month-ahead history, source `DEMO_Sim`, flagged simulated |
+| Prices | A 38-month NBP and TTF curve and 400 days of month-ahead history, source `DEMO_Sim`, flagged simulated |
 | LNG | Three demo terminals with demo regas, entry and port costs |
+| Network | The shipped NWE reference network (real ENTSOG reference metadata, see `docs/operations/REFERENCE_NETWORK_BUNDLE.md`) |
+| Flows, storage, LNG | 400 gas days of pipeline landings at the balance's ten landing points, AGSI-shaped storage (BE, DE, DK, FR, NL, EU total), ALSI-shaped LNG send-out (BE, DE, FR, NL, EU total), GB storage and LNG; a week of flows at 40 map points; all `DEMO_Sim`, flagged simulated |
+| Power | 31 whole days of hourly load and wind, solar and gas generation for DE_LU, NL, BE and FR, `DEMO_Sim`; no power price is written |
+| Routes | A local-sale route at TTF, so the scenario allocates; the NBP contracts stay unallocated (a route from a terminal needs TSO entry tariffs, which the demo does not invent) |
 
 ## Run it
 
@@ -22,7 +26,14 @@ RUNTIME_STORE_DATABASE_URL=... python scripts/demo/seed_demo_desk.py
 EUROGAS_NEXUS_DEMO_MARKS=true  # in the API's environment
 ```
 
-Re-running replaces the demo rows only. Sign in as any principal with data scope `*`; the
+Re-running replaces the demo rows only (the reference network is upserted, not duplicated).
+
+The physical series take their seasonal shape from `scripts/demo/demo_profiles.json`:
+monthly means (and hour-of-day means for power) of the public ENTSOG, GIE, National Gas and
+ENTSO-E series, rounded to three figures and built by `scripts/demo/build_demo_profiles.py`
+from a store holding those series. No observation is copied and no price is read; the
+values written are random paths around those shapes, flagged simulated. The month-ahead
+history is an invented random walk around the demo curve. Sign in as any principal with data scope `*`; the
 risk screens need the REVIEWER role.
 
 With `EUROGAS_NEXUS_DEMO_MARKS` on, the top bar shows **Demo prices** on every screen and

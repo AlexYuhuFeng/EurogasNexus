@@ -519,9 +519,12 @@ export function MarketTerminal({
   const activeQuoteCount = sourceQuoteRows.length;
   // A simulated price must never be read as a market price: when any priced row on the board
   // is simulated, the board says so above the numbers, not only in a per-row pill.
-  const simulatedOnBoard = priceRowsForStrip.some((row) => {
+  // The WD/DA/WE/MA columns show every tenor's mid, so every tenor's row counts, not only
+  // the active tenor's: a simulated month-ahead mark next to an empty day-ahead is still a
+  // simulated price on the board.
+  const simulatedOnBoard = [...priceRowsForStrip, ...allTenorRows].some((row) => {
     const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
-    return quote ? quote.simulated : row.simulated;
+    return (quote ? quote.simulated : false) || row.simulated;
   });
 
   return (
