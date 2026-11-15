@@ -14,6 +14,7 @@ from eurogas_nexus.api.routes.public.cost_observations import router as cost_obs
 from eurogas_nexus.api.routes.public.credentials import router as credentials_router
 from eurogas_nexus.api.routes.public.data_platform import router as data_platform_router
 from eurogas_nexus.api.routes.public.decision_cases import router as decision_cases_router
+from eurogas_nexus.api.routes.public.desk import router as desk_router
 from eurogas_nexus.api.routes.public.explain import router as explain_router
 from eurogas_nexus.api.routes.public.functional import router as functional_router
 from eurogas_nexus.api.routes.public.fundamentals import router as fundamentals_router
@@ -64,6 +65,7 @@ def register_routes(
         app.include_router(access_router)
         app.include_router(analysis_router)
         app.include_router(explain_router)
+        app.include_router(desk_router)
         app.include_router(reference_network_router)
         app.include_router(sources_router)
         app.include_router(source_operations_router)

@@ -22,7 +22,7 @@ def test_storage_and_lng_api_read_configured_runtime_db(tmp_path, monkeypatch) -
             StorageObservationRecord(
                 observation_id="gie-agsi-test",
                 source_dataset="AGSI",
-                facility_id="EU",
+                facility_id="eu",
                 facility_name="EU",
                 country="EU",
                 inventory_twh=650.25,
@@ -43,7 +43,7 @@ def test_storage_and_lng_api_read_configured_runtime_db(tmp_path, monkeypatch) -
             LngObservationRecord(
                 observation_id="gie-alsi-test",
                 source_dataset="ALSI",
-                terminal_id="EU",
+                terminal_id="eu",
                 terminal_name="EU LNG",
                 country="EU",
                 inventory_twh=42.5,
@@ -62,7 +62,7 @@ def test_storage_and_lng_api_read_configured_runtime_db(tmp_path, monkeypatch) -
             StorageObservationRecord(
                 observation_id="gie-agsi-test-old",
                 source_dataset="AGSI",
-                facility_id="EU",
+                facility_id="eu",
                 facility_name="EU",
                 country="EU",
                 inventory_twh=600.0,
@@ -83,7 +83,7 @@ def test_storage_and_lng_api_read_configured_runtime_db(tmp_path, monkeypatch) -
             LngObservationRecord(
                 observation_id="gie-alsi-test-old",
                 source_dataset="ALSI",
-                terminal_id="EU",
+                terminal_id="eu",
                 terminal_name="EU LNG",
                 country="EU",
                 inventory_twh=40.0,
@@ -120,7 +120,7 @@ def test_storage_and_lng_api_read_configured_runtime_db(tmp_path, monkeypatch) -
     assert lng_response.json()["data"][0]["dtmi_twh"] == 65.0
     assert storage_sites_response.json()["data"] == [
         {
-            "site_id": "EU",
+            "site_id": "eu",
             "name": "EU",
             "country": "EU",
             "working_capacity_twh": 1100.5,

@@ -102,11 +102,14 @@ def _db_lng_observations() -> list[dict] | None:
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
+        from eurogas_nexus.application.identity_resolution import identity_clause
         from eurogas_nexus.db.models import LngObservationRecord
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = session.query(LngObservationRecord).order_by(
+            rows = session.query(LngObservationRecord).filter(
+                identity_clause(session, LngObservationRecord)
+            ).order_by(
                 LngObservationRecord.terminal_name,
                 LngObservationRecord.period_start_utc.desc(),
             )

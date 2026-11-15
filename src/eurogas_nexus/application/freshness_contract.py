@@ -214,6 +214,71 @@ def freshness_contract(
     )
 
 
+# ------------------------------------------------------------------ one figure's state
+
+
+def definition_by_id(source_id: str) -> SourceDefinition | None:
+    """The registered source definition with this id, if any."""
+
+    from eurogas_nexus.domain.dataops.registry import source_definitions
+
+    return next((d for d in source_definitions() if d.source_id == source_id), None)
+
+
+def close_state(close_day, today) -> str:
+    """The state of a daily close (a settlement or end-of-day price) read on ``today``.
+
+    Closes are published on weekday evenings, so the newest close expected is the previous
+    weekday's: that close is ``current``; one weekday behind is ``late``; more is ``stale``;
+    no close is ``never``. Exchange holidays are not modelled (a holiday reads one day late).
+    """
+
+    from datetime import timedelta
+
+    if close_day is None:
+        return "never"
+    expected = today - timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= timedelta(days=1)
+    behind, day = 0, close_day + timedelta(days=1)
+    while day <= expected:
+        behind += day.weekday() < 5
+        day += timedelta(days=1)
+    return "current" if behind == 0 else "late" if behind == 1 else "stale"
+
+
+def period_state(dataset: str, period_at: datetime | None, now: datetime) -> str:
+    """The state of a figure whose newest period is ``period_at``, by the dataset's declaration.
+
+    Uses the ``DatasetFreshness`` the manifest declares for ``dataset`` (the data-quality
+    report's dataset name): within ``period_late_hours`` current, within
+    ``period_stale_hours`` late, beyond stale; no period is ``never``. The same thresholds
+    judge demo and provider rows, so a demo figure is not marked fresher than a real one.
+    """
+
+    from eurogas_nexus.domain.connectors.registry import connector_manifests
+
+    if period_at is None:
+        return "never"
+    declared = next(
+        (
+            item
+            for manifest in connector_manifests()
+            for item in manifest.dataset_freshness
+            if item.dataset == dataset
+        ),
+        None,
+    )
+    if declared is None:
+        raise KeyError(dataset)
+    age_hours = (as_utc(now) - as_utc(period_at)).total_seconds() / 3600.0
+    if age_hours <= declared.period_late_hours:
+        return "current"
+    if age_hours <= declared.period_stale_hours:
+        return "late"
+    return "stale"
+
+
 def _parse(value: str) -> datetime | None:
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))

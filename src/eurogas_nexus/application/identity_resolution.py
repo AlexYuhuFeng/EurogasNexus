@@ -11,6 +11,15 @@ ENTSOG point and operator keys are written to ``source_entity_mappings`` by the 
 reference ingest (:func:`record_identities`, called from ``ingest_public_sources.py``), the
 provider's own complete list of what exists; the short published lists of the other
 built-in sources are code (``ontology.source_identity.BUILTIN_SOURCE_IDENTITIES``).
+
+**Quarantine withholds.** A stored observation whose provider identifier does not resolve
+is not served as if it named a known entity: every reader of the flow, capacity, storage,
+LNG and power tables adds :func:`identity_clause` to its query (:data:`WITHHOLDING_RULE`).
+The rows stay stored unchanged (history, as-of reads and the Sources list keep them);
+resolution happens at read time against the mappings in force, so an operator releases an
+identifier by adding its mapping (``scripts/ops/release_quarantined_identifier.py``), with
+no rewrite of stored rows. ``tests/contract/test_identity_withholding_readers.py`` fails
+when a module reads those tables without the clause.
 """
 
 from __future__ import annotations
@@ -249,6 +258,8 @@ def identity_report(
             source_id, {"checked": 0, "resolved": 0, "rows_unresolved": 0, "unresolved": []}
         )
         for identifier, rows in sorted(counts.items()):
+            if entity_type in OPTIONAL_IDENTIFIER_TYPES and not identifier:
+                continue  # a row without an operator key names no operator (WITHHOLDING_RULE)
             resolution = resolver.resolve(source_id, entity_type, identifier)
             entry["checked"] += 1
             if resolution.resolved:
@@ -261,6 +272,8 @@ def identity_report(
                     "identifier": identifier,
                     "reason": resolution.reason,
                     "count": rows,
+                    # Readers do not serve these rows until the identifier is mapped.
+                    "withheld": _withholding_active(session, source_id, entity_type),
                 }
             )
     return report
@@ -296,3 +309,173 @@ def check_identifiers(
         "resolved": len(rows) - len(quarantined),
         "quarantined": quarantined,
     }
+
+
+# ------------------------------------------------------------------ withholding at read time
+
+#: The rule every reader of the observation tables applies (one place: here).
+WITHHOLDING_RULE = (
+    "An observation whose provider identifier does not resolve (no active mapping in "
+    "source_entity_mappings and no built-in identity, or mapped to two entities) is "
+    "withheld from every reader: it stays stored and is listed on the Sources page with "
+    "its reason and row count. ENTSOG rows are checked on the point key and, when the row "
+    "states one, the operator key; ENTSOG keys are checked only once the store holds the "
+    "provider's reference mappings, since before the first reference read nothing can be "
+    "judged. GIE, National Gas and power-zone identifiers are checked against the built-in "
+    "lists. Adding a mapping releases the identifier's rows at once."
+)
+
+#: (table, source_system value, source id, entity type, column or ``json:<key>``).
+_READER_CHECKS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("flow_observations", "ENTSOG", "src-entsog", "entsog_point", "point_id"),
+    ("flow_observations", "ENTSOG", "src-entsog", "entsog_operator", "json:operatorKey"),
+    ("capacity_observations", "ENTSOG", "src-entsog", "entsog_point", "point_id"),
+    ("capacity_observations", "ENTSOG", "src-entsog", "entsog_operator", "json:operatorKey"),
+    ("storage_observations", "GIE", "src-gie", "gie_storage_country", "facility_id"),
+    ("storage_observations", "NATIONAL_GAS", "src-national-gas-supply",
+     "national_gas_storage", "facility_id"),
+    ("lng_observations", "GIE", "src-gie", "gie_lng_country", "terminal_id"),
+    ("lng_observations", "NATIONAL_GAS", "src-national-gas-supply", "national_gas_lng",
+     "terminal_id"),
+    ("power_observations", "ENTSOE", "src-entsoe", "bidding_zone", "zone"),
+    ("power_observations", "ELEXON", "src-elexon", "bidding_zone", "zone"),
+)
+
+#: Identifiers a row may leave empty (a legacy row without an operator key names none).
+OPTIONAL_IDENTIFIER_TYPES = frozenset({"entsog_operator"})
+
+#: Tables whose readers must apply :func:`identity_clause`.
+WITHHELD_TABLES = frozenset(table for table, *_ in _READER_CHECKS)
+
+
+def _builtin_identifiers(source_id: str, entity_type: str) -> list[str]:
+    from eurogas_nexus.domain.ontology.source_identity import BUILTIN_SOURCE_IDENTITIES
+
+    return sorted(
+        item.identifier
+        for item in BUILTIN_SOURCE_IDENTITIES
+        if item.source_id == source_id and item.entity_type == entity_type
+    )
+
+
+def _mappings_table(session) -> bool:
+    from sqlalchemy import inspect
+
+    try:
+        return inspect(session.connection()).has_table("source_entity_mappings")
+    except Exception:  # noqa: BLE001 - no table: only the built-ins can be judged
+        return False
+
+
+def _active_mapping_filter(session, source_id: str, entity_type: str):
+    from sqlalchemy import or_
+
+    from eurogas_nexus.db.models import SourceEntityMappingRecord as Mapping
+
+    now = datetime.now(UTC)
+    if session.get_bind().dialect.name == "sqlite":
+        now = now.replace(tzinfo=None)  # SQLite stores these timestamps without an offset
+    return (
+        Mapping.source_id == source_id,
+        Mapping.source_entity_type == entity_type,
+        Mapping.mapping_status == "ACTIVE",
+        or_(Mapping.valid_from_utc.is_(None), Mapping.valid_from_utc <= now),
+        or_(Mapping.valid_to_utc.is_(None), Mapping.valid_to_utc >= now),
+    )
+
+
+def _withholding_active(session, source_id: str, entity_type: str) -> bool:
+    """Whether identifiers of this type are judged: built-ins exist, or the reference was read."""
+
+    if _builtin_identifiers(source_id, entity_type):
+        return True
+    if not _mappings_table(session):
+        return False
+    from sqlalchemy import exists, select
+
+
+    return bool(
+        session.execute(
+            select(exists().where(*_active_mapping_filter(session, source_id, entity_type)))
+        ).scalar()
+    )
+
+
+def identity_clause(session, model):
+    """A SQL condition keeping only rows whose provider identifiers resolve (WITHHOLDING_RULE).
+
+    Add it to every query on a table in :data:`WITHHELD_TABLES` that serves rows or sums
+    them: ``query.filter(identity_clause(session, Model))``. It works before a ``LIMIT`` and
+    inside an aggregate. Rows from sources with no identity check (demo, operator input)
+    pass unchanged.
+    """
+
+    from sqlalchemy import and_, distinct, func, or_, select, true
+
+    from eurogas_nexus.db.models import SourceEntityMappingRecord as Mapping
+
+    table = model.__tablename__
+    conditions = []
+    has_table = _mappings_table(session)
+    for check_table, source_system, source_id, entity_type, column in _READER_CHECKS:
+        if check_table != table or not _withholding_active(session, source_id, entity_type):
+            continue
+        if column.startswith("json:"):
+            value = model.metadata_json[column.removeprefix("json:")].as_string()
+        else:
+            value = getattr(model, column)
+        builtins = _builtin_identifiers(source_id, entity_type)
+        if has_table:
+            mapped = _active_mapping_filter(session, source_id, entity_type)
+            any_mapping = select(Mapping.source_identifier).where(*mapped)
+            # One canonical entity per identifier: two is ambiguous, and quarantined.
+            unambiguous = (
+                select(Mapping.source_identifier)
+                .where(*mapped)
+                .group_by(Mapping.source_identifier)
+                .having(func.count(distinct(Mapping.canonical_entity_id)) == 1)
+            )
+            known = value.in_(unambiguous)
+            if builtins:
+                known = or_(known, and_(value.in_(builtins), value.notin_(any_mapping)))
+        else:
+            known = value.in_(builtins)
+        if entity_type in OPTIONAL_IDENTIFIER_TYPES:
+            known = or_(value.is_(None), value == "", known)
+        conditions.append(or_(model.source_system != source_system, known))
+    return and_(*conditions) if conditions else true()
+
+
+def withheld_counts(session) -> dict[str, int]:
+    """Rows each observation table withholds from readers now (stored minus served)."""
+
+    from sqlalchemy import func, inspect, select
+
+    from eurogas_nexus.db.models import (
+        CapacityObservationRecord,
+        FlowObservationRecord,
+        LngObservationRecord,
+        StorageObservationRecord,
+    )
+    from eurogas_nexus.db.models.power import PowerObservationRecord
+
+    inspector = inspect(session.connection())
+    counts: dict[str, int] = {}
+    for model in (
+        FlowObservationRecord,
+        CapacityObservationRecord,
+        StorageObservationRecord,
+        LngObservationRecord,
+        PowerObservationRecord,
+    ):
+        if not inspector.has_table(model.__tablename__):
+            continue
+        stored = session.execute(select(func.count()).select_from(model)).scalar() or 0
+        served = (
+            session.execute(
+                select(func.count()).select_from(model).where(identity_clause(session, model))
+            ).scalar()
+            or 0
+        )
+        counts[model.__tablename__] = int(stored) - int(served)
+    return counts

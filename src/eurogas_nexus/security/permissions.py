@@ -98,6 +98,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/analysis/explain", Permission.READ),
     # Morning brief / end-of-day draft: the same reads, assembled; nothing is sent.
     ("/api/analysis/brief", Permission.READ),
+    # The Today read (UX-05): prices, positions, limits, alerts, outages and fundamentals
+    # the caller may already see, assembled once; nothing is written.
+    ("/api/desk/today", Permission.READ),
     ("/api/review/decisions", Permission.REVIEW),
     ("/api/ingestion-runs", Permission.READ),
     # --- read families ---
@@ -347,6 +350,7 @@ ROLE_REQUIREMENTS: dict[Permission, str] = {
 # commercial evidence stays commercial through /api/agent/ and the governed
 # invoke path).
 COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
+    "/api/desk/",
     "/api/functional-runs/",
     "/api/functional-models/",
     "/api/market/",

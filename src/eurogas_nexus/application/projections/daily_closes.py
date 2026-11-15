@@ -61,6 +61,7 @@ def daily_rows(
             MarketObservationRecord.observed_at_utc,
             MarketObservationRecord.source_system,
             MarketObservationRecord.metadata_json,
+            MarketObservationRecord.period_start_utc,
         ).filter(func.upper(MarketObservationRecord.unit).like("%MWH%"))
         # SQLite stores these timestamps without an offset; compare like with like.
         naive = session.get_bind().dialect.name == "sqlite"
@@ -101,6 +102,8 @@ def daily_rows(
                     "currency": record.currency,
                     "unit": _price_unit(record.currency, record.unit),
                     "day": record.observed_at_utc.date(),
+                    "observed_at_utc": record.observed_at_utc,
+                    "period_start_utc": record.period_start_utc,
                     "price": float(record.price),
                     "simulated": bool(metadata.get("simulated"))
                     or record.source_system.endswith("_Sim"),

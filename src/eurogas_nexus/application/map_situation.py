@@ -336,8 +336,11 @@ def build_map_situation(
     # Closed gas days only, by the calendar every reader uses: the open day (and the next,
     # which ENTSOG also publishes) is still being reported and would read as a low flow.
     open_day_start = gas_day_start_utc(now)
+    from eurogas_nexus.application.identity_resolution import identity_clause
+
     flow_rows = (
         session.query(FlowObservationRecord)
+        .filter(identity_clause(session, FlowObservationRecord))
         .filter(
             FlowObservationRecord.period_start_utc
             >= bound(open_day_start - timedelta(days=FLOW_LOOKBACK_DAYS))

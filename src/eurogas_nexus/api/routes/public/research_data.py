@@ -944,8 +944,11 @@ def _fundamental_evidence(
 
     if by_prefix.get("power"):
         wanted = by_prefix["power"]
+        from eurogas_nexus.application.identity_resolution import identity_clause
+
         rows = (
             session.query(PowerObservationRecord)
+            .filter(identity_clause(session, PowerObservationRecord))
             .filter(PowerObservationRecord.metric.in_({w[0] for w in wanted}))
             .filter(PowerObservationRecord.zone.in_({w[1] for w in wanted if len(w) > 1}))
             .filter(PowerObservationRecord.period_start_utc >= history_start)
@@ -995,8 +998,11 @@ def _fundamental_evidence(
         if not wanted:
             continue
         column = getattr(model, key_column)
+        from eurogas_nexus.application.identity_resolution import identity_clause
+
         rows = (
             session.query(model)
+            .filter(identity_clause(session, model))
             .filter(column.in_({w[1] for w in wanted if len(w) > 1}))
             .filter(model.period_start_utc >= history_start)
             .filter(model.period_start_utc < end)
@@ -1031,8 +1037,11 @@ def _fundamental_evidence(
         )
 
         points = {w[1] for w in wanted if len(w) > 2}
+        from eurogas_nexus.application.identity_resolution import identity_clause
+
         rows = (
             session.query(FlowObservationRecord)
+            .filter(identity_clause(session, FlowObservationRecord))
             .filter(FlowObservationRecord.point_id.in_(points))
             .filter(FlowObservationRecord.period_start_utc >= history_start)
             .filter(FlowObservationRecord.period_start_utc < end)

@@ -177,11 +177,14 @@ def _db_storage_observations() -> list[dict] | None:
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
+        from eurogas_nexus.application.identity_resolution import identity_clause
         from eurogas_nexus.db.models import StorageObservationRecord
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = session.query(StorageObservationRecord).order_by(
+            rows = session.query(StorageObservationRecord).filter(
+                identity_clause(session, StorageObservationRecord)
+            ).order_by(
                 StorageObservationRecord.facility_name,
                 StorageObservationRecord.period_start_utc.desc(),
             )

@@ -338,6 +338,7 @@ def load_alias_candidates(
 ) -> list[AliasCandidate]:
     """:func:`identical_series_candidates` over the stored ENTSOG flow rows of closed days."""
 
+    from eurogas_nexus.application.identity_resolution import identity_clause
     from eurogas_nexus.db.models import FlowObservationRecord as Flow
 
     now = now or datetime.now(UTC)
@@ -345,6 +346,7 @@ def load_alias_candidates(
     start = now - timedelta(days=days + 3)
     rows = (
         session.query(Flow)
+        .filter(identity_clause(session, Flow))
         .filter(Flow.period_start_utc >= (start.replace(tzinfo=None) if naive else start))
         .filter(Flow.period_end_utc <= (now.replace(tzinfo=None) if naive else now))
         .all()
@@ -419,12 +421,14 @@ def landed_supply(session, first: date, *, as_of: datetime | None = None) -> Pip
 
     from sqlalchemy import or_
 
+    from eurogas_nexus.application.identity_resolution import identity_clause
     from eurogas_nexus.db.models import FlowObservationRecord as Flow
 
     naive = session.get_bind().dialect.name == "sqlite"
     start = datetime.combine(first, datetime.min.time())
     query = (
         session.query(Flow)
+        .filter(identity_clause(session, Flow))
         .filter(Flow.period_start_utc >= (start if naive else start.astimezone()))
         .filter(Flow.direction.ilike("entry"))
         .filter(

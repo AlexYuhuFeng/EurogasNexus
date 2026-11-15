@@ -198,8 +198,11 @@ def get_gas_for_power(
 
     try:
         with session:
+            from eurogas_nexus.application.identity_resolution import identity_clause
+
             power_rows = (
                 session.query(PowerObservationRecord)
+                .filter(identity_clause(session, PowerObservationRecord))
                 .filter(PowerObservationRecord.zone == power_market.code)
                 .filter(PowerObservationRecord.metric.in_(_POWER_METRICS))
                 .filter(PowerObservationRecord.period_start_utc >= _bound(session, first))
@@ -390,9 +393,11 @@ def _daily_sum(session, column_expr, model, filters, first: date, as_of=None):
 
     from sqlalchemy import func, or_
 
+    from eurogas_nexus.application.identity_resolution import identity_clause
+
     day = _utc_date(session, model.period_start_utc)
     query = session.query(day, func.sum(column_expr)).filter(
-        model.period_start_utc >= _bound(session, first)
+        model.period_start_utc >= _bound(session, first), identity_clause(session, model)
     )
     for condition in filters:
         query = query.filter(condition)
@@ -407,7 +412,9 @@ def _daily_sum(session, column_expr, model, filters, first: date, as_of=None):
     if as_of is not None:
         from eurogas_nexus.db.repositories.observation_revisions import versions_as_of
 
-        late = session.query(model).filter(model.period_start_utc >= _bound(session, first))
+        late = session.query(model).filter(
+            model.period_start_utc >= _bound(session, first), identity_clause(session, model)
+        )
         for condition in filters:
             late = late.filter(condition)
         late = late.filter(
@@ -438,6 +445,7 @@ def _complete_through(session, specs, first: date, as_of) -> tuple[date | None, 
 
     from sqlalchemy import func, or_
 
+    from eurogas_nexus.application.identity_resolution import identity_clause
     from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
 
     latest: dict[str, date] = {}
@@ -445,6 +453,7 @@ def _complete_through(session, specs, first: date, as_of) -> tuple[date | None, 
         day = _utc_date(session, model.period_start_utc)
         query = (
             session.query(model.source_system, func.max(day))
+            .filter(identity_clause(session, model))
             .filter(model.country.in_(NWE_COUNTRIES))
             .filter(model.period_start_utc >= _bound(session, first))
             .filter(or_(*(column.isnot(None) for column in columns)))
@@ -634,6 +643,8 @@ def get_nwe_balance(
             if latest_storage_day is not None:
                 from sqlalchemy import func
 
+                from eurogas_nexus.application.identity_resolution import identity_clause
+
                 # Fill is inventory over working capacity, so only facilities that
                 # publish a working capacity count; National Gas publishes none for GB.
                 inventory, capacity = (
@@ -642,6 +653,7 @@ def get_nwe_balance(
                         func.sum(StorageObservationRecord.working_capacity_twh),
                     )
                     .filter(*inventory_scope)
+                    .filter(identity_clause(session, StorageObservationRecord))
                     .filter(
                         _utc_date(session, StorageObservationRecord.period_start_utc)
                         == latest_storage_day

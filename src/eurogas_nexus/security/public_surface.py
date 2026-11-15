@@ -31,6 +31,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/agent/runs/{agent_run_id}/replay",
         "/api/agent/strategy-ir/validate",
         "/api/analysis/brief",
+        "/api/desk/today",
         "/api/analysis/explain",
         "/api/analysis/ontology",
         "/api/analysis/query",

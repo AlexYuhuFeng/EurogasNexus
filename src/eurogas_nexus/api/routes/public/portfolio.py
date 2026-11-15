@@ -99,8 +99,18 @@ def list_pnl_snapshots(
             title="P&L snapshots",
             about=[("Source", source), *[("Warning", item) for item in warnings[:20]]],
         )
+    from eurogas_nexus.domain.risk.method_notes import method_note
+
     return _env(
-        [snapshot.model_dump(mode="json") for snapshot in snapshots],
+        [
+            {
+                **snapshot.model_dump(mode="json"),
+                "method": method_note(
+                    "pnl_snapshot", inputs_as_of={"valuation": snapshot.valuation_time_utc}
+                ),
+            }
+            for snapshot in snapshots
+        ],
         request,
         source,
         warnings,
@@ -135,8 +145,14 @@ def get_live_summary(
     # meta alongside the loader warnings instead of being dropped. This informs
     # consumers why the GBP totals are null; it never substitutes a number for
     # the missing evidence.
+    from eurogas_nexus.domain.risk.method_notes import method_note
+
+    data = summary.model_dump(mode="json")
+    data["method"] = method_note(
+        "live_summary_pnl", inputs_as_of={"valuation": summary.latest_valuation_time_utc}
+    )
     return _env(
-        summary.model_dump(mode="json"),
+        data,
         request,
         source=source,
         warnings=[*order_warnings, *pnl_warnings, *summary.warnings],
@@ -227,6 +243,7 @@ def get_position_ladder(
         row["mark_method"] = mark_method.get(key)
     payload["curve"] = curve.as_dict()["points"]
     payload["horizon"] = {"start": horizon_start.isoformat(), "end": horizon_end.isoformat()}
+    payload["methods"] = _ladder_methods(payload, closes, today)
     payload["legs"] = {
         "physical": sum(1 for leg in legs if leg.kind == "physical"),
         "financial": sum(1 for leg in legs if leg.kind == "financial"),
@@ -281,6 +298,34 @@ def get_position_ladder(
     return _env(
         payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
     )
+
+
+def _ladder_methods(payload: dict, closes: dict, today) -> dict:
+    """Method notes for the ladder's risk figures, keyed by the response field (NUM-05)."""
+
+    from eurogas_nexus.application.limits_service import latest_close_day
+    from eurogas_nexus.domain.risk.method_notes import method_note
+
+    held = {row["hub"] for row in payload["rows"]}
+    held_days = [day for hub in held for day in closes.get(hub, {})]
+    positions = {"positions": today.isoformat()}
+    marks = {**positions, "marks": latest_close_day(closes)}
+    methods = {
+        "mark_to_market": method_note("mark_to_market", inputs_as_of=marks),
+        "var_95_1d": method_note(
+            "var_proxy",
+            inputs_as_of={
+                **positions,
+                "closes_from": min(held_days).isoformat() if held_days else None,
+                "closes_to": max(held_days).isoformat() if held_days else None,
+            },
+            params={"observations": payload["var_observations"]},
+        ),
+        "tenor_exposure": method_note("tenor_exposure", inputs_as_of=positions),
+    }
+    if payload.get("scenario"):
+        methods["scenario"] = method_note("tenor_shock", inputs_as_of=positions)
+    return methods
 
 
 class BookRequest(BaseModel):

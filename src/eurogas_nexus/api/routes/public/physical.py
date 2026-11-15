@@ -389,11 +389,14 @@ def _load_flow_observations(
     try:
         from sqlalchemy import func, or_
 
+        from eurogas_nexus.application.identity_resolution import identity_clause
         from eurogas_nexus.db.models import FlowObservationRecord
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            query = session.query(FlowObservationRecord)
+            query = session.query(FlowObservationRecord).filter(
+                identity_clause(session, FlowObservationRecord)
+            )
             if point_id:
                 query = query.filter(FlowObservationRecord.point_id == point_id)
             query = _apply_native_window(
@@ -463,11 +466,14 @@ def _load_capacity_observations(
     try:
         from sqlalchemy import func, or_
 
+        from eurogas_nexus.application.identity_resolution import identity_clause
         from eurogas_nexus.db.models import CapacityObservationRecord
         from eurogas_nexus.db.session import get_session_factory
 
         def load(session, low, high):
-            query = session.query(CapacityObservationRecord)
+            query = session.query(CapacityObservationRecord).filter(
+                identity_clause(session, CapacityObservationRecord)
+            )
             if point_id:
                 query = query.filter(CapacityObservationRecord.point_id == point_id)
             query = _apply_native_window(

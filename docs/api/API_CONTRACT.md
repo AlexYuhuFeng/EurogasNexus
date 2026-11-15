@@ -13,6 +13,10 @@ profiles, route modules, API services, and dependency providers.
   decision snapshots.
 - `GET /api/market/spreads` as a compatibility projection of persisted
   opportunities.
+- `GET /api/desk/today` for the Today screen: key figures, what changed, the book
+  against the market and fundamentals, computed once on the server with each figure's
+  unit, as-of time and freshness state (see
+  [API_CONTRACT_EVOLUTION_POLICY.md](../architecture/API_CONTRACT_EVOLUTION_POLICY.md)).
 - `GET /api/internal/health` in the internal profile only.
 - `GET /api/dev/health` in the development profile only.
 

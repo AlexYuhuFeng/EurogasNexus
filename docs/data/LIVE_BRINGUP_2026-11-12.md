@@ -790,6 +790,9 @@ Outages (REMIT UMM)        ok            1588   1588 2026-11-14T06:13    7.4    
 
 - `markets.py` lists ETF as an alias of TTF; the contract intake and desk text treat ETF as
   the Danish hub. A contract naming ETF resolves to TTF (as positions already did).
+  **Closed 2026-11-15**: ETF and GTF are Danish markets of their own (see
+  [ONTOLOGY_AUTHORITY.md](../ontology/ONTOLOGY_AUTHORITY.md)); the audit found no stored row
+  naming them in this store.
 - Dataset entity ids `ent:point:`, `ent:storage_site:`, `ent:bidding_zone:` are not in the
   research ontology's `CanonicalEntityType`; GIE "storage sites" are country aggregates.
 - `application/source_operations.py` keeps an older freshness-SLA table
@@ -801,7 +804,51 @@ Outages (REMIT UMM)        ok            1588   1588 2026-11-14T06:13    7.4    
   that work.
 - Rows whose provider identifier is quarantined are stored and listed, not withheld from
   readers: the hub readers never guess, but a flow or capacity row with an unmapped point
-  key is still read by point key.
+  key is still read by point key. **Closed 2026-11-15**, see "Quarantine withholds" below.
+
+### Quarantine withholds (2026-11-15)
+
+A row whose provider identifier does not resolve is now withheld from every reader, not only
+listed. Decision: resolve at read time, not flag at ingest. One SQL condition
+(`application/identity_resolution.identity_clause`, rule `WITHHOLDING_RULE`) is added to every
+query that serves or sums flow, capacity, storage, LNG or power rows: the map, the balance and
+pipeline landings, physical flows and capacity, storage and LNG lists, research datasets, the
+agent bridge and capability handlers, gas-for-power. A flag at ingest would have needed a
+back-fill of stored rows and a second rewrite at every release; read-time resolution keeps the
+rows untouched (history, as-of reads and the Sources list keep them), takes effect for a new
+mapping at the next read, and needs no migration. `tests/contract/test_identity_withholding_readers.py`
+fails when a module queries those tables without the condition, so a new reader cannot forget.
+
+Rules: ENTSOG rows are checked on the point key and, when the row states one, the operator key,
+and only once the store holds the provider's reference mappings (before the first reference
+read nothing can be judged, so nothing is withheld). GIE, National Gas and power-zone
+identifiers are checked against the built-in lists. An identifier mapped to two entities is
+withheld. The Sources page marks each listed identifier `withheld: true`; rows without an
+operator key are no longer listed as an empty operator identifier.
+
+Live, 15 Nov (no data rewritten):
+
+| | Before | After |
+|---|---|---|
+| ENTSOG identifiers listed | 21 (19 point keys, 2 operators) | 21 |
+| Capacity rows carrying them (point 94 + operator 28, 15 rows carry both) | 107 served | 107 withheld of 12,647 |
+| Flow, storage, LNG, power rows withheld | 0 | 0 |
+
+All 107 withheld capacity ranges are still valid today (the longest to 2054), so capacity
+reads served them until now. The SQL condition and the Python resolver agree row for row.
+
+**Releasing an identifier.** When an operator has established what a quarantined identifier
+names (for example a point key ENTSOG no longer lists, checked against the operator's own
+publication), add its mapping:
+
+```bash
+python scripts/ops/release_quarantined_identifier.py --source-id src-entsog \
+  --entity-type entsog_point --identifier ITP-00044 --evidence "who checked what"   # dry run
+python scripts/ops/release_quarantined_identifier.py ... --commit
+```
+
+The dry run prints the current resolution and the withheld rows per table before and after,
+then rolls back. Setting the mapping's `mapping_status` to `RETIRED` withholds the rows again.
 
 ### Reference network bundle (2026-11-14)
 

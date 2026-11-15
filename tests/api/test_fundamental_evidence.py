@@ -71,7 +71,7 @@ def test_only_the_needed_fundamental_series_are_loaded(tmp_path):
     Base.metadata.create_all(engine)
     with Session(engine) as session:
         for day in range(3):
-            session.add(_storage("REHDEN", day, 10.0 + day))
+            session.add(_storage("DE", day, 10.0 + day))
             session.add(_storage("OTHER", day, 5.0))
             session.add(_flow("P1", day, 40.0 + day))
             session.add(_flow("P2", day, 9.0))
@@ -95,14 +95,14 @@ def test_only_the_needed_fundamental_series_are_loaded(tmp_path):
         definitions = {d.provider.casefold(): d for d in source_definitions()}
         records, sources = _fundamental_evidence(
             session,
-            {"storage.inventory_twh.REHDEN", "flow.mcm_d.P1.entry", "power.load_actual.GB"},
+            {"storage.inventory_twh.DE", "flow.mcm_d.P1.entry", "power.load_actual.GB"},
             definitions,
             history_start=T0 - timedelta(days=1),
             end=T0 + timedelta(days=5),
             requested_entity_ids=set(),
         )
     series = sorted({r.series_id for r in records})
-    assert series == ["flow.mcm_d.P1.entry", "power.load_actual.GB", "storage.inventory_twh.REHDEN"]
+    assert series == ["flow.mcm_d.P1.entry", "power.load_actual.GB", "storage.inventory_twh.DE"]
     assert [r.value for r in records if r.series_id.startswith("storage")] == [10.0, 11.0, 12.0]
     assert {"src-gie", "src-entsog", "src-entsoe"} == sources
     storage = next(r for r in records if r.series_id.startswith("storage"))
@@ -113,7 +113,7 @@ def test_only_the_needed_fundamental_series_are_loaded(tmp_path):
 
 
 def _gb_storage(day, inventory):
-    row = _storage("GB-NTS", day, inventory)
+    row = _storage("GB-NTS-STORAGE", day, inventory)
     row.observation_id = f"ng-{day}"
     row.country, row.working_capacity_twh, row.fill_pct = "GB", None, None
     row.source_system, row.source_dataset = "NATIONAL_GAS", "national-gas-supply"
@@ -133,7 +133,7 @@ def _mixed_session(tmp_path):
     engine = create_engine(f"sqlite+pysqlite:///{(tmp_path / 'm.sqlite').as_posix()}", future=True)
     Base.metadata.create_all(engine)
     session = Session(engine)
-    session.add(_storage("REHDEN", 0, 10.0))
+    session.add(_storage("DE", 0, 10.0))
     session.add(_gb_storage(0, 9.97))
     session.add(_power("pw-de", "DE_LU", "ENTSOE", 8_000))
     session.add(_power("pw-gb", "GB", "ELEXON", 12_000))
@@ -142,7 +142,7 @@ def _mixed_session(tmp_path):
 
 
 NEEDED = {
-    "storage.inventory_twh.REHDEN", "storage.inventory_twh.GB-NTS",
+    "storage.inventory_twh.DE", "storage.inventory_twh.GB-NTS-STORAGE",
     "power.gas_generation.DE_LU", "power.gas_generation.GB",
 }
 
@@ -172,7 +172,7 @@ def test_a_row_is_left_out_when_its_own_source_is_not_authorised(tmp_path):
             end=T0 + timedelta(days=2), requested_entity_ids=set(),
         )
     assert {r.series_id for r in records} == {
-        "storage.inventory_twh.REHDEN", "power.gas_generation.DE_LU",
+        "storage.inventory_twh.DE", "power.gas_generation.DE_LU",
     }
     assert sources == {"src-gie", "src-entsoe"}
     # And a caller with only National Gas sees only the GB storage row.
@@ -184,7 +184,7 @@ def test_a_row_is_left_out_when_its_own_source_is_not_authorised(tmp_path):
             session, NEEDED, only_ng, history_start=T0 - timedelta(days=1),
             end=T0 + timedelta(days=2), requested_entity_ids=set(),
         )
-    assert [r.series_id for r in records] == ["storage.inventory_twh.GB-NTS"]
+    assert [r.series_id for r in records] == ["storage.inventory_twh.GB-NTS-STORAGE"]
     assert sources == {"src-national-gas-supply"}
 
 

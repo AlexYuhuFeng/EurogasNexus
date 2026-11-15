@@ -133,6 +133,9 @@ until a collector for those platforms exists.
 - Market → Capacity & Events → **Outages**: live and upcoming events (90 days), soonest first.
 - `GET /api/physical/outages?horizon_days=90&asset_type=production` and the SDK's
   `fetch_outages`.
+- `GET /api/desk/today` (the Today read): active and scheduled counts over 14 days from the
+  same service the ticker and the map read (`application/remit_outages.load_outage_rows`),
+  outages the map cannot place included, so the three surfaces show one number.
 
 ## Terms
 

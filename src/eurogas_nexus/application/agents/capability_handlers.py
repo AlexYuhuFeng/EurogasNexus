@@ -917,9 +917,12 @@ def _register_network_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            from eurogas_nexus.application.identity_resolution import identity_clause
             from eurogas_nexus.db.models import StorageObservationRecord
 
-            query = session.query(StorageObservationRecord)
+            query = session.query(StorageObservationRecord).filter(
+                identity_clause(session, StorageObservationRecord)
+            )
             if arguments.get("facility_id"):
                 query = query.filter(
                     StorageObservationRecord.facility_id == arguments["facility_id"]
@@ -947,9 +950,12 @@ def _register_network_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            from eurogas_nexus.application.identity_resolution import identity_clause
             from eurogas_nexus.db.models import LngObservationRecord
 
-            query = session.query(LngObservationRecord)
+            query = session.query(LngObservationRecord).filter(
+                identity_clause(session, LngObservationRecord)
+            )
             if arguments.get("terminal_id"):
                 query = query.filter(LngObservationRecord.terminal_id == arguments["terminal_id"])
             rows = query.order_by(LngObservationRecord.observed_at_utc.desc()).limit(100).all()

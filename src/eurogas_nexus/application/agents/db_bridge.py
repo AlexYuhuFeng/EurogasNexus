@@ -137,6 +137,7 @@ def flow_rows(
     ``open_gas_day`` true, for a caller that asks for within-day data.
     """
 
+    from eurogas_nexus.application.identity_resolution import identity_clause
     from eurogas_nexus.application.pipeline_supply import (
         closed_day_clause,
         published_after_close,
@@ -146,7 +147,9 @@ def flow_rows(
     )
     from eurogas_nexus.db.models import FlowObservationRecord
 
-    query = session.query(FlowObservationRecord)
+    query = session.query(FlowObservationRecord).filter(
+        identity_clause(session, FlowObservationRecord)
+    )
     if point_id:
         query = query.filter(FlowObservationRecord.point_id == point_id)
     if not include_open_day:
@@ -206,11 +209,14 @@ def capacity_rows(
     """
 
     from eurogas_nexus.application.capacity_resolution import resolve_capacity
+    from eurogas_nexus.application.identity_resolution import identity_clause
     from eurogas_nexus.application.pipeline_supply import row_energy_gwh, row_operator
     from eurogas_nexus.db.models import CapacityObservationRecord
     from eurogas_nexus.db.repositories.observation_revisions import value_received_at
 
-    query = session.query(CapacityObservationRecord)
+    query = session.query(CapacityObservationRecord).filter(
+        identity_clause(session, CapacityObservationRecord)
+    )
     if point_id:
         query = query.filter(CapacityObservationRecord.point_id == point_id)
     records = query.all()

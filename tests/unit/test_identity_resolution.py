@@ -128,9 +128,9 @@ def test_entsog_keys_resolve_through_the_reference_mappings_and_the_rest_are_lis
     assert (report["checked"], report["resolved"]) == (4, 2)
     assert report["unresolved"] == [
         {"entity_type": "entsog_point", "identifier": "ITP-99999",
-         "reason": "unknown_identifier", "count": 2},
+         "reason": "unknown_identifier", "count": 2, "withheld": True},
         {"entity_type": "entsog_operator", "identifier": "XX-TSO-0001",
-         "reason": "unknown_identifier", "count": 1},
+         "reason": "unknown_identifier", "count": 1, "withheld": True},
     ]
 
 

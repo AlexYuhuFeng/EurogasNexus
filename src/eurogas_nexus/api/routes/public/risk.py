@@ -111,9 +111,18 @@ def _limits_report(request: Request, format: str, compute, *, report: str, title
     warnings = [*result.warnings, *_scope_note()]
     if format != "json":
         return _download(result.rows, report=report, title=title, format=format, warnings=warnings)
-    return _env(
-        {"rows": result.rows, "as_of": today.isoformat()}, request, "runtime-postgresql", warnings
-    )
+    from eurogas_nexus.domain.risk.method_notes import method_note
+
+    # NUM-05: every figure says what it is and leaves out (one registry for the wording).
+    if report == "credit-exposure":
+        note = method_note(
+            "credit_exposure",
+            inputs_as_of={"positions": today.isoformat(), "marks": result.marks_as_of},
+        )
+    else:
+        note = method_note("mandate_usage", inputs_as_of={"positions": today.isoformat()})
+    rows = [{**row, "method": note} for row in result.rows]
+    return _env({"rows": rows, "as_of": today.isoformat()}, request, "runtime-postgresql", warnings)
 
 
 class CreditLineRequest(BaseModel):

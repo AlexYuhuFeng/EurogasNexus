@@ -108,7 +108,10 @@ def _power(code: str, name: str, country: str, currency: str = "EUR", **override
 
 MARKETS: tuple[Market, ...] = (
     # European gas hubs.
-    _eu_gas("TTF", "Title Transfer Facility", "NL", aliases=("ETF",)),
+    # TTF only: ETF is the Danish exchange hub, never an alias of the Dutch one (owner
+    # decision 2026-11-15). No hub's aliases may name another registered hub
+    # (tests/unit/test_market_reference.py guards this).
+    _eu_gas("TTF", "Title Transfer Facility", "NL"),
     _eu_gas(
         "NBP",
         "National Balancing Point",
@@ -125,6 +128,28 @@ MARKETS: tuple[Market, ...] = (
     _eu_gas("PSV", "Punto di Scambio Virtuale", "IT", timezone="Europe/Rome"),
     _eu_gas("CEGH", "Central European Gas Hub (VTP)", "AT", aliases=("VTP",)),
     _eu_gas("PVB", "Punto Virtual de Balance", "ES", timezone="Europe/Madrid"),
+    # Denmark has two transfer facilities and they are not one hub. ETF (Exchange Transfer
+    # Facility) is where exchange trades transfer: EEX lists Danish gas there (formerly
+    # Gaspoint Nordic, hence the alias). GTF (Gas Transfer Facility) is Energinet's
+    # bilateral OTC transfer point, the "GTF (Bilateral Trading Point)" ENTSOG VTP-00001 in
+    # the reference bundle. Assumption, not verified against a licensed feed: EUR/MWh and
+    # MW on the European gas day, as for the other continental hubs; GTF has no published
+    # price, so a position at GTF is left unvalued rather than marked at ETF.
+    _eu_gas(
+        "ETF",
+        "Exchange Transfer Facility (Denmark)",
+        "DK",
+        timezone="Europe/Copenhagen",
+        price_sources=("EEX",),
+        aliases=("GASPOINT",),
+    ),
+    _eu_gas(
+        "GTF",
+        "Gas Transfer Facility (Denmark, bilateral)",
+        "DK",
+        timezone="Europe/Copenhagen",
+        price_sources=(),
+    ),
     _eu_gas(
         "NCG",
         "NetConnect Germany",

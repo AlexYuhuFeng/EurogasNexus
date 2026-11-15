@@ -219,23 +219,21 @@ def _prices(session, caller, now, kind):
 
 
 def _positions(session, caller, now, kind):
+    from eurogas_nexus.application.desk_today import net_positions
     from eurogas_nexus.application.position_inputs import ladder_inputs
 
     today = now.date()
     month_start = today.replace(day=1)
     next_month = (month_start + timedelta(days=32)).replace(day=1)
     inputs = ladder_inputs(caller, today, today, next_month + timedelta(days=31))
-    net: dict[tuple[str, str], float] = {}
-    for leg in inputs.legs:
-        for label, day in (("today", today), ("front month", next_month)):
-            if leg.first_gas_day <= day <= leg.last_gas_day:
-                net[(leg.hub, label)] = net.get((leg.hub, label), 0.0) + leg.mwh_per_day
+    # The Today read's figures (one computation): the front month is the month's average.
+    net = net_positions(inputs.legs, today)
     lines = []
-    for hub in sorted({hub for hub, _ in net}):
+    for hub in sorted(net):
         parts = [
             f"{'long' if value > 0 else 'short'} {abs(value):,.0f} MWh/d {label}"
-            for label in ("today", "front month")
-            if (value := net.get((hub, label)))
+            for label, key in (("today", "today"), ("front month", "front_month"))
+            if abs(value := net[hub][key]) > 1e-9
         ]
         if parts:
             lines.append(f"{hub}: {', '.join(parts)}.")

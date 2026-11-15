@@ -1382,6 +1382,8 @@ export interface PortfolioPnlSnapshotDTO {
   cash_value_gbp: number; market_value_gbp: number; quantity_mwh: number;
   valuation_basis: string; source_system: string; source_reference: string;
   warnings: string[]; research_only: boolean; human_review_required: boolean;
+  /** What the figure is and leaves out (NUM-05). */
+  method?: RiskMethodNoteDTO;
 }
 
 export interface PortfolioLiveSummaryDTO {
@@ -1390,6 +1392,23 @@ export interface PortfolioLiveSummaryDTO {
   total_indicative_pnl_gbp: number | null; total_cash_value_gbp: number | null;
   open_order_count: number; filled_order_count: number; warnings: string[];
   research_only: boolean; human_review_required: boolean;
+  method?: RiskMethodNoteDTO;
+}
+
+/**
+ * The method note behind a risk figure (``domain/risk/method_notes.py``, NUM-05): what it
+ * is, what it includes and leaves out, and its inputs' as-of times. ``i18n`` holds the keys
+ * (``risk.method.<key>.*``) to translate the English text; ``params`` fills the summary.
+ */
+export interface RiskMethodNoteDTO {
+  key: string;
+  summary: string;
+  includes: string[];
+  excludes: string[];
+  params: Record<string, string | number | null>;
+  inputs_as_of: Record<string, string | null>;
+  i18n: { summary: string; includes: string[]; excludes: string[] };
+  review_status: string;
 }
 
 export interface FxRateDTO {
@@ -1802,6 +1821,164 @@ export interface DeskBriefDTO {
   simulated: boolean;
   warnings: string[];
   as_of: string;
+}
+
+/** Freshness-contract state of one figure (``application/freshness_contract.py``). */
+export type FigureStateDTO = "current" | "late" | "stale" | "never" | "manual";
+
+/** One Today figure: value, native unit, as-of time, state and simulated flag. */
+export interface TodayFigureDTO {
+  key: string;
+  label: string;
+  value: number | null;
+  unit: string;
+  as_of: string | null;
+  state: FigureStateDTO;
+  simulated: boolean;
+  source: string | null;
+  method?: RiskMethodNoteDTO;
+  [extra: string]: unknown;
+}
+
+/** An explicit empty state: why there is nothing and what would fill it. */
+export interface TodayEmptyDTO {
+  code: string;
+  reason: string;
+  action: string;
+}
+
+export interface TodayPriceDTO extends TodayFigureDTO {
+  hub: string;
+  product: string;
+  tenor: string;
+  close_day: string;
+  day_change: number | null;
+  day_change_vs: string | null;
+}
+
+export interface TodayWhyDTO {
+  subject: ExplainSubject;
+  id: string;
+}
+
+export interface TodayKeyFiguresRowDTO {
+  key: "key_figures";
+  title: string;
+  populated: boolean;
+  prices: (TodayPriceDTO | { key: string; hub: string; empty: TodayEmptyDTO })[];
+  prices_empty: TodayEmptyDTO | null;
+  position: { today: TodayFigureDTO; front_month: TodayFigureDTO } | null;
+  position_empty: TodayEmptyDTO | null;
+  tightest_limit:
+    | (TodayFigureDTO & {
+        kind: "credit" | "mandate";
+        name: string;
+        status: string;
+        utilisation_pct: number;
+        why: TodayWhyDTO;
+        counts: { breach: number; watch: number; expired: number; shown: number };
+      })
+    | null;
+  limit_empty: TodayEmptyDTO | null;
+}
+
+export interface TodayChangesRowDTO {
+  key: "changes";
+  title: string;
+  populated: boolean;
+  empty: TodayEmptyDTO | null;
+  alerts: {
+    counts: { open: number; critical: number; warning: number };
+    items: {
+      alert_id: string;
+      severity: "warning" | "critical";
+      category: string;
+      title: string;
+      title_zh: string;
+      as_of: string | null;
+      simulated: boolean;
+      why: TodayWhyDTO;
+    }[];
+    more: number;
+    listed_elsewhere: number;
+  };
+  outages: {
+    counts: { active: number; scheduled: number; total: number };
+    horizon_days: number;
+    as_of: string | null;
+    state: FigureStateDTO;
+    items: {
+      event_id: string;
+      facility: string;
+      zone: string | null;
+      status: string;
+      start_utc: string;
+      end_utc: string | null;
+      unavailable: number | null;
+      unit: string | null;
+      as_of: string | null;
+      simulated: boolean;
+      why: TodayWhyDTO;
+    }[];
+    more: number;
+  };
+}
+
+export interface TodayBookRowDTO {
+  key: "book";
+  title: string;
+  populated: boolean;
+  empty: TodayEmptyDTO | null;
+  horizon_months?: number;
+  hubs: {
+    hub: string;
+    position_today: TodayFigureDTO;
+    position_front_month: TodayFigureDTO;
+    net_open_mwh: number;
+    mark: (TodayFigureDTO & { same_as: string | null }) | null;
+    day_pnl_change: TodayFigureDTO | { empty: TodayEmptyDTO };
+  }[];
+}
+
+export interface TodayFundamentalsRowDTO {
+  key: "fundamentals";
+  title: string;
+  populated: boolean;
+  empty: TodayEmptyDTO | null;
+  storage:
+    | {
+        latest: TodayFigureDTO;
+        inventory_twh: number;
+        unit: string;
+        series: { day: string; inventory_twh: number; fill_pct: number | null }[];
+      }
+    | { empty: TodayEmptyDTO };
+  balance:
+    | {
+        latest: TodayFigureDTO;
+        unit: string;
+        series: {
+          day: string;
+          call_gwh: number;
+          norway_gwh: number;
+          lng_gwh: number;
+          storage_net_withdrawal_gwh: number;
+        }[];
+      }
+    | { empty: TodayEmptyDTO };
+}
+
+/** ``GET /api/desk/today`` (UX-05): the four rows of the Today screen, computed once. */
+export interface DeskTodayDTO {
+  as_of: string;
+  gas_day: string;
+  front_month: string;
+  simulated: boolean;
+  simulated_notice: string | null;
+  rows: [TodayKeyFiguresRowDTO, TodayChangesRowDTO, TodayBookRowDTO, TodayFundamentalsRowDTO];
+  /** Every late or stale figure by name (FRESH-02), instead of a page-wide "N feeds stale". */
+  stale_figures: { key: string; label: string; state: FigureStateDTO; as_of: string | null }[];
+  warnings: string[];
 }
 
 export interface MonitoringAlertDTO {
@@ -2854,6 +3031,7 @@ export interface CreditExposureRowDTO {
   open_ended_legs?: number;
   valid_until: string | null;
   status: "ok" | "watch" | "breach" | "expired" | "incomplete";
+  method?: RiskMethodNoteDTO;
 }
 
 /** One trader's open positions against their mandate. */
@@ -2877,6 +3055,7 @@ export interface MandateUsageRowDTO {
   hedge_ratio_range: string | null;
   hedge_room_mwh: number | null;
   instruments: string;
+  method?: RiskMethodNoteDTO;
 }
 
 export interface CreditLineInput {
@@ -3253,6 +3432,8 @@ export interface PositionLadderDTO {
   reporting_currency?: string | null;
   group_by?: string;
   rollup?: LadderRollupDTO[];
+  /** Method notes keyed by the figure's field: mark_to_market, var_95_1d, tenor_exposure, scenario. */
+  methods?: Record<string, RiskMethodNoteDTO>;
   warnings: string[];
 }
 
@@ -4746,6 +4927,8 @@ export const api = {
 
   deskBrief: (kind: "morning" | "eod", language: "en" | "zh-CN") =>
     post<DeskBriefDTO>("/analysis/brief", { kind, language }),
+
+  deskToday: (options?: ApiRequestOptions) => get<DeskTodayDTO>("/desk/today", undefined, options),
 
   acknowledgeMonitoringAlert: (alertId: string) =>
     post<MonitoringAlertDTO>(`/monitoring/alerts/${encodeURIComponent(alertId)}/acknowledge`, {}),

@@ -40,7 +40,7 @@ def test_desk_conventions_come_from_the_model():
     assert quote_currency("NBP") == "GBP" and quote_currency("TTF") == "EUR"
     assert quote_currency("AECO") == "CAD"
     assert HUB_NATIVE_PRICE_UNIT["NBP"] == "GBp/th"
-    assert market("etf").code == "TTF" and market("VTP").code == "CEGH"
+    assert market("etf").code == "ETF" and market("VTP").code == "CEGH"
     assert "NCG" not in european_gas_hubs() and "NCG" in european_gas_hubs(include_superseded=True)
     with pytest.raises(UnknownMarket):
         market("NOPE")
@@ -58,3 +58,23 @@ def test_naesb_gas_day_starts_at_nine_central():
     assert (start.hour, start.minute) == (15, 0)  # 09:00 CST = 15:00 UTC
     summer = gas_day_start_for_date(date(2026, 7, 15), "NAESB")
     assert summer.hour == 14  # 09:00 CDT
+
+
+def test_no_hubs_aliases_name_another_registered_market():
+    """A hub's alias that is another market's code silently moves prices (ETF was TTF's)."""
+
+    from eurogas_nexus.domain.ontology.markets import MARKETS
+
+    codes = {m.code.upper(): m.code for m in MARKETS}
+    clashes = [
+        (m.code, alias)
+        for m in MARKETS
+        for alias in m.aliases
+        if alias.upper() in codes and codes[alias.upper()] != m.code
+    ]
+    assert clashes == []
+    # Nor an alias that merely spells another market's code inside it.
+    for m in MARKETS:
+        for alias in m.aliases:
+            words = set(alias.upper().replace("-", " ").split())
+            assert not (words & (set(codes) - {m.code.upper()})), (m.code, alias)

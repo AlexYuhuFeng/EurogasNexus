@@ -15,7 +15,9 @@ from eurogas_nexus.domain.ontology.identity import resolve_hub
         ("ttf", "TTF", "code"),
         ("NBP Day-Ahead", "NBP", "code"),
         ("Kestrel supply (TTF)", "TTF", "code"),
-        ("ETF", "TTF", "alias"),
+        ("ETF", "ETF", "code"),
+        ("GTF", "GTF", "code"),
+        ("Gaspoint Nordic", "ETF", "alias"),
         ("THE Day-Ahead", "THE", "code"),
         ("Haldor supply (Easington)", "NBP", "delivery_point"),
         ("St Fergus", "NBP", "delivery_point"),
@@ -99,3 +101,44 @@ def test_an_unmapped_contract_is_left_out_and_said_so(tmp_path, monkeypatch):
     assert [leg.reference for leg in inputs.legs] == ["good"]
     assert inputs.legs[0].hub == "NBP"
     assert any("lost" in w and "does not name a hub" in w for w in inputs.warnings)
+
+
+# --- ETF is the Danish exchange hub, never TTF; ETF and GTF are distinct (2026-11-15) ---
+
+
+@pytest.mark.parametrize("text", ["ETF", "ETF Day-Ahead", "Danish supply (ETF)", "etf"])
+def test_etf_names_the_danish_hub_not_ttf(text):
+    from eurogas_nexus.domain.ontology.markets import market
+
+    resolution = resolve_hub(text)
+    assert resolution.hub == "ETF"
+    assert market("ETF").country == "DK" and market("TTF").country == "NL"
+
+
+def test_ttf_never_resolves_from_danish_text():
+    for text in ("ETF", "Exchange Transfer Facility", "GTF", "Gaspoint Nordic"):
+        assert resolve_hub(text, points={"EXCHANGE TRANSFER FACILITY": "ETF"}).hub != "TTF"
+
+
+def test_etf_and_gtf_stay_distinct():
+    from eurogas_nexus.domain.ontology.markets import market
+
+    assert resolve_hub("GTF").hub == "GTF"
+    assert market("ETF") is not market("GTF")
+    assert resolve_hub("ETF/GTF transfer").hub is None  # two hubs named: ambiguous, not merged
+    assert hub_from_text("Exchange Transfer Facility") is None  # free text: intake maps it
+
+
+def test_contract_intake_names_keep_the_danish_hubs_apart():
+    from eurogas_nexus.application.contract_intake import _HUBS
+
+    points = {name.upper(): code for code, names in _HUBS.items() for name in names}
+    assert resolve_hub("Exchange Transfer Facility", points=points).hub == "ETF"
+    assert resolve_hub("Gas Transfer Facility", points=points).hub == "GTF"
+    assert resolve_hub("Title Transfer Facility", points=points).hub == "TTF"
+
+
+def test_a_danish_zone_prices_at_etf():
+    from eurogas_nexus.application.desk_text import hub_for_zone
+
+    assert hub_for_zone("DK") == "ETF"

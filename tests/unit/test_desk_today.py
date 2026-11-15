@@ -1,0 +1,206 @@
+"""The Today read (UX-05): four populated rows on the demo desk, scoped as the brief is."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+import eurogas_nexus.db.models  # noqa: F401  (registers every table)
+from eurogas_nexus.application.caller import Caller
+from eurogas_nexus.application.desk_today import build_today, net_positions
+from eurogas_nexus.application.monitoring_service import scan_monitoring_conditions
+from eurogas_nexus.db.base import Base
+from eurogas_nexus.domain.portfolio.position_ladder import PositionLeg
+from eurogas_nexus.security import portfolio_scope
+from eurogas_nexus.security.identity import AuthenticatedPrincipal
+
+SEED = Path(__file__).resolve().parents[2] / "scripts" / "demo" / "seed_demo_desk.py"
+NOW = datetime(2026, 11, 7, 7, tzinfo=UTC)
+STATES = {"current", "late", "stale", "never", "manual"}
+
+
+def _principal(*scopes: str) -> Caller:
+    return Caller(
+        AuthenticatedPrincipal(
+            principal_id="p-analyst",
+            name="analyst",
+            principal_type="USER",
+            role="ANALYST",
+            status="ACTIVE",
+            data_scopes=scopes,
+            roles=("ANALYST",),
+        )
+    )
+
+
+def _seeded(tmp_path, monkeypatch, now):
+    url = f"sqlite+pysqlite:///{tmp_path / 'desk.sqlite'}"
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", url)
+    monkeypatch.setenv("EUROGAS_NEXUS_DEMO_MARKS", "true")
+    engine = create_engine(url)
+    Base.metadata.create_all(engine)
+    spec = importlib.util.spec_from_file_location("seed_demo_desk", SEED)
+    seed = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(seed)
+    with Session(engine) as session:
+        seed.seed(session, now)
+        session.commit()
+        scan_monitoring_conditions(session, now_utc=now, enrich_with_llm=False)
+    return engine
+
+
+@pytest.fixture
+def desk(tmp_path, monkeypatch):
+    return _seeded(tmp_path, monkeypatch, NOW)
+
+
+def _balance():
+    from eurogas_nexus.api.routes.public.fundamentals import get_nwe_balance
+
+    return get_nwe_balance(None, days=1, history_days=14, format="json")["data"]
+
+
+def _today(engine, caller, now=NOW):
+    with Session(engine) as session:
+        return build_today(session, caller, now=now, balance_reader=_balance)
+
+
+def _figures(value):
+    """Every figure object in a response (it has a unit, an as-of time and a state)."""
+
+    if isinstance(value, dict):
+        if {"unit", "as_of", "state", "value"} <= set(value):
+            yield value
+        for item in value.values():
+            yield from _figures(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _figures(item)
+
+
+def test_all_four_rows_are_populated_on_the_demo_desk(desk):
+    data = _today(desk, _principal("DEMO", "BOOKS:*"))
+    keys = [row["key"] for row in data["rows"]]
+    assert keys == ["key_figures", "changes", "book", "fundamentals"]
+    assert all(row["populated"] for row in data["rows"])
+    key, changes, book, fundamentals = data["rows"]
+    assert {item["hub"] for item in key["prices"]} == {"NBP", "TTF"}
+    assert all(item["day_change"] is not None for item in key["prices"])
+    assert key["position"]["today"]["unit"] == "MWh/d"
+    assert key["tightest_limit"]["status"] == "breach"  # the demo's Rhinmark line
+    assert key["tightest_limit"]["why"]["subject"] == "credit"
+    assert changes["outages"]["counts"]["active"] >= 1
+    assert changes["alerts"]["counts"]["open"] >= 1
+    assert {hub["hub"] for hub in book["hubs"]} == {"NBP", "TTF"}
+    assert all(hub["day_pnl_change"]["method"]["key"] == "day_pnl_change"
+               for hub in book["hubs"])
+    assert fundamentals["storage"]["series"] and fundamentals["balance"]["series"]
+    # Demo prices are said to be simulated, figure by figure and for the page.
+    assert data["simulated"] and data["simulated_notice"]
+    assert key["prices"][0]["simulated"] and key["prices"][0]["source"] == "Demo price"
+    # Nothing says "Withheld"; every figure has a unit, an as-of time and a contract state.
+    assert "withheld" not in json.dumps(data).casefold()
+    figures = list(_figures(data))
+    assert len(figures) >= 10
+    for item in figures:
+        assert item["unit"] and item["as_of"] and item["state"] in STATES, item["key"]
+
+
+def test_the_day_pnl_change_is_the_open_position_times_the_close_change(desk):
+    data = _today(desk, _principal("DEMO", "BOOKS:*"))
+    prices = {item["hub"]: item for item in data["rows"][0]["prices"]}
+    for hub in data["rows"][2]["hubs"]:
+        price = prices[hub["hub"]]
+        expected = hub["net_open_mwh"] * price["day_change"]
+        assert hub["day_pnl_change"]["value"] == pytest.approx(expected, rel=1e-3)
+        assert hub["mark"]["same_as"] == f"price.{hub['hub']}"  # one number, one place
+
+
+def test_outage_counts_are_the_ticker_and_map_counts(tmp_path, monkeypatch):
+    from eurogas_nexus.api.app import create_app
+
+    now = datetime.now(UTC)  # the routes read the clock, so the desk is seeded at it
+    desk = _seeded(tmp_path, monkeypatch, now)
+    data = _today(desk, _principal("DEMO", "BOOKS:*"), now=now)
+    assert data["rows"][1]["outages"]["counts"]["active"] >= 1
+    client = TestClient(create_app())
+    outages = client.get("/api/physical/outages", params={"horizon_days": 14}).json()["data"]
+    situation = client.get("/api/portfolio/map-situation").json()["data"]
+    counts = data["rows"][1]["outages"]["counts"]
+    assert counts["active"] == sum(1 for row in outages if row["status"] == "active")
+    assert counts["total"] == len(outages)
+    assert counts["active"] == situation["totals"]["outages_active"]
+
+
+def test_a_user_without_the_data_scope_sees_no_demo_prices_or_marks(desk):
+    data = _today(desk, _principal("BOOKS:*"))
+    key, _, book, fundamentals = data["rows"]
+    # Positions are book data: still there; prices of an unlicensed family are not.
+    assert key["position"] is not None
+    assert all("empty" in item for item in key["prices"])
+    assert key["prices"][0]["empty"]["code"] == "no_licensed_close"
+    for hub in book["hubs"]:
+        assert hub["mark"] is None
+        assert hub["day_pnl_change"]["empty"]["code"] == "no_mark"
+    assert "empty" in fundamentals["storage"]
+    assert fundamentals["balance"]["empty"]["code"] == "balance_not_licensed"
+    priced = [item["key"] for item in _figures(data)
+              if item["key"].startswith(("price.", "mark.", "pnl.", "storage.", "balance."))]
+    assert priced == []
+
+
+def test_a_user_without_a_book_sees_no_positions_limits_or_book(desk, monkeypatch):
+    monkeypatch.setenv(portfolio_scope.ISOLATION_ENV, "true")
+    portfolio_scope.set_request_scope(("DEMO", "BOOKS:BOOK:SOMEONE-ELSES"))
+    try:
+        data = _today(desk, _principal("DEMO", "BOOKS:BOOK:SOMEONE-ELSES"))
+    finally:
+        portfolio_scope._current.set(None)
+    key, changes, book, _ = data["rows"]
+    assert key["position"] is None and key["position_empty"]["code"] == "no_position"
+    assert key["tightest_limit"] is None
+    assert key["limit_empty"]["code"] == "no_limits"
+    assert book["hubs"] == [] and book["empty"]["code"] == "no_position"
+    assert all(item["category"] != "limits" for item in changes["alerts"]["items"])
+    # Market rows stand: prices and outages are not book data.
+    assert {item["hub"] for item in key["prices"]} == {"NBP", "TTF"}
+    assert changes["outages"]["counts"]["active"] >= 1
+
+
+def test_late_and_stale_figures_are_named(desk):
+    later = NOW + timedelta(days=6)  # no new closes or storage since the seed
+    data = _today(desk, _principal("DEMO", "BOOKS:*"), now=later)
+    named = {item["key"]: item["state"] for item in data["stale_figures"]}
+    assert named["price.TTF"] == "stale" and named["price.NBP"] == "stale"
+    assert "storage.nwe.fill" in named
+    assert all(item["as_of"] for item in data["stale_figures"])
+
+
+def test_the_route_serves_the_read(desk):
+    from eurogas_nexus.api.app import create_app
+
+    response = TestClient(create_app()).get("/api/desk/today")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [row["key"] for row in body["data"]["rows"]][0] == "key_figures"
+    assert body["meta"]["source_references"] == ["runtime-postgresql:desk-today"]
+
+
+def test_the_front_month_is_the_months_average():
+    today = datetime(2026, 11, 7).date()
+    legs = [
+        PositionLeg("physical", "TTF", today, datetime(2027, 9, 30).date(), 100.0, 30.0, "a"),
+        # Starts mid-December: 16 of 31 days.
+        PositionLeg("financial", "TTF", datetime(2026, 12, 16).date(),
+                    datetime(2026, 12, 31).date(), -31.0, 40.0, "b"),
+    ]
+    net = net_positions(legs, today)
+    assert net["TTF"]["today"] == pytest.approx(100.0)
+    assert net["TTF"]["front_month"] == pytest.approx(100.0 - 16.0)

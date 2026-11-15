@@ -54,6 +54,15 @@ step the test executes; the identifier and the unit are asserted at every hop.
   (`energy-ontology/v2`).
 - `ent:storage_site:<CC>` and `ent:lng_terminal:<CC>` name GIE **country aggregates**, not
   sites.
-- `markets.py` lists `ETF` as an alias of TTF, while the contract intake and the desk text
-  name ETF as the Danish hub (Exchange Transfer Facility). A contract written "ETF" now
-  resolves to TTF everywhere (it did in positions before, too); it needs a decision.
+- **Decided 2026-11-15 (owner):** `ETF` is the Danish Exchange Transfer Facility (exchange
+  trades, EEX, formerly Gaspoint Nordic: alias `GASPOINT`), never an alias of TTF (Title
+  Transfer Facility, NL). `GTF` is the Danish Gas Transfer Facility for bilateral OTC
+  transfers (ENTSOG VTP-00001 "GTF (Bilateral Trading Point)"); ETF and GTF are separate
+  markets in `markets.py`, separate glossary terms (`hub-etf`, `hub-gtf`) and separate intake
+  names, and are not merged. Both are DK, EUR/MWh, MW, on the European gas day: an
+  assumption for ETF's quotation not checked against a licensed feed; GTF has no price
+  source, so a GTF position is unvalued rather than marked at ETF. A guard test refuses any
+  alias that names another registered market. `scripts/ops/audit_danish_hub_references.py`
+  lists stored rows naming ETF/GTF/Gaspoint with their hub before and after (read-only; it
+  corrects a stored hub column only with `--commit`): 0 rows in the demo store and in the
+  live store on 2026-11-15.

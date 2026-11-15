@@ -56,7 +56,7 @@ def test_balance_history_and_forecast_with_a_norwegian_outage(
                 LngObservationRecord(
                     observation_id=f"l-{tag}",
                     source_dataset="alsi",
-                    terminal_id="gate",
+                    terminal_id="NL",
                     terminal_name="Gate",
                     country="NL",
                     send_out_twh_d=0.4,
@@ -68,7 +68,7 @@ def test_balance_history_and_forecast_with_a_norwegian_outage(
                 StorageObservationRecord(
                     observation_id=f"s-{tag}",
                     source_dataset="agsi",
-                    facility_id="rehden",
+                    facility_id="DE",
                     facility_name="Rehden",
                     country="DE",
                     inventory_twh=40.0,
@@ -180,14 +180,14 @@ def test_gb_rows_join_the_sums_but_not_the_fill_or_the_newest_partial_day(tmp_pa
                 continue
             session.add(
                 LngObservationRecord(
-                    observation_id=f"l-{tag}", source_dataset="alsi", terminal_id="gate",
+                    observation_id=f"l-{tag}", source_dataset="alsi", terminal_id="NL",
                     terminal_name="Gate", country="NL", send_out_twh_d=0.4, source_system="GIE",
                     **_common(day, f"l:{tag}"),
                 )
             )
             session.add(
                 StorageObservationRecord(
-                    observation_id=f"s-{tag}", source_dataset="agsi", facility_id="rehden",
+                    observation_id=f"s-{tag}", source_dataset="agsi", facility_id="DE",
                     facility_name="Rehden", country="DE", inventory_twh=40.0,
                     working_capacity_twh=50.0, fill_pct=80.0, injection_twh_d=0.0,
                     withdrawal_twh_d=0.5, source_system="GIE", **_common(day, f"s:{tag}"),
@@ -253,14 +253,14 @@ def test_partly_reported_newest_pipeline_days_are_left_out(tmp_path, monkeypatch
                 )
             session.add(
                 LngObservationRecord(
-                    observation_id=f"l-{tag}", source_dataset="alsi", terminal_id="gate",
+                    observation_id=f"l-{tag}", source_dataset="alsi", terminal_id="NL",
                     terminal_name="Gate", country="NL", send_out_twh_d=0.4, source_system="GIE",
                     **_common(day, f"l:{tag}"),
                 )
             )
             session.add(
                 StorageObservationRecord(
-                    observation_id=f"s-{tag}", source_dataset="agsi", facility_id="rehden",
+                    observation_id=f"s-{tag}", source_dataset="agsi", facility_id="DE",
                     facility_name="Rehden", country="DE", inventory_twh=40.0,
                     working_capacity_twh=50.0, fill_pct=80.0, injection_twh_d=0.0,
                     withdrawal_twh_d=0.5, source_system="GIE", **_common(day, f"s:{tag}"),

@@ -61,10 +61,12 @@ that statement for TP data; it is a use permission, not an explicit redistributi
 
 **Decision.** Ship the bundle with the citation "ENTSOG TP [14-11-2026]
 https://transparency.entsog.eu/" in the file and in every seeded row's metadata, and present
-it as ENTSOG reference metadata, never as ENTSOG-endorsed. Because the grant is a use
-permission rather than an express redistribution licence, legal should confirm it, or obtain
-ENTSOG's written confirmation (transparency@entsog.eu), before the first customer release
-that includes the bundle; until then this is an engineering position, as is every row above.
+it as ENTSOG reference metadata, never as ENTSOG-endorsed.
+
+Owner decision, 2026-11-15: the project does not redistribute ENTSOG data; the legal
+confirmation step is not pursued. The bundle keeps the ENTSOG TP citation required by
+Art. 5.2 ("ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/", with the download date,
+in the file and in every seeded row's metadata).
 
 **Positions.** ENTSOG publishes map coordinates, not WGS84. The bundle carries the same
 approximate lon/lat transform the live ingestion stores (`display_approximation`, never

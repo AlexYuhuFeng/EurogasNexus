@@ -146,7 +146,7 @@ def test_storage_trajectory_from_runtime_rows(runtime_db):
     start = datetime(2026, 8, 1, 4, tzinfo=UTC)
     with Session(runtime_db) as session:
         session.add_all(
-            [_storage("EU", start + timedelta(days=i), 700.0 + 2.5 * i) for i in range(8)]
+            [_storage("eu", start + timedelta(days=i), 700.0 + 2.5 * i) for i in range(8)]
         )
         session.commit()
     client = TestClient(create_app())

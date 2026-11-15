@@ -33,6 +33,15 @@ class LimitRows:
     warnings: list[str] = field(default_factory=list)
     #: Book ids behind each row, in row order (for scoping alerts to who may see them).
     books: list[tuple[str, ...]] = field(default_factory=list)
+    #: Newest daily close behind the marks (ISO date), for the figures' method notes.
+    marks_as_of: str | None = None
+
+
+def latest_close_day(closes: dict) -> str | None:
+    """The newest close date across the hubs' daily close series, as an ISO date."""
+
+    days = [max(series) for series in closes.values() if series]
+    return max(days).isoformat() if days else None
 
 
 def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
@@ -55,7 +64,7 @@ def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
     # Receivables look back before today, so read legs from the earliest look-back.
     lookback = max([line.receivable_days for line in lines] or [0])
     inputs = ladder_inputs(caller, today, start - timedelta(days=lookback), end)
-    result = LimitRows(warnings=list(inputs.warnings))
+    result = LimitRows(warnings=list(inputs.warnings), marks_as_of=latest_close_day(inputs.closes))
     legs_by_ref = {leg.reference: leg for leg in inputs.legs}
     etrm_by_name: dict[str, list[str]] = {}
     for order in inputs.orders:
