@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from eurogas_nexus.application.ai_style import source_aliases
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.desk_text import (
     credit_lines,
@@ -116,23 +117,42 @@ def explain(
     return result
 
 
-def _model_note(model: ModelCall, facts: Facts, language: str) -> str | None:
-    from eurogas_nexus.application.ai_style import checked_note, note_messages
+def model_payload(facts: Facts) -> dict[str, Any]:
+    """Exactly what a "Why?" sends to the model: the rule lines and nothing else of the row.
 
-    payload = {
+    The lines already state every figure the note may use. The raw evidence row (ids,
+    provider references, timestamps, unrounded values) stays on the platform: the model does
+    not need it, and a number it copied from there would not match the lines anyway. Sources
+    go as ``S1``, ``S2`` (``ai_style.source_aliases``).
+    """
+
+    return {
         "object": facts.title,
         "facts": facts.lines,
-        "evidence": facts.evidence,
-        "sources": facts.sources,
+        "sources": list(source_aliases(facts.sources)),
         "simulated_inputs": facts.simulated,
     }
-    task = (
+
+
+def model_task(facts: Facts) -> str:
+    return (
         "Explain to the desk why this matters now, in at most three sentences. "
         + ("State that the figures use simulated demo prices. " if facts.simulated else "")
     )
-    content = model(note_messages(task, payload, language=language))
+
+
+def _model_note(model: ModelCall, facts: Facts, language: str) -> str | None:
+    from eurogas_nexus.application.ai_style import checked_note, note_messages
+
+    payload = model_payload(facts)
+    content = model(note_messages(model_task(facts), payload, language=language))
     evidence_text = json.dumps(payload, ensure_ascii=False, default=str)
-    note = checked_note(content, evidence_text=evidence_text, sources=facts.sources)
+    note = checked_note(
+        content,
+        evidence_text=evidence_text,
+        sources=payload["sources"],
+        simulated=facts.simulated,
+    )
     return note.text if note else None
 
 

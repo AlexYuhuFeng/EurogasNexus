@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
@@ -12,7 +11,8 @@ from pydantic import BaseModel, Field
 
 from eurogas_nexus.api.dependencies.acting_actor import require_acting_actor
 from eurogas_nexus.api.dependencies.ai_authority import require_ai_authority
-from eurogas_nexus.application.ai_style import ANSWER_RULES
+from eurogas_nexus.application.ai_payloads import alert_answer_messages
+from eurogas_nexus.application.ai_style import ANSWER_CALL
 from eurogas_nexus.llm import invoke_deepseek
 from eurogas_nexus.llm.provider import LlmEndpointError, configured_endpoint
 from eurogas_nexus.security.provider_keys import load_provider_api_key
@@ -233,19 +233,32 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
     result = invoke_deepseek(
         api_key=api_key,
         messages=_analysis_messages(alert_snapshot, payload),
-        temperature=0.15,
-        max_tokens=500,
+        **ANSWER_CALL,
     )
     analysis_id = f"monitoring-analysis-{uuid4().hex}"
     warnings = list(alert_snapshot.get("warnings") or [])
     if result.status != "success":
         warnings.append(f"{provider_id.lower()}:{result.error_code or result.status}")
+    answer = result.content
+    if result.status == "success":
+        # The answer is shown only if it passes the same checks as every model text
+        # (ai_style.answer_verdict); otherwise the alert's own rule text stands.
+        from eurogas_nexus.application.ai_style import answer_verdict
+
+        verdict = answer_verdict(
+            result.content,
+            evidence_text=_analysis_messages(alert_snapshot, payload)[1]["content"],
+            simulated=bool(alert_snapshot.get("simulated")),
+        )
+        if not verdict.ok:
+            answer = None
+            warnings.append(f"model_answer_refused:{verdict.check}")
     data = {
         "analysis_id": analysis_id,
         "alert_id": alert_id,
         "provider_id": provider_id,
         "provider_status": result.status,
-        "answer": result.content,
+        "answer": answer,
         "model": model_used,
         "language": payload.language,
         "source_refs": alert_snapshot["source_refs"],
@@ -271,29 +284,7 @@ def _analysis_messages(
     alert_snapshot: dict,
     request: AlertAnalysisRequest,
 ) -> list[dict[str, str]]:
-    language_instruction = (
-        "Respond in Simplified Chinese." if request.language == "zh-CN" else "Respond in English."
-    )
-    return [
-        {
-            "role": "system",
-            "content": (
-                f"{ANSWER_RULES} Answer the analyst's question about the supplied alert "
-                f"and its evidence only. {language_instruction}"
-            ),
-        },
-        {
-            "role": "user",
-            "content": json.dumps(
-                {
-                    "question": request.question,
-                    "alert": alert_snapshot,
-                },
-                ensure_ascii=False,
-                default=str,
-            ),
-        },
-    ]
+    return alert_answer_messages(alert_snapshot, request.question, request.language)
 
 
 def _persist_analysis_run(

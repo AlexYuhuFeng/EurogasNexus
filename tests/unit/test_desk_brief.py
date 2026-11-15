@@ -55,7 +55,8 @@ def test_the_morning_brief_has_the_desk_sections_with_sources(desk):
 def test_a_model_lead_is_kept_only_when_it_checks_out(desk):
     with Session(desk) as session:
         first = build_brief(session, firm_caller(), "eod", now=NOW)
-        source = first.sections[0].sources[0]
+        assert first.sections[0].sources
+        source = "S1"  # the model sees source aliases, never the platform's ids
         good = json.dumps({"text": "Demo prices: the main outage is still out.",
                            "cites": [source]})
         brief = build_brief(session, firm_caller(), "eod", now=NOW, model=lambda _m: good)

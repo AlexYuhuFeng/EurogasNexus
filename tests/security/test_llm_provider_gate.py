@@ -182,7 +182,8 @@ def test_llm_payload_filters_contract_prices_by_default() -> None:
     row = payload["portfolio_context"][0]
     assert "contract_price_gbp_mwh" not in row
     assert "tolerance_risk_allowance_gbp_mwh" not in row
-    assert row["contract_id"] == "c1"
+    # Identifiers never reach the provider (AI-04 payload minimisation); the name does.
+    assert "contract_id" not in row and row["contract_name"] == "TTF supply"
     assert row["delivery_quantity_mwh_per_day"] == 10_000
 
 

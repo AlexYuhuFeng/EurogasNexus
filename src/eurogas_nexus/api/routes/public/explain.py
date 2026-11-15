@@ -125,13 +125,9 @@ def _model_for(principal):
         return None
 
     def call(messages):
-        result = invoke_deepseek(
-            api_key=api_key,
-            messages=messages,
-            temperature=0.1,
-            max_tokens=300,
-            timeout_seconds=15.0,
-        )
+        from eurogas_nexus.application.ai_style import NOTE_CALL
+
+        result = invoke_deepseek(api_key=api_key, messages=messages, **NOTE_CALL)
         return result.content if result.status == "success" else None
 
     return call

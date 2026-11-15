@@ -201,3 +201,60 @@ model for the primary installation if prompts must stay in Europe, an in-country
 for the China installation. `EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED` still has to allow
 external calls, and payloads never include licensed raw prices.
 
+
+## Provider payloads and the evaluation set (AI-04)
+
+Every model text is shown only if it passes the checks in `application/ai_style.py`
+(`note_verdict` for a desk note, `answer_verdict` for an answer, both summaries for the
+alert enrichment) and the ontology grounding in `application/grounding.py`. Otherwise the
+rule text stands (Why, brief), the deterministic answer stands (analysis query), the
+answer is withheld with `model_answer_refused:<check>` (alert analysis), or the alert keeps
+no summary with `llm_status = checks_refused` (enrichment). The checks refuse: invalid
+format, over length, a foreign citation, a number not in the evidence, advice to trade or
+nominate, a simulated price that reads as a market price, a hub, unit, number-unit pair,
+direction (per figure: the evidence's own clause or sign), superlative, source or name
+the evidence does not contain. Chinese unit spellings are read as their codes.
+
+### What each use sends
+
+| Use | Route / caller | User payload fields | Not sent (removed 2026-11-15) |
+|---|---|---|---|
+| "Why?" | `POST /api/analysis/explain` | `object` (title), `facts` (the rule lines), `sources` as `S1`..`Sn`, `simulated_inputs` | the raw evidence row (ids, provider references, unrounded values); real source ids |
+| Desk brief lead | `POST /api/analysis/brief` | `brief` (kind), `sections` (heading -> lines), `sources` as `S1`..`Sn`, `simulated_inputs` | real source ids (counterparty, snapshot, REMIT ids) |
+| Alert answer | `POST /api/monitoring/alerts/{id}/analysis` | `question`; `alert`: `category`, `alert_type`, `severity`, `status`, `title`, `message` (reply language only), `event_time_utc`, `occurrence_count`, `evidence` (identifier fields removed), `simulated` | alert id, fingerprint, entity ids, earlier model summaries, `llm_*` fields, warnings, source refs, the other language |
+| Alert enrichment | monitoring worker | `category`, `type`, `severity`, `title_en`, `message_en`, `evidence` (identifier fields removed), `simulated` | source references, warnings (they carried earlier provider errors), identifier fields in the evidence |
+| Analysis query | `POST /api/analysis/query` with `invoke_provider` | `question`, `task`, `snapshot` with every identifier field removed at any depth (`*_id`, `*_ids`, `*_eic`, `fingerprint`, `*reference*`, `source_refs`); contract prices only on opt-in | snapshot id, contract ids, run ids, provider references |
+
+The allowlist is enforced by `tests/security/test_ai_payload_allowlist.py` (provider
+stubbed, outgoing messages captured); the field lists live in
+`application/ai_payloads.py`. Entitlement still decides first whether any call is made.
+
+### Call budgets
+
+`ai_style.NOTE_CALL`, `ANSWER_CALL`, `ENRICHMENT_CALL`. DeepSeek V4 Flash reasons before it
+writes and counts those tokens in `max_tokens`: the earlier 300-token budget for notes
+returned an empty reply on most calls, so the rule text always stood. Notes now allow 3000
+tokens, answers and enrichment 2000; the reply length is held by the checks.
+
+### The evaluation set
+
+`tests/evals/ai_note_cases.json`: recorded demo and public-shaped evidence for every use
+(Why, brief, alert answer in English and Chinese, enrichment), and candidate outputs with
+the verdict each must get and why. `tests/evals/test_ai_note_evals.py` runs them through the
+product's own payload builders and checks in CI, without a provider, and prints the
+correct-verdict rate per category (`pytest -s`).
+
+On demand, with a provider:
+
+    python scripts/ai/run_note_eval.py --repeat 5 --json report.json
+
+It sends only the recorded set, refuses in trial or release profiles, refuses when any
+evidence is not marked demo or public, and refuses when a configured runtime database holds
+any trading book not named `demo-`. It reports the share of model outputs that pass, the
+refusal reasons, the median latency and how often the rule text stood.
+
+Run on 2026-11-15 (DeepSeek V4 Flash, 9 evidence payloads x 5): 40 of 44 model outputs
+passed (90.9 %), the rule text stood in 11.1 % of calls (including one provider transport
+error), median latency 3.5 s. Refusals: one empty reply (brief), one Chinese answer that
+used 提名 (nomination) as a noun (conservatively refused as advice), one "over its limit"
+where the evidence says "against", one hyphenated name since fixed.

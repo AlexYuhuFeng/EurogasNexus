@@ -111,27 +111,40 @@ def _as_text(title: str, lead: str | None, sections: list[Section], simulated: b
     return "\n".join(out).rstrip() + "\n"
 
 
-def _lead(model, kind: str, sections: list[Section], simulated: bool, language: str):
-    from eurogas_nexus.application.ai_style import checked_note, note_messages
+def lead_payload(kind: str, sections: list[Section], simulated: bool) -> dict[str, Any]:
+    """Exactly what the brief sends to the model: the section lines, sources as ``S1``..."""
 
-    facts = {
+    from eurogas_nexus.application.ai_style import source_aliases
+
+    sources = sorted({source for s in sections for source in s.sources})
+    return {
         "brief": kind,
         "sections": {section.heading: section.lines for section in sections},
-        "sources": sorted({source for s in sections for source in s.sources}),
+        "sources": list(source_aliases(sources)),
         "simulated_inputs": simulated,
     }
-    task = (
+
+
+def lead_task(kind: str, simulated: bool) -> str:
+    return (
         "Write the lead of the desk's "
         + ("morning brief: what matters for today's trading" if kind == "morning" else
            "end-of-day report: what changed today and what carries into tomorrow")
         + ", picking the two or three most important facts."
         + (" Say that the figures use simulated demo prices." if simulated else "")
     )
-    content = model(note_messages(task, facts, language=language))
+
+
+def _lead(model, kind: str, sections: list[Section], simulated: bool, language: str):
+    from eurogas_nexus.application.ai_style import checked_note, note_messages
+
+    facts = lead_payload(kind, sections, simulated)
+    content = model(note_messages(lead_task(kind, simulated), facts, language=language))
     note = checked_note(
         content,
         evidence_text=json.dumps(facts, ensure_ascii=False),
         sources=facts["sources"],
+        simulated=simulated,
     )
     return note.text if note else None
 
@@ -192,7 +205,7 @@ def _outages(session, caller, now, kind):
 
 
 def _prices(session, caller, now, kind):
-    from eurogas_nexus.application.projections.daily_closes import daily_rows
+    from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
 
     closes: dict[str, dict] = {}
     demo = False
@@ -208,10 +221,12 @@ def _prices(session, caller, now, kind):
         days = sorted(series)
         last = series[days[-1]]
         demo = demo or last["simulated"]
+        # The desk's own quotation (NBP in p/th), through the unit authority.
+        shown, unit = in_native_unit(hub, last["price"], last["unit"])
         text = f"{hub} {'front month' if tenor == 'month-ahead' else 'day-ahead'} " \
-               f"{last['price']:.2f} {last['unit']} ({days[-1]:%d %b})"
+               f"{shown:.2f} {unit} ({days[-1]:%d %b})"
         if len(days) > 1:
-            change = last["price"] - series[days[-2]]["price"]
+            change = shown - in_native_unit(hub, series[days[-2]]["price"], last["unit"])[0]
             text += f", {change:+.2f} on the day"
         lines.append(text + ".")
         sources.append(f"{last['source_system']}:{hub}:{tenor}")

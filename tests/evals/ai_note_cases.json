@@ -1,0 +1,1063 @@
+{
+ "_doc": "AI-04 evaluation set. Evidence is demo or public-shaped; each case says why it must pass or which check must refuse it. See application/ai_eval.py.",
+ "evidence": {
+  "why_outage_demo": {
+   "use": "explain",
+   "data_class": "demo",
+   "simulated": true,
+   "title": "Demo Haldor field outage",
+   "lines": [
+    "Demo Haldor field (UK): 563 GWh/d unavailable (74% of technical capacity), 13 Nov 05:43 to 17 Nov 05:43 UTC.",
+    "Unplanned outage; reason: compressor trip.",
+    "The desk is long 28,000 MWh/d at NBP today."
+   ],
+   "sources": [
+    "remit:demo-umm-1:v1"
+   ],
+   "evidence": {
+    "event_id": "demo-umm-1",
+    "source_reference": "demo:umm:1",
+    "balancing_zone": "UK"
+   }
+  },
+  "why_credit_demo": {
+   "use": "explain",
+   "data_class": "demo",
+   "simulated": true,
+   "title": "Rhinmark Handel GmbH credit: breach",
+   "lines": [
+    "Net exposure €4.88m against a €4.25m limit (115%).",
+    "Mark-to-market €3.10m and unbilled deliveries €1.78m.",
+    "Needs €630k of headroom: more collateral, a higher approved limit or less exposure."
+   ],
+   "sources": [
+    "credit-line:cp-rhinmark"
+   ],
+   "evidence": {
+    "counterparty_id": "cp-rhinmark",
+    "net_exposure": 4880000.0
+   }
+  },
+  "why_pnl_demo": {
+   "use": "explain",
+   "data_class": "demo",
+   "simulated": true,
+   "title": "P&L demo-book",
+   "lines": [
+    "Indicative P&L £1.24m: realised £400k, unrealised £840k on 310,000 MWh.",
+    "Valued 14 Nov 17:30 UTC on demo marks.",
+    "-£120k since 13 Nov 17:30 UTC, of which -£150k is mark-to-market."
+   ],
+   "sources": [
+    "pnl:snap-2",
+    "Demo_Sim:demo-marks"
+   ]
+  },
+  "why_flow_public": {
+   "use": "explain",
+   "data_class": "public",
+   "simulated": false,
+   "title": "Ellund flow into Denmark fell",
+   "lines": [
+    "Ellund exit to ETF: 42 GWh/d on 14 Nov, down from 61 GWh/d on 13 Nov.",
+    "Danish storage is 81% full on 14 Nov."
+   ],
+   "sources": [
+    "entsog:ellund:2026-11-14",
+    "gie:agsi:DK:2026-11-14"
+   ]
+  },
+  "brief_morning_demo": {
+   "use": "brief",
+   "data_class": "demo",
+   "simulated": true,
+   "kind": "morning",
+   "sections": [
+    {
+     "key": "prices",
+     "heading": "Prices",
+     "lines": [
+      "NBP front month 84.50 GBp/th (14 Nov), -1.20 on the day.",
+      "TTF front month 31.40 EUR/MWh (14 Nov), +0.35 on the day.",
+      "ETF front month 32.10 EUR/MWh (14 Nov), +0.20 on the day."
+     ],
+     "sources": [
+      "Demo_Sim:NBP:month-ahead",
+      "Demo_Sim:TTF:month-ahead",
+      "Demo_Sim:ETF:month-ahead"
+     ]
+    },
+    {
+     "key": "positions",
+     "heading": "Positions",
+     "lines": [
+      "NBP: long 28,000 MWh/d today, short 5,000 MWh/d front month.",
+      "TTF: short 12,000 MWh/d today.",
+      "GTF: long 3,000 MWh/d today, unvalued: GTF has no published price."
+     ],
+     "sources": [
+      "position-ladder"
+     ]
+    },
+    {
+     "key": "outages",
+     "heading": "Outages",
+     "lines": [
+      "Demo Haldor field (UK): 563 GWh/d out now, until 17 Nov 05:43."
+     ],
+     "sources": [
+      "remit:demo-umm-1:v1"
+     ]
+    },
+    {
+     "key": "limits",
+     "heading": "Credit and mandates",
+     "lines": [
+      "Rhinmark Handel GmbH credit breach: €4.88m of €4.25m (115%)."
+     ],
+     "sources": [
+      "credit-line:cp-rhinmark"
+     ]
+    }
+   ]
+  },
+  "brief_eod_public": {
+   "use": "brief",
+   "data_class": "public",
+   "simulated": false,
+   "kind": "eod",
+   "sections": [
+    {
+     "key": "outages",
+     "heading": "Outages",
+     "lines": [
+      "Ellund exit to ETF: 42 GWh/d on 14 Nov, down from 61 GWh/d on 13 Nov."
+     ],
+     "sources": [
+      "entsog:ellund:2026-11-14"
+     ]
+    },
+    {
+     "key": "storage",
+     "heading": "Storage",
+     "lines": [
+      "EU storage 86% full on 14 Nov, 0.4 points lower on the day."
+     ],
+     "sources": [
+      "gie:agsi:EU:2026-11-14"
+     ]
+    }
+   ]
+  },
+  "answer_flow_public": {
+   "use": "answer",
+   "data_class": "public",
+   "question": "Why did the Ellund alert fire and what should I check?",
+   "alert": {
+    "alert_id": "alert-77",
+    "fingerprint": "fp-ellund",
+    "category": "supply",
+    "alert_type": "flow_drop",
+    "severity": "warning",
+    "status": "open",
+    "title_en": "Ellund flow into Denmark fell",
+    "title_zh_cn": "Ellund 流入丹麦的流量下降",
+    "message_en": "Ellund exit to ETF: 42 GWh/d on 14 Nov, down from 61 GWh/d on 13 Nov.",
+    "message_zh_cn": "Ellund 流向 ETF：11月14日 42 GWh/d，低于11月13日的 61 GWh/d。",
+    "entity_id": "point-ellund",
+    "event_time_utc": "2026-11-14T06:00:00Z",
+    "occurrence_count": 2,
+    "evidence_snapshot": {
+     "point_name": "Ellund",
+     "flow_gwh_d": 42.0,
+     "previous_gwh_d": 61.0,
+     "hub": "ETF",
+     "source_system": "ENTSOG",
+     "source_reference": "entsog:op:123"
+    },
+    "source_refs": [
+     "entsog:ellund:2026-11-14"
+    ],
+    "llm_summary_en": "Earlier model text.",
+    "simulated": false
+   }
+  },
+  "answer_flow_public_zh": {
+   "use": "answer",
+   "data_class": "public",
+   "language": "zh-CN",
+   "question": "Ellund 告警为什么触发？",
+   "alert": {
+    "alert_id": "alert-77",
+    "category": "supply",
+    "alert_type": "flow_drop",
+    "severity": "warning",
+    "status": "open",
+    "title_en": "Ellund flow into Denmark fell",
+    "title_zh_cn": "Ellund 流入丹麦的流量下降",
+    "message_en": "Ellund exit to ETF: 42 GWh/d on 14 Nov, down from 61 GWh/d on 13 Nov.",
+    "message_zh_cn": "Ellund 流向 ETF：11月14日 42 GWh/d，低于11月13日的 61 GWh/d，流量下降。",
+    "event_time_utc": "2026-11-14T06:00:00Z",
+    "occurrence_count": 2,
+    "evidence_snapshot": {
+     "point_name": "Ellund",
+     "flow_gwh_d": 42.0,
+     "previous_gwh_d": 61.0,
+     "hub": "ETF"
+    },
+    "simulated": false
+   }
+  },
+  "enrich_spread_demo": {
+   "use": "enrichment",
+   "data_class": "demo",
+   "alert": {
+    "category": "market_opportunity",
+    "alert_type": "spread",
+    "severity": "warning",
+    "title_en": "Intraday spread requires review",
+    "message_en": "TTF -> THE via Oude Statenzijl; net margin 0.42 EUR/MWh.",
+    "evidence_snapshot": {
+     "opportunity_id": "opp-9",
+     "route_id": "route-3",
+     "buy_hub": "TTF",
+     "sell_hub": "THE",
+     "net_margin": 0.42,
+     "comparison_unit": "EUR/MWh",
+     "route_name": "Oude Statenzijl"
+    },
+    "source_refs": [
+     "opp-9"
+    ],
+    "warnings": [
+     "deepseek_enrichment:timeout"
+    ],
+    "simulated": true
+   }
+  }
+ },
+ "cases": [
+  {
+   "id": "why_outage_demo-01",
+   "evidence": "why_outage_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Every figure, unit and the long side are in the lines.",
+   "text": "Demo Haldor field is out 563 GWh/d, 74% of capacity, until 17 Nov 05:43 UTC; the desk is long 28,000 MWh/d at NBP."
+  },
+  {
+   "id": "why_outage_demo-02",
+   "evidence": "why_outage_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Condenses the lines; 'check' is not trading advice.",
+   "text": "Unplanned outage at Demo Haldor field: compressor trip, 563 GWh/d out. Check the restart time and the desk's 28,000 MWh/d long at NBP."
+  },
+  {
+   "id": "why_outage_demo-03",
+   "evidence": "why_outage_demo",
+   "category": "hub",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "TTF is not in the evidence; the position is at NBP.",
+   "text": "Demo Haldor field is out 563 GWh/d and the desk is long 28,000 MWh/d at TTF."
+  },
+  {
+   "id": "why_outage_demo-04",
+   "evidence": "why_outage_demo",
+   "category": "unit",
+   "expect": "refuse",
+   "check": "number_unit",
+   "reason": "563 is GWh/d in the evidence.",
+   "text": "Demo Haldor field is out 563 MWh/d."
+  },
+  {
+   "id": "why_outage_demo-05",
+   "evidence": "why_outage_demo",
+   "category": "number",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "600 is not in the evidence.",
+   "text": "Demo Haldor field is out 600 GWh/d until 17 Nov."
+  },
+  {
+   "id": "why_outage_demo-06",
+   "evidence": "why_outage_demo",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "The desk is long, not short.",
+   "text": "The desk is short 28,000 MWh/d at NBP while Demo Haldor field is out."
+  },
+  {
+   "id": "why_outage_demo-07",
+   "evidence": "why_outage_demo",
+   "category": "superlative",
+   "expect": "refuse",
+   "check": "superlative",
+   "reason": "Nothing in the evidence says largest.",
+   "text": "The largest outage this winter: Demo Haldor field, 563 GWh/d."
+  },
+  {
+   "id": "why_outage_demo-08",
+   "evidence": "why_outage_demo",
+   "category": "source",
+   "expect": "refuse",
+   "check": "source",
+   "reason": "Reuters is not a source of this evidence.",
+   "text": "Reuters reports Demo Haldor field is out 563 GWh/d."
+  },
+  {
+   "id": "why_outage_demo-09",
+   "evidence": "why_outage_demo",
+   "category": "advice",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "Advice to trade.",
+   "text": "Demo Haldor field is out 563 GWh/d; buy NBP to cover the 28,000 MWh/d long."
+  },
+  {
+   "id": "why_outage_demo-10",
+   "evidence": "why_outage_demo",
+   "category": "cites",
+   "expect": "refuse",
+   "check": "cites",
+   "reason": "Cites a source it was not given.",
+   "text": "Demo Haldor field is out 563 GWh/d.",
+   "cites": [
+    "S9"
+   ]
+  },
+  {
+   "id": "why_outage_demo-11",
+   "evidence": "why_outage_demo",
+   "category": "length",
+   "expect": "refuse",
+   "check": "sentences",
+   "reason": "Four sentences; a note has at most three.",
+   "text": "Demo Haldor field is out 563 GWh/d. The outage is unplanned. The reason is a compressor trip. The desk is long 28,000 MWh/d at NBP."
+  },
+  {
+   "id": "why_outage_demo-12",
+   "evidence": "why_outage_demo",
+   "category": "format",
+   "expect": "refuse",
+   "check": "format",
+   "reason": "Not JSON: the provider returned prose.",
+   "text": null,
+   "output": "Demo Haldor field is out 563 GWh/d."
+  },
+  {
+   "id": "why_outage_demo-13",
+   "evidence": "why_outage_demo",
+   "category": "chinese",
+   "expect": "pass",
+   "check": "",
+   "reason": "Chinese paraphrase with the evidence's figures, units, hub and side.",
+   "text": "Demo Haldor field 停运 563 GWh/d，交易台在 NBP 多头 28,000 MWh/d。"
+  },
+  {
+   "id": "why_outage_demo-14",
+   "evidence": "why_outage_demo",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "number_unit",
+   "reason": "Chinese unit spelling 兆瓦时/天 is MWh/d; the evidence gives GWh/d.",
+   "text": "Demo Haldor field 停运 563 兆瓦时/天。"
+  },
+  {
+   "id": "why_outage_demo-15",
+   "evidence": "why_outage_demo",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "空头 (short) reverses the long position.",
+   "text": "交易台在 NBP 空头 28,000 MWh/d。"
+  },
+  {
+   "id": "why_outage_demo-16",
+   "evidence": "why_outage_demo",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "建议/买入: advice to trade.",
+   "text": "建议在 NBP 买入以覆盖停运。"
+  },
+  {
+   "id": "why_credit_demo-17",
+   "evidence": "why_credit_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Figures and units as in the lines.",
+   "text": "Rhinmark Handel GmbH is at 115% of its limit: €4.88m against €4.25m. It needs €630k of headroom."
+  },
+  {
+   "id": "why_credit_demo-18",
+   "evidence": "why_credit_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Restates the lines; collateral is in the evidence.",
+   "text": "Net exposure €4.88m against a €4.25m limit (115%). Collateral or a higher approved limit clears it."
+  },
+  {
+   "id": "why_credit_demo-19",
+   "evidence": "why_credit_demo",
+   "category": "unit",
+   "expect": "refuse",
+   "check": "number_unit",
+   "reason": "Currency swapped: the evidence gives €4.88m.",
+   "text": "Net exposure is £4.88m against a €4.25m limit."
+  },
+  {
+   "id": "why_credit_demo-20",
+   "evidence": "why_credit_demo",
+   "category": "unit",
+   "expect": "refuse",
+   "check": "number_unit",
+   "reason": "Scale swapped: €630k, not €630m.",
+   "text": "Rhinmark needs €630m of headroom."
+  },
+  {
+   "id": "why_credit_demo-21",
+   "evidence": "why_credit_demo",
+   "category": "name",
+   "expect": "refuse",
+   "check": "name",
+   "reason": "Nordvik Petroleum is not in the evidence.",
+   "text": "The breach is with Rhinmark and Nordvik Petroleum, at 115%."
+  },
+  {
+   "id": "why_credit_demo-22",
+   "evidence": "why_credit_demo",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "The exposure is over the limit.",
+   "text": "Net exposure is below the €4.25m limit at 115%."
+  },
+  {
+   "id": "why_credit_demo-23",
+   "evidence": "why_credit_demo",
+   "category": "advice",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "Advice to trade.",
+   "text": "Reduce exposure: sell the Rhinmark forward to get under the €4.25m limit."
+  },
+  {
+   "id": "why_credit_demo-24",
+   "evidence": "why_credit_demo",
+   "category": "number",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "15.0 is not in the evidence (the evidence gives 115%).",
+   "text": "Net exposure €4.88m is 15.0% over the limit."
+  },
+  {
+   "id": "why_pnl_demo-25",
+   "evidence": "why_pnl_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Figures from the lines; 'demo' is in the title.",
+   "text": "Demo book indicative P&L £1.24m on 310,000 MWh, -£120k since 13 Nov 17:30 UTC, mostly mark-to-market."
+  },
+  {
+   "id": "why_pnl_demo-26",
+   "evidence": "why_pnl_demo",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "The evidence gives -£120k: a fall.",
+   "text": "P&L rose £120k since 13 Nov 17:30 UTC."
+  },
+  {
+   "id": "why_pnl_demo-27",
+   "evidence": "why_pnl_demo",
+   "category": "simulated_as_market",
+   "expect": "refuse",
+   "check": "simulated_as_market",
+   "reason": "Demo marks described as market prices.",
+   "text": "P&L is valued at market prices: £1.24m on 310,000 MWh."
+  },
+  {
+   "id": "why_pnl_demo-28",
+   "evidence": "why_pnl_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Says the marks are demo and not market prices.",
+   "text": "Indicative P&L £1.24m on demo marks, not market prices; -£120k since 13 Nov 17:30 UTC."
+  },
+  {
+   "id": "why_flow_public-29",
+   "evidence": "why_flow_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Figures, hub, fall as given.",
+   "text": "Ellund exit to ETF fell to 42 GWh/d on 14 Nov from 61 GWh/d. Danish storage is 81% full.",
+   "cites": [
+    "S1",
+    "S2"
+   ]
+  },
+  {
+   "id": "why_flow_public-30",
+   "evidence": "why_flow_public",
+   "category": "etf_gtf",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "GTF is a different Danish hub from ETF.",
+   "text": "Ellund exit to GTF fell to 42 GWh/d on 14 Nov."
+  },
+  {
+   "id": "why_flow_public-31",
+   "evidence": "why_flow_public",
+   "category": "etf_gtf",
+   "expect": "pass",
+   "check": "",
+   "reason": "Gaspoint is the registered alias of ETF.",
+   "text": "Ellund exit to Gaspoint fell to 42 GWh/d on 14 Nov."
+  },
+  {
+   "id": "why_flow_public-32",
+   "evidence": "why_flow_public",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "Flow fell, it did not rise.",
+   "text": "Ellund exit to ETF rose to 42 GWh/d on 14 Nov."
+  },
+  {
+   "id": "why_flow_public-33",
+   "evidence": "why_flow_public",
+   "category": "unit",
+   "expect": "refuse",
+   "check": "unit",
+   "reason": "42 is GWh/d, not mcm.",
+   "text": "Ellund exit to ETF was 42 mcm on 14 Nov."
+  },
+  {
+   "id": "why_flow_public-34",
+   "evidence": "why_flow_public",
+   "category": "number",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "19 is a computed difference not in the evidence.",
+   "text": "Ellund exit to ETF fell 19 GWh/d on 14 Nov."
+  },
+  {
+   "id": "why_flow_public-35",
+   "evidence": "why_flow_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Faithful; public, not simulated, so no demo wording is needed.",
+   "text": "Ellund flow into ETF is down to 42 GWh/d on 14 Nov; check Danish storage at 81%.",
+   "cites": [
+    "S1"
+   ]
+  },
+  {
+   "id": "why_flow_public-36",
+   "evidence": "why_flow_public",
+   "category": "superlative",
+   "expect": "refuse",
+   "check": "superlative",
+   "reason": "Record is not in the evidence.",
+   "text": "Ellund exit to ETF is at a record low of 42 GWh/d."
+  },
+  {
+   "id": "why_flow_public-37",
+   "evidence": "why_flow_public",
+   "category": "source",
+   "expect": "refuse",
+   "check": "source",
+   "reason": "ICIS is not a source of this evidence.",
+   "text": "Per ICIS, Ellund exit to ETF fell to 42 GWh/d."
+  },
+  {
+   "id": "brief_morning_demo-38",
+   "evidence": "brief_morning_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Says demo; figures, units, hubs as given.",
+   "text": "Demo prices: NBP front month 84.50 p/th, -1.20 on the day; the desk is long 28,000 MWh/d at NBP today. Demo Haldor field is out 563 GWh/d until 17 Nov."
+  },
+  {
+   "id": "brief_morning_demo-39",
+   "evidence": "brief_morning_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "No price quoted, so no demo wording is needed; figures as given.",
+   "text": "Rhinmark Handel GmbH is in credit breach at 115%. Demo Haldor field is out 563 GWh/d."
+  },
+  {
+   "id": "brief_morning_demo-40",
+   "evidence": "brief_morning_demo",
+   "category": "unit",
+   "expect": "refuse",
+   "check": "number_unit",
+   "reason": "NBP is quoted in p/th, not EUR/MWh.",
+   "text": "Demo prices: NBP front month 84.50 EUR/MWh."
+  },
+  {
+   "id": "brief_morning_demo-41",
+   "evidence": "brief_morning_demo",
+   "category": "unit",
+   "expect": "refuse",
+   "check": "number_unit",
+   "reason": "TTF is EUR/MWh, not p/th.",
+   "text": "Demo prices: TTF front month 31.40 p/th."
+  },
+  {
+   "id": "brief_morning_demo-42",
+   "evidence": "brief_morning_demo",
+   "category": "simulated_as_market",
+   "expect": "refuse",
+   "check": "simulated_as_market",
+   "reason": "A simulated price quoted as if it were a market price.",
+   "text": "NBP front month 84.50 p/th, -1.20 on the day."
+  },
+  {
+   "id": "brief_morning_demo-43",
+   "evidence": "brief_morning_demo",
+   "category": "simulated_as_market",
+   "expect": "refuse",
+   "check": "simulated_as_market",
+   "reason": "'settled at' presents a simulated figure as a settlement.",
+   "text": "Demo NBP front month settled at 84.50 p/th."
+  },
+  {
+   "id": "brief_morning_demo-44",
+   "evidence": "brief_morning_demo",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "NBP fell (-1.20); TTF rose, which must not lend NBP its direction.",
+   "text": "Demo prices: NBP front month rose 1.20 on the day to 84.50 p/th."
+  },
+  {
+   "id": "brief_morning_demo-45",
+   "evidence": "brief_morning_demo",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "TTF is +0.35, a rise; NBP's fall must not lend TTF its direction.",
+   "text": "Demo prices: TTF front month fell 0.35 on the day."
+  },
+  {
+   "id": "brief_morning_demo-46",
+   "evidence": "brief_morning_demo",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "28,000 is the long today; the short is the 5,000 front month.",
+   "text": "NBP: short 28,000 MWh/d today."
+  },
+  {
+   "id": "brief_morning_demo-47",
+   "evidence": "brief_morning_demo",
+   "category": "hub",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "28,000 MWh/d is the NBP position.",
+   "text": "TTF: long 28,000 MWh/d today."
+  },
+  {
+   "id": "brief_morning_demo-48",
+   "evidence": "brief_morning_demo",
+   "category": "etf_gtf",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "The 3,000 MWh/d long is at GTF, not ETF.",
+   "text": "ETF: long 3,000 MWh/d today."
+  },
+  {
+   "id": "brief_morning_demo-49",
+   "evidence": "brief_morning_demo",
+   "category": "etf_gtf",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "32.10 is the ETF price; GTF has no published price.",
+   "text": "Demo prices: GTF front month 32.10 EUR/MWh."
+  },
+  {
+   "id": "brief_morning_demo-50",
+   "evidence": "brief_morning_demo",
+   "category": "etf_gtf",
+   "expect": "pass",
+   "check": "",
+   "reason": "Faithful to the GTF line.",
+   "text": "GTF: long 3,000 MWh/d today, unvalued because GTF has no published price."
+  },
+  {
+   "id": "brief_morning_demo-51",
+   "evidence": "brief_morning_demo",
+   "category": "advice",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "Advice to hedge.",
+   "text": "Demo prices: NBP front month 84.50 p/th; hedge the 28,000 MWh/d NBP long."
+  },
+  {
+   "id": "brief_morning_demo-52",
+   "evidence": "brief_morning_demo",
+   "category": "advice",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "Advice to nominate.",
+   "text": "Nominate more at NBP to cover the 563 GWh/d outage."
+  },
+  {
+   "id": "brief_morning_demo-53",
+   "evidence": "brief_morning_demo",
+   "category": "length",
+   "expect": "refuse",
+   "check": "length",
+   "reason": "Over 360 characters.",
+   "text": "Demo prices: NBP front month 84.50 p/th, -1.20 on the day, TTF front month 31.40 EUR/MWh, +0.35 on the day, ETF front month 32.10 EUR/MWh, +0.20 on the day, the desk is long 28,000 MWh/d at NBP today and short 5,000 MWh/d front month, short 12,000 MWh/d at TTF today, long 3,000 MWh/d at GTF today, Demo Haldor field is out 563 GWh/d until 17 Nov 05:43 and Rhinmark Handel GmbH is in credit breach."
+  },
+  {
+   "id": "brief_morning_demo-54",
+   "evidence": "brief_morning_demo",
+   "category": "chinese",
+   "expect": "pass",
+   "check": "",
+   "reason": "Chinese, says demo (演示), figures and side as given.",
+   "text": "演示价格：NBP 前月 84.50 p/th，下跌 1.20；交易台在 NBP 多头 28,000 MWh/d。"
+  },
+  {
+   "id": "brief_morning_demo-55",
+   "evidence": "brief_morning_demo",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "simulated_as_market",
+   "reason": "市场价: a simulated figure called a market price.",
+   "text": "NBP 前月 84.50 p/th，市场价下跌。"
+  },
+  {
+   "id": "brief_morning_demo-56",
+   "evidence": "brief_morning_demo",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "上涨 (rose) reverses NBP's -1.20.",
+   "text": "演示价格：NBP 前月上涨 1.20。"
+  },
+  {
+   "id": "brief_morning_demo-57",
+   "evidence": "brief_morning_demo",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "number_unit",
+   "reason": "欧元/兆瓦时 is EUR/MWh; NBP is in p/th.",
+   "text": "演示价格：NBP 前月 84.50 欧元/兆瓦时。"
+  },
+  {
+   "id": "brief_eod_public-58",
+   "evidence": "brief_eod_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Public data, figures and directions as given.",
+   "text": "Ellund exit to ETF fell to 42 GWh/d on 14 Nov; EU storage is 86% full, 0.4 points lower on the day."
+  },
+  {
+   "id": "brief_eod_public-59",
+   "evidence": "brief_eod_public",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "Storage fell, not rose.",
+   "text": "EU storage is 86% full, 0.4 points higher on the day."
+  },
+  {
+   "id": "brief_eod_public-60",
+   "evidence": "brief_eod_public",
+   "category": "superlative",
+   "expect": "refuse",
+   "check": "superlative",
+   "reason": "Biggest is not in the evidence.",
+   "text": "The biggest Ellund drop: 42 GWh/d on 14 Nov."
+  },
+  {
+   "id": "answer_flow_public-61",
+   "evidence": "answer_flow_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "An answer in three lines; ENTSOG is the evidence's source system.",
+   "text": "The alert fired because Ellund exit to ETF fell to 42 GWh/d on 14 Nov from 61 GWh/d on 13 Nov.\n- Source: ENTSOG.\n- Check whether the drop persists on the next gas day."
+  },
+  {
+   "id": "answer_flow_public-62",
+   "evidence": "answer_flow_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Says what is missing; figures as given.",
+   "text": "Flow at Ellund into ETF is 42 GWh/d on 14 Nov, down from 61 GWh/d. What is missing: the reason for the drop."
+  },
+  {
+   "id": "answer_flow_public-63",
+   "evidence": "answer_flow_public",
+   "category": "etf_gtf",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "GTF is not ETF.",
+   "text": "Ellund exit to GTF fell to 42 GWh/d on 14 Nov."
+  },
+  {
+   "id": "answer_flow_public-64",
+   "evidence": "answer_flow_public",
+   "category": "number",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "31 is a computed share not in the evidence.",
+   "text": "Ellund fell by 31% on 14 Nov."
+  },
+  {
+   "id": "answer_flow_public-65",
+   "evidence": "answer_flow_public",
+   "category": "advice",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "Recommendation to trade.",
+   "text": "Ellund fell to 42 GWh/d; we recommend you buy ETF day-ahead."
+  },
+  {
+   "id": "answer_flow_public-66",
+   "evidence": "answer_flow_public",
+   "category": "source",
+   "expect": "refuse",
+   "check": "source",
+   "reason": "Bloomberg is not a source of this evidence.",
+   "text": "Bloomberg reports that Ellund fell to 42 GWh/d."
+  },
+  {
+   "id": "answer_flow_public-67",
+   "evidence": "answer_flow_public",
+   "category": "length",
+   "expect": "refuse",
+   "check": "sentences",
+   "reason": "Six lines; an answer has at most five.",
+   "text": "Ellund fell to 42 GWh/d.\n- From 61 GWh/d.\n- On 14 Nov.\n- Source ENTSOG.\n- Danish hub ETF.\n- Check the next gas day."
+  },
+  {
+   "id": "answer_flow_public-68",
+   "evidence": "answer_flow_public",
+   "category": "name",
+   "expect": "refuse",
+   "check": "name",
+   "reason": "Energinet is not in the evidence.",
+   "text": "Ellund fell to 42 GWh/d after maintenance by Energinet."
+  },
+  {
+   "id": "answer_flow_public_zh-69",
+   "evidence": "answer_flow_public_zh",
+   "category": "chinese",
+   "expect": "pass",
+   "check": "",
+   "reason": "Chinese answer with the evidence's figures and direction.",
+   "text": "Ellund 流向 ETF 的流量在11月14日下降至 42 GWh/d，低于11月13日的 61 GWh/d。"
+  },
+  {
+   "id": "answer_flow_public_zh-70",
+   "evidence": "answer_flow_public_zh",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "上升 (rose): the flow fell.",
+   "text": "Ellund 流向 ETF 的流量上升至 42 GWh/d。"
+  },
+  {
+   "id": "answer_flow_public_zh-71",
+   "evidence": "answer_flow_public_zh",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "GTF is not ETF.",
+   "text": "Ellund 流向 GTF 的流量下降至 42 GWh/d。"
+  },
+  {
+   "id": "answer_flow_public_zh-72",
+   "evidence": "answer_flow_public_zh",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "superlative",
+   "reason": "创纪录 (record) is not in the evidence.",
+   "text": "Ellund 流量下降至 42 GWh/d，创纪录低位。"
+  },
+  {
+   "id": "enrich_spread_demo-73",
+   "evidence": "enrich_spread_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Says demo; figure and unit as given.",
+   "text": "Demo TTF to THE spread via Oude Statenzijl nets 0.42 EUR/MWh; check route cost before relying on it.",
+   "text_zh": "演示数据：TTF 至 THE 经 Oude Statenzijl 的净边际为 0.42 EUR/MWh，请复核路径成本。"
+  },
+  {
+   "id": "enrich_spread_demo-74",
+   "evidence": "enrich_spread_demo",
+   "category": "simulated_as_market",
+   "expect": "refuse",
+   "check": "simulated_as_market",
+   "reason": "A simulated margin quoted without saying it is simulated.",
+   "text": "TTF to THE spread via Oude Statenzijl nets 0.42 EUR/MWh.",
+   "text_zh": "演示数据：TTF 至 THE 净边际 0.42 EUR/MWh。"
+  },
+  {
+   "id": "enrich_spread_demo-75",
+   "evidence": "enrich_spread_demo",
+   "category": "advice",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "Advice to trade, even though buy_hub/sell_hub are evidence fields.",
+   "text": "Demo spread of 0.42 EUR/MWh: buy TTF and sell THE now.",
+   "text_zh": "演示数据：净边际 0.42 EUR/MWh。"
+  },
+  {
+   "id": "enrich_spread_demo-76",
+   "evidence": "enrich_spread_demo",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "The Chinese summary writes PEG, a hub not in the evidence; both summaries must pass.",
+   "text": "Demo TTF to THE nets 0.42 EUR/MWh.",
+   "text_zh": "演示数据：TTF 至 PEG 净边际 0.42 EUR/MWh。"
+  },
+  {
+   "id": "enrich_spread_demo-77",
+   "evidence": "enrich_spread_demo",
+   "category": "format",
+   "expect": "refuse",
+   "check": "format",
+   "reason": "Not the bilingual JSON the enrichment asks for.",
+   "text": null,
+   "output": "Demo spread 0.42 EUR/MWh."
+  },
+  {
+   "id": "answer_flow_public-78",
+   "evidence": "answer_flow_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "'record' as a noun is not a superlative (a live-run false refusal, fixed).",
+   "text": "Ellund exit to ETF fell to 42 GWh/d on 14 Nov (ENTSOG). Check the ENTSOG point record for the next gas day."
+  },
+  {
+   "id": "answer_flow_public-79",
+   "evidence": "answer_flow_public",
+   "category": "superlative",
+   "expect": "refuse",
+   "check": "superlative",
+   "reason": "'a record low' is a claim the evidence does not make.",
+   "text": "Ellund exit to ETF fell to a record low of 42 GWh/d."
+  },
+  {
+   "id": "answer_flow_public-80",
+   "evidence": "answer_flow_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "A name made of evidence words is not new (a live-run false refusal, fixed).",
+   "text": "ENTSOG Ellund data shows exit to ETF at 42 GWh/d on 14 Nov, down from 61 GWh/d."
+  },
+  {
+   "id": "enrich_spread_demo-81",
+   "evidence": "enrich_spread_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Hyphenated hub pair from the evidence (a live-run false refusal, fixed).",
+   "text": "Demo TTF-to-THE spread nets 0.42 EUR/MWh via Oude Statenzijl.",
+   "text_zh": "演示数据：TTF 至 THE 净边际 0.42 EUR/MWh。"
+  },
+  {
+   "id": "brief_eod_public-82",
+   "evidence": "brief_eod_public",
+   "category": "name",
+   "expect": "refuse",
+   "check": "name",
+   "reason": "'Nordic' is not in the evidence: an inference the model added.",
+   "text": "Ellund exit to ETF fell to 42 GWh/d on 14 Nov, cutting Nordic-to-German flow."
+  },
+  {
+   "id": "why_flow_public-83",
+   "evidence": "why_flow_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "A date ending a sentence and the next sentence's first word are not one name (a live-run false refusal, fixed).",
+   "text": "Ellund exit to ETF fell to 42 GWh/d on 14 Nov. That matters while Danish storage is 81% full.",
+   "cites": [
+    "S1",
+    "S2"
+   ]
+  },
+  {
+   "id": "why_pnl_demo-84",
+   "evidence": "why_pnl_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "'-£120k' in the evidence is a fall, so 'down' is grounded (a live-run false refusal, fixed).",
+   "text": "Demo book P&L £1.24m, down £120k since 13 Nov 17:30 UTC, mostly mark-to-market."
+  },
+  {
+   "id": "brief_morning_demo-85",
+   "evidence": "brief_morning_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "A possessive of an evidence name is not a new name (a live-run false refusal, fixed).",
+   "text": "Demo prices: NBP front month 84.50 p/th, down 1.20. Rhinmark Handel GmbH's credit breach is €4.88m against €4.25m."
+  },
+  {
+   "id": "why_pnl_demo-86",
+   "evidence": "why_pnl_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "MTM is desk shorthand for mark-to-market, not a name (a live-run false refusal, fixed).",
+   "text": "Demo book P&L £1.24m on 310,000 MWh; -£150k of the -£120k move is MTM."
+  },
+  {
+   "id": "why_credit_demo-87",
+   "evidence": "why_credit_demo",
+   "category": "name",
+   "expect": "refuse",
+   "check": "name",
+   "reason": "A possessive of a name not in the evidence is still refused.",
+   "text": "Rhinmark Handel GmbH and Kestrel Trading's lines are at 115%."
+  },
+  {
+   "id": "brief_morning_demo-88",
+   "evidence": "brief_morning_demo",
+   "category": "unit",
+   "expect": "pass",
+   "check": "",
+   "reason": "The brief writes the registry's GBp/th; p/th is the same unit.",
+   "text": "Demo prices: NBP front month 84.50 p/th, -1.20 on the day."
+  },
+  {
+   "id": "answer_flow_public-89",
+   "evidence": "answer_flow_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "'ENTSOG-sourced': a hyphenated word whose capitalised part is in the evidence (a live-run false refusal, fixed).",
+   "text": "An ENTSOG-sourced flow_drop: Ellund exit to ETF at 42 GWh/d on 14 Nov."
+  }
+ ]
+}

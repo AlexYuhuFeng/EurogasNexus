@@ -11,7 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial, ai_caller
-from eurogas_nexus.application.ai_style import ANSWER_RULES
+from eurogas_nexus.application.ai_style import ANSWER_CALL, ANSWER_RULES
 from eurogas_nexus.application.physical_native_rates import (
     NativeRateProjectionError,
     row_volume_admissible,
@@ -589,10 +589,16 @@ def _maybe_invoke_provider(
         api_key=credential,
         messages=messages,
         model=body.model,
-        temperature=0.2,
-        max_tokens=600,
+        **{**ANSWER_CALL, "temperature": 0.2},
     )
     if result.status == "success":
+        # Shown only if it passes the checks every model text passes (ai_style); otherwise
+        # the deterministic answer stands (build_analysis_result).
+        from eurogas_nexus.application.ai_style import answer_verdict
+
+        verdict = answer_verdict(result.content, evidence_text=messages[1]["content"])
+        if not verdict.ok:
+            return None, f"LLM_OUTPUT_REFUSED:{verdict.check}"
         return result.content, "success"
     return None, f"LLM_PROVIDER_CALL_FAILED:{result.error_code or result.status}"
 
@@ -620,7 +626,11 @@ def _filtered_llm_payload(
     commercial prices never leave the platform without explicit opt-in.
     """
 
-    payload = snapshot.model_dump(mode="json")
+    from eurogas_nexus.application.ai_payloads import without_identifiers
+
+    # Ids and provider references never leave the platform (application/ai_payloads.py);
+    # the model cites rows by their source system.
+    payload = without_identifiers(snapshot.model_dump(mode="json"))
     if include_contract_prices:
         return payload
     filtered_contracts = []

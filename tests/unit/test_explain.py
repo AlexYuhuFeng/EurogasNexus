@@ -63,7 +63,7 @@ def test_a_credit_breach_is_explained_in_figures_without_the_model(desk):
 def test_a_model_note_is_used_only_when_it_cites_and_invents_nothing(desk):
     with Session(desk) as session:
         counterparty = _breach(session)
-        source = f"credit-line:{counterparty}"
+        source = "S1"  # the model sees source aliases, never the platform's ids
         facts = explain(session, firm_caller(), "credit", counterparty, now=NOW)
         good = json.dumps({"text": facts.lines[0] + " Collateral is the fastest fix.",
                            "cites": [source]})

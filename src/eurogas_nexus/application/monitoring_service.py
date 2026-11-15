@@ -11,7 +11,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from eurogas_nexus.application.ai_style import DESK_NOTE_RULES
+from eurogas_nexus.application.ai_style import DESK_NOTE_RULES, ENRICHMENT_CALL
 from eurogas_nexus.application.desk_text import credit_lines, mandate_lines, money
 from eurogas_nexus.application.service_identity import (
     ServiceAuthority,
@@ -188,14 +188,26 @@ def enrich_monitoring_alert(
         api_key=api_key,
         messages=_alert_enrichment_messages(alert),
         model=DEEPSEEK_DEFAULT_MODEL,
-        temperature=0.1,
-        max_tokens=400,
+        **ENRICHMENT_CALL,
     )
     alert.llm_status = result.status
-    if result.status == "success" and result.content:
+    refusal = (
+        _enrichment_refusal(alert, result.content)
+        if result.status == "success" and result.content
+        else None
+    )
+    if result.status == "success" and result.content and refusal is None:
         summary_en, summary_zh_cn = _parse_bilingual_summary(result.content)
         alert.llm_summary_en = summary_en
         alert.llm_summary_zh_cn = summary_zh_cn
+    elif refusal is not None:
+        # The model's text did not pass the checks every model text passes (ai_style); the
+        # alert's own rule text stands and the summary stays empty.
+        alert.llm_status = "checks_refused"
+        alert.llm_summary_en = None
+        alert.llm_summary_zh_cn = None
+        warning = f"deepseek_enrichment:checks_refused:{refusal}"
+        alert.warnings = list(dict.fromkeys([*(alert.warnings or []), warning]))
     else:
         warning = f"deepseek_enrichment:{result.error_code or result.status}"
         alert.warnings = list(dict.fromkeys([*(alert.warnings or []), warning]))
@@ -723,17 +735,10 @@ def _record_enrichment_use(
 
 
 def _alert_enrichment_messages(alert: MonitoringAlertRecord) -> list[dict[str, str]]:
-    snapshot = {
-        "category": alert.category,
-        "type": alert.alert_type,
-        "severity": alert.severity,
-        "title_en": alert.title_en,
-        "message_en": alert.message_en,
-        "evidence": alert.evidence_snapshot,
-        "source_references": alert.source_refs,
-        "warnings": alert.warnings,
-        "simulated": alert.simulated,
-    }
+    # Minimised (application/ai_payloads.py): no ids, references or earlier warnings.
+    from eurogas_nexus.application.ai_payloads import alert_for_enrichment
+
+    snapshot = alert_for_enrichment(alert)
     return [
         {
             "role": "system",
@@ -749,6 +754,24 @@ def _alert_enrichment_messages(alert: MonitoringAlertRecord) -> list[dict[str, s
             "content": json.dumps(snapshot, ensure_ascii=False, default=str),
         },
     ]
+
+
+def _enrichment_refusal(alert: MonitoringAlertRecord, content: str) -> str | None:
+    """The check that refused either summary, or ``None`` when both pass."""
+
+    from eurogas_nexus.application.ai_style import text_verdict
+
+    summary_en, summary_zh_cn = _parse_bilingual_summary(content)
+    if summary_en == summary_zh_cn == content.strip():
+        return "format"
+    evidence_text = _alert_enrichment_messages(alert)[1]["content"]
+    for text in (summary_en, summary_zh_cn):
+        verdict = text_verdict(
+            text, evidence_text=evidence_text, simulated=bool(alert.simulated)
+        )
+        if not verdict.ok:
+            return verdict.check
+    return None
 
 
 def _parse_bilingual_summary(content: str) -> tuple[str, str]:
