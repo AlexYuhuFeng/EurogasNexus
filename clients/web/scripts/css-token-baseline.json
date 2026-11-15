@@ -1,0 +1,6 @@
+{
+  "_comment": "Stylesheets not yet converted to design tokens, with their count of raw values (scripts/cssTokenLint.mjs). Counts may only go down; a file leaves the list when it reaches zero. Do not add files: new and converted stylesheets must be clean.",
+  "files": {
+    "src/styles/app.css": 292
+  }
+}

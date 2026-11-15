@@ -449,6 +449,17 @@ jobs:
           fi
           exit "$sweep_status"
 
+      - name: Geometry audit (UX-10, report only)
+        # Distinct font sizes, control heights and radii on the key screens, against
+        # scripts/uat/geometry_budget.json. The budgets were measured on the demo desk; until they
+        # are confirmed on this job's UAT fixture data the step reports without failing the job.
+        # Locally: node scripts/uat/geometry_audit.mjs (fails on excess). See DESIGN_TOKENS.md.
+        if: always()
+        env:
+          EUROGAS_UAT_PLAYWRIGHT_PATH: scripts/ci/browser-acceptance/node_modules/playwright/index.js
+          EUROGAS_UAT_OUTPUT_DIR: artifacts/uat-browser
+        run: node scripts/uat/geometry_audit.mjs --report
+
       - name: Stop UAT servers
         if: always()
         run: |

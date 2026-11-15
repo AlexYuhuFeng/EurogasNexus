@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api, type PositionLadderDTO } from "@/api/client";
 import { ReportExport } from "./ReportExport";
+import { EmptyState, KeyFigure, Skeleton } from "@/components/ui";
 import {
   barShare,
   groupLadderByMonth,
@@ -72,33 +73,42 @@ function useLadder(months: number, groupBy = "hub", reportingCurrency = "") {
 function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }) {
   return (
     <div className="position-summary" data-position-summary="true">
-      <div><span>{t("position.net")}</span><strong>{mwh(ladder.totals.net_mwh)} MWh</strong></div>
-      <div><span>{t("position.physical")}</span><strong>{mwh(ladder.totals.physical_mwh)}</strong></div>
-      <div><span>{t("position.financial")}</span><strong>{mwh(ladder.totals.financial_mwh)}</strong></div>
-      <div><span>{t("position.hedged")}</span><strong>{hedgeText(overallHedgeRatio(ladder), t)}</strong></div>
-      <div>
-        <span>{t("position.mtm")}{ladder.reporting_currency ? ` (${ladder.reporting_currency})` : ""}</span>
-        <strong className={pnlClass(ladder.mark_to_market)}>{money(ladder.mark_to_market)}</strong>
-      </div>
+      <KeyFigure label={t("position.net")} value={mwh(ladder.totals.net_mwh)} unit="MWh" />
+      {/* The label already names the unit ("Physical (MWh)"). */}
+      <KeyFigure label={t("position.physical")} value={mwh(ladder.totals.physical_mwh)} />
+      <KeyFigure label={t("position.financial")} value={mwh(ladder.totals.financial_mwh)} />
+      <KeyFigure label={t("position.hedged")} value={hedgeText(overallHedgeRatio(ladder), t)} />
+      <KeyFigure
+        label={t("position.mtm")}
+        value={money(ladder.mark_to_market)}
+        unit={ladder.reporting_currency || undefined}
+        valueClassName={pnlClass(ladder.mark_to_market)}
+      />
       {/* Gross by month adds information only when months offset; equal to |net| it repeats it. */}
       {ladder.totals.gross_tenor_mwh !== undefined &&
         Math.abs(ladder.totals.gross_tenor_mwh) !== Math.abs(ladder.totals.net_mwh) && (
-        <div>
-          <span>{t("position.gross_tenor")}</span>
-          <strong title={t("position.gross_tenor_help")}>{mwh(ladder.totals.gross_tenor_mwh)} MWh</strong>
-        </div>
+        <KeyFigure
+          label={t("position.gross_tenor")}
+          value={mwh(ladder.totals.gross_tenor_mwh)}
+          unit="MWh"
+          title={t("position.gross_tenor_help")}
+        />
       )}
-      <div>
-        <span>{t("position.var")}</span>
-        {ladder.offsetting_hubs && ladder.offsetting_hubs.length > 0 ? (
-          // A calendar spread is never shown as zero risk (#53).
-          <strong className="position-var-withheld" title={t("position.var_withheld_help")}>
-            {t("position.var_withheld").replace("{{hubs}}", ladder.offsetting_hubs.join(", "))}
-          </strong>
-        ) : (
-          <strong title={ladder.var_95_1d == null ? undefined : t("position.var_help", { count: ladder.var_observations })}>{money(ladder.var_95_1d)}</strong>
-        )}
-      </div>
+      {ladder.offsetting_hubs && ladder.offsetting_hubs.length > 0 ? (
+        // A calendar spread is never shown as zero risk (#53).
+        <KeyFigure
+          label={t("position.var")}
+          value={t("position.var_withheld").replace("{{hubs}}", ladder.offsetting_hubs.join(", "))}
+          valueClassName="position-var-withheld"
+          title={t("position.var_withheld_help")}
+        />
+      ) : (
+        <KeyFigure
+          label={t("position.var")}
+          value={money(ladder.var_95_1d)}
+          title={ladder.var_95_1d == null ? undefined : t("position.var_help", { count: ladder.var_observations })}
+        />
+      )}
     </div>
   );
 }
@@ -189,7 +199,8 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
           </tbody>
         </table>
       )}
-      {ladder && ladder.rows.length === 0 && <p className="muted">{t("position.empty")}</p>}
+      {!ladder && !error && <Skeleton label={t("position.loading")} rows={6} />}
+      {ladder && ladder.rows.length === 0 && <EmptyState reason={t("position.empty")} id="position-ladder" />}
       {ladder && ladder.rows.length > 0 && (
         <>
           <SummaryStrip ladder={ladder} t={t} />

@@ -1,0 +1,281 @@
+/*
+ * Primitives (UX-02): Button, IconButton, StatusBadge tones, KeyFigure, Panel, EmptyState,
+ * Skeleton. Imported by design-system.css. Tokens only: the token lint
+ * (scripts/cssTokenLint.mjs) holds this file to zero raw values.
+ *
+ * Two layers. Classes nothing older styles (ds-button, ds-status, ds-skeleton, the Panel head)
+ * sit in ds-components. KeyFigure sits in ds-base: existing strips (metric-grid,
+ * position-summary, the overview rail) lay out the same span/strong markup with their own
+ * rules, and those must keep winning where they exist.
+ */
+
+@layer ds-components {
+  /* ------------------------------------------------------------------ Button */
+  .ds-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ds-space-1);
+    box-sizing: border-box;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-control-pad);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-base);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .ds-button.ds-size-sm {
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+  }
+
+  .ds-button.ds-size-md {
+    height: var(--ds-control);
+    min-height: var(--ds-control);
+  }
+
+  .ds-button.button-primary {
+    border-color: var(--ds-ink);
+    background: var(--ds-ink);
+    color: var(--ds-on-ink);
+  }
+
+  .ds-button.secondary-button:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+  }
+
+  .ds-button.quiet-button {
+    padding: 0 var(--ds-control-pad-sm);
+    border-color: transparent;
+    background: transparent;
+    color: var(--ds-accent);
+  }
+
+  .ds-button.quiet-button:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+    color: var(--ds-accent-hover);
+  }
+
+  .ds-button.danger {
+    border-color: var(--ds-negative);
+    background: var(--ds-negative);
+    color: var(--ds-on-negative);
+  }
+
+  /* Disabled looks disabled: no fill that reads as a live primary action. */
+  .ds-button:disabled,
+  .ds-button.button-primary:disabled,
+  .ds-button.danger:disabled {
+    border-color: var(--ds-border);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-disabled);
+    opacity: 1;
+    cursor: not-allowed;
+  }
+
+  .ds-button.quiet-button:disabled {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .ds-button[data-loading] {
+    cursor: progress;
+  }
+
+  .ds-button:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  /* -------------------------------------------------------------- IconButton */
+  .ds-icon-button {
+    width: var(--ds-control-sm);
+    min-width: var(--ds-control-sm);
+    padding: 0;
+    color: var(--ds-text-2);
+  }
+
+  .ds-icon-button.ds-size-md {
+    width: var(--ds-control);
+    min-width: var(--ds-control);
+  }
+
+  .ds-icon-button.quiet-button {
+    color: var(--ds-text-2);
+  }
+
+  .ds-icon-button.quiet-button:hover:not(:disabled) {
+    color: var(--ds-text-1);
+  }
+
+  .ds-icon {
+    display: inline-grid;
+    place-items: center;
+    width: var(--ds-icon);
+    height: var(--ds-icon);
+    font-size: var(--ds-text-md);
+    line-height: 1;
+  }
+
+  /* -------------------------------------------------------- StatusBadge tones */
+  .ds-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    min-height: var(--ds-chip);
+    padding: 0 var(--ds-space-2);
+    border: 1px solid transparent;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+    white-space: nowrap;
+  }
+
+  .ds-status[data-tone="ok"] { background: var(--ds-status-ok-soft); color: var(--ds-status-ok); }
+  .ds-status[data-tone="watch"] { background: var(--ds-status-watch-soft); color: var(--ds-status-watch); }
+  .ds-status[data-tone="breach"] { background: var(--ds-status-breach-soft); color: var(--ds-status-breach); }
+  .ds-status[data-tone="info"] { background: var(--ds-status-info-soft); color: var(--ds-status-info); }
+  .ds-status[data-tone="simulated"] { background: var(--ds-status-simulated-soft); color: var(--ds-status-simulated); }
+  .ds-status[data-tone="stale"] { background: var(--ds-status-stale-soft); color: var(--ds-status-stale); }
+
+  /* ------------------------------------------------------------------ Panel */
+  .ds-panel-head {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-height: var(--ds-control-sm);
+  }
+
+  .ds-panel-head > h2,
+  .ds-panel-head > h3 {
+    margin: 0;
+  }
+
+  .ds-panel-meta {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  .ds-panel-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    margin-left: auto;
+  }
+
+  .ds-panel-body {
+    min-width: 0;
+  }
+
+  .ds-panel-head + .ds-panel-body {
+    margin-top: var(--ds-space-2);
+  }
+
+  /* ------------------------------------------------------------- EmptyState */
+  .empty-state-compact {
+    padding: 0;
+    font-size: var(--ds-text-sm);
+  }
+
+  .empty-state-compact strong {
+    color: var(--ds-text-2);
+    font-weight: var(--ds-weight-regular);
+  }
+
+  /* --------------------------------------------------------------- Skeleton */
+  .ds-skeleton-group {
+    display: grid;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-2) 0;
+  }
+
+  /* Still by default; ds-motion adds the shimmer only when motion is allowed. */
+  .ds-skeleton {
+    display: block;
+    border-radius: var(--ds-radius-sm);
+    background-color: var(--ds-surface-2);
+  }
+
+  .ds-skeleton-row {
+    height: var(--ds-row-header);
+  }
+
+  .ds-skeleton-text {
+    height: var(--ds-line-base);
+  }
+
+  .ds-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@layer ds-base {
+  /* -------------------------------------------------------------- KeyFigure */
+  .key-figure {
+    display: grid;
+    align-content: start;
+    gap: var(--ds-space-05);
+    min-width: 0;
+  }
+
+  .key-figure > span {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
+  .key-figure > strong {
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-md);
+    font-weight: var(--ds-weight-semibold);
+    font-variant-numeric: var(--ds-numeric);
+    line-height: var(--ds-line-md);
+    white-space: nowrap;
+  }
+
+  .key-figure-lg > strong {
+    font-size: var(--ds-text-num);
+    line-height: var(--ds-line-num);
+  }
+
+  .key-figure-unit {
+    margin-left: var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .key-figure-delta,
+  .key-figure-age {
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    font-variant-numeric: var(--ds-numeric);
+  }
+
+  .key-figure-age {
+    display: inline-flex;
+    gap: var(--ds-space-1);
+    color: var(--ds-text-3);
+  }
+
+  .key-figure[data-state="stale"] .key-figure-state { color: var(--ds-status-stale); font-weight: var(--ds-weight-medium); }
+  .key-figure[data-state="delayed"] .key-figure-state { color: var(--ds-status-watch); font-weight: var(--ds-weight-medium); }
+  .key-figure[data-state="simulated"] .key-figure-state { color: var(--ds-status-simulated); font-weight: var(--ds-weight-medium); }
+}

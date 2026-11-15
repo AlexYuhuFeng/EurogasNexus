@@ -6,6 +6,7 @@ import type {
 } from "@/api/client";
 import { aiActionContract, aiActionIsAvailable } from "@/app/experience/aiActions";
 import { WhyButton } from "./WhyButton";
+import { IconButton } from "./ui/Button";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -88,7 +89,7 @@ export function AlertCenter({
               <span>{isChinese ? "实时监控" : "LIVE MONITORING"}</span>
               <strong>{isChinese ? "决策告警" : "Decision alerts"}</strong>
             </div>
-            <button type="button" aria-label={isChinese ? "关闭" : "Close"} onClick={() => setOpen(false)}>×</button>
+            <IconButton label={isChinese ? "关闭" : "Close"} icon="×" onClick={() => setOpen(false)} />
           </div>
           <div className="alert-summary-strip">
             <span><strong>{summary.critical_count}</strong>{isChinese ? " 严重" : " critical"}</span>

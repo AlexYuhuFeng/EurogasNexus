@@ -3928,6 +3928,7 @@
   "position.horizon": "Horizon",
   "position.months": "{{count}} months",
   "position.empty": "No physical contracts or filled trades in this horizon.",
+  "position.loading": "Loading the position ladder",
   "position.month": "Month",
   "position.hub": "Hub",
   "position.physical": "Physical (MWh)",

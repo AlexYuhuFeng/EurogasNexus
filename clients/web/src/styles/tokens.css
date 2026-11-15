@@ -1,0 +1,300 @@
+/*
+ * Design tokens: the one place a size, a radius, a duration or a colour value is written.
+ *
+ * Components use the semantic roles below (surface, text, border, accent, status, P&L, series),
+ * never a raw value and never a palette name. Light and dark redefine the same roles; nothing
+ * else changes between themes. docs/product/DESIGN_TOKENS.md explains the scales, and
+ * clients/web/scripts/cssTokenLint.mjs keeps raw values out of converted stylesheets.
+ *
+ * Imported by design-system.css into the ds-theme layer, which sits above the legacy layer: a
+ * not-yet-converted stylesheet that defines its own copy of a variable cannot override these.
+ *
+ * Contrast: every text role meets WCAG AA (4.5:1) on every surface role in both themes, status
+ * text meets it on its own soft background, and the focus ring and chart series meet 3:1.
+ * clients/web/tests/tokenContrast.test.ts computes this from the values in this file.
+ */
+:root {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------- type */
+  --ds-font-ui: "Inter", "Inter var", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans CJK SC", sans-serif;
+  /* Identifiers and code only. Prices use the interface face with tabular numerals. */
+  --ds-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ds-numeric: tabular-nums;
+
+  /* Six sizes, no fractions. Each has its own line height (Chinese adds 2 px, below). */
+  --ds-text-xs: 11px;   /* table headers, captions, units */
+  --ds-text-sm: 12px;   /* secondary text, dense cells */
+  --ds-text-base: 13px; /* body and controls */
+  --ds-text-md: 15px;   /* panel titles */
+  --ds-text-xl: 18px;   /* page title */
+  --ds-text-num: 20px;  /* key figures */
+  --ds-line-xs: 16px;
+  --ds-line-sm: 16px;
+  --ds-line-base: 20px;
+  --ds-line-md: 22px;
+  --ds-line-xl: 24px;
+  --ds-line-num: 24px;
+  --ds-leading-tight: 1.25;
+  --ds-leading: 1.5;
+  --ds-weight-regular: 400;
+  --ds-weight-medium: 500;
+  --ds-weight-semibold: 600;
+
+  /* ---------------------------------------------------------------- space: 4 px grid */
+  --ds-space-05: 2px;
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+
+  /* ---------------------------------------------------------------- controls */
+  --ds-control-sm: 28px;    /* dense: tables, toolbars */
+  --ds-control: 32px;       /* forms */
+  --ds-control-touch: 44px; /* coarse pointer */
+  --ds-chip: 20px;          /* badges and status chips: not controls */
+  --ds-row: 32px;           /* table and list rows */
+  --ds-row-header: 28px;    /* table header row */
+  --ds-icon: 16px;
+  --ds-control-pad-sm: 8px;
+  --ds-control-pad: 12px;
+
+  /* ---------------------------------------------------------------- shape */
+  --ds-radius-sm: 4px;     /* controls, cells, badges */
+  --ds-radius-md: 8px;     /* panels, popovers, dialogs */
+  --ds-radius-pill: 999px; /* pills and avatars */
+
+  /* ---------------------------------------------------------------- motion */
+  --ds-duration-fast: 80ms;  /* hover, press */
+  --ds-duration-base: 160ms; /* popover, tab, row expand */
+  --ds-duration-slow: 240ms; /* inspector, sheet */
+  --ds-duration-map: 400ms;  /* map camera */
+  --ds-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------------------------------------------------------------- colour roles */
+  /* Surfaces, lowest to highest. */
+  --ds-bg: #f7f7f8;
+  --ds-surface: #ffffff;
+  --ds-surface-2: #f4f4f5; /* raised row, hover, table header */
+  --ds-surface-3: #e9e9ec; /* pressed, selected neutral */
+  /* Lines. */
+  --ds-border-subtle: #efeff1; /* between rows */
+  --ds-border: #e4e4e7;        /* around surfaces */
+  --ds-border-strong: #d4d4d8; /* around controls */
+  /* Text. Disabled text is exempt from contrast (WCAG 1.4.3) and is not used for content. */
+  --ds-text-1: #18181b;
+  --ds-text-2: #52525b;
+  --ds-text-3: #5f5f68;
+  --ds-text-disabled: #a1a1aa;
+  /* Action and selection. */
+  --ds-accent: #1d4ed8;
+  --ds-accent-hover: #1e40af;
+  --ds-on-accent: #ffffff;
+  --ds-accent-soft: #e8eefc; /* selected row, current item */
+  --ds-focus-ring: #1d4ed8;
+  /* Neutral inverse (tooltips, the primary dark button). */
+  --ds-ink: #18181b;
+  --ds-on-ink: #ffffff;
+  /* Sign: up/down and long/short. */
+  --ds-positive: #166534;
+  --ds-negative: #b91c1c;
+  --ds-on-negative: #ffffff;
+  /* Status: text colour, and a soft background the text stays legible on. */
+  --ds-status-ok: #166534;
+  --ds-status-ok-soft: #e7f4ec;
+  --ds-status-watch: #854d0e;
+  --ds-status-watch-soft: #fcf3e3;
+  --ds-status-breach: #b91c1c;
+  --ds-status-breach-soft: #fdeded;
+  --ds-status-info: #1d4ed8;
+  --ds-status-info-soft: #e8eefc;
+  --ds-status-simulated: #6d28d9;
+  --ds-status-simulated-soft: #f1ebfd;
+  --ds-status-stale: #52525b;
+  --ds-status-stale-soft: #ededf0;
+  /* Profit and loss: the user's convention (green-up or red-up, app/model/pnlColor.ts) picks
+     which of the two is profit. */
+  --pnl-up: #1d6b3a;
+  --pnl-down: #b42318;
+  --pnl-profit: var(--pnl-up);
+  --pnl-loss: var(--pnl-down);
+  /* Chart series, in order of use. Each meets 3:1 against the surface. */
+  --ds-series-1: #1d4ed8;
+  --ds-series-2: #0f766e;
+  --ds-series-3: #b45309;
+  --ds-series-4: #7c3aed;
+  --ds-series-5: #be185d;
+  --ds-series-6: #4d7c0f;
+  --ds-series-7: #0369a1;
+  --ds-series-8: #52525b;
+  /* Brand: the mark's navy tile, teal flows and text on navy (installer, splash, sign-in). */
+  --ds-brand-navy: #101c34;
+  --ds-brand-navy-deep: #0b1324;
+  --ds-brand-teal: #2dd4bf;
+  --ds-on-brand: #ffffff;
+  --ds-on-brand-1: #dbe3ef;
+  --ds-on-brand-2: #b9c4d6;
+  --ds-on-brand-3: #7f8ca3;
+  --ds-scrim: rgb(15 15 20 / 42%);
+
+  /* ---------------------------------------------------------------- elevation: two only */
+  /* Panels use a border, not a shadow. */
+  --ds-shadow-pop: 0 1px 2px rgb(0 0 0 / 4%), 0 4px 12px -2px rgb(0 0 0 / 10%);    /* popover, menu */
+  --ds-shadow-modal: 0 2px 4px rgb(0 0 0 / 4%), 0 16px 40px -12px rgb(0 0 0 / 24%); /* dialog, sheet */
+  --ds-focus: 0 0 0 2px var(--ds-surface), 0 0 0 4px var(--ds-focus-ring);
+
+  /* ---------------------------------------------------------------- aliases */
+  /* Older names, kept so not-yet-converted stylesheets follow the scale. Converted files may
+     not use them (the token lint fails); each points at its nearest role or step. */
+  --ds-text-lg: var(--ds-text-md);
+  --ds-text-2xl: var(--ds-text-xl);
+  --ds-text-3xl: var(--ds-text-num);
+  --ds-space-5: var(--ds-space-4);
+  --ds-radius-lg: var(--ds-radius-md);
+  --ds-control-lg: var(--ds-control);
+  --ds-duration: var(--ds-duration-base);
+  --ds-shadow-sm: none;
+  --ds-shadow-md: var(--ds-shadow-pop);
+  --ds-shadow-lg: var(--ds-shadow-modal);
+  --ds-positive-soft: var(--ds-status-ok-soft);
+  --ds-negative-soft: var(--ds-status-breach-soft);
+  --ds-warning: var(--ds-status-watch);
+  --ds-warning-soft: var(--ds-status-watch-soft);
+
+  /* Legacy variable families from app.css, re-pointed at the roles. */
+  --bg: var(--ds-bg);
+  --surface: var(--ds-surface);
+  --surface-strong: var(--ds-surface-2);
+  --text: var(--ds-text-1);
+  --muted: var(--ds-text-2);
+  --border: var(--ds-border);
+  --accent: var(--ds-accent);
+  --warning: var(--ds-status-watch);
+  --danger: var(--ds-negative);
+  --shadow: var(--ds-shadow-pop);
+  --text-meta: var(--ds-text-xs);
+  --text-body: var(--ds-text-base);
+  --text-control: var(--ds-text-base);
+  --text-heading: var(--ds-text-md);
+  --text-panel-title: var(--ds-text-md);
+  --text-workspace-title: var(--ds-text-xl);
+  --text-page-title: var(--ds-text-xl);
+  --space-1: var(--ds-space-1);
+  --space-2: var(--ds-space-2);
+  --space-3: var(--ds-space-3);
+  --space-4: var(--ds-space-4);
+  --space-5: var(--ds-space-6);
+  --space-6: var(--ds-space-8);
+  --control-compact: var(--ds-control-sm);
+  --control-standard: var(--ds-control);
+  --control-prominent: var(--ds-control);
+  --radius-control: var(--ds-radius-sm);
+  --radius-panel: var(--ds-radius-md);
+  --radius-large: var(--ds-radius-md);
+  --motion-fast: var(--ds-duration-fast);
+  --motion-standard: var(--ds-duration-base);
+  --motion-emphasis: var(--ds-duration-slow);
+  --eg-font-mono: var(--ds-font-ui);
+  --eg-ink: var(--ds-ink);
+  --eg-on-ink: var(--ds-on-ink);
+  --eg-body: var(--ds-text-2);
+  --eg-muted: var(--ds-text-3);
+  --eg-hairline: var(--ds-border);
+  --eg-hairline-strong: var(--ds-border-strong);
+  --eg-border: var(--ds-border);
+  --eg-canvas: var(--ds-surface);
+  --eg-canvas-soft: var(--ds-bg);
+  --eg-canvas-soft-2: var(--ds-surface-2);
+  --eg-link: var(--ds-accent);
+  --eg-positive: var(--ds-positive);
+  --eg-positive-soft: var(--ds-status-ok-soft);
+  --eg-warn: var(--ds-status-watch);
+  --eg-warn-soft: var(--ds-status-watch-soft);
+  --eg-negative: var(--ds-negative);
+  --eg-negative-soft: var(--ds-status-breach-soft);
+  --eg-warning: var(--ds-status-watch);
+  --eg-danger: var(--ds-negative);
+  --eg-map-blue: var(--ds-series-1);
+  --eg-map-cyan: var(--ds-series-2);
+  --eg-map-violet: var(--ds-series-4);
+  --eg-map-amber: var(--ds-series-3);
+  --eg-radius-sm: var(--ds-radius-sm);
+  --eg-radius-md: var(--ds-radius-md);
+  --eg-radius-pill: var(--ds-radius-pill);
+  --eg-pill: var(--ds-radius-pill);
+  --eg-shadow-1: inset 0 0 0 1px var(--ds-border);
+  --eg-shadow-2: inset 0 0 0 1px var(--ds-border);
+  --eg-shadow-3: var(--ds-shadow-pop), inset 0 0 0 1px var(--ds-border);
+}
+
+:root.dark {
+  color-scheme: dark;
+  --ds-bg: #0b0b0d;
+  --ds-surface: #131316;
+  --ds-surface-2: #1a1a1e;
+  --ds-surface-3: #242429;
+  --ds-border-subtle: #1f1f23;
+  --ds-border: #2a2a30;
+  --ds-border-strong: #3a3a41;
+  --ds-text-1: #f4f4f5;
+  --ds-text-2: #a8a8b3;
+  --ds-text-3: #9393a0;
+  --ds-text-disabled: #5c5c66;
+  --ds-accent: #6ea8fe;
+  --ds-accent-hover: #93bfff;
+  --ds-on-accent: #0b0b0d;
+  --ds-accent-soft: #172338;
+  --ds-focus-ring: #6ea8fe;
+  --ds-ink: #f4f4f5;
+  --ds-on-ink: #131316;
+  --ds-positive: #4ade80;
+  --ds-negative: #f87171;
+  --ds-on-negative: #0b0b0d;
+  --ds-status-ok: #4ade80;
+  --ds-status-ok-soft: #10261a;
+  --ds-status-watch: #fbbf24;
+  --ds-status-watch-soft: #2a2110;
+  --ds-status-breach: #f87171;
+  --ds-status-breach-soft: #2e1616;
+  --ds-status-info: #6ea8fe;
+  --ds-status-info-soft: #172338;
+  --ds-status-simulated: #c4b5fd;
+  --ds-status-simulated-soft: #221b35;
+  --ds-status-stale: #a8a8b3;
+  --ds-status-stale-soft: #232328;
+  --pnl-up: #4cc38a;
+  --pnl-down: #ff8a80;
+  --ds-series-1: #6ea8fe;
+  --ds-series-2: #2dd4bf;
+  --ds-series-3: #fbbf24;
+  --ds-series-4: #a78bfa;
+  --ds-series-5: #f472b6;
+  --ds-series-6: #a3e635;
+  --ds-series-7: #38bdf8;
+  --ds-series-8: #a8a8b3;
+  --ds-scrim: rgb(0 0 0 / 55%);
+  --ds-shadow-pop: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 16px -4px rgb(0 0 0 / 55%);
+  --ds-shadow-modal: 0 2px 6px rgb(0 0 0 / 45%), 0 18px 44px -10px rgb(0 0 0 / 65%);
+}
+
+/* The convention swaps which colour means profit; it does not change the colours. */
+:root[data-pnl="red_up"] {
+  --pnl-profit: var(--pnl-down);
+  --pnl-loss: var(--pnl-up);
+}
+
+/* Chinese at the same sizes, with 2 px more line height. */
+:root:lang(zh),
+:root:lang(zh-CN) {
+  --ds-line-xs: 18px;
+  --ds-line-sm: 18px;
+  --ds-line-base: 22px;
+  --ds-line-md: 24px;
+  --ds-line-xl: 26px;
+  --ds-line-num: 26px;
+}

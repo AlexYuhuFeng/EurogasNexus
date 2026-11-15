@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { api, type DeskBriefDTO } from "@/api/client";
+import { IconButton } from "@/components/ui/Button";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 export type BriefKind = "morning" | "eod";
@@ -93,9 +94,7 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
             </button>
           ))}
         </div>
-        <button type="button" className="desk-brief-close" aria-label={t("brief.close")} onClick={close}>
-          ×
-        </button>
+        <IconButton className="desk-brief-close" size="md" label={t("brief.close")} icon="×" onClick={close} />
       </header>
       {status === "loading" && <p className="muted">{t("brief.loading")}</p>}
       {status === "failed" && <p role="alert">{t("brief.failed")}</p>}

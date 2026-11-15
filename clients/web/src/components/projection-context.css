@@ -9,35 +9,35 @@
 
 .projection-context {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--ds-space-3);
   align-items: center;
   flex-wrap: wrap;
-  border: 1px solid var(--eg-hairline);
-  background: var(--eg-canvas);
-  padding: var(--space-1) var(--space-2);
-  color: var(--eg-muted);
-  font-size: var(--text-meta);
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
 }
 
 .projection-context-summary {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--ds-space-2);
   align-items: center;
   flex-wrap: wrap;
 }
 
 .projection-context-summary span {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--ds-space-1);
 }
 
 .projection-context-summary strong {
-  color: var(--eg-ink);
+  color: var(--ds-text-1);
 }
 
 .projection-context-slices {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--ds-space-2);
   align-items: center;
   flex-wrap: wrap;
   list-style: none;
@@ -47,20 +47,20 @@
 
 .projection-context-slices li {
   display: flex;
-  gap: var(--space-1);
+  gap: var(--ds-space-1);
   align-items: center;
-  border: 1px solid var(--eg-hairline);
-  border-radius: var(--radius-control);
-  background: var(--eg-canvas-soft-2);
-  padding: 0 var(--space-1);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface-2);
+  padding: 0 var(--ds-space-1);
 }
 
 .projection-slice-label {
-  color: var(--eg-ink);
+  color: var(--ds-text-1);
 }
 
 .projection-slice-restricted {
-  color: var(--eg-warning);
+  color: var(--ds-status-watch);
 }
 
 /* Collapsed by default: the summary line is the strip; slices open on demand. */
@@ -87,16 +87,16 @@
 }
 
 .projection-context-details[open] > .projection-context-slices {
-  margin-top: var(--space-1);
+  margin-top: var(--ds-space-1);
 }
 
 /* Text colours meet WCAG AA (4.5:1) at the strip's 11px: the degraded count is ink on a
    warning tint rather than amber text, and the basis keeps the full muted colour. */
 .projection-context-summary span.projection-context-degraded {
-  color: var(--eg-ink);
-  background: var(--eg-warn-soft);
-  border-left: 3px solid var(--eg-warning);
-  padding: 0 var(--space-1);
+  color: var(--ds-text-1);
+  background: var(--ds-status-watch-soft);
+  border-left: 3px solid var(--ds-status-watch);
+  padding: 0 var(--ds-space-1);
   font-weight: 600;
 }
 }
@@ -119,7 +119,7 @@
 
   .projection-context .trading-context-controls label > span {
     color: var(--ds-text-2);
-    font-size: 0.75rem;
+    font-size: var(--ds-text-sm);
   }
 
   .projection-context .projection-context-details {
@@ -137,8 +137,8 @@
   @media (pointer: coarse) {
     .projection-context .trading-context-controls input,
     .projection-context .trading-context-controls select {
-      height: 44px;
-      min-height: 44px;
+      height: var(--ds-control-touch);
+      min-height: var(--ds-control-touch);
     }
   }
 

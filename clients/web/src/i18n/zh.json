@@ -3928,6 +3928,7 @@
   "position.horizon": "期限",
   "position.months": "{{count}} 个月",
   "position.empty": "此期限内没有实物合同或已成交交易。",
+  "position.loading": "正在加载头寸阶梯",
   "position.month": "月份",
   "position.hub": "枢纽",
   "position.physical": "实物（MWh）",

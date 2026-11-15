@@ -35,17 +35,17 @@
 .copilot-boundary {
   margin: 0;
   padding: 8px 10px;
-  border-left: 3px solid var(--border, var(--ds-border));
+  border-left: 3px solid var(--ds-border);
   font-size: var(--ds-text-sm);
   line-height: 1.5;
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-panel h3 {
   margin: 0 0 6px;
   font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-panel h4 {
@@ -67,7 +67,7 @@
 .copilot-result-facts dt {
   font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-context-facts dd,
@@ -83,7 +83,7 @@
   margin: 6px 0 0;
   font-size: var(--ds-text-sm);
   line-height: 1.5;
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-context-missing,
@@ -91,7 +91,7 @@
   margin: 6px 0 0;
   padding-left: 18px;
   font-size: var(--ds-text-sm);
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-evidence-list,
@@ -112,13 +112,13 @@
 .copilot-evidence-kind {
   font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-evidence-empty {
   margin: 0;
   font-size: var(--ds-text-sm);
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-action-list {
@@ -128,12 +128,12 @@
 
 .copilot-action {
   padding: 8px 10px;
-  border: 1px solid var(--border, var(--ds-border));
-  border-radius: 6px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
 }
 
 .copilot-action.selected {
-  border-color: var(--focus, #2b6cb0);
+  border-color: var(--ds-focus-ring);
 }
 
 .copilot-action.withheld {
@@ -161,7 +161,7 @@
 
 .copilot-action-posture {
   font-size: var(--ds-text-xs);
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-action-produces,
@@ -170,7 +170,7 @@
   margin: 4px 0 0;
   font-size: var(--ds-text-sm);
   line-height: 1.5;
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-action-carries code {
@@ -185,15 +185,15 @@
   display: block;
   font-size: var(--ds-text-xs);
   letter-spacing: 0.04em;
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-question textarea {
   width: 100%;
   margin-top: 4px;
   padding: 8px 10px;
-  border: 1px solid var(--border, var(--ds-border));
-  border-radius: 6px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
   font: inherit;
   background: transparent;
   color: inherit;
@@ -210,14 +210,14 @@
 
 .copilot-invoke-route {
   font-size: var(--ds-text-xs);
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-record-facts pre {
   margin: 2px 0 0;
   padding: 6px 8px;
-  border: 1px solid var(--border, var(--ds-border));
-  border-radius: 6px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
   font-size: var(--ds-text-sm);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -229,14 +229,14 @@
   margin: 6px 0 0;
   font-size: var(--ds-text-sm);
   line-height: 1.5;
-  color: var(--text-muted, var(--ds-text-2));
+  color: var(--ds-text-2);
 }
 
 .copilot-result-answer {
   margin: 8px 0 0;
   padding: 8px 10px;
-  border: 1px solid var(--border, var(--ds-border));
-  border-radius: 6px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -252,9 +252,9 @@
 
 .copilot-error {
   padding: 8px 10px;
-  border: 1px solid var(--border, var(--ds-border));
-  border-left: 3px solid var(--focus, #2b6cb0);
-  border-radius: 6px;
+  border: 1px solid var(--ds-border);
+  border-left: 3px solid var(--ds-focus-ring);
+  border-radius: var(--ds-radius-sm);
 }
 
 .copilot-error p {

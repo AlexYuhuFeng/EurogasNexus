@@ -17,7 +17,7 @@ they remain the reference for information architecture and workflows.
    table. A new screen composes these; it does not invent a variant.
 4. **Sentence case.** No forced uppercase, no monospace labels. Monospace is for code and
    identifiers only.
-5. **Motion explains, never decorates.** 120 ms for hover and focus, 180 ms for panels
+5. **Motion explains, never decorates.** 80 ms for hover and focus, 160 ms for panels
    entering and menus opening, eased out. Everything stops under
    `prefers-reduced-motion: reduce`.
 6. **Accessible.** WCAG 2.1 AA contrast in both themes, a visible focus ring on every
@@ -25,19 +25,10 @@ they remain the reference for information architecture and workflows.
 
 ## Tokens
 
-| Group | Tokens |
-|---|---|
-| Surfaces | `--ds-bg`, `--ds-surface`, `--ds-surface-2`, `--ds-surface-3` |
-| Lines | `--ds-border`, `--ds-border-strong` |
-| Text | `--ds-text-1` (primary), `--ds-text-2` (secondary), `--ds-text-3` (meta) |
-| Meaning | `--ds-accent`, `--ds-positive`, `--ds-negative`, `--ds-warning`, each with `-soft`; `--pnl-profit`, `--pnl-loss` follow the user's P&L convention |
-| Type | `--ds-text-xs` 11, `sm` 12, `base` 13, `md` 14, `lg` 16, `xl` 18, `2xl` 22, `3xl` 28; weights 400 / 500 / 600 |
-| Space | 4-pixel grid: `--ds-space-1` 4 … `--ds-space-8` 32 |
-| Shape | `--ds-radius-sm` 6 (controls), `md` 8, `lg` 12 (panels), `pill` |
-| Elevation | `--ds-shadow-sm` (panels), `md` (raised), `lg` (popovers) |
-| Motion | `--ds-duration-fast` 120 ms, `--ds-duration` 180 ms, `--ds-duration-slow` 260 ms; `--ds-ease-out` |
-
-Light and dark themes redefine the same tokens; nothing else changes between themes.
+The scales and colour roles live in `clients/web/src/styles/tokens.css` and are documented in
+`docs/product/DESIGN_TOKENS.md` (six text sizes, weights 400/500/600, a 4 px spacing grid,
+controls 28/32 with 44 on touch, radii 4/8/pill, two shadows, status and P&L roles, chart
+series), with the token lint, the contrast test and the geometry audit that hold them.
 
 ## Layers
 
@@ -48,8 +39,8 @@ specificity fights and the legacy rules keep working until each screen is migrat
 
 ## Rules for new work
 
-- Use `var(--ds-*)` tokens. A literal colour or pixel font size in a component stylesheet
-  fails `clients/web/tests/designTokens.test.ts`; the legacy count may only go down.
+- Use `var(--ds-*)` tokens. A raw colour, size, radius or control height in a converted
+  stylesheet fails `clients/web/tests/cssTokenLint.test.ts`; the baseline may only shrink.
 - New component styles live in `ds-components` (or a component file wrapped in that layer).
 - Numbers: right-aligned, tabular, sign shown for changes, unit in the header or beside the
   value. Missing values show "–", never zero.

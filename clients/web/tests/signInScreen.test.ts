@@ -21,16 +21,16 @@ test("sign-in actions reflect server-advertised capabilities", () => {
 
 test("sign-in styling uses the established type, spacing, control, and radius tokens", () => {
   assert.match(css, /font-family: Inter, -apple-system/);
+  // The design-token roles and steps (tokens.css), not the legacy families they replaced.
   for (const token of [
-    "--text-control",
-    "--text-page-title",
-    "--space-3",
-    "--space-4",
-    "--space-5",
-    "--control-standard",
-    "--control-prominent",
-    "--radius-control",
-    "--radius-panel",
+    "--ds-text-base",
+    "--ds-text-xl",
+    "--ds-space-3",
+    "--ds-space-4",
+    "--ds-space-6",
+    "--ds-control",
+    "--ds-radius-sm",
+    "--ds-radius-md",
   ]) {
     assert.match(css, new RegExp(`var\\(${token}\\)`), token);
   }

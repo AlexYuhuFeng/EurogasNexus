@@ -11,176 +11,17 @@
  *   ds-motion      transitions and entrances, off under prefers-reduced-motion
  *
  * New styles go in ds-components or a component file that uses only var(--ds-*) tokens.
- * docs/ux/DESIGN_SYSTEM.md explains the rules; clients/web/tests/designTokens.test.ts holds
- * the line on hard-coded colours and font sizes.
+ * docs/product/DESIGN_TOKENS.md explains the scales and roles; scripts/cssTokenLint.mjs
+ * (run by tests/cssTokenLint.test.ts) keeps raw values out of every converted stylesheet,
+ * this one included.
  */
 
 @layer ds-base, legacy, ds-theme, ds-components, ds-motion;
 
-/* ------------------------------------------------------------------ tokens */
-@layer ds-theme {
-  :root {
-    color-scheme: light;
-    --ds-font-ui: "Inter", "Inter var", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
-      Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-      "Noto Sans CJK SC", sans-serif;
-    --ds-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
-    --ds-text-xs: 11px;
-    --ds-text-sm: 12px;
-    --ds-text-base: 13px;
-    --ds-text-md: 14px;
-    --ds-text-lg: 16px;
-    --ds-text-xl: 18px;
-    --ds-text-2xl: 22px;
-    --ds-text-3xl: 28px;
-    --ds-leading-tight: 1.25;
-    --ds-leading: 1.5;
-    --ds-weight-regular: 400;
-    --ds-weight-medium: 500;
-    --ds-weight-semibold: 600;
-
-    --ds-space-1: 4px;
-    --ds-space-2: 8px;
-    --ds-space-3: 12px;
-    --ds-space-4: 16px;
-    --ds-space-5: 20px;
-    --ds-space-6: 24px;
-    --ds-space-8: 32px;
-
-    --ds-radius-sm: 6px;
-    --ds-radius-md: 8px;
-    --ds-radius-lg: 12px;
-    --ds-radius-pill: 999px;
-    --ds-control-sm: 28px;
-    --ds-control: 32px;
-    --ds-control-lg: 36px;
-
-    --ds-duration-fast: 120ms;
-    --ds-duration: 180ms;
-    --ds-duration-slow: 260ms;
-    --ds-ease-out: cubic-bezier(0.2, 0, 0, 1);
-    --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-
-    --ds-bg: #f7f7f8;
-    --ds-surface: #ffffff;
-    --ds-surface-2: #f4f4f5;
-    --ds-surface-3: #e9e9ec;
-    --ds-border: #e4e4e7;
-    --ds-border-strong: #d4d4d8;
-    --ds-text-1: #18181b;
-    --ds-text-2: #52525b;
-    --ds-text-3: #5f5f68;
-    --ds-accent: #1d4ed8;
-    --ds-accent-hover: #1e40af;
-    --ds-on-accent: #ffffff;
-    --ds-positive: #166534;
-    --ds-negative: #b91c1c;
-    /* Brand: the mark's navy tile, teal flows and text on navy (installer, splash, sign-in). */
-    --ds-brand-navy: #101c34;
-    --ds-brand-navy-deep: #0b1324;
-    --ds-brand-teal: #2dd4bf;
-    --ds-on-brand: #ffffff;
-    --ds-on-brand-1: #dbe3ef;
-    --ds-on-brand-2: #b9c4d6;
-    --ds-on-brand-3: #7f8ca3;
-    --ds-warning: #854d0e;
-    --ds-ink: #18181b;
-    --ds-on-ink: #ffffff;
-    --ds-accent-soft: color-mix(in srgb, var(--ds-accent) 10%, transparent);
-    --ds-positive-soft: color-mix(in srgb, var(--ds-positive) 10%, transparent);
-    --ds-negative-soft: color-mix(in srgb, var(--ds-negative) 9%, transparent);
-    --ds-warning-soft: color-mix(in srgb, var(--ds-warning) 11%, transparent);
-    --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 5%);
-    --ds-shadow-md: 0 1px 2px rgb(0 0 0 / 4%), 0 4px 12px -2px rgb(0 0 0 / 7%);
-    --ds-shadow-lg: 0 2px 4px rgb(0 0 0 / 4%), 0 16px 40px -12px rgb(0 0 0 / 22%);
-    --ds-focus: 0 0 0 2px var(--ds-surface), 0 0 0 4px color-mix(in srgb, var(--ds-accent) 55%, transparent);
-
-    /* Legacy variable families, re-pointed so every existing rule follows the design system. */
-    --bg: var(--ds-bg);
-    --surface: var(--ds-surface);
-    --surface-strong: var(--ds-surface-2);
-    --text: var(--ds-text-1);
-    --muted: var(--ds-text-2);
-    --border: var(--ds-border);
-    --accent: var(--ds-accent);
-    --warning: var(--ds-warning);
-    --danger: var(--ds-negative);
-    --shadow: var(--ds-shadow-md);
-    --text-meta: var(--ds-text-xs);
-    --text-body: var(--ds-text-base);
-    --text-control: var(--ds-text-base);
-    --text-panel-title: var(--ds-text-lg);
-    --text-workspace-title: var(--ds-text-2xl);
-    --text-page-title: var(--ds-text-2xl);
-    --space-1: var(--ds-space-1);
-    --space-2: var(--ds-space-2);
-    --space-3: var(--ds-space-3);
-    --space-4: var(--ds-space-4);
-    --space-5: var(--ds-space-6);
-    --space-6: var(--ds-space-8);
-    --control-compact: var(--ds-control-sm);
-    --control-standard: var(--ds-control);
-    --control-prominent: var(--ds-control-lg);
-    --radius-control: var(--ds-radius-sm);
-    --radius-panel: var(--ds-radius-lg);
-    --radius-large: var(--ds-radius-lg);
-    --motion-fast: var(--ds-duration-fast);
-    --motion-standard: var(--ds-duration);
-    --motion-emphasis: var(--ds-duration-slow);
-    /* Prices and times use the interface face with tabular numerals, not a terminal font. */
-    --eg-font-mono: var(--ds-font-ui);
-    --eg-ink: var(--ds-ink);
-    --eg-on-ink: var(--ds-on-ink);
-    --eg-body: var(--ds-text-2);
-    --eg-muted: var(--ds-text-3);
-    --eg-hairline: var(--ds-border);
-    --eg-hairline-strong: var(--ds-border-strong);
-    --eg-border: var(--ds-border);
-    --eg-canvas: var(--ds-surface);
-    --eg-canvas-soft: var(--ds-bg);
-    --eg-canvas-soft-2: var(--ds-surface-2);
-    --eg-link: var(--ds-accent);
-    --eg-positive: var(--ds-positive);
-    --eg-positive-soft: var(--ds-positive-soft);
-    --eg-warn: var(--ds-warning);
-    --eg-warn-soft: var(--ds-warning-soft);
-    --eg-negative: var(--ds-negative);
-    --eg-negative-soft: var(--ds-negative-soft);
-    --eg-warning: var(--ds-warning);
-    --eg-danger: var(--ds-negative);
-    --eg-radius-sm: var(--ds-radius-sm);
-    --eg-radius-md: var(--ds-radius-md);
-    --eg-pill: var(--ds-radius-pill);
-    --eg-shadow-1: inset 0 0 0 1px var(--ds-border);
-    --eg-shadow-2: var(--ds-shadow-sm), inset 0 0 0 1px var(--ds-border);
-    --eg-shadow-3: var(--ds-shadow-md), inset 0 0 0 1px var(--ds-border);
-  }
-
-  :root.dark {
-    color-scheme: dark;
-    --ds-bg: #0b0b0d;
-    --ds-surface: #131316;
-    --ds-surface-2: #1a1a1e;
-    --ds-surface-3: #242429;
-    --ds-border: #26262b;
-    --ds-border-strong: #3a3a41;
-    --ds-text-1: #f4f4f5;
-    --ds-text-2: #a8a8b3;
-    --ds-text-3: #8d8d98;
-    --ds-accent: #6ea8fe;
-    --ds-accent-hover: #93bfff;
-    --ds-on-accent: #0b0b0d;
-    --ds-positive: #4ade80;
-    --ds-negative: #f87171;
-    --ds-warning: #fbbf24;
-    --ds-ink: #f4f4f5;
-    --ds-on-ink: #131316;
-    --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
-    --ds-shadow-md: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 16px -4px rgb(0 0 0 / 50%);
-    --ds-shadow-lg: 0 2px 6px rgb(0 0 0 / 45%), 0 18px 44px -10px rgb(0 0 0 / 65%);
-  }
-}
+/* Tokens: sizes, radii, durations and colour roles for both themes (tokens.css). */
+@import url("./tokens.css") layer(ds-theme);
+/* Primitives (Button, IconButton, StatusBadge, KeyFigure, Panel, EmptyState, Skeleton). */
+@import url("../components/ui/primitives.css");
 
 /* ------------------------------------------------------------- element base */
 @layer ds-base {
@@ -193,8 +34,25 @@
   body {
     font-family: var(--ds-font-ui);
     font-size: var(--ds-text-base);
-    line-height: var(--ds-leading);
+    line-height: var(--ds-line-base);
     font-feature-settings: "cv11", "ss01";
+    /* Every figure lines up: tabular numerals everywhere, not only in tables. */
+    font-variant-numeric: var(--ds-numeric);
+  }
+
+  /* The browser's defaults sit off the scale: <small> is "smaller" (a fraction of its parent),
+     <strong>, <b> and <th> are 700, and nested bold compounds to 900. */
+  small {
+    font-size: var(--ds-text-xs);
+  }
+
+  strong,
+  b {
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  th {
+    font-weight: var(--ds-weight-medium);
   }
 
   button,
@@ -224,7 +82,9 @@
     background: var(--ds-surface-2);
   }
 
-  select {
+  select,
+  textarea,
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]) {
     min-height: var(--ds-control-sm);
     border: 1px solid var(--ds-border-strong);
     border-radius: var(--ds-radius-sm);
@@ -237,7 +97,7 @@
   pre,
   samp {
     font-family: var(--ds-font-mono);
-    font-size: 0.92em;
+    font-size: var(--ds-text-sm);
   }
 
   table {
@@ -277,23 +137,26 @@
   /* Type: three weights, sentence case, one sans family for interface text. */
   h1,
   .workspace-page-heading h1 {
-    font-size: var(--ds-text-2xl);
-    font-weight: var(--ds-weight-semibold);
-    letter-spacing: -0.015em;
-    line-height: var(--ds-leading-tight);
-  }
-
-  h2,
-  .workspace-panel h2 {
-    font-size: var(--ds-text-lg);
+    font-size: var(--ds-text-xl);
     font-weight: var(--ds-weight-semibold);
     letter-spacing: -0.01em;
-    line-height: var(--ds-leading-tight);
+    line-height: var(--ds-line-xl);
   }
 
-  h3 {
+  /* Panel titles. */
+  h2,
+  .workspace-panel h2 {
     font-size: var(--ds-text-md);
     font-weight: var(--ds-weight-semibold);
+    letter-spacing: -0.005em;
+    line-height: var(--ds-line-md);
+  }
+
+  /* Sections inside a panel: body size, set apart by weight. */
+  h3 {
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-base);
   }
 
   .eyebrow,
@@ -405,7 +268,7 @@
     margin-left: auto;
     padding: 1px 6px;
     border: 1px solid var(--ds-border);
-    border-radius: 4px;
+    border-radius: var(--ds-radius-sm);
     background: var(--ds-surface);
     color: var(--ds-text-3);
     font-family: var(--ds-font-ui);
@@ -576,12 +439,12 @@
     content: "";
     width: 7px;
     height: 7px;
-    border-radius: 50%;
+    border-radius: var(--ds-radius-pill);
     background: var(--ds-positive);
   }
 
   .context-freshness.issue strong::before {
-    background: var(--ds-warning);
+    background: var(--ds-status-watch);
   }
 
   .context-freshness small:last-child {
@@ -647,7 +510,7 @@
   .connector-catalogue {
     display: flex;
     flex-direction: column;
-    gap: var(--ds-space-5);
+    gap: var(--ds-space-4);
   }
 
   .connector-group h3 {
@@ -655,7 +518,7 @@
     align-items: baseline;
     gap: var(--ds-space-2);
     margin: 0 0 var(--ds-space-2);
-    font-size: var(--ds-text-md, 1rem);
+    font-size: var(--ds-text-md);
   }
 
   .connector-group-count {
@@ -685,7 +548,7 @@
     background: none;
     color: inherit;
     font: inherit;
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
     text-align: left;
     cursor: pointer;
   }
@@ -747,7 +610,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--ds-space-1) var(--ds-space-5);
+    gap: var(--ds-space-1) var(--ds-space-4);
     margin: 0;
   }
 
@@ -763,12 +626,12 @@
 
   .metric-inline > div > span {
     color: var(--ds-text-2);
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
   }
 
   .metric-inline > div > small {
     color: var(--ds-text-2);
-    font-size: 0.75rem;
+    font-size: var(--ds-text-sm);
   }
 
   /* Label/value pairs in two columns, without a box per value (#69). */
@@ -786,7 +649,7 @@
     gap: var(--ds-space-2);
     padding: 3px 0;
     border-bottom: 1px solid var(--ds-border);
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
   }
 
   .kv-list > div > span {
@@ -795,12 +658,12 @@
 
   .connector-status {
     flex-shrink: 0;
-    font-size: 0.75rem;
+    font-size: var(--ds-text-sm);
     color: var(--ds-text-2);
   }
 
   .connector-status-attention {
-    color: var(--ds-warning, var(--ds-negative, currentColor));
+    color: var(--ds-status-watch);
   }
 
   .connector-status-connected {
@@ -850,14 +713,14 @@
     place-items: center;
     width: 1.25rem;
     height: 1.25rem;
-    border-radius: 50%;
+    border-radius: var(--ds-radius-pill);
     border: 1px solid var(--ds-border);
-    font-size: 0.75rem;
+    font-size: var(--ds-text-sm);
   }
 
   .contract-chain-reason {
     color: var(--ds-text-2);
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
   }
 
   .contract-chain-step.chain-next button[aria-current="step"] .contract-chain-index {
@@ -1417,7 +1280,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--ds-space-2) var(--ds-space-5);
+    gap: var(--ds-space-2) var(--ds-space-4);
     padding: var(--ds-space-2) 0;
   }
 
@@ -1450,7 +1313,7 @@
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
-    box-shadow: var(--ds-shadow-md);
+    box-shadow: var(--ds-shadow-pop);
     padding: var(--ds-space-4);
     color: var(--ds-text-1);
     font-size: var(--ds-text-sm);
@@ -1460,11 +1323,11 @@
     position: absolute;
     top: var(--ds-space-2);
     right: var(--ds-space-3);
-    font-size: var(--ds-text-lg);
+    font-size: var(--ds-text-md);
   }
 
   .map-detail-header h3 {
-    margin: 0 var(--ds-space-5) 2px 0;
+    margin: 0 var(--ds-space-4) 2px 0;
     font-size: var(--ds-text-md);
   }
 
@@ -1503,8 +1366,8 @@
   }
 
   .map-role.is-watch {
-    border-color: var(--ds-warning);
-    color: var(--ds-warning);
+    border-color: var(--ds-status-watch);
+    color: var(--ds-status-watch);
   }
 
   .map-detail-figures {
@@ -1571,14 +1434,14 @@
 
   .map-detail-progress {
     height: 4px;
-    border-radius: 2px;
+    border-radius: 0;
     background: var(--ds-surface-3, var(--ds-surface-2));
   }
 
   .map-detail-progress > i {
     display: block;
     height: 100%;
-    border-radius: 2px;
+    border-radius: 0;
     background: var(--ds-accent);
   }
 
@@ -1747,17 +1610,23 @@
   .segmented-control button.active,
   .segmented-control button[aria-pressed="true"] {
     background: var(--ds-surface);
-    box-shadow: var(--ds-shadow-sm);
+    box-shadow: none;
   }
 
   /* ---------------------------------------------------------------- panels */
   .workspace-panel,
   .cockpit-app .panel {
     border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-lg);
+    border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
     background-image: none;
-    box-shadow: var(--ds-shadow-sm);
+    box-shadow: none;
+  }
+
+  /* The overview's context rail stacks small panels; each keeps the panel's inner padding
+     (the rail's own legacy rule drew them borderless, which this layer's border overrode). */
+  .market-context-rail > .workspace-panel {
+    padding: var(--ds-space-3);
   }
 
   .panel-title-row {
@@ -1868,12 +1737,12 @@
   }
 
   .workspace-panel table td {
-    border-bottom: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+    border-bottom: 1px solid var(--ds-border-subtle);
     font-size: var(--ds-text-base);
   }
 
   .workspace-panel table tbody tr:hover td {
-    background: color-mix(in srgb, var(--ds-surface-2) 70%, transparent);
+    background: var(--ds-surface-2);
   }
 
   /* ---------------------------------------------------------------- badges */
@@ -1890,7 +1759,7 @@
     align-items: center;
     gap: 4px;
     min-width: 0;
-    min-height: 20px;
+    min-height: var(--ds-chip);
     padding: 1px var(--ds-space-2);
     border-radius: var(--ds-radius-pill);
     font-family: var(--ds-font-ui);
@@ -1903,17 +1772,19 @@
   }
 
   /* --------------------------------------------------------- notices, states */
+  /* Simulated has its own status colour, so it is never read as a warning about a real price
+     (UX_REFERENCE rule 10). */
   .market-simulated-banner {
     padding: var(--ds-space-2) var(--ds-space-3);
-    border: 1px solid color-mix(in srgb, var(--ds-warning) 35%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ds-status-simulated) 35%, transparent);
     border-radius: var(--ds-radius-md);
-    background: var(--ds-warning-soft);
+    background: var(--ds-status-simulated-soft);
     color: var(--ds-text-1);
     font-size: var(--ds-text-base);
   }
 
   .market-simulated-banner strong {
-    color: var(--ds-warning);
+    color: var(--ds-status-simulated);
     font-weight: var(--ds-weight-semibold);
     text-transform: none;
   }
@@ -2018,7 +1889,7 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
   }
 
   .cockpit-app .app-header .topbar-context-disclosure::details-content {
@@ -2037,7 +1908,7 @@
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-sm);
     background: var(--ds-surface);
-    box-shadow: var(--ds-shadow-lg);
+    box-shadow: var(--ds-shadow-modal);
   }
 
   .cockpit-app .app-header .topbar-context-disclosure-content .topbar-trading-context {
@@ -2061,7 +1932,7 @@
     white-space: nowrap;
     display: block;
     color: var(--ds-text-2);
-    font-size: 0.75rem;
+    font-size: var(--ds-text-sm);
   }
 
   /* Priorities: the menu button and the lines of work never shrink; the controls cluster
@@ -2120,7 +1991,7 @@
     height: var(--ds-control);
     min-height: var(--ds-control);
     padding: 0;
-    border-radius: 50%;
+    border-radius: var(--ds-radius-pill);
   }
 
   .cockpit-app .app-header .topbar-help {
@@ -2134,8 +2005,8 @@
     .cockpit-app .app-header .topbar-status-chip,
     .cockpit-app .app-header .topbar-help,
     .cockpit-app .app-header .topbar-preferences-trigger {
-      height: 44px;
-      min-height: 44px;
+      height: var(--ds-control-touch);
+      min-height: var(--ds-control-touch);
     }
 
     .cockpit-app .app-header .topbar-help,
@@ -2162,11 +2033,12 @@
     align-items: center;
     gap: var(--ds-space-2);
     min-width: 0;
-    height: 32px;
+    /* One dense control row inside the bottom border. */
+    height: calc(var(--ds-control-sm) + 1px);
     padding: 0 var(--ds-space-2);
     border-bottom: 1px solid var(--ds-border);
     background: var(--ds-surface-2);
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
     overflow: hidden;
   }
 
@@ -2176,7 +2048,7 @@
     border-radius: var(--ds-radius-pill);
     background: var(--ds-text-2);
     color: var(--ds-surface);
-    font-size: 0.6875rem;
+    font-size: var(--ds-text-xs);
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
@@ -2211,8 +2083,8 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    min-height: 0;
-    padding: 0 var(--ds-space-5) 0 0;
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-4) 0 0;
     border: 0;
     background: none;
     color: inherit;
@@ -2224,12 +2096,12 @@
   .ticker-item i {
     width: 7px;
     height: 7px;
-    border-radius: 50%;
+    border-radius: var(--ds-radius-pill);
     background: var(--ds-text-2);
   }
 
   .ticker-item.is-warning i {
-    background: var(--ds-warning);
+    background: var(--ds-status-watch);
   }
 
   .ticker-item.is-critical i {
@@ -2242,9 +2114,9 @@
 
   .ticker-pause {
     flex: 0 0 auto;
-    min-height: 24px;
+    min-height: var(--ds-control-sm);
     padding: 0 8px;
-    font-size: 0.6875rem;
+    font-size: var(--ds-text-xs);
   }
 
   .breaking-ticker.is-flash {
@@ -2279,12 +2151,12 @@
 
   @media (pointer: coarse) {
     .breaking-ticker {
-      height: 44px;
+      height: var(--ds-control-touch);
     }
 
     .ticker-item button,
     .ticker-pause {
-      min-height: 44px;
+      min-height: var(--ds-control-touch);
     }
 
     .ticker-pause {
@@ -2344,7 +2216,7 @@
     }
 
     .workspace-panel {
-      animation: ds-enter var(--ds-duration) var(--ds-ease-out) both;
+      animation: ds-enter var(--ds-duration-base) var(--ds-ease-out) both;
     }
 
     [role="dialog"],
@@ -2587,7 +2459,7 @@
     font-size: var(--ds-text-sm);
     font-variant-numeric: tabular-nums;
     pointer-events: none;
-    animation: ds-fade-in var(--ds-duration) var(--ds-ease-out);
+    animation: ds-fade-in var(--ds-duration-base) var(--ds-ease-out);
   }
 
   .map-situation-strip > span {
@@ -2637,7 +2509,7 @@
   }
 
   .situation-dot.outage-active { background: var(--ds-negative); }
-  .situation-dot.outage-scheduled { background: var(--ds-warning); }
+  .situation-dot.outage-scheduled { background: var(--ds-status-watch); }
   .situation-dot.own { background: var(--ds-accent); }
   .situation-dot.own.ring {
     background: transparent;
@@ -2677,7 +2549,7 @@
   }
 
   .node-popup .situation-tag.is-active { color: var(--ds-negative); }
-  .node-popup .situation-tag.is-scheduled { color: var(--ds-warning); }
+  .node-popup .situation-tag.is-scheduled { color: var(--ds-status-watch); }
   .node-popup .situation-tag.is-own { color: var(--ds-accent); }
 }
 
@@ -2885,7 +2757,7 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     cursor: pointer;
-    animation: ds-fade-in var(--ds-duration) var(--ds-ease-out);
+    animation: ds-fade-in var(--ds-duration-base) var(--ds-ease-out);
   }
 
   .map-summary-card.has-alert {
@@ -2963,19 +2835,19 @@
 
   .limit-badge[data-status="ok"] {
     border-color: color-mix(in srgb, var(--ds-positive) 30%, transparent);
-    background: var(--ds-positive-soft);
+    background: var(--ds-status-ok-soft);
     color: var(--ds-positive);
   }
 
   .limit-badge[data-status="watch"] {
-    border-color: color-mix(in srgb, var(--ds-warning) 35%, transparent);
-    background: var(--ds-warning-soft);
-    color: var(--ds-warning);
+    border-color: color-mix(in srgb, var(--ds-status-watch) 35%, transparent);
+    background: var(--ds-status-watch-soft);
+    color: var(--ds-status-watch);
   }
 
   .limit-badge[data-status="breach"] {
     border-color: color-mix(in srgb, var(--ds-negative) 40%, transparent);
-    background: var(--ds-negative-soft);
+    background: var(--ds-status-breach-soft);
     color: var(--ds-negative);
     font-weight: var(--ds-weight-semibold);
   }
@@ -2985,7 +2857,7 @@
   }
 
   tr[data-status="watch"] > td:first-child {
-    box-shadow: inset 3px 0 0 var(--ds-warning);
+    box-shadow: inset 3px 0 0 var(--ds-status-watch);
   }
 
   .limit-meter {
@@ -3087,7 +2959,7 @@
   }
 
   .delivery-allocated[data-short="true"] {
-    background: var(--ds-warning);
+    background: var(--ds-status-watch);
   }
 
   .delivery-strip figcaption {
@@ -3104,12 +2976,12 @@
     display: inline-block;
     width: 10px;
     height: 10px;
-    border-radius: 2px;
+    border-radius: 0;
   }
 
   .legend-swatch.nominated { background: var(--ds-surface-2); outline: 1px solid var(--ds-border); }
   .legend-swatch.allocated { background: var(--ds-accent); }
-  .legend-swatch.short { background: var(--ds-warning); }
+  .legend-swatch.short { background: var(--ds-status-watch); }
 
   .input-with-unit {
     display: inline-flex;
@@ -3145,7 +3017,7 @@
   .contract-intake-warnings {
     margin: var(--ds-space-2) 0;
     padding-left: var(--ds-space-4, 16px);
-    color: var(--ds-warning);
+    color: var(--ds-status-watch);
     font-size: var(--ds-text-sm);
   }
 
@@ -3193,11 +3065,11 @@
   button.danger {
     border: 1px solid var(--ds-negative);
     background: var(--ds-negative);
-    color: #fff;
+    color: var(--ds-on-negative);
   }
 
   button.danger:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--ds-negative) 88%, #000);
+    background: color-mix(in srgb, var(--ds-negative) 88%, var(--ds-text-1));
   }
 
   .contract-retire-form {
@@ -3208,7 +3080,7 @@
     padding: var(--ds-space-2);
     border: 1px solid color-mix(in srgb, var(--ds-negative) 30%, transparent);
     border-radius: var(--ds-radius-md);
-    background: var(--ds-negative-soft);
+    background: var(--ds-status-breach-soft);
   }
 
   .contract-retire-form label {
@@ -3234,12 +3106,12 @@
   .topbar-help {
     display: inline-grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
+    width: var(--ds-control-sm);
+    height: var(--ds-control-sm);
     margin-right: var(--ds-space-2);
     padding: 0;
     border: 1px solid var(--ds-border);
-    border-radius: 50%;
+    border-radius: var(--ds-radius-pill);
     background: var(--ds-surface);
     color: var(--ds-text-2);
     font-weight: var(--ds-weight-semibold);
@@ -3260,14 +3132,14 @@
     max-height: calc(100vh - 64px);
     padding: var(--ds-space-4, 16px);
     border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-lg, 10px);
+    border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
     color: var(--ds-text-1);
-    box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.25), 0 2px 6px rgb(0 0 0 / 0.08);
+    box-shadow: var(--ds-shadow-modal);
   }
 
   .report-dialog::backdrop {
-    background: rgb(15 15 20 / 0.42);
+    background: var(--ds-scrim);
     backdrop-filter: blur(2px);
   }
 
@@ -3284,7 +3156,7 @@
 
   .report-dialog-header h2 {
     margin: 0;
-    font-size: var(--ds-text-lg);
+    font-size: var(--ds-text-md);
   }
 
   .report-form {
@@ -3384,7 +3256,7 @@
   button.primary:active:not(:disabled),
   .button-primary:active:not(:disabled),
   button[type="submit"]:active:not(:disabled) {
-    background: color-mix(in srgb, var(--ds-ink) 94%, #000);
+    background: color-mix(in srgb, var(--ds-ink) 78%, var(--ds-surface));
   }
 
   .secondary-button:hover:not(:disabled),
@@ -3405,6 +3277,17 @@
     transform: translateY(0.5px);
   }
 
+  /* Control geometry: two heights, 28 (dense) and 32 (forms; components opt in), 44 on touch.
+     The height comes from min-height, never from vertical padding, so a smaller font cannot
+     shrink a control and extra padding cannot grow one. Zero specificity: any designed rule in
+     this layer wins, and the layer still wins over legacy rules. Rows, cards, list items and
+     link-style buttons keep their own geometry. */
+  :where(button, select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"])):not(:where([class*="row"], [class*="card"], [class*="item"], [class*="link"])) {
+    box-sizing: border-box;
+    min-height: var(--ds-control-sm);
+    padding-block: 0;
+  }
+
   button:disabled:hover {
     background: inherit;
   }
@@ -3423,7 +3306,7 @@
     select,
     input:not([type="checkbox"]):not([type="radio"]),
     [role="tab"] {
-      min-height: 40px;
+      min-height: var(--ds-control-touch);
     }
   }
 }
@@ -3451,7 +3334,7 @@
   .sign-in-screen {
     background:
       radial-gradient(1200px 600px at 15% 10%, color-mix(in srgb, var(--ds-accent) 7%, transparent), transparent 60%),
-      var(--ds-canvas, var(--bg));
+      var(--ds-bg);
   }
 
   .sign-in-shell {
@@ -3460,9 +3343,9 @@
     width: min(100%, 52rem);
     overflow: hidden;
     border: 1px solid var(--ds-border);
-    border-radius: 14px;
+    border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
-    box-shadow: var(--ds-shadow-lg);
+    box-shadow: var(--ds-shadow-modal);
     animation: ds-dialog-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
   }
 
@@ -3483,13 +3366,13 @@
   }
 
   .sign-in-mark {
-    width: 48px;
-    height: 48px;
+    width: calc(var(--ds-control) * 1.5);
+    height: calc(var(--ds-control) * 1.5);
   }
 
   .sign-in-brand-name {
     margin-top: 6px;
-    font-size: var(--ds-text-2xl, 22px);
+    font-size: var(--ds-text-xl);
     font-weight: 600;
     letter-spacing: -0.01em;
   }
@@ -3522,7 +3405,7 @@
     left: 0;
     width: 6px;
     height: 6px;
-    border-radius: 50%;
+    border-radius: var(--ds-radius-pill);
     background: var(--ds-brand-teal);
   }
 
@@ -3583,7 +3466,7 @@
   }
 
   .topbar-status.is-ok .topbar-status-chip i { background: var(--ds-positive); }
-  .topbar-status.is-attention .topbar-status-chip i { background: var(--ds-warning); }
+  .topbar-status.is-attention .topbar-status-chip i { background: var(--ds-status-watch); }
   .topbar-status.is-down .topbar-status-chip i { background: var(--ds-negative); }
   .topbar-status.is-down .topbar-status-chip { color: var(--ds-text-1); }
 
@@ -3597,7 +3480,7 @@
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
-    box-shadow: var(--ds-shadow-3, 0 8px 24px rgb(0 0 0 / 18%));
+    box-shadow: var(--ds-shadow-pop);
     color: var(--ds-text-1);
     font-size: var(--ds-text-sm);
   }
@@ -3695,9 +3578,9 @@
   .source-missing-notice {
     margin: 0 0 var(--ds-space-3);
     padding: var(--ds-space-2) var(--ds-space-3);
-    border-left: 3px solid var(--ds-warning);
+    border-left: 3px solid var(--ds-status-watch);
     border-radius: var(--ds-radius-sm);
-    background: color-mix(in srgb, var(--ds-warning) 10%, transparent);
+    background: color-mix(in srgb, var(--ds-status-watch) 10%, transparent);
     color: var(--ds-text-1);
     font-size: var(--ds-text-sm);
   }
@@ -3730,7 +3613,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--ds-space-2);
-    min-height: 44px;
+    min-height: var(--ds-control-touch);
     min-width: 0;
     padding: 0 var(--ds-space-2);
     border: 0;
@@ -3758,7 +3641,7 @@
   .topbar-menu-label small {
     color: var(--ds-text-2);
     font-weight: 400;
-    font-size: 0.75rem;
+    font-size: var(--ds-text-sm);
   }
 
   [data-width-class="compact"] .topbar-command {
@@ -3767,7 +3650,7 @@
     place-items: center;
     width: 44px;
     min-width: 44px;
-    height: 44px;
+    height: var(--ds-control-touch);
     padding: 0;
   }
 
@@ -3785,7 +3668,7 @@
   [data-width-class="compact"] .topbar-status-chip,
   [data-width-class="compact"] .topbar-help {
     min-width: 44px;
-    min-height: 44px;
+    min-height: var(--ds-control-touch);
     justify-content: center;
   }
 
@@ -3844,7 +3727,7 @@
 
   .topbar-drawer-context h2 {
     margin: 0 0 var(--ds-space-2);
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
     color: var(--ds-text-2);
   }
 
@@ -3866,12 +3749,12 @@
     height: auto;
     clip: auto;
     color: var(--ds-text-2);
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
   }
 
   .topbar-drawer-context select,
   .topbar-drawer-context input {
-    min-height: 44px;
+    min-height: var(--ds-control-touch);
     max-width: none;
   }
 }
@@ -3888,7 +3771,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--ds-space-1);
-    min-height: 44px;
+    min-height: var(--ds-control-touch);
     padding: 0 var(--ds-space-3);
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-sm);
@@ -3919,7 +3802,7 @@
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-sm);
     background: var(--ds-surface);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+    box-shadow: var(--ds-shadow-pop);
   }
 
   .map-layers-panel-body .map-toolbar-divider {
@@ -3927,7 +3810,7 @@
   }
 
   .map-layers-panel-body .map-layer-chip {
-    min-height: 40px;
+    min-height: var(--ds-control-touch);
     writing-mode: horizontal-tb;
     white-space: nowrap;
   }
@@ -3958,7 +3841,7 @@
   [data-width-class="compact"] .access-key-form select,
   [data-width-class="compact"] .access-key-form input {
     width: 100%;
-    min-height: 44px;
+    min-height: var(--ds-control-touch);
     max-width: none;
   }
 
@@ -3973,7 +3856,7 @@
     display: flex;
     align-items: center;
     gap: var(--ds-space-2);
-    min-height: 44px;
+    min-height: var(--ds-control-touch);
     overflow-wrap: anywhere;
     border-bottom: 1px solid var(--ds-border);
   }
@@ -4126,7 +4009,7 @@
   [data-width-class="medium"] .app-header .topbar-context-disclosure > summary {
     display: inline-flex;
     align-items: center;
-    min-height: 36px;
+    min-height: var(--ds-control);
     padding: 0 var(--ds-space-3);
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-sm);
@@ -4149,7 +4032,7 @@
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-sm);
     background: var(--ds-surface);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+    box-shadow: var(--ds-shadow-pop);
   }
 
   [data-width-class="medium"] .app-header .topbar-context-disclosure-content .topbar-trading-context {
@@ -4168,7 +4051,7 @@
 @layer ds-components {
   .decision-deadline.deadline-overdue,
   .decision-deadline.deadline-decided_late {
-    color: var(--ds-warning, var(--ds-negative, currentColor));
+    color: var(--ds-status-watch);
     font-weight: 600;
   }
 }
@@ -4235,8 +4118,8 @@
   }
 
   .position-var-withheld {
-    color: var(--ds-warning, currentColor);
-    font-size: 0.875rem;
+    color: var(--ds-status-watch);
+    font-size: var(--ds-text-base);
   }
 }
 
@@ -4262,7 +4145,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--ds-space-1);
-    min-height: 44px;
+    min-height: var(--ds-control-touch);
     padding: 0;
     border: 0;
     background: none;
@@ -4312,15 +4195,15 @@
 
   [data-pointer="coarse"] input[type="checkbox"],
   [data-pointer="coarse"] input[type="radio"] {
-    width: 20px;
-    height: 20px;
+    width: var(--ds-chip);
+    height: var(--ds-chip);
   }
 
   [data-pointer="coarse"] button,
   [data-pointer="coarse"] .link-button,
   [data-pointer="coarse"] select,
   [data-pointer="coarse"] input:not([type="checkbox"]):not([type="radio"]) {
-    min-height: 44px;
+    min-height: var(--ds-control-touch);
   }
 }
 
@@ -4358,7 +4241,7 @@
 
   .desk-replay-facts dt {
     color: var(--ds-text-2);
-    font-size: 0.8125rem;
+    font-size: var(--ds-text-base);
   }
 
   .desk-replay-facts dd {
@@ -4383,7 +4266,7 @@
 
   .desk-replay-blocked,
   .desk-replay-unmatched {
-    color: var(--ds-warning, currentColor);
+    color: var(--ds-status-watch);
   }
 
   .desk-replay-attach {
@@ -4409,7 +4292,7 @@
     .cockpit-app [role="tab"],
     .cockpit-app button.chip,
     .cockpit-app .chip-row button {
-      min-height: 44px;
+      min-height: var(--ds-control-touch);
     }
   }
 }
@@ -4477,7 +4360,7 @@
   /* "Why?" next to the number (WhyButton.tsx): a small pill, and a note over the page. */
   .why-button {
     flex: 0 0 auto;
-    min-height: 24px;
+    min-height: var(--ds-control-sm);
     padding: 0 var(--ds-space-2);
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-pill);
@@ -4504,7 +4387,7 @@
     border: 1px solid var(--ds-border-strong);
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
-    box-shadow: var(--ds-shadow-lg);
+    box-shadow: var(--ds-shadow-modal);
     color: var(--ds-text-1);
     font-size: var(--ds-text-sm);
     line-height: 1.45;
@@ -4531,7 +4414,7 @@
   .why-flag {
     padding: 0 var(--ds-space-1);
     border-radius: var(--ds-radius-sm);
-    background: var(--ds-warning-soft);
+    background: var(--ds-status-watch-soft);
     color: var(--ds-text-1);
   }
 
@@ -4543,7 +4426,7 @@
 
   @media (pointer: coarse) {
     .why-button {
-      min-height: 44px;
+      min-height: var(--ds-control-touch);
       min-width: 44px;
     }
   }
@@ -4565,10 +4448,10 @@
     max-height: calc(100vh - 48px);
     padding: var(--ds-space-4);
     border: 1px solid var(--ds-border-strong);
-    border-radius: var(--ds-radius-lg);
+    border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
     color: var(--ds-text-1);
-    box-shadow: var(--ds-shadow-lg);
+    box-shadow: var(--ds-shadow-modal);
   }
 
   .desk-brief[open] {
@@ -4578,7 +4461,7 @@
   }
 
   .desk-brief::backdrop {
-    background: rgb(0 0 0 / 35%);
+    background: var(--ds-scrim);
   }
 
   .desk-brief-head {
@@ -4590,7 +4473,7 @@
 
   .desk-brief-head h2 {
     margin: 0;
-    font-size: var(--ds-text-lg);
+    font-size: var(--ds-text-md);
   }
 
   .desk-brief-kinds {
@@ -4621,13 +4504,13 @@
 
   .desk-brief-close {
     margin-left: auto;
-    width: 32px;
-    height: 32px;
+    width: var(--ds-control);
+    height: var(--ds-control);
     border: 1px solid var(--ds-border);
-    border-radius: 50%;
+    border-radius: var(--ds-radius-pill);
     background: var(--ds-surface);
     color: var(--ds-text-1);
-    font-size: 1.1rem;
+    font-size: var(--ds-text-md);
     cursor: pointer;
   }
 
@@ -4663,7 +4546,7 @@
     .desk-brief-actions button,
     .desk-brief-actions .button-link,
     .desk-brief-close {
-      min-height: 44px;
+      min-height: var(--ds-control-touch);
       min-width: 44px;
     }
   }

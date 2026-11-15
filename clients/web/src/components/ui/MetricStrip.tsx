@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { KeyFigure } from "./KeyFigure";
+
 export interface MetricStripItem {
   label: string;
   value: ReactNode;
@@ -25,20 +27,14 @@ interface MetricStripProps {
   timeBasis?: ReactNode;
 }
 
+/** A row of key figures: each item is a KeyFigure, so every strip shares one figure layout. */
 export function MetricStrip({ className, items, asOf, timeBasis }: MetricStripProps) {
   const showsAsOf = asOf !== undefined && asOf !== null;
   const showsTimeBasis = timeBasis !== undefined && timeBasis !== null;
   return (
     <div className={className ?? "metric-grid"}>
       {items.map((item, index) => (
-        <div key={`${item.label}-${index}`}>
-          <span>{item.label}</span>
-          <strong>
-            {item.value}
-            {item.unit ? <small className="metric-strip-unit">{item.unit}</small> : null}
-          </strong>
-          {item.detail !== undefined && item.detail !== null ? <small>{item.detail}</small> : null}
-        </div>
+        <KeyFigure key={`${item.label}-${index}`} label={item.label} value={item.value} unit={item.unit} detail={item.detail} />
       ))}
       {(showsAsOf || showsTimeBasis) && (
         <footer className="metric-strip-disclosures">

@@ -48,7 +48,8 @@ const PROVIDED_BY_PRIMITIVE: Readonly<Record<string, Partial<Record<DisclosureKi
   "metric-strip": {
     "as-of": { file: "components/ui/MetricStrip.tsx", marker: 'data-disclosure="as-of"' },
     "time-basis": { file: "components/ui/MetricStrip.tsx", marker: 'data-disclosure="time-basis"' },
-    units: { file: "components/ui/MetricStrip.tsx", marker: "metric-strip-unit" },
+    // Each item is a KeyFigure (UX-02), which owns the unit slot.
+    units: { file: "components/ui/KeyFigure.tsx", marker: "metric-strip-unit" },
   },
   warnings: {
     warning: { file: "components/ui/StatusBadge.tsx", marker: "StatusBadgeVariant" },
@@ -129,11 +130,16 @@ test("the metric strip carries the disclosures its kind owes", () => {
   for (const disclosure of contract.disclosures) {
     const evidence = PROVIDED_BY_PRIMITIVE["metric-strip"]?.[disclosure];
     assert.ok(evidence, disclosure);
-    assert.ok(strip.includes(evidence.marker), `${disclosure}: ${evidence.marker}`);
+    assert.ok(readWebSource(evidence.file).includes(evidence.marker), `${disclosure}: ${evidence.marker}`);
   }
   // An omitted disclosure renders nothing rather than an invented value.
   assert.match(strip, /showsAsOf \? <span data-disclosure="as-of">\{asOf\}<\/span> : null/);
-  assert.match(strip, /\{item\.unit \? <small className="metric-strip-unit">\{item\.unit\}<\/small> : null\}/);
+  // Every item's unit goes through the KeyFigure slot, which renders nothing without one.
+  assert.match(strip, /<KeyFigure [^>]*unit=\{item\.unit\}/);
+  assert.match(
+    readWebSource("components/ui/KeyFigure.tsx"),
+    /\{unit \? <small className="metric-strip-unit key-figure-unit">\{unit\}<\/small> : null\}/,
+  );
 });
 
 test("the agents replay strip discloses when its numbers were taken", () => {

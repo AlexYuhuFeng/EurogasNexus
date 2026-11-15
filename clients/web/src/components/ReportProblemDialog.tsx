@@ -10,6 +10,7 @@ import {
   supportClientContext,
 } from "@/app/model/supportReport";
 import { useApiStore } from "@/stores/api";
+import { IconButton } from "@/components/ui/Button";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -91,9 +92,7 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
 
   return (
     <>
-      <button type="button" className="topbar-help" onClick={() => open()} title={t("support.open")} aria-label={t("support.open")}>
-        ?
-      </button>
+      <IconButton className="topbar-help" variant="secondary" size="md" label={t("support.open")} icon="?" onClick={() => open()} />
       <dialog ref={dialogRef} className="report-dialog" aria-labelledby="report-dialog-title">
         <header className="report-dialog-header">
           <h2 id="report-dialog-title">{t("support.title")}</h2>

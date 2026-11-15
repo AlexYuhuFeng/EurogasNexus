@@ -1,4 +1,4 @@
-import { EmptyState } from "@/components/ui";
+import { EmptyState, StatusBadge } from "@/components/ui";
 import { intlLocaleFor } from "@/i18n/locales";
 import type { StrategyRunDTO, StrategySummaryDTO } from "@/api/client";
 import {
@@ -158,13 +158,13 @@ export function StrategyPriceBasisBoard({
             </div>
             <div className="strategy-data-quality-chip-row">
               {row.simulatedCount > 0 && (
-                <span className="strategy-data-quality-chip simulated">{t("strategy.simulated_data")}</span>
+                <StatusBadge tone="simulated" className="strategy-data-quality-chip simulated">{t("strategy.simulated_data")}</StatusBadge>
               )}
               {row.staleCount > 0 && (
-                <span className="strategy-data-quality-chip stale">{t("strategy.stale_data")}</span>
+                <StatusBadge tone="stale" className="strategy-data-quality-chip stale">{t("strategy.stale_data")}</StatusBadge>
               )}
               {row.observationCount === 0 && (
-                <span className="strategy-data-quality-chip unavailable">{t("data.unavailable")}</span>
+                <StatusBadge tone="neutral" className="strategy-data-quality-chip unavailable">{t("data.unavailable")}</StatusBadge>
               )}
             </div>
           </div>

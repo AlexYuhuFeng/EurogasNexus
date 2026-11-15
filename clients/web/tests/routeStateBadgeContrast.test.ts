@@ -156,5 +156,6 @@ test("the map and legend dot palette is unchanged", () => {
     activeDeclaration(".route-state-item.candidate i", "background"),
     "var(--eg-map-standard)",
   );
-  assert.equal(activeDeclaration(".route-state-item.blocked i", "background"), "var(--warning)");
+  // The watch role (tokens.css), which the legacy --warning now points at.
+  assert.equal(activeDeclaration(".route-state-item.blocked i", "background"), "var(--ds-status-watch)");
 });

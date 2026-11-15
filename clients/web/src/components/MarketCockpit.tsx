@@ -1,7 +1,7 @@
 import { openDeskBrief } from "@/components/DeskBriefDialog";
 import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useState } from "react";
-import { WorkspaceHeader } from "@/components/ui";
+import { Button, EmptyState, KeyFigure, Panel, WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { OutagesPanel } from "@/components/OutagesPanel";
 import { GasForPowerPanel } from "@/components/GasForPowerPanel";
@@ -195,9 +195,9 @@ function MarketOverview({ controller }: MarketOverviewProps) {
       <aside className="market-hub-board" aria-label={t("market.hub_board")}>
         <div className="market-hub-board-head">
           <h2>{t("market.hub_board")}</h2>
-          <button type="button" className="link-button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
+          <Button variant="quiet" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</Button>
           {/* Before noon the desk writes its morning brief; after, its end-of-day report. */}
-          <button type="button" className="link-button" onClick={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}>{t("brief.open")}</button>
+          <Button variant="quiet" onClick={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}>{t("brief.open")}</Button>
         </div>
         {simulatedOnBoard && (
           <div className="market-simulated-banner" role="alert" data-simulated-board="true">
@@ -277,22 +277,27 @@ function MarketOverview({ controller }: MarketOverviewProps) {
       <aside className="market-context-rail" aria-label={t("market.context_rail")}>
         {/* What is happening on the network now, from the same live read as the map, instead
             of counts of loaded rows. */}
-        <section className="workspace-panel">
-          <h2>{t("market.network_today")}</h2>
+        <Panel
+          title={t("market.network_today")}
+          actions={<Button variant="quiet" onClick={() => navigation.openWorkspace("network")}>{t("market.open_map")}</Button>}
+        >
           {networkToday ? (
             <div className="metric-grid two-column compact-metrics">
-              <div className={networkToday.outagesNow ? "is-alert" : undefined}><span>{t("map.situation.outages_now")}</span><strong>{networkToday.outagesNow}</strong></div>
-              <div><span>{t("map.situation.outages_scheduled")}</span><strong>{networkToday.outagesScheduled}</strong></div>
-              <div><span>{t("map.situation.cargoes_at_sea")}</span><strong>{networkToday.cargoesAtSea}</strong></div>
-              <div><span>{t("map.situation.slots")}</span><strong>{networkToday.slots}</strong></div>
-              <div><span>{t("market.flows_measured")}</span><strong>{networkToday.flowGwhD == null ? "–" : `${Math.round(networkToday.flowGwhD).toLocaleString("en-GB")} GWh/d`}</strong></div>
-              <div><span>{t("map.situation.contracts")}</span><strong>{networkToday.contracts}</strong></div>
+              <KeyFigure className={networkToday.outagesNow ? "is-alert" : undefined} label={t("map.situation.outages_now")} value={networkToday.outagesNow} />
+              <KeyFigure label={t("map.situation.outages_scheduled")} value={networkToday.outagesScheduled} />
+              <KeyFigure label={t("map.situation.cargoes_at_sea")} value={networkToday.cargoesAtSea} />
+              <KeyFigure label={t("map.situation.slots")} value={networkToday.slots} />
+              <KeyFigure
+                label={t("market.flows_measured")}
+                value={networkToday.flowGwhD == null ? "–" : Math.round(networkToday.flowGwhD).toLocaleString("en-GB")}
+                unit={networkToday.flowGwhD == null ? undefined : "GWh/d"}
+              />
+              <KeyFigure label={t("map.situation.contracts")} value={networkToday.contracts} />
             </div>
           ) : (
-            <p className="muted">{t("market.network_today_none")}</p>
+            <EmptyState compact reason={t("market.network_today_none")} />
           )}
-          <button type="button" className="link-button" onClick={() => navigation.openWorkspace("network")}>{t("market.open_map")}</button>
-        </section>
+        </Panel>
         {/* The intraday scan earns a panel only when it returned candidates; otherwise one
             line says so, instead of a badge, a heading and an empty-state card. */}
         {api.intradayOpportunities.length > 0 ? (
@@ -307,10 +312,9 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         ) : (
           <p className="muted market-rail-note">{t("market.no_opportunities")}</p>
         )}
-        <section className="workspace-panel">
-          <h2>{t("market.portfolio_relevance")}</h2>
+        <Panel title={t("market.portfolio_relevance")}>
           {relevantResources.length === 0 ? (
-            <p className="muted">{t("market.no_relevant_resources")}</p>
+            <EmptyState compact reason={t("market.no_relevant_resources")} />
           ) : (
             <ul className="market-relevant-resources">
               {relevantResources.slice(0, 4).map((resource) => (
@@ -323,7 +327,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
                     }}
                   >
                     <span>{resource.resource_name}</span>
-                    <strong>{resource.available_quantity_mwh_per_day} MWh/d</strong>
+                    <strong>{Number(resource.available_quantity_mwh_per_day).toLocaleString("en-GB")} MWh/d</strong>
                   </button>
                 </li>
               ))}
@@ -357,7 +361,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
               {t("market.inspect_observation")}
             </button>
           </div>
-        </section>
+        </Panel>
         {(() => {
           // Five disabled buttons said only "not now"; when no action is available the
           // Copilot is one line with the reason the first action gives (#69).

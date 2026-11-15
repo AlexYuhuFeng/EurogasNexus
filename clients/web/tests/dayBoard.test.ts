@@ -715,7 +715,7 @@ test("the strip is unframed, wraps, and keeps a visible focus ring for the summa
     assert.equal(strip.includes(framed), false, `the default strip is unframed: ${framed}`);
   }
   // The summary is keyboard operable, so it has to show focus.
-  assert.match(css, /\.day-board-summary:focus-visible \{\s*outline: 2px solid var\(--eg-link\);/);
+  assert.match(css, /\.day-board-summary:focus-visible \{\s*outline: 2px solid var\(--ds-accent\);/);
   // The states and their values wrap rather than overflow a narrow viewport.
   assert.match(css, /\.day-board-states \{[\s\S]*?flex-wrap: wrap;/);
   assert.match(css, /\.day-board-state strong \{[\s\S]*?overflow-wrap: anywhere;/);

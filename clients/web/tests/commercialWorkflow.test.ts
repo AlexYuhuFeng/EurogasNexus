@@ -49,7 +49,8 @@ test("commercial workspaces use shared panel hierarchy and canonical tokens", ()
   ]) {
     assert.equal(css.includes(legacy), false, `legacy token: ${legacy}`);
   }
-  for (const canonical of ["--eg-hairline", "--eg-muted", "--eg-ink", "--eg-link", "--space-2"]) {
+  // The design-token roles (tokens.css); the --eg-* family they replaced is legacy now.
+  for (const canonical of ["--ds-border", "--ds-text-3", "--ds-text-1", "--ds-accent", "--ds-space-2"]) {
     assert.ok(css.includes(canonical), `missing canonical token: ${canonical}`);
   }
 });

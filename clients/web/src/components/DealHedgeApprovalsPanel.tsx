@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
 
 import { api, type HedgeApprovalRowDTO } from "@/api/client";
 import { formatQuantity } from "@/app/model/riskLimitsModel";
@@ -108,9 +109,9 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
       )}
       <div className="limit-actions">
         {canMaintainRisk && (
-          <button type="button" className="secondary-button" onClick={() => { setDraft(EMPTY); setEditing(!editing); }}>
+          <Button variant="secondary" onClick={() => { setDraft(EMPTY); setEditing(!editing); }}>
             {t("hedgeapproval.add")}
-          </button>
+          </Button>
         )}
         <small className="muted">{t("hedgeapproval.who")}</small>
       </div>

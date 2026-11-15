@@ -19,6 +19,7 @@ import {
   type NetworkGeometryState,
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
+import { Button } from "@/components/ui/Button";
 import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
 import { topologyIssues } from "@/app/mapSelection";
 import { MAP_SITUATION_REFRESH_MS, useMapSituation } from "@/app/hooks/useMapSituation";
@@ -301,9 +302,9 @@ export function NetworkWorkspace({
           </div>
           <p className="panel-copy">{t("home.optimization_scope")}</p>
           <div className="action-row">
-            <button type="button" className="secondary-button" disabled={!hasPortfolioResources} onClick={onOpenScenario}>
+            <Button variant="secondary" disabled={!hasPortfolioResources} onClick={onOpenScenario}>
               {t("network.open_in_scenario")}
-            </button>
+            </Button>
           </div>
           {/* One `compute` consequence, one control: the pool optimiser runs from the Decision
               workspace's primary action, so this panel hands the user over instead of running a

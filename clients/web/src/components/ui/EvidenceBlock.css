@@ -12,7 +12,7 @@
   gap: 2px;
   margin: 0;
   padding: 5px 0;
-  border-bottom: 1px dotted var(--eg-hairline, var(--border));
+  border-bottom: 1px dotted var(--ds-border);
 }
 
 .evidence-block-item.wide {
@@ -20,7 +20,7 @@
 }
 
 .evidence-block-item dt {
-  color: var(--eg-muted, var(--muted));
+  color: var(--ds-text-3);
   font-size: var(--ds-text-xs);
   line-height: 15px;
 }
@@ -39,13 +39,13 @@
 }
 
 .evidence-block-item strong {
-  color: var(--eg-ink, var(--text));
+  color: var(--ds-text-1);
   font-size: var(--ds-text-xs);
   line-height: 17px;
 }
 
 .evidence-block-item small {
-  color: var(--eg-muted, var(--muted));
+  color: var(--ds-text-3);
   font-size: var(--ds-text-xs);
   line-height: 15px;
 }

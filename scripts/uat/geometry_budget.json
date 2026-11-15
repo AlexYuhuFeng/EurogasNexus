@@ -1,0 +1,74 @@
+{
+  "_comment": "UX-10 geometry budgets: distinct values the key screens render at each width (scripts/uat/geometry_audit.mjs). Set 2026-11-15 at the values measured on the demo desk after the token conversion (UX-01); before it the same screens rendered 10 font sizes, 5 weights, 10 control heights and 7 radii at 1440 px. Lower a budget when a change earns it; never raise one.",
+  "viewports": [
+    1440,
+    1366
+  ],
+  "settleMs": 2500,
+  "screens": [
+    [
+      "today",
+      "?workspace=market&task=overview"
+    ],
+    [
+      "prices",
+      "?workspace=market&task=curves"
+    ],
+    [
+      "network",
+      "?workspace=market&task=network"
+    ],
+    [
+      "position",
+      "?workspace=contracts&task=overview"
+    ],
+    [
+      "limits",
+      "?workspace=contracts&task=exposure"
+    ],
+    [
+      "sources",
+      "?workspace=sources"
+    ]
+  ],
+  "scale": {
+    "fontSizes": [
+      "11px",
+      "12px",
+      "13px",
+      "15px",
+      "18px",
+      "20px"
+    ],
+    "fontWeights": [
+      "400",
+      "500",
+      "600"
+    ],
+    "controlHeights": [
+      "28",
+      "32",
+      "44"
+    ],
+    "radii": [
+      "4px",
+      "8px",
+      "999px"
+    ]
+  },
+  "budgets": {
+    "default": {
+      "fontSizes": 5,
+      "fontWeights": 3,
+      "controlHeights": 2,
+      "radii": 3,
+      "shadows": 3,
+      "controlsUnder24": 0,
+      "untabularNumericCells": 0,
+      "offScale.fontSizes": 0,
+      "offScale.fontWeights": 0,
+      "offScale.controlHeights": 0,
+      "offScale.radii": 0
+    }
+  }
+}

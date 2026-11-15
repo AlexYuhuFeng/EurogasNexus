@@ -6,19 +6,19 @@
 .trader-desk-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-2);
+  gap: var(--ds-space-2);
 }
 
 .trader-desk-block {
   min-width: 0;
-  border: 1px solid var(--eg-hairline);
-  background: var(--eg-canvas);
-  padding: var(--space-2);
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  padding: var(--ds-space-2);
 }
 
 .trader-desk-block h3 {
-  margin: 0 0 var(--space-1);
-  font-size: var(--text-body);
+  margin: 0 0 var(--ds-space-1);
+  font-size: var(--ds-text-base);
 }
 
 .trader-desk-table {
@@ -28,8 +28,8 @@
 
 .trader-desk-table th,
 .trader-desk-table td {
-  padding: 2px var(--space-1);
-  border-bottom: 1px solid var(--eg-hairline);
+  padding: 2px var(--ds-space-1);
+  border-bottom: 1px solid var(--ds-border);
   text-align: left;
   white-space: nowrap;
 }
@@ -40,19 +40,19 @@
 
 .trader-desk-table .muted,
 .trader-desk-note {
-  color: var(--eg-muted);
+  color: var(--ds-text-3);
 }
 
 .trader-desk-note {
-  margin: var(--space-1) 0 0;
-  font-size: 0.85em;
+  margin: var(--ds-space-1) 0 0;
+  font-size: var(--ds-text-xs);
 }
 
 .trader-desk-inputs {
   display: flex;
-  gap: var(--space-1);
+  gap: var(--ds-space-1);
   align-items: center;
-  margin-bottom: var(--space-1);
+  margin-bottom: var(--ds-space-1);
 }
 
 .trader-desk-inputs input {
@@ -62,13 +62,13 @@
 .trader-desk-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-1);
+  gap: var(--ds-space-1);
   margin: 0;
 }
 
 .trader-desk-metrics dt {
-  color: var(--eg-muted);
-  font-size: 0.85em;
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
 }
 
 .trader-desk-metrics dd {
@@ -77,37 +77,37 @@
 }
 
 .trader-desk-status {
-  padding: 0 var(--space-1);
-  border: 1px solid var(--eg-hairline);
+  padding: 0 var(--ds-space-1);
+  border: 1px solid var(--ds-border);
   font-weight: 600;
 }
 
 .trader-desk-status.status-behind,
 .trader-desk-status.status-unreachable {
-  color: var(--eg-negative);
+  color: var(--ds-negative);
 }
 
 .trader-desk-status.status-on_track,
 .trader-desk-status.status-target_met {
-  color: var(--eg-positive);
+  color: var(--ds-positive);
 }
 
 .trader-desk-table,
 .trader-desk-inputs input,
 .trader-desk-inputs select {
-  font-size: var(--text-body);
+  font-size: var(--ds-text-base);
 }
 
 .trader-desk-table th {
-  color: var(--eg-muted);
+  color: var(--ds-text-3);
   font-weight: 600;
 }
 
 .financing-rate-helper {
   display: grid;
-  gap: var(--space-1);
-  border: 1px dashed var(--eg-hairline);
-  padding: var(--space-2);
+  gap: var(--ds-space-1);
+  border: 1px dashed var(--ds-border);
+  padding: var(--ds-space-2);
 }
 
 .financing-rate-inputs,
@@ -115,16 +115,16 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--ds-space-2);
 }
 
 .financing-rate-result small,
 .financing-rate-note {
-  color: var(--eg-muted);
+  color: var(--ds-text-3);
   font-size: var(--ds-text-xs);
 }
 
 .financing-rate-note.issue {
-  color: var(--eg-warning);
+  color: var(--ds-status-watch);
 }
 }

@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-// docs/ux/DESIGN_SYSTEM.md: one token set, one type scale. These counts may only go down.
+// docs/product/DESIGN_TOKENS.md: one token set, one type scale. These counts may only go down.
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src");
 const MAX_LEGACY_COLOUR_LITERALS = 300;
 
@@ -16,7 +16,13 @@ function cssFiles(dir: string): string[] {
   });
 }
 
-const files = cssFiles(SRC).filter((file) => !file.endsWith("design-system.css"));
+// The design system owns the ds-* layers, with the files it imports into them (tokens,
+// primitives); every other stylesheet is legacy.
+const DESIGN_SYSTEM = readFileSync(path.join(SRC, "styles/design-system.css"), "utf8");
+const IMPORTED = [...DESIGN_SYSTEM.matchAll(/@import url\("([^"]+)"\)( layer\(ds-[a-z]+\))?;/g)].map((m) =>
+  path.resolve(SRC, "styles", m[1]),
+);
+const files = cssFiles(SRC).filter((file) => !file.endsWith("design-system.css") && !IMPORTED.includes(file));
 
 test("every legacy stylesheet sits in the legacy cascade layer", () => {
   for (const file of files) {
@@ -44,4 +50,6 @@ test("the design system loads first and declares the layer order", () => {
   const ds = readFileSync(path.join(SRC, "styles/design-system.css"), "utf8");
   assert.match(ds, /@layer ds-base, legacy, ds-theme, ds-components, ds-motion;/);
   assert.match(ds, /prefers-reduced-motion: reduce/);
+  // Tokens are imported into ds-theme, above legacy, so an old copy of a variable cannot win.
+  assert.match(ds, /@import url\("\.\/tokens\.css"\) layer\(ds-theme\);/);
 });

@@ -18,6 +18,7 @@ import type {
   SourceSystemDTO,
 } from "@/api/client";
 import { MarketLadder } from "@/components/MarketLadder";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { sumRecordCounts } from "@/app/workspaceDerivedData";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
@@ -815,9 +816,9 @@ export function MarketTerminal({
               <strong role="rowheader" className="market-source-identity">
                 <span>{row.sourceSystem}</span>
                 {row.simulated && (
-                  <span className="market-source-pill simulated matrix-simulation-marker">
+                  <StatusBadge tone="simulated" className="market-source-pill simulated matrix-simulation-marker">
                     {t("market.simulated_source")}
-                  </span>
+                  </StatusBadge>
                 )}
               </strong>
               <span role="cell">{row.priceTiming}</span>

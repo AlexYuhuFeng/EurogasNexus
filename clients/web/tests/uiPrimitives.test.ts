@@ -119,10 +119,11 @@ test("the scrollable network rail panel keeps its tabpanel contract and a token-
   const css = readFileSync(new URL("../src/styles/app.css", import.meta.url), "utf8");
   const rule = /\.workspace-network \.network-rail-view:focus-visible \{([^}]*)\}/.exec(css);
   assert.ok(rule, "the rail panel declares a :focus-visible rule");
-  assert.match(rule[1], /outline: 2px solid var\(--eg-link\);/);
+  assert.match(rule[1], /outline: 2px solid var\(--ds-accent\);/);
   assert.match(rule[1], /outline-offset: -2px;/);
   // The outline must resolve through a declared palette token, not a literal colour.
-  assert.match(css, /--eg-link:\s*#[0-9a-f]{3,8};/i);
+  const tokens = readFileSync(new URL("../src/styles/tokens.css", import.meta.url), "utf8");
+  assert.match(tokens, /--ds-accent:\s*#[0-9a-f]{3,8};/i);
 });
 
 test("WorkspaceTabs forwards its role prop and defaults to tablist", () => {
