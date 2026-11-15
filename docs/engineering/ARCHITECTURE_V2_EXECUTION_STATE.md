@@ -518,3 +518,18 @@ S1 helper remain under review, uncommitted. Archive conditional index GET return
 HTTP 503 repeatedly at the official historical AWS URL; no successful S1 actual
 capture is claimed. Continue science gate review, bounded archive capture and
 regional history/model business consumption. Full delivery goal remains active.
+
+## 2026-11-15 — AI-04 evaluation set, Today SDK, NBP native display, QA-03 audit
+
+Branch `backend-m2` (worktree, not pushed). AI-04: recorded evaluation set (89 cases,
+four uses) run in CI through the product's checks; the checker gained advice,
+simulated-as-market, per-figure direction and hub, source-name, acronym and Chinese-unit
+checks; answer paths and the alert enrichment are now checked (they were shown
+unchecked); provider payloads minimised to an allowlist (ids and earlier model text no
+longer sent); note budget raised (a 300-token budget made every reasoning-model note
+empty). Live DeepSeek run on demo/public evidence: 90.9 % of outputs pass. Python SDK
+`desk.fetch_desk_today_result`. Today and the brief show NBP in GBp/th through the unit
+authority; storage and every book figure unchanged; readers convert p/th rows instead of
+dropping them. Capacity: legacy ENTSOG volume-only rows stay withheld, now with a warning
+in native mode and without hiding native rows. National Gas demand readers are under the
+identity withholding rule. QA-03 report in `docs/api/API_CONSISTENCY_AUDIT.md`.

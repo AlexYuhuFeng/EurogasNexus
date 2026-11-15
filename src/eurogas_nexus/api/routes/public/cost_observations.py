@@ -41,7 +41,7 @@ def list_values(
                 scope_id=scope_id,
             )
             values = [_row_dict(row, as_of) for row in rows]
-        return _envelope(values, request, source="runtime-postgresql")
+        return _envelope(values, request, source="runtime-postgresql", warnings=[])
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
 

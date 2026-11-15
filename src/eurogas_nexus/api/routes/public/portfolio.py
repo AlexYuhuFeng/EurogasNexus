@@ -241,7 +241,12 @@ def get_position_ladder(
         key = (row["hub"], row["month"])
         row["mark"] = round(marks[key], 4) if key in marks else None
         row["mark_method"] = mark_method.get(key)
-    payload["curve"] = curve.as_dict()["points"]
+        # QA-03: a price carries its unit (marks are the hub's currency per MWh).
+        row["mark_unit"] = f"{quote_currency(row['hub'])}/MWh"
+    payload["curve"] = [
+        {**point, "unit": f"{quote_currency(point['hub'])}/MWh"}
+        for point in curve.as_dict()["points"]
+    ]
     payload["horizon"] = {"start": horizon_start.isoformat(), "end": horizon_end.isoformat()}
     payload["methods"] = _ladder_methods(payload, closes, today)
     payload["legs"] = {
