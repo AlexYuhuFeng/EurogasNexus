@@ -36,7 +36,11 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
-from eurogas_nexus.db.models.research import ForecastObservationRecord
+from eurogas_nexus.db.models.research import (
+    CanonicalEntityRecord,
+    ForecastObservationRecord,
+    SourceEntityMappingRecord,
+)
 from eurogas_nexus.domain.research.weather_demand import (
     DemandTargetLabelBasis,
     ValidationBasis,
@@ -121,6 +125,9 @@ def _owned_schema() -> Iterator[tuple[Engine, str]]:
         bound = engine.execution_options(schema_translate_map={None: schema})
         with bound.begin() as connection:
             NationalGasActualDemandRecord.__table__.create(bind=connection)
+            # A real store has the identifier mappings the withholding rule reads.
+            CanonicalEntityRecord.__table__.create(bind=connection)
+            SourceEntityMappingRecord.__table__.create(bind=connection)
             ForecastObservationRecord.__table__.create(bind=connection)
         yield bound, schema
     finally:

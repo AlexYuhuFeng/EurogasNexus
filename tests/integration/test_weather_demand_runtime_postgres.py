@@ -46,7 +46,11 @@ from eurogas_nexus.application.research.weather_demand_runtime import (
     run_weather_demand_runtime,
 )
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
-from eurogas_nexus.db.models.research import ForecastObservationRecord
+from eurogas_nexus.db.models.research import (
+    CanonicalEntityRecord,
+    ForecastObservationRecord,
+    SourceEntityMappingRecord,
+)
 from eurogas_nexus.db.repositories.demand import DemandTargetReadOverflow
 from eurogas_nexus.domain.market.gas_day import (
     DEFAULT_GAS_DAY_CALENDAR,
@@ -426,6 +430,9 @@ def _session():
             schema_created = True
             connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
             NationalGasActualDemandRecord.__table__.create(bind=connection)
+            # A real store has the identifier mappings the withholding rule reads.
+            CanonicalEntityRecord.__table__.create(bind=connection)
+            SourceEntityMappingRecord.__table__.create(bind=connection)
             ForecastObservationRecord.__table__.create(bind=connection)
             with Session(bind=connection) as session:
                 yield session

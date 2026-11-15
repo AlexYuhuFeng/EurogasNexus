@@ -143,6 +143,10 @@
 
   .projection-context-asof {
     color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .projection-context-basis {

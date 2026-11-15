@@ -36,7 +36,11 @@ from eurogas_nexus.application.research.weather_demand_runtime import (
     run_weather_demand_runtime,
 )
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
-from eurogas_nexus.db.models.research import ForecastObservationRecord
+from eurogas_nexus.db.models.research import (
+    CanonicalEntityRecord,
+    ForecastObservationRecord,
+    SourceEntityMappingRecord,
+)
 from eurogas_nexus.domain.research.weather_demand import (
     ModelKind,
     ModelUseStatus,
@@ -101,6 +105,9 @@ def _owned_session():
             schema_created = True
             connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
             NationalGasActualDemandRecord.__table__.create(bind=connection)
+            # A real store has the identifier mappings the withholding rule reads.
+            CanonicalEntityRecord.__table__.create(bind=connection)
+            SourceEntityMappingRecord.__table__.create(bind=connection)
             ForecastObservationRecord.__table__.create(bind=connection)
         connection.execute(text(f'SET search_path TO "{schema}"'))
         connection.commit()

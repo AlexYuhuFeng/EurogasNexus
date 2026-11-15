@@ -86,6 +86,13 @@ export function ProjectionContextStrip({
       {controls}
       <div className="projection-context-status">
         {freshness}
+        {/* The as-of instant stays on the line itself: a trader reads how old the page is without
+            opening anything, and the browser sweep holds this text to the read it belongs to. */}
+        <span className="projection-context-asof">
+          {asOf
+            ? t(key("as_of"), { value: formatUtcTimestamp(asOf, asOf) })
+            : t(key("as_of_unknown"))}
+        </span>
         <Popover
           label={t(key("title"))}
           id="feed-status"
@@ -104,11 +111,6 @@ export function ProjectionContextStrip({
             </button>
           )}
         >
-          <p className="ds-popover-meta projection-context-asof">
-            {asOf
-              ? t(key("as_of"), { value: formatUtcTimestamp(asOf, asOf) })
-              : t(key("as_of_unknown"))}
-          </p>
           <p className="ds-popover-meta projection-context-basis">
             {t(key("time_basis"))}: {basisKey ? t(basisKey) : t(key("not_reported"))}
             {gasDay ? ` · ${gasDay}` : ""}
