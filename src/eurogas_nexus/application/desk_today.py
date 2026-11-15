@@ -224,7 +224,7 @@ def _prices(caller: Caller, now: datetime, book: _Book, read: _Read) -> dict[str
     """
 
     from eurogas_nexus.application.freshness_contract import close_state
-    from eurogas_nexus.application.projections.daily_closes import daily_rows
+    from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
     from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS
 
     series: dict[tuple[str, str, str], dict[date, dict]] = {}
@@ -247,18 +247,21 @@ def _prices(caller: Caller, now: datetime, book: _Book, read: _Read) -> dict[str
             product = f"{start:%b-%y}" if start else "MA"
         else:
             product = "DA"
+        # The desk's own quotation: NBP in p/th, through the unit authority (rule 17).
+        shown, unit = in_native_unit(hub, last["price"], last["unit"])
         change = None
         change_basis = None
         if len(days) > 1 and (days[-1] - days[-2]).days <= MAX_VAR_GAP_DAYS:
-            change = round(last["price"] - closes[days[-2]]["price"], 4)
+            previous, _ = in_native_unit(hub, closes[days[-2]]["price"], last["unit"])
+            change = round(shown - previous, 4)
             change_basis = days[-2].isoformat()
         state = close_state(days[-1], now.date())
         out[hub] = read.add(
             figure(
                 f"price.{hub}",
                 f"{hub} {product}",
-                round(last["price"], 4),
-                last["unit"],
+                round(shown, 4),
+                unit,
                 _iso(last.get("observed_at_utc")) or days[-1].isoformat(),
                 state,
                 simulated=bool(last["simulated"]),
@@ -588,6 +591,18 @@ def _outages(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
 # ---------------------------------------------------------------- row 3: book v market
 
 
+def _same_price(price: dict, mark_mwh: float, mark_unit: str) -> bool:
+    """Whether the shown price (native unit, e.g. p/th) is the mark (per MWh)."""
+
+    from eurogas_nexus.domain.market.units import UnitConversionError, convert_price
+
+    try:
+        native = convert_price(mark_mwh, mark_unit, price["unit"])
+    except UnitConversionError:
+        return False
+    return abs(round(native, 4) - price["value"]) < 1e-9
+
+
 def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, Any]:
     from eurogas_nexus.application.freshness_contract import close_state
     from eurogas_nexus.domain.ontology.markets import quote_currency
@@ -631,7 +646,7 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
             same = (
                 price is not None
                 and price["close_day"] == days[-1].isoformat()
-                and abs(price["value"] - closes[days[-1]]) < 1e-9
+                and _same_price(price, closes[days[-1]], f"{currency}/MWh")
             )
             mark = read.add(
                 figure(

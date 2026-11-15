@@ -159,7 +159,7 @@ def _gas_closes(request: Request, hub: str, first: date, last: date) -> dict[dat
         if row["simulated"] or row["hub"] != hub:
             continue
         if row["tenor"] == "day-ahead" or row["day"] not in closes:
-            closes[row["day"]] = row["price"]
+            closes[row["day"]] = row["price_mwh"]  # per MWh through the unit authority
     return closes
 
 

@@ -36,3 +36,21 @@ The point is an explicit example, not a coverage or source-activation default.
 `fetch_native_capacity_result` accepts the same window; data-only variants omit
 response metadata. Limit overflow refuses rather than truncating. Missing values
 are not zero, and a flow/capacity ratio does not establish booked rights.
+
+## The Today read
+
+`desk.fetch_desk_today_result` reads `GET /api/desk/today`: the four rows of the Today
+screen (`key_figures`, `changes`, `book`, `fundamentals`), computed once on the server
+for the calling principal. Figures keep the server's units; every figure carries
+`unit`, `as_of`, `state` and `simulated`, and `stale_figures` names the late and stale
+ones. A server without a runtime database returns an empty read, which the SDK
+reports as a validation error rather than a Today with invented defaults.
+
+```python
+from eurogas_nexus_sdk.desk import fetch_desk_today_result
+
+today = fetch_desk_today_result("http://127.0.0.1:8000").data
+book = today.row("book")
+if today.simulated:
+    print(today.simulated_notice)
+```

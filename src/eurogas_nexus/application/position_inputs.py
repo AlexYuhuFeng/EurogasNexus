@@ -27,15 +27,18 @@ CURVE_QUOTE_LOOKBACK_DAYS = 10
 def curve_quotes(who: Any, date_from, date_to) -> list:
     """Latest entitled, non-simulated quote per hub and delivery window, for the curve.
 
-    Only quotes in the hub's own currency are used (NBP in GBP, continental hubs in EUR).
+    Only quotes in the hub's own currency are used (NBP in GBP, continental hubs in EUR),
+    in that currency per MWh: a quote stored in pence per therm is converted through the
+    unit authority (``domain.market.units``), never assumed.
     A window that starts on the 1st and lasts 28 to 31 days is read as that whole month,
     so a month-ahead quote with a gas-day-aligned end prices its month.
     """
 
     from datetime import UTC, datetime, time, timedelta
 
-    from sqlalchemy import func
+    from sqlalchemy import func, or_
 
+    from eurogas_nexus.application.projections.daily_closes import _price_unit, per_mwh
     from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
     from eurogas_nexus.db.models import MarketObservationRecord
     from eurogas_nexus.db.session import get_session_factory
@@ -52,6 +55,7 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
             session.query(
                 MarketObservationRecord.product,
                 MarketObservationRecord.price,
+                MarketObservationRecord.unit,
                 MarketObservationRecord.currency,
                 MarketObservationRecord.period_start_utc,
                 MarketObservationRecord.period_end_utc,
@@ -59,7 +63,13 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
                 MarketObservationRecord.source_system,
                 MarketObservationRecord.metadata_json,
             )
-            .filter(func.upper(MarketObservationRecord.unit).like("%MWH%"))
+            .filter(
+                or_(
+                    func.upper(MarketObservationRecord.unit).like("%MWH%"),
+                    func.upper(MarketObservationRecord.unit).like("%/TH"),
+                    func.upper(MarketObservationRecord.unit).like("%THERM%"),
+                )
+            )
             .filter(MarketObservationRecord.observed_at_utc >= bound(date_from))
             .filter(MarketObservationRecord.observed_at_utc < bound(date_to + timedelta(days=1)))
             .order_by(MarketObservationRecord.observed_at_utc)
@@ -77,13 +87,17 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
         hub = resolve_hub(metadata.get("hub") or record.product).hub
         if hub is None or (record.currency or "").upper() != HUB_CURRENCY.get(hub, "EUR"):
             continue
+        # The curve is money per MWh: a quote in p/th is converted by the unit authority.
+        converted = per_mwh(float(record.price), _price_unit(record.currency, record.unit))
+        if converted is None or converted[1].split("/")[0].upper() != HUB_CURRENCY.get(hub):
+            continue
         rows.append(
             {
                 "hub": hub,
                 "label": str(metadata.get("tenor") or record.product),
                 "first": record.period_start_utc.date(),
                 "end": record.period_end_utc.date(),
-                "price": float(record.price),
+                "price": converted[0],
                 "source_system": record.source_system,
             }
         )
@@ -427,7 +441,8 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
         # Prefer month-ahead closes; day-ahead fills hubs without a month-ahead series.
         series = closes.setdefault(row["hub"], {})
         if tenor == "month-ahead" or row["day"] not in series:
-            series[row["day"]] = row["price"]
+            # Marks are money per MWh (positions are MWh): NBP's p/th through the authority.
+            series[row["day"]] = row["price_mwh"]
     curve = build_forward_curve(
         curve_quotes(caller, today - timedelta(days=CURVE_QUOTE_LOOKBACK_DAYS), today),
         first_month=horizon_start,

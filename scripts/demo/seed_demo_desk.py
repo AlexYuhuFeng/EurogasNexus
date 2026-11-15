@@ -217,6 +217,28 @@ def _clear(session) -> None:
         )
 
 
+
+def _native(hub: str, price_per_mwh: float) -> dict:
+    """The quote as the desk reads it, kept beside the stored per-MWh price.
+
+    A real NBP feed quotes pence per therm, and the imports store it per MWh in GBP with the
+    native value in the metadata (``ingestion/commodity_settlements.py``); the demo does the
+    same, through the unit authority, so a demo row is shaped like a settlement row.
+    """
+
+    from eurogas_nexus.domain.market.units import (
+        HUB_NATIVE_PRICE_UNIT,
+        PRICE_UNITS,
+        convert_price,
+    )
+
+    native = HUB_NATIVE_PRICE_UNIT.get(hub)
+    if not native or native.endswith("/MWh"):
+        return {}
+    major = PRICE_UNITS[native][0]
+    return {"native": {"price": round(convert_price(price_per_mwh, f"{major}/MWh", native), 4),
+                       "unit": native}}
+
 def seed(session, now: datetime) -> dict[str, dict]:
     """Write the demo desk and return each credit line's sizing, for the caller to print."""
 
@@ -267,7 +289,8 @@ def seed(session, now: datetime) -> dict[str, dict]:
                     freshness="end_of_day",
                     quality_score=0.0,
                     research_only=True,
-                    metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True},
+                    metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True,
+                                   **_native(hub, price)},
                 )
             )
         # A random walk around the seasonal curve; each day's month-ahead is the month after it.
@@ -294,7 +317,8 @@ def seed(session, now: datetime) -> dict[str, dict]:
                     freshness="end_of_day",
                     quality_score=0.0,
                     research_only=True,
-                    metadata_json={"hub": hub, "tenor": "month-ahead", "simulated": True},
+                    metadata_json={"hub": hub, "tenor": "month-ahead", "simulated": True,
+                                   **_native(hub, price)},
                 )
             )
 

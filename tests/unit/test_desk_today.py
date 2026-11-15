@@ -17,6 +17,7 @@ from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.desk_today import build_today, net_positions
 from eurogas_nexus.application.monitoring_service import scan_monitoring_conditions
 from eurogas_nexus.db.base import Base
+from eurogas_nexus.domain.market.units import convert_price
 from eurogas_nexus.domain.portfolio.position_ladder import PositionLeg
 from eurogas_nexus.security import portfolio_scope
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
@@ -118,7 +119,9 @@ def test_the_day_pnl_change_is_the_open_position_times_the_close_change(desk):
     prices = {item["hub"]: item for item in data["rows"][0]["prices"]}
     for hub in data["rows"][2]["hubs"]:
         price = prices[hub["hub"]]
-        expected = hub["net_open_mwh"] * price["day_change"]
+        # The price is shown in the desk's quotation (NBP p/th); the P&L is per MWh.
+        per_mwh = convert_price(price["day_change"], price["unit"], hub["mark"]["unit"])
+        expected = hub["net_open_mwh"] * per_mwh
         assert hub["day_pnl_change"]["value"] == pytest.approx(expected, rel=1e-3)
         assert hub["mark"]["same_as"] == f"price.{hub['hub']}"  # one number, one place
 
@@ -204,3 +207,16 @@ def test_the_front_month_is_the_months_average():
     net = net_positions(legs, today)
     assert net["TTF"]["today"] == pytest.approx(100.0)
     assert net["TTF"]["front_month"] == pytest.approx(100.0 - 16.0)
+
+
+def test_nbp_is_shown_in_pence_per_therm_and_the_book_stays_per_mwh(desk):
+    data = _today(desk, _principal("DEMO", "BOOKS:*"))
+    prices = {item["hub"]: item for item in data["rows"][0]["prices"]}
+    book = {hub["hub"]: hub for hub in data["rows"][2]["hubs"]}
+    assert prices["NBP"]["unit"] == "GBp/th" and prices["TTF"]["unit"] == "EUR/MWh"
+    # The mark values the book per MWh in GBP and is the same close as the shown price.
+    mark = book["NBP"]["mark"]
+    assert mark["unit"] == "GBP/MWh" and mark["same_as"] == "price.NBP"
+    assert convert_price(mark["value"], "GBP/MWh", "GBp/th") == pytest.approx(
+        prices["NBP"]["value"], abs=1e-3
+    )
