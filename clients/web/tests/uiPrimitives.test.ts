@@ -91,7 +91,8 @@ test("Capacity, Network rail, and Strategy shadow delegate tab semantics to Work
 test("narrow scroll regions are explicitly keyboard focusable", () => {
   const cases = [
     ["components/CapacityWorkspace.tsx", /className="capacity-operating-table"[\s\S]*?tabIndex=\{0\}/],
-    ["components/MarketTerminal.tsx", /className="market-hub-board-table"[\s\S]*?tabIndex=\{0\}/],
+    // The hub board is an interactive DataGrid: its rows are the Tab stop (one at a time).
+    ["components/ui/DataGrid.tsx", /tabIndex=\{interactive \|\| anySortable \? undefined : 0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-command-actions" tabIndex=\{0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-clause-nav"[\s\S]*?tabIndex=\{0\}/],
     ["components/ReviewWorkspace.tsx", /className="data-table" tabIndex=\{0\}/],
@@ -126,15 +127,17 @@ test("the scrollable network rail panel keeps its tabpanel contract and a token-
   assert.match(tokens, /--ds-accent:\s*#[0-9a-f]{3,8};/i);
 });
 
-test("WorkspaceTabs forwards its role prop and defaults to tablist", () => {
+test("WorkspaceTabs is the Tabs primitive as a nav landmark holding the tablist", () => {
   const component = readWebSource("components/ui/WorkspaceTabs.tsx");
+  const tabs = readWebSource("components/ui/Tabs.tsx");
   assert.match(component, /role\?: "tablist"/);
-  assert.match(component, /role = "tablist"/);
-  // The nav keeps the same role/aria contract; the optional Architecture V2
-  // shell-region marker only adds a data attribute when a caller passes one.
-  assert.match(
-    component,
-    /<nav className=\{className} role=\{role\} aria-label=\{label\} data-shell-region=\{shellRegion\}>/,
-  );
+  assert.match(component, /<Tabs\s+landmark/);
+  // The optional Architecture V2 shell-region marker only adds a data attribute.
+  assert.match(component, /dataAttributes=\{\{ "data-shell-region": shellRegion \}\}/);
   assert.match(component, /shellRegion\?: ShellRegionMarker;/);
+  // Tabs owns the semantics: one tablist, roving tabindex, the selected tab marked.
+  assert.match(tabs, /role="tablist"/);
+  assert.match(tabs, /role="tab"/);
+  assert.match(tabs, /aria-selected=\{selected\}/);
+  assert.match(tabs, /tabIndex=\{selected \? 0 : -1\}/);
 });

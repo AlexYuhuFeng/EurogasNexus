@@ -21,7 +21,16 @@ export interface TickerItem {
   text: string;
   at: string; // ISO time the item became true, newest first within a severity
   kind: "alert" | "outage";
+  /**
+   * News, not a standing state (review E6): an unplanned outage taking most of an asset out, or
+   * a critical alert raised in the last few hours. A credit breach that has stood for days is
+   * critical but not breaking; it keeps its red dot without putting the bar in alarm.
+   */
+  breaking?: boolean;
 }
+
+/** How long a new critical alert counts as breaking news. */
+export const BREAKING_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 const RANK = { critical: 0, warning: 1, info: 2 } as const;
 
@@ -41,6 +50,7 @@ export function buildTickerItems(
   outages: readonly TickerOutage[],
   language: string,
   t: (key: string, options?: Record<string, unknown>) => string,
+  nowMs: number = Date.now(),
 ): TickerItem[] {
   const chinese = language.toLowerCase().startsWith("zh");
   const items: TickerItem[] = [];
@@ -52,6 +62,9 @@ export function buildTickerItems(
       text: (chinese ? alert.title_zh_cn : alert.title_en) || alert.title_en,
       at: alert.updated_at_utc || alert.detected_at_utc,
       kind: "alert",
+      breaking:
+        alert.severity === "critical" &&
+        nowMs - Date.parse(alert.detected_at_utc || alert.updated_at_utc) <= BREAKING_WINDOW_MS,
     });
   }
   for (const outage of outages) {
@@ -72,6 +85,7 @@ export function buildTickerItems(
       }).replace(/\s+·\s+$/, ""),
       at: outage.start_utc,
       kind: "outage",
+      breaking: share >= 0.5 && /unplanned/i.test(outage.event_type),
     });
   }
   return items.sort(

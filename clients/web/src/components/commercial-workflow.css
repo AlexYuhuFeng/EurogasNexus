@@ -523,16 +523,10 @@
 /* Position ladder: months down, hubs within, a diverging bar for net long/short. */
 .position-ladder-panel .panel-title-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-}
-
-.position-horizon {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  font-size: var(--ds-text-sm);
+  gap: var(--ds-space-3);
 }
 
 .position-summary {
@@ -581,37 +575,6 @@
 
 .position-ladder td.short {
   color: var(--ds-negative);
-}
-
-.position-bar-cell {
-  position: relative;
-  min-width: 140px;
-}
-
-.position-bar-cell::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 3px;
-  bottom: 3px;
-  border-left: 1px solid var(--ds-border-strong);
-}
-
-.position-bar {
-  position: absolute;
-  top: 6px;
-  height: 10px;
-  border-radius: 0;
-}
-
-.position-bar.long {
-  left: 50%;
-  background: var(--ds-positive);
-}
-
-.position-bar.short {
-  right: 50%;
-  background: var(--ds-negative);
 }
 
 .position-notes {

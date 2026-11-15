@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api, type SupportReportDTO } from "@/api/client";
 import { resolveHostKind } from "@/app/host/hostCapabilities";
@@ -11,6 +11,7 @@ import {
 } from "@/app/model/supportReport";
 import { useApiStore } from "@/stores/api";
 import { IconButton } from "@/components/ui/Button";
+import { Button, Dialog, Field, Select, StatusBadge, Tabs } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -26,7 +27,7 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
   const runtimeRelease = useApiStore((state) => state.runtimeRelease);
   const dataStatus = useApiStore((state) => state.dataStatus);
   const endpointErrorCodes = useApiStore((state) => state.endpointErrorCodes);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [tab, setTab] = useState<"new" | "mine">("new");
   const [severity, setSeverity] = useState<string>("P3");
   const [category, setCategory] = useState<string>("data");
@@ -44,7 +45,7 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
     if (prefill.summary) setSummary(prefill.summary);
     if (prefill.category) setCategory(prefill.category);
     if (prefill.severity) setSeverity(prefill.severity);
-    dialogRef.current?.showModal();
+    setIsOpen(true);
   };
 
   useEffect(() => {
@@ -93,43 +94,47 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
   return (
     <>
       <IconButton className="topbar-help" variant="secondary" size="md" label={t("support.open")} icon="?" onClick={() => open()} />
-      <dialog ref={dialogRef} className="report-dialog" aria-labelledby="report-dialog-title">
-        <header className="report-dialog-header">
-          <h2 id="report-dialog-title">{t("support.title")}</h2>
-          <button type="button" className="link-button" onClick={() => dialogRef.current?.close()}>{t("support.close")}</button>
-        </header>
-        <nav className="contract-task-tabs" aria-label={t("support.title")}>
-          <button type="button" className={tab === "new" ? "active" : ""} onClick={() => setTab("new")}>{t("support.tab_new")}</button>
-          <button type="button" className={tab === "mine" ? "active" : ""} onClick={() => setTab("mine")}>{t("support.tab_mine")}</button>
-        </nav>
+      <Dialog
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        title={t("support.title")}
+        closeLabel={t("support.close")}
+        size="md"
+        className="report-dialog"
+        id="report-problem"
+      >
+        <Tabs
+          idPrefix="report-tab"
+          label={t("support.title")}
+          tabs={[
+            { id: "new", label: t("support.tab_new") },
+            { id: "mine", label: t("support.tab_mine") },
+          ]}
+          activeId={tab}
+          panelId="report-tab-panel"
+          onChange={setTab}
+          className="report-tabs"
+        />
+        <div id="report-tab-panel" role="tabpanel" aria-labelledby={`report-tab-${tab}`} className="report-tab-panel">
         {tab === "new" && !sent && (
           <form className="report-form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-            <label>
-              <span>{t("support.summary")}</span>
+            <Field label={t("support.summary")}>
               <input value={summary} maxLength={200} onChange={(event) => setSummary(event.target.value)} placeholder={t("support.summary_hint")} required minLength={5} />
-            </label>
+            </Field>
             <div className="report-form-row">
-              <label>
-                <span>{t("support.category")}</span>
-                <select value={category} onChange={(event) => setCategory(event.target.value)}>
-                  {CATEGORIES.map((value) => <option key={value} value={value}>{t(`support.category_${value}`)}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>{t("support.severity")}</span>
-                <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
-                  {SEVERITIES.map((value) => <option key={value} value={value}>{t(`support.severity_${value}`)}</option>)}
-                </select>
-              </label>
+              <Field label={t("support.category")}>
+                <Select size="md" value={category} onChange={setCategory} options={CATEGORIES.map((value) => ({ value, label: t(`support.category_${value}`) }))} />
+              </Field>
+              <Field label={t("support.severity")}>
+                <Select size="md" value={severity} onChange={setSeverity} options={SEVERITIES.map((value) => ({ value, label: t(`support.severity_${value}`) }))} />
+              </Field>
             </div>
-            <label>
-              <span>{t("support.description")}</span>
+            <Field label={t("support.description")} hint={t("support.attached")}>
               <textarea rows={5} value={description} maxLength={8000} onChange={(event) => setDescription(event.target.value)} placeholder={t("support.description_hint")} />
-            </label>
-            <p className="muted"><small>{t("support.attached")}</small></p>
+            </Field>
             {error && <p role="alert" className="limit-breaches">{error}</p>}
             <div className="report-form-actions">
-              <button type="submit" disabled={busy || summary.trim().length < 5}>{t("support.send")}</button>
+              <Button variant="primary" size="md" type="submit" disabled={busy || summary.trim().length < 5} loading={busy}>{t("support.send")}</Button>
             </div>
           </form>
         )}
@@ -137,12 +142,12 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
           <div className="report-sent" role="status">
             <strong>{t("support.sent_title", { id: sent.report_id })}</strong>
             <p>{t("support.sent_body")}</p>
-            <button type="button" className="secondary-button" onClick={() => setTab("mine")}>{t("support.tab_mine")}</button>
+            <Button onClick={() => setTab("mine")}>{t("support.tab_mine")}</Button>
           </div>
         )}
         {tab === "mine" && (
           mine.length === 0 ? <p className="muted">{t("support.none")}</p> : (
-            <table className="position-ladder">
+            <table className="ds-grid">
               <thead>
                 <tr>
                   <th scope="col">{t("support.report")}</th>
@@ -155,14 +160,15 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
                   <tr key={row.report_id}>
                     <td><strong>{row.report_id}</strong> <small>{row.severity}</small></td>
                     <td>{row.summary}{row.resolution && <div className="muted"><small>{row.resolution}</small></div>}</td>
-                    <td><span className="limit-badge" data-status={row.status === "resolved" ? "ok" : row.status === "acknowledged" ? "watch" : "breach"}>{t(`support.status_${row.status}`)}</span></td>
+                    <td><StatusBadge tone={row.status === "resolved" ? "ok" : row.status === "acknowledged" ? "watch" : "breach"}>{t(`support.status_${row.status}`)}</StatusBadge></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )
         )}
-      </dialog>
+        </div>
+      </Dialog>
     </>
   );
 }

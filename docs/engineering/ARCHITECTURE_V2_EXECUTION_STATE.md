@@ -6,6 +6,17 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-15 — UX-02/03/05, FRESH-02 and the page frame (client only, uncommitted)
+
+- Primitives Field, Select, Tabs, Segmented, Toolbar, Popover, Dialog, Sheet and DataGrid
+  (`clients/web/src/components/ui/`); React Aria measured and not added (see
+  `docs/product/DESIGN_TOKENS.md`). Why, desk brief, report-a-problem, shortcuts and the
+  phone inspector moved onto them.
+- DataGrid carries Position, Limits, the hub board, the NW Europe balance and the capacity
+  profile book. Market overview is replaced by Today from `GET /api/desk/today`; late and
+  stale figures are named in a popover, the demo desk says "Demo data" once.
+- One 40 px page header row. Geometry within budget; CSS lint baseline 292 → 290.
+
 ## 2026-11-05 — functional engine improvement branch, F01
 
 - Owner requested isolated functional implementations for later review/merge. Branch

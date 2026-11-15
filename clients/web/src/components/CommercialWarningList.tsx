@@ -41,8 +41,8 @@ export function CommercialWarningList({
               <span className={`commercial-diagnostic-level level-${item.level}`}>
                 {t(`commercial.warning.level.${item.level}`)}
               </span>
-              <strong>{label(item, t)}</strong>
-              {item.code && <code>{item.code}</code>}
+              {/* The code stays for support (tooltip and data attribute), never in the copy. */}
+              <strong title={item.code ?? undefined} data-warning-code={item.code ?? undefined}>{label(item, t)}</strong>
             </div>
             <div className="commercial-diagnostic-evidence">
               <span>

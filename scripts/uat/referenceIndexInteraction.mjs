@@ -507,7 +507,7 @@ export async function inspectReferenceIndexInteraction({
       .filter({ hasText: "TTF" })
       .first();
     await ttfButton.waitFor({ state: "visible", timeout: 10_000 });
-    if ((await ttfButton.getAttribute("aria-pressed")) !== "true") {
+    if ((await ttfButton.getAttribute("data-focused")) !== "true") {
       await ttfButton.click();
     }
     const hubApplied = await page
@@ -515,7 +515,7 @@ export async function inspectReferenceIndexInteraction({
         () => {
           const button = [...document.querySelectorAll(".market-hub-focus-button")]
             .find((element) => element.textContent?.trim() === "TTF");
-          return button?.getAttribute("aria-pressed") === "true";
+          return button?.getAttribute("data-focused") === "true";
         },
         null,
         { timeout: 5_000 },
@@ -907,7 +907,7 @@ export async function inspectReferenceIndexInteraction({
       await actualTtf.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
       const actualTtfCount = await actualTtf.count().catch(() => 0);
       const actualTtfPressed = actualTtfCount === 1
-        ? await actualTtf.getAttribute("aria-pressed").catch(() => null)
+        ? await actualTtf.getAttribute("data-focused").catch(() => null)
         : null;
       if (actualTtfCount === 1 && actualTtfPressed !== "true") {
         await actualTtf.click().catch((error) => {

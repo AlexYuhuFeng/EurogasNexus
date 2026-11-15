@@ -5,7 +5,18 @@ continental hub, hedged on the exchange and bilaterally. Every step below was do
 product as written; the screenshots are what it showed. Your firm's names and figures
 will differ.
 
-Sign in with your company account. You land on Market; your work is mostly under
+Sign in with your company account. You land on Market. Its first task, **Today**, answers
+"what changed, and does it touch us?" in four rows: key figures (front-month prices with
+their day change, your net position today and for the front month, headroom on the
+tightest limit), what changed (open alerts and outages, each with **Why**), your book
+against the market (position, mark and day P&L change by hub), and fundamentals (storage
+fill and the supply call, with the north-west Europe balance below). A figure that is not
+current says so in words beside it ("late 3 h", "stale 2 d"); the link at the right of the
+context line lists every such figure and takes you to it. Simulated figures carry "sim"
+beside the value, and the demo desk says "Demo data" once. Risk figures have a **Method**
+note: what the figure includes and what it leaves out.
+
+Your work is mostly under
 **Portfolio**: Overview, Resources (contracts and daily balance), Routes (capacity, LNG,
 tariffs) and Exposure (positions, limits).
 
@@ -27,7 +38,7 @@ the Validation box on the right says what is missing.
    ![Agreement](img/tr-03-agreement.png)
 
 2. **Delivery**: choose the delivery point, title-transfer point and physical exit point
-   from the list. It holds the hubs first (NBP, TTF, THE, PEG, ZTP, PSV, CEGH, PVB), then
+   from the list. It holds the hubs first (NBP, TTF, THE, PEG, ZTP, PSV, CEGH, PVB, and the Danish ETF and GTF, which are distinct markets), then
    the points of your route network. You cannot type a point that positions and routing
    would not recognise. If a stored contract records a point outside the list, it is
    kept and shown as "as recorded".
@@ -176,7 +187,7 @@ desk when it does.
 
 ## 8. Draft the morning brief or end-of-day report
 
-Market → Overview → **Desk brief**, or Ctrl K and type "brief". The draft has fixed
+Market → Today → **Desk brief**, or Ctrl K and type "brief". The draft has fixed
 sections from the desk's data, each line traceable to its source: alerts, outages in the
 next 36 hours, front-month prices and the day's change, positions today and for the front
 month, credit and mandates near or over their limits, and P&L. Edit it in place, then

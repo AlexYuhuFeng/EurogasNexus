@@ -6,9 +6,9 @@
  * Opened from the search box (Ctrl K: "Draft the morning brief") or the Market overview,
  * through the `egn:open-brief` event so any surface can ask for it without owning it.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type DeskBriefDTO } from "@/api/client";
-import { IconButton } from "@/components/ui/Button";
+import { Button, Dialog, Segmented } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 export type BriefKind = "morning" | "eod";
@@ -26,7 +26,6 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "failed">("idle");
   const [copied, setCopied] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const open = (event: Event) => {
@@ -39,7 +38,6 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
 
   useEffect(() => {
     if (!kind) return undefined;
-    if (!dialog.current?.open) dialog.current?.showModal();
     let live = true;
     setStatus("loading");
     setBrief(null);
@@ -58,10 +56,7 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
     };
   }, [kind, language]);
 
-  const close = () => {
-    dialog.current?.close();
-    setKind(null);
-  };
+  const close = () => setKind(null);
 
   const copy = () => {
     void navigator.clipboard?.writeText(text).then(() => setCopied(true));
@@ -79,23 +74,32 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
   const mail = `mailto:?subject=${encodeURIComponent(brief?.title ?? "")}&body=${encodeURIComponent(text)}`;
 
   return (
-    <dialog ref={dialog} className="desk-brief" aria-labelledby="desk-brief-title" onClose={() => setKind(null)}>
-      <header className="desk-brief-head">
-        <h2 id="desk-brief-title">{t("brief.title")}</h2>
-        <div className="desk-brief-kinds" role="group" aria-label={t("brief.title")}>
-          {(["morning", "eod"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={kind === option}
-              onClick={() => setKind(option)}
-            >
-              {t(`brief.kind_${option}`)}
-            </button>
-          ))}
-        </div>
-        <IconButton className="desk-brief-close" size="md" label={t("brief.close")} icon="×" onClick={close} />
-      </header>
+    <Dialog
+      open={kind !== null}
+      onClose={close}
+      title={t("brief.title")}
+      closeLabel={t("brief.close")}
+      size="lg"
+      className="desk-brief"
+      id="desk-brief"
+      headerActions={
+        <Segmented
+          label={t("brief.kind")}
+          options={(["morning", "eod"] as const).map((option) => ({ value: option, label: t(`brief.kind_${option}`) }))}
+          value={kind}
+          onChange={setKind}
+        />
+      }
+      footer={
+        brief && status === "idle" ? (
+          <>
+            <Button onClick={copy}>{t(copied ? "brief.copied" : "brief.copy")}</Button>
+            <Button onClick={download}>{t("brief.download")}</Button>
+            <a className="ds-button secondary-button ds-size-sm" href={mail}>{t("brief.email")}</a>
+          </>
+        ) : undefined
+      }
+    >
       {status === "loading" && <p className="muted">{t("brief.loading")}</p>}
       {status === "failed" && <p role="alert">{t("brief.failed")}</p>}
       {brief && status === "idle" && (
@@ -114,13 +118,8 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
               setCopied(false);
             }}
           />
-          <footer className="desk-brief-actions">
-            <button type="button" onClick={copy}>{t(copied ? "brief.copied" : "brief.copy")}</button>
-            <button type="button" onClick={download}>{t("brief.download")}</button>
-            <a className="button-link" href={mail}>{t("brief.email")}</a>
-          </footer>
         </>
       )}
-    </dialog>
+    </Dialog>
   );
 }

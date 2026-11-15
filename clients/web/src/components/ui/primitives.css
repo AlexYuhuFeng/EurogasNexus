@@ -278,4 +278,19 @@
   .key-figure[data-state="stale"] .key-figure-state { color: var(--ds-status-stale); font-weight: var(--ds-weight-medium); }
   .key-figure[data-state="delayed"] .key-figure-state { color: var(--ds-status-watch); font-weight: var(--ds-weight-medium); }
   .key-figure[data-state="simulated"] .key-figure-state { color: var(--ds-status-simulated); font-weight: var(--ds-weight-medium); }
+  .key-figure[data-state="late"] .key-figure-state { color: var(--ds-status-watch); font-weight: var(--ds-weight-medium); }
+  .key-figure[data-state="never"] .key-figure-state { color: var(--ds-status-stale); font-weight: var(--ds-weight-medium); }
+  .key-figure[data-state="manual"] .key-figure-state { color: var(--ds-status-info); font-weight: var(--ds-weight-medium); }
+
+  .key-figure-action {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1);
+    margin-top: var(--ds-space-05);
+  }
+
+  /* The simulated marker beside a value: a figure that is not a market price says so in place. */
+  .key-figure > strong .ds-cell-mark {
+    vertical-align: middle;
+  }
 }

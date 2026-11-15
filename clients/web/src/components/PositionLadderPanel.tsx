@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { api, type PositionLadderDTO } from "@/api/client";
+import { api, type LadderRollupDTO, type PositionLadderDTO, type PositionLadderRowDTO } from "@/api/client";
+import { hubCurrency } from "@/app/contractChoices";
 import { ReportExport } from "./ReportExport";
-import { EmptyState, KeyFigure, Skeleton } from "@/components/ui";
+import { MethodNote } from "./MethodNote";
+import { DataGrid, EmptyState, Field, KeyFigure, Select, Skeleton, Toolbar, type DataGridColumn } from "@/components/ui";
 import {
   barShare,
   groupLadderByMonth,
@@ -39,20 +41,22 @@ function hedgeText(ratio: number | null | undefined, t: Translate): string {
 }
 
 /**
- * The hedge cell. A negative ratio means the trades point the same way as the physical
+ * The hedge figure. A negative ratio means the trades point the same way as the physical
  * position (bought on top of a long), so they add risk instead of hedging it: shown as
  * "adds N%", flagged, never as a negative hedge.
  */
-function HedgeCell({ ratio, t }: { ratio: number | null | undefined; t: Translate }) {
+function HedgeValue({ ratio, t }: { ratio: number | null | undefined; t: Translate }) {
   if (ratio != null && Number.isFinite(ratio) && Math.round(ratio * 100) < 0) {
     return (
-      <td className="num warning-text" title={t("position.hedge_adds_hint")}>
+      <span className="warning-text" title={t("position.hedge_adds_hint")}>
         {t("position.hedge_adds", { pct: percent(-ratio) })}
-      </td>
+      </span>
     );
   }
-  return <td className="num">{percent(ratio)}</td>;
+  return <>{percent(ratio)}</>;
 }
+
+const signClass = (value: number) => (value >= 0 ? "is-long" : "is-short");
 
 function useLadder(months: number, groupBy = "hub", reportingCurrency = "") {
   const [ladder, setLadder] = useState<PositionLadderDTO | null>(null);
@@ -78,11 +82,12 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
       <KeyFigure label={t("position.physical")} value={mwh(ladder.totals.physical_mwh)} />
       <KeyFigure label={t("position.financial")} value={mwh(ladder.totals.financial_mwh)} />
       <KeyFigure label={t("position.hedged")} value={hedgeText(overallHedgeRatio(ladder), t)} />
+      {/* Mark-to-market is a value of the open book, not a gain: it is not coloured as P&L. */}
       <KeyFigure
         label={t("position.mtm")}
         value={money(ladder.mark_to_market)}
         unit={ladder.reporting_currency || undefined}
-        valueClassName={pnlClass(ladder.mark_to_market)}
+        action={<MethodNote method={ladder.methods?.mark_to_market} subject={t("position.mtm")} t={t} />}
       />
       {/* Gross by month adds information only when months offset; equal to |net| it repeats it. */}
       {ladder.totals.gross_tenor_mwh !== undefined &&
@@ -101,12 +106,15 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
           value={t("position.var_withheld").replace("{{hubs}}", ladder.offsetting_hubs.join(", "))}
           valueClassName="position-var-withheld"
           title={t("position.var_withheld_help")}
+          action={<MethodNote method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
         />
       ) : (
         <KeyFigure
           label={t("position.var")}
           value={money(ladder.var_95_1d)}
+          unit={ladder.var_95_1d == null ? undefined : ladder.reporting_currency || undefined}
           title={ladder.var_95_1d == null ? undefined : t("position.var_help", { count: ladder.var_observations })}
+          action={<MethodNote method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
         />
       )}
     </div>
@@ -134,119 +142,83 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
   const [groupBy, setGroupBy] = useState("hub");
   const [currency, setCurrency] = useState("");
   const { ladder, error } = useLadder(months, groupBy, currency);
-  const grouped = useMemo(() => groupLadderByMonth(ladder?.rows ?? []), [ladder]);
+  const rows = useMemo(
+    () => groupLadderByMonth(ladder?.rows ?? []).flatMap((month) => month.rows),
+    [ladder],
+  );
+  const rollupColumns = useRollupColumns(ladder, groupBy, t);
+  const ladderColumns = useLadderColumns(ladder, t);
 
   return (
     <section className="workspace-panel span-3 position-ladder-panel" aria-labelledby="position-ladder-title">
       <div className="panel-title-row">
         <h2 id="position-ladder-title">{t("position.title")}</h2>
-        <label className="position-horizon">
-          <span>{t("position.horizon")}</span>
-          <select value={months} onChange={(event) => setMonths(Number(event.target.value))}>
-            {[3, 6, 12, 24].map((value) => (
-              <option key={value} value={value}>{t("position.months", { count: value })}</option>
-            ))}
-          </select>
-        </label>
-        <label className="position-horizon">
-          <span>{t("position.group_by")}</span>
-          <select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}>
-            {["hub", "firm", "legal_entity", "region", "business", "book"].map((value) => (
-              <option key={value} value={value}>{t(`position.level_${value}`)}</option>
-            ))}
-          </select>
-        </label>
-        <ReportExport t={t}
-          path="/portfolio/position-ladder"
-          params={{
-            months: String(months),
-              ...(groupBy !== "hub" ? { group_by: groupBy } : {}),
-              ...(currency ? { reporting_currency: currency } : {}),
-          }}
-        />
-        <label className="position-horizon">
-          <span>{t("position.reporting_currency")}</span>
-          <select value={currency} onChange={(event) => setCurrency(event.target.value)}>
-            <option value="">{t("position.currency_auto")}</option>
-            {["EUR", "GBP", "USD", "CAD"].map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </label>
+        <Toolbar
+          label={t("position.title")}
+          className="position-toolbar"
+          end={
+            <ReportExport t={t}
+              path="/portfolio/position-ladder"
+              params={{
+                months: String(months),
+                  ...(groupBy !== "hub" ? { group_by: groupBy } : {}),
+                  ...(currency ? { reporting_currency: currency } : {}),
+              }}
+            />
+          }
+        >
+          <Field inline label={t("position.horizon")}>
+            <Select
+              value={String(months)}
+              onChange={(value) => setMonths(Number(value))}
+              options={[3, 6, 12, 24].map((value) => ({ value: String(value), label: t("position.months", { count: value }) }))}
+            />
+          </Field>
+          <Field inline label={t("position.group_by")}>
+            <Select
+              value={groupBy}
+              onChange={setGroupBy}
+              options={["hub", "firm", "legal_entity", "region", "business", "book"].map((value) => ({ value, label: t(`position.level_${value}`) }))}
+            />
+          </Field>
+          <Field inline label={t("position.reporting_currency")}>
+            <Select
+              value={currency}
+              onChange={setCurrency}
+              options={[{ value: "", label: t("position.currency_auto") }, ...["EUR", "GBP", "USD", "CAD"].map((value) => ({ value, label: value }))]}
+            />
+          </Field>
+        </Toolbar>
       </div>
       {error && <p role="alert">{error}</p>}
       {ladder?.rollup && ladder.rollup.length > 0 && (
-        <table className="position-ladder" data-position-rollup="true">
-          <thead>
-            <tr>
-              <th scope="col">{t(`position.level_${ladder.group_by ?? groupBy}`)}</th>
-              <th scope="col" className="num">{t("position.physical")}</th>
-              <th scope="col" className="num">{t("position.financial")}</th>
-              <th scope="col" className="num">{t("position.net")}</th>
-              <th scope="col" className="num">{t("position.hedged")}</th>
-              <th scope="col" className="num">{t("position.mtm")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ladder.rollup.map((row) => (
-              <tr key={row.group} data-record="position-rollup-row">
-                <th scope="row">{row.group === "UNASSIGNED" ? t("position.unassigned") : row.group}</th>
-                <td className="num">{mwh(row.physical_mwh)}</td>
-                <td className="num">{mwh(row.financial_mwh)}</td>
-                <td className={`num ${row.net_mwh >= 0 ? "long" : "short"}`}>{mwh(row.net_mwh)}</td>
-                <HedgeCell ratio={row.hedge_ratio} t={t} />
-                <td className={`num ${pnlClass(row.mark_to_market)}`}>{money(row.mark_to_market)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          id="position-rollup"
+          label={t(`position.level_${ladder.group_by ?? groupBy}`)}
+          columns={rollupColumns}
+          rows={ladder.rollup}
+          rowKey={(row) => row.group}
+          density="compact"
+          rowAttributes={() => ({ "data-record": "position-rollup-row" })}
+          tableAttributes={{ "data-position-rollup": "true" }}
+        />
       )}
       {!ladder && !error && <Skeleton label={t("position.loading")} rows={6} />}
       {ladder && ladder.rows.length === 0 && <EmptyState reason={t("position.empty")} id="position-ladder" />}
       {ladder && ladder.rows.length > 0 && (
         <>
           <SummaryStrip ladder={ladder} t={t} />
-          <table className="position-ladder" data-position-ladder="true">
-            <thead>
-              <tr>
-                <th scope="col">{t("position.month")}</th>
-                <th scope="col">{t("position.hub")}</th>
-                <th scope="col" className="num">{t("position.physical")}</th>
-                <th scope="col" className="num">{t("position.financial")}</th>
-                <th scope="col" className="num">{t("position.net")}</th>
-                <th scope="col">{t("position.net_bar")}</th>
-                <th scope="col" className="num">{t("position.hedged")}</th>
-                <th scope="col" className="num">{t("position.mark")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {grouped.map((month) =>
-                month.rows.map((row, index) => (
-                  <tr key={`${row.month}-${row.hub}`} data-record="position-row">
-                    {index === 0 && (
-                      <th scope="rowgroup" rowSpan={month.rows.length}>{ladderMonthLabel(month.month)}</th>
-                    )}
-                    <td>{row.hub}</td>
-                    <td className="num">{mwh(row.physical_mwh)}</td>
-                    <td className="num">{mwh(row.financial_mwh)}</td>
-                    <td className={`num ${row.net_mwh >= 0 ? "long" : "short"}`}>{mwh(row.net_mwh)}</td>
-                    <td className="position-bar-cell" aria-hidden="true">
-                      <span
-                        className={`position-bar ${row.net_mwh >= 0 ? "long" : "short"}`}
-                        style={{ width: `${barShare(row.net_mwh, ladder.rows) * 50}%` }}
-                      />
-                    </td>
-                    <HedgeCell ratio={row.hedge_ratio} t={t} />
-                    <td
-                      className="num"
-                      data-mark-method={row.mark_method ?? undefined}
-                      title={row.mark_method ? t(`position.mark_${row.mark_method}`) : undefined}
-                    >
-                      {price(row.mark)}
-                    </td>
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
+          <DataGrid
+            id="position-ladder"
+            label={t("position.title")}
+            columns={ladderColumns}
+            rows={rows}
+            rowKey={(row) => `${row.month}-${row.hub}`}
+            density="compact"
+            maxHeight="min(70vh, 720px)"
+            rowAttributes={() => ({ "data-record": "position-row" })}
+            tableAttributes={{ "data-position-ladder": "true" }}
+          />
           <TenorShockScenario ladder={ladder} months={months} currency={currency} t={t} />
           <ul className="position-notes">
             {ladder.warnings.map((warning) => <li key={warning}>{warning}</li>)}
@@ -255,6 +227,68 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
       )}
     </section>
   );
+}
+
+function useRollupColumns(ladder: PositionLadderDTO | null, groupBy: string, t: Translate) {
+  return useMemo<DataGridColumn<LadderRollupDTO>[]>(
+    () => [
+      {
+        id: "group",
+        header: t(`position.level_${ladder?.group_by ?? groupBy}`),
+        rowHeader: true,
+        sortable: true,
+        value: (row) => row.group,
+        format: (value) => (value === "UNASSIGNED" ? t("position.unassigned") : String(value)),
+      },
+      { id: "physical", header: t("position.physical"), type: "number", sortable: true, value: (row) => row.physical_mwh, format: (value) => mwh(value as number) },
+      { id: "financial", header: t("position.financial"), type: "number", sortable: true, value: (row) => row.financial_mwh, format: (value) => mwh(value as number) },
+      { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true, value: (row) => row.net_mwh, format: (value) => mwh(value as number), cellClassName: (row) => signClass(row.net_mwh) },
+      { id: "hedged", header: t("position.hedged"), type: "number", sortable: true, value: (row) => row.hedge_ratio, render: (row) => <HedgeValue ratio={row.hedge_ratio} t={t} /> },
+      { id: "mtm", header: t("position.mtm"), unit: ladder?.reporting_currency || undefined, type: "number", sortable: true, value: (row) => row.mark_to_market, format: (value) => money(value as number) },
+    ],
+    [ladder, groupBy, t],
+  );
+}
+
+function useLadderColumns(ladder: PositionLadderDTO | null, t: Translate) {
+  return useMemo<DataGridColumn<PositionLadderRowDTO>[]>(() => {
+    const all = ladder?.rows ?? [];
+    return [
+      { id: "month", header: t("position.month"), rowHeader: true, span: true, sortable: true, value: (row) => row.month, format: (value) => ladderMonthLabel(String(value)) },
+      { id: "hub", header: t("position.hub"), sortable: true, value: (row) => row.hub },
+      { id: "physical", header: t("position.physical"), type: "number", sortable: true, value: (row) => row.physical_mwh, format: (value) => mwh(value as number) },
+      { id: "financial", header: t("position.financial"), type: "number", sortable: true, value: (row) => row.financial_mwh, format: (value) => mwh(value as number) },
+      { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true, value: (row) => row.net_mwh, format: (value) => mwh(value as number), cellClassName: (row) => signClass(row.net_mwh) },
+      {
+        id: "bar",
+        header: <span className="ds-visually-hidden">{t("position.net_bar")}</span>,
+        decorative: true,
+        width: "120px",
+        cellClassName: () => "ds-grid-bar-cell",
+        render: (row) => (
+          <span className="ds-grid-bar">
+            <span className={signClass(row.net_mwh)} style={{ width: `${barShare(row.net_mwh, all) * 50}%` }} />
+          </span>
+        ),
+      },
+      { id: "hedged", header: t("position.hedged"), type: "number", sortable: true, value: (row) => row.hedge_ratio, render: (row) => <HedgeValue ratio={row.hedge_ratio} t={t} /> },
+      {
+        id: "mark",
+        header: t("position.mark"),
+        type: "number",
+        value: (row) => row.mark,
+        // Hubs quote in their own currency, so the unit differs by row and is shown in the cell.
+        render: (row) =>
+          row.mark == null ? "–" : (
+            <>
+              {price(row.mark)} <small className="ds-grid-unit">{hubCurrency(row.hub) ?? ""}/MWh</small>
+            </>
+          ),
+        cellTitle: (row) => (row.mark_method ? t(`position.mark_${row.mark_method}`) : undefined),
+        cellAttributes: (row) => ({ "data-mark-method": row.mark_method ?? undefined }),
+      },
+    ];
+  }, [ladder, t]);
 }
 
 /**

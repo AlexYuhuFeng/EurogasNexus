@@ -103,7 +103,9 @@ def test_context_ui_is_compact_accessible_and_clearable() -> None:
     assert 'aria-label={t("context.hub")}' in topbar
     assert "onHubChange(event.target.value || null)" in topbar
     assert "SUPPORTED_HUB_IDS" in topbar
-    assert "aria-pressed={focusedHub === row.hub}" in market
+    # The hub board is a DataGrid: the focused hub is the selected row (aria-selected), and the
+    # hub cell carries data-focused for the browser sweep.
+    assert 'data-focused={focusedHub === row.hub ? "true" : "false"}' in market
     assert "onHubChange(focusedHub === row.hub ? null : row.hub)" in market
 
 

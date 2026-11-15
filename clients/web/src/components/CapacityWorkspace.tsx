@@ -1,6 +1,6 @@
 import { tabLabels } from "@/components/ui/tabLabels";
 import { useMemo, useState } from "react";
-import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
+import { EvidenceBlock, Segmented, WorkspaceTabs } from "@/components/ui";
 import { CapacityContractBook } from "@/components/CapacityContractBook";
 import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
 import type { CapacityOperatingBoardReadSurface } from "@/app/model/capacityOperatingBoardRead";
@@ -420,7 +420,7 @@ export function CapacityWorkspace({
             }))}
             activeId={activeView}
             panelId="capacity-active-panel"
-            className="segmented-control capacity-view-control"
+            className="capacity-view-control"
             onActivate={setActiveView}
           />
         </div>
@@ -450,13 +450,13 @@ export function CapacityWorkspace({
                 {(["attention", "utilization", "headroom", "point"] as CapacitySort[]).map((value) => <option key={value} value={value}>{t(`capacity.sort_${value}`)}</option>)}
               </select>
             </div>
-            <div className="segmented-control capacity-posture-control" role="group" aria-label={t("capacity.posture")}>
-              {(["all", "constrained", "available", "stale", "incomplete"] as CapacityPosture[]).map((value) => (
-                <button key={value} type="button" className={posture === value ? "active" : ""} onClick={() => { setPosture(value); resetPage(); }}>
-                  {t(`capacity.${value}`)}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              className="capacity-posture-control"
+              label={t("capacity.posture")}
+              options={(["all", "constrained", "available", "stale", "incomplete"] as CapacityPosture[]).map((value) => ({ value, label: t(`capacity.${value}`) }))}
+              value={posture}
+              onChange={(value) => { setPosture(value); resetPage(); }}
+            />
             {/* Counts and their latest-update instant are a measurement of both required reads:
                 one that has not answered is not a zero, and the rows held from one read are not
                 the joined board. */}

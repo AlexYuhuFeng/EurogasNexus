@@ -1,6 +1,6 @@
 # Design tokens
 
-Status: adopted 2026-11-15 (UX-01, UX-10, first part of UX-02). Related:
+Status: adopted 2026-11-15 (UX-01, UX-10, UX-02, UX-03; UX-04 page frame). Related:
 `docs/ux/DESIGN_SYSTEM.md` (principles, layers), `docs/product/COMPONENTS.md` (one control per
 meaning), `docs/product/UX_REFERENCE.md` (trader-first presentation rules).
 
@@ -77,7 +77,8 @@ never raises a count or adds a file. The test also caps the number of listed fil
 
 At adoption: 15 stylesheets and 1,770 raw values before; 14 clean and 292 remaining after, all in
 `app.css` (231 colours, 59 control-sized heights, 2 undefined legacy variables). `app.css` is
-retired page by page (UX-06).
+retired page by page (UX-06). After UX-02/03/05: 19 stylesheets, 18 clean, 290 values left
+in `app.css`.
 
 ## Converting a file
 
@@ -108,7 +109,10 @@ controls; MapLibre's own controls are excluded.
 | Controls under 24 px | 30 | 0 | 0 |
 | Max shadows on a screen | 4 | 3 | 3 |
 
-1366 px measures the same. Run it against a running API and Vite server with a development
+1366 px measures the same. After UX-02/03/05 (Today, DataGrid, new primitives) the six screens
+still measure 5 sizes, 3 weights, 2 control heights (28, 32), 3 radii, 0 controls under 24 px,
+0 numeric cells without tabular figures (of 277), at most 3 shadows. Today's key figures use
+the 18 px step, not the 20 px figure step, to stay within the five-size budget. Run it against a running API and Vite server with a development
 sign-in:
 
 ```bash
@@ -135,3 +139,69 @@ In `clients/web/src/components/ui/`, styled by `primitives.css` (tokens only):
 | `Panel` | title row with meta and actions slot, body; the section is labelled by its title |
 | `EmptyState` | cause, next step, one action; `compact` one-line form |
 | `Skeleton` | still bars, shimmer only when motion is allowed; one announced loading status |
+| `Field` | label, one control, hint, error; wires `for`, `aria-describedby`, `aria-invalid`; `inline` for toolbars |
+| `Select` | the native `<select>` (most robust in WebView2, WKWebView and on phones), typed options, 28/32 px |
+| `Tabs` | one `tablist`, roving tabindex (the active tab is the only Tab stop), Left/Right/Home/End move and activate; `line` or `nav` look. `WorkspaceTabs` is Tabs inside a `<nav>` landmark, so the top bar and every task row move the same way |
+| `Segmented` | one choice among views of the same data; a labelled `group` of `aria-pressed` toggles, one Tab stop, arrows move, Enter/Space choose. Replaces `.segmented-control` and the ad-hoc pressed groups |
+| `Toolbar` | one dense row (`role=toolbar`), start and end groups; Left/Right move between its buttons, every control stays in the Tab order (a desk toolbar mixes selects and inputs, so Tab must reach each: a recorded choice) |
+| `Popover` | anchored note in the top layer (native `popover`), placed against collisions (`popoverPosition.ts`: below, flipped above, clamped, scrolls when tall), follows scroll; opening moves focus in, Escape closes and returns focus to the trigger, a click outside or focus leaving closes. Used by Why, Method, the stale-figures list and the feed list |
+| `Dialog`, `Sheet` | one implementation over native `<dialog>` + `showModal()`: page behind inert, Tab wraps inside, labelled by its title, Escape (`cancel`) and backdrop call `onClose`, focus returns to the opener. Sheet docks to the end, the bottom or the full screen (the inspector on a phone) |
+| `DataGrid` | the one table: see below |
+
+### Dependency decision: no React Aria
+
+The owner approved React Aria Components (Apache-2.0) for Popover, Dialog, Select and Tabs. It
+was measured and not added: Dialog, Modal, Popover, Select, Tabs and ToggleButtonGroup from
+`react-aria-components@1.22.1` add about 195 kB minified / 60 kB gzip to a bundle whose own
+change for all of UX-02/03/05 was 23 kB / 9 kB, and 16 packages (73 MB installed). The browser
+already supplies the hard parts: `showModal()` gives the inert background, focus containment,
+Escape and the top layer; the `popover` attribute gives the top layer for anchored notes; the
+native `<select>` is the accessible list on every platform we ship. What remained (roving
+tabindex, collision placement) is a few dozen tested lines. Revisit for a Combobox or a date
+grid, where the library would carry real weight.
+
+## DataGrid (UX-03)
+
+`components/ui/DataGrid.tsx`, styled by `datagrid.css`. A controlled, typed table:
+
+```tsx
+const columns = useMemo<DataGridColumn<Row>[]>(() => [
+  { id: "hub", header: t("market.hub"), rowHeader: true, sortable: true, value: (r) => r.hub },
+  { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true,
+    value: (r) => r.net_mwh, format: (v) => mwh(v as number), flash: true,
+    state: (r) => (r.simulated ? { kind: "simulated", label: "sim", description: "Simulated: not a market price" } : null) },
+], [t]);
+<DataGrid label={t("position.title")} columns={columns} rows={rows} rowKey={(r) => r.id}
+  density="compact" defaultSort={{ columnId: "net", direction: "descending" }}
+  onRowAction={(r) => focus(r.hub)} selectedKey={focused} maxHeight="70vh" />
+```
+
+- A real `<table>`; `rowHeader` gives `<th scope="row">`; `span` merges equal consecutive values
+  (a month over its hubs) while the grid is in that column's order.
+- `type: "number"` aligns right in tabular numerals. The unit goes in the header (`unit`); when
+  units differ by row (marks in each hub's currency, credit lines in their own currency) the
+  cell carries it and the column is not sortable across units.
+- Sort: header buttons, `aria-sort`, figures sort largest first, missing values last in both
+  directions; controlled (`sort`/`onSortChange`) or `defaultSort`.
+- `onRowAction` or `selectedKey` makes it a `grid`: one row is the Tab stop; Up/Down,
+  Home/End, PageUp/PageDown move; Enter or Space runs the action; `aria-selected` marks the
+  selection. Controls inside cells keep their own keys.
+- Rows 32 px (`regular`) or 28 px (`compact`) from tokens; `loading` shows Skeleton rows;
+  `empty` is one EmptyState line.
+- `state` puts a short word beside the value (stale, late, simulated, revised, manual) with its
+  full description for screen readers; `flash` flashes the cell once on change, background
+  only, never under reduced motion.
+- No layout reads; rows are memoised; 500 rows render in one pass (tested).
+
+Migrated: Position ladder and its roll-up, credit lines and mandates (Limits), the major hub
+board (Prices), the NW Europe balance, the capacity profile book (a contract list), and the
+Today book row. Removed with them: the `.market-hub-board-*` grid, `.market-hub-curve`, the
+overview board's `.data-table` rules, `.position-bar*`, `.position-horizon`, the
+`.market-tenor-tab(s)` and `.market-view-switch` pill groups. Other tables still use
+`.position-ladder` / `.data-table` and move as their pages are rebuilt (UX-06).
+
+## Keyboard paths
+
+`scripts/uat/keyboard_paths.mjs` drives tabs, grid rows, sort, the Method popover and a
+dialog in Chromium against a running desk and exits 1 when a path breaks (same environment as
+the geometry audit).

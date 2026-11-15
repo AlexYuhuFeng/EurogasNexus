@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react";
-
 import { WORKSTATION_SHORTCUTS } from "@/app/host/workstation";
+import { Dialog } from "@/components/ui";
 
 type Translate = (key: string) => string;
 
@@ -26,49 +25,22 @@ interface KeyboardShortcutsDialogProps {
   t: Translate;
 }
 
+/** The shortcut list, in the one Dialog (native modal: Escape, backdrop, focus kept inside). */
 export function KeyboardShortcutsDialog({ open, onClose, t }: KeyboardShortcutsDialogProps) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previous?.focus?.();
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
   const rows = [...WORKSTATION_SHORTCUTS, ...SURFACE_SHORTCUTS];
   return (
-    <div className="shortcuts-backdrop" onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="shortcuts-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
-        <div className="shortcuts-header">
-          <h2 id="shortcuts-title">{t("shortcuts.title")}</h2>
-          <button ref={closeRef} type="button" className="ghost" onClick={onClose} aria-label={t("shortcuts.close")}>
-            ×
-          </button>
-        </div>
-        <table className="shortcuts-table">
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <th scope="row">{t(`shortcuts.${row.id}`)}</th>
-                <td><kbd>{displayBinding(row.binding)}</kbd></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <Dialog open={open} onClose={onClose} title={t("shortcuts.title")} closeLabel={t("shortcuts.close")} size="sm" id="shortcuts">
+      <table className="shortcuts-table">
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <th scope="row">{t(`shortcuts.${row.id}`)}</th>
+              <td><kbd>{displayBinding(row.binding)}</kbd></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Dialog>
   );
 }
 

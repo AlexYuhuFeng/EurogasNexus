@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
-import { PanelHeader } from "@/components/ui";
+import { DataGrid, PanelHeader, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   capacityContractRows,
@@ -66,6 +66,21 @@ export function CapacityContractBook({ t }: CapacityContractBookProps) {
   }, []);
 
   const firmness = firmnessOptions(rows);
+  const columns = useMemo<DataGridColumn<CapacityContractRow>[]>(() => [
+    { id: "point", header: t("capacity.contracts.point"), rowHeader: true, sortable: true, value: (row) => row.pointName },
+    {
+      id: "capacity",
+      header: t("capacity.contracts.capacity"),
+      type: "number",
+      sortable: true,
+      value: (row) => row.capacity,
+      // Each profile declares its own unit, so the unit is per row and the rows are not summed.
+      render: (row) => <>{row.capacity.toLocaleString("en-GB")} <small className="ds-grid-unit">{row.unit}</small></>,
+    },
+    { id: "from", header: t("capacity.contracts.window_from"), type: "date", sortable: true, value: (row) => row.validFrom },
+    { id: "to", header: t("capacity.contracts.window_to"), type: "date", sortable: true, value: (row) => row.validTo },
+    { id: "firmness", header: t("capacity.contracts.firmness"), sortable: true, value: (row) => row.firmness, render: (row) => <StatusBadge tone="neutral">{row.firmness}</StatusBadge> },
+  ], [t]);
 
   return (
     <section className="workspace-panel capacity-contract-book" aria-label={t("capacity.contracts.title")}>
@@ -107,26 +122,16 @@ export function CapacityContractBook({ t }: CapacityContractBookProps) {
               {t("capacity.contracts.firmness")}: {firmness.join(", ") || t("data.unavailable")}
             </span>
           </div>
-          <div className="research-table data-table" tabIndex={0}>
-            <div className="data-table-row header five">
-              <span>{t("capacity.contracts.point")}</span>
-              <span>{t("capacity.contracts.capacity")}</span>
-              <span>{t("capacity.contracts.window_from")}</span>
-              <span>{t("capacity.contracts.window_to")}</span>
-              <span>{t("capacity.contracts.firmness")}</span>
-            </div>
-            {rows.map((row) => (
-              <div key={row.contractId} className="data-table-row five">
-                <strong>{row.pointName}</strong>
-                <span>
-                  {row.capacity.toLocaleString()} {row.unit}
-                </span>
-                <span>{row.validFrom}</span>
-                <span>{row.validTo}</span>
-                <span className="status-badge">{row.firmness}</span>
-              </div>
-            ))}
-          </div>
+          <DataGrid
+            id="capacity-contracts"
+            label={t("capacity.contracts.title")}
+            columns={columns}
+            rows={rows}
+            rowKey={(row) => row.contractId}
+            density="compact"
+            maxHeight="min(60vh, 560px)"
+            defaultSort={{ columnId: "point", direction: "ascending" }}
+          />
           <p className="muted">{t("capacity.contracts.window_note")}</p>
         </>
       )}

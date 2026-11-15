@@ -1,0 +1,284 @@
+/*
+ * DataGrid (UX-03). Imported by design-system.css. Tokens only (scripts/cssTokenLint.mjs).
+ * Rows are 32 px (regular) or 28 px (compact); figures right-aligned in tabular numerals; the
+ * unit lives in the header.
+ */
+
+@layer ds-components {
+  .ds-grid-wrap {
+    position: relative;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .ds-grid-scroll {
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .ds-grid-wrap:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  .ds-grid {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-base);
+    line-height: var(--ds-line-base);
+    font-variant-numeric: var(--ds-numeric);
+  }
+
+  .ds-grid-caption {
+    padding: 0 0 var(--ds-space-2);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+    text-align: left;
+  }
+
+  .ds-grid th,
+  .ds-grid td {
+    box-sizing: border-box;
+    height: var(--ds-row);
+    padding: 0 var(--ds-space-2);
+    border-bottom: 1px solid var(--ds-border-subtle);
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .ds-grid-compact th,
+  .ds-grid-compact td {
+    height: var(--ds-row-header);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .ds-grid thead th {
+    padding-top: 0;
+    padding-bottom: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: var(--ds-row-header);
+    border-bottom: 1px solid var(--ds-border);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-grid tbody th {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .ds-grid [data-align="end"] {
+    text-align: right;
+    font-variant-numeric: var(--ds-numeric);
+  }
+
+  .ds-grid [data-align="center"] {
+    text-align: center;
+  }
+
+  .ds-grid th[scope="rowgroup"] {
+    vertical-align: top;
+    padding-top: var(--ds-space-2);
+    border-right: 1px solid var(--ds-border-subtle);
+  }
+
+  .ds-grid-unit {
+    margin-left: var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-weight: var(--ds-weight-regular);
+  }
+
+  .ds-grid-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-05);
+    max-width: 100%;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    margin: 0 calc(-1 * var(--ds-space-1));
+    padding: 0 var(--ds-space-1);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+
+  [data-align="end"] > .ds-grid-sort {
+    flex-direction: row-reverse;
+  }
+
+  .ds-grid-sort:hover {
+    color: var(--ds-text-1);
+  }
+
+  .ds-grid-sort:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  .ds-grid-sort[data-sorted] {
+    color: var(--ds-text-1);
+  }
+
+  .ds-grid-sort-mark {
+    display: inline-block;
+    min-width: var(--ds-space-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  /* Rows with an action: hover, focus and selection. */
+  .ds-grid-interactive tbody tr {
+    cursor: pointer;
+  }
+
+  .ds-grid-interactive tbody tr:hover > * {
+    background: var(--ds-surface-2);
+  }
+
+  .ds-grid tbody tr:focus-visible {
+    outline: none;
+  }
+
+  .ds-grid tbody tr:focus-visible > * {
+    box-shadow: inset 0 2px 0 var(--ds-focus-ring), inset 0 -2px 0 var(--ds-focus-ring);
+  }
+
+  .ds-grid tbody tr:focus-visible > :first-child {
+    box-shadow: inset 2px 2px 0 var(--ds-focus-ring), inset 0 -2px 0 var(--ds-focus-ring);
+  }
+
+  .ds-grid tbody tr:focus-visible > :last-child {
+    box-shadow: inset -2px 2px 0 var(--ds-focus-ring), inset 0 -2px 0 var(--ds-focus-ring);
+  }
+
+  .ds-grid tbody tr.is-selected > *,
+  .ds-grid tbody tr[aria-selected="true"] > * {
+    background: var(--ds-accent-soft);
+  }
+
+  .ds-grid-placeholder > td {
+    height: auto;
+    padding: var(--ds-space-2);
+    white-space: normal;
+  }
+
+  .ds-grid tfoot td,
+  .ds-grid tfoot th {
+    border-top: 1px solid var(--ds-border);
+    border-bottom: 0;
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  /* Per-cell state marker: a short word beside the value. */
+  .ds-cell-mark {
+    display: inline-block;
+    margin-left: var(--ds-space-1);
+    padding: 0 var(--ds-space-1);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-status-stale-soft);
+    color: var(--ds-status-stale);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+    vertical-align: baseline;
+  }
+
+  .ds-cell-mark[data-state="simulated"] {
+    background: var(--ds-status-simulated-soft);
+    color: var(--ds-status-simulated);
+  }
+
+  .ds-cell-mark[data-state="late"],
+  .ds-cell-mark[data-state="revised"] {
+    background: var(--ds-status-watch-soft);
+    color: var(--ds-status-watch);
+  }
+
+  .ds-cell-mark[data-state="manual"] {
+    background: var(--ds-status-info-soft);
+    color: var(--ds-status-info);
+  }
+
+  /* Signed figures in a grid: long/short and profit/loss colour the number only. */
+  .ds-grid .is-long { color: var(--ds-positive); }
+  .ds-grid .is-short { color: var(--ds-negative); }
+
+  /* A net-position bar in its own cell. */
+  .ds-grid-bar-cell {
+    min-width: 96px;
+  }
+
+  .ds-grid-bar {
+    position: relative;
+    display: block;
+    height: var(--ds-space-2);
+  }
+
+  .ds-grid-bar::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: var(--ds-border);
+    content: "";
+  }
+
+  .ds-grid-bar > span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: var(--ds-radius-sm);
+  }
+
+  .ds-grid-bar > .is-long {
+    left: 50%;
+    background: var(--ds-positive);
+  }
+
+  .ds-grid-bar > .is-short {
+    right: 50%;
+    background: var(--ds-negative);
+  }
+
+  @media (pointer: coarse) {
+    .ds-grid-sort {
+      min-height: var(--ds-control-touch);
+    }
+  }
+}
+
+@layer ds-motion {
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes ds-flash-a {
+      from { background: var(--ds-accent-soft); }
+      to { background: transparent; }
+    }
+
+    @keyframes ds-flash-b {
+      from { background: var(--ds-accent-soft); }
+      to { background: transparent; }
+    }
+
+    .ds-cell-flash[data-flash="a"] {
+      animation: ds-flash-a 600ms var(--ds-ease-out) 1;
+    }
+
+    .ds-cell-flash[data-flash="b"] {
+      animation: ds-flash-b 600ms var(--ds-ease-out) 1;
+    }
+  }
+}

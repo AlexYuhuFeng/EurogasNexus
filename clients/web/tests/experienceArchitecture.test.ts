@@ -607,5 +607,5 @@ test("the shell primitive exposes exactly the shell vocabulary", () => {
   assert.notEqual(marker, "", "WorkspaceTabs must declare the shell region marker union");
   const declared = [...marker.matchAll(/"([a-z-]+)"/g)].map((match) => match[1]);
   assert.deepEqual(declared.sort(), [...SHELL_REGIONS].sort());
-  assert.match(tabs, /data-shell-region=\{shellRegion\}/);
+  assert.match(tabs, /"data-shell-region": shellRegion/);
 });

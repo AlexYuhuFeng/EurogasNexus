@@ -20,7 +20,7 @@ import {
   type SliceReading,
 } from "@/app/model/projectionModel";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
-import { StatusBadge } from "@/components/ui";
+import { Popover, StatusBadge } from "@/components/ui";
 import "@/components/projection-context.css";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -41,6 +41,12 @@ interface ProjectionContextStripProps {
   children?: ReactNode;
   /** The page's own controls (gas day, product, hub), shown before the status. */
   controls?: ReactNode;
+  /**
+   * The page's own freshness line, in place of the feed count: the Today screen names its late
+   * or stale figures, and the demo desk says "Demo data" once instead of counting feeds of a
+   * deliberately static store as stale (FRESH-02).
+   */
+  freshness?: ReactNode;
 }
 
 export function ProjectionContextStrip({
@@ -54,6 +60,7 @@ export function ProjectionContextStrip({
   t,
   children,
   controls,
+  freshness,
 }: ProjectionContextStripProps) {
   if (readings.length === 0) return null;
 
@@ -72,61 +79,72 @@ export function ProjectionContextStrip({
       aria-label={t(key("title"))}
       data-projection-as-of={asOf ?? undefined}
     >
-      {/* One line by default: as-of and how many slices are degraded. The per-slice table is
-          evidence for when a number looks wrong, so it opens on demand. */}
       {/* One line a trader reads: the page's own context controls, then whether the data
-          behind the page is fresh, in words. The as-of instant, time basis, calendar and
-          per-feed table are evidence for when a number looks wrong: they open on demand. */}
+          behind the page is current, in words. The sentence is a link: it opens the feeds by
+          name (the degraded ones first) with the as-of instant, time basis and calendar, so no
+          page says "stale" without naming what is affected (FRESH-02). */}
       {controls}
-      <details className="projection-context-details">
-      <summary className="projection-context-summary">
-        <span className={degraded.length === 0 ? "projection-context-ok" : "projection-context-degraded"}>
-          {degraded.length === 0
-            ? t("context_line.fresh")
-            : t("context_line.stale", { count: degraded.length, total: readings.length })}
-        </span>
-        <small className="projection-context-asof">
-          {asOf
-            ? t(key("as_of"), { value: formatUtcTimestamp(asOf, asOf) })
-            : t(key("as_of_unknown"))}
-        </small>
-        {children}
-      </summary>
-      <p className="projection-context-basis">
-        {t(key("time_basis"))}: {basisKey ? t(basisKey) : t(key("not_reported"))}
-        {gasDay ? ` · ${gasDay}` : ""}
-        {gasDayCalendar ? ` · ${t(key("gas_day_calendar"))} ${gasDayCalendar}` : ""}
-      </p>
-
-      <ul className="projection-context-slices">
-        {readings.map((reading) => (
-          <li key={reading.key}>
-            <span className="projection-slice-label">
-              {t(labelKeys[reading.key] ?? key("title"))}
-            </span>
-            <StatusBadge
-              variant="source"
-              status={reading.available ? reading.freshnessState.toLowerCase() : "unavailable"}
+      <div className="projection-context-status">
+        {freshness}
+        <Popover
+          label={t(key("title"))}
+          id="feed-status"
+          placement="bottom-end"
+          trigger={(props) => (
+            <button
+              {...props}
+              type="button"
+              className={`projection-context-trigger ${degraded.length === 0 || freshness ? "is-ok" : "is-degraded"}`}
             >
-              {reading.available
-                ? t(key(`freshness.${reading.freshnessState}`))
-                : t(key("freshness.UNAVAILABLE"))}
-            </StatusBadge>
-            <span className="projection-slice-count">
-              {t(key("rows"), { count: reading.rowCount })}
-            </span>
-            {reading.restricted && (
-              <span className="projection-slice-restricted">
-                {t(key("restricted"), { count: reading.filteredOut })}
-              </span>
-            )}
-            {reading.lastObservedAtUtc && (
-              <time>{formatUtcTimestamp(reading.lastObservedAtUtc, reading.lastObservedAtUtc)}</time>
-            )}
-          </li>
-        ))}
-      </ul>
-      </details>
+              {freshness
+                ? t("context_line.feeds")
+                : degraded.length === 0
+                  ? t("context_line.fresh")
+                  : t("context_line.stale", { count: degraded.length, total: readings.length })}
+            </button>
+          )}
+        >
+          <p className="ds-popover-meta projection-context-asof">
+            {asOf
+              ? t(key("as_of"), { value: formatUtcTimestamp(asOf, asOf) })
+              : t(key("as_of_unknown"))}
+          </p>
+          <p className="ds-popover-meta projection-context-basis">
+            {t(key("time_basis"))}: {basisKey ? t(basisKey) : t(key("not_reported"))}
+            {gasDay ? ` · ${gasDay}` : ""}
+            {gasDayCalendar ? ` · ${t(key("gas_day_calendar"))} ${gasDayCalendar}` : ""}
+          </p>
+          <ul className="projection-context-slices">
+            {[...degraded, ...readings.filter((reading) => !degraded.some((item) => item.key === reading.key))].map((reading) => (
+              <li key={reading.key}>
+                <span className="projection-slice-label">
+                  {t(labelKeys[reading.key] ?? key("title"))}
+                </span>
+                <StatusBadge
+                  variant="source"
+                  status={reading.available ? reading.freshnessState.toLowerCase() : "unavailable"}
+                >
+                  {reading.available
+                    ? t(key(`freshness.${reading.freshnessState}`))
+                    : t(key("freshness.UNAVAILABLE"))}
+                </StatusBadge>
+                <span className="projection-slice-count">
+                  {t(key("rows"), { count: reading.rowCount })}
+                </span>
+                {reading.restricted && (
+                  <span className="projection-slice-restricted">
+                    {t(key("restricted"), { count: reading.filteredOut })}
+                  </span>
+                )}
+                {reading.lastObservedAtUtc && (
+                  <time>{formatUtcTimestamp(reading.lastObservedAtUtc, reading.lastObservedAtUtc)}</time>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Popover>
+        {children}
+      </div>
     </section>
   );
 }

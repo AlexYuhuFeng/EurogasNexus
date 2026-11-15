@@ -36,68 +36,33 @@
 }
 
 .projection-context-slices {
-  display: flex;
-  gap: var(--ds-space-2);
-  align-items: center;
-  flex-wrap: wrap;
+  display: grid;
+  gap: var(--ds-space-1);
   list-style: none;
-  margin: 0;
+  margin: var(--ds-space-2) 0 0;
   padding: 0;
 }
 
 .projection-context-slices li {
   display: flex;
-  gap: var(--ds-space-1);
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-2);
   align-items: center;
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-sm);
-  background: var(--ds-surface-2);
-  padding: 0 var(--ds-space-1);
+  min-height: var(--ds-chip);
 }
 
 .projection-slice-label {
   color: var(--ds-text-1);
 }
 
+.projection-slice-count,
+.projection-context-slices time {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+}
+
 .projection-slice-restricted {
   color: var(--ds-status-watch);
-}
-
-/* Collapsed by default: the summary line is the strip; slices open on demand. */
-.projection-context-details {
-  width: 100%;
-}
-
-.projection-context-details > summary {
-  cursor: pointer;
-  list-style: none;
-}
-
-.projection-context-details > summary::-webkit-details-marker {
-  display: none;
-}
-
-.projection-context-details > summary::after {
-  content: "▸";
-  margin-left: auto;
-}
-
-.projection-context-details[open] > summary::after {
-  content: "▾";
-}
-
-.projection-context-details[open] > .projection-context-slices {
-  margin-top: var(--ds-space-1);
-}
-
-/* Text colours meet WCAG AA (4.5:1) at the strip's 11px: the degraded count is ink on a
-   warning tint rather than amber text, and the basis keeps the full muted colour. */
-.projection-context-summary span.projection-context-degraded {
-  color: var(--ds-text-1);
-  background: var(--ds-status-watch-soft);
-  border-left: 3px solid var(--ds-status-watch);
-  padding: 0 var(--ds-space-1);
-  font-weight: 600;
 }
 }
 
@@ -122,10 +87,44 @@
     font-size: var(--ds-text-sm);
   }
 
-  .projection-context .projection-context-details {
+  .projection-context-status {
+    display: inline-flex;
     flex: 0 0 auto;
-    width: auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
     margin-left: auto;
+  }
+
+  /* The feed status is a link that opens the feeds by name. A degraded count is coloured, so
+     it still cannot be missed (UX_REFERENCE rule 2), and it names what it counts on click. */
+  .projection-context-trigger {
+    display: inline-flex;
+    align-items: center;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-2);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-accent);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-sm);
+    text-decoration: underline;
+    text-decoration-color: var(--ds-border-strong);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .projection-context-trigger.is-degraded {
+    background: var(--ds-status-watch-soft);
+    color: var(--ds-status-watch);
+  }
+
+  .projection-context-trigger:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
   }
 
   .projection-context .trading-context-controls input,
@@ -142,26 +141,11 @@
     }
   }
 
-  .projection-context .projection-context-details[open] {
-    flex-basis: 100%;
-    margin-left: 0;
-  }
-
-  .projection-context .projection-context-summary {
-    cursor: pointer;
-    list-style: none;
-  }
-
-  .projection-context .projection-context-summary span {
-    display: inline;
-  }
-
   .projection-context-asof {
     color: var(--ds-text-3);
   }
 
   .projection-context-basis {
-    margin: var(--ds-space-1) 0;
     color: var(--ds-text-2);
   }
 }

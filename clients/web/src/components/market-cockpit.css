@@ -44,76 +44,6 @@
   border-bottom: 2px solid var(--ds-accent);
 }
 
-.market-cockpit-overview {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
-  grid-template-areas:
-    "main rail"
-    "spread spread";
-  gap: var(--ds-space-2);
-  min-width: 0;
-}
-
-.market-overview-main {
-  grid-area: main;
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-space-2);
-  min-width: 0;
-}
-
-.market-hub-board-head {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-space-2);
-  padding: var(--ds-space-1) var(--ds-space-2);
-  border-bottom: 1px solid var(--ds-border);
-}
-
-.market-hub-board-head h2 {
-  margin: 0;
-  font-size: var(--ds-text-md);
-}
-
-.market-hub-board-head .link-button {
-  margin-left: auto;
-}
-
-.market-runtime-chip {
-  color: var(--ds-text-3);
-  font-size: var(--ds-text-xs);
-}
-
-.market-runtime-chip.issue {
-  color: var(--ds-status-watch);
-}
-
-.market-hub-board-missing {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ds-space-1) var(--ds-space-2);
-  margin: 0;
-  padding: var(--ds-space-1) var(--ds-space-2);
-  color: var(--ds-text-3);
-  font-size: var(--ds-text-xs);
-}
-
-.market-overview-fundamentals {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-space-2);
-  min-width: 0;
-}
-
-.market-overview-fundamentals .workspace-panel {
-  margin: 0;
-}
-
-.market-overview-fundamentals .workspace-panel.is-empty {
-  padding-block: var(--ds-space-2);
-}
-
 .panel-meaning,
 .panel-empty-line {
   margin: 0 0 var(--ds-space-2);
@@ -135,178 +65,9 @@
   grid-area: context;
 }
 
-.market-hub-board {
-  align-self: stretch;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  border: 1px solid var(--ds-border);
-  background: var(--ds-surface);
-}
-
-.market-hub-board .data-table {
-  margin: 0;
-  /* A grid too wide for its box scrolls inside it, never clips a price. */
-  overflow-x: auto;
-  border: 0;
-  border-radius: 0;
-}
-
 /* Minimums keep all six quote fields legible while allowing analytical width to expand. */
-.market-hub-board .data-table-row {
-  gap: var(--ds-space-1);
-  min-height: var(--ds-control);
-  border: 0;
-  border-bottom: 1px solid var(--ds-border);
-  padding: 0 var(--ds-space-2);
-  font-size: var(--ds-text-xs);
-}
-
-.market-hub-board .data-table-row.board-row {
-  grid-template-columns: var(--board-columns);
-  min-width: max-content;
-}
 
 /* Numeric columns right-align; the source and age columns follow the price. */
-.market-hub-board .data-table-row > :not(:first-child):not(:nth-last-child(-n + 2)) {
-  text-align: right;
-}
-
-.market-hub-board .data-table-row.header {
-  position: sticky;
-  top: 0;
-  min-height: var(--ds-control);
-  background: var(--ds-surface-2);
-}
-
-.market-hub-board button.data-table-row {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 100%;
-  border: 0;
-  border-bottom: 1px solid var(--ds-border);
-  border-radius: 0;
-  background: var(--ds-surface);
-  color: var(--ds-text-2);
-  text-align: left;
-  cursor: pointer;
-}
-
-.market-hub-board .data-table-row > :nth-last-child(2) {
-  padding-left: var(--ds-space-2);
-}
-
-.market-hub-board button.data-table-row.selected {
-  background: var(--ds-surface-2);
-}
-
-.market-context-rail {
-  grid-area: rail;
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-space-2);
-  align-self: stretch;
-  min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.market-context-rail > .workspace-panel {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.market-context-rail > .workspace-panel:not(:last-child) {
-  padding-bottom: var(--ds-space-3);
-  border-bottom: 1px solid var(--ds-border);
-}
-
-.market-context-rail > .workspace-panel h2 {
-  margin: 0 0 var(--ds-space-2);
-  font-size: var(--ds-text-md);
-  line-height: normal;
-}
-
-.market-relevant-resources {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-space-1);
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.market-relevant-resources button {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--ds-space-2);
-  width: 100%;
-  min-height: var(--ds-control-sm);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-sm);
-  background: var(--ds-surface-2);
-  color: var(--ds-text-1);
-  padding: 0 var(--ds-space-2);
-  cursor: pointer;
-}
-
-.market-handoff-actions {
-  display: flex;
-  gap: var(--ds-space-1);
-  margin-top: var(--ds-space-2);
-}
-
-.market-spread-strip {
-  grid-area: spread;
-  display: flex;
-  gap: var(--ds-space-2);
-  overflow-x: auto;
-  border: 1px solid var(--ds-border);
-  background: var(--ds-surface);
-  padding: var(--ds-space-1) var(--ds-space-2);
-}
-
-.market-spread-strip > div {
-  display: grid;
-  gap: var(--ds-space-1);
-  min-width: 110px;
-  border-right: 1px solid var(--ds-border);
-  padding-right: var(--ds-space-2);
-}
-
-.market-spread-strip > div:last-child {
-  border-right: 0;
-}
-
-.market-spread-strip span {
-  color: var(--ds-text-3);
-  font-size: var(--ds-text-xs);
-}
-
-@media (max-width: 1240px) {
-  .market-cockpit-overview {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "main"
-      "rail"
-      "spread";
-  }
-
-  .market-context-rail {
-    contain: none;
-    overflow-y: visible;
-  }
-}
-
-@media (min-width: 1241px) {
-  .market-context-rail {
-    contain: size;
-  }
-}
 
 /* The reference register follows the map in the same task. It must not consume
    the map's viewport allocation when warnings or a short desktop window leave
@@ -340,89 +101,34 @@
 
 /* Hub board: one row per hub for the active tenor, the other tenors' mids alongside. */
 .market-board-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ds-space-2);
-  justify-content: space-between;
   margin-bottom: var(--ds-space-2);
 }
 
-.market-board-toolbar .section-heading {
-  margin: 0;
+.market-board-title {
+  font-size: var(--ds-text-md);
 }
 
-.market-hub-board-table {
-  display: grid;
-  border: 1px solid var(--ds-border);
-  font-variant-numeric: tabular-nums;
-  overflow-x: auto;
-}
-
-.market-hub-board-row {
-  display: grid;
-  grid-template-columns: 64px 150px 72px 64px 80px 260px minmax(90px, 120px) minmax(110px, 1fr);
-  align-items: center;
-  gap: var(--ds-space-2);
-  min-height: var(--ds-row);
-  padding: 0 var(--ds-space-2);
-  border-bottom: 1px solid var(--ds-border);
-  cursor: pointer;
-}
-
-.market-hub-board-row:last-child {
-  border-bottom: 0;
-}
-
-.market-hub-board-row.header {
-  min-height: var(--ds-row-header);
-  background: var(--ds-bg);
-  color: var(--ds-text-3);
-  font-size: var(--ds-text-xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  cursor: default;
-}
-
-.market-hub-board-row:not(.header):hover {
-  background: var(--ds-bg);
-}
-
-.market-hub-board-row.hub-focused {
-  box-shadow: inset 3px 0 0 var(--ds-accent);
-}
-
-.market-hub-board-row.is-waiting [data-price-value] {
+/* Hub board (DataGrid): the active tenor's column of mids is marked, the others quiet. */
+.market-hub-board-table .market-curve {
   color: var(--ds-text-3);
 }
 
-.market-hub-board-row [data-price-value] {
-  font-family: var(--ds-font-ui);
-  font-weight: 600;
-}
-
-.market-hub-board-row .num {
-  text-align: right;
-}
-
-.market-hub-board-row [data-price-meta] {
-  color: var(--ds-text-3);
-}
-
-.market-hub-curve {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--ds-space-1);
-  text-align: right;
-}
-
-.market-hub-curve > span {
-  color: var(--ds-text-3);
-}
-
-.market-hub-curve > span.active {
+.market-hub-board-table .market-curve-active {
   color: var(--ds-text-1);
-  font-weight: 600;
+  font-weight: var(--ds-weight-medium);
+}
+
+.market-hub-board-table tr.is-waiting [data-price-value] {
+  color: var(--ds-text-3);
+}
+
+.market-hub-board-table [data-price-meta] {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-sm);
+}
+
+.market-hub-focus-button[data-focused="true"] strong {
+  color: var(--ds-accent);
 }
 
 .market-fx-strip {
@@ -448,16 +154,6 @@
   margin-bottom: var(--ds-space-2);
 }
 
-@media (max-width: 900px) {
-  .market-hub-board-row {
-    grid-template-columns: 48px minmax(110px, 1fr) 70px 70px;
-  }
-
-  .market-hub-board-row > :nth-child(n + 5) {
-    display: none;
-  }
-}
-
 .intraday-expired-toggle {
   display: inline-block;
   width: auto;
@@ -469,19 +165,6 @@
   font-size: var(--ds-text-sm);
   padding: 2px var(--ds-space-2);
   cursor: pointer;
-}
-
-.market-hub-board-row .market-hub-focus-button {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-}
-
-.market-hub-board-row .market-hub-focus-button[aria-pressed="true"] strong {
-  color: var(--ds-accent);
 }
 
 .intraday-decision-feed > .intraday-expired-toggle {
@@ -505,27 +188,7 @@
   letter-spacing: 0.04em;
 }
 
-/* Price view switch and market ladder (products down, hubs across). */
-.market-view-switch {
-  display: inline-flex;
-  border: 1px solid var(--ds-border);
-}
-
-.market-view-switch button {
-  border: 0;
-  background: transparent;
-  color: var(--ds-text-3);
-  padding: 2px var(--ds-space-2);
-  font-size: var(--ds-text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.market-view-switch button.active {
-  background: var(--ds-ink);
-  color: var(--ds-on-ink);
-}
-
+/* Market ladder (products down, hubs across). */
 .market-ladder-scroll {
   overflow-x: auto;
 }
@@ -619,48 +282,4 @@
 }
 
 /* The rail reads as label/value lines, not boxed tiles: six counts in six rows (#69). */
-.market-context-rail .metric-grid.compact-metrics {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-  margin-bottom: var(--ds-space-1);
-}
 
-.market-context-rail .metric-grid.compact-metrics > div {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--ds-space-2);
-  min-height: 0;
-  padding: 2px 0;
-  border: 0;
-  background: transparent;
-  font-size: var(--ds-text-xs);
-}
-
-.market-context-rail .metric-grid.compact-metrics > div > span {
-  color: var(--ds-text-3);
-}
-
-.market-context-rail .metric-grid.compact-metrics > div.is-alert strong {
-  color: var(--ds-negative);
-}
-
-.market-relevant-resources button {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--ds-space-2);
-  width: 100%;
-  text-align: left;
-  font-size: var(--ds-text-xs);
-}
-
-.market-relevant-resources button strong {
-  white-space: nowrap;
-}
-
-.market-context-rail .market-handoff-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-1) var(--ds-space-3);
-}

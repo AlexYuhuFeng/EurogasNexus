@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   api,
@@ -10,14 +10,24 @@ import {
 import { formatMoney, formatQuantity, splitList } from "@/app/model/riskLimitsModel";
 import { ReportExport } from "./ReportExport";
 import { WhyButton } from "./WhyButton";
+import { MethodNote } from "./MethodNote";
+import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
+const STATUS_TONE: Record<string, StatusTone> = {
+  ok: "ok",
+  watch: "watch",
+  breach: "breach",
+  expired: "breach",
+  incomplete: "stale",
+};
+
 function LimitBadge({ status, t }: { status: string; t: Translate }) {
   return (
-    <span className="limit-badge" data-status={status}>
+    <StatusBadge tone={STATUS_TONE[status] ?? "neutral"}>
       {t(`limits.status_${status}`)}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -137,115 +147,124 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
     setLine({ ...line, [key]: event.target.value });
   const mandateField = (key: keyof typeof EMPTY_MANDATE) => (event: { target: { value: string } }) =>
     setMandate({ ...mandate, [key]: event.target.value });
+  const creditColumns = useMemo<DataGridColumn<CreditExposureRowDTO>[]>(() => [
+    {
+      id: "counterparty",
+      header: t("limits.counterparty"),
+      rowHeader: true,
+      sortable: true,
+      value: (row) => row.counterparty,
+      render: (row) => (
+        <>
+          <strong>{row.counterparty}</strong>{" "}
+          <small className="muted">{[row.rating, row.legal_entity, t("limits.legs", { count: row.legs })].filter(Boolean).join(" · ")}</small>
+        </>
+      ),
+    },
+    // Each line is in its own currency, so the amounts carry it per row and are not sortable
+    // against each other: £31m is not "more" than €4.5m. Utilisation is the comparable figure.
+    { id: "limit", header: t("limits.limit"), type: "number", value: (row) => row.limit, format: (_, row) => formatMoney(row.limit, row.currency) },
+    { id: "replacement", header: t("limits.replacement"), type: "number", value: (row) => row.replacement_exposure, format: (_, row) => formatMoney(row.replacement_exposure, row.currency) },
+    { id: "receivable", header: t("limits.receivable"), type: "number", value: (row) => row.receivable_exposure, format: (_, row) => formatMoney(row.receivable_exposure, row.currency) },
+    { id: "collateral", header: t("limits.collateral"), type: "number", value: (row) => row.collateral, format: (_, row) => formatMoney(row.collateral, row.currency) },
+    { id: "net", header: t("limits.net"), type: "number", value: (row) => row.net_exposure, render: (row) => <strong>{formatMoney(row.net_exposure, row.currency)}</strong> },
+    { id: "used", header: t("limits.used"), type: "number", sortable: true, value: (row) => row.utilisation_pct, render: (row) => <Utilisation pct={row.utilisation_pct} /> },
+    {
+      id: "status",
+      header: t("limits.status"),
+      render: (row) => (
+        <span className="limit-status-cell">
+          <LimitBadge status={row.status} t={t} />
+          {row.status !== "ok" && <WhyButton subject="credit" id={row.counterparty_id} label={row.counterparty} t={t} />}
+          {row.unvalued_legs > 0 && <small>{t("limits.unvalued", { count: row.unvalued_legs })}</small>}
+          {(row.open_ended_legs ?? 0) > 0 && (
+            <small title={t("limits.open_ended_help")}>{t("limits.open_ended", { count: row.open_ended_legs })}</small>
+          )}
+        </span>
+      ),
+    },
+  ], [t]);
+
+  const mandateColumns = useMemo<DataGridColumn<MandateUsageRowDTO>[]>(() => [
+    { id: "trader", header: t("limits.trader"), rowHeader: true, sortable: true, value: (row) => row.name, render: (row) => <><strong>{row.name}</strong> <small className="muted">{row.trader}</small></> },
+    { id: "scope", header: t("limits.scope"), render: (row) => <small>{row.books} · {row.hubs}</small> },
+    { id: "largest", header: t("limits.largest_net"), type: "number", sortable: true, value: (row) => row.largest_net_mwh, render: (row) => <>{formatQuantity(row.largest_net_mwh)} <small className="muted">{row.largest_at}</small></> },
+    { id: "used", header: t("limits.used"), type: "number", sortable: true, value: (row) => row.utilisation_pct, render: (row) => <Utilisation pct={row.utilisation_pct} /> },
+    {
+      id: "tenor",
+      header: t("limits.tenor"),
+      render: (row) => <>{row.furthest_month || "–"}{row.max_tenor_months !== null && <small className="muted"> / {t("limits.months", { count: row.max_tenor_months })}</small>}</>,
+    },
+    {
+      id: "hedge",
+      header: t("limits.hedge"),
+      render: (row) => (
+        <>
+          {row.hedge_ratio_range ?? "–"}
+          {row.hedge_policy && <small className="muted"> / {row.hedge_policy}</small>}
+          {row.hedge_room_mwh !== null && <small className="muted"> · {t("limits.hedge_room", { room: formatQuantity(row.hedge_room_mwh) })}</small>}
+          {row.instruments !== "any" && <small className="muted"> · {row.instruments}</small>}
+        </>
+      ),
+    },
+    {
+      id: "status",
+      header: t("limits.status"),
+      render: (row) => (
+        <span className="limit-status-cell">
+          <LimitBadge status={row.status} t={t} />
+          {row.status !== "ok" && <WhyButton subject="mandate" id={row.mandate_id} label={row.name} t={t} />}
+          {row.breaches && <small className="limit-breaches">{row.breaches}</small>}
+        </span>
+      ),
+    },
+  ], [t]);
+
   const breaches = [...(credit ?? []), ...(mandates ?? [])].filter((row) => row.status === "breach" || row.status === "expired").length;
 
   return (
     <section className="workspace-panel span-3 risk-limits-panel" aria-labelledby="risk-limits-title">
       <div className="panel-title-row">
         <h2 id="risk-limits-title">{t("limits.title")}</h2>
-        {breaches > 0 && <span className="limit-badge" data-status="breach">{t("limits.breaches", { count: breaches })}</span>}
+        {breaches > 0 && <StatusBadge tone="breach">{t("limits.breaches", { count: breaches })}</StatusBadge>}
       </div>
 
       <div className="panel-title-row">
         <h3>{t("limits.credit_title")}</h3>
+        <MethodNote method={credit?.[0]?.method} subject={t("limits.credit_title")} t={t} />
         <ReportExport t={t} path="/portfolio/credit-exposure" />
       </div>
       {credit && credit.length === 0 && <p className="muted">{t("limits.credit_empty")}</p>}
       {credit && credit.length > 0 && (
-        <table className="position-ladder" data-credit-exposure="true">
-          <thead>
-            <tr>
-              <th scope="col">{t("limits.counterparty")}</th>
-              <th scope="col" className="num">{t("limits.limit")}</th>
-              <th scope="col" className="num">{t("limits.replacement")}</th>
-              <th scope="col" className="num">{t("limits.receivable")}</th>
-              <th scope="col" className="num">{t("limits.collateral")}</th>
-              <th scope="col" className="num">{t("limits.net")}</th>
-              <th scope="col">{t("limits.used")}</th>
-              <th scope="col">{t("limits.status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {credit.map((row) => (
-              <tr key={row.counterparty_id} data-status={row.status}>
-                <td>
-                  <strong>{row.counterparty}</strong>{" "}
-                  <small>{[row.rating, row.legal_entity, t("limits.legs", { count: row.legs })].filter(Boolean).join(" · ")}</small>
-                </td>
-                <td className="num">{formatMoney(row.limit, row.currency)}</td>
-                <td className="num">{formatMoney(row.replacement_exposure, row.currency)}</td>
-                <td className="num">{formatMoney(row.receivable_exposure, row.currency)}</td>
-                <td className="num">{formatMoney(row.collateral, row.currency)}</td>
-                <td className="num"><strong>{formatMoney(row.net_exposure, row.currency)}</strong></td>
-                <td><Utilisation pct={row.utilisation_pct} /></td>
-                <td>
-                  <span className="limit-status-cell">
-                    <LimitBadge status={row.status} t={t} />
-                    {row.status !== "ok" && (
-                      <WhyButton subject="credit" id={row.counterparty_id} label={row.counterparty} t={t} />
-                    )}
-                  </span>
-                  {row.unvalued_legs > 0 && <small> {t("limits.unvalued", { count: row.unvalued_legs })}</small>}
-                  {(row.open_ended_legs ?? 0) > 0 && (
-                    <small title={t("limits.open_ended_help")}> {t("limits.open_ended", { count: row.open_ended_legs })}</small>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          id="credit-exposure"
+          label={t("limits.credit_title")}
+          columns={creditColumns}
+          rows={credit}
+          rowKey={(row) => row.counterparty_id}
+          defaultSort={{ columnId: "used", direction: "descending" }}
+          rowAttributes={(row) => ({ "data-status": row.status })}
+          tableAttributes={{ "data-credit-exposure": "true" }}
+        />
       )}
 
       <div className="panel-title-row">
         <h3>{t("limits.mandate_title")}</h3>
+        <MethodNote method={mandates?.[0]?.method} subject={t("limits.mandate_title")} t={t} />
         <ReportExport t={t} path="/portfolio/mandate-usage" />
       </div>
       {mandates && mandates.length === 0 && <p className="muted">{t("limits.mandate_empty")}</p>}
       {mandates && mandates.length > 0 && (
-        <table className="position-ladder" data-mandate-usage="true">
-          <thead>
-            <tr>
-              <th scope="col">{t("limits.trader")}</th>
-              <th scope="col">{t("limits.scope")}</th>
-              <th scope="col" className="num">{t("limits.largest_net")}</th>
-              <th scope="col">{t("limits.used")}</th>
-              <th scope="col">{t("limits.tenor")}</th>
-              <th scope="col">{t("limits.hedge")}</th>
-              <th scope="col">{t("limits.status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mandates.map((row) => (
-              <tr key={row.mandate_id} data-status={row.status}>
-                <td><strong>{row.name}</strong> <small>{row.trader}</small></td>
-                <td><small>{row.books} · {row.hubs}</small></td>
-                <td className="num">
-                  {formatQuantity(row.largest_net_mwh)} <small>{row.largest_at}</small>
-                </td>
-                <td><Utilisation pct={row.utilisation_pct} /></td>
-                <td>
-                  {row.furthest_month || "-"}
-                  {row.max_tenor_months !== null && <small> / {t("limits.months", { count: row.max_tenor_months })}</small>}
-                </td>
-                <td>
-                  {row.hedge_ratio_range ?? "-"}
-                  {row.hedge_policy && <small> / {row.hedge_policy}</small>}
-                  {row.hedge_room_mwh !== null && <div className="muted"><small>{t("limits.hedge_room", { room: formatQuantity(row.hedge_room_mwh) })}</small></div>}
-                  {row.instruments !== "any" && <div className="muted"><small>{row.instruments}</small></div>}
-                </td>
-                <td>
-                  <span className="limit-status-cell">
-                    <LimitBadge status={row.status} t={t} />
-                    {row.status !== "ok" && (
-                      <WhyButton subject="mandate" id={row.mandate_id} label={row.name} t={t} />
-                    )}
-                  </span>
-                  {row.breaches && <div className="limit-breaches">{row.breaches}</div>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          id="mandate-usage"
+          label={t("limits.mandate_title")}
+          columns={mandateColumns}
+          rows={mandates}
+          rowKey={(row) => row.mandate_id}
+          defaultSort={{ columnId: "used", direction: "descending" }}
+          rowAttributes={(row) => ({ "data-status": row.status })}
+          tableAttributes={{ "data-mandate-usage": "true" }}
+        />
       )}
       {warnings.length > 0 && (
         <details className="limit-warnings">

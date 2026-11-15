@@ -83,8 +83,11 @@ export function WorkspaceHeader<T extends string>({
 
   return (
     <header className="workspace-page-header">
+      {/* One 40 px row (UX-04): the title on the left, the task tabs and the primary action on
+          the right. The active task is the selected tab, so the eyebrow that repeated it is read
+          by screen readers only. */}
       <div className="workspace-page-heading">
-        <span className="eyebrow">{taskLabel}</span>
+        <span className="eyebrow visually-hidden">{taskLabel}</span>
         {heading}
       </div>
       <div className="workspace-page-header-actions">

@@ -643,12 +643,12 @@ def test_the_market_board_compares_the_pairs_the_sweep_declares() -> None:
 
     terminal = MARKET_TERMINAL.read_text(encoding="utf-8")
     for marker in (
-        'data-market-board="hub-prices"',
-        "data-board-tenor={activeTenor}",
-        "data-tenor={tenor}",
-        'data-record="market-hub-price"',
-        "data-record-slice={pricedSlice ?? undefined}",
-        "data-price-tenor={row.tenor}",
+        '"data-market-board": "hub-prices"',
+        '"data-board-tenor": activeTenor',
+        '"data-tenor": tenor',
+        '"data-record": "market-hub-price"',
+        '"data-record-slice": row.pricedSlice ?? undefined',
+        '"data-price-tenor": row.tenor',
         "data-price-hub-label",
         "data-price-value",
         "data-price-meta",

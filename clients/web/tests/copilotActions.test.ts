@@ -108,31 +108,31 @@ test("the review surface converged its own AI panel onto the canonical actions",
 });
 
 test("a workspace mounts the Copilot with the same rule the palette applies", () => {
-  const cockpit = readWebSource("components/MarketCockpit.tsx");
+  const review = readWebSource("components/ReviewWorkspace.tsx");
 
   // The workspace offers the five canonical actions from the one registry, resolved from
   // the same canonical sources the shell and the palette use, and gates each with the
   // offer the contract produced rather than with a copy of the rule.
-  assert.match(cockpit, /import \{ copilotOffers \} from "@\/app\/model\/copilotModel"/);
-  assert.match(cockpit, /import \{ CopilotHost \} from "@\/components\/CopilotPanel"/);
-  // When every action is withheld the panel is one line with the first withheld reason.
-  assert.match(cockpit, /const offers = copilotOffers\(copilotSources\.context, copilotSources\.evidenceRefs\);/);
-  assert.match(cockpit, /offers\.map\(\(offer\) =>/);
-  assert.match(cockpit, /offers\.every\(\(offer\) => !offer\.available\)/);
-  assert.match(cockpit, /disabled=\{!offer\.available\}/);
+  assert.match(review, /import \{ copilotOffers \} from "@\/app\/model\/copilotModel"/);
+  assert.match(review, /import \{ CopilotHost \} from "@\/components\/CopilotPanel"/);
+  assert.match(review, /copilotOffers\(copilotSources\.context, copilotSources\.evidenceRefs\)\.map\(\(offer\) =>/);
   assert.match(
-    cockpit,
+    review,
     /title=\{offer\.withheldReasonKey \? t\(offer\.withheldReasonKey\) : undefined\}/,
   );
-  assert.match(cockpit, /onClick=\{\(\) => setAiAction\(offer\.action\)\}/);
-  assert.match(cockpit, /<CopilotHost\s+action=\{aiAction\}/s);
-  // Evidence comes from the selection the surface already holds, and the panel is a
-  // canonical-action surface rather than a sixth action of its own.
-  assert.match(cockpit, /const copilotSources = useCopilotSources\(\{/);
-  assert.match(cockpit, /routeId: selection\.routeId,/);
-  assert.match(cockpit, /strategyRunId: selection\.strategyRunId,/);
-  assert.match(cockpit, /import type \{ AiActionKind \} from "@\/app\/experience\/vocabulary"/);
-  assert.equal(cockpit.includes("api.analysisQuery"), false, "the Copilot host owns the transport");
+  assert.match(review, /onClick=\{\(\) => setAiAction\(offer\.action\)\}/);
+  assert.match(review, /<CopilotHost/);
+  assert.match(review, /import type \{ AiActionKind \} from "@\/app\/experience\/vocabulary"/);
+  assert.equal(review.includes("api.analysisQuery"), false, "the Copilot host owns the transport");
+
+  // Today (UX-05) carries no Copilot panel: a rail of withheld actions said "Withheld" on the
+  // first screen (review E1). The actions stay one keystroke away in the palette.
+  const cockpit = readWebSource("components/MarketCockpit.tsx");
+  const today = readWebSource("components/TodayScreen.tsx");
+  for (const source of [cockpit, today]) {
+    assert.equal(source.includes("copilotOffers"), false);
+    assert.equal(source.includes("CopilotHost"), false);
+  }
 });
 
 /** Executable lines only: comments state the rules and are checked separately. */

@@ -32,12 +32,12 @@ import { useInspectorStore } from "@/stores/inspector";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import type { CommercialDiagnosticItem } from "@/app/model/commercialWarnings";
-import { WorkspaceTabs } from "@/components/ui";
+import { Segmented, WorkspaceTabs } from "@/components/ui";
 import {
   ResourcePoolPathOverlay,
   type ResourcePoolMapPath,
 } from "@/components/ResourcePoolPathOverlay";
-import { warningLabel } from "@/app/warningLabel";
+import { warningCode, warningLabel } from "@/app/warningLabel";
 
 type Translate = (key: string) => string;
 type SaleOption = ResourcePoolOptionsDTO["sale_options"][number];
@@ -368,20 +368,13 @@ export function NetworkWorkspace({
         aria-label={t("network.map_column_label")}
       >
         <div className="map-toolbar">
-          <div className="map-view-switch" role="group" aria-label={t("map.view.label")}>
-            {(["network", "book"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={`chip${mapView === option ? " active" : ""}`}
-                aria-pressed={mapView === option}
-                title={t(`map.view.${option}_hint`)}
-                onClick={() => chooseMapView(option)}
-              >
-                {t(`map.view.${option}`)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            className="map-view-switch"
+            label={t("map.view.label")}
+            options={(["network", "book"] as const).map((option) => ({ value: option, label: t(`map.view.${option}`), title: t(`map.view.${option}_hint`) }))}
+            value={mapView}
+            onChange={chooseMapView}
+          />
           <span className="map-toolbar-divider" aria-hidden="true" />
           <button className="chip reset-chip" type="button" onClick={onResetSearch}>
             {t("map.reset")}
@@ -656,7 +649,7 @@ export function NetworkWorkspace({
                         <span>{t("context.updated")}: {option?.sale_price_observed_at_utc ? new Date(option.sale_price_observed_at_utc).toLocaleString() : "n/a"}</span>
                         <span>{t("home.source_refs")}: {option?.source_refs?.join(" / ") || t("data.unavailable")}</span>
                         {allocation.warnings.map((warning) => (
-                          <strong key={`${allocation.option_id}-${warning}`}>{warningLabel(warning, t)}</strong>
+                          <strong key={`${allocation.option_id}-${warning}`} title={warning} data-warning-code={warningCode(warning)}>{warningLabel(warning, t)}</strong>
                         ))}
                       </div>
                     </details>

@@ -26,9 +26,11 @@ interface PortfolioContextStripProps {
   t: Translate;
   /** The page\'s gas day, product and hub controls, shown in the context line. */
   controls?: React.ReactNode;
+  /** The page's own freshness line ("Demo data" on the demo desk). */
+  freshness?: React.ReactNode;
 }
 
-export function PortfolioContextStrip({ projection, t, controls }: PortfolioContextStripProps) {
+export function PortfolioContextStrip({ projection, t, controls, freshness }: PortfolioContextStripProps) {
   if (!projection) return null;
 
   return (
@@ -42,6 +44,7 @@ export function PortfolioContextStrip({ projection, t, controls }: PortfolioCont
       basis={snapshotTimeBasis(projection)}
       t={t}
       controls={controls}
+      freshness={freshness}
     />
   );
 }

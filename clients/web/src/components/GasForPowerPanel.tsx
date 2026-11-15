@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api, type GasForPowerDayDTO } from "@/api/client";
 import { ReportExport } from "./ReportExport";
+import { Field, Select } from "@/components/ui";
 import { pnlClass } from "@/app/model/pnlColor";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -46,12 +47,9 @@ export function GasForPowerPanel({ t }: { t: Translate }) {
       <div className="panel-title-row">
         <h2 id="gas-for-power-title" title={t("gfp.meaning")}>{t("gfp.title")}</h2>
         {hasRows && <ReportExport t={t} path="/market/gas-for-power" params={{ zone, days: "14" }} />}
-        <label className="position-horizon">
-          <span>{t("gfp.zone")}</span>
-          <select value={zone} onChange={(event) => setZone(event.target.value)}>
-            {ZONES.map((code) => <option key={code} value={code}>{code}</option>)}
-          </select>
-        </label>
+        <Field inline label={t("gfp.zone")}>
+          <Select value={zone} onChange={setZone} options={ZONES.map((code) => ({ value: code, label: code }))} />
+        </Field>
       </div>
       {error && <p role="alert">{error}</p>}
       {empty ? (

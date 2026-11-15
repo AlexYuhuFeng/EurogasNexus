@@ -47,11 +47,21 @@ async function renderTicker(items: TickerItem[]) {
   return renderToStaticMarkup(React.createElement(BreakingTicker, { items, t, onOpen: () => undefined }));
 }
 
-test("no bar when there is nothing to say; 'Breaking' with anything critical", async () => {
+test("no bar when there is nothing to say; 'Breaking' only for news, not a standing breach", async () => {
   assert.equal(await renderTicker([]), "");
-  const calm = await renderTicker(buildTickerItems([alert("a1", "warning")], [], "en", t));
+  const now = Date.parse("2026-11-07T09:00:00Z");
+  const calm = await renderTicker(buildTickerItems([alert("a1", "warning")], [], "en", t, now));
   assert.match(calm, /ticker\.latest/);
-  const hot = await renderTicker(buildTickerItems([alert("a1", "critical")], [], "en", t));
+  // A critical alert that has stood for days keeps its red dot under a neutral label (E6).
+  const standing = await renderTicker(buildTickerItems([alert("a1", "critical", "open", "2026-11-03T08:00:00Z")], [], "en", t, now));
+  assert.match(standing, /ticker\.latest/);
+  assert.doesNotMatch(standing, /has-critical/);
+  assert.match(standing, /is-critical/);
+  // A planned outage, however large, is not breaking news; an unplanned one is.
+  const planned = { ...outage("o9", 60, 70), event_type: "planned" };
+  assert.doesNotMatch(await renderTicker(buildTickerItems([], [planned], "en", t, now)), /has-critical/);
+  assert.match(await renderTicker(buildTickerItems([], [outage("o1", 60, 70)], "en", t, now)), /ticker\.breaking/);
+  const hot = await renderTicker(buildTickerItems([alert("a1", "critical")], [], "en", t, now));
   assert.match(hot, /ticker\.breaking/);
   assert.match(hot, /has-critical/);
   // The loop's second copy is hidden from assistive technology and the tab order.

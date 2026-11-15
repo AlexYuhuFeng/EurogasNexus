@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, type DeliveryPerformanceDTO } from "@/api/client";
 import { deliveryBars, formatQuantity } from "@/app/model/riskLimitsModel";
 import { ReportExport } from "./ReportExport";
+import { Field, Select } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -45,12 +46,9 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
     <section className="workspace-panel span-3 delivery-panel" aria-labelledby="delivery-title">
       <div className="panel-title-row">
         <h2 id="delivery-title">{t("delivery.title")}</h2>
-        <label className="position-horizon">
-          <span>{t("delivery.window")}</span>
-          <select value={days} onChange={(event) => setDays(Number(event.target.value))}>
-            {WINDOWS.map((value) => <option key={value} value={value}>{t("delivery.days", { count: value })}</option>)}
-          </select>
-        </label>
+        <Field inline label={t("delivery.window")}>
+          <Select value={String(days)} onChange={(value) => setDays(Number(value))} options={WINDOWS.map((value) => ({ value: String(value), label: t("delivery.days", { count: value }) }))} />
+        </Field>
         <ReportExport t={t} path="/contracts/delivery-performance" params={{ days: String(days) }} />
       </div>
       {data && data.rows.length === 0 && <p className="muted">{t("delivery.empty")}</p>}

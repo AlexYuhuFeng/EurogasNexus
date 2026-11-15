@@ -869,7 +869,6 @@ test("the capacity surface keeps its analysis and hands the record over", () => 
 test("the panel renders resolved facts and never resolves detail itself", () => {
   const panel = readWebSource("components/InspectorPanel.tsx");
   const shell = readWebSource("app/shell/AppShell.tsx");
-  const cockpit = readWebSource("components/MarketCockpit.tsx");
 
   // The panel is told the detail; it does not look it up or fetch it.
   assert.match(panel, /detail: InspectorDetail;/);
@@ -882,9 +881,4 @@ test("the panel renders resolved facts and never resolves detail itself", () => 
   // The shell resolves detail from state the identity already received.
   assert.match(shell, /detail=\{inspectorDetailFor\(api, inspector\.subject\)\}/);
 
-  // The market cockpit hands its focused observation over through the contract.
-  assert.match(cockpit, /import \{ marketObservationSubject \} from "@\/app\/model\/inspectorDetail"/);
-  assert.match(cockpit, /const inspector = useInspectorStore\(\);/);
-  assert.match(cockpit, /const subject = marketObservationSubject\(/);
-  assert.match(cockpit, /if \(subject\) inspector\.open\(subject\);/);
 });

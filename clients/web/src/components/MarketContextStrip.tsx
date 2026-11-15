@@ -29,9 +29,11 @@ interface MarketContextStripProps {
   t: Translate;
   /** The page\'s gas day, product and hub controls, shown in the context line. */
   controls?: React.ReactNode;
+  /** The page's own freshness line (Today's named stale figures, or "Demo data"). */
+  freshness?: React.ReactNode;
 }
 
-export function MarketContextStrip({ projection, t, controls }: MarketContextStripProps) {
+export function MarketContextStrip({ projection, t, controls, freshness }: MarketContextStripProps) {
   if (!projection) return null;
 
   return (
@@ -45,6 +47,7 @@ export function MarketContextStrip({ projection, t, controls }: MarketContextStr
       basis={contextTimeBasis(projection)}
       t={t}
       controls={controls}
+      freshness={freshness}
     />
   );
 }

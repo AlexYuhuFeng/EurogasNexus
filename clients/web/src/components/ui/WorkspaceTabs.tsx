@@ -1,5 +1,6 @@
-import { type KeyboardEvent, type ReactNode } from "react";
-import { getNextWorkspaceTabIndex, workspaceTabButtonId } from "./tabKeyboard";
+import type { ReactNode } from "react";
+
+import { Tabs } from "./Tabs";
 
 export interface WorkspaceTabItem<T extends string> {
   id: T;
@@ -33,68 +34,41 @@ interface WorkspaceTabsProps<T extends string> {
   tabs: readonly WorkspaceTabItem<T>[];
   activeId: T;
   panelId: string;
+  /** Always a tablist; kept so existing call sites that state it still type-check. */
   role?: "tablist";
   className?: string;
   shellRegion?: ShellRegionMarker;
   onActivate: (id: T) => void;
 }
 
+/**
+ * A workspace's task tabs, or the top bar's destinations: the Tabs primitive as a `<nav>`
+ * landmark holding the tablist (UX-02). Tabs owns the behaviour (roving tabindex,
+ * Left/Right/Home/End, the selected tab's `aria-selected`), so every tab row in the product
+ * moves the same way.
+ */
 export function WorkspaceTabs<T extends string>({
   idPrefix,
   label,
   tabs,
   activeId,
   panelId,
-  role = "tablist",
   className,
   shellRegion,
   onActivate,
 }: WorkspaceTabsProps<T>) {
-  const focusTab = (id: T) => {
-    window.requestAnimationFrame(() => {
-      document.getElementById(workspaceTabButtonId(idPrefix, id))?.focus();
-    });
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, currentId: T) => {
-    const currentIndex = tabs.findIndex((tab) => tab.id === currentId);
-    const nextIndex = getNextWorkspaceTabIndex(currentIndex, tabs.length, event.key);
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const nextTab = tabs[nextIndex];
-    if (!nextTab) return;
-    onActivate(nextTab.id);
-    focusTab(nextTab.id);
-  };
-
   return (
-    <nav className={className} role={role} aria-label={label} data-shell-region={shellRegion}>
-      {tabs.map((tab) => {
-        const isActive = tab.id === activeId;
-        return (
-          <button
-            key={tab.id}
-            id={workspaceTabButtonId(idPrefix, tab.id)}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            aria-controls={tab.controls ?? panelId}
-            className={isActive ? "active" : undefined}
-            onClick={() => onActivate(tab.id)}
-            onKeyDown={(event) => handleKeyDown(event, tab.id)}
-            aria-label={tab.shortLabel && typeof tab.label === "string" ? tab.label : undefined}
-          >
-            {tab.shortLabel ? (
-              <>
-                <span className="tab-label-full">{tab.label}</span>
-                <span className="tab-label-short" aria-hidden="true">{tab.shortLabel}</span>
-              </>
-            ) : (
-              tab.label
-            )}
-          </button>
-        );
-      })}
-    </nav>
+    <Tabs
+      landmark
+      idPrefix={idPrefix}
+      label={label}
+      tabs={tabs}
+      activeId={activeId}
+      panelId={panelId}
+      variant={shellRegion === "navigation" ? "nav" : "line"}
+      className={className}
+      dataAttributes={{ "data-shell-region": shellRegion }}
+      onChange={onActivate}
+    />
   );
 }

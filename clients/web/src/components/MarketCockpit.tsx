@@ -1,422 +1,36 @@
 import { openDeskBrief } from "@/components/DeskBriefDialog";
 import { tabLabels } from "@/components/ui/tabLabels";
-import { useEffect, useMemo, useState } from "react";
-import { Button, EmptyState, KeyFigure, Panel, WorkspaceHeader } from "@/components/ui";
+import { useEffect, useState } from "react";
+import { WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { OutagesPanel } from "@/components/OutagesPanel";
-import { GasForPowerPanel } from "@/components/GasForPowerPanel";
-import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { TraderDeskPanel } from "@/components/TraderDeskPanel";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
-import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
+import { TodayFreshness, TodayScreen } from "@/components/TodayScreen";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
-import { marketObservationSubject } from "@/app/model/inspectorDetail";
-import { copilotOffers } from "@/app/model/copilotModel";
-import { CopilotHost } from "@/components/CopilotPanel";
-import { useCopilotSources } from "@/app/hooks/useCopilot";
-import type { AiActionKind } from "@/app/experience/vocabulary";
-import { useInspectorStore } from "@/stores/inspector";
+import { useDeskToday } from "@/app/hooks/useDeskToday";
 import type { AppController } from "@/app/hooks/useAppController";
-import { useMapSituation } from "@/app/hooks/useMapSituation";
-import { situationSummary } from "@/app/mapSituation";
-import { hubPrices } from "@/app/mapSelection";
 import "./market-cockpit.css";
 
 import {
-  MAJOR_MARKET_HUBS as MAJOR_HUBS,
   MARKET_TASKS,
   type MarketTask,
 } from "@/app/model/marketCockpitModel";
 
-import {
-  buildMarketOverviewComparisons,
-  formatQuoteBidAsk,
-  nextMarketOverviewExpiryMs,
-} from "@/app/model/marketOverviewModel";
-
-function timestampMs(value: string | null | undefined): number {
-  if (!value) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function latestByHub<T extends { hub: string; observed_at_utc?: string | null }>(
-  rows: T[],
-): Map<string, T> {
-  const latest = new Map<string, T>();
-  [...rows]
-    .sort((left, right) => timestampMs(right.observed_at_utc) - timestampMs(left.observed_at_utc))
-    .forEach((row) => {
-      if (!latest.has(row.hub.toUpperCase())) latest.set(row.hub.toUpperCase(), row);
-    });
-  return latest;
-}
-
-function formatAge(value: string | null | undefined): string {
-  if (!value) return "n/a";
-  const seconds = Math.max((Date.now() - new Date(value).getTime()) / 1000, 0);
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
-  return `${Math.round(seconds / 86400)}d`;
-}
-
-function formatPrice(value: number | null | undefined, unit: string | null): string {
-  return value === null || value === undefined || !unit ? "n/a" : `${value.toFixed(2)} ${unit}`;
-}
-
-function formatSpread(value: number | null, unit: string | null): string {
-  if (value === null || !unit) return "n/a";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)} ${unit}`;
-}
-
-function observationContextTitle(observation: {
-  product: string;
-  currency: string;
-  unit: string;
-  period_start_utc: string;
-  period_end_utc: string;
-  metadata_json?: Record<string, unknown>;
-} | undefined): string | undefined {
-  if (!observation) return undefined;
-  const metadata = observation.metadata_json ?? {};
-  const basis = ["price_basis", "basis", "price_level", "price_timing"]
-    .map((key) => metadata[key])
-    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
-  return [
-    `product=${observation.product}`,
-    `delivery=${observation.period_start_utc}/${observation.period_end_utc}`,
-    `basis=${basis ?? "unavailable"}`,
-    `price_unit=${observation.currency}/${observation.unit}`,
-    "spread_source=unavailable",
-  ].join("; ");
-}
-
-interface MarketOverviewProps {
-  controller: AppController;
-  task: MarketTask;
-}
-
-function MarketOverview({ controller }: MarketOverviewProps) {
-  const { api, portfolio, traderContext, selection, t, navigation } = controller;
-  const markets = api.normalizedMarkets;
-  const quotes = api.marketQuotes;
-  const inspector = useInspectorStore();
-  const [aiAction, setAiAction] = useState<AiActionKind | null>(null);
-  // The Copilot reads the same canonical sources the shell and the palette use, so an
-  // action offered here carries the context and evidence a run would actually use.
-  const copilotSources = useCopilotSources({
-    selection: {
-      routeId: selection.routeId,
-      resourceId: selection.resourceId,
-      strategyVersionId: selection.strategyVersionId,
-      strategyRunId: selection.strategyRunId,
-    },
-  });
+/** Age words on Today move on without a refetch: a minute clock, paused while hidden. */
+function useMinuteClock(): number {
   const [nowMs, setNowMs] = useState(() => Date.now());
-
   useEffect(() => {
-    const nextExpiryMs = nextMarketOverviewExpiryMs(api.intradayOpportunities, nowMs);
-    if (nextExpiryMs === null) return undefined;
-    const timeoutId = window.setTimeout(
-      () => setNowMs(Date.now()),
-      Math.max(0, Math.min(2_147_483_647, nextExpiryMs - Date.now())),
-    );
-    return () => window.clearTimeout(timeoutId);
-  }, [api.intradayOpportunities, nowMs]);
-
-  const latestMarketByHub = useMemo(() => latestByHub(markets), [markets]);
-  const comparisonRows = useMemo(
-    () => buildMarketOverviewComparisons(MAJOR_HUBS, quotes, api.intradayOpportunities, nowMs),
-    [api.intradayOpportunities, nowMs, quotes],
-  );
-  const comparisonByHub = useMemo(
-    () => new Map(comparisonRows.map((row) => [row.hub, row])),
-    [comparisonRows],
-  );
-  const focusedHub = traderContext.hubId;
-  // Wave 9 hand-over: the Inspector shows the object the hub board actually
-  // displayed for the focused hub - the quote when one exists, otherwise the
-  // normalized observation. It resolves detail from data this surface already
-  // received, so opening it fetches nothing.
-  const inspectedObservation = focusedHub
-    ? comparisonByHub.get(focusedHub)?.quote ?? latestMarketByHub.get(focusedHub) ?? null
-    : null;
-  const { situation } = useMapSituation();
-  const networkToday = useMemo(() => {
-    const summary = situationSummary(situation);
-    if (!summary || !situation) return null;
-    const entries = situation.flows.filter((flow) => flow.direction === "entry" && flow.gwh_d != null);
-    return { ...summary, flowGwhD: entries.length ? entries.reduce((sum, flow) => sum + (flow.gwh_d ?? 0), 0) : null };
-  }, [situation]);
-  const relevantResources = portfolio.portfolioResources.filter(
-    (resource) =>
-      !focusedHub ||
-      String(resource.location_point_name ?? "").toUpperCase().includes(focusedHub) ||
-      String(resource.resource_name ?? "").toUpperCase().includes(focusedHub),
-  );
-
-  // Hubs with no price from any source collapse into one line: six rows of "n/a" said less
-  // than one sentence does (#69). Bid/offer and spread columns appear only when some hub has
-  // a live quote, because without one every cell in them would be empty.
-  const pricedHubs = MAJOR_HUBS.filter(
-    (hub) => comparisonByHub.get(hub)?.quote || hubPrices(hub, markets)[0] || latestMarketByHub.get(hub),
-  );
-  const unpricedHubs = MAJOR_HUBS.filter((hub) => !pricedHubs.includes(hub));
-  // A simulated price never reads as a market price: the board says so above the numbers
-  // whenever a shown price comes from a simulated source (AGENTS.md rule 17).
-  const simulatedOnBoard = pricedHubs.some((hub) => {
-    const quote = comparisonByHub.get(hub)?.quote;
-    if (quote) return Boolean(quote.simulated);
-    const shown = hubPrices(hub, markets)[0];
-    const source = shown?.source ?? latestMarketByHub.get(hub)?.source_system ?? "";
-    return /_sim$/i.test(String(source)) || latestMarketByHub.get(hub)?.metadata_json?.simulated === true;
-  });
-  const showQuotes = comparisonRows.some((row) => row.quote);
-  const showSpread = comparisonRows.some((row) => row.spread != null);
-  const boardColumns = [
-    "minmax(56px, 0.6fr)",
-    ...(showQuotes ? ["minmax(150px, 1.5fr)"] : []),
-    "minmax(150px, 1.4fr)",
-    ...(showSpread ? ["minmax(110px, 1fr)"] : []),
-    "minmax(100px, 1fr)",
-    "minmax(56px, 0.5fr)",
-  ].join(" ");
-
-  return (
-    <div className="market-cockpit-overview">
-      {/* Gas day, product and hub are already in the top bar; the board carries only what the
-          top bar does not: whether the runtime store answered, and a refresh. */}
-      <div className="market-overview-main">
-      <aside className="market-hub-board" aria-label={t("market.hub_board")}>
-        <div className="market-hub-board-head">
-          <h2>{t("market.hub_board")}</h2>
-          <Button variant="quiet" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</Button>
-          {/* Before noon the desk writes its morning brief; after, its end-of-day report. */}
-          <Button variant="quiet" onClick={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}>{t("brief.open")}</Button>
-        </div>
-        {simulatedOnBoard && (
-          <div className="market-simulated-banner" role="alert" data-simulated-board="true">
-            <strong>{t("market.simulated_banner_title")}</strong>
-            <span>{t("market.simulated_banner_body")}</span>
-          </div>
-        )}
-        <div className="data-table" style={{ ["--board-columns" as string]: boardColumns }}>
-          <div className="data-table-row header board-row">
-            <span>{t("market.hub")}</span>
-            {showQuotes && <span>{t("market.bid_ask")}</span>}
-            <span>{t("market.price")}</span>
-            {showSpread && <span>{t("market.spread_to_ttf")}</span>}
-            <span>{t("market.source")}</span><span>{t("market.freshness")}</span>
-          </div>
-          {pricedHubs.map((hub) => {
-            const observation = latestMarketByHub.get(hub);
-            // Day-ahead, else month-ahead, named: the same rows and rule as the hub board and
-            // the map's hub card, so one hub never shows two unexplained prices.
-            const boardPrice = hubPrices(hub, markets)[0] ?? null;
-            const comparison = comparisonByHub.get(hub);
-            const quote = comparison?.quote;
-            const selected = focusedHub === hub;
-            return (
-              <button
-                key={hub}
-                type="button"
-                className={`data-table-row board-row ${selected ? "selected" : ""}`}
-                onClick={() => traderContext.setHubId(selected ? null : hub)}
-                aria-pressed={selected}
-                title={quote ? comparison?.contextTitle : observationContextTitle(observation) ?? comparison?.contextTitle}
-              >
-                <strong>{hub}</strong>
-                {showQuotes && <span>{quote ? formatQuoteBidAsk(comparison.bid, comparison.ask, comparison.priceUnit) : "–"}</span>}
-                {/* Each hub in its own unit (TTF in EUR/MWh, NBP in GBP/MWh), as on the hub
-                    board: a converted price would give the same hub two numbers. */}
-                <span>
-                  {quote
-                    ? formatPrice(comparison.mid, comparison.priceUnit)
-                    : boardPrice
-                      ? <>{formatPrice(boardPrice.price, boardPrice.unit)} <small className="muted">{t(boardPrice.tenor === "day-ahead" ? "map.detail.day_ahead" : "map.detail.month_ahead")}</small></>
-                      : "–"}
-                </span>
-                {showSpread && <span>{formatSpread(comparison?.spread ?? null, comparison?.spreadUnit ?? null)}</span>}
-                <span>{quote?.source_system ?? boardPrice?.source ?? observation?.source_system ?? "–"}</span>
-                <span>{formatAge(quote?.observed_at_utc ?? boardPrice?.observedAt ?? observation?.observed_at_utc)}</span>
-              </button>
-            );
-          })}
-        </div>
-        {unpricedHubs.length > 0 && (
-          <p className="market-hub-board-missing">
-            <span>{t("market.no_price_hubs")}</span>
-            {unpricedHubs.map((hub) => (
-              <button
-                key={hub}
-                type="button"
-                className="link-button"
-                aria-pressed={focusedHub === hub}
-                onClick={() => traderContext.setHubId(focusedHub === hub ? null : hub)}
-              >
-                {hub}
-              </button>
-            ))}
-          </p>
-        )}
-      </aside>
-
-      {/* Fundamentals sit under the prices they explain. The map lives on the Network task
-          only: a second, smaller copy here repeated it without adding a reading (#69). */}
-      <div className="market-overview-fundamentals">
-        <NweBalancePanel t={t} />
-        <GasForPowerPanel t={t} />
-      </div>
-      </div>
-
-      <aside className="market-context-rail" aria-label={t("market.context_rail")}>
-        {/* What is happening on the network now, from the same live read as the map, instead
-            of counts of loaded rows. */}
-        <Panel
-          title={t("market.network_today")}
-          actions={<Button variant="quiet" onClick={() => navigation.openWorkspace("network")}>{t("market.open_map")}</Button>}
-        >
-          {networkToday ? (
-            <div className="metric-grid two-column compact-metrics">
-              <KeyFigure className={networkToday.outagesNow ? "is-alert" : undefined} label={t("map.situation.outages_now")} value={networkToday.outagesNow} />
-              <KeyFigure label={t("map.situation.outages_scheduled")} value={networkToday.outagesScheduled} />
-              <KeyFigure label={t("map.situation.cargoes_at_sea")} value={networkToday.cargoesAtSea} />
-              <KeyFigure label={t("map.situation.slots")} value={networkToday.slots} />
-              <KeyFigure
-                label={t("market.flows_measured")}
-                value={networkToday.flowGwhD == null ? "–" : Math.round(networkToday.flowGwhD).toLocaleString("en-GB")}
-                unit={networkToday.flowGwhD == null ? undefined : "GWh/d"}
-              />
-              <KeyFigure label={t("map.situation.contracts")} value={networkToday.contracts} />
-            </div>
-          ) : (
-            <EmptyState compact reason={t("market.network_today_none")} />
-          )}
-        </Panel>
-        {/* The intraday scan earns a panel only when it returned candidates; otherwise one
-            line says so, instead of a badge, a heading and an empty-state card. */}
-        {api.intradayOpportunities.length > 0 ? (
-          <section className="workspace-panel">
-            <h2>{t("market.opportunities")}</h2>
-            <IntradayDecisionFeed
-              opportunities={api.intradayOpportunities}
-              t={t}
-              compact
-            />
-          </section>
-        ) : (
-          <p className="muted market-rail-note">{t("market.no_opportunities")}</p>
-        )}
-        <Panel title={t("market.portfolio_relevance")}>
-          {relevantResources.length === 0 ? (
-            <EmptyState compact reason={t("market.no_relevant_resources")} />
-          ) : (
-            <ul className="market-relevant-resources">
-              {relevantResources.slice(0, 4).map((resource) => (
-                <li key={resource.resource_id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      selection.setResourceId(resource.resource_id);
-                      navigation.openWorkspace("contracts");
-                    }}
-                  >
-                    <span>{resource.resource_name}</span>
-                    <strong>{Number(resource.available_quantity_mwh_per_day).toLocaleString("en-GB")} MWh/d</strong>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="market-handoff-actions">
-            <button type="button" className="link-button" onClick={() => navigation.openWorkspace("scenario")}>{t("market.open_in_scenario")}</button>
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => {
-                if (focusedHub) traderContext.setHubId(focusedHub);
-                navigation.openWorkspace("strategy");
-              }}
-            >
-              {t("market.inspect_in_strategy")}
-            </button>
-            <button
-              type="button"
-              className="link-button"
-              hidden={!inspectedObservation}
-              onClick={() => {
-                const subject = marketObservationSubject(
-                  inspectedObservation,
-                  "market",
-                  focusedHub ?? "",
-                );
-                if (subject) inspector.open(subject);
-              }}
-            >
-              {t("market.inspect_observation")}
-            </button>
-          </div>
-        </Panel>
-        {(() => {
-          // Five disabled buttons said only "not now"; when no action is available the
-          // Copilot is one line with the reason the first action gives (#69).
-          const offers = copilotOffers(copilotSources.context, copilotSources.evidenceRefs);
-          const withheld = offers.every((offer) => !offer.available);
-          return (
-            <section className="workspace-panel" aria-label={t("experience.copilot.title")}>
-              <h2 title={t("experience.copilot.subtitle")}>{t("experience.copilot.title")}</h2>
-              {withheld ? (
-                <p className="muted market-rail-note">
-                  {offers[0]?.withheldReasonKey ? t(offers[0].withheldReasonKey) : t("experience.copilot.subtitle")}
-                </p>
-              ) : (
-                <div className="market-handoff-actions">
-                  {/* Wave 7 convergence on this workspace: the five canonical actions are
-                      offered here, gated by the same rule the palette and the Copilot apply. */}
-                  {offers.map((offer) => (
-                    <button
-                      key={offer.action}
-                      type="button"
-                      disabled={!offer.available}
-                      title={offer.withheldReasonKey ? t(offer.withheldReasonKey) : undefined}
-                      onClick={() => setAiAction(offer.action)}
-                    >
-                      {t(offer.labelKey)}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-          );
-        })()}
-      </aside>
-
-      {comparisonRows.some((row) => row.spread != null) && (
-      <section className="market-spread-strip" aria-label={t("market.spread_strip")}>
-        {comparisonRows.map((row) => (
-          <div key={row.hub} title={row.contextTitle}>
-            <span>{row.hub} → TTF</span>
-            <strong>{formatSpread(row.spread, row.spreadUnit)}</strong>
-          </div>
-        ))}
-      </section>
-      )}
-
-      {aiAction && (
-        <CopilotHost
-          action={aiAction}
-          t={t}
-          onClose={() => setAiAction(null)}
-          onSelectAction={setAiAction}
-        />
-      )}
-    </div>
-  );
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") setNowMs(Date.now());
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  return nowMs;
 }
 
 export function MarketCockpit({ controller }: { controller: AppController }) {
@@ -447,6 +61,10 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
   };
 
   const tabs = MARKET_TASKS.map((id) => ({ id, ...tabLabels(t, `market.task.${id}`) }));
+  // One read for the first screen; the context line on every market task uses it to say
+  // "Demo data" once on the demo desk instead of counting a static store's feeds as stale.
+  const desk = useDeskToday();
+  const nowMs = useMinuteClock();
 
   return (
     <div className="market-cockpit">
@@ -469,8 +87,30 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           projection={api.marketContext}
           t={t}
           controls={tradingContextControlsFor(traderContext, t)}
+          freshness={
+            task === "overview" || desk.today?.simulated ? (
+              <TodayFreshness today={desk.today} t={t} nowMs={nowMs} />
+            ) : undefined
+          }
         />
-        {task === "overview" && <MarketOverview controller={controller} task={task} />}
+        {task === "overview" && (
+          <TodayScreen
+            today={desk.today}
+            loading={desk.loading}
+            error={desk.error}
+            t={t}
+            language={controller.i18n.language}
+            nowMs={nowMs}
+            onRefresh={() => {
+              desk.refresh();
+              void api.refreshMarketData();
+            }}
+            // Before noon the desk writes its morning brief; after, its end-of-day report.
+            onOpenBrief={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}
+            onOpenLimits={() => navigation.openWorkspace("contracts", "exposure")}
+            onOpenOutages={() => openTask("capacity")}
+          />
+        )}
         {task === "curves" && (
           <>
           <MarketTerminal

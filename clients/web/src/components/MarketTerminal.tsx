@@ -19,6 +19,7 @@ import type {
 } from "@/api/client";
 import { MarketLadder } from "@/components/MarketLadder";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { DataGrid, Segmented, Toolbar, type DataGridColumn } from "@/components/ui";
 import { sumRecordCounts } from "@/app/workspaceDerivedData";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
@@ -52,6 +53,29 @@ interface HubTerminalRow extends HubDefinition {
   tenor: string;
   sourceLabel: string;
   simulated: boolean;
+}
+
+/** One row of the hub board: a hub at the active tenor, with what the board shows of it. */
+interface BoardRow {
+  hub: string;
+  tenor: string;
+  quote: MarketQuoteDTO | null;
+  latest: NormalizedMarketObsDTO | null;
+  priced: boolean;
+  pricedSlice: "quotes" | "normalized_quotes" | null;
+  recordId: string | null;
+  unit: string | null;
+  mid: number | null;
+  delta: number | null;
+  premium: number | null;
+  simulated: boolean;
+  sourceLabel: string;
+  ageSeconds: number | null;
+  lane: (number | null)[];
+}
+
+function activeTenorOf(rows: readonly BoardRow[], hub: string): string {
+  return rows.find((row) => row.hub === hub)?.tenor ?? "";
 }
 
 interface SourceMatrixRow {
@@ -528,58 +552,166 @@ export function MarketTerminal({
     return (quote ? quote.simulated : false) || row.simulated;
   });
 
+  // One row per major hub for the active tenor, computed once per read, then the board's columns.
+  const boardRows: BoardRow[] = priceRowsForStrip.map((row) => {
+    const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
+    const history = quoteHistoryByHubTenor.get(`${row.hub}:${row.tenor}`) ?? [];
+    const priced = quote ?? row.latest;
+    const lane = curveLanes.find((item) => item.hub === row.hub);
+    return {
+      hub: row.hub,
+      tenor: row.tenor,
+      quote: quote ?? null,
+      latest: row.latest,
+      priced: Boolean(priced),
+      pricedSlice: quote ? "quotes" : row.latest ? "normalized_quotes" : null,
+      recordId: quote?.quote_id ?? row.latest?.observation_id ?? null,
+      unit: priced ? displayPriceUnit(priced.currency, priced.unit) : null,
+      mid: quoteMid(quote) ?? row.latest?.price ?? null,
+      delta: quoteDelta(history),
+      premium: premiumOverTtf(row.hub, row.tenor, row).value,
+      simulated: Boolean(quote?.simulated || row.simulated),
+      sourceLabel: quote?.source_system ?? row.sourceLabel,
+      ageSeconds: quoteAgeSeconds(quote),
+      lane: marketTenorOrder.map((tenor, index) => {
+        const laneQuote = latestQuoteByHubTenor.get(`${row.hub}:${tenor}`);
+        return quoteMid(laneQuote) ?? lane?.tenorRows[index]?.latest?.price ?? null;
+      }),
+    };
+  });
+  const boardColumns: DataGridColumn<BoardRow>[] = [
+    {
+      id: "hub",
+      header: t("market.hub"),
+      rowHeader: true,
+      sortable: true,
+      value: (row) => row.hub,
+      render: (row) => (
+        <span className="market-hub-focus-button" data-focused={focusedHub === row.hub ? "true" : "false"} title={t("market.board_note")}>
+          <strong data-price-hub-label>{row.hub}</strong>
+        </span>
+      ),
+    },
+    {
+      id: "bidask",
+      header: t("market.bid_ask"),
+      type: "number",
+      render: (row) =>
+        row.quote ? `${formatPriceValue(row.quote.bid_price)} / ${formatPriceValue(row.quote.ask_price)}` : row.latest ? formatPrice(row.latest) : "–",
+      cellAttributes: () => ({ "data-price-value": "" }),
+    },
+    {
+      id: "mid",
+      header: t("market.mid"),
+      type: "number",
+      sortable: true,
+      flash: true,
+      value: (row) => row.mid,
+      format: (value) => (value == null ? "–" : (value as number).toFixed(3)),
+      // A simulated price is marked beside the number itself (AGENTS.md rule 17).
+      state: (row) => (row.simulated && row.priced ? { kind: "simulated", label: t("today.simulated_short"), description: t("today.simulated_long") } : null),
+    },
+    {
+      id: "tick",
+      header: t("market.tick_change"),
+      type: "number",
+      sortable: true,
+      value: (row) => row.delta,
+      render: (row) => (
+        <span className={`market-price-delta ${row.delta === null ? "flat" : row.delta > 0 ? "up" : row.delta < 0 ? "down" : "flat"}`}>
+          {row.delta === null ? "–" : formatDelta(row.delta)}
+        </span>
+      ),
+    },
+    {
+      id: "spread",
+      header: t("market.spread_to_ttf"),
+      type: "number",
+      sortable: true,
+      value: (row) => row.premium,
+      format: (value) => (value == null ? "–" : `${(value as number) >= 0 ? "+" : ""}${(value as number).toFixed(2)}`),
+    },
+    ...marketTenorOrder.map<DataGridColumn<BoardRow>>((tenor, index) => ({
+      id: `curve-${tenor}`,
+      header: t(`market.tenor_short.${tenor}`),
+      headerTitle: tenorLabel(tenor, t),
+      type: "number",
+      value: (row) => row.lane[index] ?? null,
+      format: (value) => (value == null ? "–" : (value as number).toFixed(2)),
+      cellClassName: () => (tenor === activeTenor ? "market-curve-active" : "market-curve"),
+    })),
+    {
+      id: "source",
+      header: t("market.source"),
+      sortable: true,
+      value: (row) => row.sourceLabel,
+      render: (row) => {
+        if (!row.priced) return <span data-price-source>–</span>;
+        const description = row.simulated ? `${row.sourceLabel} · ${t("market.simulated_source")}` : row.sourceLabel;
+        return (
+          <em data-price-source className={`market-source-pill ${row.simulated ? "simulated" : ""}`} aria-label={description} title={description}>
+            {row.sourceLabel}
+          </em>
+        );
+      },
+    },
+    {
+      id: "meta",
+      header: t("market.unit_age"),
+      render: (row) => (row.priced ? `${row.unit} · ${formatAge(row.ageSeconds)}` : t("market.awaiting_feed")),
+      cellAttributes: () => ({ "data-price-meta": "" }),
+    },
+  ];
+
   return (
     <div className="workspace-grid market-page market-terminal-board">
       {/* One board: a row per hub, the active tenor's bid/ask and mid, the premium over TTF and
           the other tenors' mids alongside. The earlier ticker cards, curve lanes, latest-marks
           table and regional comparison showed the same six prices four times. */}
       <div className="workspace-panel span-3 market-terminal-hero">
-        <div className="market-board-toolbar">
-          <div className="section-heading">
-            <strong>{t("market.terminal")}</strong>
-          </div>
-          <div className="market-view-switch" role="group" aria-label={t("ladder.view")}>
-            {(["board", "ladder"] as const).map((view) => (
+        <Toolbar
+          label={t("market.terminal")}
+          className="market-board-toolbar"
+          end={
+            <span className="market-live-status">
+              <span>{t("market.updated")}</span>
+              <strong>{formatTimestamp(lastUpdatedAtUtc)}</strong>
               <button
-                key={`board-view-${view}`}
                 type="button"
-                aria-pressed={boardView === view}
-                className={boardView === view ? "active" : undefined}
-                onClick={() => chooseBoardView(view)}
+                className="ds-button quiet-button ds-size-sm"
+                onClick={() => {
+                  void onRefresh();
+                }}
               >
-                {t(`ladder.view.${view}`)}
+                {t("market.refresh")}
               </button>
-            ))}
-          </div>
+            </span>
+          }
+        >
+          <strong className="market-board-title">{t("market.terminal")}</strong>
+          <Segmented
+            className="market-view-switch"
+            label={t("ladder.view")}
+            options={(["board", "ladder"] as const).map((view) => ({ value: view, label: t(`ladder.view.${view}`) }))}
+            value={boardView}
+            onChange={chooseBoardView}
+          />
           {boardView === "board" && (
-          <div className="market-tenor-tabs" aria-label={t("market.tenor_tabs")}>
-            {marketTenorOrder.map((tenor) => (
-              <button
-                key={`market-tenor-${tenor}`}
-                type="button"
-                data-tenor={tenor}
-                className={activeTenor === tenor ? "market-tenor-tab active" : "market-tenor-tab"}
-                aria-pressed={activeTenor === tenor}
-                onClick={() => setActiveTenor(tenor)}
-              >
-                {tenorLabel(tenor, t)}
-              </button>
-            ))}
-          </div>
+            <Segmented
+              className="market-tenor-tabs"
+              label={t("market.tenor_tabs")}
+              options={marketTenorOrder.map((tenor) => ({
+                value: tenor,
+                label: t(`market.tenor_short.${tenor}`),
+                title: tenorLabel(tenor, t),
+                className: "market-tenor-tab",
+                dataAttributes: { "data-tenor": tenor },
+              }))}
+              value={activeTenor}
+              onChange={setActiveTenor}
+            />
           )}
-          <div className="market-live-status">
-            <span>{t("market.updated")}</span>
-            <strong>{formatTimestamp(lastUpdatedAtUtc)}</strong>
-            <button
-              type="button"
-              onClick={() => {
-                void onRefresh();
-              }}
-            >
-              {t("market.refresh")}
-            </button>
-          </div>
-        </div>
+        </Toolbar>
         {simulatedOnBoard && (
           <div className="market-simulated-banner" role="alert" data-simulated-board="true">
             <strong>{t("market.simulated_banner_title")}</strong>
@@ -600,120 +732,25 @@ export function MarketTerminal({
             elements the operator sees (`data-board-tenor`, per row `data-price-tenor`), so the
             browser sweep compares the payload's rows for the *displayed* scope instead of assuming
             the board shows every row the projection serves. */}
-        <div
+        <DataGrid
+          id="hub-board"
           className="market-hub-board-table"
-          role="table"
-          tabIndex={0}
-          data-market-board="hub-prices"
-          data-board-tenor={activeTenor}
-          aria-label={t("market.terminal")}
-        >
-          <div className="market-hub-board-row header" role="row">
-            <span role="columnheader">{t("market.hub")}</span>
-            <span role="columnheader">{t("market.bid_ask")}</span>
-            <span role="columnheader" className="num">{t("market.mid")}</span>
-            <span role="columnheader" className="num">{t("market.tick_change")}</span>
-            <span role="columnheader" className="num">{t("market.spread_to_ttf")}</span>
-            <span role="columnheader" className="market-hub-curve" aria-label={t("market.curve")}>
-              {marketTenorOrder.map((tenor) => (
-                <span key={`curve-head-${tenor}`} className={tenor === activeTenor ? "active" : undefined}>
-                  {t(`market.tenor_short.${tenor}`)}
-                </span>
-              ))}
-            </span>
-            <span role="columnheader">{t("market.source")}</span>
-            <span role="columnheader">{t("market.unit_age")}</span>
-          </div>
-          {priceRowsForStrip.map((row) => {
-            const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
-            const history = quoteHistoryByHubTenor.get(`${row.hub}:${row.tenor}`) ?? [];
-            const delta = quoteDelta(history);
-            const simulated = quote?.simulated || row.simulated;
-            const sourceLabel = quote?.source_system ?? row.sourceLabel;
-            const sourceDescription = simulated
-              ? `${sourceLabel} · ${t("market.simulated_source")}`
-              : sourceLabel;
-            // What the row priced, named for the scoped evidence: the row's own id in the slice it
-            // came from (`quotes` when an L1 quote is shown, `normalized_quotes` otherwise), or no id
-            // at all when the payload served this hub no row - an absence, not a zero.
-            const priced = quote ?? row.latest;
-            const pricedSlice = quote ? "quotes" : row.latest ? "normalized_quotes" : null;
-            const pricedUnit = priced
-              ? displayPriceUnit(priced.currency, priced.unit)
-              : null;
-            const mid = quoteMid(quote) ?? row.latest?.price ?? null;
-            const premium = premiumOverTtf(row.hub, row.tenor, row);
-            const lane = curveLanes.find((item) => item.hub === row.hub);
-            return (
-            <div
-              key={`ticker-${row.hub}-${row.tenor}`}
-              role="row"
-              data-record="market-hub-price"
-              data-record-slice={pricedSlice ?? undefined}
-              data-record-id={(quote?.quote_id ?? row.latest?.observation_id) ?? undefined}
-              data-price-tenor={row.tenor}
-              className={`market-hub-board-row ${priced ? "is-live" : "is-waiting"} ${focusedHub && focusedHub === row.hub ? "hub-focused" : ""}`}
-            >
-              <span role="rowheader">
-                <button
-                  type="button"
-                  className="market-hub-focus-button"
-                  aria-pressed={focusedHub === row.hub}
-                  title={t("market.board_note")}
-                  onClick={() => onHubChange(focusedHub === row.hub ? null : row.hub)}
-                >
-                  <strong data-price-hub-label>{row.hub}</strong>
-                </button>
-              </span>
-              <span role="cell" data-price-value>
-                {quote
-                  ? `${formatPriceValue(quote.bid_price)} / ${formatPriceValue(quote.ask_price)}`
-                  : formatPrice(row.latest)}
-              </span>
-              <span role="cell" className="num">{mid === null ? "–" : mid.toFixed(3)}</span>
-              <span
-                role="cell"
-                className={`num market-price-delta ${delta === null ? "flat" : delta > 0 ? "up" : delta < 0 ? "down" : "flat"}`}
-              >
-                {delta === null ? "–" : formatDelta(delta)}
-              </span>
-              <span role="cell" className="num">
-                {premium.value === null ? "–" : `${premium.value >= 0 ? "+" : ""}${premium.value.toFixed(2)}`}
-              </span>
-              <span role="cell" className="market-hub-curve">
-                {lane?.tenorRows.map((laneRow, index) => {
-                  const tenor = marketTenorOrder[index];
-                  const laneQuote = latestQuoteByHubTenor.get(`${row.hub}:${tenor}`);
-                  const price = quoteMid(laneQuote) ?? laneRow?.latest?.price ?? null;
-                  return (
-                    <span
-                      key={`curve-lane-${row.hub}-${tenor}`}
-                      className={tenor === activeTenor ? "active" : undefined}
-                      title={tenorLabel(tenor, t)}
-                    >
-                      {price === null ? "–" : price.toFixed(2)}
-                    </span>
-                  );
-                })}
-              </span>
-              <span role="cell">
-                <em
-                  data-price-source
-                  className={`market-source-pill ${simulated ? "simulated" : ""}`}
-                  aria-label={sourceDescription}
-                  title={sourceDescription}
-                >
-                  {sourceLabel}
-                </em>
-              </span>
-              <small role="cell" data-price-meta>
-                {priced
-                  ? `${pricedUnit} · ${formatAge(quoteAgeSeconds(quote))}`
-                  : t("market.awaiting_feed")}
-              </small>
-            </div>
-          );})}
-        </div>
+          label={t("market.terminal")}
+          columns={boardColumns}
+          rows={boardRows}
+          rowKey={(row) => `${row.hub}-${row.tenor}`}
+          density="regular"
+          selectedKey={focusedHub ? boardRows.find((row) => row.hub === focusedHub) ? `${focusedHub}-${activeTenorOf(boardRows, focusedHub)}` : null : null}
+          onRowAction={(row) => onHubChange(focusedHub === row.hub ? null : row.hub)}
+          rowAttributes={(row) => ({
+            "data-record": "market-hub-price",
+            "data-record-slice": row.pricedSlice ?? undefined,
+            "data-record-id": row.recordId ?? undefined,
+            "data-price-tenor": row.tenor,
+          })}
+          rowClassName={(row) => (row.priced ? "is-live" : "is-waiting")}
+          tableAttributes={{ "data-market-board": "hub-prices", "data-board-tenor": activeTenor }}
+        />
         </>
         )}
         <p className="market-terminal-note">

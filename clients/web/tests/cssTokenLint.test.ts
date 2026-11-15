@@ -11,7 +11,7 @@ import { check, lintCss, readBaseline } from "../scripts/cssTokenLint.mjs";
 
 // The ratchet's ceiling. Lower these when a conversion lands; never raise them.
 const MAX_BASELINE_FILES = 1;
-const MAX_BASELINE_VALUES = 292;
+const MAX_BASELINE_VALUES = 290;
 
 test("no stylesheet regresses, and the baseline matches what is measured", () => {
   const result = check();

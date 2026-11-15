@@ -1,0 +1,404 @@
+/*
+ * Primitives, second part (UX-02): Field, Select, Tabs, Segmented, Toolbar, Popover, Dialog,
+ * Sheet, and the Method note. Imported by design-system.css. Tokens only (scripts/cssTokenLint.mjs).
+ */
+
+@layer ds-components {
+  /* ------------------------------------------------------------------ Field */
+  .ds-field {
+    display: grid;
+    gap: var(--ds-space-1);
+    min-width: 0;
+  }
+
+  .ds-field-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .ds-field-label {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-field-hint {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-field-error {
+    color: var(--ds-status-breach);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-field-invalid :is(input, select, textarea) {
+    border-color: var(--ds-status-breach);
+  }
+
+  /* ----------------------------------------------------------------- Select */
+  .ds-select {
+    box-sizing: border-box;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-6) 0 var(--ds-control-pad-sm);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background-color: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-base);
+    line-height: var(--ds-line-base);
+  }
+
+  .ds-select.ds-size-md {
+    height: var(--ds-control);
+    min-height: var(--ds-control);
+  }
+
+  .ds-select:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  /* ------------------------------------------------------------------- Tabs */
+  .ds-tabs [role="tab"]:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  /* -------------------------------------------------------------- Segmented */
+  /* One control: 28 px segments in a bordered group; the chosen one is filled. */
+  .ds-segmented {
+    display: inline-flex;
+    flex: none;
+    gap: 0;
+    padding: 0;
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    overflow: hidden;
+  }
+
+  .ds-segmented > button + button {
+    border-left: 1px solid var(--ds-border);
+  }
+
+  .ds-segmented > button {
+    box-sizing: border-box;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-2);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-sm);
+    box-shadow: none;
+    cursor: pointer;
+  }
+
+  .ds-segmented.ds-size-md > button {
+    height: var(--ds-control);
+    min-height: var(--ds-control);
+    font-size: var(--ds-text-base);
+  }
+
+  .ds-segmented > button:hover:not(:disabled) {
+    color: var(--ds-text-1);
+  }
+
+  .ds-segmented > button[aria-pressed="true"] {
+    background: var(--ds-surface-3);
+    color: var(--ds-text-1);
+  }
+
+  .ds-segmented > button:focus-visible {
+    outline: 2px solid var(--ds-focus-ring);
+    outline-offset: -2px;
+  }
+
+  .ds-segmented > button:disabled {
+    color: var(--ds-text-disabled);
+    cursor: not-allowed;
+  }
+
+  /* ---------------------------------------------------------------- Toolbar */
+  .ds-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-height: var(--ds-control-sm);
+  }
+
+  .ds-toolbar-start,
+  .ds-toolbar-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .ds-toolbar-end {
+    margin-left: auto;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  /* ---------------------------------------------------------------- Popover */
+  .ds-popover {
+    position: fixed;
+    inset: auto;
+    z-index: 60;
+    box-sizing: border-box;
+    width: 360px;
+    max-width: calc(100vw - 2 * var(--ds-space-2));
+    margin: 0;
+    padding: var(--ds-space-3);
+    overflow: auto;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    box-shadow: var(--ds-shadow-pop);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+    text-align: left;
+    white-space: normal;
+  }
+
+  .ds-popover-sm {
+    width: 280px;
+  }
+
+  .ds-popover:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-shadow-pop), var(--ds-focus);
+  }
+
+  .ds-popover p {
+    margin: 0;
+  }
+
+  .ds-popover p + p,
+  .ds-popover p + ul,
+  .ds-popover ul + p,
+  .ds-popover h3 + ul {
+    margin-top: var(--ds-space-2);
+  }
+
+  .ds-popover h3 {
+    margin: var(--ds-space-3) 0 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-popover h3:first-child {
+    margin-top: 0;
+  }
+
+  .ds-popover ul {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: var(--ds-space-1) 0 0;
+    padding-left: var(--ds-space-4);
+  }
+
+  .ds-popover-meta {
+    margin-top: var(--ds-space-2);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  /* The trigger that opens a note next to a figure: a small text button, not a control. */
+  .ds-note-trigger {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-accent);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .ds-note-trigger:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-accent-hover);
+  }
+
+  .ds-note-trigger[aria-expanded="true"] {
+    border-color: var(--ds-accent);
+  }
+
+  .ds-note-trigger:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  /* ------------------------------------------------------------ Dialog/Sheet */
+  .ds-dialog,
+  .ds-sheet {
+    box-sizing: border-box;
+    max-width: calc(100vw - 2 * var(--ds-space-4));
+    max-height: calc(100vh - 2 * var(--ds-space-6));
+    padding: 0;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    box-shadow: var(--ds-shadow-modal);
+  }
+
+  .ds-dialog-sm { width: 400px; }
+  .ds-dialog-md { width: 560px; }
+  .ds-dialog-lg { width: 760px; }
+
+  .ds-dialog::backdrop,
+  .ds-sheet::backdrop {
+    background: var(--ds-scrim);
+  }
+
+  .ds-dialog-frame {
+    display: flex;
+    flex-direction: column;
+    max-height: inherit;
+  }
+
+  .ds-dialog-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-3) var(--ds-space-3) var(--ds-space-3) var(--ds-space-4);
+    border-bottom: 1px solid var(--ds-border-subtle);
+  }
+
+  .ds-dialog-title {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .ds-dialog-title > h2 {
+    margin: 0;
+    overflow: hidden;
+    font-size: var(--ds-text-md);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-md);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ds-dialog-eyebrow {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-dialog-head-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .ds-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: var(--ds-space-4);
+    overflow: auto;
+  }
+
+  .ds-dialog-foot {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-3) var(--ds-space-4);
+    border-top: 1px solid var(--ds-border-subtle);
+  }
+
+  .ds-sheet {
+    margin: 0;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .ds-sheet-end {
+    inset: 0 0 0 auto;
+    width: 400px;
+    height: 100vh;
+    border-width: 0 0 0 1px;
+  }
+
+  .ds-sheet-bottom {
+    inset: auto 0 0;
+    width: 100vw;
+    max-height: 85vh;
+    border-width: 1px 0 0;
+    border-radius: var(--ds-radius-md) var(--ds-radius-md) 0 0;
+  }
+
+  .ds-sheet-full {
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    border: 0;
+  }
+
+  .ds-sheet .ds-dialog-frame {
+    height: 100%;
+  }
+
+  @media (pointer: coarse) {
+    .ds-select,
+    .ds-segmented > button {
+      min-height: var(--ds-control-touch);
+    }
+
+    .ds-note-trigger {
+      min-height: var(--ds-control-touch);
+      padding: 0 var(--ds-space-2);
+    }
+  }
+
+  /* ------------------------------------------------------------ Method note */
+  .ds-method-summary {
+    color: var(--ds-text-1);
+  }
+}
+
+@layer ds-motion {
+  @media (prefers-reduced-motion: no-preference) {
+    .ds-popover {
+      animation: ds-pop var(--ds-duration-base) var(--ds-ease-out);
+    }
+
+    .ds-dialog[open],
+    .ds-sheet-bottom[open] {
+      animation: ds-enter var(--ds-duration-base) var(--ds-ease-out);
+    }
+  }
+}

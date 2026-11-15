@@ -22,6 +22,10 @@
 @import url("./tokens.css") layer(ds-theme);
 /* Primitives (Button, IconButton, StatusBadge, KeyFigure, Panel, EmptyState, Skeleton). */
 @import url("../components/ui/primitives.css");
+@import url("../components/ui/controls.css");
+@import url("../components/ui/datagrid.css");
+/* Today (UX-05): the first screen, tokens only. */
+@import url("../components/today.css");
 
 /* ------------------------------------------------------------- element base */
 @layer ds-base {
@@ -497,13 +501,67 @@
   }
 
   /* ----------------------------------------------------------- page header */
+  /* One 40 px row (UX-04): title left, task tabs and the primary action right; the tabs sit on
+     the row's bottom border. */
   .workspace-page-header {
     display: flex;
-    align-items: flex-end;
+    align-items: stretch;
     justify-content: space-between;
     gap: var(--ds-space-4);
-    padding: var(--ds-space-6) 0 var(--ds-space-3);
+    box-sizing: border-box;
+    height: calc(var(--ds-control) + var(--ds-space-2));
+    min-height: calc(var(--ds-control) + var(--ds-space-2));
+    margin: 0;
+    padding: 0;
     border-bottom: 1px solid var(--ds-border);
+  }
+
+  .workspace-page-header .workspace-page-heading {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .workspace-page-header h1,
+  .workspace-page-header h2 {
+    margin: 0;
+    line-height: var(--ds-line-xl);
+    white-space: nowrap;
+  }
+
+  .workspace-page-header .workspace-page-header-actions {
+    display: flex;
+    align-items: stretch;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .workspace-page-header [role="tablist"] {
+    display: flex;
+    align-items: flex-end;
+    margin: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .workspace-page-header [role="tab"] {
+    height: var(--ds-control);
+    min-height: var(--ds-control);
+    margin-bottom: -1px;
+  }
+
+  .workspace-page-header [data-primary-action] {
+    align-self: center;
+  }
+
+  .cockpit-app:not(.workspace-network) .app-main {
+    padding-top: 0;
+  }
+
+  @media (pointer: coarse), (max-width: 640px) {
+    .workspace-page-header {
+      height: auto;
+    }
   }
 
   /* Connector catalogue (#26, #33): three groups of quiet cards, one status word each. */
@@ -1042,62 +1100,12 @@
 
   /* Market overview (#13): the rail is as tall as its content (no scroll trap inside the
      page) and the map row takes the extra height, so the rail's last panel is never cut off. */
-  .market-cockpit-overview {
-    /* Sized by its content, not by the panel around it, so the rows can grow. */
-    flex: 0 0 auto;
-    height: auto;
-    grid-template-rows: auto auto auto;
-    grid-template-areas:
-      "context context"
-      "main rail"
-      "spread spread";
-  }
-
-  .market-overview-main {
-    grid-area: main;
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-space-2);
-    min-width: 0;
-  }
-
-  .market-context-rail {
-    /* The legacy wide-screen rule contained the rail's size so it would scroll inside the
-       board's height; that scroll trap is what cut Portfolio relevance off (#13). */
-    contain: none;
-    min-height: auto;
-    overflow: visible;
-  }
 
   /* The rail's panels keep their content height, so the row grows with them. */
-  .market-context-rail > * {
-    flex: 0 0 auto;
-  }
 
   /* Rail action rows wrap to the rail's width instead of running off its edge. */
-  .market-context-rail .market-handoff-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--ds-space-2);
-  }
 
-  .market-overview-main > * {
-    width: 100%;
-  }
-
-  .market-overview-main .market-overview-map {
-    flex: 1 1 auto;
-    height: auto;
-    min-height: 280px;
-  }
-
-  @media (max-width: 1240px) {
-    .market-cockpit-overview {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: "context" "main" "rail" "spread";
-    }
-  }
-
+  
   /* Data Products (#28): name, id and description each on their own line; the table fits
      its panel and long explanations wrap instead of being cut off. */
   .data-product-catalogue .research-semantic-table {
@@ -1568,8 +1576,8 @@
     border-bottom-color: var(--ds-text-1);
   }
 
-  .segmented-control [role="tab"],
-  .segmented-control button {
+  .capacity-view-control [role="tab"],
+  .capacity-view-control button {
     height: var(--ds-control-sm);
     padding: 0 var(--ds-space-3);
     border: 0;
@@ -1583,21 +1591,21 @@
     letter-spacing: 0;
   }
 
-  .segmented-control [role="tab"]:hover,
-  .segmented-control button:hover {
+  .capacity-view-control [role="tab"]:hover,
+  .capacity-view-control button:hover {
     background: var(--ds-surface-2);
     color: var(--ds-text-1);
   }
 
-  .segmented-control [role="tab"][aria-selected="true"],
-  .segmented-control button.active,
-  .segmented-control button[aria-pressed="true"] {
+  .capacity-view-control [role="tab"][aria-selected="true"],
+  .capacity-view-control button.active,
+  .capacity-view-control button[aria-pressed="true"] {
     background: var(--ds-surface-3);
     color: var(--ds-text-1);
     border-bottom: 0;
   }
 
-  .segmented-control {
+  .capacity-view-control {
     display: inline-flex;
     gap: 2px;
     padding: 2px;
@@ -1606,9 +1614,9 @@
     background: var(--ds-surface-2);
   }
 
-  .segmented-control [role="tab"][aria-selected="true"],
-  .segmented-control button.active,
-  .segmented-control button[aria-pressed="true"] {
+  .capacity-view-control [role="tab"][aria-selected="true"],
+  .capacity-view-control button.active,
+  .capacity-view-control button[aria-pressed="true"] {
     background: var(--ds-surface);
     box-shadow: none;
   }
@@ -1625,9 +1633,6 @@
 
   /* The overview's context rail stacks small panels; each keeps the panel's inner padding
      (the rail's own legacy rule drew them borderless, which this layer's border overrode). */
-  .market-context-rail > .workspace-panel {
-    padding: var(--ds-space-3);
-  }
 
   .panel-title-row {
     align-items: center;
@@ -2042,19 +2047,22 @@
     overflow: hidden;
   }
 
+  /* A neutral label ("Latest"); the red tag is kept for breaking news only. */
   .ticker-tag {
     flex: 0 0 auto;
-    padding: 2px 8px;
-    border-radius: var(--ds-radius-pill);
-    background: var(--ds-text-2);
-    color: var(--ds-surface);
+    padding: 0 var(--ds-space-2);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    color: var(--ds-text-2);
     font-size: var(--ds-text-xs);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
   }
 
   .breaking-ticker.has-critical .ticker-tag {
+    border-color: var(--ds-negative);
     background: var(--ds-negative);
+    color: var(--ds-on-negative);
   }
 
   .ticker-viewport {
@@ -2268,29 +2276,6 @@
   .network-map-column.is-fullscreen .map-situation-strip {
     max-width: min(900px, calc(100% - 2 * var(--ds-space-3)));
     font-size: var(--ds-text-md);
-  }
-
-  /* Network / Our book switch: two chips that read as one control. */
-  .map-view-switch {
-    display: inline-flex;
-    gap: 0;
-  }
-
-  .map-view-switch .chip:first-child {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-  }
-
-  .map-view-switch .chip:last-child {
-    margin-left: -1px;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  }
-
-  /* The active chip keeps the chip's own filled state (its contrast is checked); the
-     accent border marks it as the chosen view. */
-  .map-view-switch .chip.active {
-    border-color: var(--ds-accent);
   }
 
   /* Our book: the firm's deals by what needs a decision first, docked on the left. */
@@ -2852,11 +2837,11 @@
     font-weight: var(--ds-weight-semibold);
   }
 
-  tr[data-status="breach"] > td:first-child {
+  tr[data-status="breach"] > :first-child {
     box-shadow: inset 3px 0 0 var(--ds-negative);
   }
 
-  tr[data-status="watch"] > td:first-child {
+  tr[data-status="watch"] > :first-child {
     box-shadow: inset 3px 0 0 var(--ds-status-watch);
   }
 
@@ -3127,48 +3112,14 @@
     white-space: nowrap;
   }
 
-  .report-dialog {
-    width: min(640px, calc(100vw - 32px));
-    max-height: calc(100vh - 64px);
-    padding: var(--ds-space-4, 16px);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
-    color: var(--ds-text-1);
-    box-shadow: var(--ds-shadow-modal);
-  }
-
-  .report-dialog::backdrop {
-    background: var(--ds-scrim);
-    backdrop-filter: blur(2px);
-  }
-
-  .report-dialog[open] {
-    animation: ds-dialog-in var(--ds-duration-base, 160ms) cubic-bezier(0.2, 0, 0, 1);
-  }
-
-  .report-dialog-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--ds-space-2);
-  }
-
-  .report-dialog-header h2 {
-    margin: 0;
-    font-size: var(--ds-text-md);
-  }
-
   .report-form {
     display: grid;
     gap: var(--ds-space-3);
     margin-top: var(--ds-space-3);
   }
 
-  .report-form label {
-    display: grid;
-    gap: 4px;
-    font-size: var(--ds-text-sm);
+  .report-tab-panel {
+    min-height: 0;
   }
 
   .report-form-row {
@@ -3220,15 +3171,6 @@
     font-size: var(--ds-text-xs);
     color: var(--ds-text-2);
   }
-}
-
-@keyframes ds-dialog-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.99); }
-  to { opacity: 1; transform: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .report-dialog[open] { animation: none; }
 }
 
 /* ------------------------------------------------------------- interaction standard
@@ -3346,7 +3288,7 @@
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
     box-shadow: var(--ds-shadow-modal);
-    animation: ds-dialog-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+    animation: ds-enter var(--ds-duration-slow) var(--ds-ease-out) both;
   }
 
   .sign-in-shell .sign-in-card {
@@ -3433,7 +3375,6 @@
     }
   }
 }
-
 
 /* ------------------------------------------------------------ top-bar data status */
 @layer ds-components {
@@ -3585,7 +3526,6 @@
     font-size: var(--ds-text-sm);
   }
 }
-
 
 /* Compact shell (docs/product/ADAPTIVE_CLIENT.md, #39/#40): one row - menu, search, alerts,
    status dot, account - with the lines of work and the trading context in a drawer. Keyed to
@@ -3758,7 +3698,6 @@
     max-width: none;
   }
 }
-
 
 /* Map layer panel at compact width (#39): one labelled control with the active count; the
    switches open below it as a wrapping list instead of a row of squeezed pills. */
@@ -4125,19 +4064,15 @@
 
 /* Inspector as a full-screen sheet on a phone (ADAPTIVE_CLIENT.md A4). */
 @layer ds-components {
-  .inspector-panel.inspector-sheet {
-    position: fixed;
-    inset: 0;
-    z-index: 70;
-    width: 100%;
-    max-width: none;
-    border-left: 0;
-    box-shadow: none;
-    padding: var(--ds-space-3) var(--ds-space-4) calc(var(--ds-space-4) + env(safe-area-inset-bottom));
+  .inspector-sheet .ds-dialog-head {
+    flex-wrap: wrap;
   }
 
-  .inspector-sheet .inspector-panel-header {
-    flex-wrap: wrap;
+  .inspector-sheet .ds-dialog-body {
+    display: grid;
+    align-content: start;
+    gap: var(--ds-space-3);
+    padding-bottom: calc(var(--ds-space-4) + env(safe-area-inset-bottom));
   }
 
   .inspector-sheet-back {
@@ -4151,13 +4086,10 @@
     background: none;
     color: inherit;
     font: inherit;
-    font-weight: 600;
+    font-weight: var(--ds-weight-semibold);
     text-align: left;
   }
 
-  .inspector-sheet-focus:focus {
-    outline: none;
-  }
 }
 
 /* Source detail on a phone (A4): folded away until a source is opened, then full screen. */
@@ -4357,78 +4289,14 @@
 }
 
 @layer ds-components {
-  /* "Why?" next to the number (WhyButton.tsx): a small pill, and a note over the page. */
-  .why-button {
-    flex: 0 0 auto;
-    min-height: var(--ds-control-sm);
-    padding: 0 var(--ds-space-2);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-pill);
-    background: var(--ds-surface);
-    color: var(--ds-text-2);
-    font: inherit;
-    font-size: var(--ds-text-xs);
-    line-height: 22px;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .why-button:hover,
-  .why-button[aria-expanded="true"] {
-    border-color: var(--ds-accent);
-    color: var(--ds-accent);
-  }
-
-  .why-panel {
-    position: fixed;
-    z-index: 1000;
-    max-width: calc(100vw - 24px);
-    padding: var(--ds-space-3);
-    border: 1px solid var(--ds-border-strong);
-    border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
-    box-shadow: var(--ds-shadow-modal);
-    color: var(--ds-text-1);
-    font-size: var(--ds-text-sm);
-    line-height: 1.45;
-  }
-
-  .why-text {
-    margin: 0;
-  }
-
+  /* "Why?" next to the number (WhyButton.tsx): a note trigger and a Popover (controls.css). */
   .why-text.is-muted,
   .why-sources {
     color: var(--ds-text-2);
   }
 
-  .why-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--ds-space-2);
-    margin-top: var(--ds-space-2);
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-xs);
-  }
-
-  .why-flag {
-    padding: 0 var(--ds-space-1);
-    border-radius: var(--ds-radius-sm);
-    background: var(--ds-status-watch-soft);
-    color: var(--ds-text-1);
-  }
-
   .why-sources {
-    margin: var(--ds-space-1) 0 0;
-    font-size: var(--ds-text-xs);
     overflow-wrap: anywhere;
-  }
-
-  @media (pointer: coarse) {
-    .why-button {
-      min-height: var(--ds-control-touch);
-      min-width: 44px;
-    }
   }
 }
 
@@ -4442,112 +4310,26 @@
 }
 
 @layer ds-components {
-  /* Desk brief (DeskBriefDialog.tsx): a modal editor, phone-safe. */
-  .desk-brief {
-    width: min(760px, calc(100vw - 24px));
-    max-height: calc(100vh - 48px);
-    padding: var(--ds-space-4);
-    border: 1px solid var(--ds-border-strong);
-    border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
-    color: var(--ds-text-1);
-    box-shadow: var(--ds-shadow-modal);
-  }
-
-  .desk-brief[open] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-space-3);
-  }
-
-  .desk-brief::backdrop {
-    background: var(--ds-scrim);
-  }
-
-  .desk-brief-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--ds-space-3);
-  }
-
-  .desk-brief-head h2 {
-    margin: 0;
-    font-size: var(--ds-text-md);
-  }
-
-  .desk-brief-kinds {
-    display: inline-flex;
-    gap: var(--ds-space-1);
-  }
-
-  .desk-brief-kinds button,
-  .desk-brief-actions button,
-  .desk-brief-actions .button-link {
-    min-height: var(--ds-control, 32px);
-    padding: 0 var(--ds-space-3);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-pill);
-    background: var(--ds-surface);
-    color: var(--ds-text-1);
-    font: inherit;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    cursor: pointer;
-  }
-
-  .desk-brief-kinds button[aria-pressed="true"] {
-    border-color: var(--ds-accent);
-    background: var(--ds-accent-soft);
-  }
-
-  .desk-brief-close {
-    margin-left: auto;
-    width: var(--ds-control);
-    height: var(--ds-control);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-pill);
-    background: var(--ds-surface);
-    color: var(--ds-text-1);
-    font-size: var(--ds-text-md);
-    cursor: pointer;
-  }
-
+  /* Desk brief (DeskBriefDialog.tsx): an editor in a Dialog (controls.css). */
   .desk-brief-hint {
-    margin: 0;
+    margin: 0 0 var(--ds-space-3);
     color: var(--ds-text-2);
     font-size: var(--ds-text-sm);
   }
 
   .desk-brief-text {
+    box-sizing: border-box;
     min-height: 340px;
     width: 100%;
     max-width: 100%;
     resize: vertical;
     padding: var(--ds-space-3);
     border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-md);
+    border-radius: var(--ds-radius-sm);
     background: var(--ds-surface-2);
     color: var(--ds-text-1);
     font-family: var(--ds-font-mono);
     font-size: var(--ds-text-sm);
-    line-height: 1.5;
-  }
-
-  .desk-brief-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--ds-space-2);
-  }
-
-  @media (pointer: coarse) {
-    .desk-brief-kinds button,
-    .desk-brief-actions button,
-    .desk-brief-actions .button-link,
-    .desk-brief-close {
-      min-height: var(--ds-control-touch);
-      min-width: 44px;
-    }
+    line-height: var(--ds-leading);
   }
 }

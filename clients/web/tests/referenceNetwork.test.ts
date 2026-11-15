@@ -214,7 +214,7 @@ test("the panels read the declared calls and state what each read established", 
   assert.match(book, /t\("capacity\.contracts\.none"\)/);
 
   // The capacity is the row's own, with the unit the row declares, and never a total.
-  assert.match(book, /row\.capacity\.toLocaleString\(\)\} \{row\.unit\}/);
+  assert.match(book, /\{row\.capacity\.toLocaleString\("en-GB"\)\} <small className="ds-grid-unit">\{row\.unit\}<\/small>/);
   assert.equal(/\breduce\(/.test(book), false, "the book sums nothing");
 
   // A truncated read says so.

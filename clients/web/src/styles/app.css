@@ -4227,15 +4227,9 @@ body {
 }
 
 .market-live-status {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
+  display: inline-flex;
   align-items: center;
-  margin: 10px 0 8px;
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-sm);
-  background: var(--ds-bg);
-  padding: 8px 10px;
+  gap: var(--ds-space-2);
 }
 
 .market-live-status span {
@@ -4249,25 +4243,6 @@ body {
   font-size: var(--ds-text-sm);
 }
 
-.market-live-status button {
-  width: fit-content;
-  min-height: 28px;
-  justify-self: end;
-  border: 1px solid var(--ds-ink);
-  border-radius: var(--ds-radius-pill);
-  background: var(--ds-ink);
-  color: var(--ds-on-ink);
-  padding: 4px 10px;
-}
-
-.market-tenor-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0 12px;
-}
-
-.market-tenor-tab,
 .market-source-pill {
   width: fit-content;
   border: 1px solid var(--ds-border);
@@ -4279,12 +4254,6 @@ body {
   font-weight: 600;
   line-height: 16px;
   padding: 4px 8px;
-}
-
-.market-tenor-tab.active {
-  border-color: color-mix(in srgb, var(--ds-accent) 44%, transparent);
-  background: color-mix(in srgb, var(--ds-accent) 12%, transparent);
-  color: var(--ds-accent);
 }
 
 .market-source-pill.simulated {
@@ -5778,10 +5747,6 @@ button.glossary-related-chip {
   .market-terminal-strip,
   .market-curve-lanes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .market-live-status {
-    grid-template-columns: 1fr;
   }
 
   .market-price-ticker {
@@ -8564,29 +8529,6 @@ button.glossary-related-chip {
   flex-wrap: wrap;
   gap: 6px;
   margin: 10px 0 8px;
-}
-
-.market-hub-focus-button {
-  min-height: 30px;
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-pill);
-  background: var(--ds-bg);
-  color: var(--ds-text-3);
-  cursor: pointer;
-  font-size: var(--ds-text-xs);
-  font-weight: 600;
-  padding: 5px 9px;
-}
-
-.market-hub-focus-button:hover,
-.market-hub-focus-button.active {
-  border-color: var(--ds-ink);
-  color: var(--ds-text-1);
-}
-
-.market-hub-focus-button.active {
-  background: var(--ds-ink);
-  color: var(--ds-surface);
 }
 
 .market-price-ticker.hub-focused {

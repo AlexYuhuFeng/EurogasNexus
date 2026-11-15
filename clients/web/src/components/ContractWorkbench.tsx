@@ -27,22 +27,25 @@ import {
   PRICE_CURRENCIES,
   hubOfPoint,
   indexOptions,
+  hubLabelKey,
   pointOptions,
 } from "@/app/contractChoices";
 
 /** A select over closed options, keeping a recorded value that is not one of them. */
-function ChoiceSelect({ value, options, onChange, blank, recordedLabel }: {
+function ChoiceSelect({ value, options, onChange, blank, recordedLabel, labelFor }: {
   value: string;
   options: readonly string[];
   onChange: (value: string) => void;
   blank: string;
   recordedLabel: string;
+  /** The label shown for an option; the stored value stays the option itself. */
+  labelFor?: (option: string) => string;
 }) {
   const known = options.includes(value);
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)}>
       <option value="">{blank}</option>
-      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      {options.map((option) => <option key={option} value={option}>{labelFor ? labelFor(option) : option}</option>)}
       {value && !known && <option value={value}>{`${value} (${recordedLabel})`}</option>}
     </select>
   );
@@ -285,6 +288,10 @@ export function ContractWorkbench({
     : "n/a";
   // Desk words for where the draft came from; an unknown code is shown as recorded.
   const points = useMemo(() => pointOptions(routeCandidates), [routeCandidates]);
+  const pointLabel = (point: string) => {
+    const key = hubLabelKey(point);
+    return key ? t(key) : point;
+  };
   const deliveryHub = hubOfPoint(contract.delivery_point_name);
   const priceCurrency = contractPriceCurrency(contract.contract_price_currency, contract.delivery_point_name);
   const stagedCode = contract.document_status || "MANUAL_DRAFT";
@@ -435,13 +442,13 @@ export function ContractWorkbench({
             </div></fieldset>}
             {clauseView === "product" && <fieldset><legend>{t("contracts.product_term")}</legend><p>{t("contracts.section_help.product")}</p><div className="contract-field-grid">
               <label>{t("contracts.gas_year")}<input value={contract.gas_year} onChange={(event) => updateContractText("gas_year", event.target.value)} /></label>
-              <label>{t("contracts.index_basis")}<ChoiceSelect value={contract.index_basis} options={indexOptions(deliveryHub)} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("index_basis", value)} /></label>
+              <label>{t("contracts.index_basis")}<ChoiceSelect value={contract.index_basis} options={indexOptions(deliveryHub)} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} labelFor={pointLabel} onChange={(value) => updateContractText("index_basis", value)} /></label>
             </div></fieldset>}
             {clauseView === "delivery" && <fieldset><legend>{t("contracts.delivery")}</legend><p>{t("contracts.section_help.delivery")}</p><div className="contract-field-grid">
-              <label>{t("contracts.delivery_point")}<ChoiceSelect value={contract.delivery_point_name} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("delivery_point_name", value)} /></label>
-              <label>{t("contracts.title_transfer_point")}<ChoiceSelect value={contract.title_transfer_point} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("title_transfer_point", value)} /></label>
-              <label>{t("contracts.beach_delivery_point")}<ChoiceSelect value={contract.beach_delivery_point} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("beach_delivery_point", value)} /></label>
-              <label>{t("contracts.physical_exit_point")}<ChoiceSelect value={contract.physical_exit_point_name} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("physical_exit_point_name", value)} /></label>
+              <label>{t("contracts.delivery_point")}<ChoiceSelect value={contract.delivery_point_name} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} labelFor={pointLabel} onChange={(value) => updateContractText("delivery_point_name", value)} /></label>
+              <label>{t("contracts.title_transfer_point")}<ChoiceSelect value={contract.title_transfer_point} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} labelFor={pointLabel} onChange={(value) => updateContractText("title_transfer_point", value)} /></label>
+              <label>{t("contracts.beach_delivery_point")}<ChoiceSelect value={contract.beach_delivery_point} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} labelFor={pointLabel} onChange={(value) => updateContractText("beach_delivery_point", value)} /></label>
+              <label>{t("contracts.physical_exit_point")}<ChoiceSelect value={contract.physical_exit_point_name} options={points} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} labelFor={pointLabel} onChange={(value) => updateContractText("physical_exit_point_name", value)} /></label>
             </div>
               {contract.delivery_point_name && !deliveryHub && <div className="contract-model-boundary">{t("contracts.point_not_hub")}</div>}
             </fieldset>}
@@ -470,7 +477,7 @@ export function ContractWorkbench({
               <label>{t("contracts.upstream_payment_lag")}<input type="number" min="0" value={contract.upstream_payment_lag_days ?? ""} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
               <label>{t("economics.finance_rate")}<input type="number" min="0" value={contract.annual_financing_rate_pct ?? ""} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
               <FinancingRateHelper t={t} onApply={(rate) => updateContractNumber("annual_financing_rate_pct", String(rate))} />
-              <label className="span-2">{t("contracts.governing_law")}<ChoiceSelect value={contract.governing_law} options={GOVERNING_LAWS} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("governing_law", value)} /></label>
+              <label className="span-2">{t("contracts.governing_law")}<ChoiceSelect value={contract.governing_law} options={GOVERNING_LAWS} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} labelFor={pointLabel} onChange={(value) => updateContractText("governing_law", value)} /></label>
             </div>
             {updateContractTranches && (
               <FundingSegments
@@ -482,7 +489,7 @@ export function ContractWorkbench({
             )}
             <ContractPaymentTerms read={contract.persisted_payment_terms} t={t} /></fieldset>}
             {clauseView === "restrictions" && <fieldset><legend>{t("contracts.restrictions")}</legend><p>{t("contracts.section_help.restrictions")}</p><div className="contract-field-grid">
-              <ChoiceChecks label={t("contracts.allowed_exit_points_pick")} values={contract.allowed_exit_points} options={points.map((point) => ({ value: point, label: point }))} onChange={(values) => updateContractList("allowed_exit_points", values.join(", "))} />
+              <ChoiceChecks label={t("contracts.allowed_exit_points_pick")} values={contract.allowed_exit_points} options={points.map((point) => ({ value: point, label: pointLabel(point) }))} onChange={(values) => updateContractList("allowed_exit_points", values.join(", "))} />
               <ChoiceChecks label={t("contracts.eligible_sale_modes_pick")} values={contract.eligible_sale_modes} options={SALE_MODES.map((mode) => ({ value: mode, label: t(`contracts.sale_mode.${mode}`) }))} onChange={(values) => updateContractList("eligible_sale_modes", values.join(", "))} />
             </div></fieldset>}
           </section>

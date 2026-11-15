@@ -3,8 +3,9 @@
  * a news channel's ticker, so a trader sees what changed without leaving the board.
  *
  * - It is absent when there is nothing to say (an empty bar would be noise).
- * - With anything critical it reads "Breaking" and flashes once when a new critical item
- *   arrives: a badge on the alerts button is too easy to miss in a busy session.
+ * - It reads "Breaking" only while something is news (an unplanned outage, a critical alert of
+ *   the last hours) and flashes once when a new critical item arrives; a standing breach keeps
+ *   its red dot under a neutral "Latest" label, so the bar is not permanently in alarm (E6).
  * - It pauses on hover or keyboard focus and has its own pause button; with "reduce motion"
  *   set in the operating system it does not move at all and can be scrolled instead.
  * - Screen readers hear a new critical item once, not every scroll.
@@ -48,6 +49,7 @@ export function BreakingTicker({
   }, [critical, t]);
 
   if (!items.length) return null;
+  const breaking = items.some((item) => item.breaking);
   const duration = Math.max(20, items.length * SECONDS_PER_ITEM);
   const row = (copy: number) =>
     items.map((item) => (
@@ -61,11 +63,11 @@ export function BreakingTicker({
 
   return (
     <section
-      className={`breaking-ticker${critical.length ? " has-critical" : ""}${flash ? " is-flash" : ""}${paused ? " is-paused" : ""}`}
+      className={`breaking-ticker${breaking ? " has-critical" : ""}${flash ? " is-flash" : ""}${paused ? " is-paused" : ""}`}
       aria-label={t("ticker.label")}
       data-shell-region="ticker"
     >
-      <strong className="ticker-tag">{t(critical.length ? "ticker.breaking" : "ticker.latest")}</strong>
+      <strong className="ticker-tag">{t(breaking ? "ticker.breaking" : "ticker.latest")}</strong>
       <div className="ticker-viewport">
         <ul className="ticker-track" style={{ animationDuration: `${duration}s` }}>
           {row(0)}

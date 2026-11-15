@@ -696,7 +696,7 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     # One hub board replaces the ticker cards, curve lanes, latest-marks table and regional
     # comparison that repeated the same prices; per-source detail sits behind a disclosure.
     assert "market-hub-board-table" in market_terminal
-    assert "market-hub-curve" in market_terminal
+    assert "curve-${tenor}" in market_terminal
     assert "premiumOverTtf" in market_terminal
     assert "market-source-details" in market_terminal
     assert "market-sparkline" in market_terminal
@@ -704,7 +704,7 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "market-source-quality" not in market_terminal
     assert "activeTenor" in market_terminal
     assert "setActiveTenor" in market_terminal
-    assert "market-tenor-tab active" in market_terminal
+    assert 'className: "market-tenor-tab"' in market_terminal
     assert "market-source-matrix" in market_terminal
     assert "sourceMatrixRows" in market_terminal
     assert "update_interval_seconds" in market_terminal
@@ -729,7 +729,8 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "marketUnavailableRows" in market_terminal
     assert "market-terminal-board" in css
     assert "market-sparkline" in css
-    assert ".market-tenor-tab.active" in css
+    # The tenor choice is the Segmented primitive (UX-02); its look lives in controls.css.
+    assert ".market-tenor-tab.active" not in css
     assert ".market-source-matrix" in css
     assert ".market-live-status" in css
     assert ".market-price-delta.up" in css
@@ -1158,9 +1159,14 @@ def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() 
     ).read_text(encoding="utf-8")
     assert "<WorkspaceTabs" in network_workspace
     assert 'idPrefix="network-rail-tab"' in network_workspace
-    assert 'role = "tablist"' in workspace_tabs
-    assert "role={role}" in workspace_tabs
-    assert "aria-selected={isActive}" in workspace_tabs
+    assert 'role?: "tablist"' in workspace_tabs
+    # WorkspaceTabs delegates to the Tabs primitive (UX-02), which owns the tab semantics.
+    tabs_primitive = (
+        ROOT / "clients" / "web" / "src" / "components" / "ui" / "Tabs.tsx"
+    ).read_text(encoding="utf-8")
+    assert "<Tabs" in workspace_tabs
+    assert 'role="tablist"' in tabs_primitive
+    assert "aria-selected={selected}" in tabs_primitive
     assert 'activeRailView === "decision"' in network_workspace
     assert 'activeRailView === "pnl"' in network_workspace
     assert 'activeRailView === "warnings"' in network_workspace
@@ -1560,12 +1566,12 @@ def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context(
     assert "ICIS_Sim" in api_client
     assert "market-tenor-tabs" in market_terminal
     assert "market-source-pill" in market_terminal
-    assert "market-hub-curve" in market_terminal
+    assert "curve-${tenor}" in market_terminal
     assert '"Trayport_Sim"' in market_terminal
     assert "marketTenorOrder" in market_terminal
     assert "price_timing" in market_terminal
     assert "metadata_json" in market_terminal
-    assert ".market-tenor-tabs" in css
+    assert ".market-tenor-tabs {" not in css
     assert ".market-source-pill.simulated" in css
     assert ".market-curve-lanes" not in market_terminal
     assert en["market.tenor_within_day"] == "Within-day"

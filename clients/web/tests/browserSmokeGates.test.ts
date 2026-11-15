@@ -465,13 +465,15 @@ test("the market hub board is compared with the projection rows it priced, for t
   // The markers the board and the check select are the components' own.
   const terminal = readFileSync(new URL("../src/components/MarketTerminal.tsx", import.meta.url), "utf8");
   for (const marker of [
-    'data-market-board="hub-prices"',
-    "data-board-tenor={activeTenor}",
-    "data-tenor={tenor}",
-    'data-record="market-hub-price"',
-    "data-record-slice={pricedSlice ?? undefined}",
-    "data-record-id={(quote?.quote_id ?? row.latest?.observation_id) ?? undefined}",
-    "data-price-tenor={row.tenor}",
+    // The board is a DataGrid (UX-03): row and table markers are declared as attribute maps.
+    '"data-market-board": "hub-prices"',
+    '"data-board-tenor": activeTenor',
+    '"data-tenor": tenor',
+    '"data-record": "market-hub-price"',
+    '"data-record-slice": row.pricedSlice ?? undefined',
+    '"data-record-id": row.recordId ?? undefined',
+    "recordId: quote?.quote_id ?? row.latest?.observation_id ?? null",
+    '"data-price-tenor": row.tenor',
     "data-price-hub-label",
     "data-price-value",
     "data-price-meta",

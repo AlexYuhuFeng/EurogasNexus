@@ -10,7 +10,7 @@ import { pnlClass } from "@/app/model/pnlColor";
  * The structure (span label, strong value, small unit) is the one `metric-grid` and
  * `position-summary` already lay out, so existing strips adopt it without a layout change.
  */
-export type FigureState = "current" | "delayed" | "stale" | "simulated";
+export type FigureState = "current" | "delayed" | "late" | "stale" | "simulated" | "manual" | "never";
 
 export interface KeyFigureProps {
   label: ReactNode;
@@ -32,6 +32,10 @@ export interface KeyFigureProps {
   title?: string;
   /** Extra line under the value (MetricStrip's `detail`). */
   detail?: ReactNode;
+  /** A note trigger under the figure ("Method", "Why"). */
+  action?: ReactNode;
+  /** Shown beside the value itself (the simulated marker): never only in a banner. */
+  marker?: ReactNode;
   className?: string;
 }
 
@@ -47,6 +51,8 @@ export function KeyFigure({
   valueClassName,
   title,
   detail,
+  action,
+  marker,
   className,
 }: KeyFigureProps) {
   const labelId = useId();
@@ -57,6 +63,7 @@ export function KeyFigure({
       <strong className={valueClassName} title={title}>
         {value}
         {unit ? <small className="metric-strip-unit key-figure-unit">{unit}</small> : null}
+        {marker}
       </strong>
       {delta ? <small className={`key-figure-delta ${pnlClass(delta.value)}`.trim()}>{delta.text}</small> : null}
       {state !== "current" || age ? (
@@ -66,6 +73,7 @@ export function KeyFigure({
         </small>
       ) : null}
       {detail !== undefined && detail !== null ? <small>{detail}</small> : null}
+      {action ? <div className="key-figure-action">{action}</div> : null}
     </div>
   );
 }

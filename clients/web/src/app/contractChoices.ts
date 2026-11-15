@@ -10,8 +10,20 @@
 
 import type { RouteCandidateDTO } from "@/api/client";
 
-/** European gas hubs, in desk order (matches the backend's market registry). */
-export const GAS_HUBS = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB"] as const;
+/**
+ * European gas hubs, in desk order (matches the backend's market registry). The two Danish
+ * markets are distinct: ETF (Exchange Transfer Facility, exchange-traded gas on EEX) and GTF
+ * (Gas Transfer Facility, bilateral); neither is TTF.
+ */
+export const GAS_HUBS = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "GTF"] as const;
+
+/** Hubs whose code alone is ambiguous to a reader carry a named label (`contracts.hub.<code>`). */
+const NAMED_HUBS: ReadonlySet<string> = new Set(["ETF", "GTF"]);
+
+/** The translation key of a hub's choice label, or null when the code is its own label. */
+export function hubLabelKey(code: string): string | null {
+  return NAMED_HUBS.has(code) ? `contracts.hub.${code}` : null;
+}
 
 /** The currency a hub quotes in: NBP in GBP, every continental hub in EUR. */
 export function hubCurrency(hub: string | null): "GBP" | "EUR" | null {
