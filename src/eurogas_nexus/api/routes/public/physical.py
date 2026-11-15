@@ -25,6 +25,11 @@ LEGACY_ENTSOG_EXCLUDED_WARNING = (
     "Legacy ENTSOG rows with an unverified assumed volume are excluded; their "
     "absence does not mean the source reported no flow or zero volume."
 )
+LEGACY_ENTSOG_NOT_NATIVE_WARNING = (
+    "Legacy ENTSOG rows stored before native units carry no native rate and are not listed "
+    "in native mode; their absence is not a zero value. Re-ingest the window from ENTSOG to "
+    "store native rows beside them."
+)
 NATIVE_ENERGY_WITHHELD_WARNING = (
     "ENTSOG rows that publish energy (kWh/d) and no volume are not listed in volume "
     "mode; their absence is not a zero value. Read them with quantity_basis=native, where "
@@ -418,7 +423,11 @@ def _load_flow_observations(
                     FlowObservationRecord.observation_id.asc(),
                 )
                 raw_rows = query.limit(limit + 1).all()
+                legacy = _legacy_entsog_in_scope(
+                    session, FlowObservationRecord, point_id, from_utc, to_utc
+                )
             else:
+                legacy = False
                 query = query.order_by(
                     FlowObservationRecord.point_name.asc(),
                     FlowObservationRecord.direction.asc(),
@@ -429,11 +438,37 @@ def _load_flow_observations(
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
-    return _project_rows(
+    rows, warnings = _project_rows(
         _filter_raw_rows(raw_rows, request=request),
         quantity_basis=quantity_basis,
         volume_field="flow_mcm_d",
     )
+    if legacy:
+        warnings.append(LEGACY_ENTSOG_NOT_NATIVE_WARNING)
+    return rows, warnings
+
+
+def _legacy_entsog_in_scope(session, model, point_id, from_utc, to_utc) -> bool:
+    """Whether legacy ENTSOG rows (no native rate) exist where a native read looked.
+
+    A native read filters them out in SQL, so without this an upgraded store whose history
+    predates native units answers an empty list with no word of why.
+    """
+
+    from sqlalchemy import func
+
+    from eurogas_nexus.application.identity_resolution import identity_clause
+
+    query = session.query(model.observation_id).filter(
+        identity_clause(session, model),
+        func.upper(func.trim(model.source_system)) == "ENTSOG",
+        model.normalizer_version.is_(None),
+        model.native_rate_json.is_(None),
+    )
+    if point_id:
+        query = query.filter(model.point_id == point_id)
+    query = _apply_native_window(query, model, from_utc=from_utc, to_utc=to_utc)
+    return query.limit(1).first() is not None
 
 
 def _load_capacity_observations(
@@ -496,11 +531,18 @@ def _load_capacity_observations(
                 # Ranges that reach outside the window are resolved against every range
                 # they overlap, so a later range outside the window still bounds them.
                 raw_rows = load(session, *extent)
+            legacy = quantity_basis == "native" and _legacy_entsog_in_scope(
+                session, CapacityObservationRecord, point_id, from_utc, to_utc
+            )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
     visible = _filter_raw_rows(raw_rows, request=request)
-    resolved = resolve_capacity(visible, from_utc=from_utc, to_utc=to_utc)
+    # A legacy ENTSOG range is never served (its volume is an assumed conversion), so it
+    # must not take part in resolution either: received later, it would cut or hide the
+    # period of a native row for the same series and leave a gap where a value exists.
+    resolvable = [row for row in visible if not _is_legacy_entsog(row)]
+    resolved = resolve_capacity(resolvable, from_utc=from_utc, to_utc=to_utc)
     if quantity_basis == "native":
         resolved.sort(
             key=lambda item: (
@@ -529,6 +571,8 @@ def _load_capacity_observations(
         _all_rows, warnings = _project_rows(
             visible, quantity_basis=quantity_basis, volume_field="capacity_mcm_d"
         )
+    elif legacy:
+        warnings.append(LEGACY_ENTSOG_NOT_NATIVE_WARNING)
     return rows, warnings
 
 

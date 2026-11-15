@@ -326,7 +326,7 @@ WITHHOLDING_RULE = (
 )
 
 #: (table, source_system value, source id, entity type, column or ``json:<key>``).
-_READER_CHECKS: tuple[tuple[str, str, str, str, str], ...] = (
+_READER_CHECKS: tuple[tuple[str, str | None, str, str, str], ...] = (
     ("flow_observations", "ENTSOG", "src-entsog", "entsog_point", "point_id"),
     ("flow_observations", "ENTSOG", "src-entsog", "entsog_operator", "json:operatorKey"),
     ("capacity_observations", "ENTSOG", "src-entsog", "entsog_point", "point_id"),
@@ -339,6 +339,12 @@ _READER_CHECKS: tuple[tuple[str, str, str, str, str], ...] = (
      "terminal_id"),
     ("power_observations", "ENTSOE", "src-entsoe", "bidding_zone", "zone"),
     ("power_observations", "ELEXON", "src-elexon", "bidding_zone", "zone"),
+    # One source only, so no source_system column: every row is National Gas demand. The
+    # ingest already refuses any publication outside the allowlist (the built-ins), so today
+    # this withholds only a publication a deployment mapping made ambiguous; the check is
+    # here so the demand readers keep the one rule if that allowlist ever widens.
+    ("national_gas_actual_demand", None, "src-national-gas-demand",
+     "national_gas_publication", "provider_item_id"),
 )
 
 #: Identifiers a row may leave empty (a legacy row without an operator key names none).
@@ -442,7 +448,9 @@ def identity_clause(session, model):
             known = value.in_(builtins)
         if entity_type in OPTIONAL_IDENTIFIER_TYPES:
             known = or_(value.is_(None), value == "", known)
-        conditions.append(or_(model.source_system != source_system, known))
+        conditions.append(
+            known if source_system is None else or_(model.source_system != source_system, known)
+        )
     return and_(*conditions) if conditions else true()
 
 
@@ -457,6 +465,7 @@ def withheld_counts(session) -> dict[str, int]:
         LngObservationRecord,
         StorageObservationRecord,
     )
+    from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
     from eurogas_nexus.db.models.power import PowerObservationRecord
 
     inspector = inspect(session.connection())
@@ -467,6 +476,7 @@ def withheld_counts(session) -> dict[str, int]:
         StorageObservationRecord,
         LngObservationRecord,
         PowerObservationRecord,
+        NationalGasActualDemandRecord,
     ):
         if not inspector.has_table(model.__tablename__):
             continue

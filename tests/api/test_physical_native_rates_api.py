@@ -941,3 +941,56 @@ def test_native_window_narrows_limit_overflow(
         f"{prefix}-inside-1",
         f"{prefix}-inside-2",
     }
+
+
+def test_a_legacy_volume_only_capacity_row_is_withheld_in_both_modes_and_says_so(
+    tmp_path, monkeypatch
+) -> None:
+    """An upgraded store keeps ENTSOG rows from before native units: a volume and nothing
+    else. Their mcm/d was converted from ENTSOG's kWh/d with an assumed calorific value, so
+    neither mode serves it (a wrong number is worse than a missing one); both modes now say
+    why the list is empty, where the native read used to be silent."""
+
+    engine = _database(monkeypatch, tmp_path, "legacy-only")
+    with Session(engine) as session:
+        session.add(_capacity_observation(observation_id="capacity-legacy-only",
+                                          capacity_mcm_d=112.5, original_value=1186875000,
+                                          original_unit="kwh/d"))
+        session.commit()
+    client = TestClient(create_app())
+    volume = client.get("/api/physical/capacity").json()
+    assert volume["data"] == []
+    assert any("legacy entsog" in w.lower() for w in volume["meta"]["warnings"])
+    native = client.get("/api/physical/capacity?quantity_basis=native").json()
+    assert native["data"] == []
+    assert physical_module.LEGACY_ENTSOG_NOT_NATIVE_WARNING in native["meta"]["warnings"]
+    flows = client.get("/api/physical/flows?quantity_basis=native").json()
+    assert physical_module.LEGACY_ENTSOG_NOT_NATIVE_WARNING not in flows["meta"]["warnings"]
+
+
+def test_a_later_legacy_range_does_not_hide_a_native_volume(tmp_path, monkeypatch) -> None:
+    """A legacy range received after the native one used to win the capacity resolution
+    and then be withheld, leaving no value where a verified one is stored."""
+
+    engine = _database(monkeypatch, tmp_path, "legacy-later")
+    native = _native_payload("4321.123456789012345", volume=True)
+    with Session(engine) as session:
+        session.add_all([
+            _capacity_observation(
+                observation_id="capacity-native-early",
+                capacity_mcm_d=float(native["volume_mcm_per_day"]),
+                normalizer_version=native["normalizer_version"], native_rate_json=native,
+            ),
+            _capacity_observation(
+                observation_id="capacity-legacy-late", capacity_mcm_d=112.5,
+                original_value=1186875000, original_unit="kwh/d",
+                observed_at_utc=_OBSERVED_AT + timedelta(days=3),
+                metadata_json={**_metadata("archive-late"),
+                               "source_receipt_at_utc": (_OBSERVED_AT + timedelta(days=3))
+                               .isoformat()},
+            ),
+        ])
+        session.commit()
+    payload = TestClient(create_app()).get("/api/physical/capacity").json()
+    assert [row["observation_id"] for row in payload["data"]] == ["capacity-native-early"]
+    assert any("legacy entsog" in w.lower() for w in payload["meta"]["warnings"])

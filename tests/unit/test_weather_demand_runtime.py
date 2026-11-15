@@ -847,6 +847,8 @@ def test_target_source_format_window_cutoff_and_limit_are_explicit(
         "gas_day_to": day,
         "available_at_utc": validation,
         "limit": 1_000,
+        # The withholding rule for the demand table (WITHHOLDING_RULE).
+        "row_filter": runtime._demand_identity_clause,
     }
 
 

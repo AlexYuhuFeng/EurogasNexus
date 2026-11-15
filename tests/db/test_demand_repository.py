@@ -147,3 +147,47 @@ def test_batch_query_filters_and_preserves_text_decimal(session: Session):
         gas_day_to=date(2026, 10, 21),
     )
     assert [row.value_text for row in filtered] == ["176.590"]
+
+
+def test_demand_readers_withhold_a_publication_made_ambiguous_by_a_mapping():
+    """The withholding rule covers ``national_gas_actual_demand`` (its readers apply
+    ``identity_clause`` on the publication id), so a quarantined publication on the Sources
+    page is not served to the demand model either."""
+
+    from datetime import timedelta
+
+    from eurogas_nexus.application.identity_resolution import identity_clause, withheld_counts
+    from eurogas_nexus.db.models import SourceEntityMappingRecord
+    from eurogas_nexus.db.repositories.demand import read_demand_target_revisions
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine, tables=[NationalGasActualDemandRecord.__table__,
+                                             SourceEntityMappingRecord.__table__])
+    with Session(engine) as session:
+        insert_demand_rows(session, rows())
+        session.commit()
+
+        def rule(active):
+            return identity_clause(active, NationalGasActualDemandRecord)
+
+        def read():
+            return read_demand_target_revisions(
+                session, provider_item_id="PUBOB637", source_format="CSV",
+                gas_day_from=date(2026, 10, 1), gas_day_to=date(2026, 10, 31),
+                available_at_utc=datetime(2026, 11, 1, tzinfo=UTC), row_filter=rule,
+            )
+
+        assert len(list_demand_rows(session, row_filter=rule)) == 1 and len(read()) == 1
+        assert withheld_counts(session)["national_gas_actual_demand"] == 0
+        now = datetime.now(UTC)
+        for index, entity in enumerate(("ent:publication:PUBOB637", "ent:publication:OTHER")):
+            session.add(SourceEntityMappingRecord(
+                mapping_id=f"map:{index}", canonical_entity_id=entity,
+                source_id="src-national-gas-demand",
+                source_entity_type="national_gas_publication", source_identifier="PUBOB637",
+                valid_from_utc=now - timedelta(days=1 + index), mapping_status="ACTIVE",
+                confidence="CONFIRMED", evidence="test", created_at_utc=now,
+            ))
+        session.commit()
+        assert list_demand_rows(session, row_filter=rule) == [] and read() == []
+        assert withheld_counts(session)["national_gas_actual_demand"] == 1

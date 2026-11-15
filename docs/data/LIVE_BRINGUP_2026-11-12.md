@@ -896,3 +896,22 @@ python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2026-1
 
 Keys (GIE, ENTSO-E, EIA) come from the environment or the credential store, never from the
 repository.
+
+## Capacity reads and legacy volume-only rows (2026-11-15)
+
+`/api/physical/capacity` returned no row for ENTSOG fixture rows that carried only a volume,
+and returned the demo row. Cause: `physical_native_rates.row_volume_admissible`. An ENTSOG
+row with neither native column (`normalizer_version`, `native_rate_json`) is a row stored
+before native units, and its `capacity_mcm_d` was converted from ENTSOG's kWh/d with an
+assumed calorific value. The volume read withholds it with the "legacy ENTSOG" warning; the
+native read filters it out in SQL. The demo row is not ENTSOG, so a finite volume is
+admitted. Neither the identity withholding clause nor the capacity resolver was the cause.
+
+Decision: withholding is correct (a converted volume with an unknown calorific value is a
+wrong number, not a missing one), and such rows will exist in an upgraded customer store.
+Two defects fixed around it: the native read was silent (now it warns
+`LEGACY_ENTSOG_NOT_NATIVE_WARNING` for flows and capacity when legacy rows are in scope),
+and a legacy range received after a native range took part in the capacity resolution, won
+it and was then withheld, hiding a verified native value (legacy rows are now left out of
+the resolution). Remedy for an upgraded store: re-ingest the window from ENTSOG; native
+rows are written beside the legacy ones (`entsog-*-n1-` ids).

@@ -7,7 +7,7 @@ a changed row with the same publication identity is refused atomically.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
@@ -20,6 +20,9 @@ from eurogas_nexus.ingestion.national_gas_demand import (
     ALLOWED_PROVIDER_ITEM_IDS,
     NationalGasActualDemand,
 )
+
+#: Builds an extra SQL condition from the session (the application's withholding rule).
+RowFilter = Callable[[Session], object]
 
 _QUERY_CHUNK = 400
 MAX_DEMAND_TARGET_READ_LIMIT = 10_000
@@ -162,8 +165,14 @@ def list_demand_rows(
     gas_day_from: date | None = None,
     gas_day_to: date | None = None,
     limit: int = 500,
+    row_filter: RowFilter | None = None,
 ) -> list[NationalGasActualDemandRecord]:
-    """Return bounded append-only rows ordered by gas day and source revision."""
+    """Return bounded append-only rows ordered by gas day and source revision.
+
+    ``row_filter`` builds an extra SQL condition from the session; readers that serve rows
+    pass the application's withholding rule (``identity_clause``), which this layer may not
+    import.
+    """
 
     if not 1 <= limit <= 1000:
         raise ValueError("limit must be between 1 and 1000")
@@ -171,6 +180,9 @@ def list_demand_rows(
         raise ValueError("gas_day_from must not be after gas_day_to")
 
     statement = select(NationalGasActualDemandRecord)
+    if row_filter is not None:
+        # The caller's withholding rule (application identity_clause, WITHHOLDING_RULE).
+        statement = statement.where(row_filter(session))
     if series_key is not None:
         statement = statement.where(NationalGasActualDemandRecord.series_key == series_key)
     if provider_item_id is not None:
@@ -200,8 +212,12 @@ def read_demand_target_revisions(
     gas_day_to: date,
     available_at_utc: datetime,
     limit: int = 1_000,
+    row_filter: RowFilter | None = None,
 ) -> list[NationalGasActualDemandRecord]:
     """Read one source format's revisions that were actually available by a cutoff.
+
+    ``row_filter``, when given, builds an extra SQL condition from the session inside the
+    same no-autoflush scope (the application passes its withholding rule).
 
     The query is deliberately narrow and read-only: one allowlisted provider item,
     one explicit ``CSV`` or ``REST`` copy, the fixed GB NTS throughput region and
@@ -222,9 +238,11 @@ def read_demand_target_revisions(
     )
     cutoff_utc = available_at_utc.astimezone(UTC)
 
-    statement = (
-        select(NationalGasActualDemandRecord)
-        .where(
+    # A read must never flush pending caller writes.  Scope autoflush suppression
+    # to this read only (building the caller's row filter reads the mappings table too)
+    # and leave the caller's unit of work exactly as it was.
+    with session.no_autoflush:
+        conditions = [
             NationalGasActualDemandRecord.provider_item_id == provider_item_id,
             NationalGasActualDemandRecord.source_format == source_format,
             NationalGasActualDemandRecord.region == DEMAND_TARGET_REGION,
@@ -232,17 +250,19 @@ def read_demand_target_revisions(
             NationalGasActualDemandRecord.gas_day >= gas_day_from,
             NationalGasActualDemandRecord.gas_day <= gas_day_to,
             NationalGasActualDemandRecord.available_at_utc <= cutoff_utc,
+        ]
+        if row_filter is not None:
+            conditions.append(row_filter(session))
+        statement = (
+            select(NationalGasActualDemandRecord)
+            .where(*conditions)
+            .order_by(
+                NationalGasActualDemandRecord.gas_day,
+                NationalGasActualDemandRecord.available_at_utc,
+                NationalGasActualDemandRecord.record_id,
+            )
+            .limit(limit + 1)
         )
-        .order_by(
-            NationalGasActualDemandRecord.gas_day,
-            NationalGasActualDemandRecord.available_at_utc,
-            NationalGasActualDemandRecord.record_id,
-        )
-        .limit(limit + 1)
-    )
-    # A read must never flush pending caller writes.  Scope autoflush suppression
-    # to this query only and leave the caller's unit of work exactly as it was.
-    with session.no_autoflush:
         rows = list(session.scalars(statement).all())
     if len(rows) > limit:
         raise DemandTargetReadOverflow(

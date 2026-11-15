@@ -779,6 +779,8 @@ def run_weather_demand_runtime(
         gas_day_to=request.target_gas_day_to,
         available_at_utc=request.model_policy.validation_as_of,
         limit=request.target_read_limit,
+        # The one withholding rule: an unresolved publication is not a training target.
+        row_filter=_demand_identity_clause,
     )
     target_inputs = build_demand_target_rows(
         target_records,
@@ -1283,3 +1285,12 @@ compose_weather_demand_runtime = run_weather_demand_runtime
 compose_weather_demand_model = run_weather_demand_runtime
 build_weather_demand_runtime = run_weather_demand_runtime
 run_weather_demand_model = run_weather_demand_runtime
+
+
+def _demand_identity_clause(session):
+    """``identity_clause`` for the National Gas demand table (WITHHOLDING_RULE)."""
+
+    from eurogas_nexus.application.identity_resolution import identity_clause
+    from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
+
+    return identity_clause(session, NationalGasActualDemandRecord)
