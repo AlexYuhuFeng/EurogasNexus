@@ -252,7 +252,8 @@ def test_four_modes_are_the_primary_row_and_decision_center_is_dissolved() -> No
         ("storage", "scenario", "dispatch"),
     ]:
         assert re.search(
-            rf'id: "{task_id}", labelKey: "[^"]+",(?: shortLabelKey: "[^"]+",)? page: "{page}", pageTask: "{page_task}"',
+            rf'id: "{task_id}", labelKey: "[^"]+",(?: shortLabelKey: "[^"]+",)? '
+            rf'page: "{page}", pageTask: "{page_task}"',
             modes_text,
         ), task_id
     assert "export function redirectSearch" in modes_text
