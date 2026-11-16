@@ -6,6 +6,19 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-16 — market reports round 2: publication standard and AI editor (branch `reports-editorial`, not pushed)
+
+- Template `market-report/2`: fact sheet with comparisons and materiality (`reports/facts.py`,
+  `derive.py`), page one (masthead, headline, standfirst, 3–5 findings, At a glance, lead
+  exhibit), numbered exhibits with furniture, A4 paged layout with running header/footer,
+  data annex and CSV data block, no interface in the document. Standard:
+  `docs/product/REPORT_EDITORIAL_STANDARD.md`.
+- AI editor (`reports/editor.py`) under `docs/product/REPORT_EDITORIAL_DIRECTIVE.md` v1: fact
+  sheet payload (`REPORT_EDITOR_FIELDS`), structured plan, element-level checks and fallback,
+  recorded evaluation set (`tests/evals/editor_cases.json`), provider run
+  `scripts/ai/run_editor_eval.py`.
+- Outage read gains an opt-in `ended_since` for period reports; the live view is unchanged.
+
 ## 2026-11-16 — brand mark (branch `brand-mark`, not pushed)
 
 - New mark: a regular hexagon broken by one wave, hand-written SVG on a 32-unit grid

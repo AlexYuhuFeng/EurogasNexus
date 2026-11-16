@@ -859,8 +859,12 @@ def _book_or_event_facts(result) -> None:
     sentences = [result.headline, *result.bullets]
     result.facts = [F.fact(f"{result.key}.{i}", result.key, result.title, None, "",
                            day="", state="current", simulated=result.simulated,
-                           indicator=False, score=weight if i == 0 else weight * 0.3,
-                           reason="section headline" if i == 0 else "section detail",
+                           indicator=False,
+                           # A sentence that only says nothing is held is never a finding.
+                           score=0.0 if s.startswith("No ") else
+                           weight if i == 0 else weight * 0.3,
+                           reason="nothing held" if s.startswith("No ") else
+                           "section headline" if i == 0 else "section detail",
                            sentence=s, sources=[src["name"] for src in result.sources[:1]])
                     for i, s in enumerate(sentences) if s]
     for spec in result.tables:

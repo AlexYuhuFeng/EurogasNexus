@@ -159,6 +159,15 @@ def _check_title(title: str, section: str, window: str | None, sheet: list[dict]
     return check_text(title, every, facts, max_sentences=1, max_chars=160, context=context)
 
 
+def _mark_simulated(text: str, ids: list[str], facts: dict[str, dict]) -> str:
+    """A text resting on simulated facts says so, even when the editor did not."""
+
+    if any(facts.get(i, {}).get("simulated") for i in ids) and not re.search(
+            r"simulated|模拟", text, re.I):
+        return text.rstrip(".") + " (simulated)" + ("." if text.endswith(".") else "")
+    return text
+
+
 def word_count(text: str) -> int:
     """Words in English; Chinese characters count two to a word (as the desk-note check)."""
 
@@ -202,8 +211,9 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
         ok, why = check_text(text or "", ids, facts, max_sentences=sentences, max_chars=chars,
                               context=context)
         if _record(record, key, ok, why):
-            out[key] = strip_citations(text).rstrip(".") if key == "headline" else \
-                strip_citations(text)
+            value = strip_citations(text)
+            out[key] = _mark_simulated(value.rstrip(".") if key == "headline" else value,
+                                       ids, facts)
     # Findings: 3 to 5, each checked; a refused finding is replaced by the next rule finding.
     findings = raw.get("findings") if isinstance(raw.get("findings"), list) else []
     # Three findings need three indicators; a narrow sheet (an asked report) may hold fewer.
@@ -233,7 +243,9 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
                 ok, why = False, "second finding about the same indicator"
             if _record(record, f"finding.{index}", ok, why):
                 families |= fam
-                chosen.append({"fact_ids": ids, "text": strip_citations(item["finding"]),
+                chosen.append({"fact_ids": ids,
+                               "text": _mark_simulated(strip_citations(item["finding"]), ids,
+                                                       facts),
                                "implication": strip_citations(implication) if implication
                                else None, "why": str(item.get("why") or "")[:160],
                                "score": max((facts[i]["score"] for i in ids if i in facts),

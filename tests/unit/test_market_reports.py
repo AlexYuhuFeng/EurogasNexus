@@ -417,3 +417,15 @@ def test_a_quiet_day_says_so_first():
     ranked = findings.rank_findings(sheet)
     assert ranked[0]["text"] == findings.NO_NEWS
     assert findings.headline_of(ranked, sheet).startswith("Flows, storage and prices")
+
+
+def test_a_period_read_includes_outages_that_ended_and_the_live_view_does_not(env):
+    from eurogas_nexus.application.remit_outages import load_outage_rows
+
+    later = NOW + timedelta(days=6)  # both demo outages have ended by then
+    with Session(env) as session:
+        live = load_outage_rows(session, now=later, horizon_days=14)
+        period = load_outage_rows(session, now=later, horizon_days=14, ended_since=NOW)
+    assert not [r for r in live if r["status"] == "ended"]
+    ended = [r for r in period if r["status"] == "ended"]
+    assert ended and all(r["end_utc"] for r in ended)
