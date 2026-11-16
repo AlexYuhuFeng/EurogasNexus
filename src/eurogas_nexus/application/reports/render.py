@@ -585,12 +585,17 @@ def _back(snapshot: dict, numbers: Numbering) -> str:
                   if licensed else "")
                + (f"{DAGGER} marks simulated demonstration values: not market data. "
                   if snapshot.get("simulated") else "") + "</p>")
-    out.append(f"<h3>Disclaimer</h3><p>{_e(DISCLAIMER)}</p></div></section>")
+    out.append(f"<h3>Disclaimer</h3><p>{_e(DISCLAIMER)}</p>"
+               f"<p>Report {_e(snapshot['report_id'])} · template "
+               f"{_e(snapshot.get('template_version', TEMPLATE_VERSION))}.</p></div></section>")
     return "".join(out)
 
 
 def _annex(snapshot: dict, numbers: Numbering) -> str:
-    blocks = []
+    """Narrow series tables flow in three columns; wide ones (a schedule) run full width."""
+
+    blocks: list[str] = []
+    wide: list[str] = []
     for section in snapshot["sections"]:
         if section["status"] != "ok":
             continue
@@ -601,14 +606,15 @@ def _annex(snapshot: dict, numbers: Numbering) -> str:
             rows = [r for r in spec["rows"] if not spec.get("print_from")
                     or str(r.get("day", "")) >= spec["print_from"]]
             spec = {**spec, "rows": rows}
-            blocks.append(f'<figure id="t{number}">'
+            target = wide if len(spec["columns"]) > 4 else blocks
+            target.append(f'<figure id="t{number}">'
                           + _furniture(f"Table {number}", spec.get("caption", ""),
                                        f"{section['title']}: {len(rows)} rows, newest first")
                           + table_html(spec) + "</figure>")
-    if not blocks:
+    if not blocks and not wide:
         return ""
     return ('<section class="r-annex" aria-labelledby="ah"><h2 id="ah" class="r-label">Data '
-            f'annex</h2><div class="r-two">{"".join(blocks)}</div></section>')
+            f'annex</h2><div class="r-two">{"".join(blocks)}</div>{"".join(wide)}</section>')
 
 
 def _data_block(snapshot: dict) -> str:
@@ -700,8 +706,6 @@ def render_report(snapshot: dict) -> str:
         f'<article class="r-sheet r-front" aria-label="Summary">{"".join(front)}</article>'
         f'<article class="r-sheet r-body" aria-label="Report">{"".join(body)}</article>'
         f'<article class="r-sheet r-back-sheet" aria-label="Methodology and data">{back}'
-        f'<p class="r-source">Report {_e(snapshot["report_id"])} · template '
-        f'{_e(snapshot.get("template_version", TEMPLATE_VERSION))} · {_e(DISCLAIMER)}</p>'
         f"</article></main>{_data_block(snapshot)}</body></html>"
     )
 

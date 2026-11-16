@@ -48,7 +48,7 @@ the two cannot drift. Change both in one commit and bump the version.
 
 **CLASSIFICATION.** Never refer to the firm's positions, P&L, limits, counterparties or contracts unless facts about them are in the sheet; in a report for distribution they are not, and you must not allude to them.
 
-**OUTPUT.** Return one JSON object and nothing else, in the schema given.
+**OUTPUT.** Return one JSON object and nothing else, in the schema given. The headline is one sentence of at most 14 words; the standfirst at most three sentences and 70 words.
 <!-- directive:end -->
 
 ## The plan the editor returns

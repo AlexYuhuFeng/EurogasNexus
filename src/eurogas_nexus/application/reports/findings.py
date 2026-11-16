@@ -151,7 +151,10 @@ def headline_of(findings: list[dict], sheet: list[dict]) -> str:
     if lead["text"] == NO_NEWS:
         return "Flows, storage and prices within their recent range"
     fact = next((f for f in sheet if f["id"] == lead["fact_ids"][0]), None)
-    return (fact or {}).get("headline") or lead["text"]
+    text = (fact or {}).get("headline") or lead["text"]
+    if fact and fact.get("simulated") and "(simulated)" not in text:
+        text += " (simulated)"
+    return text
 
 
 def rule_plan(sheet: list[dict], sections: list[dict]) -> dict[str, Any]:

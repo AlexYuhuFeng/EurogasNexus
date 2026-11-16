@@ -83,7 +83,8 @@ RULES: tuple[tuple[str, str], ...] = (
      "facts about them are in the sheet; in a report for distribution they are not, and you "
      "must not allude to them."),
     ("OUTPUT",
-     "Return one JSON object and nothing else, in the schema given."),
+     "Return one JSON object and nothing else, in the schema given. The headline is one "
+     "sentence of at most 14 words; the standfirst at most three sentences and 70 words."),
 )
 
 #: The editorial plan the model returns (validated by ``editor.validate_plan``).

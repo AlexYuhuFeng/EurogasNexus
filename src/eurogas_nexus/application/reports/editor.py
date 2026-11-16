@@ -129,7 +129,8 @@ def check_text(text: str, fact_ids: list[str], facts: dict[str, dict], *,
         return False, "cause: a cause is stated between facts the engine does not relate"
     if any(f.get("forecast") for f in used) and not re.search(r"forecast|预测", plain, re.I):
         return False, "forecast: a forecast fact is cited but not called a forecast"
-    if re.search(r"\b(measured|actual)\b", plain, re.I) and all(f.get("forecast") for f in used):
+    claim = re.sub(r"measured days|not a measurement|not measured", "", plain, flags=re.I)
+    if re.search(r"\b(measured|actual)\b", claim, re.I) and all(f.get("forecast") for f in used):
         return False, "forecast: a forecast described as measured"
     return True, ""
 
@@ -194,7 +195,7 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
         return {**rule, "record": record}
     record["plan"] = raw
     # Headline and standfirst.
-    for key, sentences, chars in (("headline", 1, 200), ("standfirst", 3, 520)):
+    for key, sentences, chars in (("headline", 1, 140), ("standfirst", 3, 520)):
         element = raw.get(key) or {}
         text = element.get("text") if isinstance(element, dict) else None
         ids = cited(text or "", element.get("facts") if isinstance(element, dict) else None)

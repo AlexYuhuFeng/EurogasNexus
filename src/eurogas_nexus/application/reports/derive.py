@@ -668,8 +668,11 @@ def derive_balance(result, ctx) -> None:
         facts.append(F.fact(
             "balance.forecast", "balance", "Supply call forecast", last["call_gwh"], "GWh/d",
             day=last["day"], state="current", simulated=sim, forecast=method, scheduled=True,
-            indicator=False, score=round(abs(change) / call[latest] * 10, 2),
-            reason=f"forecast change of {abs(change) / call[latest]:.0%} of the latest call",
+            # A forecast is weighed by the change it projects but capped below a material
+            # measured change: rules do not lead an issue with a model estimate.
+            indicator=False, score=min(round(abs(change) / call[latest] * 10, 2), 1.5),
+            reason=f"forecast change of {abs(change) / call[latest]:.0%} of the latest call "
+                   "(capped at 1.5: a forecast)",
             sentence=(f"The balance forecast ({method}) puts the call at "
                       f"{number(last['call_gwh'], 'GWh/d')}{_sim(sim)} on {fday(last['day'])}; it "
                       f"is a forecast, not a measurement, and {limitation}."),
