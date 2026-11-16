@@ -106,6 +106,20 @@ unchanged; these rules govern how much of that evidence is *on screen by default
     scrollable regions are keyboard focusable. The browser-acceptance axe sweep enforces
     this.
 
+12. **The search bar answers before it navigates** (answer bar, 2026-11-16;
+    [user guide](../user/ANSWER_BAR.md)). One bar, three tiers, cheapest and surest first:
+    instant (calculator, conversions with the units authority's factors, gas day, glossary;
+    no network), looked up (prices, fundamentals, outages, book; existing reads, 250 ms
+    debounce, stale reads cancelled), asked (Enter only; a checked AI summary over the desk's
+    figures). The answer row is the first option: a `KeyFigure` with the value in tabular
+    figures and the desk's unit, the `sim` mark beside a simulated value as on the hub board,
+    and the provenance (as-of, source, ECB rate and date, calorific value and its reference
+    conditions) one quiet line per fact under it. A conversion that needs an FX rate or a
+    calorific value never runs on a silent default. A half-typed name gives no answer row.
+    Enter opens the task where the number lives; Tab takes the answer into the field;
+    Ctrl/⌘+C copies the number. Hooks: `#palette-answer`, `#palette-ask`, `[data-answer-kind]`,
+    `[data-answer-value]`, `.answer-ask-panel[aria-busy]`.
+
 Source-pinning contract tests should assert behaviour and data hooks
 (`data-market-board`, `data-record`, `aria-pressed`) rather than CSS class names or
 exact copy, so that presentation can improve without weakening a gate.

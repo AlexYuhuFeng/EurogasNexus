@@ -1610,6 +1610,84 @@ async function interactionChecks(page, failures) {
  * - the index's own filter is exercised on the term it just selected: searching for the selected
  *   term's own name must keep that term in the index rather than hiding it.
  */
+/**
+ * The answer bar in the Ctrl K palette (keyboard first): an instant calculation is the selected
+ * option and is announced, Tab takes the result into the field, a definition question opens the
+ * glossary on Enter, `?` offers Ask and Enter shows its panel, and Escape leaves the panel before
+ * it closes the palette. axe runs over the palette with an answer row and with the Ask panel, and
+ * the palette may not overflow a phone-width screen.
+ */
+async function answerBarInteraction(page, failures) {
+  const scope = "interaction/answer-bar";
+  try {
+    await setLanguage(page, "en");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/?workspace=market`, { waitUntil: "domcontentloaded" });
+    await page.locator(".topbar-command").waitFor({ state: "visible", timeout: 20_000 });
+    await page.keyboard.press("Control+k");
+    const input = page.locator(".command-palette-input");
+    await input.waitFor({ state: "visible", timeout: 5_000 });
+    await input.fill("(42.5-39.8)*30");
+    const value = page.locator('#palette-answer [data-answer-value]');
+    await value.waitFor({ state: "visible", timeout: 5_000 });
+    if ((await value.textContent())?.trim() !== "81") recordFailure(failures, scope, "the calculation did not answer 81");
+    if ((await input.getAttribute("aria-activedescendant")) !== "palette-answer") {
+      recordFailure(failures, scope, "the answer row is not the selected option");
+    }
+    const live = (await page.locator(".answer-live").textContent()) ?? "";
+    if (!live.includes("81")) recordFailure(failures, scope, `the live region did not announce the answer: ${live}`);
+    const violations = await axeViolations(page, ".command-palette");
+    if (violations.length) recordFailure(failures, scope, `axe violations with an answer row: ${JSON.stringify(violations)}`);
+    await input.press("Tab");
+    if ((await input.inputValue()) !== "81") recordFailure(failures, scope, "Tab did not take the result into the field");
+
+    await input.fill("TTF Dec-26 to");
+    await page.waitForTimeout(400);
+    if (await page.locator("#palette-answer").count()) recordFailure(failures, scope, "a half-typed query showed an answer");
+
+    await input.fill("what is TTF");
+    const glossary = page.locator('#palette-answer[data-answer-kind="glossary"]');
+    if (await glossary.waitFor({ state: "visible", timeout: 5_000 }).then(() => true, () => false)) {
+      await input.press("Enter");
+      await page.waitForFunction(() => new URL(window.location.href).searchParams.get("term") === "TTF", null, { timeout: 5_000 })
+        .catch(() => recordFailure(failures, scope, "Enter on a glossary answer did not open the TTF entry"));
+    } else {
+      recordFailure(failures, scope, "a definition question with a glossary hit showed no glossary answer");
+    }
+
+    await page.keyboard.press("Control+k");
+    await input.waitFor({ state: "visible", timeout: 5_000 });
+    await input.fill("?what is going on with outages this week");
+    const askRow = page.locator("#palette-ask");
+    await askRow.waitFor({ state: "visible", timeout: 5_000 });
+    await input.press("Enter");
+    const panel = page.locator('.answer-ask-panel[aria-busy="false"]');
+    await panel.waitFor({ state: "visible", timeout: 30_000 });
+    const panelViolations = await axeViolations(page, ".command-palette");
+    if (panelViolations.length) recordFailure(failures, scope, `axe violations in the Ask panel: ${JSON.stringify(panelViolations)}`);
+    await page.keyboard.press("Escape");
+    if (await page.locator(".answer-ask-panel").count()) recordFailure(failures, scope, "Escape did not leave the Ask panel");
+    if (!(await input.isVisible())) recordFailure(failures, scope, "the first Escape closed the palette instead of the panel");
+    await page.keyboard.press("Escape");
+    if (await page.locator(".command-palette").count()) recordFailure(failures, scope, "the second Escape did not close the palette");
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator(".topbar-command").click();
+    await input.fill("10 mcm/d to GWh/d");
+    await page.locator("#palette-answer").waitFor({ state: "visible", timeout: 5_000 });
+    const overflow = await page.evaluate(() => {
+      const box = document.querySelector(".command-palette")?.getBoundingClientRect();
+      return box ? box.right > window.innerWidth + 1 || box.left < -1 : true;
+    });
+    if (overflow) recordFailure(failures, scope, "the palette overflows a 390 px screen");
+    await page.keyboard.press("Escape");
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  } finally {
+    await page.setViewportSize({ width: 1440, height: 900 }).catch(() => {});
+  }
+}
+
 async function glossaryTermSelectionInteraction(page, failures) {
   const scope = "interaction/glossary-term-selection";
   try {
@@ -2504,6 +2582,10 @@ export async function runWorkflowSmoke() {
     // rendered rows: the index is a control and the article must follow the clicked record.
     currentScope = "interaction/glossary-term-selection";
     await glossaryTermSelectionInteraction(page, failures);
+
+    // The answer bar's keyboard paths, axe and phone width (docs/user/ANSWER_BAR.md).
+    currentScope = "interaction/answer-bar";
+    await answerBarInteraction(page, failures);
 
     // The Source Center's catalog, selection and category filter are asserted the same way: the
     // rows are compared with the registry read by exact source id, the detail panel must follow the

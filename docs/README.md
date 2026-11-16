@@ -261,6 +261,7 @@ Operational procedures and operator-facing guides:
 ## User and UAT documentation
 
 - [Quick start](user/QUICK_START.md)
+- [The answer bar](user/ANSWER_BAR.md): calculations, conversions, look-ups and Ask in the search bar
 - [Market workflow](user/MARKET_WORKFLOW.md)
 - [Portfolio workflow](user/PORTFOLIO_WORKFLOW.md)
 - [Strategy Lab](user/STRATEGY_LAB.md)
