@@ -99,7 +99,7 @@ SERIESCSS
 html,body,.r-report{background:#fff;color:#000}
 .r-report{max-width:none;padding:0}
 .r-tools{display:none}
-h2,h3{break-after:avoid}
+h2,h3,.r-head,caption{break-after:avoid}.r-scroll{break-inside:avoid}h2+.r-section{break-before:avoid}
 thead{display:table-header-group}
 tr,figure,.r-key{break-inside:avoid}
 .r-section{break-inside:auto}
