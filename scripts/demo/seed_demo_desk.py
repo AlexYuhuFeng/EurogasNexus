@@ -29,6 +29,10 @@ Usage (local PostgreSQL or SQLite runtime store, migrations already applied):
 
 Re-running replaces the demo rows (ids start with ``demo-`` or belong to the demo
 counterparties); it touches nothing else.
+
+``--roll-forward`` only appends what a paused server missed (``roll_forward``): the series
+end at the current gas day again, and nothing stored, including testers' edits, is
+rewritten. ``--now`` overrides the clock for rehearsals and tests.
 """
 
 from __future__ import annotations
@@ -239,8 +243,11 @@ def _native(hub: str, price_per_mwh: float) -> dict:
     return {"native": {"price": round(convert_price(price_per_mwh, f"{major}/MWh", native), 4),
                        "unit": native}}
 
-def seed(session, now: datetime) -> dict[str, dict]:
-    """Write the demo desk and return each credit line's sizing, for the caller to print."""
+def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, dict]:
+    """Write the demo desk and return each credit line's sizing, for the caller to print.
+
+    ``history_days`` shortens the daily history (tests); the demo default is a gas year+.
+    """
 
     rng = random.Random(20261107)
     today = now.date()
@@ -295,13 +302,13 @@ def seed(session, now: datetime) -> dict[str, dict]:
             )
         # A random walk around the seasonal curve; each day's month-ahead is the month after it.
         drift = 0.0
-        for back in range(HISTORY_DAYS, 0, -1):
+        for back in range(history_days, 0, -1):
             front = _month_start(today - timedelta(days=back), 1)
             drift = 0.97 * drift + rng.gauss(0, 0.35)
             price = round(_curve_price(hub, front) + drift - back * 0.003, 3)
             session.add(
                 MarketObservationRecord(
-                    observation_id=f"demo-{hub}-ma-{back}",
+                    observation_id=f"demo-{hub}-ma-{today - timedelta(days=back):%Y%m%d}",
                     market_venue="Demo",
                     product=f"{hub} month-ahead",
                     price=price,
@@ -602,24 +609,7 @@ def seed(session, now: datetime) -> dict[str, dict]:
             )
         )
     # Two fictional outages for the ticker and the map: a large unplanned one and a derate.
-    for message_id, asset, zone, technical, unavailable, kind, hours_ago, reason in (
-        ("demo-umm-1", "Demo Haldor field", "NBP", 70.0, 52.0, "unplanned", 3,
-         "Compressor trip (demo)"),
-        ("demo-umm-2", "Demo Kestrel export line", "TTF", 40.0, 9.0, "planned", 30,
-         "Valve maintenance (demo)"),
-    ):
-        start = now - timedelta(hours=hours_ago)
-        session.add(RemitUmmRecord(
-            record_id=f"{message_id}:1", message_id=message_id, version=1,
-            published_at_utc=start, event_status="active", unavailability_type=kind,
-            event_start_utc=start, event_stop_utc=start + timedelta(days=3), asset_name=asset,
-            asset_eic=f"DEMO-{message_id}", asset_type="production", balancing_zone=zone,
-            direction="entry", unit="mcm/d", technical_capacity=technical,
-            available_capacity=technical - unavailable, unavailable_capacity=unavailable,
-            unavailable_mcm_d=unavailable, unavailable_gwh_d=round(unavailable * 10.83, 1),
-            reason=reason, market_participant="Demo operator", remarks="Fictional demo message.",
-            source_system="DEMO", source_reference="demo:umm", ingested_at_utc=now,
-        ))
+    session.add_all(_demo_outages(now))
     # A local-sale route for the TTF contract, so the scenario can allocate. The NBP contracts
     # land at terminals; a route from there needs TSO entry tariffs, which the demo does not
     # invent, so their volume stays unallocated and the scenario says so.
@@ -639,7 +629,7 @@ def seed(session, now: datetime) -> dict[str, dict]:
             created_at_utc=now,
         )
     )
-    seed_market_around_the_book(session, now, rng)
+    seed_market_around_the_book(session, now, rng, history_days=history_days)
     return sizing
 
 
@@ -729,14 +719,29 @@ def _flow_row(point_id, name, operator, direction, gwh, day, start, end, now):
     )
 
 
-def seed_market_around_the_book(session, now: datetime, rng: random.Random) -> dict[str, int]:
-    """Reference network plus simulated physical history; returns row counts by table."""
+def seed_market_around_the_book(
+    session,
+    now: datetime,
+    rng: random.Random,
+    *,
+    history_days: int = HISTORY_DAYS,
+    map_days: int = MAP_FLOW_DAYS,
+    power_days: int = POWER_DAYS,
+    load_reference: bool = True,
+    skip_existing: bool = False,
+) -> dict[str, int]:
+    """Reference network plus simulated physical history; returns row counts by table.
+
+    The windows end at ``now``. ``skip_existing`` (the roll-forward) writes only rows whose
+    key is not stored yet, so a stored day is never rewritten.
+    """
 
     profiles = json.loads(PROFILES.read_text(encoding="utf-8"))
     counts: dict[str, int] = {}
-    reference = seed_reference_bundle(session, now=now)
-    counts["reference_points"] = (reference.get("nodes") or {}).get("upserted", 0)
-    days = _closed_gas_days(now, HISTORY_DAYS)
+    if load_reference:
+        reference = seed_reference_bundle(session, now=now)
+        counts["reference_points"] = (reference.get("nodes") or {}).get("upserted", 0)
+    days = _closed_gas_days(now, history_days) if history_days > 0 else []
     rows: list = []
 
     # Pipeline landings: every registry point every day, so the coverage rule sees full days.
@@ -758,7 +763,7 @@ def seed_market_around_the_book(session, now: datetime, rng: random.Random) -> d
         if item["point_id"] in landing_ids:
             continue
         wobble = _Wobble(rng, 0.04)
-        for day, start, end in days[-MAP_FLOW_DAYS:]:
+        for day, start, end in days[-map_days:] if map_days > 0 else []:
             rows.append(
                 _flow_row(item["point_id"], item["name"], item["operator"], item["direction"],
                           item["gwh_d"] * wobble(), day, start, end, now)
@@ -876,12 +881,12 @@ def seed_market_around_the_book(session, now: datetime, rng: random.Random) -> d
     # a simulated power price could be read as a market price (AGENTS.md rule 17).
     before = len(rows)
     # Whole UTC days up to last midnight: a half-filled today would read as a drop in burn.
-    first_hour = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=POWER_DAYS)
+    first_hour = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=power_days)
     for zone, metrics in profiles["power_hourly_mw"].items():
         for metric, by_hour in metrics.items():
             daily = _Wobble(rng, 0.08 if "wind" in metric else 0.03, 0.6)
             level = 1.0
-            for hour in range(POWER_DAYS * 24):
+            for hour in range(max(0, power_days) * 24):
                 start = first_hour + timedelta(hours=hour)
                 if start.hour == 0 or hour == 0:
                     level = daily()
@@ -903,16 +908,360 @@ def seed_market_around_the_book(session, now: datetime, rng: random.Random) -> d
                     )
                 )
     counts["power"] = len(rows) - before
+    if skip_existing:
+        rows = _new_rows_only(session, rows)
+        counts["written"] = len(rows)
     session.add_all(rows)
     session.flush()
     return counts
 
 
-def main() -> int:
+def _new_rows_only(session, rows: list) -> list:
+    """Drop the rows whose primary key is already stored (one query per table and chunk)."""
+
+    from sqlalchemy import inspect as sa_inspect
+
+    by_model: dict[type, list] = {}
+    for row in rows:
+        by_model.setdefault(type(row), []).append(row)
+    kept: list = []
+    for model, items in by_model.items():
+        key = sa_inspect(model).primary_key[0]
+        existing: set = set()
+        ids = [getattr(item, key.key) for item in items]
+        for offset in range(0, len(ids), 500):
+            chunk = ids[offset : offset + 500]
+            existing.update(value for (value,) in session.query(key).filter(key.in_(chunk)))
+        kept.extend(item for item in items if getattr(item, key.key) not in existing)
+    return kept
+
+
+# ---------------------------------------------------------------------------
+# Roll-forward: keep the demo desk current after the server was paused
+# ---------------------------------------------------------------------------
+
+
+def _gas_day_of(start: datetime) -> date:
+    """The gas day a stored period start belongs to (05:00/04:00 UTC start)."""
+
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    return (start + timedelta(hours=7)).date()
+
+
+def _aware(moment: datetime) -> datetime:
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def roll_forward(session, now: datetime) -> dict[str, int]:
+    """Extend the simulated demo series so they end at ``now`` again; idempotent.
+
+    After the server was paused for days or weeks the demo history ends in the past, the
+    curve ages out of the quote lookback and Today looks stale. This appends what is missing
+    and nothing else:
+
+    * physical series (flows, storage, LNG, power): the missing gas days and hours, keyed by
+      date, so a stored day is never rewritten (``skip_existing``);
+    * month-ahead history: the missing days, continuing the random walk from the last price;
+    * the forward curve: a new end-of-day snapshot of the same invented seasonal curve when
+      the newest is older than a day (the newest snapshot wins, as with a real settlement);
+    * demo FX: a new daily fixing row when the newest is older than a day;
+    * deliveries of the demo contracts that still exist: the missing gas days, and the
+      allocation of a day that was still pending;
+    * the two fictional outages: published again from ``now`` once both have ended.
+
+    Contracts, trades, credit lines, mandates, books and terminal terms - what testers edit -
+    are not touched, and nothing outside the demo sources is read or written. A store that
+    was never seeded is left alone (``{"seeded": 0}``).
+    """
+
+    from sqlalchemy import func
+
+    counts: dict[str, int] = {}
+    today = now.date()
+    last_flow = (
+        session.query(func.max(FlowObservationRecord.period_start_utc))
+        .filter(FlowObservationRecord.source_system == SOURCE)
+        .filter(FlowObservationRecord.source_reference == "demo:flows")
+        .scalar()
+    )
+    if last_flow is None:
+        return {"seeded": 0}
+    rng = random.Random(today.toordinal())
+    newest_closed = _closed_gas_days(now, 1)[0][0]
+    gap = (newest_closed - _gas_day_of(last_flow)).days
+    last_power = (
+        session.query(func.max(PowerObservationRecord.period_start_utc))
+        .filter(PowerObservationRecord.source_system == SOURCE)
+        .scalar()
+    )
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    power_gap = (
+        POWER_DAYS
+        if last_power is None
+        else max(0, (midnight - (_aware(last_power) + timedelta(hours=1))).days + 1)
+    )
+    if gap > 0 or power_gap > 0:
+        written = seed_market_around_the_book(
+            session,
+            now,
+            rng,
+            history_days=min(max(gap, 0), HISTORY_DAYS),
+            map_days=min(max(gap, 0), MAP_FLOW_DAYS),
+            power_days=min(power_gap, POWER_DAYS),
+            load_reference=False,
+            skip_existing=True,
+        )
+        counts["physical_rows"] = written.get("written", 0)
+
+    counts["curve_rows"] = _roll_curve(session, now)
+    counts["month_ahead_rows"] = _roll_month_ahead(session, now, rng)
+    counts["fx_rows"] = _roll_fx(session, now)
+    counts["delivery_rows"] = _roll_deliveries(session, now, rng)
+    counts["outage_rows"] = _roll_outages(session, now)
+    session.flush()
+    return counts
+
+
+def _newest(session, column, *filters):
+    from sqlalchemy import func
+
+    value = session.query(func.max(column)).filter(*filters).scalar()
+    return None if value is None else _aware(value)
+
+
+def _roll_curve(session, now: datetime) -> int:
+    newest = _newest(
+        session,
+        MarketObservationRecord.observed_at_utc,
+        MarketObservationRecord.source_system == SOURCE,
+        MarketObservationRecord.source_reference == "demo:curve",
+    )
+    if newest is not None and now - newest < timedelta(hours=20):
+        return 0
+    today = now.date()
+    rows = []
+    for hub, currency in (("TTF", "EUR"), ("NBP", "GBP")):
+        for offset in range(HORIZON_MONTHS):
+            first = _month_start(today, offset)
+            price = _curve_price(hub, first)
+            rows.append(
+                MarketObservationRecord(
+                    observation_id=f"demo-{hub}-{first:%Y-%m}-c{today:%Y%m%d}",
+                    market_venue="Demo",
+                    product=f"{hub} {first:%b-%y}",
+                    price=price,
+                    unit=f"{currency}/MWh",
+                    currency=currency,
+                    period_start_utc=datetime(first.year, first.month, 1, tzinfo=UTC),
+                    period_end_utc=datetime.combine(
+                        _month_start(first, 1), datetime.min.time(), tzinfo=UTC
+                    ),
+                    observed_at_utc=now - timedelta(hours=1),
+                    source_system=SOURCE,
+                    source_reference="demo:curve",
+                    freshness="end_of_day",
+                    quality_score=0.0,
+                    research_only=True,
+                    metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True,
+                                   **_native(hub, price)},
+                )
+            )
+    rows = _new_rows_only(session, rows)
+    session.add_all(rows)
+    return len(rows)
+
+
+def _roll_month_ahead(session, now: datetime, rng: random.Random) -> int:
+    today = now.date()
+    rows = []
+    for hub, currency in (("TTF", "EUR"), ("NBP", "GBP")):
+        last = (
+            session.query(MarketObservationRecord)
+            .filter(MarketObservationRecord.source_system == SOURCE)
+            .filter(MarketObservationRecord.source_reference == "demo:history")
+            .filter(MarketObservationRecord.product == f"{hub} month-ahead")
+            .order_by(MarketObservationRecord.observed_at_utc.desc())
+            .first()
+        )
+        if last is None:
+            continue
+        last_day = _aware(last.observed_at_utc).date()
+        last_front = _month_start(last_day, 1)
+        drift = float(last.price) - _curve_price(hub, last_front)
+        for back in range((today - last_day).days - 1, 0, -1):
+            day = today - timedelta(days=back)
+            front = _month_start(day, 1)
+            drift = 0.97 * drift + rng.gauss(0, 0.35)
+            price = round(_curve_price(hub, front) + drift, 3)
+            rows.append(
+                MarketObservationRecord(
+                    observation_id=f"demo-{hub}-ma-{day:%Y%m%d}",
+                    market_venue="Demo",
+                    product=f"{hub} month-ahead",
+                    price=price,
+                    unit=f"{currency}/MWh",
+                    currency=currency,
+                    period_start_utc=datetime(front.year, front.month, 1, tzinfo=UTC),
+                    period_end_utc=datetime.combine(
+                        _month_start(front, 1), datetime.min.time(), tzinfo=UTC
+                    ),
+                    observed_at_utc=now - timedelta(days=back),
+                    source_system=SOURCE,
+                    source_reference="demo:history",
+                    freshness="end_of_day",
+                    quality_score=0.0,
+                    research_only=True,
+                    metadata_json={"hub": hub, "tenor": "month-ahead", "simulated": True,
+                                   **_native(hub, price)},
+                )
+            )
+    rows = _new_rows_only(session, rows)
+    session.add_all(rows)
+    return len(rows)
+
+
+def _roll_fx(session, now: datetime) -> int:
+    newest = _newest(
+        session,
+        FxObservationRecord.observed_at_utc,
+        FxObservationRecord.source_system == SOURCE,
+    )
+    if newest is not None and now - newest < timedelta(hours=20):
+        return 0
+    today = now.date()
+    rows = [
+        FxObservationRecord(
+            observation_id=f"demo-fx-{quote}-{today:%Y%m%d}",
+            pair=f"EUR{quote}",
+            base_currency="EUR",
+            quote_currency=quote,
+            rate=rate,
+            rate_type="reference",
+            value_date=(today - timedelta(days=1)).isoformat(),
+            observed_at_utc=now,
+            source_system=SOURCE,
+            source_reference="demo:fx",
+            freshness="daily",
+            research_only=True,
+        )
+        for quote, rate in (("GBP", 0.853), ("USD", 1.087))
+    ]
+    rows = _new_rows_only(session, rows)
+    session.add_all(rows)
+    return len(rows)
+
+
+def _demo_outages(now: datetime, suffix: str = "") -> list:
+    """The two fictional outages, starting 3 and 30 hours before ``now``, lasting 3 days."""
+
+    rows = []
+    for message_id, asset, zone, technical, unavailable, kind, hours_ago, reason in (
+        ("demo-umm-1", "Demo Haldor field", "NBP", 70.0, 52.0, "unplanned", 3,
+         "Compressor trip (demo)"),
+        ("demo-umm-2", "Demo Kestrel export line", "TTF", 40.0, 9.0, "planned", 30,
+         "Valve maintenance (demo)"),
+    ):
+        message_id = f"{message_id}{suffix}"
+        start = now - timedelta(hours=hours_ago)
+        rows.append(RemitUmmRecord(
+            record_id=f"{message_id}:1", message_id=message_id, version=1,
+            published_at_utc=start, event_status="active", unavailability_type=kind,
+            event_start_utc=start, event_stop_utc=start + timedelta(days=3), asset_name=asset,
+            asset_eic=f"DEMO-{message_id}", asset_type="production", balancing_zone=zone,
+            direction="entry", unit="mcm/d", technical_capacity=technical,
+            available_capacity=technical - unavailable, unavailable_capacity=unavailable,
+            unavailable_mcm_d=unavailable, unavailable_gwh_d=round(unavailable * 10.83, 1),
+            reason=reason, market_participant="Demo operator", remarks="Fictional demo message.",
+            source_system="DEMO", source_reference="demo:umm", ingested_at_utc=now,
+        ))
+    return rows
+
+
+def _roll_outages(session, now: datetime) -> int:
+    """When every demo outage has ended (a paused server), publish the pair again from now."""
+
+    newest_stop = _newest(
+        session, RemitUmmRecord.event_stop_utc, RemitUmmRecord.source_system == "DEMO"
+    )
+    if newest_stop is None or newest_stop > now:
+        return 0
+    rows = _new_rows_only(session, _demo_outages(now, suffix=f"-{now:%Y%m%d}"))
+    session.add_all(rows)
+    return len(rows)
+
+
+def _roll_deliveries(session, now: datetime, rng: random.Random) -> int:
+    from sqlalchemy import func
+
+    today = now.date()
+    written = 0
+    for cid, _name, point, _hub, dcq, *_rest in CONTRACTS:
+        if session.get(UpstreamResourceContractRecord, cid) is None:
+            continue  # a tester removed it: leave it removed
+        last = (
+            session.query(func.max(ContractDeliveryRecord.gas_day))
+            .filter(ContractDeliveryRecord.contract_id == cid)
+            .scalar()
+        )
+        if last is None:
+            continue
+        # A day whose allocation was still pending gets it now, as a TSO allocation arrives.
+        for row in (
+            session.query(ContractDeliveryRecord)
+            .filter(ContractDeliveryRecord.contract_id == cid)
+            .filter(ContractDeliveryRecord.source_system == "DEMO")
+            .filter(ContractDeliveryRecord.allocated_mwh.is_(None))
+            .filter(ContractDeliveryRecord.gas_day < today - timedelta(days=1))
+        ):
+            row.allocated_mwh = round((row.nominated_mwh or dcq) * (1 + rng.gauss(0, 0.01)), 1)
+            row.updated_at_utc = now
+        for back in range((today - last).days - 1, 0, -1):
+            day = today - timedelta(days=back)
+            nominated = dcq * (1 + rng.uniform(-0.04, 0.04))
+            allocated = nominated * (1 + rng.gauss(0, 0.01))
+            if cid == "demo-haldor-24" and back <= 7:
+                allocated = nominated * 0.88
+            session.add(
+                ContractDeliveryRecord(
+                    contract_id=cid,
+                    gas_day=day,
+                    nominated_mwh=round(nominated, 1),
+                    allocated_mwh=None if back == 1 else round(allocated, 1),
+                    tso="Demo TSO",
+                    point=point,
+                    source_system="DEMO",
+                    source_reference="demo:deliveries",
+                    updated_at_utc=now,
+                )
+            )
+            written += 1
+    return written
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
     if not simulated_sources_allowed():
         print("refused: simulated sources are not allowed in this environment", file=sys.stderr)
         return 2
-    now = datetime.now(UTC)
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--roll-forward",
+        action="store_true",
+        help="only extend the simulated series to now (keeps every stored row and edit)",
+    )
+    parser.add_argument("--now", help="clock override, ISO 8601 (tests and rehearsals)")
+    args = parser.parse_args(argv)
+    now = datetime.fromisoformat(args.now) if args.now else datetime.now(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    if args.roll_forward:
+        with get_session_factory()() as session:
+            counts = roll_forward(session, now)
+            session.commit()
+        print("Demo desk rolled forward: " + json.dumps(counts, sort_keys=True))
+        return 0
     with get_session_factory()() as session:
         sizing = seed(session, now)
         session.commit()
