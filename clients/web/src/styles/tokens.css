@@ -132,10 +132,13 @@
   --ds-series-6: #4d7c0f;
   --ds-series-7: #0369a1;
   --ds-series-8: #52525b;
-  /* Brand: the mark's navy tile, teal flows and text on navy (installer, splash, sign-in). */
+  /* Brand (docs/product/BRAND_MARK.md): the mark's navy and its two blues, the light and the
+     dark theme's accent, fixed in both themes. Blue on white and light blue on navy are the
+     colour and reverse lock-ups; the navy panel is the installer, splash and sign-in ground. */
   --ds-brand-navy: #101c34;
   --ds-brand-navy-deep: #0b1324;
-  --ds-brand-teal: #2dd4bf;
+  --ds-brand-blue: #1d4ed8;
+  --ds-brand-blue-light: #6ea8fe;
   --ds-on-brand: #ffffff;
   --ds-on-brand-1: #dbe3ef;
   --ds-on-brand-2: #b9c4d6;

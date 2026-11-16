@@ -114,3 +114,16 @@ test("the P&L convention swaps meaning, not colours", () => {
   assert.equal(swap["--pnl-loss"], "var(--pnl-up)");
   assert.equal(light["--pnl-profit"], "var(--pnl-up)");
 });
+
+test("the brand lock-ups read as text on the grounds they are made for", () => {
+  // Colour (navy and blue) is for light grounds: the light theme's surfaces, print, reports.
+  // Reverse (white and light blue) is for the navy panel. The name is text, so 4.5:1 throughout.
+  const brandPairs: Array<[string, string]> = [];
+  for (const bg of SURFACES) for (const fg of ["--ds-brand-navy", "--ds-brand-blue"]) brandPairs.push([fg, bg]);
+  for (const bg of ["--ds-brand-navy", "--ds-brand-navy-deep"]) for (const fg of ["--ds-on-brand", "--ds-brand-blue-light"]) brandPairs.push([fg, bg]);
+  const failures = brandPairs
+    .map(([fg, bg]) => ({ fg, bg, ratio: contrast(resolve(light, fg), resolve(light, bg)) }))
+    .filter((p) => p.ratio < 4.5)
+    .map((p) => `${p.fg} on ${p.bg}: ${p.ratio.toFixed(2)}`);
+  assert.deepEqual(failures, []);
+});

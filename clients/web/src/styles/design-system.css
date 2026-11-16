@@ -22,6 +22,7 @@
 @import url("./tokens.css") layer(ds-theme);
 /* Primitives (Button, IconButton, StatusBadge, KeyFigure, Panel, EmptyState, Skeleton). */
 @import url("../components/ui/primitives.css");
+@import url("../components/ui/brand.css");
 @import url("../components/ui/controls.css");
 @import url("../components/ui/datagrid.css");
 @import url("../components/ui/charts/charts.css");
@@ -1828,6 +1829,14 @@
     min-width: 0;
   }
 
+  /* The mark in the top-left corner, in the text colour, a little apart from the lines of work. */
+  .cockpit-app .app-header .topbar-brand {
+    flex: 0 0 auto;
+    min-width: auto;
+    margin-right: var(--ds-space-2);
+    color: var(--ds-text-1);
+  }
+
   /* The lines of work never shrink or clip: they are how a user moves. */
   .cockpit-app .app-header [data-shell-region="navigation"] {
     flex: 0 0 auto;
@@ -3244,16 +3253,13 @@
     color: var(--ds-on-brand);
   }
 
-  .sign-in-mark {
-    width: calc(var(--ds-control) * 1.5);
-    height: calc(var(--ds-control) * 1.5);
+  .sign-in-brand-lockup {
+    margin-bottom: var(--ds-space-1);
   }
 
-  .sign-in-brand-name {
-    margin-top: 6px;
-    font-size: var(--ds-text-xl);
-    font-weight: 600;
-    letter-spacing: -0.01em;
+  /* The card's own lock-up shows only when the brand panel is folded away (below). */
+  .sign-in-card-lockup {
+    display: none;
   }
 
   .sign-in-brand-tagline {
@@ -3285,7 +3291,7 @@
     width: 6px;
     height: 6px;
     border-radius: var(--ds-radius-pill);
-    background: var(--ds-brand-teal);
+    background: var(--ds-brand-blue-light);
   }
 
   .sign-in-brand-foot {
@@ -3303,6 +3309,12 @@
 
     .sign-in-brand {
       display: none;
+    }
+
+    .sign-in-shell .sign-in-card-lockup {
+      display: inline-flex;
+      align-self: flex-start;
+      margin-bottom: var(--ds-space-2);
     }
   }
 

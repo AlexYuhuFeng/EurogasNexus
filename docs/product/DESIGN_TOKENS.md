@@ -41,13 +41,14 @@ spacing step 20 px is retired (the old `--ds-space-5` alias now resolves to 16).
 | Status | `--ds-status-{ok,watch,breach,info,simulated,stale}` and each `-soft` background |
 | Profit and loss | `--pnl-up`, `--pnl-down`; `--pnl-profit` / `--pnl-loss` follow the user's convention (`data-pnl="red_up"` swaps meaning, not colours) |
 | Chart series | `--ds-series-1` … `--ds-series-8`, each at least 3:1 against the surface |
+| Brand | `--ds-brand-navy`, `--ds-brand-navy-deep` (the installer, splash and sign-in panel), `--ds-brand-blue` (`#1d4ed8`, the light theme's accent) and `--ds-brand-blue-light` (`#6ea8fe`, the dark theme's accent), `--ds-on-brand*` (text on navy). Fixed in both themes: they colour the mark, not the interface. See [BRAND_MARK.md](BRAND_MARK.md) |
 
 Simulated has its own colour (violet), so a simulated-price banner is never read as a warning
 about a real price (UX_REFERENCE rule 10).
 
 `clients/web/tests/tokenContrast.test.ts` computes contrast from the values in `tokens.css`:
 every text role on every surface, status text on its own soft background, text on the selected
-row and on-colours on their fills at 4.5:1; the focus ring and chart series at 3:1; in both
+row and on-colours on their fills at 4.5:1; the brand navy and blue on the light surfaces and white and light blue on the navy panel at 4.5:1; the focus ring and chart series at 3:1; in both
 themes. Control borders (`--ds-border-strong`) are not held to 3:1: controls are identified by
 their label and fill, and a 3:1 border on every input would be heavier than the desk wants. That
 is a recorded choice, not an oversight.
@@ -148,6 +149,7 @@ In `clients/web/src/components/ui/`, styled by `primitives.css` (tokens only):
 | `Popover` | anchored note in the top layer (native `popover`), placed against collisions (`popoverPosition.ts`: below, flipped above, clamped, scrolls when tall), follows scroll; opening moves focus in, Escape closes and returns focus to the trigger, a click outside or focus leaving closes. Used by Why, Method, the stale-figures list and the feed list |
 | `Dialog`, `Sheet` | one implementation over native `<dialog>` + `showModal()`: page behind inert, Tab wraps inside, labelled by its title, Escape (`cancel`) and backdrop call `onClose`, focus returns to the opener. Sheet docks to the end, the bottom or the full screen (the inspector on a phone) |
 | `DataGrid` | the one table: see below |
+| `BrandMark` | the mark (`mark`), mark + "EN" (`monogram`) or mark + "Eurogas Nexus" (`wordmark`); `tone` mono (`currentColor`, the chrome default), colour, reverse or auto (colour in light, reverse in dark); `size` sm/md/lg/xl (20/24/32/40 px mark, name on the matching text step) or a px number for the mark alone; one image named "Eurogas Nexus", or `decorative` beside the written name. See [BRAND_MARK.md](BRAND_MARK.md) |
 
 ### Dependency decision: no React Aria
 

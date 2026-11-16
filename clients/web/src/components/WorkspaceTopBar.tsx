@@ -12,7 +12,7 @@ import {
   compositionFromProfile,
   compositionSeesAdministration,
 } from "@/app/experience/experienceProfile";
-import { StatusBadge, WorkspaceTabs } from "@/components/ui";
+import { BrandMark, StatusBadge, WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import { useApiStore, type ApiState } from "@/stores/api";
 import type { ThemeMode } from "@/stores/theme";
@@ -186,6 +186,14 @@ export function WorkspaceTopBar({
       className="app-header cockpit-topbar workspace-topbar-only workspace-topbar-page"
       data-shell-region="global-context"
     >
+      {/* Top-left: the mark in the text colour (it follows the theme), with the name where the
+          bar has the room; the lines of work and the controls never give width up to it. */}
+      <BrandMark
+        variant={widthClass === "wide" ? "wordmark" : "mark"}
+        size="md"
+        tone="mono"
+        className="topbar-brand"
+      />
       {drawerNav && (
         <button
           ref={menuButtonRef}

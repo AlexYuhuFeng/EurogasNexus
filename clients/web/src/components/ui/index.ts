@@ -38,3 +38,5 @@ export { rovingIndex, gridRowIndex } from "./keyboard";
 export { DataGrid } from "./DataGrid";
 export type { CellState, CellStateKind, DataGridColumn, DataGridProps, SortDirection, SortState } from "./DataGrid";
 export { compareValues, nextSort, sortRows, spanRuns } from "./dataGridModel";
+export { BrandMark, BRAND_HEX_LOWER, BRAND_HEX_UPPER, BRAND_NAME, BRAND_STROKE, BRAND_WAVE } from "./BrandMark";
+export type { BrandMarkProps, BrandSize, BrandTone, BrandVariant } from "./BrandMark";

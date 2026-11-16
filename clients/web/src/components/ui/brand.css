@@ -1,0 +1,67 @@
+/*
+ * The brand mark and lock-ups (BrandMark.tsx, docs/product/BRAND_MARK.md). Tokens only.
+ *
+ * Mono draws in currentColor, so it follows the text colour of whatever it sits in. Colour is
+ * navy and blue for light grounds; reverse is white and light blue for the navy brand panel;
+ * auto follows the theme between the two.
+ * The name sits on the mark's centre line, one text step per mark size.
+ */
+@layer ds-components {
+  .ds-brand {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--ds-space-2);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .ds-brand-glyph {
+    display: block;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .ds-brand-name {
+    font-family: var(--ds-font-ui);
+    font-weight: var(--ds-weight-semibold);
+    letter-spacing: -0.01em;
+  }
+
+  .ds-brand-sm .ds-brand-name { font-size: var(--ds-text-base); }
+  .ds-brand-md .ds-brand-name { font-size: var(--ds-text-md); }
+  .ds-brand-lg .ds-brand-name { font-size: var(--ds-text-xl); }
+  .ds-brand-xl .ds-brand-name { font-size: var(--ds-text-num); }
+
+  .ds-brand-lg,
+  .ds-brand-xl {
+    gap: var(--ds-space-3);
+  }
+
+  /* The monogram is set a step larger than the name: two capitals carry the lock-up. */
+  .ds-brand-monogram .ds-brand-name { letter-spacing: 0; }
+  .ds-brand-monogram.ds-brand-sm .ds-brand-name { font-size: var(--ds-text-md); }
+  .ds-brand-monogram.ds-brand-md .ds-brand-name { font-size: var(--ds-text-xl); }
+  .ds-brand-monogram.ds-brand-lg .ds-brand-name,
+  .ds-brand-monogram.ds-brand-xl .ds-brand-name { font-size: var(--ds-text-num); }
+
+  .ds-brand-mono { color: inherit; }
+
+  /* Auto is colour in the light theme and reverse in the dark one. */
+  .ds-brand-colour,
+  .ds-brand-auto {
+    --brand-ink: var(--ds-brand-navy);
+    --brand-flow: var(--ds-brand-blue);
+  }
+
+  .ds-brand-reverse,
+  :root.dark .ds-brand-auto {
+    --brand-ink: var(--ds-on-brand);
+    --brand-flow: var(--ds-brand-blue-light);
+  }
+
+  :is(.ds-brand-colour, .ds-brand-reverse, .ds-brand-auto) .ds-brand-hex { stroke: var(--brand-ink); }
+  :is(.ds-brand-colour, .ds-brand-reverse, .ds-brand-auto) .ds-brand-wave { stroke: var(--brand-flow); }
+  :is(.ds-brand-colour, .ds-brand-reverse, .ds-brand-auto) .ds-brand-name { color: var(--brand-ink); }
+  :is(.ds-brand-colour, .ds-brand-reverse, .ds-brand-auto) .ds-brand-accent { color: var(--brand-flow); }
+}

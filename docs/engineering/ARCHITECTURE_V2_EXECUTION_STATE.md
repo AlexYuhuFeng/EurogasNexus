@@ -6,6 +6,17 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-16 — brand mark (branch `brand-mark`, not pushed)
+
+- New mark: a regular hexagon broken by one wave, hand-written SVG on a 32-unit grid
+  (`docs/product/BRAND_MARK.md`). `BrandMark` primitive (mark, mark + EN, mark + name; mono,
+  colour, reverse, auto) replaces the hub-and-spokes glyph on sign-in, adds the mark to the
+  top bar's top-left (name at wide widths), and is the favicon, splash, desktop icons and
+  installer art. Brand tokens: `--ds-brand-blue`, `--ds-brand-blue-light` (the two accents);
+  `--ds-brand-teal` retired.
+- Server side: `eurogas_nexus.application.brand` gives reports the mark as inline SVG; the
+  report templates are not changed here (see BRAND_MARK.md, "Report header").
+
 ## 2026-11-16 — market reports (branch `market-reports`, not pushed)
 
 - `application/reports/`: a section catalogue (prices, alerts, Norwegian landings, LNG, storage,

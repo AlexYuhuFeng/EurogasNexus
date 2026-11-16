@@ -18,11 +18,11 @@
     cursor: default;
   }
   main { display: grid; justify-items: center; gap: 14px; }
-  .mark { width: 64px; height: 64px; animation: rise 520ms cubic-bezier(.2,0,0,1) both; }
+  .mark { width: 56px; height: 56px; animation: rise 520ms cubic-bezier(.2,0,0,1) both; }
   h1 { margin: 6px 0 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
   p { margin: 0; color: #9aa7bd; font-size: 12px; letter-spacing: 0.02em; }
   .bar { width: 160px; height: 2px; margin-top: 10px; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.08); }
-  .bar span { display: block; width: 40%; height: 100%; border-radius: 2px; background: #2dd4bf; animation: slide 1.4s cubic-bezier(.4,0,.2,1) infinite; }
+  .bar span { display: block; width: 40%; height: 100%; border-radius: 2px; background: #6ea8fe; animation: slide 1.4s cubic-bezier(.4,0,.2,1) infinite; }
   footer { position: fixed; bottom: 14px; color: #5f6d86; font-size: 10px; }
   @keyframes slide { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
   @keyframes rise { from { opacity: 0; transform: translateY(4px) scale(.98); } to { opacity: 1; transform: none; } }
@@ -34,14 +34,7 @@
 </head>
 <body>
 <main>
-  <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
-    <rect width="64" height="64" rx="13" fill="#0f1a31" stroke="rgba(255,255,255,.08)"/>
-    <g stroke="#2dd4bf" stroke-width="4.2" stroke-linecap="round">
-      <line x1="32" y1="34" x2="15" y2="21"/><line x1="32" y1="34" x2="49" y2="21"/><line x1="32" y1="34" x2="32" y2="52"/>
-    </g>
-    <g fill="#fff"><circle cx="15" cy="21" r="5"/><circle cx="49" cy="21" r="5"/><circle cx="32" cy="52" r="5"/><circle cx="32" cy="34" r="8.5"/></g>
-    <circle cx="32" cy="34" r="4.2" fill="#f97316"/>
-  </svg>
+  <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="none" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="butt"><path class="egn-hex" d="M3.876 16.5V9L16 2L28.124 9V10.5" stroke="#ffffff"/><path class="egn-hex" d="M28.124 15.5V23L16 30L3.876 23V21.5" stroke="#ffffff"/><path class="egn-wave" d="M1.5 19H5C15 19 17 13 27 13H30.5" stroke="#6ea8fe"/></g></svg>
   <h1>Eurogas Nexus</h1>
   <p>Opening your workspace</p>
   <div class="bar" role="progressbar" aria-label="Loading"><span></span></div>

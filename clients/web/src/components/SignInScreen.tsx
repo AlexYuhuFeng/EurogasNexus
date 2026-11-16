@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { LOCALES } from "@/i18n/locales";
 import { devLoginOffered, type AuthStatusSnapshot } from "@/stores/authGate";
 import type { AuthState } from "@/stores/workspaceLoading";
@@ -48,22 +49,7 @@ export function SignInScreen({
     <div className="sign-in-screen">
       <div className="sign-in-shell">
       <aside className="sign-in-brand" aria-hidden="true">
-        <svg className="sign-in-mark" viewBox="0 0 64 64">
-          <rect width="64" height="64" rx="13" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" />
-          <g stroke="#2dd4bf" strokeWidth="4.2" strokeLinecap="round">
-            <line x1="32" y1="34" x2="15" y2="21" />
-            <line x1="32" y1="34" x2="49" y2="21" />
-            <line x1="32" y1="34" x2="32" y2="52" />
-          </g>
-          <g fill="#fff">
-            <circle cx="15" cy="21" r="5" />
-            <circle cx="49" cy="21" r="5" />
-            <circle cx="32" cy="52" r="5" />
-            <circle cx="32" cy="34" r="8.5" />
-          </g>
-          <circle cx="32" cy="34" r="4.2" fill="#f97316" />
-        </svg>
-        <div className="sign-in-brand-name">Eurogas Nexus</div>
+        <BrandMark variant="wordmark" tone="reverse" size="xl" decorative className="sign-in-brand-lockup" />
         <p className="sign-in-brand-tagline">{t("auth.brand_tagline")}</p>
         <ul className="sign-in-brand-points">
           <li>{t("auth.brand_point_market")}</li>
@@ -73,6 +59,8 @@ export function SignInScreen({
         <p className="sign-in-brand-foot">{t("auth.brand_foot")}</p>
       </aside>
       <section className="sign-in-card" aria-labelledby="sign-in-title">
+        {/* Below 760 px the brand panel folds away; the card carries the lock-up instead. */}
+        <BrandMark variant="wordmark" tone="auto" size="lg" className="sign-in-card-lockup" />
         <div className="sign-in-masthead">
           <span className="eyebrow">{t("auth.eyebrow")}</span>
           <select
