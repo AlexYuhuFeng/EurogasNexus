@@ -183,3 +183,12 @@ def test_no_rule_text_gives_advice():
     ]
     for text in samples:
         assert not advice.search(" ".join([text["headline"], *text["bullets"]]))
+
+
+def test_lng_states_its_side_of_the_average_and_outages_say_when_norway_is_clear():
+    text = rules.lng({"latest": 2851.0, "latest_day": "2026-11-12", "avg_7": 2764.0,
+                      "simulated": False, "left_out": [], "by_country": [("FR", 910.0)]})
+    assert "above the seven-day average of 2,764 GWh/d" in text["headline"]
+    clear = rules.outages({"active": 1, "total": 1, "horizon_days": 14, "active_gwh": 96.7,
+                           "largest": None, "norway_active": 0, "norway_gwh": 0.0})
+    assert "No active outage in Norway is among the messages held." in clear["bullets"]

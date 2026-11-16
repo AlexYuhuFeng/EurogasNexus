@@ -55,6 +55,13 @@ def day(value: str | date | None) -> str:
     return f"{moment.day} {moment:%b}"
 
 
+def _versus(value: float, average: float, unit: str) -> str:
+    """``above the seven-day average of 2,764 GWh/d`` (the direction stated, not left to infer)."""
+
+    word = "above" if value > average else "below" if value < average else "level with"
+    return f"{word} the seven-day average of {number(average, unit)}"
+
+
 def _sim(flag: bool) -> str:
     return SIM if flag else ""
 
@@ -193,7 +200,7 @@ def lng(stats: dict[str, Any]) -> dict[str, Any]:
             f"{day(stats['latest_day'])}"
         )
         if stats.get("avg_7") is not None:
-            headline += f", against a seven-day average of {number(stats['avg_7'], unit)}"
+            headline += f", {_versus(stats['latest'], stats['avg_7'], unit)}"
     bullets = []
     top = stats.get("by_country") or []
     if top:
@@ -256,7 +263,7 @@ def power(stats: dict[str, Any]) -> dict[str, Any]:
             f"electricity{sim} on {day(stats['latest_day'])}"
         )
         if stats.get("avg_7") is not None:
-            headline += f", against a seven-day average of {number(stats['avg_7'], unit)}"
+            headline += f", {_versus(stats['latest'], stats['avg_7'], unit)}"
     bullets = []
     if stats.get("by_zone"):
         name, value = stats["by_zone"][0]
@@ -292,6 +299,8 @@ def outages(stats: dict[str, Any]) -> dict[str, Any]:
             f"{stats['norway_active']} of the active outages are in Norway, "
             f"{number(stats.get('norway_gwh'), 'GWh/d')} in total{sim}."
         )
+    elif "norway_active" in stats:
+        bullets.append("No active outage in Norway is among the messages held.")
     if stats.get("unconverted"):
         bullets.append(f"{stats['unconverted']} messages give a capacity unit that does not "
                        "convert to GWh/d; they are listed in their own unit.")
