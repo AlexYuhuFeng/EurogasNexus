@@ -979,6 +979,31 @@ linking a GIE facility to ENTSOG storage points through the operator (ENTSOG nam
 operator by key, `DE-SSO-0001`, which needs ENTSOG's operator list to meet GIE's operator EIC;
 the `operators` endpoint did not answer on 16 Nov).
 
+**Data quality after** (16 Nov 08:54 UTC). The age warnings are this store's state, not this
+round's: no scheduler has run since 14 Nov, so every scheduled dataset has aged by two days.
+The ENTSOG UMM dataset is new; its newest publication (5 Nov) is within its 90-day lateness.
+
+```
+dataset                    status        rows series last period       age h  dup  blank short days rev 7d
+ENTSOG flows               warning      13173    806 2026-11-14T05:00   51.9    0      0    1/420      265
+    warning: 1 of 420 closed days hold under 90% of the usual 16 series.
+ENTSOG capacity            ok           12647   3925 2026-11-14T06:00   50.9    0      0    0/613      109
+GIE storage (AGSI)         warning       7812      6 2026-11-12T05:00   99.9    0      0    0/4801      28
+GIE LNG (ALSI)             warning       7210      5 2026-11-12T05:00   99.9    0      0    0/4801       4
+GB storage (National Gas)  warning        411      1 2026-11-13T05:00   75.9    0      0    0/410        1
+GB LNG (National Gas)      warning        411      1 2026-11-13T05:00   75.9    0      0    0/410        1
+ECB FX reference           ok              12      6 2026-11-13T00:00   80.9    0      0    0/1          -
+SONIA (BoE)                warning         33      1 2026-11-11T00:00  128.9    0      0    0/0          -
+€STR (ECB)                 ok              34      1 2026-11-12T00:00  104.9    0      0    0/0          -
+SOFR (NY Fed)              ok              32      1 2026-11-12T00:00  104.9    0      0    0/0          -
+Henry Hub (EIA)            ok              33      1 2026-11-11T00:00  128.9    0      0    0/32         -
+Power (ENTSO-E)            warning      18141     24 2026-11-14T22:45   34.2    0      0    0/10       662
+GB power (Elexon)          critical      1397      4 2026-11-14T06:30   50.4    0      0    0/7          0
+GB demand (National Gas)   warning        119     96 2026-11-12T00:00  104.9    0      0    0/0          -
+Outages (REMIT UMM)        ok            1588   1588 2026-11-14T06:13   50.7    0      0    0/0          -
+Outages (ENTSOG UMM)       ok              35     35 2026-11-05T10:42  262.2    0      0    0/0          -
+```
+
 ## Reproducing
 
 ```bash
