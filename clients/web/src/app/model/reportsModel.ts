@@ -67,3 +67,28 @@ export function reportRequestFromForm(
   if (kind === "ask" && form.question.trim()) body.question = form.question.trim();
   return body;
 }
+
+/** The report's own data block (the series behind its exhibits) as CSV, one block per table. */
+export function reportCsv(html: string): string {
+  const match = /<script type="application\/json" id="report-data">([\s\S]*?)<\/script>/.exec(html);
+  if (!match) return "";
+  let data: { tables?: { section: string; caption: string; columns: string[]; rows: Record<string, unknown>[] }[] };
+  try {
+    data = JSON.parse(match[1].replace(/<\\\//g, "</"));
+  } catch {
+    return "";
+  }
+  const cell = (value: unknown) => {
+    const text = value === null || value === undefined ? "" : String(value);
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const blocks = (data.tables ?? []).map((table) =>
+    [cell(`${table.section}: ${table.caption}`), table.columns.map(cell).join(","),
+      ...table.rows.map((row) => table.columns.map((column) => cell(row[column])).join(","))].join("\n"));
+  return blocks.join("\n\n");
+}
+
+/** The report with only page one shown: what "Summary only" prints. */
+export function summaryOnlyHtml(html: string): string {
+  return html.replace("</head>", "<style>.r-body,.r-back-sheet{display:none!important}</style></head>");
+}

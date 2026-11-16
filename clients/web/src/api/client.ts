@@ -1918,6 +1918,10 @@ export interface ReportMetadataDTO {
   snapshot_sha256: string;
   html_sha256: string;
   pdf: string;
+  issue?: number;
+  standfirst?: string | null;
+  findings?: { fact_ids: string[]; text: string; implication: string | null; why: string; basis?: string }[];
+  editorial?: { basis: "model" | "rule"; model: string | null; directive: string | null; elements?: Record<string, { ok: boolean; detail: string }> };
 }
 
 /** A morning brief or end-of-day draft (``POST /api/analysis/brief``). */

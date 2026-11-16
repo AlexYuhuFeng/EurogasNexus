@@ -1,15 +1,31 @@
 # Market reports
 
 Research → **Reports** (`?workspace=research&task=reports`), or **Report** beside **Why** on an
-alert or an outage (Today, Events, the alert centre). A report is one self-contained HTML file
-built from the data the platform already holds, in the platform's own house style: a headline,
-a Key points box, the sections, and **Methodology and sources**.
+alert or an outage (Today, Events, the alert centre). A report is one self-contained HTML document
+laid out as a printed publication (A4) to the house standard in
+[REPORT_EDITORIAL_STANDARD.md](../product/REPORT_EDITORIAL_STANDARD.md): a masthead with issue
+number, data cut-off and classification; a headline and standfirst; three to five key findings;
+an At a glance indicator table; one lead exhibit; then the sections with numbered figures and
+tables; methodology and sources; a data annex. Running headers, footers and page numbers print on
+every page. The viewer shows the pages and has **Print / Save as PDF**, **Print summary only**
+(page one), **Download HTML** and **Download data (CSV)**.
+
+**Who decides what is presented.** When the firm enables the AI model, the model acts as the
+report's editor under the versioned
+[editorial directive](../product/REPORT_EDITORIAL_DIRECTIVE.md): it chooses the findings and their
+order, the section order and what is dropped, the exhibits and their windows, and writes the
+narrative, from a fact sheet the engine builds. It never writes a number or queries data;
+every element it writes is checked against the facts it cites, and a refused element is replaced
+by the rule-written one. The viewer says "Edited by: model …, directive v…" or "Rule-edited", and
+the editorial plan (what led and why, what was left out) can be opened under the report. Without
+a model the rules select and write everything.
 
 A report is *assembled*, not written by a model. Each section comes from a fixed catalogue
 (`GET /api/reports/catalogue`), reads its figures through the same entitled read its page uses,
-draws the chart the catalogue fixes for it, and writes its commentary by fixed rules: a headline
-and at most three facts, each figure with its unit, simulated values marked simulated next to
-the value, forecasts called forecasts, late and stale data named. Nothing in a report is advice
+draws the chart the catalogue fixes for it, and its facts carry their comparisons (day, week, a year earlier where held, with the number of
+prior years) and a materiality score with its reason. Simulated values carry a dagger (†)
+explained in every page footer, forecasts are called forecasts with their method and limitation,
+late and stale data are named. Nothing in a report is advice
 to trade, and nothing describes execution, nomination or settlement.
 
 ## Kinds
@@ -17,8 +33,8 @@ to trade, and nothing describes execution, nomination or settlement.
 | Kind | Period | What it adds |
 |---|---|---|
 | Daily, morning or end of day | the gas day | day changes; the balance forecast for the coming days |
-| Weekly | the seven days to yesterday (or the dates you give) | averages over the week against the week before and the same days a year earlier; price range and change over the week |
-| Monthly | the last full calendar month (or the dates you give) | the same aggregates over the month |
+| Weekly | the seven days to yesterday (or the dates you give) | averages over the week against the week before and the same days a year earlier; price change, average, high and low; outages that ended during the week; exhibits over 13 weeks |
+| Monthly | the last full calendar month (or the dates you give) | the same aggregates over the month, a contents list; exhibits over 13 months |
 | Situation | from an alert or a REMIT outage | the event (facility, zone, size, dates, version, reason), the hubs it touches first, Norwegian landings in the seven days before and since when the outage is in Norway, what to check next; then outages, landings, the balance, prices and, internally, the position at the affected hubs |
 | Asked | your question | see "Asked reports" |
 
@@ -32,15 +48,16 @@ to trade, and nothing describes execution, nomination or settlement.
 | Norwegian landings | ENTSOG flows at the registry's landing points | stacked area: continental landings, UK terminals |
 | LNG send-out | GIE ALSI (National Gas for GB) by country | stacked bars |
 | Storage | GIE AGSI facilities with a working capacity | fill against a year earlier, EU target line |
-| Gas-fired power | ENTSO-E and Elexon generation from gas, by bidding zone | stacked bars (electricity, not gas burned) |
-| Outages | REMIT messages, latest version | horizontal bars of the largest active |
-| Balance and outlook | the NW Europe balance read and its forecast | stacked bars by component; measured and forecast line; Sankey of sources and uses |
+| Gas-fired power | ENTSO-E and Elexon generation from gas, by bidding zone, and implied gas burn at the gas-for-power read's 50% efficiency (labelled implied) | stacked bars |
+| Outages | REMIT messages, latest version | the outage schedule table, largest active first |
+| Balance and outlook | the NW Europe balance read and its forecast | measured call against a year earlier with the forecast dashed; the supply-stack table; the forecast's method and the limit of its seasonal normal |
 | Position, P&L, Limits, Contracts in effect (Our book) | the position ladder, day P&L change, imported P&L, credit lines and mandates, contracts in the books you may see | ladder and tables |
 
-A section with no data is left out of the body and listed under "Not in this report" in
-Methodology with the reason (for example "No licensed close for any hub is available to this
-report"). Every chart has its data table under it ("Chart data"); hover shows the values; the
-report reads and prints completely with scripts off (e-mail clients).
+A section with no data is left out of the body and listed once under "Not in this report" in
+the back matter with the reason (for example "No licensed close for any hub is available to this
+report"); a report without licensed prices leads with what is held. The series behind every
+exhibit are in the data annex (the report's own window) and, in full, in the CSV download; hover
+shows values on screen; the report has no script and reads the same in e-mail clients.
 
 ## Audience
 
@@ -83,8 +100,9 @@ reworded and each check's verdict, and says so in Methodology.
 
 ## PDF
 
-**Print / Save as PDF** in the viewer prints the report through the browser: A4 pages, repeated
-table headers, charts not split across pages, greyscale-safe line styles. The API returns HTML
+**Print / Save as PDF** in the viewer prints the report through the browser: A4 pages with a
+running header, a footer with classification and "Page X of Y", exhibits never split,
+greyscale-safe line styles. **Print summary only** prints page one. The API returns HTML
 (`GET /api/reports/market/{id}/html`); it does not render PDF on the server, so no browser engine
 runs in the server image.
 

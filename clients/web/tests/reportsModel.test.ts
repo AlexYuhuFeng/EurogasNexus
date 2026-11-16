@@ -43,3 +43,13 @@ test("a Report link opens Research → Reports on that subject and nothing else 
   assert.equal(reportSubjectFromSearch("?workspace=market&subject=alert:1"), null);
   assert.equal(reportSubjectFromSearch("?workspace=research&task=reports&subject=trade:1"), null);
 });
+
+test("the viewer's CSV comes from the report's own data block; summary hides the body", async () => {
+  const { reportCsv, summaryOnlyHtml } = await import("../src/app/model/reportsModel.ts");
+  const html = '<html><head></head><body><script type="application/json" id="report-data">'
+    + '{"report_id":"mr-1","tables":[{"section":"storage","caption":"Fill (%)","columns":["day","fill"],'
+    + '"rows":[{"day":"2026-11-15","fill":72.6},{"day":"2026-11-14","fill":null}]}]}</script></body></html>';
+  assert.equal(reportCsv(html), "storage: Fill (%)\nday,fill\n2026-11-15,72.6\n2026-11-14,");
+  assert.equal(reportCsv("<html></html>"), "");
+  assert.match(summaryOnlyHtml(html), /\.r-body,\.r-back-sheet\{display:none!important\}<\/style><\/head>/);
+});

@@ -158,16 +158,34 @@ def _check_title(title: str, section: str, window: str | None, sheet: list[dict]
     return check_text(title, every, facts, max_sentences=1, max_chars=160, context=context)
 
 
+def word_count(text: str) -> int:
+    """Words in English; Chinese characters count two to a word (as the desk-note check)."""
+
+    return len(re.findall(r"[A-Za-z0-9][\w./%-]*", text)) + len(
+        re.findall(r"[\u4e00-\u9fff]", text)) // 2
+
+
+def _report_context(sheet: list[dict], report_days: tuple = ()) -> str:
+    """Dates any text may use: every fact's day and the issue's own dates (12 Nov)."""
+
+    from eurogas_nexus.application.reports.commentary import day
+
+    days = sorted({f["day"][:10] for f in sheet if f.get("day")}
+                  | {str(d)[:10] for d in report_days if d})
+    return " report days: " + ", ".join(day(d) for d in days)
+
+
 def _record(record: dict, element: str, ok: bool, detail: str = "") -> bool:
     record["elements"][element] = {"ok": ok, "detail": detail[:160]}
     return ok
 
 
 def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
-               model_id: str) -> dict:
+               model_id: str, report_days: tuple = ()) -> dict:
     """The editorial plan to render: the model's elements that pass, rule elements otherwise."""
 
     facts = {f["id"]: f for f in sheet}
+    context = _report_context(sheet, report_days)
     record = {"basis": "model", "model": model_id, "directive": directive.VERSION,
               "elements": {}, "plan": None}
     out = {**rule, "record": record}
@@ -180,13 +198,16 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
         element = raw.get(key) or {}
         text = element.get("text") if isinstance(element, dict) else None
         ids = cited(text or "", element.get("facts") if isinstance(element, dict) else None)
-        ok, why = check_text(text or "", ids, facts, max_sentences=sentences, max_chars=chars)
+        ok, why = check_text(text or "", ids, facts, max_sentences=sentences, max_chars=chars,
+                              context=context)
         if _record(record, key, ok, why):
             out[key] = strip_citations(text).rstrip(".") if key == "headline" else \
                 strip_citations(text)
     # Findings: 3 to 5, each checked; a refused finding is replaced by the next rule finding.
     findings = raw.get("findings") if isinstance(raw.get("findings"), list) else []
-    if not MIN_FINDINGS <= len(findings) <= MAX_FINDINGS:
+    # Three findings need three indicators; a narrow sheet (an asked report) may hold fewer.
+    least = min(MIN_FINDINGS, len({f["key"] for f in sheet if f.get("sentence")}))
+    if not max(least, 1) <= len(findings) <= MAX_FINDINGS:
         _record(record, "findings", False, f"{len(findings)} findings")
     else:
         chosen, families = [], set()
@@ -195,14 +216,18 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
                 continue
             ids = cited(f"{item.get('finding', '')} {item.get('implication') or ''}",
                         item.get("facts"))
-            ok, why = check_text(item.get("finding", ""), ids, facts, max_sentences=2)
+            ok, why = check_text(item.get("finding", ""), ids, facts, max_sentences=2,
+                                  context=context)
             implication = item.get("implication")
             if ok and implication:
-                ok_i, why_i = check_text(implication, ids, facts, max_sentences=1)
+                ok_i, why_i = check_text(implication, ids, facts, max_sentences=1, context=context)
                 if not ok_i:
                     implication = None
                     _record(record, f"finding.{index}.implication", False, why_i)
-            fam = {facts[i]["key"] for i in ids if i in facts}
+            # A finding is about its first cited fact (a "within range" finding may cite
+            # several); two findings may not share that indicator.
+            primary = [i for i in (item.get("facts") or ids) if i in facts][:1]
+            fam = {facts[i]["key"] for i in primary}
             if ok and fam & families:
                 ok, why = False, "second finding about the same indicator"
             if _record(record, f"finding.{index}", ok, why):
@@ -234,8 +259,9 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
         order.append({"key": key})
         paragraph = str(item.get("paragraph") or "")
         ids = cited(paragraph, item.get("facts"))
-        words = len(strip_citations(paragraph).split())
-        ok, why = check_text(paragraph, ids, facts, max_sentences=7, max_chars=1100)
+        words = word_count(strip_citations(paragraph))
+        ok, why = check_text(paragraph, ids, facts, max_sentences=7, max_chars=1100,
+                              context=context)
         if ok and not PARAGRAPH_WORDS[0] <= words <= PARAGRAPH_WORDS[1]:
             ok, why = False, f"length: {words} words"
         if _record(record, f"section.{key}.paragraph", ok, why):
@@ -276,7 +302,8 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
             continue
         ids = cited(item.get("text", ""), item.get("facts"))
         scheduled = all(facts.get(i, {}).get("scheduled") for i in ids) and ids
-        ok, why = check_text(item.get("text", ""), ids, facts, max_sentences=2)
+        ok, why = check_text(item.get("text", ""), ids, facts, max_sentences=2,
+                              context=context)
         if ok and not scheduled:
             ok, why = False, "watch item cites a fact that is not scheduled"
         if _record(record, f"watch.{index}", ok, why):
@@ -300,7 +327,8 @@ def edit_report(model, sheet: list[dict], sections: list[dict], rule: dict, plan
                                    "invalid": f"provider: {exc.__class__.__name__}"}}
     latency = round(time.monotonic() - started, 1)
     raw = parse(content)
-    edited = apply_plan(raw, sheet, sections, rule, model_id)
+    edited = apply_plan(raw, sheet, sections, rule, model_id,
+                        report_days=(plan.period_start, plan.period_end))
     edited["record"]["latency_s"] = latency
     if raw is None:
         edited["record"].update(basis="rule", invalid="not JSON" if content else "empty reply",

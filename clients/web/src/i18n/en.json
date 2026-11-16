@@ -4926,5 +4926,13 @@
   "reports.pick": "Choose a stored report or generate one.",
   "reports.open_failed": "The report could not be opened: it may contain data or books outside your access.",
   "reports.link": "Report",
-  "reports.link_label": "Situation report: {{subject}}"
+  "reports.link_label": "Situation report: {{subject}}",
+  "reports.print_summary": "Print summary only",
+  "reports.download_csv": "Download data (CSV)",
+  "reports.edited_model": "Edited by: model {{model}}, directive v{{directive}}",
+  "reports.edited_rule": "Rule-edited",
+  "reports.plan_view": "Editorial plan: what led and what was left out",
+  "reports.by_model": "chosen by the model",
+  "reports.by_rule": "chosen by rule",
+  "reports.left_out": "Left out"
 }

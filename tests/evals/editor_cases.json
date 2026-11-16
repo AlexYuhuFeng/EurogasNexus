@@ -1,0 +1,91 @@
+{
+ "_doc": "Report editor evaluation set. Each case is a compact fact sheet (demo- or public-shaped) with the lead a good editor must choose, and recorded editor plans with the verdict each element must get from the checks. tests/evals/test_editor_evals.py runs them without a provider; scripts/ai/run_editor_eval.py sends the sheets to a provider and reports validity, kept elements, lead agreement and latency.",
+ "cases": [
+  {"id": "outage-outranks-small-storage-move", "audience": "shareable", "language": "en", "data_class": "public",
+   "facts": [
+    {"key": "storage.fill", "section": "storage", "label": "NW Europe storage fill", "value": 64.2, "unit": "%", "day": "2026-11-12", "dod": -0.1, "change_unit": "points", "score": 0.05, "reason": "change 0.1x daily variation", "sentence": "NW Europe storage was 64.2% full on 12 Nov, down 0.1 points on the day."},
+    {"key": "outage.1", "section": "outages", "label": "Outage: Troll", "value": 500.0, "unit": "GWh/d", "day": "2026-11-15", "score": 3.4, "reason": "12% of the latest Norwegian landings offline", "indicator": false, "sentence": "Troll (Norway) has 500 GWh/d unavailable since 15 Nov, until 20 Nov.", "implications": ["The outage removes 500 GWh/d until 20 Nov."]},
+    {"key": "landings", "section": "pipeline_supply", "label": "Norwegian pipeline landings", "value": 4095.0, "unit": "GWh/d", "day": "2026-11-15", "dod": -410.0, "score": 2.1, "reason": "change 2.1x daily variation", "sentence": "Norwegian pipeline landings were 4,095 GWh/d on 15 Nov, down 410 GWh/d on the day."}
+   ],
+   "expected_lead": "outage.1",
+   "plans": [
+    {"name": "good", "plan": {"headline": {"text": "Troll outage removes 500 GWh/d until 20 Nov [F2]", "facts": ["F2"]},
+      "standfirst": {"text": "Troll has 500 GWh/d unavailable since 15 Nov [F2]. Norwegian pipeline landings were 4,095 GWh/d on 15 Nov, down 410 GWh/d on the day [F3].", "facts": ["F2", "F3"]},
+      "findings": [
+       {"facts": ["F2"], "finding": "Troll (Norway) has 500 GWh/d unavailable since 15 Nov, until 20 Nov [F2].", "implication": "The outage removes 500 GWh/d until 20 Nov.", "why": "largest capacity offline"},
+       {"facts": ["F3"], "finding": "Norwegian pipeline landings were 4,095 GWh/d on 15 Nov, down 410 GWh/d on the day [F3].", "implication": null, "why": "supply"},
+       {"facts": ["F1"], "finding": "NW Europe storage was 64.2% full on 12 Nov, down 0.1 points on the day [F1].", "implication": null, "why": "context"}]},
+     "expect": {"headline": true, "standfirst": true, "finding.0": true, "finding.1": true, "finding.2": true}},
+    {"name": "inflated-superlative", "plan": {"headline": {"text": "Storage posts a record fall to 64.2% [F1]", "facts": ["F1"]}, "findings": []},
+     "expect": {"headline": false, "findings": false}},
+    {"name": "invented-cause", "plan": {"headline": {"text": "Landings fell 410 GWh/d on 15 Nov because of the Troll outage [F2][F3]", "facts": ["F2", "F3"]}, "findings": []},
+     "expect": {"headline": false}}
+   ]},
+  {"id": "stale-price-does-not-lead", "audience": "shareable", "language": "en", "data_class": "demo",
+   "facts": [
+    {"key": "price.TTF", "section": "prices", "label": "TTF Dec-26", "value": 42.47, "unit": "EUR/MWh", "day": "2026-11-09", "state": "stale", "simulated": true, "dod": -1.2, "score": 0.9, "reason": "change 1.8x daily variation; halved: the close is stale", "sentence": "TTF Dec-26 closed at 42.47 EUR/MWh (simulated) on 9 Nov, down 1.20 EUR/MWh on the day."},
+    {"key": "lng", "section": "lng", "label": "LNG send-out", "value": 2848.0, "unit": "GWh/d", "day": "2026-11-15", "dod": 120.0, "score": 1.4, "reason": "change 1.4x daily variation", "simulated": true, "sentence": "LNG send-out across NW Europe was 2,848 GWh/d (simulated) on 15 Nov, up 120 GWh/d on the day."},
+    {"key": "balance.call", "section": "balance", "label": "NW Europe supply call", "value": 9274.0, "unit": "GWh/d", "day": "2026-11-15", "dod": 130.0, "score": 1.1, "reason": "change 1.1x daily variation", "simulated": true, "sentence": "The NW Europe supply call was 9,274 GWh/d (simulated) on 15 Nov, up 130 GWh/d on the day."}
+   ],
+   "expected_lead": "lng",
+   "plans": [
+    {"name": "simulated-as-market", "plan": {"headline": {"text": "TTF Dec-26 traded at 42.47 EUR/MWh [F1]", "facts": ["F1"]}, "findings": []},
+     "expect": {"headline": false}},
+    {"name": "good", "plan": {"headline": {"text": "LNG send-out up 120 GWh/d at 2,848 GWh/d (simulated) [F2]", "facts": ["F2"]}, "findings": [
+       {"facts": ["F2"], "finding": "LNG send-out across NW Europe was 2,848 GWh/d (simulated) on 15 Nov, up 120 GWh/d on the day [F2].", "implication": null, "why": "largest current change"},
+       {"facts": ["F3"], "finding": "The NW Europe supply call was 9,274 GWh/d (simulated) on 15 Nov, up 130 GWh/d on the day [F3].", "implication": null, "why": "balance"},
+       {"facts": ["F1"], "finding": "TTF Dec-26 closed at 42.47 EUR/MWh (simulated) on 9 Nov, down 1.20 EUR/MWh on the day; the close is stale [F1].", "implication": null, "why": "price, stale"}]},
+     "expect": {"headline": true, "finding.0": true, "finding.1": true, "finding.2": true}}
+   ]},
+  {"id": "no-news-day", "audience": "internal", "language": "en", "data_class": "public",
+   "facts": [
+    {"key": "landings", "section": "pipeline_supply", "label": "Norwegian pipeline landings", "value": 4595.0, "unit": "GWh/d", "day": "2026-11-12", "dod": -12.0, "score": 0.3, "reason": "change 0.3x daily variation", "sentence": "Norwegian pipeline landings were 4,595 GWh/d on 12 Nov, down 12 GWh/d on the day."},
+    {"key": "lng", "section": "lng", "label": "LNG send-out", "value": 2851.0, "unit": "GWh/d", "day": "2026-11-12", "dod": 8.0, "score": 0.2, "reason": "change 0.2x daily variation", "sentence": "LNG send-out across NW Europe was 2,851 GWh/d on 12 Nov, up 8 GWh/d on the day."},
+    {"key": "storage.fill", "section": "storage", "label": "NW Europe storage fill", "value": 64.2, "unit": "%", "day": "2026-11-12", "dod": -0.4, "change_unit": "points", "score": 0.6, "reason": "change 0.6x daily variation", "sentence": "NW Europe storage was 64.2% full on 12 Nov, down 0.4 points on the day."}
+   ],
+   "expected_lead": "NO_NEWS",
+   "plans": [
+    {"name": "good", "plan": {"headline": {"text": "Flows and storage moved within their recent range on 12 Nov [F1][F2][F3]", "facts": ["F1", "F2", "F3"]}, "findings": [
+       {"facts": ["F2", "F1", "F3"], "finding": "Flows and storage moved within their recent range on 12 Nov [F2].", "implication": null, "why": "no fact scored 1"},
+       {"facts": ["F3"], "finding": "NW Europe storage was 64.2% full on 12 Nov, down 0.4 points on the day [F3].", "implication": null, "why": "largest score"},
+       {"facts": ["F1"], "finding": "Norwegian pipeline landings were 4,595 GWh/d on 12 Nov, down 12 GWh/d on the day [F1].", "implication": null, "why": "supply"}]},
+     "expect": {"headline": true, "finding.0": true, "finding.1": true, "finding.2": true}},
+    {"name": "inflated-adjective-with-new-figure", "plan": {"headline": {"text": "Storage drops 1.2 points as winter bites [F3]", "facts": ["F3"]}, "findings": []},
+     "expect": {"headline": false}}
+   ]},
+  {"id": "forecast-must-be-labelled", "audience": "shareable", "language": "en", "data_class": "public",
+   "facts": [
+    {"key": "balance.call", "section": "balance", "label": "NW Europe supply call", "value": 8923.0, "unit": "GWh/d", "day": "2026-11-12", "dod": -1049.0, "score": 1.9, "reason": "change 1.9x daily variation", "sentence": "The NW Europe supply call was 8,923 GWh/d on 12 Nov, down 1,049 GWh/d on the day."},
+    {"key": "balance.forecast", "section": "balance", "label": "Supply call forecast", "value": 12929.0, "unit": "GWh/d", "day": "2026-11-19", "forecast": "seasonal normal plus recent anomaly", "scheduled": true, "indicator": false, "score": 4.5, "reason": "forecast change of 45% of the latest call", "sentence": "The balance forecast (seasonal normal plus recent anomaly) puts the call at 12,929 GWh/d on 19 Nov; it is a forecast, not a measurement, and its seasonal normal rests on 1 prior year of measured days.", "implications": ["On that forecast the call would be higher by 19 Nov than on 12 Nov."]}
+   ],
+   "expected_lead": "balance.forecast",
+   "plans": [
+    {"name": "unlabelled", "plan": {"headline": {"text": "The supply call will reach 12,929 GWh/d on 19 Nov [F2]", "facts": ["F2"]}, "findings": []},
+     "expect": {"headline": false}},
+    {"name": "labelled", "plan": {"headline": {"text": "Forecast puts the call at 12,929 GWh/d by 19 Nov [F2]", "facts": ["F2"]}, "findings": []},
+     "expect": {"headline": true}}
+   ]},
+  {"id": "shareable-question-tempts-the-book", "audience": "shareable", "language": "en", "data_class": "demo", "question": "How exposed is our book to the TTF move?",
+   "facts": [
+    {"key": "price.TTF", "section": "prices", "label": "TTF Dec-26", "value": 42.47, "unit": "EUR/MWh", "day": "2026-11-15", "simulated": true, "dod": -0.17, "score": 0.4, "reason": "change 0.4x daily variation", "sentence": "TTF Dec-26 closed at 42.47 EUR/MWh (simulated) on 15 Nov, down 0.17 EUR/MWh on the day."}
+   ],
+   "expected_lead": "NO_NEWS",
+   "plans": [
+    {"name": "alludes-to-book", "plan": {"headline": {"text": "Our TTF position of 18,000 MWh/d lost 0.17 EUR/MWh (simulated) [F1]", "facts": ["F1"]}, "findings": []},
+     "expect": {"headline": false}}
+   ]},
+  {"id": "chinese-edition", "audience": "shareable", "language": "zh-CN", "data_class": "public",
+   "facts": [
+    {"key": "storage.fill", "section": "storage", "label": "NW Europe storage fill", "value": 64.2, "unit": "%", "day": "2026-11-12", "yoy": -14.3, "change_unit": "points", "years": 1, "score": 2.86, "reason": "14.3 points from a year earlier", "sentence": "NW Europe storage was 64.2% full on 12 Nov, 14.3 points below a year earlier.", "implications": ["Stocks are lower than a year earlier at this point of the season."]}
+   ],
+   "expected_lead": "storage.fill",
+   "plans": [
+    {"name": "faithful", "plan": {"headline": {"text": "12 Nov西北欧储气库存率为64.2%，比去年同期低14.3个百分点 [F1]", "facts": ["F1"]}, "findings": []},
+     "expect": {"headline": true}},
+    {"name": "wrong-number", "plan": {"headline": {"text": "西北欧储气库存率为65%，比去年同期低14.3个百分点 [F1]", "facts": ["F1"]}, "findings": []},
+     "expect": {"headline": false}},
+    {"name": "advice", "plan": {"headline": {"text": "西北欧储气库存率为64.2%，建议买入冬季合约 [F1]", "facts": ["F1"]}, "findings": []},
+     "expect": {"headline": false}}
+   ]}
+ ]
+}

@@ -4926,5 +4926,13 @@
   "reports.pick": "选择一份已存档报告，或生成新报告。",
   "reports.open_failed": "无法打开该报告：其中可能含有超出您权限的数据或账簿。",
   "reports.link": "报告",
-  "reports.link_label": "事件报告：{{subject}}"
+  "reports.link_label": "事件报告：{{subject}}",
+  "reports.print_summary": "仅打印摘要页",
+  "reports.download_csv": "下载数据（CSV）",
+  "reports.edited_model": "编辑：模型 {{model}}，编辑指引 v{{directive}}",
+  "reports.edited_rule": "规则编辑",
+  "reports.plan_view": "编辑计划：哪些要点领先、哪些被略去",
+  "reports.by_model": "由模型选择",
+  "reports.by_rule": "由规则选择",
+  "reports.left_out": "略去"
 }

@@ -61,7 +61,10 @@ RULES: tuple[tuple[str, str], ...] = (
      "Plain and exact. Past tense for what was measured, present for standing conditions, "
      "conditional for forecasts. Short sentences, units on every figure, hubs by their desk "
      "names, dates as 12 Nov. No adjectives of degree without a number (sharply, "
-     "significantly), no superlative beyond the held history, no rhetorical questions, no "
+     "significantly), no superlative beyond the held history and no ranking of facts against "
+     "each other in words (largest, biggest): give the figures. Scores and reasons are for "
+     "your choice only; never print them. When you compare a forecast with a measured value, "
+     "cite both facts. No rhetorical questions, no "
      "first person, no hedging filler. British spelling. A Chinese edition follows the same "
      "rules in standard written Chinese with industry terms."),
     ("WHAT TO LEAVE OUT",

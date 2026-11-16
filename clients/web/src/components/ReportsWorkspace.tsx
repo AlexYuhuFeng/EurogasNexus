@@ -21,7 +21,7 @@ import {
   type ReportSummaryDTO,
 } from "@/api/client";
 import { Button, DataGrid, EmptyState, Field, Panel, Segmented, Select, StatusBadge, type DataGridColumn } from "@/components/ui";
-import { reportSubjectFromSearch, reportRequestFromForm, type ReportForm } from "@/app/model/reportsModel";
+import { reportCsv, reportSubjectFromSearch, reportRequestFromForm, summaryOnlyHtml, type ReportForm } from "@/app/model/reportsModel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 type Mode = "standard" | "ask";
@@ -298,34 +298,41 @@ function ReportViewer({ reportId, t }: { reportId: string | null; t: Translate }
     };
   }, [reportId]);
 
-  function print() {
+  function print(summaryOnly = false) {
     const frame = printFrame.current;
     if (!frame || !html) return;
     // A same-origin frame without scripts: the report prints exactly as it reads, and nothing in it runs.
-    frame.srcdoc = html;
+    frame.srcdoc = summaryOnly ? summaryOnlyHtml(html) : html;
     frame.onload = () => frame.contentWindow?.print();
   }
 
-  function download() {
-    if (!html || !meta) return;
+  function save(content: string, type: string, extension: string) {
+    if (!meta) return;
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-    link.download = `${meta.title.replace(/[^A-Za-z0-9-]+/g, "-")}.html`;
+    link.href = URL.createObjectURL(new Blob([content], { type }));
+    link.download = `${meta.title.replace(/[^A-Za-z0-9-]+/g, "-")}.${extension}`;
     link.click();
     URL.revokeObjectURL(link.href);
   }
+
+  const csv = html ? reportCsv(html) : "";
+  const editorial = meta?.editorial;
 
   return (
     <Panel
       title={meta?.title ?? t("reports.viewer")}
       level={3}
       className="reports-viewer"
-      meta={meta && (meta.model_use.attempted ?? 0) > 0 ? t("reports.model_use", { passed: meta.model_use.passed ?? 0, attempted: meta.model_use.attempted ?? 0 }) : undefined}
+      meta={editorial ? (editorial.basis === "model"
+        ? t("reports.edited_model", { model: editorial.model ?? "", directive: editorial.directive ?? "" })
+        : t("reports.edited_rule")) : undefined}
       actions={
         reportId && html ? (
           <>
-            <Button size="sm" onClick={print}>{t("reports.print")}</Button>
-            <Button size="sm" variant="quiet" onClick={download}>{t("reports.download")}</Button>
+            <Button size="sm" onClick={() => print(false)}>{t("reports.print")}</Button>
+            <Button size="sm" variant="quiet" onClick={() => print(true)}>{t("reports.print_summary")}</Button>
+            <Button size="sm" variant="quiet" onClick={() => save(html, "text/html", "html")}>{t("reports.download")}</Button>
+            {csv && <Button size="sm" variant="quiet" onClick={() => save(csv, "text/csv", "csv")}>{t("reports.download_csv")}</Button>}
           </>
         ) : undefined
       }
@@ -344,6 +351,24 @@ function ReportViewer({ reportId, t }: { reportId: string | null; t: Translate }
         />
       )}
       <iframe ref={printFrame} className="reports-print-frame" title={t("reports.print")} sandbox="allow-modals allow-same-origin" aria-hidden="true" tabIndex={-1} />
+      {meta && meta.findings && meta.findings.length > 0 && (
+        <details className="reports-plan" data-report-plan="">
+          <summary>{t("reports.plan_view")}</summary>
+          <ol>
+            {meta.findings.map((finding, index) => (
+              <li key={index}>
+                {finding.text}
+                <span className="reports-note"> · {finding.basis === "model" ? t("reports.by_model") : t("reports.by_rule")}: {finding.why}</span>
+              </li>
+            ))}
+          </ol>
+          {meta.omitted.length > 0 && (
+            <p className="reports-note">
+              {t("reports.left_out")}: {meta.omitted.map((item) => `${item.title} (${item.reason})`).join("; ")}
+            </p>
+          )}
+        </details>
+      )}
       {meta && <p className="reports-note">{meta.pdf}</p>}
     </Panel>
   );

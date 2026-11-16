@@ -120,6 +120,16 @@
   background: var(--ds-surface);
 }
 
+.reports-plan {
+  font-size: var(--ds-text-sm);
+  margin: var(--ds-space-2) 0;
+}
+
+.reports-plan ol {
+  margin: var(--ds-space-1) 0;
+  padding-left: var(--ds-space-4);
+}
+
 .reports-print-frame {
   position: absolute;
   width: 0;
