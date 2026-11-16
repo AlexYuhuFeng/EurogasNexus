@@ -94,5 +94,7 @@ test("the top bar and the sign-in screen use the mark, not a drawn copy", () => 
   const signIn = readFileSync(new URL("../src/components/SignInScreen.tsx", import.meta.url), "utf8");
   assert.match(signIn, /<BrandMark variant="wordmark" tone="reverse"/);
   assert.match(signIn, /<BrandMark variant="wordmark" tone="auto"/);
-  assert.doesNotMatch(signIn, /<svg/);
+  // The one drawn SVG on sign-in is the panel's watermark, made from the mark's own paths.
+  assert.equal((signIn.match(/<svg/g) ?? []).length, 1);
+  assert.match(signIn, /className="sign-in-brand-watermark"[\s\S]*?d=\{BRAND_WAVE\}/);
 });

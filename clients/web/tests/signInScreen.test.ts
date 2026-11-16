@@ -6,17 +6,48 @@ const screen = readFileSync(new URL("../src/components/SignInScreen.tsx", import
 const css = readFileSync(new URL("../src/components/SignInScreen.css", import.meta.url), "utf8");
 
 test("sign-in actions reflect server-advertised capabilities", () => {
-  assert.match(screen, /authStatus\.oidcConfigured \? \(/);
-  assert.match(screen, /authStatus\.oidcConfigured \? \([\s\S]*?onOidcSignIn[\s\S]*?:\s*\(\s*<p className="sign-in-status"/);
+  // Company SSO only when the deployment has it; nothing about SSO otherwise.
+  assert.match(screen, /\{authStatus\.oidcConfigured && \(\s*<div className="sign-in-sso">[\s\S]*?onOidcSignIn/);
+  assert.doesNotMatch(screen, /authStatus\.oidcConfigured \? \(/);
+  assert.doesNotMatch(screen, /t\("auth\.sso_unavailable"\)|auth\.sso_title/);
+  // The form only when the server advertises it; secondary beside SSO, primary alone.
   assert.match(screen, /devLoginAvailable && \(/);
   assert.match(screen, /authStatus\.oidcConfigured \? "sign-in-secondary" : "sign-in-primary"/);
+  assert.match(screen, /<span className="sign-in-block-title">\{t\("auth\.dev_title"\)\}<\/span>/);
+  // "or" only when both are offered.
+  assert.match(screen, /authStatus\.oidcConfigured && devLoginAvailable && \([\s\S]*?className="sign-in-or" role="separator"/);
+  // With no method at all, say so and offer the identity check.
+  assert.match(screen, /const noMethods = !authStatus\.oidcConfigured && !devLoginAvailable;/);
   assert.match(screen, /auth\.no_methods/);
   assert.doesNotMatch(screen, /auth\.dev_hint/);
+  // The identity retry appears only when SSO is configured and failing, or nothing is offered.
+  assert.match(screen, /const ssoFailing = authStatus\.oidcConfigured && authErrorKey !== null && SSO_FAILURE_KEYS\.has\(authErrorKey\);/);
+  assert.match(screen, /\{ssoFailing && retry\}/);
+  assert.equal((screen.match(/\{retry\}|&& retry\}/g) ?? []).length, 2, "retry rendered in exactly two states");
   assert.match(screen, /className="sign-in-retry-row"/);
   assert.match(screen, /className="sign-in-retry" onClick=\{onRetryIdentity\}/);
   assert.match(css, /\.sign-in-retry \{[\s\S]*?width: auto;/);
   assert.doesNotMatch(css, /\.sign-in-retry \{[\s\S]*?width: 100%;/);
   assert.doesNotMatch(screen, /auth\.boundary_note/);
+});
+
+test("sign-in is one heading and the methods: no eyebrow, no body line, no brand bullets or footer", () => {
+  assert.equal((screen.match(/<h1\b/g) ?? []).length, 1);
+  assert.match(screen, /<h1 id="sign-in-title">\{t\("auth\.title"\)\}<\/h1>/);
+  for (const removed of ["auth.eyebrow", "auth.body", "auth.brand_point_", "auth.brand_foot", "sign-in-brand-points"]) {
+    assert.doesNotMatch(screen, new RegExp(removed.replace(".", "\\.")), removed);
+  }
+  // The brand panel: lock-up, one line, and the mark drawn large from the same paths.
+  assert.match(screen, /<BrandMark variant="wordmark" tone="reverse"/);
+  assert.match(screen, /auth\.brand_tagline/);
+  assert.match(screen, /className="sign-in-brand-watermark"[\s\S]*?d=\{BRAND_HEX_UPPER\}[\s\S]*?d=\{BRAND_HEX_LOWER\}[\s\S]*?d=\{BRAND_WAVE\}/);
+  // The version the client already knows, without a request.
+  assert.match(screen, /CLIENT_APPLICATION_VERSION/);
+  // Credentials keep their autocomplete hints and labels.
+  assert.match(screen, /autoComplete="username"/);
+  assert.match(screen, /autoComplete="current-password"/);
+  assert.match(screen, /htmlFor="sign-in-username"/);
+  assert.match(screen, /htmlFor="sign-in-password"/);
 });
 
 test("sign-in styling uses the established type, spacing, control, and radius tokens", () => {

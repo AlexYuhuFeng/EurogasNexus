@@ -77,7 +77,7 @@ surface and reverse never on a light one; mono works on both.
 
 | Place | Variant and tone | Source |
 |---|---|---|
-| Sign-in panel | wordmark, reverse, xl | `SignInScreen.tsx` |
+| Sign-in panel | wordmark, reverse, xl, with the one-line tagline; the mark's own paths drawn panel-size at 7% opacity, cropped bottom-right, as the only decoration | `SignInScreen.tsx` |
 | Sign-in card below 760 px (panel folded) | wordmark, auto, lg | `SignInScreen.tsx` |
 | Top bar, top-left | wordmark at wide widths, mark at medium and compact; mono, md (24 px) | `WorkspaceTopBar.tsx` |
 | Browser tab | mark, colour; reverse on a dark tab bar (`prefers-color-scheme` inside the SVG) | `clients/web/public/favicon.svg` |

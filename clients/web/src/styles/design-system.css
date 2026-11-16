@@ -3249,7 +3249,8 @@
   .glossary-where span { color: var(--ds-text-3); }
 }
 
-/* Two-pane sign-in: the brand panel says what the product is for, the form stays plain. */
+/* Two-pane sign-in: the brand panel names the product in one line, the card is one heading and
+   the sign-in the deployment offers. The only decoration is the mark itself, large and faint. */
 @layer ds-components {
   .sign-in-screen {
     background:
@@ -3259,8 +3260,9 @@
 
   .sign-in-shell {
     display: grid;
-    grid-template-columns: minmax(0, 22rem) minmax(0, 30rem);
-    width: min(100%, 52rem);
+    grid-template-columns: minmax(0, 22rem) minmax(0, 28rem);
+    width: min(100%, 50rem);
+    min-height: 24rem;
     overflow: hidden;
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-md);
@@ -3271,22 +3273,47 @@
 
   .sign-in-shell .sign-in-card {
     width: auto;
+    justify-content: center;
+    gap: var(--ds-space-4);
     border: 0;
     border-radius: 0;
-    padding: 32px 32px 28px;
+    padding: var(--ds-space-8) var(--ds-space-8) var(--ds-space-6);
   }
 
   .sign-in-brand {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 32px 28px;
+    justify-content: center;
+    gap: var(--ds-space-3);
+    overflow: hidden;
+    padding: var(--ds-space-8);
     background: linear-gradient(180deg, var(--ds-brand-navy) 0%, var(--ds-brand-navy-deep) 100%);
     color: var(--ds-on-brand);
   }
 
+  /* Lock-up and line sit a little above the centre, where the eye lands first. */
+  .sign-in-brand-tagline {
+    position: relative;
+    margin: 0 0 var(--ds-space-8);
+    color: var(--ds-on-brand-2);
+    font-size: var(--ds-text-base);
+  }
+
   .sign-in-brand-lockup {
-    margin-bottom: var(--ds-space-1);
+    position: relative;
+  }
+
+  /* The mark at panel scale, cropped by the bottom-right edge; faint enough to read as texture. */
+  .sign-in-brand-watermark {
+    position: absolute;
+    right: -38%;
+    bottom: -34%;
+    width: 112%;
+    height: auto;
+    color: var(--ds-on-brand);
+    opacity: 0.07;
+    pointer-events: none;
   }
 
   /* The card's own lock-up shows only when the brand panel is folded away (below). */
@@ -3294,52 +3321,19 @@
     display: none;
   }
 
-  .sign-in-brand-tagline {
-    margin: 0;
-    color: var(--ds-on-brand-2);
-    font-size: var(--ds-text-sm);
-  }
-
-  .sign-in-brand-points {
-    display: grid;
-    gap: 10px;
-    margin: 18px 0 0;
-    padding: 0;
-    list-style: none;
-    color: var(--ds-on-brand-1);
-    font-size: var(--ds-text-sm);
-  }
-
-  .sign-in-brand-points li {
-    position: relative;
-    padding-left: 16px;
-  }
-
-  .sign-in-brand-points li::before {
-    content: "";
-    position: absolute;
-    top: 7px;
-    left: 0;
-    width: 6px;
-    height: 6px;
-    border-radius: var(--ds-radius-pill);
-    background: var(--ds-brand-blue-light);
-  }
-
-  .sign-in-brand-foot {
-    margin: auto 0 0;
-    padding-top: 24px;
-    color: var(--ds-on-brand-3);
-    font-size: var(--ds-text-xs);
-  }
-
   @media (max-width: 760px) {
     .sign-in-shell {
       grid-template-columns: minmax(0, 1fr);
-      width: min(100%, 32rem);
+      width: min(100%, 28rem);
+      min-height: 0;
     }
 
-    .sign-in-brand {
+    .sign-in-shell .sign-in-card {
+      padding: var(--ds-space-6);
+    }
+
+    .sign-in-brand,
+    .sign-in-shell .sign-in-version {
       display: none;
     }
 

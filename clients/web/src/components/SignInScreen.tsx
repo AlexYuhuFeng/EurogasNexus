@@ -1,9 +1,18 @@
 import { useState, type FormEvent } from "react";
-import { BrandMark } from "@/components/ui/BrandMark";
+import { BRAND_HEX_LOWER, BRAND_HEX_UPPER, BRAND_STROKE, BRAND_WAVE, BrandMark } from "@/components/ui/BrandMark";
+import { CLIENT_APPLICATION_VERSION } from "@/app/releaseMetadata";
 import { LOCALES } from "@/i18n/locales";
 import { devLoginOffered, type AuthStatusSnapshot } from "@/stores/authGate";
 import type { AuthState } from "@/stores/workspaceLoading";
 import "./SignInScreen.css";
+
+/** Failures of the company SSO path, where checking the identity again can help. */
+const SSO_FAILURE_KEYS = new Set([
+  "auth.error_sso_failed",
+  "auth.sso_unavailable",
+  "auth.error_identity_unreachable",
+  "auth.error_server_not_configured",
+]);
 
 interface SignInScreenProps {
   t: (key: string) => string;
@@ -45,24 +54,45 @@ export function SignInScreen({
     onDevLogin(username, password);
   }
 
+  // Retrying the identity check helps only when company SSO is configured and has failed; with
+  // no sign-in method at all it is the one thing left to try. Otherwise the screen says nothing
+  // about SSO.
+  const ssoFailing = authStatus.oidcConfigured && authErrorKey !== null && SSO_FAILURE_KEYS.has(authErrorKey);
+  const noMethods = !authStatus.oidcConfigured && !devLoginAvailable;
+  const retry = (
+    <div className="sign-in-retry-row">
+      <button type="button" className="sign-in-retry" onClick={onRetryIdentity} disabled={authBusy}>
+        {t("auth.retry_identity")}
+      </button>
+    </div>
+  );
+
   return (
     <div className="sign-in-screen">
       <div className="sign-in-shell">
       <aside className="sign-in-brand" aria-hidden="true">
         <BrandMark variant="wordmark" tone="reverse" size="xl" decorative className="sign-in-brand-lockup" />
         <p className="sign-in-brand-tagline">{t("auth.brand_tagline")}</p>
-        <ul className="sign-in-brand-points">
-          <li>{t("auth.brand_point_market")}</li>
-          <li>{t("auth.brand_point_portfolio")}</li>
-          <li>{t("auth.brand_point_control")}</li>
-        </ul>
-        <p className="sign-in-brand-foot">{t("auth.brand_foot")}</p>
+        {/* The one decoration: the mark itself, very large and faint, cropped by the panel. */}
+        <svg
+          className="sign-in-brand-watermark"
+          viewBox="0 0 32 32"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={BRAND_STROKE}
+          strokeLinejoin="round"
+          focusable="false"
+        >
+          <path d={BRAND_HEX_UPPER} />
+          <path d={BRAND_HEX_LOWER} />
+          <path d={BRAND_WAVE} />
+        </svg>
       </aside>
       <section className="sign-in-card" aria-labelledby="sign-in-title">
         {/* Below 760 px the brand panel folds away; the card carries the lock-up instead. */}
         <BrandMark variant="wordmark" tone="auto" size="lg" className="sign-in-card-lockup" />
         <div className="sign-in-masthead">
-          <span className="eyebrow">{t("auth.eyebrow")}</span>
+          <h1 id="sign-in-title">{t("auth.title")}</h1>
           <select
             aria-label={t("settings.language")}
             value={language}
@@ -73,9 +103,6 @@ export function SignInScreen({
             ))}
           </select>
         </div>
-
-        <h1 id="sign-in-title">{t("auth.title")}</h1>
-        <p className="sign-in-body">{t("auth.body")}</p>
 
         {authNoticeKey && (
           <p className="sign-in-notice" role="status" aria-live="polite">{t(authNoticeKey)}</p>
@@ -91,9 +118,8 @@ export function SignInScreen({
           </div>
         ) : (
           <>
-            {authStatus.oidcConfigured ? (
-              <div className="sign-in-block">
-                <span className="sign-in-block-title">{t("auth.sso_title")}</span>
+            {authStatus.oidcConfigured && (
+              <div className="sign-in-sso">
                 <button
                   type="button"
                   className="sign-in-primary"
@@ -102,21 +128,18 @@ export function SignInScreen({
                 >
                   {t("auth.sso_button")}
                 </button>
+                {ssoFailing && retry}
               </div>
-            ) : (
-              <p className="sign-in-status" role="status">
-                {t(devLoginAvailable ? "auth.sso_unavailable" : "auth.no_methods")}
-              </p>
             )}
 
-            <div className="sign-in-retry-row">
-              <button type="button" className="sign-in-retry" onClick={onRetryIdentity} disabled={authBusy}>
-                {t("auth.retry_identity")}
-              </button>
-            </div>
+            {authStatus.oidcConfigured && devLoginAvailable && (
+              <div className="sign-in-or" role="separator" aria-label={t("auth.or")}>
+                <span aria-hidden="true">{t("auth.or")}</span>
+              </div>
+            )}
 
             {devLoginAvailable && (
-              <form className="sign-in-block sign-in-dev-form" onSubmit={handleDevLoginSubmit}>
+              <form className="sign-in-dev-form" onSubmit={handleDevLoginSubmit}>
                 <span className="sign-in-block-title">{t("auth.dev_title")}</span>
                 <label htmlFor="sign-in-username">{t("auth.dev_username")}</label>
                 <input
@@ -148,9 +171,17 @@ export function SignInScreen({
               </form>
             )}
 
+            {noMethods && (
+              <>
+                <p className="sign-in-status" role="status">{t("auth.no_methods")}</p>
+                {retry}
+              </>
+            )}
           </>
         )}
 
+        {/* The client's own version: known without a request, useful when reporting a problem. */}
+        <p className="sign-in-version">{t("release.client_version")} {CLIENT_APPLICATION_VERSION}</p>
       </section>
       </div>
     </div>
