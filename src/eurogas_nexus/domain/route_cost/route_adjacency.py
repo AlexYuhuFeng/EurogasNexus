@@ -34,7 +34,13 @@ ENDPOINT_NOT_IN_NETWORK = "endpoint_not_in_network"
 #: Blocker code a pricing consumer reports for an unproven route.
 ROUTE_NOT_CONNECTED = "ROUTE_NOT_CONNECTED"
 
-_CARRIED = ("available_capacity_mwh_per_day", "gas_year", "capacity_product", "firmness", "component_type")
+_CARRIED = (
+    "available_capacity_mwh_per_day",
+    "gas_year",
+    "capacity_product",
+    "firmness",
+    "component_type",
+)
 
 
 def _key(leg: dict[str, Any]) -> tuple[str, str, str]:
@@ -72,7 +78,9 @@ def _apply(candidate: dict[str, Any], graph: MarketAreaGraph) -> dict[str, Any]:
         out["route_adjacency"] = {
             "status": ENDPOINT_NOT_IN_NETWORK,
             "detail": "start or target is not a market area of the reference network",
-            "unresolved": [name for name, hub in ((start_name, start), (target_name, target)) if hub is None],
+            "unresolved": [
+                name for name, hub in ((start_name, start), (target_name, target)) if hub is None
+            ],
         }
         return out
     if start == target:
@@ -127,7 +135,10 @@ def _apply(candidate: dict[str, Any], graph: MarketAreaGraph) -> dict[str, Any]:
                 "from_hub": graph.hub_names.get(crossing.from_hub, crossing.from_hub),
                 "to_hub": graph.hub_names.get(crossing.to_hub, crossing.to_hub),
                 "points": list(crossing.points),
-                "point_names": [str(graph.points.get(point, {}).get("name") or point) for point in crossing.points],
+                "point_names": [
+                    str(graph.points.get(point, {}).get("name") or point)
+                    for point in crossing.points
+                ],
                 "pipeline_operator": crossing.pipeline_operator,
             }
             for crossing in crossings

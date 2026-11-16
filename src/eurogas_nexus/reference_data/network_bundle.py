@@ -158,7 +158,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[str]:
         if pair in pairs:
             problems.append(f"edge {eid}: duplicate connection {pair[1:]}")
         pairs.add(pair)
-    if any(edge.get("type") in ADJACENCY_EDGE_TYPES for edge in edges) and not bundle.get("adjacency"):
+    has_adjacency = any(edge.get("type") in ADJACENCY_EDGE_TYPES for edge in edges)
+    if has_adjacency and not bundle.get("adjacency"):
         problems.append("adjacency edges without the adjacency block (rule, download date)")
     return problems
 

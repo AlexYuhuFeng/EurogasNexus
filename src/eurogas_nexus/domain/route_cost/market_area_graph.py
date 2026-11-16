@@ -117,7 +117,8 @@ class MarketAreaGraph:
                 graph.hub_codes[code] = node["point_key"]
                 graph.hub_names[node["point_key"]] = code
         graph.operator_names = {
-            key: str(value.get("name") or key) for key, value in (bundle.get("operators") or {}).items()
+            key: str(value.get("name") or key)
+            for key, value in (bundle.get("operators") or {}).items()
         }
         for edge in bundle.get("edges") or []:
             if edge.get("type") == "market_area_link":
@@ -159,10 +160,17 @@ class MarketAreaGraph:
                 found.append(Crossing(from_hub, to_hub, (point,)))
         for operator, (a, b) in self.pipelines.items():
             for near, far in ((a, b), (b, a)):
-                if from_hub in self.point_hubs.get(near, {}) and to_hub in self.point_hubs.get(far, {}):
-                    if operator in self.point_pipes.get(near, set()) and operator in self.point_pipes.get(far, set()):
+                if from_hub in self.point_hubs.get(near, {}) and to_hub in self.point_hubs.get(
+                    far, {}
+                ):
+                    if operator in self.point_pipes.get(
+                        near, set()
+                    ) and operator in self.point_pipes.get(far, set()):
                         found.append(Crossing(from_hub, to_hub, (near, far), operator))
-        return sorted(found, key=lambda crossing: (crossing.points[0] not in self.representative, crossing.via))
+        return sorted(
+            found,
+            key=lambda crossing: (crossing.points[0] not in self.representative, crossing.via),
+        )
 
     def neighbours(self, hub: str) -> set[str]:
         out: set[str] = set()
@@ -218,7 +226,11 @@ class MarketAreaGraph:
         """
 
         via = [point for point in via_points if point]
-        candidates = self.all_hub_paths(start, target, max_hops=max_hops) if via else self.hub_paths(start, target, max_hops=max_hops)
+        candidates = (
+            self.all_hub_paths(start, target, max_hops=max_hops)
+            if via
+            else self.hub_paths(start, target, max_hops=max_hops)
+        )
         for hubs in candidates:
             chosen: list[Crossing] = []
             remaining = list(via)
@@ -269,7 +281,9 @@ class MarketAreaGraph:
                         TariffLegSpec(near, point_name, country, tso, direction, area, "pipeline")
                     )
             else:
-                name = self.operator_names.get(crossing.pipeline_operator, crossing.pipeline_operator)
+                name = self.operator_names.get(
+                    crossing.pipeline_operator, crossing.pipeline_operator
+                )
                 for point, direction in ((near, "ENTRY"), (far, "EXIT")):
                     facts = self.points.get(point, {})
                     legs.append(
@@ -292,7 +306,9 @@ class MarketAreaGraph:
             held = POINT_CHARGES.get((operator, point, direction))
             if held:
                 tso, point_name, country, area = held
-                return TariffLegSpec(point, point_name, country, tso, direction, area, _role(direction))
+                return TariffLegSpec(
+                    point, point_name, country, tso, direction, area, _role(direction)
+                )
         facts = self.points.get(point, {})
         tso = " / ".join(self.operator_names.get(op, op) for op in operators) or "unknown TSO"
         return TariffLegSpec(

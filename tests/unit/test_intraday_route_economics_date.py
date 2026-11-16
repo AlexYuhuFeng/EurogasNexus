@@ -104,7 +104,12 @@ def _seed_route(session: Session) -> None:
 def _bbl_component(route) -> dict:
     """The BBL charge among the crossing's legs (GTS exit, BBL, National Gas entry)."""
 
-    return next(item for item in route.cost_components if "gts" not in str(item.get("tariff_id")) and "ng-entry" not in str(item.get("tariff_id")))
+    return next(
+        item
+        for item in route.cost_components
+        if "gts" not in str(item.get("tariff_id"))
+        and "ng-entry" not in str(item.get("tariff_id"))
+    )
 
 
 def _session() -> Session:

@@ -301,7 +301,10 @@ def fetch_entsog(dataset: str, *, attempts: int = 5) -> list[dict]:
 
 def entsog_rows(entsog_dir: Path | None) -> tuple[list[dict], list[dict]]:
     if entsog_dir:
-        read = lambda name: json.loads((entsog_dir / f"{name}.json").read_text(encoding="utf-8"))[name]  # noqa: E731
+        def read(name: str) -> list[dict]:
+            text = (entsog_dir / f"{name}.json").read_text(encoding="utf-8")
+            return json.loads(text)[name]
+
         return read("interconnections"), read("connectionpoints")
     return fetch_entsog("interconnections"), fetch_entsog("connectionpoints")
 
@@ -346,7 +349,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="re-derive only the adjacency edges of the shipped bundle (no database)",
     )
-    parser.add_argument("--entsog-dir", type=Path, help="saved interconnections.json and connectionpoints.json")
+    parser.add_argument(
+        "--entsog-dir",
+        type=Path,
+        help="saved interconnections.json and connectionpoints.json",
+    )
     args = parser.parse_args(argv)
     if args.adjacency_only:
         bundle = {**load_bundle(), "version": args.version}
@@ -367,7 +374,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"{args.out}: {len(bundle['nodes'])} nodes ({located} located, "
         f"{len(bundle['nodes']) - located} without a published position), "
-        f"{len(bundle['access'])} operator point directions, {len(bundle['edges'])} schematic edges "
+        f"{len(bundle['access'])} operator point directions, "
+        f"{len(bundle['edges'])} schematic edges "
         f"({sum(1 for edge in bundle['edges'] if edge['type'] != 'virtual')} adjacency), "
         f"{len(bundle['adjacency']['unconnected'])} points listed as unconnected"
     )

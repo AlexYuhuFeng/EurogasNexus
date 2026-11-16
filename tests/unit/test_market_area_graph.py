@@ -5,6 +5,9 @@ from __future__ import annotations
 import pytest
 
 from eurogas_nexus.application.resource_pool import candidate_route_cost
+from eurogas_nexus.domain.route_cost.european_public_tariffs import (
+    published_european_corridor_tariffs,
+)
 from eurogas_nexus.domain.route_cost.route_adjacency import (
     ENDPOINT_NOT_IN_NETWORK,
     LOCAL,
@@ -13,7 +16,6 @@ from eurogas_nexus.domain.route_cost.route_adjacency import (
     apply_route_adjacency,
 )
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
-from eurogas_nexus.domain.route_cost.european_public_tariffs import published_european_corridor_tariffs
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
 from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
 from eurogas_nexus.reference_data.network_bundle import load_bundle
@@ -33,7 +35,11 @@ def hub(graph, code: str) -> str:
 def legs(graph, start: str, target: str, via=()):
     crossings = graph.route(hub(graph, start), hub(graph, target), via_points=via)
     assert crossings is not None, f"{start} -> {target} has no proven route"
-    return crossings, [(leg.direction, leg.tso, leg.point_key, leg.role) for c in crossings for leg in graph.legs(c)]
+    return crossings, [
+        (leg.direction, leg.tso, leg.point_key, leg.role)
+        for c in crossings
+        for leg in graph.legs(c)
+    ]
 
 
 def test_ttf_and_the_are_joined_directly_through_the_nl_de_points(graph):
@@ -66,7 +72,9 @@ def test_nbp_and_ztp_go_through_iuk_with_the_charges_of_the_flow_direction(graph
         ("EXIT", "Interconnector UK", "ITP-00005", "pipeline"),
         ("ENTRY", "Fluxys Belgium", "ITP-00061", "market_area_entry"),
     ]
-    reverse = [leg for c in graph.route(hub(graph, "ZTP"), hub(graph, "NBP")) for leg in graph.legs(c)]
+    reverse = [
+        leg for c in graph.route(hub(graph, "ZTP"), hub(graph, "NBP")) for leg in graph.legs(c)
+    ]
     assert [leg.point_name for leg in reverse][1:3] == ["IUK Zeebrugge Entry", "IUK Bacton Exit"]
 
 
@@ -92,7 +100,14 @@ def test_a_named_point_that_does_not_join_the_market_areas_is_not_a_route(graph)
 
 def test_psv_is_not_in_the_network_so_a_route_to_it_is_not_priced():
     [candidate] = apply_route_adjacency(
-        [{"route_id": "the-psv", "start_point_name": "THE", "target_point_name": "PSV", "route_legs": []}]
+        [
+            {
+                "route_id": "the-psv",
+                "start_point_name": "THE",
+                "target_point_name": "PSV",
+                "route_legs": [],
+            }
+        ]
     )
     assert candidate["route_adjacency"]["status"] == ENDPOINT_NOT_IN_NETWORK
     assert candidate["route_legs"] == []
@@ -136,7 +151,14 @@ def test_an_authored_route_gets_the_full_crossing_and_keeps_its_capacity():
 
 def test_a_leg_whose_tariff_is_not_held_is_missing_not_zero():
     [candidate] = apply_route_adjacency(
-        [{"route_id": "ttf-nbp", "start_point_name": "TTF", "target_point_name": "NBP", "route_legs": []}]
+        [
+            {
+                "route_id": "ttf-nbp",
+                "start_point_name": "TTF",
+                "target_point_name": "NBP",
+                "route_legs": [],
+            }
+        ]
     )
     legs_ = [RouteTariffLeg.model_validate(leg) for leg in candidate["route_legs"]]
     result = calculate_route_cost(
@@ -161,7 +183,15 @@ def test_a_leg_whose_tariff_is_not_held_is_missing_not_zero():
 
 def test_an_unproven_route_is_blocked_by_the_resource_pool_not_priced_at_zero():
     [candidate] = apply_route_adjacency(
-        [{"route_id": "ttf-the-moffat", "start_point_name": "TTF", "target_point_name": "THE", "route_legs": [], "via_point_keys": ["ITP-00090"]}]
+        [
+            {
+                "route_id": "ttf-the-moffat",
+                "start_point_name": "TTF",
+                "target_point_name": "THE",
+                "route_legs": [],
+                "via_point_keys": ["ITP-00090"],
+            }
+        ]
     )
     assert candidate["route_adjacency"]["status"] == NO_PROVEN_CONNECTION
     cost, _, _, _, blockers, _ = candidate_route_cost(
@@ -173,7 +203,14 @@ def test_an_unproven_route_is_blocked_by_the_resource_pool_not_priced_at_zero():
 
 def test_a_local_sale_stays_free_of_route_cost():
     [candidate] = apply_route_adjacency(
-        [{"route_id": "ttf-local", "start_point_name": "TTF", "target_point_name": "TTF", "route_legs": []}]
+        [
+            {
+                "route_id": "ttf-local",
+                "start_point_name": "TTF",
+                "target_point_name": "TTF",
+                "route_legs": [],
+            }
+        ]
     )
     assert candidate["route_adjacency"]["status"] == LOCAL
     cost, *_ = candidate_route_cost(candidate, [], price_currency="EUR", price_unit="EUR/MWh")
@@ -189,7 +226,8 @@ def test_the_map_draws_exactly_the_adjacency_the_pricing_walks(graph):
     drawn = [
         edge
         for edge in bundle["edges"]
-        if edge["type"] == "interconnector" or (edge["type"] == "market_area_link" and edge.get("representative"))
+        if edge["type"] == "interconnector"
+        or (edge["type"] == "market_area_link" and edge.get("representative"))
     ]
     point_of = {node["id"]: node["point_key"] for node in bundle["nodes"]}
     for edge in drawn:
@@ -207,11 +245,9 @@ def test_the_map_draws_exactly_the_adjacency_the_pricing_walks(graph):
         for a in hubs:
             for b in hubs - {a}:
                 drawn_pairs.add(frozenset((a, b)))
-    for operator, (a, b) in graph.pipelines.items():
+    for a, b in graph.pipelines.values():
         for x in by_point.get(a, set()):
             for y in by_point.get(b, set()):
                 drawn_pairs.add(frozenset((x, y)))
-    priced_pairs = {
-        frozenset((a, b)) for a in graph.hub_names for b in graph.neighbours(a)
-    }
+    priced_pairs = {frozenset((a, b)) for a in graph.hub_names for b in graph.neighbours(a)}
     assert priced_pairs == drawn_pairs

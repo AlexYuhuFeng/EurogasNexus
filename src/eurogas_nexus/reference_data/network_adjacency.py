@@ -196,7 +196,9 @@ def derive_adjacency(
         node = by_key.get(key)
         return bool(node and node.get("located"))
 
-    pipe_ends = {pipe_of[key]: sorted({canonical(end) for end in ends}) for key, ends in pipes.items()}
+    pipe_ends = {
+        pipe_of[key]: sorted({canonical(end) for end in ends}) for key, ends in pipes.items()
+    }
     in_network_pipes = {
         pipe
         for pipe, ends in pipe_ends.items()
@@ -268,7 +270,9 @@ def derive_adjacency(
                     "point_key": "/".join(ends),
                     "name": f"{name} pipeline",
                     "joins": ends,
-                    "reason": "the pipeline does not join two market areas of the bundle at both ends",
+                    "reason": (
+                        "the pipeline does not join two market areas of the bundle at both ends"
+                    ),
                 }
             )
             continue
@@ -295,10 +299,17 @@ def derive_adjacency(
         "edges": sorted(edges, key=lambda edge: edge["id"]),
         "unconnected": sorted(unconnected, key=lambda item: item["point_key"]),
         "pipelines": [
-            {"system": label, "operator_key": operator, "points": ends, "in_network": pipe_of[(label, operator)] in in_network_pipes}
+            {
+                "system": label,
+                "operator_key": operator,
+                "points": ends,
+                "in_network": pipe_of[(label, operator)] in in_network_pipes,
+            }
             for (label, operator), ends in sorted(pipes.items())
         ],
-        "folded": {key: folds[key] for key in sorted(folds) if key in by_key or folds[key] in by_key},
+        "folded": {
+            key: folds[key] for key in sorted(folds) if key in by_key or folds[key] in by_key
+        },
     }
 
 
@@ -343,10 +354,15 @@ def apply_to_bundle(
         bundle["nodes"],
         connection_points=connection_points,
         aliases=aliases,
-        operator_names={key: str(value.get("name") or key) for key, value in (bundle.get("operators") or {}).items()},
+        operator_names={
+            key: str(value.get("name") or key)
+            for key, value in (bundle.get("operators") or {}).items()
+        },
         downloaded=downloaded,
     )
-    kept = [edge for edge in bundle.get("edges") or [] if edge.get("type") not in ADJACENCY_EDGE_TYPES]
+    kept = [
+        edge for edge in bundle.get("edges") or [] if edge.get("type") not in ADJACENCY_EDGE_TYPES
+    ]
     datasets = list((bundle.get("source") or {}).get("datasets") or [])
     if "interconnections" not in datasets:
         datasets.append("interconnections")

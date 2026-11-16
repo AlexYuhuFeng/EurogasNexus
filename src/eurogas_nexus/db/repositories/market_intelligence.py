@@ -707,8 +707,8 @@ def _route_economics(
     # path, none for a route with no proven path (domain/route_cost/route_adjacency.py).
     from types import SimpleNamespace
 
-    from eurogas_nexus.domain.route_cost.route_adjacency import route_adjacency_blocker
     from eurogas_nexus.db.repositories.route_cost import list_route_candidates
+    from eurogas_nexus.domain.route_cost.route_adjacency import route_adjacency_blocker
 
     candidates = [
         SimpleNamespace(**payload)
