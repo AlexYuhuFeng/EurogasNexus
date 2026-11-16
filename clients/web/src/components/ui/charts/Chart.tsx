@@ -17,8 +17,8 @@
  *   Nothing animates, so reduced motion needs no special case.
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import uPlot from "uplot";
-import "uplot/dist/uPlot.min.css";
+import type uPlot from "uplot";
+import { useUplot } from "./uplotLoader";
 
 import { DataGrid, type DataGridColumn } from "../DataGrid";
 import { StatusBadge } from "../StatusBadge";
@@ -162,6 +162,11 @@ export function Chart({ id, title, data, t, height = 220, asOf, state, simulated
   const tipRef = useRef<HTMLDivElement | null>(null);
   const plotInstance = useRef<uPlot | null>(null);
   const themeKey = useThemeKey();
+  // Loaded on first use; when it cannot be used the table view carries the data.
+  const UPlot = useUplot();
+  useEffect(() => {
+    if (UPlot === null) setView("table");
+  }, [UPlot]);
   const titleId = `chart-${id}-title`;
   const hasData = data.x.length > 0 && data.series.some((item) => !item.reference && item.values.some((value) => value != null));
   const anySimulated = simulated || data.series.some((item) => item.simulated);
@@ -177,7 +182,7 @@ export function Chart({ id, title, data, t, height = 220, asOf, state, simulated
 
   useEffect(() => {
     const host = plotRef.current;
-    if (!host || view !== "chart" || !hasData) return undefined;
+    if (!host || !UPlot || view !== "chart" || !hasData) return undefined;
     const palette = readPalette();
     const plotted: Plotted[] = [];
     data.series.forEach((source, order) => {
@@ -231,7 +236,7 @@ export function Chart({ id, title, data, t, height = 220, asOf, state, simulated
         if (style === "bar") {
           return { ...base, width: 0, fill: forecast ? withAlpha(colour, 0.5) : colour, stroke: colour, paths: barPaths(bases.get(source.id), item.values), points: { show: false } };
         }
-        if (style === "step") return { ...base, paths: uPlot.paths.stepped!({ align: 1 }) };
+        if (style === "step") return { ...base, paths: UPlot.paths.stepped!({ align: 1 }) };
         if (style === "area") return { ...base, fill: withAlpha(colour, 0.16) };
         void order;
         return base;
@@ -278,7 +283,7 @@ export function Chart({ id, title, data, t, height = 220, asOf, state, simulated
       },
     };
     host.replaceChildren();
-    const plot = new uPlot(opts, [xs, ...values] as uPlot.AlignedData, host);
+    const plot = new UPlot(opts, [xs, ...values] as uPlot.AlignedData, host);
     plotInstance.current = plot;
     // The canvas is a picture; the table and the live region carry the data.
     plot.root.setAttribute("aria-hidden", "true");
@@ -297,7 +302,7 @@ export function Chart({ id, title, data, t, height = 220, asOf, state, simulated
       plot.destroy();
       plotInstance.current = null;
     };
-  }, [data, prepared, height, hasData, themeKey, view]);
+  }, [data, prepared, height, hasData, themeKey, view, UPlot]);
 
   /** Move the cursor to a point (keyboard), as a pointer would. */
   function focusPoint(at: number) {
@@ -496,12 +501,13 @@ export interface SparklineProps {
 export function Sparkline({ values, days, label, simulated = false, height = 28 }: SparklineProps) {
   const host = useRef<HTMLSpanElement | null>(null);
   const themeKey = useThemeKey();
+  const UPlot = useUplot();
   useEffect(() => {
     const element = host.current;
-    if (!element || values.filter((value) => value != null).length < 2) return undefined;
+    if (!element || !UPlot || values.filter((value) => value != null).length < 2) return undefined;
     const palette = readPalette();
     const xs = xValues({ axis: "gas-day", x: days });
-    const plot = new uPlot(
+    const plot = new UPlot(
       {
         width: Math.max(40, element.clientWidth),
         height,
@@ -529,7 +535,7 @@ export function Sparkline({ values, days, label, simulated = false, height = 28 
       observer?.disconnect();
       plot.destroy();
     };
-  }, [values, days, simulated, height, themeKey]);
+  }, [values, days, simulated, height, themeKey, UPlot]);
   if (values.filter((value) => value != null).length < 2) return null;
   return <span className="ds-sparkline" ref={host} role="img" aria-label={label} style={{ height: `${height}px` }} data-sparkline-points={values.length} />;
 }
