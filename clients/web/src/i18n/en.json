@@ -2695,7 +2695,7 @@
   "experience.mode.administration": "Administration",
   "experience.inspector.title": "Detail",
   "experience.inspector.empty": "Select an object to inspect its detail, provenance and restrictions.",
-  "experience.palette.keyboard_help": "Ctrl+K: commands · ↑ ↓: select · Enter: open · Esc: close · = calculate · ? ask · Tab: accept the answer · Ctrl+C: copy it. Ctrl+Shift+1–6: Market, Portfolio, Strategy, Decision, System, Administration (outside text fields).",
+  "experience.palette.keyboard_help": "Ctrl+K: commands · ↑ ↓: select · Enter: open · Esc: close · = calculate · question mark: ask · Tab: accept the answer · Ctrl+C: copy it. Ctrl+Shift+1–6: Market, Portfolio, Strategy, Decision, System, Administration (outside text fields).",
   "experience.palette.title": "Commands",
   "experience.palette.placeholder": "Search, calculate, convert or ask",
   "experience.palette.empty": "No command matches this search.",
