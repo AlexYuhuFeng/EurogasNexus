@@ -36,6 +36,9 @@ ENTITY_PREFIX: Mapping[str, str] = {
     "bidding_zone": "ent:bidding_zone",
     "market_hub": "ent:market_hub",
     "delivery_point": "ent:market_hub",
+    # One storage site or LNG terminal by its EIC, from GIE's facility listing (identity
+    # only: GIE publishes no position). Not the country aggregates above.
+    "gie_facility": "ent:gas_facility",
 }
 
 QUARANTINE_REASONS = ("empty_identifier", "unknown_identifier", "ambiguous_identifier")

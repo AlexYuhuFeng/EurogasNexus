@@ -146,11 +146,39 @@ in `unlocated_outages` with the reason.
 The reference network is ENTSOG's connection points; REMIT names the storage facility
 (21W... EICs) that ENTSOG rarely carries. GIE's AGSI/ALSI listing endpoints
 (`/api/about?show=listing`, the existing GIE key) give per-facility identity (EIC, name,
-country, operator, type) for 159 storage and LNG facilities, but no coordinates, so they
-cannot place an outage by themselves; on the live outages their names added no unique
-match beyond the message's own name, so no loader was built. Live (14-day horizon, 32
-outages): 7 placed before, 16 after (EIC 7, site name 9). See
-`docs/data/LIVE_BRINGUP_2026-11-12.md` for the 16 left unplaced and why.
+country, operator, GIE type) for 159 storage and LNG facilities, but no coordinates.
+
+**Known facilities (2026-11-16).** `scripts/ops/ingest_gie_facilities.py --commit` loads the
+listing as identity: one canonical entity `ent:gas_facility:<EIC>` (name, country, operator,
+type in its metadata) and one `src-gie`/`gie_facility` mapping per EIC; a facility no longer
+listed is retired (mapping `RETIRED`, never deleted) and restored if it returns. The reference
+facility table needs a coordinate, which these facilities do not have, so identity lives in the
+identity tables. An outage the reference network cannot place is then matched to a GIE
+facility (`KNOWN_FACILITY_RULE`): by EIC, else by GIE's exact name (case, accents and
+punctuation ignored) when it names one facility. If the facility's EIC is also an ENTSOG
+point EIC (29 of 159 are), the outage is placed at that point (`gie_facility_eic`/`_name`);
+otherwise it is listed in `known_facility_outages` (facility, EIC, country as GIE lists it,
+operator, how identified, its outages) and counted in `outage_placement.known_facility_no_position`,
+not in `unlocated`. No coordinate is derived from a name and no alias is added.
+Not done: linking a GIE facility to ENTSOG storage points through the operator (ENTSOG names
+the storage operator by its ENTSOG key, e.g. `DE-SSO-0001`, at the adjacent side of a storage
+point; matching that to GIE's operator EIC needs ENTSOG's operator list, which the product does
+not read yet).
+
+Live (14-day horizon, 57 outages: 30 storage/LNG, 27 transmission):
+
+| | Placed | Known facility, no published position | Unlocated |
+|---|---|---|---|
+| Before the listing | 36 | 0 | 21 |
+| After | 36 | 14 | 7 |
+
+Known: UGS Epe Uniper H-Gas (DE, 5, message "EPE-H"), UGS Etzel ESE (MET) (DE, 3), VGS GSD Gas
+Storage (Lille Torup, Stenlille) (DK, 3), Klaipėda LNG Terminal (FSRU Independence) (LT, 1, by
+name: the message has no EIC), UGS Nüttermoor H-4 (GIE lists it under NL, 1), VGS Zone MND ESG
+(DE, 1, an OGE transmission message at the storage zone). Unlocated: CUGS Mogilno (EIC not in
+GIE's listing; GIE and ENTSOG carry only the group GIM Kawerna, which the message does not
+name) and six transmission points whose EIC ENTSOG's reference does not carry (Värska Entry,
+NaTran SPNS2U, Thyssengas Emden EMS/EPT, OGE Speicher Gronau-Epe H1/H4 and Epe H Entry).
 
 ## Import
 

@@ -182,6 +182,41 @@ class _Locator:
         return self.explain(eic=eic, name=name)[0]
 
 
+KNOWN_FACILITY_RULE = (
+    "An outage the reference network cannot place is matched to GIE's facility listing by "
+    "EIC, else by the exact facility name (case, accents and punctuation ignored) when it "
+    "names one facility. A facility whose EIC is an ENTSOG point EIC is placed at that "
+    "point; otherwise it is a known facility with no published position (name, EIC, "
+    "country, operator), counted apart from unlocated outages. GIE publishes no "
+    "coordinates, and no position is derived from a name."
+)
+
+
+def _ascii_key(text: str | None) -> str:
+    folded = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
+    return _key(folded)
+
+
+class _KnownFacilities:
+    """GIE facility identity (``db/repositories/gie_facilities``) by EIC and exact name."""
+
+    def __init__(self, facilities: list[dict[str, Any]]) -> None:
+        self.by_eic = {str(f.get("eic") or "").upper(): f for f in facilities if f.get("eic")}
+        self.by_name: dict[str, list[dict[str, Any]]] = {}
+        for facility in facilities:
+            self.by_name.setdefault(_ascii_key(facility.get("name")), []).append(facility)
+
+    def find(
+        self, *, eic: str | None, name: str | None
+    ) -> tuple[dict[str, Any] | None, str]:
+        if eic and (hit := self.by_eic.get(eic.strip().upper())):
+            return hit, "eic"
+        named = self.by_name.get(_ascii_key(name), []) if name else []
+        if len(named) == 1:
+            return named[0], "name"
+        return None, ""
+
+
 def _own(book_id: str | None, allowed: set[str] | None) -> bool:
     if allowed is None:
         return True
@@ -230,6 +265,10 @@ def build_map_situation(
         if node.data_quality != REFERENCE_RETIRED_QUALITY
     ]
     locator = _Locator(reference_nodes, session.query(ReferenceFacility).all())
+    from eurogas_nexus.db.repositories.gie_facilities import load_gie_facilities
+
+    known_facilities = _KnownFacilities(load_gie_facilities(session))
+    known_outages: dict[str, dict[str, Any]] = {}
     unlocated = {
         "outages": 0,
         "contracts": 0,
@@ -286,6 +325,35 @@ def build_map_situation(
         location, how = locator.explain(
             eic=str(row["facility_id"]), name=str(row["facility_name"])
         )
+        if location is None:
+            facility, identified_by = known_facilities.find(
+                eic=str(row["facility_id"]), name=str(row["facility_name"])
+            )
+            if facility is not None:
+                at_point = locator.by_eic.get(str(facility["eic"]).upper())
+                if at_point is not None:
+                    location = {**at_point, "match": f"gie_facility_{identified_by}"}
+                else:
+                    held = known_outages.setdefault(
+                        str(facility["eic"]),
+                        {
+                            "facility_eic": facility["eic"],
+                            "facility_name": facility.get("name"),
+                            "country": facility.get("country"),
+                            "operator": facility.get("operator_name"),
+                            "kind": facility.get("kind"),
+                            "identified_by": identified_by,
+                            "reason": "no_published_position",
+                            "outages": 0,
+                            "event_ids": [],
+                            "message_names": [],
+                        },
+                    )
+                    held["outages"] += 1
+                    held["event_ids"].append(row["event_id"])
+                    if row["facility_name"] not in held["message_names"]:
+                        held["message_names"].append(row["facility_name"])
+                    continue
         if location is None:
             unlocated["outages"] += 1
             unlocated_outages.append(
@@ -563,6 +631,18 @@ def build_map_situation(
         "unlocated": unlocated,
         "outage_units": outage_unit_summary(visible_outages),
         "unlocated_outages": unlocated_outages,
+        # Outages at facilities GIE identifies but no accepted source positions.
+        "known_facility_outages": sorted(
+            known_outages.values(), key=lambda item: (-item["outages"], item["facility_eic"])
+        ),
+        "outage_placement": {
+            "placed": len(outages),
+            "known_facility_no_position": sum(
+                item["outages"] for item in known_outages.values()
+            ),
+            "unlocated": unlocated["outages"],
+            "rule": KNOWN_FACILITY_RULE,
+        },
         "unlocated_network_points": unlocated_network_points,
         "location_match_rule": LOCATION_MATCH_RULE,
         "totals": {

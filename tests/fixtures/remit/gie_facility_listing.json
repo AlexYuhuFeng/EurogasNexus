@@ -1,0 +1,136 @@
+{
+ "agsi": [
+  {
+   "name": "Gas Storage Denmark",
+   "short_name": "GSD",
+   "type": "SSO",
+   "eic": "21X000000001104T",
+   "country": "DK",
+   "url": "https://agsi.gie.eu/api?country=DK&company=21X000000001104T",
+   "facilities": [
+    {
+     "name": "VGS GSD Gas Storage (Lille Torup, Stenlille) // historical data prior to 19 May 2026",
+     "type": "ASF",
+     "eic": "45W000000000112V",
+     "country": "DK",
+     "company": "21X000000001104T",
+     "url": "https://agsi.gie.eu/api?country=DK&company=21X000000001104T&facility=45W000000000112V",
+     "operational_start_date": "2011-01-01",
+     "operational_end_date": "2026-05-19"
+    },
+    {
+     "name": "VGS GSD Gas Storage (Lille Torup, Stenlille)",
+     "type": "ASF",
+     "eic": "45W000000000241K",
+     "country": "DK",
+     "company": "21X000000001104T",
+     "url": "https://agsi.gie.eu/api?country=DK&company=21X000000001104T&facility=45W000000000241K",
+     "operational_start_date": "2026-05-19",
+     "operational_end_date": "3000-12-12"
+    }
+   ]
+  },
+  {
+   "name": "Eneco Gasspeicher BV",
+   "short_name": "Eneco Gasspeicher",
+   "type": "SSO",
+   "eic": "21X0000000010849",
+   "country": "DE",
+   "url": "https://agsi.gie.eu/api?country=DE&company=21X0000000010849",
+   "facilities": [
+    {
+     "name": "UGS Enschede - Epe (Eneco)",
+     "type": "ASF",
+     "eic": "21W000000000012G",
+     "country": "DE",
+     "company": "21X0000000010849",
+     "url": "https://agsi.gie.eu/api?country=DE&company=21X0000000010849&facility=21W000000000012G",
+     "operational_start_date": "2011-01-01",
+     "operational_end_date": null
+    }
+   ]
+  },
+  {
+   "name": "MET Speicher GmbH",
+   "short_name": "MET Speicher",
+   "type": "SSO",
+   "eic": "37X000000000047P",
+   "country": "DE",
+   "url": "https://agsi.gie.eu/api?country=DE&company=37X000000000047P",
+   "facilities": [
+    {
+     "name": "UGS Etzel ESE (MET)",
+     "type": "ASF",
+     "eic": "21W000000000055Z",
+     "country": "DE",
+     "company": "37X000000000047P",
+     "url": "https://agsi.gie.eu/api?country=DE&company=37X000000000047P&facility=21W000000000055Z",
+     "operational_start_date": "2016-10-01",
+     "operational_end_date": null
+    }
+   ]
+  },
+  {
+   "name": "Uniper Energy Storage GmbH",
+   "short_name": "Uniper Energy Storage",
+   "type": "SSO",
+   "eic": "21X000000001127H",
+   "country": "DE",
+   "url": "https://agsi.gie.eu/api?country=DE&company=21X000000001127H",
+   "facilities": [
+    {
+     "name": "UGS Epe Uniper H-Gas",
+     "type": "ASF",
+     "eic": "21W000000000066U",
+     "country": "DE",
+     "company": "21X000000001127H",
+     "url": "https://agsi.gie.eu/api?country=DE&company=21X000000001127H&facility=21W000000000066U",
+     "operational_start_date": "2011-01-01",
+     "operational_end_date": null
+    }
+   ]
+  },
+  {
+   "name": "EWE Gasspeicher GmbH",
+   "short_name": "EWE Gasspeicher (NL) (5) (8)",
+   "type": "SSO",
+   "eic": "21X0000000011756",
+   "country": "NL",
+   "url": "https://agsi.gie.eu/api?country=NL&company=21X0000000011756",
+   "facilities": [
+    {
+     "name": "UGS Nüttermoor H-4",
+     "type": "ASF",
+     "eic": "37W000000000105E",
+     "country": "NL",
+     "company": "21X0000000011756",
+     "url": "https://agsi.gie.eu/api?country=NL&company=21X0000000011756&facility=37W000000000105E",
+     "operational_start_date": "2023-04-30",
+     "operational_end_date": null
+    }
+   ]
+  }
+ ],
+ "alsi": [
+  {
+   "name": "AB KN Energies",
+   "short_name": "KN Energies",
+   "type": "LSO",
+   "eic": "21X0000000013740",
+   "country": "LT",
+   "url": "https://alsi.gie.eu/api?country=LT&company=21X0000000013740",
+   "facilities": [
+    {
+     "name": "Klaipėda LNG Terminal (FSRU Independence)",
+     "type": "FSRU",
+     "eic": "21W0000000001253",
+     "country": "LT",
+     "company": "21X0000000013740",
+     "url": "https://alsi.gie.eu/api?country=LT&company=21X0000000013740&facility=21W0000000001253",
+     "operational_start_date": "2016-04-07",
+     "operational_end_date": null
+    }
+   ]
+  }
+ ]
+}

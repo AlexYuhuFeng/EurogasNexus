@@ -566,6 +566,11 @@ def map_situation(
         for kind, count in data["unlocated"].items()
         if count
     ]
+    known = (data.get("outage_placement") or {}).get("known_facility_no_position")
+    if known:
+        warnings.append(
+            f"{known} outages are at known facilities with no published position"
+        )
     return _env(data, request, source="runtime-postgresql:map-situation", warnings=warnings)
 
 
