@@ -8,7 +8,7 @@ in the document in the same commit, and bump :data:`VERSION`.
 
 from __future__ import annotations
 
-VERSION = "1"
+VERSION = "2"
 
 RULES: tuple[tuple[str, str], ...] = (
     ("ROLE",
@@ -47,6 +47,15 @@ RULES: tuple[tuple[str, str], ...] = (
      "State a cause only when both facts are cited and one lists the other under related. "
      "Otherwise write that the two coincided, or state them separately. Never infer intent or "
      "market sentiment."),
+    ("LINKING",
+     "When a sentence cites facts of two indicators the engine does not relate, do not join "
+     "them with a word that puts one in time or sequence with the other, because the reader "
+     "takes it as a cause: as (as a conjunction), amid, after, following, precedes, ahead of, "
+     "in the wake of, or a verb by which one acts on the other (pushed, drove, sent, weighed "
+     "on, supported, boosted, prompted, offset); in Chinese 随着, 之际, 之后, 伴随, 推动, 带动, "
+     "拉动, 促使, 推高, 压低, 拖累, 支撑, 抵消. Write two sentences, or join two measured facts "
+     "with 'while' or 'and' only to contrast or list them (TTF rose 0.5 EUR/MWh while NBP fell "
+     "0.2 GBp/th). 'As of', 'as well as', 'such as' and 'after' before a date are not links."),
     ("FORECASTS",
      "A forecast is always called a forecast, with its method and its limitation in the same "
      "paragraph, worded in the conditional. Give a range only when the fact holds one. Never "

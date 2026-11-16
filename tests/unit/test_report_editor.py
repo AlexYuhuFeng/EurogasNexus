@@ -124,6 +124,28 @@ def test_an_invented_number_falls_back_for_that_element_only():
     assert out["record"]["elements"]["standfirst"]["ok"]
 
 
+def test_a_refused_finding_is_replaced_in_place_by_the_rule_finding_on_the_same_fact():
+    plan = good_plan()
+    plan["findings"][0]["finding"] = plan["findings"][0]["finding"].replace("14.3", "15.3")
+    out = _apply(plan)
+    assert not out["record"]["elements"]["finding.0"]["ok"]
+    assert out["findings"][0]["fact_ids"] == ["F1"] and out["findings"][0]["basis"] == "rule"
+    assert [f["fact_ids"] for f in out["findings"]] == [["F1"], ["F3"], ["F2"]]
+
+
+def test_the_record_states_the_temperature_and_it_is_the_lowest():
+    assert editor.EDITOR_CALL["temperature"] == 0.0
+    assert _apply(good_plan())["record"]["temperature"] == 0.0
+
+
+def test_a_chinese_paragraph_splits_into_sentences():
+    sections = [{"key": "storage", "commentary": {}, "charts": []}]
+    paragraph = "储气率为72.6%。较去年低0.5个百分点。"
+    editor.apply_section_edits(sections, {"storage": {"paragraph": paragraph}})
+    assert sections[0]["commentary"]["headline"] == "储气率为72.6%。"
+    assert sections[0]["commentary"]["bullets"] == ["较去年低0.5个百分点。"]
+
+
 def test_a_forecast_not_called_a_forecast_is_refused():
     plan = good_plan()
     plan["findings"][1]["finding"] = "The call will reach 12,929 GWh/d on 19 Nov [F3]."

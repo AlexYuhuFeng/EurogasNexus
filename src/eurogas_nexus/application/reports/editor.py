@@ -45,9 +45,32 @@ FACT_FIELDS = ("id", "label", "value", "unit", "day", "phrases", "comparisons", 
                "implications", "related")
 CAUSAL = re.compile(r"\b(because|due to|driven by|as a result|caused|causing|led to|owing to|"
                     r"on the back of|thanks to)\b|由于|因为|导致|受.{0,6}影响", re.I)
-#: A reasoning model spends most of its budget thinking before it writes the plan; at 8,000
-#: tokens the daily plan came back empty (live run, 2026-11-16).
-EDITOR_CALL = {"temperature": 0.2, "max_tokens": 24000, "timeout_seconds": 240.0}
+#: Connectives that link two facts in time or sequence and so read as a cause ("X fell as
+#: Y rose", "amid", "following", "after", "precedes"). Refused when the text cites facts of
+#: two indicators the engine does not relate (directive rule LINKING). Not a link: "as of",
+#: "as well as", "such as", "the same as", "as a/an ...", and "after"/"following" before a
+#: date or the roll.
+LINK = re.compile(
+    r"\b(?:amid|amidst|in the wake of|on the heels of|preced(?:es|ed|ing)|ahead of)\b"
+    r"|(?<!such )(?<!same )\bas\b(?!\s+(?:of|well|a|an|much|many|high|low|far|long|soon|"
+    r"the same|measured|forecast)\b)"
+    r"|\b(?:after|following)\b(?!\s+(?:\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|"
+    r"Nov|Dec)|the (?:roll|month end)|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)))"
+    r"|随着|之际|继.{0,12}之后|在.{0,24}之后|伴随", re.I)
+#: Verbs by which one fact acts on another ("while LNG pushed ..."); "sent out" is LNG
+#: send-out, not a link.
+LINK_VERB = re.compile(
+    r"\b(?:push(?:ed|es|ing)?|dr(?:ove|ives|iving)|sen(?:t|ds|ding)(?!\s*-?\s*out)|"
+    r"weigh(?:ed|s|ing)? on|"
+    r"support(?:ed|s|ing)|pressur(?:ed|es|ing)|boost(?:ed|s|ing)|dragg(?:ed|ing)|drags|"
+    r"prompt(?:ed|s|ing)|trigger(?:ed|s|ing)|spurr(?:ed|ing)|spurs|fuel(?:l?ed|s|l?ing)|"
+    r"offset(?:s|ting)?|cushion(?:ed|s|ing))\b"
+    r"|推动|带动|拉动|促使|推高|压低|拖累|支撑|抵消", re.I)
+#: The editor runs at the provider's lowest temperature so the same fact sheet gives the
+#: same plan as nearly as the provider allows; the record states it. A reasoning model spends
+#: most of its budget thinking before it writes the plan; at 8,000 tokens the daily plan came
+#: back empty (live run, 2026-11-16).
+EDITOR_CALL = {"temperature": 0.0, "max_tokens": 24000, "timeout_seconds": 240.0}
 
 
 # --------------------------------------------------------------------------- payload
@@ -127,12 +150,27 @@ def check_text(text: str, fact_ids: list[str], facts: dict[str, dict], *,
             other in (f.get("related") or []) for f in used for other in
             (g["key"] for g in used if g is not f)):
         return False, "cause: a cause is stated between facts the engine does not relate"
+    if _unrelated(used) and (LINK.search(plain) or LINK_VERB.search(plain)):
+        word = (LINK.search(plain) or LINK_VERB.search(plain)).group(0)
+        return False, (f"link: {word!r} links facts of two indicators the engine does not "
+                       "relate; state them separately or contrast them with 'while'")
     if any(f.get("forecast") for f in used) and not re.search(r"forecast|预测", plain, re.I):
         return False, "forecast: a forecast fact is cited but not called a forecast"
     claim = re.sub(r"measured days|not a measurement|not measured", "", plain, flags=re.I)
     if re.search(r"\b(measured|actual)\b", claim, re.I) and all(f.get("forecast") for f in used):
         return False, "forecast: a forecast described as measured"
     return True, ""
+
+
+def _unrelated(used: list[dict]) -> bool:
+    """True when the cited facts span two indicators and none lists another as related."""
+
+    from eurogas_nexus.application.reports.findings import family
+
+    if len({family(f) for f in used}) < 2:
+        return False
+    keys = {f["key"] for f in used}
+    return not any(set(f.get("related") or []) & (keys - {f["key"]}) for f in used)
 
 
 # --------------------------------------------------------------------------- apply
@@ -197,7 +235,7 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
     facts = {f["id"]: f for f in sheet}
     context = _report_context(sheet, report_days)
     record = {"basis": "model", "model": model_id, "directive": directive.VERSION,
-              "elements": {}, "plan": None}
+              "temperature": EDITOR_CALL["temperature"], "elements": {}, "plan": None}
     out = {**rule, "record": record}
     if not isinstance(raw, dict):
         record.update(basis="rule", invalid="plan is not a JSON object")
@@ -214,7 +252,8 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
             value = strip_citations(text)
             out[key] = _mark_simulated(value.rstrip(".") if key == "headline" else value,
                                        ids, facts)
-    # Findings: 3 to 5, each checked; a refused finding is replaced by the next rule finding.
+    # Findings: 3 to 5, each checked; a refused finding is replaced in place by the rule's
+    # finding on the same fact, and the list is topped up from the rule findings.
     findings = raw.get("findings") if isinstance(raw.get("findings"), list) else []
     # Three findings need three indicators; a narrow sheet (an asked report) may hold fewer.
     least = min(MIN_FINDINGS, len({f["key"] for f in sheet if f.get("sentence")}))
@@ -241,15 +280,26 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
             fam = {facts[i]["key"] for i in primary}
             if ok and fam & families:
                 ok, why = False, "second finding about the same indicator"
-            if _record(record, f"finding.{index}", ok, why):
-                families |= fam
-                chosen.append({"fact_ids": ids,
-                               "text": _mark_simulated(strip_citations(item["finding"]), ids,
-                                                       facts),
-                               "implication": strip_citations(implication) if implication
-                               else None, "why": str(item.get("why") or "")[:160],
-                               "score": max((facts[i]["score"] for i in ids if i in facts),
-                                            default=0.0), "basis": "model"})
+            if not _record(record, f"finding.{index}", ok, why):
+                # The rule's finding on the same fact takes the refused one's place, so the
+                # editor's order (and the headline's lead) survive a refused sentence.
+                same = next((r for r in rule["findings"]
+                             if set(r["fact_ids"]) & set(primary or ids)
+                             and not set(r["fact_ids"]) & {i for c in chosen
+                                                           for i in c["fact_ids"]}), None)
+                same_fam = {facts[i]["key"] for i in same["fact_ids"][:1] if i in facts} \
+                    if same else set()
+                if same and not same_fam & families:
+                    families |= same_fam
+                    chosen.append({**same, "basis": "rule"})
+                continue
+            families |= fam
+            chosen.append({"fact_ids": ids,
+                           "text": _mark_simulated(strip_citations(item["finding"]), ids, facts),
+                           "implication": strip_citations(implication) if implication
+                           else None, "why": str(item.get("why") or "")[:160],
+                           "score": max((facts[i]["score"] for i in ids if i in facts),
+                                        default=0.0), "basis": "model"})
         for fallback in rule["findings"]:
             if len(chosen) >= MIN_FINDINGS:
                 break
@@ -336,7 +386,8 @@ def edit_report(model, sheet: list[dict], sections: list[dict], rule: dict, plan
         content = model(editor_messages(payload))
     except Exception as exc:  # noqa: BLE001 - a provider failure leaves the rule plan
         return {**rule, "record": {"basis": "rule", "model": model_id,
-                                   "directive": directive.VERSION, "elements": {},
+                                   "directive": directive.VERSION,
+                                   "temperature": EDITOR_CALL["temperature"], "elements": {},
                                    "invalid": f"provider: {exc.__class__.__name__}"}}
     latency = round(time.monotonic() - started, 1)
     raw = parse(content)
@@ -379,7 +430,9 @@ def apply_section_edits(sections: list[dict], edits: dict[str, dict]) -> None:
         if not edit:
             continue
         if edit.get("paragraph"):
-            sentences = re.split(r"(?<=[.!?。])\s+", edit["paragraph"].strip())
+            # A Chinese full stop ends a sentence with no space after it.
+            sentences = [x for x in re.split(r"(?<=[.!?])\s+|(?<=[。！？])",
+                                             edit["paragraph"].strip()) if x]
             section["commentary"] = {"headline": sentences[0], "bullets": sentences[1:],
                                      "basis": "model"}
         if edit.get("exhibits"):

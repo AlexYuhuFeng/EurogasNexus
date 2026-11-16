@@ -1,6 +1,6 @@
 # Report editorial directive
 
-Version 1 (2026-11-16). Owner decision of 2026-11-16: the AI may decide what a market
+Version 2 (2026-11-16; v2 adds LINKING and runs the editor at temperature 0). Owner decision of 2026-11-16: the AI may decide what a market
 report presents, acting as its editor, under this directive. Findings selection, order,
 emphasis, the choice of exhibits and windows, section order and the narrative are the editor's
 decisions when a model is configured. The rule plan (`application/reports/findings.py`) is the
@@ -33,6 +33,8 @@ the two cannot drift. Change both in one commit and bump the version.
 **COMPARISONS.** Every level carries a comparison that the fact holds: the previous day, the week, a year earlier, a norm or range only where held, saying how many prior years it covers. Never compare across a front-month roll; never compare a partial period with a full one without saying so.
 
 **CAUSE AND EFFECT.** State a cause only when both facts are cited and one lists the other under related. Otherwise write that the two coincided, or state them separately. Never infer intent or market sentiment.
+
+**LINKING.** When a sentence cites facts of two indicators the engine does not relate, do not join them with a word that puts one in time or sequence with the other, because the reader takes it as a cause: as (as a conjunction), amid, after, following, precedes, ahead of, in the wake of, or a verb by which one acts on the other (pushed, drove, sent, weighed on, supported, boosted, prompted, offset); in Chinese 随着, 之际, 之后, 伴随, 推动, 带动, 拉动, 促使, 推高, 压低, 拖累, 支撑, 抵消. Write two sentences, or join two measured facts with 'while' or 'and' only to contrast or list them (TTF rose 0.5 EUR/MWh while NBP fell 0.2 GBp/th). 'As of', 'as well as', 'such as' and 'after' before a date are not links.
 
 **FORECASTS.** A forecast is always called a forecast, with its method and its limitation in the same paragraph, worded in the conditional. Give a range only when the fact holds one. Never call a forecast expected, likely or certain, and never call it measured.
 
@@ -122,14 +124,24 @@ paragraph, each exhibit title, each "what to watch" item) goes through the desk-
   implications, so a new conclusion with a new direction or figure is refused;
 - no advice, no superlative the facts do not hold, a simulated price never written as a market
   price, a cited forecast must be called a forecast and is never called measured;
+- no stated cause (because, due to, driven by ..., 由于, 导致 ...) unless the engine relates the
+  facts; and, when the text cites facts of two indicators the engine does not relate, no
+  linking connective that reads as a cause (rule LINKING: `editor.LINK` and
+  `editor.LINK_VERB`): "as" as a conjunction, amid, after or following (except before a date
+  or the roll), precedes, ahead of, in the wake of, or a verb by which one fact acts on the
+  other (pushed, drove, supported, boosted, offset ...), and the Chinese equivalents. "While"
+  or "and" between two measured facts, to contrast or list them, passes;
 - three to five findings, never two about the same indicator; a section paragraph of 40 to 140
   words (the directive asks for 60 to 120); exhibits, chart types and windows only from the
   section's permitted set; "what to watch" only from scheduled facts.
 
 A refused element falls back to the rule-written element (not the whole report); a plan that
 is not a JSON object leaves the rule plan. The report record stores the plan, the model id, the
-directive version and each element's verdict, and the back matter says "Edited by the AI model
-… under directive v1" or "Rule-edited".
+directive version, the temperature and each element's verdict, and the back matter says
+"Edited by the AI model … under directive v2 at temperature 0" or "Rule-edited".
+
+The editor runs at temperature 0 (`editor.EDITOR_CALL`), the provider's lowest, so the same
+fact sheet gives the same plan as nearly as the provider allows.
 
 ## Known limits
 
@@ -137,4 +149,6 @@ directive version and each element's verdict, and the back matter says "Edited b
   pass if it is not advice or a superlative. The engine's implications narrow what is needed,
   but a reviewer still reads the "Editing" note.
 - "Related" facts (for a stated cause) are not yet produced by the engine, so the editor may only
-  write that two facts coincided.
+  write that two facts coincided, or state them in separate sentences.
+- The LINKING check is lexical too: it refuses "as" between facts of two indicators even where
+  a human editor would read it as harmless; the editor is told to write two sentences instead.

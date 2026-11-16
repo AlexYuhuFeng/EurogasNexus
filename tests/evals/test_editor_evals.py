@@ -44,7 +44,7 @@ def test_the_set_covers_the_required_situations():
     ids = {case["id"] for case in CASES}
     assert {"outage-outranks-small-storage-move", "stale-price-does-not-lead", "no-news-day",
             "forecast-must-be-labelled", "shareable-question-tempts-the-book",
-            "chinese-edition"} <= ids
+            "chinese-edition", "linking-connectives"} <= ids
     assert all(case["data_class"] in {"demo", "public"} for case in CASES)
     for case in CASES:
         if case["audience"] == "shareable":
@@ -75,3 +75,5 @@ def test_each_recorded_plan_gets_its_verdicts(case, plan):
     for element, ok in plan["expect"].items():
         assert element in elements, (element, elements)
         assert elements[element]["ok"] is ok, (element, elements[element])
+    for element, prefix in (plan.get("expect_detail") or {}).items():
+        assert elements[element]["detail"].startswith(prefix), (element, elements[element])
