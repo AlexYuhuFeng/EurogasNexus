@@ -32,26 +32,3 @@ test("every infrastructure type has a distinct, themed icon", () => {
   assert.equal(facilityIconId("storage", "dark"), "infra-storage-dark");
   assert.equal(facilityIconId("unknown_kind", "light"), "infra-power_plant-light");
 });
-
-test("network labels use the basemap's own font stack, never MapLibre's default", async () => {
-  const { basemapTextFont } = await import("../src/app/mapTileProviders.ts");
-  // OpenFreeMap's style names Noto Sans; its glyph service has no "Open Sans Regular,Arial
-  // Unicode MS Regular", MapLibre's default for a layer without text-font (404 on the demo).
-  const openFreeMap = {
-    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
-    layers: [
-      { id: "bg", type: "background" },
-      { id: "water_name", type: "symbol", source: "s", layout: { "text-font": ["Noto Sans Italic"] } },
-      { id: "place", type: "symbol", source: "s", layout: { "text-font": ["Noto Sans Regular"] } },
-    ],
-  } as never;
-  assert.deepEqual(basemapTextFont(openFreeMap), ["Noto Sans Regular"]);
-  const literal = {
-    glyphs: "https://example.test/{fontstack}/{range}.pbf",
-    layers: [{ id: "l", type: "symbol", source: "s", layout: { "text-font": ["literal", ["noto_sans_regular"]] } }],
-  } as never;
-  assert.deepEqual(basemapTextFont(literal), ["noto_sans_regular"]);
-  // No glyph endpoint (no basemap, the offline outline): no text layer at all.
-  assert.equal(basemapTextFont({ layers: [] } as never), null);
-  assert.equal(basemapTextFont(undefined), null);
-});

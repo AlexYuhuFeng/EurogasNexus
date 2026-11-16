@@ -333,4 +333,7 @@ which is why fewer than half a core feels slow.
 
 ## Known limits
 
+- Map labels request a font stack the tile service does not have (404 for
+  `Open Sans Regular,Arial Unicode MS Regular`); tiles render. Handled separately (a bundled
+  basemap replaces the remote one).
 - One demo container only: sign-in throttling and the refresh process are per process.
