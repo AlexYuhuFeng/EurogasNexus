@@ -134,6 +134,11 @@ SPECS: tuple[DatasetSpec, ...] = (
                 received="ingested_at_utc", check_coverage=False),
     DatasetSpec("Outages (REMIT UMM)", "REMIT", "remit_umm_messages", "published_at_utc",
                 ("message_id", "version"), ("unavailable_capacity",), 0, "src-remit-umm",
+                where="source_system <> 'ENTSOG_UMM'", received="ingested_at_utc"),
+    # Transmission UMMs from ENTSOG share the table; each collector has its own freshness.
+    DatasetSpec("Outages (ENTSOG UMM)", "ENTSOG_UMM", "remit_umm_messages",
+                "published_at_utc", ("message_id", "version"), ("unavailable_capacity",), 0,
+                "src-entsog-umm", where="source_system = 'ENTSOG_UMM'",
                 received="ingested_at_utc"),
 )
 

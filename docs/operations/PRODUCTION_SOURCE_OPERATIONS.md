@@ -44,6 +44,7 @@ default of 20 records is a sample size, never a scheduled read.
 | `src-gie` | `--limit 30 --gie-country nwe` | newest 30 gas days of the Europe total and the north-west Europe countries GIE publishes (revisions seen up to 4 days back); history is a separate back-fill |
 | `src-national-gas-demand` | `ingest_national_gas_demand.py --json --days 8` | GB NTS demand D+1 (PUBOB637) and D+6 (PUBOB652) for the 8 gas days ending yesterday, so each day's D+6 amendment is read; every publication is appended (`_SCRIPT_COMMANDS`) |
 | `src-remit-umm` | `ingest_remit_iip.py --commit --json --days 2` (`--max-pages 40`) | GIE IIP storage and LNG UMMs submitted in the last 2 days (about 2 pages of 50); a read that reaches the page bound fails `iip_read_bound_reached`. Needs `GIE_API_KEY`; off by default |
+| `src-entsog-umm` | `ingest_remit_entsog.py --commit --json --days 7` (`--max-pages 10`, 100 a page) | ENTSOG transmission UMMs: the whole dataset (about 100 versions) is read; versions published in 7 days and events still running are kept. A read that does not exhaust within the bound fails `entsog_umm_read_bound_reached`. No key; on by default |
 
 An ENTSOG query that stops at its bound before the provider's data is exhausted fails the
 attempt as `QUALITY_REJECTED entsog_read_bound_reached` (not retried: the same bound would

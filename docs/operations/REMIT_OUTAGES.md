@@ -42,6 +42,67 @@ versions stored (467 messages); 56 live or upcoming outages in the next 90 days 
 storage, 1 LNG). Units as published: GWh/d 30, kWh/h 17, mcm/d 5, one each of kWh/d, GWh,
 GWh/h and TWh.
 
+## ENTSOG Transparency Platform (scheduled, transmission)
+
+ENTSOG publishes the urgent market messages TSOs send it at
+`https://transparency.entsog.eu/api/v1/urgentmarketmessages` (public, no key; found live
+2026-11-16). It pages like ENTSOG's other datasets (`sort=id` echoed, `meta.total` is the rows
+left capped at the limit, 404 past the end), so it is read through `ingestion/entsog_transport.py`.
+The whole dataset is small (93 message versions from 19 TSOs, the oldest published 2021), so
+every run reads all of it and selects locally.
+
+```bash
+python scripts/ops/ingest_remit_entsog.py --days 90                 # dry run: counts only
+python scripts/ops/ingest_remit_entsog.py --days 7 --commit --json  # what the scheduler runs
+```
+
+- `messageType` `Gas` is an unavailability (transmission system, compressor station, other
+  unavailability, with unit and capacities); `Other` is other market information and is not
+  kept. `messageId` is `<threadId>_<versionNumber>`. Times carry their CET/CEST offset.
+- Kept: versions published in the last `--days`, plus every version of an event still running
+  after the window start (an outage announced in 2024 that runs to 2029 is live).
+- Mapped to ACER field names (`ingestion/entsog_umm.py`), read by the importer's normaliser,
+  stored once per version (`db/repositories/remit.py`) under system `ENTSOG_UMM`; asset type
+  `transmission` (the publisher is a TSO, including at storage connection points such as OGE's
+  "Speicher Bierwang Entry"). The balancing zone is ENTSOG's key without its dash padding
+  (`DE-THE`). OGE leaves `direction` empty and names it in the point ("... Entry"); that word is
+  taken as the direction, nothing else.
+- Identity: the publisher's ENTSOG operator key must resolve through the mappings the ENTSOG
+  reference read wrote; an unresolved one is held back (`unresolved_operator`). The asset EIC is
+  the ENTSOG point EIC, which the map places exactly.
+- ENTSOG flags each version `isLatestVersion`. A message whose newest version in the feed is
+  flagged `No` has its current state unpublished, so it is held back
+  (`latest_version_not_published`; live: GRTgaz Deutschland's VIP France-Germany `...P013` and
+  NaTran's `...S001`) rather than served as current.
+- Scheduler: source `src-entsog-umm`, hourly, on by default (no key). Freshness: event-driven
+  and sparse (none from May to September 2026), period late after 90 days.
+- Credit: "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/" with the download date; every
+  stored message carries it in its source reference (`ENTSOG_TP:terms-published:api:<UTC>`) and
+  outage rows return it in `attribution` (with `platform`).
+
+What it does not carry: no Norwegian (Gassco) or production message, and only the TSOs that
+publish to ENTSOG (live: OGE, NaTran, GRTgaz/NaTran Deutschland, terranets bw, Fluxys,
+Thyssengas, Elering among the unavailability messages; GTS, National Gas and Energinet none).
+Production and Norwegian outages still need the file import.
+
+First run (16 Nov 2026, `--days 90 --commit`): 93 versions read in one page; 38 unavailability
+versions in the window, 2 messages held back (latest version not published), 35 versions of 28
+messages stored, 19 of 19 operators resolved; 27 live or upcoming transmission outages within
+90 days, all active, every one with a daily figure (20 per day, 7 hourly x 24 h), 1,043.9 GWh/d
+together. The map places 20 of the 27 in its 14-day horizon by EIC (24 placements by EIC in
+all, from 7). None is in the Norwegian zone, so the balance's outage read is unchanged (0).
+Four GRTgaz/NaTran Deutschland messages each state 81 GWh/d off VIP France-Germany entry from
+1 Oct 2026 to 2029 (`...P012`, `P014`, `P015`, `P016`): separate messages as published, shown
+as four outages; whether they describe one reduction is the operator's to say.
+
+## Event status
+
+ACER's `Inactive` means the event is over and `Dismissed` that the message was withdrawn.
+Until 16 Nov 2026 the normaliser read every `Inactive` as active (it tested "active" first,
+which "inactive" contains), and readers dropped only dismissed events. Now `Inactive` is read
+as such and readers (outage list, map, Today, the balance's Norwegian outages) treat the
+latest version `inactive` or `dismissed` as no live outage (`remit_umm.ENDED_STATUSES`).
+
 ## Daily figures and units
 
 One function derives the daily figure, `domain/observations/remit_umm.daily_figure`, used
@@ -124,9 +185,9 @@ reason; the scheduled IIP collector leaves that one message out and lists it und
 record does not refuse the page. A unit with no daily figure is not refused: it is stored as
 published and reported as `unconverted:<reason>` (above).
 
-Storage and LNG messages from GIE IIP arrive through the scheduled collector above; use
-the import for production and transmission messages (Gassco, EEX Transparency, PRISMA)
-until a collector for those platforms exists.
+Storage and LNG messages from GIE IIP and transmission messages that TSOs publish on ENTSOG
+arrive through the scheduled collectors above; use the import for production and Norwegian
+messages (Gassco, EEX Transparency, PRISMA) until a collector for those platforms exists.
 
 ## Where it shows
 

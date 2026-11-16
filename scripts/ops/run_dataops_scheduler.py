@@ -76,6 +76,9 @@ _SCRIPT_COMMANDS = {
     "src-national-gas-demand": ("ingest_national_gas_demand.py", "--json", "--days", "8"),
     # GIE IIP storage and LNG UMMs: two days of submissions, about two pages of 50.
     "src-remit-umm": ("ingest_remit_iip.py", "--commit", "--json", "--days", "2"),
+    # ENTSOG transmission UMMs: the whole dataset is read (about 100 versions); seven days
+    # of publications plus every event still running.
+    "src-entsog-umm": ("ingest_remit_entsog.py", "--commit", "--json", "--days", "7"),
     "src-boe": ("ingest_interest_rates.py", "--json", "--benchmark", "SONIA", "--days", "10"),
     "src-ecb-estr": ("ingest_interest_rates.py", "--json", "--benchmark", "ESTR", "--days", "10"),
     "src-eia": ("ingest_eia.py", "--json", "--days", "14"),

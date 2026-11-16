@@ -45,6 +45,8 @@ from eurogas_nexus.domain.ontology.quantity import unit as quantity_unit
 
 ASSET_TYPES = ("production", "storage", "lng", "transmission", "consumption", "other")
 EVENT_STATUSES = ("active", "inactive", "dismissed")
+#: Statuses whose latest version ends the event (``current_messages``).
+ENDED_STATUSES = frozenset({"inactive", "dismissed"})
 
 
 class UmmParseError(ValueError):
@@ -316,8 +318,12 @@ def _number(value: object) -> float | None:
 
 
 def _status(value: object) -> str:
+    # "inactive" contains "active": the longer words are tested first (until 2026-11-16
+    # every "Inactive" message was read as active).
     text = str(value or "active").strip().casefold()
-    return next((status for status in EVENT_STATUSES if status in text), "active")
+    return next(
+        (status for status in ("dismissed", "inactive", "active") if status in text), "active"
+    )
 
 
 def _unavailability(value: object) -> str:
@@ -448,7 +454,13 @@ def _message(raw: Mapping[str, object], source_reference: str) -> UmmMessage:
 
 
 def current_messages(messages: Iterable[UmmMessage]) -> list[UmmMessage]:
-    """The latest version of each message, without dismissed events."""
+    """The latest version of each message that is still an event.
+
+    ACER's event status: ``Dismissed`` withdraws a message published in error and
+    ``Inactive`` says the event is over (live: NaTran's PS000SA message, version 5
+    ``Inactive`` with 0 unavailable, published a year before its stated stop). Neither is a
+    live or upcoming outage, whatever its stop time says.
+    """
 
     latest: dict[str, UmmMessage] = {}
     for message in messages:
@@ -458,7 +470,7 @@ def current_messages(messages: Iterable[UmmMessage]) -> list[UmmMessage]:
             held.published_at_utc,
         ):
             latest[message.message_id] = message
-    return [m for m in latest.values() if m.event_status != "dismissed"]
+    return [m for m in latest.values() if m.event_status not in ENDED_STATUSES]
 
 
 def outage_view(
@@ -470,6 +482,8 @@ def outage_view(
     """
 
     from datetime import timedelta
+
+    from eurogas_nexus.domain.observations.remit_platforms import platform_attribution
 
     horizon = now + timedelta(days=horizon_days)
     rows = []
@@ -497,6 +511,7 @@ def outage_view(
                 m.unavailable_gwh_d, figure.mcm_d or m.unavailable_mcm_d, "stored",
                 gwh_h=figure.gwh_h, total_gwh=figure.total_gwh,
             )
+        platform, attribution = platform_attribution(m.source_reference)
         rows.append(
             {
                 "event_id": m.message_id,
@@ -525,6 +540,9 @@ def outage_view(
                 "market_participant": m.market_participant,
                 "source_system": "REMIT",
                 "source_reference": m.source_reference,
+                # The inside-information platform and the credit its terms ask for.
+                "platform": platform,
+                "attribution": attribution,
                 "research_only": True,
             }
         )

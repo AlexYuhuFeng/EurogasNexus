@@ -49,6 +49,7 @@ BUILTIN_MODULES: tuple[str, ...] = (
     "ecb_estr",
     "nyfed",
     "remit_umm",
+    "entsog_umm",
     "ecmwf_open_data",
     "deepseek",
     "wmr",

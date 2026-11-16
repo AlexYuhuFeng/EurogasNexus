@@ -323,6 +323,9 @@ def build_map_situation(
                         "source_system",
                     )
                 },
+                # The platform and the credit its terms ask for (ENTSOG: with the date).
+                "platform": row.get("platform", ""),
+                "attribution": row.get("attribution", ""),
                 "unavailable_share": round(unavailable / technical, 3) if technical else None,
                 "location": location,
             }

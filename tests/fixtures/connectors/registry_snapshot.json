@@ -1574,6 +1574,44 @@
    "workflow_ready": false
   },
   {
+   "category": "infrastructure",
+   "category_label": "Infrastructure",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "transmission-umm-outages"
+   ],
+   "description": "ENTSOG Transparency Platform urgent market messages: planned and unplanned transmission system and compressor station unavailability published by TSOs (scripts/ops/ingest_remit_entsog.py), stored with the REMIT outages. Free, no key; ENTSOG TP terms (download, store and use with source and date cited).",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ENTSOG_UMM",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 60,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-entsog-umm",
+   "source_system": "ENTSOG_UMM",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
    "category": "weather",
    "category_label": "Weather",
    "certification_allows_live": false,
@@ -3859,6 +3897,64 @@
    },
    "source_class": "public",
    "source_id": "src-remit-umm"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "entsog-umm-api-v1",
+   "calendar": "gas_market",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "transmission-umm-outages",
+   "datasets": [
+    "transmission-umm-outages"
+   ],
+   "description": "ENTSOG Transparency Platform urgent market messages: planned and unplanned transmission system and compressor station unavailability published by TSOs (scripts/ops/ingest_remit_entsog.py), stored with the REMIT outages. Free, no key; ENTSOG TP terms (download, store and use with source and date cited).",
+   "enabled_default": true,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 180,
+    "normal_max_age_minutes": 60,
+    "stale_after_minutes": 720
+   },
+   "integration": "api",
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ENTSOG_UMM",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 6,
+    "min_spacing_seconds": 10.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": 3600,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "INTERVAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-entsog-umm"
   },
   {
    "access_mode": "none",

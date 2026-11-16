@@ -40,7 +40,11 @@ from typing import Any
 import httpx
 
 ENTSOG_BASE_URL = "https://transparency.entsog.eu/api/v1"
-ENTSOG_DATASETS = frozenset({"operationaldatas", "connectionpoints", "operatorpointdirections"})
+#: ``urgentmarketmessages`` (transmission UMMs, ``ingestion/entsog_umm.py``) pages like
+#: ``operationaldatas`` (checked live 2026-11-16: total is rows left, 404 past the end).
+ENTSOG_DATASETS = frozenset(
+    {"operationaldatas", "connectionpoints", "operatorpointdirections", "urgentmarketmessages"}
+)
 # Application safety ceilings, not claimed provider maxima.
 ENTSOG_MAX_PAGE_SIZE = 1000
 ENTSOG_HARD_MAX_PAGES = 50

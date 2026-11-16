@@ -535,7 +535,7 @@ def get_nwe_balance(
         Outage,
         forecast_balance,
     )
-    from eurogas_nexus.domain.observations.remit_umm import daily_figure
+    from eurogas_nexus.domain.observations.remit_umm import ENDED_STATUSES, daily_figure
 
     session = _session_or_none()
     if session is None:
@@ -712,7 +712,7 @@ def get_nwe_balance(
             latest_version[record.message_id] = record
     outages = []
     for record in latest_version.values():
-        if record.event_status == "dismissed":
+        if record.event_status in ENDED_STATUSES:
             continue
         # The one REMIT conversion (domain/observations/remit_umm.daily_figure), from the
         # stored unit and capacity, so rows stored before a unit was convertible count.
