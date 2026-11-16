@@ -29,3 +29,11 @@ test("the chart never imports the library statically", async () => {
   assert.doesNotMatch(chart, /^import uPlot from "uplot"/m);
   assert.match(chart, /import type uPlot from "uplot"/);
 });
+
+test("the loaded library is stored as a value, never handed to React as a state updater", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const loader = await readFile(new URL("../src/components/ui/charts/uplotLoader.ts", import.meta.url), "utf8");
+  // uPlot is a constructor function; `setLibrary(loaded)` makes React call it and crash the page.
+  assert.doesNotMatch(loader, /setLibrary\(loaded\)/);
+  assert.match(loader, /setLibrary\(\(\) => loaded\)/);
+});

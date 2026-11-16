@@ -57,7 +57,9 @@ export function useUplot(): UPlotConstructor | null | undefined {
   useEffect(() => {
     let live = true;
     void loadUplot().then((loaded) => {
-      if (live) setLibrary(loaded);
+      // The library is itself a function: handed over bare, React would call it as a state
+      // updater (with the previous state as its only argument) and the page would go blank.
+      if (live) setLibrary(() => loaded);
     });
     return () => {
       live = false;
