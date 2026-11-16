@@ -2648,7 +2648,7 @@
   "auth.sso_button": "Continue with company SSO",
   "auth.sso_unavailable": "Company SSO is unavailable.",
   "auth.no_methods": "Sign-in is unavailable. Contact your administrator.",
-  "auth.dev_title": "Development sign-in",
+  "auth.dev_title": "Tester sign-in",
   "auth.dev_username": "Username",
   "auth.dev_password": "Password",
   "auth.dev_submit": "Sign in",

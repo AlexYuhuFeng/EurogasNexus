@@ -39,6 +39,7 @@ import {
 import { lineMatters, NO_ROUTES_MATTER, type RoutesThatMatter } from "@/app/routeEmphasis";
 import { type BookFlowLine, compactMwhPerDay, zoneMemberIds } from "@/app/mapLineGeometry";
 import {
+  basemapTextFont,
   buildMapStyle,
   configuredMapTileProvider,
   mapTileProviderById,
@@ -827,17 +828,23 @@ export function GasNetworkMap({
           "circle-opacity": 0.88,
         },
       });
-      map.addLayer({
-        id: "node-cluster-count",
-        type: "symbol",
-        source: "nodes",
-        filter: ["has", "point_count"],
-        layout: {
-          "text-field": ["get", "point_count_abbreviated"],
-          "text-size": 11,
-        },
-        paint: { "text-color": mapColors.stroke },
-      });
+      // Cluster counts are text: drawn with the basemap's own font stack, and only where the
+      // style has a glyph endpoint (see basemapTextFont).
+      const textFont = basemapTextFont(map.getStyle());
+      if (textFont) {
+        map.addLayer({
+          id: "node-cluster-count",
+          type: "symbol",
+          source: "nodes",
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": ["get", "point_count_abbreviated"],
+            "text-font": textFont,
+            "text-size": 11,
+          },
+          paint: { "text-color": mapColors.stroke },
+        });
+      }
       map.addLayer({
         id: "nodes-circle",
         type: "circle",

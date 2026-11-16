@@ -559,3 +559,28 @@ export function quietBasemapMinZoom(layerId: string, minzoom: number | undefined
   if (/town|village|suburb|other|airport/.test(id)) return Math.max(minzoom ?? 0, 7.5);
   return null;
 }
+
+/**
+ * The font stack the loaded basemap style draws its own labels with, for the network's labels.
+ *
+ * A symbol layer without `text-font` asks for MapLibre's default stack ("Open Sans Regular,
+ * Arial Unicode MS Regular"), which the open glyph services do not serve (OpenFreeMap answers
+ * 404; it serves Noto Sans, VersaTiles `noto_sans_regular`). Each service's style names the
+ * stacks its own glyph endpoint has, so the network uses that one: no other font service is
+ * contacted and no font is bundled. `null` when the style has no glyph endpoint (no basemap,
+ * the offline outline): text cannot be drawn there and the caller adds no text layer.
+ */
+export function basemapTextFont(style: Pick<StyleSpecification, "glyphs" | "layers"> | undefined): string[] | null {
+  if (!style?.glyphs) return null;
+  const stacks: string[][] = [];
+  for (const layer of style.layers ?? []) {
+    if (layer.type !== "symbol") continue;
+    let font: unknown = (layer.layout as Record<string, unknown> | undefined)?.["text-font"];
+    if (Array.isArray(font) && font[0] === "literal") font = font[1];
+    if (Array.isArray(font) && font.length > 0 && font.every((name) => typeof name === "string")) {
+      stacks.push(font as string[]);
+    }
+  }
+  // The style's upright regular face when it has one (counts are not place names in italics).
+  return stacks.find((stack) => /regular/i.test(stack[0])) ?? stacks[0] ?? null;
+}

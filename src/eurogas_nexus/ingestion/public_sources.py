@@ -152,6 +152,45 @@ def entsog_market_hubs_from_connectionpoints(payload: dict[str, Any]) -> list[di
     return hubs
 
 
+def reconcile_hub_codes(
+    hubs: list[dict[str, Any]], held: dict[str, str]
+) -> list[dict[str, Any]]:
+    """Give each incoming hub row a code consistent with the codes already stored.
+
+    ``held`` maps each stored hub code to the id holding it. A hub code is unique, but the
+    code :func:`entsog_market_hubs_from_connectionpoints` derives depends on the order and
+    subset of trading points read (the first "PEG ..." point takes ``PEG``, a later one
+    ``PEG-0039``). A store seeded from the shipped reference bundle (a subset) can therefore
+    hold ``PEG`` under another id than a complete live read would give it, and the upsert
+    failed on ``reference_market_hubs_hub_code_key``. Reconciled by identity: an id keeps
+    the code it already holds, and a code another id holds is never taken; such a row gets
+    the de-duplicated form (code plus the point key's last four characters) or, failing
+    that, its point key. A row for which every form is held elsewhere is left out (the
+    point stays as stored). Nothing else in a row changes.
+    """
+
+    code_of = {hub_id: code for code, hub_id in held.items()}
+    taken = dict(held)
+    reconciled: list[dict[str, Any]] = []
+    for row in hubs:
+        hub_id = row["id"]
+        code = code_of.get(hub_id)
+        if code is None:
+            point_key = str(row.get("source_record_id") or hub_id)
+            base = _market_hub_code(str(row.get("name") or ""), point_key)
+            candidates = (
+                str(row["hub_code"]),
+                f"{base[:11]}-{point_key[-4:]}"[:16],
+                point_key.upper()[:16],
+            )
+            code = next((c for c in candidates if taken.get(c, hub_id) == hub_id), None)
+            if code is None:
+                continue
+        taken[code] = hub_id
+        reconciled.append({**row, "hub_code": code})
+    return reconciled
+
+
 def entsog_tso_access_points_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Normalize ENTSOG operator point directions into TSO access metadata.
 

@@ -2648,7 +2648,7 @@
   "auth.sso_button": "使用企业 SSO 继续",
   "auth.sso_unavailable": "企业 SSO 不可用。",
   "auth.no_methods": "当前无法登录。请联系管理员。",
-  "auth.dev_title": "开发登录",
+  "auth.dev_title": "测试人员登录",
   "auth.dev_username": "用户名",
   "auth.dev_password": "密码",
   "auth.dev_submit": "登录",

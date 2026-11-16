@@ -240,3 +240,70 @@ def test_fresh_reference_is_reported_skipped_without_a_read() -> None:
     assert detail["status"] == "skipped_fresh" and detail["records"] == 0
     assert detail["complete"] is None and not report["failures"]
     client.get.assert_not_called()
+
+
+def _hub(point_key: str, name: str, code: str) -> dict:
+    return {
+        "id": f"hub-{point_key.lower()}", "name": name, "hub_code": code, "country": "FR",
+        "description": f"ENTSOG trading point {name}", "source_system": "ENTSOG",
+        "source_dataset": "connectionpoints", "source_reference": "entsog-connectionpoints",
+        "source_record_id": point_key, "data_quality": "display_approximation",
+        "metadata_json": {"point_key": point_key},
+    }
+
+
+def test_hub_codes_reconcile_by_identity_with_what_the_store_holds() -> None:
+    """A complete live read names "PEG SUD" first and so derives ``PEG`` for it; the shipped
+    bundle (a subset) gave ``PEG`` to the "PEG" point. Each id keeps the code it holds and a
+    held code is never taken; nothing is invented and no other field changes."""
+
+    from eurogas_nexus.ingestion.public_sources import reconcile_hub_codes
+
+    live = [_hub("VTP-00009", "PEG SUD", "PEG"), _hub("VTP-00039", "PEG", "PEG-0039")]
+    held = {"PEG": "hub-vtp-00039", "TTF": "hub-vtp-00002"}
+    rows = reconcile_hub_codes(live, held)
+    assert [(row["id"], row["hub_code"]) for row in rows] == [
+        ("hub-vtp-00009", "PEG-0009"),
+        ("hub-vtp-00039", "PEG"),
+    ]
+    assert {k: v for k, v in rows[0].items() if k != "hub_code"} == {
+        k: v for k, v in live[0].items() if k != "hub_code"
+    }
+    # A store that took the live read first (the real store) keeps its codes unchanged.
+    assert reconcile_hub_codes(live, {"PEG": "hub-vtp-00009", "PEG-0039": "hub-vtp-00039"}) == live
+    # An empty store takes the derived codes as they are.
+    assert reconcile_hub_codes(live, {}) == live
+
+
+def test_live_reference_read_over_the_bundle_seeded_network_succeeds() -> None:
+    """The demo store loads the bundle first; the ENTSOG reference read then upserted a hub
+    code another id held and failed on ``reference_market_hubs_hub_code_key``."""
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    import eurogas_nexus.db.models  # noqa: F401
+    from eurogas_nexus.db.base import Base
+    from eurogas_nexus.db.models import ReferenceMarketHub
+    from eurogas_nexus.reference_data.network_bundle import seed_reference_bundle
+
+    script = _load_script()
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        seed_reference_bundle(session)
+        session.commit()
+        bundle_codes = dict(session.query(ReferenceMarketHub.id, ReferenceMarketHub.hub_code))
+        assert bundle_codes["hub-vtp-00039"] == "PEG"
+        summary = script._replace_reference_network(
+            session,
+            nodes=[],
+            facilities=[],
+            hubs=[_hub("VTP-00009", "PEG SUD", "PEG"), _hub("VTP-00039", "PEG", "PEG-0039")],
+            tso_access_points=[],
+        )
+        session.commit()
+        codes = dict(session.query(ReferenceMarketHub.id, ReferenceMarketHub.hub_code))
+    assert summary["replaced"] == 2
+    assert codes["hub-vtp-00039"] == "PEG" and codes["hub-vtp-00009"] == "PEG-0009"
+    assert len(set(codes.values())) == len(codes)

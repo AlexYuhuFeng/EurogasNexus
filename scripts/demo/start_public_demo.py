@@ -32,17 +32,25 @@ scripts/demo/start_public_demo.py run -- python scripts/ops/...``) with the same
 mapping and defaults as the server.
 
 ``catch-up`` runs one such round in the foreground and exits (by hand: ``docker compose
-exec demo python scripts/demo/start_public_demo.py catch-up``):
-ECB and ENTSOG (no key needed), GIE storage/LNG when ``GIE_API_KEY`` is set, EIA when
-``EIA_API_KEY`` is set and ENTSO-E power when ``ENTSOE_SECURITY_TOKEN`` is set, each over the
-gap since the last successful round through its own existing window option.
+exec demo python scripts/demo/start_public_demo.py catch-up``). A round first performs the
+documented certification step for ENTSOG and GIE when their record is missing, failed or
+about to expire (``scripts/ops/certify_public_source.py`` as the demo actor ``demo-start``,
+with the demo reason and an audit event ``demo.certify``), then runs the ingestion commands
+the product's scheduler runs on a real store (``catch_up_steps``): ECB, ENTSOG reference,
+flows and capacity, GIE storage and LNG, National Gas GB supply and demand, Elexon, ENTSO-E,
+EIA, the SONIA/€STR/SOFR fixings and the GIE and ENTSOG REMIT outages, keyed sources only with
+their key; then it removes the simulated demo series that real rows now cover
+(``seed_demo_desk.py --retire-simulated``). Each step logs one line, a failed step does not
+stop the others and reads its own gap again at the next round.
 
 No secret value is ever printed.
 """
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -50,10 +58,14 @@ import time
 import urllib.request
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[2]
 SEED_ACTION = "demo.seed"
 CATCH_UP_ACTION = "demo.catch_up"
+CERTIFY_ACTION = "demo.certify"
+#: The actor recorded on certifications the demo start-up performs (never a person).
+DEMO_CERTIFY_ACTOR = "demo-start"
 MIN_PASSWORD_LENGTH = 12
 PUBLIC_SOURCE_KEYS = ("GIE_API_KEY", "GIE_API_KEY_FILE", "EIA_API_KEY", "ENTSOE_SECURITY_TOKEN")
 
@@ -427,53 +439,335 @@ def serve() -> int:
     return 0  # pragma: no cover - execv does not return
 
 
-def catch_up_window_days(session, now: datetime, max_days: int) -> int:
-    """Days to read: since the last successful round, at least 1, at most ``max_days``."""
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def _succeeded_keys(detail: str) -> set[str]:
+    """Step keys a round's audit detail lists as succeeded (``ok=ecb,entsog``)."""
+
+    match = re.search(r"(?:^|; )ok=([^;]*)", detail or "")
+    return {key for key in (match.group(1).split(",") if match else ()) if key}
+
+
+def catch_up_window_days(session, now: datetime, max_days: int, key: str | None = None) -> int:
+    """Days to read: since the last successful round, at least 1, at most ``max_days``.
+
+    With ``key``, a round counts as successful for that step when the step succeeded in it,
+    so a step that failed for an upstream reason (rate limit, reset, outage) reads its whole
+    gap again at the next refresh while the steps that worked read only theirs.
+    """
 
     from eurogas_nexus.db.models.observation import AuditEventRecord
 
-    row = (
+    query = (
         session.query(AuditEventRecord)
         .filter(AuditEventRecord.action == CATCH_UP_ACTION)
-        .filter(AuditEventRecord.outcome == "success")
         .order_by(AuditEventRecord.event_ts_utc.desc())
-        .first()
     )
-    if row is None:
+    last = None
+    for row in query.limit(500):
+        if row.outcome == "success" or (key is not None and key in _succeeded_keys(row.detail)):
+            last = _aware(row.event_ts_utc)
+            break
+    if last is None:
         return max_days
-    last = row.event_ts_utc if row.event_ts_utc.tzinfo else row.event_ts_utc.replace(tzinfo=UTC)
     gap = (now - last) / timedelta(days=1)
     return max(1, min(max_days, int(gap) + 1))
 
 
-def catch_up_steps(days: int, now: datetime, environ=os.environ) -> list[tuple[str, list[str]]]:
-    """The ingestion commands of one round, each over ``days`` through its own window option."""
+class CatchUpStep(NamedTuple):
+    """One ingestion command of a round: ``key`` tracks its own last success."""
+
+    key: str
+    name: str
+    command: list[str]
+
+
+#: Per-step reading window in days: (at least, at most). The lower bound is the window the
+#: product's own scheduler reads for that source (``scripts/ops/run_dataops_scheduler.py``,
+#: docs/operations/PRODUCTION_SOURCE_OPERATIONS.md), so a 6-hourly demo round re-reads the
+#: same revisions the scheduler would; the upper bound is the script's own limit or what a
+#: round can read in a few minutes.
+STEP_WINDOWS: dict[str, tuple[int, int]] = {
+    "gie": (30, 365),  # newest N gas days per product and country (--limit)
+    "national-gas-supply": (5, 30),  # script limit 1..30
+    "national-gas-demand": (8, 31),  # provider window limit 31
+    "elexon": (2, 7),  # three requests a settlement day
+    # Four zones, three documents, one request each: a month-long document timed out (30 s
+    # read timeout) through a slow link, a week took about 4 minutes in all.
+    "entsoe": (7, 7),
+    "eia": (14, 365),
+    "rates": (10, 365),
+    "remit-iip": (2, 30),  # page bound: about one page of 50 per day
+    "entsog-umm": (7, 365),  # the whole dataset is read; the window selects publications
+}
+#: ENTSOG reads in windows of at most a week, the scheduler's measured complete read
+#: (flows about 6,800 records, capacity about 12,200, within the transport's 50 x 1,000).
+#: The newest week carries flows, capacity and the reference refresh (at most daily);
+#: older weeks of a catch-up carry flows only.
+ENTSOG_WEEK = 7
+ENTSOG_BOUNDS = (
+    "--limit", "50000", "--entsog-page-size", "1000", "--entsog-max-pages", "50",
+)
+
+
+def _window(key: str, days: int) -> int:
+    low, high = STEP_WINDOWS[key]
+    return max(low, min(high, days))
+
+
+def _has(environ, *names: str) -> bool:
+    return any((environ.get(name) or "").strip() for name in names)
+
+
+def catch_up_steps(
+    days: int, now: datetime, environ=os.environ, windows: dict[str, int] | None = None
+) -> list[CatchUpStep]:
+    """The ingestion commands of one round, each through the source's own window option.
+
+    ``days`` is the round's gap; ``windows`` may give a step key its own gap (a step that
+    failed last round). Keyed sources run only with their key. The commands and read bounds
+    are the ones the product's scheduler runs on a real store.
+    """
 
     python = sys.executable
+    ingest = [python, "scripts/ops/ingest_public_sources.py", "--json"]
+
+    def gap(key: str) -> int:
+        return (windows or {}).get(key, days)
+
+    def script(name: str, *args: str) -> list[str]:
+        return [python, f"scripts/ops/{name}", *args]
+
     anchor = now.replace(microsecond=0).isoformat()
-    entsog = [
-        python, "scripts/ops/ingest_public_sources.py", "--limit", "10000",
-        "--source", "entsog", "--source", "entsog-capacity",
-        "--entsog-lookback-gas-days", str(days), "--entsog-window-anchor", anchor,
-    ]
     steps = [
-        ("ECB reference rates",
-         [python, "scripts/ops/ingest_public_sources.py", "--source", "ecb"]),
-        (f"ENTSOG flows and capacity ({days} gas days)", entsog),
+        CatchUpStep("ecb", "ECB reference rates", [*ingest, "--source", "ecb"]),
+        CatchUpStep(
+            "entsog",
+            f"ENTSOG reference, flows and capacity ({ENTSOG_WEEK} gas days)",
+            [*ingest, *ENTSOG_BOUNDS, "--source", "entsog-reference", "--source", "entsog",
+             "--source", "entsog-capacity", "--entsog-reference-max-age-hours", "24",
+             "--entsog-lookback-gas-days", str(ENTSOG_WEEK), "--entsog-window-anchor", anchor],
+        ),
     ]
-    if any((environ.get(name) or "").strip() for name in ("GIE_API_KEY", "GIE_API_KEY_FILE")):
-        steps.append((
-            "GIE storage and LNG",
-            [python, "scripts/ops/ingest_public_sources.py", "--limit", "10000",
-             "--source", "gie-agsi", "--source", "gie-alsi", "--gie-country", "nwe"],
+    if _has(environ, "GIE_API_KEY", "GIE_API_KEY_FILE"):
+        limit = _window("gie", gap("gie"))
+        steps.append(CatchUpStep(
+            "gie", f"GIE AGSI storage and ALSI LNG ({limit} gas days)",
+            [*ingest, "--source", "gie-agsi", "--source", "gie-alsi", "--limit", str(limit),
+             "--gie-country", "nwe"],
         ))
-    if (environ.get("EIA_API_KEY") or "").strip():
-        steps.append((f"EIA Henry Hub ({days} days)",
-                      [python, "scripts/ops/ingest_eia.py", "--days", str(days)]))
-    if (environ.get("ENTSOE_SECURITY_TOKEN") or "").strip():
-        steps.append((f"ENTSO-E power ({days} days)",
-                      [python, "scripts/ops/ingest_power.py", "--days", str(days), "--commit"]))
+    for key, name, command in (
+        ("national-gas-supply", "National Gas GB storage and LNG",
+         ("ingest_national_gas_supply.py", "--commit", "--json")),
+        ("national-gas-demand", "National Gas GB demand",
+         ("ingest_national_gas_demand.py", "--json")),
+        ("elexon", "Elexon GB power", ("ingest_power_gb.py", "--commit", "--json")),
+    ):
+        window = _window(key, gap(key))
+        steps.append(CatchUpStep(key, f"{name} ({window} days)",
+                                 script(*command, "--days", str(window))))
+    if _has(environ, "ENTSOE_SECURITY_TOKEN"):
+        window = _window("entsoe", gap("entsoe"))
+        steps.append(CatchUpStep("entsoe", f"ENTSO-E power ({window} days)",
+                                 script("ingest_power.py", "--commit", "--json",
+                                        "--days", str(window))))
+    if _has(environ, "EIA_API_KEY"):
+        window = _window("eia", gap("eia"))
+        steps.append(CatchUpStep("eia", f"EIA Henry Hub ({window} days)",
+                                 script("ingest_eia.py", "--json", "--days", str(window))))
+    for benchmark in ("SONIA", "ESTR", "SOFR"):
+        key = f"rates-{benchmark.lower()}"
+        window = _window("rates", gap(key))
+        steps.append(CatchUpStep(
+            key, f"{benchmark} benchmark rate ({window} days)",
+            script("ingest_interest_rates.py", "--json", "--benchmark", benchmark,
+                   "--days", str(window)),
+        ))
+    if _has(environ, "GIE_API_KEY", "GIE_API_KEY_FILE"):
+        window = _window("remit-iip", gap("remit-iip"))
+        steps.append(CatchUpStep("remit-iip", f"GIE REMIT storage and LNG outages ({window} days)",
+                                 script("ingest_remit_iip.py", "--commit", "--json",
+                                        "--days", str(window))))
+    window = _window("entsog-umm", gap("entsog-umm"))
+    steps.append(CatchUpStep("entsog-umm", f"ENTSOG REMIT transmission outages ({window} days)",
+                             script("ingest_remit_entsog.py", "--commit", "--json",
+                                    "--days", str(window))))
+    # The simulated fundamentals a real source now covers go, so no series mixes the two.
+    steps.append(CatchUpStep(
+        "replace-simulated", "simulated series now covered by real data (rows removed)",
+        [python, "scripts/demo/seed_demo_desk.py", "--retire-simulated"],
+    ))
+    # Older ENTSOG weeks last: the longest reads, and the pages above do not wait for them.
+    history = gap("entsog-history")
+    if history > ENTSOG_WEEK:
+        current = now.astimezone(UTC).date()
+        end = current - timedelta(days=ENTSOG_WEEK)
+        first = current - timedelta(days=history)
+        while end > first:
+            start = max(first, end - timedelta(days=ENTSOG_WEEK))
+            steps.append(CatchUpStep(
+                "entsog-history", f"ENTSOG flows {start.isoformat()} to {end.isoformat()}",
+                [*ingest, *ENTSOG_BOUNDS, "--source", "entsog",
+                 "--entsog-from", start.isoformat(), "--entsog-to", end.isoformat()],
+            ))
+            end = start
     return steps
+
+
+def _report_summary(stdout: str) -> tuple[bool | None, str]:
+    """``(ok, one-line counts)`` from a step's JSON report (the scheduler's report shape)."""
+
+    # The whole output (an indented report), else the last line that is a JSON object (a
+    # one-line report after progress lines).
+    candidates = [(stdout or "").strip(), *reversed((stdout or "").strip().splitlines())]
+    report = None
+    for text in candidates:
+        try:
+            value = json.loads(text)
+        except ValueError:
+            continue
+        if isinstance(value, dict):
+            report = value
+            break
+    if report is None:
+        return None, ""
+    sources = report.get("sources") if isinstance(report.get("sources"), dict) else {}
+    totals = {"records": 0, "inserted": 0, "updated": 0, "revised": 0}
+    notes = []
+    for name, detail in sources.items():
+        if not isinstance(detail, dict):
+            continue
+        for field in totals:
+            value = detail.get(field)
+            if isinstance(value, int) and not isinstance(value, bool):
+                totals[field] += value
+        if detail.get("status") == "skipped_fresh":
+            notes.append(f"{name} fresh, not re-read")
+    codes = sorted({
+        str(failure.get("code"))
+        for failure in report.get("failures") or []
+        if isinstance(failure, dict) and failure.get("code")
+    })
+    text = ", ".join(f"{field} {value}" for field, value in totals.items() if value or
+                     field == "records")
+    if notes:
+        text += "; " + "; ".join(notes)
+    if codes:
+        text += "; failures: " + ",".join(codes)
+    return report.get("ok") is not False and not codes, text
+
+
+def run_catch_up_step(step: CatchUpStep) -> bool:
+    """Run one step in its own process and log one line: what it stored, or why it failed."""
+
+    started = time.monotonic()
+    result = subprocess.run(step.command, cwd=ROOT, check=False, capture_output=True, text=True)
+    elapsed = time.monotonic() - started
+    ok, summary = _report_summary(result.stdout)
+    succeeded = result.returncode == 0 and ok is not False
+    if succeeded:
+        log(f"catch-up {step.name}: ok in {elapsed:.0f}s ({summary or 'no report'})")
+    else:
+        # The counts, and the first reason the step itself printed (never a secret: the
+        # ingest scripts report references, not URLs with keys).
+        reasons = [
+            line.strip() for line in (result.stderr or "").splitlines()
+            if "Error" in line or "error" in line
+        ]
+        tail = (reasons or (result.stderr or "").strip().splitlines()[-1:] or [""])[0][:200]
+        why = "; ".join(part for part in (summary, tail) if part) or "no output"
+        log(f"catch-up {step.name}: failed (exit {result.returncode}) in {elapsed:.0f}s ({why})")
+    return succeeded
+
+
+#: Certification-gated public sources: (system, certify --source, credential variables).
+CERTIFIED_SOURCES = (("ENTSOG", "entsog", ()), ("GIE", "gie", ("GIE_API_KEY", "GIE_API_KEY_FILE")))
+#: Renew a demo certification this long before it expires (the record is valid 90 days).
+CERTIFICATION_RENEW_DAYS = 7
+CERTIFICATION_REASON = (
+    "demo profile: bounded live sample of a public source, certified by the demo start-up "
+    "so the demo reads it (EUROGAS_NEXUS_API_PROFILE=demo)"
+)
+
+
+def certification_due(session, system: str, now: datetime) -> str | None:
+    """Why ``system`` needs a (re)certification now, or ``None`` when its record is current."""
+
+    from eurogas_nexus.db.repositories.certification import latest_certification
+    from eurogas_nexus.domain.ingestion.certification import certification_gate
+
+    record = latest_certification(session, system)
+    if record is None:
+        return "no certification record"
+    gate = certification_gate(system, stage=record.get("stage", ""), checks=record.get("checks"))
+    if not gate.allows_live:
+        return f"gate {gate.reason}"
+    expires = record.get("expires_at_utc")
+    if expires and _aware(datetime.fromisoformat(expires)) - now < timedelta(
+        days=CERTIFICATION_RENEW_DAYS
+    ):
+        return f"expires {expires[:10]}"
+    return None
+
+
+def certify_public_sources(factory, now: datetime, environ=os.environ) -> None:
+    """The documented certification step, run as a demo-profile action.
+
+    ENTSOG and GIE ingest only with a certification record (the fail-closed source gate,
+    ``scripts/ops/ingest_public_sources.py``). On a real store an operator earns it with
+    ``scripts/ops/certify_public_source.py`` (docs/data/LIVE_BRINGUP_2026-11-12.md); the
+    demo runs the same command, which reads a bounded live sample, dry-runs the normaliser,
+    and records the evidence or nothing. The record names the demo actor and reason, and an
+    audit event ``demo.certify`` says the demo start-up did it. The gate is not changed.
+    """
+
+    from eurogas_nexus.db.models.observation import AuditEventRecord
+
+    for system, source, keys in CERTIFIED_SOURCES:
+        if keys and not _has(environ, *keys):
+            continue
+        with factory() as session:
+            reason = certification_due(session, system, now)
+        if reason is None:
+            log(f"catch-up {system} certification: current, not repeated")
+            continue
+        started = time.monotonic()
+        result = subprocess.run(
+            [sys.executable, "scripts/ops/certify_public_source.py", "--source", source,
+             "--operator", DEMO_CERTIFY_ACTOR, "--note", CERTIFICATION_REASON],
+            cwd=ROOT, check=False, capture_output=True, text=True,
+        )
+        try:
+            stage = json.loads(result.stdout).get("stage", "unknown")
+        except ValueError:
+            stage = "not recorded"
+        outcome = "success" if result.returncode == 0 else "failed"
+        log(
+            f"catch-up {system} certification ({reason}): {stage} in "
+            f"{time.monotonic() - started:.0f}s"
+            + ("" if result.returncode == 0 else
+               f" ({((result.stderr or '').strip().splitlines() or [''])[-1][:200]})")
+        )
+        with factory() as session:
+            session.add(
+                AuditEventRecord(
+                    event_id=f"demo-certify-{secrets.token_hex(8)}",
+                    event_type="governance.demo",
+                    severity="info" if outcome == "success" else "warning",
+                    principal=DEMO_CERTIFY_ACTOR,
+                    action=CERTIFY_ACTION,
+                    resource=f"provider_certification:{system}",
+                    outcome=outcome,
+                    detail=f"source={system}; stage={stage}; due={reason}; "
+                           f"reason={CERTIFICATION_REASON}",
+                    event_ts_utc=datetime.now(UTC),
+                    source_system="demo-start",
+                    human_review_required=False,
+                )
+            )
+            session.commit()
 
 
 def catch_up() -> int:
@@ -483,19 +777,25 @@ def catch_up() -> int:
 
     configure_environment(os.environ)
     wait_for_database(float(os.environ.get("DEMO_DB_WAIT_SECONDS") or 90))
+    started = time.monotonic()
     now = datetime.now(UTC)
     max_days = _int_setting("EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS", 45, low=1, high=365)
     factory = get_session_factory()
     with factory() as session:
-        days = catch_up_window_days(session, now, max_days)
-    log(f"catch-up: reading the last {days} day(s) of public data")
-    failed = []
-    for name, step in catch_up_steps(days, now):
-        try:
-            run_step(name, step)
-        except StartupError as exc:
-            log(str(exc))
-            failed.append(name)
+        keys = {step.key for step in catch_up_steps(max_days, now)}
+        windows = {key: catch_up_window_days(session, now, max_days, key) for key in keys}
+    # Each step reads the gap since its own last success (a failed step reads its whole gap).
+    days = max(windows.values())
+    shortest = min(windows.values())
+    log(f"catch-up: reading the gap since each source's last good round "
+        f"({shortest if shortest == days else f'{shortest} to {days}'} day(s))")
+    certify_public_sources(factory, now)
+    ok: list[str] = []
+    failed: list[str] = []
+    for step in catch_up_steps(days, now, windows=windows):
+        (ok if run_catch_up_step(step) else failed).append(step.key)
+    succeeded = sorted(set(ok) - set(failed))
+    failed_keys = sorted(set(failed))
     with factory() as session:
         from eurogas_nexus.db.models.observation import AuditEventRecord
 
@@ -503,19 +803,23 @@ def catch_up() -> int:
             AuditEventRecord(
                 event_id=f"demo-catch-up-{secrets.token_hex(8)}",
                 event_type="governance.demo",
-                severity="warning" if failed else "info",
+                severity="warning" if failed_keys else "info",
                 principal="demo-refresh",
                 action=CATCH_UP_ACTION,
                 resource="public_sources",
-                outcome="partial" if failed else "success",
-                detail=f"days={days}; failed={','.join(failed) or 'none'}",
+                outcome="partial" if failed_keys else "success",
+                detail=f"days={days}; ok={','.join(succeeded)}; "
+                       f"failed={','.join(failed_keys) or 'none'}",
                 event_ts_utc=now,
                 source_system="demo-start",
                 human_review_required=False,
             )
         )
         session.commit()
-    return 1 if failed else 0
+    log(f"catch-up round finished in {time.monotonic() - started:.0f}s: "
+        f"{len(succeeded)} sources ok, {len(failed_keys)} failed"
+        + (f" ({', '.join(failed_keys)}; retried at the next refresh)" if failed_keys else ""))
+    return 1 if failed_keys else 0
 
 
 def refresh_loop() -> int:
@@ -540,7 +844,7 @@ def refresh_loop() -> int:
         result = subprocess.run(  # noqa: S603 - fixed command
             [sys.executable, str(Path(__file__).resolve()), "catch-up"], cwd=ROOT, check=False
         )
-        log(f"catch-up round finished (exit {result.returncode}); next in {hours}h")
+        log(f"next catch-up round in {hours}h (exit {result.returncode})")
         time.sleep(hours * 3600)
 
 

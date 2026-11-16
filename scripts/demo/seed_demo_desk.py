@@ -937,6 +937,75 @@ def _new_rows_only(session, rows: list) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Real public data replaces the simulated fundamentals it covers
+# ---------------------------------------------------------------------------
+
+#: The simulated physical series, and the column that scopes each against the real rows of
+#: the same table: once a real provider has stored a series for a scope (a country's storage,
+#: a zone's power, a currency pair), the simulated one of that scope is removed, so no reader
+#: mixes the two in one series or sums them twice. ``None``: the whole table is one scope
+#: (ENTSOG flows: the simulated landing and map flows stand in for the whole network, and the
+#: balance sums landing points across sources).
+SIMULATED_SERIES = (
+    ("flows", FlowObservationRecord, SOURCE, None),
+    ("storage", StorageObservationRecord, SOURCE, "country"),
+    ("lng", LngObservationRecord, SOURCE, "country"),
+    ("power", PowerObservationRecord, SOURCE, "zone"),
+    ("fx", FxObservationRecord, SOURCE, "pair"),
+    # The two fictional outages feed the balance forecast; next to real UMMs they would be
+    # counted as if they were market events.
+    ("outages", RemitUmmRecord, "DEMO", None),
+)
+
+
+def _scope(value) -> str:
+    return str(value or "").strip().upper()
+
+
+def retire_simulated_series(session) -> dict[str, int]:
+    """Remove the simulated fundamentals that real provider rows now cover; idempotent.
+
+    Only demo rows are deleted (``DEMO_Sim``, the demo outages); real rows are never read
+    for anything but their scope. Demo prices, the demo book, its deliveries and its curve
+    stay simulated and labelled so: no public source replaces them. Returns rows removed by
+    series (a series with nothing to remove is left out).
+    """
+
+    removed: dict[str, int] = {}
+    for name, model, demo_source, column_name in SIMULATED_SERIES:
+        real = session.query(model).filter(model.source_system != demo_source)
+        if column_name is None:
+            if real.first() is None:
+                continue
+            count = session.query(model).filter(model.source_system == demo_source).delete(
+                synchronize_session=False
+            )
+        else:
+            column = getattr(model, column_name)
+            covered = {_scope(value) for (value,) in real.with_entities(column).distinct()}
+            if not covered:
+                continue
+            demo_scopes = [
+                value
+                for (value,) in session.query(column)
+                .filter(model.source_system == demo_source)
+                .distinct()
+                if _scope(value) in covered
+            ]
+            count = 0
+            if demo_scopes:
+                count = (
+                    session.query(model)
+                    .filter(model.source_system == demo_source, column.in_(demo_scopes))
+                    .delete(synchronize_session=False)
+                )
+        if count:
+            removed[name] = count
+    session.flush()
+    return removed
+
+
+# ---------------------------------------------------------------------------
 # Roll-forward: keep the demo desk current after the server was paused
 # ---------------------------------------------------------------------------
 
@@ -979,17 +1048,27 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
 
     counts: dict[str, int] = {}
     today = now.date()
-    last_flow = (
-        session.query(func.max(FlowObservationRecord.period_start_utc))
-        .filter(FlowObservationRecord.source_system == SOURCE)
-        .filter(FlowObservationRecord.source_reference == "demo:flows")
-        .scalar()
-    )
-    if last_flow is None:
+    if session.get(TradingBookRecord, "demo-uk-nbp") is None:
         return {"seeded": 0}
+    # The newest simulated gas day of the daily series that are still simulated (real data
+    # may have replaced some, see retire_simulated_series); none left: nothing to extend.
+    last_flow = max(
+        (
+            _aware(value)
+            for value in (
+                session.query(func.max(model.period_start_utc))
+                .filter(model.source_system == SOURCE)
+                .scalar()
+                for model in (FlowObservationRecord, StorageObservationRecord,
+                              LngObservationRecord)
+            )
+            if value is not None
+        ),
+        default=None,
+    )
     rng = random.Random(today.toordinal())
     newest_closed = _closed_gas_days(now, 1)[0][0]
-    gap = (newest_closed - _gas_day_of(last_flow)).days
+    gap = 0 if last_flow is None else (newest_closed - _gas_day_of(last_flow)).days
     last_power = (
         session.query(func.max(PowerObservationRecord.period_start_utc))
         .filter(PowerObservationRecord.source_system == SOURCE)
@@ -997,7 +1076,7 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
     )
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     power_gap = (
-        POWER_DAYS
+        0  # replaced by real power everywhere (or never seeded): nothing to extend
         if last_power is None
         else max(0, (midnight - (_aware(last_power) + timedelta(hours=1))).days + 1)
     )
@@ -1020,6 +1099,9 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
     counts["delivery_rows"] = _roll_deliveries(session, now, rng)
     counts["outage_rows"] = _roll_outages(session, now)
     session.flush()
+    # What a real source covers stays real: the rows just appended for such a scope go again.
+    for name, rows in retire_simulated_series(session).items():
+        counts[f"replaced_by_real_{name}"] = rows
     return counts
 
 
@@ -1251,8 +1333,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="only extend the simulated series to now (keeps every stored row and edit)",
     )
+    parser.add_argument(
+        "--retire-simulated",
+        action="store_true",
+        help="only remove the simulated fundamentals that real public data now covers",
+    )
     parser.add_argument("--now", help="clock override, ISO 8601 (tests and rehearsals)")
     args = parser.parse_args(argv)
+    if args.retire_simulated:
+        with get_session_factory()() as session:
+            removed = retire_simulated_series(session)
+            session.commit()
+        print(json.dumps({"ok": True, "sources": {
+            name: {"records": rows} for name, rows in removed.items()
+        }, "removed": removed}, sort_keys=True))
+        return 0
     now = datetime.fromisoformat(args.now) if args.now else datetime.now(UTC)
     if now.tzinfo is None:
         now = now.replace(tzinfo=UTC)
@@ -1264,7 +1359,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     with get_session_factory()() as session:
         sizing = seed(session, now)
+        removed = retire_simulated_series(session)
         session.commit()
+    if removed:
+        print("Simulated series replaced by stored real data: " + json.dumps(removed))
     for cpty, row in sizing.items():
         print(
             f"{cpty} {row['name']}: net {row['net']:,} vs limit {row['limit']:,.0f} ({row['why']})"

@@ -123,6 +123,7 @@ from eurogas_nexus.ingestion.public_sources import (
     ecb_market_observations_from_xml,
     gie_lng_observations_from_json,
     gie_storage_observations_from_json,
+    reconcile_hub_codes,
 )
 
 # Sources that are export-restricted and therefore require certification
@@ -1775,6 +1776,12 @@ def _replace_reference_network(
 
     node_ids = {row["id"] for row in nodes}
     now = datetime.now(UTC)
+    # Hub codes are unique and their derivation depends on the set of points read, so the
+    # read reconciles them by identity with what the store holds (for example a network
+    # seeded from the shipped bundle): an id keeps its code, a held code is never taken.
+    hubs = reconcile_hub_codes(
+        hubs, dict(session.query(ReferenceMarketHub.hub_code, ReferenceMarketHub.id).all())
+    )
     summary: dict[str, Any] = {"replaced": 0, "retired": 0, "skipped_tables": []}
     for model, rows in (
         (ReferenceNode, nodes),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import secrets
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -154,20 +155,140 @@ def test_catch_up_window_is_the_gap_since_the_last_good_round_bounded(session):
 def test_catch_up_runs_keyless_sources_and_keyed_ones_only_with_their_key():
     start = _load()
     now = datetime(2026, 11, 16, 9, tzinfo=UTC)
-    names = [name for name, _ in start.catch_up_steps(15, now, environ={})]
-    assert names[0].startswith("ECB") and names[1].startswith("ENTSOG")
-    assert len(names) == 2
+    keyless = start.catch_up_steps(5, now, environ={})
+    keys = [step.key for step in keyless]
+    assert keys[:2] == ["ecb", "entsog"]
+    assert {"national-gas-supply", "national-gas-demand", "elexon", "rates-sonia",
+            "rates-estr", "rates-sofr", "entsog-umm", "replace-simulated"} <= set(keys)
+    assert not {"gie", "eia", "entsoe", "remit-iip", "entsog-history"} & set(keys)
     keyed = start.catch_up_steps(
         15, now, environ={"GIE_API_KEY": "x", "EIA_API_KEY": "x", "ENTSOE_SECURITY_TOKEN": "x"}
     )
-    commands = {name: command for name, command in keyed}
-    assert len(commands) == 5
-    entsog = next(command for name, command in keyed if name.startswith("ENTSOG"))
-    assert entsog[entsog.index("--entsog-lookback-gas-days") + 1] == "15"
-    eia = next(command for name, command in keyed if name.startswith("EIA"))
-    assert eia[-2:] == ["--days", "15"]
-    power = next(command for name, command in keyed if name.startswith("ENTSO-E"))
-    assert "--commit" in power and "15" in power
+    by_key = {step.key: step.command for step in keyed}
+    assert {"gie", "eia", "entsoe", "remit-iip"} <= set(by_key)
+    # The scheduler's complete-read bounds, a rolling week and the daily reference refresh.
+    entsog = by_key["entsog"]
+    assert entsog[entsog.index("--entsog-lookback-gas-days") + 1] == "7"
+    assert entsog[entsog.index("--entsog-page-size") + 1] == "1000"
+    assert entsog[entsog.index("--limit") + 1] == "50000"
+    assert "entsog-reference" in entsog and "--entsog-reference-max-age-hours" in entsog
+    # Each window: the gap, at least what the scheduler reads, at most the script's limit.
+    assert by_key["eia"][-2:] == ["--days", "15"]
+    assert by_key["entsoe"][-2:] == ["--days", "7"] and "--commit" in by_key["entsoe"]
+    assert by_key["gie"][by_key["gie"].index("--limit") + 1] == "30"
+    assert by_key["elexon"][-2:] == ["--days", "7"]
+    assert by_key["remit-iip"][-2:] == ["--days", "15"]
+    # Older weeks of a 15-day gap: ENTSOG flows in explicit windows of at most a week.
+    history = [step.command for step in keyed if step.key == "entsog-history"]
+    windows = [(c[c.index("--entsog-from") + 1], c[c.index("--entsog-to") + 1]) for c in history]
+    assert windows == [("2026-11-02", "2026-11-09"), ("2026-11-01", "2026-11-02")]
+    assert all("entsog-capacity" not in c for c in history)
+
+
+def test_a_step_that_failed_reads_its_own_gap_again(session):
+    start = _load()
+    now = datetime(2026, 11, 16, 9, tzinfo=UTC)
+    session.add(
+        AuditEventRecord(
+            event_id="e-partial", event_type="governance.demo", severity="warning",
+            principal="demo-refresh", action=start.CATCH_UP_ACTION, resource="public_sources",
+            outcome="partial", detail="days=45; ok=ecb,entsog; failed=gie",
+            event_ts_utc=now - timedelta(hours=6), source_system="demo-start",
+            human_review_required=False,
+        )
+    )
+    session.commit()
+    assert start.catch_up_window_days(session, now, 45, "ecb") == 1
+    assert start.catch_up_window_days(session, now, 45, "gie") == 45  # never succeeded
+    steps = start.catch_up_steps(1, now, environ={"GIE_API_KEY": "x"}, windows={"gie": 45})
+    gie = next(step.command for step in steps if step.key == "gie")
+    assert gie[gie.index("--limit") + 1] == "45"
+
+
+def test_step_report_is_one_line_and_a_failure_code_fails_the_step():
+    start = _load()
+    ok, text = start._report_summary(
+        'progress\n{"ok": true, "failures": [], "sources": {"ENTSOG": {"records": 12, '
+        '"inserted": 10, "updated": 2}, "ENTSOG-reference": {"records": 0, '
+        '"status": "skipped_fresh"}}}'
+    )
+    assert ok is True and text.startswith("records 12, inserted 10, updated 2")
+    assert "ENTSOG-reference fresh" in text
+    ok, text = start._report_summary(
+        '{"ok": false, "failures": [{"source": "GIE", "code": "source_gate_blocked"}], '
+        '"sources": {}}'
+    )
+    assert ok is False and "source_gate_blocked" in text
+    assert start._report_summary("not json") == (None, "")
+    # An indented report (ingest_public_sources.py --json) whose list items parse on their own.
+    indented = json.dumps({"ok": True, "failures": [], "sources": {"GIE-AGSI": {
+        "records": 45, "inserted": 45, "queries": ["agsi;page=1"]}}}, indent=2)
+    assert start._report_summary(indented) == (True, "records 45, inserted 45")
+
+
+def _certify(session, start, *, stage="live_validated", expires_in_days=90, now=None):
+    from eurogas_nexus.db.repositories.certification import upsert_provider_certification
+
+    now = now or datetime(2026, 11, 16, 9, tzinfo=UTC)
+    upsert_provider_certification(
+        session, source_system="ENTSOG", stage=stage,
+        checks=["simulated_shape_match", "live_sample_validation", "sample_archived"],
+        evidence={"live_test": "passed"}, evaluated_by=start.DEMO_CERTIFY_ACTOR,
+        note="test", now_utc=now, expires_at_utc=now + timedelta(days=expires_in_days),
+    )
+    session.commit()
+
+
+def test_certification_is_run_only_when_the_record_is_missing_failed_or_expiring(session):
+    start = _load()
+    now = datetime(2026, 11, 16, 9, tzinfo=UTC)
+    assert start.certification_due(session, "ENTSOG", now) == "no certification record"
+    _certify(session, start, stage="connection_verified")
+    assert start.certification_due(session, "ENTSOG", now).startswith("gate ")
+    _certify(session, start)
+    assert start.certification_due(session, "ENTSOG", now) is None
+    assert start.certification_due(session, "ENTSOG", now + timedelta(days=85)).startswith(
+        "expires "
+    )
+
+
+def test_certification_step_runs_the_documented_command_as_the_demo_actor(
+    session, monkeypatch
+):
+    """The demo performs the operator's certification command; it never writes the record
+    itself or weakens the gate, and it records who did it and why."""
+
+    start = _load()
+    now = datetime(2026, 11, 16, 9, tzinfo=UTC)
+    calls = []
+
+    class Done:
+        returncode = 0
+        stdout = '{"stage": "live_validated"}'
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return Done()
+
+    monkeypatch.setattr(start.subprocess, "run", fake_run)
+    _certify(session, start, stage="connection_verified")
+    bind = session.get_bind()
+    from sqlalchemy.orm import sessionmaker
+
+    start.certify_public_sources(sessionmaker(bind=bind), now, environ={})
+    assert len(calls) == 1  # GIE without a key is not certified
+    command = calls[0]
+    assert command[1:4] == ["scripts/ops/certify_public_source.py", "--source", "entsog"]
+    assert command[command.index("--operator") + 1] == "demo-start"
+    assert "demo profile" in command[command.index("--note") + 1]
+    event = (
+        session.query(AuditEventRecord)
+        .filter(AuditEventRecord.action == start.CERTIFY_ACTION)
+        .one()
+    )
+    assert event.principal == "demo-start" and event.outcome == "success"
+    assert "source=ENTSOG" in event.detail and "reason=demo profile" in event.detail
 
 
 def test_live_sources_follow_keys_unless_set(monkeypatch):

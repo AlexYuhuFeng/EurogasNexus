@@ -237,3 +237,82 @@ def test_roll_forward_after_a_30_day_pause_ends_at_today_and_keeps_every_stored_
 def test_roll_forward_leaves_an_unseeded_store_alone(session):
     seed = _load()
     assert seed.roll_forward(session, datetime(2026, 11, 7, 9, tzinfo=UTC)) == {"seeded": 0}
+
+
+def test_real_public_data_replaces_the_simulated_series_it_covers(session):
+    """Once a real provider stored a series, the simulated one of the same scope goes: no
+    reader mixes the two in one series or sums both. Only demo rows are removed, and a
+    later roll-forward does not bring them back; the demo book and its prices stay."""
+
+    from sqlalchemy import func
+
+    from eurogas_nexus.db.models import FlowObservationRecord, FxObservationRecord
+    from eurogas_nexus.db.models.observation import StorageObservationRecord
+
+    seed = _load()
+    seeded_at = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    seed.seed(session, seeded_at, history_days=20)
+    session.commit()
+    day = datetime(2026, 11, 5, 5, tzinfo=UTC)
+    session.add_all([
+        StorageObservationRecord(
+            observation_id="gie-agsi-de", source_dataset="AGSI", facility_id="DE",
+            facility_name="Germany", country="DE", inventory_twh=200.0,
+            working_capacity_twh=250.0, fill_pct=80.0, period_start_utc=day,
+            period_end_utc=day.replace(day=6), observed_at_utc=seeded_at, source_system="GIE",
+            source_reference="gie", freshness="daily", research_only=True,
+        ),
+        StorageObservationRecord(
+            observation_id="gie-agsi-eu", source_dataset="AGSI", facility_id="eu",
+            facility_name="EU", country="eu", inventory_twh=900.0,
+            working_capacity_twh=1100.0, fill_pct=81.0, period_start_utc=day,
+            period_end_utc=day.replace(day=6), observed_at_utc=seeded_at, source_system="GIE",
+            source_reference="gie", freshness="daily", research_only=True,
+        ),
+        FxObservationRecord(
+            observation_id="ecb-gbp", pair="EURGBP", base_currency="EUR", quote_currency="GBP",
+            rate=0.84, rate_type="reference", value_date="2026-11-06", observed_at_utc=seeded_at,
+            source_system="ECB", source_reference="ecb", freshness="live", research_only=True,
+        ),
+    ])
+    session.commit()
+    sim_flows = session.query(FlowObservationRecord).count()
+
+    removed = seed.retire_simulated_series(session)
+    session.commit()
+
+    def storage(country):
+        return {
+            source for (source,) in session.query(StorageObservationRecord.source_system)
+            .filter(func.upper(StorageObservationRecord.country) == country).distinct()
+        }
+
+    assert storage("DE") == {"GIE"} and storage("EU") == {"GIE"}  # "eu" covers "EU"
+    assert storage("FR") == {seed.SOURCE}  # not covered: stays simulated, labelled so
+    pairs = {
+        (row.pair, row.source_system) for row in session.query(FxObservationRecord)
+    }
+    assert ("EURGBP", seed.SOURCE) not in pairs and ("EURUSD", seed.SOURCE) in pairs
+    assert removed["storage"] == 40 and removed["fx"] == 1
+    assert "flows" not in removed and session.query(FlowObservationRecord).count() == sim_flows
+    assert session.query(MarketObservationRecord).count() > 0  # demo prices stay
+
+    # Real flows arrive: the simulated network flows go; a roll-forward keeps them gone and
+    # still rolls the demo book forward.
+    session.add(seed._flow_row("entsog-x", "Real point", "OP", "entry", 10.0, day.date(), day,
+                               day.replace(day=6), seeded_at))
+    session.query(FlowObservationRecord).filter(
+        FlowObservationRecord.observation_id.like("demo-%"),
+        FlowObservationRecord.point_id == "entsog-x",
+    ).update({"source_system": "ENTSOG", "observation_id": "entsog-real-x"},
+             synchronize_session=False)
+    session.commit()
+    assert seed.retire_simulated_series(session)["flows"] == sim_flows
+    session.commit()
+    counts = seed.roll_forward(session, datetime(2026, 11, 12, 9, tzinfo=UTC))
+    session.commit()
+    assert counts["month_ahead_rows"] > 0
+    assert {
+        source for (source,) in session.query(FlowObservationRecord.source_system).distinct()
+    } == {"ENTSOG"}
+    assert storage("DE") == {"GIE"}

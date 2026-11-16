@@ -226,6 +226,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--operator", required=True, help="Who is running the validation.")
     parser.add_argument("--valid-days", type=int, default=DEFAULT_VALID_DAYS)
     parser.add_argument("--dry-run", action="store_true", help="Probe and report; record nothing.")
+    parser.add_argument(
+        "--note",
+        default="",
+        help="Why this validation is run (recorded with the evidence, e.g. a ticket).",
+    )
     args = parser.parse_args(argv)
 
     import httpx
@@ -274,7 +279,8 @@ def main(argv: list[str] | None = None) -> int:
                     "min_accepted_share": MIN_ACCEPTED_SHARE,
                 },
                 evaluated_by=args.operator,
-                note="scripts/ops/certify_public_source.py",
+                note="scripts/ops/certify_public_source.py"
+                + (f": {args.note.strip()}" if args.note.strip() else ""),
                 now_utc=now,
                 adapter_version=_adapter_version(),
                 credential_label="GIE_API_KEY" if system == "GIE" else None,

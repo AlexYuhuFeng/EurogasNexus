@@ -91,7 +91,7 @@ knows, so the SDK token path is closed and browsers sign in instead.
 
 ## Sign in
 
-In the panel the product titles **Development sign-in**, type a user name and the tester
+In the panel titled **Tester sign-in**, type a user name and the tester
 password:
 
 | User name | Role | Job functions | Shows |
@@ -207,25 +207,85 @@ AI: set `EUROGAS_NEXUS_LLM_API_KEY` (for a model other than DeepSeek also
 product's own guards still decide what evidence may leave. Remove the key to turn AI off.
 
 Live data: with a public-source key set (or `EUROGAS_NEXUS_DEMO_LIVE_SOURCES=on`), a
-low-priority background process in the demo container waits until the server answers, reads
-the gap since its last successful round (at most 45 days by default) and repeats every 6
-hours; it never blocks the health check. Sources and windows: ECB reference rates (no key),
-ENTSOG flows and capacity (no key, `--entsog-lookback-gas-days`), GIE storage and LNG
-(`GIE_API_KEY`), EIA Henry Hub (`EIA_API_KEY`, `--days`), ENTSO-E power
-(`ENTSOE_SECURITY_TOKEN`, `--days`). While it runs each dataset shows late or stale on screen;
-nothing stale is presented as current. Each round is an audit event `demo.catch_up`; a round
-by hand: `docker compose exec demo python scripts/demo/start_public_demo.py catch-up`.
+low-priority background process in the demo container waits until the server answers, then
+runs a catch-up round and repeats it every 6 hours; it never blocks the health check or
+start-up (the server answers about 30 s after a first start). A round reads, with the
+commands and read bounds the product's own scheduler uses on a real store
+(`scripts/ops/run_dataops_scheduler.py`,
+[PRODUCTION_SOURCE_OPERATIONS.md](../operations/PRODUCTION_SOURCE_OPERATIONS.md)):
 
-ENTSOG and GIE ingest only with a certification record. Once after setting up, and again
-every 90 days (records expire, also while the stack is stopped):
-`docker compose exec demo python scripts/demo/start_public_demo.py run -- python scripts/ops/certify_public_source.py --source entsog --operator <you>`
-(and `--source gie`). Without it the round logs `source_gate_blocked`.
+| Step | Needs | Window of the first round (45-day gap) | Later rounds |
+|---|---|---|---|
+| Certification of ENTSOG and GIE (see below) | – (GIE: `GIE_API_KEY`) | when no current record | renewed 7 days before expiry |
+| ECB reference rates | – | the latest fixing | the same |
+| ENTSOG reference network, flows and capacity | – | the newest 7 gas days, all points; reference at most daily | the same |
+| GIE AGSI storage and ALSI LNG (Europe total and the NW Europe countries) | `GIE_API_KEY` | 45 gas days | at least 30 |
+| National Gas GB storage and LNG | – | 30 days | at least 5 |
+| National Gas GB demand (D+1, D+6) | – | 31 days | at least 8 |
+| Elexon GB power | – | 7 days | at least 2 |
+| ENTSO-E power (NL, DE-LU, BE, FR) | `ENTSOE_SECURITY_TOKEN` | 7 days (longer documents time out) | 7 days |
+| EIA Henry Hub | `EIA_API_KEY` | 45 days | at least 14 |
+| SONIA, €STR, SOFR | – | 45 days | at least 10 |
+| GIE REMIT storage and LNG outages (IIP) | `GIE_API_KEY` | 30 days | at least 2 |
+| ENTSOG REMIT transmission outages | – | 45 days of publications, plus every running event | at least 7 |
+| Simulated series now covered by real data | – | removed (see below) | the same |
+| ENTSOG flows of the older weeks | – | the rest of the gap in 7-day windows | only after a pause |
 
-Catch-up time, measured: ECB 2 s; a 14-day ENTSOG window 5.3 minutes of network time at
-negligible CPU. A 2-week stop therefore catches up in about 5–10 minutes, a 6-week stop in
-roughly 15–25 minutes (ENTSOG scales with the window and stops at the script's page bound);
-GIE, EIA and ENTSO-E were not measured here (no keys) and should take seconds to minutes.
-See "Known limits" for ENTSOG on this store.
+Each step runs in its own process and logs one line; a failed step does not stop the
+others. A step that failed (rate limit, reset, provider outage) reads its whole gap again at
+the next round, while the others read only theirs. Expected lines (first round):
+
+```
+[demo-start] catch-up: reading the gap since each source's last good round (45 day(s))
+[demo-start] catch-up ENTSOG certification (no certification record): live_validated in 7s
+[demo-start] catch-up GIE certification (no certification record): live_validated in 3s
+[demo-start] catch-up ECB reference rates: ok in 2s (records 12)
+[demo-start] catch-up ENTSOG reference, flows and capacity (7 gas days): ok in 114s (records ...)
+[demo-start] catch-up Elexon GB power (7 days): failed (exit 1) in 62s (records 1198, inserted 1198; failures: TimeoutError)
+...
+[demo-start] catch-up round finished in ...s: 16 sources ok, 1 failed (elexon; retried at the next refresh)
+```
+
+Each round is an audit event `demo.catch_up` (`ok=` and `failed=` step lists); a round by
+hand: `docker compose exec demo python scripts/demo/start_public_demo.py catch-up`. While a
+dataset is behind it shows late or stale on screen; nothing stale is presented as current.
+
+**Certification.** ENTSOG and GIE ingest only with a certification record (the fail-closed
+source gate in `scripts/ops/ingest_public_sources.py`; without one a read logs
+`source_gate_blocked`). On a real store an operator earns the record with
+`scripts/ops/certify_public_source.py` (docs/data/LIVE_BRINGUP_2026-11-12.md): a bounded live
+sample through the ingestion transport, a dry run of the normaliser, a field-shape check, and
+the evidence (counts and the sample's SHA-256) recorded with a 90-day expiry, or nothing when a
+check fails. The demo runs exactly that command at the start of a round, as a demo-profile
+action: operator `demo-start`, note "demo profile: bounded live sample of a public source,
+certified by the demo start-up ...", an audit event `demo.certify` beside the command's own
+`certification.upsert`. It runs only when there is no current record (none, a failed stage,
+or expiry within 7 days). The gate itself is unchanged, and the customer runtime image does
+not contain this script. Using a provider's data is still the operator's decision: use only
+keys and sources whose terms allow this use.
+
+**Real and simulated data.** The demo desk ships simulated flows, storage, LNG, power
+fundamentals, FX and two fictional outages so every screen works without keys. Once a real
+source has stored a series, the simulated series of the same scope is removed (storage and
+LNG by country, power by zone, FX by currency pair; all simulated network flows once ENTSOG
+flows are stored; the fictional outages once real REMIT messages are stored), so no screen
+mixes the two in one series or adds them up, and later roll-forwards do not bring them back.
+What no public source replaces stays simulated and is labelled `sim`: demo prices, the demo
+book, its deliveries and curve. Scopes a source did not cover (no key, a failed step) stay
+simulated until it does.
+
+Catch-up time, measured on a fresh stack with all three keys (2026-11-16, through a slow
+outbound proxy): the server answered 30 s after start; the first round took 17 minutes
+(certification 10 s; ECB 2 s; ENTSOG reference, newest week and capacity 114 s, then six
+older weeks of flows 27–70 s each; GIE 9 s; National Gas 4 s; Elexon 62 s; ENTSO-E 409 s for
+a month, now read a week at a time, about 4 minutes; EIA, rates 2–4 s each; GIE IIP 94 s;
+ENTSOG UMMs 4 s). A later round took about 8 minutes, most of it ENTSO-E and ENTSOG. Stored
+by the first round: ENTSOG flows 36,115 rows, capacity 10,465, reference 789 points; GIE
+storage 270, LNG 225; National Gas storage 30, LNG 30, demand 169; ENTSO-E power 59,714;
+Elexon 1,198; ECB 12; EIA 29; SONIA, €STR, SOFR about 30 each; REMIT messages 550 (GIE IIP)
+and 36 (ENTSOG). A restart on the same volume added no duplicate rows. Elexon and ENTSO-E
+answered some requests with timeouts in that run; the step logged the failure with the rows
+it did store, and the next round read its gap again.
 
 Keys stored through the Credentials screen instead of `.env` are used too, but `auto` cannot
 see them: set `EUROGAS_NEXUS_DEMO_LIVE_SOURCES=on`, and for a model key stored there
@@ -273,11 +333,4 @@ which is why fewer than half a core feels slow.
 
 ## Known limits
 
-- The sign-in panel is titled "Development sign-in" by the product.
-- Map labels request a font stack the tile service does not have (404 for
-  `Open Sans Regular,Arial Unicode MS Regular`); tiles render.
-- ENTSOG catch-up on this store: the ENTSOG reference read refuses canonical writes against the
-  network loaded from the shipped bundle, and a 14-day flow read normalised no rows in our
-  test (`entsog_empty_normalization`). The demo stays fully populated with simulated data;
-  live ENTSOG data on this server needs that fixed in the product.
 - One demo container only: sign-in throttling and the refresh process are per process.
