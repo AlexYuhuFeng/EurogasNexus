@@ -27,7 +27,7 @@ from eurogas_nexus.application.ai_style import (
 )
 
 CASES_PATH = Path(__file__).resolve().parents[3] / "tests" / "evals" / "ai_note_cases.json"
-USES = ("explain", "brief", "answer", "enrichment")
+USES = ("explain", "brief", "answer", "enrichment", "report")
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ def load(path: Path = CASES_PATH) -> tuple[dict[str, Evidence], list[Case]]:
         ev = evidence[item["evidence"]]
         output = item.get("output")
         if output is None:
-            if ev.use in {"explain", "brief"}:
+            if ev.use in {"explain", "brief", "report"}:
                 cites = item.get("cites", ev.sources[:1])
                 output = json.dumps({"text": item["text"], "cites": cites}, ensure_ascii=False)
             elif ev.use == "enrichment":
@@ -126,6 +126,23 @@ def build_evidence(key: str, entry: dict[str, Any]) -> Evidence:
             json.dumps(payload, ensure_ascii=False), payload["sources"], simulated,
             demo_or_public,
         )
+    if use == "report":
+        from eurogas_nexus.application.reports.rewrite import section_messages, section_payload
+
+        section = {
+            "key": entry.get("section_key", "storage"),
+            "title": entry["title"],
+            "simulated": bool(entry.get("simulated")),
+            "forecast": bool(entry.get("forecast")),
+            "rule_commentary": {"headline": entry["lines"][0], "bullets": entry["lines"][1:]},
+            "evidence": {"sources": [{"name": name} for name in entry["sources"]]},
+        }
+        payload = section_payload(section)
+        return Evidence(
+            key, use, section_messages(section, language),
+            json.dumps(payload, ensure_ascii=False), payload["sources"],
+            bool(entry.get("simulated")), demo_or_public,
+        )
     if use == "answer":
         from eurogas_nexus.application.ai_payloads import alert_answer_messages
 
@@ -151,7 +168,7 @@ def build_evidence(key: str, entry: dict[str, Any]) -> Evidence:
 def verdict(evidence: Evidence, output: str | None) -> Verdict:
     """What the product's checks say about ``output`` for ``evidence``."""
 
-    if evidence.use in {"explain", "brief"}:
+    if evidence.use in {"explain", "brief", "report"}:
         return note_verdict(
             output, evidence_text=evidence.evidence_text, sources=evidence.sources,
             simulated=evidence.simulated,

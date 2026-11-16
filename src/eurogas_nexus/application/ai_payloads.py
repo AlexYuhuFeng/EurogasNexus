@@ -42,6 +42,14 @@ ALERT_ENRICHMENT_FIELDS = (
     "simulated",
 )
 
+#: One market-report section's commentary for rewording (``reports/rewrite.section_payload``):
+#: the section title, its rule lines, its sources as ``S1`` aliases and two flags.
+REPORT_SECTION_FIELDS = ("section", "lines", "sources", "simulated_inputs", "forecast")
+
+#: A question to a report plan (``reports/plan.plan_payload``): the question, the catalogue's
+#: section keys with one-line descriptions, hub and country codes, the audience. No figure.
+REPORT_PLAN_FIELDS = ("question", "sections", "hubs", "countries", "audience")
+
 
 def is_identifier(key: str) -> bool:
     """Whether a field name is an identifier or a provider reference, never sent."""

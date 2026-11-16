@@ -140,3 +140,42 @@ def test_the_analysis_snapshot_carries_no_identifier_field():
     assert not [key for key in keys(payload) if is_identifier(key)]
     assert payload["market_observations"][0]["source_system"] == "EEX"
     assert "snap-secret-9" not in json.dumps(payload)
+
+
+def test_a_report_section_rewrite_sends_its_rule_lines_aliases_and_flags_only():
+    from eurogas_nexus.application.ai_payloads import REPORT_SECTION_FIELDS
+    from eurogas_nexus.application.reports.rewrite import rewrite_sections
+
+    seen, model = _capture()
+    section = {
+        "key": "outages", "title": "Outages", "status": "ok", "simulated": True,
+        "forecast": False,
+        "rule_commentary": {"headline": "2 outages active, removing 572 GWh/d in total.",
+                            "bullets": ["The largest is Demo Haldor field (NBP)."]},
+        "commentary": {"headline": "x", "bullets": [], "basis": "rule"},
+        "evidence": {"sources": [{"name": "REMIT urgent market messages",
+                                  "source_system": "REMIT", "family": "REMIT",
+                                  "source_reference": "ref-secret"}]},
+        "books": ["cp-secret-77"],
+        "tables": [{"rows": [{"facility": "opp-secret"}]}],
+    }
+    use = rewrite_sections([section], model)
+    payload = _user(seen[0])
+    assert tuple(payload) == REPORT_SECTION_FIELDS
+    assert payload["sources"] == ["S1"]
+    assert use["attempted"] == 1 and use["passed"] == 0
+    assert section["commentary"]["basis"] == "rule"  # nothing returned: the rule text stands
+    _no_ids(seen[0])
+
+
+def test_a_report_plan_sends_the_question_and_the_catalogue_only():
+    from eurogas_nexus.application.ai_payloads import REPORT_PLAN_FIELDS
+    from eurogas_nexus.application.reports.plan import plan_for_question
+
+    seen, model = _capture()
+    plan_for_question("Norwegian supply this week", audience="shareable", model=model)
+    payload = _user(seen[0])
+    assert tuple(payload) == REPORT_PLAN_FIELDS
+    keys = {item["key"] for item in payload["sections"]}
+    assert "book_position" not in keys  # a shareable plan is not offered the book
+    assert set(payload["sections"][0]) == {"key", "description"}

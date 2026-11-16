@@ -234,6 +234,83 @@
     ],
     "simulated": true
    }
+  },
+  "report_prices_demo": {
+   "use": "report",
+   "data_class": "demo",
+   "simulated": true,
+   "section_key": "prices",
+   "title": "Hub prices",
+   "lines": [
+    "TTF Dec-26 42.47 EUR/MWh (simulated), down 0.17 EUR/MWh on the day; NBP Dec-26 98.65 GBp/th (simulated), down 0.24 GBp/th on the day.",
+    "The largest move was NBP, down 0.24 GBp/th on the day.",
+    "A year earlier the TTF front month closed at 41.48 EUR/MWh (simulated)."
+   ],
+   "sources": [
+    "TTF front month closes",
+    "NBP front month closes"
+   ]
+  },
+  "report_storage_public": {
+   "use": "report",
+   "data_class": "public",
+   "simulated": false,
+   "section_key": "storage",
+   "title": "Storage",
+   "lines": [
+    "NW Europe storage was 64.2% full on 12 Nov, 14.3 points below the same day a year earlier (78.5%).",
+    "Fill fell 2.9 points over the last seven days.",
+    "Inventory 341.0 TWh in the facilities that publish a working capacity."
+   ],
+   "sources": [
+    "Storage inventory and working capacity"
+   ]
+  },
+  "report_storage_public_zh": {
+   "use": "report",
+   "data_class": "public",
+   "simulated": false,
+   "section_key": "storage",
+   "title": "Storage",
+   "lines": [
+    "NW Europe storage was 64.2% full on 12 Nov, 14.3 points below the same day a year earlier (78.5%).",
+    "Fill fell 2.9 points over the last seven days.",
+    "Inventory 341.0 TWh in the facilities that publish a working capacity."
+   ],
+   "sources": [
+    "Storage inventory and working capacity"
+   ],
+   "language": "zh-CN"
+  },
+  "report_balance_public": {
+   "use": "report",
+   "data_class": "public",
+   "simulated": false,
+   "forecast": true,
+   "section_key": "balance",
+   "title": "NW Europe balance and outlook",
+   "lines": [
+    "The NW Europe supply call was 8,923 GWh/d on 12 Nov: Norway 4,595 GWh/d, LNG 2,851 GWh/d, storage 1,477 GWh/d net withdrawal.",
+    "Forecast, not a measurement: 12,929 GWh/d on 19 Nov (seasonal normal plus recent anomaly).",
+    "Projected storage fill 59.4% by 19 Nov on that forecast."
+   ],
+   "sources": [
+    "NW Europe balance inputs"
+   ]
+  },
+  "report_outages_public": {
+   "use": "report",
+   "data_class": "public",
+   "simulated": false,
+   "section_key": "outages",
+   "title": "Outages",
+   "lines": [
+    "20 outages active, removing 532 GWh/d in total; 10 more scheduled within 14 days.",
+    "The largest is VGS Storage Hub (THE (DE)): 96.7 GWh/d, until 30 Nov."
+   ],
+   "sources": [
+    "REMIT urgent market messages"
+   ]
   }
  },
  "cases": [
@@ -1058,6 +1135,141 @@
    "check": "",
    "reason": "'ENTSOG-sourced': a hyphenated word whose capitalised part is in the evidence (a live-run false refusal, fixed).",
    "text": "An ENTSOG-sourced flow_drop: Ellund exit to ETF at 42 GWh/d on 14 Nov."
+  },
+  {
+   "id": "report_prices_demo-r01",
+   "evidence": "report_prices_demo",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Both closes, units and the down moves as given; says simulated.",
+   "text": "TTF Dec-26 fell 0.17 EUR/MWh to 42.47 EUR/MWh on the day and NBP Dec-26 fell 0.24 GBp/th to 98.65 GBp/th; all are simulated demo prices."
+  },
+  {
+   "id": "report_storage_public-r02",
+   "evidence": "report_storage_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Every figure from the lines, direction kept.",
+   "text": "NW Europe storage was 64.2% full on 12 Nov, 14.3 points below the same day a year earlier (78.5%), after fill fell 2.9 points over the last seven days."
+  },
+  {
+   "id": "report_balance_public-r03",
+   "evidence": "report_balance_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "The forecast is called a forecast and keeps its figure and date.",
+   "text": "The NW Europe supply call was 8,923 GWh/d on 12 Nov, from Norway 4,595 GWh/d, LNG 2,851 GWh/d and storage 1,477 GWh/d net withdrawal. The forecast, not a measurement, is 12,929 GWh/d on 19 Nov."
+  },
+  {
+   "id": "report_outages_public-r04",
+   "evidence": "report_outages_public",
+   "category": "good",
+   "expect": "pass",
+   "check": "",
+   "reason": "Count, total and the largest outage as given.",
+   "text": "20 outages are active, removing 532 GWh/d in total; the largest is VGS Storage Hub at 96.7 GWh/d until 30 Nov, and 10 more are scheduled within 14 days."
+  },
+  {
+   "id": "report_storage_public_zh-r05",
+   "evidence": "report_storage_public_zh",
+   "category": "chinese",
+   "expect": "pass",
+   "check": "",
+   "reason": "A faithful Chinese rewording with the same figures.",
+   "text": "12 Nov西北欧储气库存率为64.2%，比去年同日（78.5%）低14.3个百分点；过去七天下降2.9个百分点。"
+  },
+  {
+   "id": "report_storage_public-r06",
+   "evidence": "report_storage_public",
+   "category": "number",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "15 points is not in the lines (14.3 is).",
+   "text": "NW Europe storage was 64.2% full on 12 Nov, 15 points below a year earlier."
+  },
+  {
+   "id": "report_prices_demo-r07",
+   "evidence": "report_prices_demo",
+   "category": "etf_gtf",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "ETF is the Danish hub; the lines are about TTF.",
+   "text": "ETF Dec-26 fell 0.17 EUR/MWh to 42.47 EUR/MWh on the day (simulated)."
+  },
+  {
+   "id": "report_prices_demo-r08",
+   "evidence": "report_prices_demo",
+   "category": "direction",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "TTF fell; the note says it rose.",
+   "text": "TTF Dec-26 rose 0.17 EUR/MWh to 42.47 EUR/MWh on the day (simulated)."
+  },
+  {
+   "id": "report_prices_demo-r09",
+   "evidence": "report_prices_demo",
+   "category": "unit",
+   "expect": "refuse",
+   "check": "unit",
+   "reason": "USD/MMBtu is not the unit the close is quoted in.",
+   "text": "TTF Dec-26 was 42.47 USD/MMBtu on the day (simulated)."
+  },
+  {
+   "id": "report_storage_public-r10",
+   "evidence": "report_storage_public",
+   "category": "advice",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "A report never advises a trade.",
+   "text": "NW Europe storage was 64.2% full on 12 Nov; buy winter now."
+  },
+  {
+   "id": "report_prices_demo-r11",
+   "evidence": "report_prices_demo",
+   "category": "simulated_as_market",
+   "expect": "refuse",
+   "check": "simulated_as_market",
+   "reason": "A simulated close written as a traded price.",
+   "text": "TTF Dec-26 traded at 42.47 EUR/MWh on the day."
+  },
+  {
+   "id": "report_storage_public-r12",
+   "evidence": "report_storage_public",
+   "category": "superlative",
+   "expect": "refuse",
+   "check": "superlative",
+   "reason": "No record is in the lines.",
+   "text": "NW Europe storage was 64.2% full on 12 Nov, the lowest fill for the date."
+  },
+  {
+   "id": "report_storage_public-r13",
+   "evidence": "report_storage_public",
+   "category": "source",
+   "expect": "refuse",
+   "check": "source",
+   "reason": "GIE is not named in the section's lines or sources.",
+   "text": "GIE says NW Europe storage was 64.2% full on 12 Nov."
+  },
+  {
+   "id": "report_storage_public_zh-r14",
+   "evidence": "report_storage_public_zh",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "建议 is advice.",
+   "text": "西北欧储气库存率为64.2%，建议买入冬季合约。"
+  },
+  {
+   "id": "report_storage_public_zh-r15",
+   "evidence": "report_storage_public_zh",
+   "category": "chinese",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "65% is not in the lines.",
+   "text": "12 Nov西北欧储气库存率约为65%。"
   }
  ]
 }

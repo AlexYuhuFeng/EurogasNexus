@@ -221,6 +221,8 @@ the evidence does not contain. Chinese unit spellings are read as their codes.
 |---|---|---|---|
 | "Why?" | `POST /api/analysis/explain` | `object` (title), `facts` (the rule lines), `sources` as `S1`..`Sn`, `simulated_inputs` | the raw evidence row (ids, provider references, unrounded values); real source ids |
 | Desk brief lead | `POST /api/analysis/brief` | `brief` (kind), `sections` (heading -> lines), `sources` as `S1`..`Sn`, `simulated_inputs` | real source ids (counterparty, snapshot, REMIT ids) |
+| Report section wording | `POST /api/reports/market` | `section` (title), `lines` (the rule headline and facts), `sources` as `S1`..`Sn`, `simulated_inputs`, `forecast` (`REPORT_SECTION_FIELDS`) | tables, figures not in the lines, book ids, source systems, provider references; Our book sections are never sent |
+| Report plan | `POST /api/reports/plan` | `question`, `sections` (catalogue key and one-line description; no book section for a shareable audience), `hubs` and `countries` (codes), `audience` (`REPORT_PLAN_FIELDS`) | any figure or row; the plan is used only if it validates against the catalogue and names no hub the question did not |
 | Alert answer | `POST /api/monitoring/alerts/{id}/analysis` | `question`; `alert`: `category`, `alert_type`, `severity`, `status`, `title`, `message` (reply language only), `event_time_utc`, `occurrence_count`, `evidence` (identifier fields removed), `simulated` | alert id, fingerprint, entity ids, earlier model summaries, `llm_*` fields, warnings, source refs, the other language |
 | Alert enrichment | monitoring worker | `category`, `type`, `severity`, `title_en`, `message_en`, `evidence` (identifier fields removed), `simulated` | source references, warnings (they carried earlier provider errors), identifier fields in the evidence |
 | Analysis query | `POST /api/analysis/query` with `invoke_provider` | `question`, `task`, `snapshot` with every identifier field removed at any depth (`*_id`, `*_ids`, `*_eic`, `fingerprint`, `*reference*`, `source_refs`); contract prices only on opt-in | snapshot id, contract ids, run ids, provider references |
@@ -228,6 +230,19 @@ the evidence does not contain. Chinese unit spellings are read as their codes.
 The allowlist is enforced by `tests/security/test_ai_payload_allowlist.py` (provider
 stubbed, outgoing messages captured); the field lists live in
 `application/ai_payloads.py`. Entitlement still decides first whether any call is made.
+
+### Market reports (2026-11-16)
+
+The model may reword a market report section's rule commentary (`application/reports/rewrite.py`,
+checked by `note_verdict` like a desk note; refused text leaves the rule text, and each verdict
+is stored in the report's `model_use`) and may propose a report plan from a question
+(`application/reports/plan.py`; the proposal must validate against the catalogue and may name
+only hubs the question names, else the keyword rules propose). The evaluation set has a `report`
+use (5 evidence payloads, 15 cases, good and adversarial, English and Chinese) and
+`tests/evals/report_plan_cases.json` (12 plan cases, incl. a shareable question asking for the
+book, out-of-scope questions, ETF not becoming TTF, SQL from the model). Live run on 2026-11-16
+(DeepSeek V4 Flash, public store, 10 section rewrites): 10 of 10 passed the checks; both asked
+questions got a valid model plan.
 
 ### Call budgets
 
