@@ -8,6 +8,8 @@ import { ShellTicker } from "@/components/ShellTicker";
 import { DeskBriefDialog, openDeskBrief } from "@/components/DeskBriefDialog";
 import type { AppController } from "@/app/hooks/useAppController";
 import { useCommandPalette } from "@/app/hooks/useCommandPalette";
+import { useAnswerBar } from "@/app/hooks/useAnswerBar";
+import type { AnswerTarget } from "@/app/answer/answerModel";
 import {
   describeEndpointFailures,
   describeEndpointRetry,
@@ -17,7 +19,7 @@ import {
   compositionSeesAdministration,
 } from "@/app/experience/experienceProfile";
 import type { PaletteCommand } from "@/app/experience/commandPalette";
-import { paletteLabel, paletteUnavailableReasonKey } from "@/app/experience/commandPalette";
+import { commandById, glossaryCommands, paletteLabel, paletteUnavailableReasonKey } from "@/app/experience/commandPalette";
 import { PAGE_VIEW_REGISTRY, viewToSearch } from "@/app/navigation/viewRegistry";
 import { isCommercialPage, isControlPlanePage } from "@/app/navigation/productNavigation";
 import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
@@ -295,6 +297,31 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     },
   });
 
+  // The answer bar inside the palette (instant answers, look-ups, Ask).
+  const answerBar = useAnswerBar({
+    open: palette.open,
+    query: palette.query,
+    glossary: api.glossaryTerms,
+    permissions: currentUser?.permissions ?? [],
+    language: i18n.language,
+  });
+  const openAnswerTarget = (target: AnswerTarget) => {
+    const command = target.kind === "glossary"
+      ? glossaryCommands([{ term: target.term }])[0]
+      : commandById(`navigate.mode.${target.mode}.${target.task}`);
+    if (command) palette.run(command);
+  };
+  const openAskedReport = (question: string) => {
+    const command = commandById("navigate.mode.research.reports");
+    if (!command) return;
+    palette.run(command);
+    // Research → Reports reads the question and proposes its plan (its existing Ask flow).
+    const url = new URL(window.location.href);
+    url.searchParams.set("ask", question);
+    window.history.replaceState(window.history.state, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+  };
+
   return (
     <div className={`app cockpit-app workspace-${layoutPage}`}>
       <WorkspaceTopBar
@@ -409,6 +436,9 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         onRunActive={palette.runActive}
         onRun={palette.run}
         onClose={() => palette.setOpen(false)}
+        answerBar={answerBar}
+        onAnswerOpen={openAnswerTarget}
+        onOpenReport={openAskedReport}
       />
     </div>
   );

@@ -1,0 +1,271 @@
+@layer legacy {
+/* The answer bar's rows in the command palette (answer, Ask) and the Ask panel.
+   Tokens only: the row is one calm line of figures, the provenance one quiet line under it. */
+
+.answer-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: var(--ds-space-2);
+  align-items: start;
+  padding: var(--ds-space-3) 14px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+  color: var(--ds-text-1);
+  cursor: pointer;
+}
+
+.answer-row.active,
+.answer-row:hover {
+  background: var(--ds-accent-soft);
+}
+
+.answer-row .command-palette-group {
+  padding-top: var(--ds-space-05);
+}
+
+.answer-row[data-answer-kind="ask"] {
+  border-bottom: 0;
+}
+
+/* Label on top; the value, its change and its marker on one line; provenance under it. */
+.answer-figure {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--ds-space-3);
+  align-items: baseline;
+}
+
+.answer-figure > span,
+.answer-figure > small:last-child {
+  grid-column: 1 / -1;
+}
+
+.answer-figure > strong {
+  font-variant-numeric: var(--ds-numeric);
+}
+
+.answer-figure > .key-figure-delta {
+  grid-column: 2;
+}
+
+.answer-figure > small:last-child {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-line-xs);
+  overflow-wrap: anywhere;
+}
+
+.answer-line {
+  display: block;
+}
+
+.answer-sentence-block {
+  display: grid;
+  gap: var(--ds-space-05);
+  min-width: 0;
+}
+
+.answer-label {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-medium);
+  line-height: var(--ds-line-xs);
+}
+
+.answer-sentence,
+.answer-ask-question {
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-base);
+  line-height: var(--ds-line-base);
+  overflow-wrap: anywhere;
+}
+
+.answer-detail {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-line-xs);
+  overflow-wrap: anywhere;
+}
+
+.answer-hint {
+  padding-top: var(--ds-space-05);
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-line-xs);
+  white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------- Ask panel */
+
+/* An asked answer carries more than a row: the palette grows as it does for the Copilot. */
+.command-palette.answer-asking {
+  max-height: 84vh;
+}
+
+.answer-ask-panel {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4) 14px;
+  overflow-y: auto;
+}
+
+.answer-ask-head {
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.answer-ask-head h2 {
+  margin: 0;
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-md);
+  font-weight: var(--ds-weight-semibold);
+  line-height: var(--ds-line-md);
+  overflow-wrap: anywhere;
+}
+
+.answer-ask-basis {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-line-xs);
+}
+
+.answer-ask-basis[data-answer-basis="model"] {
+  color: var(--ds-status-info);
+  font-weight: var(--ds-weight-medium);
+}
+
+.answer-ask-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-line-sm);
+}
+
+.answer-ask-spinner {
+  width: var(--ds-space-3);
+  height: var(--ds-space-3);
+  border: 2px solid var(--ds-border);
+  border-top-color: var(--ds-accent);
+  border-radius: var(--ds-radius-pill);
+  animation: answer-spin 0.9s linear infinite;
+}
+
+@keyframes answer-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .answer-ask-spinner { animation: none; }
+}
+
+.answer-ask-simulated {
+  margin: 0;
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-status-simulated-soft);
+  color: var(--ds-status-simulated);
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-medium);
+  line-height: var(--ds-line-xs);
+}
+
+.answer-ask-text {
+  margin: 0;
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-base);
+  line-height: var(--ds-line-md);
+  font-variant-numeric: var(--ds-numeric);
+}
+
+.answer-ask-note {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-line-sm);
+}
+
+.answer-ask-facts summary {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  cursor: pointer;
+}
+
+.answer-ask-facts ul {
+  display: grid;
+  gap: var(--ds-space-1);
+  margin: var(--ds-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.answer-ask-facts li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ds-space-2);
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-line-sm);
+  font-variant-numeric: var(--ds-numeric);
+}
+
+.answer-ask-facts li small {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+  white-space: nowrap;
+}
+
+.answer-ask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-3);
+}
+
+.answer-ask-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-accent);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-line-sm);
+  cursor: pointer;
+}
+
+.answer-ask-link:hover {
+  text-decoration: underline;
+}
+
+.answer-ask-link:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+  border-radius: var(--ds-radius-sm);
+}
+
+.answer-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .answer-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ds-space-1);
+  }
+
+  .answer-row .command-palette-group {
+    padding-top: 0;
+  }
+
+  .answer-hint {
+    display: none;
+  }
+
+  .command-palette.answer-asking .command-palette-help {
+    display: none;
+  }
+}
+}

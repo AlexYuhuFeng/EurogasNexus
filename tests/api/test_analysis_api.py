@@ -119,3 +119,18 @@ def test_ontology_read_carries_the_units_authority_factors() -> None:
     assert units["price_units"]["GBp/th"] == {"currency": "GBP", "divisor": 100.0, "unit": "th"}
     assert units["volume_to_energy"]["basis"] == "assumption"
     assert "101.325 kPa" in units["volume_to_energy"]["reference_conditions"]
+
+
+def test_the_web_answer_bar_fixture_is_the_units_authority() -> None:
+    """``clients/web/tests/fixtures/unitsReference.json`` is what the server serves, so the
+    client's conversion tests run on the real factors."""
+
+    import json
+    from pathlib import Path
+
+    from eurogas_nexus.domain.market.units import units_reference
+
+    fixture = Path(__file__).resolve().parents[2] / "clients/web/tests/fixtures/unitsReference.json"
+    assert json.loads(fixture.read_text(encoding="utf-8")) == json.loads(
+        json.dumps(units_reference())
+    )

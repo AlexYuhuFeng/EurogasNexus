@@ -21,7 +21,7 @@ import {
   type ReportSummaryDTO,
 } from "@/api/client";
 import { Button, DataGrid, EmptyState, Field, Panel, Segmented, Select, StatusBadge, type DataGridColumn } from "@/components/ui";
-import { annexByDefault, reportCsv, reportSubjectFromSearch, reportRequestFromForm, summaryOnlyHtml, type ReportForm } from "@/app/model/reportsModel";
+import { annexByDefault, reportCsv, reportQuestionFromSearch, reportSubjectFromSearch, reportRequestFromForm, summaryOnlyHtml, type ReportForm } from "@/app/model/reportsModel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 type Mode = "standard" | "ask";
@@ -55,6 +55,40 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
   const [reports, setReports] = useState<ReportSummaryDTO[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
+  // A question from the answer bar ("Open as report"): Ask mode, its plan proposed once.
+  const [handedQuestion, setHandedQuestion] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : reportQuestionFromSearch(window.location.search),
+  );
+  useEffect(() => {
+    if (!handedQuestion) return;
+    setMode("ask");
+    setProposal(null);
+    setForm((current) => ({ ...current, question: handedQuestion, sections: null }));
+    setBusy("plan");
+    setError(null);
+    api.reportPlan(handedQuestion, form.audience)
+      .then((response) => {
+        setProposal(response.data);
+        const plan = response.data.plan;
+        if (plan) {
+          setForm((current) => ({
+            ...current,
+            sections: plan.sections,
+            hubs: plan.hubs.join(", "),
+            periodStart: plan.period_start ?? "",
+            periodEnd: plan.period_end ?? "",
+          }));
+        }
+      })
+      .catch(() => setError(t("reports.plan_failed")))
+      .finally(() => setBusy(null));
+    // The question is consumed: a reload does not propose it again.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("ask");
+    window.history.replaceState(window.history.state, "", url);
+    // Only a new handed-over question proposes a plan.
+  }, [handedQuestion]);
+
   const loadReports = useCallback(() => {
     api.marketReports().then((r) => setReports(r.data)).catch(() => setReports([]));
   }, []);
@@ -63,6 +97,8 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
     api.reportCatalogue().then((r) => setCatalogue(r.data)).catch(() => setCatalogue(null));
     loadReports();
     const sync = () => {
+      const question = reportQuestionFromSearch(window.location.search);
+      if (question) setHandedQuestion(question);
       const subject = reportSubjectFromSearch(window.location.search);
       if (subject) {
         setMode("standard");

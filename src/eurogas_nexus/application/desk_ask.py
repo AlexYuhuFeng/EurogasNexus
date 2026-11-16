@@ -138,7 +138,11 @@ def ask(
     question = question.strip()[:MAX_QUESTION_CHARS]
     topics = topics_for(question, book_allowed=book_allowed)
     today = build_today(session, caller, now=now, balance_reader=balance_reader)
-    lines = [line for line in fact_lines(today, book_allowed=book_allowed) if line.topic in topics]
+    lines = [
+        line
+        for line in fact_lines(today, book_allowed=book_allowed, language=language)
+        if line.topic in topics
+    ]
     simulated = any(line.simulated for line in lines)
     sources = sorted({line.source for line in lines})
     answer = Answer(
@@ -204,7 +208,20 @@ def _price_decimals(unit: str) -> int:
     return 3 if unit.endswith("/MWh") else 2
 
 
-def fact_lines(today: dict[str, Any], *, book_allowed: bool) -> list[FactLine]:
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+_DAY_MONTH = re.compile(r"\b(\d{1,2}) (" + "|".join(_MONTHS) + r")\b")
+
+
+def _zh_dates(text: str) -> str:
+    """``15 Nov`` as ``11月15日``: a Chinese answer writes the month as a number, which the
+    number check must find in the facts it was given."""
+
+    return _DAY_MONTH.sub(lambda m: f"{_MONTHS.index(m.group(2)) + 1}月{int(m.group(1))}日", text)
+
+
+def fact_lines(
+    today: dict[str, Any], *, book_allowed: bool, language: str = "en"
+) -> list[FactLine]:
     """The Today read as desk lines, each with its topic, source and as-of."""
 
     rows = {row.get("key"): row for row in today.get("rows") or []}
@@ -222,6 +239,9 @@ def fact_lines(today: dict[str, Any], *, book_allowed: bool) -> list[FactLine]:
         by_topic[line.topic] = by_topic.get(line.topic, 0) + 1
         if by_topic[line.topic] <= MAX_LINES_PER_TOPIC:
             kept.append(line)
+    if language.lower().startswith("zh"):
+        for line in kept:
+            line.text = _zh_dates(line.text)
     return kept
 
 

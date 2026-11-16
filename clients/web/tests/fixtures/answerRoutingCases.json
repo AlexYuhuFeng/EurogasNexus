@@ -1,0 +1,200 @@
+{
+  "about": "Recorded answer-bar queries and the tier each must reach (tests/answerBar.test.ts). Add a case when a query is routed wrongly in use.",
+  "cases": [
+    {
+      "query": "what is TTF",
+      "kind": "glossary",
+      "note": "definition with a glossary hit goes to the glossary, not the model"
+    },
+    {
+      "query": "What's the hedge ratio?",
+      "kind": "glossary"
+    },
+    {
+      "query": "TTF 是什么",
+      "kind": "glossary"
+    },
+    {
+      "query": "什么是对冲比率",
+      "kind": "glossary"
+    },
+    {
+      "query": "define UMM",
+      "kind": "glossary"
+    },
+    {
+      "query": "UMM",
+      "kind": "lookup",
+      "note": "a trader typing UMM wants the messages; 'what is UMM' gets the definition",
+      "intent": "outages"
+    },
+    {
+      "query": "what is UMM",
+      "kind": "glossary"
+    },
+    {
+      "query": "hedge ratio",
+      "kind": "glossary",
+      "note": "a bare term that is not a look-up"
+    },
+    {
+      "query": "what is a swing contract",
+      "kind": "ask",
+      "note": "definition without a hit offers Ask"
+    },
+    {
+      "query": "(42.5-39.8)*30",
+      "kind": "calc"
+    },
+    {
+      "query": "200 + 15%",
+      "kind": "calc"
+    },
+    {
+      "query": "=2026",
+      "kind": "calc"
+    },
+    {
+      "query": "=TTF",
+      "kind": "not-calc"
+    },
+    {
+      "query": "40 EUR/MWh to p/th",
+      "kind": "convert"
+    },
+    {
+      "query": "10 mcm to GWh at 11.2",
+      "kind": "convert"
+    },
+    {
+      "query": "D+2",
+      "kind": "gasday"
+    },
+    {
+      "query": "front month",
+      "kind": "gasday"
+    },
+    {
+      "query": "days to 1 Jan",
+      "kind": "gasday"
+    },
+    {
+      "query": "TTF",
+      "kind": "lookup",
+      "intent": "price"
+    },
+    {
+      "query": "TTF Dec-26",
+      "kind": "lookup",
+      "intent": "price"
+    },
+    {
+      "query": "NBP DA",
+      "kind": "lookup",
+      "intent": "price"
+    },
+    {
+      "query": "THE front month",
+      "kind": "lookup",
+      "intent": "price"
+    },
+    {
+      "query": "the",
+      "kind": "none",
+      "note": "the English word is not the hub"
+    },
+    {
+      "query": "storage DE",
+      "kind": "lookup",
+      "intent": "storage"
+    },
+    {
+      "query": "German storage",
+      "kind": "lookup",
+      "intent": "storage"
+    },
+    {
+      "query": "LNG send-out",
+      "kind": "lookup",
+      "intent": "lng"
+    },
+    {
+      "query": "Norwegian landings",
+      "kind": "lookup",
+      "intent": "norway"
+    },
+    {
+      "query": "outages NBP",
+      "kind": "lookup",
+      "intent": "outages"
+    },
+    {
+      "query": "UK outages",
+      "kind": "lookup",
+      "intent": "outages"
+    },
+    {
+      "query": "停运",
+      "kind": "lookup",
+      "intent": "outages"
+    },
+    {
+      "query": "position NBP Dec-26",
+      "kind": "lookup",
+      "intent": "position",
+      "book": true
+    },
+    {
+      "query": "position NBP Dec-26",
+      "kind": "none",
+      "book": false,
+      "note": "no book look-up without portfolio.read"
+    },
+    {
+      "query": "credit Rhinmark",
+      "kind": "lookup",
+      "intent": "credit",
+      "book": true
+    },
+    {
+      "query": "what's going on with Norwegian supply this week",
+      "kind": "ask",
+      "note": "a summary needs Ask"
+    },
+    {
+      "query": "why did storage withdrawal jump",
+      "kind": "ask"
+    },
+    {
+      "query": "summarise the outages",
+      "kind": "ask"
+    },
+    {
+      "query": "挪威供应这周怎么样？",
+      "kind": "ask"
+    },
+    {
+      "query": "?TTF",
+      "kind": "ask",
+      "note": "? forces Ask"
+    },
+    {
+      "query": "tt",
+      "kind": "none",
+      "note": "half-typed: no answer row"
+    },
+    {
+      "query": "contracts",
+      "kind": "none",
+      "note": "navigation: the results are the answer"
+    },
+    {
+      "query": "Dec-26",
+      "kind": "none"
+    },
+    {
+      "query": "2026-11-16",
+      "kind": "none"
+    }
+  ]
+}

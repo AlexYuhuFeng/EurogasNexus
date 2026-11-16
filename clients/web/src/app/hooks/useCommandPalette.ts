@@ -88,7 +88,8 @@ export interface CommandPaletteController {
   availability: PaletteAvailability;
   setQuery: (value: string) => void;
   setOpen: (value: boolean) => void;
-  move: (delta: number) => void;
+  /** Move by `delta` over `count` rows: the results, plus the answer rows a host shows above them. */
+  move: (delta: number, count?: number) => void;
   run: (command: PaletteCommand) => void;
   runActive: () => void;
 }
@@ -244,10 +245,10 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
   }, [results, activeIndex, run]);
 
   const move = useCallback(
-    (delta: number) => {
+    (delta: number, count: number = results.length) => {
       setActiveIndex((current) => {
-        if (results.length === 0) return 0;
-        const next = (current + delta + results.length) % results.length;
+        if (count === 0) return 0;
+        const next = (((current + delta) % count) + count) % count;
         return next;
       });
     },

@@ -39,6 +39,17 @@ export function reportSubjectFromSearch(search: string): ReportSubject | null {
   return (kind === "alert" || kind === "outage") && id ? { kind, id } : null;
 }
 
+/**
+ * A question handed over from the answer bar's "Open as report" (`?ask=`), on Reports only.
+ * Reports then proposes its plan through its own Ask flow.
+ */
+export function reportQuestionFromSearch(search: string): string | null {
+  const params = new URLSearchParams(search);
+  if (params.get("workspace") !== "research" || params.get("task") !== "reports") return null;
+  const question = (params.get("ask") ?? "").trim();
+  return question.length >= 3 ? question.slice(0, 500) : null;
+}
+
 /** The URL search that opens Reports on a situation report about one alert or outage. */
 export function reportSubjectSearch(search: string, subject: ReportSubject): string {
   const next = new URLSearchParams(search);

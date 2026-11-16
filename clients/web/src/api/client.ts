@@ -3169,6 +3169,10 @@ export interface OutageEventDTO {
   capacity_impact_mcm_d: number;
   description: string;
   market_participant: string;
+  /** The unavailable capacity per gas day in GWh, where the message states or converts it. */
+  unavailable_gwh_d?: number | null;
+  source_system?: string;
+  source_reference?: string;
 }
 
 export interface LadderRollupDTO {
@@ -4885,8 +4889,8 @@ export const api = {
 
   marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
 
-  normalizedMarketObservations: (options?: ApiRequestOptions) =>
-    get<NormalizedMarketObsDTO[]>("/market/normalized", { limit: "500" }, options),
+  normalizedMarketObservations: (options?: ApiRequestOptions, limit = 500) =>
+    get<NormalizedMarketObsDTO[]>("/market/normalized", { limit: String(limit) }, options),
 
   marketSpreads: (options?: ApiRequestOptions) => get<MarketSpreadDTO[]>("/market/spreads", undefined, options),
 

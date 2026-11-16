@@ -1,0 +1,76 @@
+{
+ "energy_in_mwh": {
+  "MWh": 1.0,
+  "kWh": 0.001,
+  "GWh": 1000.0,
+  "TWh": 1000000.0,
+  "GJ": 0.2777777777777778,
+  "MJ": 0.0002777777777777778,
+  "th": 0.02930710701722222,
+  "MMBtu": 0.2930710701722222
+ },
+ "volume_in_m3": {
+  "m3": 1.0,
+  "mcm": 1000000.0,
+  "bcm": 1000000000.0
+ },
+ "price_units": {
+  "EUR/MWh": {
+   "currency": "EUR",
+   "divisor": 1.0,
+   "unit": "MWh"
+  },
+  "GBP/MWh": {
+   "currency": "GBP",
+   "divisor": 1.0,
+   "unit": "MWh"
+  },
+  "USD/MWh": {
+   "currency": "USD",
+   "divisor": 1.0,
+   "unit": "MWh"
+  },
+  "GBp/th": {
+   "currency": "GBP",
+   "divisor": 100.0,
+   "unit": "th"
+  },
+  "USD/MMBtu": {
+   "currency": "USD",
+   "divisor": 1.0,
+   "unit": "MMBtu"
+  },
+  "EUR/GJ": {
+   "currency": "EUR",
+   "divisor": 1.0,
+   "unit": "GJ"
+  },
+  "CAD/GJ": {
+   "currency": "CAD",
+   "divisor": 1.0,
+   "unit": "GJ"
+  },
+  "EUR/kWh": {
+   "currency": "EUR",
+   "divisor": 1.0,
+   "unit": "kWh"
+  }
+ },
+ "price_aliases": {
+  "P/TH": "GBp/th",
+  "PENCE/THERM": "GBp/th",
+  "GBX/TH": "GBp/th",
+  "$/MMBTU": "USD/MMBtu",
+  "€/MWH": "EUR/MWh"
+ },
+ "volume_to_energy": {
+  "gcv_kwh_per_m3": 11.0,
+  "reference_conditions": "GCV, combustion 25 °C, volume 0 °C, 101.325 kPa",
+  "valid_range_kwh_per_m3": [
+   8.0,
+   13.0
+  ],
+  "basis": "assumption"
+ },
+ "gas_day_calendar": "EU-CAM-UTC-2025"
+}
