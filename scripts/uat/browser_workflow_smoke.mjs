@@ -376,7 +376,9 @@ async function ensureAuthenticated(page) {
   }
 
   const usernameInput = page.locator("#sign-in-username");
-  await usernameInput.waitFor({ state: "visible", timeout: 15_000 });
+  // The first paint of a cold dev server includes dependency pre-bundling, which is not what
+  // this sweep measures; every later wait keeps its tighter limit.
+  await usernameInput.waitFor({ state: "visible", timeout: 60_000 });
   await usernameInput.fill(username);
   await page.locator("#sign-in-password").fill(password);
   await page.locator(".sign-in-dev-form button[type=submit]").click();

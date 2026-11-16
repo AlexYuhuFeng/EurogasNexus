@@ -18,6 +18,22 @@ export default defineConfig({
       "/api": "http://127.0.0.1:8000",
     },
   },
+  // Name the runtime dependencies so the dev server pre-bundles them in its first pass. A
+  // dependency it discovers later costs a second optimisation and a full page reload; on a
+  // cold two-core CI runner that reload pushed the first paint past the acceptance sweep's
+  // sign-in wait when the chart library was added.
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react-dom/client",
+      "react-i18next",
+      "i18next",
+      "zustand",
+      "maplibre-gl",
+      "uplot",
+    ],
+  },
   build: {
     rollupOptions: {
       output: {
