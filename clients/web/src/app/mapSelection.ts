@@ -395,12 +395,17 @@ export function topologyIssues(nodes: readonly NodeDTO[], edges: readonly EdgeDT
     }
     connected.add(from.id);
     connected.add(to.id);
-    const key = [from.id, to.id].sort().join("|");
+    // Zone membership and adjacency may join the same pair (a border point is in a zone and
+    // joins it to the next); within one kind a pair is recorded once.
+    const key = [edge.edge_type, ...[from.id, to.id].sort()].join("|");
     if (seen.has(key)) issues.push({ kind: "duplicate_connection", edgeId: edge.id, detail: `${name}: ${from.name} – ${to.name}` });
     seen.add(key);
     // A zone link joins a border point to the trading point of the zone on its other side:
     // the hub end is the zone, not a landing, so only the point end must be a border landing.
-    const zoneLink = edge.metadata_json?.connection_basis === "entry_exit_zone";
+    // An adjacency link (market_area_link) joins an interconnection point to a market area it
+    // connects: its hub end is the market area as well.
+    const zoneLink = edge.metadata_json?.connection_basis === "entry_exit_zone"
+      || edge.edge_type === "market_area_link";
     if (from.country !== to.country) {
       for (const end of [from, to]) {
         if (zoneLink && end.node_type === "hub") continue;

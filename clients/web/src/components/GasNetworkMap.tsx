@@ -37,7 +37,14 @@ import {
   type NetworkHighlightedRoute,
 } from "@/app/networkMapLines";
 import { lineMatters, NO_ROUTES_MATTER, type RoutesThatMatter } from "@/app/routeEmphasis";
-import { type BookFlowLine, compactMwhPerDay, zoneMemberIds } from "@/app/mapLineGeometry";
+import {
+  type BookFlowLine,
+  compactMwhPerDay,
+  hubAdjacencyEdges,
+  isDrawnAdjacency,
+  isZoneMembershipEdge,
+  zoneMemberIds,
+} from "@/app/mapLineGeometry";
 import {
   buildMapStyle,
   configuredMapTileProvider,
@@ -117,7 +124,7 @@ const VIEW_EMPHASIS: Record<"network" | "book", Record<string, unknown>> = {
     // Context routes dimmed; a route the book uses at full strength. Lines stay quieter
     // than the points they join.
     "verified-pipeline-lines": ["case", ["==", ["get", "matters"], true], 0.95, 0.32],
-    "network-link-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.3],
+    "network-link-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.55],
     "indicative-route-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.24],
     "book-flow-lines": 0.85,
     "situation-facilities": 0.55,
@@ -339,7 +346,12 @@ export function GasNetworkMap({
   // live contract, slot or cargo) is drawn bright. "Routes" off hides the context routes.
   const routesMatter = useMemo<RoutesThatMatter>(() => {
     const pointIds = new Set<string>();
-    for (const contract of situation?.contracts ?? []) if (contract.location.ref_id) pointIds.add(contract.location.ref_id);
+    // A delivery at a hub is a market position, not a use of the hub's connections: only a
+    // physical point a contract names lights the lines that reach it.
+    const isHub = (refId: string) => nodeLookup.get(refId)?.node_type === "hub";
+    for (const contract of situation?.contracts ?? []) {
+      if (contract.location.ref_id && !isHub(contract.location.ref_id)) pointIds.add(contract.location.ref_id);
+    }
     for (const slot of situation?.regas_slots ?? []) if (slot.location.ref_id) pointIds.add(slot.location.ref_id);
     for (const cargo of situation?.cargoes ?? []) {
       if (cargo.own && cargo.status !== "delivered" && cargo.status !== "ballast" && cargo.destination?.ref_id) {
@@ -352,7 +364,7 @@ export function GasNetworkMap({
       edgeIds: new Set(routesInUse?.edgeIds ?? []),
       pointIds,
     };
-  }, [routesInUse, situation]);
+  }, [nodeLookup, routesInUse, situation]);
   const showContextRoutes = activeLayers.includes("routes");
   const matteringLineIds = useMemo(
     () => new Set(visibleLines.filter((line) => lineMatters(line, routesMatter)).map((line) => line.id)),
@@ -1340,6 +1352,16 @@ export function GasNetworkMap({
         for (const line of verifiedPipelineLines) {
           if (ids.has(line.from.id) || ids.has(line.to.id)) lines.push({ part: "link", coords: line.geometryCoordinates as Coord[] });
         }
+        // A point inside a market area (storage, LNG, production) shows its one link to the
+        // hub of the zone it delivers into: membership, drawn only on selection.
+        for (const edge of edges) {
+          if (!ids.has(edge.from_node_id) && !ids.has(edge.to_node_id)) continue;
+          const from = nodeLookup.get(edge.from_node_id);
+          const to = nodeLookup.get(edge.to_node_id);
+          if (!from || !to || !isZoneMembershipEdge(edge, from, to)) continue;
+          if (![from.lon, from.lat, to.lon, to.lat].every(Number.isFinite)) continue;
+          lines.push({ part: "ahead", coords: [[from.lon, from.lat], [to.lon, to.lat]] });
+        }
         if (situation) {
           for (const cargo of siteSituation(site, situation).inbound) {
             const at = cargo.position ?? cargo.origin;
@@ -1358,6 +1380,17 @@ export function GasNetworkMap({
         points.push({ part: "current", at: [hub.lon, hub.lat] });
         // A hub is a market area: its points are marked, never wired to the hub.
         hubMembers = zoneMemberIds(hub.id, edges);
+        // Its connections to neighbouring market areas are emphasised (one line per pair, as
+        // drawn by default, and the pipelines leaving from them); every other interconnection
+        // point joining it to a neighbour is ringed, not wired, so selection never fans out.
+        for (const edge of hubAdjacencyEdges(hub.id, edges)) {
+          hubMembers.add(edge.from_node_id === hub.id ? edge.to_node_id : edge.from_node_id);
+          if (!isDrawnAdjacency(edge)) continue;
+          const from = nodeLookup.get(edge.from_node_id);
+          const to = nodeLookup.get(edge.to_node_id);
+          if (!from || !to || ![from.lon, from.lat, to.lon, to.lat].every(Number.isFinite)) continue;
+          lines.push({ part: "link", coords: [[from.lon, from.lat], [to.lon, to.lat]] });
+        }
         for (const node of nodes) {
           if (hubMembers.has(node.id) && Number.isFinite(node.lon) && Number.isFinite(node.lat)) {
             points.push({ part: "member", at: [node.lon, node.lat] });
@@ -1453,7 +1486,7 @@ export function GasNetworkMap({
       element.textContent = label.text;
       return new Marker({ element, anchor: "left", offset: [12, 0] }).setLngLat(toMapCoordinates(label.at[0], label.at[1])).addTo(map);
     });
-  }, [edges, effectiveTheme, facilities, mapReady, nodes, selection, situation, sites, verifiedPipelineLines, view, Boolean(replay)]);
+  }, [edges, effectiveTheme, facilities, mapReady, nodeLookup, nodes, selection, situation, sites, verifiedPipelineLines, view, Boolean(replay)]);
 
   // Replay of a completed deal: the whole voyage faint, the part sailed by the replay clock
   // drawn in the accent, the vessel where it was. Driven from outside (play, scrub).

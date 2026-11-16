@@ -7,6 +7,8 @@ import {
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
 import {
   collapseSchematicPairs,
+  isAdjacencyEdge,
+  isDrawnAdjacency,
   isZoneMembershipEdge,
   straightSegment,
   type LineCoordinate,
@@ -173,6 +175,9 @@ export function buildRenderableNetworkLine(
   if (!isRouteCandidateEdge(edge)) {
     // A point's zone link is membership of a market area, not a connection on the ground.
     if (isZoneMembershipEdge(edge, from, to)) return null;
+    // Of the interconnection points joining two market areas the map draws one by default;
+    // the others show when a hub is selected (GasNetworkMap's selection layer).
+    if (isAdjacencyEdge(edge) && !isDrawnAdjacency(edge)) return null;
     const sequence = metadataNumber(edge.metadata_json, "route_leg_sequence", 1);
     return {
       id: edge.id,

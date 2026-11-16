@@ -2339,6 +2339,17 @@ export interface PortfolioResourceDTO {
 export interface PortfolioSaleOptionDTO {
   option_id: string; label: string; delivery_mode: string; target_point_name: string;
   route_topology_kind?: "LOCAL_MARKET_DISPOSITION" | "NETWORK_ROUTE";
+  /**
+   * The interconnection path the route was priced along (domain/route_cost/route_adjacency.py):
+   * "proven" with the crossings and the node ids hub -> point(s) -> hub, "local", or why the
+   * route is not connected.
+   */
+  route_adjacency?: {
+    status: "proven" | "local" | "no_proven_connection" | "endpoint_not_in_network";
+    crossings?: Array<{ from_hub: string; to_hub: string; points: string[]; point_names: string[]; pipeline_operator: string | null }>;
+    path_node_ids?: string[];
+    detail?: string;
+  } | null;
   sale_price_gbp_mwh: number; route_cost_gbp_mwh?: number | null;
   /** The backend-normalized identity of `sale_price_gbp_mwh` (GBP/MWh). */
   sale_price_currency?: string | null; sale_price_unit?: string | null;

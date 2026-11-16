@@ -1262,7 +1262,8 @@
   .workspace-network .map-visual-legend,
   .map-visual-legend {
     top: auto;
-    right: var(--ds-space-3);
+    /* Clear of the zoom buttons in the bottom-right corner. */
+    right: calc(var(--ds-space-3) + var(--ds-control-touch));
     bottom: var(--ds-space-3);
     display: flex;
     width: auto;
@@ -2471,7 +2472,8 @@
     position: absolute;
     z-index: 40;
     left: var(--ds-space-3);
-    bottom: calc(var(--ds-space-8) + var(--ds-space-1));
+    /* Clear of the map attribution in the bottom-left corner. */
+    bottom: calc(var(--ds-space-8) + var(--ds-space-6));
     display: flex;
     flex-wrap: wrap;
     align-items: center;

@@ -267,13 +267,15 @@ export function NetworkWorkspace({
       if (!legs.length || legs.some((leg) => leg === null)) return null;
       return legs.flatMap((leg) => leg as LineCoordinate[]);
     };
+    // Each flow follows exactly the hub -> interconnection point -> hub path it was priced along.
+    const pricedPath = new Map(saleOptions.map((option) => [option.option_id, option.route_adjacency?.path_node_ids ?? null]));
     return buildBookFlows({
-      paths: resourcePoolMapPaths,
+      paths: resourcePoolMapPaths.map((path) => ({ ...path, pathNodeIds: pricedPath.get(path.routeId) ?? null })),
       resolvePoint: (name) => nodeIdByPointName.get(normalizePointName(name)),
       nodes: new Map(nodes.map((node) => [node.id, node])),
       surveyedRoute,
     });
-  }, [edges, nodes, resourcePoolMapPaths]);
+  }, [edges, nodes, resourcePoolMapPaths, saleOptions]);
 
   return (
     <div className="network-workspace-shell">

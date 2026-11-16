@@ -6,6 +6,9 @@ import {
   buildBookFlows,
   collapseSchematicPairs,
   compactMwhPerDay,
+  hubAdjacencyEdges,
+  isAdjacencyEdge,
+  isDrawnAdjacency,
   isZoneMembershipEdge,
   pairKey,
   straightSegment,
@@ -136,4 +139,47 @@ test("line width is a few capped steps of volume", () => {
   assert.equal(compactMwhPerDay(18_000), "18k MWh/d");
   assert.equal(compactMwhPerDay(1_250), "1.3k MWh/d");
   assert.equal(compactMwhPerDay(950), "950 MWh/d");
+});
+
+// The adjacency the route pricing walks (reference bundle market_area_link / interconnector).
+const link = (point: string, hubId: string, representative: boolean) => ({
+  id: `adj-${point}-${hubId}`,
+  from_node_id: point,
+  to_node_id: hubId,
+  edge_type: "market_area_link",
+  metadata_json: { representative, connection_basis: "entsog_interconnection" },
+});
+const iuk = { id: "pipe-iuk", from_node_id: "bacton-iuk", to_node_id: "zeebrugge-izt", edge_type: "interconnector", metadata_json: {} };
+
+test("adjacency is drawn hub - interconnection point - hub, one point per pair by default", () => {
+  const vipH = link("vip-ttf-the-h", "vtp-ttf", true);
+  const bocholtz = link("bocholtz", "vtp-ttf", false);
+  // A link with a hub end is adjacency, not zone membership: it is not hidden.
+  assert.equal(isZoneMembershipEdge(vipH, julianadorp, ttf), false);
+  assert.equal(isAdjacencyEdge(vipH), true);
+  assert.equal(isDrawnAdjacency(vipH), true);
+  assert.equal(isDrawnAdjacency(bocholtz), false);
+  assert.equal(isDrawnAdjacency(iuk), true);
+  assert.equal(isDrawnAdjacency(zoneEdge("julianadorp", "vtp-ttf")), false);
+  // Selecting the hub shows every point joining it to a neighbour, and the pipelines from them.
+  const all = [vipH, bocholtz, link("bacton-iuk", "vtp-nbp", true), iuk, zoneEdge("gate", "vtp-ttf")];
+  assert.deepEqual(hubAdjacencyEdges("vtp-ttf", all).map((edge) => edge.id), [vipH.id, bocholtz.id]);
+  assert.deepEqual(hubAdjacencyEdges("vtp-nbp", all).map((edge) => edge.id), ["adj-bacton-iuk-vtp-nbp", "pipe-iuk"]);
+});
+
+test("a book flow follows exactly the path it was priced along", () => {
+  const nbp = node("vtp-nbp", -0.96, 53.03, "hub");
+  const ztp = node("vtp-ztp", 4.02, 50.94, "hub");
+  const priced = new Map([nbp, bacton, zeebrugge, ztp].map((item) => [item.id, item]));
+  const [flow] = buildBookFlows({
+    paths: [{ ...path("nbp-ztp", "NBP", "ZTP", 12_000), pathNodeIds: ["vtp-nbp", "bacton-iuk", "zeebrugge-izt", "vtp-ztp"] }],
+    resolvePoint: (name) => ({ nbp: "vtp-nbp", ztp: "vtp-ztp" } as Record<string, string>)[name.toLowerCase()],
+    nodes: priced,
+  });
+  assert.equal(flow.geometryBasis, "priced_path");
+  assert.deepEqual(flow.coordinates[0], [nbp.lon, nbp.lat]);
+  assert.deepEqual(flow.coordinates.at(-1), [ztp.lon, ztp.lat]);
+  // It passes through both ends of IUK.
+  assert.ok(flow.coordinates.some(([lon, lat]) => lon === bacton.lon && lat === bacton.lat));
+  assert.ok(flow.coordinates.some(([lon, lat]) => lon === zeebrugge.lon && lat === zeebrugge.lat));
 });

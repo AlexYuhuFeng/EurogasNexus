@@ -462,7 +462,7 @@
   "map.detail.slot_waiting": "已预留的接收窗口",
   "map.detail.position_at": "位置 {{at}} · {{source}}",
   "map.detail.flow_source_short": "流量：{{source}}，前一燃气日。",
-  "map.key.connection": "连接，无实测走向（直线虚线）",
+  "map.key.connection": "经互联点连接的市场区域（示意）",
   "map.key.pipeline": "管道（实测走向）",
   "map.key.book_flow": "我方流量（线宽按 MWh/d）",
   "map.key.hub_area": "枢纽 = 市场区域：选中以显示其点位",

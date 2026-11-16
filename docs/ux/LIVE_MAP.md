@@ -175,22 +175,29 @@ network map:
   is not physically connected to the points of its zone. The zone-membership links of the
   reference bundle (each point to its zone's trading point) are never drawn: they made a
   star of lines on every hub. Selecting a hub rings its zone's points and steps the rest
-  back; nothing radiates from a hub in the default view. The key says so: "Hub = market
-  area: select it to see its points".
-- **Only real connections are lines.** A surveyed pipeline is drawn along its geometry
-  (key: "Pipeline (surveyed route)"). A physical connection between two located points
-  with no surveyed route is one quiet straight dashed segment between them (key:
-  "Connection, no surveyed route (straight, dashed)"); several records for the same pair
-  are one line. A point with no such connection is a point, with no line. The shipped
-  reference bundle has no surveyed routes and no point-to-point links, so its network is
-  drawn as points only.
+  back; in the default view only its connections to neighbouring market areas (a few per
+  hub) leave it. The key says so: "Hub = market area: select it to see its points".
+- **The network is the commercial topology.** What must be right is which market areas
+  join where, because route pricing walks exactly that graph: market area -
+  interconnection point - market area, and through IUK and BBL, whose two ends are both
+  drawn (`docs/operations/REFERENCE_NETWORK_BUNDLE.md`, "Market-area adjacency"). Each
+  adjacency is a quiet straight dashed segment from the hub to the interconnection point
+  and on to the neighbouring hub (key: "Connection between market areas via
+  interconnection point (schematic)"). Geographic direction carries no meaning. Of the
+  points joining one pair of market areas (19 between TTF and THE) one is drawn by default;
+  selecting a hub emphasises its connections and rings every point joining it to a
+  neighbour, and its zone's points, without wiring them (no fan).
+  Points inside a market area (storage, LNG, production) have no line until selected,
+  which shows their one link to their own hub. A surveyed pipeline, where one is loaded,
+  is drawn along its geometry (key: "Pipeline (surveyed route)").
 - **Our book: one line per origin and destination.** Allocated flows between the same two
   places are summed into one line in the accent colour, its width in a few capped steps of
   MWh/d, the volume labelled at the destination and one arrowhead for direction. It
-  follows the surveyed route where every leg of it is surveyed, otherwise it is one
-  straight segment. Candidates, blocked options and sales where the gas already is draw no
-  line. A delivery at a hub is a volume badge at the hub ("18k MWh/d"), never lines to the
-  hub's points (key: "Our flow (width by MWh/d)").
+  follows exactly the hub - interconnection point(s) - hub path the route was priced along
+  (`route_adjacency.path_node_ids` of the sale option), so what the map shows is what was
+  priced. Candidates, blocked options and sales where the gas already is draw no line. A
+  delivery at a hub is a volume badge at the hub ("18k MWh/d"), never lines to the hub's
+  points (key: "Our flow (width by MWh/d)").
 - **Route candidates are trade routes, not pipes.** One is drawn when the book uses it, or
   as context when the server gives its path; candidates from one hub to every other hub are
   not drawn as a star of corridors.

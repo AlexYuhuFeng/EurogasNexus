@@ -462,7 +462,7 @@
   "map.detail.slot_waiting": "Slot waiting for it",
   "map.detail.position_at": "Position {{at}} · {{source}}",
   "map.detail.flow_source_short": "Flows: {{source}}, previous gas day.",
-  "map.key.connection": "Connection, no surveyed route (straight, dashed)",
+  "map.key.connection": "Connection between market areas via interconnection point (schematic)",
   "map.key.pipeline": "Pipeline (surveyed route)",
   "map.key.book_flow": "Our flow (width by MWh/d)",
   "map.key.hub_area": "Hub = market area: select it to see its points",

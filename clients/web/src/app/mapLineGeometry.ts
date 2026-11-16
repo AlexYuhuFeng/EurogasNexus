@@ -39,6 +39,29 @@ export function isVirtualPoint(node: Pick<LineEndpoint, "node_type"> | null | un
   return node?.node_type === "hub";
 }
 
+/** Market-area adjacency the route pricing walks (reference bundle, from ENTSOG). */
+export const MARKET_AREA_LINK = "market_area_link";
+export const INTERCONNECTOR = "interconnector";
+
+/**
+ * Whether an edge is commercial adjacency: an interconnection point joined to a market area it
+ * connects (``market_area_link``), or the two ends of a two-point pipeline such as IUK or BBL
+ * (``interconnector``). These are what route pricing walks and what the map draws.
+ */
+export function isAdjacencyEdge(edge: Pick<LineEdgeLike, "edge_type">): boolean {
+  return edge.edge_type === MARKET_AREA_LINK || edge.edge_type === INTERCONNECTOR;
+}
+
+/**
+ * Whether the map draws an adjacency edge by default: every pipeline, and for each pair of
+ * market areas the one interconnection point the bundle marks representative. The other points
+ * of a pair show when either hub is selected; pricing uses them all.
+ */
+export function isDrawnAdjacency(edge: LineEdgeLike): boolean {
+  if (edge.edge_type === INTERCONNECTOR) return true;
+  return edge.edge_type === MARKET_AREA_LINK && edge.metadata_json?.representative === true;
+}
+
 /**
  * Whether an edge only says which market area a point belongs to. Such an edge has no
  * physical meaning on the map: it is used for hub selection and topology checks, never drawn.
@@ -48,6 +71,7 @@ export function isZoneMembershipEdge(
   from?: Pick<LineEndpoint, "node_type"> | null,
   to?: Pick<LineEndpoint, "node_type"> | null,
 ): boolean {
+  if (isAdjacencyEdge(edge)) return false;
   if (edge.edge_type === "virtual") return true;
   if (edge.metadata_json?.connection_basis === "entry_exit_zone") return true;
   return isVirtualPoint(from) || isVirtualPoint(to);
@@ -130,6 +154,8 @@ export function compactMwhPerDay(value: number): string {
 
 export interface BookFlowPathInput {
   routeId: string;
+  /** The node ids hub -> interconnection point(s) -> hub the route was priced along. */
+  pathNodeIds?: string[] | null;
   sourcePointName: string;
   targetPointName: string;
   routeState: string;
@@ -146,8 +172,11 @@ export interface BookFlowLine {
   label: string;
   routeIds: string[];
   pathCount: number;
-  /** "surveyed" when it follows a surveyed pipeline route, else one straight segment. */
-  geometryBasis: "surveyed" | "segment";
+  /**
+   * "priced_path" when it follows the hub -> interconnection point -> hub path the route was
+   * priced along, "surveyed" along a surveyed pipeline route, else one straight segment.
+   */
+  geometryBasis: "priced_path" | "surveyed" | "segment";
   coordinates: LineCoordinate[];
 }
 
@@ -178,6 +207,8 @@ export function buildBookFlows({ paths, resolvePoint, nodes, surveyedRoute }: Bu
     const from = nodes.get(fromId);
     const to = nodes.get(toId);
     if (!from || !to || !located(from) || !located(to)) continue;
+    const pricedPath = (path.pathNodeIds ?? []).map((id) => nodes.get(id));
+    const followsPricedPath = pricedPath.length >= 2 && pricedPath.every((node) => node && located(node));
     const key = `${fromId}->${toId}`;
     const existing = byPair.get(key);
     if (existing) {
@@ -195,11 +226,14 @@ export function buildBookFlows({ paths, resolvePoint, nodes, surveyedRoute }: Bu
       label: "",
       routeIds: path.routeId ? [path.routeId] : [],
       pathCount: 1,
-      geometryBasis: "segment",
-      coordinates: straightSegment(from, to),
+      geometryBasis: followsPricedPath ? "priced_path" : "segment",
+      coordinates: followsPricedPath ? polyline(pricedPath as LineEndpoint[]) : straightSegment(from, to),
     });
   }
   return [...byPair.values()].map((flow) => {
+    if (flow.geometryBasis === "priced_path") {
+      return { ...flow, width: bookFlowWidth(flow.mwhPerDay), label: compactMwhPerDay(flow.mwhPerDay) };
+    }
     const surveyed = flow.routeIds.map((routeId) => surveyedRoute?.(routeId) ?? null).find((coords) => coords && coords.length > 1);
     return {
       ...flow,
@@ -209,6 +243,29 @@ export function buildBookFlows({ paths, resolvePoint, nodes, surveyedRoute }: Bu
       coordinates: surveyed ?? flow.coordinates,
     };
   });
+}
+
+/** Straight segments through a sequence of places (hub -> point -> hub). */
+export function polyline(points: readonly LineEndpoint[]): LineCoordinate[] {
+  const out: LineCoordinate[] = [];
+  points.forEach((point, index) => {
+    if (index === 0) return;
+    const segment = straightSegment(points[index - 1], point);
+    out.push(...(out.length ? segment.slice(1) : segment));
+  });
+  return out;
+}
+
+/** The points a hub's adjacency edges join (all of them, drawn when the hub is selected). */
+export function hubAdjacencyEdges<T extends LineEdgeLike>(hubId: string, edges: readonly T[]): T[] {
+  const points = new Set(
+    edges
+      .filter((edge) => edge.edge_type === MARKET_AREA_LINK && (edge.from_node_id === hubId || edge.to_node_id === hubId))
+      .map((edge) => (edge.from_node_id === hubId ? edge.to_node_id : edge.from_node_id)),
+  );
+  return edges.filter((edge) =>
+    edge.edge_type === MARKET_AREA_LINK && (edge.from_node_id === hubId || edge.to_node_id === hubId)
+    || edge.edge_type === INTERCONNECTOR && (points.has(edge.from_node_id) || points.has(edge.to_node_id)));
 }
 
 function located(node: LineEndpoint): boolean {
