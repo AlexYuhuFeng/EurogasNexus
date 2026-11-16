@@ -25,8 +25,8 @@ Measured with `scripts/ops/data_quality_report.py` after the run.
 | Henry Hub (EIA) | 27 | 1 | to 3 Nov | ok (EIA publishes about a week behind) |
 | ENTSO-E power: BE DE-LU FR NL | 13,908 | 24 | 4 to 12 Nov | ok; 15-minute prices |
 | GB demand (National Gas) | 107 | 86 | to 11 Nov | ok (scheduled since 14 Nov, see below) |
-| REMIT outages | 0 | – | – | not run: file import only (GIE IIP collector since 14 Nov, see below) |
-| ECMWF forecasts | 0 | – | – | not run: needs series bindings first |
+| REMIT outages | 0 | – | – | not run: file import only (GIE IIP collector since 14 Nov, ENTSOG transmission UMMs since 16 Nov, see below) |
+| ECMWF forecasts | 0 | – | – | not run: needs series bindings first; decoder (ecCodes) absent, see "Data gaps" (16 Nov) |
 
 With this data the north-west Europe balance returns measured history for the first time.
 For gas day 10 November: pipeline landings 4,629 GWh/d, LNG send-out 2,159 GWh/d, net
@@ -861,6 +861,124 @@ Dornum ITP-00126 and ITP-00188, Emden ITP-00080, ITP-00081 and ITP-00160. The ma
 them, and the flows reported at them, as not located (`unlocated.network_points`,
 `unlocated.flows`) instead of dropping them silently. Read-only against this store.
 
+### Data gaps: outages, Dornum, weather, facility identity (2026-11-16)
+
+Four open items: transmission and production outages, Dornum against Gassco, ECMWF weather in
+the balance, and outages the map cannot place. No migration.
+
+**Transmission outages from ENTSOG.** ENTSOG does publish UMMs:
+`https://transparency.entsog.eu/api/v1/urgentmarketmessages` answered 200 (after connection
+resets on the first tries) with 93 message versions from 19 TSOs, oldest published 2021,
+newest 15 Nov 2026; it pages like `operationaldatas` (`sort=id` echoed, total = rows left
+capped at the limit, 404 past the end; `from`/`to` are ignored for this dataset). 38 are
+`Gas` (unavailability: transmission system 30, other 5, compressor station 3; kWh/d 30,
+kWh/h 8), 55 `Other` (no capacity). No Norwegian, no production message, and none from GTS,
+National Gas or Energinet. `interruptions` also exists (interrupted interruptible capacity at
+points, a capacity product, not a facility unavailability); not collected. Built:
+`ingestion/entsog_umm.py` (ACER field mapping for the importer's normaliser),
+`scripts/ops/ingest_remit_entsog.py --days/--commit/--json`, connector `src-entsog-umm`
+(hourly, on by default, no key; its own connector because the scheduler runs one script per
+source), dataset freshness "Outages (ENTSOG UMM)" (late after 90 days: none May-Sep 2026),
+the ENTSOG platform in the REMIT register, citation with download date on every row. Live
+back-fill (`--days 90 --commit`): 93 read, 38 unavailability versions in the window, 2
+messages held back (ENTSOG flags their newest version `isLatestVersion=No`: GRTgaz
+Deutschland VIP France-Germany `...P013`, NaTran `...S001`), 35 versions of 28 messages
+stored, operators 19/19 resolved. Stored versions by operator: OGE 15, GRTgaz/NaTran
+Deutschland 9, NaTran 4, terranets bw 3, Fluxys 2, Thyssengas 1, Elering 1; asset type
+transmission (OGE's include its storage connection points, e.g. "Speicher Bierwang Entry"). 27 live outages, 1,043.9 GWh/d together; 20 of the 27 in
+the map's 14-day horizon placed by EIC. Balance Norwegian outage read: 0 before, 0 after
+(none in zone NO).
+
+*Defect found and fixed.* The normaliser read `Inactive` as `active` ("inactive" contains
+"active", tested first), and readers dropped only dismissed events, so an event its operator
+had declared over stayed a live outage. Now `inactive` is read and, like `dismissed`, ends the
+event in the outage list, map, Today and the balance (`remit_umm.ENDED_STATUSES`). GIE IIP
+versions already stored keep the misread status until the IIP collector next reads them
+(its 90-day re-read was refused by GIE's upstream rate limit, `iip_upstream_refused`, four
+times on 16 Nov; the scheduler's 2-day window corrects new and revised messages).
+
+**Dornum against Gassco: nothing openly published.** Checked 16 Nov, no terms accepted:
+`umm.gassco.no` redirects to `/disclaimer` ("Gassco FLOW Terms & conditions", an
+`acceptDisclaimer` button); `flow.gassco.no` reset the connection; `umm.gassco.no/api` 404;
+ENTSOG's Gassco-side points (ITP-00208 Dornum EPT1 & EPT2, ITP-00209/-00210 Emden) were
+recorded on 14 Nov with `hasData` false and 404 for operational data (re-check on 16 Nov
+reset by the host); the Norwegian Offshore Directorate's FactPages and norskpetroleum.no
+publish monthly and annual production and exports, not daily terminal deliveries. Gassco's
+own "Principles for publication on umm.gassco.no" (PDF linked from the disclaimer page)
+says what Gassco FLOW shows: real-time *daily aggregated nominations* for the current gas
+day, updated every 5 minutes, for Dornum, "Aggregated Europipe Metering Station", Nybro,
+Dunkerque, Zeebrugge, Easington, St Fergus/Vesterled, SEGAL entry, other exits and the NCS
+sum, and historical final daily aggregated nominations up to two years back, shown as
+graphs. Nothing was changed; ITP-00188 stays out of `SAME_PHYSICAL_POINT`.
+
+What the owner would do. Open https://umm.gassco.no/ and read the terms page: in short, the
+information is what Gassco had when published, from third parties too, not exhaustive or
+complete, must not be used as the legal or factual basis for a decision, and neither Gassco
+nor Gassled is responsible for its correctness or timeliness; it says nothing about reuse,
+so a stored or shown figure still needs Gassco's written confirmation
+(`docs/legal/DATA_SOURCE_TERMS.md`). Once accepted, read the historical final daily
+nomination for **Dornum** (and "Aggregated Europipe Metering Station") for 5-10 closed gas
+days, e.g. 3-12 Nov 2026, in MSm3/d. Compare with ENTSOG at an assumed 11.1 kWh/Sm3 (Gassco's
+GCV not read; state the one used), 3-12 Nov: ITP-00126 alone was 735-780 GWh/d, 66-70
+MSm3/d; ITP-00126 + ITP-00188 was 1,470-1,561 GWh/d, 132-141 MSm3/d (table in "Dornum:
+independent opinion" above). Gassco's Dornum day by day near ITP-00126 alone (within a few per
+cent: the GCV and the nomination-versus-allocation gap) means **duplicate**: add ITP-00188 to
+`SAME_PHYSICAL_POINT`; near the sum means **additive**; anything between, or a Dornum figure
+that only matches with the Europipe Metering Station added, is inconclusive. Gassco
+publishes nominations, not metered flow; a small daily gap is expected either way.
+
+**ECMWF weather: stopped at the decoder.** What exists: the bounded open-data transport
+(index plus HTTP byte range, about 0.3 MB per field), the operator CLI
+`scripts/ops/ingest_ecmwf_forecasts.py` (explicit run, steps and point bindings), append-only
+persistence with issue time and receipt (`append_ecmwf_forecast`, as-of reads), degree-day
+features over a reviewed region profile (`compute_weather_degree_days`,
+`WeatherRegionProfile`, owner-approved `NWE_WEATHER_PROFILE` with weights summing to one),
+and the balance *scenario* (POST) that consumes them. The GET balance does not. Checked
+live: the 2t field of run 2026-11-16 00z, +24 h is a 314,215-byte GRIB2 message with data
+representation template 5.42 (CCSDS); decoding it needs ecCodes, which is in no lock file
+(`requirements*.lock`) and not installed here. Per the brief, no decoder was added. Options:
+(1) `eccodes` 2.50.1 (Apache-2.0) with its binary wheels `eccodeslib` 2.50.0.34 (9.0 MB) and
+`eckitlib` 2.5.0.34 (36.2 MB), plus numpy (only in the scientific-CI lock), cffi (locked),
+attrs and findlibs, as an optional extra installed only on the ingesting host, after the
+dependency licence review covers the bundled native libraries; (2) the distribution's
+ecCodes package on that host; (3) `imagecodecs` (BSD-3-Clause, 27.7 MB) for CCSDS with our
+own GRIB2 section handling: more decoding code to own; (4) a hand-written CCSDS decoder: not
+recommended (a wrong number is worse than a missing one). Also open, and the owner's: the
+NWE region profile (which points, which weights) does not exist in the store and the design
+leaves it to review; no weights were invented. History without an account: data.ecmwf.int
+lists the last 4 run dates (13-16 Nov); the AWS replica the code allows from 2023-01-18
+answered `SlowDown` (HTTP 503) to every probe, so its depth was not confirmed here; that is
+past *forecasts*, not observations; ERA5 needs a CDS account. Nothing changed in the balance:
+it still says "No heating-degree-day inputs supplied" and replays 2025. Its forecast on 16
+Nov (last measured day 12 Nov, call 8,923 GWh/d): 13 Nov 9,521; 15 Nov 10,251; 17 Nov 11,631;
+19 Nov 12,929; 22 Nov 13,601 GWh/d, from 17 Nov flagged `withdrawal_above_recent_maximum`.
+No weather-driven figure exists to compare, and none is claimed.
+
+**Outages the map cannot place.** GIE's AGSI+/ALSI listing (169 rows, 159 EICs, 10 EICs
+listed twice) is loaded as identity (`scripts/ops/ingest_gie_facilities.py`, canonical
+entity `ent:gas_facility:<EIC>` and a `src-gie`/`gie_facility` mapping; retired, never
+deleted). The reference facility table requires coordinates, so identity lives in the
+identity tables. The map matches an unplaced outage to a GIE facility by EIC, else by GIE's
+exact name; a facility whose EIC is an ENTSOG point EIC (29 of 159) is placed there, the
+others are listed as known facilities with no published position. 14-day horizon, 57
+outages: placed 36 / known 0 / unlocated 21 before; 36 / 14 / 7 after.
+
+| Facility (message) | EIC | Outages | Before | After |
+|---|---|---|---|---|
+| EPE-H | 21W000000000066U | 5 | unlocated ("Epe" names two places) | known: UGS Epe Uniper H-Gas, DE, Uniper |
+| UGS-Etzel-ESE-MET | 21W000000000055Z | 3 | unlocated | known: UGS Etzel ESE (MET), DE, MET Speicher |
+| Gas Storage Denmark (GSD) | 45W000000000241K | 3 | unlocated | known: VGS GSD (Lille Torup, Stenlille), DK; two sites, no main one published |
+| Klaipeda LNG Terminal FSRU Independence | none | 1 | unlocated | known by GIE's exact name: Klaipėda LNG Terminal (FSRU Independence), LT |
+| Nüttermoor 4 H-Gas | 37W000000000105E | 1 | unlocated | known: UGS Nüttermoor H-4 (GIE lists it under NL) |
+| Zone MND ESG Entry (OGE) | 37Y000000000386Q | 1 | unlocated | known: VGS Zone MND ESG (Stockstadt, Hähnlein), DE |
+| CUGS Mogilno | 53ZPL0000602319I | 1 | unlocated | unlocated: not in GIE's listing; only the group GIM Kawerna is, and the message does not name it |
+| 6 transmission points (Värska, SPNS2U, Emden EMS/EPT, Speicher Gronau-Epe H1/H4, Epe H) | ENTSOG UMM EICs | 6 | unlocated | unlocated: EIC not in ENTSOG's reference |
+
+GSD Sanok/Brzeźnica from the 14 Nov list has ended and is no longer in the horizon. Not done:
+linking a GIE facility to ENTSOG storage points through the operator (ENTSOG names the storage
+operator by key, `DE-SSO-0001`, which needs ENTSOG's operator list to meet GIE's operator EIC;
+the `operators` endpoint did not answer on 16 Nov).
+
 ## Reproducing
 
 ```bash
@@ -887,6 +1005,8 @@ python scripts/ops/ingest_power.py --zone DE_LU --days 6 --commit
 python scripts/ops/ingest_public_sources.py --source entsog-reference --limit 50000 \
   --entsog-page-size 1000 --json        # also writes ENTSOG identity mappings; "identity"
 python scripts/ops/ingest_remit_iip.py --days 3 --json   # dry run; "quarantined"
+python scripts/ops/ingest_remit_entsog.py --days 90 --commit --json
+python scripts/ops/ingest_gie_facilities.py --commit --json
 
 python scripts/ops/build_reference_network_bundle.py --version 2026-11-14 --downloaded 2026-11-14
 python scripts/ops/ingest_public_sources.py --source entsog --entsog-from 2026-11-05 \
