@@ -11,7 +11,9 @@ import {
   PRODUCT_MODES,
   legacyAddresses,
   modeLanding,
+  modeLocationFor,
   modeLocationFromSearch,
+  pageTaskFromLocation,
   redirectSearch,
   visibleModes,
 } from "../src/app/navigation/modeNavigation.ts";
@@ -36,7 +38,7 @@ test("the primary row is four modes in the plan's order, each with its tasks", (
     ["today", "prices", "network", "events"],
     ["evaluate", "optimise", "routes", "contracts", "review"],
     ["position", "limits", "delivery", "nominations", "storage"],
-    ["strategies", "data", "assistant"],
+    ["strategies", "reports", "data", "assistant"],
   ]);
 });
 
@@ -151,11 +153,11 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
     "desk:today,prices,network,events",
     "deals:evaluate,optimise,routes,contracts,review",
     "book:position,limits,delivery",
-    "research:strategies,data,assistant",
+    "research:strategies,reports,data,assistant",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
-  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 17);
+  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 18);
   // No identity, or an older server without a permission list: what it had before.
   assert.equal(visibleModes(null).length, 4);
   assert.equal(visibleModes(user(["TRADER"], undefined)).length, 4);
@@ -176,4 +178,11 @@ test("every mode and task label exists in English and Chinese, in words", () => 
   for (const key of PRODUCT_MODES.flatMap((mode) => [...mode.aliasKeys, ...mode.tasks.flatMap((task) => task.aliasKeys ?? [])])) {
     assert.ok(en[key] && zh[key], key);
   }
+});
+
+test("Reports is a task of the Research page, held in the URL (task=reports)", () => {
+  assert.equal(pageTaskFromLocation("research", "?workspace=research&task=reports"), "reports");
+  assert.equal(pageTaskFromLocation("research", "?workspace=research&view=features"), undefined);
+  assert.equal(modeLocationFor("research", "reports")?.task.id, "reports");
+  assert.equal(modeLocationFor("research", undefined)?.task.id, "data");
 });

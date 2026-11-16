@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type OutageEventDTO } from "@/api/client";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
 import { WhyButton } from "./WhyButton";
+import { ReportLink } from "./ReportLink";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -73,7 +74,12 @@ export function OutagesPanel({ t }: { t: Translate }) {
       {
         id: "why",
         header: <span className="visually-hidden">{t("why.button")}</span>,
-        render: (row) => <WhyButton subject="outage" id={row.event_id} label={row.facility_name || row.facility_id} t={t} />,
+        render: (row) => (
+          <>
+            <WhyButton subject="outage" id={row.event_id} label={row.facility_name || row.facility_id} t={t} />{" "}
+            <ReportLink subject={{ kind: "outage", id: String(row.event_id) }} label={row.facility_name || row.facility_id} t={t} />
+          </>
+        ),
       },
     ],
     [t],

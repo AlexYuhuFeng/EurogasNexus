@@ -6,6 +6,7 @@ import type {
 } from "@/api/client";
 import { aiActionContract, aiActionIsAvailable } from "@/app/experience/aiActions";
 import { WhyButton } from "./WhyButton";
+import { ReportLink } from "./ReportLink";
 import { IconButton } from "./ui/Button";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -138,6 +139,7 @@ export function AlertCenter({
                   )}
                   <div className="monitoring-alert-actions">
                     <WhyButton subject="alert" id={alert.alert_id} label={title} language={language} t={t} />
+                    <ReportLink subject={{ kind: "alert", id: alert.alert_id }} label={title} t={t} />
                     <button
                       type="button"
                       disabled={!askAvailable}

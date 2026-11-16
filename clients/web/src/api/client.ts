@@ -513,6 +513,13 @@ export async function downloadReport(
   URL.revokeObjectURL(link.href);
 }
 
+/** A stored market report's self-contained HTML, read with the caller's credentials. */
+export async function fetchReportHtml(reportId: string): Promise<string> {
+  const response = await fetch(apiUrl(`/reports/market/${encodeURIComponent(reportId)}/html`), requestInit());
+  if (!response.ok) throw new Error(`report ${response.status}`);
+  return response.text();
+}
+
 /**
  * Send a contract PDF to intake and get back a draft for review; nothing is stored.
  * The body is the file itself, so no form-data parser is needed on the server.
@@ -1808,6 +1815,109 @@ export interface ExplanationDTO {
   simulated: boolean;
   warnings: string[];
   as_of: string;
+}
+
+/** Market reports (``/api/reports/...``): the catalogue, a plan, a stored report. */
+export type ReportKind = "daily" | "weekly" | "monthly" | "situation" | "ask";
+export type ReportAudience = "internal" | "shareable";
+
+export interface ReportSectionTypeDTO {
+  key: string;
+  title: string;
+  group: string;
+  data_source: string;
+  charts: string[];
+  internal_only: boolean;
+  params: string[];
+  description: string;
+}
+
+export interface ReportCatalogueDTO {
+  template_version: string;
+  kinds: ReportKind[];
+  daily_variants: ("morning" | "eod")[];
+  audiences: ReportAudience[];
+  groups: string[];
+  sections: ReportSectionTypeDTO[];
+  default_sections: Record<ReportKind, string[]>;
+  pdf: string;
+}
+
+export interface ReportPlanDTO {
+  kind: ReportKind;
+  audience: ReportAudience;
+  variant: "morning" | "eod" | null;
+  sections: string[];
+  hubs: string[];
+  countries: string[];
+  period_start: string | null;
+  period_end: string | null;
+  alert_id: string | null;
+  outage_id: string | null;
+  question: string | null;
+  notes: string[];
+}
+
+export interface ReportPlanProposalDTO {
+  question: string;
+  answerable: boolean;
+  message: string | null;
+  missing: string[];
+  basis: "model" | "rules";
+  model_refusal: string | null;
+  plan: ReportPlanDTO | null;
+  notes: string[];
+}
+
+export interface ReportRequestDTO {
+  kind: ReportKind;
+  variant?: "morning" | "eod";
+  audience: ReportAudience;
+  sections?: string[];
+  hubs?: string[];
+  countries?: string[];
+  period_start?: string;
+  period_end?: string;
+  alert_id?: string;
+  outage_id?: string;
+  question?: string;
+  language?: "en" | "zh-CN";
+  use_model?: boolean;
+}
+
+export interface ReportSummaryDTO {
+  report_id: string;
+  kind: ReportKind;
+  variant: string | null;
+  title: string;
+  audience: ReportAudience;
+  headline: string;
+  period_start: string | null;
+  period_end: string | null;
+  as_of: string | null;
+  created_at: string | null;
+  generated_by_type: string;
+  simulated: boolean;
+  licensed_families: string[];
+  model_use: { attempted?: number; passed?: number };
+}
+
+export interface ReportMetadataDTO {
+  report_id: string;
+  title: string;
+  kind: ReportKind;
+  audience: ReportAudience;
+  headline: string;
+  key_points: string[];
+  as_of: string;
+  simulated: boolean;
+  sections: { key: string; title: string; status: string; commentary_basis: string; simulated: boolean; forecast: boolean }[];
+  omitted: { key: string; title: string; reason: string; action: string | null }[];
+  licensed: { sources?: string[] };
+  model_use: { attempted?: number; passed?: number };
+  snapshot_sha256: string;
+  html_sha256: string;
+  pdf: string;
 }
 
 /** A morning brief or end-of-day draft (``POST /api/analysis/brief``). */
@@ -4939,6 +5049,19 @@ export const api = {
     post<DeskBriefDTO>("/analysis/brief", { kind, language }),
 
   deskToday: (options?: ApiRequestOptions) => get<DeskTodayDTO>("/desk/today", undefined, options),
+
+  reportCatalogue: (options?: ApiRequestOptions) => get<ReportCatalogueDTO>("/reports/catalogue", undefined, options),
+
+  reportPlan: (question: string, audience: ReportAudience) =>
+    post<ReportPlanProposalDTO>("/reports/plan", { question, audience }),
+
+  generateReport: (body: ReportRequestDTO) => post<ReportMetadataDTO>("/reports/market", body),
+
+  marketReports: (options?: ApiRequestOptions) =>
+    get<ReportSummaryDTO[]>("/reports/market", { limit: "50" }, options),
+
+  marketReport: (reportId: string) =>
+    get<ReportMetadataDTO>(`/reports/market/${encodeURIComponent(reportId)}`),
 
   acknowledgeMonitoringAlert: (alertId: string) =>
     post<MonitoringAlertDTO>(`/monitoring/alerts/${encodeURIComponent(alertId)}/acknowledge`, {}),

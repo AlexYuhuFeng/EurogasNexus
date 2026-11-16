@@ -100,6 +100,9 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     aliasKeys: ["nav.primary.strategy"],
     tasks: [
       { id: "strategies", labelKey: "nav.mode.research.strategies", page: "strategy", permissions: ["strategy.read"], aliasKeys: ["nav.strategy"] },
+      // Market reports: assembled from the catalogue's sections on the server (the Research page's
+      // own task, so a capability does not earn a page of its own, AGENTS rule 9).
+      { id: "reports", labelKey: "nav.mode.research.reports", page: "research", pageTask: "reports", permissions: ["market.read"] },
       { id: "data", labelKey: "nav.mode.research.data", page: "research", permissions: ["market.read", "analysis.query"], aliasKeys: ["nav.research"] },
       // Agents sit under Research until a desk use is shown (M.6).
       { id: "assistant", labelKey: "nav.mode.research.assistant", shortLabelKey: "nav.mode.research.assistant.short", page: "agents", permissions: ["agent.read"], aliasKeys: ["nav.agents"] },
@@ -129,6 +132,9 @@ export function pageTaskFromLocation(page: WorkspacePageId, search: string): str
   if (page === "market" || page === "network" || page === "capacity") return marketTaskFromLocation(search, page);
   if (page === "contracts" || page === "orders") {
     return portfolioTaskFromLocation(page === "orders" ? withWorkspace(search, "orders") : search);
+  }
+  if (page === "research") {
+    return new URLSearchParams(search).get("task") === "reports" ? "reports" : undefined;
   }
   if (page === "scenario" || page === "review") {
     return decisionTaskFromLocation(page === "review" ? withWorkspace(search, "review") : search);

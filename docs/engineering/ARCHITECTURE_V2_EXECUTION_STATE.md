@@ -6,6 +6,21 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-16 — market reports (branch `market-reports`, not pushed)
+
+- `application/reports/`: a section catalogue (prices, alerts, Norwegian landings, LNG, storage,
+  gas-fired power, outages, the NW Europe balance with forecast and Sankey, and Our book:
+  position, P&L, limits, contracts) read through the existing entitled services; rule
+  commentary; server-side SVG charts with a data table under each; one self-contained HTML file
+  with print CSS (PDF = browser print). Kinds daily (morning/eod), weekly, monthly, situation
+  (alert or outage), ask (question to a validated, editable plan; model proposal with keyword
+  fallback). Model only rewords market sections under `note_verdict`.
+- Shareable reports never read book sections; a licensed source keeps a report internal unless
+  `market_data_licences.redistribution_allowed`. Records in `market_reports` (migration
+  `0064_market_reports`); readers re-checked for sources and books. `/api/reports/*`: 5 paths,
+  6 operations (249 / 270). Research → Reports task (no new page id), Report beside Why.
+- Not built: scheduled delivery (Part 5), server-side PDF. See `docs/user/REPORTS.md`.
+
 ## 2026-11-15 — UX-02/03/05, FRESH-02 and the page frame (client only, uncommitted)
 
 - Primitives Field, Select, Tabs, Segmented, Toolbar, Popover, Dialog, Sheet and DataGrid

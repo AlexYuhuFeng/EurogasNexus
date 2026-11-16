@@ -16,6 +16,8 @@ import { DecisionWorkspace } from "@/components/DecisionWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import { RuntimeWorkspace } from "@/components/RuntimeWorkspace";
 import { ResearchDataWorkspace } from "@/components/ResearchDataWorkspace";
+import { ReportsWorkspace } from "@/components/ReportsWorkspace";
+import { pageTaskFromLocation } from "@/app/navigation/modeNavigation";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
@@ -65,7 +67,12 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
   const usesConsolidatedHeader = headerModeForPage(activeWorkspace) === "consolidated";
   // A page in a mode (Research: Strategies, Data, Assistant) shows the mode's task row; a utility
   // page (help, settings, administration) keeps its own pages as tabs.
-  const mode = useModeHeader(activeWorkspace, undefined, navigation.openWorkspace, t);
+  // Research has one task of its own in the URL (`task=reports`); the others are its views.
+  const researchTask =
+    activeWorkspace === "research" && typeof window !== "undefined"
+      ? pageTaskFromLocation("research", window.location.search)
+      : undefined;
+  const mode = useModeHeader(activeWorkspace, researchTask, navigation.openWorkspace, t);
   const localTabs = usesConsolidatedHeader
     ? []
     : mode.title
@@ -271,8 +278,12 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <AccessCenter currentUser={api.currentUser} t={t} />
       )}
 
-      {activeWorkspace === "research" && (
+      {activeWorkspace === "research" && researchTask !== "reports" && (
         <ResearchDataWorkspace t={t} />
+      )}
+
+      {activeWorkspace === "research" && researchTask === "reports" && (
+        <ReportsWorkspace t={t} language={i18n.language} />
       )}
 
       {activeWorkspace === "agents" && (

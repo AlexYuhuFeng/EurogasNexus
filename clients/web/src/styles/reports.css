@@ -1,0 +1,140 @@
+@layer legacy {
+/* Research → Reports (tokens only; see docs/product/DESIGN_TOKENS.md). */
+.reports-page {
+  padding: var(--ds-space-3) var(--ds-space-4);
+}
+
+.reports-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  align-items: start;
+}
+
+.reports-side {
+  display: grid;
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+
+.reports-form {
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.reports-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+}
+
+.reports-row > * {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.reports-row input,
+.reports-ask textarea {
+  width: 100%;
+}
+
+.reports-row input {
+  height: var(--ds-control);
+}
+
+.reports-ask {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.reports-sections {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--ds-space-1) var(--ds-space-3);
+}
+
+.reports-sections legend {
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-2);
+  padding: 0 var(--ds-space-1);
+}
+
+.reports-sections label {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+}
+
+.reports-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.reports-note,
+.reports-subject {
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-2);
+  margin: 0;
+}
+
+.reports-proposal {
+  font-size: var(--ds-text-sm);
+  border-left: 2px solid var(--ds-border-strong);
+  padding-left: var(--ds-space-3);
+}
+
+.reports-proposal p,
+.reports-proposal ul {
+  margin: 0;
+}
+
+.reports-warn,
+.reports-error {
+  color: var(--ds-status-watch);
+  font-size: var(--ds-text-sm);
+  margin: 0;
+}
+
+.reports-error {
+  color: var(--ds-status-breach);
+}
+
+.reports-viewer {
+  min-width: 0;
+}
+
+.reports-frame {
+  display: block;
+  width: 100%;
+  height: 75vh;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface);
+}
+
+.reports-print-frame {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 0;
+  visibility: hidden;
+}
+
+@media (max-width: 900px) {
+  .reports-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reports-page {
+    padding: var(--ds-space-2);
+  }
+}
+}

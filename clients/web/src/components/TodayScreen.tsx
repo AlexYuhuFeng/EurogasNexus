@@ -40,6 +40,7 @@ import { GasForPowerPanel } from "@/components/GasForPowerPanel";
 import { MethodNote } from "@/components/MethodNote";
 import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { WhyButton } from "@/components/WhyButton";
+import { ReportLink } from "@/components/ReportLink";
 import { Chart, Sparkline, type ChartData } from "@/components/ui/charts";
 import {
   Button,
@@ -292,6 +293,7 @@ function ChangesRow({ row, t, nowMs, language, onOpenOutages }: { row: TodayChan
                     {alert.simulated && <SimulatedMark t={t} />}
                     <span className="today-list-time">{ageText(alert.as_of, nowMs, t)}</span>
                     <WhyButton subject={alert.why.subject} id={alert.why.id} label={alert.title} language={language} t={t} />
+                    <ReportLink subject={{ kind: "alert", id: alert.alert_id }} label={alert.title} t={t} />
                   </li>
                 ))}
               </ul>
@@ -322,6 +324,7 @@ function ChangesRow({ row, t, nowMs, language, onOpenOutages }: { row: TodayChan
                       {outage.simulated && <SimulatedMark t={t} />}
                     </span>
                     <WhyButton subject={outage.why.subject} id={outage.why.id} label={outage.facility} language={language} t={t} />
+                    <ReportLink subject={{ kind: "outage", id: String(outage.event_id) }} label={outage.facility} t={t} />
                   </li>
                 ))}
               </ul>

@@ -79,6 +79,8 @@ export const PAGE_OBJECT_PARAMS: Partial<Record<WorkspacePageId, readonly string
   // The board's tenor once the user chose one (Prices).
   market: ["tenor"],
   glossary: ["term"],
+  // The alert or outage a situation report is about (Research → Reports).
+  research: ["subject"],
 };
 
 export function workspaceTaskSearch(
