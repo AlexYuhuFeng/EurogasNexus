@@ -5,6 +5,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+from eurogas_nexus.db.connection_url import pg8000_ssl_arguments
 from eurogas_nexus.db.registry import get_metadata
 from eurogas_nexus.db.session import resolve_database_url
 
@@ -48,12 +49,15 @@ def run_migrations_online() -> None:
         raise RuntimeError("Alembic config is unavailable outside an Alembic runtime.")
 
     section = config.get_section(config.config_ini_section, {})
-    section["sqlalchemy.url"] = _configured_database_url()
+    # A libpq ``sslmode`` becomes pg8000's ``ssl_context``; without one nothing changes.
+    url, ssl_arguments = pg8000_ssl_arguments(_configured_database_url())
+    section["sqlalchemy.url"] = url.render_as_string(hide_password=False)
 
     connectable = engine_from_config(
         section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        **({"connect_args": ssl_arguments} if ssl_arguments else {}),
     )
 
     with connectable.connect() as connection:

@@ -570,6 +570,48 @@ def _check_dev_browser_origin(
     ]
 
 
+#: Shortest tester password a hosted demo server accepts (its sign-in is on the internet).
+DEMO_MIN_PASSWORD_LENGTH = 12
+
+
+def _check_demo_profile(
+    environ: Mapping[str, str], *, environment: str, api_profile: str
+) -> list[Finding]:
+    """The demo profile is a hosted test server: never trial/release, never a weak password."""
+
+    if api_profile != "demo":
+        return []
+    findings: list[Finding] = []
+    if environment not in {"development", "test"}:
+        findings.append(
+            Finding(
+                severity="error",
+                code="demo_profile_in_production",
+                variable="EUROGAS_NEXUS_API_PROFILE",
+                message=(
+                    f"the demo profile is refused in a {environment!r} environment: it mounts "
+                    "a credential sign-in and is meant for a hosted test/demo server only"
+                ),
+                remedy="use the release profile, or EUROGAS_NEXUS_ENV=development for a demo",
+            )
+        )
+    password = _value(environ, "EUROGAS_NEXUS_DEV_LOGIN_PASSWORD")
+    if len(password) < DEMO_MIN_PASSWORD_LENGTH:
+        findings.append(
+            Finding(
+                severity="error",
+                code="demo_password_weak",
+                variable="EUROGAS_NEXUS_DEV_LOGIN_PASSWORD",
+                message=(
+                    "the demo profile signs testers in with this password and it is unset or "
+                    f"shorter than {DEMO_MIN_PASSWORD_LENGTH} characters"
+                ),
+                remedy="set a random tester password of at least 12 characters as a secret",
+            )
+        )
+    return findings
+
+
 def _check_security_posture(environ: Mapping[str, str]) -> list[Finding]:
     """A public-network posture needs its acceptance evidence to exist."""
 
@@ -667,6 +709,9 @@ def check_environment(
     )
     report.findings.extend(
         _check_dev_browser_origin(source, environment=environment, api_profile=api_profile)
+    )
+    report.findings.extend(
+        _check_demo_profile(source, environment=environment, api_profile=api_profile)
     )
     report.findings.extend(_check_security_posture(source))
     report.findings.extend(_check_external_consumers(source))

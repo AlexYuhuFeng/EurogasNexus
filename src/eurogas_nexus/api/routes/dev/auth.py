@@ -191,12 +191,21 @@ def _credentials_match(
 
     Both comparisons always run, so a wrong username cannot be distinguished
     from a wrong password by response timing.
+
+    ``expected_username`` may list several names separated by commas (a hosted
+    test server provisions one tester identity per role, all signing in with the
+    one operator-set password). Every listed name is compared, so the timing
+    does not reveal which one, if any, matched. A principal name never contains
+    a comma, so a single configured name behaves exactly as before.
     """
 
-    username_matches = hmac.compare_digest(
-        username.encode("utf-8"),
-        expected_username.encode("utf-8"),
-    )
+    allowed = [name.strip() for name in expected_username.split(",") if name.strip()]
+    username_matches = False
+    for candidate in allowed or [expected_username]:
+        username_matches |= hmac.compare_digest(
+            username.encode("utf-8"),
+            candidate.encode("utf-8"),
+        )
     password_matches = hmac.compare_digest(
         password.encode("utf-8"),
         expected_password.encode("utf-8"),

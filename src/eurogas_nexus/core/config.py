@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from eurogas_nexus.version import APPLICATION_VERSION, DEFAULT_RELEASE_CHANNEL
 
-ApiProfile = Literal["development", "internal", "release"]
+ApiProfile = Literal["development", "internal", "release", "demo"]
 RuntimeEnvironment = Literal["development", "test", "trial", "release"]
 DeploymentPosture = Literal["private_network_preview", "security_accepted"]
 ReleaseChannel = Literal["preview", "rc", "stable"]

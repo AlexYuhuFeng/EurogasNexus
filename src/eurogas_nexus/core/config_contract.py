@@ -119,7 +119,12 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         purpose="Route profile: which API surfaces are mounted.",
         default="development",
         example="development",
-        notes=("release hides /docs and /openapi.json and mounts no development routes",),
+        notes=(
+            "release hides /docs and /openapi.json and mounts no development routes",
+            "demo is a hosted test/demo server: release surface plus the tester "
+            "credential sign-in; refused in trial and release environments "
+            "(docs/deployment/SELF_HOSTED_DEMO.md)",
+        ),
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_VERSION",
@@ -189,6 +194,18 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         scope="OPERATOR",
         purpose="Verify pooled connections before use.",
         default="true",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DB_SSL_ROOT_CERT",
+        scope="OPERATOR",
+        purpose="CA certificate for a verified PostgreSQL TLS connection: a path or the PEM text.",
+        sensitivity="internal",
+        notes=(
+            "Used with sslmode=verify-ca or verify-full in the database URL (a managed "
+            "service's project CA, for example). With sslmode=require it upgrades the "
+            "connection to verify-ca, as libpq does.",
+            "The libpq sslrootcert URL parameter is accepted too.",
+        ),
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_DB_POOL_SIZE",
@@ -590,8 +607,10 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         sensitivity="secret",
         profiles=("development",),
         notes=(
-            "Mounted by the development route profile only; never set in trial or "
+            "Mounted by the development and demo route profiles only; never set in trial or "
             "release, and never reuse a real user password.",
+            "May list several principal names separated by commas; each still has to be an "
+            "ACTIVE local identity.",
         ),
     ),
     ConfigVar(
@@ -600,6 +619,58 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         purpose="Development-only credential login password.",
         sensitivity="secret",
         profiles=("development",),
+        notes=(
+            "The demo profile requires at least 12 characters (the tester password of a "
+            "hosted test/demo server).",
+        ),
+    ),
+    # --- Hosted test/demo server (root Dockerfile) -------------------------
+    ConfigVar(
+        name="EUROGAS_NEXUS_WEB_CLIENT_DIR",
+        scope="OPERATOR",
+        purpose="Serve the built web client from the API process at this directory.",
+        notes=(
+            "Single-origin hosting for a one-container test/demo server; unset in a "
+            "customer deployment, where the API serves no pages.",
+            "/api is never answered by the client; other paths fall back to index.html.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_LIVE_SOURCES",
+        scope="OPERATOR",
+        purpose="Live public-source refresh on the hosted test/demo server: auto, on or off.",
+        default="auto",
+        profiles=("development",),
+        notes=(
+            "auto turns it on when a public-source key (GIE, EIA, ENTSO-E) is set. A "
+            "background process catches up after a pause, then repeats; ENTSOG and GIE "
+            "still need their certification record.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS",
+        scope="OPERATOR",
+        purpose="Longest gap, in days, one catch-up round reads after a pause.",
+        default="45",
+        profiles=("development",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_REFRESH_HOURS",
+        scope="OPERATOR",
+        purpose="Hours between live public-source refresh rounds on the demo server.",
+        default="6",
+        profiles=("development",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_RESET_TOKEN",
+        scope="OPERATOR",
+        purpose="Change this value to re-seed the demo desk and tester identities at next start.",
+        profiles=("development",),
+        notes=(
+            "Read by scripts/demo/start_public_demo.py. The seed runs once on an empty "
+            "store; later starts keep testers' changes unless this value differs from the "
+            "one recorded at the last seed.",
+        ),
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED",

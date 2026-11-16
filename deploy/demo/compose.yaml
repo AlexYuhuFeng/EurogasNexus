@@ -1,0 +1,95 @@
+# Eurogas Nexus TEST/DEMO SERVER on one machine - NOT the customer runtime.
+#
+# The customer runtime is deploy/runtime/compose.yaml (published, digest-pinned API image,
+# no demo data). This stack builds the root Dockerfile (demo image: API and web client on
+# one port, simulated demo desk, tester sign-in) and runs it with PostgreSQL 16.
+#
+#   cd deploy/demo && cp .env.example .env    # then fill the three secrets
+#   docker compose up -d --build
+#
+# Guide: docs/deployment/SELF_HOSTED_DEMO.md
+name: eurogas-nexus-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: eurogas_demo
+      POSTGRES_USER: eurogas_demo
+      POSTGRES_PASSWORD: ${DEMO_DB_PASSWORD:?set DEMO_DB_PASSWORD in deploy/demo/.env}
+    volumes:
+      - demo-postgres:/var/lib/postgresql/data
+    # No published port: only the demo service on this stack's network reaches it.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eurogas_demo -d eurogas_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  demo:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${DEMO_GIT_SHA:-}
+        GIT_REF: ${DEMO_GIT_REF:-}
+    image: eurogas-nexus-demo:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # The stack's own database unless DEMO_DATABASE_URL names an external one.
+      DATABASE_URL: ${DEMO_DATABASE_URL:-postgresql+pg8000://eurogas_demo:${DEMO_DB_PASSWORD}@postgres:5432/eurogas_demo}
+      EUROGAS_NEXUS_SECRET_KEY: ${EUROGAS_NEXUS_SECRET_KEY:?set EUROGAS_NEXUS_SECRET_KEY in deploy/demo/.env}
+      EUROGAS_NEXUS_DEV_LOGIN_PASSWORD: ${EUROGAS_NEXUS_DEV_LOGIN_PASSWORD:?set the tester password EUROGAS_NEXUS_DEV_LOGIN_PASSWORD in deploy/demo/.env}
+      EUROGAS_NEXUS_DB_SSL_ROOT_CERT: ${EUROGAS_NEXUS_DB_SSL_ROOT_CERT:-}
+      EUROGAS_NEXUS_DEMO_RESET_TOKEN: ${EUROGAS_NEXUS_DEMO_RESET_TOKEN:-}
+      EUROGAS_NEXUS_DEMO_LIVE_SOURCES: ${EUROGAS_NEXUS_DEMO_LIVE_SOURCES:-auto}
+      EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS: ${EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS:-45}
+      EUROGAS_NEXUS_DEMO_REFRESH_HOURS: ${EUROGAS_NEXUS_DEMO_REFRESH_HOURS:-6}
+      EUROGAS_NEXUS_CORS_ORIGINS: ${EUROGAS_NEXUS_CORS_ORIGINS:-}
+      EUROGAS_NEXUS_LLM_API_KEY: ${EUROGAS_NEXUS_LLM_API_KEY:-}
+      GIE_API_KEY: ${GIE_API_KEY:-}
+      EIA_API_KEY: ${EIA_API_KEY:-}
+      ENTSOE_SECURITY_TOKEN: ${ENTSOE_SECURITY_TOKEN:-}
+    ports:
+      # Loopback by default: reach it from other devices through the https profile below
+      # or a private tunnel, never by opening this port to the internet.
+      - "${DEMO_BIND_ADDRESS:-127.0.0.1}:${DEMO_PORT:-8080}:8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8080/api/health/ready', timeout=4))['status'] == 'ready'"
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      # The first start migrates and seeds before it listens (about 30 s on a laptop).
+      start_period: 300s
+
+  gateway:
+    # Optional HTTPS front for other devices: docker compose --profile https up -d
+    image: caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    profiles: ["https"]
+    restart: unless-stopped
+    environment:
+      DEMO_SERVER_NAME: ${DEMO_SERVER_NAME:-localhost}
+      DEMO_TLS: ${DEMO_TLS:-internal}
+    ports:
+      - "${DEMO_HTTPS_BIND_ADDRESS:-0.0.0.0}:${DEMO_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - demo-caddy:/data
+    depends_on:
+      demo:
+        condition: service_healthy
+
+volumes:
+  demo-postgres:
+    name: eurogas-nexus-demo-postgres
+  demo-caddy:
+    name: eurogas-nexus-demo-caddy

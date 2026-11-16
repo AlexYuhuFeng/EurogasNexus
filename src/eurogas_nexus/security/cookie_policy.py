@@ -27,8 +27,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
-#: Profiles that serve a real deployment and must never emit a plaintext cookie.
-PRODUCTION_API_PROFILES = frozenset({"internal", "release"})
+#: Profiles that serve a real deployment and must never emit a plaintext cookie. The demo
+#: profile is a hosted server reached over the platform's TLS, so it is included.
+PRODUCTION_API_PROFILES = frozenset({"internal", "release", "demo"})
 
 #: Environments that describe a real deployment.
 PRODUCTION_ENVIRONMENTS = frozenset({"trial", "release"})

@@ -15,8 +15,13 @@ from eurogas_nexus.api.error_handlers import register_error_handlers
 from eurogas_nexus.api.middleware.observability import HttpObservabilityMiddleware
 from eurogas_nexus.api.middleware.origin_csrf import OriginCsrfGuardMiddleware
 from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
-from eurogas_nexus.api.route_profiles import get_route_profile
+from eurogas_nexus.api.route_profiles import assert_profile_allowed, get_route_profile
 from eurogas_nexus.api.route_registration import register_routes
+from eurogas_nexus.api.web_client import (
+    SecurityHeadersMiddleware,
+    WebClientMiddleware,
+    resolve_web_client_dir,
+)
 from eurogas_nexus.core.config import Settings, get_settings
 
 
@@ -34,6 +39,10 @@ async def _application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     runtime_dependencies.initialize_runtime_dependencies()
     yield
+    # Close pooled database connections cleanly on shutdown (no-op when none were opened).
+    from eurogas_nexus.db.session import dispose_cached_engines
+
+    dispose_cached_engines()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -42,6 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
 
     route_profile = get_route_profile(resolved_settings.api_profile)
+    assert_profile_allowed(route_profile.name, resolved_settings.environment)
 
     dependencies = (
         [
@@ -99,6 +109,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _declare_openapi_security_scheme(app)
 
     register_routes(app, route_profile)
+
+    # Opt-in single-origin hosting of the built web client (hosted test/demo server).
+    # Unset in customer deployments, where nothing below is installed.
+    web_client_dir = resolve_web_client_dir()
+    if web_client_dir is not None:
+        app.add_middleware(WebClientMiddleware, directory=web_client_dir)
+        app.add_middleware(SecurityHeadersMiddleware)
 
     return app
 

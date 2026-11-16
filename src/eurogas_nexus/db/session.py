@@ -9,6 +9,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from eurogas_nexus.db.connection_url import pg8000_ssl_arguments
+
 DB_URL_ENV_VARS = (
     "RUNTIME_STORE_DATABASE_URL",
     "DATABASE_URL",
@@ -66,13 +68,15 @@ def get_engine(
         "pool_pre_ping": pool_pre_ping,
         "future": True,
     }
-    parsed_url = make_url(resolved_url)
+    # A libpq ``sslmode`` (as a managed PostgreSQL service issues it) becomes the
+    # ``ssl_context`` pg8000 takes; a URL without one is left exactly as it was.
+    parsed_url, ssl_arguments = pg8000_ssl_arguments(make_url(resolved_url))
     if parsed_url.get_backend_name() == "postgresql":
         bounded_timeout = max(1, int(connect_timeout_seconds))
         timeout_parameter = (
             "timeout" if parsed_url.drivername.endswith("+pg8000") else "connect_timeout"
         )
-        engine_options["connect_args"] = {timeout_parameter: bounded_timeout}
+        engine_options["connect_args"] = {timeout_parameter: bounded_timeout, **ssl_arguments}
         engine_options["pool_size"] = max(
             1,
             pool_size
@@ -98,7 +102,7 @@ def get_engine(
             else _env_int("EUROGAS_NEXUS_DB_POOL_RECYCLE", 1800),
         )
 
-    return create_engine(resolved_url, **engine_options)
+    return create_engine(parsed_url, **engine_options)
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
@@ -107,11 +111,32 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 
 
+_CACHED_ENGINES: list[Engine] = []
+
+
 @lru_cache(maxsize=16)
 def _cached_session_factory(database_url: str) -> sessionmaker[Session]:
     """Reuse one bounded SQLAlchemy pool for each resolved runtime database."""
 
-    return create_session_factory(get_engine(database_url))
+    engine = get_engine(database_url)
+    _CACHED_ENGINES.append(engine)
+    return create_session_factory(engine)
+
+
+def dispose_cached_engines() -> int:
+    """Close every pooled connection the cached session factories hold.
+
+    Called when the API shuts down, so PostgreSQL sees each connection end cleanly
+    instead of waiting for the socket to drop (a small managed plan counts every open
+    connection against its limit). Returns the number of engines disposed.
+    """
+
+    disposed = 0
+    while _CACHED_ENGINES:
+        _CACHED_ENGINES.pop().dispose()
+        disposed += 1
+    _cached_session_factory.cache_clear()
+    return disposed
 
 
 def get_session_factory(

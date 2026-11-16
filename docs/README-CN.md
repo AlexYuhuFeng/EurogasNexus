@@ -205,6 +205,8 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [部署角色 EN](deployment/DEPLOYMENT_ROLES-EN.md) /
   [CN](deployment/DEPLOYMENT_ROLES-CN.md)
+- [自托管测试/演示服务器（英文）](deployment/SELF_HOSTED_DEMO.md) — `deploy/demo/compose.yaml` 与根目录
+  `Dockerfile`：测试人员登录、演示数据均标为模拟；不是客户运行时
 
 ## 文档状态规则
 

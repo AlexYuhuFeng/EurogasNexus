@@ -74,6 +74,17 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "EUROGAS_NEXUS_DB_MAX_OVERFLOW",
             "EUROGAS_NEXUS_DB_POOL_TIMEOUT",
             "EUROGAS_NEXUS_DB_POOL_RECYCLE",
+            "EUROGAS_NEXUS_DB_SSL_ROOT_CERT",
+        ),
+    ),
+    (
+        "Hosted test/demo server (root Dockerfile only)",
+        (
+            "EUROGAS_NEXUS_WEB_CLIENT_DIR",
+            "EUROGAS_NEXUS_DEMO_RESET_TOKEN",
+            "EUROGAS_NEXUS_DEMO_LIVE_SOURCES",
+            "EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS",
+            "EUROGAS_NEXUS_DEMO_REFRESH_HOURS",
         ),
     ),
     (

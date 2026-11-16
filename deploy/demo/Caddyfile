@@ -1,0 +1,8 @@
+# HTTPS front for the test/demo server (deploy/demo/compose.yaml, profile "https").
+# DEMO_TLS=internal: Caddy's own local CA (each device must trust it, or accept the warning).
+# DEMO_TLS=<your e-mail>: a public certificate for a public DNS name pointing here.
+{$DEMO_SERVER_NAME}:443 {
+    tls {$DEMO_TLS}
+    encode gzip
+    reverse_proxy demo:8080
+}

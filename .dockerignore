@@ -10,19 +10,43 @@ artifacts
 .dnx*
 **/.dnx*
 .pytest_cache
+**/.pytest_cache
 .ruff_cache
+**/.ruff_cache
+**/.mypy_cache
 .tmp_work
+.tmp
 .venv
+**/.venv
 .env
 .env.*
 !.env.example
+**/.env
 **/__pycache__
 **/*.pyc
 **/node_modules
 **/dist
 *.egg-info
-clients
+**/*.egg-info
+build
+.coverage
+htmlcov
+**/test-results
+**/playwright-report
+**/*.log
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.dump
+**/*.sqlite
+# The web client sources stay in the context: the root Dockerfile (hosted test/demo
+# server) builds them. deploy/runtime/Dockerfile.api copies an explicit list and never
+# reads clients/. The desktop shell and the client tests are not needed by either image.
+clients/desktop
+clients/web/tests
 data
 docs
 tests
 dist
+infra

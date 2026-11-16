@@ -299,6 +299,8 @@ Operational procedures and operator-facing guides:
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [Deployment roles EN](deployment/DEPLOYMENT_ROLES-EN.md) /
   [CN](deployment/DEPLOYMENT_ROLES-CN.md)
+- [Self-hosted test/demo server](deployment/SELF_HOSTED_DEMO.md) — `deploy/demo/compose.yaml` and the
+  root `Dockerfile`: tester sign-in, demo data marked simulated; never a customer runtime
 - [Deployment handover index](deployment/HANDOVER_INDEX.md) — what a receiving team can verify for
   itself, what is signed where, and which items only they can close
 
