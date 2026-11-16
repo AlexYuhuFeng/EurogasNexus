@@ -226,6 +226,24 @@ def _same_day_last_year(day: date) -> date:
         return day - timedelta(days=365)
 
 
+def covered_label(ctx: Ctx, measured: list[date]) -> str | None:
+    """The period's label, saying so when fewer days were measured than the period has.
+
+    "the week" over seven measured days; "the 4 measured days of the week (9 Nov to 12 Nov)"
+    when the newest days are not yet published, so an average is never read as the period's.
+    """
+
+    label = ctx.period_label
+    if not label or not measured:
+        return label
+    total = (ctx.end - ctx.start).days + 1
+    if len(measured) >= total:
+        return label
+    first, last = min(measured), max(measured)
+    return (f"the {len(measured)} measured days of {label} "
+            f"({first.day} {first:%b} to {last.day} {last:%b})")
+
+
 def revisions_since(ctx: Ctx, tables: tuple[str, ...], families: tuple[str, ...] = ()) -> dict:
     """Provider revisions to these observation tables since the previous report of the kind."""
 
@@ -310,14 +328,25 @@ def prices(ctx: Ctx) -> SectionResult:
         day_change = None
         if len(days) > 1 and (days[-1] - days[-2]).days <= MAX_VAR_GAP_DAYS:
             day_change = round(close - shown(days[-2]), 4)
-        period_days = [d for d in days if ctx.start <= d <= ctx.end]
+        def contract(d: date, closes=closes) -> Any:
+            # The delivery period a close prices: a front month rolls at each month end, so
+            # closes of two different contracts are never compared or ranged together.
+            start = closes[d].get("period_start_utc")
+            return start.date() if isinstance(start, datetime) else start
+
+        period_days = [d for d in days if ctx.start <= d <= ctx.end
+                       and contract(d) == contract(days[-1])]
         before = [d for d in days if d < ctx.start and (ctx.start - d).days <= 10]
         period_change = high = low = average = None
+        rolled = None
         if ctx.period_label and period_days:
             values = [shown(d) for d in period_days]
             high, low, average = max(values), min(values), round(sum(values) / len(values), 4)
-            if before:
+            if before and contract(before[-1]) == contract(days[-1]):
                 period_change = round(close - shown(before[-1]), 4)
+            elif before:
+                start = closes[before[-1]].get("period_start_utc")
+                rolled = f"{start:%b-%y}" if isinstance(start, datetime) else None
         year_day = _same_day_last_year(days[-1])
         year_ago_days = [d for d in days if year_day - timedelta(days=5) <= d <= year_day]
         year_ago = shown(year_ago_days[-1]) if year_ago_days else None
@@ -339,6 +368,7 @@ def prices(ctx: Ctx) -> SectionResult:
                 "simulated": simulated,
                 "state": state,
                 "source": "Demo price (simulated)" if simulated else source_system,
+                "rolled_from": rolled,
             }
         )
         result.simulated = result.simulated or simulated
@@ -501,6 +531,8 @@ def pipeline_supply(ctx: Ctx) -> SectionResult:
                   if ctx.start - timedelta(days=length) <= d < ctx.start]
         stats["period_avg"] = _avg(in_period)
         stats["previous_avg"] = _avg(before)
+        stats["period_label"] = covered_label(
+            ctx, [d for d in days if ctx.start <= d <= ctx.end])
         last_year = [supply.by_day[d] for d in supply.by_day
                      if _same_day_last_year(ctx.start) <= d <= _same_day_last_year(ctx.end)]
         stats["year_ago"] = _avg(last_year)
@@ -552,8 +584,8 @@ def pipeline_supply(ctx: Ctx) -> SectionResult:
 
 def lng(ctx: Ctx) -> SectionResult:
     from eurogas_nexus.application.freshness_contract import period_state
-    from eurogas_nexus.application.projections.market_reads import row_allowed
     from eurogas_nexus.application.identity_resolution import identity_clause
+    from eurogas_nexus.application.projections.market_reads import row_allowed
     from eurogas_nexus.db.models.observation import LngObservationRecord as Lng
     from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
 
@@ -606,6 +638,7 @@ def lng(ctx: Ctx) -> SectionResult:
                           "Schedule GIE ALSI")
         length = (ctx.end - ctx.start).days + 1
         stats["period_avg"] = _avg([total[d] for d in in_period])
+        stats["period_label"] = covered_label(ctx, in_period)
         stats["previous_avg"] = _avg([total[d] for d in complete
                                       if ctx.start - timedelta(days=length) <= d < ctx.start])
         sums: dict[str, float] = defaultdict(float)
@@ -728,8 +761,8 @@ POWER_ZONES = {"GB": "GB", "NL": "NL", "BE": "BE", "DE": "DE_LU", "LU": "DE_LU",
 
 def power_burn(ctx: Ctx) -> SectionResult:
     from eurogas_nexus.application.freshness_contract import period_state
-    from eurogas_nexus.application.projections.market_reads import row_allowed
     from eurogas_nexus.application.identity_resolution import identity_clause
+    from eurogas_nexus.application.projections.market_reads import row_allowed
     from eurogas_nexus.db.models.power import PowerObservationRecord as Power
     from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
 
@@ -787,6 +820,7 @@ def power_burn(ctx: Ctx) -> SectionResult:
             return _empty(result, "No complete day of gas-fired generation in the period",
                           "Check the source")
         stats["period_avg"] = _avg([total[d] for d in in_period])
+        stats["period_label"] = covered_label(ctx, in_period)
     systems = sorted({r.source_system for r in rows})
     dataset = "Power (ENTSO-E)" if any(s.startswith("ENTSOE") for s in systems) \
         else "GB power (Elexon)"
@@ -981,6 +1015,8 @@ def balance(ctx: Ctx) -> SectionResult:
             return _empty(result, "No measured balance day in the period",
                           "Choose a period with ENTSOG and GIE data")
         stats["period_avg"] = _avg([h["call_gwh"] for h in in_period])
+        stats["period_label"] = covered_label(
+            ctx, [date.fromisoformat(h["day"]) for h in in_period])
     show_forecast = ctx.plan.kind in {"daily", "situation", "ask"} or ctx.end >= ctx.today - \
         timedelta(days=1)
     horizon = forecast[:7] if show_forecast else []

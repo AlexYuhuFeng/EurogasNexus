@@ -112,6 +112,14 @@ def prices(rows: list[dict[str, Any]], *, period_label: str | None) -> dict[str,
             f"{number(r['high'], r['unit'])} at the close over {period_label}"
             f"{_sim(r['simulated'])}."
         )
+    rolled = [r for r in rows if r.get("rolled_from")]
+    if period_label and rolled:
+        r = rolled[0]
+        bullets.append(
+            f"The {r['hub']} front month rolled from {r['rolled_from']} to {r['product']} during "
+            f"{period_label}, so no change over {period_label} is given; the range is "
+            f"{r['product']} only."
+        )
     yearly = [r for r in rows if r.get("year_ago") is not None]
     if yearly:
         r = yearly[0]

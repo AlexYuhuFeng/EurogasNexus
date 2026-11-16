@@ -269,7 +269,10 @@ def test_a_situation_report_from_an_outage_measures_before_and_after(env):
 def test_monthly_and_weekly_aggregate_over_their_period(env):
     weekly = _generate(env, _caller("DEMO"), {"kind": "weekly"})
     prices = _sections(weekly)["prices"]
-    assert "over the week" in prices["commentary"]["headline"]
+    text = " ".join([prices["commentary"]["headline"], *prices["commentary"]["bullets"]])
+    # The week of 31 Oct to 6 Nov spans the front-month roll: no change across two contracts.
+    assert "rolled from Nov-26 to Dec-26" in text
+    assert all(row["period_change"] is None for row in prices["tables"][0]["rows"])
     columns = [c["key"] for c in prices["tables"][0]["columns"]]
     assert {"period_change", "high", "low", "average"} <= set(columns)
     monthly = _generate(env, _caller("DEMO"), {"kind": "monthly"})
