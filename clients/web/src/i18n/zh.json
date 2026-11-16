@@ -4929,6 +4929,8 @@
   "reports.link_label": "事件报告：{{subject}}",
   "reports.print_summary": "仅打印摘要页",
   "reports.download_csv": "下载数据（CSV）",
+  "reports.annex": "打印数据附录（CSV 下载中始终包含）",
+  "reports.edited_temperature": "，温度 {{value}}",
   "reports.edited_model": "编辑：模型 {{model}}，编辑指引 v{{directive}}",
   "reports.edited_rule": "规则编辑",
   "reports.plan_view": "编辑计划：哪些要点领先、哪些被略去",

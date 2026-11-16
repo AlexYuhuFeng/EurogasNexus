@@ -202,7 +202,7 @@ def test_a_stored_report_reopens_identically_and_its_hashes_hold(env):
         assert rerender(record) == record.html == report.html
         assert sha256(record.html) == record.html_sha256
         assert sha256(canonical_json(record.snapshot_json)) == record.snapshot_sha256
-        assert record.template_version == "market-report/2"
+        assert record.template_version == "market-report/3"
         assert "DEMO_Sim" in record.source_systems
         assert record.generated_by == "p-analyst"
 
@@ -429,3 +429,74 @@ def test_a_period_read_includes_outages_that_ended_and_the_live_view_does_not(en
     assert not [r for r in live if r["status"] == "ended"]
     ended = [r for r in period if r["status"] == "ended"]
     assert ended and all(r["end_utc"] for r in ended)
+
+
+# ----------------------------------------- round 3: page economy, page one, brand (standard)
+
+from eurogas_nexus.application.reports import render as report_render  # noqa: E402
+
+
+def test_page_one_carries_the_brand_mark_and_a_lead_exhibit_sized_to_the_page(daily):
+    front = daily.html.split('class="r-sheet r-body"')[0]
+    assert '<p class="r-brand"><svg' in front and 'aria-hidden="true"' in front
+    lead = re.search(r'<figure class="r-exhibit r-lead-ex" id="f1">.*?viewBox="0 0 640 (\d+)"',
+                     front)
+    assert lead, "page one has no lead exhibit"
+    assert report_render.LEAD_MIN <= int(lead.group(1)) <= report_render.LEAD_MAX
+
+
+def test_the_lead_exhibit_falls_back_to_the_section_chart_when_a_finding_cites_a_table(daily):
+    snapshot = dict(daily.snapshot)
+    outage = next(f for f in snapshot["fact_sheet"] if f["key"] == "outages.offline")
+    snapshot["findings"] = [{"fact_ids": [outage["id"]], "text": outage["sentence"]}] + [
+        f for f in snapshot["findings"] if outage["id"] not in f["fact_ids"]]
+    html = report_render.render_report(snapshot)
+    assert 'class="r-exhibit r-lead-ex"' in html.split('class="r-sheet r-body"')[0]
+
+
+def test_findings_bold_only_the_lead_clause():
+    lead, rest = report_render.split_lead_clause(
+        "Net withdrawal from storage was 2,038 GWh/d on 15 Nov, up 142 GWh/d on the day.")
+    assert lead == "Net withdrawal from storage was 2,038 GWh/d on 15 Nov"
+    assert rest.startswith(", up 142")
+
+
+def test_text_sits_beside_a_single_exhibit_and_only_exhibits_avoid_breaks(daily):
+    body = _body(daily.html)
+    storage = re.search(r'<section class="r-section" id="s-storage".*?</section>', body).group(0)
+    assert re.search(r'<div class="r-row"><div class="r-text">.*?<figure', storage)
+    css = re.search(r"<style>(.*?)</style>", daily.html).group(1)
+    assert "figure{margin:0 0 3mm;break-inside:avoid" in css
+    assert ".r-section{margin:0 0 3mm}" in css and ".r-section{break-inside" not in css
+
+
+def test_tables_align_text_left_and_numbers_right(daily):
+    css = re.search(r"<style>(.*?)</style>", daily.html).group(1)
+    assert "tbody td,tbody th{" in css and "text-align:left;font-weight:400" in css
+    assert "td.n,th.n{text-align:right" in css
+    glance = re.search(r'<figure class="r-exhibit r-glance".*?</figure>', daily.html).group(0)
+    assert '<th scope="col" class="r-unit">Unit</th>' in glance
+
+
+def test_a_daily_prints_no_annex_and_says_where_the_data_is(env, daily):
+    assert 'class="r-annex"' not in daily.html
+    assert "CSV download" in daily.html and 'id="report-data"' in daily.html
+    asked = _generate(env, _caller("DEMO", "BOOKS:*"), {"kind": "daily", "annex": True})
+    assert 'class="r-annex"' in asked.html
+    weekly = _generate(env, _caller("DEMO"), {"kind": "weekly"})
+    assert 'class="r-annex"' in weekly.html
+
+
+def test_capacity_offline_outranks_a_routine_withdrawal_change(env):
+    report = _generate(env, _caller("DEMO"), {"kind": "daily", "audience": "shareable"})
+    sheet = {f["id"]: f for f in report.snapshot["fact_sheet"]}
+    lead = sheet[report.snapshot["findings"][0]["fact_ids"][0]]
+    assert lead["key"] == "outages.offline", lead["key"]
+    assert report.snapshot["headline"].startswith("Outages remove")
+
+
+def test_a_chinese_edition_prints_its_furniture_in_chinese(env):
+    report = _generate(env, _caller("DEMO"), {"kind": "daily", "audience": "shareable"},
+                       language="zh-CN")
+    assert '<html lang="zh-CN">' in report.html
+    assert "要点" in report.html and "一览" in report.html and "第 \" counter(page)" in report.html

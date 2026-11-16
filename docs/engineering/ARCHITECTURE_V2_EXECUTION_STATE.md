@@ -6,6 +6,20 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-16 — market reports round 3: page economy, exhibits, brand mark (branch `reports-editorial`, not pushed)
+
+- Template `market-report/3`: text beside half-width exhibits, only exhibits kept from splitting,
+  lead exhibit sized to fill page one, back matter as run-in paragraphs in three columns, printed
+  annex on request (`annex` plan option; default weekly and monthly). Daily prints in 5 pages,
+  weekly 7, monthly 9, situation 4, asked 2–3 (Chromium 140).
+- Charts: calendar date ticks that never overlap, end labels sized to their text and never
+  colliding, accent tonal ramp for categorical stacks, one decimal count per axis.
+- Brand mark in the masthead (`brand.mark_svg("colour", ...)`: the report paper is always white).
+- Editor: directive v2 adds LINKING (connectives between unrelated indicators refused), runs at
+  temperature 0 (recorded); a refused finding is replaced in place. Capacity offline weighs 10x
+  its share of Norwegian landings, so material outages lead the rule plan.
+- Chinese edition prints its furniture in Chinese.
+
 ## 2026-11-16 — market reports round 2: publication standard and AI editor (branch `reports-editorial`, not pushed)
 
 - Template `market-report/2`: fact sheet with comparisons and materiality (`reports/facts.py`,

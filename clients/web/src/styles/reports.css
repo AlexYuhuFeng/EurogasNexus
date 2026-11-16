@@ -64,7 +64,8 @@
   padding: 0 var(--ds-space-1);
 }
 
-.reports-sections label {
+.reports-sections label,
+.reports-annex {
   display: flex;
   align-items: center;
   gap: var(--ds-space-2);

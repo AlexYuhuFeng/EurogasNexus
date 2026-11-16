@@ -21,7 +21,7 @@ import {
   type ReportSummaryDTO,
 } from "@/api/client";
 import { Button, DataGrid, EmptyState, Field, Panel, Segmented, Select, StatusBadge, type DataGridColumn } from "@/components/ui";
-import { reportCsv, reportSubjectFromSearch, reportRequestFromForm, summaryOnlyHtml, type ReportForm } from "@/app/model/reportsModel";
+import { annexByDefault, reportCsv, reportSubjectFromSearch, reportRequestFromForm, summaryOnlyHtml, type ReportForm } from "@/app/model/reportsModel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 type Mode = "standard" | "ask";
@@ -40,6 +40,7 @@ function initialForm(): ReportForm {
     periodEnd: "",
     subject,
     question: "",
+    annex: null,
   };
 }
 
@@ -242,6 +243,14 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   </label>
                 ))}
               </fieldset>
+              <label className="reports-annex">
+                <input
+                  type="checkbox"
+                  checked={form.annex ?? annexByDefault(mode === "ask" ? "ask" : form.kind)}
+                  onChange={(event) => update({ annex: event.target.checked })}
+                />
+                <span>{t("reports.annex")}</span>
+              </label>
               {error && <p className="reports-error" role="alert">{error}</p>}
               <div className="reports-actions">
                 <Button type="submit" variant="primary" size="md" loading={busy === "generate"} disabled={!canGenerate}>
@@ -325,6 +334,7 @@ function ReportViewer({ reportId, t }: { reportId: string | null; t: Translate }
       className="reports-viewer"
       meta={editorial ? (editorial.basis === "model"
         ? t("reports.edited_model", { model: editorial.model ?? "", directive: editorial.directive ?? "" })
+          + (editorial.temperature != null ? t("reports.edited_temperature", { value: editorial.temperature }) : "")
         : t("reports.edited_rule")) : undefined}
       actions={
         reportId && html ? (

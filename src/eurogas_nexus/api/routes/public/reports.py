@@ -47,6 +47,8 @@ class ReportRequest(BaseModel):
     alert_id: str | None = Field(default=None, max_length=128)
     outage_id: str | None = Field(default=None, max_length=128)
     question: str | None = Field(default=None, max_length=500)
+    #: Print the data annex; omitted: the kind's default (weekly and monthly).
+    annex: bool | None = None
     language: Literal["en", "zh-CN"] = "en"
     use_model: bool = True
 

@@ -99,7 +99,8 @@ def test_the_data_table_holds_exactly_the_series_values(spec):
             elif expected[row[0]] is None:
                 assert cell == "n/a"
             else:
-                assert float(cell.replace(",", "").replace("\u2212", "-")) == pytest.approx(expected[row[0]], abs=0.006)
+                value = float(cell.replace(",", "").replace("\u2212", "-"))
+                assert value == pytest.approx(expected[row[0]], abs=0.006)
 
 
 def test_hover_values_are_native_tooltips():
@@ -192,3 +193,87 @@ def test_lng_states_its_side_of_the_average_and_outages_say_when_norway_is_clear
     clear = rules.outages({"active": 1, "total": 1, "horizon_days": 14, "active_gwh": 96.7,
                            "largest": None, "norway_active": 0, "norway_gwh": 0.0})
     assert "No active outage in Norway is among the messages held." in clear["bullets"]
+
+
+# ------------------------------------------------- round 3: ticks, labels, tones (house standard)
+
+from datetime import date, timedelta  # noqa: E402
+
+from eurogas_nexus.application.reports.charts import (  # noqa: E402
+    LUMA_STEP,
+    _place_labels,
+    date_ticks,
+    luma,
+    stack_order,
+    stack_tones,
+    tick_digits,
+)
+
+
+def _days(count: int, end: date = date(2026, 11, 15)) -> list[str]:
+    return [(end - timedelta(days=count - 1 - i)).isoformat() for i in range(count)]
+
+
+@pytest.mark.parametrize("count", [14, 30, 91, 365, 395])
+@pytest.mark.parametrize("left,right", [(40, 226), (40, 520)])  # half and full width
+def test_date_ticks_never_overlap_and_the_last_day_ends_the_plot(count, left, right):
+    xs = _days(count)
+
+    def sx(x):
+        first = date.fromisoformat(xs[0]).toordinal()
+        last = date.fromisoformat(xs[-1]).toordinal()
+        return left + (date.fromisoformat(x).toordinal() - first) / (last - first) * (right - left)
+
+    ticks = date_ticks(xs, sx, left, right)
+    assert ticks[-1][2] == "end" and abs(ticks[-1][0] - right) < 0.01
+    boxes = []
+    for x, text, anchor in ticks:
+        width = len(text) * 5.6
+        lo = x - width if anchor == "end" else x if anchor == "start" else x - width / 2
+        boxes.append((lo, lo + width))
+        assert lo >= left - 4.01 and lo + width <= right + 0.01
+    boxes.sort()
+    assert all(a[1] + 12 <= b[0] + 1e-6 for a, b in zip(boxes, boxes[1:], strict=False)), ticks
+    assert len(ticks) >= 2
+
+
+def test_end_labels_never_collide_even_when_lines_end_together():
+    placed = _place_labels([(50.0, "Measured 9,274", "#000"), (51.0, "Forecast 9,178", "#000"),
+                            (52.0, "Year earlier 8,974", "#000")], 10, 108)
+    ys = sorted(y for y, _, _ in placed)
+    assert all(b - a >= 11 - 1e-9 for a, b in zip(ys, ys[1:], strict=False))
+    crowded = _place_labels([(105.0, str(i), "#000") for i in range(6)], 10, 108)
+    ys = sorted(y for y, _, _ in crowded)
+    assert ys[0] >= 14 and all(b - a >= 9 for a, b in zip(ys, ys[1:], strict=False))
+
+
+def test_a_half_width_chart_gives_the_plot_most_of_the_column():
+    spec = {**LINE, "half": True, "series": LINE["series"][:1], "reference_lines": []}
+    svg = render_chart(spec, "h1")
+    xs = [float(p.split(",")[0]) for line in re.findall(r'<polyline points="([^"]+)"', svg)
+          for p in line.split()] + [float(x) for x in re.findall(r'<circle cx="([\d.]+)"', svg)]
+    assert max(xs) > 310 * 0.8  # one series: the end label is the value alone
+
+
+def test_categorical_stacks_use_the_accent_ramp_largest_at_the_bottom():
+    series = [{"name": n, "points": [["2026-11-14", v], ["2026-11-15", v]]}
+              for n, v in (("BE", 100.0), ("FR", 800.0), ("GB", 400.0), ("NL", 600.0),
+                           ("DE", 50.0), ("PL", 20.0))]
+    ordered = stack_order(series)
+    assert [s["name"] for s in ordered] == ["FR", "NL", "GB", "BE", "Other"]
+    tones = stack_tones(len(ordered), other=True)
+    assert len(set(tones)) == 5 and len(tones) <= 5
+    lumas = [luma(t) for t in tones[:-1]]
+    assert lumas == sorted(lumas)  # darkest (largest) at the bottom
+    svg = render_chart({"type": "stacked_bar", "title": "LNG", "unit": "GWh/d",
+                        "series": series}, "s1")
+    fills = set(re.findall(r'<rect [^>]*fill="(#[0-9a-f]{6})"', svg))
+    assert fills <= set(tones)
+    for a, b in zip(tones, tones[1:], strict=False):
+        assert abs(luma(a) - luma(b)) >= LUMA_STEP or "url(#" in svg
+
+
+def test_axis_labels_share_one_number_of_decimals():
+    assert tick_digits([0.0, 250.0, 500.0, 750.0, 1000.0]) == 0
+    assert tick_digits([60.0, 70.0, 80.0, 90.0]) == 0
+    assert tick_digits([40.5, 41.0, 41.5]) == 1

@@ -6,11 +6,17 @@ with measure and unit, source line, notes) is the renderer's; this module draws 
 - light horizontal gridlines only, no chart border, a darker zero line for bars and areas;
 - direct labels at the end of each line or band instead of a legend;
 - the main series in the accent colour; context (the same days a year earlier, the prior gas
-  year) in grey; a forecast dashed; other series in the token palette, each with its own dash
-  or hatch so a greyscale print still separates them;
+  year) in grey; a forecast dashed; other lines in the accent ramp, each with its own dash so
+  a greyscale print still separates them;
 - a missing value breaks a line; nothing is smoothed;
-- fixed geometry: a full-width exhibit is 640 x 210 units, a half-width one 310 x 190, both at
-  the same scale on the page, so type and strokes match across exhibits.
+- fixed geometry: a full-width exhibit is 640 x 165 units, a half-width one 310 x 140, both at
+  the same scale on the page, so type and strokes match across exhibits; the end labels take
+  only the room they need, so the plot fills the column;
+- categorical stacks in a tonal ramp of the accent (darkest and largest at the bottom, at most
+  four tones, the rest summed as "Other" in grey), hatched only where two neighbouring bands
+  would print as the same grey;
+- date ticks on calendar boundaries, the last day right-aligned at the plot's end, and never
+  two labels closer than a gap (:func:`date_ticks`).
 
 Every chart is ``role="img"`` with ``<title>``/``<desc>``; hover values are native SVG
 tooltips. :func:`chart_table` gives the same numbers for the data annex (a test holds the
@@ -29,11 +35,16 @@ from typing import Any
 from eurogas_nexus.application.reports.tokens import LIGHT, SERIES
 
 FULL = (640, 165)
-HALF = (310, 175)
+HALF = (310, 140)
 PAD_LEFT = 40
 PAD_TOP = 10
 PAD_BOTTOM = 22
-LABEL_ROOM = 92
+#: Most room an end label may take: a fifth of a full exhibit, a quarter of a half one.
+LABEL_ROOM = 120
+HALF_LABEL_ROOM = 84
+#: Approximate advance of one character of a 10-unit and an 8.5-unit sans label.
+CHAR = 5.6
+LABEL_CHAR = 4.9
 CONTEXT = "#8f8f99"
 INK_2 = LIGHT["text-2"]
 GRID = "#e4e4e7"
@@ -44,8 +55,35 @@ def _e(text: Any) -> str:
     return escape(str(text), quote=True)
 
 
+#: The accent's tonal ramp, darkest first (greyscale luma about 43, 79, 133 and 190), and
+#: the grey of a summed "Other" band.
+RAMP = ("#142a66", LIGHT["accent"], "#5f86e6", "#a9bff2")
+OTHER = "#8f8f99"
+#: Tones picked from the ramp for 1..4 categories: spread, the accent always among them.
+RAMP_PICKS = {1: (1,), 2: (1, 3), 3: (1, 2, 3), 4: (0, 1, 2, 3)}
+#: Two neighbouring bands closer than this in greyscale luma are hatched.
+LUMA_STEP = 30
+
+
 def _colour(index: int) -> str:
-    return LIGHT[f"series-{index % SERIES + 1}"]
+    """Line colours: the accent first, then the ramp's dark, mid and light tones."""
+
+    return (LIGHT["accent"], RAMP[0], RAMP[2], OTHER)[index % 4]
+
+
+def luma(colour: str) -> float:
+    """Greyscale value (0-255) a print of ``colour`` gives (Rec. 601 weights)."""
+
+    red, green, blue = (int(colour[i:i + 2], 16) for i in (1, 3, 5))
+    return 0.299 * red + 0.587 * green + 0.114 * blue
+
+
+def stack_tones(count: int, other: bool = False) -> list[str]:
+    """Fill colours for ``count`` stacked bands, largest first; the last is grey if ``other``."""
+
+    named = count - 1 if other else count
+    tones = [RAMP[i] for i in RAMP_PICKS.get(named, RAMP_PICKS[4])[:named]]
+    return tones + ([OTHER] if other else [])
 
 
 def _fmt(value: float | None, digits: int | None = None) -> str:
@@ -72,6 +110,60 @@ def _x_label(value: Any, span_days: float) -> str:
     return f"{moment:%b %y}" if span_days > 120 else f"{moment.day} {moment:%b}"
 
 
+def date_ticks(xs: list, scale_x, left: float, right: float) -> list[tuple[float, str, str]]:
+    """(x, label, anchor) for a date axis: the last day right-aligned at the end of the plot,
+    then calendar boundaries (weeks back from the last day for a month, month starts beyond),
+    kept only where a label clears its neighbours; the first one starts at the left edge."""
+
+    if not xs:
+        return []
+    try:
+        days = [date.fromisoformat(str(x)[:10]) for x in xs]
+    except ValueError:
+        days = []
+    if not days:
+        picks = sorted({0, len(xs) - 1})
+        return [(scale_x(xs[i]), str(xs[i]), "start" if i == 0 else "end") for i in picks]
+    by_day = {d: x for d, x in zip(days, xs, strict=True)}
+    first, last = days[0], days[-1]
+    span = (last - first).days
+
+    def width(text: str) -> float:
+        return len(text) * CHAR
+
+    gap = 12.0
+    ticks: list[tuple[float, str, str]] = []
+    last_label = _x_label(by_day[last], span)
+    last_x = min(scale_x(by_day[last]), right)
+    ticks.append((last_x, last_label, "end"))
+    occupied = [(last_x - width(last_label), last_x)]
+    if span <= 21:
+        step_days = max(1, math.ceil(span / 4))
+        candidates = [d for d in reversed(days) if (last - d).days % step_days == 0
+                      and d != last]
+    elif span <= 62:
+        candidates = [d for d in reversed(days) if (last - d).days % 7 == 0 and d != last]
+    else:
+        step = 1 if span <= 200 else 2 if span <= 400 else 3
+        candidates = [d for d in reversed(days) if d.day == 1 and d != last
+                      and (d.month - 1) % step == 0]
+        if span > 200 and not candidates:
+            candidates = [d for d in reversed(days) if d.day == 1 and d != last]
+    for day in candidates:
+        x = scale_x(by_day[day])
+        text = _x_label(by_day[day], span)
+        w = width(text)
+        lo, hi, anchor = x - w / 2, x + w / 2, "middle"
+        if lo < left - 4:
+            lo, hi, anchor = left, left + w, "start"
+            x = left
+        if any(lo < b + gap and hi > a - gap for a, b in occupied):
+            continue
+        occupied.append((lo, hi))
+        ticks.append((x, text, anchor))
+    return sorted(ticks)
+
+
 def nice_ticks(low: float, high: float, count: int = 5) -> list[float]:
     """Round tick values covering ``low``..``high``."""
 
@@ -96,9 +188,27 @@ LEAD = (640, 130)
 
 
 def _size(spec: dict) -> tuple[int, int]:
+    """(width, height) in units; a lead exhibit's height is set to fill page one."""
+
     if spec.get("lead"):
-        return LEAD
+        return LEAD[0], int(spec.get("height") or LEAD[1])
     return HALF if spec.get("half") else FULL
+
+
+def _end_labels(series_list: list[dict]) -> list[str]:
+    """End-label texts: the value alone when one series is drawn (the title names it)."""
+
+    shown = [s for s in series_list if any(y is not None for _, y in s.get("points", []))]
+    out = []
+    for series in series_list:
+        values = [y for x, y in sorted(series.get("points", []), key=lambda p: _parse_x(p[0]))
+                  if y is not None]
+        if not values:
+            out.append("")
+            continue
+        value = _fmt(values[-1])
+        out.append(value if len(shown) == 1 else f"{series.get('name')} {value}")
+    return out
 
 
 def _svg_open(spec: dict, chart_id: str, width: int, height: int) -> str:
@@ -132,26 +242,62 @@ def _style(index: int, series: dict) -> tuple[str, str, float]:
     return colour, dash, 1.6 if index == 0 else 1.3
 
 
-def _patterns(chart_id: str, count: int) -> str:
-    out = ["<defs>"]
-    for index in range(count):
-        colour = _colour(index)
-        angle = 45 if index % 3 == 1 else -45 if index % 3 == 2 else 0
-        out.append(
-            f'<pattern id="{chart_id}-p{index}" patternUnits="userSpaceOnUse" width="5" '
-            f'height="5" patternTransform="rotate({angle})">'
-            f'<rect width="5" height="5" class="r-fill-{index % SERIES + 1}" fill="{colour}" '
-            f'fill-opacity="0.7"/>'
-            + ('<line x1="0" y1="0" x2="0" y2="5" stroke="#ffffff" stroke-width="1.4"/>'
-               if angle else "")
-            + "</pattern>"
-        )
-    out.append("</defs>")
-    return "".join(out)
+def _fills(chart_id: str, tones: list[str]) -> tuple[str, list[str]]:
+    """``<defs>`` and the fill for each band: the flat tone, or a hatch of it where the band
+    below would print as nearly the same grey."""
+
+    defs, fills = [], []
+    for index, tone in enumerate(tones):
+        close = index > 0 and abs(luma(tone) - luma(tones[index - 1])) < LUMA_STEP
+        if not close:
+            fills.append(tone)
+            continue
+        defs.append(
+            f'<pattern id="{chart_id}-h{index}" patternUnits="userSpaceOnUse" width="4" '
+            f'height="4" patternTransform="rotate(45)"><rect width="4" height="4" '
+            f'fill="{tone}"/><line x1="0" y1="0" x2="0" y2="4" stroke="#ffffff" '
+            f'stroke-width="1.2"/></pattern>')
+        fills.append(f"url(#{chart_id}-h{index})")
+    return (f"<defs>{''.join(defs)}</defs>" if defs else ""), fills
+
+
+def stack_order(series_list: list[dict], most: int = 4) -> list[dict]:
+    """Bands largest first (by total size over the window); beyond ``most`` the rest are
+    summed into one "Other" band (the data annex keeps every category)."""
+
+    def size(series: dict) -> float:
+        return sum(abs(y or 0.0) for _, y in series.get("points", []))
+
+    ranked = sorted(series_list, key=lambda s: -size(s))
+    if len(ranked) <= most:
+        return ranked
+    keep, rest = ranked[:most], ranked[most:]
+    total: dict[str, float] = {}
+    order: dict[str, Any] = {}
+    for series in rest:
+        for x, y in series.get("points", []):
+            if y is None:
+                continue
+            total[str(x)] = total.get(str(x), 0.0) + y
+            order.setdefault(str(x), x)
+    other = {"name": "Other", "other": True,
+             "points": [[order[k], round(v, 3)] for k, v in total.items()]}
+    return keep + [other]
+
+
+def tick_digits(ticks: list[float]) -> int:
+    """One number of decimals for an axis, from its step (0, 500, 1,000; never 0.00 next to
+    500.0)."""
+
+    step = abs(ticks[1] - ticks[0]) if len(ticks) > 1 else abs(ticks[0]) or 1.0
+    if step >= 1 and all(float(t).is_integer() for t in ticks):
+        return 0
+    return 1 if step >= 0.1 else 2
 
 
 def _grid(ticks: list[float], scale, left: float, right: float, zero_line: bool) -> str:
     out = []
+    digits = tick_digits(ticks)
     for tick in ticks:
         y = scale(tick)
         strong = zero_line and abs(tick) < 1e-12
@@ -160,26 +306,29 @@ def _grid(ticks: list[float], scale, left: float, right: float, zero_line: bool)
             f'stroke="{INK_2 if strong else GRID}" stroke-width="{0.9 if strong else 0.5}" '
             f'class="{"r-axis" if strong else "r-grid"}"/>'
             f'<text x="{left - 4}" y="{y + 3.2:.1f}" text-anchor="end" class="r-ink-3" '
-            f'fill="{LIGHT["text-3"]}">{_e(_fmt(tick))}</text>'
+            f'fill="{LIGHT["text-3"]}">{_e(_fmt(tick, digits))}</text>'
         )
     return "".join(out)
 
 
-def _x_axis(xs: list, scale_x, bottom: float, width: int) -> str:
-    if not xs:
-        return ""
-    span = _parse_x(xs[-1]) - _parse_x(xs[0])
-    count = min(5 if width < 400 else 7, len(xs))
-    picks = sorted({round(i * (len(xs) - 1) / max(1, count - 1)) for i in range(count)})
-    out = []
-    for index in picks:
-        x = scale_x(xs[index])
-        anchor = "start" if index == 0 else "end" if index == len(xs) - 1 else "middle"
-        out.append(
-            f'<text x="{x:.1f}" y="{bottom + 13:.1f}" text-anchor="{anchor}" class="r-ink-3" '
-            f'fill="{LIGHT["text-3"]}">{_e(_x_label(xs[index], span))}</text>'
-        )
-    return "".join(out)
+def _x_axis(xs: list, scale_x, bottom: float, left: float, right: float) -> str:
+    return "".join(
+        f'<text x="{x:.1f}" y="{bottom + 13:.1f}" text-anchor="{anchor}" class="r-ink-3" '
+        f'fill="{LIGHT["text-3"]}">{_e(text)}</text>'
+        for x, text, anchor in date_ticks(xs, scale_x, left, right))
+
+
+def _label_room(labels: list[str], width: int) -> float:
+    """Room right of the plot for the longest end label, within the exhibit's budget."""
+
+    longest = max((len(text) for text in labels), default=0)
+    budget = HALF_LABEL_ROOM if width < 400 else LABEL_ROOM
+    return min(budget, max(24.0, longest * LABEL_CHAR + 8))
+
+
+def _fit_label(text: str, room: float) -> str:
+    most = max(4, int((room - 6) / LABEL_CHAR))
+    return text if len(text) <= most else text[: most - 1] + "…"
 
 
 def _all_x(spec: dict) -> list:
@@ -210,18 +359,28 @@ def _hover(spec: dict, xs: list, scale_x, top: float, bottom: float) -> str:
     return "".join(out)
 
 
-def _place_labels(items: list[tuple[float, str, str]], top: float, bottom: float) -> list:
-    """Direct labels at the series' last values, nudged apart (11 units minimum)."""
+def _place_labels(items: list[tuple[float, str, str]], top: float, bottom: float,
+                  gap: float = 11.0) -> list:
+    """Direct labels at the series' last values, pushed apart so no two are closer than
+    ``gap``: down from the highest, then the block lifted off the bottom and, if it then
+    crosses the top, spread evenly between the two (labels never overlap)."""
 
     placed = sorted(items, key=lambda item: item[0])
-    for index in range(1, len(placed)):
-        if placed[index][0] - placed[index - 1][0] < 11:
-            y, text, colour = placed[index]
-            placed[index] = (placed[index - 1][0] + 11, text, colour)
-    overflow = placed[-1][0] - bottom if placed else 0
+    if not placed:
+        return []
+    ys = [y for y, _, _ in placed]
+    ys[0] = max(ys[0], top + 4)
+    for index in range(1, len(ys)):
+        ys[index] = max(ys[index], ys[index - 1] + gap)
+    overflow = ys[-1] - bottom
     if overflow > 0:
-        placed = [(y - overflow, t, c) for y, t, c in placed]
-    return [(max(y, top + 4), t, c) for y, t, c in placed]
+        ys = [y - overflow for y in ys]
+        for index in range(len(ys) - 2, -1, -1):
+            ys[index] = min(ys[index], ys[index + 1] - gap)
+    if ys[0] < top + 4:
+        step = max(gap * 0.82, (bottom - top - 4) / max(1, len(ys) - 1)) if len(ys) > 1 else 0
+        ys = [top + 4 + i * step for i in range(len(ys))]
+    return [(y, text, colour) for y, (_, text, colour) in zip(ys, placed, strict=True)]
 
 
 def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
@@ -234,7 +393,10 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
         return ""
     ticks = nice_ticks(min(values + refs), max(values + refs), 4 if width < 400 else 5)
     bottom = height - PAD_BOTTOM
-    right = width - LABEL_ROOM
+    texts = _end_labels(series_list)
+    ref_texts = [str(r.get("label", "")) for r in spec.get("reference_lines", [])]
+    room = _label_room(texts + ref_texts, width)
+    right = width - room
     lo, hi = ticks[0], ticks[-1]
     x_lo, x_hi = _parse_x(xs[0]), _parse_x(xs[-1])
 
@@ -252,8 +414,8 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
         out.append(
             f'<line x1="{PAD_LEFT}" y1="{y:.1f}" x2="{right}" y2="{y:.1f}" stroke="{INK_2}" '
             f'stroke-dasharray="1 2" stroke-width="0.9" class="r-ref"/>'
-            f'<text x="{right + 3}" y="{y + 3:.1f}" class="r-ink-2" fill="{INK_2}">'
-            f'{_e(ref.get("label", ""))}</text>'
+            f'<text x="{right + 3}" y="{y + 3:.1f}" class="r-ink-2" fill="{INK_2}" '
+            f'font-size="8.5">{_e(_fit_label(str(ref.get("label", "")), room))}</text>'
         )
     labels = []
     # Context first, so the main series draws over it.
@@ -286,13 +448,13 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
                     f'<polyline points="{" ".join(points)}" fill="none" stroke="{colour}"{cls} '
                     f'stroke-width="{stroke}" stroke-linejoin="round"{dash_attr}/>'
                 )
-        if last_point is not None:
-            labels.append((last_point[1], f"{series.get('name')} {_fmt(last_point[2])}", colour))
+        if last_point is not None and texts[index]:
+            labels.append((last_point[1], _fit_label(texts[index], room), colour))
     for y, text, colour in _place_labels(labels, PAD_TOP, bottom):
         out.append(f'<text x="{right + 4}" y="{y + 3:.1f}" fill="{colour}" class="r-dl" '
                    'font-size="8.5">'
                    f"{_e(text)}</text>")
-    out.append(_x_axis(xs, sx, bottom, width))
+    out.append(_x_axis(xs, sx, bottom, PAD_LEFT, right))
     out.append(_hover(spec, xs, sx, PAD_TOP, bottom))
     out.append("</svg>")
     return "".join(out)
@@ -300,16 +462,21 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
 
 def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
     width, height = _size(spec)
-    series_list = spec.get("series", [])
+    series_list = stack_order(spec.get("series", []))
     xs = _all_x(spec)
     if not xs:
         return ""
+    other = bool(series_list and series_list[-1].get("other"))
+    tones = stack_tones(len(series_list), other)
+    defs, fills = _fills(chart_id, tones)
     lookup = [{str(x): y for x, y in s.get("points", [])} for s in series_list]
     pos_tot = [sum(max(0.0, lk.get(str(x)) or 0.0) for lk in lookup) for x in xs]
     neg_tot = [sum(min(0.0, lk.get(str(x)) or 0.0) for lk in lookup) for x in xs]
     ticks = nice_ticks(min([0.0, *neg_tot]), max([0.0, *pos_tot]), 4 if width < 400 else 5)
     bottom = height - PAD_BOTTOM
-    right = width - LABEL_ROOM
+    names = [str(s.get("name")) for s in series_list]
+    room = _label_room(names, width)
+    right = width - room
     lo, hi = ticks[0], ticks[-1]
     n = len(xs)
     band = (right - PAD_LEFT) / n
@@ -321,10 +488,14 @@ def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
             return PAD_LEFT + band * (i + 0.5)
         return PAD_LEFT + (i / max(1, n - 1)) * (right - PAD_LEFT)
 
+    def tick_x(value) -> float:
+        # A bar's tick sits under the bar; the last one right-aligned at the plot's end.
+        return right if bars and str(value) == str(xs[-1]) else sx(value)
+
     def sy(value: float) -> float:
         return bottom - (value - lo) / (hi - lo) * (bottom - PAD_TOP)
 
-    out = [_svg_open(spec, chart_id, width, height), _patterns(chart_id, len(series_list)),
+    out = [_svg_open(spec, chart_id, width, height), defs,
            _grid(ticks, sy, PAD_LEFT, right, True)]
     tops_last: list[tuple[float, float]] = []
     if bars:
@@ -344,8 +515,7 @@ def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
                 out.append(
                     f'<rect x="{PAD_LEFT + band * i + (band - bar_w) / 2:.1f}" '
                     f'y="{min(y0, y1):.1f}" width="{bar_w:.1f}" '
-                    f'height="{max(abs(y0 - y1), 0.4):.1f}"'
-                    f' fill="url(#{chart_id}-p{index})"/>'
+                    f'height="{max(abs(y0 - y1), 0.4):.1f}" fill="{fills[index]}"/>'
                 )
         base = 0.0
         for lk in lookup:
@@ -359,19 +529,20 @@ def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
             upper = [f"{sx(x):.1f},{sy(tops[i]):.1f}" for i, x in enumerate(xs)]
             lower = [f"{sx(x):.1f},{sy(base[i]):.1f}" for i, x in reversed(list(enumerate(xs)))]
             out.append(
-                f'<polygon points="{" ".join(upper + lower)}" fill="url(#{chart_id}-p{index})"/>'
-                f'<polyline points="{" ".join(upper)}" fill="none" stroke="{_colour(index)}" '
-                f'class="r-stroke-{index % SERIES + 1}" stroke-width="0.8"/>'
+                f'<polygon points="{" ".join(upper + lower)}" fill="{fills[index]}"/>'
+                f'<polyline points="{" ".join(upper)}" fill="none" stroke="#ffffff" '
+                'stroke-width="0.6"/>'
             )
             tops_last.append((base[-1], tops[-1]))
             base = tops
-    labels = [((sy(a) + sy(b)) / 2, f"{series_list[i].get('name')}", _colour(i))
+    labels = [((sy(a) + sy(b)) / 2, _fit_label(names[i], room),
+               tones[i] if luma(tones[i]) < 120 else INK_2)
               for i, (a, b) in enumerate(tops_last)]
     for y, text, colour in _place_labels(labels, PAD_TOP, bottom):
         out.append(f'<text x="{right + 4}" y="{y + 3:.1f}" fill="{colour}" class="r-dl" '
                    'font-size="8.5">'
                    f"{_e(text)}</text>")
-    out.append(_x_axis(xs, sx, bottom, width))
+    out.append(_x_axis(xs, tick_x, bottom, PAD_LEFT, right))
     out.append(_hover(spec, xs, sx, PAD_TOP, bottom))
     out.append("</svg>")
     return "".join(out)
@@ -384,9 +555,9 @@ def _bar_chart(spec: dict, chart_id: str) -> str:
               if value is not None]
     if not points:
         return ""
-    width = FULL[0]
+    width = HALF[0] if spec.get("half") else FULL[0]
     row = 16
-    label_w = 230
+    label_w = 120 if spec.get("half") else 230
     height = PAD_TOP + row * len(points) + 8
     ticks = nice_ticks(min(min(v for _, v in points), 0.0), max(max(v for _, v in points), 0.0))
     lo, hi = ticks[0], ticks[-1]
@@ -400,12 +571,13 @@ def _bar_chart(spec: dict, chart_id: str) -> str:
         y = PAD_TOP + index * row
         x0, x1 = sx(0.0), sx(value)
         name = str(label)
-        short = name if len(name) <= 38 else name[:37] + "…"
+        most = 20 if spec.get("half") else 38
+        short = name if len(name) <= most else name[: most - 1] + "…"
         out.append(
             f'<text x="{label_w - 6}" y="{y + 11:.1f}" text-anchor="end" class="r-ink-2" '
             f'fill="{INK_2}">{_e(short)}<title>{_e(name)}</title></text>'
             f'<rect x="{min(x0, x1):.1f}" y="{y + 3:.1f}" width="{max(abs(x1 - x0), 0.5):.1f}" '
-            f'height="{row - 6}" fill="{_colour(0)}" class="r-fill-1"/>'
+            f'height="{row - 6}" fill="{LIGHT["accent"]}" class="r-fill-1"/>'
             f'<text x="{max(x0, x1) + 4:.1f}" y="{y + 11:.1f}" class="r-ink-1" '
             f'fill="{LIGHT["text-1"]}">{_e(_fmt(value))}</text>'
         )

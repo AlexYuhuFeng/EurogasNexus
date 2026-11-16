@@ -18,7 +18,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 #: Bumped when the renderer's output changes; stored with every report.
-TEMPLATE_VERSION = "market-report/2"
+TEMPLATE_VERSION = "market-report/3"
 
 KINDS = ("daily", "weekly", "monthly", "situation", "ask")
 DAILY_VARIANTS = ("morning", "eod")
@@ -205,6 +205,8 @@ class ReportPlan:
     alert_id: str | None = None
     outage_id: str | None = None
     question: str | None = None
+    #: Print the data annex: ``None`` is the kind's default (weekly and monthly only).
+    annex: bool | None = None
     #: Sections dropped while validating, with the reason (printed in Methodology).
     notes: list[str] = field(default_factory=list)
 
@@ -221,6 +223,7 @@ class ReportPlan:
             "alert_id": self.alert_id,
             "outage_id": self.outage_id,
             "question": self.question,
+            "annex": self.annex,
             "notes": list(self.notes),
         }
 
@@ -355,6 +358,7 @@ def validate_plan(raw: dict[str, Any], *, now: datetime) -> ReportPlan:
         alert_id=_text(raw.get("alert_id")),
         outage_id=_text(raw.get("outage_id")),
         question=_text(raw.get("question"), 500),
+        annex=raw.get("annex") if isinstance(raw.get("annex"), bool) else None,
         notes=notes,
     )
 

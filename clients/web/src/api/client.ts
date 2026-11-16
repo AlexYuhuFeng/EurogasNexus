@@ -1881,6 +1881,8 @@ export interface ReportRequestDTO {
   alert_id?: string;
   outage_id?: string;
   question?: string;
+  /** Print the data annex; omitted: the kind's default (weekly and monthly). */
+  annex?: boolean;
   language?: "en" | "zh-CN";
   use_model?: boolean;
 }
@@ -1921,7 +1923,7 @@ export interface ReportMetadataDTO {
   issue?: number;
   standfirst?: string | null;
   findings?: { fact_ids: string[]; text: string; implication: string | null; why: string; basis?: string }[];
-  editorial?: { basis: "model" | "rule"; model: string | null; directive: string | null; elements?: Record<string, { ok: boolean; detail: string }> };
+  editorial?: { basis: "model" | "rule"; model: string | null; directive: string | null; temperature?: number | null; elements?: Record<string, { ok: boolean; detail: string }> };
 }
 
 /** A morning brief or end-of-day draft (``POST /api/analysis/brief``). */

@@ -4929,6 +4929,8 @@
   "reports.link_label": "Situation report: {{subject}}",
   "reports.print_summary": "Print summary only",
   "reports.download_csv": "Download data (CSV)",
+  "reports.annex": "Print the data annex (always in the CSV download)",
+  "reports.edited_temperature": ", temperature {{value}}",
   "reports.edited_model": "Edited by: model {{model}}, directive v{{directive}}",
   "reports.edited_rule": "Rule-edited",
   "reports.plan_view": "Editorial plan: what led and what was left out",

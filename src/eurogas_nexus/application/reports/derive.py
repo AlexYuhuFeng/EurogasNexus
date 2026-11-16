@@ -17,6 +17,7 @@ Rule prose only states facts the section computed; implications are the engine's
 
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 
 from eurogas_nexus.application.reports import facts as F
@@ -528,6 +529,17 @@ def derive_power(result, ctx) -> None:
 # =========================================================================== outages
 
 
+def _zone(row: dict) -> str:
+    """" (NBP (GB))" after an asset's name, or nothing when the message names no zone."""
+
+    return f" ({row['zone']})" if row.get("zone") else ""
+
+
+_OPERATOR_CODE = re.compile(r"\s*\([A-Z]{2}-[A-Z]{3}-\d{4}\)")
+_COUNT_WORDS = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven",
+                8: "Eight", 9: "Nine"}
+
+
 def derive_outages(result, ctx) -> None:
     raw = result.raw
     rows = raw["rows"]
@@ -536,14 +548,28 @@ def derive_outages(result, ctx) -> None:
     facts = []
     active = [r for r in rows if r["status"] == "active" and r["gwh"]]
     offline = sum(r["gwh"] for r in active)
+    largest = max(active, key=lambda r: r["gwh"]) if active else None
+    count = len(active)
+    counted = (_COUNT_WORDS.get(count, str(count)) + (" outages were" if count != 1
+                                                      else " outage was"))
+    detail = ""
+    if largest is not None and count > 1:
+        until = f" until {fday(largest['end'])}" if largest.get("end") else ""
+        detail = (f"; the largest, {largest['facility']}{_zone(largest)}, "
+                  f"has {number(largest['gwh'], 'GWh/d')} unavailable{until}")
     facts.append(F.fact(
         "outages.offline", "outages", "Capacity offline (REMIT)", offline, "GWh/d",
-        day=F.iso(ctx.today), state=raw["state"], simulated=sim, score=min(offline / landings * 4,
-                                                                           5.0),
-        reason=f"{offline / landings:.0%} of the latest Norwegian landings",
-        sentence=(f"{len(active)} outage{'s' if len(active) != 1 else ''} were active, removing "
-                  f"{number(offline, 'GWh/d')} in total{_sim(sim)}."),
-        headline=f"{len(active)} outages remove {number(offline, 'GWh/d')}",
+        # Capacity offline is weighed on the same scale as one outage (10 x its share of the
+        # latest Norwegian landings): 5% of landings offline weighs as much as a move of half
+        # a standard deviation, 15% outweighs a routine one-day change in storage withdrawal.
+        day=F.iso(ctx.today), state=raw["state"], simulated=sim,
+        score=round(min(offline / landings * 10, 6.0), 2),
+        reason=f"{offline / landings:.0%} of the latest Norwegian landings offline",
+        sentence=(f"{counted} active on {fday(ctx.today)}, removing "
+                  f"{number(offline, 'GWh/d')} in total{_sim(sim)}{detail}."),
+        headline=(f"Outages remove {number(offline, 'GWh/d')}"
+                  + (f", {number(largest['gwh'], 'GWh/d')} of it at {largest['facility']}"
+                     if largest is not None and count > 1 else "")),
         sources=["REMIT urgent market messages"], exhibits=["tab.outages"]))
     for index, r in enumerate(sorted(active, key=lambda r: -r["gwh"])[:3], start=1):
         until = f"until {fday(r['end'])}" if r.get("end") else "with no end date"
@@ -552,7 +578,7 @@ def derive_outages(result, ctx) -> None:
             day=F.iso(r["start"][:10]), state=raw["state"], simulated=sim, indicator=False,
             score=min(r["gwh"] / landings * 10, 6.0),
             reason=f"{r['gwh'] / landings:.0%} of the latest Norwegian landings offline",
-            sentence=(f"{r['facility']} ({r['zone'] or 'zone n/a'}) has "
+            sentence=(f"{r['facility']}{_zone(r)} has "
                       f"{number(r['gwh'], 'GWh/d')} unavailable{_sim(sim)} since "
                       f"{fday(r['start'])}, {until}."),
             headline=f"{r['facility']} outage removes {number(r['gwh'], 'GWh/d')}",
@@ -590,7 +616,9 @@ def derive_outages(result, ctx) -> None:
         [("facility", "Asset", "text"), ("operator", "Operator", "text"),
          ("zone", "Zone", "text"), ("start", "Start", "datetime"), ("end", "End", "datetime"),
          ("gwh", "Offline (GWh/d)", "num"), ("status", "Status", "text")],
-        [{**r, "simulated": sim} for r in ranked[: F.BODY_ROWS]],
+        # The operator's EIC-style code is in the annex and the CSV; the body prints the name.
+        [{**r, "operator": _OPERATOR_CODE.sub("", r.get("operator") or ""), "simulated": sim}
+         for r in ranked[: F.BODY_ROWS]],
         source=F.DEMO_SOURCE if sim else F.SOURCE_LINES["outages"],
         notes=(f"{len(ranked) - F.BODY_ROWS} more in the data annex. " if len(ranked) > F.BODY_ROWS
                else "") + "Times UTC; capacity converted to GWh/d where the message's unit "
@@ -812,6 +840,8 @@ def derive(result, ctx) -> None:
         _fit_to_budget(result, ctx)
     else:
         _book_or_event_facts(result)
+        if ctx.plan.kind in {"daily", "situation", "ask"}:
+            _short_book(result)
 
 
 #: Body tables that earn their place: a hub board, a schedule, a supply stack. Daily series
@@ -821,17 +851,15 @@ BODY_TABLE_SECTIONS = {"prices", "outages", "balance"}
 
 def _fit_to_budget(result, ctx) -> None:
     """Length budgets of the house standard: a daily shows one exhibit per section (two for
-    prices, side by side), period reports keep their pairs; series tables live in the annex,
-    which covers the report's own window (30 days daily, 13 weeks weekly, the month)."""
+    prices), period reports keep their pairs; every exhibit is half width, so it sits beside
+    the section's text or beside its pair. Series tables live in the annex, which covers the
+    report's own window (two weeks daily, four weeks weekly, the month)."""
 
     kind = ctx.plan.kind
-    if result.key == "prices" and len(result.charts) > 1:
-        for chart in result.charts:
-            chart["half"] = True
-    elif kind in {"daily", "situation", "ask"}:
+    if kind in {"daily", "situation", "ask"} and result.key != "prices":
         result.charts = result.charts[:1]
-        for chart in result.charts:
-            chart["half"] = False
+    for chart in result.charts:
+        chart["half"] = True
     if result.key not in BODY_TABLE_SECTIONS:
         result.tables = []
     elif result.key == "balance":
@@ -841,12 +869,42 @@ def _fit_to_budget(result, ctx) -> None:
     if kind == "monthly":
         first = ctx.start
     elif kind == "weekly":
-        first = ctx.end - timedelta(days=27)
+        first = ctx.end - timedelta(days=6)
     else:
         first = ctx.end - timedelta(days=13)
     for spec in result.annex:
         if spec["columns"] and spec["columns"][0]["key"] == "day":
             spec["print_from"] = first.isoformat()
+
+
+#: Rows of a book table a daily prints (the full table is in the data annex and the CSV).
+DAILY_BOOK_ROWS = 5
+
+
+def _short_book(result) -> None:
+    """A daily's book sections print one table of at most five rows each (none for P&L and
+    contracts, whose sentences already give every row)."""
+
+    if not result.key.startswith("book_"):
+        return
+    if result.key in {"book_pnl", "book_contracts"}:
+        # The section's sentences carry these few rows; the table stays in the CSV download.
+        for spec in result.tables:
+            if not any(a.get("caption") == spec.get("caption") for a in result.annex):
+                result.annex.append(dict(spec))
+        result.tables = []
+        return
+    result.tables = result.tables[:1]
+    for spec in result.tables:
+        if len(spec["rows"]) > DAILY_BOOK_ROWS:
+            if not any(a.get("caption") == spec.get("caption") for a in result.annex):
+                result.annex.append(dict(spec))
+            spec["notes"] = (f"First {DAILY_BOOK_ROWS} of {len(spec['rows'])} rows; all rows in "
+                             "the CSV download.")
+            spec["rows"] = spec["rows"][:DAILY_BOOK_ROWS]
+        # A column empty in every printed row says nothing.
+        spec["columns"] = [c for c in spec["columns"]
+                           if any(r.get(c["key"]) not in (None, "") for r in spec["rows"])]
 
 
 def _book_or_event_facts(result) -> None:

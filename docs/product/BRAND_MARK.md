@@ -102,7 +102,10 @@ brand = (
 ```
 
 with `.r-brand{display:flex;align-items:center;gap:8px}` and `.r-brand svg{flex:none}` in the
-report CSS. `adaptive` prints and mails in colour (the stroke attributes) and switches to the
-reverse colours on a dark screen (a `prefers-color-scheme` rule scoped to `screen`); `title=None`
+report CSS. The market report (`application/reports/render.py`) uses `"colour"` rather than
+`"adaptive"`: its paper is white on every screen, so a mark switched to the reverse colours on a
+dark screen would be white on white. `adaptive` suits a page whose background follows the
+screen: it prints and mails in colour (the stroke attributes) and switches to the reverse colours
+on a dark screen (a `prefers-color-scheme` rule scoped to `screen`); `title=None`
 hides the mark from assistive technology because the name is written beside it. The output is
 deterministic, so a stored report re-renders to the same bytes.

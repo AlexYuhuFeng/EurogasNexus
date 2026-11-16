@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  annexByDefault,
   parseHubs,
   reportRequestFromForm,
   reportSubjectFromSearch,
@@ -12,13 +13,21 @@ import {
 
 const form: ReportForm = {
   kind: "daily", variant: "eod", audience: "shareable", sections: null, hubs: "ttf, etf  nbp,ttf",
-  periodStart: "", periodEnd: "", subject: null, question: "",
+  periodStart: "", periodEnd: "", subject: null, question: "", annex: null,
 };
 
 test("a daily request carries the edition, the sections and the hubs as typed (ETF stays ETF)", () => {
   const body = reportRequestFromForm(form, "standard", ["prices", "storage"], "en");
   assert.deepEqual(body, { kind: "daily", audience: "shareable", sections: ["prices", "storage"], language: "en", variant: "eod", hubs: ["TTF", "ETF", "NBP"] });
   assert.deepEqual(parseHubs(""), []);
+});
+
+test("the data annex is sent only when it differs from the kind's default", () => {
+  assert.equal(annexByDefault("daily"), false);
+  assert.equal(annexByDefault("weekly"), true);
+  assert.equal(reportRequestFromForm({ ...form, annex: true }, "standard", [], "en").annex, true);
+  assert.equal(reportRequestFromForm({ ...form, annex: false }, "standard", [], "en").annex, undefined);
+  assert.equal(reportRequestFromForm({ ...form, kind: "weekly", annex: false }, "standard", [], "en").annex, false);
 });
 
 test("an asked report sends the question and the edited plan; a situation sends its subject", () => {

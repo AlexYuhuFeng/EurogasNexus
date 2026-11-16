@@ -6,8 +6,9 @@ laid out as a printed publication (A4) to the house standard in
 [REPORT_EDITORIAL_STANDARD.md](../product/REPORT_EDITORIAL_STANDARD.md): a masthead with issue
 number, data cut-off and classification; a headline and standfirst; three to five key findings;
 an At a glance indicator table; one lead exhibit; then the sections with numbered figures and
-tables; methodology and sources; a data annex. Running headers, footers and page numbers print on
-every page. The viewer shows the pages and has **Print / Save as PDF**, **Print summary only**
+tables; methodology and sources; and, for weekly and monthly reports or when you tick **Print
+the data annex**, a data annex. A daily prints in at most five pages. Running headers, footers
+and page numbers print on every page. The viewer shows the pages and has **Print / Save as PDF**, **Print summary only**
 (page one), **Download HTML** and **Download data (CSV)**.
 
 **Who decides what is presented.** When the firm enables the AI model, the model acts as the
@@ -16,7 +17,9 @@ report's editor under the versioned
 order, the section order and what is dropped, the exhibits and their windows, and writes the
 narrative, from a fact sheet the engine builds. It never writes a number or queries data;
 every element it writes is checked against the facts it cites, and a refused element is replaced
-by the rule-written one. The viewer says "Edited by: model …, directive v…" or "Rule-edited", and
+by the rule-written one (a refused key finding by the rule's finding on the same fact, in the
+same place). The editor runs at temperature 0. The viewer says "Edited by: model …, directive
+v…, temperature 0" or "Rule-edited", and
 the editorial plan (what led and why, what was left out) can be opened under the report. Without
 a model the rules select and write everything.
 
@@ -56,7 +59,8 @@ to trade, and nothing describes execution, nomination or settlement.
 A section with no data is left out of the body and listed once under "Not in this report" in
 the back matter with the reason (for example "No licensed close for any hub is available to this
 report"); a report without licensed prices leads with what is held. The series behind every
-exhibit are in the data annex (the report's own window) and, in full, in the CSV download; hover
+exhibit are always in the CSV download and, when printed, in the data annex (the report's own
+window); hover
 shows values on screen; the report has no script and reads the same in e-mail clients.
 
 ## Audience

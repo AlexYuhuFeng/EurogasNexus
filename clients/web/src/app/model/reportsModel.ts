@@ -21,6 +21,13 @@ export interface ReportForm {
   periodEnd: string;
   subject: ReportSubject | null;
   question: string;
+  /** Print the data annex; null: the kind's default. */
+  annex: boolean | null;
+}
+
+/** Whether a report of this kind prints its data annex unless asked otherwise. */
+export function annexByDefault(kind: ReportKind): boolean {
+  return kind === "weekly" || kind === "monthly";
 }
 
 export function reportSubjectFromSearch(search: string): ReportSubject | null {
@@ -65,6 +72,7 @@ export function reportRequestFromForm(
     else body.outage_id = form.subject.id;
   }
   if (kind === "ask" && form.question.trim()) body.question = form.question.trim();
+  if (form.annex !== null && form.annex !== annexByDefault(kind)) body.annex = form.annex;
   return body;
 }
 
