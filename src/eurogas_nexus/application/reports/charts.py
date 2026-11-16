@@ -84,8 +84,10 @@ def nice_ticks(low: float, high: float, count: int = 5) -> list[float]:
     first = math.floor(low / step) * step
     ticks = []
     value = first
-    while value <= high + step * 0.5:
+    while True:
         ticks.append(round(value, 10))
+        if value >= high - 1e-12:
+            break
         value += step
     return ticks
 

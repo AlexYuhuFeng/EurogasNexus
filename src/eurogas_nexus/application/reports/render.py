@@ -483,11 +483,14 @@ def _side(section: dict) -> str:
         if fact.get("value") is None or not fact.get("indicator", True):
             continue
         c = fact["comparisons"]
-        parts = [f"{fmt_number(fact['value'])} {fact['unit']}"]
+        unit = fact["unit"]
+        parts = [f"{fmt_number(fact['value'])}{unit}" if unit == "%" else
+                 f"{fmt_number(fact['value'])} {unit}"]
+        change_unit = "pts" if c.get("unit") == "points" else c.get("unit") or unit
         if c.get("day") is not None:
-            parts.append(f"day {fmt_number(c['day'], 'signed')}")
+            parts.append(f"day {fmt_number(c['day'], 'signed')} {change_unit}")
         if c.get("year") is not None:
-            parts.append(f"year {fmt_number(c['year'], 'signed')}")
+            parts.append(f"year {fmt_number(c['year'], 'signed')} {change_unit}")
         dag = f'<span class="r-dag">{DAGGER}</span>' if fact["simulated"] else ""
         rows.append(f"<dt>{_e(fact['label'])}</dt><dd>{_e(' · '.join(parts))}{dag}</dd>")
     return f'<aside class="r-side"><dl>{"".join(rows)}</dl></aside>' if rows else "<div></div>"
