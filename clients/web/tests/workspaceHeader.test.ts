@@ -11,16 +11,22 @@ function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
 }
 
-test("consolidated headers expose the primary workspace and actual task labels", () => {
+test("consolidated headers expose the mode and actual task labels (WF-05)", () => {
   const market = readWebSource("components/MarketCockpit.tsx");
   const portfolio = readWebSource("components/PortfolioWorkspace.tsx");
   const decision = readWebSource("components/DecisionWorkspace.tsx");
 
-  assert.match(market, /title=\{t\("nav\.primary\.market"\)\}/);
+  // The title is the mode the task belongs to; the tabs are that mode's tasks.
+  for (const source of [market, portfolio, decision]) {
+    assert.match(source, /useModeHeader\(/);
+    assert.match(source, /tabs=\{mode\.tabs\}/);
+    assert.match(source, /activeId=\{mode\.activeId\}/);
+  }
+  assert.match(market, /title=\{mode\.title \?\? t\("nav\.mode\.desk"\)\}/);
   assert.match(market, /taskLabel=\{t\(`market\.task\.\$\{task\}`\)\}/);
-  assert.match(portfolio, /title=\{t\("nav\.primary\.portfolio"\)\}/);
+  assert.match(portfolio, /title=\{mode\.title \?\? t\("nav\.mode\.book"\)\}/);
   assert.match(portfolio, /taskLabel=\{t\(`portfolio\.task\.\$\{task\}`\)\}/);
-  assert.match(decision, /title=\{t\("nav\.primary\.decision"\)\}/);
+  assert.match(decision, /title=\{mode\.title \?\? t\("nav\.mode\.deals"\)\}/);
   assert.match(decision, /taskLabel=\{t\(`decision\.task\.\$\{task\}`\)\}/);
 });
 

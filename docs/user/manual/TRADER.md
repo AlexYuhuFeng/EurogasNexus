@@ -5,7 +5,8 @@ continental hub, hedged on the exchange and bilaterally. Every step below was do
 product as written; the screenshots are what it showed. Your firm's names and figures
 will differ.
 
-Sign in with your company account. You land on Market. Its first task, **Today**, answers
+Sign in with your company account. The top bar has four modes: **Desk**, **Deals**, **Book**
+and **Research**. You land on Desk. Its first task, **Today**, answers
 "what changed, and does it touch us?" in four rows: key figures (front-month prices with
 their day change, your net position today and for the front month, headroom on the
 tightest limit), what changed (open alerts and outages, each with **Why**), your book
@@ -16,15 +17,16 @@ context line lists every such figure and takes you to it. Simulated figures carr
 beside the value, and the demo desk says "Demo data" once. Risk figures have a **Method**
 note: what the figure includes and what it leaves out.
 
-Your work is mostly under
-**Portfolio**: Overview, Resources (contracts and daily balance), Routes (capacity, LNG,
-tariffs) and Exposure (positions, limits).
+Your work is mostly under **Deals** (Evaluate, Optimise, Routes & netback for capacity, LNG and
+tariffs, Contracts, Review) and **Book** (Position, Limits & P&L, Delivery for the daily balance
+and sell-down, Nominations, Storage plan). Help & Settings and Administration are in the
+account menu.
 
 ![Sign-in](img/00-signin.png)
 
 ## 1. Enter a new supply contract
 
-Portfolio → **Resources** → **New draft**. The draft starts empty except for desk
+Deals → **Contracts** → **New draft**. The draft starts empty except for desk
 conventions (EFET form, current gas year, tolerances, monthly settlement). Facts only the
 contract can state are blank, and **Save to pool** stays disabled until they are filled;
 the Validation box on the right says what is missing.
@@ -116,7 +118,7 @@ since you opened it, you are asked to reload instead of overwriting their change
 
 ## 4. Monitor the book position
 
-Portfolio → **Exposure** → **Position ladder**: physical (contracts) and financial
+Book → **Limits & P&L** → **Position ladder**: physical (contracts) and financial
 (trades) volume per hub and month, the net, the hedged share and the mark. Choose the
 horizon, roll up by hub, book or legal entity, and the reporting currency.
 
@@ -137,7 +139,7 @@ tenor, your hedge ratio against the policy band, and any breach in words.
 ## 5. Balance each gas day
 
 Gas is balanced every gas day: what is still long or short at the end of the day is
-cashed out by the TSO at a penal price. Portfolio → **Resources** → **Daily gas balance**
+cashed out by the TSO at a penal price. Book → **Delivery** → **Daily gas balance**
 shows, for the next 3, 7, 14 or 31 gas days at a hub:
 
 - **Expected supply**: your contracts' daily quantities corrected by how they actually
@@ -164,7 +166,7 @@ nominated, shortfalls beyond tolerance and the last 7 days.
 
 ## 6. Price an LNG cargo bid
 
-Portfolio → **Routes** → **LNG cargo bid**. Enter the cargo size (MMBtu or MWh), arrival
+Deals → **Routes & netback** → **LNG cargo bid**. Enter the cargo size (MMBtu or MWh), arrival
 month, target margin, boil-off and charter per day, then **Price the bid**. Each
 terminal's maximum DES bid is the hub forward for the arrival month less regas (from the
 terminal's published tariff: Fluxys indexed slot, Elengy term or SMART SPOT by cargo
@@ -176,7 +178,7 @@ figures come from.
 
 ## 7. Track TSO tariff publications
 
-Portfolio → **Routes** → **Tariff publications**. Register each TSO and gas year you hold
+Deals → **Routes & netback** → **Tariff publications**. Register each TSO and gas year you hold
 capacity in, with the publication page: **Register a publication** → TSO, country, gas
 year (`2027/28`), held (expected, indicative or final) and the page URL → **Save**. The
 final tariff is due 30 days before July's annual yearly auction (NC TAR); the register
@@ -187,7 +189,7 @@ desk when it does.
 
 ## 8. Draft the morning brief or end-of-day report
 
-Market → Today → **Desk brief**, or Ctrl K and type "brief". The draft has fixed
+Desk → Today → **Desk brief**, or Ctrl K and type "brief". The draft has fixed
 sections from the desk's data, each line traceable to its source: alerts, outages in the
 next 36 hours, front-month prices and the day's change, positions today and for the front
 month, credit and mandates near or over their limits, and P&L. Edit it in place, then

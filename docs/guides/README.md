@@ -24,21 +24,34 @@ compare alternatives and retain the evidence behind a decision.
 
 ## Find a workspace
 
-| Workspace | Contents |
-| --- | --- |
-| Market | Overview, Curves & Spreads, Network, Capacity & Events |
-| Portfolio | Contracts/resources, routes, position and exposure views |
-| Strategy Lab | Spread analysis, strategy design, backtests, comparisons and shadow monitoring |
-| Decision Center | Scenarios, resource-pool optimisation and review |
-| System | Research Data, Agent Research, Settings, Manual and Glossary |
-| Admin | Data Sources, Runtime, Access & Identity |
+The top bar has four working modes. A mode is a row of tasks; the task you open is in the
+address, so a link or a refresh returns to it.
+
+| Mode | Tasks | The question it answers |
+| --- | --- | --- |
+| Desk | Today, Prices, Network, Outages & capacity | What changed, and does it touch us? |
+| Deals | Evaluate, Optimise, Routes & netback, Contracts, Review | What is this deal worth to us, and has it been approved? |
+| Book | Position, Limits & P&L, Delivery, Nominations, Storage plan | Where do we stand, and what is near a limit? |
+| Research | Strategies, Data, Research assistant | Why is the market here, and what does history say? |
+
+**Help & Settings** (Settings, Manual, Glossary) and **Administration** (Data Sources, Runtime,
+Access & Identity) are in the account menu, not the top bar. Keyboard users reach the modes with
+**Ctrl+Shift+1** to **4** (⌘ on a Mac), Help & Settings with **Ctrl+Shift+5** and Administration
+with **Ctrl+Shift+6**; the top bar is one Tab stop, and the arrow keys move between modes.
+
+Decision Center is no longer a separate area. Scenarios and optimisation are **Deals → Evaluate**
+and **Deals → Optimise**; a decision review is **Deals → Review**, with the deals it approves;
+nomination and storage assessments are **Book → Nominations** and **Book → Storage plan**. Old
+links (a bookmarked Decision Center or Portfolio address) open the new place, and the search
+(Ctrl+K) still finds the old names.
 
 The available workspaces depend on your access and job profile. A job profile organises
 your workspace; roles and data scopes determine the actions and information available.
 See [Roles and responsibilities](../product/ROLES_AND_RESPONSIBILITIES.md).
 
-Open **Help & Settings → Settings** for language, appearance and personal display preferences.
-The account menu opens the same settings and provides sign out. Keyboard users can open
+Open **Settings** from the account menu for language, appearance and personal display
+preferences. The account menu also opens Help & manual, Administration (for administrators) and
+sign out. Keyboard users can open
 search with **Ctrl+K**, or **⌘K** where supported; touch users can select the search control.
 
 ## Scope and document version

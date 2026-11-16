@@ -36,3 +36,32 @@ export function marketTaskToSearch(currentSearch: string, task: MarketTask): str
   next.set("task", task);
   return next.toString();
 }
+
+/** The board's tenors, in screen order (WD, DA, WE, MA). */
+export const BOARD_TENORS = ["within-day", "day-ahead", "weekend", "month-ahead"] as const;
+
+/** The order a desk looks for prices when it has not chosen: day-ahead first, then the rest. */
+const BOARD_TENOR_PREFERENCE = ["day-ahead", "within-day", "weekend", "month-ahead"] as const;
+
+/** The tenor a URL names (`?tenor=`), when it is one of the board's tenors. */
+export function boardTenorFromSearch(search: string): string | null {
+  const value = new URLSearchParams(search).get("tenor");
+  return value && (BOARD_TENORS as readonly string[]).includes(value) ? value : null;
+}
+
+/** The URL with the user's tenor choice written into it. */
+export function boardTenorToSearch(search: string, tenor: string): string {
+  const next = new URLSearchParams(search);
+  next.set("tenor", tenor);
+  return next.toString();
+}
+
+/**
+ * The tenor Prices opens on: the user's explicit choice (the URL) when there is one, else the
+ * first tenor this desk has prices for, so the board never opens on a column of "Awaiting
+ * licensed feed" while another tenor is priced. With no prices at all, day-ahead.
+ */
+export function openingBoardTenor(chosen: string | null, priced: ReadonlySet<string>): string {
+  if (chosen) return chosen;
+  return BOARD_TENOR_PREFERENCE.find((tenor) => priced.has(tenor)) ?? "day-ahead";
+}

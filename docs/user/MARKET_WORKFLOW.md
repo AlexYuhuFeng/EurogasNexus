@@ -9,7 +9,7 @@ resource?
    physical and capacity context.
 4. Inspect route candidates. Each row shows source, freshness, assumptions,
    and whether it is blocked, unavailable, or feasible.
-5. Use **Open in Scenario** to carry the selected route into Decision Center.
+5. Use **Open in Scenario** to carry the selected route into **Deals → Evaluate**.
    The context bar must still match the decision you are making.
 
 If a value is stale or simulated, the source column says `_Sim` or the warning

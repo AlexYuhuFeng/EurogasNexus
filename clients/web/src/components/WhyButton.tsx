@@ -22,6 +22,7 @@ export function WhyButton({
   label,
   language,
   t,
+  inline = false,
 }: {
   subject: ExplainSubject;
   id: string;
@@ -30,6 +31,8 @@ export function WhyButton({
   /** Defaults to the app language. */
   language?: string;
   t: Translate;
+  /** A quiet link beside a figure's label instead of a bordered button. */
+  inline?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<
@@ -58,7 +61,7 @@ export function WhyButton({
       placement="bottom-end"
       onOpenChange={setOpen}
       trigger={(props) => (
-        <button {...props} type="button" className="why-button ds-note-trigger" aria-label={name} title={name}>
+        <button {...props} type="button" className={inline ? "why-button ds-inline-link" : "why-button ds-note-trigger"} aria-label={name} title={name}>
           {t("why.button")}
         </button>
       )}

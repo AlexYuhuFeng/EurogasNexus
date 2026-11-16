@@ -255,6 +255,43 @@
     box-shadow: var(--ds-focus);
   }
 
+  /* A quiet link that sits in a line of text (a note beside a figure's label, "1 breach · 3
+     watch" under it). Its box is a full dense control (28 px, 44 px on touch) for the pointer,
+     but the negative block margin gives the line back, so a figure keeps one height with or
+     without it. */
+  .ds-inline-link {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    margin-block: calc((var(--ds-line-xs) - var(--ds-control-sm)) / 2);
+    padding: 0 var(--ds-space-1);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-accent);
+    font: inherit;
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .ds-inline-link:hover,
+  .ds-inline-link[aria-expanded="true"] {
+    color: var(--ds-accent-hover);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .ds-inline-link:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
   /* ------------------------------------------------------------ Dialog/Sheet */
   .ds-dialog,
   .ds-sheet {
@@ -381,6 +418,12 @@
     .ds-note-trigger {
       min-height: var(--ds-control-touch);
       padding: 0 var(--ds-space-2);
+    }
+
+    .ds-inline-link {
+      height: var(--ds-control-touch);
+      min-height: var(--ds-control-touch);
+      margin-block: calc((var(--ds-line-xs) - var(--ds-control-touch)) / 2);
     }
   }
 

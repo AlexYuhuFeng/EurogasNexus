@@ -7,7 +7,7 @@ data, version and assumptions.
 
 ## Explore a spread
 
-1. Open **Strategy Lab → Spread**.
+1. Open **Research → Strategies → Spread**.
 2. Select the series and weights. Check each leg's hub, tenor, source, unit and available history.
 3. Put legs on a common currency and energy basis before combining them.
 4. Inspect the spread history and statistics over the chosen period.

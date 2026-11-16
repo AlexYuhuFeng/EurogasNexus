@@ -3,7 +3,7 @@
 Review is the human checkpoint for every optimization/backtest/scenario
 candidate.
 
-1. Open Review from Decision Center or a handoff link.
+1. Open **Deals → Review** or a handoff link.
 2. Inspect candidate identity, scenario, economics, constraints, and
    alternatives.
 3. Read the evidence pack: status, algorithm, optimality, allocated volume,

@@ -5,12 +5,12 @@ import type {
   RouteRecommendationResultDTO,
 } from "@/api/client";
 
-export type PortfolioTask = "overview" | "resources" | "routes" | "exposure";
+export type PortfolioTask = "overview" | "resources" | "routes" | "exposure" | "delivery";
 //: The Decision workspace's tasks. `nomination` and `dispatch` (register C14/D8) are the desk's
 //: two assessment engines, each the primary act of its own task.
 export type DecisionTask = "scenario" | "optimize" | "nomination" | "dispatch" | "review";
 
-export const PORTFOLIO_TASKS: PortfolioTask[] = ["overview", "resources", "routes", "exposure"];
+export const PORTFOLIO_TASKS: PortfolioTask[] = ["overview", "resources", "routes", "exposure", "delivery"];
 export const DECISION_TASKS: DecisionTask[] = [
   "scenario",
   "optimize",
@@ -22,7 +22,7 @@ export const DECISION_TASKS: DecisionTask[] = [
 export function portfolioTaskFromLocation(search: string): PortfolioTask {
   const params = new URLSearchParams(search);
   const value = params.get("task");
-  if (value === "resources" || value === "routes" || value === "exposure") return value;
+  if (value === "resources" || value === "routes" || value === "exposure" || value === "delivery") return value;
   // Conflicting register C10: the legacy `orders` page id is kept for deep-link
   // compatibility, and it names the market-positioning view. A bare link to it opens that
   // view rather than the overview, so the page and the surface it names agree.

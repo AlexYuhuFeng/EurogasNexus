@@ -32,8 +32,13 @@ export interface KeyFigureProps {
   title?: string;
   /** Extra line under the value (MetricStrip's `detail`). */
   detail?: ReactNode;
-  /** A note trigger under the figure ("Method", "Why"). */
+  /** Anything that is not a note: a link under the figure ("1 breach · 3 watch"). */
   action?: ReactNode;
+  /**
+   * Note triggers ("Why", "Method") as quiet inline links beside the label, so a figure keeps
+   * one height whether or not it has them (pass the triggers with `inline`).
+   */
+  notes?: ReactNode;
   /** Shown beside the value itself (the simulated marker): never only in a banner. */
   marker?: ReactNode;
   className?: string;
@@ -52,6 +57,7 @@ export function KeyFigure({
   title,
   detail,
   action,
+  notes,
   marker,
   className,
 }: KeyFigureProps) {
@@ -59,7 +65,14 @@ export function KeyFigure({
   const classes = ["key-figure", size === "lg" ? "key-figure-lg" : "", className].filter(Boolean).join(" ");
   return (
     <div className={classes} role="group" aria-labelledby={labelId} data-state={state === "current" ? undefined : state}>
-      <span id={labelId}>{label}</span>
+      {notes ? (
+        <span className="key-figure-head">
+          <span id={labelId} title={typeof label === "string" ? label : undefined}>{label}</span>
+          <span className="key-figure-notes">{notes}</span>
+        </span>
+      ) : (
+        <span id={labelId}>{label}</span>
+      )}
       <strong className={valueClassName} title={title}>
         {value}
         {unit ? <small className="metric-strip-unit key-figure-unit">{unit}</small> : null}

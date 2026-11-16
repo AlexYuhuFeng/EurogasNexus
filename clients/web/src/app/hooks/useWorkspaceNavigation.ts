@@ -14,6 +14,12 @@ import {
 } from "@/app/context/viewPreference";
 import { marketTaskFromSearch } from "@/app/model/marketCockpitModel";
 import {
+  modeLanding,
+  modeLocationFromSearch,
+  redirectSearch,
+  type ModeId,
+} from "@/app/navigation/modeNavigation";
+import {
   coerceWorkspacePageId,
   isWorkspacePageId,
   DEFAULT_WORKSPACE_PAGE_ID,
@@ -36,8 +42,26 @@ function marketViewPreferencePrincipalId(): string | null {
  * choose the landing page, and only when none is stored does the declared
  * default (`DEFAULT_WORKSPACE_PAGE_ID`) stand.
  */
+/**
+ * Rewrite an old address in place (WF-05): an old area (`?workspace=decision`) or a mode
+ * (`?workspace=book&task=limits`, `?mode=deals`) becomes the page address it now lands on, so
+ * Back, a refresh and a copied link all name one location. Only the URL changes; nothing mounts.
+ */
+export function applyAddressRedirect(): boolean {
+  if (typeof window === "undefined") return false;
+  const next = redirectSearch(window.location.search);
+  if (next === null) return false;
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`,
+  );
+  return true;
+}
+
 export function workspaceFromLocation(): WorkspacePageId {
   if (typeof window === "undefined") return DEFAULT_WORKSPACE_PAGE_ID;
+  applyAddressRedirect();
   if (!isIdentityGateOpen(useApiStore.getState().authState)) return DEFAULT_WORKSPACE_PAGE_ID;
   const requestedWorkspace = new URLSearchParams(window.location.search).get("workspace");
   if (requestedWorkspace === null) {
@@ -80,6 +104,11 @@ export function useWorkspaceNavigation() {
   );
   const [locationRevision, setLocationRevision] = useState(0);
   const activePrimaryWorkspace: PrimaryWorkspace = primaryWorkspaceForPage(activeWorkspace);
+  // The mode the user is in, derived from where they are (null on a utility page).
+  const activeMode: ModeId | null =
+    typeof window === "undefined"
+      ? null
+      : modeLocationFromSearch(activeWorkspace, window.location.search)?.mode.id ?? null;
 
   // A deep link is honoured as soon as (and only when) the session is confirmed.
   useEffect(() => {
@@ -138,9 +167,21 @@ export function useWorkspaceNavigation() {
     openWorkspace(defaultWorkspacePageForPrimary(primary));
   }
 
+  /** Open a mode at its first task the caller can use; the Desk keeps the remembered market view. */
+  function openMode(mode: ModeId) {
+    if (mode === "desk") {
+      openPrimaryWorkspace("market");
+      return;
+    }
+    const landing = modeLanding(mode, useApiStore.getState().currentUser);
+    if (landing) openWorkspace(landing.page, landing.pageTask);
+  }
+
   return {
     activeWorkspace,
     activePrimaryWorkspace,
+    activeMode,
+    openMode,
     locationRevision,
     openWorkspace,
     openPrimaryWorkspace,

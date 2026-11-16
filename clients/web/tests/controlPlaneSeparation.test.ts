@@ -101,7 +101,10 @@ test("the shell hides the administrative primary and refuses its deep links", ()
   assert.match(topBar, /primary\.controlPlane !== true \|\| compositionSeesAdministration\(composition\)/);
   // Separation of duties the other way: business workspaces need a commercial composition.
   assert.match(topBar, /primary\.commercial !== true \|\| seesCommercial/);
-  assert.match(topBar, /visiblePrimaries\.map/);
+  // The utilities (Help & Settings, Administration) come from the filtered list; the primary row
+  // is the four modes, filtered by the caller's identity (WF-05).
+  assert.match(topBar, /const utilities = visiblePrimaries\.filter/);
+  assert.match(topBar, /const modes = visibleModes\(currentUser\)/);
   assert.equal(topBar.includes("groupedMenuOpen"), false);
 
   // A deep link into a control-plane page cannot mount the workspace.

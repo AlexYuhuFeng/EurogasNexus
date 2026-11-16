@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api, type GasForPowerDayDTO } from "@/api/client";
 import { ReportExport } from "./ReportExport";
-import { Field, Select } from "@/components/ui";
+import { DataGrid, Field, Select, type DataGridColumn } from "@/components/ui";
 import { pnlClass } from "@/app/model/pnlColor";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -40,6 +40,30 @@ export function GasForPowerPanel({ t }: { t: Translate }) {
   const hasRows = Boolean(rows && rows.length > 0);
   const empty = rows !== null && !hasRows;
 
+  // One table (UX-06); each figure column names its unit in the header.
+  const columns = useMemo<DataGridColumn<GasForPowerDayDTO>[]>(() => {
+    const first = rows?.[0];
+    const figure = (id: string, header: string, pick: (row: GasForPowerDayDTO) => number | null | undefined, digits = 2, signed = false): DataGridColumn<GasForPowerDayDTO> => ({
+      id,
+      header,
+      type: "number",
+      value: (row) => pick(row) ?? null,
+      format: (value) => num(value as number | null, digits),
+      cellClassName: signed ? (row) => pnlClass(pick(row)) || undefined : undefined,
+    });
+    return [
+      { id: "day", header: t("gfp.day"), rowHeader: true, value: (row) => row.day },
+      figure("power", t("gfp.power", { currency }), (row) => row.power_price),
+      figure("residual", t("gfp.residual"), (row) => row.residual_load_mw, 0),
+      figure("burn", t("gfp.burn"), (row) => row.implied_gas_burn_gwh, 1),
+      figure("gas", t("gfp.gas", { hub: first?.gas_hub ?? "" }), (row) => row.gas_price, 3),
+      figure("carbon", t("gfp.carbon", { market: first?.carbon_market ?? "" }), (row) => row.carbon_price),
+      figure("css", t("gfp.css"), (row) => row.clean_spark_spread, 2, true),
+      figure("cds", t("gfp.cds"), (row) => row.clean_dark_spread, 2, true),
+      figure("switch", t("gfp.switch"), (row) => row.fuel_switch_gas_price, 3),
+    ];
+  }, [rows, currency, t]);
+
   // The zone picker stays when the panel is empty, because another zone may have data; the
   // export buttons do not (#69).
   return (
@@ -58,36 +82,16 @@ export function GasForPowerPanel({ t }: { t: Translate }) {
         <p className="panel-meaning">{t("gfp.meaning")}</p>
       )}
       {rows && hasRows && (
-        <table className="position-ladder" data-gas-for-power="true">
-          <thead>
-            <tr>
-              <th scope="col">{t("gfp.day")}</th>
-              <th scope="col" className="num">{t("gfp.power", { currency })}</th>
-              <th scope="col" className="num">{t("gfp.residual")}</th>
-              <th scope="col" className="num">{t("gfp.burn")}</th>
-              <th scope="col" className="num">{t("gfp.gas", { hub: rows[0].gas_hub ?? "" })}</th>
-              <th scope="col" className="num">{t("gfp.carbon", { market: rows[0].carbon_market ?? "" })}</th>
-              <th scope="col" className="num">{t("gfp.css")}</th>
-              <th scope="col" className="num">{t("gfp.cds")}</th>
-              <th scope="col" className="num">{t("gfp.switch")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.day} data-record="gas-for-power-day">
-                <td>{row.day}</td>
-                <td className="num">{num(row.power_price)}</td>
-                <td className="num">{num(row.residual_load_mw, 0)}</td>
-                <td className="num">{num(row.implied_gas_burn_gwh, 1)}</td>
-                <td className="num">{num(row.gas_price, 3)}</td>
-                <td className="num">{num(row.carbon_price)}</td>
-                <td className={`num ${pnlClass(row.clean_spark_spread)}`}>{num(row.clean_spark_spread)}</td>
-                <td className={`num ${pnlClass(row.clean_dark_spread)}`}>{num(row.clean_dark_spread)}</td>
-                <td className="num">{num(row.fuel_switch_gas_price, 3)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          id="gas-for-power"
+          label={t("gfp.title")}
+          columns={columns}
+          rows={rows}
+          rowKey={(row) => row.day}
+          density="compact"
+          rowAttributes={() => ({ "data-record": "gas-for-power-day" })}
+          tableAttributes={{ "data-gas-for-power": "true" }}
+        />
       )}
       {hasRows && notes.length > 0 && (
         <ul className="position-notes">

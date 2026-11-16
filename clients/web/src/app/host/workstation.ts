@@ -426,10 +426,11 @@ export function buildDeepLink(
 /** Canonical workstation shortcuts. One binding, one scope, one command. */
 export const WORKSTATION_SHORTCUTS = [
   { id: "command-palette", binding: "Ctrl+K", scope: "shell", commandId: "palette.toggle" },
-  { id: "workspace-market", binding: "Ctrl+Shift+1", scope: "shell", commandId: "navigate.primary.market" },
-  { id: "workspace-portfolio", binding: "Ctrl+Shift+2", scope: "shell", commandId: "navigate.primary.portfolio" },
-  { id: "workspace-strategy", binding: "Ctrl+Shift+3", scope: "shell", commandId: "navigate.primary.strategy" },
-  { id: "workspace-decision", binding: "Ctrl+Shift+4", scope: "shell", commandId: "navigate.primary.decision" },
+  // The four working modes (WF-05), then the two utilities.
+  { id: "workspace-desk", binding: "Ctrl+Shift+1", scope: "shell", commandId: "navigate.mode.desk" },
+  { id: "workspace-deals", binding: "Ctrl+Shift+2", scope: "shell", commandId: "navigate.mode.deals" },
+  { id: "workspace-book", binding: "Ctrl+Shift+3", scope: "shell", commandId: "navigate.mode.book" },
+  { id: "workspace-research", binding: "Ctrl+Shift+4", scope: "shell", commandId: "navigate.mode.research" },
   { id: "workspace-system", binding: "Ctrl+Shift+5", scope: "shell", commandId: "navigate.primary.system" },
   { id: "workspace-administration", binding: "Ctrl+Shift+6", scope: "shell", commandId: "navigate.primary.administration" },
   { id: "inspector-close", binding: "Escape", scope: "inspector", commandId: "inspector.close" },

@@ -7,7 +7,7 @@ licensed information is used.
 
 ## Review a decision record
 
-1. Open **Decision Center → Review** and select the case.
+1. Open **Deals → Review** and select the case.
 2. Check the objective, author, analytical context and linked evidence.
 3. Inspect assumptions, warnings, source references and the recorded outcome.
 4. Check the reviewer identity and the separation between author and reviewer.

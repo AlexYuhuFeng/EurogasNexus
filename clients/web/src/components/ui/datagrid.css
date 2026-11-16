@@ -212,9 +212,10 @@
     color: var(--ds-status-info);
   }
 
-  /* Signed figures in a grid: long/short and profit/loss colour the number only. */
-  .ds-grid .is-long { color: var(--ds-positive); }
-  .ds-grid .is-short { color: var(--ds-negative); }
+  /* A position is not a gain: long and short read by their sign (+/−) in neutral ink. Only
+     profit and loss take colour, through the user's P&L convention (pnlColor.ts). */
+  .ds-grid .is-long,
+  .ds-grid .is-short { color: var(--ds-text-1); }
 
   /* A net-position bar in its own cell. */
   .ds-grid-bar-cell {
@@ -244,14 +245,15 @@
     border-radius: var(--ds-radius-sm);
   }
 
+  /* The side of the axis says long or short; the bar stays neutral like the figure. */
   .ds-grid-bar > .is-long {
     left: 50%;
-    background: var(--ds-positive);
+    background: var(--ds-text-3);
   }
 
   .ds-grid-bar > .is-short {
     right: 50%;
-    background: var(--ds-negative);
+    background: var(--ds-text-3);
   }
 
   @media (pointer: coarse) {

@@ -147,10 +147,15 @@ def test_topbar_composes_primary_tabs_without_a_grouped_dropdown() -> None:
     assert re.search(r'import \{[^}]*\bWorkspaceTabs\b[^}]*\} from "@/components/ui"', topbar_text)
     assert "workspace-primary-tabs" in topbar_text
     assert "workspace-primary" in topbar_text
-    # Tabs come from the primary registry, filtered by the Architecture V2
-    # control-plane boundary rather than by a hardcoded list.
+    # WF-05: the primary row is the four working modes from the mode registry, filtered by the
+    # caller's identity; the utilities (Help & Settings, Administration) still come from the
+    # primary registry, filtered by the Architecture V2 control-plane boundary, and live in the
+    # account area and the compact drawer rather than the primary row.
+    assert "visibleModes(currentUser)" in topbar_text
+    assert "tabs={modeTabs}" in topbar_text
+    assert "onOpenMode" in topbar_text
     assert "primaryWorkspaces" in topbar_text
-    assert "visiblePrimaries.map" in topbar_text
+    assert "visiblePrimaries.filter" in topbar_text
     assert "onOpenPrimaryWorkspace" in topbar_text
     assert "groupedMenuOpen" not in topbar_text
     assert "workspaceGroups" not in topbar_text
@@ -227,6 +232,35 @@ def test_primary_labels_are_i18n_backed_and_parity_aligned() -> None:
         assert zh[key].strip()
         assert en[key] != key
         assert zh[key] != key
+
+
+MODE_NAVIGATION_TS = ROOT / "clients" / "web" / "src" / "app" / "navigation" / "modeNavigation.ts"
+
+
+def test_four_modes_are_the_primary_row_and_decision_center_is_dissolved() -> None:
+    """WF-05: Desk, Deals, Book, Research; every Decision Center task has a home."""
+
+    modes_text = _read(MODE_NAVIGATION_TS)
+    assert 'export const MODE_IDS = ["desk", "deals", "book", "research"] as const;' in modes_text
+    # Scenario and optimisation are Deals; review sits with the deals it approves; nomination and
+    # storage planning are Book views. The page addresses stay, so old links keep working.
+    for task_id, page, page_task in [
+        ("evaluate", "scenario", "scenario"),
+        ("optimise", "scenario", "optimize"),
+        ("review", "scenario", "review"),
+        ("nominations", "scenario", "nomination"),
+        ("storage", "scenario", "dispatch"),
+    ]:
+        assert re.search(
+            rf'id: "{task_id}", labelKey: "[^"]+",(?: shortLabelKey: "[^"]+",)? page: "{page}", pageTask: "{page_task}"',
+            modes_text,
+        ), task_id
+    assert "export function redirectSearch" in modes_text
+    en = json.loads(_read(I18N_EN))
+    zh = json.loads(_read(I18N_ZH))
+    for mode in ["desk", "deals", "book", "research"]:
+        for key in (f"nav.mode.{mode}", f"nav.mode.{mode}.description"):
+            assert en[key].strip() and zh[key].strip() and en[key] != zh[key]
 
 
 def test_old_glossary_and_manual_routes_are_rehomed_not_deleted() -> None:

@@ -28,7 +28,7 @@ export interface PageViews {
 }
 
 export const PAGE_VIEW_REGISTRY: Partial<Record<WorkspacePageId, PageViews>> = {
-  market: { param: "task", views: MARKET_TASKS, defaultView: "curves", labelPrefix: "market.task." },
+  market: { param: "task", views: MARKET_TASKS, defaultView: "curves", objectParams: PAGE_OBJECT_PARAMS.market, labelPrefix: "market.task." },
   contracts: { param: "task", views: PORTFOLIO_TASKS, defaultView: "overview", objectParams: PAGE_OBJECT_PARAMS.contracts, labelPrefix: "portfolio.task." },
   scenario: { param: "task", views: DECISION_TASKS, defaultView: "scenario", labelPrefix: "decision.task." },
   strategy: { param: "task", views: STRATEGY_TASKS, defaultView: "spread", labelPrefix: "strategy_lab.task." },

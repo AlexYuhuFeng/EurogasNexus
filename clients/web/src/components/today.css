@@ -85,6 +85,10 @@
     border-radius: var(--ds-radius-sm);
   }
 
+  .today-figure.is-wide {
+    grid-column: span 2;
+  }
+
   .today-figure:focus-visible {
     outline: none;
     box-shadow: var(--ds-focus);
@@ -109,8 +113,6 @@
     margin-left: 0;
   }
 
-  .today-figure .is-long { color: var(--ds-positive); }
-  .today-figure .is-short { color: var(--ds-negative); }
 
   .today-figure-empty {
     display: grid;
@@ -125,7 +127,8 @@
 
   .today-limit-detail {
     display: inline-flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    white-space: nowrap;
     align-items: center;
     gap: var(--ds-space-1);
   }
@@ -133,6 +136,10 @@
   .today-limit-name {
     color: var(--ds-text-2);
   }
+
+  /* Utilisation in words, coloured by its status (the figure itself stays ink). */
+  .today-limit-used[data-status="breach"] { color: var(--ds-status-breach); font-weight: var(--ds-weight-medium); }
+  .today-limit-used[data-status="watch"] { color: var(--ds-status-watch); font-weight: var(--ds-weight-medium); }
 
   .today-empty {
     min-width: 0;
@@ -330,6 +337,11 @@
 
     .today-fundamental {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    .today-limit-detail {
+      flex-wrap: wrap;
+      white-space: normal;
     }
 
     .today-list > li {

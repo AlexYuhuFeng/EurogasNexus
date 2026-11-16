@@ -24,6 +24,7 @@ import {
   isPaletteDismissKey,
   isPaletteShortcut,
   workspaceShortcutCommand,
+  currentCommandId,
   paletteCommandAvailable,
   type PaletteAvailability,
   type PaletteCommand,
@@ -61,6 +62,10 @@ export interface CommandPaletteOptions {
    */
   evidenceRefs?: readonly CopilotEvidenceRef[];
   labels: (command: PaletteCommand) => string;
+  /** Earlier names of a command, translated (found as aliases; WF-05). */
+  aliases?: (command: PaletteCommand) => readonly string[];
+  /** Whether the caller's identity is offered a command at all (absent, not disabled). */
+  visible?: (command: PaletteCommand) => boolean;
   /** Glossary terms the palette can find. */
   glossaryTerms?: ReadonlyArray<{ term: string; aliases?: readonly string[] }>;
   onNavigate: (command: PaletteCommand) => void;
@@ -95,13 +100,15 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
 
   const offersAiCommands = options.includeAiActions !== false;
 
+  const visible = options.visible;
   const commands = useMemo(
     () => [
       ...buildPaletteCommands().filter(
         (command) =>
-          command.group === "navigate" ||
-          command.group === "utility" ||
-          (offersAiCommands && command.group === "ai"),
+          (command.group === "navigate" ||
+            command.group === "utility" ||
+            (offersAiCommands && command.group === "ai")) &&
+          (visible ? visible(command) : true),
       ),
       ...inspectionCommands(options.context, options.activeWorkspace),
       // Glossary terms are found by name or alias (#34); they never show for an empty query.
@@ -109,6 +116,7 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
     ],
     [
       offersAiCommands,
+      visible,
       options.glossaryTerms,
       options.activeWorkspace,
       options.context.routeId,
@@ -139,11 +147,11 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
   );
 
   const results = useMemo(() => {
-    const filtered = filterPaletteCommands(commands, query, options.labels, Number.MAX_SAFE_INTEGER);
+    const filtered = filterPaletteCommands(commands, query, options.labels, Number.MAX_SAFE_INTEGER, options.aliases);
     return [...filtered]
       .sort((left, right) => GROUP_ORDER.indexOf(left.group) - GROUP_ORDER.indexOf(right.group))
       .slice(0, DEFAULT_PALETTE_LIMIT * 3);
-  }, [commands, query, options.labels]);
+  }, [commands, query, options.labels, options.aliases]);
 
   const unavailable = useMemo(
     () =>
@@ -221,7 +229,8 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
     void listenDesktopCommands((id) => {
       if (id === "palette.toggle") { setOpen(true); return; }
       if (open || editing()) return;
-      const command = commands.find((item) => item.id === id);
+      const wanted = currentCommandId(id);
+      const command = commands.find((item) => item.id === wanted);
       if (command) run(command);
     }).then((cleanup) => { if (disposed) cleanup(); else unlisten = cleanup; })
       .catch(() => { /* Older hosts still support the keyboard and on-screen entry. */ });

@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, type TradingBookInput, type TradingBooksDTO } from "@/api/client";
+import { DataGrid, type DataGridColumn } from "@/components/ui";
+
+type BookRow = TradingBooksDTO["books"][number];
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -46,35 +49,44 @@ export function TradingBooksPanel({ t }: { t: Translate }) {
   const field = (key: keyof typeof draft) => (event: { target: { value: string } }) =>
     setDraft({ ...draft, [key]: event.target.value });
 
+  const bookColumns = useMemo<DataGridColumn<BookRow>[]>(
+    () => [
+      { id: "entity", header: t("books.legal_entity"), sortable: true, value: (book) => book.legal_entity },
+      { id: "region", header: t("books.region"), sortable: true, value: (book) => t(`books.region_${book.region}`) },
+      { id: "business", header: t("books.business"), sortable: true, value: (book) => book.business },
+      {
+        id: "book",
+        header: t("books.book"),
+        rowHeader: true,
+        sortable: true,
+        value: (book) => book.name,
+        render: (book) => (
+          <>
+            {book.name} <small className="ds-grid-unit">{book.book_id} · {book.base_currency}</small>
+          </>
+        ),
+      },
+      { id: "contracts", header: t("books.contracts"), type: "number", sortable: true, value: (book) => book.contracts },
+      { id: "orders", header: t("books.orders"), type: "number", sortable: true, value: (book) => book.orders },
+    ],
+    [t],
+  );
+
   return (
     <section className="workspace-panel span-3 trading-books-panel" aria-labelledby="trading-books-title">
       <h2 id="trading-books-title">{t("books.title")}</h2>
       {books && books.books.length === 0 && <p className="muted">{t("books.empty")}</p>}
       {books && books.books.length > 0 && (
-        <table className="position-ladder" data-trading-books="true">
-          <thead>
-            <tr>
-              <th scope="col">{t("books.legal_entity")}</th>
-              <th scope="col">{t("books.region")}</th>
-              <th scope="col">{t("books.business")}</th>
-              <th scope="col">{t("books.book")}</th>
-              <th scope="col" className="num">{t("books.contracts")}</th>
-              <th scope="col" className="num">{t("books.orders")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {books.books.map((book) => (
-              <tr key={book.book_id} data-record="trading-book">
-                <td>{book.legal_entity}</td>
-                <td>{t(`books.region_${book.region}`)}</td>
-                <td>{book.business}</td>
-                <td><strong>{book.name}</strong> <small>{book.book_id} · {book.base_currency}</small></td>
-                <td className="num">{book.contracts}</td>
-                <td className="num">{book.orders}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          id="trading-books"
+          label={t("books.title")}
+          columns={bookColumns}
+          rows={books.books}
+          rowKey={(book) => book.book_id}
+          density="compact"
+          rowAttributes={() => ({ "data-record": "trading-book" })}
+          tableAttributes={{ "data-trading-books": "true" }}
+        />
       )}
       {books && (books.unassigned.contracts > 0 || books.unassigned.orders > 0) && (
         <p className="muted">{t("books.unassigned", books.unassigned)}</p>

@@ -402,8 +402,12 @@ test("Today: four rows, simulated marked beside each value, empty sections give 
   // The NBP price carries its unit and the simulated marker inside the value.
   assert.match(html, /<strong[^>]*>33\.662<small class="metric-strip-unit key-figure-unit">GBP\/MWh<\/small><span class="ds-cell-mark" data-state="simulated"/);
   assert.match(html, /today\.day_change\(change=−0\.082,day=13 Nov\)/);
-  // A real (not simulated) figure carries no marker.
-  assert.match(html, /<strong class="is-long"[^>]*>46,000<small class="metric-strip-unit key-figure-unit">MWh\/d<\/small><\/strong>/);
+  // A real (not simulated) figure carries no marker. A position reads by its sign in neutral
+  // ink: no long/short (gain-like) colour class on the value.
+  assert.match(html, /<strong[^>]*>\+46,000<small class="metric-strip-unit key-figure-unit">MWh\/d<\/small><\/strong>/);
+  assert.doesNotMatch(html, /<strong class="is-(long|short)"/);
+  // Method sits on the label line as a quiet link, so the figure keeps one height.
+  assert.match(html, /<span class="key-figure-head"><span id="[^"]+" title="today\.net_today">today\.net_today<\/span><span class="key-figure-notes"><button[^>]*class="ds-inline-link"[^>]*data-method="net_position"/);
   // Empty sections: the server's reason and action in words; the code only for support.
   assert.match(html, /data-empty-code="LIMITS_NOT_ENTITLED_TO_ALL_BOOKS" title="LIMITS_NOT_ENTITLED_TO_ALL_BOOKS"/);
   assert.match(html, /<strong>Limits need every book behind them<\/strong><span> Ask risk for the limits view<\/span>/);

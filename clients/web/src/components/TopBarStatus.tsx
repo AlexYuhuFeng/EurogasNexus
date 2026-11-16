@@ -11,6 +11,8 @@ import { useEffect, useRef, useState } from "react";
 import { StatusBadge } from "@/components/ui";
 import type { SourceSummary } from "@/app/workspaceDerivedData";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import type { DeskTodayDTO } from "@/api/client";
+import { StaleFigureList } from "./TodayScreen";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -36,6 +38,9 @@ export function TopBarStatus({
   onReportProblem,
   showSourceCounts = false,
   demoPrices = false,
+  staleFigures = [],
+  nowMs = Date.now(),
+  onOpenFigure,
 }: {
   t: Translate;
   health: DataHealth;
@@ -50,6 +55,11 @@ export function TopBarStatus({
   showSourceCounts?: boolean;
   /** The server values positions with simulated demo prices: say so on every screen. */
   demoPrices?: boolean;
+  /** Today's figures that are not current (the same list as Today's "N figures not current"). */
+  staleFigures?: DeskTodayDTO["stale_figures"];
+  nowMs?: number;
+  /** Go to a named figure (on Today). */
+  onOpenFigure?: (key: string) => void;
 }) {
   // Hover previews the panel; a click or tap pins it until Escape or a click elsewhere.
   const [hovered, setHovered] = useState(false);
@@ -75,14 +85,26 @@ export function TopBarStatus({
     };
   }, [open]);
 
-  const chipLabel =
-    health === "attention" && showSourceCounts && sourceSummary.showCounts && sourceSummary.issues > 0
-      ? t("status.chip.attention_count", { count: sourceSummary.issues })
-      : t(`status.chip.${health}`);
+  // One statement about the data. On a demo desk that statement is "Demo data": a static store
+  // whose feeds are not live is the demo, not an incident, and must not read as one beside the
+  // page's own "Demo data" badge. A real outage still says so.
+  const demo = demoPrices && health !== "down" && health !== "checking";
+  // On a live desk, figures that are not current make the data incomplete whatever the source
+  // registry says, and the chip names how many: the same count and list as Today's line.
+  const staleCount = demo ? 0 : staleFigures.length;
+  const shownHealth: DataHealth = !demo && health === "ok" && staleCount > 0 ? "attention" : health;
+  const chipLabel = demo
+    ? t("today.demo_data")
+    : staleCount > 0 && shownHealth === "attention"
+      ? t("today.stale_link", { count: staleCount })
+      : shownHealth === "attention" && showSourceCounts && sourceSummary.showCounts && sourceSummary.issues > 0
+        ? t("status.chip.attention_count", { count: sourceSummary.issues })
+        : t(`status.chip.${shownHealth}`);
   return (
     <div
       ref={rootRef}
-      className={`topbar-status is-${health}`}
+      className={`topbar-status is-${demo ? "demo" : shownHealth}`}
+      data-topbar-status={demo ? "demo" : shownHealth}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onKeyUp={(event) => {
@@ -112,6 +134,22 @@ export function TopBarStatus({
               <div>
                 <dt>{t("status.prices")}</dt>
                 <dd>{t("status.demo_prices_help")}</dd>
+              </div>
+            )}
+            {staleCount > 0 && (
+              <div className="topbar-status-stale">
+                <dt>{t("today.stale_title")}</dt>
+                <dd>
+                  <StaleFigureList
+                    figures={staleFigures}
+                    t={t}
+                    nowMs={nowMs}
+                    onChoose={(key) => {
+                      setOpen(false);
+                      onOpenFigure?.(key);
+                    }}
+                  />
+                </dd>
               </div>
             )}
             <div>
@@ -148,7 +186,7 @@ export function TopBarStatus({
               </dd>
             </div>
           </dl>
-          {onReportProblem && health !== "ok" && health !== "checking" && (
+          {onReportProblem && !demo && shownHealth !== "ok" && shownHealth !== "checking" && (
             <button type="button" className="link-button" onClick={onReportProblem}>
               {t("support.hint")}
             </button>

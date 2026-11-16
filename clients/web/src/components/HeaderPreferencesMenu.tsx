@@ -24,6 +24,10 @@ interface HeaderPreferencesMenuProps {
   onModeChange: (mode: ThemeMode) => void;
   onOpenSettings: () => void;
   onOpenAccess: () => void;
+  /** The manual and glossary (Help & Settings), out of the primary row since WF-05. */
+  onOpenHelp?: () => void;
+  /** Administration (sources, runtime, access), offered only to whoever administers. */
+  onOpenAdministration?: () => void;
   onSignOut: () => void;
 }
 
@@ -36,6 +40,8 @@ export function HeaderPreferencesMenu({
   onModeChange,
   onOpenSettings,
   onOpenAccess,
+  onOpenHelp,
+  onOpenAdministration,
   onSignOut,
 }: HeaderPreferencesMenuProps) {
   const [open, setOpen] = useState(false);
@@ -200,6 +206,16 @@ export function HeaderPreferencesMenu({
             <button type="button" role="menuitem" onClick={() => select(onOpenSettings)}>
               {t("topbar.open_settings")}
             </button>
+            {onOpenHelp && (
+              <button type="button" role="menuitem" data-utility="help" onClick={() => select(onOpenHelp)}>
+                {t("topbar.open_help")}
+              </button>
+            )}
+            {onOpenAdministration && (
+              <button type="button" role="menuitem" data-utility="administration" onClick={() => select(onOpenAdministration)}>
+                {t("nav.primary.administration")}
+              </button>
+            )}
             {/* Shortcuts are offered only where a keyboard is the primary input. */}
             {keyboardHints && (
               <button type="button" role="menuitem" onClick={() => select(() => setShortcutsOpen(true))}>

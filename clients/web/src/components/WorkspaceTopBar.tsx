@@ -7,6 +7,7 @@ import {
   type PrimaryWorkspace,
   type PrimaryWorkspaceId,
 } from "@/app/navigation/productNavigation";
+import { visibleModes, type ModeId } from "@/app/navigation/modeNavigation";
 import {
   compositionFromProfile,
   compositionSeesAdministration,
@@ -28,11 +29,15 @@ import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
 import { ReportProblemDialog } from "./ReportProblemDialog";
 import { TopBarStatus, dataHealth } from "./TopBarStatus";
 import { requestProblemReport } from "@/app/model/supportReport";
+import { useDeskToday } from "@/app/hooks/useDeskToday";
+import { focusFigure } from "./TodayScreen";
 import "./WorkspaceTopBar.css";
 
 interface WorkspaceTopBarProps {
   activeWorkspace: WorkspacePageId;
   activePrimaryWorkspace: PrimaryWorkspace;
+  /** The mode the user is in (null on a utility page: help, settings, administration). */
+  activeMode: ModeId | null;
   dataStatus: string;
   loading: boolean;
   streamingActive: boolean;
@@ -54,12 +59,16 @@ interface WorkspaceTopBarProps {
   >;
   t: (key: string, options?: Record<string, unknown>) => string;
   onOpenPrimaryWorkspace: (primary: PrimaryWorkspaceId) => void;
+  /** Open one of the four modes (the primary row). */
+  onOpenMode: (mode: ModeId) => void;
   onSignIn: () => void;
   onSignOut: () => void;
   onOpenAccess: () => void;
   onOpenSettings: () => void;
   /** Opens the command palette: search and jump to any workspace or action. */
   onOpenCommandPalette?: () => void;
+  /** Opens Today (the status panel's list of figures not current leads there). */
+  onOpenToday?: () => void;
   onLanguageChange: (language: string) => void;
   onModeChange: (mode: ThemeMode) => void;
 }
@@ -67,6 +76,7 @@ interface WorkspaceTopBarProps {
 export function WorkspaceTopBar({
   activeWorkspace,
   activePrimaryWorkspace,
+  activeMode,
   dataStatus,
   loading,
   streamingActive,
@@ -79,14 +89,30 @@ export function WorkspaceTopBar({
   monitoring,
   t,
   onOpenPrimaryWorkspace,
+  onOpenMode,
   onSignIn,
   onSignOut,
   onOpenAccess,
   onOpenSettings,
   onOpenCommandPalette,
+  onOpenToday,
   onLanguageChange,
   onModeChange,
 }: WorkspaceTopBarProps) {
+  // Today's read, when a page has made it: the status panel names the same figures that are not
+  // current. Cache only: the bar never sends a request of its own.
+  const deskToday = useDeskToday(false);
+  const openFigure = (key: string) => {
+    if (focusFigure(key)) return;
+    onOpenToday?.();
+    // Today mounts and reads; focus the figure once it is drawn.
+    let tries = 0;
+    const retry = () => {
+      if (focusFigure(key) || ++tries > 40) return;
+      window.setTimeout(retry, 100);
+    };
+    window.setTimeout(retry, 100);
+  };
   const sourceSummary = buildSourceSummary(sourceStats, {
     loading,
     sourceError: sourceEndpointError,
@@ -98,24 +124,28 @@ export function WorkspaceTopBar({
    * store can answer while the readings inside it are stale or missing.
    */
   const runtimeAvailability = runtimeDataAvailability(dataStatus);
-  // Gas day, product and hub only where the page's reads take them (#35).
-  // Architecture V2 control-plane boundary: the administration primary is only
-  // offered to an identity whose composition includes an administration
-  // capability. Presentation only - the backend authorises every request - and it
-  // fails closed, so an absent profile hides the surface instead of showing it.
+  // The primary row is the four working modes (WF-05): Desk, Deals, Book, Research, each offered
+  // only when the caller's identity can use at least one of its tasks (presentation only: the
+  // backend authorises every request, and a mode never grants anything).
+  const modes = visibleModes(currentUser);
+  const modeTabs = modes.map((mode) => ({ id: mode.id, label: t(mode.labelKey) }));
+  // Help & Settings and Administration are utilities in the account area, not modes. The
+  // Architecture V2 control-plane boundary still applies: administration is offered only to an
+  // identity whose composition includes an administration capability, and fails closed. Separation
+  // of duties the other way round: an administrator without a commercial role sees no mode.
   const composition = compositionFromProfile(currentUser?.experience);
-  // Separation of duties, the other way round: an administrator without a commercial role is
-  // not offered the business workspaces whose reads the backend would refuse.
   const seesCommercial = needsCommercialWorkspaceReads(currentUser);
   const visiblePrimaries = primaryWorkspaces.filter(
     (primary) =>
       (primary.controlPlane !== true || compositionSeesAdministration(composition)) &&
       (primary.commercial !== true || seesCommercial),
   );
-  const primaryTabs = visiblePrimaries.map((primary) => ({
-    id: primary.id,
-    label: t(primary.labelKey),
-  }));
+  const utilities = visiblePrimaries.filter((primary) => primary.commercial !== true);
+  const seesAdministration = utilities.some((primary) => primary.id === "administration");
+  const activeUtility = activeMode ? null : activePrimaryWorkspace;
+  const menuLabel = activeMode
+    ? t(modes.find((mode) => mode.id === activeMode)?.labelKey ?? "nav.mode.desk")
+    : t(activePrimaryWorkspace.labelKey);
 
   // Compact width (docs/product/ADAPTIVE_CLIENT.md): one row - menu, search, alerts, status dot,
   // account - and a drawer holding the lines of work and the trading context (#39, #40).
@@ -169,7 +199,7 @@ export function WorkspaceTopBar({
         >
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
           <span className="topbar-menu-label">
-            <span>{t(activePrimaryWorkspace.labelKey)}</span>
+            <span>{menuLabel}</span>
           </span>
         </button>
       )}
@@ -187,23 +217,44 @@ export function WorkspaceTopBar({
             onClick={(event) => event.stopPropagation()}
           >
             <nav aria-label={t("topbar.primary_navigation")}>
-              <ul>
-                {visiblePrimaries.map((primary) => (
-                  <li key={primary.id}>
+              {/* The same four modes as the wide bar, each with its tasks one tap away. */}
+              <ul data-drawer-modes="true">
+                {modes.map((mode) => (
+                  <li key={mode.id}>
                     <button
                       type="button"
-                      aria-current={primary.id === activePrimaryWorkspace.id ? "page" : undefined}
+                      data-mode={mode.id}
+                      aria-current={mode.id === activeMode ? "page" : undefined}
                       onClick={() => {
-                        onOpenPrimaryWorkspace(primary.id);
+                        onOpenMode(mode.id);
                         closeDrawer();
                       }}
                     >
-                      <strong>{t(primary.labelKey)}</strong>
-                      <small>{t(primary.descriptionKey)}</small>
+                      <strong>{t(mode.labelKey)}</strong>
+                      <small>{mode.tasks.map((task) => t(task.labelKey)).join(" · ")}</small>
                     </button>
                   </li>
                 ))}
               </ul>
+              {utilities.length > 0 && (
+                <ul className="topbar-drawer-utilities" aria-label={t("topbar.utilities")}>
+                  {utilities.map((primary) => (
+                    <li key={primary.id}>
+                      <button
+                        type="button"
+                        data-utility={primary.id}
+                        aria-current={primary.id === activeUtility?.id ? "page" : undefined}
+                        onClick={() => {
+                          onOpenPrimaryWorkspace(primary.id);
+                          closeDrawer();
+                        }}
+                      >
+                        <strong>{t(primary.labelKey)}</strong>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </nav>
           </div>
         </div>,
@@ -213,12 +264,13 @@ export function WorkspaceTopBar({
       <WorkspaceTabs
         idPrefix="workspace-primary"
         label={t("topbar.primary_navigation")}
-        tabs={primaryTabs}
-        activeId={activePrimaryWorkspace.id}
+        tabs={modeTabs}
+        // On a utility page no mode is selected; the row keeps one Tab stop.
+        activeId={activeMode ?? ""}
         panelId="workspace-primary-content"
         className="workspace-primary-tabs"
         shellRegion="navigation"
-        onActivate={(primary) => onOpenPrimaryWorkspace(primary as PrimaryWorkspaceId)}
+        onActivate={(mode) => onOpenMode(mode as ModeId)}
       />
       )}
       {onOpenCommandPalette && (
@@ -264,7 +316,9 @@ export function WorkspaceTopBar({
             streamingActive={streamingActive}
             marketLastUpdatedAtUtc={marketLastUpdatedAtUtc}
             showSourceCounts={compositionSeesAdministration(composition)}
-            demoPrices={useApiStore((state) => state.runtimeRelease?.demo_marks === true)}
+            demoPrices={useApiStore((state) => state.runtimeRelease?.demo_marks === true) || deskToday.today?.simulated === true}
+            staleFigures={seesCommercial ? deskToday.today?.stale_figures ?? [] : []}
+            onOpenFigure={openFigure}
             onReportProblem={currentUser ? () =>
               requestProblemReport({
                 category: "data",
@@ -285,6 +339,8 @@ export function WorkspaceTopBar({
                   onModeChange={onModeChange}
                   onOpenSettings={onOpenSettings}
                   onOpenAccess={onOpenAccess}
+                  onOpenHelp={() => onOpenPrimaryWorkspace("system")}
+                  onOpenAdministration={seesAdministration ? () => onOpenPrimaryWorkspace("administration") : undefined}
                   onSignOut={onSignOut}
                 />
               </>

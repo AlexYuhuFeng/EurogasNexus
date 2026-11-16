@@ -70,7 +70,11 @@ test("the palette offers every registered sub-view under a translated label (#31
   const zh = (await import("../src/i18n/zh.json", { with: { type: "json" } })).default as Record<string, string>;
   const commands = navigationCommands().filter((command) => command.target.view);
   const expected = registeredViews().filter((entry) => entry.page !== "glossary");
-  assert.equal(commands.length, expected.length);
+  // Each sub-view is offered once: as a mode task (Book · Limits) or as a view of its page.
+  for (const entry of expected) {
+    const offered = commands.filter((command) => command.target.page === entry.page && command.target.view === entry.view && command.id !== `navigate.mode.${command.target.mode}`);
+    assert.equal(offered.length, 1, `${entry.page}.${entry.view}`);
+  }
   for (const entry of expected) {
     assert.ok(en[entry.labelKey], `missing en label ${entry.labelKey}`);
     assert.ok(zh[entry.labelKey], `missing zh label ${entry.labelKey}`);

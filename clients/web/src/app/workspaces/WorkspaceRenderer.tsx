@@ -22,6 +22,7 @@ import { SourceCenter } from "@/components/SourceCenter";
 import { StrategyLabWorkspace } from "@/components/strategy/StrategyLabWorkspace";
 import { useStrategyLab } from "@/app/model/useStrategyLab";
 import { useStrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
+import { useModeHeader } from "@/app/navigation/useModeHeader";
 
 interface WorkspaceRendererProps {
   controller: AppController;
@@ -62,12 +63,18 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
   // registry instead of a local list of primary ids, so the composition rule has
   // exactly one owner (docs/engineering/Architecture-V2/W1-02_*.md).
   const usesConsolidatedHeader = headerModeForPage(activeWorkspace) === "consolidated";
+  // A page in a mode (Research: Strategies, Data, Assistant) shows the mode's task row; a utility
+  // page (help, settings, administration) keeps its own pages as tabs.
+  const mode = useModeHeader(activeWorkspace, undefined, navigation.openWorkspace, t);
   const localTabs = usesConsolidatedHeader
     ? []
-    : activePrimaryWorkspace.pages.map((page) => ({
-        id: page,
-        ...tabLabels(t, `nav.${page}`),
-      }));
+    : mode.title
+      ? mode.tabs
+      : activePrimaryWorkspace.pages.map((page) => ({
+          id: page,
+          ...tabLabels(t, `nav.${page}`),
+        }));
+  const sectionLabel = mode.title ?? t(activePrimaryWorkspace.labelKey);
 
   // The page's own read lifecycle (`unread | loading | settled`), published so a measurement can
   // judge a surface after its read settled rather than mid-load. It is the batch's state, not
@@ -82,23 +89,27 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       className="workspace-page"
       id="workspace-active-panel"
       data-workspace-load-state={workspaceLoadState}
-      aria-label={`${t("app.title")} — ${t(activePrimaryWorkspace.labelKey)}`}
+      aria-label={`${t("app.title")} — ${sectionLabel}`}
     >
       {!usesConsolidatedHeader && (
         <header className="workspace-page-header">
           <div className="workspace-page-heading">
-            <span className="eyebrow">{t(activePrimaryWorkspace.labelKey)}</span>
-            <h1>{t(`nav.${activeWorkspace}`)}</h1>
+            {/* One row (UX-04), as on every page: the area is the title, its tasks are the tabs;
+                the active task is the selected tab, so its name is read by screen readers only. */}
+            <span className="eyebrow visually-hidden">
+              {mode.title && mode.activeTask ? t(mode.activeTask.labelKey) : t(`nav.${activeWorkspace}`)}
+            </span>
+            <h1>{sectionLabel}</h1>
           </div>
           {localTabs.length > 1 && (
             <WorkspaceTabs
-              idPrefix={`${activePrimaryWorkspace.id}-task`}
-              label={t(activePrimaryWorkspace.labelKey)}
+              idPrefix={`${mode.modeId ?? activePrimaryWorkspace.id}-task`}
+              label={mode.title ? mode.tabLabel : t(activePrimaryWorkspace.labelKey)}
               tabs={localTabs}
-              activeId={activeWorkspace}
+              activeId={mode.title ? mode.activeId : activeWorkspace}
               panelId="workspace-active-panel"
               className="workspace-page-tabs"
-              onActivate={(page) => navigation.openWorkspace(page as WorkspacePageId)}
+              onActivate={(id) => (mode.title ? mode.onActivate(id) : navigation.openWorkspace(id as WorkspacePageId))}
             />
           )}
         </header>

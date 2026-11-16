@@ -6,7 +6,7 @@
 
 ## Prepare a desk review
 
-1. Open **Portfolio** and confirm the books, delivery horizon and reporting currency.
+1. Open **Book → Position** and confirm the books, delivery horizon and reporting currency.
 2. Review net position, hedge measures, valuation and the associated warnings.
 3. Use the exposure view to explain a material change by hub and month.
 4. Open the underlying resource or trade record when investigating a concentration.
@@ -21,7 +21,7 @@ Open the relevant route or scenario assessment. Compare allocated volume, margin
 capacity, FX and financing assumptions on a consistent basis. Record the material sensitivity:
 a changed price, payment term or capacity assumption can change the preferred alternative.
 
-In **Decision Center → Review**, inspect the case objective, evidence and review outcome.
+In **Deals → Review**, inspect the case objective, evidence and review outcome.
 Use your authorised review controls and assign follow-up through the firm's decision process.
 
 ## Discuss exceptions

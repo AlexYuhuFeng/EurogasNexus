@@ -47,7 +47,8 @@ test("the task switcher stays the shared primitive and remembers the chosen view
   const controller = readWebSource("app/hooks/useAppController.ts");
 
   assert.match(market, /<WorkspaceHeader/);
-  assert.match(market, /onActivate=\{openTask\}/);
+  // The Desk's task row: a task on this page goes through openTask, which remembers it.
+  assert.match(market, /openTask\(target\.pageTask as MarketTask\)/);
   assert.match(market, /rememberTask\(next\)/);
   // One resolution, owned above the shell: the cockpit renders the task it returns and the shell
   // keys its layout class on the same value, so neither may resolve the preference again.

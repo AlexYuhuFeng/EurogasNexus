@@ -7,7 +7,7 @@ alternative. Have the relevant book, delivery period and price sources available
 
 ## Prepare the desk
 
-1. Open **Market → Curves & Spreads** and select the gas day, product and hub.
+1. Open **Desk → Prices** and select the gas day, product and hub.
 2. Choose **Hub board** for a hub comparison or **Ladder** for products across markets.
 3. Check bid/offer, source and age before comparing levels. Keep NBP p/th and continental
    EUR/MWh quotes on a common basis when comparing them.
@@ -20,7 +20,7 @@ timestamps, reference prices and FX basis.
 
 ## Review the physical book
 
-1. In **Portfolio**, open the resource/contract library.
+1. In **Deals → Contracts**, open the resource/contract library.
 2. Inspect the recorded delivery points, contract quantity, price currency, payment terms
    and capacity rights for the selected contract.
 3. Review the daily gas balance and delivery-against-nomination records where populated.
@@ -33,8 +33,8 @@ For contract entry, PDF intake, retirement and reinstatement, use the
 
 ## Compare routes and sales
 
-1. Open **Portfolio → Routes** and inspect the candidate's costs, capacity and access.
-2. Use the available scenario handoff to carry the candidate into **Decision Center**.
+1. Open **Deals → Routes & netback** and inspect the candidate's costs, capacity and access.
+2. Use the available scenario handoff to carry the candidate into **Deals → Evaluate**.
 3. Confirm which saved resources and sale options form the comparison. Panel edits and
    saved contract terms can have different roles in a calculation.
 4. Run the comparison or optimisation. Inspect allocated and unallocated volume, binding
@@ -53,7 +53,7 @@ allocation when comparing contracts with different funding terms.
 
 ## Record the decision
 
-Open **Decision Center → Review**, inspect the alternatives and record the permitted
+Open **Deals → Review**, inspect the alternatives and record the permitted
 review outcome with a rationale. Carry the agreed instructions into your firm's trading
 or operating system through its usual approval process.
 

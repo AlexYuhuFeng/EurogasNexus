@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api, type DailyBalanceDTO } from "@/api/client";
 import { formatQuantity } from "@/app/model/riskLimitsModel";
 import { GAS_HUBS } from "@/app/contractChoices";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { DataGrid, type DataGridColumn } from "@/components/ui";
+
+type BalanceDay = DailyBalanceDTO["days"][number];
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -55,6 +58,31 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
   const open = balance?.days.filter((day) => day.state !== "balanced") ?? [];
   const exposure = open.reduce((sum, day) => sum + (day.cash_out_cost ?? 0), 0);
 
+  const balanceColumns = useMemo<DataGridColumn<BalanceDay>[]>(
+    () => [
+      { id: "day", header: t("balance.gas_day"), rowHeader: true, value: (day) => day.gas_day },
+      { id: "supply", header: t("balance.supply"), type: "number", value: (day) => day.supply, format: (value) => formatQuantity(value as number) },
+      { id: "exchange", header: t("balance.exchange"), type: "number", value: (day) => day.exchange_bought - day.exchange_sold, format: (value) => signed(value as number) },
+      { id: "bilateral", header: t("balance.bilateral"), type: "number", value: (day) => day.bilateral_bought - day.bilateral_sold, format: (value) => signed(value as number) },
+      { id: "residual", header: t("balance.residual"), type: "number", value: (day) => day.residual_mwh, format: (value) => <strong>{signed(value as number)}</strong> },
+      {
+        id: "state",
+        header: t("balance.state"),
+        render: (day) => (
+          <span className="limit-badge" data-status={day.state === "balanced" ? "ok" : "watch"}>{t(`balance.state_${day.state}`)}</span>
+        ),
+      },
+      {
+        id: "cashout",
+        header: t("balance.cash_out", { currency: currency }),
+        type: "number",
+        value: (day) => day.cash_out_cost,
+        format: (value) => (value == null ? "–" : Math.round(value as number).toLocaleString("en-GB")),
+      },
+    ],
+    [currency, t],
+  );
+
   return (
     <section className="workspace-panel span-3 daily-balance-panel" aria-labelledby="daily-balance-title">
       <h2 id="daily-balance-title">{t("balance.title")}</h2>
@@ -86,32 +114,16 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
             </strong>{" "}
             <small className="muted">{t("balance.delivery_ratio", { pct: (balance.delivery_ratio * 100).toFixed(1) })}</small>
           </p>
-          <table className="position-ladder daily-balance">
-            <thead>
-              <tr>
-                <th scope="col">{t("balance.gas_day")}</th>
-                <th scope="col" className="num">{t("balance.supply")}</th>
-                <th scope="col" className="num">{t("balance.exchange")}</th>
-                <th scope="col" className="num">{t("balance.bilateral")}</th>
-                <th scope="col" className="num">{t("balance.residual")}</th>
-                <th scope="col">{t("balance.state")}</th>
-                <th scope="col" className="num">{t("balance.cash_out", { currency })}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {balance.days.map((day) => (
-                <tr key={day.gas_day} data-status={day.state === "balanced" ? undefined : "watch"}>
-                  <td>{day.gas_day}</td>
-                  <td className="num">{formatQuantity(day.supply)}</td>
-                  <td className="num">{signed(day.exchange_bought - day.exchange_sold)}</td>
-                  <td className="num">{signed(day.bilateral_bought - day.bilateral_sold)}</td>
-                  <td className="num"><strong>{signed(day.residual_mwh)}</strong></td>
-                  <td><span className="limit-badge" data-status={day.state === "balanced" ? "ok" : "watch"}>{t(`balance.state_${day.state}`)}</span></td>
-                  <td className="num">{day.cash_out_cost == null ? "–" : Math.round(day.cash_out_cost).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataGrid
+            id="daily-balance"
+            className="daily-balance"
+            label={t("balance.title")}
+            columns={balanceColumns}
+            rows={balance.days}
+            rowKey={(day) => day.gas_day}
+            density="compact"
+            rowAttributes={(day) => ({ "data-status": day.state === "balanced" ? undefined : "watch" })}
+          />
           {warnings.length > 0 && <ul className="muted">{warnings.map((warning) => <li key={warning}><small>{warning}</small></li>)}</ul>}
         </>
       )}

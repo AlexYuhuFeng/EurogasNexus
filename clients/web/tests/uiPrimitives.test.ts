@@ -139,5 +139,7 @@ test("WorkspaceTabs is the Tabs primitive as a nav landmark holding the tablist"
   assert.match(tabs, /role="tablist"/);
   assert.match(tabs, /role="tab"/);
   assert.match(tabs, /aria-selected=\{selected\}/);
-  assert.match(tabs, /tabIndex=\{selected \? 0 : -1\}/);
+  // One Tab stop: the selected tab, or the first when none is selected (a utility page).
+  assert.match(tabs, /tabIndex=\{index === stopIndex \? 0 : -1\}/);
+  assert.match(tabs, /const stopIndex = Math\.max\(0, activeIndex\);/);
 });

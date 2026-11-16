@@ -19,8 +19,8 @@ type BalanceRow = NweBalanceDayDTO & { forecast: boolean };
 export function NweBalancePanel({ t, simulated = false }: {
   t: Translate;
   /**
-   * The figures are simulated (the demo desk): every row carries the marker beside its values,
-   * not only a banner, so no simulated balance reads as measured data (AGENTS.md rule 17).
+   * The figures are simulated (the demo desk): every row carries the marker once, at its gas
+   * day, not only a banner, so no simulated balance reads as measured data (AGENTS.md rule 17).
    */
   simulated?: boolean;
 }) {
@@ -62,6 +62,8 @@ export function NweBalancePanel({ t, simulated = false }: {
         header: t("nwe.day"),
         rowHeader: true,
         value: (row) => row.day,
+        // A simulated row is marked once, at its gas day: every figure on it is simulated.
+        state: mark,
         render: (row) => (
           <>
             {row.forecast ? <strong>{row.day}</strong> : row.day}
@@ -69,7 +71,7 @@ export function NweBalancePanel({ t, simulated = false }: {
           </>
         ),
       },
-      { id: "call", header: t("nwe.call"), unit, type: "number", value: (row) => row.call_gwh, format: (value) => gwh(value as number), state: mark },
+      { id: "call", header: t("nwe.call"), unit, type: "number", value: (row) => row.call_gwh, format: (value) => gwh(value as number) },
       {
         id: "norway",
         header: t("nwe.norway"),

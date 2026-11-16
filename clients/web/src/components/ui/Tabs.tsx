@@ -57,7 +57,10 @@ export function Tabs<T extends string>({
   dataAttributes,
   landmark = false,
 }: TabsProps<T>) {
-  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeId));
+  // No tab is selected when the active id names none of them (the top bar on a utility page such
+  // as Settings): the first tab is still the row's one Tab stop.
+  const activeIndex = tabs.findIndex((tab) => tab.id === activeId);
+  const stopIndex = Math.max(0, activeIndex);
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const next = rovingIndex(index, tabs.length, event.key);
@@ -89,7 +92,7 @@ export function Tabs<T extends string>({
             role="tab"
             aria-selected={selected}
             aria-controls={tab.controls ?? panelId}
-            tabIndex={selected ? 0 : -1}
+            tabIndex={index === stopIndex ? 0 : -1}
             className={selected ? "active" : undefined}
             onClick={() => onChange(tab.id)}
             onKeyDown={(event) => onKeyDown(event, index)}

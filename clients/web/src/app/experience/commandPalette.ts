@@ -24,6 +24,12 @@ import {
 } from "../navigation/productNavigation.ts";
 import { workspacePageIds, type WorkspacePageId } from "../../workspaceNavigation.ts";
 import { registeredViews } from "../navigation/viewRegistry.ts";
+import {
+  NAVIGATION_SHORTCUT_COMMANDS,
+  PRODUCT_MODES,
+  isModePage,
+  type ModeId,
+} from "../navigation/modeNavigation.ts";
 import { actionPlacement, detailPlacement, type ActionConsequence } from "./actionGeography.ts";
 import { ADMINISTRATION_CAPABILITIES } from "./experienceProfile.ts";
 import { aiActionIsAvailable, aiActions } from "./aiActions.ts";
@@ -48,6 +54,11 @@ export interface PaletteCommand {
   readonly subLabelKey?: string;
   /** Extra words that find this command (a term's aliases, in either language). */
   readonly keywords?: readonly string[];
+  /**
+   * Translation keys of earlier names (Market, Portfolio, Decision Center, Exposure …): the
+   * palette still finds a destination by the name it had before the four modes (WF-05).
+   */
+  readonly aliasKeys?: readonly string[];
   readonly target: {
     /** A glossary term to open the glossary at. */
     readonly term?: string;
@@ -55,6 +66,9 @@ export interface PaletteCommand {
     /** A sub-view of `page` from the view registry (#31). */
     readonly view?: string;
     readonly primary?: PrimaryWorkspaceId;
+    /** A working mode (Desk, Deals, Book, Research), and the task within it. */
+    readonly mode?: ModeId;
+    readonly modeTask?: string;
     readonly aiAction?: AiActionKind;
     readonly inspector?: InspectorSubjectKind;
     readonly utility?: "access-identity" | "sign-out" | "brief-morning" | "brief-eod";
@@ -79,49 +93,87 @@ export function glossaryCommands(
 
 /**
  * The keyboard shortcut a command has, from the same declaration the key handler reads
- * (`workspaceShortcutCommand`): the n-th primary workspace is Ctrl+Shift+n (⌘ on a Mac).
+ * (`workspaceShortcutCommand`): Ctrl+Shift+1 … 4 are the four modes, 5 Help & Settings and 6
+ * Administration (⌘ on a Mac).
  */
 export function paletteShortcut(command: PaletteCommand, mac: boolean): string | null {
-  const match = /^navigate\.primary\.(.+)$/.exec(command.id);
-  if (!match) return null;
-  const index = primaryWorkspaces.findIndex((primary) => primary.id === match[1]);
-  if (index < 0 || index > 5) return null;
+  const index = (NAVIGATION_SHORTCUT_COMMANDS as readonly string[]).indexOf(command.id);
+  if (index < 0) return null;
   return `${mac ? "⌘" : "Ctrl"}+Shift+${index + 1}`;
 }
 
-/** One command per durable work domain, then one per technical page. */
+/**
+ * The navigation commands: the four modes and each of their tasks, the utility areas and their
+ * pages, and the sub-views the URL registry declares. Old names stay findable as aliases.
+ */
 export function navigationCommands(): PaletteCommand[] {
-  const primaries: PaletteCommand[] = primaryWorkspaces.map((primary) => ({
-    id: `navigate.primary.${primary.id}`,
-    group: "navigate",
-    labelKey: primary.labelKey,
-    consequence: "read",
-    placement: actionPlacement("read"),
-    target: { primary: primary.id, page: primary.defaultPage },
-  }));
-  const pages: PaletteCommand[] = workspacePageIds.map((page) => ({
-    id: `navigate.page.${page}`,
-    group: "navigate",
-    labelKey: `nav.${page}`,
-    consequence: "read",
-    placement: actionPlacement("read"),
-    target: { page },
-  }));
-  // Every sub-view the URL registry declares, so the palette, links and tabs share one
-  // list of destinations (#31). The glossary's single view adds nothing over its page.
-  const views: PaletteCommand[] = registeredViews()
-    .filter((entry) => entry.page !== "glossary")
-    .map((entry) => ({
-      id: `navigate.view.${entry.page}.${entry.view}`,
+  const modes: PaletteCommand[] = PRODUCT_MODES.flatMap((mode) => [
+    {
+      id: `navigate.mode.${mode.id}`,
+      group: "navigate" as const,
+      labelKey: mode.labelKey,
+      aliasKeys: mode.aliasKeys,
+      keywords: [mode.id],
+      consequence: "read" as const,
+      placement: actionPlacement("read"),
+      target: { mode: mode.id, page: mode.tasks[0].page, view: mode.tasks[0].pageTask },
+    },
+    ...mode.tasks.map((task) => ({
+      id: `navigate.mode.${mode.id}.${task.id}`,
+      group: "navigate" as const,
+      labelKey: mode.labelKey,
+      subLabelKey: task.labelKey,
+      aliasKeys: task.aliasKeys,
+      keywords: [task.id],
+      consequence: "read" as const,
+      placement: actionPlacement("read"),
+      target: { mode: mode.id, modeTask: task.id, page: task.page, view: task.pageTask },
+    })),
+  ]);
+  // Help & Settings and Administration: utilities, not modes.
+  const primaries: PaletteCommand[] = primaryWorkspaces
+    .filter((primary) => primary.commercial !== true)
+    .map((primary) => ({
+      id: `navigate.primary.${primary.id}`,
       group: "navigate",
-      labelKey: `nav.${entry.page}`,
-      subLabelKey: entry.labelKey,
-      keywords: [entry.view],
+      labelKey: primary.labelKey,
       consequence: "read",
       placement: actionPlacement("read"),
-      target: { page: entry.page, view: entry.view },
+      target: { primary: primary.id, page: primary.defaultPage },
     }));
-  return [...primaries, ...pages, ...views];
+  const pages: PaletteCommand[] = workspacePageIds
+    .filter((page) => !isModePage(page))
+    .map((page) => ({
+      id: `navigate.page.${page}`,
+      group: "navigate",
+      labelKey: `nav.${page}`,
+      consequence: "read",
+      placement: actionPlacement("read"),
+      target: { page },
+    }));
+  // Every sub-view the URL registry declares that is not itself a mode task, so the palette,
+  // links and tabs share one list of destinations (#31). A sub-view of a mode's page (a strategy
+  // backtest, a research dataset view) is listed under the mode. The glossary's single view adds
+  // nothing over its page.
+  const modeTaskViews = new Set(
+    PRODUCT_MODES.flatMap((mode) => mode.tasks.filter((task) => task.pageTask).map((task) => `${task.page}.${task.pageTask}`)),
+  );
+  const views: PaletteCommand[] = registeredViews()
+    .filter((entry) => entry.page !== "glossary" && !modeTaskViews.has(`${entry.page}.${entry.view}`))
+    .map((entry) => {
+      const mode = PRODUCT_MODES.find((item) => item.tasks.some((task) => task.page === entry.page));
+      return {
+        id: `navigate.view.${entry.page}.${entry.view}`,
+        group: "navigate",
+        labelKey: mode ? mode.labelKey : `nav.${entry.page}`,
+        subLabelKey: entry.labelKey,
+        keywords: [entry.view],
+        consequence: "read",
+        placement: actionPlacement("read"),
+        target: { page: entry.page, view: entry.view, mode: mode?.id },
+      };
+    });
+  return [...modes, ...primaries, ...pages, ...views];
 }
 
 /** The text a command is listed under, translated. */
@@ -303,6 +355,8 @@ export function filterPaletteCommands(
   query: string,
   labelFor: (command: PaletteCommand) => string,
   limit: number = DEFAULT_PALETTE_LIMIT,
+  /** Earlier names of a command, translated (old area and task names, in either language). */
+  aliasesFor: (command: PaletteCommand) => readonly string[] = () => [],
 ): PaletteCommand[] {
   // One row per destination and label: a primary and the page it opens under the same
   // name ("Market" and "Market") are one result (#34).
@@ -319,7 +373,7 @@ export function filterPaletteCommands(
   const contains: PaletteCommand[] = [];
   for (const command of unique) {
     const label = labelFor(command).toLowerCase();
-    const keywords = (command.keywords ?? []).map((word) => word.toLowerCase());
+    const keywords = [...(command.keywords ?? []), ...aliasesFor(command)].map((word) => word.toLowerCase());
     if (label.startsWith(needle) || keywords.some((word) => word.startsWith(needle))) prefix.push(command);
     else if (
       label.includes(needle) ||
@@ -359,11 +413,26 @@ export function commandById(id: string): PaletteCommand | undefined {
   return buildPaletteCommands().find((command) => command.id === id);
 }
 
+/**
+ * Command ids from before the four modes, still sent by the desktop host's menu: each runs the
+ * mode its area became (Market → Desk, Portfolio → Book, Strategy → Research, Decision Center →
+ * Deals).
+ */
+export const LEGACY_COMMAND_IDS: Readonly<Record<string, string>> = {
+  "navigate.primary.market": "navigate.mode.desk",
+  "navigate.primary.portfolio": "navigate.mode.book",
+  "navigate.primary.strategy": "navigate.mode.research",
+  "navigate.primary.decision": "navigate.mode.deals",
+};
+
+export function currentCommandId(id: string): string {
+  return LEGACY_COMMAND_IDS[id] ?? id;
+}
+
 /** Physical number keys work across keyboard layouts; never navigate while editing. */
 export function workspaceShortcutCommand(event: PaletteKeyEvent, editing: boolean): string | null {
   if (editing || event.isComposing || event.repeat || event.altKey || !event.shiftKey ||
       !(event.ctrlKey || event.metaKey)) return null;
   const digit = /^(?:Digit)?([1-6])$/.exec(event.code ?? event.key)?.[1];
-  const primary = digit ? primaryWorkspaces[Number(digit) - 1] : undefined;
-  return primary ? `navigate.primary.${primary.id}` : null;
+  return digit ? NAVIGATION_SHORTCUT_COMMANDS[Number(digit) - 1] ?? null : null;
 }

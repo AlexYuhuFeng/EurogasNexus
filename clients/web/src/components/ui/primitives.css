@@ -241,6 +241,29 @@
     line-height: var(--ds-line-xs);
   }
 
+  /* Label with its notes ("Why", "Method") on one line: the label keeps its look. */
+  .key-figure-head {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    gap: 0 var(--ds-space-1);
+    min-width: 0;
+  }
+
+  /* One line, so the figure keeps its height; a label too long for its column is cut with its
+     full text in the title the figure carries. */
+  .key-figure-head > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .key-figure-notes {
+    display: inline-flex;
+    gap: 0;
+  }
+
   .key-figure > strong {
     color: var(--ds-text-1);
     font-size: var(--ds-text-md);

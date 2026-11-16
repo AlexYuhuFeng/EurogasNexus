@@ -4,9 +4,9 @@
 
 ## Compare resources and routes
 
-1. Open **Portfolio** and inspect saved resources, quantity, all-in cost and access.
+1. Open **Deals → Contracts** and inspect saved resources, quantity, all-in cost and access.
 2. Open **Routes** and compare alternatives, including the reason a route is blocked.
-3. Carry a route into **Decision Center → Scenario**. **Compare Options** uses the saved
+3. Carry a route into **Deals → Evaluate**. **Compare Options** uses the saved
    resource-pool read: resource volume/cost, sale-option price, route cost/capacity, each
    value's currency/unit and the saved gas year. Inspect that saved basis separately from
    temporary edits in the Scenario panel.
@@ -24,7 +24,7 @@ cash-timing formula and explains the default rate and ACT/365F or ACT/360 conven
 
 ## Review the position ladder
 
-In the **Portfolio** exposure view, use the ladder to inspect physical contracts and
+In **Book → Limits & P&L**, use the ladder to inspect physical contracts and
 filled financial trades together.
 
 | Item | Interpretation |

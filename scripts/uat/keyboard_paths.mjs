@@ -8,6 +8,9 @@
 //   to the trigger.
 // - Dialog: "?" opens the shortcuts dialog with focus inside; Tab stays inside; Escape closes it
 //   and focus returns to where it was.
+// - Modes (WF-05): the top bar is four modes in one Tab stop; arrows move and open them;
+//   Ctrl+Shift+n opens the n-th; old area addresses redirect; the palette finds old names; a
+//   utility page selects no mode.
 //
 // Exits 1 on the first broken path. Optional screenshots of each state go to OUTPUT_DIR.
 // Environment: EUROGAS_UAT_BASE_URL (default http://127.0.0.1:3000), EUROGAS_UAT_PLAYWRIGHT_PATH,
@@ -152,6 +155,50 @@ export async function runKeyboardPaths() {
     const back = await active(page);
     check(Boolean(back.method), "Escape closes the note and returns focus to the trigger");
     check((await page.locator("[data-popover=method]").count()) === 0, "the note is gone");
+
+    // Modes (WF-05) ------------------------------------------------------------------------------
+    await go(page, "?workspace=market&task=curves");
+    const modes = page.locator(".workspace-primary-tabs [role=tab]");
+    check((await modes.allTextContents()).join("|") === "Desk|Deals|Book|Research", `the top bar is the four modes (${(await modes.allTextContents()).join("|")})`);
+    check((await page.locator(".workspace-primary-tabs [role=tab][tabindex='0']").count()) === 1, "the modes are one Tab stop");
+    await page.locator(".workspace-primary-tabs [role=tab][aria-selected=true]").focus();
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(1500);
+    check(/workspace=scenario/.test(page.url()) && (await active(page)).text === "Deals", `ArrowRight opens Deals (${page.url()})`);
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(1500);
+    check(/workspace=contracts&task=overview/.test(page.url()), `ArrowRight again opens Book at Position (${page.url()})`);
+    await page.keyboard.press("End");
+    await page.waitForTimeout(1500);
+    check(/workspace=strategy/.test(page.url()), `End opens Research (${page.url()})`);
+    await shot(page, "modes-research");
+    await page.locator("body").click({ position: { x: 5, y: 300 } });
+    await page.keyboard.press("Control+Shift+Digit3");
+    await page.waitForTimeout(1500);
+    check(/workspace=contracts/.test(page.url()), `Ctrl+Shift+3 opens Book (${page.url()})`);
+    // Old addresses land in their new place.
+    for (const [from, url, mode] of [
+      ["?workspace=decision", /workspace=scenario&task=scenario/, "Deals"],
+      ["?workspace=portfolio", /workspace=contracts&task=overview/, "Book"],
+      ["?workspace=scenario&task=nomination", /workspace=scenario&task=nomination/, "Book"],
+      ["?mode=book&task=limits", /workspace=contracts&task=exposure/, "Book"],
+    ]) {
+      await go(page, from);
+      const selected = await page.locator(".workspace-primary-tabs [aria-selected=true]").allTextContents();
+      check(url.test(page.url()) && selected.join() === mode, `${from} lands in ${mode} (${page.url().replace(/^.*\//, "")})`);
+    }
+    // The palette finds an old name.
+    await page.keyboard.press("Control+k");
+    await page.waitForTimeout(300);
+    await page.keyboard.type("Decision Center");
+    await page.waitForTimeout(300);
+    const found = await page.locator("[role=option], [role=listbox] li, .command-palette-result").allTextContents();
+    check(found.some((text) => /Deals/.test(text)), `the palette finds "Decision Center" as Deals (${found.slice(0, 3).join(" | ")})`);
+    await page.keyboard.press("Escape");
+    // A utility page selects no mode and keeps one Tab stop.
+    await go(page, "?workspace=settings");
+    check((await page.locator(".workspace-primary-tabs [aria-selected=true]").count()) === 0, "Settings selects no mode");
+    check((await page.locator(".workspace-primary-tabs [role=tab][tabindex='0']").count()) === 1, "and the mode row keeps one Tab stop");
 
     // Dialog: shortcuts -------------------------------------------------------------------------
     await go(page, "?workspace=market&task=curves");

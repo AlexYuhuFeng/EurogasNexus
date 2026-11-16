@@ -10,6 +10,7 @@
  */
 
 import assert from "node:assert/strict";
+import { PRODUCT_MODES } from "../src/app/navigation/modeNavigation.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -63,18 +64,21 @@ test("palette commands are derived from the registries", () => {
   const ids = commands.map((command) => command.id);
   assert.equal(new Set(ids).size, ids.length);
 
+  const navigation = navigationCommands();
+  // The four modes and each of their tasks (WF-05), then the utilities and their pages; every page
+  // is reachable, either as a mode task or as a utility page.
   assert.deepEqual(
-    navigationCommands()
-      .filter((command) => command.target.primary)
-      .map((command) => command.target.primary),
-    primaryWorkspaces.map((primary) => primary.id),
+    navigation.filter((command) => /^navigate\.mode\.[a-z]+$/.test(command.id)).map((command) => command.target.mode),
+    PRODUCT_MODES.map((mode) => mode.id),
   );
   assert.deepEqual(
-    navigationCommands()
-      .filter((command) => command.target.page && !command.target.primary && !command.target.view)
-      .map((command) => command.target.page),
-    workspacePageIds,
+    navigation.filter((command) => command.target.primary).map((command) => command.target.primary),
+    primaryWorkspaces.filter((primary) => primary.commercial !== true).map((primary) => primary.id),
   );
+  const reachable = new Set(navigation.map((command) => command.target.page));
+  for (const page of workspacePageIds) {
+    assert.ok(reachable.has(page) || PRODUCT_MODES.some((mode) => mode.tasks.some((task) => task.alsoPages?.includes(page))), page);
+  }
   assert.deepEqual(
     aiCommands().map((command) => command.target.aiAction),
     ["ask", "explain", "compare", "challenge", "draft"],

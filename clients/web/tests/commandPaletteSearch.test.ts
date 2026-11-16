@@ -9,7 +9,19 @@ import {
   type PaletteCommand,
 } from "../src/app/experience/commandPalette.ts";
 
-const labels: Record<string, string> = { "nav.primary.market": "Market", "nav.market": "Market", "nav.network": "Network" };
+const labels: Record<string, string> = {
+  "nav.primary.market": "Market",
+  "nav.market": "Market",
+  "nav.network": "Network",
+  "nav.mode.desk": "Desk",
+  "nav.mode.desk.prices": "Prices",
+  "nav.mode.book": "Book",
+  "nav.mode.book.limits": "Limits & P&L",
+  "nav.mode.deals": "Deals",
+  "portfolio.task.exposure": "Exposure",
+  "nav.primary.decision": "Decision Center",
+  "nav.primary.portfolio": "Portfolio",
+};
 const labelFor = (command: PaletteCommand) =>
   command.label ??
   [command.labelKey, command.subLabelKey].filter(Boolean).map((key) => labels[key!] ?? key).join(" · ");
@@ -26,16 +38,28 @@ test("a glossary term is found by its name and by an alias, never for an empty q
   assert.equal(terms[0].target.term, "NBP");
 });
 
-test("a primary and the page it opens under the same name are one result", () => {
-  const market = filterPaletteCommands(navigationCommands(), "market", labelFor);
-  assert.equal(market.filter((c) => labelFor(c) === "Market").length, 1);
+test("a mode and its first task under the same name are one result each; old names are aliases (WF-05)", () => {
+  const desk = filterPaletteCommands(navigationCommands(), "desk", labelFor);
+  assert.equal(desk.filter((c) => labelFor(c) === "Desk").length, 1);
+  // The old area and task names still find the new destinations.
+  const aliases = (command: PaletteCommand) => (command.aliasKeys ?? []).map((key) => labels[key] ?? key);
+  const market = filterPaletteCommands(navigationCommands(), "market", labelFor, 50, aliases).map((c) => c.id);
+  assert.ok(market.includes("navigate.mode.desk"), market.join(","));
+  assert.ok(filterPaletteCommands(navigationCommands(), "decision center", labelFor, 50, aliases).some((c) => c.id === "navigate.mode.deals"));
+  assert.ok(filterPaletteCommands(navigationCommands(), "exposure", labelFor, 50, aliases).some((c) => c.id === "navigate.mode.book.limits"));
+  assert.ok(filterPaletteCommands(navigationCommands(), "portfolio", labelFor, 50, aliases).some((c) => c.id === "navigate.mode.book"));
+  // No page of a mode is listed under its old technical name.
+  assert.ok(!navigationCommands().some((c) => c.id === "navigate.page.market" || c.id === "navigate.primary.decision"));
 });
 
-test("primary workspaces show the shortcut the key handler binds", () => {
+test("modes show the shortcut the key handler binds", () => {
   const [first] = navigationCommands();
+  assert.equal(first.id, "navigate.mode.desk");
   assert.equal(paletteShortcut(first, false), "Ctrl+Shift+1");
   assert.equal(paletteShortcut(first, true), "⌘+Shift+1");
-  assert.equal(paletteShortcut(navigationCommands().find((c) => c.id === "navigate.page.network")!, false), null);
+  assert.equal(paletteShortcut(navigationCommands().find((c) => c.id === "navigate.mode.research")!, false), "Ctrl+Shift+4");
+  assert.equal(paletteShortcut(navigationCommands().find((c) => c.id === "navigate.primary.administration")!, false), "Ctrl+Shift+6");
+  assert.equal(paletteShortcut(navigationCommands().find((c) => c.id === "navigate.mode.book.limits")!, false), null);
 });
 
 test("a sub-view is found by the words of its page and its view (#31)", () => {

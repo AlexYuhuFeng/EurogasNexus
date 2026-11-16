@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { CommandPalette } from "@/components/CommandPalette";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
@@ -21,6 +21,12 @@ import { paletteLabel, paletteUnavailableReasonKey } from "@/app/experience/comm
 import { PAGE_VIEW_REGISTRY, viewToSearch } from "@/app/navigation/viewRegistry";
 import { isCommercialPage, isControlPlanePage } from "@/app/navigation/productNavigation";
 import { needsCommercialWorkspaceReads } from "@/stores/workspaceReadScope";
+import {
+  modeLanding,
+  modeLocationFromSearch,
+  modeTaskVisible,
+  visibleModes,
+} from "@/app/navigation/modeNavigation";
 import { workspaceFromLocation } from "@/app/hooks/useWorkspaceNavigation";
 import { inspectorDetailFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
@@ -191,6 +197,19 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     openWorkspace(ownSurface);
   }, [commercialRestricted, profileReady, ownSurface, openWorkspace]);
 
+  // A mode task the caller's role cannot use is absent, never an error page: a link to one opens
+  // the first task of the same mode the role can use (or the first mode it can). Composition only;
+  // the backend refuses the hidden task's reads regardless.
+  const roleUser = api.currentUser;
+  useEffect(() => {
+    if (!roleUser || !profileReady || commercialRestricted) return;
+    const page = workspaceFromLocation();
+    const location = modeLocationFromSearch(page, window.location.search);
+    if (!location || modeTaskVisible(location.task, roleUser)) return;
+    const landing = modeLanding(location.mode.id, roleUser) ?? visibleModes(roleUser)[0]?.tasks[0] ?? null;
+    if (landing) openWorkspace(landing.page, landing.pageTask);
+  }, [roleUser, profileReady, commercialRestricted, openWorkspace, navigation.activeWorkspace, navigation.locationRevision]);
+
   // The layout class names the page whose layout is on screen, not only the page the URL named:
   // the market primary resolves a task inside its own shell, so the map task - chosen by tab, by
   // deep link or by the persisted view - has to bring the `.workspace-network` rules with it.
@@ -203,6 +222,26 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
   // Wave 9 shell surfaces: the canonical Inspector (object detail in one place)
   // and the command palette (one keyboard entry point to the derived command set).
   const inspector = useInspectorStore();
+  // The palette finds a destination by its earlier name in either language ("Decision Center",
+  // "决策中心", "Exposure"): old names are aliases of the new ones (WF-05).
+  const paletteAliases = useCallback(
+    (command: PaletteCommand) =>
+      (command.aliasKeys ?? []).flatMap((key) => [i18n.t(key, { lng: "en" }), i18n.t(key, { lng: "zh-CN" })]),
+    [i18n],
+  );
+  // A mode or task the caller's role cannot use is absent from the palette, as from the bar.
+  const currentUser = api.currentUser;
+  const paletteVisible = useCallback(
+    (command: PaletteCommand) => {
+      if (!command.target.mode) return true;
+      const mode = visibleModes(currentUser).find((item) => item.id === command.target.mode);
+      if (!mode) return false;
+      if (command.target.modeTask) return mode.tasks.some((task) => task.id === command.target.modeTask);
+      // A sub-view of a mode's page is offered when that page's task is.
+      return command.target.page ? mode.tasks.some((task) => task.page === command.target.page) : true;
+    },
+    [currentUser],
+  );
   const palette = useCommandPalette({
     activeWorkspace: navigation.activeWorkspace,
     context: {
@@ -215,9 +254,13 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     activeContextComplete: Boolean(composition.available),
     labels: (command: PaletteCommand) => paletteLabel(command, t),
     glossaryTerms: api.glossaryTerms,
+    aliases: paletteAliases,
+    visible: paletteVisible,
     onNavigate: (command: PaletteCommand) => {
       const page = command.target.page;
       if (command.target.primary) navigation.openPrimaryWorkspace(command.target.primary);
+      // A mode opens at its first task the caller can use (the Desk at the remembered view).
+      else if (command.target.mode && command.id === `navigate.mode.${command.target.mode}`) navigation.openMode(command.target.mode);
       else if (page) {
         const view = command.target.view;
         const entry = PAGE_VIEW_REGISTRY[page];
@@ -257,6 +300,7 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
       <WorkspaceTopBar
         activeWorkspace={navigation.activeWorkspace}
         activePrimaryWorkspace={navigation.activePrimaryWorkspace}
+        activeMode={navigation.activeMode}
         dataStatus={api.dataStatus}
         loading={api.loading}
         streamingActive={api.streamingActive}
@@ -269,10 +313,12 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         monitoring={api}
         t={t}
         onOpenPrimaryWorkspace={navigation.openPrimaryWorkspace}
+        onOpenMode={navigation.openMode}
         onSignIn={() => void api.signIn()}
         onSignOut={() => void api.signOut()}
         onOpenAccess={() => navigation.openWorkspace("access")}
         onOpenSettings={() => navigation.openWorkspace("settings")}
+        onOpenToday={() => navigation.openWorkspace("market", "overview")}
         onOpenCommandPalette={() => palette.setOpen(true)}
         onLanguageChange={chooseLanguage}
         onModeChange={chooseTheme}

@@ -135,15 +135,16 @@ In `clients/web/src/components/ui/`, styled by `primitives.css` (tokens only):
 | `Button` | `primary`, `secondary`, `quiet`, `danger`; `sm` 28 / `md` 32; `type` always explicit; loading is busy and disabled; disabled looks disabled |
 | `IconButton` | required `label` is the accessible name and tooltip; glyph hidden from screen readers |
 | `StatusBadge` | `tone`: ok, watch, breach, info, simulated, stale, neutral; the older `variant`/`status` form still works |
-| `KeyFigure` | label, value (tabular), unit, optional delta (P&L convention), age and non-current state in words; `MetricStrip` renders its items with it |
+| `KeyFigure` | label, value (tabular), unit, optional delta (P&L convention), age and non-current state in words; `MetricStrip` renders its items with it. `notes` puts "Why" and "Method" on the label line as quiet inline links (`inline` on `WhyButton`/`MethodNote`), so a figure has one height with or without them; a position is signed (+/−) in neutral ink, never in P&L colour |
 | `Panel` | title row with meta and actions slot, body; the section is labelled by its title |
 | `EmptyState` | cause, next step, one action; `compact` one-line form |
 | `Skeleton` | still bars, shimmer only when motion is allowed; one announced loading status |
 | `Field` | label, one control, hint, error; wires `for`, `aria-describedby`, `aria-invalid`; `inline` for toolbars |
 | `Select` | the native `<select>` (most robust in WebView2, WKWebView and on phones), typed options, 28/32 px |
-| `Tabs` | one `tablist`, roving tabindex (the active tab is the only Tab stop), Left/Right/Home/End move and activate; `line` or `nav` look. `WorkspaceTabs` is Tabs inside a `<nav>` landmark, so the top bar and every task row move the same way |
+| `Tabs` | one `tablist`, roving tabindex (the active tab is the only Tab stop; when no tab is selected, as in the top bar on a utility page, the first is), Left/Right/Home/End move and activate; `line` or `nav` look. `WorkspaceTabs` is Tabs inside a `<nav>` landmark, so the top bar and every task row move the same way |
 | `Segmented` | one choice among views of the same data; a labelled `group` of `aria-pressed` toggles, one Tab stop, arrows move, Enter/Space choose. Replaces `.segmented-control` and the ad-hoc pressed groups |
 | `Toolbar` | one dense row (`role=toolbar`), start and end groups; Left/Right move between its buttons, every control stays in the Tab order (a desk toolbar mixes selects and inputs, so Tab must reach each: a recorded choice) |
+| `.ds-inline-link` | a quiet link in a line of text (a note beside a label, "1 breach · 3 watch"): a 28 px box (44 px on touch) whose negative block margin gives the line back, so it adds no height and no new control height to the geometry budget |
 | `Popover` | anchored note in the top layer (native `popover`), placed against collisions (`popoverPosition.ts`: below, flipped above, clamped, scrolls when tall), follows scroll; opening moves focus in, Escape closes and returns focus to the trigger, a click outside or focus leaving closes. Used by Why, Method, the stale-figures list and the feed list |
 | `Dialog`, `Sheet` | one implementation over native `<dialog>` + `showModal()`: page behind inert, Tab wraps inside, labelled by its title, Escape (`cancel`) and backdrop call `onClose`, focus returns to the opener. Sheet docks to the end, the bottom or the full screen (the inspector on a phone) |
 | `DataGrid` | the one table: see below |
@@ -193,7 +194,8 @@ const columns = useMemo<DataGridColumn<Row>[]>(() => [
   only, never under reduced motion.
 - No layout reads; rows are memoised; 500 rows render in one pass (tested).
 
-Migrated: Position ladder and its roll-up, credit lines and mandates (Limits), the major hub
+Migrated (round 3): the outages list (Desk → Outages & capacity), gas for power (Today), trading
+books (Book → Limits & P&L) and the daily gas balance (Book → Delivery). Earlier: Position ladder and its roll-up, credit lines and mandates (Limits), the major hub
 board (Prices), the NW Europe balance, the capacity profile book (a contract list), and the
 Today book row. Removed with them: the `.market-hub-board-*` grid, `.market-hub-curve`, the
 overview board's `.data-table` rules, `.position-bar*`, `.position-horizon`, the

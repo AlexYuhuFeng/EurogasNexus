@@ -3,8 +3,8 @@ import test from "node:test";
 import { workspaceShortcutCommand, isPaletteShortcut } from "../src/app/experience/commandPalette.ts";
 
 test("physical primary shortcuts navigate on Ctrl or Command without relying on shifted glyph", () => {
-  assert.equal(workspaceShortcutCommand({key: "!", code: "Digit1", ctrlKey: true, shiftKey: true}, false), "navigate.primary.market");
-  assert.equal(workspaceShortcutCommand({key: "#", code: "Digit3", metaKey: true, shiftKey: true}, false), "navigate.primary.strategy");
+  assert.equal(workspaceShortcutCommand({key: "!", code: "Digit1", ctrlKey: true, shiftKey: true}, false), "navigate.mode.desk");
+  assert.equal(workspaceShortcutCommand({key: "#", code: "Digit3", metaKey: true, shiftKey: true}, false), "navigate.mode.book");
   assert.equal(workspaceShortcutCommand({key: "6", code: "Digit6", ctrlKey: true, shiftKey: true}, false), "navigate.primary.administration");
 });
 test("navigation never steals editing, IME, repeating keys or unrelated modifier chords", () => {

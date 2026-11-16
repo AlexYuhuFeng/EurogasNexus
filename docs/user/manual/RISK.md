@@ -8,8 +8,8 @@ change is audited with your name.
 The screenshots use the fictional demo desk (`docs/guides/DEMO_DESK.md`); every name in
 them is invented and its prices are demo prices, flagged as such on screen.
 
-Everything below is under Portfolio → **Exposure**, except delivery performance (under
-Resources).
+Everything below is under Book → **Limits & P&L**, except delivery performance (under
+Book → **Delivery**).
 
 ## 1. Read the credit and mandate board
 
@@ -103,7 +103,7 @@ book has a mandate band, the stricter of the two governs the deal.
 
 ## 5. Delivery performance
 
-Portfolio → **Resources** → **Delivery against nominations**: per contract, delivered
+Book → **Delivery** → **Delivery against nominations**: per contract, delivered
 against nominated over 30, 90 or 365 gas days, days short beyond tolerance, the imbalance
 volume and the last 7 days. A supplier that under-delivers increases what the desk must
 buy within day; it also feeds the sell-down plan and the daily balance's expected supply.

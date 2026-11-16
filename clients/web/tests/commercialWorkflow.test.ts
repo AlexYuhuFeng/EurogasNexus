@@ -66,8 +66,9 @@ test("network rail does not duplicate shell-owned gas day product hub or source 
   assert.doesNotMatch(network, /className="panel scenario-intro"/);
 });
 
-test("portfolio tasks are overview resources routes exposure", () => {
-  assert.deepEqual(PORTFOLIO_TASKS, ["overview", "resources", "routes", "exposure"]);
+test("portfolio tasks are overview resources routes exposure delivery", () => {
+  // Delivery (Book → Delivery, WF-05) left the contract terms it used to sit under.
+  assert.deepEqual(PORTFOLIO_TASKS, ["overview", "resources", "routes", "exposure", "delivery"]);
   // Register C14/D8: the two desk assessments live in the Decision workspace, each as its own task
   // with its own primary action, rather than on a page of their own (V2 rule 9).
   assert.deepEqual(DECISION_TASKS, ["scenario", "optimize", "nomination", "dispatch", "review"]);

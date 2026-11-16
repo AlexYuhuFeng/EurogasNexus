@@ -1,4 +1,5 @@
-import { tabLabels } from "@/components/ui/tabLabels";
+import { useModeHeader } from "@/app/navigation/useModeHeader";
+import { PRODUCT_MODES } from "@/app/navigation/modeNavigation";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
@@ -29,7 +30,6 @@ import {
 } from "@/app/model/analysisSnapshotModel";
 import { useInspectorStore } from "@/stores/inspector";
 import {
-  DECISION_TASKS,
   decisionTaskFromLocation,
   type DecisionTask,
 } from "@/app/model/commercialWorkflowModel";
@@ -233,7 +233,9 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
     navigation.openWorkspace(next === "review" ? "review" : "scenario", next);
   }
 
-  const tabs = DECISION_TASKS.map((id) => ({ id, ...tabLabels(t, `decision.task.${id}`) }));
+  // Decision Center is no longer an area (WF-05): Evaluate, Optimise and Review are Deals tasks,
+  // Nominations and Storage are Book planning views. The header is the row of the task's mode.
+  const mode = useModeHeader(navigation.activeWorkspace, task, navigation.openWorkspace, t);
 
   // Action geography (`app/experience/actionGeography.ts`): running the pool optimiser is the
   // primary act of the Optimize task and comparing route options is the primary act of the
@@ -283,16 +285,21 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
   return (
     <div className="commercial-workspace">
       <WorkspaceHeader
-        title={t("nav.primary.decision")}
+        title={mode.title ?? t("nav.mode.deals")}
         taskLabel={t(`decision.task.${task}`)}
-        idPrefix="decision-task"
-        tabs={tabs}
-        activeId={task}
+        idPrefix={`${mode.modeId ?? "deals"}-task`}
+        tabs={mode.tabs}
+        activeId={mode.activeId}
         panelId="decision-task-panel"
-        tabLabel={t("nav.primary.decision")}
+        tabLabel={mode.tabLabel}
         tabsClassName="commercial-task-tabs"
         primaryAction={primaryAction}
-        onActivate={openTask}
+        onActivate={(id) => {
+          // A task on this page switches in place; one on another page opens it.
+          const target = PRODUCT_MODES.flatMap((item) => item.tasks).find((item) => item.id === id && item.page === "scenario");
+          if (target?.pageTask) openTask(target.pageTask as DecisionTask);
+          else mode.onActivate(id);
+        }}
       />
       <div id="decision-task-panel">
         {/* The desk's clock sits above the tabs' panels: it is the workspace's, and burying it in

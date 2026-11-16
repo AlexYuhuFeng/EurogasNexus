@@ -67,6 +67,11 @@ export interface TodayScreenProps {
   onOpenBrief: () => void;
   onOpenLimits: () => void;
   onOpenOutages: () => void;
+  /**
+   * The inspector hand-off for a price: returns how to open its observation (source, time,
+   * state), or null when this desk holds no observation behind it.
+   */
+  onInspectPrice?: (price: TodayPriceDTO) => (() => void) | null;
 }
 
 /** The simulated marker beside a value: a short word, its meaning for screen readers. */
@@ -96,8 +101,11 @@ function Figure({
   delta,
   detail,
   action,
+  notes,
   size = "lg",
   valueClassName,
+  signed = false,
+  wide = false,
 }: {
   figure: TodayFigureDTO;
   label: ReactNode;
@@ -106,15 +114,20 @@ function Figure({
   delta?: { text: ReactNode; value: number | null | undefined };
   detail?: ReactNode;
   action?: ReactNode;
+  notes?: ReactNode;
   size?: "md" | "lg";
+  /** A position: always signed (+ long, − short) in neutral ink. */
+  signed?: boolean;
+  /** Takes two columns of the strip (a figure with a named counterparty under it). */
+  wide?: boolean;
   valueClassName?: string;
 }) {
   const words = stateWords(figure, nowMs, t);
   return (
-    <div className="today-figure" id={figureAnchorId(figure.key)} tabIndex={-1} data-figure-key={figure.key}>
+    <div className={wide ? "today-figure is-wide" : "today-figure"} id={figureAnchorId(figure.key)} tabIndex={-1} data-figure-key={figure.key}>
       <KeyFigure
         label={label}
-        value={formatValue(figure.value, figure.unit)}
+        value={formatValue(figure.value, figure.unit, signed)}
         unit={figure.unit}
         size={size}
         delta={delta}
@@ -122,6 +135,7 @@ function Figure({
         stateLabel={words ?? undefined}
         detail={detail}
         action={action}
+        notes={notes}
         valueClassName={valueClassName}
         marker={figure.simulated ? <SimulatedMark t={t} /> : undefined}
         title={figure.source ?? undefined}
@@ -154,13 +168,21 @@ function RowSection({ id, title, meta, actions, children }: { id: string; title:
 
 /* ------------------------------------------------------------------ row 1 */
 
-function PriceFigure({ price, t, nowMs }: { price: TodayPriceDTO; t: Translate; nowMs: number }) {
+function PriceFigure({ price, t, nowMs, onInspect }: { price: TodayPriceDTO; t: Translate; nowMs: number; onInspect?: (() => void) | null }) {
+  const label = `${price.hub} ${price.product}`;
   return (
     <Figure
       figure={price}
-      label={`${price.hub} ${price.product}`}
+      label={label}
       t={t}
       nowMs={nowMs}
+      notes={
+        onInspect ? (
+          <button type="button" className="ds-inline-link" data-inspect-price={price.hub} aria-label={t("today.source_of", { name: label })} title={t("today.source_of", { name: label })} onClick={onInspect}>
+            {t("today.source")}
+          </button>
+        ) : undefined
+      }
       delta={
         price.day_change == null
           ? undefined
@@ -171,7 +193,7 @@ function PriceFigure({ price, t, nowMs }: { price: TodayPriceDTO; t: Translate; 
   );
 }
 
-function KeyFiguresRow({ row, t, nowMs, language, onOpenLimits }: { row: TodayKeyFiguresRowDTO; t: Translate; nowMs: number; language: string; onOpenLimits: () => void }) {
+function KeyFiguresRow({ row, t, nowMs, language, onOpenLimits, onInspectPrice }: { row: TodayKeyFiguresRowDTO; t: Translate; nowMs: number; language: string; onOpenLimits: () => void; onInspectPrice?: TodayScreenProps["onInspectPrice"] }) {
   const limit = row.tightest_limit;
   return (
     <RowSection id="key_figures" title={t("today.row.key_figures")}>
@@ -183,7 +205,7 @@ function KeyFiguresRow({ row, t, nowMs, language, onOpenLimits }: { row: TodayKe
               <Empty empty={price.empty} id={`today-${price.key}`} />
             </div>
           ) : (
-            <PriceFigure key={price.key} price={price as TodayPriceDTO} t={t} nowMs={nowMs} />
+            <PriceFigure key={price.key} price={price as TodayPriceDTO} t={t} nowMs={nowMs} onInspect={onInspectPrice?.(price as TodayPriceDTO)} />
           ),
         )}
         {row.prices_empty && <Empty empty={row.prices_empty} id="today-prices" />}
@@ -194,15 +216,15 @@ function KeyFiguresRow({ row, t, nowMs, language, onOpenLimits }: { row: TodayKe
               label={t("today.net_today")}
               t={t}
               nowMs={nowMs}
-              valueClassName={(row.position.today.value ?? 0) >= 0 ? "is-long" : "is-short"}
-              action={<MethodNote method={row.position.today.method} subject={t("today.net_today")} t={t} />}
+              signed
+              notes={<MethodNote inline method={row.position.today.method} subject={t("today.net_today")} t={t} />}
             />
             <Figure
               figure={row.position.front_month}
               label={t("today.net_front", { month: row.position.front_month.label.split(" ").pop() })}
               t={t}
               nowMs={nowMs}
-              valueClassName={(row.position.front_month.value ?? 0) >= 0 ? "is-long" : "is-short"}
+              signed
             />
           </>
         )}
@@ -213,22 +235,26 @@ function KeyFiguresRow({ row, t, nowMs, language, onOpenLimits }: { row: TodayKe
             label={t(`today.tightest_${limit.kind}`)}
             t={t}
             nowMs={nowMs}
+            wide
             detail={
               <span className="today-limit-detail">
                 <span className="today-limit-name">{limit.name}</span>
-                <StatusBadge tone={limit.status === "breach" ? "breach" : limit.status === "watch" ? "watch" : "ok"}>
+                <span aria-hidden="true">·</span>
+                <span className="today-limit-used" data-status={limit.status}>
                   {t("today.used", { pct: Math.round(limit.utilisation_pct) })}
-                </StatusBadge>
+                </span>
               </span>
             }
-            action={
+            notes={
               <>
-                <WhyButton subject={limit.why.subject} id={limit.why.id} label={limit.name} language={language} t={t} />
-                <MethodNote method={limit.method} subject={t(`today.tightest_${limit.kind}`)} t={t} />
-                <Button variant="quiet" onClick={onOpenLimits}>
-                  {t("today.limit_counts", { breach: limit.counts.breach, watch: limit.counts.watch })}
-                </Button>
+                <WhyButton inline subject={limit.why.subject} id={limit.why.id} label={limit.name} language={language} t={t} />
+                <MethodNote inline method={limit.method} subject={t(`today.tightest_${limit.kind}`)} t={t} />
               </>
+            }
+            action={
+              <button type="button" className="ds-inline-link today-limit-link" onClick={onOpenLimits}>
+                {t("today.limit_counts", { breach: limit.counts.breach, watch: limit.counts.watch })}
+              </button>
             }
           />
         )}
@@ -332,8 +358,7 @@ function BookRow({ row, frontMonth, t, nowMs }: { row: TodayBookRowDTO; frontMon
         type: "number",
         sortable: true,
         value: (hub) => hub.position_today.value,
-        format: (value) => formatValue(value as number, "MWh/d"),
-        cellClassName: (hub) => ((hub.position_today.value ?? 0) >= 0 ? "is-long" : "is-short"),
+        format: (value) => formatValue(value as number, "MWh/d", true),
       },
       {
         id: "front",
@@ -342,8 +367,7 @@ function BookRow({ row, frontMonth, t, nowMs }: { row: TodayBookRowDTO; frontMon
         type: "number",
         sortable: true,
         value: (hub) => hub.position_front_month.value,
-        format: (value) => formatValue(value as number, "MWh/d"),
-        cellClassName: (hub) => ((hub.position_front_month.value ?? 0) >= 0 ? "is-long" : "is-short"),
+        format: (value) => formatValue(value as number, "MWh/d", true),
       },
       {
         id: "open",
@@ -352,7 +376,7 @@ function BookRow({ row, frontMonth, t, nowMs }: { row: TodayBookRowDTO; frontMon
         type: "number",
         sortable: true,
         value: (hub) => hub.net_open_mwh,
-        format: (value) => formatValue(value as number, "MWh"),
+        format: (value) => formatValue(value as number, "MWh", true),
       },
       {
         id: "mark",
@@ -477,6 +501,48 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
 
 /* ---------------------------------------------------------- freshness (FRESH-02) */
 
+/** Move focus to a figure on the page by its key; false when it is not on this page. */
+export function focusFigure(key: string): boolean {
+  const target = document.getElementById(figureAnchorId(key));
+  if (!target) return false;
+  target.scrollIntoView({ block: "center" });
+  const focusable = target.matches("[tabindex]") ? target : target.closest<HTMLElement>("tr") ?? target;
+  if (!focusable.hasAttribute("tabindex")) focusable.setAttribute("tabindex", "-1");
+  focusable.focus({ preventScroll: true });
+  return true;
+}
+
+/**
+ * The named list of figures that are not current, each leading to where it is shown. One list,
+ * used by Today's freshness line and the top bar's status panel, so both say the same thing.
+ */
+export function StaleFigureList({
+  figures,
+  t,
+  nowMs,
+  onChoose,
+}: {
+  figures: DeskTodayDTO["stale_figures"];
+  t: Translate;
+  nowMs: number;
+  onChoose: (key: string) => void;
+}) {
+  return (
+    <ul className="today-stale-list" data-stale-figures={figures.length}>
+      {figures.map((figure) => (
+        <li key={figure.key}>
+          <button type="button" className="today-stale-item" onClick={() => onChoose(figure.key)}>
+            <span>{figure.label}</span>
+            <span className="today-stale-state" data-state={figure.state}>
+              {stateWords({ ...figure, simulated: false }, nowMs, t) ?? figure.state}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * The page's freshness line. Late or stale figures are named in a popover, each leading to where
  * it is shown; the demo desk says "Demo data" once instead of counting a static store as stale.
@@ -484,15 +550,6 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
 export function TodayFreshness({ today, t, nowMs }: { today: DeskTodayDTO | null; t: Translate; nowMs: number }) {
   if (!today) return null;
   const stale = today.stale_figures;
-  const goTo = (key: string, close: () => void) => {
-    close();
-    const target = document.getElementById(figureAnchorId(key));
-    if (!target) return;
-    target.scrollIntoView({ block: "center" });
-    const focusable = target.matches("[tabindex]") ? target : target.closest<HTMLElement>("tr") ?? target;
-    if (!focusable.hasAttribute("tabindex")) focusable.setAttribute("tabindex", "-1");
-    focusable.focus({ preventScroll: true });
-  };
   return (
     <span className="today-freshness" data-today-freshness={today.simulated ? "demo" : stale.length ? "stale" : "current"}>
       {today.simulated && (
@@ -515,18 +572,15 @@ export function TodayFreshness({ today, t, nowMs }: { today: DeskTodayDTO | null
           {(close) => (
             <>
               <h3>{t("today.stale_title")}</h3>
-              <ul className="today-stale-list">
-                {stale.map((figure) => (
-                  <li key={figure.key}>
-                    <button type="button" className="today-stale-item" onClick={() => goTo(figure.key, close)}>
-                      <span>{figure.label}</span>
-                      <span className="today-stale-state" data-state={figure.state}>
-                        {stateWords({ ...figure, simulated: false }, nowMs, t) ?? figure.state}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <StaleFigureList
+                figures={stale}
+                t={t}
+                nowMs={nowMs}
+                onChoose={(key) => {
+                  close();
+                  focusFigure(key);
+                }}
+              />
             </>
           )}
         </Popover>
@@ -538,7 +592,7 @@ export function TodayFreshness({ today, t, nowMs }: { today: DeskTodayDTO | null
 
 /* ------------------------------------------------------------------ screen */
 
-export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onOpenOutages }: TodayScreenProps) {
+export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onOpenOutages, onInspectPrice }: TodayScreenProps) {
   if (!today) {
     return (
       <div className="today" data-today="loading">
@@ -566,7 +620,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       {today.warnings.length > 0 && (
         <ul className="today-warnings">{today.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
       )}
-      {keyFigures && <KeyFiguresRow row={keyFigures} t={t} nowMs={nowMs} language={language} onOpenLimits={onOpenLimits} />}
+      {keyFigures && <KeyFiguresRow row={keyFigures} t={t} nowMs={nowMs} language={language} onOpenLimits={onOpenLimits} onInspectPrice={onInspectPrice} />}
       {changes && <ChangesRow row={changes} t={t} nowMs={nowMs} language={language} onOpenOutages={onOpenOutages} />}
       {book && <BookRow row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} />}
       {fundamentals && <FundamentalsRow row={fundamentals} t={t} nowMs={nowMs} />}

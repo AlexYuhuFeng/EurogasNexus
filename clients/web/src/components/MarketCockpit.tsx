@@ -1,5 +1,4 @@
 import { openDeskBrief } from "@/components/DeskBriefDialog";
-import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
@@ -13,11 +12,15 @@ import { MarketContextStrip } from "@/components/MarketContextStrip";
 import { TodayFreshness, TodayScreen } from "@/components/TodayScreen";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
+import { useModeHeader } from "@/app/navigation/useModeHeader";
+import { PRODUCT_MODES } from "@/app/navigation/modeNavigation";
+import { marketObservationSubject } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
+import type { TodayPriceDTO } from "@/api/client";
 import type { AppController } from "@/app/hooks/useAppController";
 import "./market-cockpit.css";
 
 import {
-  MARKET_TASKS,
   type MarketTask,
 } from "@/app/model/marketCockpitModel";
 
@@ -60,24 +63,46 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
     navigation.openWorkspace("market", next);
   };
 
-  const tabs = MARKET_TASKS.map((id) => ({ id, ...tabLabels(t, `market.task.${id}`) }));
+  // The Desk mode's task row (WF-05): Today, Prices, Network, Events are this page's tasks.
+  const mode = useModeHeader("market", task, navigation.openWorkspace, t);
   // One read for the first screen; the context line on every market task uses it to say
   // "Demo data" once on the demo desk instead of counting a static store's feeds as stale.
   const desk = useDeskToday();
   const nowMs = useMinuteClock();
+  // Selecting a price hands its observation to the inspector (source, time, state), through
+  // the Wave 1 contract: the page may only inspect the subject kinds it declares.
+  const inspector = useInspectorStore();
+  const inspectObservation = (ref: string | null, label: string) => {
+    const subject = marketObservationSubject(ref ? { quote_id: ref } : null, "market", label);
+    if (subject) inspector.open(subject);
+  };
+  /** The observation behind a Today price: the latest of that hub and tenor this desk holds. */
+  const priceObservation = (price: TodayPriceDTO): string | null => {
+    const hub = price.hub.toUpperCase();
+    const tenor = String(price.tenor ?? "").toLowerCase();
+    const latest = api.normalizedMarkets
+      .filter((row) => row.is_gas_price && row.hub?.toUpperCase() === hub && row.tenor === tenor)
+      .sort((left, right) => String(right.observed_at_utc ?? "").localeCompare(String(left.observed_at_utc ?? "")))[0];
+    return latest?.observation_id ?? null;
+  };
 
   return (
     <div className="market-cockpit">
       <WorkspaceHeader
-        title={t("nav.primary.market")}
+        title={mode.title ?? t("nav.mode.desk")}
         taskLabel={t(`market.task.${task}`)}
         idPrefix="market-cockpit-task"
-        tabs={tabs}
-        activeId={task}
+        tabs={mode.tabs}
+        activeId={mode.activeId}
         panelId="market-cockpit-panel"
-        tabLabel={t("nav.primary.market")}
+        tabLabel={mode.tabLabel}
         tabsClassName="market-cockpit-tabs"
-        onActivate={openTask}
+        onActivate={(id) => {
+          // A Desk task on this page also becomes the remembered market view.
+          const target = PRODUCT_MODES.find((item) => item.id === "desk")?.tasks.find((item) => item.id === id);
+          if (target?.page === "market" && target.pageTask) openTask(target.pageTask as MarketTask);
+          else mode.onActivate(id);
+        }}
       />
       {/* The panel owns the task views. It carries its own class because the map task's layout
           (app.css `.workspace-network`) expects the viewport height to arrive through the page,
@@ -109,6 +134,10 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             onOpenBrief={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}
             onOpenLimits={() => navigation.openWorkspace("contracts", "exposure")}
             onOpenOutages={() => openTask("capacity")}
+            onInspectPrice={(price) => {
+              const ref = priceObservation(price);
+              return ref ? () => inspectObservation(ref, `${price.hub} ${price.product}`) : null;
+            }}
           />
         )}
         {task === "curves" && (
@@ -123,6 +152,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             lastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
             focusedHub={traderContext.hubId}
             onHubChange={traderContext.setHubId}
+            onInspect={inspectObservation}
             onRefresh={api.refreshMarketData}
             t={t}
           />

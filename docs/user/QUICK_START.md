@@ -27,7 +27,7 @@ Each installation uses the credentials issued for that environment.
 
 ## Inspect your first market view
 
-1. Open **Market → Curves & Spreads**.
+1. Open **Desk → Prices**.
 2. Select the gas day, delivery product and hub relevant to your task.
 3. Find the quote's source, unit and timestamp. Inspect bid/offer and mid on the same basis.
 4. Open **Capacity & Events** for physical context, or **Network** to inspect a location.

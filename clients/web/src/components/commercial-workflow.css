@@ -164,6 +164,30 @@
   overflow-wrap: anywhere;
 }
 
+/* Identifiers behind a warning: one disclosure, selectable, copyable; never inline copy. */
+.commercial-diagnostic-ids {
+  display: inline;
+  margin-left: var(--ds-space-1);
+}
+
+.commercial-diagnostic-ids > summary {
+  display: inline;
+  color: var(--ds-accent);
+  cursor: pointer;
+}
+
+.commercial-diagnostic-ids[open] {
+  display: block;
+  margin: var(--ds-space-1) 0 0;
+}
+
+.commercial-diagnostic-ids > code {
+  display: block;
+  margin: var(--ds-space-1) 0;
+  white-space: pre-wrap;
+  user-select: all;
+}
+
 .commercial-diagnostic-more {
   color: var(--ds-text-3);
   font-size: var(--ds-text-xs);

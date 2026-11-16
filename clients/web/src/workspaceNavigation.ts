@@ -76,6 +76,8 @@ export function coerceWorkspacePageId(
 export const PAGE_OBJECT_PARAMS: Partial<Record<WorkspacePageId, readonly string[]>> = {
   sources: ["source"],
   contracts: ["contract"],
+  // The board's tenor once the user chose one (Prices).
+  market: ["tenor"],
   glossary: ["term"],
 };
 

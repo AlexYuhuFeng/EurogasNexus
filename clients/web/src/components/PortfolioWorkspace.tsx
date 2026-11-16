@@ -1,4 +1,5 @@
-import { tabLabels } from "@/components/ui/tabLabels";
+import { useModeHeader } from "@/app/navigation/useModeHeader";
+import { PRODUCT_MODES } from "@/app/navigation/modeNavigation";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
@@ -30,7 +31,6 @@ import {
   contractViewFacts,
 } from "@/app/model/contractDraftModel";
 import {
-  PORTFOLIO_TASKS,
   classifyRouteFeasibility,
   portfolioTaskFromLocation,
   type PortfolioTask,
@@ -270,7 +270,9 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
     navigation.openWorkspace("contracts", next);
   }
 
-  const tabs = PORTFOLIO_TASKS.map((id) => ({ id, ...tabLabels(t, `portfolio.task.${id}`) }));
+  // This page serves two modes (WF-05): Position, Limits and Delivery are Book; Contracts and
+  // Routes are Deals. The header is the row of whichever mode the task belongs to.
+  const mode = useModeHeader(navigation.activeWorkspace, task, navigation.openWorkspace, t);
 
   // Action geography (`app/experience/actionGeography.ts`): writing a reviewed contract
   // draft is a `persist` consequence, so it occupies this workspace's single primary slot
@@ -316,16 +318,21 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   return (
     <div className="commercial-workspace">
       <WorkspaceHeader
-        title={t("nav.primary.portfolio")}
+        title={mode.title ?? t("nav.mode.book")}
         taskLabel={t(`portfolio.task.${task}`)}
-        idPrefix="portfolio-task"
-        tabs={tabs}
-        activeId={task}
+        idPrefix={`${mode.modeId ?? "book"}-task`}
+        tabs={mode.tabs}
+        activeId={mode.activeId}
         panelId="portfolio-task-panel"
-        tabLabel={t("nav.primary.portfolio")}
+        tabLabel={mode.tabLabel}
         tabsClassName="commercial-task-tabs"
         primaryAction={primaryAction}
-        onActivate={openTask}
+        onActivate={(id) => {
+          // A task on this page switches in place; one on another page opens it.
+          const target = PRODUCT_MODES.flatMap((item) => item.tasks).find((item) => item.id === id && item.page === "contracts");
+          if (target?.pageTask) openTask(target.pageTask as PortfolioTask);
+          else mode.onActivate(id);
+        }}
       />
       <div id="portfolio-task-panel">
         <PortfolioContextStrip
@@ -406,9 +413,11 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             loadPersistedContract={loadPersistedContractAndLink}
           />
         )}
-        {task === "resources" && <DeliveryPerformancePanel t={t} />}
-        {task === "resources" && <DailyBalancePanel t={t} />}
-        {task === "resources" && <SellDownPanel t={t} />}
+        {/* Book → Delivery (WF-05): what was delivered against what was nominated, the day's
+            balance and the sell-down plan, apart from the contract terms they used to sit under. */}
+        {task === "delivery" && <DeliveryPerformancePanel t={t} />}
+        {task === "delivery" && <DailyBalancePanel t={t} />}
+        {task === "delivery" && <SellDownPanel t={t} />}
         {task === "routes" && (
           <>
             <PortfolioRoutes controller={controller} />

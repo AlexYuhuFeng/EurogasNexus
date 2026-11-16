@@ -17,8 +17,10 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 function mwh(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "–";
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${Math.round(value).toLocaleString("en-GB")}`;
+  const rounded = Math.round(value);
+  // A position reads by its sign (+ long, − short), never by a gain/loss colour.
+  const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
+  return `${sign}${Math.abs(rounded).toLocaleString("en-GB")}`;
 }
 
 function money(value: number | null | undefined): string {
@@ -87,7 +89,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
         label={t("position.mtm")}
         value={money(ladder.mark_to_market)}
         unit={ladder.reporting_currency || undefined}
-        action={<MethodNote method={ladder.methods?.mark_to_market} subject={t("position.mtm")} t={t} />}
+        notes={<MethodNote inline method={ladder.methods?.mark_to_market} subject={t("position.mtm")} t={t} />}
       />
       {/* Gross by month adds information only when months offset; equal to |net| it repeats it. */}
       {ladder.totals.gross_tenor_mwh !== undefined &&
@@ -106,7 +108,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
           value={t("position.var_withheld").replace("{{hubs}}", ladder.offsetting_hubs.join(", "))}
           valueClassName="position-var-withheld"
           title={t("position.var_withheld_help")}
-          action={<MethodNote method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
+          notes={<MethodNote inline method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
         />
       ) : (
         <KeyFigure
@@ -114,7 +116,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
           value={money(ladder.var_95_1d)}
           unit={ladder.var_95_1d == null ? undefined : ladder.reporting_currency || undefined}
           title={ladder.var_95_1d == null ? undefined : t("position.var_help", { count: ladder.var_observations })}
-          action={<MethodNote method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
+          notes={<MethodNote inline method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
         />
       )}
     </div>

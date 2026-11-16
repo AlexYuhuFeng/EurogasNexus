@@ -5,6 +5,7 @@ import {
   writeLocalBoardLayout,
 } from "@/app/preferences/remotePreferences";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import { boardTenorFromSearch, boardTenorToSearch, openingBoardTenor } from "@/app/model/marketCockpitModel";
 import {
   createHubSpreadResolver,
   type ResolvedHubSpread,
@@ -36,6 +37,8 @@ interface MarketTerminalProps {
   lastUpdatedAtUtc: string | null;
   focusedHub: string | null;
   onHubChange: (hubId: string | null) => void;
+  /** Hand a priced hub's observation (quote or normalised observation id) to the inspector. */
+  onInspect?: (recordId: string, label: string) => void;
   onRefresh: () => Promise<void>;
   t: Translate;
 }
@@ -309,10 +312,34 @@ export function MarketTerminal({
   lastUpdatedAtUtc,
   focusedHub,
   onHubChange,
+  onInspect,
   onRefresh,
   t,
 }: MarketTerminalProps) {
-  const [activeTenor, setActiveTenor] = useState("day-ahead");
+  // The tenor is in the URL once the user chooses one (a link or a refresh keeps it); until then
+  // the board opens on the first tenor this desk has prices for.
+  const [chosenTenor, setChosenTenor] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : boardTenorFromSearch(window.location.search),
+  );
+  useEffect(() => {
+    const onPop = () => setChosenTenor(boardTenorFromSearch(window.location.search));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  const pricedTenors = useMemo(() => {
+    const majors = new Set(marketMajorHubs.map((definition) => definition.hub));
+    const priced = new Set<string>();
+    for (const row of markets) if (row.is_gas_price && row.hub && majors.has(row.hub)) priced.add(row.tenor);
+    for (const quote of marketQuotes) if (majors.has(quote.hub.toUpperCase())) priced.add(quote.product.toLowerCase());
+    return priced;
+  }, [markets, marketQuotes]);
+  const activeTenor = openingBoardTenor(chosenTenor, pricedTenors);
+  const setActiveTenor = (tenor: string) => {
+    setChosenTenor(tenor);
+    const url = new URL(window.location.href);
+    url.search = boardTenorToSearch(url.search, tenor);
+    window.history.replaceState(window.history.state, "", url);
+  };
   const [boardView, setBoardView] = useState<BoardView>(readBoardView);
   const chooseBoardView = (view: BoardView) => {
     setBoardView(view);
@@ -741,7 +768,12 @@ export function MarketTerminal({
           rowKey={(row) => `${row.hub}-${row.tenor}`}
           density="regular"
           selectedKey={focusedHub ? boardRows.find((row) => row.hub === focusedHub) ? `${focusedHub}-${activeTenorOf(boardRows, focusedHub)}` : null : null}
-          onRowAction={(row) => onHubChange(focusedHub === row.hub ? null : row.hub)}
+          onRowAction={(row) => {
+            const selecting = focusedHub !== row.hub;
+            onHubChange(focusedHub === row.hub ? null : row.hub);
+            // Selecting a priced hub shows its observation in the inspector.
+            if (selecting && row.recordId) onInspect?.(row.recordId, `${row.hub} ${tenorLabel(row.tenor, t)}`);
+          }}
           rowAttributes={(row) => ({
             "data-record": "market-hub-price",
             "data-record-slice": row.pricedSlice ?? undefined,

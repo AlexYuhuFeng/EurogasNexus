@@ -3409,6 +3409,7 @@
   .topbar-status.is-ok .topbar-status-chip i { background: var(--ds-positive); }
   .topbar-status.is-attention .topbar-status-chip i { background: var(--ds-status-watch); }
   .topbar-status.is-down .topbar-status-chip i { background: var(--ds-negative); }
+  .topbar-status.is-demo .topbar-status-chip i { background: var(--ds-status-simulated); }
   .topbar-status.is-down .topbar-status-chip { color: var(--ds-text-1); }
 
   .topbar-status-panel {
@@ -3463,6 +3464,11 @@
 
   .topbar-status-panel .link-button {
     margin-top: var(--ds-space-3);
+  }
+
+  /* The named list of figures not current spans the panel: names are long. */
+  .topbar-status-panel dl > .topbar-status-stale {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -3657,6 +3663,18 @@
 
   .topbar-drawer nav button[aria-current="page"] {
     background: var(--ds-surface-2, color-mix(in srgb, var(--ds-ink) 6%, transparent));
+  }
+
+  /* Help and administration under the four modes: utilities, set apart by a rule. */
+  .topbar-drawer-utilities {
+    margin-top: var(--ds-space-3);
+    padding-top: var(--ds-space-2);
+    border-top: 1px solid var(--ds-border-subtle);
+  }
+
+  .topbar-drawer .topbar-drawer-utilities button {
+    min-height: var(--ds-control-touch);
+    color: var(--ds-text-2);
   }
 
   .topbar-drawer-context {

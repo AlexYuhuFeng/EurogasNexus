@@ -9,6 +9,7 @@
  */
 
 import assert from "node:assert/strict";
+import { PRODUCT_MODES } from "../src/app/navigation/modeNavigation.ts";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import test from "node:test";
 
@@ -462,14 +463,20 @@ test("the command palette is derived from the navigation, AI and utility registr
   assert.equal(new Set(ids).size, ids.length, "command ids must be unique");
 
   const navigation = navigationCommands();
+  // The four modes and each of their tasks (WF-05), then the utilities and their pages; every page
+  // is reachable, either as a mode task or as a utility page.
+  assert.deepEqual(
+    navigation.filter((command) => /^navigate\.mode\.[a-z]+$/.test(command.id)).map((command) => command.target.mode),
+    PRODUCT_MODES.map((mode) => mode.id),
+  );
   assert.deepEqual(
     navigation.filter((command) => command.target.primary).map((command) => command.target.primary),
-    primaryWorkspaces.map((primary) => primary.id),
+    primaryWorkspaces.filter((primary) => primary.commercial !== true).map((primary) => primary.id),
   );
-  assert.deepEqual(
-    navigation.filter((command) => command.target.page && !command.target.primary && !command.target.view).map((command) => command.target.page),
-    workspacePageIds,
-  );
+  const reachable = new Set(navigation.map((command) => command.target.page));
+  for (const page of workspacePageIds) {
+    assert.ok(reachable.has(page) || PRODUCT_MODES.some((mode) => mode.tasks.some((task) => task.alsoPages?.includes(page))), page);
+  }
   assert.deepEqual(
     aiCommands().map((command) => command.target.aiAction),
     [...AI_ACTION_KINDS],
@@ -508,7 +515,7 @@ test("the command palette is derived from the navigation, AI and utility registr
   const labelFor = (command: { labelKey: string }) => command.labelKey;
   assert.equal(filterPaletteCommands(commands, "zzzz", labelFor).length, 0);
   assert.equal(filterPaletteCommands(commands, "", labelFor).length, DEFAULT_PALETTE_LIMIT);
-  assert.equal(commands.filter((c) => c.id.includes("market")).length > 0, true);
+  assert.equal(commands.filter((c) => c.id.includes("desk")).length > 0, true);
 
   assert.equal(isPaletteShortcut({ key: "k", ctrlKey: true }), true);
   assert.equal(isPaletteShortcut({ key: "K", metaKey: true }), true);

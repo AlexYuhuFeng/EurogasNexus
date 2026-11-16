@@ -7,7 +7,7 @@ limit exceptions. Select the relevant books, valuation date and reporting curren
 
 ## Review exposure
 
-1. Open the **Portfolio** exposure view and position ladder.
+1. Open **Book → Limits & P&L** and position ladder.
 2. Confirm the book scope, delivery horizon, physical contracts and imported trade legs.
 3. Inspect net position and hedge measures by hub and delivery month.
 4. Review unvalued positions, missing FX and marking warnings before reading the totals.
