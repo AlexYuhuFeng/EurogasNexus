@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, type SupportReportDTO } from "@/api/client";
+import { DataGrid } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -49,54 +50,52 @@ export function SupportInboxPanel({ t }: { t: Translate }) {
       </div>
       {rows && rows.length === 0 && <p className="muted">{t("support.inbox_empty")}</p>}
       {rows && rows.length > 0 && (
-        <table className="position-ladder">
-          <thead>
-            <tr>
-              <th scope="col">{t("support.report")}</th>
-              <th scope="col">{t("support.summary")}</th>
-              <th scope="col">{t("support.from")}</th>
-              <th scope="col">{t("support.status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.report_id} data-status={row.severity === "P1" || row.severity === "P2" ? "breach" : undefined}>
-                <td>
-                  <button type="button" className="link-button" onClick={() => setOpen(open === row.report_id ? null : row.report_id)}>
-                    {row.report_id}
-                  </button>{" "}
-                  <small>{row.severity} · {t(`support.category_${row.category}`)}</small>
-                </td>
-                <td>
-                  {row.summary}
-                  {open === row.report_id && (
-                    <div className="support-detail">
-                      {row.description && <p>{row.description}</p>}
-                      <details open>
-                        <summary>{t("support.client_context")}</summary>
-                        <pre>{JSON.stringify(row.client_context, null, 2)}</pre>
-                      </details>
-                      <details>
-                        <summary>{t("support.server_context")}</summary>
-                        <pre>{JSON.stringify(row.server_context, null, 2)}</pre>
-                      </details>
-                      <label className="support-note">
-                        <span>{t("support.resolution")}</span>
-                        <input value={note} onChange={(event) => setNote(event.target.value)} />
-                      </label>
-                      <div className="limit-actions">
-                        <button type="button" className="secondary-button" onClick={() => update(row, "acknowledged")}>{t("support.acknowledge")}</button>
-                        <button type="button" disabled={!note.trim()} onClick={() => update(row, "resolved")}>{t("support.resolve")}</button>
-                      </div>
-                    </div>
-                  )}
-                </td>
-                <td><small>{row.reporter_name ?? row.reporter} · {row.reporter_role}<br />{row.created_at_utc.slice(0, 16).replace("T", " ")} UTC{row.assignee ? ` · ${row.assignee_name ?? row.assignee}` : ""}</small></td>
-                <td><span className="limit-badge" data-status={row.status === "resolved" ? "ok" : row.status === "acknowledged" ? "watch" : "breach"}>{t(`support.status_${row.status}`)}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <>
+        <DataGrid
+          id="support-inbox"
+          label={t("support.report")}
+          rows={rows}
+          rowKey={(row) => row.report_id}
+          density="compact"
+          selectedKey={open}
+          onRowAction={(row) => setOpen(open === row.report_id ? null : row.report_id)}
+          rowAttributes={(row) => ({ "data-status": row.severity === "P1" || row.severity === "P2" ? "breach" : undefined })}
+          columns={[
+            { id: "report", header: t("support.report"), rowHeader: true, value: (row) => row.report_id, render: (row) => <>{row.report_id} <small>{row.severity} · {t(`support.category_${row.category}`)}</small></> },
+            { id: "summary", header: t("support.summary"), value: (row) => row.summary },
+            {
+              id: "from",
+              header: t("support.from"),
+              type: "date",
+              value: (row) => row.created_at_utc,
+              render: (row) => <small>{row.reporter_name ?? row.reporter} · {row.reporter_role} · {row.created_at_utc.slice(0, 16).replace("T", " ")} UTC{row.assignee ? ` · ${row.assignee_name ?? row.assignee}` : ""}</small>,
+            },
+            { id: "status", header: t("support.status"), value: (row) => row.status, render: (row) => <span className="limit-badge" data-status={row.status === "resolved" ? "ok" : row.status === "acknowledged" ? "watch" : "breach"}>{t(`support.status_${row.status}`)}</span> },
+          ]}
+        />
+        {rows.filter((row) => row.report_id === open).map((row) => (
+          <div className="support-detail" key={row.report_id} data-support-detail={row.report_id}>
+            <h3>{row.report_id} · {row.summary}</h3>
+            {row.description && <p>{row.description}</p>}
+            <details open>
+              <summary>{t("support.client_context")}</summary>
+              <pre>{JSON.stringify(row.client_context, null, 2)}</pre>
+            </details>
+            <details>
+              <summary>{t("support.server_context")}</summary>
+              <pre>{JSON.stringify(row.server_context, null, 2)}</pre>
+            </details>
+            <label className="support-note">
+              <span>{t("support.resolution")}</span>
+              <input value={note} onChange={(event) => setNote(event.target.value)} />
+            </label>
+            <div className="limit-actions">
+              <button type="button" className="secondary-button" onClick={() => update(row, "acknowledged")}>{t("support.acknowledge")}</button>
+              <button type="button" disabled={!note.trim()} onClick={() => update(row, "resolved")}>{t("support.resolve")}</button>
+            </div>
+          </div>
+        ))}
+        </>
       )}
       {message && <p role="status">{message}</p>}
     </section>

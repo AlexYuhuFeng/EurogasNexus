@@ -1,13 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { api, type DeliveryPerformanceDTO } from "@/api/client";
-import { deliveryBars, formatQuantity } from "@/app/model/riskLimitsModel";
+import { api, type DeliveryPerformanceDTO, type DeliveryPerformanceRowDTO } from "@/api/client";
 import { ReportExport } from "./ReportExport";
-import { Field, Select } from "@/components/ui";
+import { DataGrid, Field, Select, type DataGridColumn } from "@/components/ui";
+import { Chart, type ChartData } from "@/components/ui/charts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 const WINDOWS = [30, 90, 365];
+
+/** A volume in the column's unit (the unit is in the header). */
+function qty(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? "–" : Math.round(value).toLocaleString("en-GB");
+}
 
 /**
  * Bilateral supply as it actually flowed: allocations against nominations and DCQ, per
@@ -40,7 +45,65 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
     return () => controller.abort();
   }, [days, selected]);
 
-  const bars = detail ? deliveryBars(detail.series) : [];
+  const columns = useMemo<DataGridColumn<DeliveryPerformanceRowDTO>[]>(() => [
+    {
+      id: "contract",
+      header: t("delivery.contract"),
+      rowHeader: true,
+      sortable: true,
+      value: (row) => row.contract,
+      render: (row) => (
+        <>
+          {row.contract} <small className="muted">{[row.hub, row.tso].filter(Boolean).join(" · ")}</small>
+        </>
+      ),
+    },
+    { id: "dcq", header: t("delivery.dcq"), unit: "MWh/d", type: "number", sortable: true, value: (row) => row.dcq_mwh_d, format: (value) => qty(value as number) },
+    { id: "mean", header: t("delivery.mean_allocated"), unit: "MWh/d", type: "number", sortable: true, value: (row) => row.mean_allocated_mwh_d, format: (value) => (value == null ? "–" : qty(value as number)) },
+    { id: "deviation", header: t("delivery.net_deviation"), unit: "MWh", type: "number", sortable: true, value: (row) => row.net_deviation_mwh, format: (value) => qty(value as number) },
+    { id: "imbalance", header: t("delivery.imbalance"), unit: "MWh", type: "number", sortable: true, value: (row) => row.imbalance_mwh, format: (value) => qty(value as number) },
+    { id: "short-long", header: t("delivery.short_long"), type: "number", value: (row) => row.short_days, render: (row) => `${row.short_days} / ${row.long_days}` },
+    { id: "cv", header: t("delivery.cv"), unit: "%", type: "number", sortable: true, value: (row) => row.cv_pct, format: (value) => (value == null ? "–" : (value as number).toFixed(1)) },
+    {
+      id: "trend",
+      header: t("delivery.trend"),
+      unit: "%",
+      type: "number",
+      sortable: true,
+      value: (row) => row.trend_7d_vs_dcq_pct,
+      format: (value) => (value == null ? "–" : `${(value as number) > 0 ? "+" : ""}${(value as number).toFixed(1)}`),
+    },
+    {
+      id: "flags",
+      header: t("delivery.flags"),
+      value: (row) => row.status,
+      render: (row) => (
+        <>
+          <span className="limit-badge" data-status={row.status}>{t(`delivery.status_${row.status}`)}</span>
+          {row.flags && <span className="limit-breaches"> {row.flags}</span>}
+          {row.missing_days > 0 && <small> {t("delivery.missing", { count: row.missing_days })}</small>}
+        </>
+      ),
+    },
+  ], [t]);
+
+  // The selected contract's gas days: nominated and allocated against the DCQ.
+  const chart = useMemo<ChartData | null>(() => {
+    if (!detail || detail.series.length === 0) return null;
+    const series = detail.series;
+    return {
+      axis: "gas-day",
+      x: series.map((day) => day.gas_day),
+      xTitle: t("chart.gas_day"),
+      unit: "MWh",
+      series: [
+        { id: "nominated", label: t("delivery.nominated"), values: series.map((day) => day.nominated_mwh), style: "bar", colour: 8, decimals: 0 },
+        { id: "allocated", label: t("delivery.allocated"), values: series.map((day) => day.allocated_mwh), style: "step", colour: 1, decimals: 0 },
+        { id: "dcq", label: t("delivery.dcq"), values: series.map((day) => day.dcq_mwh), reference: true, decimals: 0 },
+      ],
+    };
+  }, [detail, t]);
+  const contractName = data?.rows.find((row) => row.contract_id === selected)?.contract ?? selected ?? "";
 
   return (
     <section className="workspace-panel span-3 delivery-panel" aria-labelledby="delivery-title">
@@ -53,78 +116,28 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
       </div>
       {data && data.rows.length === 0 && <p className="muted">{t("delivery.empty")}</p>}
       {data && data.rows.length > 0 && (
-        <table className="position-ladder" data-delivery-performance="true">
-          <thead>
-            <tr>
-              <th scope="col">{t("delivery.contract")}</th>
-              <th scope="col" className="num">{t("delivery.dcq")}</th>
-              <th scope="col" className="num">{t("delivery.mean_allocated")}</th>
-              <th scope="col" className="num">{t("delivery.net_deviation")}</th>
-              <th scope="col" className="num">{t("delivery.imbalance")}</th>
-              <th scope="col" className="num">{t("delivery.short_long")}</th>
-              <th scope="col" className="num">{t("delivery.cv")}</th>
-              <th scope="col" className="num">{t("delivery.trend")}</th>
-              <th scope="col">{t("delivery.flags")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.rows.map((row) => (
-              <tr
-                key={row.contract_id}
-                data-status={row.status}
-                aria-selected={selected === row.contract_id}
-                className={selected === row.contract_id ? "selected" : undefined}
-              >
-                <td>
-                  <button type="button" className="link-button" onClick={() => setSelected(selected === row.contract_id ? null : row.contract_id)}>
-                    {row.contract}
-                  </button>{" "}
-                  <small>{[row.hub, row.tso].filter(Boolean).join(" · ")}</small>
-                </td>
-                <td className="num">{formatQuantity(row.dcq_mwh_d, "MWh/d")}</td>
-                <td className="num">{formatQuantity(row.mean_allocated_mwh_d, "MWh/d")}</td>
-                <td className="num">{formatQuantity(row.net_deviation_mwh)}</td>
-                <td className="num">{formatQuantity(row.imbalance_mwh)}</td>
-                <td className="num">{row.short_days} / {row.long_days}</td>
-                <td className="num">{row.cv_pct === null ? "-" : `${row.cv_pct.toFixed(1)}%`}</td>
-                <td className="num">{row.trend_7d_vs_dcq_pct === null ? "-" : `${row.trend_7d_vs_dcq_pct > 0 ? "+" : ""}${row.trend_7d_vs_dcq_pct.toFixed(1)}%`}</td>
-                <td>
-                  <span className="limit-badge" data-status={row.status}>{t(`delivery.status_${row.status}`)}</span>
-                  {row.flags && <div className="limit-breaches">{row.flags}</div>}
-                  {row.missing_days > 0 && <small> {t("delivery.missing", { count: row.missing_days })}</small>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          id="delivery-performance"
+          label={t("delivery.title")}
+          columns={columns}
+          rows={data.rows}
+          rowKey={(row) => row.contract_id}
+          density="compact"
+          selectedKey={selected}
+          onRowAction={(row) => setSelected(selected === row.contract_id ? null : row.contract_id)}
+          rowAttributes={(row) => ({ "data-status": row.status, "data-record": "delivery-contract" })}
+          tableAttributes={{ "data-delivery-performance": "true" }}
+        />
       )}
-      {detail && detail.series.length > 0 && (
-        <figure className="delivery-strip" aria-label={t("delivery.strip_label", { contract: selected })}>
-          <div className="delivery-bars">
-            {detail.series.map((day, index) => (
-              <span
-                key={day.gas_day}
-                className="delivery-day"
-                title={`${day.gas_day}: ${t("delivery.nominated")} ${formatQuantity(day.nominated_mwh)}, ${t("delivery.allocated")} ${formatQuantity(day.allocated_mwh)}`}
-              >
-                <span className="delivery-nominated" style={{ height: `${bars[index].nominated * 100}%` }} />
-                {bars[index].allocated !== null && (
-                  <span
-                    className="delivery-allocated"
-                    data-short={day.outside_tolerance === "short" ? "true" : undefined}
-                    style={{ height: `${(bars[index].allocated ?? 0) * 100}%` }}
-                  />
-                )}
-              </span>
-            ))}
-          </div>
-          <figcaption>
-            <span className="legend-swatch nominated" /> {t("delivery.nominated")}
-            <span className="legend-swatch allocated" /> {t("delivery.allocated")}
-            <span className="legend-swatch short" /> {t("delivery.short")}
-            <ReportExport t={t} path="/contracts/delivery-performance" params={{ days: String(days), contract_id: selected ?? "" }} />
-          </figcaption>
-        </figure>
+      {chart && (
+        <Chart
+          id="delivery-days"
+          title={t("delivery.strip_label", { contract: contractName })}
+          data={chart}
+          t={t}
+          height={180}
+          controls={<ReportExport t={t} path="/contracts/delivery-performance" params={{ days: String(days), contract_id: selected ?? "" }} />}
+        />
       )}
     </section>
   );

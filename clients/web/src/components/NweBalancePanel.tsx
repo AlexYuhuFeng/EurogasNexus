@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api, type NweBalanceDTO, type NweBalanceDayDTO } from "@/api/client";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
+import { Chart, type ChartData } from "@/components/ui/charts";
 import { ReportExport } from "./ReportExport";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -51,6 +52,39 @@ export function NweBalancePanel({ t, simulated = false }: {
     ],
     [balance],
   );
+  // The chart: two weeks measured, then the forecast (dashed), supply stacked by source and the
+  // call on that supply as a line, all in GWh/d on one axis.
+  const chart = useMemo<ChartData | null>(() => {
+    if (!balance) return null;
+    const history = balance.history.slice(-14);
+    const days = [...history, ...balance.forecast];
+    const from = balance.forecast.length > 0 ? history.length : undefined;
+    const series = (id: string, label: string, pick: (row: NweBalanceDayDTO) => number | null | undefined, extra: Partial<ChartData["series"][number]>) => ({
+      id,
+      label,
+      values: days.map((row) => {
+        const value = pick(row);
+        return value == null || !Number.isFinite(value) ? null : value;
+      }),
+      forecastFrom: from,
+      simulated,
+      decimals: 0,
+      ...extra,
+    });
+    return {
+      axis: "gas-day",
+      x: days.map((row) => row.day),
+      xTitle: t("chart.gas_day"),
+      unit: balance.unit ?? "GWh/d",
+      series: [
+        series("norway", t("nwe.norway"), (row) => row.norway_gwh, { style: "bar", stack: true, colour: 1 }),
+        series("lng", t("nwe.lng"), (row) => row.lng_gwh, { style: "bar", stack: true, colour: 2 }),
+        series("storage", t("nwe.storage"), (row) => row.storage_net_withdrawal_gwh, { style: "bar", stack: true, colour: 3 }),
+        series("call", t("nwe.call"), (row) => row.call_gwh, { style: "line", colour: 4 }),
+      ],
+    };
+  }, [balance, simulated, t]);
+  const asOf = balance?.history.at(-1)?.day ?? null;
   const columns = useMemo<DataGridColumn<BalanceRow>[]>(() => {
     const unit = balance?.unit ?? "GWh/d";
     const mark = simulated
@@ -101,7 +135,12 @@ export function NweBalancePanel({ t, simulated = false }: {
       ) : (
         <p className="panel-meaning">{t("nwe.meaning")}</p>
       )}
+      {balance && hasRows && chart && (
+        <Chart id="nwe-balance-chart" title={t("nwe.chart_title")} data={chart} t={t} height={220} asOf={asOf} simulated={simulated} />
+      )}
       {balance && hasRows && (
+        <details className="tool-fold">
+        <summary>{t("nwe.daily_table")}</summary>
         <DataGrid
           id="nwe-balance"
           label={t("nwe.title")}
@@ -113,6 +152,7 @@ export function NweBalancePanel({ t, simulated = false }: {
           rowClassName={(row) => (row.forecast ? "is-forecast" : undefined)}
           tableAttributes={{ "data-nwe-balance": "true" }}
         />
+        </details>
       )}
       {hasRows && (
         <ul className="position-notes">

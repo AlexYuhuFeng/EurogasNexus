@@ -37,6 +37,8 @@ BOOK_HORIZON_MONTHS = 12
 #: The ticker's and the map's outage horizon (``ShellTicker``: ``api.outages(14)``).
 OUTAGE_HORIZON_DAYS = 14
 STORAGE_DAYS = 30
+#: The storage chart's season: about four months, against the same days a year earlier.
+STORAGE_CHART_DAYS = 120
 BALANCE_DAYS = 14
 LATE_STATES = frozenset({"late", "stale"})
 
@@ -605,6 +607,7 @@ def _same_price(price: dict, mark_mwh: float, mark_unit: str) -> bool:
 
 def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, Any]:
     from eurogas_nexus.application.freshness_contract import close_state
+    from eurogas_nexus.application.projections.daily_closes import in_native_unit
     from eurogas_nexus.domain.ontology.markets import quote_currency
     from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS, build_ladder
     from eurogas_nexus.domain.risk.method_notes import method_note
@@ -648,16 +651,22 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
                 and price["close_day"] == days[-1].isoformat()
                 and _same_price(price, closes[days[-1]], f"{currency}/MWh")
             )
+            # The mark is quoted as the desk quotes the hub (NBP in p/th, rule 17); the
+            # book values it per MWh, which travels with it for the Method note.
+            per_mwh = closes[days[-1]]
+            shown, shown_unit = in_native_unit(hub, per_mwh, f"{currency}/MWh")
             mark = read.add(
                 figure(
                     f"mark.{hub}",
                     f"{hub} mark",
-                    round(closes[days[-1]], 4),
-                    f"{currency}/MWh",
+                    round(shown, 4),
+                    shown_unit,
                     days[-1].isoformat(),
                     close_state(days[-1], today),
                     simulated=demo,
                     same_as=f"price.{hub}" if same else None,
+                    value_mwh=round(per_mwh, 4),
+                    unit_mwh=f"{currency}/MWh",
                 )
             )
         method = method_note(
@@ -753,54 +762,94 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
     from eurogas_nexus.application.projections.market_reads import row_allowed
     from eurogas_nexus.db.models.observation import StorageObservationRecord as Storage
     from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
+    from eurogas_nexus.domain.market.storage_targets import (
+        DEFAULT_DEADLINE,
+        DEFAULT_TARGET_PCT,
+        DEFAULT_WINDOW_OPEN,
+    )
 
     naive = session.get_bind().dialect.name == "sqlite"
-    first = now - timedelta(days=STORAGE_DAYS + 5)
-    records = (
-        session.query(
-            Storage.period_start_utc,
-            Storage.country,
-            Storage.source_system,
-            Storage.inventory_twh,
-            Storage.working_capacity_twh,
+
+    def window(until: datetime, days: int):
+        """Storage rows of the NW Europe countries for ``days`` gas days up to ``until``."""
+
+        first = until - timedelta(days=days + 5)
+        records = (
+            session.query(
+                Storage.period_start_utc,
+                Storage.country,
+                Storage.source_system,
+                Storage.inventory_twh,
+                Storage.working_capacity_twh,
+            )
+            .filter(identity_clause(session, Storage))
+            .filter(Storage.country.in_(NWE_COUNTRIES))
+            .filter(Storage.inventory_twh.isnot(None), Storage.working_capacity_twh.isnot(None))
+            .filter(Storage.period_start_utc >= (first.replace(tzinfo=None) if naive else first))
+            .filter(Storage.period_start_utc <= (until.replace(tzinfo=None) if naive else until))
+            .limit(40_000)
+            .all()
         )
-        .filter(identity_clause(session, Storage))
-        .filter(Storage.country.in_(NWE_COUNTRIES))
-        .filter(Storage.inventory_twh.isnot(None), Storage.working_capacity_twh.isnot(None))
-        .filter(Storage.period_start_utc >= (first.replace(tzinfo=None) if naive else first))
-        .filter(Storage.period_start_utc <= (now.replace(tzinfo=None) if naive else now))
-        .limit(20_000)
-        .all()
-    )
-    allowed = [r for r in records if row_allowed(caller.principal, r.source_system)]
-    real = [r for r in allowed if not str(r.source_system).endswith("_Sim")]
-    rows = real or allowed
-    simulated = bool(rows) and not real
-    by_day: dict[date, dict[str, list[float]]] = {}
-    starts: dict[date, datetime] = {}
-    for record in rows:
-        start = record.period_start_utc
-        start = start.replace(tzinfo=UTC) if start.tzinfo is None else start.astimezone(UTC)
-        day = start.date()
-        entry = by_day.setdefault(day, {}).setdefault(record.country, [0.0, 0.0])
-        entry[0] += float(record.inventory_twh)
-        entry[1] += float(record.working_capacity_twh)
-        starts[day] = max(starts.get(day, start), start)
-    if not by_day:
-        return {"empty": empty("storage_not_connected", "Storage data not connected",
-                               "Connect GIE AGSI in Sources")}
-    coverage = max(len(countries) for countries in by_day.values())
-    days = sorted(day for day, countries in by_day.items() if len(countries) == coverage)
-    days = days[-STORAGE_DAYS:]
-    series = []
-    for day in days:
+        allowed = [r for r in records if row_allowed(caller.principal, r.source_system)]
+        real = [r for r in allowed if not str(r.source_system).endswith("_Sim")]
+        return real or allowed, bool(allowed) and not real
+
+    def complete_days(rows) -> tuple[dict, dict, list[date]]:
+        """Inventory and capacity by day and country; only days as covered as the best one."""
+
+        by_day: dict[date, dict[str, list[float]]] = {}
+        starts: dict[date, datetime] = {}
+        for record in rows:
+            start = record.period_start_utc
+            start = start.replace(tzinfo=UTC) if start.tzinfo is None else start.astimezone(UTC)
+            day = start.date()
+            entry = by_day.setdefault(day, {}).setdefault(record.country, [0.0, 0.0])
+            entry[0] += float(record.inventory_twh)
+            entry[1] += float(record.working_capacity_twh)
+            starts[day] = max(starts.get(day, start), start)
+        if not by_day:
+            return by_day, starts, []
+        coverage = max(len(countries) for countries in by_day.values())
+        full = sorted(d for d, countries in by_day.items() if len(countries) == coverage)
+        return by_day, starts, full
+
+    def fill(by_day: dict, day: date) -> tuple[float, float | None]:
         inventory = sum(v[0] for v in by_day[day].values())
         capacity = sum(v[1] for v in by_day[day].values())
+        return inventory, (round(100 * inventory / capacity, 2) if capacity else None)
+
+    rows, simulated = window(now, STORAGE_CHART_DAYS)
+    by_day, starts, all_days = complete_days(rows)
+    if not all_days:
+        return {"empty": empty("storage_not_connected", "Storage data not connected",
+                               "Connect GIE AGSI in Sources")}
+    days = all_days[-STORAGE_DAYS:]
+    series = []
+    for day in days:
+        inventory, fill_pct = fill(by_day, day)
         series.append(
+            {"day": day.isoformat(), "inventory_twh": round(inventory, 2), "fill_pct": fill_pct}
+        )
+    # The season for the chart: the same days a year earlier from the same scope and the same
+    # kind of source (provider rows win), so the comparison is like with like.
+    year_ago_rows, _ = window(now - timedelta(days=365), STORAGE_CHART_DAYS)
+    year_ago, _, year_ago_days = complete_days(
+        [r for r in year_ago_rows if str(r.source_system).endswith("_Sim") == simulated]
+    )
+    year_ago_set = set(year_ago_days)
+    season = []
+    for day in all_days[-STORAGE_CHART_DAYS:]:
+        try:
+            previous = day.replace(year=day.year - 1)
+        except ValueError:  # 29 February
+            previous = day - timedelta(days=365)
+        season.append(
             {
                 "day": day.isoformat(),
-                "inventory_twh": round(inventory, 2),
-                "fill_pct": round(100 * inventory / capacity, 2) if capacity else None,
+                "fill_pct": fill(by_day, day)[1],
+                "previous_year_fill_pct": fill(year_ago, previous)[1]
+                if previous in year_ago_set
+                else None,
             }
         )
     last = days[-1]
@@ -819,8 +868,20 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
             countries=sorted(by_day[last]),
         )
     )
-    return {"latest": item, "inventory_twh": latest["inventory_twh"], "series": series,
-            "unit": "%"}
+    return {
+        "latest": item,
+        "inventory_twh": latest["inventory_twh"],
+        "series": series,
+        "season": season,
+        # The EU filling target (Regulation (EU) 2022/1032 as amended): met at any point in
+        # the window; the desk's own version is an input of the storage trajectory.
+        "target": {
+            "pct": DEFAULT_TARGET_PCT,
+            "window_open": f"{DEFAULT_WINDOW_OPEN[0]:02d}-{DEFAULT_WINDOW_OPEN[1]:02d}",
+            "deadline": f"{DEFAULT_DEADLINE[0]:02d}-{DEFAULT_DEADLINE[1]:02d}",
+        },
+        "unit": "%",
+    }
 
 
 def _balance(session, caller: Caller, now, balance_reader, read: _Read) -> dict[str, Any]:

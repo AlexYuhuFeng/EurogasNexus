@@ -1,4 +1,4 @@
-import { EvidenceBlock, PanelHeader } from "@/components/ui";
+import { DataGrid, EvidenceBlock, PanelHeader } from "@/components/ui";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import {
@@ -26,6 +26,11 @@ interface StorageDispatchPanelProps {
 function formatQuantity(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
   return `${value.toLocaleString()} MWh`;
+}
+
+/** A volume in the column's unit (MWh, in the header). */
+function quantity(value: number | null | undefined): string {
+  return value === null || value === undefined || Number.isNaN(value) ? "–" : value.toLocaleString("en-GB");
 }
 
 function formatMoney(value: number | null | undefined): string {
@@ -122,29 +127,22 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
           <span className="eyebrow">{t("decision.dispatch.periods")}</span>
           <strong>{draft.periods.length}</strong>
         </div>
-        <div className="data-table decision-dispatch-table" tabIndex={0}>
-          <div className="data-table-row header two">
-            <span>{t("decision.dispatch.period_id")}</span>
-            <span>{t("decision.dispatch.market_price")}</span>
-          </div>
-          {draft.periods.map((period, index) => (
-            <div key={`period-${index}`} className="data-table-row two">
-              <input
-                aria-label={t("decision.dispatch.period_id")}
-                type="text"
-                value={period.periodId}
-                onChange={(event) => updatePeriod(index, { periodId: event.target.value })}
-              />
-              <input
-                aria-label={t("decision.dispatch.market_price")}
-                type="text"
-                inputMode="decimal"
-                value={period.marketPrice}
-                onChange={(event) => updatePeriod(index, { marketPrice: event.target.value })}
-              />
-            </div>
-          ))}
-        </div>
+        <DataGrid
+          id="dispatch-periods"
+          className="decision-dispatch-table"
+          label={t("decision.dispatch.periods")}
+          rows={draft.periods.map((_, index) => index)}
+          rowKey={(index) => `period-${index}`}
+          density="compact"
+          columns={[
+            { id: "period", header: t("decision.dispatch.period_id"), render: (index) => (
+              <input aria-label={t("decision.dispatch.period_id")} type="text" value={draft.periods[index].periodId} onChange={(event) => updatePeriod(index, { periodId: event.target.value })} />
+            ) },
+            { id: "price", header: t("decision.dispatch.market_price"), render: (index) => (
+              <input aria-label={t("decision.dispatch.market_price")} type="text" inputMode="decimal" value={draft.periods[index].marketPrice} onChange={(event) => updatePeriod(index, { marketPrice: event.target.value })} />
+            ) },
+          ]}
+        />
         <div className="decision-assessment-actions">
           <button
             type="button"
@@ -225,26 +223,27 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
           {rows.length === 0 ? (
             <p className="muted">{t("decision.dispatch.no_periods")}</p>
           ) : (
-            <div className="research-table data-table" tabIndex={0}>
-              <div className="data-table-row header five">
-                <span>{t("decision.dispatch.period_id")}</span>
-                <span>{t("decision.dispatch.injection")}</span>
-                <span>{t("decision.dispatch.withdrawal")}</span>
-                <span>{t("decision.dispatch.ending_inventory")}</span>
-                <span>{t("decision.dispatch.cashflow")}</span>
-              </div>
-              {rows.map((row) => (
-                <div key={row.period_id} className="data-table-row five">
-                  <strong>{row.period_id}</strong>
-                  <span>{formatQuantity(row.injection_mwh)}</span>
-                  <span>{formatQuantity(row.withdrawal_mwh)}</span>
-                  <span>{formatQuantity(row.ending_inventory_mwh)}</span>
-                  <span className={row.cashflow_gbp < 0 ? "status-badge status-blocked" : ""}>
-                    {formatMoney(row.cashflow_gbp)}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <DataGrid
+              id="dispatch-decisions"
+              label={t("decision.dispatch.periods")}
+              rows={rows}
+              rowKey={(row) => row.period_id}
+              density="compact"
+              columns={[
+                { id: "period", header: t("decision.dispatch.period_id"), rowHeader: true, value: (row) => row.period_id },
+                { id: "injection", header: t("decision.dispatch.injection"), unit: "MWh", type: "number", value: (row) => row.injection_mwh, format: (value) => quantity(value as number) },
+                { id: "withdrawal", header: t("decision.dispatch.withdrawal"), unit: "MWh", type: "number", value: (row) => row.withdrawal_mwh, format: (value) => quantity(value as number) },
+                { id: "inventory", header: t("decision.dispatch.ending_inventory"), unit: "MWh", type: "number", value: (row) => row.ending_inventory_mwh, format: (value) => quantity(value as number) },
+                {
+                  id: "cashflow",
+                  header: t("decision.dispatch.cashflow"),
+                  unit: "GBP",
+                  type: "number",
+                  value: (row) => row.cashflow_gbp,
+                  render: (row) => <span className={row.cashflow_gbp < 0 ? "status-badge status-blocked" : ""}>{formatMoney(row.cashflow_gbp).replace(/ GBP$/, "")}</span>,
+                },
+              ]}
+            />
           )}
 
           {result.warnings.length > 0 && (

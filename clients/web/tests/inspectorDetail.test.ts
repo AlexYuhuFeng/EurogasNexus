@@ -762,7 +762,7 @@ test("the review surface hands its evidence over only when it was resolved", () 
   const decision = readWebSource("components/DecisionWorkspace.tsx");
 
   assert.match(workspace, /const resolved = reviewEvidenceFor\(reviewProjection, row\.entity_type, row\.entity_id\);/);
-  assert.match(workspace, /\{resolved \? \(/);
+  assert.match(workspace, /(\{|return )resolved \? \(/);
   assert.match(workspace, /onInspectEvidence\(entityRef, /);
   // An unresolved entity says so rather than offering an action that would do nothing.
   assert.match(workspace, /t\("review\.evidence_unavailable"\)/);

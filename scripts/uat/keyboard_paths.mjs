@@ -139,8 +139,8 @@ export async function runKeyboardPaths() {
     await page.keyboard.press("Enter");
     check(values.length > 0, `sorted rows: ${values.join(" | ")}`);
 
-    // Popover: Method ---------------------------------------------------------------------------
-    await go(page, "?workspace=contracts&task=exposure");
+    // Popover: Method (the ladder's mark-to-market and VaR are on Position) ----------------------
+    await go(page, "?workspace=contracts&task=overview");
     const method = page.locator("[data-method=var_proxy], [data-method=mark_to_market]").first();
     await method.scrollIntoViewIfNeeded();
     await method.focus();
@@ -192,7 +192,7 @@ export async function runKeyboardPaths() {
     await page.waitForTimeout(300);
     await page.keyboard.type("Decision Center");
     await page.waitForTimeout(300);
-    const found = await page.locator("[role=option], [role=listbox] li, .command-palette-result").allTextContents();
+    const found = await page.locator("[role=option]").allTextContents();
     check(found.some((text) => /Deals/.test(text)), `the palette finds "Decision Center" as Deals (${found.slice(0, 3).join(" | ")})`);
     await page.keyboard.press("Escape");
     // A utility page selects no mode and keeps one Tab stop.

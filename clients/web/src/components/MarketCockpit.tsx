@@ -1,3 +1,4 @@
+import { PriceCharts } from "@/components/PriceCharts";
 import { openDeskBrief } from "@/components/DeskBriefDialog";
 import { useEffect, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
@@ -156,6 +157,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             onRefresh={api.refreshMarketData}
             t={t}
           />
+          <PriceCharts markets={api.normalizedMarkets} t={t} />
           {/* Desk conventions beside the board: product strip, hub price conversion and the
               storage-target trajectory, all computed by the backend. */}
           <TraderDeskPanel t={t} />

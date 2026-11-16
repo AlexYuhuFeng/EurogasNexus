@@ -1,4 +1,4 @@
-import { EvidenceBlock, PanelHeader } from "@/components/ui";
+import { DataGrid, EvidenceBlock, PanelHeader } from "@/components/ui";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import {
@@ -24,9 +24,10 @@ interface NominationWindowPanelProps {
   readonly record: OptimizationRunRecord;
 }
 
+/** A volume in the column's unit (MWh, in the header). */
 function formatQuantity(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
-  return `${value.toLocaleString()} MWh`;
+  if (value === null || value === undefined || Number.isNaN(value)) return "–";
+  return value.toLocaleString("en-GB");
 }
 
 /**
@@ -99,44 +100,28 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
           <span className="eyebrow">{t("decision.nomination.windows")}</span>
           <strong>{draft.windows.length}</strong>
         </div>
-        <div className="data-table decision-nomination-table" tabIndex={0}>
-          <div className="data-table-row header four">
-            <span>{t("decision.nomination.window_id")}</span>
-            <span>{t("decision.nomination.opens_at")}</span>
-            <span>{t("decision.nomination.closes_at")}</span>
-            <span>{t("decision.nomination.maximum_change")}</span>
-          </div>
-          {draft.windows.map((window, index) => (
-            <div key={`window-${index}`} className="data-table-row four">
-              <input
-                aria-label={t("decision.nomination.window_id")}
-                type="text"
-                maxLength={128}
-                value={window.windowId}
-                onChange={(event) => updateWindow(index, { windowId: event.target.value })}
-              />
-              <input
-                aria-label={t("decision.nomination.opens_at")}
-                type="time"
-                value={window.opensAt}
-                onChange={(event) => updateWindow(index, { opensAt: event.target.value })}
-              />
-              <input
-                aria-label={t("decision.nomination.closes_at")}
-                type="time"
-                value={window.closesAt}
-                onChange={(event) => updateWindow(index, { closesAt: event.target.value })}
-              />
-              <input
-                aria-label={t("decision.nomination.maximum_change")}
-                type="text"
-                inputMode="decimal"
-                value={window.maximumChange}
-                onChange={(event) => updateWindow(index, { maximumChange: event.target.value })}
-              />
-            </div>
-          ))}
-        </div>
+        <DataGrid
+          id="nomination-windows"
+          className="decision-nomination-table"
+          label={t("decision.nomination.windows")}
+          rows={draft.windows.map((_, index) => index)}
+          rowKey={(index) => `window-${index}`}
+          density="compact"
+          columns={[
+            { id: "window", header: t("decision.nomination.window_id"), render: (index) => (
+              <input aria-label={t("decision.nomination.window_id")} type="text" maxLength={128} value={draft.windows[index].windowId} onChange={(event) => updateWindow(index, { windowId: event.target.value })} />
+            ) },
+            { id: "opens", header: t("decision.nomination.opens_at"), render: (index) => (
+              <input aria-label={t("decision.nomination.opens_at")} type="time" value={draft.windows[index].opensAt} onChange={(event) => updateWindow(index, { opensAt: event.target.value })} />
+            ) },
+            { id: "closes", header: t("decision.nomination.closes_at"), render: (index) => (
+              <input aria-label={t("decision.nomination.closes_at")} type="time" value={draft.windows[index].closesAt} onChange={(event) => updateWindow(index, { closesAt: event.target.value })} />
+            ) },
+            { id: "cap", header: t("decision.nomination.maximum_change"), render: (index) => (
+              <input aria-label={t("decision.nomination.maximum_change")} type="text" inputMode="decimal" value={draft.windows[index].maximumChange} onChange={(event) => updateWindow(index, { maximumChange: event.target.value })} />
+            ) },
+          ]}
+        />
         <div className="decision-assessment-actions">
           <button
             type="button"
@@ -171,31 +156,22 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
           <span className="eyebrow">{t("decision.nomination.instructions")}</span>
           <strong>{draft.instructions.length}</strong>
         </div>
-        <div className="data-table decision-nomination-table" tabIndex={0}>
-          <div className="data-table-row header two">
-            <span>{t("decision.nomination.submitted_at")}</span>
-            <span>{t("decision.nomination.requested")}</span>
-          </div>
-          {draft.instructions.map((instruction, index) => (
-            <div key={`instruction-${index}`} className="data-table-row two">
-              <input
-                aria-label={t("decision.nomination.submitted_at")}
-                type="datetime-local"
-                value={instruction.submittedAt}
-                onChange={(event) => updateInstruction(index, { submittedAt: event.target.value })}
-              />
-              <input
-                aria-label={t("decision.nomination.requested")}
-                type="text"
-                inputMode="decimal"
-                value={instruction.requestedQuantity}
-                onChange={(event) =>
-                  updateInstruction(index, { requestedQuantity: event.target.value })
-                }
-              />
-            </div>
-          ))}
-        </div>
+        <DataGrid
+          id="nomination-instructions"
+          className="decision-nomination-table"
+          label={t("decision.nomination.instructions")}
+          rows={draft.instructions.map((_, index) => index)}
+          rowKey={(index) => `instruction-${index}`}
+          density="compact"
+          columns={[
+            { id: "submitted", header: t("decision.nomination.submitted_at"), render: (index) => (
+              <input aria-label={t("decision.nomination.submitted_at")} type="datetime-local" value={draft.instructions[index].submittedAt} onChange={(event) => updateInstruction(index, { submittedAt: event.target.value })} />
+            ) },
+            { id: "requested", header: t("decision.nomination.requested"), unit: "MWh", render: (index) => (
+              <input aria-label={t("decision.nomination.requested")} type="text" inputMode="decimal" value={draft.instructions[index].requestedQuantity} onChange={(event) => updateInstruction(index, { requestedQuantity: event.target.value })} />
+            ) },
+          ]}
+        />
         <div className="decision-assessment-actions">
           <button
             type="button"
@@ -242,7 +218,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
         <section className="workspace-panel span-3 decision-nomination-result">
           <PanelHeader
             title={t("decision.nomination.result")}
-            meta={`${result.status} · ${formatQuantity(result.final_quantity_mwh)}`}
+            meta={`${result.status} · ${formatQuantity(result.final_quantity_mwh)} MWh`}
           />
           <EvidenceBlock
             ariaLabel={t("decision.nomination.result")}
@@ -264,7 +240,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
               {
                 label: t("decision.assessment.engine_status"),
                 value: result.status,
-                detail: `${t("decision.nomination.final_quantity")}: ${formatQuantity(result.final_quantity_mwh)}`,
+                detail: `${t("decision.nomination.final_quantity")}: ${formatQuantity(result.final_quantity_mwh)} MWh`,
               },
               {
                 label: t("evidence.review_boundary"),
@@ -279,28 +255,27 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
           {rows.length === 0 ? (
             <p className="muted">{t("decision.nomination.no_instructions")}</p>
           ) : (
-            <div className="research-table data-table" tabIndex={0}>
-              <div className="data-table-row header five">
-                <span>{t("decision.nomination.submitted_at")}</span>
-                <span>{t("decision.nomination.requested")}</span>
-                <span>{t("decision.nomination.accepted")}</span>
-                <span>{t("decision.nomination.window_applied")}</span>
-                <span>{t("decision.nomination.reason")}</span>
-              </div>
-              {rows.map((row, index) => (
-                <div key={`decision-${index}`} className="data-table-row five">
-                  <span>{formatUtcTimestamp(row.submittedAt)}</span>
-                  <span>{formatQuantity(row.requested)}</span>
-                  <span className={row.accepted_instruction ? "" : "status-badge status-blocked"}>
-                    {formatQuantity(row.accepted)}
-                  </span>
-                  <span>
-                    {row.windowId ?? t("decision.nomination.outside_any_window")}
-                  </span>
-                  <span className="muted">{row.reason}</span>
-                </div>
-              ))}
-            </div>
+            <DataGrid
+              id="nomination-decisions"
+              label={t("decision.nomination.instructions")}
+              rows={rows}
+              rowKey={(row) => `${row.submittedAt}-${row.windowId ?? "none"}-${row.requested}`}
+              density="compact"
+              columns={[
+                { id: "submitted", header: t("decision.nomination.submitted_at"), rowHeader: true, type: "date", value: (row) => row.submittedAt, format: (value) => formatUtcTimestamp(value as string) },
+                { id: "requested", header: t("decision.nomination.requested"), unit: "MWh", type: "number", value: (row) => row.requested, format: (value) => formatQuantity(value as number) },
+                {
+                  id: "accepted",
+                  header: t("decision.nomination.accepted"),
+                  unit: "MWh",
+                  type: "number",
+                  value: (row) => row.accepted,
+                  render: (row) => <span className={row.accepted_instruction ? "" : "status-badge status-blocked"}>{formatQuantity(row.accepted)}</span>,
+                },
+                { id: "window", header: t("decision.nomination.window_applied"), value: (row) => row.windowId ?? t("decision.nomination.outside_any_window") },
+                { id: "reason", header: t("decision.nomination.reason"), value: (row) => row.reason, cellClassName: () => "muted" },
+              ]}
+            />
           )}
 
           {result.warnings.length > 0 && (

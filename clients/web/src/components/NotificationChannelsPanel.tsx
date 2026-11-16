@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, type NotificationChannelDTO } from "@/api/client";
+import { DataGrid } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -57,26 +58,19 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
       <h3 id="notify-title">{t("notify.title")}</h3>
       <p className="settings-backend-message">{t("notify.copy")}</p>
       {rows.length > 0 && (
-        <table className="position-ladder">
-          <thead>
-            <tr>
-              <th scope="col">{t("notify.name")}</th>
-              <th scope="col">{t("notify.receives")}</th>
-              <th scope="col">{t("notify.last")}</th>
-              <th scope="col" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.channel_id}>
-                <td><strong>{row.name}</strong> <small>{row.recipients ?? ""}</small></td>
-                <td><small>{(row.categories.length ? row.categories.map((category) => t(`notify.category_${category}`)) : [t("notify.all")]).join(", ")} · ≥ {t(`notify.severity_${row.min_severity}`)}</small></td>
-                <td>{row.last_delivery ? <span className="limit-badge" data-status={row.last_delivery.status === "sent" ? "ok" : "breach"} title={row.last_delivery.detail}>{row.last_delivery.status}</span> : <small className="muted">-</small>}</td>
-                <td><button type="button" className="link-button" onClick={() => test(row)}>{t("notify.test")}</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          id="notification-channels"
+          label={t("notify.name")}
+          rows={rows}
+          rowKey={(row) => row.channel_id}
+          density="compact"
+          columns={[
+            { id: "name", header: t("notify.name"), rowHeader: true, sortable: true, value: (row) => row.name, render: (row) => <><strong>{row.name}</strong> <small>{row.recipients ?? ""}</small></> },
+            { id: "receives", header: t("notify.receives"), render: (row) => <small>{(row.categories.length ? row.categories.map((category) => t(`notify.category_${category}`)) : [t("notify.all")]).join(", ")} · ≥ {t(`notify.severity_${row.min_severity}`)}</small> },
+            { id: "last", header: t("notify.last"), value: (row) => row.last_delivery?.status ?? null, render: (row) => (row.last_delivery ? <span className="limit-badge" data-status={row.last_delivery.status === "sent" ? "ok" : "breach"} title={row.last_delivery.detail}>{row.last_delivery.status}</span> : "–") },
+            { id: "test", header: <span className="visually-hidden">{t("notify.test")}</span>, render: (row) => <button type="button" className="ds-inline-link" onClick={() => test(row)} aria-label={`${t("notify.test")}: ${row.name}`}>{t("notify.test")}</button> },
+          ]}
+        />
       )}
       {/* Adding a channel is occasional set-up: folded under its action (#69). */}
       <details className="scope-fold">

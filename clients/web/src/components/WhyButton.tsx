@@ -2,6 +2,7 @@
  * "Why?" next to the number: two or three sentences on why an alert, an outage, a credit
  * line, a mandate or a P&L figure matters, with the sources they rest on.
  *
+ * - One trigger style: a quiet inline link (`.ds-inline-link`), never a bordered button.
  * - The server loads the evidence from the object's id; the button sends nothing else.
  * - The note is a Popover: drawn in the top layer, so a table that scrolls inside its box
  *   never clips it; placed against collisions; Escape, a click elsewhere or the button closes
@@ -22,7 +23,6 @@ export function WhyButton({
   label,
   language,
   t,
-  inline = false,
 }: {
   subject: ExplainSubject;
   id: string;
@@ -31,8 +31,6 @@ export function WhyButton({
   /** Defaults to the app language. */
   language?: string;
   t: Translate;
-  /** A quiet link beside a figure's label instead of a bordered button. */
-  inline?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<
@@ -61,7 +59,7 @@ export function WhyButton({
       placement="bottom-end"
       onOpenChange={setOpen}
       trigger={(props) => (
-        <button {...props} type="button" className={inline ? "why-button ds-inline-link" : "why-button ds-note-trigger"} aria-label={name} title={name}>
+        <button {...props} type="button" className="why-button ds-inline-link" aria-label={name} title={name}>
           {t("why.button")}
         </button>
       )}

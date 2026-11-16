@@ -89,7 +89,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
         label={t("position.mtm")}
         value={money(ladder.mark_to_market)}
         unit={ladder.reporting_currency || undefined}
-        notes={<MethodNote inline method={ladder.methods?.mark_to_market} subject={t("position.mtm")} t={t} />}
+        notes={<MethodNote method={ladder.methods?.mark_to_market} subject={t("position.mtm")} t={t} />}
       />
       {/* Gross by month adds information only when months offset; equal to |net| it repeats it. */}
       {ladder.totals.gross_tenor_mwh !== undefined &&
@@ -108,7 +108,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
           value={t("position.var_withheld").replace("{{hubs}}", ladder.offsetting_hubs.join(", "))}
           valueClassName="position-var-withheld"
           title={t("position.var_withheld_help")}
-          notes={<MethodNote inline method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
+          notes={<MethodNote method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
         />
       ) : (
         <KeyFigure
@@ -116,22 +116,10 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
           value={money(ladder.var_95_1d)}
           unit={ladder.var_95_1d == null ? undefined : ladder.reporting_currency || undefined}
           title={ladder.var_95_1d == null ? undefined : t("position.var_help", { count: ladder.var_observations })}
-          notes={<MethodNote inline method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
+          notes={<MethodNote method={ladder.methods?.var_95_1d} subject={t("position.var")} t={t} />}
         />
       )}
     </div>
-  );
-}
-
-/** Compact strip for the Portfolio overview: what management reads first. */
-export function PositionRiskSummary({ t }: { t: Translate }) {
-  const { ladder } = useLadder(12);
-  if (!ladder || ladder.rows.length === 0) return null;
-  return (
-    <section className="workspace-panel span-3 position-ladder-panel" aria-label={t("position.title")}>
-      <h2>{t("position.title")}</h2>
-      <SummaryStrip ladder={ladder} t={t} />
-    </section>
   );
 }
 
@@ -278,15 +266,27 @@ function useLadderColumns(ladder: PositionLadderDTO | null, t: Translate) {
         id: "mark",
         header: t("position.mark"),
         type: "number",
-        value: (row) => row.mark,
-        // Hubs quote in their own currency, so the unit differs by row and is shown in the cell.
-        render: (row) =>
-          row.mark == null ? "–" : (
+        value: (row) => row.mark_quote ?? row.mark,
+        // Shown as the desk quotes the hub (NBP in GBp/th, rule 17); the unit differs by row and
+        // is in the cell. The per-MWh value the book is valued at is on demand in the title.
+        render: (row) => {
+          if (row.mark == null) return "–";
+          const quoted = row.mark_quote != null && row.mark_quote_unit;
+          return (
             <>
-              {price(row.mark)} <small className="ds-grid-unit">{hubCurrency(row.hub) ?? ""}/MWh</small>
+              {price(quoted ? row.mark_quote : row.mark)}{" "}
+              <small className="ds-grid-unit">{quoted ? row.mark_quote_unit : (row.mark_unit ?? `${hubCurrency(row.hub) ?? ""}/MWh`)}</small>
             </>
-          ),
-        cellTitle: (row) => (row.mark_method ? t(`position.mark_${row.mark_method}`) : undefined),
+          );
+        },
+        cellTitle: (row) => {
+          const parts = row.mark_method ? [t(`position.mark_${row.mark_method}`)] : [];
+          const perMwhUnit = row.mark_unit ?? `${hubCurrency(row.hub) ?? ""}/MWh`;
+          if (row.mark != null && row.mark_quote_unit && row.mark_quote_unit !== perMwhUnit) {
+            parts.push(t("today.book.mark_per_mwh", { value: price(row.mark), unit: perMwhUnit }));
+          }
+          return parts.length ? parts.join(" · ") : undefined;
+        },
         cellAttributes: (row) => ({ "data-mark-method": row.mark_method ?? undefined }),
       },
     ];

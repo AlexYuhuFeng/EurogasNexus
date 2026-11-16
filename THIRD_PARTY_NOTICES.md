@@ -528,7 +528,7 @@ Package counts and the SHA-256 of every lock input are recorded in
 
 ## web-node
 
-89 packages recorded: 89 with a lock-declared license expression, 0 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
+90 packages recorded: 90 with a lock-declared license expression, 0 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
 
 - @babel/runtime 7.29.7 (MIT)
 - @emnapi/core 1.11.1 (MIT)
@@ -616,6 +616,7 @@ Package counts and the SHA-256 of every lock input are recorded in
 - tinyqueue 3.0.0 (ISC)
 - tslib 2.8.1 (0BSD)
 - typescript 5.9.3 (Apache-2.0)
+- uplot 1.6.32 (MIT)
 - vite 8.1.6 (MIT)
 - void-elements 3.1.0 (MIT)
 - zustand 5.0.14 (MIT)

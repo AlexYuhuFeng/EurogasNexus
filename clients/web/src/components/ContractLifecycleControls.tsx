@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api, type UpstreamContractDTO } from "@/api/client";
+import { DataGrid } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 export type ContractLifecycleAction = (
@@ -106,44 +107,36 @@ export function RetiredContractsList({
   return (
     <details className="contract-retired">
       <summary>{t("contracts.retired_title", { count: rows.length })}</summary>
-      <table className="position-ladder">
-        <thead>
-          <tr>
-            <th scope="col">{t("contracts.resource_term")}</th>
-            <th scope="col">{t("contracts.retired_when")}</th>
-            <th scope="col">{t("contracts.retire_reason")}</th>
-            <th scope="col" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.contract_id}>
-              <td><strong>{row.contract_name}</strong> <small>{row.contract_id}</small></td>
-              <td><small>{row.retired_at_utc?.slice(0, 16).replace("T", " ")} UTC · {row.retired_by_name ?? row.retired_by}</small></td>
-              <td>{row.retire_reason}</td>
-              <td>
-                <div className="contract-reinstate">
-                  <input
-                    aria-label={t("contracts.reinstate_reason")}
-                    placeholder={t("contracts.reinstate_reason")}
-                    value={reasons[row.contract_id] ?? ""}
-                    maxLength={500}
-                    onChange={(event) => setReasons((current) => ({ ...current, [row.contract_id]: event.target.value }))}
-                  />
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={(reasons[row.contract_id] ?? "").trim().length < 3}
-                    onClick={() => reinstate(row)}
-                  >
-                    {t("contracts.reinstate")}
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataGrid
+        id="retired-contracts"
+        label={t("contracts.retired_title", { count: rows.length })}
+        rows={rows}
+        rowKey={(row) => row.contract_id}
+        density="compact"
+        columns={[
+          { id: "contract", header: t("contracts.resource_term"), rowHeader: true, value: (row) => row.contract_name, render: (row) => <><strong>{row.contract_name}</strong> <small>{row.contract_id}</small></> },
+          { id: "when", header: t("contracts.retired_when"), type: "date", value: (row) => row.retired_at_utc ?? null, render: (row) => <small>{row.retired_at_utc?.slice(0, 16).replace("T", " ")} UTC · {row.retired_by_name ?? row.retired_by}</small> },
+          { id: "reason", header: t("contracts.retire_reason"), value: (row) => row.retire_reason ?? null },
+          {
+            id: "reinstate",
+            header: <span className="visually-hidden">{t("contracts.reinstate")}</span>,
+            render: (row) => (
+              <div className="contract-reinstate">
+                <input
+                  aria-label={t("contracts.reinstate_reason")}
+                  placeholder={t("contracts.reinstate_reason")}
+                  value={reasons[row.contract_id] ?? ""}
+                  maxLength={500}
+                  onChange={(event) => setReasons((current) => ({ ...current, [row.contract_id]: event.target.value }))}
+                />
+                <button type="button" className="secondary-button" disabled={(reasons[row.contract_id] ?? "").trim().length < 3} onClick={() => reinstate(row)}>
+                  {t("contracts.reinstate")}
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
       {error && <p role="alert" className="limit-breaches">{error}</p>}
     </details>
   );

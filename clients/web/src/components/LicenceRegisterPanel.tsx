@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, type MarketDataLicenceDTO, type MarketDataLicenceInput } from "@/api/client";
+import { DataGrid } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -56,35 +57,29 @@ export function LicenceRegisterPanel({ t }: { t: Translate }) {
       <p className="muted">{t("licence.help")}</p>
       {licences && licences.length === 0 && <p className="muted">{t("licence.empty")}</p>}
       {licences && licences.length > 0 && (
-        <table className="position-ladder">
-          <thead>
-            <tr>
-              <th scope="col">{t("licence.source")}</th>
-              <th scope="col">{t("licence.vendor")}</th>
-              <th scope="col">{t("licence.type")}</th>
-              <th scope="col">{t("licence.use")}</th>
-              <th scope="col">{t("licence.valid")}</th>
-              <th scope="col">{t("licence.holders")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {licences.map((row) => (
-              <tr key={row.licence_id} data-record="licence-row" data-licence-active={row.active}>
-                <td><strong>{row.source_family}</strong> <small>{row.licence_id}</small></td>
-                <td>{row.vendor}{row.contract_reference ? ` · ${row.contract_reference}` : ""}</td>
-                <td>
-                  {t(`licence.type_${row.licence_type}`)}
-                  {row.licence_type === "SITE" && row.offices?.length ? ` (${row.offices.join(", ")})` : ""}
-                </td>
-                <td>{t(`licence.use_${row.licensed_use}`)}</td>
-                <td>{row.valid_from} – {row.valid_to ?? "…"}{row.active ? "" : ` (${t("licence.inactive")})`}</td>
-                <td title={row.holders.map((holder) => holder.display_name).join(", ")}>
-                  {row.licence_type === "NAMED_USER" ? `${row.seats_used ?? 0} / ${row.seats ?? 0}` : row.holders.length}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          id="licence-register"
+          label={t("licence.source")}
+          rows={licences}
+          rowKey={(row) => row.licence_id}
+          density="compact"
+          rowAttributes={(row) => ({ "data-record": "licence-row", "data-licence-active": String(row.active) })}
+          columns={[
+            { id: "source", header: t("licence.source"), rowHeader: true, sortable: true, value: (row) => row.source_family, render: (row) => <><strong>{row.source_family}</strong> <small>{row.licence_id}</small></> },
+            { id: "vendor", header: t("licence.vendor"), sortable: true, value: (row) => `${row.vendor}${row.contract_reference ? ` · ${row.contract_reference}` : ""}` },
+            { id: "type", header: t("licence.type"), value: (row) => `${t(`licence.type_${row.licence_type}`)}${row.licence_type === "SITE" && row.offices?.length ? ` (${row.offices.join(", ")})` : ""}` },
+            { id: "use", header: t("licence.use"), value: (row) => t(`licence.use_${row.licensed_use}`) },
+            { id: "valid", header: t("licence.valid"), type: "date", value: (row) => `${row.valid_from} – ${row.valid_to ?? "…"}${row.active ? "" : ` (${t("licence.inactive")})`}` },
+            {
+              id: "holders",
+              header: t("licence.holders"),
+              type: "number",
+              value: (row) => (row.licence_type === "NAMED_USER" ? row.seats_used ?? 0 : row.holders.length),
+              render: (row) => (row.licence_type === "NAMED_USER" ? `${row.seats_used ?? 0} / ${row.seats ?? 0}` : row.holders.length),
+              cellTitle: (row) => row.holders.map((holder) => holder.display_name).join(", "),
+            },
+          ]}
+        />
       )}
       <div className="licence-form">
         <label><span>{t("licence.id")}</span><input value={draft.licence_id} onChange={field("licence_id")} /></label>

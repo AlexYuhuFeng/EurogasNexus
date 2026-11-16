@@ -95,8 +95,9 @@ test("narrow scroll regions are explicitly keyboard focusable", () => {
     ["components/ui/DataGrid.tsx", /tabIndex=\{interactive \|\| anySortable \? undefined : 0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-command-actions" tabIndex=\{0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-clause-nav"[\s\S]*?tabIndex=\{0\}/],
-    ["components/ReviewWorkspace.tsx", /className="data-table" tabIndex=\{0\}/],
-    ["components/MarketPositioningWorkspace.tsx", /className="data-table orders-table" tabIndex=\{0\}/],
+    ["components/ReviewWorkspace.tsx", /<DataGrid[\s\S]*?id="review-decisions"/],
+    // Screen orders and P&L snapshots are DataGrids (UX-06): the grid's scroll box takes focus.
+    ["components/MarketPositioningWorkspace.tsx", /<DataGrid[\s\S]*?id="screen-orders"[\s\S]*?maxHeight=/],
     ["components/AccessCenter.tsx", /className="data-table" tabIndex=\{0\}/],
     ["components/AgentsWorkspace.tsx", /className="research-table data-table" tabIndex=\{0\}/],
     // The decision rail scrolls (`overflow-y: auto`) and holds text, not controls: without a focus

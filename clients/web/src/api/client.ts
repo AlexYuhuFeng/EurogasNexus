@@ -1935,7 +1935,8 @@ export interface TodayBookRowDTO {
     position_today: TodayFigureDTO;
     position_front_month: TodayFigureDTO;
     net_open_mwh: number;
-    mark: (TodayFigureDTO & { same_as: string | null }) | null;
+    /** In the hub's quotation (NBP GBp/th); the book's per-MWh value travels with it. */
+    mark: (TodayFigureDTO & { same_as: string | null; value_mwh?: number; unit_mwh?: string }) | null;
     day_pnl_change: TodayFigureDTO | { empty: TodayEmptyDTO };
   }[];
 }
@@ -1951,6 +1952,10 @@ export interface TodayFundamentalsRowDTO {
         inventory_twh: number;
         unit: string;
         series: { day: string; inventory_twh: number; fill_pct: number | null }[];
+        /** About four months of fill against the same gas days a year earlier. */
+        season?: { day: string; fill_pct: number | null; previous_year_fill_pct: number | null }[];
+        /** The EU filling target: met at any point between window_open and deadline ("MM-DD"). */
+        target?: { pct: number; window_open: string; deadline: string };
       }
     | { empty: TodayEmptyDTO };
   balance:
@@ -2773,6 +2778,11 @@ export interface PositionLadderRowDTO {
   mark?: number | null;
   /** "quoted", "derived" (from a quarter, season or year), "front" (prompt) or "flat". */
   mark_method?: string | null;
+  /** The unit of `mark`: the hub's currency per MWh. */
+  mark_unit?: string;
+  /** The same mark as the desk quotes the hub (NBP in GBp/th), for display. */
+  mark_quote?: number | null;
+  mark_quote_unit?: string;
 }
 
 /** A market-data licence the firm holds; licensed data scopes are granted against it. */

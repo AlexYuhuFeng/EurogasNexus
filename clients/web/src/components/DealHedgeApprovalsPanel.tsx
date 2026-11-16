@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { DataGrid, type DataGridColumn } from "@/components/ui";
 
 import { api, type HedgeApprovalRowDTO } from "@/api/client";
-import { formatQuantity } from "@/app/model/riskLimitsModel";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -65,47 +65,78 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
       ? `${row.min_hedge_ratio_pct}% – ${row.max_hedge_ratio_pct ?? 100}%`
       : t("hedgeapproval.at_most", { pct: row.max_hedge_ratio_pct });
 
+  const columns: DataGridColumn<HedgeApprovalRowDTO>[] = [
+    {
+      id: "contract",
+      header: t("hedgeapproval.contract"),
+      rowHeader: true,
+      sortable: true,
+      value: (row) => row.contract_name,
+      render: (row) => (
+        <>
+          <strong>{row.contract_name}</strong>{" "}
+          <small className="muted">{row.approval_ref ?? ""}{row.valid_until ? ` · ${t("hedgeapproval.until", { date: row.valid_until })}` : ""}</small>
+        </>
+      ),
+    },
+    { id: "band", header: t("hedgeapproval.band"), value: (row) => row.max_hedge_ratio_pct, render: band },
+    {
+      id: "hedged",
+      header: t("hedgeapproval.hedged"),
+      value: (row) => row.hedge_range ?? null,
+      render: (row) => <>{row.hedge_range ?? "–"} <small className="muted">{t("hedgeapproval.trades", { count: row.linked_trades })}</small></>,
+    },
+    {
+      id: "room",
+      header: t("hedgeapproval.room"),
+      unit: "MWh",
+      type: "number",
+      value: (row) => row.months.find((month) => month.room_mwh != null)?.room_mwh ?? null,
+      render: (row) => {
+        const next = row.months.find((month) => month.room_mwh != null);
+        return next ? <>{Math.round(next.room_mwh ?? 0).toLocaleString("en-GB")} <small className="muted">{next.month}</small></> : "–";
+      },
+    },
+    {
+      id: "status",
+      header: t("hedgeapproval.status"),
+      sortable: true,
+      value: (row) => row.status,
+      render: (row) => (
+        <>
+          <span className="limit-badge" data-status={row.status === "ok" ? "ok" : "breach"}>{t(`hedgeapproval.status_${row.status}`)}</span>
+          {row.breaches.length > 0 && <small className="limit-breaches"> {row.breaches.join("; ")}</small>}
+        </>
+      ),
+    },
+    ...(canMaintainRisk
+      ? [{
+          id: "edit",
+          header: <span className="visually-hidden">{t("hedgeapproval.change")}</span>,
+          render: (row: HedgeApprovalRowDTO) => (
+            <button type="button" className="ds-inline-link" onClick={() => edit(row)} aria-label={`${t("hedgeapproval.change")}: ${row.contract_name}`}>
+              {t("hedgeapproval.change")}
+            </button>
+          ),
+        }]
+      : []),
+  ];
+
   return (
     <section className="workspace-panel span-3 deal-hedge-panel" aria-labelledby="deal-hedge-title">
       <h2 id="deal-hedge-title">{t("hedgeapproval.title")}</h2>
         <PanelHelp text={t("hedgeapproval.copy")} label={t("panel.how_to_read")} />
       {rows && rows.length === 0 && <p className="muted">{t("hedgeapproval.empty")}</p>}
       {rows && rows.length > 0 && (
-        <table className="position-ladder">
-          <thead>
-            <tr>
-              <th scope="col">{t("hedgeapproval.contract")}</th>
-              <th scope="col">{t("hedgeapproval.band")}</th>
-              <th scope="col">{t("hedgeapproval.hedged")}</th>
-              <th scope="col" className="num">{t("hedgeapproval.room")}</th>
-              <th scope="col">{t("hedgeapproval.status")}</th>
-              {canMaintainRisk && <th scope="col" />}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const next = row.months.find((month) => month.room_mwh != null);
-              return (
-                <tr key={row.contract_id} data-status={row.status === "ok" ? undefined : "breach"}>
-                  <td>
-                    <strong>{row.contract_name}</strong>{" "}
-                    <small className="muted">{row.approval_ref ?? ""}{row.valid_until ? ` · ${t("hedgeapproval.until", { date: row.valid_until })}` : ""}</small>
-                  </td>
-                  <td>{band(row)}</td>
-                  <td>
-                    {row.hedge_range ?? "–"} <small className="muted">{t("hedgeapproval.trades", { count: row.linked_trades })}</small>
-                  </td>
-                  <td className="num">{next ? `${formatQuantity(next.room_mwh)} · ${next.month}` : "–"}</td>
-                  <td>
-                    <span className="limit-badge" data-status={row.status === "ok" ? "ok" : "breach"}>{t(`hedgeapproval.status_${row.status}`)}</span>
-                    {row.breaches.length > 0 && <div className="limit-breaches"><small>{row.breaches.join("; ")}</small></div>}
-                  </td>
-                  {canMaintainRisk && <td><button type="button" className="link-button" onClick={() => edit(row)}>{t("hedgeapproval.change")}</button></td>}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <DataGrid
+          id="deal-hedge-approvals"
+          label={t("hedgeapproval.title")}
+          columns={columns}
+          rows={rows}
+          rowKey={(row) => row.contract_id}
+          density="compact"
+          rowAttributes={(row) => ({ "data-status": row.status === "ok" ? undefined : "breach", "data-record": "hedge-approval" })}
+        />
       )}
       <div className="limit-actions">
         {canMaintainRisk && (

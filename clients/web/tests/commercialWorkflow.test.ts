@@ -35,7 +35,7 @@ test("commercial workspaces use shared panel hierarchy and canonical tokens", ()
   const decision = readWebSource("components/DecisionWorkspace.tsx");
   const css = readWebSource("components/commercial-workflow.css");
 
-  assert.match(portfolio, /import \{ PanelHeader, WorkspaceHeader \}/);
+  assert.match(portfolio, /import \{ (DataGrid, )?PanelHeader, WorkspaceHeader \}/);
   assert.match(decision, /import \{ PanelHeader, WorkspaceHeader \}/);
   // Hand-off links sit in a link row, not a headed panel (#69).
   assert.ok((portfolio.match(/<PanelHeader/g) ?? []).length >= 3);

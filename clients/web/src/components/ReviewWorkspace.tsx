@@ -7,7 +7,7 @@ import { copilotOffers } from "@/app/model/copilotModel";
 import { useCopilotSources } from "@/app/hooks/useCopilot";
 import { CopilotHost } from "@/components/CopilotPanel";
 import type { AiActionKind } from "@/app/experience/vocabulary";
-import { EvidenceBlock } from "@/components/ui";
+import { DataGrid, EvidenceBlock } from "@/components/ui";
 import type {
   AnalysisResultDTO,
   AnalysisSnapshotDTO,
@@ -159,23 +159,20 @@ export function ReviewWorkspace({
           <strong>{t("review.title")}</strong>
         </div>
         <PanelHelp text={t("review.subtitle")} label={t("panel.how_to_read")} />
-        <div className="data-table" tabIndex={0}>
-          <div className="data-table-row header four"><span>{t("result.optimal")}</span><span>{t("home.allocated")}</span><span>{t("result.route_cost")}</span><span>PnL</span></div>
-          {allocations.map((allocation) => {
-            const option = saleOptionById.get(allocation.option_id);
-            return (
-              <div key={`review-pool-${allocation.resource_id}-${allocation.option_id}`} className="data-table-row four">
-                <strong>{option?.label ?? allocation.option_id}</strong>
-                <span>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</span>
-                <span>{allocation.total_cost_gbp_mwh.toFixed(2)} GBP/MWh</span>
-                <span>GBP {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</span>
-              </div>
-            );
-          })}
-          {allocations.length === 0 && (
-            <div className="data-table-row four"><strong>{t("home.pending")}</strong><span>n/a</span><span>n/a</span><span>{t("home.run_pool_optimizer")}</span></div>
-          )}
-        </div>
+        <DataGrid
+          id="review-allocations"
+          label={t("review.title")}
+          rows={allocations}
+          rowKey={(allocation) => `${allocation.resource_id}-${allocation.option_id}`}
+          density="compact"
+          empty={<p className="muted panel-empty-line">{t("home.pending")}: {t("home.run_pool_optimizer")}</p>}
+          columns={[
+            { id: "option", header: t("result.optimal"), rowHeader: true, value: (allocation) => saleOptionById.get(allocation.option_id)?.label ?? allocation.option_id },
+            { id: "allocated", header: t("home.allocated"), unit: "MWh/d", type: "number", value: (allocation) => allocation.allocated_quantity_mwh_per_day, format: (value) => (value as number).toLocaleString("en-GB") },
+            { id: "cost", header: t("result.route_cost"), unit: "GBP/MWh", type: "number", value: (allocation) => allocation.total_cost_gbp_mwh, format: (value) => (value as number).toFixed(2) },
+            { id: "pnl", header: t("review.pnl"), unit: "GBP/d", type: "number", value: (allocation) => allocation.net_pnl_gbp_per_day, format: (value) => Math.round(value as number).toLocaleString("en-GB") },
+          ]}
+        />
       </div>
       <div className="workspace-panel">
         <h2>{t("review.warning_register")}</h2>
@@ -314,42 +311,43 @@ export function ReviewWorkspace({
           <span className="eyebrow">{t("nav.review")}</span>
           <strong>{t("review.decision_history")}</strong>
         </div>
-        <div className="data-table" tabIndex={0}>
-          <div className="data-table-row header four"><span>{t("review.entity_id")}</span><span>{t("review.decision")}</span><span>{t("review.decision_time")}</span><span>{t("review.evidence")}</span></div>
-          {reviewDecisions.slice(0, 12).map((row) => {
-            const entityRef = `${row.entity_type}:${row.entity_id}`;
-            const resolved = reviewEvidenceFor(reviewProjection, row.entity_type, row.entity_id);
-            return (
-              <div key={`review-history-${row.decision_id}`} className="data-table-row four"
-                data-record="review-decision" data-record-id={row.decision_id}>
-                <strong>{entityRef}</strong>
-                <span className={`review-decision-badge review-decision-${row.decision}`}>
-                  {row.decision} / {row.actor}
-                </span>
-                <span>{formatDecisionTime(row.created_at_utc)}</span>
-                <span>
-                  {/* Wave 9: the evidence behind a decision is an object, so it is handed to
-                      the Inspector. The action exists only when the projection resolved an
-                      entry for this entity; an unresolved entity is not dressed up. */}
-                  {resolved ? (
-                    <button
-                      type="button"
-                      className="link-button"
-                      onClick={() => onInspectEvidence(entityRef, `${row.entity_type}: ${row.entity_id}`)}
-                    >
-                      {t("review.inspect_evidence")}
-                    </button>
-                  ) : (
-                    t("review.evidence_unavailable")
-                  )}
-                </span>
-              </div>
-            );
-          })}
-          {reviewDecisions.length === 0 && (
-            <div className="data-table-row four" data-empty-state="review-decisions"><strong>{t("review.no_decisions")}</strong><span>n/a</span><span>n/a</span><span>n/a</span></div>
-          )}
-        </div>
+        <DataGrid
+          id="review-decisions"
+          label={t("review.decision_history")}
+          rows={reviewDecisions.slice(0, 12)}
+          rowKey={(row) => row.decision_id}
+          density="compact"
+          rowAttributes={(row) => ({ "data-record": "review-decision", "data-record-id": row.decision_id })}
+          empty={<p className="muted panel-empty-line" data-empty-state="review-decisions">{t("review.no_decisions")}</p>}
+          columns={[
+            { id: "entity", header: t("review.entity_id"), rowHeader: true, value: (row) => `${row.entity_type}:${row.entity_id}` },
+            {
+              id: "decision",
+              header: t("review.decision"),
+              value: (row) => row.decision,
+              render: (row) => <span className={`review-decision-badge review-decision-${row.decision}`}>{row.decision} / {row.actor}</span>,
+            },
+            { id: "time", header: t("review.decision_time"), type: "date", value: (row) => row.created_at_utc, format: (value) => formatDecisionTime(value as string) },
+            {
+              id: "evidence",
+              header: t("review.evidence"),
+              // Wave 9: the evidence behind a decision is an object, so it is handed to the
+              // Inspector. The action exists only when the projection resolved an entry for this
+              // entity; an unresolved entity is not dressed up.
+              render: (row) => {
+                const entityRef = `${row.entity_type}:${row.entity_id}`;
+                const resolved = reviewEvidenceFor(reviewProjection, row.entity_type, row.entity_id);
+                return resolved ? (
+                  <button type="button" className="ds-inline-link" onClick={() => onInspectEvidence(entityRef, `${row.entity_type}: ${row.entity_id}`)}>
+                    {t("review.inspect_evidence")}
+                  </button>
+                ) : (
+                  t("review.evidence_unavailable")
+                );
+              },
+            },
+          ]}
+        />
       </div>
       <div className="workspace-panel span-3 analysis-panel review-report-panel">
         <h2>{t("analysis.report")}</h2>

@@ -38,13 +38,3 @@ export function nextMonth(today: Date = new Date()): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-/** Bar heights for a nominated-vs-allocated strip: fraction of the largest value shown. */
-export function deliveryBars(
-  days: { nominated_mwh: number | null; allocated_mwh: number | null }[],
-): { nominated: number; allocated: number | null }[] {
-  const top = Math.max(1, ...days.flatMap((d) => [d.nominated_mwh ?? 0, d.allocated_mwh ?? 0]));
-  return days.map((d) => ({
-    nominated: (d.nominated_mwh ?? 0) / top,
-    allocated: d.allocated_mwh === null ? null : d.allocated_mwh / top,
-  }));
-}

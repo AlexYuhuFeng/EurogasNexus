@@ -31,14 +31,11 @@ export function MethodNote({
   method,
   subject,
   t,
-  inline = false,
 }: {
   method: RiskMethodNoteDTO | null | undefined;
   /** What the figure is, for the accessible name ("Value at risk"). */
   subject: string;
   t: Translate;
-  /** A quiet link beside a figure's label instead of a bordered button. */
-  inline?: boolean;
 }) {
   if (!method) return null;
   const label = t("method.label", { subject });
@@ -51,7 +48,7 @@ export function MethodNote({
       width="md"
       placement="bottom-start"
       trigger={(props) => (
-        <button {...props} type="button" className={inline ? "ds-inline-link" : "ds-note-trigger"} aria-label={label} title={label} data-method={method.key}>
+        <button {...props} type="button" className="ds-inline-link" aria-label={label} title={label} data-method={method.key}>
           {t("method.button")}
         </button>
       )}

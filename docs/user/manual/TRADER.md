@@ -118,9 +118,17 @@ since you opened it, you are asked to reload instead of overwriting their change
 
 ## 4. Monitor the book position
 
-Book → **Limits & P&L** → **Position ladder**: physical (contracts) and financial
+Charts on Today (storage fill against the previous year and the EU target, NW Europe supply
+and call) and on Desk → **Prices** (forward curve by delivery month, NBP–TTF spread) show their
+unit and as-of time in the head and say "Simulated" on demo data. **Table** shows the same
+figures as a table, **CSV** downloads exactly what is plotted, and with the chart focused the
+Left/Right arrow keys step through the points.
+
+Book → **Position** → **Position ladder**: physical (contracts) and financial
 (trades) volume per hub and month, the net, the hedged share and the mark. Choose the
-horizon, roll up by hub, book or legal entity, and the reporting currency.
+horizon, roll up by hub, book or legal entity, and the reporting currency. Marks are in the
+hub's own quotation (NBP in pence per therm, TTF in EUR/MWh); hover a mark for the per-MWh
+value the book is valued at. The ladder is only on Position: Limits & P&L links to it.
 
 ![Position ladder](img/tr-16-ladder.png)
 
@@ -130,7 +138,7 @@ horizon, roll up by hub, book or legal entity, and the reporting currency.
 - Mark-to-market and one-day VaR are indicative (price risk on the open position only).
 - **Excel**, **PDF**, **CSV** export the table as shown.
 
-Below it, **Credit and mandates** shows where you stand against your mandate before you
+On Book → **Limits & P&L**, **Credit and mandates** shows where you stand against your mandate before you
 trade: largest net per hub-month against your limit, furthest delivery against your
 tenor, your hedge ratio against the policy band, and any breach in words.
 

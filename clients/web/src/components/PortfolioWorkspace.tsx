@@ -4,10 +4,10 @@ import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
 import { ContractChainStrip } from "@/components/ContractChainStrip";
-import { PanelHeader, WorkspaceHeader } from "@/components/ui";
+import { DataGrid, PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
-import { PositionLadderPanel, PositionRiskSummary } from "@/components/PositionLadderPanel";
+import { PositionLadderPanel } from "@/components/PositionLadderPanel";
 import { TradingBooksPanel } from "@/components/TradingBooksPanel";
 import { RiskLimitsPanel } from "@/components/RiskLimitsPanel";
 import { DeliveryPerformancePanel } from "@/components/DeliveryPerformancePanel";
@@ -93,35 +93,29 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
           title={t("portfolio.scope.register")}
           meta={`${resources.length} ${t("home.resources")}`}
         />
-        <div className="data-table" tabIndex={0}>
-          <div className="data-table-row header five">
-            <span>{t("portfolio.resource")}</span><span>{t("portfolio.zone")}</span>
-            <span>{t("portfolio.quantity")}</span><span>{t("portfolio.all_in_cost")}</span>
-            <span>{t("portfolio.access")}</span>
-          </div>
-          {resources.slice(0, 25).map((resource) => (
-            <button
-              key={resource.resource_id}
-              type="button"
-              // The pool row carries the contract's own id (`portfolio_resource_from_contract`
-              // maps `contract_id` to `resource_id`), so the acceptance sweep can compare the
-              // row with the upstream-terms read it renders (`scripts/uat/readToRender.mjs`).
-              data-record="portfolio-resource"
-              data-record-id={resource.resource_id}
-              className={`data-table-row five ${selection.resourceId === resource.resource_id ? "selected" : ""}`}
-              onClick={() => {
-                selection.setResourceId(resource.resource_id);
-                navigation.openWorkspace("contracts", "resources");
-              }}
-            >
-              <strong>{resource.resource_name}</strong>
-              <span>{resource.location_point_name}</span>
-              <span>{resource.available_quantity_mwh_per_day.toLocaleString()} MWh/d</span>
-              <span>{(resource.contract_cost_gbp_mwh + (resource.variable_cost_gbp_mwh ?? 0)).toFixed(2)} GBP/MWh</span>
-              <span>{resource.required_tso_access?.join(", ") || t("home.none_declared")}</span>
-            </button>
-          ))}
-        </div>
+        <DataGrid
+          id="portfolio-resources"
+          label={t("portfolio.scope.register")}
+          rows={resources.slice(0, 25)}
+          rowKey={(resource) => resource.resource_id}
+          density="compact"
+          selectedKey={selection.resourceId ?? null}
+          onRowAction={(resource) => {
+            selection.setResourceId(resource.resource_id);
+            navigation.openWorkspace("contracts", "resources");
+          }}
+          // The pool row carries the contract's own id (`portfolio_resource_from_contract` maps
+          // `contract_id` to `resource_id`), so the acceptance sweep can compare the row with the
+          // upstream-terms read it renders (`scripts/uat/readToRender.mjs`).
+          rowAttributes={(resource) => ({ "data-record": "portfolio-resource", "data-record-id": resource.resource_id })}
+          columns={[
+            { id: "resource", header: t("portfolio.resource"), rowHeader: true, sortable: true, value: (resource) => resource.resource_name },
+            { id: "zone", header: t("portfolio.zone"), sortable: true, value: (resource) => resource.location_point_name },
+            { id: "quantity", header: t("portfolio.quantity"), unit: "MWh/d", type: "number", sortable: true, value: (resource) => resource.available_quantity_mwh_per_day, format: (value) => (value as number).toLocaleString("en-GB") },
+            { id: "cost", header: t("portfolio.all_in_cost"), unit: "GBP/MWh", type: "number", sortable: true, value: (resource) => resource.contract_cost_gbp_mwh + (resource.variable_cost_gbp_mwh ?? 0), format: (value) => (value as number).toFixed(2) },
+            { id: "access", header: t("portfolio.access"), value: (resource) => resource.required_tso_access?.join(", ") || t("home.none_declared") },
+          ]}
+        />
       </section>
       <section className="workspace-panel">
         <PanelHeader
@@ -155,6 +149,19 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
   const poolResult = portfolio.currentResourcePoolResult;
   const recommendation = portfolio.currentRouteRecommendation;
   const resultsStale = portfolio.resultsContextMismatch;
+  const allocationOf = (route: (typeof routes)[number]) => {
+    const allocation = poolResult?.allocations.find(
+      (item) => item.option_id === route.route_id,
+    );
+    return allocation ?? null;
+  };
+  const feasibilityOf = (route: (typeof routes)[number]) =>
+    classifyRouteFeasibility(
+      route,
+      recommendation,
+      poolResult,
+      api.resourcePoolOptions,
+    );
   return (
     <section className="workspace-panel commercial-routes-panel">
       <PanelHeader
@@ -167,45 +174,51 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
           <span>{t("context.result_mismatch_hint")}</span>
         </div>
       )}
-      <div className="data-table commercial-route-table" tabIndex={0}>
-        <div className="data-table-row header six">
-          <span>{t("portfolio.route")}</span><span>{t("portfolio.path")}</span>
-          <span>{t("portfolio.access")}</span><span>{t("portfolio.feasibility")}</span>
-          <span>{t("portfolio.quantity")}</span><span>{t("portfolio.margin")}</span>
-        </div>
-        {routes.map((route) => {
-          const allocation = poolResult?.allocations.find(
-            (item) => item.option_id === route.route_id,
-          );
-          const feasibility = classifyRouteFeasibility(
-            route,
-            recommendation,
-            poolResult,
-            api.resourcePoolOptions,
-          );
-          return (
-            <button
-              key={route.route_id}
-              type="button"
-              className={`data-table-row six ${selection.routeId === route.route_id ? "selected" : ""}`}
-              onClick={() => {
-                selection.setRouteId(route.route_id);
-                navigation.openWorkspace("scenario");
-              }}
-            >
-              <strong>{route.route_name}</strong>
-              <span>{route.start_point_name} → {route.target_point_name}</span>
-              <span>{route.required_tso_access?.join(", ") || t("home.none_declared")}</span>
-              <span className={`status-badge status-${feasibility.toLowerCase()}`}>{feasibility}</span>
-              <span>{allocation?.allocated_quantity_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</span>
-              <span>{allocation ? money(allocation.net_pnl_gbp_per_day) : "n/a"}</span>
-            </button>
-          );
-        })}
-        {routes.length === 0 && (
-          <p className="muted panel-empty-line">{t("portfolio.no_routes")}</p>
-        )}
-      </div>
+      <DataGrid
+        id="commercial-routes"
+        className="commercial-route-table"
+        label={t("portfolio.route_comparison")}
+        rows={routes}
+        rowKey={(route) => route.route_id}
+        density="compact"
+        selectedKey={selection.routeId ?? null}
+        onRowAction={(route) => {
+          selection.setRouteId(route.route_id);
+          navigation.openWorkspace("scenario");
+        }}
+        rowAttributes={(route) => ({ "data-record": "commercial-route", "data-record-id": route.route_id })}
+        empty={<p className="muted panel-empty-line">{t("portfolio.no_routes")}</p>}
+        columns={[
+          { id: "route", header: t("portfolio.route"), rowHeader: true, sortable: true, value: (route) => route.route_name },
+          { id: "path", header: t("portfolio.path"), value: (route) => `${route.start_point_name} → ${route.target_point_name}` },
+          { id: "access", header: t("portfolio.access"), value: (route) => route.required_tso_access?.join(", ") || t("home.none_declared") },
+          {
+            id: "feasibility",
+            header: t("portfolio.feasibility"),
+            value: (route) => feasibilityOf(route),
+            render: (route) => {
+              const feasibility = feasibilityOf(route);
+              return <span className={`status-badge status-${feasibility.toLowerCase()}`}>{feasibility}</span>;
+            },
+          },
+          {
+            id: "quantity",
+            header: t("portfolio.quantity"),
+            unit: "MWh/d",
+            type: "number",
+            value: (route) => allocationOf(route)?.allocated_quantity_mwh_per_day ?? null,
+            format: (value) => (value == null ? "–" : (value as number).toLocaleString("en-GB")),
+          },
+          {
+            id: "margin",
+            header: t("portfolio.margin"),
+            unit: "GBP/d",
+            type: "number",
+            value: (route) => allocationOf(route)?.net_pnl_gbp_per_day ?? null,
+            format: (value) => (value == null ? "–" : Math.round(value as number).toLocaleString("en-GB")),
+          },
+        ]}
+      />
     </section>
   );
 }
@@ -348,8 +361,18 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             <summary>{t("portfolio.scope.title")}</summary>
             <p className="panel-copy">{t(task === "exposure" ? "portfolio.scope.observations" : "portfolio.scope.scenario")}</p>
           </details>
+          {task === "exposure" && (
+            <p className="panel-copy" data-owner-link="position">
+              {t("limits.ladder_on_position")}{" "}
+              <button type="button" className="ds-inline-link" onClick={() => openTask("overview")}>
+                {t("limits.open_position")}
+              </button>
+            </p>
+          )}
         </section>
-        {task === "overview" && <PositionRiskSummary t={t} />}
+        {/* One number, one place: Position owns the ladder, its totals and the exposure by tenor;
+            Limits & P&L owns limits, mandates, credit and P&L and links here for the ladder. */}
+        {task === "overview" && <PositionLadderPanel t={t} />}
         {task === "overview" && <PortfolioOverview controller={controller} />}
         {task === "resources" && (
           <ContractChainStrip
@@ -446,7 +469,6 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             <TariffPublicationsPanel t={t} />
           </>
         )}
-        {task === "exposure" && <PositionLadderPanel t={t} />}
         {task === "exposure" && <RiskLimitsPanel t={t} canMaintainRisk={canMaintainRisk} />}
         {task === "exposure" && <DealHedgeApprovalsPanel t={t} canMaintainRisk={canMaintainRisk} />}
         {task === "exposure" && <TradingBooksPanel t={t} />}

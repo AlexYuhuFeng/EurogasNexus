@@ -103,6 +103,12 @@ def test_all_four_rows_are_populated_on_the_demo_desk(desk):
     assert all(hub["day_pnl_change"]["method"]["key"] == "day_pnl_change"
                for hub in book["hubs"])
     assert fundamentals["storage"]["series"] and fundamentals["balance"]["series"]
+    # The storage chart's season sits against the same days a year earlier and the EU target.
+    season = fundamentals["storage"]["season"]
+    assert len(season) > len(fundamentals["storage"]["series"])
+    assert season[-1]["day"] == fundamentals["storage"]["series"][-1]["day"]
+    assert any(point["previous_year_fill_pct"] is not None for point in season)
+    assert fundamentals["storage"]["target"]["pct"] == 90.0
     # Demo prices are said to be simulated, figure by figure and for the page.
     assert data["simulated"] and data["simulated_notice"]
     assert key["prices"][0]["simulated"] and key["prices"][0]["source"] == "Demo price"
@@ -120,7 +126,7 @@ def test_the_day_pnl_change_is_the_open_position_times_the_close_change(desk):
     for hub in data["rows"][2]["hubs"]:
         price = prices[hub["hub"]]
         # The price is shown in the desk's quotation (NBP p/th); the P&L is per MWh.
-        per_mwh = convert_price(price["day_change"], price["unit"], hub["mark"]["unit"])
+        per_mwh = convert_price(price["day_change"], price["unit"], hub["mark"]["unit_mwh"])
         expected = hub["net_open_mwh"] * per_mwh
         assert hub["day_pnl_change"]["value"] == pytest.approx(expected, rel=1e-3)
         assert hub["mark"]["same_as"] == f"price.{hub['hub']}"  # one number, one place
@@ -209,14 +215,18 @@ def test_the_front_month_is_the_months_average():
     assert net["TTF"]["front_month"] == pytest.approx(100.0 - 16.0)
 
 
-def test_nbp_is_shown_in_pence_per_therm_and_the_book_stays_per_mwh(desk):
+def test_nbp_is_shown_in_pence_per_therm_and_the_mark_is_too(desk):
     data = _today(desk, _principal("DEMO", "BOOKS:*"))
     prices = {item["hub"]: item for item in data["rows"][0]["prices"]}
     book = {hub["hub"]: hub for hub in data["rows"][2]["hubs"]}
     assert prices["NBP"]["unit"] == "GBp/th" and prices["TTF"]["unit"] == "EUR/MWh"
-    # The mark values the book per MWh in GBP and is the same close as the shown price.
+    # The mark is quoted in the desk's unit (one price, one unit on the screen), is the
+    # same close as the shown price, and carries the per-MWh value the book is valued at.
     mark = book["NBP"]["mark"]
-    assert mark["unit"] == "GBP/MWh" and mark["same_as"] == "price.NBP"
-    assert convert_price(mark["value"], "GBP/MWh", "GBp/th") == pytest.approx(
+    assert mark["unit"] == "GBp/th" and mark["same_as"] == "price.NBP"
+    assert mark["value"] == pytest.approx(prices["NBP"]["value"], abs=1e-3)
+    assert mark["unit_mwh"] == "GBP/MWh"
+    assert convert_price(mark["value_mwh"], "GBP/MWh", "GBp/th") == pytest.approx(
         prices["NBP"]["value"], abs=1e-3
     )
+    assert book["TTF"]["mark"]["unit"] == "EUR/MWh"

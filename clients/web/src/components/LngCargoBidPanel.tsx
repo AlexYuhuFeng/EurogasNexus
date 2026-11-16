@@ -8,6 +8,7 @@ import {
 } from "@/api/client";
 import { formatMoney, formatPrice, nextMonth } from "@/app/model/riskLimitsModel";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { DataGrid } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -169,44 +170,53 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
               cargo: Math.round(result.cargo_mmbtu).toLocaleString("en-GB"),
             })}
           </p>
-          <table className="position-ladder" data-lng-bid="true">
-            <thead>
-              <tr>
-                <th scope="col" className="num">#</th>
-                <th scope="col">{t("lngbid.terminal")}</th>
-                <th scope="col" className="num">{t("lngbid.hub_mark")}</th>
-                <th scope="col" className="num">{t("lngbid.costs")}</th>
-                <th scope="col" className="num">{t("lngbid.breakeven")}</th>
-                <th scope="col" className="num">{t("lngbid.max_bid")}</th>
-                <th scope="col" className="num">{t("lngbid.range")}</th>
-                <th scope="col" className="num">$/MMBtu</th>
-                <th scope="col" className="num">{t("lngbid.pct_hub")}</th>
-                <th scope="col" className="num">{t("lngbid.ranked", { currency })}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.rows.map((row) => (
-                <tr key={row.terminal_id} title={row.terms_source}>
-                  <td className="num">{row.rank}</td>
-                  <td><strong>{row.terminal}</strong> <small>{[row.country, row.hub].filter(Boolean).join(" · ")}</small></td>
-                  <td className="num">
-                    {formatPrice(row.hub_mark, `${row.currency}/MWh`)}
-                    {row.spot !== null && <small> {t("lngbid.spot", { price: row.spot.toFixed(3) })}</small>}
-                  </td>
-                  <td className="num">
-                    {row.costs_per_mwh.toFixed(3)}
-                    {row.regas_per_mwh !== undefined && <small> {t("lngbid.of_which_regas", { value: row.regas_per_mwh.toFixed(3) })}</small>}
-                  </td>
-                  <td className="num">{row.breakeven_per_mwh.toFixed(3)}</td>
-                  <td className="num"><strong>{row.max_bid_per_mwh.toFixed(3)}</strong></td>
-                  <td className="num">{row.bid_low_per_mwh.toFixed(2)} - {row.bid_high_per_mwh.toFixed(2)}</td>
-                  <td className="num">{row.max_bid_usd_mmbtu === null ? "-" : row.max_bid_usd_mmbtu.toFixed(3)}</td>
-                  <td className="num">{row.bid_pct_of_hub === null ? "-" : `${row.bid_pct_of_hub.toFixed(1)}%`}</td>
-                  <td className="num">{row[rankKey].toFixed(3)} <small>{formatMoney(row.cargo_value, row.currency)}</small></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataGrid
+            id="lng-bid"
+            label={t("lngbid.title")}
+            rows={result.rows}
+            rowKey={(row) => row.terminal_id}
+            density="compact"
+            defaultSort={{ columnId: "rank", direction: "ascending" }}
+            tableAttributes={{ "data-lng-bid": "true" }}
+            columns={[
+              { id: "rank", header: "#", type: "number", sortable: true, value: (row) => row.rank, width: "4ch" },
+              {
+                id: "terminal",
+                header: t("lngbid.terminal"),
+                rowHeader: true,
+                value: (row) => row.terminal,
+                cellTitle: (row) => row.terms_source,
+                render: (row) => <><strong>{row.terminal}</strong> <small>{[row.country, row.hub, `${row.currency}/MWh`].filter(Boolean).join(" · ")}</small></>,
+              },
+              {
+                id: "mark",
+                header: t("lngbid.hub_mark"),
+                type: "number",
+                value: (row) => row.hub_mark,
+                render: (row) => <>{formatPrice(row.hub_mark, `${row.currency}/MWh`)}{row.spot !== null && <small> {t("lngbid.spot", { price: row.spot.toFixed(3) })}</small>}</>,
+              },
+              {
+                id: "costs",
+                header: t("lngbid.costs"),
+                type: "number",
+                value: (row) => row.costs_per_mwh,
+                render: (row) => <>{row.costs_per_mwh.toFixed(3)}{row.regas_per_mwh !== undefined && <small> {t("lngbid.of_which_regas", { value: row.regas_per_mwh.toFixed(3) })}</small>}</>,
+              },
+              { id: "breakeven", header: t("lngbid.breakeven"), type: "number", value: (row) => row.breakeven_per_mwh, format: (value) => (value as number).toFixed(3) },
+              { id: "max", header: t("lngbid.max_bid"), type: "number", sortable: true, value: (row) => row.max_bid_per_mwh, render: (row) => <strong>{row.max_bid_per_mwh.toFixed(3)}</strong> },
+              { id: "range", header: t("lngbid.range"), type: "number", value: (row) => row.bid_low_per_mwh, render: (row) => `${row.bid_low_per_mwh.toFixed(2)} – ${row.bid_high_per_mwh.toFixed(2)}` },
+              { id: "usd", header: "USD/MMBtu", type: "number", value: (row) => row.max_bid_usd_mmbtu, format: (value) => (value == null ? "–" : (value as number).toFixed(3)) },
+              { id: "pct", header: t("lngbid.pct_hub"), unit: "%", type: "number", value: (row) => row.bid_pct_of_hub, format: (value) => (value == null ? "–" : (value as number).toFixed(1)) },
+              {
+                id: "ranked",
+                header: t("lngbid.ranked", { currency }),
+                type: "number",
+                sortable: true,
+                value: (row) => row[rankKey],
+                render: (row) => <>{row[rankKey].toFixed(3)} <small>{formatMoney(row.cargo_value, row.currency)}</small></>,
+              },
+            ]}
+          />
           {result.regions.length > 1 && (
             <p className="muted">
               {t("lngbid.regions")}{" "}
@@ -226,47 +236,54 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
       <details className="lng-terms" open={terms.length === 0 || editing}>
         <summary>{t("lngbid.terms_title", { count: terms.length })}</summary>
         {terms.length > 0 && (
-          <table className="position-ladder">
-            <thead>
-              <tr>
-                <th scope="col">{t("lngbid.terminal")}</th>
-                <th scope="col" className="num">{t("lngbid.regas")}</th>
-                <th scope="col" className="num">{t("lngbid.entry")}</th>
-                <th scope="col" className="num">{t("lngbid.fuel")}</th>
-                <th scope="col" className="num">{t("lngbid.port")}</th>
-                <th scope="col" className="num">{t("lngbid.sailing")}</th>
-                <th scope="col">{t("lngbid.source")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {terms.map((row) => (
-                <tr key={row.terminal_id}>
-                  <td>
-                    <button type="button" className="link-button" onClick={() => editTerms(row)}>{row.name}</button>{" "}
-                    <small>{row.hub} · {row.currency}/MWh · {t(row.capacity_basis === "long_term" ? "lngbid.basis_long_term" : "lngbid.basis_spot")}</small>
-                  </td>
-                  <td className="num">
-                    {row.by_cargo_class
-                      ? <small>{Object.entries(row.by_cargo_class).map(([cls, total]) => `${t(`lngbid.class_${cls}`)} ${formatMoney(total, row.currency)}`).join(" · ")}</small>
-                      : row.fixed_per_cargo
-                        ? <>{formatMoney(row.fixed_per_cargo, row.currency)} <small>{t("lngbid.per_cargo")}</small></>
-                        : row.regas_tariff_per_mwh.toFixed(3)}
-                  </td>
-                  <td className="num">{row.entry_tariff_per_mwh.toFixed(3)}</td>
-                  <td className="num">{row.fuel_retention_pct.toFixed(2)}%</td>
-                  <td className="num">{formatMoney(row.port_costs_per_cargo, row.currency)}</td>
-                  <td className="num">{row.extra_sailing_days.toFixed(1)}</td>
-                  <td>
+          <DataGrid
+            id="lng-terms"
+            label={t("lngbid.terms_title", { count: terms.length })}
+            rows={terms}
+            rowKey={(row) => row.terminal_id}
+            density="compact"
+            onRowAction={editTerms}
+            columns={[
+              {
+                id: "terminal",
+                header: t("lngbid.terminal"),
+                rowHeader: true,
+                sortable: true,
+                value: (row) => row.name,
+                render: (row) => <><strong>{row.name}</strong> <small>{row.hub} · {row.currency}/MWh · {t(row.capacity_basis === "long_term" ? "lngbid.basis_long_term" : "lngbid.basis_spot")}</small></>,
+              },
+              {
+                id: "regas",
+                header: t("lngbid.regas"),
+                type: "number",
+                value: (row) => row.regas_tariff_per_mwh,
+                render: (row) =>
+                  row.by_cargo_class
+                    ? <small>{Object.entries(row.by_cargo_class).map(([cls, total]) => `${t(`lngbid.class_${cls}`)} ${formatMoney(total, row.currency)}`).join(" · ")}</small>
+                    : row.fixed_per_cargo
+                      ? <>{formatMoney(row.fixed_per_cargo, row.currency)} <small>{t("lngbid.per_cargo")}</small></>
+                      : row.regas_tariff_per_mwh.toFixed(3),
+              },
+              { id: "entry", header: t("lngbid.entry"), type: "number", value: (row) => row.entry_tariff_per_mwh, format: (value) => (value as number).toFixed(3) },
+              { id: "fuel", header: t("lngbid.fuel"), unit: "%", type: "number", value: (row) => row.fuel_retention_pct, format: (value) => (value as number).toFixed(2) },
+              { id: "port", header: t("lngbid.port"), type: "number", value: (row) => row.port_costs_per_cargo, render: (row) => formatMoney(row.port_costs_per_cargo, row.currency) },
+              { id: "sailing", header: t("lngbid.sailing"), type: "number", value: (row) => row.extra_sailing_days, format: (value) => (value as number).toFixed(1) },
+              {
+                id: "source",
+                header: t("lngbid.source"),
+                value: (row) => row.regime ?? "negotiated",
+                render: (row) => (
+                  <>
                     <span className="limit-badge" data-status={row.regime === "negotiated" ? "watch" : "ok"}>{t(`lngbid.regime_${row.regime ?? "negotiated"}`)}</span>{" "}
                     <small>{row.source_note}</small>
                     {row.source_url && (
-                      <div><small><a href={row.source_url} target="_blank" rel="noreferrer noopener">{t("lngbid.source_doc")}</a>{row.retrieved_at_utc ? ` · ${t("lngbid.read_on", { date: row.retrieved_at_utc.slice(0, 10) })}` : ""}</small></div>
+                      <small> <a href={row.source_url} target="_blank" rel="noreferrer noopener">{t("lngbid.source_doc")}</a>{row.retrieved_at_utc ? ` · ${t("lngbid.read_on", { date: row.retrieved_at_utc.slice(0, 10) })}` : ""}</small>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </>
+                ),
+              },
+            ]}
+          />
         )}
         <div className="licence-form">
           <label><span>{t("lngbid.terminal_id")}</span><input value={draft.terminal_id} onChange={field("terminal_id")} /></label>

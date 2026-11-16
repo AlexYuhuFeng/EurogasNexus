@@ -40,6 +40,7 @@ substitute another framework or library family.
 | `vite` | `^7.0.4` | MIT | build/dev tooling |
 | `@vitejs/plugin-react` | `^4.6.0` | MIT | React/Vite integration |
 | `maplibre-gl` | `^5.20.1` | BSD-3-Clause | base map rendering |
+| `uplot` | `^1.6.32` | MIT | time-series, bar and curve charts (UX-09; the one chart library, see `docs/legal/DEPENDENCY_LICENSE_REVIEW.md`) |
 | `@deck.gl/core` | `^9.3.1` | MIT | high-volume map overlays |
 | `@deck.gl/layers` | `^9.3.1` | MIT | route, point, polygon, and signal layers |
 | `@deck.gl/mapbox` | `^9.3.1` | MIT | MapLibre/deck.gl integration |

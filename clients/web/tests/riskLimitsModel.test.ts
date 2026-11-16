@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  deliveryBars,
   formatMoney,
   formatPrice,
   formatQuantity,
@@ -31,10 +30,3 @@ test("next month rolls the year in December", () => {
   assert.equal(nextMonth(new Date(Date.UTC(2026, 9, 31))), "2026-11");
 });
 
-test("delivery bars scale to the largest value and keep a missing allocation missing", () => {
-  const bars = deliveryBars([
-    { nominated_mwh: 1000, allocated_mwh: 500 },
-    { nominated_mwh: 1000, allocated_mwh: null },
-  ]);
-  assert.deepEqual(bars, [{ nominated: 1, allocated: 0.5 }, { nominated: 1, allocated: null }]);
-});

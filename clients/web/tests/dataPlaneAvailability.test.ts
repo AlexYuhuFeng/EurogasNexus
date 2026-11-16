@@ -70,8 +70,9 @@ test("the labels are runtime-data statements in both locales, never readiness or
   const en = readLocale("en");
   const zh = readLocale("zh");
   for (const [locale, translations] of [["en", en], ["zh", zh]] as const) {
-    // The runtime store and its data: a reachable store is not business data being present.
-    const subject = locale === "en" ? /runtime (data|store)/i : /运行时(数据库|数据)/;
+    // The data store, in the desk's words (not "Runtime DB"): a reachable store is not business
+    // data being present.
+    const subject = locale === "en" ? /data store/i : /数据存储/;
     for (const state of STATES) {
       const key = runtimeDataAvailabilityLabelKey(state);
       const label = translations[key];
@@ -84,8 +85,11 @@ test("the labels are runtime-data statements in both locales, never readiness or
   }
 
   // The one detail line the badges show keeps the store in it and says what it is not.
-  assert.match(en["data.runtime_detail"], /runtime PostgreSQL/i);
-  assert.match(zh["data.runtime_detail"], /运行时 PostgreSQL/);
+  assert.match(en["data.runtime_detail"], /data store/i);
+  assert.match(zh["data.runtime_detail"], /数据存储/);
+  for (const translations of [en, zh]) {
+    assert.equal(/runtime db|runtime store|运行时数据库/i.test(translations["data.runtime_store"]), false);
+  }
   assert.equal(/ready/i.test(en["data.runtime_detail"]), false);
 });
 

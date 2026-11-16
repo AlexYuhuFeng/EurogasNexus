@@ -186,6 +186,7 @@ def get_position_ladder(
 
     from datetime import UTC, datetime, timedelta
 
+    from eurogas_nexus.application.projections.daily_closes import in_native_unit
     from eurogas_nexus.domain.portfolio.position_ladder import ladder_report
 
     today = datetime.now(UTC).date()
@@ -243,6 +244,13 @@ def get_position_ladder(
         row["mark_method"] = mark_method.get(key)
         # QA-03: a price carries its unit (marks are the hub's currency per MWh).
         row["mark_unit"] = f"{quote_currency(row['hub'])}/MWh"
+        # The same mark as the desk quotes the hub (NBP in p/th, rule 17), for display; the
+        # ladder values the book with the per-MWh ``mark``.
+        if row["mark"] is not None:
+            quoted, quoted_unit = in_native_unit(row["hub"], row["mark"], row["mark_unit"])
+            row["mark_quote"], row["mark_quote_unit"] = round(quoted, 4), quoted_unit
+        else:
+            row["mark_quote"], row["mark_quote_unit"] = None, row["mark_unit"]
     payload["curve"] = [
         {**point, "unit": f"{quote_currency(point['hub'])}/MWh"}
         for point in curve.as_dict()["points"]

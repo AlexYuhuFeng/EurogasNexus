@@ -44,6 +44,12 @@ export type PaletteCommandGroup = "navigate" | "glossary" | "inspect" | "ai" | "
 export interface PaletteCommand {
   readonly id: string;
   readonly group: PaletteCommandGroup;
+  /**
+   * What a navigation result is: a working mode (opens at its first task the caller can use)
+   * or a task within one. Shown beside the label, so "Deals" (mode) and "Deals · Evaluate"
+   * (task), which open the same screen, read as two different things.
+   */
+  readonly kind?: "mode" | "task";
   /** Translation key; navigation commands reuse the existing `nav.*` vocabulary. */
   readonly labelKey: string;
   readonly consequence: ActionConsequence;
@@ -111,6 +117,7 @@ export function navigationCommands(): PaletteCommand[] {
     {
       id: `navigate.mode.${mode.id}`,
       group: "navigate" as const,
+      kind: "mode" as const,
       labelKey: mode.labelKey,
       aliasKeys: mode.aliasKeys,
       keywords: [mode.id],
@@ -121,6 +128,7 @@ export function navigationCommands(): PaletteCommand[] {
     ...mode.tasks.map((task) => ({
       id: `navigate.mode.${mode.id}.${task.id}`,
       group: "navigate" as const,
+      kind: "task" as const,
       labelKey: mode.labelKey,
       subLabelKey: task.labelKey,
       aliasKeys: task.aliasKeys,
@@ -174,6 +182,11 @@ export function navigationCommands(): PaletteCommand[] {
       };
     });
   return [...modes, ...primaries, ...pages, ...views];
+}
+
+/** The translation key of the tag before a result: "Mode", "Task", or the command's group. */
+export function paletteTagKey(command: PaletteCommand): string {
+  return command.kind ? `experience.palette.kind.${command.kind}` : `experience.palette.group.${command.group}`;
 }
 
 /** The text a command is listed under, translated. */

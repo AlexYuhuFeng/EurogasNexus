@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, type TariffPublicationDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { DataGrid } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -52,41 +53,49 @@ export function TariffPublicationsPanel({ t }: { t: Translate }) {
       <PanelHelp text={t("tariffs.copy")} label={t("panel.how_to_read")} />
       {rows && rows.length === 0 && <p className="muted">{t("tariffs.empty")}</p>}
       {rows && rows.length > 0 && (
-        <table className="position-ladder">
-          <thead>
-            <tr>
-              <th scope="col">{t("tariffs.tso")}</th>
-              <th scope="col">{t("tariffs.gas_year")}</th>
-              <th scope="col">{t("tariffs.held")}</th>
-              <th scope="col">{t("tariffs.final_due")}</th>
-              <th scope="col">{t("tariffs.checked")}</th>
-              <th scope="col">{t("tariffs.action")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.publication_id} data-status={row.severity === "breach" ? "breach" : row.severity === "watch" ? "watch" : undefined}>
-                <td>
+        <DataGrid
+          id="tariff-publications"
+          label={t("tariffs.title")}
+          rows={rows}
+          rowKey={(row) => row.publication_id}
+          density="compact"
+          rowAttributes={(row) => ({ "data-status": row.severity === "breach" ? "breach" : row.severity === "watch" ? "watch" : undefined })}
+          columns={[
+            {
+              id: "tso",
+              header: t("tariffs.tso"),
+              rowHeader: true,
+              sortable: true,
+              value: (row) => row.tso,
+              render: (row) => (
+                <>
                   <strong>{row.tso}</strong> <small>{row.country}</small>
-                  {row.url && <div><a href={row.url} target="_blank" rel="noreferrer noopener"><small>{t("tariffs.open_page")}</small></a></div>}
-                </td>
-                <td>{row.gas_year}</td>
-                <td>{t(`tariffs.status_${row.status}`)}</td>
-                <td>{row.final_due ?? "-"}</td>
-                <td><small>{row.last_checked_at_utc ? row.last_checked_at_utc.slice(0, 10) : t("tariffs.never")}</small></td>
-                <td>
+                  {row.url && <> <a href={row.url} target="_blank" rel="noreferrer noopener"><small>{t("tariffs.open_page")}</small></a></>}
+                </>
+              ),
+            },
+            { id: "year", header: t("tariffs.gas_year"), sortable: true, value: (row) => row.gas_year },
+            { id: "held", header: t("tariffs.held"), value: (row) => t(`tariffs.status_${row.status}`) },
+            { id: "due", header: t("tariffs.final_due"), type: "date", sortable: true, value: (row) => row.final_due ?? null },
+            { id: "checked", header: t("tariffs.checked"), type: "date", value: (row) => (row.last_checked_at_utc ? row.last_checked_at_utc.slice(0, 10) : t("tariffs.never")) },
+            {
+              id: "action",
+              header: t("tariffs.action"),
+              value: (row) => row.state,
+              render: (row) => (
+                <>
                   <span className="limit-badge" data-status={row.severity === "ok" ? "ok" : row.severity}>{t(`tariffs.state_${row.state}`)}</span>
                   {row.state === "changed" && (
-                    <button type="button" className="link-button" onClick={() => void save(asDraft(row), true)}> {t("tariffs.mark_reviewed")}</button>
+                    <button type="button" className="ds-inline-link" onClick={() => void save(asDraft(row), true)}>{t("tariffs.mark_reviewed")}</button>
                   )}
                   {row.status !== "final" && (
-                    <button type="button" className="link-button" onClick={() => void save({ ...asDraft(row), status: "final" })}> {t("tariffs.mark_final")}</button>
+                    <button type="button" className="ds-inline-link" onClick={() => void save({ ...asDraft(row), status: "final" })}>{t("tariffs.mark_final")}</button>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </>
+              ),
+            },
+          ]}
+        />
       )}
       <details className="lng-terms">
         <summary>{t("tariffs.register")}</summary>

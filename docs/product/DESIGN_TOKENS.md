@@ -202,6 +202,66 @@ overview board's `.data-table` rules, `.position-bar*`, `.position-horizon`, the
 `.market-tenor-tab(s)` and `.market-view-switch` pill groups. Other tables still use
 `.position-ladder` / `.data-table` and move as their pages are rebuilt (UX-06).
 
+Migrated (round 4): Book (delivery performance, deal hedge approvals, screen orders and P&L
+snapshots, nomination windows and decisions, storage dispatch, the portfolio register) and Deals
+(route comparison, route-cost components, LNG cargo bid and terminal terms, tariff publications,
+review allocations and decision history, retired contracts, contract intake), plus the licence
+register, support inbox and notification channels. `.position-ladder` is gone (no table uses it);
+the delivery strip's CSS bars became a chart. Still on `.data-table`: Research (strategy
+backtest, compare, shadow; agents; research catalogue), Admin (sources, runtime, access,
+reference network), the capacity workspace, the decision workspace and the manual. A grid keeps
+the acceptance hooks as row attributes: `rowAttributes={(r) => ({ "data-record": "…",
+"data-record-id": r.id })}` (the probe contract accepts both spellings).
+
+## Charts (UX-09)
+
+One chart library: **uPlot** 1.6.32 (MIT, no dependencies; 51 kB, 22 kB gzip, in its own
+`vendor-chart` chunk). Why uPlot and not Observable Plot, and the licence evidence:
+`docs/legal/DEPENDENCY_LICENSE_REVIEW.md`. The layer is `components/ui/charts/`:
+`chartModel.ts` (pure: ticks, stacks, ranges, CSV; tested in `tests/chartModel.test.ts`),
+`Chart.tsx` (`Chart`, `Sparkline`) and `charts.css` (imported by the design system).
+
+```tsx
+const data: ChartData = {
+  axis: "gas-day",                       // "gas-day" | "period" | "time"
+  x: days,                               // "2026-11-16" … / "2026-12" … / ISO instants
+  xTitle: t("chart.gas_day"),
+  unit: "GWh/d",                          // one axis, one unit
+  series: [
+    { id: "norway", label: t("nwe.norway"), values, style: "bar", stack: true, forecastFrom: 14, simulated },
+    { id: "call", label: t("nwe.call"), values: call, style: "line", colour: 4 },
+    { id: "target", label: "EU target 90%", values: target, reference: true },
+  ],
+};
+<Chart id="nwe-balance-chart" title={t("nwe.chart_title")} data={data} t={t} asOf={day} simulated={simulated} />
+```
+
+- **Axes.** One y axis with the unit in the head and the tooltip (never two scales: two
+  measures are two charts). Tick labels in the mono token font (tabular). `gas-day` points sit at
+  the gas day's start (05:00 UTC in winter, 04:00 in summer, `gasDayStartUtc`) and are labelled
+  with the gas day, never at midnight; ticks thin to every 2/3/7/14 days, then month starts.
+  `period` is ordinal with the desk's names ("Dec-26").
+- **Series.** `line`, `step` (daily values), `area`, `bar` (stacked with `stack`: positive up,
+  negative down), points on period curves. Colours are `--ds-series-N` in a fixed order, read
+  from the tokens and re-read when the theme class changes. `simulated` draws dashed, the head
+  carries a Simulated badge and the export names the column "[simulated]"; `forecastFrom` draws
+  the forecast dashed (bars lighter). `reference` lines (targets, DCQ) are thin and neutral.
+  Missing values are `null` and drawn as gaps.
+- **Reading it.** The tooltip shows the period, each series with value and unit (forecast marked)
+  and the as-of instant and state; it flips to the cursor's other side and never leaves the plot.
+  The plot is one Tab stop: Left/Right step, Home/End, PageUp/PageDown by seven; the point is
+  read in a live region. **Table** swaps the plot for a DataGrid of the same data; **CSV** exports
+  exactly what is plotted (gaps empty, units in the header).
+- **Behaviour.** A ResizeObserver resizes with one `setSize` per frame; nothing animates.
+- **Where.** Today: storage fill vs the previous year and the EU target, NW Europe supply and
+  call (history and forecast), sparklines beside the fundamentals figures. Prices: forward
+  curve by delivery month in the hub's quotation, NBP–TTF spread by delivery month (p/th).
+  Delivery: nominated vs allocated by gas day against the DCQ for the selected contract.
+- **Check.** `scripts/uat/chart_check.mjs` (same environment as the keyboard paths) checks on
+  the demo desk that each canvas draws, the keyboard reaches the points, and the table and the
+  CSV hold the plotted values. The CI UAT fixture has no curve or storage history, so the
+  charts are absent there by design and the script is run against the demo desk.
+
 ## Keyboard paths
 
 `scripts/uat/keyboard_paths.mjs` drives tabs, grid rows, sort, the Method popover and a

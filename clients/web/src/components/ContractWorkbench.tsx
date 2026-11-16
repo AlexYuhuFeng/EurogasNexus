@@ -1,3 +1,4 @@
+import { DataGrid } from "@/components/ui";
 import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { ContractIntakeDTO, PortfolioResourceDTO, RouteCandidateDTO, UpstreamContractDTO } from "@/api/client";
@@ -372,29 +373,30 @@ export function ContractWorkbench({
               {contractIntake.warnings.map((warning) => <li key={warning}>{warning}</li>)}
             </ul>
           )}
-          <table className="position-ladder">
-            <thead>
-              <tr>
-                <th scope="col">{t("contracts.intake_field")}</th>
-                <th scope="col">{t("contracts.intake_value")}</th>
-                <th scope="col" className="num">{t("contracts.intake_page")}</th>
-                <th scope="col">{t("contracts.intake_evidence")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {contractIntake.terms.map((term) => (
-                <tr key={term.field} data-applied={term.field.startsWith("_") ? "false" : "true"}>
-                  <td>{t(`contracts.intake_term.${term.field.replace(/^_/, "")}`)}</td>
-                  <td>
+          <DataGrid
+            id="contract-intake"
+            label={t("contracts.intake_field")}
+            rows={contractIntake.terms}
+            rowKey={(term) => term.field}
+            density="compact"
+            rowAttributes={(term) => ({ "data-applied": term.field.startsWith("_") ? "false" : "true" })}
+            columns={[
+              { id: "field", header: t("contracts.intake_field"), rowHeader: true, value: (term) => t(`contracts.intake_term.${term.field.replace(/^_/, "")}`) },
+              {
+                id: "value",
+                header: t("contracts.intake_value"),
+                value: (term) => String(term.value),
+                render: (term) => (
+                  <>
                     <strong>{String(term.value)}</strong> {term.unit && <small>{term.unit}</small>}
-                    {term.note && <div className="muted">{term.note}</div>}
-                  </td>
-                  <td className="num">{term.page}</td>
-                  <td><q>{term.evidence}</q></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {term.note && <small className="muted"> {term.note}</small>}
+                  </>
+                ),
+              },
+              { id: "page", header: t("contracts.intake_page"), type: "number", value: (term) => term.page ?? null },
+              { id: "evidence", header: t("contracts.intake_evidence"), value: (term) => term.evidence ?? null, render: (term) => <q>{term.evidence}</q> },
+            ]}
+          />
         </section>
       )}
       {contractSaveConflict && (

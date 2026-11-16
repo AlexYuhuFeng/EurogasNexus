@@ -333,11 +333,15 @@ def test_the_scoped_groups_compare_record_ids_the_rendered_rows_carry() -> None:
         source = _workspace_sources(workspace)
         for selector in group["rowSelectors"]:
             kind = RECORD_SELECTOR.fullmatch(str(selector)).group("kind")
-            assert f'data-record="{kind}"' in source, (
-                f"{workspace} declares no rendered row of kind '{kind}'"
-            )
+            # A JSX attribute, or a DataGrid row attribute (`rowAttributes`, UX-06).
+            assert (
+                f'data-record="{kind}"' in source or f'"data-record": "{kind}"' in source
+            ), f"{workspace} declares no rendered row of kind '{kind}'"
         field = group["recordIdField"]
-        assert re.search(rf"data-record-id=\{{[A-Za-z_]+\.{field}\}}", source), (
+        assert re.search(
+            rf"data-record-id=\{{[A-Za-z_]+\.{field}\}}|\"data-record-id\": [A-Za-z_]+\.{field}\b",
+            source,
+        ), (
             f"{workspace} renders no row's {field} as its data-record-id"
         )
         empty = group.get("emptySelector")
@@ -427,10 +431,16 @@ def test_the_review_probe_compares_the_decision_ids_the_projection_serves() -> N
     assert "reviewDecisions.slice(0, 12)" in component, (
         "the rendered history is bounded by the bound the group declares"
     )
-    assert 'data-record="review-decision"' in component, (
+    assert (
+        'data-record="review-decision"' in component
+        or '"data-record": "review-decision"' in component
+    ), (
         "the review history renders the record kind the group selects"
     )
-    assert "data-record-id={row.decision_id}" in component, (
+    assert (
+        "data-record-id={row.decision_id}" in component
+        or '"data-record-id": row.decision_id' in component
+    ), (
         "the history renders each decision's own id as its record id"
     )
     assert 'data-empty-state="review-decisions"' in component, (

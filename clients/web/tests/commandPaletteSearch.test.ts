@@ -66,3 +66,33 @@ test("a sub-view is found by the words of its page and its view (#31)", () => {
   const found = filterPaletteCommands(navigationCommands(), "nav.runtime runtime.view.deliv", labelFor);
   assert.ok(found.some((command) => command.id === "navigate.view.runtime.delivery"));
 });
+
+test("each mode and each task is one distinct, correctly tagged result, in both languages", async () => {
+  const { paletteLabel, paletteTagKey } = await import("../src/app/experience/commandPalette.ts");
+  const { PRODUCT_MODES } = await import("../src/app/navigation/modeNavigation.ts");
+  const { readFileSync } = await import("node:fs");
+  for (const file of ["en", "zh"]) {
+    const dict = JSON.parse(readFileSync(new URL(`../src/i18n/${file}.json`, import.meta.url), "utf8")) as Record<string, string>;
+    const t = (key: string) => dict[key] ?? key;
+    const commands = navigationCommands();
+    assert.equal(PRODUCT_MODES.length, 4);
+    for (const mode of PRODUCT_MODES) {
+      const own = commands.filter((c) => c.id === `navigate.mode.${mode.id}` || c.id.startsWith(`navigate.mode.${mode.id}.`));
+      const modeCommand = own.find((c) => c.id === `navigate.mode.${mode.id}`)!;
+      assert.equal(modeCommand.kind, "mode");
+      assert.equal(t(paletteTagKey(modeCommand)), file === "en" ? "Mode" : "模式");
+      const tasks = own.filter((c) => c !== modeCommand);
+      assert.equal(tasks.length, mode.tasks.length);
+      for (const task of tasks) assert.equal(task.kind, "task", task.id);
+      // What a reader sees (tag + label) is never the same twice within a mode.
+      const shown = own.map((c) => `${t(paletteTagKey(c))}|${paletteLabel(c, t)}`);
+      assert.equal(new Set(shown).size, shown.length, `${file} ${mode.id}: ${shown.join(", ")}`);
+      // The mode and its first task, which open the same screen, read differently.
+      assert.notEqual(paletteLabel(modeCommand, t), paletteLabel(tasks[0], t));
+      for (const key of [paletteTagKey(modeCommand), paletteTagKey(tasks[0])]) assert.ok(dict[key], `${file} ${key}`);
+    }
+    // Searching a mode's name lists its name once as a mode.
+    const deals = filterPaletteCommands(commands, file === "en" ? "deals" : "交易项目", (c) => paletteLabel(c, t));
+    assert.equal(deals.filter((c) => c.kind === "mode").length, 1);
+  }
+});

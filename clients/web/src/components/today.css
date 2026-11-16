@@ -215,16 +215,6 @@
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
 
-  .today-spark {
-    width: 100%;
-    height: var(--ds-control-sm);
-  }
-
-  .today-spark polyline {
-    stroke: var(--ds-series-1);
-    stroke-width: 1.5;
-  }
-
   .today-fundamentals-detail {
     display: grid;
     gap: var(--ds-space-3);

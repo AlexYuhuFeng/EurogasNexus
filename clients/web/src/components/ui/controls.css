@@ -221,40 +221,6 @@
     line-height: var(--ds-line-xs);
   }
 
-  /* The trigger that opens a note next to a figure: a small text button, not a control. */
-  .ds-note-trigger {
-    display: inline-flex;
-    align-items: center;
-    box-sizing: border-box;
-    flex: 0 0 auto;
-    height: var(--ds-control-sm);
-    min-height: var(--ds-control-sm);
-    padding: 0 var(--ds-space-2);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-sm);
-    background: var(--ds-surface);
-    color: var(--ds-accent);
-    font-size: var(--ds-text-xs);
-    font-weight: var(--ds-weight-medium);
-    line-height: var(--ds-line-xs);
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .ds-note-trigger:hover {
-    background: var(--ds-surface-2);
-    color: var(--ds-accent-hover);
-  }
-
-  .ds-note-trigger[aria-expanded="true"] {
-    border-color: var(--ds-accent);
-  }
-
-  .ds-note-trigger:focus-visible {
-    outline: none;
-    box-shadow: var(--ds-focus);
-  }
-
   /* A quiet link that sits in a line of text (a note beside a figure's label, "1 breach · 3
      watch" under it). Its box is a full dense control (28 px, 44 px on touch) for the pointer,
      but the negative block margin gives the line back, so a figure keeps one height with or
@@ -413,11 +379,6 @@
     .ds-select,
     .ds-segmented > button {
       min-height: var(--ds-control-touch);
-    }
-
-    .ds-note-trigger {
-      min-height: var(--ds-control-touch);
-      padding: 0 var(--ds-space-2);
     }
 
     .ds-inline-link {

@@ -1,4 +1,4 @@
-import { PanelHeader } from "@/components/ui";
+import { DataGrid, PanelHeader } from "@/components/ui";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   ROUTE_COST_COMPONENT_TYPES,
@@ -140,58 +140,35 @@ export function RouteCostWhatIfPanel({
           <span className="eyebrow">{t("portfolio.route_cost.components")}</span>
           <strong>{draft.components.length}</strong>
         </div>
-        <div className="data-table route-cost-component-table" tabIndex={0}>
-          <div className="data-table-row header five">
-            <span>{t("portfolio.route_cost.component_type")}</span>
-            <span>{t("portfolio.route_cost.amount")}</span>
-            <span>{t("portfolio.route_cost.unit")}</span>
-            <span>{t("portfolio.route_cost.currency")}</span>
-            <span>{t("portfolio.route_cost.description")}</span>
-          </div>
-          {draft.components.map((component, index) => (
-            <div key={`component-${index}`} className="data-table-row five">
-              <select
-                aria-label={t("portfolio.route_cost.component_type")}
-                value={component.componentType}
-                onChange={(event) => updateComponent(index, { componentType: event.target.value })}
-              >
+        <DataGrid
+          id="route-cost-components"
+          className="route-cost-component-table"
+          label={t("portfolio.route_cost.components")}
+          rows={draft.components.map((_, index) => index)}
+          rowKey={(index) => `component-${index}`}
+          density="compact"
+          columns={[
+            { id: "type", header: t("portfolio.route_cost.component_type"), render: (index) => (
+              <select aria-label={t("portfolio.route_cost.component_type")} value={draft.components[index].componentType} onChange={(event) => updateComponent(index, { componentType: event.target.value })}>
                 {ROUTE_COST_COMPONENT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {componentTypeLabel(t, type)}
-                  </option>
+                  <option key={type} value={type}>{componentTypeLabel(t, type)}</option>
                 ))}
               </select>
-              <input
-                aria-label={t("portfolio.route_cost.amount")}
-                type="text"
-                inputMode="decimal"
-                value={component.amount}
-                onChange={(event) => updateComponent(index, { amount: event.target.value })}
-              />
-              <input
-                aria-label={t("portfolio.route_cost.unit")}
-                type="text"
-                value={component.unit}
-                maxLength={24}
-                onChange={(event) => updateComponent(index, { unit: event.target.value })}
-              />
-              <input
-                aria-label={t("portfolio.route_cost.currency")}
-                type="text"
-                value={component.currency}
-                maxLength={8}
-                onChange={(event) => updateComponent(index, { currency: event.target.value })}
-              />
-              <input
-                aria-label={t("portfolio.route_cost.description")}
-                type="text"
-                value={component.description}
-                maxLength={120}
-                onChange={(event) => updateComponent(index, { description: event.target.value })}
-              />
-            </div>
-          ))}
-        </div>
+            ) },
+            { id: "amount", header: t("portfolio.route_cost.amount"), render: (index) => (
+              <input aria-label={t("portfolio.route_cost.amount")} type="text" inputMode="decimal" value={draft.components[index].amount} onChange={(event) => updateComponent(index, { amount: event.target.value })} />
+            ) },
+            { id: "unit", header: t("portfolio.route_cost.unit"), render: (index) => (
+              <input aria-label={t("portfolio.route_cost.unit")} type="text" value={draft.components[index].unit} maxLength={24} onChange={(event) => updateComponent(index, { unit: event.target.value })} />
+            ) },
+            { id: "currency", header: t("portfolio.route_cost.currency"), render: (index) => (
+              <input aria-label={t("portfolio.route_cost.currency")} type="text" value={draft.components[index].currency} maxLength={8} onChange={(event) => updateComponent(index, { currency: event.target.value })} />
+            ) },
+            { id: "description", header: t("portfolio.route_cost.description"), render: (index) => (
+              <input aria-label={t("portfolio.route_cost.description")} type="text" value={draft.components[index].description} maxLength={120} onChange={(event) => updateComponent(index, { description: event.target.value })} />
+            ) },
+          ]}
+        />
         <div className="route-cost-component-actions">
           <button
             type="button"

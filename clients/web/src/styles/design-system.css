@@ -24,6 +24,7 @@
 @import url("../components/ui/primitives.css");
 @import url("../components/ui/controls.css");
 @import url("../components/ui/datagrid.css");
+@import url("../components/ui/charts/charts.css");
 /* Today (UX-05): the first screen, tokens only. */
 @import url("../components/today.css");
 
@@ -2903,70 +2904,6 @@
     font-size: var(--ds-text-sm);
     font-weight: var(--ds-weight-semibold);
   }
-
-  .delivery-strip {
-    margin: var(--ds-space-3) 0 0;
-  }
-
-  .delivery-bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 72px;
-    padding: var(--ds-space-1) 0;
-    border-bottom: 1px solid var(--ds-border);
-  }
-
-  .delivery-day {
-    position: relative;
-    flex: 1 1 0;
-    min-width: 3px;
-    height: 100%;
-  }
-
-  .delivery-nominated,
-  .delivery-allocated {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-  }
-
-  .delivery-nominated {
-    background: var(--ds-surface-2);
-    outline: 1px solid var(--ds-border);
-  }
-
-  .delivery-allocated {
-    left: 20%;
-    right: 20%;
-    background: var(--ds-accent);
-  }
-
-  .delivery-allocated[data-short="true"] {
-    background: var(--ds-status-watch);
-  }
-
-  .delivery-strip figcaption {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--ds-space-2);
-    margin-top: var(--ds-space-1);
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-xs);
-  }
-
-  .legend-swatch {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 0;
-  }
-
-  .legend-swatch.nominated { background: var(--ds-surface-2); outline: 1px solid var(--ds-border); }
-  .legend-swatch.allocated { background: var(--ds-accent); }
-  .legend-swatch.short { background: var(--ds-status-watch); }
 
   .input-with-unit {
     display: inline-flex;

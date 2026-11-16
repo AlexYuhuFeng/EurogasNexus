@@ -1,0 +1,176 @@
+/* Chart layer (UX-09): the HTML around the canvas. Colours, type and spacing from tokens only;
+   the canvas itself reads the same tokens (Chart.tsx readPalette) and is rebuilt on a theme
+   change. */
+@layer ds-components {
+  .ds-chart {
+    display: grid;
+    gap: var(--ds-space-1);
+    min-width: 0;
+    margin: 0;
+  }
+
+  .ds-chart-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ds-space-1) var(--ds-space-2);
+    min-width: 0;
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .ds-chart-title {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .ds-chart-unit,
+  .ds-chart-asof {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-chart-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    margin-left: auto;
+  }
+
+  .ds-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    margin: 0;
+    padding: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    list-style: none;
+  }
+
+  .ds-chart-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  .ds-chart-legend small {
+    color: var(--ds-status-simulated);
+  }
+
+  .ds-chart-swatch {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: var(--ds-space-3);
+    height: var(--ds-space-05);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-chart-swatch, var(--ds-text-3));
+  }
+
+  [data-series-style="simulated"] .ds-chart-swatch,
+  [data-series-style="forecast"] .ds-chart-swatch,
+  [data-series-style="reference"] .ds-chart-swatch {
+    height: 0;
+    border-top: 2px dashed var(--ds-chart-swatch, var(--ds-text-3));
+    border-radius: 0;
+    background: none;
+  }
+
+  .ds-chart-frame {
+    position: relative;
+    min-width: 0;
+  }
+
+  .ds-chart-plot {
+    min-width: 0;
+    border-radius: var(--ds-radius-sm);
+  }
+
+  .ds-chart-plot:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  /* uPlot's own wrapper: no title, no legend (both are HTML above). */
+  .ds-chart-plot .uplot,
+  .ds-sparkline .uplot {
+    font-family: var(--ds-font-ui);
+  }
+
+  .ds-chart-tip {
+    position: absolute;
+    top: var(--ds-space-1);
+    left: var(--ds-chart-tip-x, 0);
+    z-index: 2;
+    display: grid;
+    gap: var(--ds-space-05);
+    width: max-content;
+    max-width: min(320px, 70%);
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-pop);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    pointer-events: none;
+    transform: translateX(var(--ds-space-2));
+  }
+
+  /* Past the middle the tip sits on the cursor's left, so it never leaves the plot. */
+  .ds-chart-tip[data-side="start"] {
+    transform: translateX(calc(-100% - var(--ds-space-2)));
+  }
+
+  .ds-chart-tip-row {
+    display: grid;
+    grid-template-columns: auto minmax(4ch, 1fr) auto;
+    align-items: center;
+    gap: var(--ds-space-1);
+    white-space: nowrap;
+  }
+
+  .ds-chart-tip-row span:nth-child(2) {
+    overflow: hidden;
+    color: var(--ds-text-2);
+    text-overflow: ellipsis;
+  }
+
+  .ds-chart-tip-value {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .ds-chart-tip small,
+  .ds-chart-tip-meta {
+    color: var(--ds-text-3);
+  }
+
+  .ds-chart-empty,
+  .ds-chart-note {
+    margin: 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-sparkline {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+}
+
+/* Screens that hold charts: charts stack with one gap, the panel holds no other chrome. */
+@layer ds-components {
+  .price-charts,
+  .today-chart-panel {
+    display: grid;
+    gap: var(--ds-space-4);
+    min-width: 0;
+  }
+}

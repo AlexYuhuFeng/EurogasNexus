@@ -24,6 +24,7 @@ export default defineConfig({
         manualChunks(moduleId) {
           if (!moduleId.includes("node_modules")) return undefined;
           if (moduleId.includes("maplibre-gl")) return "vendor-map";
+          if (moduleId.includes("uplot")) return "vendor-chart";
           if (moduleId.includes("react-i18next") || moduleId.includes("i18next")) {
             return "vendor-i18n";
           }

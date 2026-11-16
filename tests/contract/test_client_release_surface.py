@@ -626,7 +626,8 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
         ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
     ).read_text(encoding="utf-8")
     assert "MarketPositioningWorkspace" in portfolio_workspace
-    assert 'className="data-table orders-table"' in positioning_workspace
+    assert 'id="screen-orders"' in positioning_workspace
+    assert '"data-record": "screen-order"' in positioning_workspace
     assert '["network", "storage", "lng"] as CapacityView[]' in capacity_workspace
     assert "capacity.view_${view}" in capacity_workspace
     assert "capacity.tariffs" in capacity_workspace

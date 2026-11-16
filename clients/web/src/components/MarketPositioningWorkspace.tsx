@@ -4,6 +4,7 @@ import type {
   ScreenOrderObservationDTO,
 } from "@/api/client";
 import { pnlClass } from "@/app/model/pnlColor";
+import { DataGrid, type DataGridColumn } from "@/components/ui";
 import { WhyButton } from "./WhyButton";
 
 type Translate = (key: string) => string;
@@ -38,6 +39,46 @@ export function MarketPositioningWorkspace({
   formatTimestamp,
   t,
 }: MarketPositioningWorkspaceProps) {
+  const orderColumns: DataGridColumn<ScreenOrderObservationDTO>[] = [
+    { id: "venue", header: t("orders.col.venue"), rowHeader: true, sortable: true, value: (order) => order.venue },
+    { id: "side", header: t("orders.col.side"), sortable: true, value: (order) => order.side },
+    { id: "hub", header: t("orders.col.hub"), sortable: true, value: (order) => order.hub },
+    {
+      id: "quantity",
+      header: t("orders.col.quantity"),
+      unit: "MWh",
+      type: "number",
+      sortable: true,
+      // Filled volume is the position; an order still working shows what is left.
+      value: (order) => (order.filled_quantity_mwh > 0 ? order.filled_quantity_mwh : order.remaining_quantity_mwh),
+      format: (value) => (value as number).toLocaleString("en-GB"),
+      cellTitle: (order) => t("orders.quantity_hint").replace("{{filled}}", order.filled_quantity_mwh.toLocaleString()).replace("{{total}}", order.quantity_mwh.toLocaleString()).replace("{{remaining}}", order.remaining_quantity_mwh.toLocaleString()),
+    },
+    // Prices are quoted per order in the venue's unit, so the unit is in the cell.
+    { id: "price", header: t("orders.col.price"), type: "number", sortable: true, value: (order) => order.price, render: (order) => <>{order.price.toFixed(3)} <small className="ds-grid-unit">{order.unit}</small></> },
+    { id: "status", header: t("orders.col.status"), sortable: true, value: (order) => order.status },
+  ];
+  const pnlColumns: DataGridColumn<PortfolioPnlSnapshotDTO>[] = [
+    { id: "portfolio", header: t("orders.col.portfolio"), rowHeader: true, value: (snapshot) => snapshot.portfolio_id },
+    { id: "valuation", header: t("orders.col.valuation"), type: "date", value: (snapshot) => snapshot.valuation_time_utc, format: (value) => formatTimestamp(value as string) },
+    { id: "quantity", header: t("orders.col.quantity"), unit: "MWh", type: "number", value: (snapshot) => snapshot.quantity_mwh, format: (value) => (value as number).toLocaleString("en-GB") },
+    {
+      id: "indicative",
+      header: t("orders.col.indicative"),
+      unit: "GBP",
+      type: "number",
+      value: (snapshot) => snapshot.indicative_pnl_gbp,
+      render: (snapshot) => (
+        <span className="limit-status-cell">
+          <span className={pnlClass(snapshot.indicative_pnl_gbp)}>{Math.round(snapshot.indicative_pnl_gbp).toLocaleString("en-GB")}</span>
+          <WhyButton subject="pnl" id={snapshot.pnl_snapshot_id} label={`P&L ${snapshot.portfolio_id}`} t={t} />
+        </span>
+      ),
+    },
+    { id: "cash", header: t("orders.col.cash"), unit: "GBP", type: "number", value: (snapshot) => snapshot.cash_value_gbp, format: (value) => Math.round(value as number).toLocaleString("en-GB") },
+    { id: "basis", header: t("orders.col.basis"), value: (snapshot) => snapshot.valuation_basis },
+  ];
+
   return (
     <div className="workspace-grid orders-page">
       {/* One line of counts, not four tiles of "Unknown"; the read-only note is the heading's
@@ -54,27 +95,20 @@ export function MarketPositioningWorkspace({
       </div>
       <div className="workspace-panel span-3">
         <h2 title={t("orders.subtitle")}>{t("orders.screen_orders")}</h2>
-        <div className="data-table orders-table" tabIndex={0}>
-          <div className="data-table-row header six"><span>{t("orders.col.venue")}</span><span>{t("orders.col.side")}</span><span>{t("orders.col.hub")}</span><span>{t("orders.col.quantity")}</span><span>{t("orders.col.price")}</span><span>{t("orders.col.status")}</span></div>
-          {screenOrders.map((order) => (
-            <div
-              key={`orders-${order.order_observation_id}`}
-              className="data-table-row six"
-              // The row carries the observation's own id, so the acceptance sweep compares it
-              // with the projection read by exact id (`scripts/uat/readToRender.mjs`).
-              data-record="screen-order"
-              data-record-id={order.order_observation_id}
-            >
-              <span>{order.venue}</span><span>{order.side}</span><span>{order.hub}</span><strong title={t("orders.quantity_hint").replace("{{filled}}", order.filled_quantity_mwh.toLocaleString()).replace("{{total}}", order.quantity_mwh.toLocaleString()).replace("{{remaining}}", order.remaining_quantity_mwh.toLocaleString())}>
-                {/* Filled volume is the position; an order still working shows what is left. */}
-                {(order.filled_quantity_mwh > 0 ? order.filled_quantity_mwh : order.remaining_quantity_mwh).toLocaleString()} MWh
-              </strong><span>{order.price.toFixed(2)} {order.unit}</span><span>{order.status}</span>
-            </div>
-          ))}
-          {screenOrders.length === 0 && (
-            <p className="muted panel-empty-line" data-empty-state="screen-orders">{t("orders.none_screen")}</p>
-          )}
-        </div>
+        <DataGrid
+          id="screen-orders"
+          className="orders-table"
+          label={t("orders.screen_orders")}
+          columns={orderColumns}
+          rows={screenOrders}
+          rowKey={(order) => order.order_observation_id}
+          density="compact"
+          maxHeight="min(60vh, 560px)"
+          // The row carries the observation's own id, so the acceptance sweep compares it with
+          // the projection read by exact id (`scripts/uat/readToRender.mjs`).
+          rowAttributes={(order) => ({ "data-record": "screen-order", "data-record-id": order.order_observation_id })}
+          empty={<p className="muted panel-empty-line" data-empty-state="screen-orders">{t("orders.none_screen")}</p>}
+        />
       </div>
       {pnlSnapshots.length === 0 ? (
         // No snapshot is one line under the table above, not a table with a row of n/a (#69).
@@ -84,29 +118,17 @@ export function MarketPositioningWorkspace({
       ) : (
       <div className="workspace-panel span-3">
         <h2>{t("orders.pnl_snapshots")}</h2>
-        <div className="data-table" tabIndex={0}>
-          <div className="data-table-row header six"><span>Portfolio</span><span>Valuation</span><span>Quantity</span><span>Indicative</span><span>Cash</span><span>Basis</span></div>
-          {pnlSnapshots.slice(0, 8).map((snapshot) => (
-            <div
-              key={`pnl-${snapshot.pnl_snapshot_id}`}
-              className="data-table-row six"
-              // The row carries the snapshot's own id, so the acceptance sweep compares it with
-              // the projection read by exact id (`scripts/uat/readToRender.mjs`).
-              data-record="pnl-snapshot"
-              data-record-id={snapshot.pnl_snapshot_id}
-            >
-              <strong>{snapshot.portfolio_id}</strong>
-              <span>{formatTimestamp(snapshot.valuation_time_utc)}</span>
-              <span>{snapshot.quantity_mwh.toLocaleString()} MWh</span>
-              <span className="limit-status-cell">
-                <span className={pnlClass(snapshot.indicative_pnl_gbp)}>GBP {Math.round(snapshot.indicative_pnl_gbp).toLocaleString()}</span>
-                <WhyButton subject="pnl" id={snapshot.pnl_snapshot_id} label={`P&L ${snapshot.portfolio_id}`} t={t} />
-              </span>
-              <span>GBP {Math.round(snapshot.cash_value_gbp).toLocaleString()}</span>
-              <span>{snapshot.valuation_basis}</span>
-            </div>
-          ))}
-        </div>
+        <DataGrid
+          id="pnl-snapshots"
+          label={t("orders.pnl_snapshots")}
+          columns={pnlColumns}
+          rows={pnlSnapshots.slice(0, 8)}
+          rowKey={(snapshot) => snapshot.pnl_snapshot_id}
+          density="compact"
+          // The row carries the snapshot's own id, so the acceptance sweep compares it with the
+          // projection read by exact id (`scripts/uat/readToRender.mjs`).
+          rowAttributes={(snapshot) => ({ "data-record": "pnl-snapshot", "data-record-id": snapshot.pnl_snapshot_id })}
+        />
       </div>
       )}
     </div>

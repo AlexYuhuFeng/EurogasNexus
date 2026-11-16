@@ -40,6 +40,7 @@ import { GasForPowerPanel } from "@/components/GasForPowerPanel";
 import { MethodNote } from "@/components/MethodNote";
 import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { WhyButton } from "@/components/WhyButton";
+import { Chart, Sparkline, type ChartData } from "@/components/ui/charts";
 import {
   Button,
   DataGrid,
@@ -217,7 +218,7 @@ function KeyFiguresRow({ row, t, nowMs, language, onOpenLimits, onInspectPrice }
               t={t}
               nowMs={nowMs}
               signed
-              notes={<MethodNote inline method={row.position.today.method} subject={t("today.net_today")} t={t} />}
+              notes={<MethodNote method={row.position.today.method} subject={t("today.net_today")} t={t} />}
             />
             <Figure
               figure={row.position.front_month}
@@ -247,8 +248,8 @@ function KeyFiguresRow({ row, t, nowMs, language, onOpenLimits, onInspectPrice }
             }
             notes={
               <>
-                <WhyButton inline subject={limit.why.subject} id={limit.why.id} label={limit.name} language={language} t={t} />
-                <MethodNote inline method={limit.method} subject={t(`today.tightest_${limit.kind}`)} t={t} />
+                <WhyButton subject={limit.why.subject} id={limit.why.id} label={limit.name} language={language} t={t} />
+                <MethodNote method={limit.method} subject={t(`today.tightest_${limit.kind}`)} t={t} />
               </>
             }
             action={
@@ -346,7 +347,25 @@ function stateCell(figure: TodayFigureDTO | null | undefined, t: Translate, nowM
   return figure.simulated ? simulatedCell(t) : null;
 }
 
-function BookRow({ row, frontMonth, t, nowMs }: { row: TodayBookRowDTO; frontMonth: string; t: Translate; nowMs: number }) {
+/** Key-figure labels by figure key ("price.NBP" -> "NBP Dec-26"), for the mark's same-as note. */
+function priceLabels(row: TodayKeyFiguresRowDTO | undefined): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const price of row?.prices ?? []) if ("label" in price && price.label) labels[price.key] = price.label;
+  return labels;
+}
+
+/** The mark's provenance on demand: its close, the key figure it is, and its per-MWh value. */
+function markTitle(mark: NonNullable<BookHub["mark"]>, labels: Record<string, string>, t: Translate): string {
+  const parts = [t("today.close_of", { day: shortDay(mark.as_of ?? "") })];
+  if (mark.same_as) parts.push(t("today.book.mark_same_as", { price: labels[mark.same_as] ?? mark.same_as.replace(/^price\./, "") }));
+  if (mark.value_mwh != null && mark.unit_mwh && mark.unit_mwh !== mark.unit) {
+    parts.push(t("today.book.mark_per_mwh", { value: formatValue(mark.value_mwh, mark.unit_mwh), unit: mark.unit_mwh }));
+  }
+  return parts.join(" · ");
+}
+
+function BookRow({ row, frontMonth, t, nowMs, keyFigures }: { row: TodayBookRowDTO; frontMonth: string; t: Translate; nowMs: number; keyFigures?: TodayKeyFiguresRowDTO }) {
+  const labels = useMemo(() => priceLabels(keyFigures), [keyFigures]);
   const pnlMethod = row.hubs.map((hub) => ("method" in hub.day_pnl_change ? hub.day_pnl_change.method : undefined)).find(Boolean);
   const columns = useMemo<DataGridColumn<BookHub>[]>(
     () => [
@@ -391,7 +410,7 @@ function BookRow({ row, frontMonth, t, nowMs }: { row: TodayBookRowDTO; frontMon
             </>
           ) : "–",
         state: (hub) => stateCell(hub.mark, t, nowMs),
-        cellTitle: (hub) => (hub.mark?.as_of ? t("today.close_of", { day: shortDay(hub.mark.as_of) }) : undefined),
+        cellTitle: (hub) => (hub.mark?.as_of ? markTitle(hub.mark, labels, t) : undefined),
       },
       {
         id: "pnl",
@@ -412,7 +431,7 @@ function BookRow({ row, frontMonth, t, nowMs }: { row: TodayBookRowDTO; frontMon
         cellAttributes: (hub) => ({ id: figureAnchorId(`pnl.day_change.${hub.hub}`) }),
       },
     ],
-    [frontMonth, nowMs, row.horizon_months, t],
+    [frontMonth, labels, nowMs, row.horizon_months, t],
   );
   return (
     <RowSection id="book" title={t("today.row.book")} actions={pnlMethod ? <MethodNote method={pnlMethod} subject={t("today.book.day_pnl")} t={t} /> : undefined}>
@@ -435,19 +454,41 @@ function BookRow({ row, frontMonth, t, nowMs }: { row: TodayBookRowDTO; frontMon
 
 /* ------------------------------------------------------------------ row 4 */
 
-/** A small line of a daily series: shape only, the figure beside it carries the number. */
-function Sparkline({ values, label }: { values: number[]; label: string }) {
-  if (values.length < 2) return null;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const points = values
-    .map((value, index) => `${((index / (values.length - 1)) * 100).toFixed(2)},${(22 - ((value - min) / span) * 20).toFixed(2)}`)
-    .join(" ");
+type StorageEntry = Exclude<TodayFundamentalsRowDTO["storage"], { empty: TodayEmptyDTO }>;
+
+/** NW Europe fill over the season, against the same gas days a year earlier and the EU target. */
+function StorageSeasonChart({ storage, t, nowMs }: { storage: StorageEntry; t: Translate; nowMs: number }) {
+  const data = useMemo<ChartData>(() => {
+    const season = storage.season ?? [];
+    const simulated = storage.latest.simulated;
+    return {
+      axis: "gas-day",
+      x: season.map((point) => point.day),
+      xTitle: t("chart.gas_day"),
+      unit: "%",
+      series: [
+        { id: "fill", label: t("today.storage_chart.this_year"), values: season.map((point) => point.fill_pct), simulated, decimals: 1 },
+        { id: "previous", label: t("today.storage_chart.previous_year"), values: season.map((point) => point.previous_year_fill_pct), simulated, colour: 8, decimals: 1 },
+        ...(storage.target
+          ? [{ id: "target", label: t("today.storage_chart.target", { pct: storage.target.pct }), values: season.map(() => storage.target!.pct), reference: true, decimals: 0 }]
+          : []),
+      ],
+    };
+  }, [storage, t]);
   return (
-    <svg className="today-spark" viewBox="0 0 100 24" preserveAspectRatio="none" role="img" aria-label={label}>
-      <polyline points={points} fill="none" vectorEffect="non-scaling-stroke" />
-    </svg>
+    <section className="workspace-panel today-chart-panel" aria-labelledby="chart-storage-season-title">
+      <Chart
+        id="storage-season"
+        title={t("today.storage_chart.title")}
+        data={data}
+        t={t}
+        height={200}
+        asOf={storage.latest.as_of}
+        state={stateWords(storage.latest, nowMs, t) ?? undefined}
+        simulated={storage.latest.simulated}
+        note={storage.target ? t("today.storage_chart.note", { pct: storage.target.pct, open: storage.target.window_open, deadline: storage.target.deadline }) : undefined}
+      />
+    </section>
   );
 }
 
@@ -472,7 +513,12 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
                 nowMs={nowMs}
                 detail={t("today.storage_inventory", { twh: formatValue(storage.inventory_twh, "TWh"), day: shortDay(storage.latest.as_of) })}
               />
-              <Sparkline values={storage.series.map((point) => point.fill_pct ?? point.inventory_twh)} label={t("today.storage_spark", { days: storage.series.length })} />
+              <Sparkline
+                values={storage.series.map((point) => point.fill_pct)}
+                days={storage.series.map((point) => point.day)}
+                simulated={storage.latest.simulated}
+                label={t("today.storage_spark", { days: storage.series.length })}
+              />
             </div>
           )}
           {isEmptyEntry(balance) ? (
@@ -486,12 +532,20 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
                 nowMs={nowMs}
                 detail={t("today.supply_call_detail", { day: shortDay(balance.latest.as_of) })}
               />
-              <Sparkline values={balance.series.map((point) => point.call_gwh)} label={t("today.balance_spark", { days: balance.series.length })} />
+              <Sparkline
+                values={balance.series.map((point) => point.call_gwh)}
+                days={balance.series.map((point) => point.day)}
+                simulated={balance.latest.simulated}
+                label={t("today.balance_spark", { days: balance.series.length })}
+              />
             </div>
           )}
         </div>
       )}
       <div className="today-fundamentals-detail">
+        {!isEmptyEntry(storage) && storage.season && storage.season.length > 1 && (
+          <StorageSeasonChart storage={storage} t={t} nowMs={nowMs} />
+        )}
         <NweBalancePanel t={t} simulated={balanceSimulated} />
         <GasForPowerPanel t={t} />
       </div>
@@ -601,16 +655,12 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
     );
   }
   const [keyFigures, changes, book, fundamentals] = today.rows;
-  const asOf = new Date(today.as_of);
   return (
     <div className="today" data-today="ready">
       <div className="today-head">
         <p className="today-asof">
-          {t("today.as_of", {
-            gasDay: today.gas_day,
-            time: Number.isNaN(asOf.getTime()) ? today.as_of : `${asOf.toISOString().slice(11, 16)} UTC`,
-            front: today.front_month,
-          })}
+          {/* The as-of instant is on the context line above (one time, one place). */}
+          {t("today.as_of", { gasDay: today.gas_day, front: today.front_month })}
         </p>
         <div className="today-head-actions">
           <Button variant="quiet" onClick={onOpenBrief}>{t("brief.open")}</Button>
@@ -622,7 +672,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       )}
       {keyFigures && <KeyFiguresRow row={keyFigures} t={t} nowMs={nowMs} language={language} onOpenLimits={onOpenLimits} onInspectPrice={onInspectPrice} />}
       {changes && <ChangesRow row={changes} t={t} nowMs={nowMs} language={language} onOpenOutages={onOpenOutages} />}
-      {book && <BookRow row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} />}
+      {book && <BookRow row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} />}
       {fundamentals && <FundamentalsRow row={fundamentals} t={t} nowMs={nowMs} />}
     </div>
   );

@@ -172,6 +172,11 @@ def test_ladder_combines_physical_supply_and_financial_hedge(tmp_path, monkeypat
     )
     # Marks come from the curve: the month quote as quoted, the quarter's months derived.
     assert row["mark"] == 31.5 and row["mark_method"] == "quoted"
+    # The same mark as the desk quotes NBP (p/th) travels with it for display (rule 17).
+    from eurogas_nexus.domain.market.units import convert_price
+
+    assert row["mark_unit"] == "GBP/MWh" and row["mark_quote_unit"] == "GBp/th"
+    assert row["mark_quote"] == round(convert_price(31.5, "GBP/MWh", "GBp/th"), 4)
     quarter_month = f"{quarter_start.year:04d}-{quarter_start.month:02d}"
     point = next(p for p in data["curve"] if p["hub"] == "NBP" and p["month"] == quarter_month)
     assert point["method"] == "derived" and point["price"] == 34.0
