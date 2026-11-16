@@ -37,6 +37,7 @@ import {
   type NetworkHighlightedRoute,
 } from "@/app/networkMapLines";
 import { lineMatters, NO_ROUTES_MATTER, type RoutesThatMatter } from "@/app/routeEmphasis";
+import { type BookFlowLine, compactMwhPerDay, zoneMemberIds } from "@/app/mapLineGeometry";
 import {
   buildMapStyle,
   configuredMapTileProvider,
@@ -97,6 +98,11 @@ interface GasNetworkMapProps {
   compact?: boolean;
   /** Select and fly to a place or a cargo from outside the map (the book list); `nonce` re-fires it. */
   focus?: { refId?: string | null; cargoId?: string; nonce: number } | null;
+  /**
+   * The book's allocated flows, one per origin and destination (see mapLineGeometry.ts):
+   * width by volume, the volume at the destination, one arrowhead for direction.
+   */
+  bookFlows?: BookFlowLine[];
 }
 
 /**
@@ -108,16 +114,21 @@ const VIEW_EMPHASIS: Record<"network" | "book", Record<string, unknown>> = {
   network: {
     "nodes-circle": ["case", ["==", ["get", "node_type"], "hub"], 0.85, 0.5],
     "node-clusters": 0.45,
-    // Context routes dimmed; a route the book uses at full strength.
-    "verified-pipeline-lines": ["case", ["==", ["get", "matters"], true], 0.95, ["==", ["get", "display_kind"], "network_link"], 0.16, 0.28],
+    // Context routes dimmed; a route the book uses at full strength. Lines stay quieter
+    // than the points they join.
+    "verified-pipeline-lines": ["case", ["==", ["get", "matters"], true], 0.95, 0.32],
+    "network-link-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.3],
     "indicative-route-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.24],
+    "book-flow-lines": 0.85,
     "situation-facilities": 0.55,
   },
   book: {
     "nodes-circle": ["case", ["==", ["get", "node_type"], "hub"], 0.55, 0.22],
     "node-clusters": 0.2,
     "verified-pipeline-lines": ["case", ["==", ["get", "matters"], true], 0.95, 0.12],
+    "network-link-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.12],
     "indicative-route-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.12],
+    "book-flow-lines": 0.95,
     "situation-facilities": 0.2,
   },
 };
@@ -249,6 +260,7 @@ export function GasNetworkMap({
   compact = false,
   replay = null,
   focus = null,
+  bookFlows = [],
 }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -354,9 +366,15 @@ export function GasNetworkMap({
       && (showContextRoutes || matteringLineIds.has(line.id))),
     [matteringLineIds, showContextRoutes, visibleLines],
   );
+  // A route candidate is a trade route, not a pipe: drawn when the book uses it, or as context
+  // only when the server gives its path. Candidates from one hub to every other hub drawn as
+  // schematic segments would be a star again.
   const indicativeRouteLines = useMemo(
     () => visibleLines.filter((line) =>
-      line.displayKind === "indicative_route" && (showContextRoutes || matteringLineIds.has(line.id))),
+      line.displayKind === "indicative_route" && (
+        matteringLineIds.has(line.id) ||
+        (showContextRoutes && line.geometryBasis === "backend_route_geometry_coordinates")
+      )),
     [matteringLineIds, showContextRoutes, visibleLines],
   );
   const highlightedRoutePoints = useMemo(() => {
@@ -561,8 +579,8 @@ export function GasNetworkMap({
     }
     if (!mapReady) return;
 
-    if (map.getLayer("verified-pipeline-lines")) {
-      map.setPaintProperty("verified-pipeline-lines", "line-color", routeLineColor(mapColors));
+    for (const layerId of ["verified-pipeline-lines", "network-link-lines"]) {
+      if (map.getLayer(layerId)) map.setPaintProperty(layerId, "line-color", routeLineColor(mapColors));
     }
     if (map.getLayer("indicative-route-lines")) {
       map.setPaintProperty("indicative-route-lines", "line-color", mapColors.route);
@@ -690,6 +708,7 @@ export function GasNetworkMap({
         id: "verified-pipeline-lines",
         type: "line",
         source: "verified-pipeline-lines",
+        filter: ["==", ["get", "display_kind"], "verified_pipeline"],
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": routeLineColor(mapColors),
@@ -699,11 +718,24 @@ export function GasNetworkMap({
             "case",
             ["==", ["get", "matters"], true],
             3,
-            ["==", ["get", "display_kind"], "network_link"],
-            1,
             ["interpolate", ["linear"], ["get", "utilization_pct"], 0, 1.1, 0.65, 1.8, 0.9, 2.6],
           ],
-          "line-opacity": ["case", ["==", ["get", "display_kind"], "network_link"], 0.7, 0.94],
+          "line-opacity": 0.94,
+        },
+      });
+      // A physical connection between two located points with no surveyed route: one quiet
+      // straight dashed segment, so it never reads as a pipeline's path.
+      map.addLayer({
+        id: "network-link-lines",
+        type: "line",
+        source: "verified-pipeline-lines",
+        filter: ["==", ["get", "display_kind"], "network_link"],
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": routeLineColor(mapColors),
+          "line-width": ["case", ["==", ["get", "matters"], true], 2.4, 1.1],
+          "line-opacity": 0.7,
+          "line-dasharray": [3, 2.5],
         },
       });
     } else {
@@ -882,6 +914,110 @@ export function GasNetworkMap({
       });
     }
   }, [filteredNodes, highlightedRouteSegmentFeatures, indicativeRouteLines, mapColors, mapReady, onInspectNode, t, verifiedPipelineLines]);
+
+  // The book's flows: one line per origin and destination, width by volume, the volume at the
+  // destination and a single arrowhead for direction. Drawn under the points.
+  const bookFlowMarkersRef = useRef<Marker[]>([]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const accent = SITUATION_COLOURS[effectiveTheme].own;
+    const data = {
+      type: "FeatureCollection" as const,
+      features: bookFlows.map((flow) => ({
+        type: "Feature" as const,
+        properties: {
+          id: flow.id,
+          from_node_id: flow.fromId,
+          to_node_id: flow.toId,
+          width: flow.width,
+          mwh_d: flow.mwhPerDay,
+          geometry_basis: flow.geometryBasis,
+        },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: flow.coordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
+        },
+      })),
+    };
+    if (upsertSource(map, "book-flow-lines", data)) {
+      map.addLayer({
+        id: "book-flow-lines",
+        type: "line",
+        source: "book-flow-lines",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": accent,
+          "line-width": ["get", "width"],
+          "line-opacity": VIEW_EMPHASIS[view]["book-flow-lines"] as number,
+        },
+      }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+    }
+    map.setPaintProperty("book-flow-lines", "line-color", accent);
+    map.setLayoutProperty("book-flow-lines", "visibility", activeLayers.includes("positions") ? "visible" : "none");
+    const clear = () => {
+      bookFlowMarkersRef.current.forEach((marker) => marker.remove());
+      bookFlowMarkersRef.current = [];
+    };
+    const place = () => {
+      clear();
+      if (!activeLayers.includes("positions")) return;
+      for (const flow of bookFlows) {
+        if (flow.coordinates.length < 2) continue;
+        const end = toMapCoordinates(...flow.coordinates[flow.coordinates.length - 1]);
+        const before = toMapCoordinates(...flow.coordinates[flow.coordinates.length - 2]);
+        const tip = map.project(end);
+        const tail = map.project(before);
+        const length = Math.hypot(tip.x - tail.x, tip.y - tail.y) || 1;
+        const ux = (tip.x - tail.x) / length;
+        const uy = (tip.y - tail.y) / length;
+        // The arrowhead sits just short of the destination's marker, pointing at it.
+        const arrowAt = map.unproject([tip.x - ux * 16, tip.y - uy * 16]);
+        const arrow = document.createElement("div");
+        arrow.className = "map-flow-arrow";
+        arrow.setAttribute("aria-hidden", "true");
+        arrow.style.transform = `rotate(${Math.atan2(uy, ux)}rad)`;
+        const label = document.createElement("div");
+        label.className = "map-node-label map-flow-label";
+        label.textContent = flow.label;
+        label.title = `${flow.mwhPerDay.toLocaleString()} MWh/d`;
+        bookFlowMarkersRef.current.push(
+          new Marker({ element: arrow, anchor: "center", rotationAlignment: "viewport" }).setLngLat(arrowAt).addTo(map),
+          new Marker({ element: label, anchor: "top", offset: [0, 10] }).setLngLat(end).addTo(map),
+        );
+      }
+      // In the book view a delivery at a place is a badge there, its volume summed: a contract
+      // at a hub is a market position, not a line to the hub's points.
+      if (view !== "book") return;
+      const flowEnds = new Set(bookFlows.map((flow) => flow.toId));
+      const byPlace = new Map<string, { lon: number; lat: number; mwhD: number; names: string[] }>();
+      for (const contract of situation?.contracts ?? []) {
+        const { lon, lat, ref_id: refId } = contract.location;
+        if (!Number.isFinite(lon) || !Number.isFinite(lat) || (refId && flowEnds.has(refId))) continue;
+        const key = refId || `${lon.toFixed(4)},${lat.toFixed(4)}`;
+        const place = byPlace.get(key) ?? { lon, lat, mwhD: 0, names: [] };
+        place.mwhD += contract.delivery_mwh_d;
+        place.names.push(contract.contract_name);
+        byPlace.set(key, place);
+      }
+      for (const place of byPlace.values()) {
+        if (!(place.mwhD > 0)) continue;
+        const badge = document.createElement("div");
+        badge.className = "map-node-label map-flow-label";
+        badge.textContent = compactMwhPerDay(place.mwhD);
+        badge.title = `${place.names.join("\n")}\n${place.mwhD.toLocaleString()} MWh/d`;
+        bookFlowMarkersRef.current.push(
+          new Marker({ element: badge, anchor: "top", offset: [0, 12] }).setLngLat(toMapCoordinates(place.lon, place.lat)).addTo(map),
+        );
+      }
+    };
+    place();
+    map.on("moveend", place);
+    return () => {
+      map.off("moveend", place);
+      clear();
+    };
+  }, [activeLayers, bookFlows, effectiveTheme, mapReady, situation, view]);
 
 
   // Live situation layers. Added once, then fed with setData; visibility follows the
@@ -1175,6 +1311,7 @@ export function GasNetworkMap({
     const lines: Array<{ part: string; coords: Coord[] }> = [];
     const points: Array<{ part: string; at: Coord }> = [];
     const labels: Array<{ at: Coord; text: string }> = [];
+    let hubMembers: Set<string> | null = null;
     if (selection?.kind === "cargo" && situation) {
       const cargo = situation.cargoes.find((item) => item.cargo_id === selection.id);
       if (cargo) {
@@ -1217,7 +1354,16 @@ export function GasNetworkMap({
       }
     } else if (selection?.kind === "hub") {
       const hub = nodes.find((node) => node.node_type === "hub" && node.name.toUpperCase() === selection.id);
-      if (hub) points.push({ part: "current", at: [hub.lon, hub.lat] });
+      if (hub) {
+        points.push({ part: "current", at: [hub.lon, hub.lat] });
+        // A hub is a market area: its points are marked, never wired to the hub.
+        hubMembers = zoneMemberIds(hub.id, edges);
+        for (const node of nodes) {
+          if (hubMembers.has(node.id) && Number.isFinite(node.lon) && Number.isFinite(node.lat)) {
+            points.push({ part: "member", at: [node.lon, node.lat] });
+          }
+        }
+      }
     }
     const lineData = {
       type: "FeatureCollection" as const,
@@ -1259,10 +1405,10 @@ export function GasNetworkMap({
         type: "circle",
         source: "selection-points",
         paint: {
-          "circle-radius": ["case", ["==", ["get", "part"], "current"], 11, 7],
+          "circle-radius": ["match", ["get", "part"], "current", 11, "member", 5, 7],
           "circle-color": "rgba(0,0,0,0)",
           "circle-stroke-color": accent,
-          "circle-stroke-width": ["case", ["==", ["get", "part"], "current"], 3, 2],
+          "circle-stroke-width": ["match", ["get", "part"], "current", 3, "member", 1.5, 2],
         },
       });
     }
@@ -1274,7 +1420,9 @@ export function GasNetworkMap({
       ["nodes-circle", "circle-opacity"],
       ["node-clusters", "circle-opacity"],
       ["verified-pipeline-lines", "line-opacity"],
+      ["network-link-lines", "line-opacity"],
       ["indicative-route-lines", "line-opacity"],
+      ["book-flow-lines", "line-opacity"],
       ["situation-facilities", "icon-opacity"],
       ["situation-flows", "circle-opacity"],
       ["situation-pipeline-flow", "line-opacity"],
@@ -1292,7 +1440,11 @@ export function GasNetworkMap({
       // The layer's own opacity, read once before this effect ever changes it.
       if (!dimmedRef.current.has(key)) dimmedRef.current.set(key, map.getPaintProperty(layerId, property as never) ?? 1);
       const base = emphasis[layerId] ?? dimmedRef.current.get(key);
-      map.setPaintProperty(layerId, property as never, (selection || replay ? 0.25 : base) as never);
+      // A selected hub keeps its zone's points at full strength and steps the rest back.
+      const dimmed = hubMembers && layerId === "nodes-circle"
+        ? ["case", ["in", ["get", "id"], ["literal", [...hubMembers]]], 0.95, 0.2]
+        : 0.25;
+      map.setPaintProperty(layerId, property as never, (selection || replay ? dimmed : base) as never);
     }
     selectionMarkersRef.current.forEach((marker) => marker.remove());
     selectionMarkersRef.current = labels.map((label) => {
@@ -1583,8 +1735,19 @@ export function GasNetworkMap({
   function fitOurPositions() {
     const map = mapRef.current;
     if (!map || !situation) return;
-    // The book list covers the left of the map in the book view.
-    const padding = view === "book" ? { top: 90, bottom: 90, left: 340, right: 80 } : 80;
+    // The book list covers the left of the map in the book view. On a phone the padding is
+    // scaled to the map: padding wider than the map leaves MapLibre no camera, and fitBounds
+    // then throws (the book view went blank at phone width).
+    const wanted = view === "book" ? { top: 90, bottom: 90, left: 340, right: 80 } : { top: 80, bottom: 80, left: 80, right: 80 };
+    const { clientWidth: width, clientHeight: height } = map.getContainer();
+    const scaleX = Math.min(1, (width * 0.6) / (wanted.left + wanted.right));
+    const scaleY = Math.min(1, (height * 0.6) / (wanted.top + wanted.bottom));
+    const padding = {
+      top: Math.round(wanted.top * scaleY),
+      bottom: Math.round(wanted.bottom * scaleY),
+      left: Math.round(wanted.left * scaleX),
+      right: Math.round(wanted.right * scaleX),
+    };
     const points: Array<[number, number]> = [
       ...situation.contracts.map((item) => [item.location.lon, item.location.lat] as [number, number]),
       ...situation.regas_slots.map((item) => [item.location.lon, item.location.lat] as [number, number]),

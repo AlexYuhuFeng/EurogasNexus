@@ -18,7 +18,9 @@ bundle"):
 - **Edges** are not pipelines. ENTSOG publishes no route geometry through its API, and no
   openly licensed route geometry is used. Each edge links a point to the virtual trading
   point of an entry-exit zone its operator belongs to (``connection_basis =
-  entry_exit_zone``), drawn as a straight schematic line (``schematic = true``).
+  entry_exit_zone``, ``schematic = true``). It records zone membership: the map uses it to
+  mark a hub's points when the hub is selected and never draws it as a line, because a
+  trading point is a market area, not a place wired to its points.
 
 The seed never overwrites a live read: when the store already holds ENTSOG reference points
 that did not come from a bundle, it changes nothing (``skipped_live_reference_present``).

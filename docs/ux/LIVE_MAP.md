@@ -89,7 +89,7 @@ detail and provenance, so the map never grows a second detail page.
 
 | Selected | The card leads with | Highlighted |
 |---|---|---|
-| **Hub** (NBP, TTF …) | Day-ahead and month-ahead prices from the same rows as the hub board, change on the previous close, source and time; the zone today: outages now and planned, outages one pipeline upstream (Nyhamna feeding NBP through Langeled), flow measured in and out at the zone's points, our supply delivering in the zone | The hub |
+| **Hub** (NBP, TTF …) | Day-ahead and month-ahead prices from the same rows as the hub board, change on the previous close, source and time; the zone today: outages now and planned, outages one pipeline upstream (Nyhamna feeding NBP through Langeled), flow measured in and out at the zone's points, our supply delivering in the zone | The hub, and its zone's points ringed at full strength while the rest step back. No line is drawn from the hub to its points |
 | **Site** (a place: Easington, Bacton, Isle of Grain …) | Its roles as words; operator; flow in or out today (gas day stated) against capacity, with utilisation only when both are the same point's; tank storage for a terminal; outages (REMIT) with window and reason; our supply there with DCQ and entry capacity; cargoes heading to it; our regas slots; the pipelines connecting it | Its points, every connection to it, the legs of cargoes heading to it |
 | **Cargo** | Our or market cargo, status; load port → destination with progress; ETA (or how overdue); size in GWh and m³ LNG; the regas slot waiting for it | Track sailed (solid), indicative leg ahead (dashed), load port and destination ringed and labelled |
 
@@ -168,10 +168,34 @@ It is a view, not a mode: it holds no state of its own and grants nothing.
 ## Topology over geometry
 
 What netbacks and flow reasoning need is the topology: which point connects to which,
-through which interconnector, into which zone. A pipe's surveyed path matters little. So
-a known connection without surveyed geometry is drawn as a thin curve between its
-endpoints (key: "Connection, schematic where no surveyed route"); a surveyed pipeline is
-drawn along its geometry. Correctness is checked instead of assumed: a connection must end
+through which interconnector, into which zone. The map draws it the way a trader reads a
+network map:
+
+- **A hub is a market area, not a place.** TTF, THE or NBP is a virtual trading point; it
+  is not physically connected to the points of its zone. The zone-membership links of the
+  reference bundle (each point to its zone's trading point) are never drawn: they made a
+  star of lines on every hub. Selecting a hub rings its zone's points and steps the rest
+  back; nothing radiates from a hub in the default view. The key says so: "Hub = market
+  area: select it to see its points".
+- **Only real connections are lines.** A surveyed pipeline is drawn along its geometry
+  (key: "Pipeline (surveyed route)"). A physical connection between two located points
+  with no surveyed route is one quiet straight dashed segment between them (key:
+  "Connection, no surveyed route (straight, dashed)"); several records for the same pair
+  are one line. A point with no such connection is a point, with no line. The shipped
+  reference bundle has no surveyed routes and no point-to-point links, so its network is
+  drawn as points only.
+- **Our book: one line per origin and destination.** Allocated flows between the same two
+  places are summed into one line in the accent colour, its width in a few capped steps of
+  MWh/d, the volume labelled at the destination and one arrowhead for direction. It
+  follows the surveyed route where every leg of it is surveyed, otherwise it is one
+  straight segment. Candidates, blocked options and sales where the gas already is draw no
+  line. A delivery at a hub is a volume badge at the hub ("18k MWh/d"), never lines to the
+  hub's points (key: "Our flow (width by MWh/d)").
+- **Route candidates are trade routes, not pipes.** One is drawn when the book uses it, or
+  as context when the server gives its path; candidates from one hub to every other hub are
+  not drawn as a star of corridors.
+
+The key lists only the kinds of line on screen. Correctness is checked instead of assumed: a connection must end
 at known points, may cross a border only at an entry or interconnection point (or an LNG,
 production or storage site), entry and interconnection points must connect to something,
 and nothing is recorded twice. Problems show on the status line ("Topology: 2 to check")

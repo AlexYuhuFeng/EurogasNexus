@@ -14,8 +14,12 @@ import type {
   StrategyLabResultDTO,
 } from "@/api/client";
 import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
+import { buildBookFlows, type LineCoordinate } from "@/app/mapLineGeometry";
+import { buildNodeIdByPointName, buildRouteGeometryEdgesByRouteId } from "@/app/resourcePoolMapPaths";
+import { normalizePointName } from "@/app/routeMetadata";
 import {
   isMapEligibleNode,
+  verifiedEdgeGeometryCoordinates,
   type NetworkGeometryState,
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
@@ -236,9 +240,9 @@ export function NetworkWorkspace({
     searchTerm,
     highlightedRoute,
   });
-  const verifiedPipelineCount = visibleMapLines.filter(
-    (line) => line.displayKind === "verified_pipeline" || line.displayKind === "network_link",
-  ).length;
+  const surveyedPipelineCount = visibleMapLines.filter((line) => line.displayKind === "verified_pipeline").length;
+  const connectionLinkCount = visibleMapLines.filter((line) => line.displayKind === "network_link").length;
+  const verifiedPipelineCount = surveyedPipelineCount + connectionLinkCount;
   const indicativeRouteCount = visibleMapLines.filter(
     (line) => line.displayKind === "indicative_route",
   ).length;
@@ -251,6 +255,25 @@ export function NetworkWorkspace({
       indicativeRouteCount >
     0;
   const [activeRailView, setActiveRailView] = useState<DecisionRailView>("decision");
+  // The book's allocated flows, one line per origin and destination, along the surveyed
+  // pipeline route where every leg of it is surveyed.
+  const bookFlows = useMemo(() => {
+    const nodeIdByPointName = buildNodeIdByPointName(nodes);
+    const edgesByRouteId = buildRouteGeometryEdgesByRouteId(edges);
+    const surveyedRoute = (routeId: string): LineCoordinate[] | null => {
+      const legs = [...(edgesByRouteId.get(routeId) ?? [])]
+        .sort((a, b) => Number(a.metadata_json?.route_leg_sequence ?? 0) - Number(b.metadata_json?.route_leg_sequence ?? 0))
+        .map(verifiedEdgeGeometryCoordinates);
+      if (!legs.length || legs.some((leg) => leg === null)) return null;
+      return legs.flatMap((leg) => leg as LineCoordinate[]);
+    };
+    return buildBookFlows({
+      paths: resourcePoolMapPaths,
+      resolvePoint: (name) => nodeIdByPointName.get(normalizePointName(name)),
+      nodes: new Map(nodes.map((node) => [node.id, node])),
+      surveyedRoute,
+    });
+  }, [edges, nodes, resourcePoolMapPaths]);
 
   return (
     <div className="network-workspace-shell">
@@ -376,8 +399,19 @@ export function NetworkWorkspace({
             onChange={chooseMapView}
           />
           <span className="map-toolbar-divider" aria-hidden="true" />
-          <button className="chip reset-chip" type="button" onClick={onResetSearch}>
-            {t("map.reset")}
+          {/* Phone width: one compact row, icons with their names for assistive technology. */}
+          <button
+            className={compactLayout ? "chip reset-chip map-icon-chip" : "chip reset-chip"}
+            type="button"
+            onClick={onResetSearch}
+            aria-label={compactLayout ? t("map.reset") : undefined}
+            title={compactLayout ? t("map.reset") : undefined}
+          >
+            {compactLayout ? (
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : t("map.reset")}
           </button>
           {compactLayout ? (
             // Phone width (docs/product/ADAPTIVE_CLIENT.md): the layer switches live in one
@@ -464,12 +498,20 @@ export function NetworkWorkspace({
           <span className="map-toolbar-divider" aria-hidden="true" />
           <button
             type="button"
-            className="chip map-fullscreen-chip"
+            className={compactLayout ? "chip map-fullscreen-chip map-icon-chip" : "chip map-fullscreen-chip"}
             aria-pressed={fullscreen.active}
+            aria-label={compactLayout ? t(fullscreen.active ? "map.fullscreen.exit" : "map.fullscreen.enter") : undefined}
             title={t(fullscreen.active ? "map.fullscreen.exit_hint" : "map.fullscreen.enter_hint")}
             onClick={fullscreen.toggle}
           >
-            {t(fullscreen.active ? "map.fullscreen.exit" : "map.fullscreen.enter")}
+            {compactLayout ? (
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                <path
+                  d={fullscreen.active ? "M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4" : "M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"}
+                  fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+                />
+              </svg>
+            ) : t(fullscreen.active ? "map.fullscreen.exit" : "map.fullscreen.enter")}
           </button>
         </div>
         <div className="map-container map-stage network-map-stage" id="map">
@@ -489,6 +531,7 @@ export function NetworkWorkspace({
             facilities={facilities}
             view={mapView}
             focus={focus}
+            bookFlows={bookFlows}
             replay={
               replayCargo && replayPath && replay.frame
                 ? { path: replayPath.coords, sailed: replay.frame.sailed, at: replay.frame.at, label: replayCargo.vessel_name }
@@ -578,11 +621,14 @@ export function NetworkWorkspace({
               <small>{t("map.empty_help")}</small>
             </div>
           )}
-          {/* The chips are the key for points; this one line keys the lines. A connection
-              without surveyed geometry is still drawn: topology is what netbacks need. */}
+          {/* The chips are the key for points; this one line keys only the lines drawn. A hub
+              is a market area, never wired to its points: the key says how to see its zone. */}
           {mapHasVisibleEvidence && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
-            <span><i className="line-swatch verified" />{t("map.key.connection")}</span>
+            {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
+            {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
             {indicativeRouteCount > 0 && <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}</span>}
+            {bookFlows.length > 0 && mapLayers.includes("positions") && <span><i className="line-swatch flow" />{t("map.key.book_flow")}</span>}
+            {displayedHubCount > 0 && <span><i className="node-swatch hubs" />{t("map.key.hub_area")}</span>}
           </div>}
         </div>
       </section>

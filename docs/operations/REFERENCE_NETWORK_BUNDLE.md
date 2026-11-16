@@ -16,7 +16,7 @@ network and loads it at install time.
 | with a position | 267 | ENTSOG's map position transformed to approximate lon/lat (`display_approximation`, never `verified`) |
 | without a position | 51 | ENTSOG publishes no map position (Dornum ITP-00126/00188, Emden ITP-00080/00081/00160 and others): no coordinate, counted as not located |
 | Operator point directions | 683 | operators, adjacent operators, booking platform and product flags |
-| Schematic links | 288 | each point to the trading point of its operator's entry-exit zone (TTF, THE, NBP, ZTP, PEG, GTF, IBP); `schematic: true`, not pipeline routes |
+| Schematic links | 288 | each point to the trading point of its operator's entry-exit zone (TTF, THE, NBP, ZTP, PEG, GTF, IBP); `schematic: true`, zone membership, not pipeline routes and never drawn as lines |
 
 Distribution and final-consumer points are left out. The source, download date and the
 citation ENTSOG's terms require are in the file's `source` block and in each seeded row; the
@@ -40,8 +40,12 @@ own `upsert_reference_snapshot` (upsert under stable ids, retire rather than del
 
 ## On the map
 
-Points draw as approximate positions and links as thin schematic lines ("Connection
-(schematic where no surveyed route)"). The situation strip reads "Network points 318 · 51
+Points draw as approximate positions. The zone links are not drawn: a trading point is a
+market area, not a place wired to each of its points, and drawing them put a star of lines
+on every hub. They are used to ring a hub's points when the hub is selected and for the
+topology check. The bundle carries no surveyed route and no point-to-point link, so the
+network shows as points only (see `docs/ux/LIVE_MAP.md`, "Topology over geometry"). The
+situation strip reads "Network points 318 · 51
 without a published position"; the points without one are listed in its tooltip and in
 `unlocated_network_points` of `GET /api/portfolio/map-situation` (`unlocated.network_points`;
 flows at points with no position count in `unlocated.flows`), following the outage rule:

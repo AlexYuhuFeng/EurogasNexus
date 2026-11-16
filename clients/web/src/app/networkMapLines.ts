@@ -5,20 +5,28 @@ import {
   verifiedEdgeGeometryCoordinates,
 } from "@/app/workspaceDerivedData";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
+import {
+  collapseSchematicPairs,
+  isZoneMembershipEdge,
+  straightSegment,
+  type LineCoordinate,
+} from "@/app/mapLineGeometry";
 
-export type LineCoordinate = [number, number];
+export type { LineCoordinate };
 /**
- * - verified_pipeline: a reference connection with surveyed geometry;
- * - network_link: a reference connection without it, drawn as a gentle curve between its
- *   endpoints. The topology (which point connects to which, through which interconnector)
- *   is what netbacks and flow reasoning need; the pipe's exact path is not.
- * - indicative_route: a route candidate's schematic corridor.
+ * - verified_pipeline: a reference connection with surveyed geometry, drawn as it runs;
+ * - network_link: a physical connection between two located points without surveyed
+ *   geometry, drawn as one quiet straight dashed segment between them;
+ * - indicative_route: a route candidate's schematic corridor (one straight segment).
+ *
+ * Zone-membership links (a point to its zone's trading point) are never lines: a trading
+ * point is a market area, not a place wired to its points (see mapLineGeometry.ts).
  */
 export type NetworkLineDisplayKind = "verified_pipeline" | "network_link" | "indicative_route";
 export type NetworkLineGeometryBasis =
   | "verified_geometry"
   | "backend_route_geometry_coordinates"
-  | "schematic_endpoint_curve";
+  | "schematic_endpoint_segment";
 
 export interface NetworkHighlightedRoute {
   fromNodeId: string;
@@ -101,29 +109,13 @@ export function validLineCoordinates(value: unknown): LineCoordinate[] | null {
   return coordinates.length === value.length ? coordinates : null;
 }
 
-export function buildSchematicRouteCoordinates(
-  from: NodeDTO,
-  to: NodeDTO,
-  routeLegSequence = 1,
-): LineCoordinate[] {
-  const deltaLon = to.lon - from.lon;
-  const deltaLat = to.lat - from.lat;
-  const distance = Math.hypot(deltaLon, deltaLat);
-  if (!Number.isFinite(distance) || distance < 0.01) {
-    return [[from.lon, from.lat], [to.lon, to.lat]];
-  }
-
-  const bendDirection = routeLegSequence % 2 === 0 ? -1 : 1;
-  const bend = Math.min(Math.max(distance * 0.09, 0.08), 0.55) * bendDirection;
-  const normalLon = -deltaLat / distance;
-  const normalLat = deltaLon / distance;
-  return Array.from({ length: 9 }, (_, index) => {
-    const t = index / 8;
-    const arc = Math.sin(Math.PI * t) * bend;
-    const lon = Math.min(180, Math.max(-180, from.lon + deltaLon * t + normalLon * arc));
-    const lat = Math.min(90, Math.max(-90, from.lat + deltaLat * t + normalLat * arc));
-    return [lon, lat];
-  });
+/**
+ * The schematic shape of a connection without surveyed geometry: one straight segment between
+ * its endpoints. It used to bend by leg number, which drew parallel records for the same pair
+ * as offset arcs fanning out from one origin.
+ */
+export function buildSchematicRouteCoordinates(from: NodeDTO, to: NodeDTO): LineCoordinate[] {
+  return straightSegment(from, to);
 }
 
 export function isUsableEndpointCoordinate(node: NodeDTO): boolean {
@@ -179,16 +171,18 @@ export function buildRenderableNetworkLine(
 
   if (edge.from_node_id === edge.to_node_id) return null;
   if (!isRouteCandidateEdge(edge)) {
+    // A point's zone link is membership of a market area, not a connection on the ground.
+    if (isZoneMembershipEdge(edge, from, to)) return null;
     const sequence = metadataNumber(edge.metadata_json, "route_leg_sequence", 1);
     return {
       id: edge.id,
       edge,
       from,
       to,
-      geometryCoordinates: buildSchematicRouteCoordinates(from, to, sequence),
+      geometryCoordinates: buildSchematicRouteCoordinates(from, to),
       displayKind: "network_link",
       routeCandidate: false,
-      geometryBasis: "schematic_endpoint_curve",
+      geometryBasis: "schematic_endpoint_segment",
       routeId: routeEdgeRouteId(edge) ?? edge.source_record_id ?? "",
       routeLegSequence: sequence,
       routeGeometryState: routeGeometryStateFromMetadata(edge, "directLineFallback"),
@@ -204,12 +198,12 @@ export function buildRenderableNetworkLine(
     from,
     to,
     geometryCoordinates: explicitCoordinates ??
-      buildSchematicRouteCoordinates(from, to, routeLegSequence),
+      buildSchematicRouteCoordinates(from, to),
     displayKind: "indicative_route",
     routeCandidate: true,
     geometryBasis: explicitCoordinates
       ? "backend_route_geometry_coordinates"
-      : "schematic_endpoint_curve",
+      : "schematic_endpoint_segment",
     routeId: routeEdgeRouteId(edge) ?? edge.source_record_id ?? "",
     routeLegSequence,
     routeGeometryState: routeGeometryStateFromMetadata(edge, "source_derived_corridor"),
@@ -221,9 +215,14 @@ export function buildRenderableNetworkLines(
   edges: EdgeDTO[],
 ): RenderableNetworkLine[] {
   const nodeLookup = new globalThis.Map(nodes.map((node) => [node.id, node]));
-  return edges
+  const lines = edges
     .map((edge) => buildRenderableNetworkLine(edge, nodeLookup))
     .filter((line): line is RenderableNetworkLine => line !== null);
+  // Several records for the same pair of places (both directions, a leg per route) are one
+  // schematic line; surveyed pipelines stay as they run.
+  return collapseSchematicPairs(
+    lines.map((line) => ({ ...line, schematic: line.geometryBasis === "schematic_endpoint_segment", kind: line.displayKind })),
+  ).map(({ schematic: _schematic, kind: _kind, ...line }) => line);
 }
 
 export function buildSyntheticSelectedRouteLine(
@@ -245,10 +244,10 @@ export function buildSyntheticSelectedRouteLine(
     edge: null,
     from,
     to,
-    geometryCoordinates: buildSchematicRouteCoordinates(from, to, 1),
+    geometryCoordinates: buildSchematicRouteCoordinates(from, to),
     displayKind: "indicative_route",
     routeCandidate: true,
-    geometryBasis: "schematic_endpoint_curve",
+    geometryBasis: "schematic_endpoint_segment",
     routeId: highlightedRoute.routeId,
     routeLegSequence: 1,
     routeGeometryState: geometryState,

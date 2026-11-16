@@ -1285,6 +1285,38 @@
     box-shadow: none;
   }
 
+  /* A connection with no surveyed route: dashed, as drawn. Our flow: the accent, wider. */
+  .line-swatch.link {
+    border-top-width: 2px;
+    border-top-style: dashed;
+    border-radius: 0;
+  }
+
+  .line-swatch.flow {
+    border-top-width: 4px;
+    border-top-color: var(--ds-accent);
+  }
+
+  .map-visual-legend .node-swatch {
+    flex: none;
+  }
+
+  /* A book flow's single arrowhead, rotated by the map to point at the destination. */
+  .map-flow-arrow {
+    width: 0;
+    height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 10px solid var(--ds-accent);
+    pointer-events: none;
+  }
+
+  .map-node-label.map-flow-label {
+    border-color: var(--ds-accent);
+    color: var(--ds-text-1);
+    font-variant-numeric: tabular-nums;
+  }
+
   /* Market overview context line: label and value pairs, spaced, the refresh at the end. */
   .market-context-strip {
     display: flex;
@@ -3721,9 +3753,80 @@
     white-space: nowrap;
   }
 
-  [data-width-class="compact"] .map-toolbar {
+  /* Phone width: the toolbar is one row (view switch, reset, layers, full screen); reset
+     and full screen are icons with their names for assistive technology. */
+  [data-width-class="compact"] .map-toolbar,
+  [data-width-class="compact"] .workspace-network .network-map-column > .map-toolbar {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--ds-space-1);
+    min-width: 0;
+  }
+
+  [data-width-class="compact"] .map-toolbar > .map-toolbar-divider {
+    display: none;
+  }
+
+  [data-width-class="compact"] .map-toolbar .map-icon-chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--ds-control-touch);
+    min-width: var(--ds-control-touch);
+    min-height: var(--ds-control-touch);
+    padding: 0;
+  }
+
+  [data-width-class="compact"] .map-toolbar .map-fullscreen-chip {
+    margin-left: auto;
+  }
+
+  [data-width-class="compact"] .map-layers-panel > summary {
+    padding: 0 var(--ds-space-2);
+  }
+
+  /* The status panel and the line key wrap inside the map instead of running off its edge. */
+  [data-width-class="compact"] .map-situation-strip,
+  [data-width-class="compact"] .network-map-column.is-fullscreen .map-situation-strip {
+    right: var(--ds-space-2);
+    left: var(--ds-space-2);
+    max-width: none;
+    font-size: var(--ds-text-sm);
+  }
+
+  [data-width-class="compact"] .map-situation-strip > span {
+    white-space: normal;
+  }
+
+  /* The line key sits under the finder, clear of the status panel and the attribution. */
+  [data-width-class="compact"] .map-visual-legend,
+  [data-width-class="compact"] .workspace-network .network-map-column .map-visual-legend {
+    top: calc(var(--ds-space-2) * 2 + var(--ds-space-1) + var(--ds-control));
+    right: auto;
+    bottom: auto;
+    left: var(--ds-space-2);
     flex-wrap: wrap;
-    gap: var(--ds-space-2);
+    width: auto;
+    max-width: calc(100% - 2 * var(--ds-space-2));
+  }
+
+  [data-width-class="compact"] .workspace-network .network-map-column .map-toolbar {
+    max-width: none;
+  }
+
+  /* A selected object's card needs the room: the status panel steps aside while it is open,
+     and pinch zoom replaces the zoom buttons. */
+  [data-width-class="compact"] .network-map-stage:has(.map-detail-panel) .map-situation-strip,
+  [data-width-class="compact"] .network-map-stage .maplibregl-ctrl-bottom-right {
+    display: none;
+  }
+
+  [data-width-class="compact"] .map-finder,
+  [data-width-class="compact"] .workspace-network .network-map-stage .map-finder {
+    top: var(--ds-space-2);
+    left: var(--ds-space-2);
+    width: calc(100% - 2 * var(--ds-space-2));
   }
 }
 

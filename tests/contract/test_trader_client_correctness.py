@@ -355,7 +355,12 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     # Unverified evidence must be rendered, but explicitly as schematic/indicative.
     assert "buildVisibleMapNetworkLines" in line_model
     assert "buildSyntheticSelectedRouteLine" in line_model
-    assert '"schematic_endpoint_curve"' in line_model
+    assert '"schematic_endpoint_segment"' in line_model
+    # A trading point is a market area: zone-membership links are never drawn, and an
+    # unsurveyed connection is one straight segment per pair (no fan of offset arcs).
+    assert "isZoneMembershipEdge(edge, from, to)" in line_model
+    assert "collapseSchematicPairs(" in line_model
+    assert "straightSegment(from, to)" in line_model
     assert 't("map.indicative_route_warning")' in map_component
     assert 'geometry_classification: "indicative_schematic_corridor"' in map_component
     assert 'geometry_verification: "unverified"' in map_component
@@ -374,7 +379,7 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     assert "fallback-flow-path endpoint-link" not in map_component
     assert 't("map.route_corridors_only")' in network_workspace
     assert 't("map.visual_legend")' in network_workspace
-    # The key names a line as a connection, schematic where no surveyed route exists.
+    # The key names only the lines drawn: a dashed connection has no surveyed route.
     assert 't("map.key.connection")' in network_workspace
     assert 't("map.indicative_route_lines")' in network_workspace
     assert 't("map.suppressed_route_lines")' not in network_workspace
