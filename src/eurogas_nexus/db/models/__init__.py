@@ -56,7 +56,6 @@ from eurogas_nexus.db.models.identity import (
 from eurogas_nexus.db.models.jobs import JobRecord
 from eurogas_nexus.db.models.lng_positions import LngCargoRecord, RegasSlotRecord
 from eurogas_nexus.db.models.market_data import MarketDataLicenceRecord
-from eurogas_nexus.db.models.market_report import MarketReportRecord
 from eurogas_nexus.db.models.market_intelligence import (
     CompanyTsoAccessRecord,
     IntradayOpportunityRecord,
@@ -66,6 +65,7 @@ from eurogas_nexus.db.models.market_positioning import (
     PortfolioPnlSnapshotRecord,
     ScreenOrderObservationRecord,
 )
+from eurogas_nexus.db.models.market_report import MarketReportRecord
 from eurogas_nexus.db.models.monitoring import MonitoringAlertRecord
 from eurogas_nexus.db.models.observation import (
     AuditEventRecord,
