@@ -17,6 +17,11 @@ profiles, route modules, API services, and dependency providers.
   against the market and fundamentals, computed once on the server with each figure's
   unit, as-of time and freshness state (see
   [API_CONTRACT_EVOLUTION_POLICY.md](../architecture/API_CONTRACT_EVOLUTION_POLICY.md)).
+- Market reports (`docs/user/REPORTS.md`): `GET /api/reports/catalogue`, `POST
+  /api/reports/plan` (question to an editable plan), `POST /api/reports/market` (generate and
+  store), `GET /api/reports/market`, `GET /api/reports/market/{report_id}` and `GET
+  /api/reports/market/{report_id}/html` (one self-contained `text/html` file; PDF by printing).
+  Reading a stored report re-checks the reader's licences and books.
 - `GET /api/internal/health` in the internal profile only.
 - `GET /api/dev/health` in the development profile only.
 

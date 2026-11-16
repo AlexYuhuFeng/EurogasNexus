@@ -12,6 +12,15 @@ grant it), writes nothing and calls no model. Every figure carries unit, as-of t
 freshness state; risk figures carry a method note. The web client has a typed
 `api.deskToday()`; no SDK method yet. Census: 244 paths / 264 operations.
 
+Additive 2026-11-16 (market reports): five paths, six operations under the existing
+commercial `/api/reports/` prefix: `GET /api/reports/catalogue` (READ), `POST
+/api/reports/plan` (GOVERNED: may call the model), `POST /api/reports/market` (GOVERNED:
+stores a record, may call the model), `GET /api/reports/market` and `GET
+/api/reports/market/{report_id}` (READ, JSON envelope) and `GET
+/api/reports/market/{report_id}/html` (READ, `text/html`, one self-contained file). Reading a
+stored report re-checks the reader's licences and books. SDK: `eurogas_nexus_sdk.reports`.
+Census: 249 paths / 270 operations.
+
 Additive 2026-11-15 (NUM-05): risk responses gain an optional `method` (credit exposure and
 mandate usage rows, P&L snapshots, the live summary) or `methods` (position ladder) object.
 No field changes meaning and no number changes.

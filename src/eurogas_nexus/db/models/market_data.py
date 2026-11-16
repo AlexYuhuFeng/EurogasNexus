@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, Integer, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -22,5 +22,10 @@ class MarketDataLicenceRecord(Base):
     seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
     contract_reference: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: Whether the licence permits derived figures to be redistributed outside the firm (a
+    #: shareable market report). Unknown is no (migration 0064).
+    redistribution_allowed: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, server_default=false()
+    )
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -101,6 +101,15 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # The Today read (UX-05): prices, positions, limits, alerts, outages and fundamentals
     # the caller may already see, assembled once; nothing is written.
     ("/api/desk/today", Permission.READ),
+    # Market reports (application/reports): the catalogue is a declaration; reading a stored
+    # report is a read of figures the reader is re-checked for (sources and books). Proposing
+    # a plan may call the model, and generating one stores a record and may call the model,
+    # so both are GOVERNED (ANALYST floor) like the other analysis that records evidence.
+    ("/api/reports/catalogue", Permission.READ),
+    ("/api/reports/plan", Permission.GOVERNED),
+    ("/api/reports/market", Permission.READ),
+    ("/api/reports/market/{report_id}", Permission.READ),
+    ("/api/reports/market/{report_id}/html", Permission.READ),
     ("/api/review/decisions", Permission.REVIEW),
     ("/api/ingestion-runs", Permission.READ),
     # --- read families ---
@@ -300,6 +309,7 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/research/datasets", Permission.GOVERNED),
     ("POST", "/api/analysis-snapshots", Permission.GOVERNED),
     ("POST", "/api/decision-cases", Permission.GOVERNED),
+    ("POST", "/api/reports/market", Permission.GOVERNED),
     ("PUT", "/api/settings/organisation", Permission.ADMIN),
     # Book structure and assignment is middle-office configuration, not a market read.
     ("PUT", "/api/portfolio/books/{book_id}", Permission.OPERATOR),

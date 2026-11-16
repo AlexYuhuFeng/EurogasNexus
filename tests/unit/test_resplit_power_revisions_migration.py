@@ -63,7 +63,10 @@ def test_chain_and_head() -> None:
 
     module = _module("0063_resplit_power_revisions.py")
     assert module.down_revision == "0062_observation_revisions"
-    assert DB_SCHEMA_REVISION == module.revision == "0063_resplit_power_revisions"
+    assert module.revision == "0063_resplit_power_revisions"
+    # 0064_market_reports builds on it (market reports, licence redistribution).
+    assert _module("0064_market_reports.py").down_revision == module.revision
+    assert DB_SCHEMA_REVISION == "0064_market_reports"
 
 
 def test_upgrade_allows_power_and_resplit_and_downgrade_restores_the_checks(connection):

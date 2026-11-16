@@ -205,6 +205,14 @@ copy it, download it or open it in your email. Nothing is sent from Eurogas Nexu
 the firm enables a model, a short lead may head the draft; it is checked against the
 sections and says so. On a demo deployment the draft states that its prices are simulated.
 
+### Market reports
+
+Research → **Reports** builds a full market report (daily, weekly, monthly, a situation report
+from an alert or outage, or one from a question) as a single HTML file you can print to PDF or
+send. **Report** beside **Why** on an alert or outage opens a situation report about it. Choose
+**Shareable** for anything leaving the desk: it never contains positions, P&L, limits or contract
+terms, and a report with licensed prices stays internal. See [REPORTS.md](../REPORTS.md).
+
 ## 9. Look up a term
 
 Help & Settings → **Glossary**: 74 desk terms with unit, formula, a worked example, where the term
