@@ -59,7 +59,7 @@ def test_ids_are_unique_and_edges_join_located_points(bundle):
     for edge in bundle["edges"]:
         assert edge["from"] in located and edge["to"] in located
         assert edge["schematic"] is True
-        assert edge["type"] == "virtual"
+        assert edge["type"] in {"virtual", "market_area_link", "interconnector"}
 
 
 def test_no_point_is_verified_and_unlocated_points_carry_no_coordinate(bundle):

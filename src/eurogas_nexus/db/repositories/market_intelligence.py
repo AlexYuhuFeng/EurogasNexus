@@ -14,7 +14,6 @@ from eurogas_nexus.db.models import (
     IntradayOpportunityRecord,
     MarketObservationRecord,
     MarketQuoteRecord,
-    RouteCandidateRecord,
 )
 from eurogas_nexus.db.repositories.route_cost import list_tso_tariffs
 from eurogas_nexus.domain.market_intelligence.normalized_view import (
@@ -704,12 +703,17 @@ def _route_economics(
     every route's warnings.
     """
 
-    candidates = (
-        session.query(RouteCandidateRecord)
-        .filter(RouteCandidateRecord.active.is_(True))
-        .order_by(RouteCandidateRecord.route_id)
-        .all()
-    )
+    # The same reader every pricing path uses: legs taken from the proven interconnection
+    # path, none for a route with no proven path (domain/route_cost/route_adjacency.py).
+    from types import SimpleNamespace
+
+    from eurogas_nexus.domain.route_cost.route_adjacency import route_adjacency_blocker
+    from eurogas_nexus.db.repositories.route_cost import list_route_candidates
+
+    candidates = [
+        SimpleNamespace(**payload)
+        for payload in sorted(list_route_candidates(session), key=lambda row: row["route_id"])
+    ]
     # The exact selector owns date applicability. It sees every tariff row so a
     # gap, inverted window, duplicate id or overlapping final row refuses the
     # route instead of hiding behind a clock-derived prefilter.
@@ -728,7 +732,15 @@ def _route_economics(
 
         missing_inputs: list[str] = []
         warnings: list[str] = []
-        total_cost: float | None = 0.0
+        # Zero only for a sale where the gas already is; a network route with no legs is not
+        # free, it is unpriced.
+        local = (candidate.route_adjacency or {}).get("status") == "local"
+        total_cost: float | None = 0.0 if local else None
+        blocker = route_adjacency_blocker(vars(candidate))
+        if blocker:
+            missing_inputs.append(blocker)
+        elif not local and not candidate.route_legs:
+            missing_inputs.append("ROUTE_TARIFF_LEGS_REQUIRED")
         currency = "EUR"
         unit = "MWh"
         cost_components: list[dict] = []
@@ -759,7 +771,9 @@ def _route_economics(
                 tariff_legs=legs,
             )
             result = calculate_route_cost(scenario, tariffs)
-            total_cost = result.total_cost
+            # A route with a leg the register does not hold is not cheaper by that leg: no
+            # partial total, the missing legs are named instead.
+            total_cost = result.total_cost if result.status == "SUCCESS" else None
             currency = result.currency or "EUR"
             raw_unit = result.unit or "EUR/MWh"
             unit = "MWh" if raw_unit.upper().endswith("/MWH") else raw_unit

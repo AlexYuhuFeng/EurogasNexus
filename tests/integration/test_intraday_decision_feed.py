@@ -21,6 +21,7 @@ from eurogas_nexus.db.repositories.market_intelligence import (
 from eurogas_nexus.ingestion.simulated_market_prices import (
     upsert_simulated_market_observations,
 )
+from tests.fixtures.route_crossings import add_bbl_crossing_tariffs
 
 
 def _seed_intraday_runtime(database_url: str, observed_at: datetime) -> dict:
@@ -94,11 +95,13 @@ def _seed_intraday_runtime(database_url: str, observed_at: datetime) -> dict:
                 ),
             ]
         )
+        add_bbl_crossing_tariffs(session)
         summary = upsert_simulated_market_observations(
             session,
             observed_at_utc=observed_at,
             source_systems=("EEX_Sim",),
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
     return summary
 

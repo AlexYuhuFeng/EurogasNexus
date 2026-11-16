@@ -422,6 +422,9 @@ def compose_resource_pool_options(
                     contract["contract_id"] for contract in eligible_contracts
                 ],
                 "required_tso_access": candidate["required_tso_access"],
+                # The interconnection path the route was priced along (hub -> point -> hub),
+                # so the map draws exactly what was priced.
+                "route_adjacency": candidate.get("route_adjacency"),
                 "source_refs": unique(
                     [
                         f"route_candidate:{candidate['route_id']}",
@@ -695,6 +698,15 @@ def candidate_route_cost(
     """
 
     if not candidate["route_legs"]:
+        # No legs is free only for a sale where the gas already is. A network route the
+        # market-area graph could not prove, or one with no legs, is unpriced, never zero.
+        from eurogas_nexus.domain.route_cost.route_adjacency import route_adjacency_blocker
+
+        blocker = route_adjacency_blocker(candidate)
+        if blocker:
+            return None, None, None, [], [blocker], []
+        if route_topology_kind_of(candidate) != "LOCAL_MARKET_DISPOSITION":
+            return None, None, None, [], [f"ROUTE_COST_MISSING:{candidate['route_id']}"], []
         return 0.0, None, None, [], [], []
 
     try:

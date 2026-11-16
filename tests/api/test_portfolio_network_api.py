@@ -22,6 +22,7 @@ from eurogas_nexus.db.models import (
 from eurogas_nexus.domain.route_cost.european_public_tariffs import (
     published_european_corridor_tariffs,
 )
+from tests.fixtures.route_crossings import add_bbl_crossing_tariffs
 
 GAS_DAY = "2026-01-01"
 
@@ -175,6 +176,7 @@ def _seed_full_snapshot(session: Session) -> None:
         )
     )
     _seed_tariffs(session, now)
+    add_bbl_crossing_tariffs(session)
     session.commit()
 
 
@@ -311,6 +313,7 @@ def test_portfolio_network_fails_closed_when_snapshot_is_blocked(
         # the local TTF sale remains composable.
         row = session.get(MarketObservationRecord, "market-nbp")
         session.delete(row)
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
     client = TestClient(create_app())

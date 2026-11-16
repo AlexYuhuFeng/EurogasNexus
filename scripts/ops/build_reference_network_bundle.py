@@ -11,12 +11,25 @@ Scope (``SCOPE_COUNTRIES``): points with an operator in BE, DE, DK, FR, GB, IE, 
 final-consumer points are left out: neither the map nor the balance uses them. The
 balance's landing points are always included.
 
-Edges: each located point is linked to the virtual trading point of every entry-exit zone
-one of its operators belongs to (``ZONE_HUB_BY_OPERATOR``). They are schematic zone links,
-not pipelines: ENTSOG publishes no route geometry through its API.
+Edges, two kinds:
+
+- zone membership (``type: virtual``): each located point to the trading point of every
+  entry-exit zone one of its operators belongs to (``ZONE_HUB_BY_OPERATOR``). Membership of a
+  market area, never drawn as a line;
+- adjacency (``type: market_area_link`` and ``interconnector``): which market areas each
+  interconnection point joins, derived from ENTSOG's ``interconnections`` and
+  ``connectionpoints`` datasets by the rule in ``reference_data/network_adjacency.py``. Route
+  pricing walks these edges; the map draws them.
+
+ENTSOG publishes no route geometry through its API; every edge is schematic.
 
     RUNTIME_STORE_DATABASE_URL=... python scripts/ops/build_reference_network_bundle.py \
         --version 2026-11-14 --downloaded 2026-11-14
+
+Only the adjacency, on the shipped bundle (no database; ENTSOG read live, retried on a reset,
+or from saved responses with ``--entsog-dir``):
+
+    python scripts/ops/build_reference_network_bundle.py --adjacency-only --version 2026-11-16
 """
 
 from __future__ import annotations
@@ -24,19 +37,26 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from eurogas_nexus.application.pipeline_supply import LANDING_POINTS
+from eurogas_nexus.application.pipeline_supply import LANDING_POINTS, SAME_PHYSICAL_POINT
 from eurogas_nexus.db.models import ReferenceNode, ReferenceTsoAccessPoint
 from eurogas_nexus.db.models.reference_network import REFERENCE_RETIRED_QUALITY
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+from eurogas_nexus.reference_data.network_adjacency import apply_to_bundle
 from eurogas_nexus.reference_data.network_bundle import (
     BUNDLE_SCHEMA,
     bundle_path,
+    load_bundle,
     validate_bundle,
 )
+
+ENTSOG_API = "https://transparency.entsog.eu/api/v1"
 
 #: ENTSOG writes the United Kingdom as ``UK``; the bundle uses ISO 3166 ``GB`` throughout.
 COUNTRY_ALIASES = {"UK": "GB", "EL": "GR"}
@@ -244,11 +264,7 @@ def build(session, *, version: str, downloaded: date) -> dict:
             "A point ENTSOG publishes without a map position has no coordinate and is "
             "counted as not located."
         ),
-        "edge_rule": (
-            "Schematic zone links: each located point is joined by a straight line to the "
-            "virtual trading point of each entry-exit zone its operators belong to. They "
-            "show which zone a point connects to, not a pipeline route."
-        ),
+        "edge_rule": EDGE_RULE,
         "access_flags": "annual, monthly, daily, day-ahead products offered; CAM; CMP relevant",
         "operators": dict(sorted(operators_seen.items())),
         "booking_platforms": dict(sorted(platforms.items())),
@@ -258,10 +274,54 @@ def build(session, *, version: str, downloaded: date) -> dict:
     }
 
 
+EDGE_RULE = (
+    "Zone membership (type virtual): each located point to the virtual trading point of each "
+    "entry-exit zone its operators belong to; membership of a market area, never a line. "
+    "Adjacency (types market_area_link, interconnector): which market areas each "
+    "interconnection point joins, from ENTSOG interconnections (see the adjacency block); "
+    "route pricing walks these and the map draws them. All edges are schematic."
+)
+
+
+def fetch_entsog(dataset: str, *, attempts: int = 5) -> list[dict]:
+    """One ENTSOG dataset in full, retried on a reset or a timeout."""
+
+    url = f"{ENTSOG_API}/{dataset}?limit=-1"
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=180) as response:  # noqa: S310 - fixed host
+                return json.load(response)[dataset]
+        except (urllib.error.URLError, TimeoutError, ConnectionError, json.JSONDecodeError) as exc:
+            if attempt == attempts:
+                raise
+            print(f"{dataset}: attempt {attempt} failed ({exc}); retrying", file=sys.stderr)
+            time.sleep(5 * attempt)
+    return []
+
+
+def entsog_rows(entsog_dir: Path | None) -> tuple[list[dict], list[dict]]:
+    if entsog_dir:
+        read = lambda name: json.loads((entsog_dir / f"{name}.json").read_text(encoding="utf-8"))[name]  # noqa: E731
+        return read("interconnections"), read("connectionpoints")
+    return fetch_entsog("interconnections"), fetch_entsog("connectionpoints")
+
+
+def with_adjacency(bundle: dict, entsog_dir: Path | None, downloaded: date) -> dict:
+    interconnections, connection_points = entsog_rows(entsog_dir)
+    return apply_to_bundle(
+        bundle,
+        interconnections,
+        connection_points,
+        downloaded=downloaded.isoformat(),
+        aliases={key: alias.canonical for key, alias in SAME_PHYSICAL_POINT.items()},
+    )
+
+
 def write(bundle: dict, path: Path) -> None:
     """One record per line: small, and a refresh reads as a line diff."""
 
     head = {key: value for key, value in bundle.items() if key not in ("nodes", "access", "edges")}
+    head["edge_rule"] = EDGE_RULE
     lines = ["{"]
     for key, value in head.items():
         lines.append(f"  {json.dumps(key)}: {json.dumps(value, ensure_ascii=False)},")
@@ -281,13 +341,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", required=True)
     parser.add_argument("--downloaded", type=date.fromisoformat, default=datetime.now(UTC).date())
     parser.add_argument("--out", type=Path, default=bundle_path())
+    parser.add_argument(
+        "--adjacency-only",
+        action="store_true",
+        help="re-derive only the adjacency edges of the shipped bundle (no database)",
+    )
+    parser.add_argument("--entsog-dir", type=Path, help="saved interconnections.json and connectionpoints.json")
     args = parser.parse_args(argv)
-    if not resolve_database_url():
-        print("RUNTIME_STORE_DATABASE_URL is required", file=sys.stderr)
-        return 2
-    with get_session_factory()() as session:
-        bundle = build(session, version=args.version, downloaded=args.downloaded)
-        session.rollback()  # read-only
+    if args.adjacency_only:
+        bundle = {**load_bundle(), "version": args.version}
+    else:
+        if not resolve_database_url():
+            print("RUNTIME_STORE_DATABASE_URL is required", file=sys.stderr)
+            return 2
+        with get_session_factory()() as session:
+            bundle = build(session, version=args.version, downloaded=args.downloaded)
+            session.rollback()  # read-only
+    bundle = with_adjacency(bundle, args.entsog_dir, args.downloaded)
     problems = validate_bundle(bundle)
     if problems:
         print("bundle failed its checks:\n  " + "\n  ".join(problems[:20]), file=sys.stderr)
@@ -297,7 +367,9 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"{args.out}: {len(bundle['nodes'])} nodes ({located} located, "
         f"{len(bundle['nodes']) - located} without a published position), "
-        f"{len(bundle['access'])} operator point directions, {len(bundle['edges'])} schematic edges"
+        f"{len(bundle['access'])} operator point directions, {len(bundle['edges'])} schematic edges "
+        f"({sum(1 for edge in bundle['edges'] if edge['type'] != 'virtual')} adjacency), "
+        f"{len(bundle['adjacency']['unconnected'])} points listed as unconnected"
     )
     return 0
 

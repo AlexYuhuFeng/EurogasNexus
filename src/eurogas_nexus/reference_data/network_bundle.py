@@ -36,6 +36,12 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+from eurogas_nexus.reference_data.network_adjacency import (
+    ADJACENCY_EDGE_TYPES,
+    INTERCONNECTOR,
+    MARKET_AREA_LINK,
+)
+
 BUNDLE_SCHEMA = "eurogas-nexus/reference-network-bundle/1"
 BUNDLE_RESOURCE = "nwe_reference_network.json"
 #: ``data_status`` the seed writes into node metadata: how a bundle row is told from a live one.
@@ -43,6 +49,8 @@ BUNDLE_DATA_STATUS = "reference_bundle"
 #: ``source_system`` of the schematic zone links (derived here, not published by ENTSOG).
 BUNDLE_EDGE_SOURCE = "EGN_REFERENCE_BUNDLE"
 NODE_TYPES = frozenset({"interconnection", "storage", "lng", "entry_point", "hub"})
+#: Zone membership (``virtual``) and the adjacency the route pricing walks.
+EDGE_TYPES = frozenset({"virtual", MARKET_AREA_LINK, INTERCONNECTOR})
 DIRECTIONS = frozenset({"entry", "exit"})
 
 
@@ -123,7 +131,7 @@ def validate_bundle(bundle: dict[str, Any]) -> list[str]:
     edges = bundle.get("edges") or []
     edge_counts = Counter(edge.get("id") for edge in edges)
     problems += [f"duplicate edge id {key}" for key, n in edge_counts.items() if n > 1]
-    pairs: set[tuple[str, str]] = set()
+    pairs: set[tuple[str, str, str]] = set()
     for edge in edges:
         eid, ends = edge.get("id"), (edge.get("from"), edge.get("to"))
         for end in ends:
@@ -135,10 +143,23 @@ def validate_bundle(bundle: dict[str, Any]) -> list[str]:
             problems.append(f"edge {eid}: self-loop")
         if edge.get("schematic") is not True:
             problems.append(f"edge {eid}: schematic flag must be true")
-        pair = tuple(sorted(str(end) for end in ends))
+        kind = edge.get("type")
+        if kind not in EDGE_TYPES:
+            problems.append(f"edge {eid}: unknown type {kind!r}")
+        elif kind == "virtual" and edge.get("basis", "entry_exit_zone") != "entry_exit_zone":
+            problems.append(f"edge {eid}: a zone link must have basis entry_exit_zone")
+        elif kind in ADJACENCY_EDGE_TYPES and not (edge.get("downloaded") and edge.get("basis")):
+            problems.append(f"edge {eid}: adjacency edge without provenance")
+        if kind == MARKET_AREA_LINK and not edge.get("evidence"):
+            problems.append(f"edge {eid}: market-area link without ENTSOG evidence")
+        # Zone membership and adjacency may join the same pair (a border point is in a zone
+        # and joins it to the next); within one kind a pair is listed once.
+        pair = (str(kind), *sorted(str(end) for end in ends))
         if pair in pairs:
-            problems.append(f"edge {eid}: duplicate connection {pair}")
+            problems.append(f"edge {eid}: duplicate connection {pair[1:]}")
         pairs.add(pair)
+    if any(edge.get("type") in ADJACENCY_EDGE_TYPES for edge in edges) and not bundle.get("adjacency"):
+        problems.append("adjacency edges without the adjacency block (rule, download date)")
     return problems
 
 
@@ -277,28 +298,64 @@ def reference_rows(bundle: dict[str, Any], *, now: datetime) -> dict[str, list[d
             }
         )
     names = {node["id"]: node["name"] for node in bundle["nodes"]}
+    adjacency = bundle.get("adjacency") or {}
     for edge in bundle.get("edges") or []:
+        kind = edge["type"]
+        metadata: dict[str, Any] = {
+            "schematic": True,
+            "connection_basis": edge.get("basis", "entry_exit_zone"),
+            "operator_key": edge.get("operator_key"),
+            "geometry_basis": "straight_line_between_endpoints",
+            "verification_status": "schematic",
+            "reference_bundle_version": version,
+        }
+        if kind == "virtual":
+            metadata["name"] = f"{names[edge['from']]} - {names[edge['to']]} (zone link)"
+            dataset = "entry-exit-zone-links"
+        else:
+            dataset = "entsog-interconnection-adjacency"
+            metadata.update(
+                {
+                    "name": (
+                        f"{edge.get('name')} ({names[edge['from']]} - {names[edge['to']]})"
+                        if kind == INTERCONNECTOR
+                        else f"{names[edge['from']]} - {names[edge['to']]}"
+                    ),
+                    "adjacency_rule": adjacency.get("rule"),
+                    "entsog_downloaded": edge.get("downloaded"),
+                    "attribution": adjacency.get("attribution"),
+                    "representative": bool(edge.get("representative")),
+                    **{
+                        key: edge[key]
+                        for key in (
+                            "point_key",
+                            "hub_point_key",
+                            "joins",
+                            "operators",
+                            "folded_points",
+                            "evidence",
+                            "virtual_point",
+                            "pipeline",
+                            "system_label",
+                            "point_keys",
+                        )
+                        if key in edge
+                    },
+                }
+            )
         edges.append(
             {
                 "id": edge["id"],
                 "from_node_id": edge["from"],
                 "to_node_id": edge["to"],
-                "edge_type": edge["type"],
+                "edge_type": kind,
                 "length_km": None,
                 "source_system": BUNDLE_EDGE_SOURCE,
-                "source_dataset": "entry-exit-zone-links",
+                "source_dataset": dataset,
                 "source_reference": reference,
                 "source_record_id": edge["id"],
                 "data_quality": "schematic",
-                "metadata_json": {
-                    "name": f"{names[edge['from']]} - {names[edge['to']]} (zone link)",
-                    "schematic": True,
-                    "connection_basis": edge.get("basis", "entry_exit_zone"),
-                    "operator_key": edge.get("operator_key"),
-                    "geometry_basis": "straight_line_between_endpoints",
-                    "verification_status": "schematic",
-                    "reference_bundle_version": version,
-                },
+                "metadata_json": metadata,
                 "created_at_utc": now,
             }
         )

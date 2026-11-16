@@ -1111,21 +1111,27 @@ def latest_market_marks(session: Session) -> list[LiveMarketMark]:
 
 
 def list_route_candidates(session: Session) -> list[dict]:
-    """List active route candidates.
+    """List active route candidates, checked against the market-area graph.
+
+    Every pricing path reads candidates here, so each one prices the same legs: a network
+    route's legs are the exit, pipeline and entry legs of the proven interconnection path, and
+    a route with no proven path has none (``domain/route_cost/route_adjacency.py``).
 
     Args:
         session: DB session.
 
     Returns:
-        List of route candidate payload dicts.
+        List of route candidate payload dicts with a ``route_adjacency`` verdict.
     """
+
+    from eurogas_nexus.domain.route_cost.route_adjacency import apply_route_adjacency
 
     rows = (
         session.query(RouteCandidateRecord)
         .filter(RouteCandidateRecord.active.is_(True))
         .order_by(RouteCandidateRecord.route_name)
     )
-    return [_route_candidate_payload(row) for row in rows.all()]
+    return apply_route_adjacency([_route_candidate_payload(row) for row in rows.all()])
 
 
 def list_capacity_profiles(session: Session, contract_id: str) -> list[dict]:

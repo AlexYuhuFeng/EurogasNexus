@@ -16,6 +16,7 @@ from eurogas_nexus.db.models import (
     UpstreamResourceContractRecord,
 )
 from eurogas_nexus.ingestion.simulated_market_prices import upsert_simulated_market_observations
+from tests.fixtures.route_crossings import add_bbl_crossing_tariffs
 
 
 def test_route_cost_api_reads_tso_tariffs_from_runtime_db(tmp_path, monkeypatch) -> None:
@@ -52,6 +53,7 @@ def test_route_cost_api_reads_tso_tariffs_from_runtime_db(tmp_path, monkeypatch)
                 created_at_utc=now,
             )
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
@@ -102,6 +104,7 @@ def test_route_recommendation_uses_runtime_db_tariffs(tmp_path, monkeypatch) -> 
                 created_at_utc=now,
             )
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
@@ -362,6 +365,7 @@ def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(
                 metadata_json={"dataset": "eurofxref-daily"},
             )
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
@@ -436,6 +440,7 @@ def test_resource_pool_options_report_missing_market_prices(tmp_path, monkeypatc
                 created_at_utc=now,
             )
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)

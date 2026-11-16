@@ -28,6 +28,7 @@ from eurogas_nexus.domain.route_cost.tariff_selection import (
     TARIFF_APPLICABILITY_NOT_ASSESSED,
     TARIFF_NOT_EFFECTIVE_ON_DATE,
 )
+from tests.fixtures.route_crossings import add_bbl_crossing_tariffs
 
 NOW = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
 
@@ -100,6 +101,12 @@ def _seed_route(session: Session) -> None:
     )
 
 
+def _bbl_component(route) -> dict:
+    """The BBL charge among the crossing's legs (GTS exit, BBL, National Gas entry)."""
+
+    return next(item for item in route.cost_components if "gts" not in str(item.get("tariff_id")) and "ng-entry" not in str(item.get("tariff_id")))
+
+
 def _session() -> Session:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
@@ -125,6 +132,7 @@ def test_explicit_date_selects_covering_intraday_tariff() -> None:
                 ),
             ]
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
         routes = _route_economics(
@@ -137,7 +145,7 @@ def test_explicit_date_selects_covering_intraday_tariff() -> None:
     assert routes[0].total_cost == 1.0
     assert routes[0].missing_inputs == []
     assert TARIFF_APPLICABILITY_NOT_ASSESSED not in routes[0].warnings
-    assert routes[0].cost_components[0]["tariff_id"] == "jan"
+    assert _bbl_component(routes[0])["tariff_id"] == "jan"
 
 
 def test_explicit_date_gap_blocks_intraday_route_without_clock_fallback() -> None:
@@ -151,6 +159,7 @@ def test_explicit_date_gap_blocks_intraday_route_without_clock_fallback() -> Non
                 value=1.0,
             )
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
         routes = _route_economics(
@@ -186,6 +195,7 @@ def test_explicit_date_overlap_blocks_intraday_route() -> None:
                 ),
             ]
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
         routes = _route_economics(
@@ -215,6 +225,7 @@ def test_without_explicit_date_uses_legacy_selection_and_discloses_not_assessed(
                 value=1.0,
             )
         )
+        add_bbl_crossing_tariffs(session)
         session.commit()
 
         routes = _route_economics(session, NOW)

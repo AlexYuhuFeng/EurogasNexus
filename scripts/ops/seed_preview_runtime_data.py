@@ -280,6 +280,7 @@ def _seed_public_route_templates(session, now: datetime) -> None:
                     "market_area": "BBL",
                     "point_name": "BBL Forward Flow NL to GB",
                     "direction": "EXIT",
+                    "point_key": "ITP-00063",
                     "available_capacity_mwh_per_day": 2000.0,
                 }
             ],
@@ -304,6 +305,7 @@ def _seed_public_route_templates(session, now: datetime) -> None:
                     "market_area": "IUK",
                     "point_name": "IUK Bacton Entry",
                     "direction": "ENTRY",
+                    "point_key": "ITP-00005",
                     "available_capacity_mwh_per_day": 1500.0,
                 },
                 {
@@ -313,6 +315,7 @@ def _seed_public_route_templates(session, now: datetime) -> None:
                     "market_area": "IUK",
                     "point_name": "IUK Zeebrugge Exit",
                     "direction": "EXIT",
+                    "point_key": "ITP-00061",
                     "available_capacity_mwh_per_day": 1500.0,
                 },
             ],

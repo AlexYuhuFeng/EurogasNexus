@@ -76,7 +76,11 @@ position; they carry no coordinate, are counted as "not located" and are never p
 
 **Lines.** ENTSOG's API publishes no route geometry, and its map drawings are ENTSOG
 property; no OpenStreetMap or other share-alike geometry is used. The bundle's edges are
-schematic zone links (a point to the trading point of the entry-exit zone its operator
-belongs to), flagged `schematic`, drawn as thin straight links and labelled "schematic where
-no surveyed route"; they are never presented as pipeline routes.
+schematic: zone links (a point to the trading point of the entry-exit zone its operator
+belongs to), which are membership and never drawn, and market-area adjacency (which market
+areas an interconnection point joins, and the two ends of the IUK and BBL pipelines), derived
+from the TP `interconnections` and `connectionpoints` datasets under the same TP Terms of Use
+Art. 5 and cited "ENTSOG TP [16-11-2026] https://transparency.entsog.eu/" in the bundle's
+`adjacency` block and every seeded adjacency row. They are drawn as straight dashed
+schematic segments and never presented as pipeline routes.
 

@@ -32,6 +32,7 @@ from eurogas_nexus.domain.route_cost.tariff_selection import (
     TARIFF_NOT_EFFECTIVE_ON_DATE,
 )
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
+from tests.fixtures.route_crossings import add_bbl_crossing_tariffs
 
 AS_OF = datetime(2026, 1, 31, 9, 30, tzinfo=UTC)
 GAS_DAY = "2026-01-31"
@@ -183,6 +184,7 @@ def _seed_route_inputs(
             },
         )
     )
+    add_bbl_crossing_tariffs(session)
     session.commit()
 
 
