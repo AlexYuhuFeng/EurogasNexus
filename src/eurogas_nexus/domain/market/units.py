@@ -69,6 +69,16 @@ _ALIASES = {
 }
 
 
+#: The calorific value a desk assumes when a volume is quoted without one (kWh per m3, gross,
+#: at the EU interoperability reference conditions below). It is an assumption, so every
+#: figure computed with it says so; ``volume_to_mwh`` itself still requires it explicitly.
+DESK_ASSUMED_GCV_KWH_PER_M3 = 11.0
+#: Reference conditions of that value (Regulation (EU) 2015/703, Article 13).
+DESK_GCV_REFERENCE_CONDITIONS = "GCV, combustion 25 °C, volume 0 °C, 101.325 kPa"
+#: The range :func:`volume_to_mwh` accepts as a natural-gas GCV (kWh per m3).
+GCV_RANGE_KWH_PER_M3 = (8.0, 13.0)
+
+
 class UnitConversionError(ValueError):
     """Unknown unit, missing FX rate or missing calorific value."""
 
@@ -113,7 +123,8 @@ def volume_to_mwh(cubic_metres: float, gcv_kwh_per_m3: float) -> float:
         UnitConversionError: When the calorific value is not a plausible natural-gas GCV.
     """
 
-    if not 8.0 <= gcv_kwh_per_m3 <= 13.0:
+    low, high = GCV_RANGE_KWH_PER_M3
+    if not low <= gcv_kwh_per_m3 <= high:
         raise UnitConversionError("gcv_kwh_per_m3 must be an explicit natural-gas GCV (8-13)")
     return cubic_metres * gcv_kwh_per_m3 / 1000.0
 
@@ -172,3 +183,42 @@ def convert_price(
     per_mwh = major_per_source_energy * ENERGY_UNITS_PER_MWH[source_energy]
     per_mwh_target_ccy = per_mwh * _fx_factor(source_currency, target_currency, eur_rates or {})
     return per_mwh_target_ccy / ENERGY_UNITS_PER_MWH[target_energy] * target_minor
+
+
+def units_reference() -> dict:
+    """The conversion factors a client may compute with, from this module and the ontology.
+
+    Served with the ontology read (``GET /api/analysis/ontology``) so the web client's answer
+    bar converts with these factors instead of a second table. Energy and volume units are
+    given in their dimension's base (MWh, m3); price units as currency, minor-unit divisor
+    and energy unit; the volume-to-energy line names its calorific value as an assumption.
+
+    返回客户端换算所需的单位系数（来自本体单位表），客户端不得另建换算表。
+    """
+
+    from eurogas_nexus.domain.market.gas_day import DEFAULT_GAS_DAY_CALENDAR
+    from eurogas_nexus.domain.ontology.quantity import UNITS as ontology_units
+
+    def dimension(name: _Dimension) -> dict[str, float]:
+        return {code: u.in_base for code, u in ontology_units.items() if u.dimension is name}
+
+    return {
+        "energy_in_mwh": dimension(_Dimension.ENERGY),
+        "volume_in_m3": dimension(_Dimension.VOLUME),
+        "price_units": {
+            code: {
+                "currency": currency,
+                "divisor": divisor,
+                "unit": _ontology_code(energy),
+            }
+            for code, (currency, divisor, energy) in PRICE_UNITS.items()
+        },
+        "price_aliases": dict(_ALIASES),
+        "volume_to_energy": {
+            "gcv_kwh_per_m3": DESK_ASSUMED_GCV_KWH_PER_M3,
+            "reference_conditions": DESK_GCV_REFERENCE_CONDITIONS,
+            "valid_range_kwh_per_m3": list(GCV_RANGE_KWH_PER_M3),
+            "basis": "assumption",
+        },
+        "gas_day_calendar": DEFAULT_GAS_DAY_CALENDAR,
+    }

@@ -57,6 +57,10 @@ REPORT_EDITOR_FIELDS = ("report", "facts", "sections", "glance_menu", "limits")
 #: section keys with one-line descriptions, hub and country codes, the audience. No figure.
 REPORT_PLAN_FIELDS = ("question", "sections", "hubs", "countries", "audience")
 
+#: A question from the answer bar (``desk_ask``): the question, the Today fact lines by topic
+#: with their as-of dates written into the line, the sources as ``S1`` aliases, one flag.
+ASK_FIELDS = ("question", "facts", "sources", "simulated_inputs")
+
 
 def is_identifier(key: str) -> bool:
     """Whether a field name is an identifier or a provider reference, never sent."""
@@ -141,6 +145,64 @@ def alert_answer_messages(
             "role": "user",
             "content": json.dumps(
                 {"question": question, "alert": alert_for_answer(snapshot, language)},
+                ensure_ascii=False,
+                default=str,
+            ),
+        },
+    ]
+
+
+def ask_payload(question: str, lines: list[Any], *, simulated: bool) -> dict[str, Any]:
+    """Exactly what an answer-bar question sends: ``ASK_FIELDS``, no identifiers.
+
+    Each fact line is sent as ``"S<n>: <text>"`` so the model can cite it; the platform's
+    own source ids (REMIT event ids, alert ids) stay on the platform.
+    """
+
+    from eurogas_nexus.application.ai_style import source_aliases
+
+    sources = sorted({line.source for line in lines})
+    alias = {source: key for key, source in source_aliases(sources).items()}
+    facts: dict[str, list[str]] = {}
+    for line in lines:
+        facts.setdefault(line.topic, []).append(f"{alias[line.source]}: {line.text}")
+    return {
+        "question": question,
+        "facts": facts,
+        "sources": list(alias.values()),
+        "simulated_inputs": simulated,
+    }
+
+
+def ask_messages(
+    question: str, lines: list[Any], *, simulated: bool, language: str
+) -> list[dict[str, str]]:
+    """The messages for an answer-bar question (``ANSWER_RULES``)."""
+
+    from eurogas_nexus.application.ai_style import ANSWER_RULES
+
+    language_instruction = (
+        "Respond in Simplified Chinese." if language.lower().startswith("zh")
+        else "Respond in English."
+    )
+    simulated_instruction = (
+        " The facts use simulated demo data: say so, and never call a simulated price a "
+        "market price." if simulated else ""
+    )
+    return [
+        {
+            "role": "system",
+            "content": (
+                f"{ANSWER_RULES} Answer the trader's question from the supplied facts only, "
+                "in two to five short sentences, with each figure's date as the fact gives "
+                "it. Plain text, no source tags, and do not refer to 'the facts' or 'the "
+                f"data'.{simulated_instruction} {language_instruction}"
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(
+                ask_payload(question, lines, simulated=simulated),
                 ensure_ascii=False,
                 default=str,
             ),

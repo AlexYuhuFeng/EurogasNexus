@@ -207,3 +207,18 @@ def test_the_report_editor_sends_the_fact_sheet_only():
     assert "sources" not in payload["facts"][0]  # source names stay on the platform
     assert out["record"]["basis"] == "rule"  # nothing returned: the rule plan stands
     _no_ids(seen[0])
+
+
+def test_an_answer_bar_question_sends_the_question_fact_lines_aliases_and_flag_only():
+    from eurogas_nexus.application.ai_payloads import ASK_FIELDS, ask_messages
+    from eurogas_nexus.application.desk_ask import FactLine
+
+    lines = [FactLine("book", "Rhinmark Handel GmbH credit: 112% used.", "limit:cp-secret-77",
+                      "2026-11-15", True),
+             FactLine("outages", "Haldor (NBP): 563 GWh/d unavailable now.",
+                      "remit:snap-secret-9", "2026-11-16", True)]
+    messages = ask_messages("how is credit", lines, simulated=True, language="en")
+    payload = _user(messages)
+    assert set(payload) == set(ASK_FIELDS)
+    assert all(ALIAS.match(s) for s in payload["sources"])
+    _no_ids(messages)

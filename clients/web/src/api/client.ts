@@ -1707,6 +1707,54 @@ export interface PriceConversionDTO {
   factors: Record<string, number>;
 }
 
+/** The units authority's factors (``GET /api/analysis/ontology`` → ``units``). */
+export interface UnitsReferenceDTO {
+  /** MWh in one unit (energy) and m3 in one unit (volume). */
+  energy_in_mwh: Record<string, number>;
+  volume_in_m3: Record<string, number>;
+  price_units: Record<string, { currency: string; divisor: number; unit: string }>;
+  price_aliases: Record<string, string>;
+  volume_to_energy: {
+    gcv_kwh_per_m3: number;
+    reference_conditions: string;
+    valid_range_kwh_per_m3: [number, number];
+    basis: string;
+  };
+  gas_day_calendar: string;
+}
+
+export interface OntologyDTO {
+  entities: string[];
+  relationships: string[];
+  guardrails: string[];
+  units?: UnitsReferenceDTO;
+}
+
+/** One fact an answer-bar question rests on: the line, its topic, source and as-of. */
+export interface AskLineDTO {
+  topic: string;
+  text: string;
+  source: string;
+  as_of: string | null;
+  simulated: boolean;
+}
+
+/** ``POST /api/analysis/ask``: the checked answer (or none) and the facts it rests on. */
+export interface AskAnswerDTO {
+  question: string;
+  topics: string[];
+  answer: string | null;
+  /** "model": the checked model text is shown; "facts": only the fact lines. */
+  basis: "model" | "facts";
+  /** used; off (no model for this caller or deployment); refused (failed the checks); failed. */
+  ai: "used" | "off" | "refused" | "failed";
+  lines: AskLineDTO[];
+  sources: string[];
+  simulated: boolean;
+  as_of: string;
+  warnings: string[];
+}
+
 export interface StorageTrajectoryDTO {
   code: string; as_of_gas_day: string; fill_pct: number; inventory_twh: number;
   working_capacity_twh: number; target_pct: number; deviation_pp: number;
@@ -5028,6 +5076,13 @@ export const api = {
       benchmark ? { benchmark } : undefined,
       options,
     ),
+
+  /** The business ontology, with the units authority's conversion factors. */
+  ontology: (options?: ApiRequestOptions) => get<OntologyDTO>("/analysis/ontology", undefined, options),
+
+  /** A question from the answer bar, answered from the caller's Today facts. */
+  ask: (question: string, language: "en" | "zh-CN", options?: ApiRequestOptions) =>
+    post<AskAnswerDTO>("/analysis/ask", { question, language }, options),
 
   storageTargetTrajectory: (code: string, options?: ApiRequestOptions) =>
     get<StorageTrajectoryDTO | null>("/storage/target-trajectory", { code }, options),

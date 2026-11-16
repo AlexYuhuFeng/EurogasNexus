@@ -98,6 +98,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/analysis/explain", Permission.READ),
     # Morning brief / end-of-day draft: the same reads, assembled; nothing is sent.
     ("/api/analysis/brief", Permission.READ),
+    # A question from the answer bar: the Today facts the caller may already see, the book
+    # only with portfolio.read; the model only after the ai_authority re-check.
+    ("/api/analysis/ask", Permission.READ),
     # The Today read (UX-05): prices, positions, limits, alerts, outages and fundamentals
     # the caller may already see, assembled once; nothing is written.
     ("/api/desk/today", Permission.READ),

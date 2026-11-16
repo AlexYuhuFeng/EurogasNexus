@@ -51,6 +51,11 @@ def get_business_ontology(request: Request) -> dict:
 
     返回业务本体摘要（实体/关系/护栏），来源为领域契约而非运行时库。
 
+    The read also carries ``units``: the conversion factors of the units authority
+    (``domain.market.units.units_reference``), so a client converts with the same factors
+    the server does. They are kept out of ``business_logic_ontology()`` itself, which also
+    travels in analysis snapshots.
+
     Args:
         request: Incoming FastAPI request (envelope context).
 
@@ -58,7 +63,13 @@ def get_business_ontology(request: Request) -> dict:
         Enveloped ontology dict with ``domain-contract`` source tag.
     """
 
-    return _env(business_logic_ontology(), request, source="domain-contract")
+    from eurogas_nexus.domain.market.units import units_reference
+
+    return _env(
+        {**business_logic_ontology(), "units": units_reference()},
+        request,
+        source="domain-contract",
+    )
 
 
 @router.post("/api/analysis/query")

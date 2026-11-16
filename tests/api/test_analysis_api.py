@@ -1,5 +1,6 @@
 """Governed LLM-ready analysis API tests."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from eurogas_nexus.api.app import create_app
@@ -108,3 +109,13 @@ def test_glossary_context_returns_licensed_price_context_warning() -> None:
     assert data["related_prices"] == []
     assert "PRICE_CONTEXT_MISSING" in data["warnings"]
     assert any(section["section_id"] == "prices" for section in data["context_sections"])
+
+
+def test_ontology_read_carries_the_units_authority_factors() -> None:
+    from eurogas_nexus.domain.market.units import ENERGY_UNITS_PER_MWH
+
+    units = TestClient(create_app()).get("/api/analysis/ontology").json()["data"]["units"]
+    assert units["energy_in_mwh"]["th"] == pytest.approx(1 / ENERGY_UNITS_PER_MWH["therm"])
+    assert units["price_units"]["GBp/th"] == {"currency": "GBP", "divisor": 100.0, "unit": "th"}
+    assert units["volume_to_energy"]["basis"] == "assumption"
+    assert "101.325 kPa" in units["volume_to_energy"]["reference_conditions"]

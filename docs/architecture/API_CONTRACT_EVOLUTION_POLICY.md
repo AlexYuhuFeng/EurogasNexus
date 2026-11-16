@@ -12,6 +12,14 @@ grant it), writes nothing and calls no model. Every figure carries unit, as-of t
 freshness state; risk figures carry a method note. The web client has a typed
 `api.deskToday()`; no SDK method yet. Census: 244 paths / 264 operations.
 
+Additive 2026-11-16 (answer bar): one path, one operation. `POST /api/analysis/ask` (READ,
+like `POST /api/analysis/explain` and `POST /api/analysis/brief`) answers a question typed
+into the search bar from the caller's Today facts, each with its source and as-of; book and
+limit facts only for a caller with `portfolio.read`; a model answer only after the
+ai_authority re-check and the `ai_style` answer checks, audited as `ai.ask`. `GET
+/api/analysis/ontology` gains an additive `units` object (the units authority's factors).
+Census: 250 paths / 271 operations.
+
 Additive 2026-11-16 (market reports): five paths, six operations under the existing
 commercial `/api/reports/` prefix: `GET /api/reports/catalogue` (READ), `POST
 /api/reports/plan` (GOVERNED: may call the model), `POST /api/reports/market` (GOVERNED:
