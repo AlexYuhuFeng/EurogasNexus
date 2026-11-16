@@ -179,3 +179,31 @@ def test_a_report_plan_sends_the_question_and_the_catalogue_only():
     keys = {item["key"] for item in payload["sections"]}
     assert "book_position" not in keys  # a shareable plan is not offered the book
     assert set(payload["sections"][0]) == {"key", "description"}
+
+
+def test_the_report_editor_sends_the_fact_sheet_only():
+    from datetime import datetime
+
+    from eurogas_nexus.application.ai_payloads import REPORT_EDITOR_FIELDS
+    from eurogas_nexus.application.reports import findings
+    from eurogas_nexus.application.reports.catalogue import validate_plan
+    from eurogas_nexus.application.reports.editor import edit_report
+    from eurogas_nexus.application.reports.facts import fact
+
+    seen, model = _capture()
+    sheet = [fact("landings", "pipeline_supply", "Norwegian pipeline landings", 4595.0,
+                  "GWh/d", day="2026-11-12", state="current", sentence="Landings 4,595 GWh/d.",
+                  sources=["ref-secret"])]
+    sheet[0]["id"] = "F1"
+    sections = [{"key": "pipeline_supply", "title": "Landings", "status": "ok",
+                 "books": ["cp-secret-77"], "charts": [],
+                 "tables": [{"rows": [{"x": "opp-secret"}]}],
+                 "commentary": {"headline": "x", "bullets": [], "basis": "rule"}}]
+    plan = validate_plan({"kind": "daily", "audience": "shareable"},
+                         now=datetime(2026, 11, 16, 8, tzinfo=UTC))
+    out = edit_report(model, sheet, sections, findings.rule_plan(sheet, sections), plan)
+    payload = _user(seen[0])
+    assert tuple(payload) == REPORT_EDITOR_FIELDS
+    assert "sources" not in payload["facts"][0]  # source names stay on the platform
+    assert out["record"]["basis"] == "rule"  # nothing returned: the rule plan stands
+    _no_ids(seen[0])

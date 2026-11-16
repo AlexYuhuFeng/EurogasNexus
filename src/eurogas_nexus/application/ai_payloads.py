@@ -46,6 +46,13 @@ ALERT_ENRICHMENT_FIELDS = (
 #: the section title, its rule lines, its sources as ``S1`` aliases and two flags.
 REPORT_SECTION_FIELDS = ("section", "lines", "sources", "simulated_inputs", "forecast")
 
+#: The report editor's fact sheet (``reports/editor.fact_sheet_payload``): the report's kind,
+#: audience, period and question; the facts (F-ids, labels, values, units, days, comparisons,
+#: scores and reasons, states, rule sentences, derivable implications); each section's fact
+#: ids and permitted exhibits; the At a glance menu; the length limits. No identifier, row or
+#: book fact for an audience that may not see the book.
+REPORT_EDITOR_FIELDS = ("report", "facts", "sections", "glance_menu", "limits")
+
 #: A question to a report plan (``reports/plan.plan_payload``): the question, the catalogue's
 #: section keys with one-line descriptions, hub and country codes, the audience. No figure.
 REPORT_PLAN_FIELDS = ("question", "sections", "hubs", "countries", "audience")

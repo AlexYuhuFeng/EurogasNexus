@@ -67,6 +67,28 @@ def _db():
     return get_session_factory()()
 
 
+def _editor_for(principal):
+    """The report editor bound to the caller, or ``None`` when the model may not be used."""
+
+    from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial
+    from eurogas_nexus.application.reports.editor import EDITOR_CALL
+    from eurogas_nexus.core.config import get_settings
+    from eurogas_nexus.llm import invoke_deepseek
+    from eurogas_nexus.security.provider_keys import load_provider_api_key
+
+    if not get_settings().llm_external_provider_enabled or ai_authority_denial(principal):
+        return None
+    api_key = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
+    if not api_key:
+        return None
+
+    def call(messages):
+        result = invoke_deepseek(api_key=api_key, messages=messages, **EDITOR_CALL)
+        return result.content if result.status == "success" else None
+
+    return call
+
+
 def balance_reader():
     """The NW Europe balance page's own read, for the report's balance section."""
 
@@ -120,13 +142,14 @@ def post_market_report(body: ReportRequest, request: Request) -> dict:
 
     from sqlalchemy.exc import SQLAlchemyError
 
-    from eurogas_nexus.api.routes.public.explain import _audit, _model_for
+    from eurogas_nexus.api.routes.public.explain import _audit
     from eurogas_nexus.application.caller import Caller
     from eurogas_nexus.application.reports.catalogue import PlanError
     from eurogas_nexus.application.reports.engine import ReportRefused, generate_report
 
     principal = ai_caller(request)
-    model = _model_for(principal) if body.use_model else None
+    editor = _editor_for(principal) if body.use_model else None
+    model = None
     raw = body.model_dump(exclude={"language", "use_model"}, exclude_none=True)
     trigger = {"type": "user"}
     if body.alert_id:
@@ -136,9 +159,9 @@ def post_market_report(body: ReportRequest, request: Request) -> dict:
     try:
         with _db() as session:
             report = generate_report(session, Caller(principal), raw, model=model,
-                                     language=body.language, trigger=trigger,
+                                     editor=editor, language=body.language, trigger=trigger,
                                      balance_reader=balance_reader)
-            if model is not None:
+            if editor is not None:
                 use = report.snapshot["model_use"]
                 _audit(session, request, principal, f"report:{report.report_id}",
                        f"rewrote {use['passed']}/{use['attempted']}")

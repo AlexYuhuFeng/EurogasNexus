@@ -208,7 +208,7 @@ def generate_report(
                  "sections": sorted({t for titles in blocked.values() for t in titles})},
             )
     model_use: dict[str, Any] = {"attempted": 0, "passed": 0, "sections": {}}
-    if model is not None:
+    if model is not None and editor is None:
         from eurogas_nexus.application.reports.rewrite import rewrite_sections
 
         model_use = rewrite_sections(results, model, language=language)
@@ -231,6 +231,10 @@ def generate_report(
         from eurogas_nexus.application.reports.editor import edit_report
 
         editorial = edit_report(editor, sheet, results, editorial, plan, language=language)
+        elements = editorial["record"].get("elements") or {}
+        model_use = {"attempted": len(elements),
+                     "passed": sum(1 for v in elements.values() if v.get("ok")),
+                     "sections": {}, "editor": True}
     headline = editorial["headline"]
     key_points = [x["text"] for x in editorial["findings"]]
     report_id = f"mr-{uuid.uuid4().hex[:20]}"
@@ -262,7 +266,8 @@ def generate_report(
         "fact_sheet": sheet,
         "issue": _issue_number(session, plan),
         "sections": results,
-        "omitted": omitted + [{"key": "", "title": "Our book", "reason": note, "action": None}
+        "omitted": omitted + list(editorial.get("dropped") or [])
+        + [{"key": "", "title": "Our book", "reason": note, "action": None}
                               for note in plan.notes],
         "simulated": any(s["simulated"] for s in shown),
         "licensed": {"sources": sorted(licensed)},
@@ -349,6 +354,12 @@ def report_metadata_from(snapshot: dict, snapshot_hash: str, html_hash: str) -> 
             for s in snapshot["sections"]
         ],
         "omitted": snapshot["omitted"],
+        "standfirst": snapshot.get("standfirst"),
+        "findings": snapshot.get("findings") or [],
+        "editorial": {k: v for k, v in (snapshot.get("editorial") or {}).items()
+                      if k != "plan"},
+        "editorial_plan": (snapshot.get("editorial") or {}).get("plan"),
+        "issue": snapshot.get("issue"),
         "simulated": snapshot["simulated"],
         "licensed": snapshot["licensed"],
         "model_use": snapshot["model_use"],

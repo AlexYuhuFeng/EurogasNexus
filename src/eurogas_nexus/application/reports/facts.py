@@ -144,9 +144,24 @@ def fact(
     indicator: bool = True,
     related: list[str] | None = None,
 ) -> dict[str, Any]:
+    unit_c = change_unit or unit
+    phrases = []
+    if value is not None:
+        phrases.append(rules.number(value, unit))
+    if dod is not None:
+        phrases.append(f"{rules.move(dod, unit_c)} on the day")
+    if wow is not None:
+        phrases.append(f"{rules.move(wow, unit_c)} on the week")
+    if yoy is not None:
+        side = "above" if yoy > 0 else "below"
+        size = rules.number(abs(yoy), "", 1) + " points" if unit_c == "points" else \
+            rules.number(abs(yoy), unit_c)
+        phrases.append(f"{size} {side} a year earlier")
     return {
         "key": key,
         "section": section,
+        #: The fact's figures as the desk writes them (what any text citing it may say).
+        "phrases": phrases,
         "label": label,
         "value": None if value is None else round(value, 4),
         "unit": unit,

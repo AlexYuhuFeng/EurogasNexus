@@ -15,8 +15,10 @@ from sqlalchemy.orm import Session
 import eurogas_nexus.db.models  # noqa: F401  (registers every table)
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.monitoring_service import scan_monitoring_conditions
+from eurogas_nexus.application.reports import findings
 from eurogas_nexus.application.reports.catalogue import PlanError, validate_plan
 from eurogas_nexus.application.reports.engine import ReportRefused, generate_report
+from eurogas_nexus.application.reports.facts import fact
 from eurogas_nexus.application.reports.store import reader_may_see, rerender
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import MarketReportRecord
@@ -303,3 +305,115 @@ def test_the_api_generates_lists_and_serves_the_html(env):
                                                    "sections": ["book_pnl"]})
     assert bad.status_code == 422
     assert client.get("/api/reports/market/mr-missing").status_code == 404
+
+
+# =================================== house standard (REPORT_EDITORIAL_STANDARD.md)
+
+BOOK = re.compile(r"Our book|Net position|Rhinmark|Aldermoor|Nordvik|credit line|mandate", re.I)
+
+
+@pytest.fixture
+def daily(env):
+    return _generate(env, _caller("DEMO", "BOOKS:*"), {"kind": "daily"})
+
+
+def _body(html: str) -> str:
+    return html.split('class="r-sheet r-body"')[1].split('class="r-sheet r-back-sheet"')[0]
+
+
+def test_the_document_has_no_interface(daily):
+    html = daily.html
+    for tag in ("<button", "<details", "<summary", "<input", "<select"):
+        assert tag not in html
+    assert "<script>" not in html  # only the JSON data block, never code
+    assert html.count('<script type="application/json" id="report-data">') == 1
+
+
+def test_page_one_is_the_report_in_miniature(daily):
+    front = daily.html.split('class="r-sheet r-body"')[0]
+    assert 'class="r-masthead"' in front and "Issue " in front and "Data as of" in front
+    assert front.count("<h1>") == 1 and 'class="r-standfirst"' in front
+    findings_ = re.search(r'<section class="r-findings".*?</section>', front).group(0)
+    assert 3 <= findings_.count("<li>") <= 5
+    assert "At a glance" in front and "Figure 1" in front
+
+
+def test_every_exhibit_has_number_title_subtitle_and_source(daily):
+    figures = re.findall(r'<figure class="r-exhibit[^"]*" id="[ft]\d+">.*?</figure>', daily.html)
+    assert len(figures) >= 6
+    for figure in figures:
+        assert re.search(r'<span class="r-exno">(Figure|Table) \d+</span>', figure), figure[:200]
+        assert re.search(r'<span class="r-extitle">[^<]+', figure)
+        assert '<p class="r-source">Source: ' in figure and "Data as of" in figure
+
+
+def test_numbers_are_unique_and_in_order(daily):
+    numbers = [int(n) for n in re.findall(r'class="r-exno">Figure (\d+)<', daily.html)]
+    assert numbers == list(range(1, len(numbers) + 1))
+
+
+def test_body_tables_are_edited_and_captions_carry_no_duplicate_unit(daily):
+    body = _body(daily.html)
+    for table in re.findall(r"<tbody>(.*?)</tbody>", body):
+        assert table.count("<tr") <= findings.MAX_FINDINGS + 3  # at most eight rows
+    assert not re.search(r"\(([^()]+)\)\s*\(\1\)", daily.html)
+
+
+def test_classification_and_simulated_mark_are_on_every_page(daily):
+    css = re.search(r"<style>(.*?)</style>", daily.html).group(1)
+    assert '@bottom-left{content:"INTERNAL' in css
+    assert 'counter(page) " of " counter(pages)' in css
+    assert "Simulated demonstration data" in css  # the dagger's meaning in every footer
+    assert 'class="r-mark"' in daily.html and "position:fixed" in css
+
+
+def test_a_shareable_report_still_holds_no_book(env):
+    report = _generate(env, _caller("DEMO", "BOOKS:*"), {"kind": "daily",
+                                                         "audience": "shareable"})
+    front_and_body = report.html.split('class="r-sheet r-back-sheet"')[0]
+    assert not BOOK.search(front_and_body)
+    assert not any(f["section"].startswith("book_") for f in report.snapshot["fact_sheet"])
+    css = re.search(r"<style>(.*?)</style>", report.html).group(1)
+    assert '@bottom-left{content:"FOR DISTRIBUTION' in css
+
+
+# --------------------------------------------------------------------- findings ranking
+
+
+def _f(key, score, state="current", simulated=False, section=None):
+    item = fact(key, section or key.split(".")[0], key, 1.0, "GWh/d", day="2026-11-15",
+                state=state, simulated=simulated, sentence=f"{key} sentence.", score=score,
+                reason="test")
+    return item
+
+
+def _sheet(*facts_):
+    for index, item in enumerate(facts_, start=1):
+        item["id"] = f"F{index}"
+    return list(facts_)
+
+
+def test_a_large_outage_outranks_a_small_storage_move():
+    sheet = _sheet(_f("storage.fill", 0.02), _f("outage.1", 3.4, section="outages"),
+                   _f("landings", 0.6, section="pipeline_supply"))
+    ranked = findings.rank_findings(sheet)
+    assert ranked[0]["fact_ids"] == ["F2"]
+    assert "score 3.4" in ranked[0]["why"]
+
+
+def test_one_finding_per_indicator_and_three_to_five():
+    sheet = _sheet(_f("price.TTF", 2.0, section="prices"), _f("price.NBP", 1.9, section="prices"),
+                   _f("landings", 1.5, section="pipeline_supply"), _f("lng", 1.2),
+                   _f("storage.fill", 1.1), _f("power.gen", 1.05, section="power_burn"),
+                   _f("balance.call", 1.01, section="balance"))
+    ranked = findings.rank_findings(sheet)
+    assert len(ranked) == 5
+    assert sum(1 for r in ranked if r["fact_ids"][0] in {"F1", "F2"}) == 1
+
+
+def test_a_quiet_day_says_so_first():
+    sheet = _sheet(_f("landings", 0.3, section="pipeline_supply"), _f("lng", 0.2),
+                   _f("storage.fill", 0.1))
+    ranked = findings.rank_findings(sheet)
+    assert ranked[0]["text"] == findings.NO_NEWS
+    assert findings.headline_of(ranked, sheet).startswith("Flows, storage and prices")
