@@ -18,7 +18,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 #: Bumped when the renderer's output changes; stored with every report.
-TEMPLATE_VERSION = "market-report/1"
+TEMPLATE_VERSION = "market-report/2"
 
 KINDS = ("daily", "weekly", "monthly", "situation", "ask")
 DAILY_VARIANTS = ("morning", "eod")

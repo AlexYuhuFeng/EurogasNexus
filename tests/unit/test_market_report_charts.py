@@ -80,7 +80,7 @@ def test_the_data_table_holds_exactly_the_series_values(spec):
     header, rows = chart_table(spec)
     if spec["type"] == "sankey":
         assert header[-1] == "Flow (GWh/d)"
-        got = {(r[0], r[1]): float(r[2].replace(",", "")) for r in rows}
+        got = {(r[0], r[1]): float(r[2].replace(",", "").replace("\u2212", "-")) for r in rows}
         labels = {n["id"]: n["label"] for n in spec["nodes"]}
         assert got == {(labels[link["source"]], labels[link["target"]]): link["value"]
                        for link in spec["links"]}
@@ -99,7 +99,7 @@ def test_the_data_table_holds_exactly_the_series_values(spec):
             elif expected[row[0]] is None:
                 assert cell == "n/a"
             else:
-                assert float(cell.replace(",", "")) == pytest.approx(expected[row[0]], abs=0.006)
+                assert float(cell.replace(",", "").replace("\u2212", "-")) == pytest.approx(expected[row[0]], abs=0.006)
 
 
 def test_hover_values_are_native_tooltips():

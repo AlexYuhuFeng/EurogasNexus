@@ -474,11 +474,17 @@ def current_messages(messages: Iterable[UmmMessage]) -> list[UmmMessage]:
 
 
 def outage_view(
-    messages: Iterable[UmmMessage], *, now: datetime, horizon_days: int = 90
+    messages: Iterable[UmmMessage],
+    *,
+    now: datetime,
+    horizon_days: int = 90,
+    ended_since: datetime | None = None,
 ) -> list[dict[str, object]]:
     """Events running now or starting within ``horizon_days``, soonest first.
 
-    Rows keep the ``OutageEvent`` fields the SDK reads and add the REMIT detail.
+    Rows keep the ``OutageEvent`` fields the SDK reads and add the REMIT detail. With
+    ``ended_since`` (a report's period start), events that ended after it and by ``now`` are
+    kept too, with status ``ended``; the live views never pass it.
     """
 
     from datetime import timedelta
@@ -488,11 +494,12 @@ def outage_view(
     horizon = now + timedelta(days=horizon_days)
     rows = []
     for m in current_messages(messages):
-        if m.event_stop_utc is not None and m.event_stop_utc <= now:
+        ended = m.event_stop_utc is not None and m.event_stop_utc <= now
+        if ended and (ended_since is None or m.event_stop_utc <= ended_since):
             continue
         if m.event_start_utc > horizon:
             continue
-        status = "active" if m.event_start_utc <= now else "scheduled"
+        status = "ended" if ended else "active" if m.event_start_utc <= now else "scheduled"
         # Re-derived from the stored unit and capacity, so rows stored before a
         # conversion existed read the same as new ones.
         figure = daily_figure(

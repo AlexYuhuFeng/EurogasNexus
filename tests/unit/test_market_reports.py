@@ -94,11 +94,12 @@ def test_a_morning_daily_is_assembled_from_every_section_on_the_demo_desk(env):
     # The balance's forecast is labelled and its method is in the evidence.
     assert sections["balance"]["forecast"]
     assert any(m["key"].startswith("forecast_") for m in sections["balance"]["evidence"]["methods"])
-    assert any(c["type"] == "sankey" for c in sections["balance"]["charts"])
+    # The supply stack table replaces the Sankey at print size (house standard).
+    assert sections["balance"]["tables"][0]["caption"].startswith("Supply stack")
     html = report.html
     assert html.count("<h1>") == 1 and "Methodology and sources" in html
-    assert "Our book" in html and "Key points" in html
-    assert "Demo data" in html
+    assert "Our book" in html and "Key findings" in html and "At a glance" in html
+    assert "DEMONSTRATION DATA: SIMULATED" in html
 
 
 def test_the_html_is_self_contained(env):
@@ -116,7 +117,7 @@ def test_a_shareable_report_never_contains_positions_pnl_limits_or_contracts(env
                                                          "audience": "shareable"})
     keys = set(_sections(report))
     assert not keys & {"book_position", "book_pnl", "book_limits", "book_contracts"}
-    body = report.html.split('id="methodology"')[0]
+    body = report.html.split("Methodology and sources")[0]
     assert not BOOK_WORDS.search(body), BOOK_WORDS.search(body)
     assert report.book_ids == []
 
@@ -166,7 +167,7 @@ def test_a_licensed_source_forces_internal_unless_the_licence_allows_redistribut
         internal = _generate(env, caller, {"kind": "daily", "hubs": ["PEG", "TTF"]})
         if "EEX" not in internal.licensed_families:
             pytest.skip("the demo price reader did not pick the EEX row up")
-        assert "Internal use: contains licensed data from EEX" in internal.html
+        assert "Licensed data from EEX: internal use" in internal.html
         with pytest.raises(ReportRefused) as refused:
             _generate(env, caller, {"kind": "daily", "audience": "shareable",
                                     "hubs": ["PEG", "TTF"]})
@@ -199,7 +200,7 @@ def test_a_stored_report_reopens_identically_and_its_hashes_hold(env):
         assert rerender(record) == record.html == report.html
         assert sha256(record.html) == record.html_sha256
         assert sha256(canonical_json(record.snapshot_json)) == record.snapshot_sha256
-        assert record.template_version == "market-report/1"
+        assert record.template_version == "market-report/2"
         assert "DEMO_Sim" in record.source_systems
         assert record.generated_by == "p-analyst"
 
@@ -272,7 +273,8 @@ def test_monthly_and_weekly_aggregate_over_their_period(env):
     text = " ".join([prices["commentary"]["headline"], *prices["commentary"]["bullets"]])
     # The week of 31 Oct to 6 Nov spans the front-month roll: no change across two contracts.
     assert "rolled from Nov-26 to Dec-26" in text
-    assert all(row["period_change"] is None for row in prices["tables"][0]["rows"])
+    assert all(f["comparisons"]["week"] is None or f["key"].startswith("spread")
+               for f in prices["facts"] if f["key"].startswith("price."))
     columns = [c["key"] for c in prices["tables"][0]["columns"]]
     assert {"period_change", "high", "low", "average"} <= set(columns)
     monthly = _generate(env, _caller("DEMO"), {"kind": "monthly"})

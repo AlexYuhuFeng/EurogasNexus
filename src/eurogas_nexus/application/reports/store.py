@@ -129,6 +129,12 @@ def metadata(record) -> dict[str, Any]:
 
 
 def rerender(record) -> str:
+    """The record drawn again by the current template; a record made by an earlier template
+    keeps its stored HTML (its own version is the one its hash covers)."""
+
+    from eurogas_nexus.application.reports.catalogue import TEMPLATE_VERSION
     from eurogas_nexus.application.reports.render import render_report
 
+    if record.template_version != TEMPLATE_VERSION:
+        return record.html
     return render_report(record.snapshot_json)

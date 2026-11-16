@@ -12,15 +12,25 @@ def _aware(moment: datetime | None) -> datetime | None:
 
 
 def load_outage_rows(
-    session, *, now: datetime, horizon_days: int, asset_type: str | None = None
+    session,
+    *,
+    now: datetime,
+    horizon_days: int,
+    asset_type: str | None = None,
+    ended_since: datetime | None = None,
 ) -> list[dict[str, object]]:
-    """Live and upcoming outages (latest version of each message), soonest first."""
+    """Live and upcoming outages (latest version of each message), soonest first.
+
+    ``ended_since`` also returns outages that ended between it and ``now`` (status
+    ``ended``), for a report over a past period; the live views leave it unset.
+    """
 
     from eurogas_nexus.db.models import RemitUmmRecord
     from eurogas_nexus.domain.observations.remit_umm import UmmMessage, outage_view
 
     naive = session.get_bind().dialect.name == "sqlite"
-    cutoff = now.replace(tzinfo=None) if naive else now
+    since = ended_since or now
+    cutoff = since.replace(tzinfo=None) if naive else since
     # Messages with any version still open; then every version of them, so the latest
     # version decides (a revision may have ended or dismissed the event).
     open_ids = session.query(RemitUmmRecord.message_id).filter(
@@ -45,4 +55,4 @@ def load_outage_rows(
         )
         for record in records
     ]
-    return outage_view(messages, now=now, horizon_days=horizon_days)
+    return outage_view(messages, now=now, horizon_days=horizon_days, ended_since=ended_since)

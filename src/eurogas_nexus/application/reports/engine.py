@@ -129,6 +129,7 @@ def generate_report(
     *,
     now: datetime | None = None,
     model=None,
+    editor=None,
     language: str = "en",
     generated_by_type: str = "USER",
     trigger: dict[str, Any] | None = None,
@@ -165,7 +166,11 @@ def generate_report(
                                     "action": "Ask for a BOOKS scope"})
                     continue
             try:
-                result = BUILDERS[key](ctx).as_dict()
+                built = BUILDERS[key](ctx)
+                from eurogas_nexus.application.reports.derive import derive
+
+                derive(built, ctx)
+                result = built.as_dict()
             except Exception as exc:  # noqa: BLE001 - one failing read must not lose the report
                 omitted.append({"key": key, "title": stype.title,
                                 "reason": f"not available ({exc.__class__.__name__})",
@@ -208,17 +213,26 @@ def generate_report(
 
         model_use = rewrite_sections(results, model, language=language)
     shown = [s for s in results if s["status"] == "ok"]
-    order = {key: index for index, key in enumerate(KEY_POINT_ORDER)}
-    if plan.kind in {"ask", "situation"}:
-        # An asked or situation report leads with what was asked about, in the plan's order.
-        ranked = sorted(shown, key=lambda s: plan.sections.index(s["key"]))
-    else:
-        ranked = sorted(shown, key=lambda s: order.get(s["key"], 99))
-    headlines = [s["rule_commentary"]["headline"] for s in ranked]
-    # The lead is the most important section's headline; the Key points are the next ones,
-    # so nothing is printed twice at the top.
-    headline = headlines[0] if headlines else "No section of this report holds data."
-    key_points = headlines[1:6]
+    from eurogas_nexus.application.reports import findings as page_one
+
+    sheet = page_one.assign_ids(results)
+    editorial = page_one.rule_plan(sheet, results)
+    if plan.kind == "situation":
+        # A situation report leads with the event whatever the other facts weigh.
+        event = [f for f in sheet if f["section"] == "situation_event"]
+        if event:
+            editorial["findings"] = [{"fact_ids": [event[0]["id"]], "text": event[0]["sentence"],
+                                      "implication": None, "why": "the report's subject",
+                                      "score": event[0]["score"]}] + [
+                x for x in editorial["findings"] if event[0]["id"] not in x["fact_ids"]][:4]
+            editorial["headline"] = event[0]["sentence"]
+    editorial["record"] = {"basis": "rule", "model": None, "directive": None, "elements": {}}
+    if editor is not None:
+        from eurogas_nexus.application.reports.editor import edit_report
+
+        editorial = edit_report(editor, sheet, results, editorial, plan, language=language)
+    headline = editorial["headline"]
+    key_points = [x["text"] for x in editorial["findings"]]
     report_id = f"mr-{uuid.uuid4().hex[:20]}"
     book_ids = sorted({b for s in shown for b in s.get("books") or []})
     principal = caller.principal
@@ -238,6 +252,15 @@ def generate_report(
         "generated_by": getattr(principal, "name", None) or caller.principal_id or "unknown",
         "headline": headline,
         "key_points": key_points,
+        "standfirst": editorial["standfirst"],
+        "findings": editorial["findings"],
+        "glance": page_one.glance_rows(sheet, editorial.get("glance")),
+        "watch": editorial["watch"],
+        "editorial": editorial["record"],
+        "dropped": editorial.get("dropped", []),
+        "section_order": [x["key"] for x in editorial.get("sections", [])],
+        "fact_sheet": sheet,
+        "issue": _issue_number(session, plan),
         "sections": results,
         "omitted": omitted + [{"key": "", "title": "Our book", "reason": note, "action": None}
                               for note in plan.notes],
@@ -261,6 +284,23 @@ def generate_report(
         store_report(session, report, caller=caller, generated_by_type=generated_by_type,
                      trigger=trigger or {"type": "user"}, now=now)
     return report
+
+
+def _issue_number(session, plan: ReportPlan) -> int:
+    """A stable sequence per report kind: the stored reports of this kind, plus one."""
+
+    from sqlalchemy import func
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.db.models import MarketReportRecord
+
+    try:
+        count = (session.query(func.count(MarketReportRecord.report_id))
+                 .filter(MarketReportRecord.kind == plan.kind).scalar())
+    except SQLAlchemyError:
+        session.rollback()
+        return 1
+    return int(count or 0) + 1
 
 
 def _previous_as_of(session, plan: ReportPlan, caller: Caller, now: datetime):

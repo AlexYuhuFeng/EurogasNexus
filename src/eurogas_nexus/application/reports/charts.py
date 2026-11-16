@@ -1,23 +1,22 @@
-"""Server-side charts for a market report: inline SVG, no script, no font, no network.
+"""Server-side exhibits for a market report: inline SVG drawn as a publisher draws charts.
 
-A report is a record that must print, open in a mail client and look the same in five years,
-so its charts are drawn here once, as SVG text, from the same series the report's tables
-show. The chart type is the catalogue's choice for the section, never a model's:
+No script, no font, no network. The exhibit's furniture (number, declarative title, subtitle
+with measure and unit, source line, notes) is the renderer's; this module draws the plot:
 
-- ``line`` and ``step``: time series (prices, fill, landings); a missing value breaks the
-  line, it is never bridged by a smooth illustrative curve (UX_REFERENCE, CR-05);
-- ``stacked_area``: supply components over time; ``stacked_bar``: components per day with
-  negative parts (injection) below zero;
-- ``bar``: horizontal bars by category (outages by facility);
-- ``sankey``: flows from sources to uses (the NW Europe balance);
-- ``sparkline``: a small line without axes.
+- light horizontal gridlines only, no chart border, a darker zero line for bars and areas;
+- direct labels at the end of each line or band instead of a legend;
+- the main series in the accent colour; context (the same days a year earlier, the prior gas
+  year) in grey; a forecast dashed; other series in the token palette, each with its own dash
+  or hatch so a greyscale print still separates them;
+- a missing value breaks a line; nothing is smoothed;
+- fixed geometry: a full-width exhibit is 640 x 210 units, a half-width one 310 x 190, both at
+  the same scale on the page, so type and strokes match across exhibits.
 
-Every chart is ``role="img"`` with a ``<title>`` and ``<desc>``; colours are the token
-series in the light theme as attributes (print and mail) with CSS classes that follow the
-dark theme on screen; each series also has its own dash pattern or hatch, so a greyscale
-print still tells the series apart. Hover values are native SVG ``<title>`` tooltips (no
-script needed). :func:`chart_table` is the data-table alternative printed under each chart:
-the same numbers, so a test can hold the drawing to the data.
+Every chart is ``role="img"`` with ``<title>``/``<desc>``; hover values are native SVG
+tooltips. :func:`chart_table` gives the same numbers for the data annex (a test holds the
+drawing to the data). Chart types are the catalogue's: ``line``, ``step``, ``stacked_area``,
+``stacked_bar``, ``bar`` (horizontal, ranked) and ``sankey`` (kept for the API; the house
+standard prints a supply-stack table instead), plus :func:`sparkline`.
 """
 
 from __future__ import annotations
@@ -29,15 +28,16 @@ from typing import Any
 
 from eurogas_nexus.application.reports.tokens import LIGHT, SERIES
 
-WIDTH = 640
-HEIGHT = 240
-PAD_LEFT = 56
-PAD_RIGHT = 16
-PAD_TOP = 24
-PAD_BOTTOM = 28
-LEGEND_ROW = 18
-#: Dash per series index: distinct in greyscale as well as colour.
-DASHES = ("", "6 3", "2 3", "8 3 2 3", "1 2", "10 4", "4 2 1 2", "3 3")
+FULL = (640, 165)
+HALF = (310, 175)
+PAD_LEFT = 40
+PAD_TOP = 10
+PAD_BOTTOM = 22
+LABEL_ROOM = 92
+CONTEXT = "#8f8f99"
+INK_2 = LIGHT["text-2"]
+GRID = "#e4e4e7"
+DASHES = ("", "5 3", "2 2", "7 2 2 2", "1 2", "9 3", "4 2 1 2", "3 3")
 
 
 def _e(text: Any) -> str:
@@ -54,7 +54,8 @@ def _fmt(value: float | None, digits: int | None = None) -> str:
     if digits is None:
         magnitude = abs(value)
         digits = 0 if magnitude >= 1000 else 1 if magnitude >= 100 else 2
-    return f"{value:,.{digits}f}"
+    text = f"{abs(value):,.{digits}f}"
+    return ("−" + text) if value < 0 else text
 
 
 def _parse_x(value: Any) -> float:
@@ -63,11 +64,12 @@ def _parse_x(value: Any) -> float:
     return float(date.fromisoformat(str(value)[:10]).toordinal())
 
 
-def _x_label(value: Any) -> str:
+def _x_label(value: Any, span_days: float) -> str:
     try:
-        return date.fromisoformat(str(value)[:10]).strftime("%d %b")
+        moment = date.fromisoformat(str(value)[:10])
     except ValueError:
         return str(value)
+    return f"{moment:%b %y}" if span_days > 120 else f"{moment.day} {moment:%b}"
 
 
 def nice_ticks(low: float, high: float, count: int = 5) -> list[float]:
@@ -88,14 +90,23 @@ def nice_ticks(low: float, high: float, count: int = 5) -> list[float]:
     return ticks
 
 
-def _svg_open(spec: dict, chart_id: str, height: int) -> str:
+LEAD = (640, 130)
+
+
+def _size(spec: dict) -> tuple[int, int]:
+    if spec.get("lead"):
+        return LEAD
+    return HALF if spec.get("half") else FULL
+
+
+def _svg_open(spec: dict, chart_id: str, width: int, height: int) -> str:
     title = _e(spec.get("title") or "Chart")
     desc = _e(spec.get("description") or _describe(spec))
     return (
-        f'<svg class="r-chart" viewBox="0 0 {WIDTH} {height}" width="100%" '
-        f'preserveAspectRatio="xMidYMid meet" role="img" '
-        f'aria-labelledby="{chart_id}-t {chart_id}-d" xmlns="http://www.w3.org/2000/svg" '
-        f'font-family="sans-serif" font-size="11">'
+        f'<svg class="r-chart{" r-half" if spec.get("half") else ""}" '
+        f'viewBox="0 0 {width} {height}" width="100%" preserveAspectRatio="xMidYMid meet" '
+        f'role="img" aria-labelledby="{chart_id}-t {chart_id}-d" '
+        f'xmlns="http://www.w3.org/2000/svg" font-family="sans-serif" font-size="10">'
         f'<title id="{chart_id}-t">{title}</title><desc id="{chart_id}-d">{desc}</desc>'
     )
 
@@ -103,115 +114,68 @@ def _svg_open(spec: dict, chart_id: str, height: int) -> str:
 def _describe(spec: dict) -> str:
     kind = spec.get("type")
     if kind == "sankey":
-        return f"Flows in {spec.get('unit', '')} from sources to uses; the table below lists them."
+        return f"Flows in {spec.get('unit', '')} from sources to uses; the data annex lists them."
     names = ", ".join(str(s.get("name")) for s in spec.get("series", []))
-    return f"{kind} chart of {names} in {spec.get('unit', '')}; the table below lists the values."
+    return (f"{kind} chart of {names} in {spec.get('unit', '')}; the data annex lists the "
+            "values.")
+
+
+def _style(index: int, series: dict) -> tuple[str, str, float]:
+    """(colour, dash, width) for a series: context grey, forecast dashed, main accent."""
+
+    if series.get("context"):
+        return CONTEXT, "", 1.2
+    colour = _colour(index)
+    dash = "4 3" if series.get("forecast") else DASHES[index % len(DASHES)]
+    return colour, dash, 1.6 if index == 0 else 1.3
 
 
 def _patterns(chart_id: str, count: int) -> str:
-    """Hatch patterns for filled series: every second series hatched, for greyscale."""
-
     out = ["<defs>"]
     for index in range(count):
         colour = _colour(index)
-        angle = 45 if index % 4 == 1 else -45 if index % 4 == 3 else 0
+        angle = 45 if index % 3 == 1 else -45 if index % 3 == 2 else 0
         out.append(
-            f'<pattern id="{chart_id}-p{index}" patternUnits="userSpaceOnUse" width="6" '
-            f'height="6" patternTransform="rotate({angle})">'
-            f'<rect width="6" height="6" class="r-fill-{index % SERIES + 1}" '
-            f'fill="{colour}" fill-opacity="0.55"/>'
-            + (
-                f'<line x1="0" y1="0" x2="0" y2="6" stroke="{LIGHT["surface"]}" '
-                'stroke-width="2"/>'
-                if angle
-                else ""
-            )
+            f'<pattern id="{chart_id}-p{index}" patternUnits="userSpaceOnUse" width="5" '
+            f'height="5" patternTransform="rotate({angle})">'
+            f'<rect width="5" height="5" class="r-fill-{index % SERIES + 1}" fill="{colour}" '
+            f'fill-opacity="0.7"/>'
+            + ('<line x1="0" y1="0" x2="0" y2="5" stroke="#ffffff" stroke-width="1.4"/>'
+               if angle else "")
             + "</pattern>"
         )
     out.append("</defs>")
     return "".join(out)
 
 
-def _legend(spec: dict, top: float, chart_id: str, filled: bool) -> str:
-    out = []
-    x = PAD_LEFT
-    y = top
-    for index, series in enumerate(spec.get("series", [])):
-        name = str(series.get("name"))
-        width = 28 + 6.2 * len(name)
-        if x + width > WIDTH - PAD_RIGHT:
-            x = PAD_LEFT
-            y += LEGEND_ROW
-        if filled:
-            out.append(
-                f'<rect x="{x:.1f}" y="{y - 8:.1f}" width="16" height="9" '
-                f'fill="url(#{chart_id}-p{index})" stroke="{_colour(index)}" '
-                f'class="r-stroke-{index % SERIES + 1}"/>'
-            )
-        else:
-            dash = _dash(index, series)
-            out.append(
-                f'<line x1="{x:.1f}" y1="{y - 4:.1f}" x2="{x + 16:.1f}" y2="{y - 4:.1f}" '
-                f'stroke="{_colour(index)}" class="r-stroke-{index % SERIES + 1}" '
-                f'stroke-width="2"{dash}/>'
-            )
-        out.append(
-            f'<text x="{x + 20:.1f}" y="{y:.1f}" class="r-ink-2" fill="{LIGHT["text-2"]}">'
-            f"{_e(name)}</text>"
-        )
-        x += width
-    return "".join(out), y
-
-
-def _legend_height(spec: dict) -> int:
-    rows, x = 1, PAD_LEFT
-    for series in spec.get("series", []):
-        width = 28 + 6.2 * len(str(series.get("name")))
-        if x + width > WIDTH - PAD_RIGHT:
-            rows += 1
-            x = PAD_LEFT
-        x += width
-    return rows * LEGEND_ROW + 6
-
-
-def _dash(index: int, series: dict) -> str:
-    dash = "5 4" if series.get("forecast") and not DASHES[index % len(DASHES)] else DASHES[
-        index % len(DASHES)
-    ]
-    return f' stroke-dasharray="{dash}"' if dash else ""
-
-
-def _y_axis(ticks: list[float], scale, unit: str, plot_right: float) -> str:
+def _grid(ticks: list[float], scale, left: float, right: float, zero_line: bool) -> str:
     out = []
     for tick in ticks:
         y = scale(tick)
+        strong = zero_line and abs(tick) < 1e-12
         out.append(
-            f'<line x1="{PAD_LEFT}" y1="{y:.1f}" x2="{plot_right:.1f}" y2="{y:.1f}" '
-            f'stroke="{LIGHT["border"]}" class="r-grid"/>'
-            f'<text x="{PAD_LEFT - 6}" y="{y + 3.5:.1f}" text-anchor="end" class="r-ink-3" '
+            f'<line x1="{left}" y1="{y:.1f}" x2="{right:.1f}" y2="{y:.1f}" '
+            f'stroke="{INK_2 if strong else GRID}" stroke-width="{0.9 if strong else 0.5}" '
+            f'class="{"r-axis" if strong else "r-grid"}"/>'
+            f'<text x="{left - 4}" y="{y + 3.2:.1f}" text-anchor="end" class="r-ink-3" '
             f'fill="{LIGHT["text-3"]}">{_e(_fmt(tick))}</text>'
         )
-    out.append(
-        f'<text x="4" y="12" class="r-ink-3" fill="{LIGHT["text-3"]}">{_e(unit)}</text>'
-    )
     return "".join(out)
 
 
-def _x_axis(xs: list, scale_x, bottom: float) -> str:
+def _x_axis(xs: list, scale_x, bottom: float, width: int) -> str:
     if not xs:
         return ""
-    count = min(6, len(xs))
+    span = _parse_x(xs[-1]) - _parse_x(xs[0])
+    count = min(5 if width < 400 else 7, len(xs))
     picks = sorted({round(i * (len(xs) - 1) / max(1, count - 1)) for i in range(count)})
-    out = [
-        f'<line x1="{PAD_LEFT}" y1="{bottom:.1f}" x2="{WIDTH - PAD_RIGHT}" y2="{bottom:.1f}" '
-        f'stroke="{LIGHT["text-3"]}" class="r-axis"/>'
-    ]
+    out = []
     for index in picks:
         x = scale_x(xs[index])
         anchor = "start" if index == 0 else "end" if index == len(xs) - 1 else "middle"
         out.append(
-            f'<text x="{x:.1f}" y="{bottom + 14:.1f}" text-anchor="{anchor}" class="r-ink-3" '
-            f'fill="{LIGHT["text-3"]}">{_e(_x_label(xs[index]))}</text>'
+            f'<text x="{x:.1f}" y="{bottom + 13:.1f}" text-anchor="{anchor}" class="r-ink-3" '
+            f'fill="{LIGHT["text-3"]}">{_e(_x_label(xs[index], span))}</text>'
         )
     return "".join(out)
 
@@ -224,66 +188,81 @@ def _all_x(spec: dict) -> list:
     return [seen[key] for key in sorted(seen)]
 
 
-def _hover_columns(spec: dict, xs: list, scale_x, top: float, bottom: float) -> str:
-    """One transparent column per x with a native tooltip of every series' value there."""
-
+def _hover(spec: dict, xs: list, scale_x, top: float, bottom: float) -> str:
     if not xs:
         return ""
-    values: dict[Any, list[str]] = {x: [] for x in xs}
-    for series in spec.get("series", []):
-        lookup = {str(x): y for x, y in series.get("points", [])}
-        for x in xs:
-            if str(x) in lookup:
-                values[x].append(f"{series.get('name')}: {_fmt(lookup[str(x)])}")
+    lookups = [(s.get("name"), {str(x): y for x, y in s.get("points", [])})
+               for s in spec.get("series", [])]
     step = (scale_x(xs[-1]) - scale_x(xs[0])) / max(1, len(xs) - 1) if len(xs) > 1 else 20
     out = ['<g class="r-hover">']
     for x in xs:
         cx = scale_x(x)
-        label = f"{_x_label(x)} · " + " · ".join(values[x]) + f" {spec.get('unit', '')}"
+        values = " · ".join(f"{n}: {_fmt(lk[str(x)])}" for n, lk in lookups
+                            if lk.get(str(x)) is not None)
         out.append(
-            f'<rect x="{cx - step / 2:.1f}" y="{top:.1f}" width="{max(step, 2):.1f}" '
-            f'height="{bottom - top:.1f}" fill="transparent" data-x="{_e(x)}">'
-            f"<title>{_e(label)}</title></rect>"
+            f'<rect x="{cx - step / 2:.1f}" y="{top:.1f}" width="{max(step, 1.5):.1f}" '
+            f'height="{bottom - top:.1f}" fill="transparent"><title>{_e(str(x)[:10])} · '
+            f'{_e(values)} {_e(spec.get("unit", ""))}</title></rect>'
         )
     out.append("</g>")
     return "".join(out)
 
 
+def _place_labels(items: list[tuple[float, str, str]], top: float, bottom: float) -> list:
+    """Direct labels at the series' last values, nudged apart (11 units minimum)."""
+
+    placed = sorted(items, key=lambda item: item[0])
+    for index in range(1, len(placed)):
+        if placed[index][0] - placed[index - 1][0] < 11:
+            y, text, colour = placed[index]
+            placed[index] = (placed[index - 1][0] + 11, text, colour)
+    overflow = placed[-1][0] - bottom if placed else 0
+    if overflow > 0:
+        placed = [(y - overflow, t, c) for y, t, c in placed]
+    return [(max(y, top + 4), t, c) for y, t, c in placed]
+
+
 def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
+    width, height = _size(spec)
     series_list = spec.get("series", [])
     xs = _all_x(spec)
     values = [y for s in series_list for _, y in s.get("points", []) if y is not None]
     refs = [r["value"] for r in spec.get("reference_lines", []) if r.get("value") is not None]
     if not values:
         return ""
-    ticks = nice_ticks(min(values + refs), max(values + refs))
-    legend_h = _legend_height(spec)
-    height = HEIGHT + legend_h
-    plot_bottom = HEIGHT - PAD_BOTTOM
-    plot_right = WIDTH - PAD_RIGHT
+    ticks = nice_ticks(min(values + refs), max(values + refs), 4 if width < 400 else 5)
+    bottom = height - PAD_BOTTOM
+    right = width - LABEL_ROOM
     lo, hi = ticks[0], ticks[-1]
     x_lo, x_hi = _parse_x(xs[0]), _parse_x(xs[-1])
 
     def sx(value) -> float:
         if x_hi == x_lo:
-            return (PAD_LEFT + plot_right) / 2
-        return PAD_LEFT + (_parse_x(value) - x_lo) / (x_hi - x_lo) * (plot_right - PAD_LEFT)
+            return (PAD_LEFT + right) / 2
+        return PAD_LEFT + (_parse_x(value) - x_lo) / (x_hi - x_lo) * (right - PAD_LEFT)
 
     def sy(value: float) -> float:
-        return plot_bottom - (value - lo) / (hi - lo) * (plot_bottom - PAD_TOP)
+        return bottom - (value - lo) / (hi - lo) * (bottom - PAD_TOP)
 
-    out = [_svg_open(spec, chart_id, height), _y_axis(ticks, sy, spec.get("unit", ""), plot_right)]
+    out = [_svg_open(spec, chart_id, width, height), _grid(ticks, sy, PAD_LEFT, right, False)]
     for ref in spec.get("reference_lines", []):
         y = sy(ref["value"])
         out.append(
-            f'<line x1="{PAD_LEFT}" y1="{y:.1f}" x2="{plot_right}" y2="{y:.1f}" '
-            f'stroke="{LIGHT["status-watch"]}" class="r-ref" stroke-dasharray="1 3" '
-            f'stroke-width="1.5"/><text x="{plot_right - 2}" y="{y - 4:.1f}" text-anchor="end" '
-            f'class="r-ref-label" fill="{LIGHT["status-watch"]}">{_e(ref.get("label", ""))}</text>'
+            f'<line x1="{PAD_LEFT}" y1="{y:.1f}" x2="{right}" y2="{y:.1f}" stroke="{INK_2}" '
+            f'stroke-dasharray="1 2" stroke-width="0.9" class="r-ref"/>'
+            f'<text x="{right + 3}" y="{y + 3:.1f}" class="r-ink-2" fill="{INK_2}">'
+            f'{_e(ref.get("label", ""))}</text>'
         )
-    for index, series in enumerate(series_list):
+    labels = []
+    # Context first, so the main series draws over it.
+    order = sorted(range(len(series_list)), key=lambda i: not series_list[i].get("context"))
+    for index in order:
+        series = series_list[index]
+        colour, dash, stroke = _style(index, series)
+        cls = "" if series.get("context") else f' class="r-stroke-{index % SERIES + 1}"'
         segments: list[list[str]] = [[]]
         previous_y = None
+        last_point = None
         for x, y in sorted(series.get("points", []), key=lambda p: _parse_x(p[0])):
             if y is None:
                 segments.append([])
@@ -294,29 +273,31 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
                 segments[-1].append(f"{px:.1f},{previous_y:.1f}")
             segments[-1].append(f"{px:.1f},{py:.1f}")
             previous_y = py
+            last_point = (px, py, y)
         for points in segments:
             if len(points) == 1:
                 cx, cy = points[0].split(",")
-                out.append(
-                    f'<circle cx="{cx}" cy="{cy}" r="2.5" fill="{_colour(index)}" '
-                    f'class="r-fill-{index % SERIES + 1}"/>'
-                )
+                out.append(f'<circle cx="{cx}" cy="{cy}" r="2" fill="{colour}"/>')
             elif points:
+                dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
                 out.append(
-                    f'<polyline points="{" ".join(points)}" fill="none" '
-                    f'stroke="{_colour(index)}" class="r-stroke-{index % SERIES + 1}" '
-                    f'stroke-width="{1.75 if not series.get("forecast") else 1.5}" '
-                    f'stroke-linejoin="round"{_dash(index, series)}/>'
+                    f'<polyline points="{" ".join(points)}" fill="none" stroke="{colour}"{cls} '
+                    f'stroke-width="{stroke}" stroke-linejoin="round"{dash_attr}/>'
                 )
-    out.append(_x_axis(xs, sx, plot_bottom))
-    out.append(_hover_columns(spec, xs, sx, PAD_TOP, plot_bottom))
-    legend, _ = _legend(spec, HEIGHT + 4, chart_id, filled=False)
-    out.append(legend)
+        if last_point is not None:
+            labels.append((last_point[1], f"{series.get('name')} {_fmt(last_point[2])}", colour))
+    for y, text, colour in _place_labels(labels, PAD_TOP, bottom):
+        out.append(f'<text x="{right + 4}" y="{y + 3:.1f}" fill="{colour}" class="r-dl" '
+                   'font-size="8.5">'
+                   f"{_e(text)}</text>")
+    out.append(_x_axis(xs, sx, bottom, width))
+    out.append(_hover(spec, xs, sx, PAD_TOP, bottom))
     out.append("</svg>")
     return "".join(out)
 
 
 def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
+    width, height = _size(spec)
     series_list = spec.get("series", [])
     xs = _all_x(spec)
     if not xs:
@@ -324,31 +305,28 @@ def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
     lookup = [{str(x): y for x, y in s.get("points", [])} for s in series_list]
     pos_tot = [sum(max(0.0, lk.get(str(x)) or 0.0) for lk in lookup) for x in xs]
     neg_tot = [sum(min(0.0, lk.get(str(x)) or 0.0) for lk in lookup) for x in xs]
-    ticks = nice_ticks(min([0.0, *neg_tot]), max([0.0, *pos_tot]))
-    legend_h = _legend_height(spec)
-    height = HEIGHT + legend_h
-    plot_bottom = HEIGHT - PAD_BOTTOM
-    plot_right = WIDTH - PAD_RIGHT
+    ticks = nice_ticks(min([0.0, *neg_tot]), max([0.0, *pos_tot]), 4 if width < 400 else 5)
+    bottom = height - PAD_BOTTOM
+    right = width - LABEL_ROOM
     lo, hi = ticks[0], ticks[-1]
     n = len(xs)
-    band = (plot_right - PAD_LEFT) / n
+    band = (right - PAD_LEFT) / n
+    index_of = {str(x): i for i, x in enumerate(xs)}
 
     def sx(value) -> float:
-        index = next(i for i, x in enumerate(xs) if str(x) == str(value))
+        i = index_of[str(value)]
         if bars:
-            return PAD_LEFT + band * (index + 0.5)
-        return PAD_LEFT + (index / max(1, n - 1)) * (plot_right - PAD_LEFT)
+            return PAD_LEFT + band * (i + 0.5)
+        return PAD_LEFT + (i / max(1, n - 1)) * (right - PAD_LEFT)
 
     def sy(value: float) -> float:
-        return plot_bottom - (value - lo) / (hi - lo) * (plot_bottom - PAD_TOP)
+        return bottom - (value - lo) / (hi - lo) * (bottom - PAD_TOP)
 
-    out = [
-        _svg_open(spec, chart_id, height),
-        _patterns(chart_id, len(series_list)),
-        _y_axis(ticks, sy, spec.get("unit", ""), plot_right),
-    ]
+    out = [_svg_open(spec, chart_id, width, height), _patterns(chart_id, len(series_list)),
+           _grid(ticks, sy, PAD_LEFT, right, True)]
+    tops_last: list[tuple[float, float]] = []
     if bars:
-        width = max(1.0, band * 0.72)
+        bar_w = max(0.8, band * 0.74)
         for i, x in enumerate(xs):
             up = down = 0.0
             for index, lk in enumerate(lookup):
@@ -361,13 +339,17 @@ def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
                 else:
                     y0, y1 = sy(down + value), sy(down)
                     down += value
-                top, h = min(y0, y1), abs(y0 - y1)
                 out.append(
-                    f'<rect x="{PAD_LEFT + band * i + (band - width) / 2:.1f}" y="{top:.1f}" '
-                    f'width="{width:.1f}" height="{max(h, 0.5):.1f}" '
-                    f'fill="url(#{chart_id}-p{index})" stroke="{_colour(index)}" '
-                    f'stroke-width="0.6" class="r-stroke-{index % SERIES + 1}"/>'
+                    f'<rect x="{PAD_LEFT + band * i + (band - bar_w) / 2:.1f}" '
+                    f'y="{min(y0, y1):.1f}" width="{bar_w:.1f}" '
+                    f'height="{max(abs(y0 - y1), 0.4):.1f}"'
+                    f' fill="url(#{chart_id}-p{index})"/>'
                 )
+        base = 0.0
+        for lk in lookup:
+            value = lk.get(str(xs[-1])) or 0.0
+            tops_last.append((base, base + value))
+            base += max(value, 0.0)
     else:
         base = [0.0] * n
         for index, lk in enumerate(lookup):
@@ -377,73 +359,64 @@ def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
             out.append(
                 f'<polygon points="{" ".join(upper + lower)}" fill="url(#{chart_id}-p{index})"/>'
                 f'<polyline points="{" ".join(upper)}" fill="none" stroke="{_colour(index)}" '
-                f'class="r-stroke-{index % SERIES + 1}" stroke-width="1.25"/>'
+                f'class="r-stroke-{index % SERIES + 1}" stroke-width="0.8"/>'
             )
+            tops_last.append((base[-1], tops[-1]))
             base = tops
-    zero = sy(0.0)
-    out.append(
-        f'<line x1="{PAD_LEFT}" y1="{zero:.1f}" x2="{plot_right}" y2="{zero:.1f}" '
-        f'stroke="{LIGHT["text-3"]}" class="r-axis"/>'
-    )
-    out.append(_x_axis(xs, sx, plot_bottom))
-    out.append(_hover_columns(spec, xs, sx, PAD_TOP, plot_bottom))
-    legend, _ = _legend(spec, HEIGHT + 4, chart_id, filled=True)
-    out.append(legend)
+    labels = [((sy(a) + sy(b)) / 2, f"{series_list[i].get('name')}", _colour(i))
+              for i, (a, b) in enumerate(tops_last)]
+    for y, text, colour in _place_labels(labels, PAD_TOP, bottom):
+        out.append(f'<text x="{right + 4}" y="{y + 3:.1f}" fill="{colour}" class="r-dl" '
+                   'font-size="8.5">'
+                   f"{_e(text)}</text>")
+    out.append(_x_axis(xs, sx, bottom, width))
+    out.append(_hover(spec, xs, sx, PAD_TOP, bottom))
     out.append("</svg>")
     return "".join(out)
 
 
 def _bar_chart(spec: dict, chart_id: str) -> str:
-    """Horizontal bars, one per category (the first series)."""
+    """Horizontal bars, ranked, one per category (the first series)."""
 
     points = [(label, value) for label, value in (spec.get("series") or [{}])[0].get("points", [])
               if value is not None]
     if not points:
         return ""
-    row = 20
+    width = FULL[0]
+    row = 16
     label_w = 230
-    height = PAD_TOP + row * len(points) + 24
-    hi = max(max(v for _, v in points), 0.0)
-    lo = min(min(v for _, v in points), 0.0)
-    ticks = nice_ticks(lo, hi)
+    height = PAD_TOP + row * len(points) + 8
+    ticks = nice_ticks(min(min(v for _, v in points), 0.0), max(max(v for _, v in points), 0.0))
     lo, hi = ticks[0], ticks[-1]
-    left, right = label_w, WIDTH - PAD_RIGHT - 48
+    left, right = label_w, width - 50
 
     def sx(value: float) -> float:
         return left + (value - lo) / (hi - lo) * (right - left)
 
-    out = [_svg_open(spec, chart_id, height), _patterns(chart_id, 1)]
+    out = [_svg_open(spec, chart_id, width, height)]
     for index, (label, value) in enumerate(points):
         y = PAD_TOP + index * row
         x0, x1 = sx(0.0), sx(value)
         name = str(label)
-        short = name if len(name) <= 36 else name[:35] + "…"
+        short = name if len(name) <= 38 else name[:37] + "…"
         out.append(
-            f'<text x="{label_w - 6}" y="{y + 13:.1f}" text-anchor="end" class="r-ink-2" '
-            f'fill="{LIGHT["text-2"]}">{_e(short)}<title>{_e(name)}</title></text>'
+            f'<text x="{label_w - 6}" y="{y + 11:.1f}" text-anchor="end" class="r-ink-2" '
+            f'fill="{INK_2}">{_e(short)}<title>{_e(name)}</title></text>'
             f'<rect x="{min(x0, x1):.1f}" y="{y + 3:.1f}" width="{max(abs(x1 - x0), 0.5):.1f}" '
-            f'height="{row - 6}" fill="url(#{chart_id}-p0)" stroke="{_colour(0)}" '
-            f'class="r-stroke-1"><title>{_e(name)}: {_e(_fmt(value))} '
-            f'{_e(spec.get("unit", ""))}</title></rect>'
-            f'<text x="{max(x0, x1) + 4:.1f}" y="{y + 13:.1f}" class="r-ink-1" '
+            f'height="{row - 6}" fill="{_colour(0)}" class="r-fill-1"/>'
+            f'<text x="{max(x0, x1) + 4:.1f}" y="{y + 11:.1f}" class="r-ink-1" '
             f'fill="{LIGHT["text-1"]}">{_e(_fmt(value))}</text>'
         )
-    bottom = PAD_TOP + row * len(points) + 4
-    out.append(
-        f'<text x="{right:.1f}" y="{bottom + 14:.1f}" text-anchor="end" class="r-ink-3" '
-        f'fill="{LIGHT["text-3"]}">{_e(spec.get("unit", ""))}</text>'
-    )
     out.append("</svg>")
     return "".join(out)
 
 
 def _sankey(spec: dict, chart_id: str) -> str:
-    """Sources on the left, uses on the right, bands proportional to the flow."""
-
     nodes = {node["id"]: node for node in spec.get("nodes", [])}
     links = [link for link in spec.get("links", []) if (link.get("value") or 0) > 0]
     if not links:
         return ""
+    width = FULL[0]
     left = [n for n in spec.get("nodes", []) if n.get("side") == "source"]
     right = [n for n in spec.get("nodes", []) if n.get("side") == "use"]
     out_total = {n["id"]: sum(lk["value"] for lk in links if lk["source"] == n["id"]) for n in left}
@@ -451,32 +424,24 @@ def _sankey(spec: dict, chart_id: str) -> str:
     left = [n for n in left if out_total[n["id"]] > 0]
     right = [n for n in right if in_total[n["id"]] > 0]
     total = max(sum(out_total.values()), sum(in_total.values()))
-    gap = 10
-    height = 260
-    usable = height - PAD_TOP * 2 - gap * max(len(left), len(right))
-    scale = usable / total if total else 0
-    node_w, x_left, x_right = 12, 236, WIDTH - 190 - 12
-    out = [_svg_open(spec, chart_id, height)]
+    gap, height = 10, 240
+    scale = (height - 2 * PAD_TOP - gap * max(len(left), len(right))) / total if total else 0
+    node_w, x_left, x_right = 10, 236, width - 202
+    out = [_svg_open(spec, chart_id, width, height)]
     positions: dict[str, list[float]] = {}
-    for column, x, totals, anchor, lx in (
-        (left, x_left, out_total, "end", x_left - 6),
-        (right, x_right, in_total, "start", x_right + node_w + 6),
-    ):
+    for column, x, totals, anchor, lx in ((left, x_left, out_total, "end", x_left - 6),
+                                          (right, x_right, in_total, "start",
+                                           x_right + node_w + 6)):
         y = PAD_TOP
-        for index, node in enumerate(column):
+        for node in column:
             h = totals[node["id"]] * scale
-            positions[node["id"]] = [y, y]  # running offsets for links
-            colour = LIGHT["text-2"]
-            out.append(
-                f'<rect x="{x}" y="{y:.1f}" width="{node_w}" height="{max(h, 1):.1f}" '
-                f'fill="{colour}" class="r-node"/>'
-                f'<text x="{lx}" y="{y + max(h, 1) / 2 + 4:.1f}" text-anchor="{anchor}" '
-                f'class="r-ink-1" fill="{LIGHT["text-1"]}">{_e(node["label"])} '
-                f'{_e(_fmt(totals[node["id"]], 0))}</text>'
-            )
+            positions[node["id"]] = [y, y]
+            out.append(f'<rect x="{x}" y="{y:.1f}" width="{node_w}" height="{max(h, 1):.1f}" '
+                       f'fill="{INK_2}"/><text x="{lx}" y="{y + max(h, 1) / 2 + 4:.1f}" '
+                       f'text-anchor="{anchor}" fill="{LIGHT["text-1"]}">{_e(node["label"])} '
+                       f'{_e(_fmt(totals[node["id"]], 0))}</text>')
             y += h + gap
-            del index
-    for index, link in enumerate(links):
+    for link in links:
         h = link["value"] * scale
         s, t = positions[link["source"]], positions[link["target"]]
         y0, y1 = s[1] + h / 2, t[1] + h / 2
@@ -484,21 +449,18 @@ def _sankey(spec: dict, chart_id: str) -> str:
         t[1] += h
         x0, x1 = x_left + node_w, x_right
         mid = (x0 + x1) / 2
-        colour_index = [n["id"] for n in left].index(link["source"])
-        out.append(
-            f'<path d="M{x0},{y0:.1f} C{mid},{y0:.1f} {mid},{y1:.1f} {x1},{y1:.1f}" fill="none" '
-            f'stroke="{_colour(colour_index)}" class="r-stroke-{colour_index % SERIES + 1}" '
-            f'stroke-opacity="0.45" stroke-width="{max(h, 1):.1f}"{_dash(colour_index, {})}>'
-            f"<title>{_e(nodes[link['source']]['label'])} to {_e(nodes[link['target']]['label'])}: "
-            f"{_e(_fmt(link['value'], 0))} {_e(spec.get('unit', ''))}</title></path>"
-        )
-        del index
+        ci = [n["id"] for n in left].index(link["source"])
+        out.append(f'<path d="M{x0},{y0:.1f} C{mid},{y0:.1f} {mid},{y1:.1f} {x1},{y1:.1f}" '
+                   f'fill="none" stroke="{_colour(ci)}" stroke-opacity="0.45" '
+                   f'stroke-width="{max(h, 1):.1f}"><title>{_e(nodes[link["source"]]["label"])}'
+                   f' to {_e(nodes[link["target"]]["label"])}: {_e(_fmt(link["value"], 0))}'
+                   f'</title></path>')
     out.append("</svg>")
     return "".join(out)
 
 
-def sparkline(values: list[float | None], *, label: str, width: int = 96, height: int = 20) -> str:
-    """A small line without axes, for a table cell. Gaps break the line."""
+def sparkline(values: list[float | None], *, label: str, width: int = 64, height: int = 14) -> str:
+    """A small line without axes, for a table cell; the last value marked. Gaps break it."""
 
     real = [v for v in values if v is not None]
     if len(real) < 2:
@@ -506,23 +468,23 @@ def sparkline(values: list[float | None], *, label: str, width: int = 96, height
     lo, hi = min(real), max(real)
     span = (hi - lo) or 1.0
     segments: list[list[str]] = [[]]
+    last = None
     for index, value in enumerate(values):
         if value is None:
             segments.append([])
             continue
-        x = 1 + index * (width - 2) / max(1, len(values) - 1)
+        x = 1 + index * (width - 4) / max(1, len(values) - 1)
         y = height - 2 - (value - lo) / span * (height - 4)
         segments[-1].append(f"{x:.1f},{y:.1f}")
+        last = (x, y)
     lines = "".join(
-        f'<polyline points="{" ".join(points)}" fill="none" stroke="{_colour(0)}" '
-        f'class="r-stroke-1" stroke-width="1.25"/>'
-        for points in segments
-        if len(points) > 1
-    )
-    return (
-        f'<svg class="r-spark" viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
-        f'role="img" aria-label="{_e(label)}" xmlns="http://www.w3.org/2000/svg">{lines}</svg>'
-    )
+        f'<polyline points="{" ".join(points)}" fill="none" stroke="{INK_2}" '
+        f'stroke-width="0.9"/>' for points in segments if len(points) > 1)
+    dot = f'<circle cx="{last[0]:.1f}" cy="{last[1]:.1f}" r="1.6" fill="{_colour(0)}"/>' \
+        if last else ""
+    return (f'<svg class="r-spark" viewBox="0 0 {width} {height}" width="{width}" '
+            f'height="{height}" role="img" aria-label="{_e(label)}" '
+            f'xmlns="http://www.w3.org/2000/svg">{lines}{dot}</svg>')
 
 
 def render_chart(spec: dict, chart_id: str) -> str:
@@ -548,18 +510,13 @@ def chart_table(spec: dict) -> tuple[list[str], list[list[str]]]:
     unit = spec.get("unit", "")
     if spec.get("type") == "sankey":
         nodes = {node["id"]: node["label"] for node in spec.get("nodes", [])}
-        rows = [
-            [nodes[link["source"]], nodes[link["target"]], _fmt(link["value"], 1)]
-            for link in spec.get("links", [])
-            if (link.get("value") or 0) > 0
-        ]
+        rows = [[nodes[link["source"]], nodes[link["target"]], _fmt(link["value"], 1)]
+                for link in spec.get("links", []) if (link.get("value") or 0) > 0]
         return ["From", "To", f"Flow ({unit})"], rows
     if spec.get("type") == "bar":
         series = (spec.get("series") or [{}])[0]
-        return (
-            ["", f"{series.get('name', '')} ({unit})"],
-            [[str(label), _fmt(value)] for label, value in series.get("points", [])],
-        )
+        return (["", f"{series.get('name', '')} ({unit})"],
+                [[str(label), _fmt(value)] for label, value in series.get("points", [])])
     xs = _all_x(spec)
     header = ["Day"] + [f"{s.get('name')} ({unit})" for s in spec.get("series", [])]
     lookups = [{str(x): y for x, y in s.get("points", [])} for s in spec.get("series", [])]
@@ -570,4 +527,19 @@ def chart_table(spec: dict) -> tuple[list[str], list[list[str]]]:
     return header, rows
 
 
-__all__ = ["chart_table", "nice_ticks", "render_chart", "sparkline"]
+def cut_window(spec: dict, first: date, last: date) -> dict:
+    """The spec with each series cut to ``first``..``last`` (the exhibit's chosen window)."""
+
+    if spec.get("type") in {"bar", "sankey"}:
+        return spec
+    out = dict(spec)
+    out["series"] = [
+        {**s, "points": [p for p in s.get("points", [])
+                         if first.isoformat() <= str(p[0])[:10] <= last.isoformat()]}
+        for s in spec.get("series", [])
+    ]
+    out["series"] = [s for s in out["series"] if s["points"]]
+    return out
+
+
+__all__ = ["chart_table", "cut_window", "nice_ticks", "render_chart", "sparkline"]

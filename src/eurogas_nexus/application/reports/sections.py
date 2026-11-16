@@ -64,13 +64,10 @@ class Ctx:
 
     @property
     def chart_start(self) -> date:
-        """The first day a chart shows: context before the period."""
+        """The first day read for exhibits: the longest window an exhibit may show (13
+        months), so the editor can choose a shorter one without another read."""
 
-        if self.plan.kind == "monthly":
-            return self.start - timedelta(days=31)
-        if self.plan.kind == "weekly":
-            return self.start - timedelta(days=21)
-        return self.end - timedelta(days=30)
+        return min(self.start, self.end - timedelta(days=394))
 
     @property
     def naive(self) -> bool:
@@ -101,6 +98,12 @@ class SectionResult:
     empty: dict[str, str] | None = None
     #: Book ids behind the figures (book sections), so a reader's scope can be re-checked.
     books: list[str] = field(default_factory=list)
+    #: What the adapter read, for ``derive.py`` (not stored).
+    raw: dict[str, Any] | None = None
+    #: Candidate facts (``facts.fact``) for the fact sheet and the editor.
+    facts: list[dict[str, Any]] = field(default_factory=list)
+    #: Full series behind the exhibits, for the data annex and the CSV download.
+    annex: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         rule = {"headline": self.headline, "bullets": list(self.bullets)}
@@ -123,6 +126,8 @@ class SectionResult:
             "simulated": self.simulated,
             "forecast": self.forecast,
             "books": sorted(set(self.books)),
+            "facts": self.facts,
+            "annex": self.annex,
         }
 
 
@@ -372,6 +377,15 @@ def prices(ctx: Ctx) -> SectionResult:
             }
         )
         result.simulated = result.simulated or simulated
+        result.raw = result.raw or {"hubs": []}
+        result.raw["hubs"].append({
+            "hub": hub, "product": product, "unit": unit, "close": close,
+            "close_day": days[-1], "day_change": day_change, "year_ago": year_ago,
+            "simulated": simulated, "state": state, "rolled_from": rolled,
+            "high": high, "low": low, "average": average, "period_change": period_change,
+            "series": {d: shown(d) for d in days},
+            "contract": {d: contract(d) for d in days},
+        })
         result.sources.append(
             source(f"{hub} {'front month' if tenor == 'month-ahead' else 'day-ahead'} closes",
                    source_system, days[-1], state)
@@ -579,6 +593,13 @@ def pipeline_supply(ctx: Ctx) -> SectionResult:
             result.warnings.append("Gas days only partly reported are left out: "
                                    + ", ".join(d.isoformat() for d in tail) + ".")
     result.revisions = revisions_since(ctx, ("flow_observations",))
+    total = {d: supply.by_day[d] for d in days}
+    ctx.cache["landings_latest"] = total[latest]
+    result.raw = {"total": total, "norway": {d: v for d, v in norway.items() if d <= ctx.end},
+                  "uk": {d: v for d, v in uk.items() if d <= ctx.end}, "latest": latest,
+                  "state": state, "period_avg": stats.get("period_avg"),
+                  "previous_avg": stats.get("previous_avg"),
+                  "period_label": stats.get("period_label")}
     return _apply(result, rules.pipeline(stats))
 
 
@@ -674,6 +695,8 @@ def lng(ctx: Ctx) -> SectionResult:
         result.sources.append(source("LNG send-out", system, latest, state,
                                      dataset="GIE LNG (ALSI)"))
     result.revisions = revisions_since(ctx, ("lng_observations",))
+    result.raw = {"total": total, "by_day": {d: dict(by_day[d]) for d in complete},
+                  "latest": latest, "state": state, "left_out": stats["left_out"]}
     return _apply(result, rules.lng(stats))
 
 
@@ -748,6 +771,14 @@ def storage(ctx: Ctx) -> SectionResult:
         "the fill.",
     })
     result.revisions = revisions_since(ctx, ("storage_observations",))
+    result.raw = {
+        "fill": {date.fromisoformat(p["day"]): p["fill_pct"] for p in season
+                 if p["fill_pct"] is not None},
+        "previous": {date.fromisoformat(p["day"]): p["previous_year_fill_pct"] for p in season
+                     if p["previous_year_fill_pct"] is not None},
+        "latest": date.fromisoformat(latest["day"]), "state": stats["state"],
+        "inventory": stats.get("inventory_twh"), "target": stats.get("target"),
+    }
     return _apply(result, rules.storage(stats))
 
 
@@ -778,7 +809,7 @@ def power_burn(ctx: Ctx) -> SectionResult:
         .filter(Power.zone.in_(zones + ["DK1", "DK2"]))
         .filter(Power.period_start_utc >= ctx.day_bound(first))
         .filter(Power.period_start_utc < ctx.day_bound(ctx.end + timedelta(days=1)))
-        .limit(100_000)
+        .limit(400_000)
         .all()
     )
     rows = [r for r in records if row_allowed(ctx.caller.principal, r.source_system)
@@ -848,19 +879,22 @@ def power_burn(ctx: Ctx) -> SectionResult:
                                    "cover at least 22.5 hours, and a day only when as many "
                                    "zones as on the best-covered day reported."})
     result.revisions = revisions_since(ctx, ("power_observations",))
+    result.raw = {"total": total, "by_day": {d: dict(complete[d]) for d in days},
+                  "latest": latest, "state": state}
     return _apply(result, rules.power(stats))
 
 
 # ================================================================================= outages
 
 
-def _outage_rows(ctx: Ctx, horizon_days: int) -> list[dict]:
+def _outage_rows(ctx: Ctx, horizon_days: int, ended_since: datetime | None = None) -> list[dict]:
     from eurogas_nexus.application.remit_outages import load_outage_rows
     from eurogas_nexus.domain.dataops.entitlement import filter_rows_for_principal
 
-    key = f"outages:{horizon_days}"
+    key = f"outages:{horizon_days}:{ended_since}"
     if key not in ctx.cache:
-        rows = load_outage_rows(ctx.session, now=ctx.now, horizon_days=horizon_days)
+        rows = load_outage_rows(ctx.session, now=ctx.now, horizon_days=horizon_days,
+                                ended_since=ended_since)
         rows = [r for r in rows
                 if datetime.fromisoformat(str(r["published_at_utc"])) <= ctx.now]
         ctx.cache[key] = filter_rows_for_principal(ctx.caller.principal, rows)
@@ -883,7 +917,10 @@ def outages(ctx: Ctx) -> SectionResult:
 
     result = _new("outages")
     horizon = 14 if ctx.plan.kind in {"daily", "situation"} else 31
-    rows = [r for r in _outage_rows(ctx, horizon)
+    # A period report also lists what ended during the period (the live view does not).
+    since = (datetime.combine(ctx.start, time.min, tzinfo=UTC)
+             if ctx.plan.kind in {"weekly", "monthly"} else None)
+    rows = [r for r in _outage_rows(ctx, horizon, since)
             if _zone_match(r.get("balancing_zone"), ctx.plan.countries)]
     received = ctx.session.query(func.max(RemitUmmRecord.ingested_at_utc)).scalar()
     definition = definition_by_id("src-remit-umm")
@@ -894,6 +931,8 @@ def outages(ctx: Ctx) -> SectionResult:
     rows = [r for r in rows if r.get("unavailable_gwh_d") is None
             or float(r["unavailable_gwh_d"]) > 0]
     active = [r for r in rows if r["status"] == "active"]
+    ended_rows = [r for r in rows if r["status"] == "ended"]
+    rows = [r for r in rows if r["status"] != "ended"]
 
     def gwh(row) -> float | None:
         value = row.get("unavailable_gwh_d")
@@ -949,6 +988,14 @@ def outages(ctx: Ctx) -> SectionResult:
         })
     result.sources.append(source("REMIT urgent market messages", "REMIT", received, state,
                                  dataset="Outages (REMIT UMM)"))
+    result.raw = {
+        "state": state, "norway_active": len(norway),
+        "rows": [{"facility": r["facility_name"],
+                  "operator": r.get("market_participant") or "",
+                  "zone": zone_label(r.get("balancing_zone")),
+                  "start": r["start_utc"], "end": r.get("end_utc"), "gwh": gwh(r),
+                  "status": r["status"]} for r in [*rows, *ended_rows]],
+    }
     result.methods.append({"key": "remit_daily", "title": "Unavailable capacity per day",
                            "text": "The latest version of each message; capacity converted to "
                                    "GWh/d where the message's unit allows, else shown in its "
@@ -1089,6 +1136,7 @@ def balance(ctx: Ctx) -> SectionResult:
     result.simulated = simulated
     result.revisions = revisions_since(ctx, ("flow_observations", "storage_observations",
                                              "lng_observations"))
+    result.raw = {"history": history, "forecast": horizon, "state": state}
     return _apply(result, rules.balance(stats))
 
 
