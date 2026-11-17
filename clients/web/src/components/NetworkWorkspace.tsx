@@ -217,6 +217,9 @@ export function NetworkWorkspace({
   language,
 }: NetworkWorkspaceProps) {
   const compactLayout = useShellLayout().widthClass === "compact";
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [attributionText, setAttributionText] = useState("");
   // Wave 9: map nodes hand their detail to the canonical Inspector. This page declares
   // `network-node` as an inspectable subject, so the hand-over is legal here; the builder
   // refuses it everywhere the composition does not declare it.
@@ -257,6 +260,12 @@ export function NetworkWorkspace({
     else setFocus({ refId: item.refId, nonce: Date.now() });
   };
   const summary = situationSummary(liveSituation(rawSituation, nowMs));
+  // "Live" only when the read carries something in force now; a reachable server with nothing
+  // to show is not live data (#35).
+  const isLive = Boolean(summary) && (
+    summary!.outagesNow + summary!.outagesScheduled + summary!.contracts + summary!.cargoesAtSea
+      + summary!.slots > 0 || summary!.entryGwhD !== null
+  );
   // The book view always draws our positions and the outages that can stop them.
   const mapLayers = useMemo(
     () => (mapView === "book" ? [...new Set([...activeLayers, "positions", "outages"])] : activeLayers),
@@ -342,6 +351,11 @@ export function NetworkWorkspace({
   // Our book: the book's own panels, in the panel's fourth tab, only in the "Our book" view
   // and only for a caller who may read the book. They belong to the book, not to the network.
   const currentUser = useApiStore((state) => state.currentUser);
+  // Data-operations information (topology checks, point coverage, geometry state) is for those
+  // who run the sources or administer the installation, not for the trader's map.
+  const dataOps = Boolean(
+    currentUser?.permissions.includes("source.run") || currentUser?.permissions.includes("identity.manage"),
+  );
   const showBookTab = mapView === "book" && canReadBook(currentUser?.permissions);
   const [panelTab, setPanelTab] = useNetworkPanelTab();
   const activePanelTab: NetworkPanelTab = panelTab === "book" && !showBookTab ? "outages" : panelTab;
@@ -705,7 +719,7 @@ export function NetworkWorkspace({
   );
   const footer = (
     <>
-      <details className="network-panel-fold">
+      {dataOps && <details className="network-panel-fold">
         <summary>{t("network.panel.map_data")}</summary>
             <div className="panel map-data-panel">
               <div className="section-heading">
@@ -727,7 +741,7 @@ export function NetworkWorkspace({
                     : networkGeometryState === "corridors_only"
                       ? t("map.route_corridors_only")
                       : networkGeometryState === "unverified_geometry"
-                        ? t("map.network_warning_title")
+                        ? t("map.schematic_connections_title")
                       : t("map.network_warning_title")}
                 </strong>
                 <span>{t(geometryMessageKey(networkGeometryState))}</span>
@@ -740,7 +754,7 @@ export function NetworkWorkspace({
               </div>
               <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>
             </div>
-      </details>
+      </details>}
       {/* The register the map's topology is drawn against: what the deployment declares,
           including the rows the map does not place (slice D), one line until opened. */}
       <details className="network-panel-fold">
@@ -928,15 +942,33 @@ export function NetworkWorkspace({
             t={t as (key: string, options?: Record<string, unknown>) => string}
           />
         )}
-        {summary && (
+        {summary && compactLayout && (
+          // Phone width: the map shows the map. One compact line (Live · Out now N) that
+          // opens the full status on tap.
+          <button
+            type="button"
+            className="map-situation-compact"
+            aria-expanded={statusOpen}
+            onClick={() => setStatusOpen((open) => !open)}
+          >
+            <span className={isLive ? "map-situation-live" : "map-situation-live is-empty"}>
+              {t(isLive ? "map.situation.live" : "map.situation.no_live_data")}
+            </span>
+            {summary.outagesNow > 0 && (
+              <span className="is-alert">· {t("map.situation.outages_now")} <b>{summary.outagesNow}</b></span>
+            )}
+          </button>
+        )}
+        {summary && (!compactLayout || statusOpen) && (
           <div className="map-situation-strip" role="status" aria-live="polite">
             {/* "Live" only when the read carries something in force now; a reachable
                 server with nothing to show is not live data (#35). */}
-            {summary.outagesNow + summary.outagesScheduled + summary.contracts + summary.cargoesAtSea
-              + summary.slots > 0 || summary.entryGwhD !== null
+            {isLive
               ? <span className="map-situation-live">{t("map.situation.live")}</span>
               : <span className="map-situation-live is-empty">{t("map.situation.no_live_data")}</span>}
-            {topology.length > 0 && (
+            {/* Topology checks and point coverage are data-operations information: shown to
+                those who run the sources (and in Admin), not on a trader's map. */}
+            {dataOps && topology.length > 0 && (
               <span className="is-alert" title={topology.map((issue) => `${t(`map.topology.${issue.kind}`)}: ${issue.detail}`).join("\n")}>
                 <i className="situation-dot outage-scheduled" />{t("map.topology.count").replace("{{count}}", String(topology.length))}
               </span>
@@ -959,7 +991,7 @@ export function NetworkWorkspace({
             {summary.regasNow > 0 && (
               <span><i className="situation-dot own" />{t("map.situation.regas_now")} <b>{summary.regasNow}</b></span>
             )}
-            {summary.networkPoints != null && summary.networkPoints > 0 && (
+            {dataOps && summary.networkPoints != null && summary.networkPoints > 0 && (
               <span
                 data-network-points={summary.networkPoints}
                 title={summary.unlocatedPoints.length > 0
@@ -975,11 +1007,22 @@ export function NetworkWorkspace({
             {summary.entryGwhD != null && (
               <span>{t("map.situation.entry_flow")} <b>{Math.round(summary.entryGwhD).toLocaleString()}</b> GWh/d</span>
             )}
+            {mapLayers.includes("vessels") && situation?.vessel_feed?.entitled === false && (
+              // A licensed feed the caller does not hold: say so rather than show an empty sea.
+              <span className="is-alert">{t("map.situation.vessels_unentitled")}</span>
+            )}
+            {mapLayers.includes("vessels") && (situation?.vessel_feed?.market_cargoes ?? 0) > 0 && (
+              <span>
+                <i className="situation-dot market" />{t("map.situation.vessels")}{" "}
+                <b>{situation!.vessel_feed!.market_cargoes}</b>
+                {situation!.vessel_feed!.simulated > 0 ? <small> sim</small> : null}
+              </span>
+            )}
             {situationStale && <span className="is-alert">{t("map.situation.stale")}</span>}
             <small title={t("map.situation.unlocated_hint")}>
               {t("map.situation.as_of")} {summary.asOf.slice(11, 16)} UTC
               {readAt ? ` · ${t("map.situation.read_at")} ${readAt.toISOString().slice(11, 16)} UTC` : ""}
-              {summary.unlocated > 0 ? ` · ${t("map.situation.unlocated")} ${summary.unlocated}` : ""}
+              {dataOps && summary.unlocated > 0 ? ` · ${t("map.situation.unlocated")} ${summary.unlocated}` : ""}
             </small>
           </div>
         )}
@@ -992,12 +1035,33 @@ export function NetworkWorkspace({
         )}
         {/* The chips are the key for points; this one line keys only the lines drawn. A hub
             is a market area, never wired to its points: the key says how to see its zone. */}
-        {mapHasVisibleEvidence && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
+        {mapHasVisibleEvidence && compactLayout && (
+          <button
+            type="button"
+            className="map-info-chip"
+            aria-expanded={legendOpen}
+            aria-label={t("map.visual_legend")}
+            title={t("map.visual_legend")}
+            onClick={() => {
+              // The basemap's own attribution, read from the map, goes behind this button too.
+              const credit = mapColumnRef.current?.querySelector(".maplibregl-ctrl-attrib-inner");
+              setAttributionText(credit?.textContent?.trim() ?? "");
+              setLegendOpen((open) => !open);
+            }}
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+              <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M8 7.2v4M8 4.8v.1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+        {mapHasVisibleEvidence && (!compactLayout || legendOpen) && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
           {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
           {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
           {indicativeRouteCount > 0 && <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}</span>}
           {bookFlows.length > 0 && mapLayers.includes("positions") && <span><i className="line-swatch flow" />{t("map.key.book_flow")}</span>}
           {displayedHubCount > 0 && <span><i className="node-swatch hubs" />{t("map.key.hub_area")}</span>}
+          {compactLayout && attributionText && <small className="map-legend-attribution">{attributionText}</small>}
         </div>}
       </div>
       </section>

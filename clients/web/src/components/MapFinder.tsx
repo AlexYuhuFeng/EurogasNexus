@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { findPlaces, type MapFinderPlace } from "@/app/mapFinder";
 
 export type { MapFinderPlace };
@@ -9,8 +9,24 @@ type Translate = (key: string) => string;
  * "Where is ...?" for the map: type a hub, terminal, field or vessel and the map flies there.
  * A combobox in the ARIA sense: arrows move, Enter picks, Escape clears.
  */
-export function MapFinder({ places, onPick, t }: { places: MapFinderPlace[]; onPick: (place: MapFinderPlace) => void; t: Translate }) {
+export function MapFinder({
+  places,
+  onPick,
+  t,
+  collapsible = false,
+}: {
+  places: MapFinderPlace[];
+  onPick: (place: MapFinderPlace) => void;
+  t: Translate;
+  /** Phone width: an icon until tapped, so the finder does not cover the map. */
+  collapsible?: boolean;
+}) {
   const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
   const [active, setActive] = useState(0);
   const listId = useId();
   const matches = useMemo(() => findPlaces(places, query), [places, query]);
@@ -19,11 +35,33 @@ export function MapFinder({ places, onPick, t }: { places: MapFinderPlace[]; onP
     onPick(place);
     setQuery("");
     setActive(0);
+    setOpen(false);
   };
+
+  if (collapsible && !open) {
+    return (
+      <button
+        type="button"
+        className="map-finder-toggle"
+        aria-label={t("map.find.label")}
+        title={t("map.find.label")}
+        onClick={() => setOpen(true)}
+      >
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+          <circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M10.4 10.4 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </button>
+    );
+  }
 
   return (
     <div className="map-finder">
       <input
+        ref={inputRef}
+        onBlur={() => {
+          if (collapsible && !query.trim()) setOpen(false);
+        }}
         type="search"
         role="combobox"
         aria-expanded={matches.length > 0}
@@ -48,6 +86,7 @@ export function MapFinder({ places, onPick, t }: { places: MapFinderPlace[]; onP
             pick(matches[active]);
           } else if (event.key === "Escape") {
             setQuery("");
+            setOpen(false);
           }
         }}
       />

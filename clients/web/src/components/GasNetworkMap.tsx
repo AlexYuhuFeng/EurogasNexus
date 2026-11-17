@@ -62,6 +62,7 @@ import { MapFinder, type MapFinderPlace } from "@/components/MapFinder";
 import { MapDetailPanel } from "@/components/MapDetailPanel";
 import { buildSites, siteOf, sitePipelines, siteSituation, type MapSelection, type Site } from "@/app/mapSelection";
 import { useApiStore } from "@/stores/api";
+import { useShellLayout } from "@/app/shell/useShellLayout";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -275,6 +276,16 @@ function isSearchLabelMatch(node: NodeDTO, searchTerm: string): boolean {
   ].some((value) => value.toLowerCase().includes(searchTerm));
 }
 
+/**
+ * The full map's camera and selection outlive the component: leaving the Network page (a mode
+ * switch unmounts it) and coming back restores them at once instead of starting over. The
+ * Market overview's mini-map (``compact``) keeps its own.
+ */
+const remembered: {
+  camera: { center: [number, number]; zoom: number } | null;
+  selection: MapSelection | null;
+} = { camera: null, selection: null };
+
 export function GasNetworkMap({
   nodes,
   edges,
@@ -305,9 +316,15 @@ export function GasNetworkMap({
   const [tier, setTier] = useState<ZoomTier>("overview");
   // The "control tower" selection: one object at a time, its card docked on the right, the
   // object and what it relates to highlighted and the rest dimmed.
-  const [ownSelection, setOwnSelection] = useState<MapSelection | null>(null);
+  // Uncontrolled, the selection is remembered across a remount (a mode switch), as the camera is.
+  const [ownSelection, setOwnSelection] = useState<MapSelection | null>(
+    () => (compact ? null : remembered.selection),
+  );
   const selectionControlled = selectionProp !== undefined;
   const selection = selectionControlled ? selectionProp : ownSelection;
+  useEffect(() => {
+    if (!compact) remembered.selection = selection ?? null;
+  }, [compact, selection]);
   // Stable for the handlers the map registers once: they always reach the current owner.
   const selectionOwnerRef = useRef({ controlled: selectionControlled, report: onSelectionChange });
   selectionOwnerRef.current = { controlled: selectionControlled, report: onSelectionChange };
@@ -363,6 +380,7 @@ export function GasNetworkMap({
   };
   const borderCardRef = useRef(borderCard);
   borderCardRef.current = borderCard;
+  const phoneWidth = useShellLayout().widthClass === "compact";
   const sitesRef = useRef<Site[]>(sites);
   sitesRef.current = sites;
   const marketRows = useApiStore((state) => state.normalizedMarkets);
@@ -569,7 +587,9 @@ export function GasNetworkMap({
   // A vector basemap has its own light and dark style, so the map is rebuilt when the theme
   // changes; a raster or outline basemap is recoloured in place (below).
   const basemapStyleKey = `${mapTileProvider.id}:${mapTileProvider.styleUrl ? effectiveTheme : "any"}`;
-  const lastViewRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
+  const lastViewRef = useRef<{ center: [number, number]; zoom: number } | null>(
+    compact ? null : remembered.camera,
+  );
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -645,10 +665,21 @@ export function GasNetworkMap({
     syncTier();
     map.on("zoomend", syncTier);
     mapRef.current = map;
+    // A map kept mounted while its page is hidden (MarketCockpit) has no size there; it takes
+    // its size again the moment the page shows, with no rebuild.
+    const resizeObserver = typeof ResizeObserver === "function"
+      ? new ResizeObserver(() => {
+          const element = containerRef.current;
+          if (element && element.clientWidth > 0 && element.clientHeight > 0) map.resize();
+        })
+      : null;
+    if (containerRef.current) resizeObserver?.observe(containerRef.current);
     return () => {
       clearTimeout(unreachable);
       const center = map.getCenter();
       lastViewRef.current = { center: [center.lng, center.lat], zoom: map.getZoom() };
+      if (!compact) remembered.camera = lastViewRef.current;
+      resizeObserver?.disconnect();
       setMapReady(false);
       map.remove();
       mapRef.current = null;
@@ -1421,16 +1452,28 @@ export function GasNetworkMap({
       "situation-facilities": activeLayers.includes("infrastructure"),
       "situation-pipeline-flow": activeLayers.includes("flows"),
       "situation-flows": activeLayers.includes("flows"),
-      "situation-cargo-sailed": activeLayers.includes("positions"),
-      "situation-cargo-ahead": activeLayers.includes("positions"),
+      // Own cargoes with "Our positions", market vessels with "LNG vessels" (filtered below).
+      "situation-cargo-sailed": activeLayers.includes("positions") || activeLayers.includes("vessels"),
+      "situation-cargo-ahead": activeLayers.includes("positions") || activeLayers.includes("vessels"),
       "situation-regas": activeLayers.includes("positions"),
       "situation-contracts": activeLayers.includes("positions"),
-      "situation-cargo-positions": activeLayers.includes("positions"),
+      "situation-cargo-positions": activeLayers.includes("positions") || activeLayers.includes("vessels"),
       "situation-outage-halo": activeLayers.includes("outages"),
       "situation-outages": activeLayers.includes("outages"),
     };
     for (const [layerId, on] of Object.entries(show)) {
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", visibility(on));
+    }
+    const cargoFilter = [
+      "any",
+      ["all", ["==", ["get", "own"], true], activeLayers.includes("positions")],
+      ["all", ["==", ["get", "own"], false], activeLayers.includes("vessels")],
+    ];
+    for (const layerId of ["situation-cargo-sailed", "situation-cargo-positions"]) {
+      if (map.getLayer(layerId)) map.setFilter(layerId, cargoFilter as never);
+    }
+    if (map.getLayer("situation-cargo-ahead")) {
+      map.setFilter("situation-cargo-ahead", cargoFilter as never);
     }
     // Theme changes re-colour the layers in place.
     const ownOrMarket = ["case", ["get", "own"], palette.own, palette.market];
@@ -2065,7 +2108,9 @@ export function GasNetworkMap({
   return (
     <div className="gas-map" aria-label={t("map.gas_network_map")}>
       <div ref={containerRef} className="maplibre-canvas" />
-      {mapReady && !compact && <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} />}
+      {mapReady && !compact && (
+        <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} collapsible={phoneWidth} />
+      )}
       {selection && detailCard && (
         <MapDetailPanel
           selection={selection}

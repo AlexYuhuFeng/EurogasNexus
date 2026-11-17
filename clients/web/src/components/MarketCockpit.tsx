@@ -57,6 +57,11 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
   // other query keys. The resolution is owned by `useAppController`, so the
   // task rendered here and the shell's layout class cannot disagree.
   const { task, rememberTask } = marketView;
+  // The map stays mounted once the Network task was opened (see the network block below).
+  const [networkKept, setNetworkKept] = useState(task === "network");
+  useEffect(() => {
+    if (task === "network") setNetworkKept(true);
+  }, [task]);
 
   const openTask = (next: MarketTask) => {
     rememberTask(next);
@@ -172,8 +177,11 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           <TraderDeskPanel t={t} />
           </>
         )}
-        {task === "network" && (
-          <>
+        {(task === "network" || networkKept) && (
+          // Kept mounted once visited and hidden while another task shows, so returning to
+          // the map finds it as it was (camera, selection, layers, data): no reload, no blank
+          // frame. `display: contents` keeps the page layout as if the wrapper were absent.
+          <div style={{ display: task === "network" ? "contents" : "none" }} data-kept-task="network">
           <NetworkWorkspace
             t={t}
             nodes={api.nodes}
@@ -264,7 +272,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               navigation.openWorkspace("scenario");
             }}
           />
-          </>
+          </div>
         )}
       </div>
     </div>

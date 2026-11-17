@@ -2622,6 +2622,9 @@
   .map-layer-chip.layer-outages::before { background: var(--ds-negative); }
   .map-layer-chip.layer-flows::before { background: var(--ds-positive); }
   .map-layer-chip.layer-positions::before { background: var(--ds-accent); }
+  /* Market LNG vessels: the neutral market colour, as their markers on the map. */
+  .map-layer-chip.layer-vessels::before,
+  .situation-dot.market { background: var(--ds-text-2); }
   .map-layer-chip.layer-infrastructure::before { background: var(--ds-text-3); }
 
   .map-situation-strip b {
@@ -3812,16 +3815,78 @@
     white-space: normal;
   }
 
-  /* The line key sits under the finder, clear of the status panel and the attribution. */
+  /* Phone width: the map shows the map. The line key and the basemap credit open from the
+     info button (bottom right), above it; nothing else is overlaid. */
   [data-width-class="compact"] .map-visual-legend,
   [data-width-class="compact"] .workspace-network .network-map-column .map-visual-legend {
-    top: calc(var(--ds-space-2) * 2 + var(--ds-space-1) + var(--ds-control));
-    right: auto;
-    bottom: auto;
+    top: auto;
+    right: var(--ds-space-2);
+    bottom: calc(var(--ds-space-2) * 2 + var(--ds-control));
     left: var(--ds-space-2);
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
     width: auto;
-    max-width: calc(100% - 2 * var(--ds-space-2));
+    max-width: none;
+    padding: var(--ds-space-2) var(--ds-space-3);
+  }
+
+  [data-width-class="compact"] .map-legend-attribution {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  [data-width-class="compact"] .network-map-stage .maplibregl-ctrl-attrib {
+    display: none;
+  }
+
+  .map-info-chip,
+  .map-finder-toggle,
+  .map-situation-compact {
+    position: absolute;
+    z-index: 41;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    min-height: var(--ds-control);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    cursor: pointer;
+  }
+
+  .map-info-chip,
+  .map-finder-toggle {
+    justify-content: center;
+    width: var(--ds-control);
+    padding: 0;
+  }
+
+  .map-info-chip {
+    right: var(--ds-space-2);
+    bottom: var(--ds-space-2);
+  }
+
+  .map-finder-toggle {
+    top: var(--ds-space-2);
+    left: var(--ds-space-2);
+  }
+
+  .map-situation-compact {
+    left: var(--ds-space-2);
+    bottom: var(--ds-space-2);
+    padding: 0 var(--ds-space-3);
+  }
+
+  .map-situation-compact .is-alert {
+    color: var(--ds-negative);
+  }
+
+  [data-width-class="compact"] .map-situation-strip,
+  [data-width-class="compact"] .network-map-column.is-fullscreen .map-situation-strip {
+    bottom: calc(var(--ds-space-2) * 2 + var(--ds-control));
   }
 
   [data-width-class="compact"] .workspace-network .network-map-column .map-toolbar {

@@ -221,6 +221,29 @@ instrument edge to edge on the display:
 
 It is a view, not a mode: it holds no state of its own and grants nothing.
 
+## Phone width, who sees what, and keeping the map
+
+- **At phone width the map shows the map.** The place finder is a search icon until tapped;
+  the status is one compact line ("Live · Out now 3") that opens the full status on tap; the
+  line key and the basemap credit sit behind an info button (bottom right); the zoom buttons
+  give way to pinch zoom. Nothing else is overlaid.
+- **Data operations stay with data operations.** Topology checks ("Topology: N to check"),
+  point coverage ("Network points 853 · 64 without a published position", "Not located")
+  and the topology-status card with its point counts are shown only to identities that run
+  the sources (`source.run`) or administer the installation (`identity.manage`), not on a
+  trader's map.
+- **LNG vessels** are their own layer ("LNG vessels"), beside "Our positions" (the firm's
+  own cargoes). Market vessels come only from the customer's licensed vessel feed (Kpler or
+  an AIS provider, `docs/legal/DATA_SOURCE_TERMS.md`); without that entitlement the status
+  says "LNG vessels: needs your Kpler (or AIS) entitlement — Admin → Data sources" instead of
+  showing an empty sea (`vessel_feed` in `GET /api/portfolio/map-situation`). The demo desk
+  carries five simulated vessels (`Kpler_Sim`, marked sim) heading to Gate, Eemshaven,
+  Zeebrugge, Isle of Grain and Dunkerque; a terminal's card lists the cargoes heading to it.
+  They are removed once a real vessel feed delivers.
+- **Leaving and coming back keeps the map.** Switching Desk tabs hides the Network page
+  instead of unmounting it (`MarketCockpit`), so the map, its data, camera, selection and
+  layers are as they were; a mode switch remounts it at the remembered camera and selection.
+
 ## Topology over geometry
 
 What netbacks and flow reasoning need is the topology: which point connects to which,

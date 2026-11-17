@@ -21,7 +21,7 @@ import type {
 
 export type Project = (lon: number, lat: number) => [number, number];
 
-export const SITUATION_LAYERS = ["outages", "flows", "positions", "infrastructure"] as const;
+export const SITUATION_LAYERS = ["outages", "flows", "positions", "vessels", "infrastructure"] as const;
 export type SituationLayer = (typeof SITUATION_LAYERS)[number];
 
 type Props = Record<string, string | number | boolean | null>;

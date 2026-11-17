@@ -3194,6 +3194,11 @@ export interface MapSituationDTO {
   totals?: Record<"outages_active" | "outages_scheduled" | "contracts" | "cargoes" | "regas_slots", number> &
     Partial<Record<"network_points", number>>;
   positions_included: boolean;
+  /**
+   * The market LNG vessel feed: whether the caller holds the licensed vessel-feed entitlement
+   * (Kpler or an AIS provider), how many market cargoes are visible, how many simulated.
+   */
+  vessel_feed?: { entitled: boolean | null; market_cargoes: number; simulated: number; families: string[] };
 }
 
 /** North-west Europe balance: measured history and the component forecast. */
