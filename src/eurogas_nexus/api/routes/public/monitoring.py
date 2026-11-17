@@ -249,6 +249,7 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
             result.content,
             evidence_text=_analysis_messages(alert_snapshot, payload)[1]["content"],
             simulated=bool(alert_snapshot.get("simulated")),
+            language=payload.language,
         )
         if not verdict.ok:
             answer = None

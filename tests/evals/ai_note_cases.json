@@ -311,6 +311,81 @@
    "sources": [
     "REMIT urgent market messages"
    ]
+  },
+  "why_outage_demo_zh": {
+   "use": "explain",
+   "data_class": "demo",
+   "language": "zh-CN",
+   "check_language": true,
+   "simulated": true,
+   "title": "Demo Haldor field停运",
+   "lines": [
+    "Demo Haldor field（NBP）不可用563 GWh/d（占技术容量的74%），UTC 11月13日 05:43至11月17日 05:43。",
+    "非计划停运；原因：压缩机跳闸。",
+    "交易台今日在NBP多头28,000 MWh/d。"
+   ],
+   "sources": [
+    "remit:demo-umm-1:v1"
+   ],
+   "evidence": {
+    "event_id": "demo-umm-1",
+    "source_reference": "demo:umm:1",
+    "balancing_zone": "NBP"
+   }
+  },
+  "brief_morning_demo_zh": {
+   "use": "brief",
+   "data_class": "demo",
+   "language": "zh-CN",
+   "check_language": true,
+   "simulated": true,
+   "kind": "morning",
+   "sections": [
+    {
+     "key": "prices",
+     "heading": "价格",
+     "lines": [
+      "NBP近月 84.50 GBp/th（11月14日），日变化-1.20。",
+      "TTF近月 31.40 EUR/MWh（11月14日），日变化+0.35。"
+     ],
+     "sources": [
+      "Demo_Sim:NBP:month-ahead",
+      "Demo_Sim:TTF:month-ahead"
+     ]
+    },
+    {
+     "key": "positions",
+     "heading": "头寸",
+     "lines": [
+      "NBP：今日多头28,000 MWh/d。"
+     ],
+     "sources": [
+      "position-ladder"
+     ]
+    }
+   ]
+  },
+  "ask_storage_public_zh": {
+   "use": "answer",
+   "data_class": "public",
+   "language": "zh-CN",
+   "check_language": true,
+   "simulated": false,
+   "question": "西北欧储气现在怎么样？",
+   "ask_lines": [
+    {
+     "topic": "supply",
+     "text": "11月14日西北欧储气率为86.0%，812.4 TWh；11月7日为87.1%。",
+     "source": "storage:nwe",
+     "as_of": "2026-11-14"
+    },
+    {
+     "topic": "supply",
+     "text": "11月14日西北欧储气净提取1,420 GWh/d，11月7日为980 GWh/d。",
+     "source": "balance:storage_net_withdrawal_gwh",
+     "as_of": "2026-11-14"
+    }
+   ]
   }
  },
  "cases": [
@@ -1270,6 +1345,68 @@
    "check": "number",
    "reason": "65% is not in the lines.",
    "text": "12 Nov西北欧储气库存率约为65%。"
+  },
+  {
+   "id": "why_outage_demo_zh-01",
+   "evidence": "why_outage_demo_zh",
+   "category": "chinese",
+   "expect": "pass",
+   "check": "",
+   "reason": "Why on the Chinese interface: a Chinese note with the lines' figures, units and hub.",
+   "text": "Demo Haldor field非计划停运，不可用563 GWh/d（模拟），至11月17日；交易台在NBP多头28,000 MWh/d。"
+  },
+  {
+   "id": "why_outage_demo_zh-02",
+   "evidence": "why_outage_demo_zh",
+   "category": "language",
+   "expect": "refuse",
+   "check": "language",
+   "reason": "Why on the Chinese interface answered in English: refused, the Chinese rule text stands.",
+   "text": "Demo Haldor field is out 563 GWh/d (simulated) until 17 Nov; the desk is long 28,000 MWh/d at NBP."
+  },
+  {
+   "id": "brief_morning_demo_zh-01",
+   "evidence": "brief_morning_demo_zh",
+   "category": "chinese",
+   "expect": "pass",
+   "check": "",
+   "reason": "The brief's lead in Chinese, figures as given.",
+   "text": "NBP近月收于84.50 GBp/th（模拟），日内-1.20；交易台在NBP多头28,000 MWh/d。",
+   "cites": [
+    "S1",
+    "S3"
+   ]
+  },
+  {
+   "id": "brief_morning_demo_zh-02",
+   "evidence": "brief_morning_demo_zh",
+   "category": "language",
+   "expect": "refuse",
+   "check": "language",
+   "reason": "An English lead on the Chinese interface is refused.",
+   "text": "NBP front month 84.50 GBp/th (simulated), -1.20 on the day; the desk is long 28,000 MWh/d at NBP.",
+   "cites": [
+    "S1",
+    "S3"
+   ]
+  },
+  {
+   "id": "ask_storage_public_zh-01",
+   "evidence": "ask_storage_public_zh",
+   "category": "chinese",
+   "expect": "pass",
+   "check": "",
+   "reason": "Ask on the Chinese interface answered in Chinese from the lines.",
+   "text": "11月14日西北欧储气率为86.0%，库存812.4 TWh；11月7日为87.1%。当日储气净提取1,420 GWh/d，11月7日为980 GWh/d。"
+  },
+  {
+   "id": "ask_storage_public_zh-02",
+   "evidence": "ask_storage_public_zh",
+   "category": "language",
+   "expect": "refuse",
+   "check": "language",
+   "reason": "An English answer to a Chinese question on the Chinese interface is refused.",
+   "text": "NW Europe storage was 86.0% full on 14 Nov, 812.4 TWh, down from 87.1% on 7 Nov."
   }
  ]
 }

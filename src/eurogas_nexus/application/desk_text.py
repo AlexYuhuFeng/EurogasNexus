@@ -62,34 +62,49 @@ def hub_for_zone(zone: str) -> str | None:
     return None
 
 
+def _zh() -> bool:
+    from eurogas_nexus.application.reports.lang import zh
+
+    return zh()
+
+
 def credit_lines(row: dict) -> list[str]:
-    """Two or three lines: the figures, then what would clear or explain the status."""
+    """Two or three lines: the figures, then what would clear or explain the status (in the
+    interface's language, ``reports.lang``)."""
 
     currency = row["currency"]
+    zh = _zh()
     lines = [
-        f"Net exposure {money(row['net_exposure'], currency)} against a "
-        f"{money(row['limit'], currency)} limit ({pct(row['utilisation_pct'])}).",
+        (f"净敞口{money(row['net_exposure'], currency)}，限额{money(row['limit'], currency)}"
+         f"（{pct(row['utilisation_pct'])}）。") if zh else
+        (f"Net exposure {money(row['net_exposure'], currency)} against a "
+         f"{money(row['limit'], currency)} limit ({pct(row['utilisation_pct'])})."),
         _breakdown(row),
     ]
     status = row["status"]
     if status == "breach":
         need = row["net_exposure"] - row["limit"]
         lines.append(
+            f"需要{money(need, currency)}的额度空间：增加抵押、提高核准限额或减少敞口。" if zh else
             f"Needs {money(need, currency)} of headroom: more collateral, a higher approved "
             "limit or less exposure."
         )
     elif status == "watch":
-        lines.append(f"Headroom {money(row['headroom'], currency)} before the limit.")
+        lines.append(f"距限额尚有{money(row['headroom'], currency)}。" if zh else
+                     f"Headroom {money(row['headroom'], currency)} before the limit.")
     elif status == "expired":
-        lines.append(f"The line expired on {row['valid_until']}; risk must renew it.")
+        lines.append(f"该额度已于{row['valid_until']}到期；需由风控续期。" if zh else
+                     f"The line expired on {row['valid_until']}; risk must renew it.")
     elif status == "incomplete":
         lines.append(
+            f"{row['unvalued_legs']}笔交易缺少对应枢纽与月份的估值，敞口被低估。" if zh else
             f"{row['unvalued_legs']} legs have no mark for their hub and month, so the "
             "exposure is understated."
         )
     evergreen = int(row.get("open_ended_legs") or 0)
     if evergreen:
         lines.append(
+            f"{evergreen}份长期合同计至气年末。" if zh else
             "1 evergreen contract counts to the end of the gas year."
             if evergreen == 1
             else f"{evergreen} evergreen contracts count to the end of the gas year."
@@ -99,31 +114,45 @@ def credit_lines(row: dict) -> list[str]:
 
 def _breakdown(row: dict) -> str:
     currency = row["currency"]
+    legs = int(row.get("legs") or 0)
+    if _zh():
+        parts = [f"重置敞口{money(row['replacement_exposure'], currency)}"]
+        if row.get("receivable_exposure"):
+            parts.append(f"加应收款{money(row['receivable_exposure'], currency)}")
+        if row.get("collateral"):
+            parts.append(f"减抵押{money(row['collateral'], currency)}")
+        return f"{'，'.join(parts)}（{legs}笔）。"
     parts = [f"Replacement {money(row['replacement_exposure'], currency)}"]
     if row.get("receivable_exposure"):
         parts.append(f"plus receivables {money(row['receivable_exposure'], currency)}")
     if row.get("collateral"):
         parts.append(f"less collateral {money(row['collateral'], currency)}")
-    legs = int(row.get("legs") or 0)
     return f"{', '.join(parts)} ({legs} leg{'' if legs == 1 else 's'})."
 
 
 def mandate_lines(row: dict) -> list[str]:
+    zh = _zh()
     lines = []
     if row.get("max_net_mwh_per_month"):
         lines.append(
-            f"Largest net position {row['largest_net_mwh']:,.0f} MWh in {row['largest_at']} "
-            f"against {row['max_net_mwh_per_month']:,.0f} MWh a month "
-            f"({pct(row['utilisation_pct'])})."
+            (f"最大净头寸{row['largest_net_mwh']:,.0f} MWh（{row['largest_at']}），每月上限"
+             f"{row['max_net_mwh_per_month']:,.0f} MWh（{pct(row['utilisation_pct'])}）"
+             f"。") if zh else
+            (f"Largest net position {row['largest_net_mwh']:,.0f} MWh in {row['largest_at']} "
+             f"against {row['max_net_mwh_per_month']:,.0f} MWh a month "
+             f"({pct(row['utilisation_pct'])}).")
         )
     if row.get("breaches"):
-        lines.append(f"Breaches: {row['breaches']}.")
+        lines.append(f"超限：{row['breaches']}。" if zh else f"Breaches: {row['breaches']}.")
     if row.get("max_tenor_months") is not None and row.get("furthest_month"):
         lines.append(
+            f"最远月份{row['furthest_month']}；期限上限{row['max_tenor_months']}个月。" if zh else
             f"Furthest month {row['furthest_month']}; tenor limit {row['max_tenor_months']} "
             "months."
         )
     if row["status"] == "expired":
-        lines.append(f"The mandate expired on {row['valid_until']}; risk must renew it.")
-    lines.append(f"Books {row['books']}; hubs {row['hubs']}.")
+        lines.append(f"该授权已于{row['valid_until']}到期；需由风控续期。" if zh else
+                     f"The mandate expired on {row['valid_until']}; risk must renew it.")
+    lines.append(f"账簿{row['books']}；枢纽{row['hubs']}。" if zh else
+                 f"Books {row['books']}; hubs {row['hubs']}.")
     return lines[:4]

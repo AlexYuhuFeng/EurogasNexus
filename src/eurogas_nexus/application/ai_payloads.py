@@ -128,11 +128,9 @@ def alert_answer_messages(
 ) -> list[dict[str, str]]:
     """The messages for an answer about one alert (``ANSWER_RULES``)."""
 
-    from eurogas_nexus.application.ai_style import ANSWER_RULES
+    from eurogas_nexus.application.ai_style import ANSWER_RULES, language_rule
 
-    language_instruction = (
-        "Respond in Simplified Chinese." if language == "zh-CN" else "Respond in English."
-    )
+    language_instruction = language_rule(language)
     return [
         {
             "role": "system",
@@ -179,12 +177,9 @@ def ask_messages(
 ) -> list[dict[str, str]]:
     """The messages for an answer-bar question (``ANSWER_RULES``)."""
 
-    from eurogas_nexus.application.ai_style import ANSWER_RULES
+    from eurogas_nexus.application.ai_style import ANSWER_RULES, language_rule
 
-    language_instruction = (
-        "Respond in Simplified Chinese." if language.lower().startswith("zh")
-        else "Respond in English."
-    )
+    language_instruction = language_rule(language)
     simulated_instruction = (
         " The facts use simulated demo data: say so, and never call a simulated price a "
         "market price." if simulated else ""

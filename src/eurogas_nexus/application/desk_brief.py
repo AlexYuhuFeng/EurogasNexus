@@ -65,9 +65,13 @@ def build_brief(
     warnings: list[str] = []
     simulated = False
     sections: list[Section] = []
+    from eurogas_nexus.application.reports.lang import writing
+
     for build in (_alerts, _outages, _prices, _positions, _limits, _pnl):
         try:
-            section, demo = build(session, caller, now, kind)
+            # The brief's rule lines are in the interface's language, like the model's lead.
+            with writing(language):
+                section, demo = build(session, caller, now, kind)
         except Exception as exc:  # noqa: BLE001 - one missing section must not lose the brief
             name = build.__name__.strip("_")
             warnings.append(f"{name}: not available ({exc.__class__.__name__})")
@@ -77,11 +81,16 @@ def build_brief(
             sections.append(section)
     if simulated:
         warnings.insert(0, "DEMO: figures use simulated demo prices, not market prices.")
-    title = (
-        f"Gas desk morning brief, {now:%a %d %b %Y}"
-        if kind == "morning"
-        else f"Gas desk end of day, {now:%a %d %b %Y}"
-    )
+    zh = str(language).lower().startswith("zh")
+    if zh:
+        title = (f"天然气交易台晨报，{now.year}年{now.month}月{now.day}日" if kind == "morning"
+                 else f"天然气交易台日终报告，{now.year}年{now.month}月{now.day}日")
+    else:
+        title = (
+            f"Gas desk morning brief, {now:%a %d %b %Y}"
+            if kind == "morning"
+            else f"Gas desk end of day, {now:%a %d %b %Y}"
+        )
     lead = _lead(model, kind, sections, simulated, language) if model and sections else None
     return Brief(
         kind=kind,
@@ -89,17 +98,19 @@ def build_brief(
         lead=lead,
         lead_basis="model" if lead else "none",
         sections=sections,
-        text=_as_text(title, lead, sections, simulated),
+        text=_as_text(title, lead, sections, simulated, zh),
         simulated=simulated,
         warnings=warnings,
         as_of=now.isoformat(),
     )
 
 
-def _as_text(title: str, lead: str | None, sections: list[Section], simulated: bool) -> str:
+def _as_text(title: str, lead: str | None, sections: list[Section], simulated: bool,
+             zh: bool = False) -> str:
     out = [title, ""]
     if simulated:
-        out += ["Demo figures: simulated prices, not market prices.", ""]
+        out += ["演示数据：模拟价格，非市场价格。" if zh else
+                "Demo figures: simulated prices, not market prices.", ""]
     if lead:
         out += [lead, ""]
     for section in sections:
@@ -107,7 +118,8 @@ def _as_text(title: str, lead: str | None, sections: list[Section], simulated: b
         out += [f"- {line}" for line in section.lines]
         out.append("")
     if not sections:
-        out.append("Nothing to report from the desk's data.")
+        out.append("交易台数据中没有需要报告的内容。" if zh else "Nothing to report from the desk'"
+                                                 "s data.")
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -145,6 +157,7 @@ def _lead(model, kind: str, sections: list[Section], simulated: bool, language: 
         evidence_text=json.dumps(facts, ensure_ascii=False),
         sources=facts["sources"],
         simulated=simulated,
+        language=language,
     )
     return note.text if note else None
 
@@ -168,11 +181,14 @@ def _alerts(session, caller, now, kind):
     ]
     rows.sort(key=lambda row: (row.severity != "critical", -_ts(row.updated_at_utc)))
     lines = [
-        f"{'Critical' if row.severity == 'critical' else 'Watch'}: {row.title_en}."
+        T(f"{'Critical' if row.severity == 'critical' else 'Watch'}: {row.title_en}.",
+          f"{'严重' if row.severity == 'critical' else '观察'}：{row.title_zh_cn or row.title_en}"
+          f"。")
         for row in rows[:MAX_LINES]
     ]
     return (
-        Section("alerts", "Alerts", lines, [f"alert:{row.alert_id}" for row in rows[:MAX_LINES]]),
+        Section("alerts", T("Alerts", "预警"), lines,
+                [f"alert:{row.alert_id}" for row in rows[:MAX_LINES]]),
         any(row.simulated for row in rows),
     )
 
@@ -188,20 +204,22 @@ def _outages(session, caller, now, kind):
         gwh = row.get("unavailable_gwh_d")
         if gwh is None or float(gwh) < 10:
             continue
-        when = "out now" if row["status"] == "active" else (
-            f"from {datetime.fromisoformat(str(row['start_utc'])):%d %b %H:%M} UTC"
-        )
+        start = datetime.fromisoformat(str(row["start_utc"]))
         end = row.get("end_utc")
-        until = (
-            f", until {datetime.fromisoformat(str(end)):%d %b %H:%M}" if end else ", no end date"
-        )
-        lines.append(
-            f"{row['facility_name']} ({row.get('balancing_zone') or 'n/a'}): "
-            f"{float(gwh):,.0f} GWh/d {when}{until}."
-        )
+        stop = datetime.fromisoformat(str(end)) if end else None
+        zone = row.get("balancing_zone") or "n/a"
+        lines.append(T(
+            f"{row['facility_name']} ({zone}): {float(gwh):,.0f} GWh/d "
+            + ("out now" if row["status"] == "active" else f"from {start:%d %b %H:%M} UTC")
+            + (f", until {stop:%d %b %H:%M}" if stop else ", no end date") + ".",
+            f"{row['facility_name']}（{zone}）：{float(gwh):,.0f} GWh/d，"
+            + ("目前停运" if row["status"] == "active"
+               else f"自 UTC {start.month}月{start.day}日 {start:%H:%M}起")
+            + (f"，至{stop.month}月{stop.day}日 {stop:%H:%M}" if stop
+               else "，未给出结束日期") + "。"))
         sources.append(f"remit:{row['event_id']}:v{row.get('version')}")
         demo = demo or str(row.get("source_reference") or "").lower().startswith("demo")
-    return Section("outages", "Outages", lines[:MAX_LINES], sources[:MAX_LINES]), demo
+    return Section("outages", T("Outages", "停运"), lines[:MAX_LINES], sources[:MAX_LINES]), demo
 
 
 def _prices(session, caller, now, kind):
@@ -223,14 +241,16 @@ def _prices(session, caller, now, kind):
         demo = demo or last["simulated"]
         # The desk's own quotation (NBP in p/th), through the unit authority.
         shown, unit = in_native_unit(hub, last["price"], last["unit"])
-        text = f"{hub} {'front month' if tenor == 'month-ahead' else 'day-ahead'} " \
-               f"{shown:.2f} {unit} ({days[-1]:%d %b})"
+        product = T("front month" if tenor == "month-ahead" else "day-ahead",
+                    "近月" if tenor == "month-ahead" else "日前")
+        text = T(f"{hub} {product} {shown:.2f} {unit} ({days[-1]:%d %b})",
+                 f"{hub}{product} {shown:.2f} {unit}（{days[-1].month}月{days[-1].day}日）")
         if len(days) > 1:
             change = shown - in_native_unit(hub, series[days[-2]]["price"], last["unit"])[0]
-            text += f", {change:+.2f} on the day"
-        lines.append(text + ".")
+            text += T(f", {change:+.2f} on the day", f"，日变化{change:+.2f}")
+        lines.append(text + T(".", "。"))
         sources.append(f"{last['source_system']}:{hub}:{tenor}")
-    return Section("prices", "Prices", lines[:MAX_LINES], sources[:MAX_LINES]), demo
+    return Section("prices", T("Prices", "价格"), lines[:MAX_LINES], sources[:MAX_LINES]), demo
 
 
 def _positions(session, caller, now, kind):
@@ -246,14 +266,17 @@ def _positions(session, caller, now, kind):
     lines = []
     for hub in sorted(net):
         parts = [
-            f"{'long' if value > 0 else 'short'} {abs(value):,.0f} MWh/d {label}"
-            for label, key in (("today", "today"), ("front month", "front_month"))
+            T(f"{'long' if value > 0 else 'short'} {abs(value):,.0f} MWh/d {label}",
+              f"{label_zh}{'多头' if value > 0 else '空头'}{abs(value):,.0f} MWh/d")
+            for label, label_zh, key in (("today", "今日", "today"),
+                                         ("front month", "近月", "front_month"))
             if abs(value := net[hub][key]) > 1e-9
         ]
         if parts:
-            lines.append(f"{hub}: {', '.join(parts)}.")
+            lines.append(T(f"{hub}: {', '.join(parts)}.", f"{hub}：{'，'.join(parts)}。"))
     demo = any(w.startswith("DEMO") for w in inputs.warnings)
-    return Section("positions", "Positions", lines[:MAX_LINES], ["position-ladder"]), demo
+    return Section("positions", T("Positions", "头寸"), lines[:MAX_LINES],
+                   ["position-ladder"]), demo
 
 
 def _limits(session, caller, now, kind):
@@ -265,19 +288,25 @@ def _limits(session, caller, now, kind):
     lines, sources = [], []
     for row in sorted(credit.rows, key=lambda r: rank.get(r["status"], 9)):
         if row["status"] in {"breach", "watch", "expired"}:
-            lines.append(
+            lines.append(T(
                 f"{row['counterparty']} credit {row['status']}: "
                 f"{money(row['net_exposure'], row['currency'])} of "
-                f"{money(row['limit'], row['currency'])} ({row['utilisation_pct']:.0f}%)."
-            )
+                f"{money(row['limit'], row['currency'])} ({row['utilisation_pct']:.0f}%).",
+                f"{row['counterparty']}信用额度{_STATUS_ZH.get(row['status'], row['status'])}："
+                f"{money(row['net_exposure'], row['currency'])}，限额"
+                f"{money(row['limit'], row['currency'])}（{row['utilisation_pct']:.0f}%）。"))
             sources.append(f"credit-line:{row['counterparty_id']}")
     for row in sorted(mandates.rows, key=lambda r: rank.get(r["status"], 9)):
         if row["status"] in {"breach", "watch", "expired"}:
-            detail = row["breaches"] or f"{row['utilisation_pct']:.0f}% of size limit"
-            lines.append(f"{row['name']} mandate {row['status']}: {detail}.")
+            detail = row["breaches"] or T(f"{row['utilisation_pct']:.0f}% of size limit",
+                                          f"规模上限的{row['utilisation_pct']:.0f}%")
+            lines.append(T(f"{row['name']} mandate {row['status']}: {detail}.",
+                           f"{row['name']}授权{_STATUS_ZH.get(row['status'], row['status'])}："
+                           f"{detail}。"))
             sources.append(f"mandate:{row['mandate_id']}")
     demo = any(w.startswith("DEMO") for w in [*credit.warnings, *mandates.warnings])
-    return Section("limits", "Credit and mandates", lines[:MAX_LINES], sources[:MAX_LINES]), demo
+    return Section("limits", T("Credit and mandates", "信用额度与授权"), lines[:MAX_LINES],
+                   sources[:MAX_LINES]), demo
 
 
 def _pnl(session, caller, now, kind):
@@ -293,16 +322,24 @@ def _pnl(session, caller, now, kind):
             previous[row.portfolio_id] = row
     lines, sources, demo = [], [], False
     for portfolio, row in sorted(latest.items()):
-        text = f"{portfolio}: indicative {money(row.indicative_pnl_gbp, 'GBP')}"
+        text = T(f"{portfolio}: indicative {money(row.indicative_pnl_gbp, 'GBP')}",
+                 f"{portfolio}：指示性{money(row.indicative_pnl_gbp, 'GBP')}")
         if portfolio in previous:
-            text += (
-                f", {money(row.indicative_pnl_gbp - previous[portfolio].indicative_pnl_gbp, 'GBP')}"
-                " since the previous valuation"
-            )
-        lines.append(text + ".")
+            moved = money(row.indicative_pnl_gbp - previous[portfolio].indicative_pnl_gbp, "GBP")
+            text += T(f", {moved} since the previous valuation", f"，较上次估值变化{moved}")
+        lines.append(text + T(".", "。"))
         sources.append(f"pnl:{row.pnl_snapshot_id}")
         demo = demo or str(row.source_system).endswith("_Sim")
-    return Section("pnl", "P&L", lines[:MAX_LINES], sources[:MAX_LINES]), demo
+    return Section("pnl", T("P&L", "损益"), lines[:MAX_LINES], sources[:MAX_LINES]), demo
+
+
+_STATUS_ZH = {"breach": "超限", "watch": "观察", "expired": "已过期", "ok": "正常"}
+
+
+def T(en: str, zh_text: str) -> str:  # noqa: N802 - the reports' template marker
+    from eurogas_nexus.application.reports.lang import T as pick
+
+    return pick(en, zh_text)
 
 
 def _ts(value) -> float:

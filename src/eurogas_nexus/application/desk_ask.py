@@ -170,7 +170,8 @@ def ask(
     if not content:
         answer.warnings.append("ASK_MODEL_NO_REPLY")
         return answer
-    verdict = answer_verdict(content, evidence_text=messages[1]["content"], simulated=simulated)
+    verdict = answer_verdict(content, evidence_text=messages[1]["content"], simulated=simulated,
+                             language=language)
     if not verdict.ok:
         answer.ai = "refused"
         answer.warnings.append(f"ASK_MODEL_TEXT_REFUSED:{verdict.check}")
@@ -224,15 +225,19 @@ def fact_lines(
 ) -> list[FactLine]:
     """The Today read as desk lines, each with its topic, source and as-of."""
 
+    from eurogas_nexus.application.reports.lang import writing
+
     rows = {row.get("key"): row for row in today.get("rows") or []}
     out: list[FactLine] = []
-    out += _price_lines(rows.get("key_figures") or {})
     changes = rows.get("changes") or {}
-    out += _outage_lines(changes.get("outages") or {})
-    out += _alert_lines(changes.get("alerts") or {})
-    out += _supply_lines(rows.get("fundamentals") or {})
-    if book_allowed:
-        out += _book_lines(rows.get("key_figures") or {}, rows.get("book") or {})
+    # The lines are the answer's fallback and its evidence list: in the interface's language.
+    with writing(language):
+        out += _price_lines(rows.get("key_figures") or {})
+        out += _outage_lines(changes.get("outages") or {})
+        out += _alert_lines(changes.get("alerts") or {})
+        out += _supply_lines(rows.get("fundamentals") or {})
+        if book_allowed:
+            out += _book_lines(rows.get("key_figures") or {}, rows.get("book") or {})
     by_topic: dict[str, int] = {}
     kept = []
     for line in out:
@@ -252,13 +257,16 @@ def _price_lines(key_figures: dict[str, Any]) -> list[FactLine]:
             continue
         unit = str(price.get("unit") or "")
         decimals = _price_decimals(unit)
-        text = f"{price.get('label')} {_number(price['value'], decimals)} {unit} " \
-               f"(close {_day(price.get('close_day'))})"
+        text = T(f"{price.get('label')} {_number(price['value'], decimals)} {unit} "
+                 f"(close {_day(price.get('close_day'))})",
+                 f"{price.get('label')} {_number(price['value'], decimals)} {unit}"
+                 f"（收盘 {_day(price.get('close_day'))}）")
         if price.get("day_change") is not None:
-            text += f", {price['day_change']:+.{decimals}f} on the day"
+            text += T(f", {price['day_change']:+.{decimals}f} on the day",
+                      f"，日变化{price['day_change']:+.{decimals}f}")
         if price.get("simulated"):
-            text += ", simulated demo price, not a market price"
-        lines.append(FactLine("prices", text + ".", f"price:{price.get('hub')}",
+            text += T(", simulated demo price, not a market price", "，模拟演示价格，非市场价格")
+        lines.append(FactLine("prices", text + T(".", "。"), f"price:{price.get('hub')}",
                               price.get("as_of"), bool(price.get("simulated"))))
     return lines
 
@@ -270,8 +278,10 @@ def _outage_lines(outages: dict[str, Any]) -> list[FactLine]:
     lines = [
         FactLine(
             "outages",
-            f"{counts.get('active', 0)} outages active now and {counts.get('scheduled', 0)} "
-            f"scheduled in the next {outages.get('horizon_days', 14)} days (REMIT).",
+            T(f"{counts.get('active', 0)} outages active now and {counts.get('scheduled', 0)} "
+              f"scheduled in the next {outages.get('horizon_days', 14)} days (REMIT).",
+              f"目前有{counts.get('active', 0)}处停运，未来{outages.get('horizon_days', 14)}天"
+              f"计划{counts.get('scheduled', 0)}处（REMIT）。"),
             "remit:counts",
             outages.get("as_of"),
             any(item.get("simulated") for item in outages.get("items") or []),
@@ -279,14 +289,19 @@ def _outage_lines(outages: dict[str, Any]) -> list[FactLine]:
     ]
     for item in outages.get("items") or []:
         size = item.get("unavailable")
-        amount = f"{_number(size, 0)} {item.get('unit') or ''} unavailable" if size is not None \
-            else "capacity offline not stated"
-        until = f", until {_day(item.get('end_utc'))}" if item.get("end_utc") else ", no end date"
-        when = "now" if item.get("status") == "active" else f"from {_day(item.get('start_utc'))}"
+        amount = (T(f"{_number(size, 0)} {item.get('unit') or ''} unavailable",
+                    f"不可用{_number(size, 0)} {item.get('unit') or ''}") if size is not None
+                  else T("capacity offline not stated", "未说明停运容量"))
+        until = (T(f", until {_day(item.get('end_utc'))}", f"，至{_day(item.get('end_utc'))}")
+                 if item.get("end_utc") else T(", no end date", "，未给出结束日期"))
+        when = (T("now", "目前") if item.get("status") == "active"
+                else T(f"from {_day(item.get('start_utc'))}", f"自{_day(item.get('start_utc'))}起"))
         lines.append(
             FactLine(
                 "outages",
-                f"{item.get('facility')} ({item.get('zone') or 'n/a'}): {amount} {when}{until}.",
+                T(f"{item.get('facility')} ({item.get('zone') or 'n/a'}): {amount} {when}{until}.",
+                  f"{item.get('facility')}（{item.get('zone') or 'n/a'}）：{when}{amount}{until}"
+                  f"。"),
                 f"remit:{item.get('event_id')}",
                 item.get("as_of"),
                 bool(item.get("simulated")),
@@ -298,8 +313,10 @@ def _outage_lines(outages: dict[str, Any]) -> list[FactLine]:
 def _alert_lines(alerts: dict[str, Any]) -> list[FactLine]:
     lines = []
     for item in alerts.get("items") or []:
-        severity = "Critical" if item.get("severity") == "critical" else "Watch"
-        lines.append(FactLine("alerts", f"{severity}: {item.get('title')}.",
+        severity = T("Critical" if item.get("severity") == "critical" else "Watch",
+                     "严重" if item.get("severity") == "critical" else "观察")
+        text = f"{severity}{T(': ', '：')}{item.get('title')}{T('.', '。')}"
+        lines.append(FactLine("alerts", text,
                               f"alert:{item.get('alert_id')}", item.get("as_of"),
                               bool(item.get("simulated"))))
     return lines
@@ -311,12 +328,15 @@ def _supply_lines(fundamentals: dict[str, Any]) -> list[FactLine]:
     latest = storage.get("latest") if isinstance(storage, dict) else None
     if latest and latest.get("value") is not None:
         series = storage.get("series") or []
-        text = f"{latest.get('label')} {latest['value']:.1f}% on {_day(latest.get('as_of'))}"
+        text = T(f"{latest.get('label')} {latest['value']:.1f}% on {_day(latest.get('as_of'))}",
+                 f"{_day(latest.get('as_of'))}{latest.get('label')}为{latest['value']:.1f}%")
         if series:
-            text += f", {series[-1]['inventory_twh']:,.1f} TWh"
+            text += T(f", {series[-1]['inventory_twh']:,.1f} TWh",
+                      f"，{series[-1]['inventory_twh']:,.1f} TWh")
         if len(series) >= 8 and series[-8].get("fill_pct") is not None:
-            text += f"; {series[-8]['fill_pct']:.1f}% on {_day(series[-8]['day'])}"
-        lines.append(FactLine("supply", text + ".", "storage:nwe", latest.get("as_of"),
+            text += T(f"; {series[-8]['fill_pct']:.1f}% on {_day(series[-8]['day'])}",
+                      f"；{_day(series[-8]['day'])}为{series[-8]['fill_pct']:.1f}%")
+        lines.append(FactLine("supply", text + T(".", "。"), "storage:nwe", latest.get("as_of"),
                               bool(latest.get("simulated"))))
     balance = fundamentals.get("balance") or {}
     series = balance.get("series") if isinstance(balance, dict) else None
@@ -325,17 +345,20 @@ def _supply_lines(fundamentals: dict[str, Any]) -> list[FactLine]:
         last, simulated = series[-1], bool(latest.get("simulated"))
         week = series[-8] if len(series) >= 8 else series[0]
         for key, name in (
-            ("norway_gwh", "Norwegian supply to NW Europe"),
-            ("lng_gwh", "LNG send-out in NW Europe"),
-            ("storage_net_withdrawal_gwh", "Net storage withdrawal in NW Europe"),
-            ("call_gwh", "NW Europe supply call"),
+            ("norway_gwh", T("Norwegian supply to NW Europe", "挪威对西北欧供应")),
+            ("lng_gwh", T("LNG send-out in NW Europe", "西北欧 LNG 外输")),
+            ("storage_net_withdrawal_gwh", T("Net storage withdrawal in NW Europe",
+                                             "西北欧储气净提取")),
+            ("call_gwh", T("NW Europe supply call", "西北欧供应需求")),
         ):
             if last.get(key) is None:
                 continue
-            text = f"{name} {_number(last[key], 0)} GWh/d on {_day(last['day'])}"
+            text = T(f"{name} {_number(last[key], 0)} GWh/d on {_day(last['day'])}",
+                     f"{_day(last['day'])}{name}{_number(last[key], 0)} GWh/d")
             if week is not last and week.get(key) is not None:
-                text += f", {_number(week[key], 0)} GWh/d on {_day(week['day'])}"
-            lines.append(FactLine("supply", text + ".", f"balance:{key}",
+                text += T(f", {_number(week[key], 0)} GWh/d on {_day(week['day'])}",
+                          f"，{_day(week['day'])}为{_number(week[key], 0)} GWh/d")
+            lines.append(FactLine("supply", text + T(".", "。"), f"balance:{key}",
                                   latest.get("as_of"), simulated))
     return lines
 
@@ -345,27 +368,40 @@ def _book_lines(key_figures: dict[str, Any], book: dict[str, Any]) -> list[FactL
     for hub in book.get("hubs") or []:
         today, front = hub.get("position_today") or {}, hub.get("position_front_month") or {}
         parts = [
-            f"{'long' if figure['value'] > 0 else 'short'} {_number(abs(figure['value']), 0)} "
-            f"{figure.get('unit')} {label}"
-            for label, figure in (("today", today), (front.get("label", "front month"), front))
+            T(f"{'long' if figure['value'] > 0 else 'short'} {_number(abs(figure['value']), 0)} "
+              f"{figure.get('unit')} {label}",
+              f"{label_zh}{'多头' if figure['value'] > 0 else '空头'}"
+              f"{_number(abs(figure['value']), 0)} {figure.get('unit')}")
+            for label, label_zh, figure in (("today", "今日", today),
+                                            (front.get("label", "front month"),
+                                             front.get("label", "近月"), front))
             if figure.get("value") not in (None, 0)
         ]
         if parts:
-            lines.append(FactLine("book", f"{hub.get('hub')} net position: {', '.join(parts)}.",
+            lines.append(FactLine("book", T(f"{hub.get('hub')} net position: {', '.join(parts)}.",
+                                            f"{hub.get('hub')}净头寸：{'，'.join(parts)}。"),
                                   f"position:{hub.get('hub')}", today.get("as_of"), False))
     limit = key_figures.get("tightest_limit")
     if limit and limit.get("value") is not None:
         lines.append(
             FactLine(
                 "book",
-                f"{limit.get('label')}: {_number(limit['value'], 0)} {limit.get('unit')}, "
-                f"{limit.get('utilisation_pct', 0):.0f}% used ({limit.get('status')}).",
+                T(f"{limit.get('label')}: {_number(limit['value'], 0)} {limit.get('unit')}, "
+                  f"{limit.get('utilisation_pct', 0):.0f}% used ({limit.get('status')}).",
+                  f"{limit.get('label')}：{_number(limit['value'], 0)} {limit.get('unit')}，"
+                  f"已使用{limit.get('utilisation_pct', 0):.0f}%（{limit.get('status')}）。"),
                 f"limit:{limit.get('kind')}",
                 limit.get("as_of"),
                 bool(limit.get("simulated")),
             )
         )
     return lines
+
+
+def T(en: str, zh_text: str) -> str:  # noqa: N802 - the reports' template marker
+    from eurogas_nexus.application.reports.lang import T as pick
+
+    return pick(en, zh_text)
 
 
 def evidence_text(lines: list[FactLine]) -> str:

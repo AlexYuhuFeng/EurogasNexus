@@ -84,7 +84,12 @@ def explain(
     if subject not in SUBJECTS:
         raise NotFound(subject)
     now = now or datetime.now(UTC)
-    facts = _FACTS[subject](session, caller, object_id, now)
+    from eurogas_nexus.application.reports.lang import writing
+
+    with writing(language):
+        # The rule text the panel shows when the model is off or refused is in the
+        # interface's language too.
+        facts = _FACTS[subject](session, caller, object_id, now)
     key = _cache_key(subject, object_id, language, facts, model is not None)
     cached = _CACHE.get(key)
     if cached and time.monotonic() - cached[0] < CACHE_SECONDS:
@@ -152,6 +157,7 @@ def _model_note(model: ModelCall, facts: Facts, language: str) -> str | None:
         evidence_text=evidence_text,
         sources=payload["sources"],
         simulated=facts.simulated,
+        language=language,
     )
     return note.text if note else None
 
@@ -198,7 +204,9 @@ def _alert_facts(session, caller: Caller, alert_id: str, now: datetime) -> Facts
     if row is None or not alert_visibility(session)(row):
         raise NotFound(alert_id)
     evidence = dict(row.evidence_snapshot or {})
-    lines = [row.message_en] if row.message_en else []
+    zh = language_is_zh()
+    message = (row.message_zh_cn or row.message_en) if zh else row.message_en
+    lines = [message] if message else []
     if row.category == "limits" and row.alert_type == "credit" and "net_exposure" in evidence:
         lines = credit_lines(evidence)
     elif row.category == "limits" and row.alert_type == "mandate" and "status" in evidence:
@@ -208,7 +216,7 @@ def _alert_facts(session, caller: Caller, alert_id: str, now: datetime) -> Facts
         if desk:
             lines.append(desk)
     return Facts(
-        title=row.title_en,
+        title=(row.title_zh_cn or row.title_en) if zh else row.title_en,
         lines=[line for line in lines if line][:4],
         evidence=evidence,
         sources=list(row.source_refs or []) or [f"alert:{alert_id}"],
@@ -228,25 +236,36 @@ def _outage_facts(session, caller: Caller, event_id: str, now: datetime) -> Fact
     if row is None:
         raise NotFound(event_id)
     technical, unavailable = row.get("technical_capacity"), row.get("unavailable_capacity")
-    share = (
-        f" ({float(unavailable) / float(technical):.0%} of technical capacity)"
-        if technical and unavailable is not None
-        else ""
-    )
+    ratio = (float(unavailable) / float(technical)
+             if technical and unavailable is not None else None)
     gwh = row.get("unavailable_gwh_d")
     volume = f"{float(gwh):,.0f} GWh/d" if gwh is not None else f"{unavailable} {row.get('unit')}"
-    end = _when(row.get("end_utc")) if row.get("end_utc") else "no end date"
-    lines = [
-        f"{row['facility_name']} ({row.get('balancing_zone') or 'zone n/a'}): {volume} "
-        f"unavailable{share}, {_when(row['start_utc'])} to {end} UTC.",
-        f"{str(row.get('event_type') or 'unspecified').capitalize()} outage; reason: "
-        f"{row.get('description') or 'not stated'}.",
-    ]
+    zone = row.get("balancing_zone")
+    kind = str(row.get("event_type") or "")
+    if language_is_zh():
+        end = _when(row.get("end_utc")) if row.get("end_utc") else "未给出结束日期"
+        kinds = {"planned": "计划", "unplanned": "非计划"}
+        lines = [
+            f"{row['facility_name']}{f'（{zone}）' if zone else ''}不可用{volume}"
+            + (f"（占技术容量的{ratio:.0%}）" if ratio is not None else "")
+            + f"，UTC {_when(row['start_utc'])}至{end}。",
+            f"{kinds.get(kind, '未说明类型的')}停运；原因：{row.get('description') or '未说明'}。",
+        ]
+    else:
+        end = _when(row.get("end_utc")) if row.get("end_utc") else "no end date"
+        lines = [
+            f"{row['facility_name']}{f' ({zone})' if zone else ''}: {volume} unavailable"
+            + (f" ({ratio:.0%} of technical capacity)" if ratio is not None else "")
+            + f", {_when(row['start_utc'])} to {end} UTC.",
+            f"{(kind or 'unspecified').capitalize()} outage; reason: "
+            f"{row.get('description') or 'not stated'}.",
+        ]
     desk = _desk_line(caller, row.get("balancing_zone"), now)
     if desk:
         lines.append(desk)
     return Facts(
-        title=f"{row['facility_name']} outage",
+        title=(f"{row['facility_name']}停运" if language_is_zh()
+               else f"{row['facility_name']} outage"),
         lines=lines,
         evidence={key: row.get(key) for key in row if key not in {"raw"}},
         sources=[f"remit:{event_id}:v{row.get('version')}"],
@@ -264,7 +283,8 @@ def _credit_facts(session, caller: Caller, counterparty_id: str, now: datetime) 
         raise NotFound(counterparty_id)
     demo = [w for w in result.warnings if w.startswith("DEMO")]
     return Facts(
-        title=f"{row['counterparty']} credit: {row['status']}",
+        title=(f"{row['counterparty']}信用额度：{STATUS_ZH.get(row['status'], row['status'])}"
+               if language_is_zh() else f"{row['counterparty']} credit: {row['status']}"),
         lines=credit_lines(row),
         evidence=row,
         sources=[f"credit-line:{counterparty_id}"],
@@ -282,7 +302,8 @@ def _mandate_facts(session, caller: Caller, mandate_id: str, now: datetime) -> F
         raise NotFound(mandate_id)
     demo = [w for w in result.warnings if w.startswith("DEMO")]
     return Facts(
-        title=f"{row['name']} mandate: {row['status']}",
+        title=(f"{row['name']}授权：{STATUS_ZH.get(row['status'], row['status'])}"
+               if language_is_zh() else f"{row['name']} mandate: {row['status']}"),
         lines=mandate_lines(row),
         evidence=row,
         sources=[f"mandate:{mandate_id}"],
@@ -308,22 +329,32 @@ def _pnl_facts(session, caller: Caller, snapshot_id: str, now: datetime) -> Fact
         ),
         None,
     )
-    lines = [
-        f"Indicative P&L {money(row.indicative_pnl_gbp, 'GBP')}: realised "
-        f"{money(row.realized_pnl_gbp, 'GBP')}, unrealised {money(row.unrealized_pnl_gbp, 'GBP')} "
-        f"on {row.quantity_mwh:,.0f} MWh.",
-        f"Valued {_when(row.valuation_time_utc)} UTC on {row.valuation_basis}.",
-    ]
+    if language_is_zh():
+        lines = [
+            f"指示性损益{money(row.indicative_pnl_gbp, 'GBP')}：已实现"
+            f"{money(row.realized_pnl_gbp, 'GBP')}，未实现{money(row.unrealized_pnl_gbp, 'GBP')}，"
+            f"对应{row.quantity_mwh:,.0f} MWh。",
+            f"估值时间 UTC {_when(row.valuation_time_utc)}，依据{row.valuation_basis}。",
+        ]
+    else:
+        lines = [
+            f"Indicative P&L {money(row.indicative_pnl_gbp, 'GBP')}: realised "
+            f"{money(row.realized_pnl_gbp, 'GBP')}, unrealised "
+            f"{money(row.unrealized_pnl_gbp, 'GBP')} on {row.quantity_mwh:,.0f} MWh.",
+            f"Valued {_when(row.valuation_time_utc)} UTC on {row.valuation_basis}.",
+        ]
     if previous is not None:
         change = row.indicative_pnl_gbp - previous.indicative_pnl_gbp
         moved = row.unrealized_pnl_gbp - previous.unrealized_pnl_gbp
         lines.append(
+            f"自 UTC {_when(previous.valuation_time_utc)}以来变化{money(change, 'GBP')}，其中"
+            f"{money(moved, 'GBP')}为按市值计价。" if language_is_zh() else
             f"{money(change, 'GBP')} since {_when(previous.valuation_time_utc)} UTC, of which "
             f"{money(moved, 'GBP')} is mark-to-market."
         )
     evidence = row.model_dump()
     return Facts(
-        title=f"P&L {row.portfolio_id}",
+        title=f"{'损益' if language_is_zh() else 'P&L'} {row.portfolio_id}",
         lines=lines,
         evidence=evidence,
         sources=[f"pnl:{snapshot_id}", f"{row.source_system}:{row.source_reference}"],
@@ -336,9 +367,12 @@ def _when(value: object) -> str:
     """``06 Nov 02:43``: how a desk writes a gas-day time."""
 
     try:
-        return datetime.fromisoformat(str(value)).strftime("%d %b %H:%M")
+        moment = datetime.fromisoformat(str(value))
     except ValueError:
         return str(value)
+    if language_is_zh():
+        return f"{moment.month}月{moment.day}日 {moment:%H:%M}"
+    return moment.strftime("%d %b %H:%M")
 
 
 def _desk_line(caller: Caller, zone: str | None, now: datetime) -> str | None:
@@ -360,10 +394,22 @@ def _desk_line(caller: Caller, zone: str | None, now: datetime) -> str | None:
         if leg.hub == hub and leg.first_gas_day <= today <= leg.last_gas_day
     )
     if not net:
-        return f"The desk has no open position at {hub} today."
+        return (f"交易台今日在{hub}没有未平仓头寸。" if language_is_zh()
+                else f"The desk has no open position at {hub} today.")
+    if language_is_zh():
+        return f"交易台今日在{hub}{'多头' if net > 0 else '空头'}{abs(net):,.0f} MWh/d。"
     side = "long" if net > 0 else "short"
     return f"The desk is {side} {abs(net):,.0f} MWh/d at {hub} today."
 
+
+def language_is_zh() -> bool:
+    from eurogas_nexus.application.reports.lang import zh
+
+    return zh()
+
+
+STATUS_ZH = {"breach": "超限", "watch": "观察", "ok": "正常", "expired": "已过期",
+             "incomplete": "不完整"}
 
 _FACTS: dict[str, Callable[..., Facts]] = {
     "alert": _alert_facts,

@@ -1120,9 +1120,11 @@ def _enrichment_refusal(alert: MonitoringAlertRecord, content: str) -> str | Non
     if summary_en == summary_zh_cn == content.strip():
         return "format"
     evidence_text = _alert_enrichment_messages(alert)[1]["content"]
-    for text in (summary_en, summary_zh_cn):
+    for text, language in ((summary_en, "en"), (summary_zh_cn, "zh-CN")):
+        # Each half of the bilingual summary must be in its own language.
         verdict = text_verdict(
-            text, evidence_text=evidence_text, simulated=bool(alert.simulated)
+            text, evidence_text=evidence_text, simulated=bool(alert.simulated),
+            language=language,
         )
         if not verdict.ok:
             return verdict.check

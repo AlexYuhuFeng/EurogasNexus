@@ -44,6 +44,8 @@ class Evidence:
     demo_or_public: bool
     #: The alert an enrichment case is about (the product's refusal function reads it).
     subject: Any = None
+    #: The interface language the reply must be in (``None``: not checked, the older cases).
+    language: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,8 @@ def load(path: Path = CASES_PATH) -> tuple[dict[str, Evidence], list[Case]]:
 def build_evidence(key: str, entry: dict[str, Any]) -> Evidence:
     use = entry["use"]
     language = entry.get("language", "en")
+    #: Cases that name their language are held to it (the reply must be written in it).
+    checked = entry.get("language") if entry.get("check_language") else None
     demo_or_public = entry.get("data_class") in {"demo", "public"}
     if use == "explain":
         from eurogas_nexus.application.explain import Facts, model_payload, model_task
@@ -108,7 +112,7 @@ def build_evidence(key: str, entry: dict[str, Any]) -> Evidence:
         return Evidence(
             key, use, note_messages(model_task(facts), payload, language=language),
             json.dumps(payload, ensure_ascii=False, default=str), payload["sources"],
-            facts.simulated, demo_or_public,
+            facts.simulated, demo_or_public, language=checked,
         )
     if use == "brief":
         from eurogas_nexus.application.desk_brief import Section, lead_payload, lead_task
@@ -124,7 +128,7 @@ def build_evidence(key: str, entry: dict[str, Any]) -> Evidence:
             note_messages(lead_task(entry.get("kind", "morning"), simulated), payload,
                           language=language),
             json.dumps(payload, ensure_ascii=False), payload["sources"], simulated,
-            demo_or_public,
+            demo_or_public, language=checked,
         )
     if use == "report":
         from eurogas_nexus.application.reports.rewrite import section_messages, section_payload
@@ -146,10 +150,21 @@ def build_evidence(key: str, entry: dict[str, Any]) -> Evidence:
     if use == "answer":
         from eurogas_nexus.application.ai_payloads import alert_answer_messages
 
+        if entry.get("ask_lines"):
+            # The answer bar's Ask: the question over the Today fact lines.
+            from eurogas_nexus.application.ai_payloads import ask_messages
+            from eurogas_nexus.application.desk_ask import FactLine
+
+            lines = [FactLine(x["topic"], x["text"], x["source"], x.get("as_of"),
+                              bool(x.get("simulated"))) for x in entry["ask_lines"]]
+            messages = ask_messages(entry["question"], lines,
+                                    simulated=bool(entry.get("simulated")), language=language)
+            return Evidence(key, use, messages, messages[1]["content"], [],
+                            bool(entry.get("simulated")), demo_or_public, language=checked)
         messages = alert_answer_messages(entry["alert"], entry["question"], language)
         return Evidence(
             key, use, messages, messages[1]["content"], [],
-            bool(entry["alert"].get("simulated")), demo_or_public,
+            bool(entry["alert"].get("simulated")), demo_or_public, language=checked,
         )
     if use == "enrichment":
         from types import SimpleNamespace
@@ -171,11 +186,12 @@ def verdict(evidence: Evidence, output: str | None) -> Verdict:
     if evidence.use in {"explain", "brief", "report"}:
         return note_verdict(
             output, evidence_text=evidence.evidence_text, sources=evidence.sources,
-            simulated=evidence.simulated,
+            simulated=evidence.simulated, language=evidence.language,
         )
     if evidence.use == "answer":
         return answer_verdict(
-            output, evidence_text=evidence.evidence_text, simulated=evidence.simulated
+            output, evidence_text=evidence.evidence_text, simulated=evidence.simulated,
+            language=evidence.language,
         )
     # Enrichment: both summaries must pass; the product's own refusal function decides.
     from eurogas_nexus.application.monitoring_service import _enrichment_refusal

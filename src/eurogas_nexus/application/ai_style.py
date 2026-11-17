@@ -90,17 +90,35 @@ def source_aliases(sources: list[str]) -> dict[str, str]:
     return {f"S{index}": source for index, source in enumerate(sources, start=1)}
 
 
+def language_rule(language: str | None) -> str:
+    """The instruction that fixes the reply's language (the interface's language)."""
+
+    if str(language or "").lower().startswith("zh"):
+        return ("Write in Simplified Chinese, even when the facts are in English; keep hub "
+                "names, contract codes, units and figures exactly as given.")
+    return "Write in English."
+
+
+def language_ok(text: str, language: str | None) -> bool:
+    """Whether ``text`` is written in ``language``: a Chinese reply is mostly Chinese characters
+    (figures, units and hub names aside); an English one has none."""
+
+    cjk = len(re.findall(r"[\u4e00-\u9fff]", text or ""))
+    if str(language or "").lower().startswith("zh"):
+        letters = len(re.findall(r"[A-Za-z]", re.sub(
+            r"\b(?:[A-Z][A-Za-z]*[-\d]*|GWh/d|MWh|TWh|EUR|GBp|p/th|mcm/d|LNG)\b", "", text or "")))
+        return cjk >= 4 and cjk >= letters
+    return cjk == 0
+
+
 def note_messages(task: str, facts: dict, *, language: str) -> list[dict[str, str]]:
     """System and user messages for one desk note over ``facts``."""
 
-    language_rule = (
-        "Write in Simplified Chinese." if language.lower().startswith("zh") else "Write in English."
-    )
     return [
         {
             "role": "system",
             "content": (
-                f"{DESK_NOTE_RULES} {language_rule} {task} "
+                f"{DESK_NOTE_RULES} {language_rule(language)} {task} "
                 'Return JSON only: {"text": "<the note>", "cites": ["<source ids used>"]}.'
             ),
         },
@@ -193,11 +211,15 @@ def text_verdict(
     max_sentences: int = MAX_SENTENCES,
     max_chars: int = MAX_CHARS,
     max_words: int | None = None,
+    language: str | None = None,
 ) -> Verdict:
-    """Every content check over plain model text. See the module text."""
+    """Every content check over plain model text. See the module text. With ``language`` the
+    reply must be written in it (the interface's language), else the rule text stands."""
 
     if not text or not text.strip():
         return Verdict(False, "empty")
+    if language is not None and not language_ok(text, language):
+        return Verdict(False, "language", f"not written in {language}")
     if len(text) > max_chars:
         return Verdict(False, "length", f"{len(text)} characters")
     if max_words is not None:
@@ -235,6 +257,7 @@ def note_verdict(
     evidence_text: str,
     sources: list[str],
     simulated: bool | None = None,
+    language: str | None = None,
 ) -> Verdict:
     """The checks on a desk note returned as ``{"text": ..., "cites": [...]}``."""
 
@@ -257,7 +280,8 @@ def note_verdict(
         return Verdict(False, "length", f"{len(text)} characters")
     if not cites or not set(cites) <= set(sources):
         return Verdict(False, "cites", ", ".join(sorted(set(cites) - set(sources))) or "none")
-    verdict = text_verdict(text, evidence_text=evidence_text, simulated=simulated)
+    verdict = text_verdict(text, evidence_text=evidence_text, simulated=simulated,
+                           language=language)
     if not verdict.ok:
         return verdict
     return Verdict(True, note=CheckedNote(text=text, cites=cites))
@@ -269,16 +293,19 @@ def checked_note(
     evidence_text: str,
     sources: list[str],
     simulated: bool | None = None,
+    language: str | None = None,
 ) -> CheckedNote | None:
     """The model's note if it passes every check, else ``None``."""
 
     return note_verdict(
-        content, evidence_text=evidence_text, sources=sources, simulated=simulated
+        content, evidence_text=evidence_text, sources=sources, simulated=simulated,
+        language=language,
     ).note
 
 
 def answer_verdict(
-    content: str | None, *, evidence_text: str, simulated: bool | None = None
+    content: str | None, *, evidence_text: str, simulated: bool | None = None,
+    language: str | None = None,
 ) -> Verdict:
     """The checks on a plain-text answer to a question (``ANSWER_RULES``)."""
 
@@ -292,14 +319,17 @@ def answer_verdict(
         max_sentences=ANSWER_MAX_SENTENCES,
         max_chars=ANSWER_MAX_CHARS,
         max_words=ANSWER_MAX_WORDS,
+        language=language,
     )
 
 
 def checked_answer(
-    content: str | None, *, evidence_text: str, simulated: bool | None = None
+    content: str | None, *, evidence_text: str, simulated: bool | None = None,
+    language: str | None = None,
 ) -> str | None:
     """The model's answer if it passes every check, else ``None``."""
 
-    if answer_verdict(content, evidence_text=evidence_text, simulated=simulated).ok:
+    if answer_verdict(content, evidence_text=evidence_text, simulated=simulated,
+                      language=language).ok:
         return (content or "").strip()
     return None

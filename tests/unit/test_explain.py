@@ -143,3 +143,30 @@ def test_note_checks():
     long = "One. Two. Three. Four."
     assert not checked_note(json.dumps({"text": long, "cites": ["s1"]}),
                             evidence_text=evidence, sources=sources)
+
+
+def test_why_on_the_chinese_interface_answers_in_chinese_or_falls_back_to_chinese_rules(desk):
+    """The owner's report: Why on the Mandarin interface was still English."""
+
+    from eurogas_nexus.application.ai_style import language_ok
+
+    with Session(desk) as session:
+        counterparty = _breach(session)
+        rule = explain(session, firm_caller(), "credit", counterparty, now=NOW,
+                       language="zh-CN")
+        assert rule.basis == "rule" and language_ok(rule.text, "zh-CN"), rule.text
+        outage = explain(session, firm_caller(), "outage", "demo-umm-1", now=NOW,
+                         language="zh-CN")
+        assert language_ok(" ".join(outage.lines), "zh-CN") and "停运" in outage.title
+        seen = []
+        explain_module._CACHE.clear()
+        english = json.dumps({"text": rule.lines[0], "cites": ["S1"]})
+        explain(session, firm_caller(), "credit", counterparty, now=NOW, language="zh-CN",
+                model=lambda messages: seen.append(messages) or english)
+        assert "Simplified Chinese" in seen[0][0]["content"]
+        explain_module._CACHE.clear()
+        answered = explain(session, firm_caller(), "credit", counterparty, now=NOW,
+                           language="zh-CN",
+                           model=lambda _m: json.dumps({"text": "Net exposure is high.",
+                                                        "cites": ["S1"]}))
+        assert answered.basis == "rule" and language_ok(answered.text, "zh-CN")
