@@ -5355,5 +5355,7 @@
   "access.error.user_has_history": "此人已登录或有操作记录，记录将保留。请改为停用账户。",
   "access.error.cannot_delete_self": "您不能删除自己的账户。",
   "access.error.not_a_local_account": "此人通过公司单点登录，密码由公司管理。",
-  "access.error.unknown_job_function": "未知的岗位职能。"
+  "access.error.unknown_job_function": "未知的岗位职能。",
+  "map.detail.simulated": "模拟",
+  "map.detail.destination_sendout": "{{terminal}} 的气化外输"
 }

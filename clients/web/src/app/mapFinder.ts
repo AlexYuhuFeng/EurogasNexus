@@ -8,6 +8,8 @@ export interface MapFinderPlace {
   lon: number;
   lat: number;
   zoom: number;
+  /** A vessel: picking it also opens its card. */
+  cargoId?: string;
 }
 
 /** Rank by how a name matches: start of name, start of a word, anywhere. */

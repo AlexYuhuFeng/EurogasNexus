@@ -227,6 +227,9 @@ It is a view, not a mode: it holds no state of its own and grants nothing.
   the status is one compact line ("Live · Out now 3") that opens the full status on tap; the
   line key and the basemap credit sit behind an info button (bottom right); the zoom buttons
   give way to pinch zoom. Nothing else is overlaid.
+- **On a wide screen too, the line key opens from the info button** beside the zoom buttons,
+  so it never covers the map or collides with the zoom card; the zoom card ("Region · Fit our
+  positions") sits top right, clear of the status panel.
 - **Data operations stay with data operations.** Topology checks ("Topology: N to check"),
   point coverage ("Network points 853 · 64 without a published position", "Not located")
   and the topology-status card with its point counts are shown only to identities that run
@@ -239,6 +242,9 @@ It is a view, not a mode: it holds no state of its own and grants nothing.
   showing an empty sea (`vessel_feed` in `GET /api/portfolio/map-situation`). The demo desk
   carries five simulated vessels (`Kpler_Sim`, marked sim) heading to Gate, Eemshaven,
   Zeebrugge, Isle of Grain and Dunkerque; a terminal's card lists the cargoes heading to it.
+  Finding or clicking a vessel opens its card in the right-hand panel (name, status, load
+  port → destination terminal, ETA, departed, cargo in GWh and m³ LNG, "Simulated" for a
+  simulated feed) with a "Send-out at <terminal>" link to the terminal's own card.
   They are removed once a real vessel feed delivers.
 - **Leaving and coming back keeps the map.** Switching Desk tabs hides the Network page
   instead of unmounting it (`MarketCockpit`), so the map, its data, camera, selection and

@@ -2070,7 +2070,9 @@ export function GasNetworkMap({
         zoom: 9,
       });
     }
-    for (const cargo of activeLayers.includes("positions") ? situation?.cargoes ?? [] : []) {
+    // Our cargoes with our positions, market vessels with the vessels layer (as drawn).
+    for (const cargo of situation?.cargoes ?? []) {
+      if (!activeLayers.includes(cargo.own ? "positions" : "vessels")) continue;
       const at = cargo.position ?? cargo.origin ?? cargo.destination;
       if (at) {
         places.push({
@@ -2080,6 +2082,7 @@ export function GasNetworkMap({
           lon: at.lon,
           lat: at.lat,
           zoom: 7,
+          cargoId: cargo.cargo_id,
         });
       }
     }
@@ -2097,6 +2100,8 @@ export function GasNetworkMap({
     element.setAttribute("aria-hidden", "true");
     const pin = new Marker({ element }).setLngLat(at).addTo(map);
     window.setTimeout(() => pin.remove(), 4000);
+    // A vessel opens its card (name, status, voyage, ETA, cargo, and its terminal's send-out).
+    if (place.cargoId) setSelection({ kind: "cargo", id: place.cargoId });
   }
 
   function project(lon: number, lat: number): [number, number] {
@@ -2121,6 +2126,7 @@ export function GasNetworkMap({
           nodes={nodes}
           onClose={() => setSelection(null)}
           onInspect={onInspectNode}
+          onSelect={setSelection}
           t={t as (key: string, options?: Record<string, unknown>) => string}
         />
       )}

@@ -43,6 +43,12 @@ submits orders, nominations, bookings, or amendments.
 | Company TSO access | `company_tso_access` (`ACTIVE`/`CONFIRMED` pass; `DENIED`/`INACTIVE`/`SUSPENDED` block) |
 | FX as-of conversion | `fx_observations` (value date not later than `gas_day`) |
 
+A contract may be sold at its own delivery point (a local sale) and at the points it lists
+in `allowed_exit_points`. A contract that declares its sale modes without
+`LOCAL_MARKET_SALE` (for example only `TARGET_MARKET_SALE`: gas bought at TTF to be sold at
+NBP) is not offered the local sale (`application/resource_pool.py`, `_sells_locally`); an
+empty or undeclared list keeps the local sale.
+
 Market prices are selected from rows whose period covers `gas_day`, preferring
 day-ahead/within-day tenors and non-simulated sources over simulated ones.
 Market-price age is measured against `min(now, gas-day end)`, so a historical

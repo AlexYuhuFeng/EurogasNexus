@@ -1496,6 +1496,11 @@
     font-size: var(--ds-text-xs);
   }
 
+  .map-detail-link {
+    align-self: flex-start;
+    font-size: var(--ds-text-sm);
+  }
+
   .map-detail-inspect {
     align-self: flex-start;
   }
@@ -2703,11 +2708,12 @@
   .map-detail-label.is-regas { color: var(--ds-accent); }
 
   /* Which question the map answers at this zoom, and a way back to our positions. */
+  /* Top right, clear of the status panel, the line key and the zoom buttons at the bottom. */
   .map-zoom-tier {
     position: absolute;
     z-index: 40;
+    top: var(--ds-space-3);
     right: var(--ds-space-3);
-    bottom: calc(var(--ds-space-8) * 3);
     display: flex;
     align-items: center;
     gap: var(--ds-space-2);
@@ -3722,9 +3728,31 @@
     padding: 0;
   }
 
+  /* Wide: beside the zoom buttons in the bottom-right corner; the key opens above it as one
+     short column. Phone: the corner itself (the zoom buttons give way to pinch zoom). */
   .map-info-chip {
+    right: calc(var(--ds-space-3) * 2 + var(--ds-control-touch));
+    bottom: var(--ds-space-3);
+  }
+
+  [data-width-class="compact"] .map-info-chip {
     right: var(--ds-space-2);
     bottom: var(--ds-space-2);
+  }
+
+  .workspace-network .map-visual-legend,
+  .workspace-network .network-map-column .map-visual-legend {
+    z-index: 41;
+    top: auto;
+    left: auto;
+    right: var(--ds-space-3);
+    bottom: calc(var(--ds-space-3) * 2 + var(--ds-control));
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    width: auto;
+    max-width: min(360px, calc(100% - 2 * var(--ds-space-3)));
+    padding: var(--ds-space-2) var(--ds-space-3);
   }
 
   .map-finder-toggle {

@@ -742,7 +742,8 @@ def _seed_cross_border_position(session, now: datetime, today: date) -> None:
             owned_entry_capacity_mwh_per_day=6_600.0,
             owned_exit_capacity_mwh_per_day=6_600.0,
             allowed_exit_points=["NBP"],
-            eligible_sale_modes=["LOCAL_MARKET_SALE"],
+            # Bought to be sold at NBP: no local sale at TTF, so the optimiser routes it.
+            eligible_sale_modes=["TARGET_MARKET_SALE"],
             notes="Demo contract (fictional): sold at NBP through BBL.",
             # The UK book sells it at NBP; inside its mandate (the NL book is near its own).
             book_id="demo-uk-nbp",

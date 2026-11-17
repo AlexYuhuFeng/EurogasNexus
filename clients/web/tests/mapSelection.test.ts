@@ -7,6 +7,7 @@ import test from "node:test";
 import type { EdgeDTO, FacilityDTO, MapSituationDTO, NodeDTO, NormalizedMarketObsDTO } from "../src/api/client.ts";
 import {
   buildSites,
+  cargoDestinationSite,
   cargoVoyage,
   hubPrices,
   hubZone,
@@ -178,4 +179,17 @@ test("a schematic zone link may end at the other zone's hub, but a plain link ma
   assert.deepEqual(topologyIssues([border, the], [zoneLink]), []);
   const plain: EdgeDTO = { ...zoneLink, id: "plain", metadata_json: { name: "Plain link" } };
   assert.deepEqual(topologyIssues([border, the], [plain]).map((issue) => issue.kind), ["cross_border_landing"]);
+});
+
+test("a cargo's destination terminal is the matched site, else the nearest LNG site", () => {
+  const sites = buildSites(nodes, facilities);
+  const cargo = situation.cargoes[0];
+  assert.equal(cargoDestinationSite({ ...cargo, destination: null }, sites), null);
+  const byRef = cargoDestinationSite({ ...cargo, destination: { lon: 0.705, lat: 51.445, ref_id: "grain" } }, sites);
+  assert.equal(byRef?.members.some((member) => member.id === "grain"), true);
+  // A feed position close to the terminal without a matched point still finds it.
+  const near = cargoDestinationSite({ ...cargo, destination: { lon: 0.72, lat: 51.44 } }, sites);
+  assert.equal(near?.id, byRef?.id);
+  // Far from any LNG site: no terminal is guessed.
+  assert.equal(cargoDestinationSite({ ...cargo, destination: { lon: 0.115, lat: 53.655 } }, sites), null);
 });

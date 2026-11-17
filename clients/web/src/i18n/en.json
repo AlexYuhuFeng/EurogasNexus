@@ -5355,5 +5355,7 @@
   "access.error.user_has_history": "This person has signed in or acted, so the record is kept. Disable the account instead.",
   "access.error.cannot_delete_self": "You cannot delete your own account.",
   "access.error.not_a_local_account": "This person signs in with company SSO; the password is managed there.",
-  "access.error.unknown_job_function": "Unknown job function."
+  "access.error.unknown_job_function": "Unknown job function.",
+  "map.detail.simulated": "Simulated",
+  "map.detail.destination_sendout": "Send-out at {{terminal}}"
 }

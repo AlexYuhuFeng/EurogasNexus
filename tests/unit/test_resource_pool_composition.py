@@ -201,6 +201,21 @@ def test_compose_does_not_count_a_boolean_contract_lag_as_a_day() -> None:
     assert data["sale_options"][0]["screen_sale_cash_lag_days"] == 4
 
 
+def test_a_contract_declaring_no_local_sale_is_not_offered_its_delivery_point() -> None:
+    target_only = _contract(
+        contract_id="uk", allowed_exit_points=["NBP"], eligible_sale_modes=["TARGET_MARKET_SALE"]
+    )
+    local_too = _contract(eligible_sale_modes=["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE"])
+    undeclared = _contract(contract_id="c2", eligible_sale_modes=[])
+
+    options = _compose([target_only, local_too, undeclared])["sale_options"]
+
+    assert [option["eligible_resource_ids"] for option in options] == [["c1", "c2"]]
+    alone = _compose([target_only])
+    assert alone["sale_options"] == []
+    assert "ROUTE_TARGET_NOT_ALLOWED_BY_CONTRACT:ttf-local" in alone["warnings"]
+
+
 def _bbl_candidate() -> dict:
     return {
         "route_id": "ttf-nbp",

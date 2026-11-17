@@ -108,6 +108,22 @@ class ResourcePoolEntitlement:
         )
 
 
+#: Sale modes a contract may declare (``api/routes/public/route_cost.py``).
+_DECLARED_SALE_MODES = frozenset({"TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"})
+
+
+def _sells_locally(contract: dict) -> bool:
+    """Whether a contract may be sold at its own delivery point.
+
+    A contract may always be sold where it is delivered, unless it declares its sale modes and
+    local sale is not among them (a position bought to be sold in another market area).
+    """
+
+    declared = {
+        str(mode).strip().upper() for mode in contract.get("eligible_sale_modes") or []
+    } & _DECLARED_SALE_MODES
+    return not declared or "LOCAL_MARKET_SALE" in declared
+
 def read_resource_pool_inputs(
     session: Session,
     *,
@@ -306,7 +322,7 @@ def compose_resource_pool_options(
         eligible_contracts = [
             contract
             for contract in start_contracts
-            if target == start
+            if (target == start and _sells_locally(contract))
             or target
             in {
                 str(point).strip().upper()

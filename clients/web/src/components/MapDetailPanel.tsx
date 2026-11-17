@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import type { EdgeDTO, MapCargoDTO, MapSituationDTO, NodeDTO, NormalizedMarketObsDTO } from "@/api/client";
 import {
+  cargoDestinationSite,
   cargoVoyage,
   hubPrices,
   hubZone,
@@ -202,8 +203,23 @@ function HubDetail({ hub, rows, situation, nodes, edges, t, zoneOutages }: { hub
   );
 }
 
-function CargoDetail({ cargo, situation, t }: { cargo: MapCargoDTO; situation: MapSituationDTO | null; t: Translate }) {
+function CargoDetail({
+  cargo,
+  situation,
+  sites,
+  onSelect,
+  t,
+}: {
+  cargo: MapCargoDTO;
+  situation: MapSituationDTO | null;
+  sites: readonly Site[];
+  onSelect?: (next: MapSelection) => void;
+  t: Translate;
+}) {
   const voyage = cargoVoyage(cargo, situation);
+  // A simulated feed (the demo's stand-in for a licensed one) is marked on the card itself.
+  const simulated = /_sim$/i.test(cargo.source_system);
+  const terminal = cargoDestinationSite(cargo, sites);
   return (
     <>
       <header className="map-detail-header">
@@ -212,6 +228,7 @@ function CargoDetail({ cargo, situation, t }: { cargo: MapCargoDTO; situation: M
         <div className="map-detail-roles">
           <span className={`map-role is-${cargo.own ? "own" : "neutral"}`}>{t(cargo.own ? "map.situation.own_cargo" : "map.situation.market_cargo")}</span>
           <span className="map-role is-neutral">{t(`map.situation.cargo_${cargo.status}`)}</span>
+          {simulated && <span className="map-role is-watch">{t("map.detail.simulated")}</span>}
         </div>
       </header>
       <div className="map-detail-voyage">
@@ -228,6 +245,16 @@ function CargoDetail({ cargo, situation, t }: { cargo: MapCargoDTO; situation: M
         <Figure label={t("map.situation.cargo_size")} value={cargo.energy_gwh != null ? n(cargo.energy_gwh) : "–"} unit="GWh" hint={cargo.volume_m3 != null ? `${n(cargo.volume_m3)} m³ LNG` : undefined} />
         {cargo.departed_at_utc && <Figure label={t("map.detail.departed")} value={when(cargo.departed_at_utc)} />}
       </div>
+      {terminal && onSelect && (
+        // The destination terminal's own card: its send-out, slots and other inbound cargoes.
+        <button
+          type="button"
+          className="link-button map-detail-link"
+          onClick={() => onSelect({ kind: "site", id: terminal.id })}
+        >
+          {t("map.detail.destination_sendout", { terminal: terminal.name })}
+        </button>
+      )}
       {voyage.slot && (
         <Section title={t("map.detail.slot_waiting")}>
           <div className="map-detail-row">
@@ -260,6 +287,7 @@ export function MapDetailPanel({
   t,
   outagesListed = false,
   zoneOutages = null,
+  onSelect,
 }: {
   selection: MapSelection;
   sites: readonly Site[];
@@ -275,6 +303,8 @@ export function MapDetailPanel({
   outagesListed?: boolean;
   /** A hub's outage counts from the page's own event list (placed or not), in place of the map's. */
   zoneOutages?: ZoneOutageCounts | null;
+  /** Move the selection to a related object (a cargo's destination terminal). */
+  onSelect?: (next: MapSelection) => void;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -291,7 +321,7 @@ export function MapDetailPanel({
     body = <HubDetail hub={selection.id} rows={marketRows} situation={situation} nodes={nodes} edges={edges} t={t} zoneOutages={zoneOutages} />;
   } else {
     const cargo = situation?.cargoes.find((item) => item.cargo_id === selection.id);
-    if (cargo) body = <CargoDetail cargo={cargo} situation={situation} t={t} />;
+    if (cargo) body = <CargoDetail cargo={cargo} situation={situation} sites={sites} onSelect={onSelect} t={t} />;
   }
   if (!body) return null;
   const site = selection.kind === "site" ? sites.find((item) => item.id === selection.id) : null;

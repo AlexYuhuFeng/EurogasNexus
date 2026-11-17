@@ -361,6 +361,28 @@ export function cargoVoyage(cargo: MapCargoDTO, situation: MapSituationDTO | nul
   return { etaDays, progress, slot };
 }
 
+/**
+ * The terminal a cargo is bound for, as a map site: the site holding the point the feed matched
+ * the destination to, else the nearest LNG site within 30 km of the destination's position.
+ */
+export function cargoDestinationSite(cargo: MapCargoDTO, sites: readonly Site[]): Site | null {
+  const destination = cargo.destination;
+  if (!destination) return null;
+  const matched = siteOf(sites, destination.ref_id);
+  if (matched) return matched;
+  let best: Site | null = null;
+  let bestKm = 30;
+  for (const site of sites) {
+    if (!site.members.some((member) => /lng/i.test(member.type))) continue;
+    const distance = km(site.lon, site.lat, destination.lon, destination.lat);
+    if (distance <= bestKm) {
+      best = site;
+      bestKm = distance;
+    }
+  }
+  return best;
+}
+
 export interface TopologyIssue {
   /** i18n key under `map.topology.` */
   kind: "missing_endpoint" | "cross_border_landing" | "isolated_point" | "duplicate_connection";

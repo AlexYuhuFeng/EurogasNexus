@@ -443,6 +443,12 @@ export function NetworkWorkspace({
       t={t as (key: string, options?: Record<string, unknown>) => string}
       outagesListed
       zoneOutages={zoneOutages}
+      onSelect={(next) => {
+        // A related object (a cargo's destination terminal): select it and bring it into view.
+        selectOnMap(next);
+        const site = next.kind === "site" ? sites.find((item) => item.id === next.id) : null;
+        if (site) setFocus({ refId: site.members[0]?.id ?? null, at: [site.lon, site.lat], nonce: Date.now() });
+      }}
     />
   ) : null;
   // Phone width: the panel is a sheet under the map; its handle moves the split.
@@ -1035,7 +1041,9 @@ export function NetworkWorkspace({
         )}
         {/* The chips are the key for points; this one line keys only the lines drawn. A hub
             is a market area, never wired to its points: the key says how to see its zone. */}
-        {mapHasVisibleEvidence && compactLayout && (
+        {/* The line key (and, on a phone, the basemap credit) opens from one info button, so it
+            never covers the map or the zoom card. */}
+        {mapHasVisibleEvidence && (
           <button
             type="button"
             className="map-info-chip"
@@ -1055,7 +1063,7 @@ export function NetworkWorkspace({
             </svg>
           </button>
         )}
-        {mapHasVisibleEvidence && (!compactLayout || legendOpen) && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
+        {mapHasVisibleEvidence && legendOpen && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
           {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
           {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
           {indicativeRouteCount > 0 && <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}</span>}
