@@ -92,7 +92,8 @@ def test_all_four_rows_are_populated_on_the_demo_desk(desk):
     assert keys == ["key_figures", "changes", "book", "fundamentals"]
     assert all(row["populated"] for row in data["rows"])
     key, changes, book, fundamentals = data["rows"]
-    assert {item["hub"] for item in key["prices"]} == {"NBP", "TTF"}
+    # The book's hubs first, then the other hubs the demo market prices.
+    assert [item["hub"] for item in key["prices"]][:2] == ["NBP", "TTF"]
     assert all(item["day_change"] is not None for item in key["prices"])
     assert key["position"]["today"]["unit"] == "MWh/d"
     assert key["tightest_limit"]["status"] == "breach"  # the demo's Rhinmark line
@@ -179,7 +180,7 @@ def test_a_user_without_a_book_sees_no_positions_limits_or_book(desk, monkeypatc
     assert book["hubs"] == [] and book["empty"]["code"] == "no_position"
     assert all(item["category"] != "limits" for item in changes["alerts"]["items"])
     # Market rows stand: prices and outages are not book data.
-    assert {item["hub"] for item in key["prices"]} == {"NBP", "TTF"}
+    assert {"NBP", "TTF"} <= {item["hub"] for item in key["prices"]}
     assert changes["outages"]["counts"]["active"] >= 1
 
 

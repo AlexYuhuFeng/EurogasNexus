@@ -809,7 +809,12 @@ def _prose(result, facts: list[dict]) -> None:
     for index, f in enumerate(rest[:3]):
         text = f["sentence"]
         link = _LINKS[index % len(_LINKS)]
-        sentences.append(link + (text[0].lower() + text[1:] if link else text))
+        # Lower-case the first letter after a link word, but never a code ("NBP Dec-26").
+        first = text.split(" ", 1)[0]
+        lowered = text if first.isupper() or any(ch.isdigit() for ch in first) else (
+            text[0].lower() + text[1:]
+        )
+        sentences.append(link + lowered if link else text)
     implication = next((i for f in ordered for i in f["implications"]), None)
     if implication:
         sentences.insert(0, implication)
@@ -817,7 +822,8 @@ def _prose(result, facts: list[dict]) -> None:
         if f is not lead:
             sentences.append(f["sentence"])
     result.headline = lead["sentence"]
-    result.bullets = sentences[:4]
+    # At most three facts under the headline (commentary.MAX_BULLETS).
+    result.bullets = sentences[:3]
 
 
 DERIVERS = {

@@ -294,8 +294,15 @@ def _key_figures(caller, now, book: _Book, prices: dict, read: _Read) -> dict[st
     from eurogas_nexus.domain.risk.method_notes import method_note
 
     today = now.date()
+    from eurogas_nexus.domain.ontology.markets import european_gas_hubs
+
     held = sorted(book.positions)
-    hubs = held + sorted(hub for hub in prices if hub not in held)
+    # The other priced hubs in the board's order (TTF, NBP, THE, ...), not alphabetical: with
+    # no book the first items are the reference hubs, never CEGH and ETF.
+    board = {hub: index for index, hub in enumerate(european_gas_hubs())}
+    hubs = held + sorted(
+        (hub for hub in prices if hub not in held), key=lambda hub: (board.get(hub, 99), hub)
+    )
     price_items: list[dict[str, Any]] = []
     for hub in hubs[:MAX_ITEMS]:
         if hub in prices:

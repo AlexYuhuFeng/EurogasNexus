@@ -726,6 +726,7 @@ def _fundamentals_candidates(session: Session, now: datetime) -> list[Monitoring
     reporting country covers. The comparison is the mean of the seven days before the latest.
     """
 
+    from eurogas_nexus.application.identity_resolution import identity_clause
     from eurogas_nexus.db.models.observation import LngObservationRecord as Lng
     from eurogas_nexus.db.models.observation import StorageObservationRecord as Storage
     from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
@@ -741,6 +742,8 @@ def _fundamentals_candidates(session: Session, now: datetime) -> list[Monitoring
             session.query(model.period_start_utc, model.country, model.source_system, column)
             .filter(model.country.in_(NWE_COUNTRIES), model.period_start_utc >= bound)
             .filter(column.isnot(None))
+            # A row whose provider identifiers do not resolve is withheld (WITHHOLDING_RULE).
+            .filter(identity_clause(session, model))
         ):
             day = _as_utc(record[0]).date()
             by_day.setdefault(day, {}).setdefault(record[1], 0.0)

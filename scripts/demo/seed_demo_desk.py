@@ -183,6 +183,7 @@ DEMO_HUB_CURVES: tuple[tuple[str, str, float, float], ...] = (
 )
 DEMO_PRICE_HUBS: tuple[tuple[str, str], ...] = tuple((hub, cur) for hub, cur, *_ in DEMO_HUB_CURVES)
 _CURVE_SHAPE = {hub: (base, swing) for hub, _, base, swing in DEMO_HUB_CURVES}
+ORIGINAL_DEMO_HUBS = frozenset({"TTF", "NBP"})
 
 
 def _curve_price(hub: str, month: date) -> float:
@@ -385,6 +386,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
 
     # Prices: a full monthly curve for the risk horizon and 400 days of month-ahead history.
     marks: dict[tuple[str, str], float] = {}
+    ttf_drift: dict[int, float] = {}
     for hub, currency in DEMO_PRICE_HUBS:
         for offset in range(HORIZON_MONTHS):
             first = _month_start(today, offset)
@@ -413,10 +415,20 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 )
             )
         # A random walk around the seasonal curve; each day's month-ahead is the month after it.
-        drift = 0.0
+        # The hubs added later walk on their own generator, so the original two (and every
+        # series drawn after them) are exactly as before.
+        # The others follow TTF's walk with a small basis of their own: hubs move together.
+        walk = rng if hub in ORIGINAL_DEMO_HUBS else random.Random(f"demo-walk-{hub}")
+        drift = basis = 0.0
         for back in range(history_days, 0, -1):
             front = _month_start(today - timedelta(days=back), 1)
-            drift = 0.97 * drift + rng.gauss(0, 0.35)
+            if hub in ORIGINAL_DEMO_HUBS:
+                drift = 0.97 * drift + walk.gauss(0, 0.35)
+                if hub == "TTF":
+                    ttf_drift[back] = drift
+            else:
+                basis = 0.9 * basis + walk.gauss(0, 0.05)
+                drift = ttf_drift.get(back, 0.0) + basis
             price = round(_curve_price(hub, front) + drift - back * 0.003, 3)
             session.add(
                 MarketObservationRecord(
@@ -1413,6 +1425,26 @@ def _roll_curve(session, now: datetime) -> int:
     return len(rows)
 
 
+def _last_history(session, hub: str):
+    return (
+        session.query(MarketObservationRecord)
+        .filter(MarketObservationRecord.source_system == SOURCE)
+        .filter(MarketObservationRecord.source_reference == "demo:history")
+        .filter(MarketObservationRecord.product == f"{hub} month-ahead")
+        .order_by(MarketObservationRecord.observed_at_utc.desc())
+        .first()
+    )
+
+
+def _ttf_drift_on(session, day: date) -> float:
+    """TTF's stored month-ahead drift on ``day`` (0 when none), for a hub that follows it."""
+
+    row = session.get(MarketObservationRecord, f"demo-TTF-ma-{day:%Y%m%d}")
+    if row is None:
+        return 0.0
+    return float(row.price) - _curve_price("TTF", _month_start(day, 1))
+
+
 def _real_price_hubs(session) -> set[str]:
     """Hubs a provider (anything but the demo) has stored gas prices for."""
 
@@ -1432,17 +1464,17 @@ def _roll_month_ahead(session, now: datetime, rng: random.Random) -> int:
     today = now.date()
     rows = []
     real = _real_price_hubs(session)
+    ttf_drift: dict[int, float] = {}
+    last_ttf = _last_history(session, "TTF")
+    if last_ttf is not None:
+        # TTF's level at its last stored day, against which a following hub's basis is kept.
+        ttf_drift[-1] = float(last_ttf.price) - _curve_price(
+            "TTF", _month_start(_aware(last_ttf.observed_at_utc).date(), 1)
+        )
     for hub, currency in DEMO_PRICE_HUBS:
         if hub in real:
             continue  # a provider prices this hub: no simulated series beside it
-        last = (
-            session.query(MarketObservationRecord)
-            .filter(MarketObservationRecord.source_system == SOURCE)
-            .filter(MarketObservationRecord.source_reference == "demo:history")
-            .filter(MarketObservationRecord.product == f"{hub} month-ahead")
-            .order_by(MarketObservationRecord.observed_at_utc.desc())
-            .first()
-        )
+        last = _last_history(session, hub)
         if last is None:
             # A hub added to the demo market after this store was seeded: its history from
             # the same window a fresh seed writes.
@@ -1451,10 +1483,18 @@ def _roll_month_ahead(session, now: datetime, rng: random.Random) -> int:
         else:
             last_day = _aware(last.observed_at_utc).date()
             drift = float(last.price) - _curve_price(hub, _month_start(last_day, 1))
+        walk = rng if hub in ORIGINAL_DEMO_HUBS else random.Random(f"demo-walk-{hub}-{today}")
+        basis = 0.0 if last is None else drift - ttf_drift.get(-1, drift)
         for back in range((today - last_day).days - 1, 0, -1):
             day = today - timedelta(days=back)
             front = _month_start(day, 1)
-            drift = 0.97 * drift + rng.gauss(0, 0.35)
+            if hub in ORIGINAL_DEMO_HUBS:
+                drift = 0.97 * drift + walk.gauss(0, 0.35)
+                if hub == "TTF":
+                    ttf_drift[back] = drift
+            else:
+                basis = 0.9 * basis + walk.gauss(0, 0.05)
+                drift = ttf_drift.get(back, _ttf_drift_on(session, day)) + basis
             price = round(_curve_price(hub, front) + drift, 3)
             rows.append(
                 MarketObservationRecord(

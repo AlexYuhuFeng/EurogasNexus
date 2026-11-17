@@ -148,7 +148,7 @@ def test_a_licensed_source_forces_internal_unless_the_licence_allows_redistribut
         template = next(
             row for row in session.query(MarketObservationRecord)
             .filter(MarketObservationRecord.source_system == "DEMO_Sim")
-            .order_by(MarketObservationRecord.observed_at_utc.desc()).limit(200)
+            .order_by(MarketObservationRecord.observed_at_utc.desc()).limit(2000)
             if (row.metadata_json or {}).get("hub", row.product) == "TTF"
             and str((row.metadata_json or {}).get("tenor", "")).lower() == "month-ahead"
         )
@@ -216,7 +216,7 @@ def test_the_report_is_as_of_its_instant(env):
         template = next(
             row for row in session.query(MarketObservationRecord)
             .filter(MarketObservationRecord.source_system == "DEMO_Sim")
-            .order_by(MarketObservationRecord.observed_at_utc.desc()).limit(200)
+            .order_by(MarketObservationRecord.observed_at_utc.desc()).limit(2000)
             if (row.metadata_json or {}).get("hub", row.product) == "TTF"
             and str((row.metadata_json or {}).get("tenor", "")).lower() == "month-ahead"
         )
