@@ -160,9 +160,12 @@ test("the unrelated declared defects are still declared, for declared workspaces
 
   // The measured-and-open gaps this repair does not touch, recorded in
   // docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md.
-  for (const key of ["agents", "access", "research"]) {
+  for (const key of ["agents", "research"]) {
     assert.ok(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes(key), `functional gap kept: ${key}`);
   }
+  // The Users table gap is retired, not moved: Admin -> Users is a DataGrid of every account the
+  // read returns (accounts-first-run), and the sweep observed no gap there.
+  assert.ok(!declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("access"), "the access gap is retired");
   assert.deepEqual(declaredKeys("KNOWN_SURFACE_DEFECTS").sort(), ["agents"]);
 
   // The capacity board's exemption is retired with its replacement, not moved: its rows are a
