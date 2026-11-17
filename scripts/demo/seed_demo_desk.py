@@ -164,10 +164,31 @@ def _month_start(day: date, offset: int) -> date:
     return date(day.year + month // 12, month % 12 + 1, 1)
 
 
+#: Every hub the board lists gets a simulated curve and month-ahead history, so the board, the
+#: spreads, the answer bar and the reports have a complete demo market. Invented levels: TTF as
+#: the reference, the others at plausible (made-up) premiums or discounts to it, NBP in GBP.
+#: Marked simulated like every DEMO_Sim row; a provider's closes for a hub always win over these.
+#: (hub, currency, base per MWh, winter swing)
+DEMO_HUB_CURVES: tuple[tuple[str, str, float, float], ...] = (
+    ("TTF", "EUR", 38.0, 2.4),
+    ("NBP", "GBP", 33.6, 2.1),
+    ("THE", "EUR", 38.7, 2.6),
+    ("PEG", "EUR", 38.4, 2.5),
+    ("ZTP", "EUR", 37.8, 2.4),
+    ("PSV", "EUR", 40.2, 2.2),
+    ("CEGH", "EUR", 40.6, 2.7),
+    ("PVB", "EUR", 39.5, 1.9),
+    ("ETF", "EUR", 38.5, 2.5),
+    ("GTF", "EUR", 38.4, 2.5),
+)
+DEMO_PRICE_HUBS: tuple[tuple[str, str], ...] = tuple((hub, cur) for hub, cur, *_ in DEMO_HUB_CURVES)
+_CURVE_SHAPE = {hub: (base, swing) for hub, _, base, swing in DEMO_HUB_CURVES}
+
+
 def _curve_price(hub: str, month: date) -> float:
     """A smooth winter-premium curve; invented, never a market price."""
 
-    base, swing = (38.0, 2.4) if hub == "TTF" else (33.6, 2.1)
+    base, swing = _CURVE_SHAPE[hub]
     season = math.cos((month.month - 1) / 12 * 2 * math.pi)  # +1 in January, -1 in July
     return round(base + swing * season, 3)
 
@@ -364,7 +385,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
 
     # Prices: a full monthly curve for the risk horizon and 400 days of month-ahead history.
     marks: dict[tuple[str, str], float] = {}
-    for hub, currency in (("TTF", "EUR"), ("NBP", "GBP")):
+    for hub, currency in DEMO_PRICE_HUBS:
         for offset in range(HORIZON_MONTHS):
             first = _month_start(today, offset)
             price = _curve_price(hub, first)
@@ -1358,7 +1379,10 @@ def _roll_curve(session, now: datetime) -> int:
         return 0
     today = now.date()
     rows = []
-    for hub, currency in (("TTF", "EUR"), ("NBP", "GBP")):
+    real = _real_price_hubs(session)
+    for hub, currency in DEMO_PRICE_HUBS:
+        if hub in real:
+            continue
         for offset in range(HORIZON_MONTHS):
             first = _month_start(today, offset)
             price = _curve_price(hub, first)
@@ -1389,10 +1413,28 @@ def _roll_curve(session, now: datetime) -> int:
     return len(rows)
 
 
+def _real_price_hubs(session) -> set[str]:
+    """Hubs a provider (anything but the demo) has stored gas prices for."""
+
+    hubs: set[str] = set()
+    for metadata, product in (
+        session.query(MarketObservationRecord.metadata_json, MarketObservationRecord.product)
+        .filter(MarketObservationRecord.source_system != SOURCE)
+        .filter(~MarketObservationRecord.source_system.like("%\\_Sim", escape="\\"))
+        .distinct()
+    ):
+        stated = (metadata or {}).get("hub") or str(product or "").split(" ")[0]
+        hubs.add(str(stated).upper())
+    return hubs & set(_CURVE_SHAPE)
+
+
 def _roll_month_ahead(session, now: datetime, rng: random.Random) -> int:
     today = now.date()
     rows = []
-    for hub, currency in (("TTF", "EUR"), ("NBP", "GBP")):
+    real = _real_price_hubs(session)
+    for hub, currency in DEMO_PRICE_HUBS:
+        if hub in real:
+            continue  # a provider prices this hub: no simulated series beside it
         last = (
             session.query(MarketObservationRecord)
             .filter(MarketObservationRecord.source_system == SOURCE)
@@ -1402,10 +1444,13 @@ def _roll_month_ahead(session, now: datetime, rng: random.Random) -> int:
             .first()
         )
         if last is None:
-            continue
-        last_day = _aware(last.observed_at_utc).date()
-        last_front = _month_start(last_day, 1)
-        drift = float(last.price) - _curve_price(hub, last_front)
+            # A hub added to the demo market after this store was seeded: its history from
+            # the same window a fresh seed writes.
+            last_day = today - timedelta(days=HISTORY_DAYS + 1)
+            drift = 0.0
+        else:
+            last_day = _aware(last.observed_at_utc).date()
+            drift = float(last.price) - _curve_price(hub, _month_start(last_day, 1))
         for back in range((today - last_day).days - 1, 0, -1):
             day = today - timedelta(days=back)
             front = _month_start(day, 1)

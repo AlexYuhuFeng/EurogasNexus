@@ -246,7 +246,8 @@ def test_roll_forward_after_a_30_day_pause_ends_at_today_and_keeps_every_stored_
     after = _snapshot(session)
     assert all(after[key] == value for key, value in before.items())  # nothing rewritten
     assert counts["physical_rows"] > 0
-    assert counts["month_ahead_rows"] == 2 * 30  # Oct 8 to Nov 6, both hubs
+    # Oct 8 to Nov 6, every hub of the demo market.
+    assert counts["month_ahead_rows"] == len(seed.DEMO_PRICE_HUBS) * 30
     newest_flow = session.query(func.max(FlowObservationRecord.period_start_utc)).scalar()
     assert seed._gas_day_of(newest_flow) == seed._closed_gas_days(later, 1)[0][0]
     newest_power = session.query(func.max(PowerObservationRecord.period_start_utc)).scalar()
@@ -451,4 +452,54 @@ def test_the_running_unplanned_demo_outage_is_revised_so_it_stays_news(session):
     # The planned one is a schedule and is left as it is.
     planned = session.query(RemitUmmRecord).filter(RemitUmmRecord.message_id == "demo-umm-2")
     assert planned.count() == 1
+
+
+def test_every_board_hub_has_a_simulated_market_that_a_real_one_replaces(session):
+    """The owner asked for a complete demo market: every hub on the board has a simulated
+    curve and month-ahead history, marked simulated, and a hub a provider prices gets no
+    simulated series beside the real one."""
+
+    from eurogas_nexus.domain.ontology.markets import european_gas_hubs
+
+    seed = _load()
+    seeded_at = datetime(2026, 10, 8, 9, tzinfo=UTC)
+    seed.seed(session, seeded_at, history_days=20)
+    session.commit()
+    hubs = {
+        (row.metadata_json or {}).get("hub")
+        for row in session.query(MarketObservationRecord)
+        if (row.metadata_json or {}).get("tenor") == "month-ahead"
+    }
+    assert hubs == set(european_gas_hubs())
+    assert all(
+        (row.metadata_json or {}).get("simulated") is True and row.source_system.endswith("_Sim")
+        for row in session.query(MarketObservationRecord)
+    )
+    # Plausible spreads: every continental hub within a few EUR of TTF on the same month.
+    curve = {
+        (row.metadata_json or {})["hub"]: row.price
+        for row in session.query(MarketObservationRecord).filter_by(source_reference="demo:curve")
+        if row.period_start_utc.month == 1
+    }
+    assert all(abs(curve[hub] - curve["TTF"]) < 4 for hub in curve if hub != "NBP")
+
+    # A provider starts pricing THE: the roll-forward writes no simulated THE beside it.
+    session.add(MarketObservationRecord(
+        observation_id="eex-the-ma", market_venue="EEX", product="THE month-ahead", price=41.0,
+        unit="EUR/MWh", currency="EUR", period_start_utc=datetime(2026, 11, 1, tzinfo=UTC),
+        period_end_utc=datetime(2026, 12, 1, tzinfo=UTC), observed_at_utc=seeded_at,
+        source_system="EEX", source_reference="eex:settlement", freshness="end_of_day",
+        quality_score=1.0, research_only=True, metadata_json={"hub": "THE", "tenor": "month-ahead"},
+    ))
+    session.commit()
+    later = datetime(2026, 10, 20, 9, tzinfo=UTC)
+    seed.roll_forward(session, later)
+    session.commit()
+    rolled = {
+        (row.metadata_json or {}).get("hub")
+        for row in session.query(MarketObservationRecord)
+        .filter(MarketObservationRecord.source_system == seed.SOURCE)
+        .filter(MarketObservationRecord.observed_at_utc > seeded_at)
+    }
+    assert "THE" not in rolled and "TTF" in rolled
 
