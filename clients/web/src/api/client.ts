@@ -5248,7 +5248,8 @@ export const api = {
 
   deskToday: (options?: ApiRequestOptions) => get<DeskTodayDTO>("/desk/today", undefined, options),
 
-  reportCatalogue: (options?: ApiRequestOptions) => get<ReportCatalogueDTO>("/reports/catalogue", undefined, options),
+  reportCatalogue: (language?: string, options?: ApiRequestOptions) =>
+    get<ReportCatalogueDTO>("/reports/catalogue", language ? { language } : undefined, options),
 
   reportPlan: (question: string, audience: ReportAudience) =>
     post<ReportPlanProposalDTO>("/reports/plan", { question, audience }),

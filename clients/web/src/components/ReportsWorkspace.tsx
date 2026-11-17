@@ -121,7 +121,11 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
   }, []);
 
   useEffect(() => {
-    api.reportCatalogue().then((r) => setCatalogue(r.data)).catch(() => setCatalogue(null));
+    // The reasons the form shows come back in the interface language.
+    api.reportCatalogue(zh ? "zh-CN" : "en").then((r) => setCatalogue(r.data)).catch(() => setCatalogue(null));
+  }, [zh]);
+
+  useEffect(() => {
     loadReports();
     const sync = () => {
       const question = reportQuestionFromSearch(window.location.search);
@@ -391,7 +395,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                       <input type="checkbox" checked={chosen.includes(section.key)} onChange={() => toggleSection(section.key)} />
                       <span>
                         {t(`reports.section.${section.key}`)}
-                        {notHeld && <span className="reports-note"> · {t("reports.section_not_held")}</span>}
+                        {notHeld && <span className="reports-note"> · {t("reports.section_not_held")}{state.reason ? ` (${state.reason})` : ""}</span>}
                       </span>
                     </label>
                   );
@@ -420,7 +424,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   <p>{t(failure.key)}</p>
                   <div className="reports-actions">
                     {failure.retry && <Button size="sm" onClick={() => void generate(true)}>{t("reports.retry")}</Button>}
-                    {failure.withoutAi && <Button size="sm" variant="quiet" onClick={() => void generate(false)}>{t("reports.generate_without_ai")}</Button>}
+                    {failure.withoutAi && offer?.ai.available !== false && <Button size="sm" variant="quiet" onClick={() => void generate(false)}>{t("reports.generate_without_ai")}</Button>}
                   </div>
                 </div>
               )}

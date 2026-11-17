@@ -118,7 +118,7 @@ def _unavailable(exc: Exception) -> HTTPException:
 
 
 @router.get("/api/reports/catalogue")
-def get_report_catalogue(request: Request) -> dict:
+def get_report_catalogue(request: Request, language: str = "en") -> dict:
     """The report kinds and the sections a report is assembled from.
 
     报告目录：报告类型、可选章节、各章节的数据来源与图表类型。
@@ -135,7 +135,7 @@ def get_report_catalogue(request: Request) -> dict:
     try:
         with _db() as session:
             offer = availability(session, Caller(principal), ai=_ai_state(principal),
-                                 balance_reader=balance_reader)
+                                 balance_reader=balance_reader, language=language)
     except (SQLAlchemyError, HTTPException) as exc:
         # The form still opens: it says the store cannot be read instead of failing later.
         offer = None
@@ -152,12 +152,12 @@ def _ai_state(principal) -> tuple[bool, str]:
     from eurogas_nexus.security.provider_keys import load_provider_api_key
 
     if not get_settings().llm_external_provider_enabled:
-        return False, "AI editing is switched off for this installation; reports are rule-written."
+        return False, "switched_off"
     denial = ai_authority_denial(principal)
     if denial:
-        return False, "Your role does not include AI analysis; reports are rule-written."
+        return False, "role"
     if not (load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")):
-        return False, "No AI provider key is configured; reports are rule-written."
+        return False, "no_key"
     return True, ""
 
 
@@ -296,11 +296,17 @@ def get_market_report_html(report_id: str, request: Request) -> HTMLResponse:
             html, title = record.html, record.title
     except SQLAlchemyError as exc:
         raise _unavailable(exc) from exc
-    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in title)[:80]
+    from urllib.parse import quote
+
+    # Headers are Latin-1: an ASCII name for every client, the title itself (a Chinese
+    # report's, say) in the RFC 6266 form beside it.
+    safe = "".join(ch if (ch.isascii() and ch.isalnum()) or ch in "-_" else "-"
+                   for ch in title)[:80].strip("-") or report_id
     return HTMLResponse(
         html,
         headers={
-            "Content-Disposition": f'inline; filename="{safe}.html"',
+            "Content-Disposition": f"inline; filename=\"{safe}.html\"; "
+                                   f"filename*=UTF-8''{quote(title[:80] + '.html')}",
             # The report runs no remote code and loads nothing: a strict policy costs nothing.
             "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
             "script-src 'unsafe-inline'; img-src data:; frame-ancestors 'self'",

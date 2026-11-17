@@ -310,6 +310,15 @@ def test_the_api_generates_lists_and_serves_the_html(env):
                                                    "sections": ["book_pnl"]})
     assert bad.status_code == 422
     assert client.get("/api/reports/market/mr-missing").status_code == 404
+    # A Chinese report: its title is not Latin-1, the file name header still is.
+    zh_made = client.post("/api/reports/market", json={"kind": "daily", "use_model": False,
+                                                       "language": "zh-CN"}).json()["data"]
+    zh_html = client.get(f"/api/reports/market/{zh_made['report_id']}/html")
+    assert zh_html.status_code == 200 and 'lang="zh-CN"' in zh_html.text
+    assert "filename*=UTF-8''" in zh_html.headers["content-disposition"]
+    offer = client.get("/api/reports/catalogue?language=zh-CN").json()["data"]["availability"]
+    assert offer and all(re.search(r"[\u4e00-\u9fff]", v["reason"])
+                         for v in offer["sections"].values() if v["reason"])
 
 
 # =================================== house standard (REPORT_EDITORIAL_STANDARD.md)
@@ -673,3 +682,40 @@ def test_a_chinese_report_is_written_in_chinese_throughout(env):
     html = report.html
     assert "方法与来源" in html and "各指标的计算方法" in html and "近月合约每日收盘价" in html
     assert "Front-month daily closes" not in html and "How each indicator" not in html
+
+
+def test_the_form_knows_before_generate_what_each_section_holds(env):
+    """The catalogue's availability is the builders' own verdict: no refusal reaches the form."""
+
+    from eurogas_nexus.application.reports import availability as A
+
+    A._CACHE.clear()
+    with Session(env) as session:
+        offer = A.availability(session, _caller("DEMO", "BOOKS:*"), now=NOW,
+                               ai=(False, "no_key"), balance_reader=_balance)
+    assert offer["can_generate"] is True and offer["reason"] is None
+    assert offer["sections"]["prices"]["state"] == "ok"
+    assert offer["sections"]["book_position"]["state"] == "ok"
+    assert offer["ai"] == {"available": False,
+                           "reason": "No AI provider key is configured; reports are rule-written."}
+    assert offer["period"]["max_days"] == 400 and offer["period"]["latest_end"] == "2026-11-07"
+    assert "left out" in offer["audiences"]["shareable"]["reason"]
+    # A section with nothing held is offered as "listed as not held", with its reason.
+    assert offer["sections"]["alerts"] == {
+        "state": "not_held", "reason": "No critical or watch alert is open",
+        "action": "Open Events"}
+
+
+def test_availability_reasons_follow_the_interface_language(env):
+    from eurogas_nexus.application.reports import availability as A
+    from eurogas_nexus.application.caller import Caller as _C
+
+    viewer = _C(AuthenticatedPrincipal(principal_id="p-viewer", name="viewer",
+                                       principal_type="USER", role="VIEWER", status="ACTIVE",
+                                       data_scopes=("DEMO",), roles=("VIEWER",)))
+    with Session(env) as session:
+        offer = A.availability(session, viewer, now=NOW, ai=(False, "role"), language="zh-CN")
+    assert offer["can_generate"] is False and "分析师" in offer["reason"]
+    assert offer["ai"]["reason"].startswith("您的角色")
+    held = [v["reason"] for v in offer["sections"].values() if v["reason"]]
+    assert held and all(re.search(r"[一-鿿]", r) for r in held), held

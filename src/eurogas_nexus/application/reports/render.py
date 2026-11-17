@@ -179,6 +179,9 @@ REASONS_ZH = {
     "not available": "暂不可用",
     "Our book is not part of a shareable report": "对外分发报告不含我方账簿",
     "Open alerts": "未关闭预警",
+    "Balance not available here": "此处无法读取平衡数据",
+    "The balance uses data outside your licences": "平衡使用了您许可范围之外的数据",
+    "Balance needs ENTSOG flows, GIE storage and LNG": "平衡需要 ENTSOG 流量、GIE 储气与 LNG",
 }
 
 CSS_TEMPLATE = """

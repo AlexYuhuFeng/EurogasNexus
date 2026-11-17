@@ -31,14 +31,28 @@ MAX_PERIOD_DAYS = 400
 _CACHE: dict[tuple, tuple[float, dict[str, Any]]] = {}
 
 
+#: Why AI editing is not offered, by the code the route gives.
+AI_REASONS = {
+    "switched_off": ("AI editing is switched off for this installation; reports are "
+                     "rule-written.", "本系统已关闭 AI 编辑；报告由规则撰写。"),
+    "role": ("Your role does not include AI analysis; reports are rule-written.",
+             "您的角色不含 AI 分析；报告由规则撰写。"),
+    "no_key": ("No AI provider key is configured; reports are rule-written.",
+               "未配置 AI 服务密钥；报告由规则撰写。"),
+}
+
+
 def _role_ok(principal) -> tuple[bool, str]:
+    from eurogas_nexus.application.reports.lang import T
     from eurogas_nexus.security.identity import role_allows
 
     role = getattr(principal, "role", "VIEWER")
     if role_allows(role, "ANALYST"):
         return True, ""
-    return False, (f"Generating a report needs the analyst role; your role is "
-                   f"{str(role).lower()}. Ask an administrator, or open a stored report.")
+    return False, T(f"Generating a report needs the analyst role; your role is "
+                    f"{str(role).lower()}. Ask an administrator, or open a stored report.",
+                    f"生成报告需要分析师角色；您的角色为 {str(role).lower()}。请联系管理员，"
+                    "或打开已存报告。")
 
 
 def probe_sections(session, caller: Caller, now: datetime,
@@ -73,8 +87,20 @@ def probe_sections(session, caller: Caller, now: datetime,
 
 
 def availability(session, caller: Caller, *, now: datetime | None = None,
-                 ai: tuple[bool, str] = (False, ""), balance_reader=None) -> dict[str, Any]:
-    """What this caller's report form may offer (see the module text)."""
+                 ai: tuple[bool, str] = (False, ""), balance_reader=None,
+                 language: str = "en") -> dict[str, Any]:
+    """What this caller's report form may offer (see the module text), its reasons written in
+    ``language``."""
+
+    from eurogas_nexus.application.reports.lang import writing
+
+    with writing(language):
+        return _availability(session, caller, now, ai, balance_reader)
+
+
+def _availability(session, caller, now, ai, balance_reader) -> dict[str, Any]:
+    from eurogas_nexus.application.reports.lang import T
+    from eurogas_nexus.application.reports.render import omitted_reason
 
     now = (now or datetime.now(UTC)).astimezone(UTC)
     principal = caller.principal
@@ -86,7 +112,11 @@ def availability(session, caller: Caller, *, now: datetime | None = None,
     else:
         sections = probe_sections(session, caller, now, balance_reader)
         _CACHE[key] = (time.monotonic(), sections)
+    sections = {k: {**v, "reason": omitted_reason(v["reason"]) if v.get("reason") else None}
+                for k, v in sections.items()}
     may, why = _role_ok(principal)
+    ai_why = AI_REASONS.get(ai[1])
+    ai_text = (T(*ai_why) if ai_why else ai[1]) or None
     return {
         "can_generate": may,
         "reason": why or None,
@@ -94,11 +124,12 @@ def availability(session, caller: Caller, *, now: datetime | None = None,
         "audiences": {
             "internal": {"allowed": True, "reason": None},
             "shareable": {"allowed": True,
-                          "reason": "Book sections are not available in a report for "
-                                    "distribution; they are left out."},
+                          "reason": T("Book sections are not available in a report for "
+                                      "distribution; they are left out.",
+                                      "对外分发的报告不含账簿章节，已略去。")},
         },
         "period": {"max_days": MAX_PERIOD_DAYS, "latest_end": now.date().isoformat()},
-        "ai": {"available": bool(ai[0]), "reason": ai[1] or None},
+        "ai": {"available": bool(ai[0]), "reason": ai_text},
         "languages": ["en", "zh-CN"],
     }
 
