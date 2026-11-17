@@ -938,7 +938,8 @@ export function signalsFromAlerts(alerts: readonly MonitoringAlertDTO[]): Requir
       out.shortfalls = [...out.shortfalls, {
         contract_id: String(facts.contract_id ?? ""), contract_name: String(facts.contract_name ?? facts.contract_id ?? ""),
         gas_day: String(facts.gas_day ?? ""), shortfall_mwh: mwh, tolerance_pct: tolerance, shortfall_pct: pct,
-        at_utc: at, source: String(facts.source_system ?? sourceName(alert)), book_ids: stringList(facts.book_ids),
+        // The record is the contract's delivery (the allocation as imported), not the file it came in.
+        at_utc: at, source: "contract-delivery", book_ids: stringList(facts.book_ids),
         simulated: Boolean(alert.simulated), alert_id: alert.alert_id, severity: alert.severity,
       }];
     } else if (alert.category === "fundamentals") {
