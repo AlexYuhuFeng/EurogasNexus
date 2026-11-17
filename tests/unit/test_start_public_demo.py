@@ -312,6 +312,28 @@ def test_live_sources_follow_keys_unless_set(monkeypatch):
     assert start.live_sources_enabled() is True
 
 
+@pytest.fixture(autouse=True)
+def demo_neutral_environ(monkeypatch):
+    """Tests that read the process environment start from none of the demo's settings.
+
+    A developer shell or CI job that exports, say, ``EUROGAS_NEXUS_API_PROFILE=development``
+    (the browser-acceptance environment does) made ``run`` refuse to start and this file fail
+    for reasons outside it.
+    """
+
+    import os
+
+    for name in list(os.environ):
+        if name.startswith("EUROGAS_NEXUS_") or name in {
+            "DATABASE_URL",
+            "POSTGRES_URI",
+            "RUNTIME_STORE_DATABASE_URL",
+            "DEEPSEEK_API_KEY",
+            "PORT",
+        }:
+            monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def restored_environ():
     """``run`` writes its defaults into the real process environment; put it back."""
