@@ -112,3 +112,41 @@ def test_a_regional_caller_sees_only_limits_alerts_for_its_books(desk, monkeypat
 def test_alerts_on_demo_marks_say_they_are_simulated(desk):
     alerts = _scan(desk)
     assert alerts and all(row.simulated for row in alerts.values())
+
+
+def test_a_configured_service_principal_does_not_narrow_the_limits_calculation(desk):
+    """The enrichment identity holds no book or market family; breaches must still alert.
+
+    Before, the scan computed limits under that identity's own scopes: every leg was unvalued,
+    each breach became "incomplete", and the risk page and the alerts disagreed.
+    """
+
+    from eurogas_nexus.application.service_identity import ServiceAuthority
+    from eurogas_nexus.security.identity import AuthenticatedPrincipal
+
+    narrow = AuthenticatedPrincipal(
+        principal_id="svc-enrich",
+        name="svc-enrich",
+        principal_type="SERVICE",
+        role="ANALYST",
+        status="ACTIVE",
+        data_scopes=(),
+        roles=("ANALYST",),
+    )
+    authority = ServiceAuthority(principal=narrow, refusal=None, detail="")
+    with Session(desk) as session:
+        scan_monitoring_conditions(
+            session, now_utc=NOW, enrich_with_llm=False, service_authority=authority
+        )
+        rows = (
+            session.query(MonitoringAlertRecord)
+            .filter(MonitoringAlertRecord.category == "limits")
+            .all()
+        )
+    page = credit_exposure_rows(firm_caller(), NOW.date())
+    breached = {row["counterparty_id"] for row in page.rows if row["status"] == "breach"}
+    alerted = {
+        row.entity_id for row in rows if row.alert_type == "credit" and row.severity == "critical"
+    }
+    assert breached and alerted == breached
+    assert not any("incomplete" in row.title_en for row in rows if row.entity_id in breached)

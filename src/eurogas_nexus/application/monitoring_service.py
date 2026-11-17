@@ -70,7 +70,7 @@ def scan_monitoring_conditions(
         *_outage_candidates(session, now),
         *_opportunity_evaluator_candidates(session),
     ]
-    limit_candidates, limits_failed = _limit_candidates(session, now, service_authority)
+    limit_candidates, limits_failed = _limit_candidates(session, now)
     candidates += limit_candidates
     active_fingerprints = {candidate.fingerprint for candidate in candidates}
     if limits_failed:
@@ -528,13 +528,13 @@ def _outage_candidates(session: Session, now: datetime) -> list[MonitoringCandid
 
 
 def _limit_candidates(
-    session: Session, now: datetime, service_authority: ServiceAuthority | None
+    session: Session, now: datetime
 ) -> tuple[list[MonitoringCandidate], bool]:
     """Credit lines and trader mandates in breach, on watch, expired or incomplete.
 
     The figures are the risk pages' own (``application/limits_service``), computed firm-wide
-    under the service principal's data scopes (or a firm caller with no licensed scope). The
-    second value is True when the calculation could not run, so open alerts are kept.
+    (``firm_caller``: every book, the non-display-licensed families). The second value is True
+    when the calculation could not run, so open alerts are kept.
     """
 
     from eurogas_nexus.application.caller import firm_caller
@@ -549,8 +549,14 @@ def _limit_candidates(
         and session.query(TraderMandateRecord.mandate_id).first() is None
     ):
         return [], False
-    authority = service_authority or resolve_service_authority(session)
-    caller = firm_caller(authority.principal, session)
+    # The firm-wide calculation, never the enrichment service principal's own scopes: that
+    # identity exists to authorise the model call (owner decision D7) and typically holds no
+    # book and no market-data family, so computing under it left every leg unvalued and turned
+    # each breach into "incomplete" while the risk page showed the breach. Automated risk
+    # calculation is non-display use: every book plus the families with a current non-display
+    # licence (``firm_caller``). Who may *see* each alert is still decided per reader
+    # (``application/alert_scope.py``).
+    caller = firm_caller(None, session)
     today = now.date()
     try:
         credit = credit_exposure_rows(caller, today)
