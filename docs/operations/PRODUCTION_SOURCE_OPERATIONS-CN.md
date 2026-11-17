@@ -22,6 +22,12 @@ R33 为公共数据源摄入增加生产化控制。Provider 仍只由后端脚�
 | 仅限许可 | EEX、ICE Endex、ICE OCM、CME、NGX、Trayport、Platts、ICIS、Argus、Kpler、天气供应商、WM/Reuters、BFIX | 客户自有许可、凭据与数据范围 |
 | 非数据馈送 | TSO 费率登记、`*_Sim` 演示源、模型服务 | — |
 
+## 客户运行时：所有公共数据源使用同一调度器
+
+客户镜像包含调度器（`scripts/ops/run_dataops_scheduler.py` 中的 `_SOURCE_ARGS` 与 `_SCRIPT_COMMANDS`）会启动的全部脚本，客户 compose 的 `public-ingestion-worker` 运行该调度器（`--interval-seconds 60 --entsog-lookback-gas-days 7`）；原先仅含 ECB/ENTSOG/GIE 的 worker 与单独的参考网络 worker 已移除。`tests/release/test_customer_scheduled_sources.py` 保证注册表中的可调度数据源、调度器的执行器、镜像中的脚本与需密钥的集合一致。
+
+密钥（`application/scheduled_source_keys.py`）：EIA、ENTSO-E、GIE 与 GIE IIP 使用本公司密钥（环境变量、密钥文件或凭据页面）。缺少密钥时，计划运行不启动脚本，记录为 `CONFIGURATION credential_missing`（不重试）。保存密钥后，默认关闭的需密钥数据源（GIE、GIE IIP、ENTSO-E）在下一次扫描时开启，除非运维人员已将其关闭。ENTSOG 与 GIE 还需要管理员批准（见上文）。
+
 ## 重试策略
 
 `src/eurogas_nexus/application/source_operations.py` 是受限指数退避策略的

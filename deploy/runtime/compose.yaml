@@ -166,48 +166,26 @@ services:
     restart: "no"
 
   public-ingestion-worker:
+    # Every scheduled public source through the product's one scheduler path (the same
+    # scripts/ops/run_dataops_scheduler.py the real store runs): ECB, ENTSOG (flows, capacity;
+    # the reference network at most daily), GIE AGSI/ALSI, EIA Henry Hub, ENTSO-E power,
+    # Elexon, National Gas supply and demand, SONIA/ESTR/SOFR, GIE IIP and ENTSOG REMIT
+    # outages. Each source runs on its own schedule and read bounds, fails on its own and is
+    # retried by the scheduler's policy. ENTSOG and GIE read only after an administrator
+    # approved them; EIA, ENTSO-E and GIE read only with the firm's key (Admin -> Data
+    # sources); a keyed source switches on once its key is stored.
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["public-ingestion"]
     restart: unless-stopped
     environment: *runtime-environment
     command:
       - python
-      - scripts/ops/run_public_ingestion_worker.py
-      - --source
-      - ecb
-      - --source
-      - entsog
-      - --source
-      - entsog-capacity
-      - --source
-      - gie-agsi
-      - --source
-      - gie-alsi
-      - --limit
-      - "10000"
-      # A rolling week of ENTSOG flows and capacity each round (revisions arrive for days).
+      - scripts/ops/run_dataops_scheduler.py
+      - --interval-seconds
+      - "60"
+      # A rolling week of ENTSOG flows and capacity each run (revisions arrive for days).
       - --entsog-lookback-gas-days
       - "7"
-      - --interval-seconds
-      - "1800"
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-
-  reference-ingestion-worker:
-    image: ${EUROGAS_NEXUS_API_IMAGE}
-    profiles: ["public-ingestion"]
-    restart: unless-stopped
-    environment: *runtime-environment
-    command:
-      - python
-      - scripts/ops/run_public_ingestion_worker.py
-      - --source
-      - entsog-reference
-      - --limit
-      - "10000"
-      - --interval-seconds
-      - "86400"
     depends_on:
       migrate:
         condition: service_completed_successfully

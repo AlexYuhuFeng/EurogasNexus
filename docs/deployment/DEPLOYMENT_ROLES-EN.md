@@ -142,14 +142,33 @@ Installation performs, in order:
 7. ECB ingestion, and ENTSOG once approved (see "First run"), unless `-SkipPublicData` is set;
 8. end-to-end API and database revision validation.
 
-After the initial load, the runtime refreshes ECB, ENTSOG operational/capacity,
-and keyed GIE observations every 30 minutes and ENTSOG reference topology every
-24 hours. Provider failures remain visible in `ingestion_runs` and Source Center;
-the worker does not manufacture replacement infrastructure data.
+After the initial load, the `public-ingestion-worker` runs the product's data-ops scheduler
+(`scripts/ops/run_dataops_scheduler.py`, the same path the reference store runs). Each
+public source runs on its own schedule and read bounds, fails on its own, is retried by the
+scheduler's policy and is shown with its state on Admin → Data sources. Provider failures
+remain visible in `ingestion_runs` and the Source Center; the worker never manufactures
+replacement data.
 
-GIE ingestion remains disabled until the customer stores its own GIE key via
-the backend-managed Data Sources workflow. Licensed providers remain disabled
-until customer credentials are configured.
+| Source | Schedule | Needs |
+|---|---|---|
+| ECB FX reference | daily 16:10 CET | nothing |
+| ENTSOG flows, capacity (rolling 7 gas days), reference network (at most daily) | hourly | administrator approval (see "First run") |
+| GIE AGSI storage, ALSI LNG (Europe and NW Europe countries, newest 30 gas days) | daily | approval and the firm's GIE key |
+| GIE IIP REMIT storage and LNG outages | every 30 min | the GIE key |
+| ENTSOG REMIT transmission outages | hourly | nothing |
+| EIA Henry Hub | daily | the firm's EIA key |
+| ENTSO-E day-ahead price, load, generation (NL, DE-LU, BE, FR; 7 days) | hourly | the firm's ENTSO-E token |
+| Elexon GB generation, demand, market index | every 30 min | nothing |
+| National Gas GB storage, LNG (5 days) and demand (8 days) | 3-hourly / 6-hourly | nothing |
+| SONIA, €STR, SOFR fixings | daily | nothing |
+
+Keys are stored on Admin → Data sources (Credentials; encrypted with
+`EUROGAS_NEXUS_SECRET_KEY`), or provided as `GIE_API_KEY`/`GIE_API_KEY_FILE`, `EIA_API_KEY`
+and `ENTSOE_SECURITY_TOKEN` in the runtime environment. Without its key a keyed source's
+run is recorded as `credential_missing` and nothing is fetched; once the key is stored, an
+off-by-default keyed source (GIE, GIE IIP, ENTSO-E) is switched on at the next scheduler
+scan unless an operator switched it off. Licensed providers remain disabled until customer
+credentials and data scopes are configured.
 
 ### First run: approve the public sources
 

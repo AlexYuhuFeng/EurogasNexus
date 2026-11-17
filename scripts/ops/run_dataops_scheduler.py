@@ -24,6 +24,10 @@ from eurogas_nexus.application.dataops_runtime import (
     execute_claimed_runs,
     scan_scheduler,
 )
+from eurogas_nexus.application.scheduled_source_keys import (
+    activate_keyed_sources,
+    key_configured,
+)
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 from eurogas_nexus.domain.dataops.contracts import FailureCategory, QualityIssue, QualitySeverity
 from eurogas_nexus.ingestion.entsog_scope import validate_entsog_point_directions
@@ -103,8 +107,14 @@ def run_ingestor_attempt(
     entsog_to: str | None = None,
     entsog_lookback_gas_days: int | None = None,
     entsog_point_directions: Sequence[str] = (),
+    key_check: Callable[[str], bool | None] | None = None,
 ) -> Callable[[dict, int], IngestionAttemptResult]:
-    """Return an adapter runner bound to the public-source ingestor."""
+    """Return an adapter runner bound to the public-source ingestor.
+
+    ``key_check(source_id)`` (the loop passes ``scheduled_source_keys.key_configured``)
+    returns False for a keyed source whose key is not configured: the attempt then does not
+    start the script and is recorded as ``CONFIGURATION credential_missing``.
+    """
 
     point_directions = validate_entsog_point_directions(entsog_point_directions)
 
@@ -112,6 +122,24 @@ def run_ingestor_attempt(
         source_id = str(payload.get("source_id") or "")
         source_args = _SOURCE_ARGS.get(source_id)
         script_command = _SCRIPT_COMMANDS.get(source_id)
+        if key_check is not None and key_check(source_id) is False:
+            emit_event(
+                event="ingestion.attempt.blocked",
+                level="warning",
+                source_id=source_id,
+                run_id=str(payload.get("run_id") or ""),
+                error_category=FailureCategory.CONFIGURATION.value,
+                attempt=attempt,
+                details={"code": "credential_missing"},
+            )
+            return IngestionAttemptResult(
+                succeeded=False,
+                classification=FailureCategory.CONFIGURATION,
+                error_message=(
+                    "CONFIGURATION credential_missing: this source reads with the firm's own "
+                    "provider key; store it on Admin -> Data sources (Credentials)."
+                ),
+            )
         if not source_args and not script_command:
             emit_event(
                 event="ingestion.attempt.unsupported",
@@ -421,6 +449,7 @@ def run_loop(
         entsog_to=entsog_to,
         entsog_lookback_gas_days=entsog_lookback_gas_days,
         entsog_point_directions=point_directions,
+        key_check=lambda source_id: key_configured(source_id, session_factory=session_factory),
     )
     iteration = 0
     failed_iterations = 0
@@ -429,6 +458,18 @@ def run_loop(
             now_utc = require_aware_anchor(clock())
             with session_factory() as session:
                 scan = scan_scheduler(session, limit=scan_limit, now_utc=now_utc)
+                # A keyed source switches on once its key is stored (unless an operator
+                # switched it off); the next scan schedules it.
+                try:
+                    scan["keyed_sources_activated"] = activate_keyed_sources(
+                        session, now_utc=now_utc, session_factory=session_factory
+                    )
+                except Exception:  # noqa: BLE001 - activation never stops the scan
+                    emit_event(
+                        event="scheduler.keyed_activation.failed",
+                        level="warning",
+                        error_category="INTERNAL",
+                    )
                 session.commit()
             with session_factory() as session:
                 execution = execute_claimed_runs(

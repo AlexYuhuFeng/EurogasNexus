@@ -49,6 +49,25 @@ stable reason `source_not_approved` (run row `error_code`, the report's `reason`
 | Licensed only | EEX (incl. NGP), ICE Endex, ICE OCM, CME, NGX, Trayport, Platts, ICIS, Argus, Kpler, weather vendor, WM/Reuters, BFIX | the customer's licence, credentials and data scopes (G16) |
 | Not a feed | TSO tariff registers (operator-kept), `*_Sim` demo sources, the model service | — |
 
+## Customer runtime: one scheduler for every public source
+
+The customer image ships every script the scheduler starts (`_SOURCE_ARGS` and
+`_SCRIPT_COMMANDS` in `scripts/ops/run_dataops_scheduler.py`), and the customer compose
+`public-ingestion-worker` runs that scheduler (`--interval-seconds 60
+--entsog-lookback-gas-days 7`); the earlier ECB/ENTSOG/GIE-only worker and the separate
+reference worker are gone from the customer stack. `tests/release/test_customer_scheduled_sources.py`
+holds the registry's schedulable sources, the scheduler's runners, the image's scripts and
+the key-gated set equal, so a scheduled source the image cannot run fails the release.
+
+Keys (`application/scheduled_source_keys.py`): EIA, ENTSO-E, GIE and GIE IIP read with the
+firm's own key (environment, key file or the Credentials screen). Without it the scheduled
+attempt starts no script and is recorded `CONFIGURATION credential_missing` (not retried).
+When the key is stored, an off-by-default keyed source (GIE, GIE IIP, ENTSO-E) is switched on
+at the next scan, unless an operator switched it off (circuit `DISABLED`). ENTSOG and GIE
+also need the administrator's approval (above). Measured on 2026-11-17 with the customer
+image against a fresh store: all 13 scheduled sources ran through one scheduler pass each
+(ENTSOG and GIE refused with `source_not_approved` until approved, then stored).
+
 ## Retry policy
 
 `src/eurogas_nexus/application/source_operations.py` owns bounded exponential

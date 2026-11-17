@@ -102,7 +102,6 @@ def test_server_runtime_is_db_first_and_has_explicit_migration() -> None:
         "gateway:",
         "public-ingestion:",
         "public-ingestion-worker:",
-        "reference-ingestion-worker:",
     ]:
         assert service in compose
     assert 'command: ["alembic", "upgrade", "head"]' in compose

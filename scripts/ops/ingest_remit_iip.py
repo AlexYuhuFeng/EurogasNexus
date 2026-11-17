@@ -56,9 +56,18 @@ def main(argv: list[str] | None = None, *, get_page=None) -> int:
     now = datetime.now(UTC)
     owned_getter = get_page is None
     if owned_getter:
-        from eurogas_nexus.ingestion.gie_transport import resolve_gie_api_key
+        from eurogas_nexus.ingestion.gie_transport import (
+            GieTransportError,
+            resolve_gie_runtime_api_key,
+        )
 
-        key = resolve_gie_api_key()
+        # The runtime resolver: environment, key file, then the key stored on the
+        # Credentials screen (a customer installation keeps it there); an operator-disabled
+        # credential is refused.
+        try:
+            key = resolve_gie_runtime_api_key()
+        except GieTransportError as exc:
+            return fail(getattr(exc, "code", "iip_key_unavailable"))
         if key is None:
             say("GIE_API_KEY is not set; IIP requires the registered key (x-key).")
             return fail("iip_key_missing")

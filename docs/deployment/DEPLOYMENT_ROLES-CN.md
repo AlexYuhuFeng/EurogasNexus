@@ -129,12 +129,22 @@ Eurogas Nexus **不会静默下载或安装** Docker Desktop、WSL、PostgreSQL�
 7. 除非指定 `-SkipPublicData`，否则采集 ECB 和 ENTSOG；
 8. 验证 API、数据库连接和迁移版本。
 
-首次采集后，运行时每 30 分钟更新 ECB、ENTSOG 运行/容量和已授权的 GIE 数据，
-每 24 小时更新 ENTSOG 参考拓扑。供应商失败会保留在 `ingestion_runs` 和“数据源”
-页面中，后台任务不会伪造替代的设施数据。
+首次采集后，`public-ingestion-worker` 运行产品的数据运维调度器（`scripts/ops/run_dataops_scheduler.py`，与参考库使用同一路径）。每个公共数据源按各自的计划与读取边界运行、单独失败、按调度器策略重试，并在“管理 → 数据源”中显示状态。供应商失败会保留在 `ingestion_runs` 和数据源中心，后台任务不会伪造替代数据。
 
-GIE 采集在客户通过“数据源”工作流保存自己的 GIE 密钥后才启用。授权价格
-供应商在客户配置相应凭据之前保持禁用。
+| 数据源 | 计划 | 需要 |
+|---|---|---|
+| ECB 汇率 | 每日 | 无 |
+| ENTSOG 流量、容量（滚动 7 个燃气日）、参考网络（至多每日） | 每小时 | 管理员批准（见“首次运行”） |
+| GIE AGSI 储气、ALSI LNG | 每日 | 批准与本公司 GIE 密钥 |
+| GIE IIP REMIT 储气与 LNG 停运 | 每 30 分钟 | GIE 密钥 |
+| ENTSOG REMIT 输气停运 | 每小时 | 无 |
+| EIA Henry Hub | 每日 | 本公司 EIA 密钥 |
+| ENTSO-E 日前价格、负荷、发电（NL、DE-LU、BE、FR；7 天） | 每小时 | 本公司 ENTSO-E 令牌 |
+| Elexon 英国发电、需求、市场指数 | 每 30 分钟 | 无 |
+| National Gas 英国储气、LNG 与需求 | 每 3 / 6 小时 | 无 |
+| SONIA、€STR、SOFR 定盘利率 | 每日 | 无 |
+
+密钥保存在“管理 → 数据源”（凭据，使用 `EUROGAS_NEXUS_SECRET_KEY` 加密），或在运行环境中提供 `GIE_API_KEY`/`GIE_API_KEY_FILE`、`EIA_API_KEY`、`ENTSOE_SECURITY_TOKEN`。缺少密钥时，相应数据源的运行记录为 `credential_missing`，不进行任何请求；保存密钥后，默认关闭的需密钥数据源（GIE、GIE IIP、ENTSO-E）会在下一次调度扫描时自动开启，除非运维人员已将其关闭。授权价格供应商在客户配置相应凭据与数据范围之前保持禁用。
 
 `0.8.0` 的 `preview` 渠道尚未实现多用户登录或 SSO，因此 Server 必须指定
 `-PrivateNetworkOnly`，部署在客户防火墙或 VPN 白名单之后，严禁直接暴露到公网。

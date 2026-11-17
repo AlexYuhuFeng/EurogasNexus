@@ -457,13 +457,13 @@ function Install-OrRepairRuntime {
         Invoke-Compose @(
             "--profile", "public-ingestion", "up", "-d",
             "--no-deps",
-            "public-ingestion-worker", "reference-ingestion-worker"
+            "public-ingestion-worker"
         )
     }
     else {
         Invoke-Compose @(
             "--profile", "public-ingestion", "stop",
-            "public-ingestion-worker", "reference-ingestion-worker"
+            "public-ingestion-worker"
         )
     }
     return [ordered]@{

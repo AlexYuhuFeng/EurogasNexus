@@ -264,20 +264,27 @@ def approval_system(source: str) -> str:
 def resolve_provider_key(system: str, session_factory=None) -> str | None:
     """The provider key the source reads with, or ``None`` (only GIE needs one).
 
-    The ingestion path's own resolver: environment, key file, then the encrypted store,
-    with an operator-disabled credential refused.
+    Environment, key file, then the encrypted store; a stored key an operator disabled is
+    none. Whether the GIE operation is switched on does not matter here: an approval given
+    while it is still off (its default) must see the key that is there.
     """
 
     if system != "GIE":
         return None
     from eurogas_nexus.ingestion.gie_transport import (
         GieTransportError,
-        resolve_gie_runtime_api_key,
+        resolve_gie_api_key,
+        stored_gie_credential_status,
+        stored_gie_credential_value,
     )
 
     try:
-        resolved = resolve_gie_runtime_api_key(session_factory=session_factory)
-    except GieTransportError:
+        if stored_gie_credential_status(session_factory) == "disabled":
+            return None
+        resolved = resolve_gie_api_key(
+            credential_lookup=lambda: stored_gie_credential_value(session_factory)
+        )
+    except (GieTransportError, Exception):  # noqa: BLE001 - unreadable is not a key
         return None
     return resolved.value if resolved is not None else None
 
