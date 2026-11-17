@@ -15,7 +15,7 @@ decorative.
 | Press | One step darker; settles 0.5 px | No bounce, no ripple |
 | Keyboard focus | 2 px focus ring (`:focus-visible` only, so a mouse click does not leave a ring) | The ring is never removed without a replacement |
 | Selected | Accent text or underline, or the raised segment in a segmented control | Selection is never shown by colour alone: weight or a marker accompanies it |
-| Disabled | Half opacity, not-allowed cursor, no hover response | The control stays in place (no reflow when it becomes enabled) |
+| Disabled | Disabled tokens (`--ds-text-disabled` on `--ds-surface-2`, a primary loses its fill), never a fade of the whole control; not-allowed cursor, no hover response | The control stays in place (no reflow when it becomes enabled) |
 | Destructive | Quiet until hovered (red text and border); only the confirm button in the inline confirmation is solid red | Never a one-click destructive action |
 
 ## Elevation (shadows)

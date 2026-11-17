@@ -53,3 +53,11 @@ test("the design system loads first and declares the layer order", () => {
   // Tokens are imported into ds-theme, above legacy, so an old copy of a variable cannot win.
   assert.match(ds, /@import url\("\.\/tokens\.css"\) layer\(ds-theme\);/);
 });
+
+test("a disabled button is drawn with the disabled tokens, never a fade of the whole control", () => {
+  const ds = readFileSync(path.join(SRC, "styles/design-system.css"), "utf8");
+  // A faded primary caught mid-change failed the axe contrast check in CI (on-ink text on a
+  // half-transparent ink fill); the disabled look has to be a pair of tokens instead.
+  assert.doesNotMatch(ds, /button:disabled\s*\{[^}]*opacity:\s*0?\.\d/);
+  assert.match(ds, /button\.primary:disabled,[\s\S]*?\{\s*border-color: var\(--ds-border\);\s*background: var\(--ds-surface-2\);\s*color: var\(--ds-text-disabled\);/);
+});

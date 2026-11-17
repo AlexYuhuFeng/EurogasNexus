@@ -32,7 +32,8 @@ export function ShellTicker({
     let live = true;
     const load = () =>
       api
-        .outages(14)
+        // One line per outage event (the server's grouping), as the Network list and Today.
+        .outages(14, undefined, { grouped: true })
         .then((response) => {
           if (live) setOutages(Array.isArray(response.data) ? (response.data as unknown as TickerOutage[]) : []);
         })

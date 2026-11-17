@@ -408,7 +408,27 @@ async function setLanguage(page, language) {
  * no rule or threshold change here - the same pinned axe-core, the same rule set, a declared
  * context.
  */
+/**
+ * Wait, bounded, until the page is at rest before axe measures it: no request in flight, nothing
+ * `aria-busy`, and no running CSS transition or animation (a control caught mid-transition between
+ * its disabled and enabled colours is a state no reader sees - CI caught "Compare Options" that
+ * way). The check stays strict: a page that never settles is still measured, as it is.
+ */
+async function settleForAxe(page) {
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+  await page
+    .waitForFunction(
+      () =>
+        document.querySelector("[aria-busy='true']") === null
+        && document.getAnimations().every((animation) => animation.playState !== "running" || animation.effect?.getTiming?.().iterations === Infinity),
+      null,
+      { timeout: 5_000, polling: 100 },
+    )
+    .catch(() => undefined);
+}
+
 async function axeViolations(page, contextSelector = null) {
+  await settleForAxe(page);
   await page.addScriptTag({ content: axeSource });
   return page.evaluate(async (selector) => {
     const context = selector ? document.querySelector(selector) : document;

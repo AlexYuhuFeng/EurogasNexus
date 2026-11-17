@@ -57,3 +57,17 @@ test("the panel's tabs count the current filter and its rows link to the map", (
   // A row the map cannot place says so; it is not hidden.
   assert.match(panel, /data-outage-placement=\{row\.placement\}/);
 });
+
+test("the ticker, the list and a hub's card count the same outage events", () => {
+  // The ticker reads the server's events, not its messages.
+  assert.match(read("components/ShellTicker.tsx"), /\.outages\(14, undefined, \{ grouped: true \}\)/);
+  // The page reads the events once; the panel lists them and a selected hub's card counts the
+  // zone's events from the same rows, placed on the map or not.
+  const page = read("components/NetworkWorkspace.tsx");
+  assert.match(page, /const outageEvents = useOutageEvents\(\);/);
+  assert.match(page, /outages=\{outageEvents\}/);
+  assert.match(page, /inScope\(scope, \{ refId: row\.refId, name: row\.asset, country: row\.country, zone: row\.zone \}\)/);
+  assert.match(page, /zoneOutages=\{zoneOutages\}/);
+  const card = read("components/MapDetailPanel.tsx");
+  assert.match(card, /const zone = \{ \.\.\.hubZone\(hub, situation, \{ nodes, edges \}\), \.\.\.\(zoneOutages \?\? \{\}\) \};/);
+});

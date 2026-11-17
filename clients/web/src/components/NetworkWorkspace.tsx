@@ -32,12 +32,14 @@ import { useFullscreen } from "@/app/hooks/useFullscreen";
 import { bookItems, bookSituation, liveSituation, replayTrack, type BookItem } from "@/app/mapBook";
 import { MapBookPanel, MapReplayBar, useReplay } from "@/components/MapBookPanel";
 import { MapDetailPanel } from "@/components/MapDetailPanel";
-import { NetworkInfoPanel, type PanelRowRef, type PanelRowTarget } from "@/components/NetworkInfoPanel";
+import { NetworkInfoPanel, useOutageEvents, type PanelRowRef, type PanelRowTarget } from "@/components/NetworkInfoPanel";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import type { CapacityWorkspaceProps } from "@/components/CapacityWorkspace";
 import {
   networkPanelFromSearch,
   networkPanelToSearch,
+  inScope,
+  outageListRows,
   selectionScope,
   type LonLat,
   type MapBounds,
@@ -369,6 +371,20 @@ export function NetworkWorkspace({
     [edges, nodes, selection, sites],
   );
   const marketRows = useApiStore((state) => state.normalizedMarkets);
+  // One read of the outage events: the panel's list and a selected hub's card count the same.
+  const outageEvents = useOutageEvents();
+  const zoneOutages = useMemo(() => {
+    if (selection?.kind !== "hub" || !scope || !outageEvents.events) return null;
+    const rows = outageListRows(outageEvents.events, rawSituation).filter((row) =>
+      inScope(scope, { refId: row.refId, name: row.asset, country: row.country, zone: row.zone }),
+    );
+    const now = rows.filter((row) => row.state === "active");
+    return {
+      outagesNow: now.length,
+      outagesPlanned: rows.filter((row) => row.state === "scheduled").length,
+      unavailableGwhD: now.reduce((sum, row) => sum + (row.gwhD ?? 0), 0),
+    };
+  }, [outageEvents.events, rawSituation, scope, selection]);
   const nodeByName = useMemo(() => {
     const byName = new Map<string, (typeof nodes)[number]>();
     for (const node of nodes) byName.set(normalizePointName(node.name), node);
@@ -406,6 +422,7 @@ export function NetworkWorkspace({
       onInspect={openNodeInspector}
       t={t as (key: string, options?: Record<string, unknown>) => string}
       outagesListed
+      zoneOutages={zoneOutages}
     />
   ) : null;
   // Phone width: the panel is a sheet under the map; its handle moves the split.
@@ -1005,6 +1022,7 @@ export function NetworkWorkspace({
         </button>
         <NetworkInfoPanel
           t={t as (key: string, options?: Record<string, unknown>) => string}
+          outages={outageEvents}
           language={language}
           tab={activePanelTab}
           onTab={setPanelTab}

@@ -48,6 +48,8 @@ type CapacityData = Omit<CapacityWorkspaceProps, "t" | "scope" | "selectedKey" |
 
 interface NetworkInfoPanelProps {
   t: Translate;
+  /** The outage events (`useOutageEvents`), read once by the page for the list and the hub card. */
+  outages: ReturnType<typeof useOutageEvents>;
   language: string;
   tab: NetworkPanelTab;
   onTab: (tab: NetworkPanelTab) => void;
@@ -71,7 +73,7 @@ interface NetworkInfoPanelProps {
 }
 
 /** The outage list: one row per event, from the server's grouping. */
-function useOutageEvents() {
+export function useOutageEvents() {
   const [events, setEvents] = useState<OutageEventDTO[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +104,7 @@ function figure(value: number | null, digits = 1): string {
 
 export function NetworkInfoPanel({
   t,
+  outages,
   language,
   tab,
   onTab,
@@ -121,7 +124,7 @@ export function NetworkInfoPanel({
   book,
   footer,
 }: NetworkInfoPanelProps) {
-  const { events, note, error } = useOutageEvents();
+  const { events, note, error } = outages;
   const [outageFilter, setOutageFilter] = useState<OutageFilter>("live");
   const nowMs = Date.now();
 

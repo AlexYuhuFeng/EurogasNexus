@@ -1698,9 +1698,22 @@
     font-weight: var(--ds-weight-medium);
   }
 
+  /* Disabled is drawn with the disabled tokens, not by fading the whole control: a faded
+     primary button reads as a live one at half contrast, and a fade caught mid-change is a
+     colour no token defines. */
   button:disabled {
     cursor: not-allowed;
-    opacity: 0.5;
+    color: var(--ds-text-disabled);
+  }
+
+  button.primary:disabled,
+  .button-primary:disabled,
+  button[type="submit"]:disabled,
+  .workspace-page-header-actions [data-primary-action]:disabled,
+  .workspace-page-header-actions [data-primary-action] button:disabled {
+    border-color: var(--ds-border);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-disabled);
   }
 
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
@@ -3163,7 +3176,7 @@
  *   hover    a quiet tint or a stronger border; never a shadow, never movement
  *   press    one step darker, settles 0.5 px (felt, not seen)
  *   focus    the 2 px focus ring, keyboard only (:focus-visible)
- *   disabled half opacity and a not-allowed cursor, no hover response
+ *   disabled the disabled tokens (no fade) and a not-allowed cursor, no hover response
  * Shadows mean elevation (panels rest on the canvas, menus and dialogs float above it),
  * so a button never gains one on hover. */
 @layer ds-components {

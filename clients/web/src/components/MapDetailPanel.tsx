@@ -18,6 +18,14 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 const n = (value: number | null | undefined, digits = 0) =>
   value == null || !Number.isFinite(value) ? "–" : value.toLocaleString("en-GB", { maximumFractionDigits: digits });
 
+
+/** A zone's outage events, counted by the page that lists them (one rule with its list). */
+export interface ZoneOutageCounts {
+  outagesNow: number;
+  outagesPlanned: number;
+  unavailableGwhD: number;
+}
+
 function when(value: string | null | undefined): string {
   if (!value) return "–";
   const date = new Date(value);
@@ -139,9 +147,11 @@ function SiteDetail({ site, edges, situation, t, outagesListed = false }: { site
   );
 }
 
-function HubDetail({ hub, rows, situation, nodes, edges, t }: { hub: string; rows: readonly NormalizedMarketObsDTO[]; situation: MapSituationDTO | null; nodes: readonly NodeDTO[]; edges: readonly EdgeDTO[]; t: Translate }) {
+function HubDetail({ hub, rows, situation, nodes, edges, t, zoneOutages }: { hub: string; rows: readonly NormalizedMarketObsDTO[]; situation: MapSituationDTO | null; nodes: readonly NodeDTO[]; edges: readonly EdgeDTO[]; t: Translate; zoneOutages?: ZoneOutageCounts | null }) {
   const prices = hubPrices(hub, rows);
-  const zone = hubZone(hub, situation, { nodes, edges });
+  // The page's own outage events for the zone, when it lists them (the Network panel): placed on
+  // the map or not, so the card and the list beside it count the same events.
+  const zone = { ...hubZone(hub, situation, { nodes, edges }), ...(zoneOutages ?? {}) };
   const countries = Object.entries(ZONE_HUB).filter(([, code]) => code === hub).map(([country]) => country);
   return (
     <>
@@ -249,6 +259,7 @@ export function MapDetailPanel({
   onInspect,
   t,
   outagesListed = false,
+  zoneOutages = null,
 }: {
   selection: MapSelection;
   sites: readonly Site[];
@@ -262,6 +273,8 @@ export function MapDetailPanel({
   t: Translate;
   /** The page lists the object's outages beside the card (the Network panel): one place. */
   outagesListed?: boolean;
+  /** A hub's outage counts from the page's own event list (placed or not), in place of the map's. */
+  zoneOutages?: ZoneOutageCounts | null;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -275,7 +288,7 @@ export function MapDetailPanel({
     const site = sites.find((item) => item.id === selection.id);
     if (site) body = <SiteDetail site={site} edges={edges} situation={situation} t={t} outagesListed={outagesListed} />;
   } else if (selection.kind === "hub") {
-    body = <HubDetail hub={selection.id} rows={marketRows} situation={situation} nodes={nodes} edges={edges} t={t} />;
+    body = <HubDetail hub={selection.id} rows={marketRows} situation={situation} nodes={nodes} edges={edges} t={t} zoneOutages={zoneOutages} />;
   } else {
     const cargo = situation?.cargoes.find((item) => item.cargo_id === selection.id);
     if (cargo) body = <CargoDetail cargo={cargo} situation={situation} t={t} />;
