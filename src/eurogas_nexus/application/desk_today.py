@@ -536,9 +536,15 @@ def _outages(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
     from eurogas_nexus.application.remit_outages import load_outage_rows
     from eurogas_nexus.db.models import RemitUmmRecord
     from eurogas_nexus.domain.dataops.entitlement import filter_rows_for_principal
+    from eurogas_nexus.domain.observations.remit_umm import outage_events
 
-    rows = filter_rows_for_principal(
-        caller.principal, load_outage_rows(session, now=now, horizon_days=OUTAGE_HORIZON_DAYS)
+    # One row per event (the outage list's rule): messages naming the same asset, period and
+    # size are one outage, counted and listed once with every operator named.
+    rows = outage_events(
+        filter_rows_for_principal(
+            caller.principal,
+            load_outage_rows(session, now=now, horizon_days=OUTAGE_HORIZON_DAYS),
+        )
     )
     received = session.query(func.max(RemitUmmRecord.ingested_at_utc)).scalar()
     definition = definition_by_id("src-remit-umm")
@@ -588,6 +594,8 @@ def _outages(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
                 "unit": "GWh/d" if gwh is not None else row.get("unit"),
                 "as_of": row.get("published_at_utc"),
                 "simulated": str(row.get("source_reference") or "").lower().startswith("demo"),
+                "operators": row.get("operators") or [],
+                "message_count": row.get("message_count") or 1,
                 "why": {"subject": "outage", "id": str(row["event_id"])},
             }
         )

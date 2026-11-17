@@ -483,8 +483,9 @@ def outage_view(
     """Events running now or starting within ``horizon_days``, soonest first.
 
     Rows keep the ``OutageEvent`` fields the SDK reads and add the REMIT detail. With
-    ``ended_since`` (a report's period start), events that ended after it and by ``now`` are
-    kept too, with status ``ended``; the live views never pass it.
+    ``ended_since``, events that ended after it and by ``now`` are kept too, with status
+    ``ended``, after the others: a report's period start, or the Network page's "Ended
+    recently" window. The live views never pass it.
     """
 
     from datetime import timedelta
@@ -509,7 +510,7 @@ def outage_view(
             asset_type=m.asset_type,
             start=m.event_start_utc,
             stop=m.event_stop_utc,
-            at=max(now, m.event_start_utc),
+            at=m.event_start_utc if ended else max(now, m.event_start_utc),
         )
         if figure.gwh_d is None and m.unavailable_gwh_d is not None:
             # A figure the message was stored with (an import that stated GWh/d beside a
@@ -553,5 +554,93 @@ def outage_view(
                 "research_only": True,
             }
         )
-    rows.sort(key=lambda row: (row["status"] != "active", str(row["start_utc"])))
+    order = {"active": 0, "scheduled": 1, "ended": 2}
+    rows.sort(key=lambda row: (order[str(row["status"])], str(row["start_utc"])))
     return rows
+
+
+def _event_asset_keys(row: Mapping[str, object]) -> list[str]:
+    keys = []
+    eic = str(row.get("facility_id") or "").strip().casefold()
+    if eic:
+        keys.append(f"eic:{eic}")
+    name = re.sub(r"[^0-9a-z]", "", str(row.get("facility_name") or "").casefold())
+    if name:
+        keys.append(f"name:{name}")
+    return keys
+
+
+def _event_shape(row: Mapping[str, object]) -> tuple[str, str, str]:
+    """Period (to the minute) and size of an outage row, as compared for one event."""
+
+    def minute(value: object) -> str:
+        return str(value or "")[:16]
+
+    gwh = row.get("unavailable_gwh_d")
+    size = (
+        f"gwh_d:{float(gwh):.1f}"
+        if isinstance(gwh, int | float)
+        else f"raw:{row.get('unavailable_capacity')}:{row.get('unit') or ''}"
+    )
+    return minute(row.get("start_utc")), minute(row.get("end_utc")), size
+
+
+def outage_events(rows: Iterable[Mapping[str, object]]) -> list[dict[str, object]]:
+    """One row per outage event: messages that describe the same reduction collapse.
+
+    The rule (docs/operations/REMIT_OUTAGES.md, "One row per event"): two rows (each already
+    the latest version of its message, ``current_messages``) are one event when they name the
+    same asset - the same asset EIC, or the same asset name compared without case, spaces or
+    punctuation - for the same period (start and stop to the minute, an open stop matching
+    only an open stop) and the same size (the daily figure in GWh/d to 0.1, or the published
+    capacity and unit where no daily figure exists). Direction is not compared: the two
+    operators at an interconnection point publish its exit and its entry side. Matching is
+    transitive. The event row is the most recently published member (then the highest
+    version, then the largest message id); it adds ``messages`` (every member's message id,
+    sorted), ``operators`` (every member's market participant, sorted, de-duplicated) and
+    ``message_count``. Rows keep the input order of their event's first member.
+    """
+
+    rows = [dict(row) for row in rows]
+    parent = list(range(len(rows)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    seen: dict[tuple[str, str, str, str], int] = {}
+    for index, row in enumerate(rows):
+        shape = _event_shape(row)
+        for asset in _event_asset_keys(row):
+            key = (asset, *shape)
+            if key in seen:
+                parent[find(index)] = find(seen[key])
+            else:
+                seen[key] = index
+    groups: dict[int, list[int]] = {}
+    for index in range(len(rows)):
+        groups.setdefault(find(index), []).append(index)
+    events = []
+    for members in sorted(groups.values(), key=lambda indices: indices[0]):
+        lead = max(
+            (rows[index] for index in members),
+            key=lambda row: (
+                str(row.get("published_at_utc") or ""),
+                int(row.get("version") or 0),
+                str(row.get("event_id") or ""),
+            ),
+        )
+        event = dict(lead)
+        event["messages"] = sorted(str(rows[index].get("event_id")) for index in members)
+        event["operators"] = sorted(
+            {
+                str(rows[index].get("market_participant") or "").strip()
+                for index in members
+                if str(rows[index].get("market_participant") or "").strip()
+            }
+        )
+        event["message_count"] = len(members)
+        events.append(event)
+    return events

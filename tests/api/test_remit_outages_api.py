@@ -64,3 +64,40 @@ def test_outages_show_latest_version_of_live_and_upcoming_events(tmp_path, monke
         ("UMM-NEXT", "scheduled"),
     ]
     assert rows[0]["capacity_impact_mcm_d"] == 25 and rows[0]["facility_name"] == "Nyhamna"
+
+
+def test_grouped_outages_are_one_row_per_event_and_recently_ended_on_request(tmp_path, monkeypatch):
+    database_url = f"sqlite+pysqlite:///{(tmp_path / 'remit.sqlite').as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC).replace(microsecond=0)
+    start, stop = now - timedelta(hours=3), now + timedelta(days=2)
+    export = [
+        _row("UMM-A", 1, start, stop),
+        # A second message on the same asset, period and size: the same event.
+        _row("UMM-B", 1, start, stop),
+        _row("UMM-OTHER", 1, start, stop + timedelta(days=1)),
+        _row("UMM-ENDED", 1, now - timedelta(days=3), now - timedelta(days=1)),
+    ]
+    with Session(engine) as session:
+        for message in parse_umm_export(json.dumps(export), source_reference="fixture"):
+            session.add(
+                RemitUmmRecord(**message.as_record(), source_system="REMIT", ingested_at_utc=now)
+            )
+        session.commit()
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    client = TestClient(create_app(), headers={"X-Eurogas-Api-Key": "test-public-api-token"})
+
+    plain = client.get("/api/physical/outages").json()["data"]
+    assert sorted(row["event_id"] for row in plain) == ["UMM-A", "UMM-B", "UMM-OTHER"]
+
+    grouped = client.get("/api/physical/outages?grouped=true&ended_days=7").json()["data"]
+    assert [(row["status"], row["message_count"]) for row in grouped] == [
+        ("active", 2),
+        ("active", 1),
+        ("ended", 1),
+    ]
+    assert grouped[0]["messages"] == ["UMM-A", "UMM-B"]
+    assert grouped[2]["event_id"] == "UMM-ENDED"

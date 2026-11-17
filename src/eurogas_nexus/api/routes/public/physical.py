@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -209,6 +209,8 @@ def list_outages(
     request: Request,
     horizon_days: int = Query(90, ge=1, le=366),
     asset_type: str | None = Query(None, max_length=16),
+    grouped: bool = Query(False),
+    ended_days: int = Query(0, ge=0, le=30),
 ) -> dict:
     """Live and upcoming gas facility outages from imported REMIT UMMs, soonest first.
 
@@ -216,6 +218,10 @@ def list_outages(
 
     The latest version of each message is used and dismissed events are dropped. Capacity
     stays in the message's unit; ``capacity_impact_mcm_d`` is filled only for volume units.
+    ``grouped=true`` returns one row per event (``remit_umm.outage_events``: messages naming
+    the same asset, period and size collapse, with ``messages``, ``operators`` and
+    ``message_count``); ``ended_days`` also returns events ended within that many days
+    (status ``ended``).
     """
 
     from eurogas_nexus.application.remit_outages import load_outage_rows
@@ -233,7 +239,13 @@ def list_outages(
 
         with get_session_factory()() as session:
             rows = load_outage_rows(
-                session, now=now, horizon_days=horizon_days, asset_type=asset_type
+                session,
+                now=now,
+                horizon_days=horizon_days,
+                asset_type=asset_type,
+                # A thin convenience over the one "ended" rule (``ended_since``), which the
+                # reports also use for outages that ended within a report period.
+                ended_since=now - timedelta(days=ended_days) if ended_days else None,
             )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
@@ -241,6 +253,10 @@ def list_outages(
     from eurogas_nexus.domain.observations.remit_umm import outage_unit_summary
 
     rows = filter_rows(request, rows)
+    if grouped:
+        from eurogas_nexus.domain.observations.remit_umm import outage_events
+
+        rows = outage_events(rows)
     summary = outage_unit_summary(rows)
     warnings = (
         []
