@@ -20,16 +20,37 @@ backend authorises.
 | Business analyst | ANALYST | Market → Curves | Fundamentals, storage vs target, scenarios |
 | Quant researcher | ANALYST | Strategy Lab → Design | Spread and benchmark research, backtests |
 | Risk manager (middle office) | ANALYST + REVIEWER | Portfolio → Exposure | Net position by delivery period (physical + financial), limits, open decisions; challenges and reviews decisions |
-| Finance & settlement (back office) | ANALYST | Portfolio → Exposure | Cash timing, payment lags, financing (SONIA/€STR/SOFR + spread), FX fixes |
+| Finance & settlement (back office) | VIEWER (reads only) | Portfolio → Exposure | Cash timing, payment lags, financing (SONIA/€STR/SOFR + spread), FX fixes |
 | Legal & compliance | REVIEWER | Decision Center → Review | Decision records and evidence, contract terms, data-licence entitlements |
 | Management | ANALYST or REVIEWER | Portfolio → Overview | Portfolio footprint, P&L, exposure summary, decisions needing attention |
 | Decision reviewer | REVIEWER | Decision Center → Review | Cases awaiting a decision |
 | Data operator | OPERATOR | Administration → Sources | Source health, ingestion, certification |
+| Originator / structurer | ANALYST | Deals → Evaluate | Deal economics, LNG cargo bids, supply contracts, cases they opened |
+| Operations (deliveries, scheduling) | VIEWER or ANALYST | Book → Delivery | Delivered against contracted, nomination deadlines, outages at delivery points |
 | Platform administrator | ADMIN | Administration → Access | Users, roles, keys, audit |
 
 People hold several functions (a senior trader may also be a reviewer); the first
 declared function picks the home screen. A URL or a saved personal preference always
 wins over the persona home.
+
+Originator and Operations were added by the role-first redesign (decision D4,
+`docs/product/ROLE_FIRST_REDESIGN.md`). Like every job function they are composition
+only: declaring one changes no permission of any role (`tests/security/test_experience_profile.py`).
+An originator prices deals, so the role must already allow scenario work (ANALYST);
+operations reads the book and the network, so a read-only role can hold it. Nothing in
+the product nominates; operations sees nomination deadlines as information.
+
+### What a job function composes (client)
+
+`clients/web/src/app/experience/roleComposition.ts` maps the first declared job function
+to a default composition: the landing, a shortlist of at most four tasks, per-page panel
+defaults (open, folded, hidden), the order of Today's rows and the audience of the
+situational strip under the top bar (what may appear there). Two rules hold and are unit
+tested: what is shown is the registry **and** the permission (the registry can drop a
+task or panel, never add one the role cannot open), and a person with no declared
+function gets a composition derived from their permissions (ANALYST → trader,
+REVIEWER → reviewer, VIEWER → read-only desk head, an administrator without a commercial
+role → platform administration).
 
 ## Segregation of duties
 

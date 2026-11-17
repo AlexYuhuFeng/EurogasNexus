@@ -114,6 +114,8 @@ TESTERS: tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...], str], ...]
     ("demo.finance", "Demo finance", "VIEWER", ("VIEWER",), ("FINANCE_SETTLEMENT",), "UK"),
     ("demo.compliance", "Demo compliance", "REVIEWER", ("REVIEWER",), ("LEGAL_COMPLIANCE",), "UK"),
     ("demo.ops", "Demo data operations", "OPERATOR", ("OPERATOR",), ("DATA_OPERATOR",), "UK"),
+    ("demo.originator", "Demo originator", "ANALYST", ("ANALYST",), ("ORIGINATOR",), "UK"),
+    ("demo.operations", "Demo operations", "VIEWER", ("VIEWER",), ("OPERATIONS",), "UK"),
     (
         "demo.admin",
         "Demo platform administrator",

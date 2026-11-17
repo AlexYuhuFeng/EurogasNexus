@@ -193,6 +193,11 @@ class FunctionalAssignment(StrEnum):
     MANAGEMENT = "MANAGEMENT"
     DATA_OPERATOR = "DATA_OPERATOR"
     PLATFORM_ADMINISTRATOR = "PLATFORM_ADMINISTRATOR"
+    # Composition only (role-first redesign, decision D4): an originator / structurer and a
+    # middle-office operations (scheduling, deliveries) person. They choose a landing page and
+    # a default composition; they grant nothing and need nothing beyond what the role holds.
+    ORIGINATOR = "ORIGINATOR"
+    OPERATIONS = "OPERATIONS"
 
 
 class WorkMode(StrEnum):
@@ -253,6 +258,14 @@ ASSIGNMENT_CAPABILITIES: dict[FunctionalAssignment, frozenset[Capability]] = {
     ),
     FunctionalAssignment.DATA_OPERATOR: frozenset({Capability.PROVIDER_INGESTION_OPERATE}),
     FunctionalAssignment.PLATFORM_ADMINISTRATOR: frozenset({Capability.ACCESS_MANAGE}),
+    # Deals, LNG cargoes and supply contracts: prices, the book and the scenario it is priced in.
+    FunctionalAssignment.ORIGINATOR: frozenset(
+        {Capability.MARKET_READ, Capability.PORTFOLIO_READ, Capability.SCENARIO_DESIGN}
+    ),
+    # Deliveries, nomination deadlines and reconciliation: reads of the book and the network.
+    FunctionalAssignment.OPERATIONS: frozenset(
+        {Capability.MARKET_READ, Capability.PORTFOLIO_READ}
+    ),
 }
 
 #: Where each job function lands and what it reads first (client workspace page id and
@@ -268,6 +281,8 @@ ASSIGNMENT_HOME: dict[FunctionalAssignment, tuple[str, str]] = {
     FunctionalAssignment.REVIEWER_MANAGEMENT: ("review", "review"),
     FunctionalAssignment.DATA_OPERATOR: ("sources", "sources"),
     FunctionalAssignment.PLATFORM_ADMINISTRATOR: ("access", "access"),
+    FunctionalAssignment.ORIGINATOR: ("scenario", "scenario"),
+    FunctionalAssignment.OPERATIONS: ("contracts", "delivery"),
 }
 
 #: Home-office codes and their local time zone (display only today).

@@ -552,6 +552,8 @@ export const JOB_FUNCTIONS = [
   "REVIEWER_MANAGEMENT",
   "DATA_OPERATOR",
   "PLATFORM_ADMINISTRATOR",
+  "ORIGINATOR",
+  "OPERATIONS",
 ] as const;
 
 export const OFFICES = ["UK", "CA", "SG", "CN", "NL", "DE", "CH"] as const;

@@ -339,3 +339,36 @@ def test_a_declared_function_the_role_cannot_support_is_unsatisfied() -> None:
     assert profile.functional_assignments == ()
     assert profile.unsatisfied_job_functions == (FunctionalAssignment.RISK_MANAGER,)
     assert profile.home is None
+
+
+def test_originator_and_operations_are_composition_only() -> None:
+    """D4: two job functions that choose a landing and a composition and grant nothing."""
+
+    from dataclasses import replace
+
+    for role in ("VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"):
+        plain = _principal(role, scopes=("EEX",))
+        for name in ("ORIGINATOR", "OPERATIONS"):
+            declared = replace(plain, job_functions=(name,))
+            # Declaring the function changes no permission and no capability of any role.
+            assert permissions_for_principal(declared) == permissions_for_principal(plain)
+            assert capabilities_for_principal(declared) == capabilities_for_principal(plain)
+            profile = build_experience_profile(declared)
+            assert profile_stays_within_role_permissions(declared, profile)
+            assert set(profile.effective_capabilities) == capabilities_for_principal(plain)
+
+    # The originator prices deals (scenario design), so the role must already hold it.
+    analyst = replace(_principal("ANALYST", scopes=("EEX",)), job_functions=("ORIGINATOR",))
+    assert build_experience_profile(analyst).home == ("scenario", "scenario")
+    viewer = replace(_principal("VIEWER", scopes=("EEX",)), job_functions=("ORIGINATOR",))
+    assert build_experience_profile(viewer).unsatisfied_job_functions == (
+        FunctionalAssignment.ORIGINATOR,
+    )
+    # Operations reads the book and the network: a read-only role can hold it.
+    ops = replace(_principal("VIEWER", scopes=("EEX",)), job_functions=("OPERATIONS",))
+    profile = build_experience_profile(ops)
+    assert profile.functional_assignments == (FunctionalAssignment.OPERATIONS,)
+    assert profile.home == ("contracts", "delivery")
+    # A platform administrator without a commercial role cannot hold either.
+    admin = replace(_principal("ADMIN"), job_functions=("ORIGINATOR", "OPERATIONS"))
+    assert build_experience_profile(admin).functional_assignments == ()

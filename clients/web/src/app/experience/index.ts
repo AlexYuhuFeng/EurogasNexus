@@ -152,6 +152,36 @@ export {
 } from "./experienceProfile.ts";
 
 export {
+  COMPOSITION_IDS,
+  JOB_FUNCTION_COMPOSITION,
+  JOB_FUNCTION_IDS,
+  MAX_SHORTLIST,
+  ROLE_COMPOSITIONS,
+  ROLE_COMPOSITION_GRANTS_AUTHORITY,
+  STRIP_AUDIENCES,
+  TODAY_ROW_KEYS,
+  composedLanding,
+  composedShortlist,
+  composedTodayRows,
+  declaredJobFunctions,
+  fallbackComposition,
+  isJobFunctionId,
+  moreTasks,
+  panelDefault,
+  placeKey,
+  placeVisible,
+  resolveComposition,
+  type CompositionId,
+  type JobFunctionId,
+  type PanelDefault,
+  type PlaceRef,
+  type ResolvedComposition,
+  type RoleComposition,
+  type StripAudience,
+  type TodayRowKey,
+} from "./roleComposition.ts";
+
+export {
   apiErrorBodyFrom,
   describeApiError,
   describeFailure,
