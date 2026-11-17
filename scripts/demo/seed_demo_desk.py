@@ -59,6 +59,7 @@ from eurogas_nexus.db.models import (
     ScreenOrderObservationRecord,
     TraderMandateRecord,
     TradingBookRecord,
+    TsoTariffRecord,
     UpstreamResourceContractRecord,
 )
 from eurogas_nexus.db.models.observation import LngObservationRecord, StorageObservationRecord
@@ -175,8 +176,28 @@ def _gas_year_label(kind: str, today: date) -> str:
     return f"{current}/{(current + 1) % 100:02d}"
 
 
+#: A cross-border position for the demo map and the route pricing: gas bought at TTF and sold
+#: at NBP through BBL, the one TTF -> NBP crossing (GTS exit at Balgzand, BBL forward flow,
+#: National Gas entry at Bacton). Fictional, like the rest of the desk.
+CROSS_BORDER_CONTRACT = "demo-kestrel-uk-6"
+CROSS_BORDER_ROUTE = "demo-route-ttf-nbp-bbl"
+#: Simulated tariffs for that crossing, one per leg, for a demo without published tariffs.
+#: SIMULATOR_ONLY (the lowest status: a published row always wins the selection) and removed
+#: by ``retire_simulated_series`` once a published row names the same operator, point and
+#: direction. Magnitudes are of the order the published GTS and BBL rows show; not market data.
+SIMULATED_TARIFF_DOCUMENT = "demo-simulated-tariffs"
+SIMULATED_TARIFFS = (
+    ("NL", "GTS", "ITP-00063", "Julianadorp (GTS) /Balgzand (BBL)", "EXIT", 0.56),
+    ("GB", "BBL company", "ITP-00207", "Bacton (BBL)", "EXIT", 1.20),
+    ("GB", "National Gas TSO", "ITP-00207", "Bacton (BBL)", "ENTRY", 0.12),
+)
+
+
 def _clear(session) -> None:
-    ids = [row[0] for row in CONTRACTS]
+    ids = [row[0] for row in CONTRACTS] + [CROSS_BORDER_CONTRACT]
+    session.query(TsoTariffRecord).filter(
+        TsoTariffRecord.document_id == SIMULATED_TARIFF_DOCUMENT
+    ).delete(synchronize_session=False)
     session.query(ContractDeliveryRecord).filter(
         ContractDeliveryRecord.contract_id.in_(ids)
     ).delete(synchronize_session=False)
@@ -629,8 +650,118 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
             created_at_utc=now,
         )
     )
+    _seed_cross_border_position(session, now, today)
     seed_market_around_the_book(session, now, rng, history_days=history_days)
     return sizing
+
+
+def _seed_cross_border_position(session, now: datetime, today: date) -> None:
+    """A TTF contract whose only sale is NBP through BBL, its route, and simulated tariffs."""
+
+    label = _gas_year_label("current", today)
+    session.add(
+        UpstreamResourceContractRecord(
+            contract_id=CROSS_BORDER_CONTRACT,
+            contract_name="Kestrel UK leg (TTF to NBP via BBL)",
+            resource_type="PIPELINE_IMPORT",
+            delivery_point_name="TTF",
+            gas_year=label,
+            delivery_quantity_mwh_per_day=6_000.0,
+            contract_price_gbp_mwh=34.10,
+            contract_price_currency="EUR",
+            settlement_frequency="monthly",
+            upstream_payment_lag_days=20,
+            screen_sale_cash_lag_days=1,
+            delivery_tolerance_pct=5.0,
+            nomination_tolerance_pct=2.0,
+            tolerance_risk_allowance_gbp_mwh=None,
+            annual_financing_rate_pct=5.0,
+            owned_entry_capacity_mwh_per_day=6_600.0,
+            owned_exit_capacity_mwh_per_day=6_600.0,
+            allowed_exit_points=["NBP"],
+            eligible_sale_modes=["LOCAL_MARKET_SALE"],
+            notes="Demo contract (fictional): sold at NBP through BBL.",
+            book_id="demo-nl-ttf",
+            created_at_utc=now,
+            updated_at_utc=now,
+        )
+    )
+    # The route names its crossing (Bacton BBL); the legs come from the market-area graph.
+    session.add(
+        RouteCandidateRecord(
+            route_id=CROSS_BORDER_ROUTE,
+            route_name="TTF -> BBL -> NBP (demo)",
+            start_point_name="TTF",
+            target_point_name="NBP",
+            business_model="CROSS_BORDER_TRANSFER",
+            route_legs=[
+                {
+                    "leg_id": "demo-bbl-capacity",
+                    "country": "GB",
+                    "tso": "BBL company",
+                    "point_name": "Bacton (BBL)",
+                    "direction": "EXIT",
+                    "point_key": "ITP-00207",
+                    "available_capacity_mwh_per_day": 6_600.0,
+                    "capacity_product": "ANNUAL",
+                    "firmness": "FIRM",
+                }
+            ],
+            required_entry_point_name=None,
+            required_exit_point_name=None,
+            required_tso_access=[],
+            source_systems=["demo_route_template"],
+            active=True,
+            created_at_utc=now,
+        )
+    )
+    start = date(today.year if today.month >= 10 else today.year - 1, 10, 1)
+    for country, tso, point, name, direction, value in SIMULATED_TARIFFS:
+        session.add(
+            TsoTariffRecord(
+                tariff_id=f"demo-sim-{tso}-{point}-{direction}".lower().replace(" ", "-"),
+                document_id=SIMULATED_TARIFF_DOCUMENT,
+                country=country,
+                tso=tso,
+                market_area="DEMO",
+                gas_year=label,
+                point_id=point,
+                source_point_name=name,
+                direction=direction,
+                capacity_product="ANNUAL",
+                firmness="FIRM",
+                tariff_value=value,
+                currency="EUR",
+                unit="EUR/MWh",
+                effective_from=datetime.combine(start, datetime.min.time(), tzinfo=UTC),
+                effective_to=None,
+                tariff_status="SIMULATOR_ONLY",
+                source_table="Simulated demo tariff: not a published tariff",
+                source_page=None,
+                source_refs=[f"{SOURCE}:simulated-tariff"],
+                manual_review_required=True,
+                created_at_utc=now,
+            )
+        )
+
+
+def retire_simulated_tariffs(session) -> int:
+    """Delete simulated demo tariffs whose leg a published row now names; idempotent."""
+
+    published = {
+        (row.tso.strip().lower(), row.point_id, row.direction.upper())
+        for row in session.query(TsoTariffRecord).filter(
+            TsoTariffRecord.document_id != SIMULATED_TARIFF_DOCUMENT
+        )
+    }
+    retired = 0
+    for row in session.query(TsoTariffRecord).filter(
+        TsoTariffRecord.document_id == SIMULATED_TARIFF_DOCUMENT
+    ):
+        if (row.tso.strip().lower(), row.point_id, row.direction.upper()) in published:
+            session.delete(row)
+            retired += 1
+    return retired
 
 
 # ---------------------------------------------------------------------------
@@ -1001,6 +1132,9 @@ def retire_simulated_series(session) -> dict[str, int]:
                 )
         if count:
             removed[name] = count
+    tariffs = retire_simulated_tariffs(session)
+    if tariffs:
+        removed["tariffs"] = tariffs
     session.flush()
     return removed
 
