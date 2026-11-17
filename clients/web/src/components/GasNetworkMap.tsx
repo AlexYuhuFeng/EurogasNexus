@@ -2124,7 +2124,7 @@ export function GasNetworkMap({
           t={t as (key: string, options?: Record<string, unknown>) => string}
         />
       )}
-      {mapReady && !(selection && detailCard) && !compact && (
+      {mapReady && !(selection && detailCard) && !compact && !phoneWidth && (
         <div className="map-zoom-tier" role="status" aria-live="polite">
           {view === "network" && (
             <>
