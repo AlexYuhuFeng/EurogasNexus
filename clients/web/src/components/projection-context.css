@@ -237,7 +237,8 @@
     gap: var(--ds-space-3);
   }
 
-  .trading-context-sheet-fields label {
+  .trading-context-sheet-fields label,
+  .projection-context .trading-context-controls .trading-context-sheet-fields label {
     display: grid;
     gap: var(--ds-space-1);
   }
@@ -247,7 +248,8 @@
     font-size: var(--ds-text-sm);
   }
 
-  .trading-context-sheet-fields :is(input, select) {
+  .trading-context-sheet-fields :is(input, select),
+  .projection-context .trading-context-controls .trading-context-sheet-fields :is(input, select) {
     width: 100%;
     height: var(--ds-control-touch);
     min-height: var(--ds-control-touch);
