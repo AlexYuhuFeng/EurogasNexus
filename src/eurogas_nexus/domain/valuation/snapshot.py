@@ -356,6 +356,7 @@ class RecordingReader:
             reason="tariff not held",
             point_id=point_id,
         )
+        return missing(key, InputKind.TARIFF, f"{point_id} {direction} {product}")
 
     def _load_capacity(self, key, point_id, direction, period) -> SnapshotInput:
         return missing(key, InputKind.CAPACITY, f"{point_id} {direction}")

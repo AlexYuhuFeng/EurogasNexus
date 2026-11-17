@@ -16,6 +16,7 @@ Checks:
   book scope and source entitlement; running an evaluation and opening a case GOVERNED;
   thresholds REVIEW with the REVIEWER role held itself; statistics need review read; no
   order, nomination or instruction exists); and, before them,
+  and, measured on its own branch, after
   the CP-07 routes: `/api/assumption-sets` (READ; writing a draft GOVERNED with the
   portfolio-assumption write permission; approving REVIEW with the REVIEWER role held itself
   and four eyes), `PUT /api/market/firm-marks` (GOVERNED, portfolio-assumption write) and

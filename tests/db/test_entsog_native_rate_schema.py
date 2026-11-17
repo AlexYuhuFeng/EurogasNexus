@@ -277,6 +277,7 @@ def test_schema_revision_and_model_native_contract():
     assert migration.revision == "0044_entsog_native_rates"
     assert DB_SCHEMA_REVISION == "0067_opportunities"
     assert DB_SCHEMA_REVISION == "0066_installation_setup"
+    assert DB_SCHEMA_REVISION == "0066_commercial_assumptions"
     assert migration.down_revision == "0043_national_gas_rest_evidence"
 
     for model, volume_column, check_name in (
