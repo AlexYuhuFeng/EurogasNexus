@@ -40,8 +40,9 @@ export default defineConfig({
       ignored: [/[\\/]\.[^\\/]+\.tmpdir(?:[\\/]|$)/],
     },
     proxy: {
+      "/api": "http://127.0.0.1:8000",
       // EUROGAS_API_PROXY_TARGET lets a second local stack run beside the default one.
-      "/api": process.env.EUROGAS_API_PROXY_TARGET || "http://127.0.0.1:8000",
+      ...(process.env.EUROGAS_API_PROXY_TARGET ? { "/api": process.env.EUROGAS_API_PROXY_TARGET } : {}),
     },
   },
   // Name the runtime dependencies so the dev server pre-bundles them in its first pass. A
