@@ -5,7 +5,7 @@
  * stored and sent in UTC.
  */
 import { create } from "zustand";
-import { isTimeZonePreference, type TimeZonePreference } from "@/app/time/timeFormat";
+import { isTimeZonePreference, type TimeZonePreference } from "../app/time/timeFormat.ts";
 
 export const TIME_ZONE_STORAGE_KEY = "eurogas.time_zone.v1";
 

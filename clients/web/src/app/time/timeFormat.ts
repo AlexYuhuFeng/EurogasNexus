@@ -83,6 +83,23 @@ export function zoneAbbreviation(instant: Date, timeZone: string): string {
   }
 }
 
+/** The desk's month names in English ("Sep", never ICU's "Sept"); Chinese uses its own form. */
+const EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function yearOf(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric" }).format(instant);
+}
+
+function shortDate(instant: Date, timeZone: string, locale: string, withYear: boolean): string {
+  if (locale === "zh-CN") {
+    return new Intl.DateTimeFormat(locale, { timeZone, day: "numeric", month: "short", year: withYear ? "numeric" : undefined }).format(instant);
+  }
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(instant);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  const text = `${Number(part("day"))} ${EN_MONTHS[Number(part("month")) - 1]}`;
+  return withYear ? `${text} ${part("year")}` : text;
+}
+
 function dayKey(instant: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(instant);
 }
@@ -114,24 +131,17 @@ export function formatInstant(
     hourCycle: "h23",
   }).format(instant);
   const date = showDate
-    ? new Intl.DateTimeFormat(locale, {
-        timeZone,
-        day: "numeric",
-        month: "short",
-        year: instant.getUTCFullYear() !== now.getUTCFullYear() ? "numeric" : undefined,
-      }).format(instant)
+    ? shortDate(instant, timeZone, locale, options.date === "always" || yearOf(instant, timeZone) !== yearOf(now, timeZone))
     : "";
   const text = `${date ? `${date} ` : ""}${time} ${zone}`;
-  const full = `${new Intl.DateTimeFormat(locale, {
+  const fullTime = new Intl.DateTimeFormat(locale, {
     timeZone,
-    year: "numeric",
-    month: "short",
-    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hourCycle: "h23",
-  }).format(instant)} ${zone}`;
+  }).format(instant);
+  const full = `${shortDate(instant, timeZone, locale, true)} ${fullTime} ${zone}`;
   const utc = `${instant.toISOString().slice(0, 19).replace("T", " ")} UTC`;
   return {
     text,
@@ -146,10 +156,5 @@ export function formatGasDay(gasDay: string | null | undefined, language: string
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(gasDay ?? ""));
   if (!match) return String(gasDay ?? "");
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return new Intl.DateTimeFormat(formattingLocale(language), {
-    timeZone: "UTC",
-    day: "numeric",
-    month: "short",
-    year: withYear ? "numeric" : undefined,
-  }).format(date);
+  return shortDate(date, "UTC", formattingLocale(language), withYear);
 }

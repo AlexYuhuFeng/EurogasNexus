@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
+import { displayTime } from "@/app/time/displayTime";
 import { EvidenceBlock, MetricStrip, PanelHeader } from "@/components/ui";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import {
   StrategyBasisExposureLadder,
   StrategyContractPnlAttribution,
@@ -56,7 +56,7 @@ function formatSignedMoney(value: number | null | undefined): string {
 }
 
 function formatInstant(value: string | null | undefined): string {
-  return formatUtcTimestamp(value);
+  return displayTime(value);
 }
 
 /**

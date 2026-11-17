@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Instant } from "@/components/ui";
 import type {
   MonitoringAlertDTO,
   MonitoringAnalysisDTO,
@@ -120,7 +121,7 @@ export function AlertCenter({
                 <article key={alert.alert_id} className={`monitoring-alert severity-${alert.severity}`}>
                   <div className="monitoring-alert-heading">
                     <span>{alert.category.replace(/_/g, " ")}</span>
-                    <time>{new Date(alert.updated_at_utc).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" })}</time>
+                    <Instant value={alert.updated_at_utc} />
                   </div>
                   <h2>{title}</h2>
                   <p>{message}</p>

@@ -1,6 +1,6 @@
 import { DataGrid, EvidenceBlock, PanelHeader } from "@/components/ui";
+import { displayTime } from "@/app/time/displayTime";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import {
   MAX_STORAGE_PERIODS,
   dispatchDecisionRows,
@@ -265,7 +265,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
               {record.run && (
                 <span className="muted">
                   {t("decision.assessment.record_read")}: {record.run.optimization_type} ·{" "}
-                  {record.run.decision_context} · {formatUtcTimestamp(record.run.created_at_utc)}
+                  {record.run.decision_context} · {displayTime(record.run.created_at_utc)}
                 </span>
               )}
             </div>

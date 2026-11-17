@@ -5681,5 +5681,10 @@
   "workspace.failure.forbidden": "Not included in your access: ask your administrator if you need it.",
   "workspace.failure.not_found": "Not available on this server version.",
   "workspace.failure.server": "The server failed while reading it; IT can see the error in its log.",
-  "workspace.failure.network": "The server could not be reached: check the connection."
+  "workspace.failure.network": "The server could not be reached: check the connection.",
+  "preferences.time_zone": "Times shown in",
+  "preferences.time_zone.device": "My device's time zone",
+  "preferences.time_zone.utc": "UTC",
+  "preferences.time_zone.market": "Gas-day market time (CET/CEST)",
+  "preferences.time_zone.preview": "Now:"
 }

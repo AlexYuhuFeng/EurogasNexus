@@ -5681,5 +5681,10 @@
   "workspace.failure.forbidden": "不在您的访问权限内：如需要请联系管理员。",
   "workspace.failure.not_found": "此服务器版本不提供该数据。",
   "workspace.failure.server": "服务器读取时出错；IT 可在日志中查看错误。",
-  "workspace.failure.network": "无法连接服务器：请检查网络连接。"
+  "workspace.failure.network": "无法连接服务器：请检查网络连接。",
+  "preferences.time_zone": "时间显示时区",
+  "preferences.time_zone.device": "本设备时区",
+  "preferences.time_zone.utc": "UTC",
+  "preferences.time_zone.market": "气日市场时间（CET/CEST）",
+  "preferences.time_zone.preview": "现在："
 }

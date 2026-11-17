@@ -1,6 +1,6 @@
 import { DataGrid, EvidenceBlock, PanelHeader } from "@/components/ui";
+import { displayTime } from "@/app/time/displayTime";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import {
   MAX_NOMINATION_INSTRUCTIONS,
   MAX_NOMINATION_WINDOWS,
@@ -262,7 +262,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
               rowKey={(row) => `${row.submittedAt}-${row.windowId ?? "none"}-${row.requested}`}
               density="compact"
               columns={[
-                { id: "submitted", header: t("decision.nomination.submitted_at"), rowHeader: true, type: "date", value: (row) => row.submittedAt, format: (value) => formatUtcTimestamp(value as string) },
+                { id: "submitted", header: t("decision.nomination.submitted_at"), rowHeader: true, type: "date", value: (row) => row.submittedAt, format: (value) => displayTime(value as string) },
                 { id: "requested", header: t("decision.nomination.requested"), unit: "MWh", type: "number", value: (row) => row.requested, format: (value) => formatQuantity(value as number) },
                 {
                   id: "accepted",
@@ -297,7 +297,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
               {record.run && (
                 <span className="muted">
                   {t("decision.assessment.record_read")}: {record.run.optimization_type} ·{" "}
-                  {record.run.decision_context} · {formatUtcTimestamp(record.run.created_at_utc)}
+                  {record.run.decision_context} · {displayTime(record.run.created_at_utc)}
                 </span>
               )}
             </div>

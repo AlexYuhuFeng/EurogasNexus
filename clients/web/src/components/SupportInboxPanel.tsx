@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { displayTime } from "@/app/time/displayTime";
 import { api, type SupportReportDTO } from "@/api/client";
 import { DataGrid } from "@/components/ui";
 
@@ -68,7 +69,7 @@ export function SupportInboxPanel({ t }: { t: Translate }) {
               header: t("support.from"),
               type: "date",
               value: (row) => row.created_at_utc,
-              render: (row) => <small>{row.reporter_name ?? row.reporter} · {row.reporter_role} · {row.created_at_utc.slice(0, 16).replace("T", " ")} UTC{row.assignee ? ` · ${row.assignee_name ?? row.assignee}` : ""}</small>,
+              render: (row) => <small>{row.reporter_name ?? row.reporter} · {row.reporter_role} · {displayTime(row.created_at_utc)}{row.assignee ? ` · ${row.assignee_name ?? row.assignee}` : ""}</small>,
             },
             { id: "status", header: t("support.status"), value: (row) => row.status, render: (row) => <span className="limit-badge" data-status={row.status === "resolved" ? "ok" : row.status === "acknowledged" ? "watch" : "breach"}>{t(`support.status_${row.status}`)}</span> },
           ]}

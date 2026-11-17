@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
+import { displayTime } from "@/app/time/displayTime";
 import { DataGrid, EvidenceBlock, Segmented, type DataGridColumn, type SortState } from "@/components/ui";
 import { sortRows } from "@/components/ui/dataGridModel";
 import { CapacityContractBook } from "@/components/CapacityContractBook";
 import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
 import type { CapacityOperatingBoardReadSurface } from "@/app/model/capacityOperatingBoardRead";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import type {
@@ -87,7 +87,7 @@ function formatNumber(value: number | null | undefined, digits = 2): string {
 }
 
 function formatTimestamp(value: string | null): string {
-  return formatUtcTimestamp(value);
+  return displayTime(value);
 }
 
 function isStale(timestamp: string | null): boolean {

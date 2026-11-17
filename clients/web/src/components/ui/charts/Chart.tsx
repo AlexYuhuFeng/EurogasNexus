@@ -20,6 +20,7 @@
  * - Resizes through a ResizeObserver, one `setSize` per frame, no layout reads while drawing.
  *   Nothing animates, so reduced motion needs no special case.
  */
+import { displayTime } from "@/app/time/displayTime";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type uPlot from "uplot";
 import { useUplot } from "./uplotLoader";
@@ -171,7 +172,7 @@ function asOfText(asOf: string | null | undefined): string | null {
   if (!asOf) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(asOf)) return gasDayLabel(asOf, true);
   const instant = new Date(asOf);
-  return Number.isNaN(instant.getTime()) ? asOf : `${instant.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+  return Number.isNaN(instant.getTime()) ? asOf : displayTime(asOf, asOf);
 }
 
 /** Rectangles from each point's base to base + value: bars, stacked or not. */

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { displayTime } from "@/app/time/displayTime";
 import { formatSigned, Sparkline } from "@/components/ui/charts";
 import {
   PREFERENCES_APPLIED_EVENT,
   readBoardLayout,
   writeLocalBoardLayout,
 } from "@/app/preferences/remotePreferences";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { boardTenorFromSearch, boardTenorToSearch, openingBoardTenor } from "@/app/model/marketCockpitModel";
 import {
   createHubSpreadResolver,
@@ -184,7 +184,7 @@ const tenorLabel = (tenor: string, t: Translate): string => {
 };
 
 const formatTimestamp = (value: string | null | undefined): string =>
-  formatUtcTimestamp(value);
+  displayTime(value);
 
 const formatCadence = (seconds: number | null): string => {
   if (seconds == null) return "n/a";

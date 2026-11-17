@@ -34,6 +34,9 @@ PREFERENCE_VOCABULARY: dict[str, tuple[str, ...]] = {
     "market_board_layout": ("board", "ladder"),
     # Profit colour: green (Europe, Americas) or red (China and much of Asia).
     "pnl_colors": ("green_up", "red_up"),
+    # Times shown in: the device's zone, UTC, or the gas market's clock (CET/CEST). Instants are
+    # stored and sent in UTC whatever this says; gas days are never shifted.
+    "time_zone": ("device", "utc", "market"),
     # The situational strip under the top bar (docs/product/ROLE_FIRST_REDESIGN.md, section 5):
     # an unplanned outage qualifies at or above either size; a price move at or above the share.
     "strip_outage_gwh_d": ("25", "50", "100", "200", "500"),
@@ -86,6 +89,7 @@ BUILT_IN_DEFAULTS: dict[str, str] = {
     "market_view": "curves",
     "market_board_layout": "board",
     "pnl_colors": "green_up",
+    "time_zone": "device",
     "strip_outage_gwh_d": "50",
     "strip_outage_share_pct": "50",
     "strip_price_move_pct": "5",

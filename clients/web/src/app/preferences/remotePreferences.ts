@@ -9,6 +9,8 @@ import {
 } from "@/app/context/viewPreference";
 import { resolveSignInPreferences } from "./preferenceResolution";
 import { applyPnlColorConvention } from "@/app/model/pnlColor";
+import { TIME_ZONE_STORAGE_KEY, useTimePreferenceStore } from "@/stores/timePreference";
+import { isTimeZonePreference } from "@/app/time/timeFormat";
 import { applyStripPreferences, setLocalHidden } from "./stripPreferences";
 
 /**
@@ -70,6 +72,7 @@ export async function applyEffectivePreferences(
   writeMarketViewPreference(principalId, normalizeMarketViewPreference(effective.market_view));
   writeBoardLayout(effective.market_board_layout);
   writeLocalPnlColors(effective.pnl_colors);
+  if (isTimeZonePreference(effective.time_zone)) useTimePreferenceStore.getState().setPreference(effective.time_zone);
   applyStripPreferences(effective);
   window.dispatchEvent(new Event(PREFERENCES_APPLIED_EVENT));
 }
@@ -86,6 +89,8 @@ function locallyChosen(principalId: string): Partial<Record<PreferenceKey, strin
     if (layout === "board" || layout === "ladder") chosen.market_board_layout = layout;
     const pnl = window.localStorage.getItem(PNL_COLORS_STORAGE_KEY);
     if (pnl === "green_up" || pnl === "red_up") chosen.pnl_colors = pnl;
+    const zone = window.localStorage.getItem(TIME_ZONE_STORAGE_KEY);
+    if (isTimeZonePreference(zone)) chosen.time_zone = zone;
   } catch {
     // Storage unavailable: nothing was chosen on this device.
   }

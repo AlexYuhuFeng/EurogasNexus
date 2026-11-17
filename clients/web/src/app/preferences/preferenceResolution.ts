@@ -6,6 +6,7 @@ export const PREFERENCE_KEYS: PreferenceKey[] = [
   "market_view",
   "market_board_layout",
   "pnl_colors",
+  "time_zone",
 ];
 
 /**

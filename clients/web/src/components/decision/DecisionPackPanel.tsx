@@ -1,4 +1,4 @@
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import { displayTime } from "@/app/time/displayTime";
 import {
   snapshotStateLabelKey,
   type DecisionPackContextValue,
@@ -22,7 +22,7 @@ function contextValueText(value: DecisionPackContextValue, t: Translate): string
     case "text":
       return value.value;
     case "instant":
-      return formatUtcTimestamp(value.value);
+      return displayTime(value.value, undefined, { seconds: true, date: "always" });
     case "state":
       return t(value.stateKey);
     default:
@@ -103,7 +103,7 @@ export function DecisionPackPanel({ t, model }: DecisionPackPanelProps) {
                         <dt>{t("decision_pack.evidence.as_of")}</dt>
                         <dd>
                           {row.asOfUtc
-                            ? formatUtcTimestamp(row.asOfUtc)
+                            ? displayTime(row.asOfUtc, undefined, { seconds: true, date: "always" })
                             : t("decision_pack.not_recorded")}
                         </dd>
                       </div>
@@ -220,7 +220,7 @@ export function DecisionPackPanel({ t, model }: DecisionPackPanelProps) {
                     <dt>{t("decision_pack.decision.recorded_at")}</dt>
                     <dd>
                       {model.decision.recordedAtUtc
-                        ? formatUtcTimestamp(model.decision.recordedAtUtc)
+                        ? displayTime(model.decision.recordedAtUtc, undefined, { seconds: true, date: "always" })
                         : t("decision_pack.not_recorded")}
                     </dd>
                   </div>
@@ -251,7 +251,7 @@ export function DecisionPackPanel({ t, model }: DecisionPackPanelProps) {
                   <li key={`${index}:${row.recordedAtUtc ?? ""}:${row.actor ?? ""}`}>
                     <strong>{t(row.outcomeLabelKey)}</strong>
                     <span>{row.actor ?? t("decision_pack.not_recorded")}</span>
-                    <time>{formatUtcTimestamp(row.recordedAtUtc)}</time>
+                    <time>{displayTime(row.recordedAtUtc, undefined, { seconds: true, date: "always" })}</time>
                     {row.note && <p>{row.note}</p>}
                   </li>
                 ))}
@@ -275,7 +275,7 @@ export function DecisionPackPanel({ t, model }: DecisionPackPanelProps) {
                   <li key={row.eventId}>
                     <strong>{row.action}</strong>
                     <span>{row.principal}</span>
-                    <time>{formatUtcTimestamp(row.eventTsUtc)}</time>
+                    <time>{displayTime(row.eventTsUtc, undefined, { seconds: true, date: "always" })}</time>
                     <span>{`${row.severity} · ${row.outcome}`}</span>
                     {row.detail && <p>{row.detail}</p>}
                   </li>

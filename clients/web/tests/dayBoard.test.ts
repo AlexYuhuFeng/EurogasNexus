@@ -697,8 +697,8 @@ test("the disclosure still carries the row actions, evidence, provenance and ale
   assert.match(detail, /onClick=\{\(\) => onOpenTask\("review"\)\}/);
   // Evidence, the declared instants and the UTC/time-basis provenance stay with the rows.
   assert.match(detail, /t\("day_board\.evidence"\)/);
-  assert.match(detail, /formatUtcTimestamp\(row\.closesAtUtc\)/);
-  assert.match(detail, /formatUtcTimestamp\(row\.validUntilUtc\)/);
+  assert.match(detail, /displayTime\(row\.closesAtUtc\)/);
+  assert.match(detail, /displayTime\(row\.validUntilUtc\)/);
   assert.match(detail, /t\("day_board\.basis"\)/);
   assert.match(detail, /t\("day_board\.clock\.time_basis"\)/);
   assert.match(detail, /t\("day_board\.clock\.time_basis_help"\)/);
@@ -748,8 +748,8 @@ test("the three deployment states read differently, and the countdown names its 
 
   // The declared instant is the row's primary value, and the countdown is visibly qualified as
   // being measured against the browser's clock rather than left to look like the API's own instant.
-  assert.match(panel, /<strong>\{formatUtcTimestamp\(row\.closesAtUtc\)\}<\/strong>/);
-  assert.match(panel, /<strong>\{formatUtcTimestamp\(row\.validUntilUtc\)\}<\/strong>/);
+  assert.match(panel, /<strong>\{displayTime\(row\.closesAtUtc\)\}<\/strong>/);
+  assert.match(panel, /<strong>\{displayTime\(row\.validUntilUtc\)\}<\/strong>/);
   assert.match(
     panel,
     /<small className="day-board-qualifier">\{t\("day_board\.countdown\.browser_clock"\)\}<\/small>/,

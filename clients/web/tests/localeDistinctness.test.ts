@@ -40,6 +40,7 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "nwe.lng": "an acronym",
   "prices.chart.spread_series": "two hub names, the same in both locales",
   "panel.lng": "an acronym in a vendor's own product name",
+  "preferences.time_zone.utc": "the time standard's name, written UTC in both locales",
   "report.format_csv": "a file format's name",
   "tariffs.tso": "an acronym",
   "report.format_pdf": "a file format's name",

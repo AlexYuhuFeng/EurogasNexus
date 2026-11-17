@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { displayTime } from "@/app/time/displayTime";
 import type { CommercialDiagnosticItem } from "@/app/model/commercialWarnings";
 import { lineageNames, resourceName, type LineageLookup } from "@/app/model/lineageNames";
 import { warningLabel } from "@/app/warningLabel";
@@ -42,7 +43,7 @@ function formatUtc(value: string | null): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return `${date.toISOString().slice(0, 19).replace("T", " ")} UTC`;
+  return displayTime(value, value);
 }
 
 function label(item: CommercialDiagnosticItem, t: Translate, lookup: LineageLookup): string {

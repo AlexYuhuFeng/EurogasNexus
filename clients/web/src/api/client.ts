@@ -3021,6 +3021,8 @@ export type PreferenceKey =
   | "market_view"
   | "market_board_layout"
   | "pnl_colors"
+  // Times shown in: device | utc | market (app/time/timeFormat.ts).
+  | "time_zone"
   // The situational strip (docs/product/ROLE_FIRST_REDESIGN.md §5): thresholds, focus hubs,
   // the quiet line, and the items this person hid (personal only).
   | "strip_outage_gwh_d"

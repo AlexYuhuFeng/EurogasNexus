@@ -43,6 +43,7 @@ import { requestProblemReport } from "@/app/model/supportReport";
 import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { useWideContent } from "@/app/shell/useWideContent";
 import { FirstRunSetupGate } from "@/components/FirstRunSetup";
+import { useTimePreferenceStore } from "@/stores/timePreference";
 
 interface AppShellProps {
   controller: AppController;
@@ -231,6 +232,9 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     activeWorkspace: navigation.activeWorkspace,
     task: marketView.task,
   });
+
+  // Every instant on screen follows the reader's "Times shown in" choice: re-render on a change.
+  useTimePreferenceStore((state) => state.preference);
 
   // Phone width: a table wider than its box scrolls inside itself (styles/frame.css).
   const compactWidth = useCompactWidth();

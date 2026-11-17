@@ -1611,12 +1611,13 @@ async function interactionChecks(page, failures) {
         `expected two declared windows, rendered ${rendered.length}`,
       );
     }
+    // The instant is shown in the reader's zone (UX_REFERENCE rule 17), always with the zone named.
     for (const value of rendered) {
-      if (!/UTC/.test(value)) {
+      if (!/\b(UTC|GMT[+-]?\d*|CES?T|[A-Z]{2,5}T)\b/.test(value)) {
         recordFailure(
           failures,
           "interaction/day-board",
-          `deadline is not the API's resolved UTC instant: ${value}`,
+          `deadline does not name the zone it is shown in: ${value}`,
         );
       }
     }

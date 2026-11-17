@@ -19,6 +19,7 @@
  *   field the record explicitly reports as absent is shown as absent.
  */
 
+import { displayTime } from "../time/displayTime.ts";
 import type {
   AgentRunDTO,
   CapacityObsDTO,
@@ -41,7 +42,6 @@ import type {
 import { canOpenInspector, type InspectorSubject } from "../experience/inspectorContract.ts";
 import type { InspectorSubjectKind } from "../experience/vocabulary.ts";
 import { reviewEvidence } from "./reviewContextModel.ts";
-import { formatUtcTimestamp } from "./evidencePresentation.ts";
 
 /** The state the Inspector may read detail from. The api store satisfies it. */
 export interface InspectorDetailSource {
@@ -534,7 +534,7 @@ function formatValue(value: unknown, format: FieldSpec["format"]): string | null
   if (typeof value === "boolean") return String(value);
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : null;
   if (typeof value === "string") {
-    return format === "timestamp" ? formatUtcTimestamp(value, value) : value;
+    return format === "timestamp" ? displayTime(value, value, { seconds: true, date: "always" }) : value;
   }
   return null;
 }

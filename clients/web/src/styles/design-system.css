@@ -4617,4 +4617,11 @@
     align-items: center;
     gap: var(--ds-space-1);
   }
+
+  .settings-preference-hint {
+    margin: var(--ds-space-1) 0 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
 }

@@ -36,19 +36,19 @@ test("evidence-heavy workspaces use the shared block and explicit time basis", (
   // The top bar shows the market-data time in its status panel, in the reader's zone.
   const topbar = readWebSource("components/TopBarStatus.tsx");
 
-  assert.match(sourceController, /formatUtcTimestamp\(value\)/);
+  assert.match(sourceController, /displayTime\(value\)/);
   assert.match(sources, /<EvidenceBlock/);
   assert.match(capacity, /<EvidenceBlock/);
   assert.match(capacity, /selected\.sourceReference \?\? t\("data\.unavailable"\)/);
   assert.doesNotMatch(capacity, /selected\.sourceReference \?\? "ENTSOG"/);
   assert.match(strategy, /<EvidenceBlock/);
-  assert.match(strategy, /formatUtcTimestamp\(value\)/);
+  assert.match(strategy, /displayTime\(value\)/);
   assert.match(review, /<EvidenceBlock/);
-  assert.match(review, /formatUtcTimestamp\(value, value\)/);
+  assert.match(review, /displayTime\(value, value\)/);
   assert.match(glossary, /t\("evidence\.time_basis"\)/);
   assert.match(glossary, /t\("evidence\.utc"\)/);
-  assert.match(market, /formatUtcTimestamp\(value\)/);
-  assert.match(runtime, /formatUtcTimestamp\(value\)/);
+  assert.match(market, /displayTime\(value\)/);
+  assert.match(runtime, /displayTime\(value\)/);
   assert.match(topbar, /<Instant value=\{marketLastUpdatedAtUtc\} \/>/);
   assert.doesNotMatch(market, /toLocaleTimeString/);
   assert.doesNotMatch(runtime, /toLocaleTimeString/);

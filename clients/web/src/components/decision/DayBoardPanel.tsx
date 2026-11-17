@@ -1,3 +1,4 @@
+import { displayTime } from "@/app/time/displayTime";
 import {
   dayBoardCountdown,
   dayBoardCountdownMeasure,
@@ -5,7 +6,6 @@ import {
   type DayBoardModel,
   type DayBoardSummaryState,
 } from "@/app/model/dayBoardModel";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 
 type Translate = (key: string) => string;
 
@@ -123,7 +123,7 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
           {/* Whose instants these are, whose clock the countdowns are measured against, and when
               the read happened - the provenance line stays with the evidence, not in the strip. */}
           <p className="day-board-note day-board-basis">
-            {t("day_board.basis")} <strong>{formatUtcTimestamp(measuredAtUtc)}</strong>
+            {t("day_board.basis")} <strong>{displayTime(measuredAtUtc)}</strong>
           </p>
 
           <div className="day-board-section day-board-clock">
@@ -171,12 +171,12 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
                           {row.windowId} · {t("day_board.clock.gas_day")} {row.gasDay}
                         </small>
                         <small>
-                          {t("day_board.clock.opens_at")}: {formatUtcTimestamp(row.opensAtUtc)}
+                          {t("day_board.clock.opens_at")}: {displayTime(row.opensAtUtc)}
                         </small>
                       </span>
                       <span className="day-board-deadline">
                         <small>{t("day_board.clock.closes_at")}</small>
-                        <strong>{formatUtcTimestamp(row.closesAtUtc)}</strong>
+                        <strong>{displayTime(row.closesAtUtc)}</strong>
                         <Countdown
                           deadlineUtc={row.closesAtUtc}
                           measuredAtUtc={measuredAtUtc}
@@ -193,9 +193,9 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
                           row.nextOpensAtUtc && (
                             <small className="day-board-next-window">
                               {t("day_board.clock.next_window")}:{" "}
-                              {formatUtcTimestamp(row.nextOpensAtUtc)}
+                              {displayTime(row.nextOpensAtUtc)}
                               {row.nextClosesAtUtc
-                                ? ` – ${formatUtcTimestamp(row.nextClosesAtUtc)}`
+                                ? ` – ${displayTime(row.nextClosesAtUtc)}`
                                 : ""}
                             </small>
                           )}
@@ -221,7 +221,7 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
                 {t("day_board.clock.time_basis")}: {clock.timeBasis ?? t("day_board.not_declared")}
                 {clock.calendar ? ` · ${clock.calendar}` : ""}
                 {clock.assessedAtUtc
-                  ? ` · ${t("day_board.clock.assessed_at")}: ${formatUtcTimestamp(
+                  ? ` · ${t("day_board.clock.assessed_at")}: ${displayTime(
                       clock.assessedAtUtc,
                     )}`
                   : ""}
@@ -270,7 +270,7 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
                       </span>
                       <span className="day-board-deadline">
                         <small>{t("day_board.decisions.deadline")}</small>
-                        <strong>{formatUtcTimestamp(row.validUntilUtc)}</strong>
+                        <strong>{displayTime(row.validUntilUtc)}</strong>
                         <Countdown
                           deadlineUtc={row.validUntilUtc}
                           measuredAtUtc={measuredAtUtc}
@@ -336,7 +336,7 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
                     ? t("day_board.alerts.no_movement")
                     : `${t("day_board.alerts.moved")}: ${alerts.movedCount}`}
                   {alerts.latestMovementUtc
-                    ? ` · ${t("day_board.alerts.latest_movement")}: ${formatUtcTimestamp(
+                    ? ` · ${t("day_board.alerts.latest_movement")}: ${displayTime(
                         alerts.latestMovementUtc,
                       )}`
                     : ""}

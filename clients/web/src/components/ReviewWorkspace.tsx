@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
+import { displayTime } from "@/app/time/displayTime";
 import { warningLabel } from "@/app/warningLabel";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { reviewEvidenceFor } from "@/app/model/reviewContextModel";
 import type { AnalysisSnapshotReadiness } from "@/app/model/analysisSnapshotModel";
 import { copilotOffers } from "@/app/model/copilotModel";
@@ -75,7 +75,7 @@ const REVIEW_ENTITY_TYPES: ReviewDecisionInputDTO["entity_type"][] = [
 ];
 
 function formatDecisionTime(value: string): string {
-  return formatUtcTimestamp(value, value);
+  return displayTime(value, value);
 }
 
 export function ReviewWorkspace({

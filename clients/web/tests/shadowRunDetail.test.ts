@@ -362,7 +362,7 @@ test("the detail is mounted in the shadow task and the parallel terminal is reti
 
   // The shared evidence block and the one UTC formatter, not a hand-rolled instant.
   assert.match(detail, /<EvidenceBlock/);
-  assert.match(detail, /formatUtcTimestamp\(value\)/);
+  assert.match(detail, /displayTime\(value\)/);
   assert.equal(/toLocaleTimeString/.test(detail), false);
 
   // The arithmetic lives in the model, which is where it can be tested without a render.

@@ -5,6 +5,8 @@ import { LOCALES } from "@/i18n/locales";
 import { applyEffectivePreferences } from "@/app/preferences/remotePreferences";
 import { FOCUS_HUB_CHOICES, MAX_FOCUS_HUBS, STRIP_BUILT_IN, STRIP_CHOICES } from "@/app/preferences/stripPreferences";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { useTranslation } from "react-i18next";
+import { formatInstant, TIME_ZONE_PREFERENCES } from "@/app/time/timeFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -33,6 +35,11 @@ const CHOICES: Record<ChoiceKey, { value: string; labelKey?: string; label?: str
     { value: "green_up", labelKey: "preferences.pnl_green_up" },
     { value: "red_up", labelKey: "preferences.pnl_red_up" },
   ],
+  time_zone: [
+    { value: "device", labelKey: "preferences.time_zone.device" },
+    { value: "utc", labelKey: "preferences.time_zone.utc" },
+    { value: "market", labelKey: "preferences.time_zone.market" },
+  ],
   strip_outage_gwh_d: stripChoices("strip_outage_gwh_d", "strip.pref.gwh_value"),
   strip_outage_share_pct: stripChoices("strip_outage_share_pct", "strip.pref.pct_value"),
   strip_price_move_pct: stripChoices("strip_price_move_pct", "strip.pref.pct_value"),
@@ -48,13 +55,14 @@ const LABEL_KEYS: Record<ChoiceKey, string> = {
   market_view: "settings.market_default_view",
   market_board_layout: "preferences.board_layout",
   pnl_colors: "preferences.pnl_colors",
+  time_zone: "preferences.time_zone",
   strip_outage_gwh_d: "strip.pref.outage_gwh_d",
   strip_outage_share_pct: "strip.pref.outage_share_pct",
   strip_price_move_pct: "strip.pref.price_move_pct",
   strip_quiet_line: "strip.pref.quiet_line",
 };
 
-const GENERAL_KEYS: ChoiceKey[] = ["language", "theme", "market_view", "market_board_layout", "pnl_colors"];
+const GENERAL_KEYS: ChoiceKey[] = ["language", "theme", "time_zone", "market_view", "market_board_layout", "pnl_colors"];
 /** The situational strip's thresholds (role-first redesign §5.2), grouped under their own heading. */
 const STRIP_KEYS: ChoiceKey[] = ["strip_outage_gwh_d", "strip_outage_share_pct", "strip_price_move_pct", "strip_quiet_line"];
 const KEYS: ChoiceKey[] = [...GENERAL_KEYS, ...STRIP_KEYS];
@@ -66,6 +74,7 @@ const BUILT_IN: Record<ChoiceKey, string> = {
   market_view: "curves",
   market_board_layout: "board",
   pnl_colors: "green_up",
+  time_zone: "device",
   strip_outage_gwh_d: STRIP_BUILT_IN.strip_outage_gwh_d,
   strip_outage_share_pct: STRIP_BUILT_IN.strip_outage_share_pct,
   strip_price_move_pct: STRIP_BUILT_IN.strip_price_move_pct,
@@ -81,6 +90,27 @@ function choiceLabel(t: Translate, key: ChoiceKey, value: string | undefined): s
   const choice = CHOICES[key].find((item) => item.value === value);
   if (!choice) return t("preferences.built_in");
   return optionLabel(t, choice);
+}
+
+/** The same instant in the three zones, so the choice is concrete ("00:57 CET / 23:57 UTC"). */
+function TimeZonePreview({ t }: { t: Translate }) {
+  const { i18n } = useTranslation();
+  const now = Date.now();
+  const shown = TIME_ZONE_PREFERENCES.map((preference) => ({
+    preference,
+    text: formatInstant(now, { language: i18n.language, preference, nowMs: now })?.text ?? "",
+  }));
+  return (
+    <p className="settings-preference-hint" data-time-zone-preview="">
+      {t("preferences.time_zone.preview")}{" "}
+      {shown.map((item, index) => (
+        <span key={item.preference}>
+          {index > 0 ? " · " : ""}
+          <strong>{item.text}</strong>
+        </span>
+      ))}
+    </p>
+  );
 }
 
 /** The person's focus hubs: a set of toggles; none chosen means "the hubs of my book". */
@@ -199,6 +229,7 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
                   ))}
                 </select>
               </label>
+              {key === "time_zone" && <TimeZonePreview t={t} />}
             </div>
           );
         })}

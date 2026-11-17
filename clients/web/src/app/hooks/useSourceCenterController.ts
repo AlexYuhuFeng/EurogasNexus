@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { displayTime } from "@/app/time/displayTime";
 import type { FormEvent } from "react";
 import type { TFunction } from "i18next";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import type {
   CredentialProviderDTO,
   SourceCategoryPostureDTO,
@@ -205,7 +205,7 @@ export function useSourceCenterController({
   }
 
   function formatSourceTimestamp(value: string | null | undefined) {
-    return formatUtcTimestamp(value);
+    return displayTime(value);
   }
 
   return {

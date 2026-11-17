@@ -854,7 +854,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "aria-pressed={activeBasis === row.basis}" in strategy_surface
     # FX is a basis for reading a price, not a basis to sell at, so it has no PnL row.
     assert 'activeBasis === "FX"' in detail
-    assert "formatUtcTimestamp(value)" in detail
+    assert "displayTime(value)" in detail
     assert "<EvidenceBlock" in detail
     # The economics panel starts nothing: the task's run control is the workspace's primary action.
     assert "apiClient." not in detail

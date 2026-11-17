@@ -1,4 +1,5 @@
 import { tabLabels } from "@/components/ui/tabLabels";
+import { displayTime } from "@/app/time/displayTime";
 import type {
   ApiMeta,
   PipelineHealthDTO,
@@ -7,7 +8,6 @@ import type {
   SourceSystemDTO,
 } from "@/api/client";
 import { useState } from "react";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import {
   ENDPOINT_FAILURE_LABEL_KEYS,
   UNKNOWN_ENDPOINT_FAILURE_LABEL_KEY,
@@ -54,7 +54,7 @@ interface RuntimeWorkspaceProps {
 }
 
 function formatHealthTime(value: string | null | undefined): string {
-  return formatUtcTimestamp(value);
+  return displayTime(value);
 }
 
 function readinessStateLabel(state: ReadinessState, t: Translate): string {
