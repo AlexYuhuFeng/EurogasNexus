@@ -5163,7 +5163,7 @@
   "strip.span.minutes": "{{count}} 分钟",
   "strip.span.hours": "{{count}} 小时",
   "strip.span.days": "{{count}} 天",
-  "strip.headline.outage": "非计划停运：{{asset}}（{{zone}}）{{size}} 不可用",
+  "strip.headline.outage": "非计划停运 {{size}}：{{asset}}（{{zone}}）",
   "strip.comparison.of_capacity": "{{total}} {{unit}} 中的 {{value}}",
   "strip.comparison.share": "占产能 {{pct}}%",
   "strip.comparison.used": "已用 {{pct}}%",

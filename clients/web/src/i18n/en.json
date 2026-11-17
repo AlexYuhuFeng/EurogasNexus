@@ -5163,7 +5163,7 @@
   "strip.span.minutes": "{{count}} min",
   "strip.span.hours": "{{count}} h",
   "strip.span.days": "{{count}} d",
-  "strip.headline.outage": "Unplanned outage: {{asset}} ({{zone}}) {{size}} offline",
+  "strip.headline.outage": "Unplanned outage {{size}}: {{asset}} ({{zone}})",
   "strip.comparison.of_capacity": "{{value}} of {{total}} {{unit}}",
   "strip.comparison.share": "{{pct}}% of capacity",
   "strip.comparison.used": "{{pct}}% used",

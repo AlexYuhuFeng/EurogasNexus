@@ -87,7 +87,8 @@
 
   .strip-top,
   .strip-quiet-line {
-    flex: 1 1 auto;
+    /* Shrinks to an ellipsis, never grows: the sim mark follows the text, "+n more" sits at the end. */
+    flex: 0 1 auto;
     min-height: var(--ds-control-sm);
     overflow: hidden;
     white-space: nowrap;
@@ -134,6 +135,7 @@
 
   .strip-expand {
     flex: 0 0 auto;
+    margin-inline-start: auto;
     min-height: var(--ds-control-sm);
     padding: 0 var(--ds-space-2);
     border: 1px solid var(--ds-border);
