@@ -5439,5 +5439,6 @@
   "strip.headline.job_failed.REPORT": "A report job failed",
   "strip.headline.job_failed.AGENT_RUN": "An assistant run failed",
   "strip.headline.job_failed.SNAPSHOT": "A snapshot job failed",
-  "strip.comparison.vs_7d_average": "7-day average {{average}} {{unit}}"
+  "strip.comparison.vs_7d_average": "7-day average {{average}} {{unit}}",
+  "strip.headline.mandate.breach_rule": "{{name}} mandate breached: {{reason}}"
 }

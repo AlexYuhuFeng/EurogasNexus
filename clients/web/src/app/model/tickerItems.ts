@@ -112,6 +112,7 @@ export interface DeliveryShortfallSignal {
   book_ids: string[];
   simulated?: boolean;
   alert_id?: string | null;
+  severity?: SituationSeverity;
 }
 
 /** Fundamentals rule: a daily series outside its band vs the 7-day average (a `fundamentals` alert). */
@@ -528,18 +529,24 @@ function limitItem(alert: MonitoringAlertDTO, rule: AudienceRule, ownBook: boole
   const used = typeof facts.utilisation_pct === "number" ? (facts.utilisation_pct as number) : null;
   const books = stringList(facts.book_ids);
   const id = credit ? String(facts.counterparty_id ?? alert.entity_id) : String(facts.mandate_id ?? alert.entity_id);
+  // A mandate is breached by a rule (a hub, a tenor, a product), not only by size: say which,
+  // and do not show a utilisation that would read as "within the limit".
+  const reasons = Array.isArray(facts.breaches) ? facts.breaches.map(String).join("; ") : typeof facts.breaches === "string" ? facts.breaches : "";
+  const ruleBreach = !credit && status === "breach" && Boolean(reasons);
   return {
     id: `${credit ? "credit" : "mandate"}:${id}`,
     kind: credit ? "credit" : "limit",
     severity: alert.severity,
     urgentUntil: urgentUntil(becameMs),
-    headline: {
-      key: `strip.headline.${credit ? "credit" : "mandate"}.${["breach", "watch", "expired", "incomplete"].includes(status) ? status : "other"}`,
-      values: { name: name || alert.entity_id, used: used !== null ? `${round(used)}%` : "" },
-    },
+    headline: ruleBreach
+      ? { key: "strip.headline.mandate.breach_rule", values: { name: name || alert.entity_id, reason: reasons.length > 70 ? `${reasons.slice(0, 69)}…` : reasons } }
+      : {
+          key: `strip.headline.${credit ? "credit" : "mandate"}.${["breach", "watch", "expired", "incomplete"].includes(status) ? status : "other"}`,
+          values: { name: name || alert.entity_id, used: used !== null ? `${round(used)}%` : "" },
+        },
     magnitude: used,
     unit: used !== null ? "%" : null,
-    comparison: used !== null ? { key: "strip.comparison.used", values: { pct: round(used) } } : null,
+    comparison: used !== null && !ruleBreach ? { key: "strip.comparison.used", values: { pct: round(used) } } : null,
     affects: { hubs: stringList(facts.hubs), zones: [], books, contracts: [] },
     occurredAt: iso(becameMs),
     // The register the figure comes from; the alert's own reference stays for the Inspector.
@@ -843,9 +850,9 @@ function qualifySignals(inputs: SituationInputs, context: SituationContext, focu
       items.push({
         id: `shortfall:${gap.contract_id}:${gap.gas_day}`,
         kind: "delivery",
-        severity: "warning",
+        severity: gap.severity ?? "warning",
         urgentUntil: urgentUntil(became),
-        headline: { key: "strip.headline.shortfall", values: { contract: gap.contract_name, mwh: round(gap.shortfall_mwh) } },
+        headline: { key: "strip.headline.shortfall", values: { contract: gap.contract_name, mwh: round(gap.shortfall_mwh).toLocaleString("en-GB") } },
         magnitude: gap.shortfall_mwh,
         unit: "MWh",
         comparison: { key: "strip.comparison.tolerance", values: { pct: gap.shortfall_pct.toFixed(1), tolerance: gap.tolerance_pct.toFixed(1) } },
@@ -872,7 +879,7 @@ function qualifySignals(inputs: SituationInputs, context: SituationContext, focu
         kind: "fundamentals",
         severity: "warning",
         urgentUntil: urgentUntil(became),
-        headline: { key: `strip.headline.fundamentals.${surprise.series}`, values: { value: surprise.value, unit: surprise.unit } },
+        headline: { key: `strip.headline.fundamentals.${surprise.series}`, values: { value: surprise.value.toFixed(2), unit: surprise.unit } },
         magnitude: surprise.value,
         unit: surprise.unit,
         comparison: surprise.average_7d != null
@@ -932,7 +939,7 @@ export function signalsFromAlerts(alerts: readonly MonitoringAlertDTO[]): Requir
         contract_id: String(facts.contract_id ?? ""), contract_name: String(facts.contract_name ?? facts.contract_id ?? ""),
         gas_day: String(facts.gas_day ?? ""), shortfall_mwh: mwh, tolerance_pct: tolerance, shortfall_pct: pct,
         at_utc: at, source: String(facts.source_system ?? sourceName(alert)), book_ids: stringList(facts.book_ids),
-        simulated: Boolean(alert.simulated), alert_id: alert.alert_id,
+        simulated: Boolean(alert.simulated), alert_id: alert.alert_id, severity: alert.severity,
       }];
     } else if (alert.category === "fundamentals") {
       const value = num(facts.value);

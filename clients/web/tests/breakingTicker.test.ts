@@ -527,3 +527,11 @@ test("platform: a failed job and a new problem report within six hours; the anal
   assert.equal(analyst.state, "quiet");
   assert.deepEqual(analyst.quiet?.phrase, { key: "strip.quiet.next_data", values: { source: "ECB", close: inMinutes(40) } });
 });
+
+test("a mandate breached by a rule says the rule, not a utilisation inside the limit", () => {
+  const rule = alert("m2", "limits", "mandate", "critical",
+    { name: "NBP desk", trader: "demo.trader", mandate_id: "M-2", status: "breach", utilisation_pct: 75, breaches: "TTF is outside the mandate", book_ids: ["UK"] });
+  const [item] = buildSituation(inputs({ alerts: [rule] }), context("trader")).items;
+  assert.deepEqual(item.headline, { key: "strip.headline.mandate.breach_rule", values: { name: "NBP desk", reason: "TTF is outside the mandate" } });
+  assert.equal(item.comparison, null);
+});

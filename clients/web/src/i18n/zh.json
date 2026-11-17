@@ -5439,5 +5439,6 @@
   "strip.headline.job_failed.REPORT": "一个报告作业失败",
   "strip.headline.job_failed.AGENT_RUN": "一次助手运行失败",
   "strip.headline.job_failed.SNAPSHOT": "一个快照作业失败",
-  "strip.comparison.vs_7d_average": "7 日均值 {{average}} {{unit}}"
+  "strip.comparison.vs_7d_average": "7 日均值 {{average}} {{unit}}",
+  "strip.headline.mandate.breach_rule": "{{name}} 授权超限：{{reason}}"
 }
