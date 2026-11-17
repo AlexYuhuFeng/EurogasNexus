@@ -24,6 +24,7 @@ from typing import Any
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.reports import commentary as rules
 from eurogas_nexus.application.reports.catalogue import SECTION_BY_KEY, ReportPlan
+from eurogas_nexus.application.reports.lang import T, zh
 
 PUBLIC_DATA = "public"
 
@@ -1245,14 +1246,16 @@ def book_position(ctx: Ctx) -> SectionResult:
         rows.append({"product": f"{first:%b-%y}",
                      **{hub: round(cells.get((month, hub), 0.0) / days, 0) for hub in hubs}})
     result.tables.append(table(
-        "Net position by delivery month, MWh/d (long positive)",
-        [("product", "Product", "text")] + [(hub, hub, "signed") for hub in hubs],
+        T("Net position by delivery month, MWh/d (long positive)",
+          "按交割月份的净头寸，MWh/d（多头为正）"),
+        [("product", T("Product", "合约"), "text")] + [(hub, hub, "signed") for hub in hubs],
         rows,
     ))
     result.tables.append(table(
-        "Net position today and front month",
-        [("hub", "Hub", "text"), ("today", "Today", "signed"),
-         ("front_month", front_month_label(ctx.today), "signed"), ("unit", "Unit", "text")],
+        T("Net position today and front month", "今日及近月净头寸"),
+        [("hub", T("Hub", "枢纽"), "text"), ("today", T("Today", "今日"), "signed"),
+         ("front_month", front_month_label(ctx.today), "signed"),
+         ("unit", T("Unit", "单位"), "text")],
         [{"hub": h, "today": round(v["today"], 0), "front_month": round(v["front_month"], 0),
           "unit": "MWh/d"} for h, v in sorted(positions.items())],
     ))
@@ -1371,11 +1374,14 @@ def book_limits(ctx: Ctx) -> SectionResult:
     rank = {"breach": 0, "expired": 1, "watch": 2}
     rows.sort(key=lambda r: (rank.get(r["status"], 9), -(r["utilisation_pct"] or 0)))
     result.tables.append(table(
-        "Limits, breaches and watches first",
-        [("name", "Limit", "text"), ("kind", "Kind", "text"), ("status", "Status", "text"),
-         ("utilisation_pct", "Used %", "num"), ("headroom", "Headroom", "signed"),
-         ("unit", "Unit", "text")],
-        rows,
+        T("Limits, breaches and watches first", "限额（超限与观察在前）"),
+        [("name", T("Limit", "限额"), "text"), ("kind_label", T("Kind", "类型"), "text"),
+         ("status_label", T("Status", "状态"), "text"),
+         ("utilisation_pct", T("Used %", "已使用 %"), "num"),
+         ("headroom", T("Headroom", "余量"), "signed"), ("unit", T("Unit", "单位"), "text")],
+        [{**r, "kind_label": _LIMIT_WORDS.get(r["kind"], (r["kind"],) * 2)[int(zh())],
+          "status_label": _LIMIT_WORDS.get(r["status"], (r["status"],) * 2)[int(zh())]}
+         for r in rows],
     ))
     result.simulated = any(r["simulated"] for r in rows)
     for key in ("credit_exposure", "mandate_usage"):
@@ -1385,6 +1391,11 @@ def book_limits(ctx: Ctx) -> SectionResult:
                                  "operator-input", ctx.now, "current"))
     result.books = sorted(books)
     return _apply(result, rules.limits({"rows": rows}))
+
+
+_LIMIT_WORDS = {"credit line": ("credit line", "信用额度"), "mandate": ("mandate", "授权"),
+                "breach": ("breach", "超限"), "watch": ("watch", "观察"), "ok": ("ok", "正常"),
+                "expired": ("expired", "已到期")}
 
 
 def book_contracts(ctx: Ctx) -> SectionResult:
@@ -1551,8 +1562,9 @@ def _situation_outage(ctx: Ctx, result: SectionResult) -> SectionResult:
             if stats["gwh"] and stats["before"]:
                 stats["share_pct"] = round(100 * stats["gwh"] / stats["before"], 0)
             result.charts.append({
-                "type": "line", "title": "Norwegian landings around the outage", "unit": "GWh/d",
-                "series": [{"name": "Landed",
+                "type": "line", "unit": "GWh/d",
+                "title": T("Norwegian landings around the outage", "停运前后的挪威到岸量"),
+                "series": [{"name": T("Landed", "到岸量"),
                             "points": [[d.isoformat(), round(supply.by_day[d], 1)]
                                        for d in days if d >= start.date() - timedelta(days=14)]}],
             })
@@ -1581,12 +1593,16 @@ def _situation_outage(ctx: Ctx, result: SectionResult) -> SectionResult:
         "What to check",
         [("item", "", "text")],
         [{"item": text} for text in (
-            f"The next REMIT version for {row['facility_name']}: end date and size can change.",
-            "Landings on the next complete gas day against the seven-day average above."
+            T(f"The next REMIT version for {row['facility_name']}: end date and size can "
+              "change.", f"{row['facility_name']}的下一版REMIT消息：结束日期与规模可能变化。"),
+            T("Landings on the next complete gas day against the seven-day average above.",
+              "下一个完整气日的到岸量与上文七日均值的对比。")
             if is_norway(row.get("balancing_zone")) else
-            "Flows at the affected points on the next complete gas day.",
-            f"Prices at {', '.join(hubs)} in the Prices section." if hubs else
-            "Prices in the Prices section.",
+            T("Flows at the affected points on the next complete gas day.",
+              "下一个完整气日受影响点位的流量。"),
+            T(f"Prices at {', '.join(hubs)} in the Prices section.",
+              f"价格部分中{'、'.join(hubs)}的价格。") if hubs else
+            T("Prices in the Prices section.", "价格部分中的价格。"),
         )],
     ))
     result.simulated = stats["simulated"]

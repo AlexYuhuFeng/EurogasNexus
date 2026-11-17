@@ -60,6 +60,17 @@ def day(value: str | date | None) -> str:
     return f"{moment.month}月{moment.day}日" if zh() else f"{moment.day} {moment:%b}"
 
 
+def lose_sentence(facility: str, amount: str, start, end) -> str:
+    """"<facility> is scheduled to lose <amount> on/from <start> [to <end>]." in the language."""
+
+    a, b = day(str(start)[:10]), (day(str(end)[:10]) if end else None)
+    if b == a:
+        return T(f"{facility} is scheduled to lose {amount} on {a}.",
+                 f"{facility}计划于{a}减少{amount}。")
+    return T(f"{facility} is scheduled to lose {amount} from {a}" + (f" to {b}" if b else "") + ".",
+             f"{facility}计划自{a}起" + (f"至{b}" if b else "") + f"减少{amount}。")
+
+
 def _versus(value: float, average: float, unit: str) -> str:
     """``above the seven-day average of 2,764 GWh/d`` (the direction stated, not left to infer)."""
 
@@ -431,12 +442,13 @@ def limits(stats: dict[str, Any]) -> dict[str, Any]:
     breach = [r for r in rows if r["status"] == "breach"]
     watch = [r for r in rows if r["status"] == "watch"]
     headline = T(
-        f"{_WORDS.get(len(breach), str(len(breach)))} of {len(rows)} limits "
+        f"{_WORDS.get(len(breach), str(len(breach)))} of "
+        f"{_WORDS.get(len(rows), str(len(rows))).lower()} limits "
         f"{'is' if len(breach) == 1 else 'are'} in breach and "
         f"{_WORDS.get(len(watch), str(len(watch))).lower()} on watch.",
         f"{len(rows)}项限额中{len(breach)}项超限，{len(watch)}项处于观察。")
     kinds = {"credit line": T("credit line", "信用额度"), "mandate": T("mandate", "授权")}
-    states = {"breach": T("in breach", "超限"), "watch": T("on watch", "观察"),
+    states = {"breach": T("in breach", "超限"), "watch": T("on watch", "处于观察"),
               "ok": T("within", "正常")}
     bullets = []
     for row in (breach + watch)[:3]:

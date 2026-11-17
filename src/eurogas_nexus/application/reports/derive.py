@@ -21,7 +21,7 @@ import re
 from datetime import date, timedelta
 
 from eurogas_nexus.application.reports import facts as F
-from eurogas_nexus.application.reports.commentary import _sim, number
+from eurogas_nexus.application.reports.commentary import _sim, lose_sentence, number
 from eurogas_nexus.application.reports.commentary import day as fday
 from eurogas_nexus.application.reports.lang import T, country, zh
 
@@ -147,10 +147,10 @@ def derive_prices(result, ctx) -> None:
             f"日内{_move(hub['day_change'], hub['unit'])}")
         if variation:
             f["implications"].append(
-                T("The move was within the range of its recent daily changes.",
-                  "这一变动处于其近期日变动范围之内。") if score < 1 else
-                T("The move was larger than its typical daily change over the last 30 days.",
-                  "这一变动大于其近30天的典型日变动。")
+                T(f"The {hub['hub']} move was within the range of its recent daily changes.",
+                  f"{hub['hub']}的这一变动处于其近期日变动范围之内。") if score < 1 else
+                T(f"The {hub['hub']} move was larger than its typical daily change over the "
+                  "last 30 days.", f"{hub['hub']}的这一变动大于其近30天的典型日变动。")
             )
         if hub.get("rolled_from"):
             f["implications"].insert(0, T(
@@ -311,7 +311,7 @@ def derive_pipeline(result, ctx) -> None:
                   unit="GWh/d",
                   series=[{"name": T("This year", "今年"),
                            "points": F.series_points(total, longest, end)}]
-                  + ([{"name": T("Year earlier", "一年前"), "points": context, "context": True}]
+                  + ([{"name": T("Year earlier", "去年"), "points": context, "context": True}]
                      if context else []),
                   types=("line",), windows=permitted, window=window, simulated=sim, half=True),
         F.exhibit("fig.landings.split", "pipeline_supply", "stacked_area",
@@ -319,9 +319,9 @@ def derive_pipeline(result, ctx) -> None:
                           "欧洲大陆终端接收大部分天然气"),
                   subtitle=T("Landings by terminal scope, GWh/d", "按终端范围的到岸量，GWh/d"),
                   unit="GWh/d",
-                  series=[{"name": T("Continental", "欧洲大陆"),
+                  series=[{"name": T("Continental", "大陆"),
                            "points": F.series_points(norway, longest, end)},
-                          {"name": T("UK terminals", "英国终端"),
+                          {"name": T("UK terminals", "英国"),
                            "points": F.series_points(uk, longest, end)}],
                   types=("stacked_area", "stacked_bar"), windows=permitted, window=window,
                   simulated=sim, half=True,
@@ -429,7 +429,7 @@ def derive_lng(result, ctx) -> None:
                    "西北欧 LNG 外输合计，GWh/d" + (f"；对照：持有{years}年历史" if years else "")),
         unit="GWh/d",
         series=[{"name": T("This year", "今年"), "points": F.series_points(total, longest, end)}]
-        + ([{"name": T("Year earlier", "一年前"), "points": context, "context": True}]
+        + ([{"name": T("Year earlier", "去年"), "points": context, "context": True}]
            if context else []),
         types=("line",), windows=permitted, window=window, simulated=sim, half=True))
     result.tables = [F.table(
@@ -717,12 +717,8 @@ def derive_outages(result, ctx) -> None:
             T(f"Scheduled: {r['facility']}", f"计划停运：{r['facility']}"), r["gwh"], "GWh/d",
             day=F.iso(r["start"][:10]), state=raw["state"], simulated=sim, indicator=False,
             scheduled=True, score=min(r["gwh"] / landings * 3, 2.0), reason="scheduled event",
-            sentence=T(f"{r['facility']} is scheduled to lose {number(r['gwh'], 'GWh/d')}"
-                       f"{_sim(sim)} from {fday(r['start'])}"
-                       + (f" to {fday(r['end'])}" if r.get("end") else "") + ".",
-                       f"{r['facility']}计划自{fday(r['start'])}起"
-                       + (f"至{fday(r['end'])}" if r.get("end") else "")
-                       + f"减少{number(r['gwh'], 'GWh/d')}{_sim(sim)}。"),
+            sentence=lose_sentence(r["facility"], number(r["gwh"], "GWh/d") + _sim(sim),
+                                  r["start"], r.get("end")),
             sources=["REMIT urgent market messages"]))
     ended = [r for r in rows if r["status"] == "ended" and r["gwh"]]
     if ended:
@@ -840,7 +836,7 @@ def derive_balance(result, ctx) -> None:
     series = [{"name": T("Measured", "实测"), "points": F.series_points(call, longest, end)}]
     context = F.shifted_year(call, longest, end)
     if context:
-        series.append({"name": T("Year earlier", "一年前"), "points": context, "context": True})
+        series.append({"name": T("Year earlier", "去年"), "points": context, "context": True})
     if forecast:
         last = forecast[-1]
         method = str((last.get("methods") or {}).get("call") or "stated in Methodology")

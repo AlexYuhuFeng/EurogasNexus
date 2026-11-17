@@ -31,7 +31,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from eurogas_nexus.application.reports import facts as F
-from eurogas_nexus.application.reports.commentary import _sim, move, number
+from eurogas_nexus.application.reports.commentary import _sim, lose_sentence, move, number
 from eurogas_nexus.application.reports.commentary import day as fday
 from eurogas_nexus.application.reports.derive import _OPERATOR_CODE
 from eurogas_nexus.application.reports.lang import T, zh
@@ -207,14 +207,8 @@ def _outage_supply(results: dict[str, dict], raws: dict[str, Any], today: date
                      f"计划中的挪威停运：{r['facility']}"), r["gwh"], "GWh/d",
                    day=F.iso(str(r["start"])[:10]), state=state, simulated=sim,
                    indicator=False, scheduled=True, score=1.0, reason="scheduled, Norwegian",
-                   sentence=T(f"{r['facility']} is scheduled to lose "
-                              f"{number(r['gwh'], 'GWh/d')}{_sim(sim)} from "
-                              f"{fday(str(r['start'])[:10])}"
-                              + (f" to {fday(str(r['end'])[:10])}" if r.get("end") else "")
-                              + ".",
-                              f"{r['facility']}计划自{fday(str(r['start'])[:10])}起"
-                              + (f"至{fday(str(r['end'])[:10])}" if r.get("end") else "")
-                              + f"减少{number(r['gwh'], 'GWh/d')}{_sim(sim)}。"))
+                   sentence=lose_sentence(r["facility"], number(r["gwh"], "GWh/d") + _sim(sim),
+                                           r["start"], r.get("end")))
         f["question"] = True
         out.append(f)
     if landings.get("state") in {"late", "stale"} and latest:
@@ -249,8 +243,10 @@ def build(plan, results: list[dict], raws: dict[str, Any], *, today: date,
             if spec.get("id") == "tab.outages" and nor_names:
                 size = len(spec["rows"])
                 sim = bool(by_key["outages"].get("simulated"))
+                words = {"active": T("active", "活跃"), "scheduled": T("scheduled", "计划")}
                 ours = [{**r, "operator": _OPERATOR_CODE.sub("", r.get("operator") or ""),
-                         "simulated": sim}
+                         "simulated": sim,
+                         "status_label": words.get(r.get("status"), r.get("status"))}
                         for r in every if r.get("facility") in nor_names
                         and r.get("status") != "ended"]
                 rest = [r for r in spec["rows"] if r.get("facility") not in nor_names]

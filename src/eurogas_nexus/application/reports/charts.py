@@ -35,6 +35,7 @@ from datetime import date
 from html import escape
 from typing import Any
 
+from eurogas_nexus.application.reports.lang import T, zh
 from eurogas_nexus.application.reports.tokens import LIGHT, SERIES
 
 FULL = (640, 165)
@@ -112,6 +113,9 @@ def _x_label(value: Any, span_days: float, months: bool = False) -> str:
         return str(value)
     if months:
         return f"{moment:%b}-{moment:%y}"
+    if zh():
+        return (f"{moment.year % 100}年{moment.month}月" if span_days > 120
+                else f"{moment.month}/{moment.day}")
     return f"{moment:%b %y}" if span_days > 120 else f"{moment.day} {moment:%b}"
 
 
@@ -291,7 +295,7 @@ def stack_order(series_list: list[dict], most: int = 4) -> list[dict]:
                 continue
             total[str(x)] = total.get(str(x), 0.0) + y
             order.setdefault(str(x), x)
-    other = {"name": "Other", "other": True,
+    other = {"name": T("Other", "其他"), "other": True,
              "points": [[order[k], round(v, 3)] for k, v in total.items()]}
     return keep + [other]
 
@@ -350,8 +354,26 @@ def _end_label(text: str, x: float, y: float, colour: str, room: float, two_line
 
 
 def _fit_label(text: str, room: float) -> str:
-    most = max(4, int((room - 6) / LABEL_CHAR))
-    return text if len(text) <= most else text[: most - 1] + "…"
+    """The label cut to the room it has: the name gives way, a trailing figure never does.
+    A CJK character takes one and a half Latin widths."""
+
+    most = max(4.0, (room - 6) / LABEL_CHAR)
+
+    def width(part: str) -> float:
+        return sum(1.5 if ord(c) >= 0x2E80 else 1.0 for c in part)
+
+    if width(text) <= most:
+        return text
+    name, _, value = text.rpartition(" ")
+    if not name or not any(c.isdigit() for c in value):
+        name, value = text, ""
+    keep = most - width(value) - (2 if value else 1)
+    out = ""
+    for char in name:
+        if width(out + char) > keep:
+            break
+        out += char
+    return (out.rstrip() + "…" + (" " + value if value else "")) if out else text
 
 
 def _all_x(spec: dict) -> list:

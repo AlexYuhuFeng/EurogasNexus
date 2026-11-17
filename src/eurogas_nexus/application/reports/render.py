@@ -61,6 +61,7 @@ STATE_WORDS_ZH = {"current": "最新", "late": "延迟", "stale": "过期", "nev
 def _state(state: Any) -> str:
     return (STATE_WORDS_ZH if zh() else STATE_WORDS).get(str(state), str(state or ""))
 CLASSIFICATION = {"internal": "INTERNAL", "shareable": "FOR DISTRIBUTION"}
+CLASSIFICATION_ZH = {"internal": "内部", "shareable": "可对外分发"}
 DISCLAIMER = ("Decision support only: not advice to trade, and nothing here describes "
               "execution, nomination or settlement.")
 DISCLAIMER_ZH = "仅供决策参考：不构成交易建议，亦不涉及执行、提名或结算。"
@@ -335,7 +336,7 @@ WORDS: dict[str, dict[str, str]] = {
         "note": "注：", "data_as_of": "数据截至", "issue": "第", "period": "期间",
         "to": "至", "demo": "演示数据：模拟", "question": "问题：",
         "contents": "目录", "watch": "关注事项",
-        "method": "方法与来源（英文）", "annex": "数据附录",
+        "method": "方法与来源", "annex": "数据附录",
         "foot_left": "非交易建议：见方法说明", "page": "第", "of": "页，共",
         "simulated_foot": "† 模拟演示数据，非市场价格",
         "glance_source": "Eurogas Nexus 根据方法说明所列来源计算。",
@@ -352,7 +353,8 @@ TITLES_ZH = {
     "book_position": "我方头寸", "book_pnl": "损益", "book_limits": "限额",
     "book_contracts": "合同",
     "Prices": "价格", "Supply": "供应", "Storage": "储气", "Demand": "需求",
-    "Infrastructure and outages": "基础设施与停运", "Balance": "平衡", "Our book": "我方账簿",
+    "Infrastructure and outages": "基础设施与停运", "Balance": "平衡",
+    "Balance and outlook": "平衡与展望", "What happened": "要闻", "Our book": "我方账簿",
     "Alerts": "预警", "Event": "事件",
 }
 KIND_ZH = {"daily": "日报", "weekly": "周报", "monthly": "月报", "situation": "事件报告",
@@ -377,7 +379,8 @@ def _css_string(text: str) -> str:
 
 def _css(snapshot: dict) -> str:
     lang = _lang(snapshot)
-    classification = CLASSIFICATION.get(snapshot["audience"], "INTERNAL")
+    classification = (CLASSIFICATION_ZH if zh() else CLASSIFICATION).get(
+        snapshot["audience"], T("INTERNAL", "内部"))
     header = f"{PUBLICATION} · {snapshot['title']}"
     foot = _w(lang, "simulated_foot") if snapshot.get("simulated") else ""
     if lang == "en":
@@ -486,7 +489,41 @@ def _cell(row: dict, column: dict, first_number: str | None) -> str:
         return f'<td class="t">{_e(fmt_datetime(value or "open"))}</td>'
     if kind == "state":
         return f'<td class="st-{_e(value)}">{_e(_state(value))}</td>'
-    return f"<td>{_e(value)}</td>"
+    if isinstance(value, str) and _ISO_MOMENT.match(value):
+        return f'<td class="t">{_e(fmt_datetime(value))} UTC</td>'
+    text = _tw(value)
+    short = isinstance(text, str) and len(text) <= 4  # a status word never breaks mid-word
+    return ('<td class="t">' if short else "<td>") + f"{_e(text)}</td>"
+
+
+_ISO_MOMENT = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}")
+
+
+#: Table words the builders write in English, as the Chinese edition prints them.
+TABLE_ZH = {
+    "Open alerts, critical first": "未关闭预警（严重在前）", "Severity": "严重程度",
+    "Category": "类别", "Alert": "预警", "Updated": "更新时间",
+    "Day P&L change on the open position": "未平仓头寸日损益变化", "Hub": "枢纽",
+    "Day change": "日变化", "Currency": "货币", "Not valued because": "未估值原因",
+    "Imported indicative P&L valuations": "导入的指示性损益估值", "Portfolio": "组合",
+    "Indicative P&L (GBP)": "指示性损益（GBP）", "Since previous (GBP)": "较上次（GBP）",
+    "Valued": "估值时间", "Contracts in effect today": "今日生效合同", "Contract": "合同",
+    "Delivery point": "交付点", "Gas year": "气年", "Price": "价格", "Price unit": "价格单位",
+    "Book": "账簿", "Unit": "单位", "The message": "消息内容", "Facility": "设施",
+    "Zone": "区域", "Type": "类型", "Unavailable": "不可用", "Technical capacity": "技术容量",
+    "Start (UTC)": "开始（UTC）", "End (UTC)": "结束（UTC）", "Published": "发布时间",
+    "Version": "版本", "Reason": "原因", "Hubs it touches first": "首先影响的枢纽",
+    "What to check": "需核对事项", "The alert": "预警内容", "Detected": "检测时间",
+    "open": "未定", "not stated": "未说明", "n/a": "无",
+    "critical": "严重", "watch": "观察", "info": "信息", "physical": "实物",
+    "Norwegian landings around the outage": "停运前后的挪威到岸量", "Landed": "到岸量",
+    "active": "活跃", "scheduled": "计划", "ended": "已结束",
+    "unplanned": "非计划", "planned": "计划", "credit line": "信用额度", "mandate": "授权",
+}
+
+
+def _tw(text: Any) -> Any:
+    return TABLE_ZH.get(text, text) if zh() and isinstance(text, str) else text
 
 
 def table_html(spec: dict) -> str:
@@ -495,7 +532,7 @@ def table_html(spec: dict) -> str:
     columns = spec["columns"]
     first_number = next((c["key"] for c in columns if c["kind"] in {"num", "signed"}), None)
     head = "".join(
-        f'<th scope="col"{NUM if c["kind"] in {"num", "signed"} else ""}>{_e(c["label"])}</th>'
+        f'<th scope="col"{NUM if c["kind"] in {"num", "signed"} else ""}>{_e(_tw(c["label"]))}</th>'
         for c in columns)
     body = "".join(
         f'<tr{TOTAL if row.get("total") else ""}>'
@@ -525,7 +562,7 @@ def table_exhibit(spec: dict, number: int, as_of: str, lang: str = "en") -> str:
     if not spec.get("rows"):
         return ""
     return (f'<figure class="r-exhibit r-table" id="t{number}">'
-            + _furniture(f"{_w(lang, 'table')} {number}", spec.get("caption", ""),
+            + _furniture(f"{_w(lang, 'table')} {number}", _tw(spec.get("caption", "")),
                          spec.get("subtitle", ""))
             + table_html(spec)
             + _source_line(spec.get("source") or "Eurogas Nexus.", as_of, spec.get("notes", ""),
@@ -552,7 +589,8 @@ def chart_exhibit(spec: dict, number: int, as_of: str, end: date, lang: str = "e
 
 def _masthead(snapshot: dict) -> str:
     lang = _lang(snapshot)
-    classification = CLASSIFICATION.get(snapshot["audience"], "INTERNAL")
+    classification = (CLASSIFICATION_ZH if zh() else CLASSIFICATION).get(
+        snapshot["audience"], T("INTERNAL", "内部"))
     period = snapshot.get("period") or {}
     issue = snapshot.get("issue") or 1
     demo = (f' · <span class="r-class">{_w(lang, "demo")}</span>'
@@ -610,7 +648,8 @@ def _glance(snapshot: dict, number: int) -> str:
             value = r.get(key)
             cells.append(f'<td class="n">{_e(fmt_number(value, "signed"))}</td>'
                          if value is not None else '<td class="n r-blank"></td>')
-        state = "" if r["state"] == "current" else f" ({r['state']})"
+        state = "" if r["state"] == "current" else T(f" ({_state(r['state'])})",
+                                                         f"（{_state(r['state'])}）")
         cells.append(f'<td class="st-{_e(r["state"])}">{_e(fmt_short(r["as_of"]))}{_e(state)}</td>')
         cells.append(f'<td class="r-sp">{sparkline(r.get("spark") or [], label=r["label"])}</td>')
         body.append("<tr>" + "".join(cells) + "</tr>")
@@ -914,7 +953,8 @@ def _back(snapshot: dict, numbers: Numbering, body: str = "") -> str:
     if omitted:
         out.append(f"<h3>{T('Not included', '未包含的内容')}</h3>" + "".join(
             f"<p><b>{_e(section_title(item.get('key') or '', item['title']))}{T(':', '：')}</b> "
-            f"{_e(omitted_reason(item['reason']))}{T('.', '。')}</p>" for item in omitted))
+            f"{_e(omitted_reason(item['reason']).rstrip('.。'))}{T('.', '。')}</p>"
+            for item in omitted))
     used = [(a, b) for a, b in GLOSSARY
             if any(re.search(rf"(?<![\w-]){re.escape(term)}(?![\w-])", body)
                    for term in _glossary_terms(a))]
@@ -955,7 +995,8 @@ def _back(snapshot: dict, numbers: Numbering, body: str = "") -> str:
                     "如需可打印数据附录。"))
                + "</p>")
     licensed = (snapshot.get("licensed") or {}).get("sources")
-    classification = CLASSIFICATION.get(snapshot["audience"], "INTERNAL")
+    classification = (CLASSIFICATION_ZH if zh() else CLASSIFICATION).get(
+        snapshot["audience"], T("INTERNAL", "内部"))
     out.append(f"<p><b>{T('Classification.', '密级。')}</b> {_e(classification)}{T('. ', '。')}"
                + (T("For the desk and risk; not for distribution outside the firm. ",
                     "供交易台与风控使用；不得在公司外分发。")
@@ -988,7 +1029,7 @@ def _method(method: dict) -> tuple[str, str]:
 
 
 def section_title(key: str, title: str) -> str:
-    return TITLES_ZH.get(key, title) if zh() else title
+    return TITLES_ZH.get(key, TITLES_ZH.get(title, title)) if zh() else title
 
 
 def omitted_reason(reason: str) -> str:
@@ -1025,8 +1066,10 @@ def _annex(snapshot: dict, numbers: Numbering) -> str:
             target = wide if len(spec["columns"]) > 5 else mid if len(spec["columns"]) > 4 \
                 else blocks
             target.append(f'<figure id="t{number}">'
-                          + _furniture(f"{_w(lang, 'table')} {number}", spec.get("caption", ""),
-                                       f"{section['title']}: {len(rows)} "
+                          + _furniture(f"{_w(lang, 'table')} {number}",
+                                       _tw(spec.get("caption", "")),
+                                       f"{section_title(section['key'], section['title'])}"
+                                       f"{T(': ', '：')}{len(rows)} "
                                        f"{_w(lang, 'rows_newest')}")
                           + table_html(spec) + "</figure>")
     if not blocks and not mid and not wide:
