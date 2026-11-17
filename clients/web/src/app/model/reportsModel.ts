@@ -3,7 +3,7 @@
  * "Report" action carries in the URL (`?workspace=research&task=reports&subject=outage:<id>`).
  * Pure functions, so the request a form makes is tested without a browser.
  */
-import type { ReportAudience, ReportKind, ReportRequestDTO, ReportSummaryDTO } from "../../api/client.ts";
+import type { ReportAudience, ReportCatalogueDTO, ReportKind, ReportRequestDTO, ReportSummaryDTO } from "../../api/client.ts";
 
 export interface ReportSubject {
   kind: "alert" | "outage";
@@ -23,6 +23,8 @@ export interface ReportForm {
   question: string;
   /** Print the data annex; null: the kind's default. */
   annex: boolean | null;
+  /** The report's language; defaults to the interface language. */
+  language?: "en" | "zh-CN";
 }
 
 /** Whether a report of this kind prints its data annex unless asked otherwise. */
@@ -145,4 +147,80 @@ export function reportPeriodLabel(start: string | null, end: string | null): str
   if (!start && !end) return "";
   if (start && end && start !== end) return `${short(start)} – ${short(end)}`;
   return short((end ?? start) as string);
+}
+
+/**
+ * What stops this form from being generated, decided before Generate is pressed (the server
+ * would refuse the same plan): each entry is a translation key and its values, shown beside
+ * the control it concerns. An empty list means the server will accept the plan.
+ */
+export interface FormIssue {
+  field: "role" | "sections" | "period" | "hubs" | "question" | "store";
+  key: string;
+  values?: Record<string, string | number>;
+}
+
+export function formIssues(
+  form: ReportForm,
+  mode: "standard" | "ask",
+  sections: readonly string[],
+  catalogue: Pick<ReportCatalogueDTO, "hubs" | "availability"> | null,
+  today: string,
+): FormIssue[] {
+  const issues: FormIssue[] = [];
+  const offer = catalogue?.availability;
+  if (offer && !offer.can_generate) issues.push({ field: "role", key: "reports.issue.role" });
+  if (catalogue && offer === null) issues.push({ field: "store", key: "reports.issue.store" });
+  if (mode === "ask") {
+    if (form.question.trim().length < 3) issues.push({ field: "question", key: "reports.issue.question" });
+  } else if (!sections.length) {
+    issues.push({ field: "sections", key: "reports.issue.no_sections" });
+  }
+  const latest = offer?.period.latest_end ?? today;
+  const maxDays = offer?.period.max_days ?? 400;
+  const { periodStart: start, periodEnd: end } = form;
+  if (start && end && end < start) issues.push({ field: "period", key: "reports.issue.period_order" });
+  else if (start && end && daysBetween(start, end) + 1 > maxDays) {
+    issues.push({ field: "period", key: "reports.issue.period_long", values: { days: maxDays } });
+  }
+  if ((end && end > latest) || (start && start > latest)) {
+    issues.push({ field: "period", key: "reports.issue.period_future", values: { day: latest } });
+  }
+  const known = new Set((catalogue?.hubs ?? []).map((hub) => hub.toUpperCase()));
+  const unknown = known.size ? parseHubs(form.hubs).filter((hub) => !known.has(hub)) : [];
+  if (unknown.length) issues.push({ field: "hubs", key: "reports.issue.hub", values: { hubs: unknown.join(", ") } });
+  return issues;
+}
+
+function daysBetween(start: string, end: string): number {
+  return Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000);
+}
+
+/** The sections a form actually sends: those offered for its audience (a report for
+ * distribution leaves the book out, so it is never refused for it). */
+export function sendableSections(chosen: readonly string[], offered: readonly { key: string }[]): string[] {
+  const keys = new Set(offered.map((section) => section.key));
+  return chosen.filter((key) => keys.has(key));
+}
+
+/** What went wrong when a report could not be made, and what the user can do: a translation
+ * key for the message and which recovery actions to offer. */
+export function explainFailure(status: number | null, code: string | null, aborted: boolean): {
+  key: string;
+  retry: boolean;
+  withoutAi: boolean;
+} {
+  if (aborted) return { key: "reports.fail.cancelled", retry: true, withoutAi: false };
+  if (code === "licensed_data_not_redistributable") return { key: "reports.licensed_refused", retry: false, withoutAi: false };
+  if (status === 403) return { key: "reports.fail.forbidden", retry: false, withoutAi: false };
+  if (status === 422) return { key: "reports.fail.plan", retry: false, withoutAi: false };
+  if (status === 503) return { key: "reports.fail.store", retry: true, withoutAi: false };
+  if (status === 504 || status === 502 || status === null) return { key: "reports.fail.timeout", retry: true, withoutAi: true };
+  return { key: "reports.fail.server", retry: true, withoutAi: true };
+}
+
+/** "0:42": the time a generation has run. */
+export function elapsedLabel(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }

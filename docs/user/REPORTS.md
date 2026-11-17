@@ -114,6 +114,29 @@ A question the held data cannot answer at all (oil, carbon, Asian prices, vessel
 "Cannot answer from held data" and what is missing. A report for distribution never mentions the
 book, even when the question asks about it.
 
+## Before you press Generate
+
+The form knows what the server will accept, for you, before you press Generate:
+
+- **Who may generate.** Generating needs the analyst role; with a viewer or reviewer role the
+  form says so and offers stored reports instead.
+- **Audience.** A report for distribution leaves the book sections out (the form says so);
+  it is never refused for them.
+- **Sections.** Each section shows whether data is held for you today; one with none says
+  "no data held: will be listed as not held" and the report lists it with the reason.
+- **Period and hubs.** A period that ends before it starts, runs past today or covers more than
+  400 days, and a hub that is not known, are named beside the field and Generate waits.
+- **Language.** English or 中文 (default: the interface language). The whole report follows it:
+  rule-written text, exhibit titles, table heads, At a glance, back matter and "What the data
+  cannot tell". Figures, units and names do not change.
+- **AI editing.** When AI editing is not available to you the form says why; the report is
+  rule-written.
+
+While the report is made the form shows the stages with a moving bar on the active one and the
+time taken, and **Cancel**. If it still fails, the message says what failed and what you can do,
+keeps what you entered, and offers **Try again** and, where the AI step is the likely cause,
+**Generate without AI**.
+
 ## Your report library
 
 The stored list shows the kind, the title (the question for an asked report), the period, when

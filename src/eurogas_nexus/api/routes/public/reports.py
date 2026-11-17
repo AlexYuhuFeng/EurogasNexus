@@ -124,9 +124,41 @@ def get_report_catalogue(request: Request) -> dict:
     报告目录：报告类型、可选章节、各章节的数据来源与图表类型。
     """
 
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.caller import Caller
+    from eurogas_nexus.application.reports.availability import availability
     from eurogas_nexus.application.reports.catalogue import catalogue_payload
 
-    return _env({**catalogue_payload(), "pdf": PDF_NOTE}, request, "report-catalogue", [])
+    principal = ai_caller(request)
+    warnings: list[str] = []
+    try:
+        with _db() as session:
+            offer = availability(session, Caller(principal), ai=_ai_state(principal),
+                                 balance_reader=balance_reader)
+    except (SQLAlchemyError, HTTPException) as exc:
+        # The form still opens: it says the store cannot be read instead of failing later.
+        offer = None
+        warnings.append(f"report availability not read ({exc.__class__.__name__})")
+    return _env({**catalogue_payload(), "pdf": PDF_NOTE, "availability": offer}, request,
+                "report-catalogue", warnings)
+
+
+def _ai_state(principal) -> tuple[bool, str]:
+    """Whether the model may edit this caller's reports, and why not."""
+
+    from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial
+    from eurogas_nexus.core.config import get_settings
+    from eurogas_nexus.security.provider_keys import load_provider_api_key
+
+    if not get_settings().llm_external_provider_enabled:
+        return False, "AI editing is switched off for this installation; reports are rule-written."
+    denial = ai_authority_denial(principal)
+    if denial:
+        return False, "Your role does not include AI analysis; reports are rule-written."
+    if not (load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")):
+        return False, "No AI provider key is configured; reports are rule-written."
+    return True, ""
 
 
 @router.post("/api/reports/plan")

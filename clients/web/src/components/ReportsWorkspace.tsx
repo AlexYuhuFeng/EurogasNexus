@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/reports.css";
 import {
   api,
+  ApiError,
   fetchReportHtml,
   type ReportAudience,
   type ReportCatalogueDTO,
@@ -24,6 +25,9 @@ import { Button, DataGrid, Dialog, EmptyState, Field, Panel, Segmented, Select, 
 import {
   annexByDefault,
   editedByLabel,
+  elapsedLabel,
+  explainFailure,
+  formIssues,
   REPORT_STAGES,
   reportCsv,
   reportPeriodLabel,
@@ -31,7 +35,9 @@ import {
   reportRequestFromForm,
   reportStageAt,
   reportSubjectFromSearch,
+  sendableSections,
   summaryOnlyHtml,
+  type FormIssue,
   type ReportForm,
   type ReportStage,
 } from "@/app/model/reportsModel";
@@ -71,6 +77,9 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
   const [scopeOpen, setScopeOpen] = useState(false);
   const [stage, setStage] = useState<ReportStage | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [failure, setFailure] = useState<ReturnType<typeof explainFailure> | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const abort = useRef<AbortController | null>(null);
 
   // A question from the answer bar ("Open as report"): Ask mode, its plan proposed once.
@@ -133,6 +142,10 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
   const offered = sectionTypes.filter(
     (section) => section.key !== "situation_event" && (form.audience === "internal" || !section.internal_only),
   );
+  // What is sent: only sections offered for the audience (the book never reaches a report
+  // for distribution, so the server never refuses for it).
+  const sendable = sendableSections(chosen, offered);
+  const offer = catalogue?.availability ?? null;
 
   function update(patch: Partial<ReportForm>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -165,12 +178,14 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
     }
   }
 
-  async function generate() {
+  async function generate(useModel = true) {
     const controller = new AbortController();
     abort.current = controller;
     setBusy("generate");
     setError(null);
-    let request: ReportRequestDTO = reportRequestFromForm(form, mode, chosen, zh ? "zh-CN" : "en");
+    setFailure(null);
+    const language = form.language ?? (zh ? "zh-CN" : "en");
+    let request: ReportRequestDTO = { ...reportRequestFromForm(form, mode, sendable, language), use_model: useModel };
     try {
       if (mode === "ask" && !(scopeOpen && proposal?.answerable)) {
         // The question decides the scope: plan it now (the user never has to fill a form).
@@ -185,11 +200,15 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
         }
         const planned = { ...form, sections: plan.sections, hubs: plan.hubs.join(", "), periodStart: plan.period_start ?? "", periodEnd: plan.period_end ?? "" };
         setForm(planned);
-        request = reportRequestFromForm(planned, mode, plan.sections, zh ? "zh-CN" : "en");
+        request = { ...reportRequestFromForm(planned, mode, plan.sections, language), use_model: useModel };
       }
       const started = Date.now();
+      setStartedAt(started);
       setStage(reportStageAt(0));
-      const timer = window.setInterval(() => setStage(reportStageAt(Date.now() - started)), 500);
+      const timer = window.setInterval(() => {
+        setStage(reportStageAt(Date.now() - started));
+        setNow(Date.now());
+      }, 500);
       try {
         const response = await api.generateReport(request, { signal: controller.signal });
         setSelected(response.data.report_id);
@@ -197,10 +216,12 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
       } finally {
         window.clearInterval(timer);
       }
-    } catch (failure) {
-      if (controller.signal.aborted) return;
-      const message = failure instanceof Error ? failure.message : "";
-      setError(message.includes("licensed") ? t("reports.licensed_refused") : t("reports.generate_failed"));
+    } catch (caught) {
+      // Say what failed and what can be done; the form keeps everything that was entered.
+      const status = caught instanceof ApiError ? caught.status : null;
+      const detail = caught instanceof ApiError && caught.detail && typeof caught.detail === "object"
+        ? (caught.detail as { code?: string; error?: string }) : null;
+      setFailure(explainFailure(status, detail?.code ?? detail?.error ?? null, controller.signal.aborted));
     } finally {
       if (abort.current === controller) abort.current = null;
       setBusy(null);
@@ -210,15 +231,16 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
 
   function cancel() {
     abort.current?.abort();
-    setError(t("reports.cancelled"));
   }
 
   const kindOptions = KINDS.filter((kind) => kind !== "situation" || form.subject).map((kind) => ({
     value: kind,
     label: t(`reports.kind.${kind}`),
   }));
-  const canGenerate =
-    busy === null && (mode === "standard" ? chosen.length > 0 : form.question.trim().length >= 3);
+  const issues = formIssues(form, mode, sendable, catalogue, new Date().toISOString().slice(0, 10));
+  const canGenerate = busy === null && issues.length === 0;
+  const issueText = (field: FormIssue["field"]) => issues.filter((issue) => issue.field === field)
+    .map((issue) => <p key={issue.key} className="reports-issue" data-report-issue={issue.key}>{t(issue.key, issue.values)}</p>);
 
   const columns: DataGridColumn<ReportSummaryDTO>[] = [
     { id: "created", header: t("reports.col.created"), type: "date", value: (row) => row.created_at ?? "", format: (value) => String(value).slice(0, 16).replace("T", " "), width: "128px" },
@@ -266,7 +288,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
               />
             }
           >
-            <form className="reports-form" onSubmit={(event) => { event.preventDefault(); void generate(); }} data-report-form={mode}>
+            <form className="reports-form" onSubmit={(event) => { event.preventDefault(); void generate(true); }} data-report-form={mode}>
               {mode === "ask" && (
                 <div className="reports-ask">
                   <Field label={t("reports.question")} hint={t("reports.question_hint")}>
@@ -328,7 +350,17 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                     onChange={(audience) => update({ audience, sections: form.sections?.filter((key) => audience === "internal" || !sectionTypes.find((s) => s.key === key)?.internal_only) ?? null })}
                   />
                 </Field>
+                <Field label={t("reports.language")}>
+                  <Select<"en" | "zh-CN">
+                    value={form.language ?? (zh ? "zh-CN" : "en")}
+                    options={[{ value: "en", label: "English" }, { value: "zh-CN", label: "中文" }]}
+                    onChange={(language) => update({ language })}
+                  />
+                </Field>
               </div>
+              {form.audience === "shareable" && (
+                <p className="reports-note" data-report-audience-note="">{t("reports.no_book_for_distribution")}</p>
+              )}
               {(mode === "standard" || scopeOpen) && (
               <div id="reports-scope" className="reports-scope">
               {mode === "ask" && (
@@ -336,12 +368,14 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   {t("reports.propose_plan")}
                 </Button>
               )}
+              {issueText("period")}
+              {issueText("hubs")}
               <div className="reports-row">
                 <Field label={t("reports.period_start")}>
-                  <input type="date" value={form.periodStart} onChange={(event) => update({ periodStart: event.target.value })} />
+                  <input type="date" value={form.periodStart} max={offer?.period.latest_end} onChange={(event) => update({ periodStart: event.target.value })} />
                 </Field>
                 <Field label={t("reports.period_end")}>
-                  <input type="date" value={form.periodEnd} onChange={(event) => update({ periodEnd: event.target.value })} />
+                  <input type="date" value={form.periodEnd} max={offer?.period.latest_end} onChange={(event) => update({ periodEnd: event.target.value })} />
                 </Field>
                 <Field label={t("reports.hubs")} hint={t("reports.hubs_hint")}>
                   <input value={form.hubs} maxLength={80} onChange={(event) => update({ hubs: event.target.value })} />
@@ -349,13 +383,21 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
               </div>
               <fieldset className="reports-sections">
                 <legend>{t("reports.sections")}</legend>
-                {offered.map((section) => (
-                  <label key={section.key} title={section.data_source}>
-                    <input type="checkbox" checked={chosen.includes(section.key)} onChange={() => toggleSection(section.key)} />
-                    <span>{t(`reports.section.${section.key}`)}</span>
-                  </label>
-                ))}
+                {offered.map((section) => {
+                  const state = offer?.sections[section.key];
+                  const notHeld = state && state.state !== "ok";
+                  return (
+                    <label key={section.key} title={notHeld ? state.reason ?? section.data_source : section.data_source} data-section-state={state?.state ?? "unknown"}>
+                      <input type="checkbox" checked={chosen.includes(section.key)} onChange={() => toggleSection(section.key)} />
+                      <span>
+                        {t(`reports.section.${section.key}`)}
+                        {notHeld && <span className="reports-note"> · {t("reports.section_not_held")}</span>}
+                      </span>
+                    </label>
+                  );
+                })}
               </fieldset>
+              {issueText("sections")}
               <label className="reports-annex">
                 <input
                   type="checkbox"
@@ -366,8 +408,23 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
               </label>
               </div>
               )}
+              {issueText("role")}
+              {issueText("store")}
+              {issueText("question")}
+              {offer && !offer.ai.available && offer.can_generate && (
+                <p className="reports-note" data-report-ai-note="">{offer.ai.reason}</p>
+              )}
               {error && <p className="reports-error" role="alert">{error}</p>}
-              {stage && <ReportProgress stage={stage} onCancel={cancel} t={t} />}
+              {failure && (
+                <div className="reports-failure" role="alert" data-report-failure={failure.key}>
+                  <p>{t(failure.key)}</p>
+                  <div className="reports-actions">
+                    {failure.retry && <Button size="sm" onClick={() => void generate(true)}>{t("reports.retry")}</Button>}
+                    {failure.withoutAi && <Button size="sm" variant="quiet" onClick={() => void generate(false)}>{t("reports.generate_without_ai")}</Button>}
+                  </div>
+                </div>
+              )}
+              {stage && <ReportProgress stage={stage} elapsed={startedAt ? now - startedAt : 0} onCancel={cancel} t={t} />}
               <div className="reports-actions">
                 <Button type="submit" variant="primary" size="md" loading={busy === "generate"} disabled={!canGenerate}>
                   {t("reports.generate")}
@@ -410,7 +467,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
 }
 
 /** Staged progress while a report is planned, collected, written, checked and laid out. */
-function ReportProgress({ stage, onCancel, t }: { stage: ReportStage; onCancel: () => void; t: Translate }) {
+function ReportProgress({ stage, elapsed, onCancel, t }: { stage: ReportStage; elapsed: number; onCancel: () => void; t: Translate }) {
   const current = REPORT_STAGES.indexOf(stage);
   return (
     <div className="reports-progress" role="status" aria-live="polite" data-report-stage={stage}>
@@ -418,9 +475,11 @@ function ReportProgress({ stage, onCancel, t }: { stage: ReportStage; onCancel: 
         {REPORT_STAGES.map((item, index) => (
           <li key={item} data-state={index < current ? "done" : index === current ? "current" : "next"} aria-current={index === current ? "step" : undefined}>
             {t(`reports.stage.${item}`)}
+            {index === current && <span className="reports-progress-bar" aria-hidden="true" />}
           </li>
         ))}
       </ol>
+      <span className="reports-note reports-elapsed" aria-label={t("reports.elapsed")}>{elapsedLabel(elapsed)}</span>
       <Button size="sm" variant="quiet" onClick={onCancel}>{t("reports.cancel")}</Button>
     </div>
   );

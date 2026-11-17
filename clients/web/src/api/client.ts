@@ -1951,6 +1951,20 @@ export interface ReportCatalogueDTO {
   sections: ReportSectionTypeDTO[];
   default_sections: Record<ReportKind, string[]>;
   pdf: string;
+  /** Known hub codes (what a typed hub must resolve to). */
+  hubs?: string[];
+  /** What this user's form may offer, read before Generate (null: the store could not be read). */
+  availability?: ReportAvailabilityDTO | null;
+}
+
+export interface ReportAvailabilityDTO {
+  can_generate: boolean;
+  reason: string | null;
+  sections: Record<string, { state: "ok" | "not_held" | "unavailable"; reason: string | null; action?: string | null }>;
+  audiences: Record<ReportAudience, { allowed: boolean; reason: string | null }>;
+  period: { max_days: number; latest_end: string };
+  ai: { available: boolean; reason: string | null };
+  languages: ("en" | "zh-CN")[];
 }
 
 export interface ReportPlanDTO {

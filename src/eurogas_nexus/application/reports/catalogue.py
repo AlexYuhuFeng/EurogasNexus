@@ -294,12 +294,15 @@ def validate_plan(raw: dict[str, Any], *, now: datetime) -> ReportPlan:
     sections = seen
     if audience == "shareable":
         internal = [key for key in sections if SECTION_BY_KEY[key].internal_only]
-        if internal and explicit and not raw.get("drop_internal"):
+        # Book sections are left out of a report for distribution (the form leaves them out
+        # too); only a plan of nothing but book sections is refused, below, as empty.
+        if internal and explicit and not raw.get("drop_internal") and not [
+                key for key in sections if not SECTION_BY_KEY[key].internal_only]:
             raise PlanError(
                 "internal_section_in_shareable",
-                "A shareable report cannot contain " + ", ".join(
+                "A report for distribution cannot contain " + ", ".join(
                     SECTION_BY_KEY[key].title for key in internal
-                ) + "; choose the internal audience or remove them",
+                ) + "; choose the internal audience",
             )
         if internal:
             notes.append("Our book is not part of a shareable report.")
@@ -388,4 +391,5 @@ def catalogue_payload() -> dict[str, Any]:
         "groups": list(GROUPS),
         "sections": [section.as_dict() for section in SECTIONS],
         "default_sections": {kind: list(keys) for kind, keys in DEFAULT_SECTIONS.items()},
+        "hubs": sorted(known_hubs()),
     }

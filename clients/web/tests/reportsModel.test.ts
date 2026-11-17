@@ -5,10 +5,14 @@ import test from "node:test";
 import {
   annexByDefault,
   editedByLabel,
+  elapsedLabel,
+  explainFailure,
+  formIssues,
   parseHubs,
   REPORT_STAGES,
   reportPeriodLabel,
   reportStageAt,
+  sendableSections,
   reportRequestFromForm,
   reportSubjectFromSearch,
   reportSubjectSearch,
@@ -79,4 +83,39 @@ test("the stored list shows the period and who edited the report", () => {
   assert.equal(reportPeriodLabel(null, null), "");
   assert.equal(editedByLabel({ edited_by: "model" }), "model");
   assert.equal(editedByLabel({}), "rule");
+});
+
+test("the form knows before Generate what the server would refuse", () => {
+  const catalogue = {
+    hubs: ["TTF", "NBP", "THE"],
+    availability: {
+      can_generate: true, reason: null, sections: {}, audiences: { internal: { allowed: true, reason: null }, shareable: { allowed: true, reason: null } },
+      period: { max_days: 400, latest_end: "2026-11-18" }, ai: { available: false, reason: "off" }, languages: ["en", "zh-CN"] as ("en" | "zh-CN")[],
+    },
+  };
+  const ok = { ...form, hubs: "ttf", periodStart: "2026-11-01", periodEnd: "2026-11-07" };
+  assert.deepEqual(formIssues(ok, "standard", ["prices"], catalogue, "2026-11-18"), []);
+  const keys = (f: typeof form, sections = ["prices"]) => formIssues(f, "standard", sections, catalogue, "2026-11-18").map((i) => i.key);
+  assert.deepEqual(keys({ ...ok, periodEnd: "2026-10-01" }), ["reports.issue.period_order"]);
+  assert.deepEqual(keys({ ...ok, periodStart: "2024-01-01" }), ["reports.issue.period_long"]);
+  assert.deepEqual(keys({ ...ok, periodEnd: "2026-12-01" }), ["reports.issue.period_future"]);
+  assert.deepEqual(keys({ ...ok, hubs: "TTFX" }), ["reports.issue.hub"]);
+  assert.deepEqual(keys(ok, []), ["reports.issue.no_sections"]);
+  const viewer = { ...catalogue, availability: { ...catalogue.availability, can_generate: false, reason: "role" } };
+  assert.deepEqual(formIssues(ok, "standard", ["prices"], viewer, "2026-11-18").map((i) => i.key), ["reports.issue.role"]);
+  assert.deepEqual(formIssues({ ...ok, question: "" }, "ask", [], catalogue, "2026-11-18").map((i) => i.key), ["reports.issue.question"]);
+});
+
+test("a report for distribution never sends a book section", () => {
+  const offered = [{ key: "prices" }, { key: "storage" }];
+  assert.deepEqual(sendableSections(["prices", "book_position", "storage"], offered), ["prices", "storage"]);
+});
+
+test("a failure says what failed and offers what helps", () => {
+  assert.deepEqual(explainFailure(null, null, true), { key: "reports.fail.cancelled", retry: true, withoutAi: false });
+  assert.equal(explainFailure(403, "identity_role_forbidden", false).key, "reports.fail.forbidden");
+  assert.equal(explainFailure(422, "licensed_data_not_redistributable", false).key, "reports.licensed_refused");
+  assert.deepEqual(explainFailure(null, null, false), { key: "reports.fail.timeout", retry: true, withoutAi: true });
+  assert.equal(explainFailure(503, "runtime_db_unavailable", false).key, "reports.fail.store");
+  assert.equal(elapsedLabel(83_400), "1:23");
 });
