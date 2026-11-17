@@ -31,6 +31,13 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/agent/runs/{agent_run_id}/replay",
         "/api/agent/strategy-ir/validate",
         "/api/analysis/ask",
+        # Commercial design basis 2, CP-07: assumption sets, firm marks, valuation snapshots.
+        "/api/assumption-sets",
+        "/api/assumption-sets/{set_id}",
+        "/api/assumption-sets/{set_id}/versions",
+        "/api/assumption-sets/{set_id}/versions/{version}/approve",
+        "/api/market/firm-marks",
+        "/api/market/valuation-snapshots/{snapshot_id}",
         "/api/analysis/brief",
         "/api/desk/today",
         "/api/reports/catalogue",

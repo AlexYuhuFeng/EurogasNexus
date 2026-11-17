@@ -21,6 +21,8 @@ single-office installation) every caller sees every book, as before.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 
@@ -85,6 +87,22 @@ def current_scope() -> BookScope | None:
     """The caller's scope, or ``None`` when isolation is off or outside a request."""
 
     return _current.get()
+
+
+@contextmanager
+def firm_wide_scope() -> Iterator[None]:
+    """Run a firm-wide calculation inside a request as a worker would: every book.
+
+    A firm-wide evaluation stores results for every book and each reader is filtered when
+    reading, so the person who asked for a fresh run must not narrow what is stored. The
+    previous scope is restored on exit.
+    """
+
+    token = _current.set(None)
+    try:
+        yield
+    finally:
+        _current.reset(token)
 
 
 _REQUEST_SCOPE = object()

@@ -144,6 +144,18 @@ DELIBERATE: dict[str, str] = {
     "/api/projections/scenario-context": (
         "available but deliberately unconsumed (recorded in the execution state)"
     ),
+    # Commercial design basis 2: backend first. The Deals page and the assumption and mark
+    # editors are later packages (CP-14, CP-15); until they land these are API-only.
+    "/api/assumption-sets": "CP-07 backend; the assumption editor is a later package",
+    "/api/assumption-sets/{set_id}": "CP-07 backend; the assumption editor is a later package",
+    "/api/assumption-sets/{set_id}/versions": "CP-07 backend; editor is a later package",
+    "/api/assumption-sets/{set_id}/versions/{version}/approve": (
+        "CP-07 backend; the risk approval view is a later package"
+    ),
+    "/api/market/firm-marks": "CP-07 backend; the marks grid is a later package (CP-14)",
+    "/api/market/valuation-snapshots/{snapshot_id}": (
+        "CP-07 backend; read from an opportunity's evidence in the later Deals page"
+    ),
 }
 
 

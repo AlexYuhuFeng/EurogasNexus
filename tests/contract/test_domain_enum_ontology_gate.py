@@ -135,6 +135,12 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     # Architecture V2 Wave 8 unified job lifecycle. Operational state vocabulary
     # shared by ingestion, dataset builds, optimisation, backtests, reporting and
     # agent work - not gas-market semantics, so it stays with its contract.
+    # Commercial design basis 2, CP-07. Valuation-input posture vocabularies, not gas-market
+    # semantics: where an input came from (its data-quality class, design B.2), what kind
+    # of input a snapshot row is, and the review state of a firm's assumption-set version.
+    "eurogas_nexus.domain.valuation.quality:InputClass",
+    "eurogas_nexus.domain.valuation.snapshot:InputKind",
+    "eurogas_nexus.domain.valuation.assumptions:ReviewState",
     "eurogas_nexus.domain.operations.jobs:JobKind",
     "eurogas_nexus.domain.operations.jobs:JobState",
     # RFC-0003 weather-to-demand research lifecycle and method-assessment states.

@@ -4,6 +4,19 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-17 (commercial design basis 2, CP-07: assumption sets, firm marks, valuation
+snapshots): six paths, eight operations. `GET/POST /api/assumption-sets` (list with the key
+catalogue; create a set for the organisation or one book), `GET /api/assumption-sets/{set_id}`
+(versions with values, who set and who approved), `POST /api/assumption-sets/{set_id}/versions`
+(a draft holding the full list of typed values: key, value, unit, currency, range, note),
+`POST /api/assumption-sets/{set_id}/versions/{version}/approve` (REVIEWER held itself, never the
+author; the earlier approved version is retired), `GET/PUT /api/market/firm-marks` (the firm's
+own marks per hub and delivery period in the native unit; every row carries `input_class`
+`firm_mark`) and `GET /api/market/valuation-snapshots/{snapshot_id}` (every input one
+evaluation read, with class, source, reference and as-of; unentitled values withheld). Reads
+need portfolio read and sit inside the commercial boundary; writes are audited without values.
+Census: 262 paths / 290 operations.
+
 Added 2026-11-15: `GET /api/desk/today` returns the Today screen's four rows (key figures,
 what changed, the book against the market, fundamentals) computed once on the server from
 the reads the desk brief uses, with the caller's licences and books applied. It is a READ
