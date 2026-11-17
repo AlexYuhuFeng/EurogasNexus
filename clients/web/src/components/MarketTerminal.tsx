@@ -700,6 +700,8 @@ export function MarketTerminal({
     {
       id: "source",
       header: t("market.source"),
+      // A price names where it came from on a phone too.
+      priority: "primary",
       sortable: true,
       value: (row) => row.sourceLabel,
       render: (row) => {
