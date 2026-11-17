@@ -624,6 +624,24 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "hosted test/demo server).",
         ),
     ),
+    # --- Local accounts (firms without company SSO) -------------------------
+    ConfigVar(
+        name="EUROGAS_NEXUS_LOCAL_ACCOUNTS",
+        scope="OPERATOR",
+        purpose=(
+            "User-name-and-password accounts managed in Admin -> Users: auto, on or off."
+        ),
+        default="auto",
+        example="auto",
+        notes=(
+            "auto (default): on only when no company SSO is configured, so a firm without "
+            "SSO can run the product; off when SSO is configured.",
+            "on keeps local accounts next to SSO (e.g. a break-glass administrator); off "
+            "refuses local sign-in and creation.",
+            "Passwords are stored as salted scrypt; first administrator: "
+            "python -m eurogas_nexus.cli.accounts create --admin (docs/deployment).",
+        ),
+    ),
     # --- Hosted test/demo server (root Dockerfile) -------------------------
     ConfigVar(
         name="EUROGAS_NEXUS_WEB_CLIENT_DIR",
@@ -670,6 +688,23 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "Read by scripts/demo/start_public_demo.py. The seed runs once on an empty "
             "store; later starts keep testers' changes unless this value differs from the "
             "one recorded at the last seed.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS",
+        scope="OPERATOR",
+        purpose=(
+            "Demo server only: extra local test accounts, each with its own password, "
+            "which may be shorter than the password policy."
+        ),
+        sensitivity="secret",
+        profiles=("development",),
+        notes=(
+            "CSV name:password[:admin] or JSON [{username, password, as, allow_admin}]; "
+            "e.g. test_trader:12345678,test_risk:12345678.",
+            "Refused outside the demo profile: the API will not start with it set "
+            "(customer runtime). An account with the ADMIN role must be marked :admin.",
+            "Anyone who reads the password can sign in: use only on a demo server.",
         ),
     ),
     ConfigVar(

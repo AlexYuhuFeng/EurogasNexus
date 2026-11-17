@@ -6,6 +6,20 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-17 — user accounts: local accounts, SSO pre-provisioning, demo test accounts (branch `accounts-first-run`, not pushed)
+
+- Admin → Users can add people: an SSO invite (`INVITED` until the first company sign-in links
+  it by verified e-mail or pinned subject) or a local account (`EUROGAS_NEXUS_LOCAL_ACCOUNTS`:
+  `auto` = on only without SSO). One-time temporary password shown once, forced change at first
+  sign-in, salted scrypt with recorded parameters, uniform refusal, per-account back-off and
+  per-address throttle, sessions end on change/reset/disable, last active administrator
+  protected, delete only without history. DataGrid + Dialog UI, EN/ZH. Headless first admin:
+  `python -m eurogas_nexus.cli.accounts`. Migration `0065_local_accounts`.
+- Demo: `EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS` (test_trader … test_admin, weak shared password),
+  through the same code path; refused by any non-demo server (start-up, preflight, sign-in).
+- Surface: four paths, six operations (256 / 282 on 252 / 276). Security notes: `docs/security/LOCAL_ACCOUNTS.md`.
+- Not yet built: the first-run setup flow (part C).
+
 ## 2026-11-17 — market reports round 4: asked reports answer the question; report library (branch `reports-round4`, not pushed)
 
 - `reports/answer.py`: question facts for an asked report (outages tied to Norwegian supply,

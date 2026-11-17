@@ -24,6 +24,42 @@ Complete [Client onboarding](CLIENT_ONBOARDING.md) with the desk before handing 
 The business owner approves commercial access; the administrator applies the approved change.
 Platform administration and commercial-data access are separate permissions.
 
+## Add and manage users
+
+**Admin → Access & Identity → Users** lists everyone who can sign in, how they sign in, one
+state per person and their last sign-in. **Add user** offers what the deployment allows:
+
+- **Company SSO** (when SSO is configured): add the person before their first sign-in with
+  their e-mail address (or the SSO subject, if you know it), roles, job functions, office and,
+  optionally, licensed data access. They show as **Invited** and become **Active** at their
+  first company sign-in, with that access. The e-mail address must be the one the company
+  sign-in reports; an address the provider marks unverified never claims an invite.
+- **Password (local account)** (firms without SSO, or with `EUROGAS_NEXUS_LOCAL_ACCOUNTS=on`):
+  give a user name and name. The product shows a **temporary password once**; give it to the
+  person in person or by phone. It works once within 72 hours, and at that first sign-in they
+  must choose their own password (12 to 128 characters, not their user name, not a common
+  password). The product keeps no readable copy of either.
+
+States: **Active**, **Invited** (not yet signed in), **Disabled** (an administrator turned the
+account off; every session ended at once), **Locked** (five wrong passwords in a row: locked for
+15 minutes, doubling after each further five, at most 24 hours; **Unlock** lifts it now),
+**Awaiting approval** (an SSO first sign-in under approved-domain provisioning).
+
+Actions per person: **Edit access** (roles, job functions, office, data access), **Disable** /
+**Enable**, **Reset password** (local accounts: a new temporary password, shown once; every
+session of the person ends), **Delete** (only for someone who never signed in or acted; anyone
+else is kept for the audit trail and disabled instead).
+
+Rules the server enforces whatever the screen shows: only an administrator (the ADMIN role)
+does any of this; a job function never grants it; nobody changes their own roles or data
+access; the last active administrator cannot be disabled, locked, demoted or deleted. Every act
+is in **Audit** (`access.user.create`, `access.user.invite`, `access.user.update`,
+`access.user.password_reset`, `access.user.delete`, `auth.local.*`) with who, whom and what, never
+a password.
+
+A local-account user changes their own password with `POST /api/me/password` (current password
+required; their other sessions end).
+
 ## Connect a source
 
 1. Open **Admin → Data Sources**. The **Connectors** view groups sources as Needs attention,

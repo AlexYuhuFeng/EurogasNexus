@@ -110,6 +110,10 @@ export function AppShell({ controller }: AppShellProps) {
         onOidcSignIn={() => void api.signIn()}
         onDevLogin={(username, password) => void api.login(username, password)}
         onRetryIdentity={() => void api.bootstrapIdentity()}
+        passwordChange={api.passwordChange}
+        passwordChangeErrorKey={api.passwordChangeErrorKey}
+        onCompletePasswordChange={(newPassword) => void api.completePasswordChange(newPassword)}
+        onCancelPasswordChange={() => api.cancelPasswordChange()}
       />
     );
   }

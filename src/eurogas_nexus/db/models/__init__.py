@@ -49,6 +49,7 @@ from eurogas_nexus.db.models.glossary import GlossaryTermRecord
 from eurogas_nexus.db.models.identity import (
     IdentityApiKeyRecord,
     IdentityExternalIdRecord,
+    IdentityLocalCredentialRecord,
     IdentityPrincipalRecord,
     OidcAuthorizationStateRecord,
     UserSessionRecord,
@@ -316,6 +317,7 @@ __all__ = [
     "IngestionRunStatus",
     "IdentityApiKeyRecord",
     "IdentityExternalIdRecord",
+    "IdentityLocalCredentialRecord",
     "IdentityPrincipalRecord",
     "OidcAuthorizationStateRecord",
     "UserSessionRecord",

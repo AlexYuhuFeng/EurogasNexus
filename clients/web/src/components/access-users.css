@@ -1,0 +1,193 @@
+@layer legacy {
+/* Admin -> Users (AccessUsers.tsx). Tokens only (scripts/cssTokenLint.mjs). */
+
+.access-users {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+}
+
+.access-users-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+}
+
+.access-users-count {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.access-person {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-05);
+  min-width: 0;
+}
+
+.access-person small,
+.access-when {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+}
+
+.access-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.access-user-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+}
+
+.access-row-error,
+.access-form-error {
+  color: var(--ds-status-breach);
+  font-size: var(--ds-text-sm);
+}
+
+.access-form-error {
+  margin: 0;
+}
+
+.access-dialog-copy {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-base);
+  line-height: var(--ds-line-base);
+}
+
+.access-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+}
+
+.access-add-kind {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+}
+
+.access-add-explain {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-sm);
+}
+
+.access-add-grid {
+  display: grid;
+  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ds-space-3) var(--ds-space-4);
+}
+
+.access-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--ds-control);
+  padding: 0 var(--ds-control-pad);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface);
+  color: var(--ds-text-1);
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-base);
+}
+
+.access-input:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
+
+.access-checklist {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+
+.access-checklist legend {
+  padding: 0;
+  margin-bottom: var(--ds-space-1);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-medium);
+}
+
+.access-checklist-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--ds-space-1) var(--ds-space-3);
+  margin-top: var(--ds-space-1);
+}
+
+.access-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-height: var(--ds-control-sm);
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-base);
+  cursor: pointer;
+}
+
+.access-add-more summary {
+  color: var(--ds-accent);
+  font-size: var(--ds-text-sm);
+  cursor: pointer;
+}
+
+.access-add-more[open] summary {
+  margin-bottom: var(--ds-space-2);
+}
+
+.access-secret {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  margin: var(--ds-space-4) 0;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-2);
+}
+
+.access-secret code {
+  flex: 1;
+  color: var(--ds-text-1);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xl);
+  letter-spacing: 0.04em;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.access-secret-notes {
+  margin: 0;
+  padding-left: var(--ds-space-4);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-line-base);
+}
+
+@media (max-width: 640px) {
+  .access-add-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .access-secret {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+}

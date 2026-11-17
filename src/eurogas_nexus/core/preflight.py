@@ -579,9 +579,23 @@ def _check_demo_profile(
 ) -> list[Finding]:
     """The demo profile is a hosted test server: never trial/release, never a weak password."""
 
-    if api_profile != "demo":
-        return []
     findings: list[Finding] = []
+    if api_profile != "demo" or environment not in {"development", "test"}:
+        if _value(environ, "EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS"):
+            findings.append(
+                Finding(
+                    severity="error",
+                    code="demo_test_accounts_outside_demo",
+                    variable="EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS",
+                    message=(
+                        "demo test accounts (a shared weak password) are refused outside the "
+                        "hosted demo server; the API refuses to start with this set"
+                    ),
+                    remedy="unset it; create people in Admin -> Users instead",
+                )
+            )
+    if api_profile != "demo":
+        return findings
     if environment not in {"development", "test"}:
         findings.append(
             Finding(
@@ -610,6 +624,23 @@ def _check_demo_profile(
             )
         )
     return findings
+
+
+def _check_local_accounts(environ: Mapping[str, str]) -> list[Finding]:
+    """EUROGAS_NEXUS_LOCAL_ACCOUNTS takes auto, on or off."""
+
+    value = _value(environ, "EUROGAS_NEXUS_LOCAL_ACCOUNTS").lower()
+    if not value or value in {"auto", "on", "off", "true", "false", "1", "0", "yes", "no"}:
+        return []
+    return [
+        Finding(
+            severity="error",
+            code="local_accounts_setting_invalid",
+            variable="EUROGAS_NEXUS_LOCAL_ACCOUNTS",
+            message=f"{value!r} is not auto, on or off",
+            remedy="use auto (default: on only when no SSO is configured), on or off",
+        )
+    ]
 
 
 def _check_security_posture(environ: Mapping[str, str]) -> list[Finding]:
@@ -713,6 +744,7 @@ def check_environment(
     report.findings.extend(
         _check_demo_profile(source, environment=environment, api_profile=api_profile)
     )
+    report.findings.extend(_check_local_accounts(source))
     report.findings.extend(_check_security_posture(source))
     report.findings.extend(_check_external_consumers(source))
     return report

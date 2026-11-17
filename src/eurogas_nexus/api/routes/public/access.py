@@ -38,6 +38,24 @@ class AccessUpdateRequest(BaseModel):
     office: str | None = Field(default=None, max_length=16, pattern="^[A-Za-z]{0,16}$")
 
 
+class UserCreateRequest(BaseModel):
+    """Add a person: a company-SSO invite or a local account (as the deployment allows)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    kind: str = Field(pattern="^(local|sso)$")
+    #: Local accounts: the sign-in name (letters, digits, . _ @ -).
+    username: str | None = Field(default=None, max_length=64)
+    display_name: str = Field(default="", max_length=128)
+    email: str | None = Field(default=None, max_length=254)
+    #: SSO invites: the provider's subject, when known (otherwise the e-mail matches).
+    subject: str | None = Field(default=None, max_length=256)
+    roles: list[str] = Field(default_factory=lambda: ["VIEWER"], max_length=8)
+    data_scopes: list[str] = Field(default_factory=list, max_length=64)
+    job_functions: list[str] = Field(default_factory=list, max_length=10)
+    office: str | None = Field(default=None, max_length=16, pattern="^[A-Za-z]{0,16}$")
+    groups: list[str] = Field(default_factory=list, max_length=32)
+
+
 class LicenceRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     vendor: str = Field(min_length=1, max_length=64)
@@ -266,6 +284,18 @@ def _changes_own_grants(
     return requested_roles != current_roles or requested_scopes != current_scopes
 
 
+def _change_summary(before: dict, after: dict) -> str:
+    """What an update changed (who and whom are the event's actor and resource)."""
+
+    fields = ("status", "roles", "data_scopes", "job_functions", "office", "email")
+    changed = [
+        f"{name}: {before.get(name)} -> {after.get(name)}"
+        for name in fields
+        if before.get(name) != after.get(name)
+    ]
+    return "; ".join(changed)[:900]
+
+
 def _require_admin(request: Request, permission: Permission) -> AuthenticatedPrincipal:
     principal = getattr(request.state, "identity", None)
     if principal is None:
@@ -302,7 +332,150 @@ def list_users(request: Request) -> dict:
             outcome="listed",
         )
         session.commit()
-    return _env(rows)
+    envelope = _env(rows)
+    envelope["meta"]["account_options"] = _account_options()
+    return envelope
+
+
+def _account_options() -> dict:
+    """How people may be added on this deployment (drives Admin -> Users -> Add user)."""
+
+    from eurogas_nexus.application.local_accounts import (
+        TEMPORARY_PASSWORD_TTL,
+        local_accounts_enabled,
+        local_accounts_setting,
+    )
+    from eurogas_nexus.security.oidc import oidc_configured
+
+    return {
+        "local_accounts": local_accounts_enabled(),
+        "local_accounts_setting": local_accounts_setting(),
+        "sso_invites": oidc_configured(),
+        "temporary_password_hours": int(TEMPORARY_PASSWORD_TTL.total_seconds() // 3600),
+    }
+
+
+def _account_error(exc) -> HTTPException:
+    detail = {"error": exc.code, "code": exc.code, "message": exc.message}
+    return HTTPException(status_code=exc.status_code, detail=detail)
+
+
+@router.post("/api/access/users")
+def create_user(body: UserCreateRequest, request: Request) -> dict:
+    """Add a person (ADMIN). A local account answers its one-time password exactly once.
+
+    ``kind=local``: user name, display name, optional e-mail and grants; the response
+    carries ``one_time_password`` (never stored in clear, never shown again) that the
+    person uses once to choose their own password. ``kind=sso``: a pre-provisioned company
+    user, ``INVITED`` until their first SSO sign-in links and activates them.
+    """
+
+    from eurogas_nexus.application import local_accounts
+    from eurogas_nexus.db.repositories import identity as identity_repository
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    grants = local_accounts.AccountGrants(
+        roles=tuple(body.roles),
+        data_scopes=tuple(body.data_scopes),
+        job_functions=tuple(body.job_functions),
+        office=body.office,
+        groups=tuple(body.groups),
+    )
+    with _session() as session:
+        if body.data_scopes:
+            _require_licences(
+                session,
+                principal_id="",
+                current=[],
+                requested=body.data_scopes,
+                office=(body.office or "").strip().upper() or None,
+                admin=admin,
+                before={},
+            )
+        try:
+            if body.kind == "local":
+                if not body.username:
+                    raise local_accounts.LocalAccountError(
+                        "username_required", 422, "Give the person a user name."
+                    )
+                row, secret = local_accounts.create_local_account(
+                    session,
+                    username=body.username,
+                    display_name=body.display_name,
+                    email=body.email,
+                    grants=grants,
+                    actor=admin.principal_id,
+                )
+            else:
+                row = local_accounts.invite_sso_user(
+                    session,
+                    email=body.email,
+                    subject=body.subject,
+                    display_name=body.display_name,
+                    grants=grants,
+                    actor=admin.principal_id,
+                )
+                secret = None
+        except local_accounts.LocalAccountError as exc:
+            session.rollback()
+            raise _account_error(exc) from exc
+        payload = identity_repository.identity_principal_payload(session, row.principal_id)
+        session.commit()
+    data: dict = {"user": payload}
+    if secret is not None:
+        data["one_time_password"] = secret
+        data["warning"] = (
+            "Give this temporary password to the person; it is shown once. They choose "
+            "their own password when they first sign in."
+        )
+    return _env(data)
+
+
+@router.post("/api/access/users/{principal_id}/reset-password")
+def reset_user_password(principal_id: str, request: Request) -> dict:
+    """Issue a new one-time password for a local account (ADMIN); their sessions end."""
+
+    from eurogas_nexus.application import local_accounts
+    from eurogas_nexus.db.repositories import identity as identity_repository
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    with _session() as session:
+        try:
+            secret = local_accounts.reset_password(
+                session, principal_id, actor=admin.principal_id
+            )
+        except local_accounts.LocalAccountError as exc:
+            session.rollback()
+            raise _account_error(exc) from exc
+        payload = identity_repository.identity_principal_payload(session, principal_id)
+        session.commit()
+    return _env(
+        {
+            "user": payload,
+            "one_time_password": secret,
+            "warning": "Shown once. Every session of this person has ended.",
+        }
+    )
+
+
+@router.delete("/api/access/users/{principal_id}")
+def delete_user(principal_id: str, request: Request) -> dict:
+    """Delete a person who never signed in or acted (ADMIN); otherwise 409 - disable instead."""
+
+    from eurogas_nexus.application import local_accounts
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    with _session() as session:
+        try:
+            local_accounts.delete_user(session, principal_id, actor=admin.principal_id)
+        except local_accounts.LocalAccountError as exc:
+            session.rollback()
+            raise _account_error(exc) from exc
+        session.commit()
+    return _env({"principal_id": principal_id, "deleted": True})
 
 
 @router.patch("/api/access/users/{principal_id}")
@@ -361,6 +534,31 @@ def patch_user(principal_id: str, body: AccessUpdateRequest, request: Request) -
                 admin=admin,
                 before=before,
             )
+        from eurogas_nexus.application import local_accounts
+
+        demoted = body.roles is not None and "ADMIN" not in {
+            str(role).strip().upper() for role in body.roles
+        }
+        if (body.status in {"DISABLED", "LOCKED"} and row.status == "ACTIVE") or demoted:
+            try:
+                local_accounts.ensure_not_last_administrator(session, row)
+            except local_accounts.LocalAccountError as exc:
+                _audit_admin(
+                    session,
+                    actor=admin.principal_id,
+                    action="access.user.update",
+                    resource=f"identity_principal:{principal_id}",
+                    outcome="denied",
+                    detail="last active administrator",
+                )
+                session.commit()
+                raise _account_error(exc) from exc
+        if body.status == "ACTIVE":
+            credential = local_accounts.credential_for(session, principal_id)
+            if credential is not None:
+                # Enabling a locked-out local account also lifts its back-off.
+                credential.failed_attempts = 0
+                credential.locked_until_utc = None
         if body.status:
             row.status = body.status
             if body.status in {"DISABLED", "LOCKED"}:
@@ -406,11 +604,13 @@ def patch_user(principal_id: str, body: AccessUpdateRequest, request: Request) -
             action="access.user.update",
             resource=f"identity_principal:{principal_id}",
             outcome="updated",
+            detail=_change_summary(before, after),
             before=before,
             after=after,
         )
+        listed = identity_repository.identity_principal_payload(session, principal_id) or {}
         session.commit()
-        return _env(after)
+        return _env({**after, **listed})
 
 
 @router.get("/api/access/roles")

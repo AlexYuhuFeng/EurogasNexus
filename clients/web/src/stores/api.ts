@@ -145,6 +145,8 @@ import {
   devLoginErrorKey,
   identityFailureKey,
   oidcSignInErrorKey,
+  passwordChangeErrorKey,
+  shouldTryLocalAfterDevFailure,
   resolveIdentity,
   type AuthStatusSnapshot,
 } from "./authGate";
@@ -771,6 +773,13 @@ export interface ApiState {
   authNoticeKey: string | null;
   authBusy: boolean;
   /**
+   * The forced password change after a temporary-password sign-in: who is changing it and
+   * the single-use step token (memory only). Null outside that step.
+   */
+  passwordChange: { token: string; displayName: string; username: string } | null;
+  /** i18n key of the last refused password change (policy, expired step). */
+  passwordChangeErrorKey: string | null;
+  /**
    * The canonical trading context the projection lanes request: the gas day, delivery product
    * and hub focus the caller is standing in.
    *
@@ -964,6 +973,10 @@ export interface ApiState {
   dataStatus: "unknown" | "runtime" | "delayed" | "partial" | "unavailable";
   bootstrapIdentity: () => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
+  /** Submit the new password for the forced change step; opens the session on success. */
+  completePasswordChange: (newPassword: string) => Promise<void>;
+  /** Leave the forced change step and return to the sign-in form. */
+  cancelPasswordChange: () => void;
   fetchWorkspace: () => Promise<void>;
   retryFailedWorkspaceEndpoints: () => Promise<void>;
   refreshMarketData: () => Promise<void>;
@@ -1270,12 +1283,23 @@ const DEFAULT_MONITORING_SUMMARY = {
   simulated_count: 0,
 };
 
+/** What a successful sign-in answers (tester or local account); display only, never access. */
+interface SignedInData {
+  principal_id?: string;
+  display_name: string;
+  role?: string;
+  permissions?: string[];
+  session_token?: string;
+}
+
 export const useApiStore = create<ApiState>((set, get) => ({
   authState: UNRESOLVED_AUTH_STATE,
   authStatus: UNKNOWN_AUTH_STATUS,
   authErrorKey: null,
   authNoticeKey: null,
   authBusy: false,
+  passwordChange: null,
+  passwordChangeErrorKey: null,
   tradingContext: DEFAULT_TRADER_CONTEXT,
   nodes: [],
   edges: [],
@@ -1426,25 +1450,35 @@ export const useApiStore = create<ApiState>((set, get) => ({
   login: async (username, password) => {
     if (logoutInProgress) return;
     const requestGeneration = identityReadCoordinator.capture();
-    set({ authBusy: true, authErrorKey: null, authNoticeKey: null });
+    set({ authBusy: true, authErrorKey: null, authNoticeKey: null, passwordChange: null, passwordChangeErrorKey: null });
+    const status = get().authStatus;
     try {
-      // The backend validates the credential and sets the HttpOnly session
-      // cookie; this response is never treated as an access decision.
-      const response = await api.login(username, password);
-      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
-      if (response.data.session_token) {
-        // Desktop: the session lives in memory and travels as X-Eurogas-Session.
-        const { setDesktopSessionToken } = await import("@/api/client");
-        setDesktopSessionToken(response.data.session_token);
+      // One form serves the tester sign-in (demo/development) and local accounts: the tester
+      // sign-in first when offered, then the local account. The backend decides either way.
+      let data: SignedInData | null = null;
+      let devFailure: unknown = null;
+      if (status.devLoginAvailable || !status.localLoginAvailable) {
+        try {
+          data = (await api.login(username, password)).data;
+        } catch (error) {
+          if (!shouldTryLocalAfterDevFailure(status, String(error))) throw error;
+          devFailure = error;
+        }
       }
-      set({
-        authState: AUTHENTICATED_AUTH_STATE,
-        authBusy: false,
-        authErrorKey: null,
-        currentUser: devLoginCurrentUser(response.data),
-      });
-      // Replace the provisional projection with the authoritative identity read.
-      await get().fetchMe();
+      if (devFailure !== null || (!status.devLoginAvailable && status.localLoginAvailable)) {
+        const local = (await api.localLogin(username, password)).data;
+        if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
+        if (local.password_change_required && local.change_token) {
+          set({
+            authBusy: false,
+            passwordChange: { token: local.change_token, displayName: local.display_name, username },
+          });
+          return;
+        }
+        data = local;
+      }
+      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
+      if (data) await completeSignIn(data);
     } catch (error) {
       if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
       invalidateIdentitySession();
@@ -1454,7 +1488,70 @@ export const useApiStore = create<ApiState>((set, get) => ({
         authErrorKey: devLoginErrorKey(String(error)),
       });
     }
+
+    async function completeSignIn(data: SignedInData) {
+      if (data.session_token) {
+        // Desktop: the session lives in memory and travels as X-Eurogas-Session.
+        const { setDesktopSessionToken } = await import("@/api/client");
+        setDesktopSessionToken(data.session_token);
+      }
+      // The backend validated the credential and set the HttpOnly session cookie; this
+      // response is never treated as an access decision.
+      set({
+        authState: AUTHENTICATED_AUTH_STATE,
+        authBusy: false,
+        authErrorKey: null,
+        currentUser: devLoginCurrentUser({
+          authenticated: true,
+          principal_id: data.principal_id ?? "",
+          display_name: data.display_name,
+          role: data.role ?? "",
+          permissions: data.permissions ?? [],
+        }),
+      });
+      // Replace the provisional projection with the authoritative identity read.
+      await get().fetchMe();
+    }
   },
+
+  completePasswordChange: async (newPassword) => {
+    const step = get().passwordChange;
+    if (!step || logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
+    set({ authBusy: true, passwordChangeErrorKey: null });
+    try {
+      const response = await api.completePasswordChange(step.token, newPassword);
+      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
+      if (response.data.session_token) {
+        const { setDesktopSessionToken } = await import("@/api/client");
+        setDesktopSessionToken(response.data.session_token);
+      }
+      set({
+        authState: AUTHENTICATED_AUTH_STATE,
+        authBusy: false,
+        authErrorKey: null,
+        passwordChange: null,
+        currentUser: devLoginCurrentUser({
+          authenticated: true,
+          principal_id: response.data.principal_id ?? "",
+          display_name: response.data.display_name,
+          role: response.data.role ?? "",
+          permissions: response.data.permissions ?? [],
+        }),
+      });
+      await get().fetchMe();
+    } catch (error) {
+      if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
+      const key = passwordChangeErrorKey(String(error));
+      if (key === "auth.change_step_expired") {
+        set({ authBusy: false, passwordChange: null, authErrorKey: key });
+        return;
+      }
+      set({ authBusy: false, passwordChangeErrorKey: key });
+    }
+  },
+
+  cancelPasswordChange: () => set({ passwordChange: null, passwordChangeErrorKey: null, authBusy: false }),
 
   fetchWorkspace: async () => {
     if (logoutInProgress) return;

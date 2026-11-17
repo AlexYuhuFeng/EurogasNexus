@@ -14,6 +14,7 @@ static deployment API token (SDK/CLI compatibility).
 from __future__ import annotations
 
 import hashlib
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -100,6 +101,8 @@ def auth_status(request: Request) -> dict:
             "session_cookie": bool(request.cookies.get(SESSION_COOKIE)),
             "profile": configured_oidc_profile() if oidc_configured() else None,
             "dev_login": _dev_login_available(request),
+            # Local accounts (user name and password) for firms without SSO.
+            "local_login": _local_login_available(),
         },
         "meta": {"research_only": False, "human_review_required": False},
     }
@@ -122,6 +125,248 @@ def _dev_login_available(request: Request) -> bool:
     if not bool(getattr(profile, "include_dev", False)):
         return False
     return resolve_dev_login_credentials_from_env() is not None
+
+
+def _local_login_available() -> bool:
+    from eurogas_nexus.security.local_accounts_policy import local_accounts_enabled
+
+    try:
+        return local_accounts_enabled()
+    except Exception:  # noqa: BLE001 - the sign-in screen must render whatever happens
+        return False
+
+
+class LocalLoginRequest(BaseModel):
+    """User name (or e-mail) and password of a local account."""
+
+    username: str = Field(min_length=1, max_length=254)
+    password: str = Field(min_length=1, max_length=256)
+    #: "desktop" returns the session token in the body (held in memory); see dev login.
+    client: Literal["browser", "desktop"] = "browser"
+
+
+class PasswordChangeRequest(BaseModel):
+    """The forced password change after a temporary-password sign-in."""
+
+    change_token: str = Field(min_length=16, max_length=128)
+    new_password: str = Field(min_length=1, max_length=256)
+    client: Literal["browser", "desktop"] = "browser"
+
+
+class OwnPasswordChangeRequest(BaseModel):
+    """A signed-in person changes their own password."""
+
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+LOCAL_SESSION_MAX_AGE_SECONDS = 12 * 3600
+
+
+def _client_address(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _refuse_foreign_origin(request: Request) -> None:
+    """Login CSRF: a sign-in posted from another site's page is refused.
+
+    The login entry points are exempt from the session CSRF header (there is no session
+    yet), so they check the Origin a browser always sends with a cross-site POST.
+    """
+
+    from eurogas_nexus.api.middleware.origin_csrf import _origin_allowed
+
+    origin = request.headers.get("origin")
+    if not origin:
+        return
+    headers = {
+        key.encode("latin-1"): value.encode("latin-1") for key, value in request.headers.items()
+    }
+    if not _origin_allowed(origin, headers):
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "origin_not_allowed", "message": "Sign-in from another site refused."},
+        )
+
+
+def _account_error(exc) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"error": exc.code, "code": exc.code, "message": exc.message},
+    )
+
+
+@router.post("/api/auth/login")
+def local_login(
+    body: LocalLoginRequest,
+    request: Request,
+    _rate: None = Depends(require_auth_rate_limit),
+) -> JSONResponse:
+    """Sign in to a local account (user name or e-mail, and password).
+
+    Every refusal answers 401 ``invalid_credentials`` with one message, whatever the
+    reason (unknown name, wrong password, locked, disabled); the audit trail records the
+    reason. A temporary password answers 200 with ``password_change_required`` and a
+    single-use ``change_token`` instead of a session: the person chooses a password at
+    ``POST /api/auth/password-change`` first. 429 after repeated failures from one address.
+    """
+
+    from eurogas_nexus.application import local_accounts
+
+    _refuse_foreign_origin(request)
+    _require_db()
+    sqlalchemy_error = _sqlalchemy_error_type()
+    client_type = "local_password_desktop" if body.client == "desktop" else "local_password"
+    try:
+        with _session() as session:
+            try:
+                outcome = local_accounts.sign_in(
+                    session,
+                    username=body.username,
+                    password=body.password,
+                    source_address=_client_address(request),
+                    client_type=client_type,
+                )
+            except local_accounts.LocalAccountError as exc:
+                session.commit()  # keep the failure count and the audit of the refusal
+                raise _account_error(exc) from exc
+            payload = _principal_permissions(session, outcome.principal)
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    if outcome.change_token:
+        return JSONResponse(
+            {
+                "data": {
+                    "authenticated": False,
+                    "password_change_required": True,
+                    "change_token": outcome.change_token,
+                    "display_name": payload["display_name"],
+                    "expires_in_seconds": int(
+                        local_accounts.CHANGE_TOKEN_TTL.total_seconds()
+                    ),
+                },
+                "meta": {"research_only": False, "human_review_required": False},
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+    return _signed_in(request, outcome, payload, client=body.client)
+
+
+@router.post("/api/auth/password-change")
+def local_password_change(
+    body: PasswordChangeRequest,
+    request: Request,
+    _rate: None = Depends(require_auth_rate_limit),
+) -> JSONResponse:
+    """Choose a password after a temporary-password sign-in; opens the session.
+
+    The single-use ``change_token`` from ``POST /api/auth/login`` is the authority (it
+    expires in 10 minutes). Policy: 12-128 characters, not the user name, not a common
+    password. Every earlier session of the person ends.
+    """
+
+    from eurogas_nexus.application import local_accounts
+
+    _refuse_foreign_origin(request)
+    _require_db()
+    sqlalchemy_error = _sqlalchemy_error_type()
+    client_type = "local_password_desktop" if body.client == "desktop" else "local_password"
+    try:
+        with _session() as session:
+            try:
+                outcome = local_accounts.complete_password_change(
+                    session,
+                    change_token=body.change_token,
+                    new_password=body.new_password,
+                    client_type=client_type,
+                )
+            except local_accounts.LocalAccountError as exc:
+                session.rollback()
+                raise _account_error(exc) from exc
+            payload = _principal_permissions(session, outcome.principal)
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _signed_in(request, outcome, payload, client=body.client)
+
+
+@router.post("/api/me/password")
+def own_password_change(
+    body: OwnPasswordChangeRequest,
+    request: Request,
+    _identity: None = Depends(require_identity_for_route),
+) -> JSONResponse:
+    """A signed-in local-account user changes their own password.
+
+    Requires the current password. Every other session of the person ends; this browser
+    gets a fresh session. SSO users change their password at the company provider.
+    """
+
+    from eurogas_nexus.application import local_accounts
+
+    if not _credential_authenticated(request):
+        raise HTTPException(status_code=401, detail={"error": "unauthenticated"})
+    principal = getattr(request.state, "identity", None)
+    principal_id = getattr(principal, "principal_id", None)
+    if not principal_id:
+        raise HTTPException(status_code=401, detail={"error": "unauthenticated"})
+    _require_db()
+    desktop = bool((request.headers.get("X-Eurogas-Session") or "").strip()) and not (
+        request.cookies.get(SESSION_COOKIE)
+    )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with _session() as session:
+            try:
+                outcome = local_accounts.change_own_password(
+                    session,
+                    principal_id=principal_id,
+                    current_password=body.current_password,
+                    new_password=body.new_password,
+                    source_address=_client_address(request),
+                    client_type="local_password_desktop" if desktop else "local_password",
+                )
+            except local_accounts.LocalAccountError as exc:
+                if exc.code == "current_password_incorrect":
+                    session.commit()  # the failed attempt counts towards the back-off
+                else:
+                    session.rollback()
+                raise _account_error(exc) from exc
+            payload = _principal_permissions(session, outcome.principal)
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _signed_in(request, outcome, payload, client="desktop" if desktop else "browser")
+
+
+def _principal_permissions(session, principal) -> dict:
+    from eurogas_nexus.application.enterprise_auth import principal_payload
+
+    return principal_payload(session, principal)
+
+
+def _signed_in(request: Request, outcome, payload: dict, *, client: str) -> JSONResponse:
+    data = {
+        "authenticated": True,
+        "password_change_required": False,
+        "principal_id": payload["principal_id"],
+        "display_name": payload["display_name"],
+        "role": payload["role"],
+        "permissions": payload["permissions"],
+    }
+    meta: dict = {"research_only": False, "human_review_required": False}
+    if client == "desktop":
+        data["session_token"] = outcome.session_token
+        data["token_type"] = "session"
+        data["expires_in_seconds"] = LOCAL_SESSION_MAX_AGE_SECONDS
+        meta["warnings"] = ["Keep this token in memory only; never store it on disk."]
+        return JSONResponse({"data": data, "meta": meta}, headers={"Cache-Control": "no-store"})
+    response = JSONResponse({"data": data, "meta": meta}, headers={"Cache-Control": "no-store"})
+    response.headers["Set-Cookie"] = _session_cookie(
+        outcome.session_token, request=request, max_age_seconds=LOCAL_SESSION_MAX_AGE_SECONDS
+    )
+    return response
 
 
 @router.get("/api/auth/oidc/login")

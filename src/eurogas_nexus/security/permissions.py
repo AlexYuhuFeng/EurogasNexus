@@ -49,6 +49,11 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # the credential store gating happens inside the handler.
     ("/api/dev/auth/login", Permission.PUBLIC),
     ("/api/auth/status", Permission.PUBLIC),
+    # Local accounts (firms without SSO): the sign-in and the forced password change after a
+    # temporary password issue a credential, so they answer without one; the handler applies
+    # the uniform refusal, per-account back-off and per-address throttle.
+    ("/api/auth/login", Permission.PUBLIC),
+    ("/api/auth/password-change", Permission.PUBLIC),
     ("/api/auth/oidc/login", Permission.PUBLIC),
     ("/api/auth/oidc/callback", Permission.PUBLIC),
     ("/api/auth/oidc/desktop/login", Permission.PUBLIC),
@@ -56,6 +61,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/auth/logout", Permission.READ),
     ("/api/me", Permission.READ),
     ("/api/me/groups", Permission.READ),
+    # A signed-in local-account user changes their own password (needs the current one).
+    ("/api/me/password", Permission.READ),
     # A person's own presentation choices; they grant nothing (domain/settings).
     ("/api/me/preferences", Permission.READ),
     ("/api/settings/organisation", Permission.READ),
@@ -64,6 +71,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/access/groups/{group_id}/members/{principal_id}", Permission.ADMIN),
     ("/api/access/users", Permission.ADMIN),
     ("/api/access/users/{principal_id}", Permission.ADMIN),
+    ("/api/access/users/{principal_id}/reset-password", Permission.ADMIN),
     ("/api/access/roles", Permission.ADMIN),
     ("/api/access/data-scopes", Permission.ADMIN),
     ("/api/access/market-data-licences", Permission.ADMIN),

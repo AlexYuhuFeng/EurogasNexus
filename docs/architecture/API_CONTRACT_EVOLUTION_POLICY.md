@@ -12,6 +12,22 @@ grant it), writes nothing and calls no model. Every figure carries unit, as-of t
 freshness state; risk figures carry a method note. The web client has a typed
 `api.deskToday()`; no SDK method yet. Census: 244 paths / 264 operations.
 
+Additive 2026-11-17 (local accounts and SSO pre-provisioning): four paths, six operations.
+`POST /api/auth/login` (PUBLIC: user name or e-mail and password; 401 `invalid_credentials`
+for every refusal; a temporary password answers `password_change_required` with a single-use
+`change_token` instead of a session), `POST /api/auth/password-change` (PUBLIC: the change
+token and the new password; opens the session), `POST /api/me/password` (READ: own password,
+current one required; other sessions end), `POST /api/access/users` (ADMIN: `kind` `local`
+returns `one_time_password` once, `kind` `sso` creates an `INVITED` principal),
+`POST /api/access/users/{principal_id}/reset-password` (ADMIN) and `DELETE
+/api/access/users/{principal_id}` (ADMIN; 409 `user_has_history` for anyone who signed in or
+acted). `GET /api/auth/status` gains `local_login`; `GET /api/access/users` rows gain
+`job_functions`, `office`, `account_kind`, `account_state` and `local_password` (safe facts,
+never a hash), and its `meta` gains `account_options`; `PATCH /api/access/users/{id}` answers
+the same row shape plus the earlier fields and refuses (409 `last_administrator`) to disable,
+lock or demote the last active administrator. No field changes meaning. Census: 256 paths /
+282 operations.
+
 Additive 2026-11-17 (public-source approval revocation): no new path, one operation.
 `DELETE /api/sources/{source_id}/approve` (ADMIN, same route permission as the approval), body
 `{reason, confirm}` (`confirm` must be true, else 422 `confirmation_required`), withdraws an

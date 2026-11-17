@@ -50,7 +50,9 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **252 paths / 276 operations**
+- OpenAPI public surface: **256 paths / 282 operations**
+  (2026-11-17: local accounts and SSO pre-provisioning, four paths and six operations under
+  `/api/auth/`, `/api/me/` and `/api/access/users`; 252 / 276 before)
   (2026-11-17: report library — delete, rename and bulk delete of stored reports — and the
   revoke of a public-source approval; 251 / 272 before)
   (2026-11-16: market reports, five paths under `/api/reports/`; 244 / 264 before)

@@ -77,6 +77,8 @@ class OidcIdentity:
     groups: tuple[str, ...] = ()
     #: Office code from the claim named by EUROGAS_NEXUS_SSO_OFFICE_CLAIM (directory mode).
     office: str | None = None
+    #: The provider's ``email_verified`` claim when present (None: not asserted).
+    email_verified: bool | None = None
 
 
 def oidc_configured() -> bool:
@@ -173,6 +175,9 @@ def validate_oidc_access_token(
         email=email if isinstance(email, str) and email.strip() else None,
         groups=groups,
         office=_office_claim(payload),
+        email_verified=(
+            payload["email_verified"] if isinstance(payload.get("email_verified"), bool) else None
+        ),
     )
 
 

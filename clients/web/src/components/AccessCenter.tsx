@@ -5,6 +5,7 @@ import {
   api,
   type AccessApiKeyDTO,
   type AccessUserDTO,
+  type AccountOptionsDTO,
   type AuditEventDTO,
   type CurrentUserDTO,
 } from "@/api/client";
@@ -15,12 +16,11 @@ import {
   roleRows,
   scopeFamilyRows,
   undeclaredScopes,
-  userAccessBlocker,
-  type UserAccessDraft,
   type DataScopeCatalogue,
 } from "@/app/model/accessCatalogueModel";
 import { PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
 import { LicenceRegisterPanel } from "@/components/LicenceRegisterPanel";
+import { AccessUsers } from "@/components/AccessUsers";
 import { groupPermissions } from "@/app/permissionVocabulary";
 import { useUrlView } from "@/app/navigation/useUrlView";
 import { PanelHelp } from "@/components/ui/PanelHelp";
@@ -42,6 +42,8 @@ function formatTime(value: string | null | undefined): string {
 export function AccessCenter({ currentUser, t }: AccessCenterProps) {
   const [activeView, setActiveView] = useUrlView<AccessViewId>("access", "users");
   const [users, setUsers] = useState<AccessUserDTO[]>([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [accountOptions, setAccountOptions] = useState<AccountOptionsDTO | null>(null);
   const [keys, setKeys] = useState<AccessApiKeyDTO[]>([]);
   const [audit, setAudit] = useState<AuditEventDTO[]>([]);
   // Investigation walk (#59): an explicit window and filter, and a continuation that pages
@@ -98,18 +100,10 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
   // re-read and cleared as soon as the operator leaves the view.
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [keyBusy, setKeyBusy] = useState(false);
-  const [userDrafts, setUserDrafts] = useState<Record<string, UserAccessDraft>>({});
   const [busyRows, setBusyRows] = useState<Record<string, boolean>>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string | null>>({});
 
   useEffect(() => { if (activeView !== "api_keys") setIssuedKey(null); }, [activeView]);
-
-  function editUser(user: AccessUserDTO, field: keyof UserAccessDraft, values: string[]) {
-    setUserDrafts((current) => ({ ...current, [user.principal_id]: {
-      ...(current[user.principal_id] ?? { roles: user.roles, data_scopes: user.data_scopes }),
-      [field]: values,
-    } }));
-  }
 
   async function mutateRow(id: string, action: () => Promise<void>) {
     if (busyRows[id]) return;
@@ -139,7 +133,11 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
     }
     setError(null);
     Promise.all([
-      api.accessUsers().then((response) => setUsers(response.data)),
+      api.accessUsers().then((response) => {
+        setUsers(response.data);
+        setAccountOptions(response.meta.account_options ?? null);
+        setUsersLoaded(true);
+      }),
       api.accessApiKeys().then((response) => setKeys(response.data)),
       api.auditEvents({ limit: "100" }).then((response) => {
         setAudit(response.data);
@@ -148,7 +146,11 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
       api.ssoProfile().then((response) => setSso(response.data)),
       api.accessRoles().then((response) => setRoles(response.data)),
       api.accessDataScopes().then((response) => setScopeCatalogue(response.data)),
-    ]).catch(() => setError("access.load_failed"));
+    ]).catch(() => {
+      setError("access.load_failed");
+      // A failed read ends the loading rows: the error line explains, the grid shows none.
+      setUsersLoaded(true);
+    });
   }, [isAdmin]);
 
   async function createKey() {
@@ -170,23 +172,6 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
     } finally {
       setKeyBusy(false);
     }
-  }
-
-  async function updateUserAccess(user: AccessUserDTO) {
-    const draft = userDrafts[user.principal_id];
-    if (!draft || userAccessBlocker(draft, user, roles, scopeCatalogue)) return;
-    await mutateRow(user.principal_id, async () => {
-      const response = await api.patchAccessUser(user.principal_id, draft);
-      setUsers((current) => current.map((item) => item.principal_id === user.principal_id ? response.data : item));
-      setUserDrafts((current) => { const next = { ...current }; delete next[user.principal_id]; return next; });
-    });
-  }
-
-  async function toggleUserStatus(user: AccessUserDTO) {
-    await mutateRow(user.principal_id, async () => {
-      const response = await api.patchAccessUser(user.principal_id, { status: user.status === "ACTIVE" ? "DISABLED" : "ACTIVE" });
-      setUsers((current) => current.map((item) => item.principal_id === user.principal_id ? response.data : item));
-    });
   }
 
   async function revokeKey(keyId: string) {
@@ -233,64 +218,16 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
 
       {activeView === "users" && (
         <div id="access-active-panel" role="tabpanel" aria-labelledby="access-tab-users" className="workspace-panel span-3">
-          <div className="data-table" tabIndex={0}>
-            <div className="data-table-row header six">
-              <span>{t("access.user")}</span>
-              <span>{t("access.identity_source")}</span>
-              <span>{t("access.status")}</span>
-              <span>{t("access.roles")}</span>
-              <span>{t("access.data_access")}</span>
-              <span>{t("access.actions")}</span>
-            </div>
-            {users.map((user) => (
-              <div key={`access-user-${user.principal_id}`} className="data-table-row six">
-                <strong>{user.display_name}</strong>
-                <span>{user.identity_source}</span>
-                <StatusBadge variant="source" status={user.status.toLowerCase()}>{user.status}</StatusBadge>
-                {(["roles", "data_scopes"] as const).map((field) => {
-                  const offered = field === "roles" ? Object.keys(roles ?? {}).sort() : availableScopes;
-                  return (
-                    <GrantPicker
-                      key={field}
-                      label={`${user.display_name} · ${t(field === "roles" ? "access.roles" : "access.data_access")}`}
-                      options={[...new Set([...offered, ...user[field]])]}
-                      storedOnly={(value) => !offered.includes(value)}
-                      selected={(userDrafts[user.principal_id] ?? user)[field]}
-                      changed={Boolean(userDrafts[user.principal_id]) && (userDrafts[user.principal_id]![field].join("|") !== user[field].join("|"))}
-                      disabled={Boolean(busyRows[user.principal_id]) || !roles || !scopeCatalogue}
-                      t={t}
-                      onChange={(values) => editUser(user, field, values)}
-                    />
-                  );
-                })}
-                <span className="access-row-actions">
-                  <JobProfileEditor
-                    user={user}
-                    busy={Boolean(busyRows[user.principal_id])}
-                    t={t}
-                    onSave={(body) => mutateRow(user.principal_id, async () => {
-                      const response = await api.patchAccessUser(user.principal_id, body);
-                      setUsers((current) => current.map((item) => item.principal_id === user.principal_id ? response.data : item));
-                    })}
-                  />
-                  <button type="button" disabled={busyRows[user.principal_id]} onClick={() => void toggleUserStatus(user)}>
-                    {user.status === "ACTIVE" ? t("access.disable") : t("access.enable")}
-                  </button>
-                  {/* Save appears once a role or scope has been changed on this row (#69). */}
-                  {userDrafts[user.principal_id] && (
-                  <button type="button" className="button-primary" disabled={busyRows[user.principal_id] || Boolean(userAccessBlocker(userDrafts[user.principal_id] ?? user, user, roles, scopeCatalogue))} onClick={() => void updateUserAccess(user)}>
-                    {t("access.save")}
-                  </button>
-                  )}
-                  {userAccessBlocker(userDrafts[user.principal_id] ?? user, user, roles, scopeCatalogue) && <span role="status">{t(userAccessBlocker(userDrafts[user.principal_id] ?? user, user, roles, scopeCatalogue)!)}</span>}
-                  {rowErrors[user.principal_id] && <span role="alert">{t(rowErrors[user.principal_id]!)}</span>}
-                </span>
-              </div>
-            ))}
-            {users.length === 0 && (
-              <div className="data-table-row six"><strong>{t("access.no_users")}</strong><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span></div>
-            )}
-          </div>
+          <AccessUsers
+            users={users}
+            accountOptions={accountOptions}
+            roles={roles}
+            scopeCatalogue={scopeCatalogue}
+            currentUser={currentUser}
+            loaded={usersLoaded}
+            t={t}
+            onUsersChange={setUsers}
+          />
         </div>
       )}
 
@@ -539,132 +476,3 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
   );
 }
 
-
-/** Declared job functions and home office: what the person does, never what they may do. */
-export const JOB_FUNCTIONS = [
-  "TRADER",
-  "HQ_BUSINESS_ANALYST",
-  "QUANT_RESEARCHER",
-  "RISK_MANAGER",
-  "FINANCE_SETTLEMENT",
-  "LEGAL_COMPLIANCE",
-  "MANAGEMENT",
-  "REVIEWER_MANAGEMENT",
-  "DATA_OPERATOR",
-  "PLATFORM_ADMINISTRATOR",
-  "ORIGINATOR",
-  "OPERATIONS",
-] as const;
-
-export const OFFICES = ["UK", "CA", "SG", "CN", "NL", "DE", "CH"] as const;
-
-function JobProfileEditor({
-  user,
-  busy,
-  t,
-  onSave,
-}: {
-  user: AccessUserDTO;
-  busy: boolean;
-  t: (key: string) => string;
-  onSave: (body: { job_functions: string[]; office: string | null }) => Promise<void> | void;
-}) {
-  const [functions, setFunctions] = useState<string[]>(user.job_functions ?? []);
-  const [office, setOffice] = useState<string>(user.office ?? "");
-  return (
-    <details className="access-job-profile">
-      <summary>{t("access.job_profile")}</summary>
-      <label>
-        <span>{t("access.job_functions")}</span>
-        <select
-          multiple
-          aria-label={`${user.display_name} · ${t("access.job_functions")}`}
-          value={functions}
-          disabled={busy}
-          onChange={(event) => setFunctions(Array.from(event.target.selectedOptions, (option) => option.value))}
-        >
-          {JOB_FUNCTIONS.map((item) => <option key={item} value={item}>{t(`access.job_function.${item}`)}</option>)}
-        </select>
-      </label>
-      <label>
-        <span>{t("access.office")}</span>
-        <select value={office} disabled={busy} onChange={(event) => setOffice(event.target.value)}>
-          <option value="">—</option>
-          {OFFICES.map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
-      </label>
-      <small>{t("access.job_profile_note")}</small>
-      <button type="button" disabled={busy} onClick={() => void onSave({ job_functions: functions, office: office || null })}>
-        {t("access.save")}
-      </button>
-    </details>
-  );
-}
-
-/**
- * A user's roles or data scopes (#24): the current grants as a readable summary, and a
- * labelled checkbox list (with a filter when long) to change them. Replaces the native
- * multi-select, which hid most options and the selection and needed Ctrl/Shift to use.
- * Changes stay a draft until the row's Save; nothing here widens a grant on its own.
- */
-function GrantPicker({
-  label,
-  options,
-  selected,
-  storedOnly,
-  changed,
-  disabled,
-  t,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  storedOnly: (value: string) => boolean;
-  changed: boolean;
-  disabled: boolean;
-  t: (key: string, options?: Record<string, unknown>) => string;
-  onChange: (values: string[]) => void;
-}) {
-  const [filter, setFilter] = useState("");
-  const shown = filter ? options.filter((option) => option.toLowerCase().includes(filter.toLowerCase())) : options;
-  // "*" is the wildcard scope: say what it covers instead of showing a bare asterisk.
-  const word = (value: string) => (value === "*" ? t("access.grant.wildcard") : value);
-  const summary = selected.length === 0 ? t("access.grant.none") : selected.map(word).join(", ");
-  return (
-    <details className={`access-grant-picker${changed ? " is-changed" : ""}`}>
-      <summary aria-label={label} title={summary}>
-        <span className="access-grant-summary">{summary}</span>
-        <span className="access-grant-edit">{t("access.grant.edit")}</span>
-      </summary>
-      <fieldset disabled={disabled}>
-        <legend>{label} · {t("access.grant.selected").replace("{{count}}", String(selected.length))}</legend>
-        {options.length > 8 && (
-          <input
-            type="search"
-            className="access-grant-filter"
-            placeholder={t("access.grant.filter")}
-            aria-label={t("access.grant.filter")}
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          />
-        )}
-        <div className="access-grant-options">
-          {shown.map((value) => (
-            <label key={value} className="settings-checkbox">
-              <input
-                type="checkbox"
-                checked={selected.includes(value)}
-                onChange={(event) =>
-                  onChange(event.target.checked ? [...selected, value] : selected.filter((item) => item !== value))
-                }
-              />
-              {word(value)}
-              {storedOnly(value) && <small> ({t("access.user.stored_grant")})</small>}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-    </details>
-  );
-}

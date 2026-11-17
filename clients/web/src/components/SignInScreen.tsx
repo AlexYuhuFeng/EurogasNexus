@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { BRAND_HEX_LOWER, BRAND_HEX_UPPER, BRAND_STROKE, BRAND_WAVE, BrandMark } from "@/components/ui/BrandMark";
 import { CLIENT_APPLICATION_VERSION } from "@/app/releaseMetadata";
 import { LOCALES } from "@/i18n/locales";
-import { devLoginOffered, type AuthStatusSnapshot } from "@/stores/authGate";
+import { devLoginOffered, newPasswordProblem, passwordFormOffered, type AuthStatusSnapshot } from "@/stores/authGate";
 import type { AuthState } from "@/stores/workspaceLoading";
 import "./SignInScreen.css";
 
@@ -27,6 +27,11 @@ interface SignInScreenProps {
   onOidcSignIn: () => void;
   onDevLogin: (username: string, password: string) => void;
   onRetryIdentity: () => void;
+  /** The forced password change after a temporary password (null outside that step). */
+  passwordChange?: { displayName: string; username: string } | null;
+  passwordChangeErrorKey?: string | null;
+  onCompletePasswordChange?: (newPassword: string) => void;
+  onCancelPasswordChange?: () => void;
 }
 
 export function SignInScreen({
@@ -41,12 +46,30 @@ export function SignInScreen({
   onOidcSignIn,
   onDevLogin,
   onRetryIdentity,
+  passwordChange = null,
+  passwordChangeErrorKey = null,
+  onCompletePasswordChange,
+  onCancelPasswordChange,
 }: SignInScreenProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [newPasswordTouched, setNewPasswordTouched] = useState(false);
   const resolvingIdentity = authState === "unknown";
-  // Server-advertised capability only: the form cannot be enabled from the client.
+  // Server-advertised capability only: the form cannot be enabled from the client. The small
+  // "Tester sign-in" title belongs to the demo/development tester sign-in; a firm's local
+  // accounts use the same form without it.
   const devLoginAvailable = devLoginOffered(authStatus);
+  const passwordFormAvailable = passwordFormOffered(authStatus);
+  const newPasswordKey = newPasswordProblem(newPassword, confirmPassword, passwordChange?.username ?? "");
+
+  function handlePasswordChangeSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setNewPasswordTouched(true);
+    if (authBusy || newPasswordKey) return;
+    onCompletePasswordChange?.(newPassword);
+  }
 
   function handleDevLoginSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,7 +81,7 @@ export function SignInScreen({
   // no sign-in method at all it is the one thing left to try. Otherwise the screen says nothing
   // about SSO.
   const ssoFailing = authStatus.oidcConfigured && authErrorKey !== null && SSO_FAILURE_KEYS.has(authErrorKey);
-  const noMethods = !authStatus.oidcConfigured && !devLoginAvailable;
+  const noMethods = !authStatus.oidcConfigured && !passwordFormAvailable;
   const retry = (
     <div className="sign-in-retry-row">
       <button type="button" className="sign-in-retry" onClick={onRetryIdentity} disabled={authBusy}>
@@ -92,7 +115,7 @@ export function SignInScreen({
         {/* Below 760 px the brand panel folds away; the card carries the lock-up instead. */}
         <BrandMark variant="wordmark" tone="auto" size="lg" className="sign-in-card-lockup" />
         <div className="sign-in-masthead">
-          <h1 id="sign-in-title">{t("auth.title")}</h1>
+          <h1 id="sign-in-title">{passwordChange ? t("auth.change_title") : t("auth.title")}</h1>
           <select
             aria-label={t("settings.language")}
             value={language}
@@ -111,7 +134,48 @@ export function SignInScreen({
           <p className="sign-in-error" role="alert">{t(authErrorKey)}</p>
         )}
 
-        {resolvingIdentity ? (
+        {passwordChange ? (
+          <form className="sign-in-dev-form sign-in-change-form" onSubmit={handlePasswordChangeSubmit} noValidate>
+            <p className="sign-in-hint">
+              {t("auth.change_intro").replace("{{name}}", passwordChange.displayName)}
+            </p>
+            {/* For password managers: the account this new password belongs to. */}
+            <input type="text" name="username" autoComplete="username" value={passwordChange.username} readOnly hidden />
+            <label htmlFor="sign-in-new-password">{t("auth.new_password")}</label>
+            <input
+              id="sign-in-new-password"
+              name="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              aria-describedby="sign-in-new-password-hint"
+              onChange={(event) => setNewPassword(event.target.value)}
+              required
+            />
+            <small id="sign-in-new-password-hint" className="sign-in-field-hint">{t("auth.new_password_hint")}</small>
+            <label htmlFor="sign-in-confirm-password">{t("auth.confirm_password")}</label>
+            <input
+              id="sign-in-confirm-password"
+              name="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+            />
+            {((newPasswordTouched && newPasswordKey) || passwordChangeErrorKey) && (
+              <p className="sign-in-error" role="alert">{t((newPasswordTouched && newPasswordKey) || passwordChangeErrorKey!)}</p>
+            )}
+            <button type="submit" className="sign-in-primary" disabled={authBusy}>
+              {authBusy ? t("auth.change_submitting") : t("auth.change_submit")}
+            </button>
+            <div className="sign-in-retry-row">
+              <button type="button" className="sign-in-retry" onClick={onCancelPasswordChange} disabled={authBusy}>
+                {t("auth.change_cancel")}
+              </button>
+            </div>
+          </form>
+        ) : resolvingIdentity ? (
           <div className="sign-in-resolving" role="status" aria-live="polite">
             <strong>{t("auth.resolving_title")}</strong>
             <span>{t("auth.resolving_body")}</span>
@@ -132,15 +196,15 @@ export function SignInScreen({
               </div>
             )}
 
-            {authStatus.oidcConfigured && devLoginAvailable && (
+            {authStatus.oidcConfigured && passwordFormAvailable && (
               <div className="sign-in-or" role="separator" aria-label={t("auth.or")}>
                 <span aria-hidden="true">{t("auth.or")}</span>
               </div>
             )}
 
-            {devLoginAvailable && (
+            {passwordFormAvailable && (
               <form className="sign-in-dev-form" onSubmit={handleDevLoginSubmit}>
-                <span className="sign-in-block-title">{t("auth.dev_title")}</span>
+                {devLoginAvailable && <span className="sign-in-block-title">{t("auth.dev_title")}</span>}
                 <label htmlFor="sign-in-username">{t("auth.dev_username")}</label>
                 <input
                   id="sign-in-username"

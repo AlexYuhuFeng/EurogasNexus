@@ -11,6 +11,12 @@ you see". They are assigned separately and never encoded into one string.
   scopes, last login and key metadata.
 - `PATCH /api/access/users/{id}` changes status, roles, data scopes, email.
 - `GET /api/access/roles` shows the built-in role/permission matrix.
+- `POST /api/access/users` adds a person: `kind=sso` (pre-provisioned, `INVITED` until the
+  first company sign-in) or `kind=local` (answers `one_time_password` once).
+- `POST /api/access/users/{id}/reset-password` issues a new one-time password (local accounts).
+- `DELETE /api/access/users/{id}` deletes a person with no history; otherwise `409` - disable.
+- The last active administrator cannot be disabled, locked, demoted or deleted (`409
+  last_administrator`). See [LOCAL_ACCOUNTS.md](../security/LOCAL_ACCOUNTS.md).
 
 ## Verification
 

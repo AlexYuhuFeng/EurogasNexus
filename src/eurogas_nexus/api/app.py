@@ -52,6 +52,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     route_profile = get_route_profile(resolved_settings.api_profile)
     assert_profile_allowed(route_profile.name, resolved_settings.environment)
+    # Demo test accounts (a weak shared password) exist only on the hosted demo server.
+    from eurogas_nexus.security.local_accounts_policy import assert_demo_accounts_allowed
+
+    assert_demo_accounts_allowed(route_profile.name, resolved_settings.environment)
 
     dependencies = (
         [

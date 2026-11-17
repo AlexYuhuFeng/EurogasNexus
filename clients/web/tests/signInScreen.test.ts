@@ -10,14 +10,15 @@ test("sign-in actions reflect server-advertised capabilities", () => {
   assert.match(screen, /\{authStatus\.oidcConfigured && \(\s*<div className="sign-in-sso">[\s\S]*?onOidcSignIn/);
   assert.doesNotMatch(screen, /authStatus\.oidcConfigured \? \(/);
   assert.doesNotMatch(screen, /t\("auth\.sso_unavailable"\)|auth\.sso_title/);
-  // The form only when the server advertises it; secondary beside SSO, primary alone.
-  assert.match(screen, /devLoginAvailable && \(/);
+  // The form only when the server advertises it (tester sign-in or local accounts); secondary
+  // beside SSO, primary alone. The small "Tester sign-in" title belongs to the tester sign-in.
+  assert.match(screen, /passwordFormAvailable && \(/);
   assert.match(screen, /authStatus\.oidcConfigured \? "sign-in-secondary" : "sign-in-primary"/);
-  assert.match(screen, /<span className="sign-in-block-title">\{t\("auth\.dev_title"\)\}<\/span>/);
+  assert.match(screen, /devLoginAvailable && <span className="sign-in-block-title">\{t\("auth\.dev_title"\)\}<\/span>/);
   // "or" only when both are offered.
-  assert.match(screen, /authStatus\.oidcConfigured && devLoginAvailable && \([\s\S]*?className="sign-in-or" role="separator"/);
+  assert.match(screen, /authStatus\.oidcConfigured && passwordFormAvailable && \([\s\S]*?className="sign-in-or" role="separator"/);
   // With no method at all, say so and offer the identity check.
-  assert.match(screen, /const noMethods = !authStatus\.oidcConfigured && !devLoginAvailable;/);
+  assert.match(screen, /const noMethods = !authStatus\.oidcConfigured && !passwordFormAvailable;/);
   assert.match(screen, /auth\.no_methods/);
   assert.doesNotMatch(screen, /auth\.dev_hint/);
   // The identity retry appears only when SSO is configured and failing, or nothing is offered.
@@ -33,7 +34,8 @@ test("sign-in actions reflect server-advertised capabilities", () => {
 
 test("sign-in is one heading and the methods: no eyebrow, no body line, no brand bullets or footer", () => {
   assert.equal((screen.match(/<h1\b/g) ?? []).length, 1);
-  assert.match(screen, /<h1 id="sign-in-title">\{t\("auth\.title"\)\}<\/h1>/);
+  // One heading: "Sign in", or "Choose your password" in the forced change after a temporary one.
+  assert.match(screen, /<h1 id="sign-in-title">\{passwordChange \? t\("auth\.change_title"\) : t\("auth\.title"\)\}<\/h1>/);
   for (const removed of ["auth.eyebrow", "auth.body", "auth.brand_point_", "auth.brand_foot", "sign-in-brand-points"]) {
     assert.doesNotMatch(screen, new RegExp(removed.replace(".", "\\.")), removed);
   }

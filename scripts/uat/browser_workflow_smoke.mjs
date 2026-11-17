@@ -234,7 +234,6 @@ const KNOWN_FUNCTIONAL_GAPS = {
   // board's visible joined keys, stated total and read state are now compared with both
   // (`joinedBoard`, `evaluateCapacityBoardJoin`), so a served operating point the board does not
   // render fails by its own `point_id:direction` key.
-  access: "access users return rows while the Users table renders the empty row 'No users'",
   research: "the capability catalogue returns rows while the table renders 'Loading workspace'",
   agents: "the capability catalogue returns rows while the table renders 'Loading workspace'",
 };

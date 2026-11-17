@@ -8,7 +8,7 @@ this guard. Cookie-authenticated mutations require:
 3. ``X-Eurogas-CSRF`` matching the session-bound token returned by /api/me.
 
 GET/HEAD/OPTIONS and the login entry points (the OIDC flow under
-``/api/auth/oidc/``, ``/api/auth/login``, and the development
+``/api/auth/oidc/``, ``/api/auth/login``, ``/api/auth/password-change`` and the development
 ``/api/dev/auth/login``) are exempt from the CSRF header but not from
 authentication and entitlement checks: a browser arriving at a login form with
 a stale or foreign session cookie must still be able to sign in. Every other
@@ -31,7 +31,11 @@ ALLOWED_ORIGINS_ENV = "EUROGAS_NEXUS_CORS_ORIGINS"
 # a stale session cookie. Logout and every other mutation keep the guard.
 CSRF_EXEMPT_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 CSRF_EXEMPT_PATH_PREFIXES = ("/api/auth/oidc/",)
-CSRF_EXEMPT_PATHS = frozenset({"/api/auth/login", "/api/dev/auth/login"})
+#: ``/api/auth/password-change`` carries its own single-use change token (the authority a
+#: forged request could not know); these handlers refuse a foreign Origin themselves.
+CSRF_EXEMPT_PATHS = frozenset(
+    {"/api/auth/login", "/api/auth/password-change", "/api/dev/auth/login"}
+)
 
 _ALLOWED_ORIGINS = {
     "http://localhost",

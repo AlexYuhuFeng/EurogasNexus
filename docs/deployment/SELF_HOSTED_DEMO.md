@@ -115,6 +115,44 @@ possible, because the product has no such function: trade execution or order ent
 nomination submission, settlement or payment. Demo figures carry **Demo data** in the top
 bar and `sim` beside each value.
 
+### Demo test accounts (optional)
+
+For a public demo the owner can add simple sign-in names, each with its own password, with
+`EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS` in `deploy/demo/.env` (the example file lists the nine
+below, commented out):
+
+```
+EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS=test_trader:12345678,test_nl_trader:12345678,test_analyst:12345678,test_risk:12345678,test_manager:12345678,test_finance:12345678,test_compliance:12345678,test_ops:12345678,test_admin:12345678:admin
+```
+
+| Name | Copies | Role |
+|---|---|---|
+| `test_trader` | `demo.trader` | ANALYST, Trader (NBP) |
+| `test_nl_trader` | `demo.nl.trader` | ANALYST, Trader (TTF) |
+| `test_analyst` | `demo.analyst` | ANALYST |
+| `test_risk` | `demo.risk` | REVIEWER, Risk manager |
+| `test_manager` | `demo.manager` | REVIEWER |
+| `test_finance` | `demo.finance` | VIEWER |
+| `test_compliance` | `demo.compliance` | REVIEWER |
+| `test_ops` | `demo.ops` | OPERATOR |
+| `test_admin` | `demo.admin` | ADMIN (only because the entry says `:admin`) |
+
+They are local accounts created at start-up through the product's own local-account code
+(re-applied on a reset, their password restored at every start, disabled when removed from
+the list), sign in on the same form as the testers, and need no password change. The form is
+`name:password[:admin]` separated by commas, or a JSON list
+`[{"username": "desk_one", "password": "...", "as": "demo.trader"}]` (`as` names the tester
+whose roles to copy; required for a name not in the table). An entry whose tester holds ADMIN
+is refused unless it is marked `:admin` / `"allow_admin": true`.
+
+**Warning.** These passwords may be shorter than the product's 12-character policy - that is
+the point of the setting - so **anyone who knows them can sign in**. The start-up log says so
+on every start (`WARNING: demo test accounts with a weak shared password are enabled`). Use it
+only on a demo server with fictional data. A customer server refuses it: the API does not start
+with the setting, preflight reports it, and these accounts never sign in on a server that is
+not the demo profile. Five wrong passwords lock a test account for 15 minutes (anyone can do
+that to a public name); a restart or a tester with `tester`'s administrator rights unlocks it.
+
 ## Reaching it from other devices
 
 The demo port is bound to `127.0.0.1`. Do **not** publish it on a router or set

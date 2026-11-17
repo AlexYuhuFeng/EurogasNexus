@@ -85,6 +85,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "EUROGAS_NEXUS_DEMO_LIVE_SOURCES",
             "EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS",
             "EUROGAS_NEXUS_DEMO_REFRESH_HOURS",
+            "EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS",
         ),
     ),
     (
@@ -111,6 +112,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP",
             "EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP",
             "EUROGAS_NEXUS_OIDC_ALLOW_HTTP",
+            "EUROGAS_NEXUS_LOCAL_ACCOUNTS",
         ),
     ),
     (

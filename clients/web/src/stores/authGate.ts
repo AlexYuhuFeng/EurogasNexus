@@ -22,6 +22,8 @@ export interface AuthStatusSnapshot {
   sessionCookiePresent: boolean;
   profile: string | null;
   devLoginAvailable: boolean;
+  /** Local accounts (user name and password, firms without SSO). */
+  localLoginAvailable: boolean;
 }
 
 export const UNKNOWN_AUTH_STATUS: AuthStatusSnapshot = {
@@ -29,6 +31,7 @@ export const UNKNOWN_AUTH_STATUS: AuthStatusSnapshot = {
   sessionCookiePresent: false,
   profile: null,
   devLoginAvailable: false,
+  localLoginAvailable: false,
 };
 
 function text(value: unknown): string | null {
@@ -47,7 +50,23 @@ export function authStatusSnapshot(data: unknown): AuthStatusSnapshot {
     sessionCookiePresent: payload.session_cookie === true,
     profile: text(payload.profile),
     devLoginAvailable: payload.dev_login === true,
+    localLoginAvailable: payload.local_login === true,
   };
+}
+
+/**
+ * The user-name-and-password form is shown when the deployment offers local accounts or the
+ * development/tester sign-in. One form serves both: the tester sign-in is tried first (when
+ * offered), then the local account.
+ */
+export function passwordFormOffered(status: AuthStatusSnapshot): boolean {
+  return status.devLoginAvailable || status.localLoginAvailable;
+}
+
+/** Whether a failed tester sign-in should be retried as a local account. */
+export function shouldTryLocalAfterDevFailure(status: AuthStatusSnapshot, message: string): boolean {
+  if (!status.localLoginAvailable) return false;
+  return /^API 40[13]\b/.test(message) || message.includes("invalid_credentials") || message.includes("identity_not_provisioned");
 }
 
 /**
@@ -165,6 +184,8 @@ export function bootstrapStartState(current: AuthState): AuthState {
 }
 
 const DEV_LOGIN_ERROR_KEYS: Record<string, string> = {
+  temporary_password_expired: "auth.error_temporary_expired",
+  rate_limited: "auth.error_rate_limited",
   invalid_credentials: "auth.error_invalid_credentials",
   identity_not_provisioned: "auth.error_not_provisioned",
   dev_login_disabled: "auth.error_dev_login_disabled",
@@ -180,9 +201,42 @@ export function devLoginErrorKey(message: string): string {
   for (const [code, key] of Object.entries(DEV_LOGIN_ERROR_KEYS)) {
     if (message.includes(code)) return key;
   }
+  if (/^API 429\b/.test(message)) return "auth.error_rate_limited";
   if (/^API 401\b/.test(message)) return "auth.error_invalid_credentials";
   if (/^API 403\b/.test(message)) return "auth.error_not_provisioned";
   return "auth.error_generic";
+}
+
+const PASSWORD_POLICY_KEYS: Record<string, string> = {
+  password_too_short: "auth.password_too_short",
+  password_too_long: "auth.password_too_long",
+  password_contains_username: "auth.password_contains_username",
+  password_too_common: "auth.password_too_common",
+  password_reused: "auth.password_reused",
+  change_token_invalid: "auth.change_step_expired",
+  current_password_incorrect: "auth.current_password_incorrect",
+};
+
+/** Localise a refused password change by its machine code (policy, expired step). */
+export function passwordChangeErrorKey(message: string): string {
+  for (const [code, key] of Object.entries(PASSWORD_POLICY_KEYS)) {
+    if (message.includes(code)) return key;
+  }
+  return "auth.error_generic";
+}
+
+/**
+ * The client's own check before sending (the server re-checks): 12 to 128 characters, not the
+ * user name, and the two entries agree. Returns an i18n key or null.
+ */
+export function newPasswordProblem(password: string, confirm: string, username = ""): string | null {
+  const length = [...password.normalize("NFKC")].length;
+  if (length < 12) return "auth.password_too_short";
+  if (length > 128) return "auth.password_too_long";
+  const name = username.trim().toLowerCase();
+  if (name.length >= 3 && password.toLowerCase().includes(name)) return "auth.password_contains_username";
+  if (password !== confirm) return "auth.password_mismatch";
+  return null;
 }
 
 /** Localise an SSO start failure; an unconfigured provider is not an error of the operator. */

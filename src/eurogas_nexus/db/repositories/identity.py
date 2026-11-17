@@ -24,14 +24,83 @@ def list_identity_principals(session: Session) -> list[dict]:
     """List active and disabled identities with key metadata (never hashes)."""
 
     rows = session.query(IdentityPrincipalRecord).order_by(IdentityPrincipalRecord.principal_id)
+    from eurogas_nexus.db.models.identity import IdentityLocalCredentialRecord
+
     keys_by_principal: dict[str, list[IdentityApiKeyRecord]] = {}
     for key in (
         session.query(IdentityApiKeyRecord).order_by(IdentityApiKeyRecord.created_at_utc).all()
     ):
         keys_by_principal.setdefault(key.principal_id, []).append(key)
+    credentials = {
+        row.principal_id: row for row in session.query(IdentityLocalCredentialRecord).all()
+    }
+    principals = rows.all()
+    history = principals_with_history(session, [row.principal_id for row in principals])
     return [
-        _principal_payload(row, keys_by_principal.get(row.principal_id, [])) for row in rows.all()
+        {
+            **_principal_payload(
+                row,
+                keys_by_principal.get(row.principal_id, []),
+                credentials.get(row.principal_id),
+            ),
+            # Whether DELETE would be accepted: never signed in, no key, no session, no act.
+            "deletable": row.principal_id not in history
+            and row.last_login_at_utc is None
+            and not keys_by_principal.get(row.principal_id),
+        }
+        for row in principals
     ]
+
+
+def principals_with_history(session: Session, principal_ids: list[str]) -> set[str]:
+    """Those of ``principal_ids`` who acted (an audit event as actor) or held a session."""
+
+    from eurogas_nexus.db.models import AuditEventRecord
+    from eurogas_nexus.db.models.identity import UserSessionRecord
+
+    ids = [value for value in principal_ids if value]
+    if not ids:
+        return set()
+    acted = {
+        value
+        for (value,) in session.query(AuditEventRecord.principal)
+        .filter(AuditEventRecord.principal.in_(ids))
+        .distinct()
+        .all()
+    }
+    sessions = {
+        value
+        for (value,) in session.query(UserSessionRecord.principal_id)
+        .filter(UserSessionRecord.principal_id.in_(ids))
+        .distinct()
+        .all()
+    }
+    return acted | sessions
+
+
+def identity_principal_payload(session: Session, principal_id: str) -> dict | None:
+    """One principal as the users list shows it (key metadata and account state)."""
+
+    from eurogas_nexus.db.models.identity import IdentityLocalCredentialRecord
+
+    row = get_identity_principal(session, principal_id)
+    if row is None:
+        return None
+    keys = (
+        session.query(IdentityApiKeyRecord)
+        .filter(IdentityApiKeyRecord.principal_id == principal_id)
+        .order_by(IdentityApiKeyRecord.created_at_utc)
+        .all()
+    )
+    payload = _principal_payload(
+        row, keys, session.get(IdentityLocalCredentialRecord, principal_id)
+    )
+    payload["deletable"] = (
+        principal_id not in principals_with_history(session, [principal_id])
+        and row.last_login_at_utc is None
+        and not keys
+    )
+    return payload
 
 
 def get_identity_principal(session: Session, principal_id: str) -> IdentityPrincipalRecord | None:
@@ -289,7 +358,14 @@ def authenticate_identity_bearer(
 def _principal_payload(
     row: IdentityPrincipalRecord,
     keys: list[IdentityApiKeyRecord],
+    credential=None,
 ) -> dict:
+    from eurogas_nexus.domain.identity.accounts import (
+        account_kind,
+        account_state,
+        credential_payload,
+    )
+
     return {
         "principal_id": row.principal_id,
         "principal_type": row.principal_type,
@@ -304,6 +380,12 @@ def _principal_payload(
         "created_at_utc": row.created_at_utc.isoformat(),
         "updated_at_utc": row.updated_at_utc.isoformat(),
         "last_login_at_utc": row.last_login_at_utc.isoformat() if row.last_login_at_utc else None,
+        "job_functions": list(row.job_functions or []),
+        "office": row.office,
+        # Admin -> Users: how the person signs in, and the one state shown for them.
+        "account_kind": account_kind(row, credential),
+        "account_state": account_state(row, credential),
+        "local_password": credential_payload(credential),
         "keys": [_key_payload(key) for key in keys],
     }
 

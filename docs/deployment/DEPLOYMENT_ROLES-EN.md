@@ -170,6 +170,35 @@ off-by-default keyed source (GIE, GIE IIP, ENTSO-E) is switched on at the next s
 scan unless an operator switched it off. Licensed providers remain disabled until customer
 credentials and data scopes are configured.
 
+### First administrator and sign-in
+
+A firm signs in with its company SSO ([Enterprise SSO](../operations/ENTERPRISE_SSO.md)), or -
+without SSO - with **local accounts** (user name and password, managed in Admin → Access &
+Identity → Users). `EUROGAS_NEXUS_LOCAL_ACCOUNTS` decides:
+
+| Value | Local sign-in and local-account creation |
+|---|---|
+| `auto` (default) | on only when no SSO is configured (`EUROGAS_NEXUS_OIDC_ISSUER` and client id unset) |
+| `on` | on next to SSO (for example a break-glass administrator) |
+| `off` | refused; only SSO (and API keys) |
+
+Create the first administrator from the server, headless, with the same rules and audit as the
+screen (the one-time password is printed once, to this terminal only):
+
+```bash
+docker compose exec api python -m eurogas_nexus.cli.accounts create \
+  --username alice --display-name "Alice Smith" --admin
+docker compose exec api python -m eurogas_nexus.cli.accounts list
+docker compose exec api python -m eurogas_nexus.cli.accounts reset-password --username alice
+```
+
+Alice signs in with that temporary password, chooses her own, and adds everyone else in
+Admin → Users. With SSO, pre-provision people there instead (they land with the right access
+at their first company sign-in). Passwords are stored as salted scrypt with recorded
+parameters; see [Local accounts](../security/LOCAL_ACCOUNTS.md) for storage, lockout and
+threat notes. `EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS` (demo test accounts) is refused by a customer
+server: the API does not start with it set.
+
 ### First run: approve the public sources
 
 ENTSOG and GIE are read only after an administrator approves them for the firm (a

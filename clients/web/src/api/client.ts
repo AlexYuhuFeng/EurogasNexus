@@ -5805,12 +5805,38 @@ export const api = {
       "/dev/auth/login",
       isDesktopShell ? { username, password, client: "desktop" } : { username, password },
     ),
+  /**
+   * Local-account sign-in (firms without SSO). A temporary password answers
+   * `password_change_required` with a single-use `change_token` instead of a session.
+   */
+  localLogin: (username: string, password: string) =>
+    post<LocalLoginDTO>(
+      "/auth/login",
+      isDesktopShell ? { username, password, client: "desktop" } : { username, password },
+    ),
+  /** The forced password change after a temporary password; opens the session. */
+  completePasswordChange: (changeToken: string, newPassword: string) =>
+    post<LocalLoginDTO>(
+      "/auth/password-change",
+      isDesktopShell
+        ? { change_token: changeToken, new_password: newPassword, client: "desktop" }
+        : { change_token: changeToken, new_password: newPassword },
+    ),
+  /** A signed-in local-account user changes their own password (other sessions end). */
+  changeOwnPassword: (currentPassword: string, newPassword: string) =>
+    post<LocalLoginDTO>("/me/password", { current_password: currentPassword, new_password: newPassword }),
   logout: (options?: ApiRequestOptions) => post<{ logged_out: boolean }>("/auth/logout", {}, options),
   desktopOidcToken: (body: DesktopOidcTokenInputDTO) =>
     post<DesktopOidcTokenDTO>("/auth/oidc/desktop/token", body),
   startDesktopOidcLogin: (body: DesktopOidcLoginInputDTO) =>
     post<DesktopOidcLoginDTO>("/auth/oidc/desktop/login", body),
-  accessUsers: () => get<AccessUserDTO[]>("/access/users"),
+  accessUsers: () => get<AccessUserDTO[], ApiMeta & { account_options?: AccountOptionsDTO }>("/access/users"),
+  createAccessUser: (body: AccessUserCreateInputDTO) =>
+    post<AccessUserCreatedDTO>("/access/users", body),
+  resetAccessUserPassword: (principalId: string) =>
+    post<AccessUserCreatedDTO>(`/access/users/${encodeURIComponent(principalId)}/reset-password`, {}),
+  deleteAccessUser: (principalId: string) =>
+    del<{ principal_id: string; deleted: boolean }>(`/access/users/${encodeURIComponent(principalId)}`),
   patchAccessUser: (principalId: string, body: AccessUserPatchInputDTO) =>
     patch<AccessUserDTO>(`/access/users/${encodeURIComponent(principalId)}`, body),
   accessRoles: () => get<Record<string, string[]>>("/access/roles"),
@@ -5877,6 +5903,18 @@ export interface AuthStatusDTO {
   profile: string | Record<string, unknown> | null;
   /** True only when the deployment advertises development credential login. */
   dev_login: boolean;
+  /** True when local accounts (user name and password) are offered. */
+  local_login?: boolean;
+}
+
+/** `POST /api/auth/login` and `/api/auth/password-change`: a session, or the change step first. */
+export interface LocalLoginDTO {
+  authenticated: boolean;
+  password_change_required: boolean;
+  /** Present only with `password_change_required`: single-use, short-lived. */
+  change_token?: string;
+  principal_id?: string; display_name: string; role?: string; permissions?: string[];
+  session_token?: string;
 }
 
 export interface DevCredentialLoginInputDTO {
@@ -5919,6 +5957,46 @@ export interface AccessUserDTO {
   last_login_at_utc: string | null; keys: AccessApiKeyDTO[];
   /** Declared job functions and home office: composition only, never a grant. */
   job_functions?: string[]; office?: string | null;
+  /** How the person signs in: a local password, company SSO, or an API key only. */
+  account_kind?: "local" | "sso" | "service" | "key";
+  /** The one state Admin -> Users shows. */
+  account_state?: "ACTIVE" | "INVITED" | "DISABLED" | "LOCKED" | "PENDING";
+  local_password?: LocalPasswordStateDTO | null;
+  /** Whether the server would accept a delete (no sign-in, key, session or audited act). */
+  deletable?: boolean;
+}
+
+/** Safe facts about a local password; never the hash. */
+export interface LocalPasswordStateDTO {
+  must_change_password: boolean;
+  temporary_password_expires_at_utc: string | null;
+  temporary_password_expired: boolean;
+  locked_until_utc: string | null;
+  failed_attempts: number;
+  password_set_at_utc: string;
+  demo_account: boolean;
+}
+
+/** How people may be added on this deployment (`GET /api/access/users` meta). */
+export interface AccountOptionsDTO {
+  local_accounts: boolean;
+  local_accounts_setting: string;
+  sso_invites: boolean;
+  temporary_password_hours: number;
+}
+
+export interface AccessUserCreateInputDTO {
+  kind: "local" | "sso";
+  username?: string; display_name?: string; email?: string | null; subject?: string | null;
+  roles?: string[]; data_scopes?: string[]; job_functions?: string[]; office?: string | null;
+  groups?: string[];
+}
+
+/** A created (or reset) user; `one_time_password` is present once for a local account. */
+export interface AccessUserCreatedDTO {
+  user: AccessUserDTO;
+  one_time_password?: string;
+  warning?: string;
 }
 
 export interface AccessUserPatchInputDTO {

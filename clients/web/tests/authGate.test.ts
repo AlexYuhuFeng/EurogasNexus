@@ -127,6 +127,7 @@ test("development sign-in is offered only when the deployment advertises it", ()
     sessionCookiePresent: true,
     profile: "corporate-oidc",
     devLoginAvailable: true,
+    localLoginAvailable: false,
   });
   assert.equal(devLoginOffered(configured), true);
 
@@ -490,8 +491,10 @@ test("logout clears client-stored credentials and keeps non-secret preferences",
 test("the sign-in screen is presentational and holds no hardcoded credential", () => {
   const screen = source("components/SignInScreen.tsx");
 
-  assert.match(screen, /devLoginAvailable && \(/);
+  // The password form: tester sign-in or local accounts, as the server advertises.
+  assert.match(screen, /passwordFormAvailable && \(/);
   assert.match(screen, /const devLoginAvailable = devLoginOffered\(authStatus\);/);
+  assert.match(screen, /const passwordFormAvailable = passwordFormOffered\(authStatus\);/);
   assert.match(screen, /onOidcSignIn/);
   assert.match(screen, /onDevLogin\(username, password\)/);
   assert.match(screen, /authErrorKey && \(/);

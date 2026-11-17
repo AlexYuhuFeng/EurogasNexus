@@ -305,6 +305,8 @@ def test_auth_status_reports_dev_login_only_when_mounted_and_configured(
         "session_cookie",
         "profile",
         "dev_login",
+        # Additive 2026-11-17: whether local accounts (user name and password) are offered.
+        "local_login",
     }
     _configure_dev_credentials(monkeypatch)
 

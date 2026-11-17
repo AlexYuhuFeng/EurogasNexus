@@ -325,6 +325,12 @@ def _principal_for_identity(
     now_utc: datetime | None,
 ) -> IdentityPrincipalRecord:
     now = as_utc(now_utc or datetime.now(UTC))
+    from eurogas_nexus.application.local_accounts import activate_invite, claim_sso_invite
+
+    # A person an administrator pre-provisioned (Admin -> Users -> Add user) is linked by
+    # the e-mail address the provider asserts and activated by this first sign-in.
+    if find_external_identity(session, identity.issuer, identity.subject) is None:
+        claim_sso_invite(session, identity, now_utc=now)
     if provisioning_mode() == "directory":
         # The company directory owns access: create or re-sync from groups, active at once.
         from eurogas_nexus.application.directory_sync import (
@@ -370,6 +376,9 @@ def _principal_for_identity(
         )
     else:
         principal = session.get(IdentityPrincipalRecord, external.principal_id)
+        if principal is not None:
+            # Pre-provisioned under this exact subject: the first sign-in activates it.
+            activate_invite(session, principal, now_utc=now)
     _require_active_principal(principal)
     principal.last_login_at_utc = now
     principal.updated_at_utc = now

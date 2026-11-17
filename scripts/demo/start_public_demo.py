@@ -19,7 +19,10 @@ See ``docs/deployment/SELF_HOSTED_DEMO.md`` for the operator guide.
    last seed (an audit event ``demo.seed``), which re-seeds the demo rows. A start that does
    not seed rolls the simulated series forward to the current gas day (after a pause),
    appending only what is missing;
-6. create the tester identities that do not exist yet (all re-applied on a reset);
+6. create the tester identities that do not exist yet (all re-applied on a reset), and the
+   demo test accounts ``EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS`` lists (local accounts with their
+   own, possibly weak, password; created through the product's local-account code path,
+   re-applied on a reset, disabled when no longer listed; logged loudly);
 7. when live public sources are on (``EUROGAS_NEXUS_DEMO_LIVE_SOURCES``: ``auto`` turns them
    on when a public-source key is set), start a low-priority background process that waits
    until the server answers, catches up the gap since the last successful round (at most
@@ -126,6 +129,7 @@ TESTERS: tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...], str], ...]
     ),
 )
 TESTER_NAMES = tuple(row[0] for row in TESTERS)
+TESTER_BY_NAME = {row[0]: row for row in TESTERS}
 
 
 class StartupError(RuntimeError):
@@ -192,6 +196,23 @@ def configure_environment(environ: dict[str, str] | os._Environ) -> list[str]:
         problems.append(
             f"EUROGAS_NEXUS_API_PROFILE={profile!r}: the demo image serves the demo profile only"
         )
+    try:
+        demo_accounts = parse_test_accounts(environ)
+    except ValueError as exc:
+        problems.append(str(exc))
+    else:
+        for spec in demo_accounts:
+            template = TESTER_BY_NAME.get(spec.template)
+            if template is None:
+                problems.append(
+                    f"EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS: {spec.username} copies unknown tester "
+                    f"{spec.template!r}"
+                )
+            elif "ADMIN" in template[3] and not spec.allow_admin:
+                problems.append(
+                    f"EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS: {spec.username} would hold the ADMIN "
+                    "role; mark it explicitly (name:password:admin)"
+                )
     if problems:
         raise StartupError("refusing to start:\n  - " + "\n  - ".join(problems))
 
@@ -339,6 +360,44 @@ def ensure_testers(session, *, reapply: bool) -> tuple[int, int]:
     return created, restored
 
 
+def parse_test_accounts(environ) -> list:
+    """The demo test accounts the setting lists (none when unset); ValueError when malformed."""
+
+    from eurogas_nexus.application.local_accounts import DEMO_TEST_ACCOUNTS_ENV, parse_demo_accounts
+
+    return parse_demo_accounts(environ.get(DEMO_TEST_ACCOUNTS_ENV) or "")
+
+
+def ensure_test_accounts(session, *, reapply: bool) -> tuple[list[str], list[str]]:
+    """Create or refresh the listed demo test accounts; disable those no longer listed.
+
+    Each copies the roles, job functions and office of the demo tester it names (test_trader
+    -> demo.trader, ...). Returns (listed names, disabled names).
+    """
+
+    from eurogas_nexus.application import local_accounts
+
+    specs = parse_test_accounts(os.environ)
+    for spec in specs:
+        _name, display, _role, roles, functions, office = TESTER_BY_NAME[spec.template]
+        local_accounts.ensure_demo_account(
+            session,
+            spec,
+            display_name=display.replace("Demo ", "Test ", 1),
+            grants=local_accounts.AccountGrants(
+                roles=tuple(roles),
+                data_scopes=("*",),
+                job_functions=tuple(functions),
+                office=office,
+            ),
+            reapply=reapply,
+        )
+    disabled = local_accounts.disable_unlisted_demo_accounts(
+        session, {spec.username for spec in specs}
+    )
+    return [spec.username for spec in specs], disabled
+
+
 def prepare_database() -> None:
     from eurogas_nexus.db.session import get_session_factory
 
@@ -378,6 +437,16 @@ def prepare_database() -> None:
         f"tester identities: {created} created, {restored} restored, "
         f"{len(TESTERS) - created - restored} kept ({', '.join(TESTER_NAMES)})"
     )
+    with factory() as session:
+        listed, disabled = ensure_test_accounts(session, reapply=bool(reason))
+        session.commit()
+    if listed:
+        log(
+            "WARNING: demo test accounts with a weak shared password are enabled: "
+            f"{', '.join(listed)} (EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS; a demo server only)"
+        )
+    if disabled:
+        log(f"demo test accounts no longer listed, disabled: {', '.join(disabled)}")
 
 
 def live_sources_enabled() -> bool:

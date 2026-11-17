@@ -1,16 +1,17 @@
 """Production identity persistence models (R32 + CR-10).
 
 Local USER/SERVICE principals are authenticated by hashed bearer API keys,
-interactive OIDC sessions, or validated OIDC access tokens. No local password
-material is stored. API-key plaintext is returned exactly once and only its
-SHA-256 hash is persisted; session tokens are likewise stored only as hashes.
+interactive OIDC sessions, validated OIDC access tokens, or - for local accounts
+only - a password stored as a salted scrypt derivation (never reversible). API-key
+plaintext is returned exactly once and only its SHA-256 hash is persisted; session
+tokens are likewise stored only as hashes.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -157,6 +158,53 @@ class UserSessionRecord(Base):
         String(32), nullable=False, default="browser"
     )
     client_label: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
+class IdentityLocalCredentialRecord(Base):
+    """The password of one local account (firms without SSO; demo test accounts).
+
+    A row exists only for a principal that signs in with a user name and password. The
+    password is stored as a salted scrypt derivation (``security/passwords.py``): the KDF
+    name and its parameters are recorded so a later release can raise them and upgrade the
+    hash at the next sign-in. Nothing here is reversible. ``must_change_password`` holds a
+    one-time temporary password (set by an administrator, valid until
+    ``temporary_expires_at_utc``) that only lets the person choose their own; the
+    password-change step after such a sign-in is a single-use token stored as SHA-256.
+    ``failed_attempts`` / ``locked_until_utc`` are the per-account back-off. ``is_demo``
+    marks a demo-profile test account, which signs in only on a demo server.
+    """
+
+    __tablename__ = "identity_local_credentials"
+
+    principal_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("identity_principals.principal_id"),
+        primary_key=True,
+    )
+    kdf: Mapped[str] = mapped_column(String(16), nullable=False)
+    kdf_params: Mapped[dict] = mapped_column(JSON, nullable=False)
+    salt_b64: Mapped[str] = mapped_column(String(64), nullable=False)
+    password_hash_b64: Mapped[str] = mapped_column(String(128), nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    temporary_expires_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    password_set_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_until_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_failed_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    change_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    change_token_expires_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class OidcAuthorizationStateRecord(Base):

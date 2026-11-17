@@ -104,6 +104,13 @@ columns.
 - No admin access center.
 - No session/revocation/de-provisioning lifecycle.
 
+## 2.15 Local accounts and SSO pre-provisioning (2026-11-17)
+
+Firms without SSO use local accounts (salted scrypt, one-time temporary password, forced change,
+per-account back-off, uniform refusal); administrators may pre-provision SSO users as `INVITED`
+principals that the first company sign-in links (verified e-mail or pinned subject) and
+activates. Design, storage and threat notes: [LOCAL_ACCOUNTS.md](LOCAL_ACCOUNTS.md).
+
 ## 3. Principal model
 
 `identity_principals` is extended, never replaced:
