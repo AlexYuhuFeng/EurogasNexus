@@ -11,6 +11,31 @@
     min-width: 0;
   }
 
+  /* A form: fields in as many columns as fit (labels above their controls), one column on a
+     phone. A button that belongs to the row sits on the controls' baseline. */
+  .ds-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+    align-items: end;
+    gap: var(--ds-space-3);
+    min-width: 0;
+  }
+
+  .ds-form-grid > .section-heading,
+  .ds-form-grid > p,
+  .ds-form-grid > ul {
+    grid-column: 1 / -1;
+  }
+
+  .ds-form-grid :is(input, select, textarea) {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .ds-form-grid-action {
+    justify-self: start;
+  }
+
   .ds-field-inline {
     display: inline-flex;
     align-items: center;

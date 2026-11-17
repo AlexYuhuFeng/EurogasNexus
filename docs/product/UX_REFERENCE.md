@@ -149,6 +149,43 @@ Source-pinning contract tests should assert behaviour and data hooks
 (`data-market-board`, `data-record`, `aria-pressed`) rather than CSS class names or
 exact copy, so that presentation can improve without weakening a gate.
 
+## Shell foundation rules (2026-11-17, from the owner's phone review)
+
+13. **Phone rules: the page never scrolls sideways.** At 360-430 px nothing is wider than the
+    screen. The frame (`clients/web/src/styles/frame.css`) lets every box shrink to its parent
+    and clips the app root on x without becoming a scroll container. Wide content scrolls inside
+    its own box with a visible affordance: a DataGrid keeps its primary columns (or the first
+    three) and folds the rest into each row's Details; any other table wider than its box is
+    marked by the shell (`useWideContent`) and scrolls inside itself with edge shadows; rows of
+    tabs and segments scroll inside themselves. Long values wrap or truncate with a `title`.
+    Forms use `Field` in a `ds-form-grid` (labels above controls, one column on a phone), never
+    label/input pairs flowing in a line. The browser sweep measures every page, task and sub-view
+    at 390 px in English and Chinese (`scripts/uat/phoneOverflow.mjs`), clipped by the frame or not.
+14. **One structure in every language.** A control row has the same order and shape in English
+    and Chinese; nothing depends on how long a label is. The page's context line (gas day,
+    product, hub, as-of, data feeds) is one row on a phone: one summary button
+    ("16 Nov · All products · All hubs") opens a sheet with the three controls, the as-of is short
+    ("as of 00:57 CET"), and the feed status is a short word.
+15. **The top bar holds navigation, search, alerts, data status and the account, nothing else.**
+    Below 1024 px the mark is the menu (one control). Every icon-only control has an accessible
+    name and a tooltip, and is 44 px on a touch screen. Demo mode is said once and quietly: a small
+    "Demo" badge beside the mark and one line in the account menu, never a chip on every page (the
+    simulated-prices banner on a board stays, rule 10). Help, keyboard shortcuts and "Report a
+    problem" live in the account menu and in the answer bar ("help", "report a problem"), not as a
+    "?" button on the bar.
+16. **Problems are listed, not pinned.** Reads that did not load show as a count on the top bar's
+    data-status dot; its panel names each affected read, says why in plain words and offers the
+    action (Retry, Data sources for whoever administers them, or Report a problem). The first time
+    a set of problems appears in a session a one-line notice says so under the bar, with Retry,
+    Details and Dismiss; dismissing holds until the set changes. Only a critical state stays: the
+    data store not answering (a blocking notice) or the sign-in lost (the sign-in screen).
+17. **Time rule.** Instants are stored and sent in UTC and shown in the reader's zone (Account ->
+    Preferences -> "Times shown in": device, UTC or gas-market time CET/CEST) through one
+    formatter (`app/time/timeFormat.ts`, the `Instant` primitive), with the zone named
+    ("00:57 CET", "08:57 GMT+8"), the date only when it is not today, seconds only when a screen
+    needs them, the full instant and its UTC form as the tooltip. Gas days are not shifted. Words,
+    months and numbers follow the app's language, never the browser's.
+
 ## Implementation note
 
 No rasterized screenshots are shipped as application UI. The accepted concept is

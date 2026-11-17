@@ -1,4 +1,4 @@
-import { DataGrid, PanelHeader } from "@/components/ui";
+import { DataGrid, Field, PanelHeader } from "@/components/ui";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   ROUTE_COST_COMPONENT_TYPES,
@@ -81,58 +81,54 @@ export function RouteCostWhatIfPanel({
       />
       <PanelHelp text={t("portfolio.route_cost.note")} label={t("panel.how_to_read")} />
 
-      <div className="route-cost-identity">
-        <label className="field-label" htmlFor="route-cost-name">
-          {t("portfolio.route_cost.route_name")}
-        </label>
-        <input
-          id="route-cost-name"
-          type="text"
-          value={draft.routeName}
-          maxLength={120}
-          onChange={(event) =>
-            updateDraft((current) => ({ ...current, routeName: event.target.value }))
-          }
-        />
-        <button type="button" disabled={!route} onClick={onUseSelectedRoute}>
+      <div className="route-cost-identity ds-form-grid">
+        <Field label={t("portfolio.route_cost.route_name")}>
+          <input
+            id="route-cost-name"
+            type="text"
+            value={draft.routeName}
+            maxLength={120}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, routeName: event.target.value }))
+            }
+          />
+        </Field>
+        <button type="button" className="ds-form-grid-action" disabled={!route} onClick={onUseSelectedRoute}>
           {t("portfolio.route_cost.use_selected_route")}
         </button>
-        <label className="field-label" htmlFor="route-cost-from">
-          {t("portfolio.route_cost.from_node")}
-        </label>
-        <input
-          id="route-cost-from"
-          type="text"
-          value={draft.fromNodeId}
-          maxLength={120}
-          onChange={(event) =>
-            updateDraft((current) => ({ ...current, fromNodeId: event.target.value }))
-          }
-        />
-        <label className="field-label" htmlFor="route-cost-to">
-          {t("portfolio.route_cost.to_node")}
-        </label>
-        <input
-          id="route-cost-to"
-          type="text"
-          value={draft.toNodeId}
-          maxLength={120}
-          onChange={(event) =>
-            updateDraft((current) => ({ ...current, toNodeId: event.target.value }))
-          }
-        />
-        <label className="field-label" htmlFor="route-cost-km">
-          {t("portfolio.route_cost.route_km")}
-        </label>
-        <input
-          id="route-cost-km"
-          type="text"
-          inputMode="decimal"
-          value={draft.routeKm}
-          onChange={(event) =>
-            updateDraft((current) => ({ ...current, routeKm: event.target.value }))
-          }
-        />
+        <Field label={t("portfolio.route_cost.from_node")}>
+          <input
+            id="route-cost-from"
+            type="text"
+            value={draft.fromNodeId}
+            maxLength={120}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, fromNodeId: event.target.value }))
+            }
+          />
+        </Field>
+        <Field label={t("portfolio.route_cost.to_node")}>
+          <input
+            id="route-cost-to"
+            type="text"
+            value={draft.toNodeId}
+            maxLength={120}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, toNodeId: event.target.value }))
+            }
+          />
+        </Field>
+        <Field label={t("portfolio.route_cost.route_km")}>
+          <input
+            id="route-cost-km"
+            type="text"
+            inputMode="decimal"
+            value={draft.routeKm}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, routeKm: event.target.value }))
+            }
+          />
+        </Field>
       </div>
 
       <div className="route-cost-components">
@@ -197,58 +193,54 @@ export function RouteCostWhatIfPanel({
         </div>
       </div>
 
-      <div className="route-cost-netback-inputs">
+      <div className="route-cost-netback-inputs ds-form-grid">
         <div className="section-heading">
           <span className="eyebrow">{t("portfolio.route_cost.netback_inputs")}</span>
         </div>
-        <label className="field-label" htmlFor="route-cost-market">
-          {t("portfolio.route_cost.to_market")}
-        </label>
-        <input
-          id="route-cost-market"
-          type="text"
-          value={draft.toMarket}
-          maxLength={120}
-          onChange={(event) =>
-            updateDraft((current) => ({ ...current, toMarket: event.target.value }))
-          }
-        />
-        <label className="field-label" htmlFor="route-cost-price">
-          {t("portfolio.route_cost.market_price")}
-        </label>
-        <input
-          id="route-cost-price"
-          type="text"
-          inputMode="decimal"
-          value={draft.marketPriceEurMwh}
-          onChange={(event) =>
-            updateDraft((current) => ({ ...current, marketPriceEurMwh: event.target.value }))
-          }
-        />
-        <label className="field-label" htmlFor="route-cost-fx">
-          {t("portfolio.route_cost.fx_rate")}
-        </label>
-        <input
-          id="route-cost-fx"
-          type="text"
-          inputMode="decimal"
-          value={draft.fxRate}
-          onChange={(event) =>
-            updateDraft((current) => ({ ...current, fxRate: event.target.value }))
-          }
-        />
-        <label className="field-label" htmlFor="route-cost-fx-pair">
-          {t("portfolio.route_cost.fx_pair")}
-        </label>
-        <input
-          id="route-cost-fx-pair"
-          type="text"
-          value={draft.fxPair}
-          maxLength={24}
-          onChange={(event) =>
-            updateDraft((current) => ({ ...current, fxPair: event.target.value }))
-          }
-        />
+        <Field label={t("portfolio.route_cost.to_market")}>
+          <input
+            id="route-cost-market"
+            type="text"
+            value={draft.toMarket}
+            maxLength={120}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, toMarket: event.target.value }))
+            }
+          />
+        </Field>
+        <Field label={t("portfolio.route_cost.market_price")}>
+          <input
+            id="route-cost-price"
+            type="text"
+            inputMode="decimal"
+            value={draft.marketPriceEurMwh}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, marketPriceEurMwh: event.target.value }))
+            }
+          />
+        </Field>
+        <Field label={t("portfolio.route_cost.fx_rate")}>
+          <input
+            id="route-cost-fx"
+            type="text"
+            inputMode="decimal"
+            value={draft.fxRate}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, fxRate: event.target.value }))
+            }
+          />
+        </Field>
+        <Field label={t("portfolio.route_cost.fx_pair")}>
+          <input
+            id="route-cost-fx-pair"
+            type="text"
+            value={draft.fxPair}
+            maxLength={24}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, fxPair: event.target.value }))
+            }
+          />
+        </Field>
         {/* The netback is part of the same run. This states whether that half will run, rather
             than offering a second control for it. */}
         <p className="muted">

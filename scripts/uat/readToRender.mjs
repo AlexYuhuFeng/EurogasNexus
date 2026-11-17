@@ -1448,6 +1448,9 @@ export function collectQuotedBoard() {
     ).toLowerCase(),
     asOf: attribute(asOfElement, "data-projection-as-of"),
     asOfText: text(asOfElement),
+    // The line shows the instant in the reader's zone ("as of 00:57 CET"); the instant it shows is
+    // its <time dateTime>, which is what is compared with the read.
+    asOfShown: attribute(asOfElement?.querySelector("time[datetime]") ?? null, "datetime"),
     cells,
   };
 }
@@ -1700,10 +1703,13 @@ export function evaluateQuotedBoard({
       );
     } else if (label === null || utcInstantLabel(asOf) === null) {
       failures.push(`the surface or read answered an unusable as-of instant`);
-    } else if (!String(board.asOfText ?? "").includes(label)) {
+    } else if (
+      !String(board.asOfText ?? "").includes(label)
+      && utcInstantLabel(board.asOfShown) !== label
+    ) {
       failures.push(
-        `the surface states as-of '${board.asOfText || "(nothing)"}' while the payload it declares`
-        + ` is '${board.asOf}' (${label})`,
+        `the surface states as-of '${board.asOfText || "(nothing)"}' (${board.asOfShown || "no time"})`
+        + ` while the payload it declares is '${board.asOf}' (${label})`,
       );
     } else {
       observations.push(`the surface states the projection's as-of (${label})`);

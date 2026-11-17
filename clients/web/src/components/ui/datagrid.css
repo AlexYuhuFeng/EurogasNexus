@@ -350,6 +350,14 @@
   }
 
   /* A folded grid is as wide as the screen: its cells may wrap instead of widening the page. */
+  /* A control in a cell (an editable grid) is as wide as its cell, never wider. */
+  [data-phone-layout="folded"] .ds-grid td :is(input, select, textarea),
+  .ds-grid-detail-list :is(input, select, textarea) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   [data-phone-layout="folded"] .ds-grid th,
   [data-phone-layout="folded"] .ds-grid td {
     white-space: normal;

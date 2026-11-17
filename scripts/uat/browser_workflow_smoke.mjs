@@ -46,6 +46,7 @@ import {
 import { inspectNativeCapacityInteraction } from "./nativeCapacityInteraction.mjs";
 import { inspectReferenceIndexInteraction } from "./referenceIndexInteraction.mjs";
 import { readStripShape, situationStripInteraction, stripShapeProblems } from "./situationStrip.mjs";
+import { measurePhoneOverflow, PHONE_ROUTES } from "./phoneOverflow.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(
@@ -1465,6 +1466,42 @@ async function agentResearchE2E(page, failures) {
   }
 }
 
+/**
+ * Every page, task and sub-view at 390 px in English and Chinese: nothing makes the page wider than
+ * the screen, clipped by the frame or not (scripts/uat/phoneOverflow.mjs). The workspace pass above
+ * checks each page's default view; this one walks every task a phone can reach.
+ */
+async function phoneOverflowSweep(page, failures, observations) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let measured = 0;
+  for (const language of LANGUAGES) {
+    await setLanguage(page, language.id);
+    for (const route of PHONE_ROUTES) {
+      const scope = `${language.id}/phone-390/${route}`;
+      try {
+        await page.goto(`${BASE}/${route}`, { waitUntil: "domcontentloaded" });
+        await page
+          .waitForFunction(
+            () => [...document.querySelectorAll(".workspace-page")].some((element) => element.dataset.workspaceLoadState === "settled"),
+            null,
+            { timeout: 15_000 },
+          )
+          .catch(() => undefined);
+        // Late data (a board, a map overlay) changes geometry after the read settles.
+        await page.waitForTimeout(600);
+        const { problems } = await page.evaluate(measurePhoneOverflow);
+        for (const problem of problems) recordFailure(failures, scope, `phone overflow: ${problem}`);
+        measured += 1;
+      } catch (error) {
+        recordFailure(failures, scope, error);
+      }
+    }
+  }
+  await setLanguage(page, "en");
+  await page.setViewportSize({ width: 1366, height: 768 });
+  recordObservation(observations, `phone-overflow: measured ${measured} page views at 390 px`);
+}
+
 async function interactionChecks(page, failures) {
   await setLanguage(page, "en");
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -2609,6 +2646,9 @@ export async function runWorkflowSmoke() {
         }
       }
     }
+
+    currentScope = "phone-overflow";
+    await phoneOverflowSweep(page, failures, observations);
 
     currentScope = "interaction-checks";
     await interactionChecks(page, failures);

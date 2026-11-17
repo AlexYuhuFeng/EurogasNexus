@@ -5,8 +5,8 @@
  * 1. A box never grows its parent: flex and grid items may shrink below their content
  *    (`min-width: 0`, zero specificity so a component's own rule still wins), a fieldset forgets
  *    its min-content width, media never exceed their box, long words break instead of pushing.
- * 2. Wide content scrolls inside its own box: a table wider than its box is marked by the shell
- *    (`data-wide-table`, app/shell/useWideContent.ts) and scrolls inside itself with edge shadows
+ * 2. Wide content scrolls inside its own box: the box holding a table wider than it is marked by the
+ *    shell (`data-wide-box`, app/shell/useWideContent.ts) and scrolls sideways with edge shadows
  *    that say so; the DataGrid folds its extra columns into row Details instead.
  * 3. The frame clips nothing a reader needs, but it does not grow either: the app root clips on the
  *    x axis (not a scroll container, so sticky headers still stick). The browser sweep fails any
@@ -49,10 +49,9 @@
       max-width: 100%;
     }
 
-    /* A wide table scrolls inside itself; the shadows at its edges say there is more. */
-    main table[data-wide-table] {
-      display: block;
-      min-width: 0;
+    /* The box of a wide table scrolls sideways; the shadows at its edges say there is more. The
+       table keeps its own width, so its columns are not squeezed. */
+    main [data-wide-box] {
       max-width: 100%;
       overflow-x: auto;
       overscroll-behavior-x: contain;
@@ -76,7 +75,7 @@
       display: none;
     }
 
-    main table[data-wide-table]:focus-visible {
+    main [data-wide-box]:focus-visible {
       outline: none;
       box-shadow: var(--ds-focus);
     }
