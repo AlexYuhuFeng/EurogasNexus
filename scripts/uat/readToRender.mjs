@@ -1450,7 +1450,10 @@ export function collectQuotedBoard() {
     asOfText: text(asOfElement),
     // The line shows the instant in the reader's zone ("as of 00:57 CET"); the instant it shows is
     // its <time dateTime>, which is what is compared with the read.
-    asOfShown: attribute(asOfElement?.querySelector("time[datetime]") ?? null, "datetime"),
+    asOfShown: attribute(
+      typeof asOfElement?.querySelector === "function" ? asOfElement.querySelector("time[datetime]") : null,
+      "datetime",
+    ),
     cells,
   };
 }
