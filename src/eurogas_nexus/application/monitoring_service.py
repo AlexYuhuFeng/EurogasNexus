@@ -523,6 +523,8 @@ def _outage_candidates(session: Session, now: datetime) -> list[MonitoringCandid
                     )
                 },
                 source_refs=[f"remit:{row['event_id']}:v{row.get('version')}"],
+                # A fictional demo message is marked like the Network list marks it.
+                simulated=str(row.get("source_reference") or "").lower().startswith("demo"),
                 human_review_required=True,
             )
         )
@@ -782,12 +784,12 @@ def _fundamentals_candidates(session: Session, now: datetime) -> list[Monitoring
                 alert_type=series,
                 severity="warning",
                 title_en=(
-                    f"NW Europe {label_en} {latest:+,.2f} {unit} on {latest_day:%d %b}, "
-                    f"{deviation:+.0f}% vs the 7-day average"
+                    f"NW Europe {label_en} {latest:+,.2f} {unit} on {latest_day:%d %b} "
+                    f"against a 7-day average of {average:+,.2f} {unit}"
                 ),
                 title_zh_cn=(
                     f"西北欧{label_zh} {latest_day:%m-%d} 为 {latest:+,.2f} {unit}，"
-                    f"较 7 日均值 {deviation:+.0f}%"
+                    f"7 日均值 {average:+,.2f} {unit}"
                 ),
                 message_en=(
                     f"{label_en.capitalize()} {latest:,.2f} {unit} against a 7-day average of "
@@ -801,6 +803,7 @@ def _fundamentals_candidates(session: Session, now: datetime) -> list[Monitoring
                     "series": series,
                     "value": round(latest, 3),
                     "average_7d": round(average, 3),
+                    "difference": round(gap, 3),
                     "deviation_pct": round(deviation, 1),
                     "unit": unit,
                     "day": latest_day.isoformat(),

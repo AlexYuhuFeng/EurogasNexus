@@ -120,6 +120,8 @@ export interface FundamentalsSignal {
   value: number;
   unit: string;
   deviation_pct: number;
+  /** The 7-day average it is compared with, when the server sends it. */
+  average_7d?: number | null;
   hub: string | null;
   at_utc: string;
   source: string;
@@ -873,7 +875,9 @@ function qualifySignals(inputs: SituationInputs, context: SituationContext, focu
         headline: { key: `strip.headline.fundamentals.${surprise.series}`, values: { value: surprise.value, unit: surprise.unit } },
         magnitude: surprise.value,
         unit: surprise.unit,
-        comparison: { key: "strip.comparison.vs_7d", values: { pct: surprise.deviation_pct.toFixed(1) } },
+        comparison: surprise.average_7d != null
+          ? { key: "strip.comparison.vs_7d_average", values: { average: surprise.average_7d.toFixed(2), unit: surprise.unit } }
+          : { key: "strip.comparison.vs_7d", values: { pct: surprise.deviation_pct.toFixed(1) } },
         affects: { ...NO_AFFECTS(), hubs: surprise.hub ? [surprise.hub] : [] },
         occurredAt: iso(became),
         source: { name: surprise.source, ref: null },
@@ -936,7 +940,7 @@ export function signalsFromAlerts(alerts: readonly MonitoringAlertDTO[]): Requir
       const series = facts.series;
       if (value === null || deviation === null || (series !== "storage_change" && series !== "lng_sendout" && series !== "supply_call")) continue;
       out.fundamentals = [...out.fundamentals, {
-        series, value, unit: String(facts.unit ?? ""), deviation_pct: deviation, hub: null, at_utc: at,
+        series, value, unit: String(facts.unit ?? ""), deviation_pct: deviation, average_7d: num(facts.average_7d), hub: null, at_utc: at,
         source: String(facts.source_system ?? ""), simulated: Boolean(alert.simulated), alert_id: alert.alert_id,
       }];
     }
