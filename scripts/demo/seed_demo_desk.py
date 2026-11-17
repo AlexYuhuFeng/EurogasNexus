@@ -1610,21 +1610,25 @@ def _demo_rate_rows(now: datetime, days: int) -> list:
 
 
 def _demo_outages(now: datetime, suffix: str = "") -> list:
-    """The two fictional outages, starting 3 and 30 hours before ``now``, lasting 3 days."""
+    """The two fictional outages: the Norwegian-shelf field out since 75 hours before ``now``
+    for six days (so the landings over its days are held), the export line since 30 hours
+    before ``now`` for three days."""
 
     rows = []
-    for message_id, asset, zone, technical, unavailable, kind, hours_ago, reason in (
-        ("demo-umm-1", "Demo Haldor field", "NBP", 70.0, 52.0, "unplanned", 3,
-         "Compressor trip (demo)"),
+    for message_id, asset, zone, technical, unavailable, kind, hours_ago, reason, days in (
+        # A Norwegian-shelf field landing in Britain: an asked report about Norwegian outages
+        # attributes it (``reports.sections.norwegian_basis``), as it would a real one.
+        ("demo-umm-1", "Demo Haldor field, Norwegian shelf", "NBP", 70.0, 52.0, "unplanned", 75,
+         "Compressor trip (demo)", 6),
         ("demo-umm-2", "Demo Kestrel export line", "TTF", 40.0, 9.0, "planned", 30,
-         "Valve maintenance (demo)"),
+         "Valve maintenance (demo)", 3),
     ):
         message_id = f"{message_id}{suffix}"
         start = now - timedelta(hours=hours_ago)
         rows.append(RemitUmmRecord(
             record_id=f"{message_id}:1", message_id=message_id, version=1,
             published_at_utc=start, event_status="active", unavailability_type=kind,
-            event_start_utc=start, event_stop_utc=start + timedelta(days=3), asset_name=asset,
+            event_start_utc=start, event_stop_utc=start + timedelta(days=days), asset_name=asset,
             asset_eic=f"DEMO-{message_id}", asset_type="production", balancing_zone=zone,
             direction="entry", unit="mcm/d", technical_capacity=technical,
             available_capacity=technical - unavailable, unavailable_capacity=unavailable,

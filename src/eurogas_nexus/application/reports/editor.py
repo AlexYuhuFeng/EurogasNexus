@@ -131,6 +131,27 @@ def cited(text: str, listed: list[str] | None = None) -> list[str]:
     return sorted(ids | set(listed or []), key=lambda x: int(x[1:]))
 
 
+#: Meta-commentary: a sentence about the report, the question, a section or what the text is
+#: about to say, instead of about the market (directive rule NO META-COMMENTARY). "The data
+#: held does not show" is the one sanctioned sentence about the evidence.
+META = re.compile(
+    r"\b(?:this|the|that|each|every) (?:report|section|paragraph|question|answer|analysis|"
+    r"part|exhibit|chart|figure|table|series|note|summary|piece|issue)\b(?! (?:on|of) (?:\d|"
+    r"[A-Z]))"
+    r"|\b(?:bears?|bearing|bore) (?:directly |most |closely )?on\b|\bsets? out\b"
+    r"|\bturns? on\b|\b(?:as )?(?:shown|set out|discussed|described|detailed) (?:below|above)\b"
+    r"|\bthe following\b|\bwe (?:look|turn|show|see|note)\b|\bto answer\b|\bin answer\b"
+    r"|\b(?:is|are) (?:relevant|central|key) to\b|\bspeaks? to\b|\baddress(?:es|ed)? the\b"
+    r"|\b(?:measures|captures|tells us|shows us) what\b|\bwhat (?:the|an?) \w+ did to\b"
+    r"|本报告|本节|本段|该问题|这个问题|此问题|问题所|下文|上文|如下所示|如下|就本|回答该|"
+    r"与问题|本题", re.I)
+#: Words by which one fact acts on another without a cause word ("what the outages did to
+#: supply", "the effect of", "hit supply"): refused like a cause unless the engine relates
+#: them as a cause.
+EFFECT = re.compile(r"\b(?:effect|impact|toll) (?:of|on)\b|\bdid to\b|\b(?:hit|dented|"
+                    r"curbed|cut into|weighed on|knocked)\b|\bresult(?:ed|ing)? in\b|"
+                    r"造成|导致|使得|拖累|冲击", re.I)
+
 #: Words that speak of the book; a report for distribution never carries them, even when the
 #: question asks (the book's facts are never gathered for it, so this catches an allusion).
 BOOK_WORDS = re.compile(r"\b(?:our|the desk's|net|open) (?:book|position)s?\b|\bP&L\b|\bPnL\b|"
@@ -141,7 +162,7 @@ BOOK_WORDS = re.compile(r"\b(?:our|the desk's|net|open) (?:book|position)s?\b|\b
 def check_text(text: str, fact_ids: list[str], facts: dict[str, dict], *,
                max_sentences: int = 3, max_chars: int = 420,
                max_words: int | None = None, context: str = "",
-               audience: str = "internal") -> tuple[bool, str]:
+               audience: str = "internal", language: str | None = None) -> tuple[bool, str]:
     """The checks on one model text element (see the module text)."""
 
     from eurogas_nexus.application.ai_style import text_verdict
@@ -161,7 +182,11 @@ def check_text(text: str, fact_ids: list[str], facts: dict[str, dict], *,
     plain = strip_citations(text)
     if audience == "shareable" and BOOK_WORDS.search(plain):
         return False, "book: a report for distribution mentions the book"
-    verdict = text_verdict(plain, evidence_text=evidence,
+    meta = META.search(re.sub(r"\(Figure \d+(?:; (?:Figure|Table) \d+)*\.?\)|"
+                              r"\(Table \d+\.?\)|\(图 ?\d+\)|\(表 ?\d+\)", "", plain))
+    if meta and not NOT_SHOWN.search(plain[max(0, meta.start() - 40):meta.end() + 40]):
+        return False, f"meta: speaks about the report, not the market ({meta.group(0)!r})"
+    verdict = text_verdict(plain, evidence_text=evidence, language=language,
                            simulated=any(f.get("simulated") for f in used),
                            max_sentences=max_sentences, max_chars=max_chars,
                            max_words=max_words)
@@ -172,7 +197,7 @@ def check_text(text: str, fact_ids: list[str], facts: dict[str, dict], *,
     # A sentence that says what the data does not show ("does not show how much the outage
     # caused") states no cause.
     claimed = " ".join(x for x in re.split(r"(?<=[.!?。])\s*", plain) if not NOT_SHOWN.search(x))
-    if CAUSAL.search(claimed) and not any(
+    if (CAUSAL.search(claimed) or EFFECT.search(claimed)) and not any(
             other in (f.get("causes") or []) for f in used for other in
             (g["key"] for g in used if g is not f)):
         return False, "cause: a cause is stated between facts the engine does not relate"
@@ -226,7 +251,10 @@ def _mark_simulated(text: str, ids: list[str], facts: dict[str, dict]) -> str:
 
     if any(facts.get(i, {}).get("simulated") for i in ids) and not re.search(
             r"simulated|模拟", text, re.I):
-        return text.rstrip(".") + " (simulated)" + ("." if text.endswith(".") else "")
+        from eurogas_nexus.application.reports.commentary import _sim
+
+        end = text[-1] if text and text[-1] in ".。" else ""
+        return text.rstrip(".。") + _sim(True) + end
     return text
 
 
@@ -253,11 +281,13 @@ def _record(record: dict, element: str, ok: bool, detail: str = "") -> bool:
 
 
 def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
-               model_id: str, report_days: tuple = (), audience: str = "internal") -> dict:
-    """The editorial plan to render: the model's elements that pass, rule elements otherwise."""
+               model_id: str, report_days: tuple = (), audience: str = "internal",
+               language: str | None = None) -> dict:
+    """The editorial plan to render: the model's elements that pass, rule elements otherwise.
+    With ``language`` every element must be written in it."""
 
     def check(text, ids, facts_, **kw):
-        return check_text(text, ids, facts_, audience=audience, **kw)
+        return check_text(text, ids, facts_, audience=audience, language=language, **kw)
 
     facts = {f["id"]: f for f in sheet}
     context = _report_context(sheet, report_days)
@@ -435,7 +465,7 @@ def edit_report(model, sheet: list[dict], sections: list[dict], rule: dict, plan
     raw = parse(content)
     edited = apply_plan(raw, sheet, sections, rule, model_id,
                         report_days=(plan.period_start, plan.period_end),
-                        audience=plan.audience)
+                        audience=plan.audience, language=language)
     edited["record"]["latency_s"] = latency
     if raw is None:
         edited["record"].update(basis="rule", invalid="not JSON" if content else "empty reply",

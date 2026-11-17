@@ -31,19 +31,21 @@ from datetime import date, timedelta
 from typing import Any
 
 from eurogas_nexus.application.reports import facts as F
+from eurogas_nexus.application.reports.commentary import _sim, move, number
 from eurogas_nexus.application.reports.commentary import day as fday
-from eurogas_nexus.application.reports.commentary import move, number
 from eurogas_nexus.application.reports.derive import _OPERATOR_CODE
+from eurogas_nexus.application.reports.lang import T, zh
 
 OUTAGE_WORDS = re.compile(r"outage|maintenance|unavailab|shut|trip|derate|停运|检修|中断", re.I)
 NORWAY_WORDS = re.compile(r"norw|挪威|gassco", re.I)
 SUPPLY_WORDS = re.compile(r"supply|landing|flow|import|供应|到岸|流量", re.I)
 #: The sentence an answer uses when the data cannot attribute an effect.
 NOT_SHOWN = "The data held does not show"
+NOT_SHOWN_ZH = "所持数据无法显示"
 
 
-def _sim(flag: bool) -> str:
-    return " (simulated)" if flag else ""
+def not_shown() -> str:
+    return T(NOT_SHOWN, NOT_SHOWN_ZH)
 
 
 def _avg(values: list[float]) -> float:
@@ -53,6 +55,8 @@ def _avg(values: list[float]) -> float:
 def _names(rows: list[dict], most: int = 3) -> str:
     names = [r["facility"] for r in rows[:most]]
     extra = len(rows) - len(names)
+    if zh():
+        return "、".join(names) + (f"等{len(rows)}处" if extra > 0 else "")
     return ", ".join(names) + (f" and {extra} more" if extra > 0 else "")
 
 
@@ -60,6 +64,10 @@ def _count(n: int, one: str, many: str) -> str:
     words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven",
              8: "eight", 9: "nine"}
     return f"{words.get(n, str(n))} {one if n == 1 else many}"
+
+
+def _pct(ratio: float) -> str:
+    return f"{ratio:.1%}" if ratio < 0.1 else f"{ratio:.0%}"
 
 
 def kind_of(question: str, sections: list[str]) -> str:
@@ -96,31 +104,40 @@ def _outage_supply(results: dict[str, dict], raws: dict[str, Any], today: date
     state = outages.get("state", "current")
     if norway:
         ratio = nor_gwh / latest_val if latest_val else None
-        share = "" if ratio is None else (
-            f", {ratio:.1%} of the latest Norwegian landings" if ratio < 0.1 else
-            f", {ratio:.0%} of the latest Norwegian landings")
         basis = sorted({r["norway"] for r in norway})
-        sentence = (f"Of the {number(total, 'GWh/d')} offline on {fday(today)}, "
-                    f"{number(nor_gwh, 'GWh/d')}{_sim(sim)} is on "
-                    f"{_count(len(norway), 'asset', 'assets')} tied to Norwegian supply "
-                    f"({_names(norway)}){share}.")
-        headline = f"Norwegian outages remove {number(nor_gwh, 'GWh/d')}"
+        sentence = T(
+            f"Of the {number(total, 'GWh/d')} offline on {fday(today)}, "
+            f"{number(nor_gwh, 'GWh/d')}{_sim(sim)} is on "
+            f"{_count(len(norway), 'asset', 'assets')} tied to Norwegian supply "
+            f"({_names(norway)})"
+            + (f", {_pct(ratio)} of the latest Norwegian landings" if ratio else "") + ".",
+            f"{fday(today)}停运的{number(total, 'GWh/d')}中，{number(nor_gwh, 'GWh/d')}"
+            f"{_sim(sim)}位于{len(norway)}处与挪威供应相关的资产（{_names(norway)}）"
+            + (f"，相当于最新挪威到岸量的{_pct(ratio)}" if ratio else "") + "。")
+        headline = T(f"Norwegian outages remove {number(nor_gwh, 'GWh/d')}",
+                     f"挪威相关停运减少{number(nor_gwh, 'GWh/d')}")
     else:
         basis = []
-        where = ("on a Norwegian field, plant, export pipeline or landing terminal, by the zone "
-                 "and asset the messages name")
         if not active:
-            sentence = f"No outage is active on {fday(today)} among the messages held."
+            sentence = T(f"No outage is active on {fday(today)}.", f"{fday(today)}没有活跃停运。")
         elif len(active) == 1:
-            sentence = (f"The one active outage ({number(total, 'GWh/d')}{_sim(sim)} on "
-                        f"{fday(today)}) is not {where}.")
+            sentence = T(f"The one active outage ({number(total, 'GWh/d')}{_sim(sim)} on "
+                         f"{fday(today)}) is not at a Norwegian field, plant, export pipeline or "
+                         "landing terminal.",
+                         f"{fday(today)}唯一一处活跃停运（{number(total, 'GWh/d')}{_sim(sim)}）"
+                         "不在挪威的油气田、处理厂、出口管道或登陆终端。")
         else:
             lead = "Neither of the two" if len(active) == 2 else \
                 f"None of the {_count(len(active), '', '').strip()}"
-            sentence = (f"{lead} active outages ({number(total, 'GWh/d')}{_sim(sim)} on "
-                        f"{fday(today)}) is {where}.")
-        headline = "No active outage on a Norwegian asset is held"
-    nor = F.fact("q.outages.norway", "outages", "Norwegian capacity offline", nor_gwh, "GWh/d",
+            sentence = T(f"{lead} active outages ({number(total, 'GWh/d')}{_sim(sim)} on "
+                         f"{fday(today)}) is at a Norwegian field, plant, export pipeline or "
+                         "landing terminal.",
+                         f"{fday(today)}的{len(active)}处活跃停运（合计{number(total, 'GWh/d')}"
+                         f"{_sim(sim)}）均不在挪威的油气田、处理厂、出口管道或登陆终端。")
+        headline = T(f"No Norwegian outage among {number(total, 'GWh/d')} offline",
+                     f"停运的{number(total, 'GWh/d')}中无挪威停运")
+    nor = F.fact("q.outages.norway", "outages", T("Norwegian capacity offline", "挪威停运容量"),
+                 nor_gwh, "GWh/d",
                  day=F.iso(today), state=state, simulated=sim, indicator=False, score=4.0,
                  reason="the question's subject: outages attributable to Norwegian supply",
                  sentence=sentence, headline=headline,
@@ -129,14 +146,21 @@ def _outage_supply(results: dict[str, dict], raws: dict[str, Any], today: date
     nor["basis"] = basis
     out.append(nor)
     if other:
-        cannot.append(
+        cannot.append(T(
             f"{number(other_gwh, 'GWh/d')} of the capacity offline is on assets the messages "
             f"do not tie to Norwegian supply (largest: {_names(other, 2)}); the data held "
-            "does not show whether any of it carries Norwegian gas.")
+            "does not show whether any of it carries Norwegian gas.",
+            f"停运容量中有{number(other_gwh, 'GWh/d')}位于消息未与挪威供应关联的资产"
+            f"（最大者：{_names(other, 2)}）；所持数据无法显示其中是否有挪威天然气。"))
+    cannot.append(T("Outages are tied to Norwegian supply by the balancing zone and asset name "
+                    "the messages give, not by where the gas comes from.",
+                    "停运与挪威供应的关联依据消息给出的平衡区与资产名称，而非天然气来源。"))
     if any(r.get("norway") == "landing terminal" for r in norway):
-        cannot.append("A landing terminal can also take gas from other sources (UK terminals "
-                      "land UK shelf gas), so its outage is not necessarily all Norwegian "
-                      "capacity.")
+        cannot.append(T("A landing terminal can also take gas from other sources (UK terminals "
+                        "land UK shelf gas), so its outage is not necessarily all Norwegian "
+                        "capacity.",
+                        "登陆终端也可能接收其他来源的天然气（英国终端接收英国大陆架天然气），"
+                        "因此其停运不一定全部是挪威容量。"))
     # Landings around the first Norwegian outage: the days before against the days since.
     window = None
     if norway and latest:
@@ -146,45 +170,61 @@ def _outage_supply(results: dict[str, dict], raws: dict[str, Any], today: date
         if len(before) >= 4 and since:
             b, a = _avg([total_l[d] for d in before]), _avg([total_l[d] for d in since])
             change = a - b
+            lsim = _sim(bool((results.get("pipeline_supply") or {}).get("simulated")))
             window = F.fact(
                 "q.landings.outage_window", "pipeline_supply",
-                "Norwegian landings since the Norwegian outages began", round(a, 1), "GWh/d",
+                T("Norwegian landings since the Norwegian outages began", "挪威停运开始以来的到岸"
+                                                                          "量"),
+                round(a, 1), "GWh/d",
                 day=F.iso(latest), state=landings.get("state", "current"),
                 simulated=bool((results.get("pipeline_supply") or {}).get("simulated")),
                 indicator=False, score=3.5,
                 reason="the question's join: the supply series over the outages' days",
-                sentence=(f"Norwegian landings averaged {number(a, 'GWh/d')} over the "
-                          f"{_count(len(since), 'gas day', 'gas days')} from {fday(first)} to "
-                          f"{fday(latest)}, while Norwegian outages were active, against "
-                          f"{number(b, 'GWh/d')} in the seven days before: "
-                          f"{move(change, 'GWh/d')}."),
+                sentence=T(f"Norwegian landings averaged {number(a, 'GWh/d')}{lsim} over the "
+                           f"{_count(len(since), 'gas day', 'gas days')} from {fday(first)} to "
+                           f"{fday(latest)}, while Norwegian outages were active, against "
+                           f"{number(b, 'GWh/d')} in the seven days before: "
+                           f"{move(change, 'GWh/d')}.",
+                           f"{fday(first)}至{fday(latest)}挪威停运期间的{len(since)}个气日内，"
+                           f"挪威到岸量平均为{number(a, 'GWh/d')}{lsim}，此前七天为"
+                           f"{number(b, 'GWh/d')}：{move(change, 'GWh/d')}。"),
                 related=["q.outages.norway"])
             window["question"] = True
             nor["related"] = ["q.landings.outage_window"]
             out.append(window)
         elif since == [] or first > latest:
-            cannot.append(f"Landings are held to {fday(latest)}; the first Norwegian outage "
-                          f"began {fday(first)}, so its effect is not yet in the flows held.")
+            cannot.append(T(f"Landings are held to {fday(latest)}; the first Norwegian outage "
+                            f"began {fday(first)}, so no landings are held for its days yet.",
+                            f"到岸量数据截至{fday(latest)}；首个挪威停运始于{fday(first)}，"
+                            "因此尚无其停运期间的到岸量。"))
         else:
-            cannot.append("Fewer than four gas days of landings are held before the first "
-                          "Norwegian outage, so no before-and-since comparison is made.")
+            cannot.append(T("Fewer than four gas days of landings are held before the first "
+                            "Norwegian outage, so no before-and-since comparison is made.",
+                            "首个挪威停运之前持有的到岸量不足四个气日，因此不做前后比较。"))
     for index, r in enumerate([r for r in scheduled if r.get("norway")][:2], start=1):
         f = F.fact(f"q.outages.norway.next.{index}", "outages",
-                   f"Scheduled Norwegian outage: {r['facility']}", r["gwh"], "GWh/d",
+                   T(f"Scheduled Norwegian outage: {r['facility']}",
+                     f"计划中的挪威停运：{r['facility']}"), r["gwh"], "GWh/d",
                    day=F.iso(str(r["start"])[:10]), state=state, simulated=sim,
                    indicator=False, scheduled=True, score=1.0, reason="scheduled, Norwegian",
-                   sentence=(f"{r['facility']} is scheduled to lose {number(r['gwh'], 'GWh/d')}"
-                             f"{_sim(sim)} from {fday(str(r['start'])[:10])}"
-                             + (f" to {fday(str(r['end'])[:10])}" if r.get("end") else "")
-                             + "."))
+                   sentence=T(f"{r['facility']} is scheduled to lose "
+                              f"{number(r['gwh'], 'GWh/d')}{_sim(sim)} from "
+                              f"{fday(str(r['start'])[:10])}"
+                              + (f" to {fday(str(r['end'])[:10])}" if r.get("end") else "")
+                              + ".",
+                              f"{r['facility']}计划自{fday(str(r['start'])[:10])}起"
+                              + (f"至{fday(str(r['end'])[:10])}" if r.get("end") else "")
+                              + f"减少{number(r['gwh'], 'GWh/d')}{_sim(sim)}。"))
         f["question"] = True
         out.append(f)
     if landings.get("state") in {"late", "stale"} and latest:
-        cannot.append(f"Norwegian landings are {landings['state']}: the newest complete gas day "
-                      f"held is {fday(latest)}.")
-    cannot.append("A change in flows over the days an outage is active is a coincidence the "
-                  "report states; the data held does not show how much of it the outage "
-                  "caused.")
+        cannot.append(T(f"Norwegian landings are {landings['state']}: the newest complete gas "
+                        f"day held is {fday(latest)}.",
+                        f"挪威到岸量数据{'延迟' if landings['state'] == 'late' else '过期'}："
+                        f"最新完整气日为{fday(latest)}。"))
+    cannot.append(T("Flows and outages moving over the same days is a coincidence in time; the "
+                    "data held does not show how much of any change an outage caused.",
+                    "流量与停运在同一时段变动只是时间上的重合；所持数据无法显示停运造成了多少变化。"))
     return out, cannot
 
 
@@ -215,7 +255,8 @@ def build(plan, results: list[dict], raws: dict[str, Any], *, today: date,
                         and r.get("status") != "ended"]
                 rest = [r for r in spec["rows"] if r.get("facility") not in nor_names]
                 spec["rows"] = (ours + rest)[:max(size, len(ours))]
-                spec["notes"] = ("Outages tied to Norwegian supply first. "
+                spec["notes"] = (T("Outages tied to Norwegian supply first. ",
+                                   "与挪威供应相关的停运列在前面。")
                                  + (spec.get("notes") or ""))
     for fact in added:
         section = by_key.get(fact["section"])
@@ -236,15 +277,21 @@ def build(plan, results: list[dict], raws: dict[str, Any], *, today: date,
             text["headline"] = fact["sentence"]
             text["question_led"] = True
     for item in missing or []:
-        cannot.insert(0, f"{NOT_SHOWN} {item}.")
+        cannot.insert(0, T(f"{NOT_SHOWN} {item}.", f"{NOT_SHOWN_ZH}{MISSING_ZH.get(item, item)}。"))
     for result in results:
         if result["status"] != "ok" and result.get("empty"):
-            cannot.append(f"{result['title']}: {result['empty']['reason']}.")
+            from eurogas_nexus.application.reports.render import omitted_reason, section_title
+
+            cannot.append(f"{section_title(result['key'], result['title'])}"
+                          f"{T(': ', '：')}{omitted_reason(result['empty']['reason'])}"
+                          f"{T('.', '。')}")
     if "balance" in by_key:
-        cannot.append("The balance forecast is a model estimate with no range.")
+        cannot.append(T("The balance forecast is a model estimate with no range.",
+                        "平衡预测为模型估算，没有区间。"))
     if plan.audience == "shareable" and plan.notes:
-        cannot.append("This report is for distribution: it holds no position, P&L, limit, "
-                      "counterparty or contract term.")
+        cannot.append(T("Positions, P&L, limits, counterparties and contract terms are not "
+                        "shown in a report for distribution.",
+                        "对外分发的报告不显示头寸、损益、限额、交易对手或合同条款。"))
     return {"kind": kind, "cannot_tell": list(dict.fromkeys(cannot)),
             "question_keys": [f["key"] for f in added]}
 
@@ -262,24 +309,44 @@ def rule_answer(sheet: list[dict], info: dict[str, Any], plan) -> dict[str, Any]
         if "q.landings.outage_window" not in by_key and "landings" in by_key:
             cited.append(by_key["landings"])
         nor = by_key.get("q.outages.norway")
-        closing = (f"{NOT_SHOWN} how much of any change in landings the outages caused."
+        closing = (T(f"{NOT_SHOWN} how much of any change in landings the outages caused.",
+                     f"{NOT_SHOWN_ZH}停运造成了多少到岸量变化。")
                    if nor and nor["value"] else
-                   f"{NOT_SHOWN} a Norwegian outage affecting supply in this period.")
+                   T(f"{NOT_SHOWN} a Norwegian outage affecting supply in this period.",
+                     f"{NOT_SHOWN_ZH}本期有挪威停运影响供应。"))
     else:
         ranked = sorted((f for f in sheet if f.get("sentence") and not f.get("scheduled")
                          and not f.get("forecast")), key=lambda f: -f["score"])
         cited = ranked[:2]
-        closing = (f"{NOT_SHOWN} " + info["cannot_tell"][0][len(NOT_SHOWN) + 1:]
-                   if info["cannot_tell"] and info["cannot_tell"][0].startswith(NOT_SHOWN)
-                   else None)
+        closing = next((c for c in info["cannot_tell"]
+                        if c.startswith((NOT_SHOWN, NOT_SHOWN_ZH))), None)
     sentences = [f["sentence"] for f in cited if f.get("sentence")][:3]
     if closing:
         sentences.append(closing)
     if not sentences:
-        empty = [c for c in info["cannot_tell"] if not c.startswith(NOT_SHOWN)][:2]
-        sentences = [f"{NOT_SHOWN} anything on this question: no section asked for holds data"
-                     + (f" ({'; '.join(e.rstrip('.') for e in empty)})." if empty else ".")]
-    return {"text": " ".join(sentences), "fact_ids": [f["id"] for f in cited], "basis": "rule"}
+        empty = [c for c in info["cannot_tell"] if not c.startswith((NOT_SHOWN, NOT_SHOWN_ZH))][:2]
+        detail = "; ".join(e.rstrip(".。") for e in empty)
+        sentences = [T(f"{NOT_SHOWN} any figure for this: none of the sections chosen holds "
+                       "data" + (f" ({detail})." if empty else "."),
+                       f"{NOT_SHOWN_ZH}相关数据：所选章节均无数据"
+                       + (f"（{detail}）。" if empty else "。"))]
+    return {"text": (" " if not zh() else "").join(sentences),
+            "fact_ids": [f["id"] for f in cited], "basis": "rule"}
+
+
+#: What the platform does not hold, in Chinese (``plan.NOT_HELD``).
+MISSING_ZH = {
+    "oil prices (no oil source is connected)": "原油价格（未接入原油数据源）",
+    "coal prices (licensed exchange data, not connected here)": "煤炭价格（需交易所授权数据，此处"
+                                                                "未接入）",
+    "carbon prices (licensed exchange data, not connected here)": "碳价（需交易所授权数据，此处未"
+                                                                  "接入）",
+    "a weather section (weather enters only the balance forecast)": "天气章节（天气仅用于平衡预测"
+                                                                    "）",
+    "Asian demand and prices (the platform covers NW Europe)": "亚洲需求与价格（平台覆盖西北欧）",
+    "LNG cargo tracking (no vessel source is connected)": "LNG 船货跟踪（未接入船舶数据源）",
+    "power prices in a report section": "电价章节",
+}
 
 
 def relevance_order(sheet: list[dict], answer: dict, sections: list[str]) -> list[str]:

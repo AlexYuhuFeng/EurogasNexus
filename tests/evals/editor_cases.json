@@ -1187,7 +1187,7 @@
      "name": "good-no-book",
      "plan": {
       "answer": {
-       "text": "Neither of the two active outages, 661 GWh/d on 17 Nov, is on a Norwegian field, plant, export pipeline or landing terminal [F1]. This report is for distribution and holds no book figures; the data held does not show any exposure.",
+       "text": "Neither of the two active outages, 661 GWh/d on 17 Nov, is on a Norwegian field, plant, export pipeline or landing terminal [F1]. Book figures are not shown in a report for distribution; the data held does not show any exposure.",
        "facts": [
         "F1"
        ]
@@ -1326,6 +1326,199 @@
      },
      "expect_detail": {
       "answer": "link"
+     }
+    }
+   ]
+  },
+  {
+   "id": "no-meta-commentary",
+   "audience": "shareable",
+   "language": "en",
+   "data_class": "demo",
+   "_note": "Directive v4 NO META-COMMENTARY: sentences about the report, the question, a section or a series are refused (the owner's examples); the effect check catches 'what the outages did to' and 'hit'.",
+   "facts": [
+    {
+     "key": "lng",
+     "section": "lng",
+     "label": "LNG send-out",
+     "value": 2848.0,
+     "unit": "GWh/d",
+     "day": "2026-11-15",
+     "dod": -37.3,
+     "wow": 54.4,
+     "score": 0.32,
+     "reason": "change 0.3x",
+     "sentence": "LNG send-out across NW Europe was 2,848 GWh/d on 15 Nov, down 37.3 GWh/d on the day and up 54.4 GWh/d on the week."
+    },
+    {
+     "key": "balance.call",
+     "section": "balance",
+     "label": "NW Europe supply call",
+     "value": 9274.0,
+     "unit": "GWh/d",
+     "day": "2026-11-15",
+     "dod": 130.0,
+     "score": 0.93,
+     "reason": "change 0.9x",
+     "sentence": "The NW Europe supply call was 9,274 GWh/d on 15 Nov, met by Norway (4,388 GWh/d), LNG (2,848 GWh/d) and a net storage withdrawal of 2,038 GWh/d."
+    },
+    {
+     "key": "landings",
+     "section": "pipeline_supply",
+     "label": "Norwegian pipeline landings",
+     "value": 4388.0,
+     "unit": "GWh/d",
+     "day": "2026-11-15",
+     "wow": -29.9,
+     "score": 0.6,
+     "reason": "change 0.6x",
+     "sentence": "Norwegian pipeline landings were 4,388 GWh/d on 15 Nov, down 29.9 GWh/d on the week."
+    },
+    {
+     "key": "outages.offline",
+     "section": "outages",
+     "label": "Capacity offline (REMIT)",
+     "value": 661.0,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 1.5,
+     "reason": "15% of landings",
+     "sentence": "Two outages were active on 17 Nov, removing 661 GWh/d in total."
+    }
+   ],
+   "expected_lead": "outages.offline",
+   "plans": [
+    {
+     "name": "owner-example-send-out",
+     "plan": {
+      "standfirst": {
+       "text": "LNG send-out across NW Europe was 2,848 GWh/d on 15 Nov [F1]. This bears directly on the send-out part of the question.",
+       "facts": [
+        "F1"
+       ]
+      }
+     },
+     "expect": {
+      "standfirst": false
+     },
+     "expect_detail": {
+      "standfirst": "meta"
+     }
+    },
+    {
+     "name": "owner-example-balance",
+     "plan": {
+      "standfirst": {
+       "text": "This sets out what was meeting the call now and what is scheduled. The NW Europe supply call was 9,274 GWh/d on 15 Nov [F2].",
+       "facts": [
+        "F2"
+       ]
+      }
+     },
+     "expect": {
+      "standfirst": false
+     },
+     "expect_detail": {
+      "standfirst": "meta"
+     }
+    },
+    {
+     "name": "question-turns-on",
+     "plan": {
+      "standfirst": {
+       "text": "The question turns on these messages: two outages were active on 17 Nov, removing 661 GWh/d in total [F4].",
+       "facts": [
+        "F4"
+       ]
+      }
+     },
+     "expect": {
+      "standfirst": false
+     },
+     "expect_detail": {
+      "standfirst": "meta"
+     }
+    },
+    {
+     "name": "series-measures-what-outages-did",
+     "plan": {
+      "standfirst": {
+       "text": "The landing series measures what the outages did to Norwegian supply over their active days [F3][F4].",
+       "facts": [
+        "F3",
+        "F4"
+       ]
+      }
+     },
+     "expect": {
+      "standfirst": false
+     }
+    },
+    {
+     "name": "effect-without-cause-word",
+     "plan": {
+      "standfirst": {
+       "text": "Two outages removing 661 GWh/d on 17 Nov hit Norwegian landings, down 29.9 GWh/d on the week [F4][F3].",
+       "facts": [
+        "F4",
+        "F3"
+       ]
+      }
+     },
+     "expect": {
+      "standfirst": false
+     },
+     "expect_detail": {
+      "standfirst": "cause"
+     }
+    },
+    {
+     "name": "chinese-section-meta",
+     "plan": {
+      "standfirst": {
+       "text": "本节说明供应情况：11月15日挪威管道到岸量为4,388 GWh/d [F3]。",
+       "facts": [
+        "F3"
+       ]
+      }
+     },
+     "expect": {
+      "standfirst": false
+     },
+     "expect_detail": {
+      "standfirst": "meta"
+     }
+    },
+    {
+     "name": "chinese-question-meta",
+     "plan": {
+      "standfirst": {
+       "text": "就本问题而言，11月17日两处停运合计661 GWh/d [F4]。",
+       "facts": [
+        "F4"
+       ]
+      }
+     },
+     "expect": {
+      "standfirst": false
+     },
+     "expect_detail": {
+      "standfirst": "meta"
+     }
+    },
+    {
+     "name": "plain-market-statement-passes",
+     "plan": {
+      "standfirst": {
+       "text": "LNG send-out across NW Europe was 2,848 GWh/d on 15 Nov, up 54.4 GWh/d on the week [F1]. The NW Europe supply call was 9,274 GWh/d [F2].",
+       "facts": [
+        "F1",
+        "F2"
+       ]
+      }
+     },
+     "expect": {
+      "standfirst": true
      }
     }
    ]

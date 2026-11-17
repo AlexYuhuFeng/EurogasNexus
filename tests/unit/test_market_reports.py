@@ -124,10 +124,15 @@ def test_a_shareable_report_never_contains_positions_pnl_limits_or_contracts(env
     assert report.book_ids == []
 
 
-def test_asking_for_a_book_section_in_a_shareable_report_is_refused():
+def test_a_book_section_in_a_shareable_report_is_left_out_not_refused():
+    # The form's default sections for an internal daily include the book; switching to a
+    # report for distribution must not end in a refusal (the owner's pop-up).
+    plan = validate_plan({"kind": "daily", "audience": "shareable",
+                          "sections": ["prices", "book_position"]}, now=NOW)
+    assert plan.sections == ["prices"] and plan.notes
     with pytest.raises(PlanError) as refused:
         validate_plan({"kind": "daily", "audience": "shareable",
-                       "sections": ["prices", "book_position"]}, now=NOW)
+                       "sections": ["book_position"]}, now=NOW)
     assert refused.value.code == "internal_section_in_shareable"
 
 
@@ -626,3 +631,45 @@ def test_the_api_deletes_renames_and_lists_with_question_and_editor(env):
     assert client.delete(f"/api/reports/market/{made['report_id']}").status_code == 404
     bulk = client.post("/api/reports/market/bulk-delete", json={"report_ids": ["mr-x"]})
     assert bulk.json()["data"]["refused"][0]["code"] == "report_not_found"
+
+
+# ------------------------------------- round 5: market facts only; the report's language
+
+from eurogas_nexus.application.reports.editor import META  # noqa: E402
+
+
+def _sentences(snapshot):
+    texts = [snapshot["headline"], snapshot.get("standfirst") or ""]
+    texts += [f["text"] for f in snapshot.get("findings") or []]
+    texts += [f.get("implication") or "" for f in snapshot.get("findings") or []]
+    texts += [(snapshot.get("answer") or {}).get("text") or ""]
+    texts += list(snapshot.get("cannot_tell") or []) + [w["text"] for w in snapshot.get("watch")
+                                                        or []]
+    for section in snapshot["sections"]:
+        if section["status"] == "ok":
+            texts += [section["commentary"]["headline"], *section["commentary"]["bullets"]]
+    return [s for t in texts for s in re.split(r"(?<=[.!?。])\s*", t) if s]
+
+
+@pytest.mark.parametrize("language", ["en", "zh-CN"])
+def test_rule_text_states_market_facts_and_never_speaks_about_the_report(env, language):
+    for plan in ({"kind": "daily"}, {"kind": "weekly"},
+                 plan_for_question(NORWAY_QUESTION, audience="shareable", now=NOW)["plan"]):
+        report = _generate(env, _caller("DEMO", "BOOKS:*"), plan, language=language)
+        meta = [s for s in _sentences(report.snapshot) if META.search(s)]
+        assert not meta, meta
+
+
+def test_a_chinese_report_is_written_in_chinese_throughout(env):
+    report = _generate(env, _caller("DEMO", "BOOKS:*"), {"kind": "daily"}, language="zh-CN")
+    allowed = {"Demo", "Haldor", "Kestrel", "field", "export", "line", "GWh", "MWh", "TWh", "EUR",
+               "GBp", "TTF", "NBP", "Dec", "LNG", "Rhinmark", "Handel", "GmbH", "Nordvik",
+               "Petroleum", "ASA", "Aldermoor", "Energy", "plc", "desk", "trader", "Brae",
+               "North", "supply", "Easington", "Fergus", "NETRA", "Dornum", "Emden",
+               "Norwegian", "shelf"}
+    english = [s for s in _sentences(report.snapshot)
+               if [w for w in re.findall(r"[A-Za-z]{3,}", s) if w not in allowed]]
+    assert not english, english[:5]
+    html = report.html
+    assert "方法与来源" in html and "各指标的计算方法" in html and "近月合约每日收盘价" in html
+    assert "Front-month daily closes" not in html and "How each indicator" not in html

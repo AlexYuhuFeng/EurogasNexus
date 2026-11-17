@@ -13,8 +13,11 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from eurogas_nexus.application.reports.lang import T, zh
+
 MAX_BULLETS = 3
 SIM = " (simulated)"
+SIM_ZH = "（模拟）"
 
 
 def number(value: float | None, unit: str = "", digits: int | None = None) -> str:
@@ -44,7 +47,9 @@ def move(change: float | None, unit: str, digits: int | None = None) -> str:
         return "n/a"
     shown = number(abs(change), unit, digits)
     if shown.split(" ")[0].rstrip("%") in {"0", "0.0", "0.00"}:
-        return "unchanged"
+        return T("unchanged", "持平")
+    if zh():
+        return f"{'上升' if change > 0 else '下降'}{shown}"
     return f"{'up' if change > 0 else 'down'} {shown}"
 
 
@@ -52,7 +57,7 @@ def day(value: str | date | None) -> str:
     if value is None:
         return "n/a"
     moment = value if isinstance(value, date) else date.fromisoformat(str(value)[:10])
-    return f"{moment.day} {moment:%b}"
+    return f"{moment.month}月{moment.day}日" if zh() else f"{moment.day} {moment:%b}"
 
 
 def _versus(value: float, average: float, unit: str) -> str:
@@ -63,7 +68,7 @@ def _versus(value: float, average: float, unit: str) -> str:
 
 
 def _sim(flag: bool) -> str:
-    return SIM if flag else ""
+    return (SIM_ZH if zh() else SIM) if flag else ""
 
 
 def _state_note(items: list[tuple[str, str]]) -> str | None:
@@ -90,7 +95,8 @@ def prices(rows: list[dict[str, Any]], *, period_label: str | None) -> dict[str,
     """Hub closes. ``period_label`` (``the week``, ``November``) when the report is a period."""
 
     if not rows:
-        return _out("No hub close is available to this report.", [])
+        return _out(T("No hub close is held under your licences.", "您的许可下没有枢纽收盘价"
+                                                                   "。"), [])
     parts = []
     for row in rows[:3]:
         text = f"{row['hub']} {row['product']} {number(row['close'], row['unit'])}" \
@@ -347,23 +353,35 @@ def balance(stats: dict[str, Any]) -> dict[str, Any]:
 def position(stats: dict[str, Any]) -> dict[str, Any]:
     hubs = stats.get("hubs") or []
     if not hubs:
-        return _out("No position in the books this report may see.", [])
+        return _out(T("No position is held in the books you may see.", "您可查看的账簿中没有头寸"
+                                                                       "。"),
+                    [])
     parts = []
     for hub in hubs[:3]:
         today = hub["today"]
-        side = "long" if today > 0 else "short" if today < 0 else "flat"
-        parts.append(f"{hub['hub']} {side} {number(abs(today), 'MWh/d')}" if side != "flat"
-                     else f"{hub['hub']} flat")
-    headline = "Net position today: " + "; ".join(parts) + "."
+        size = number(abs(today), "MWh/d")
+        if zh():
+            parts.append(f"{hub['hub']}{'多头' if today > 0 else '空头'}{size}" if today
+                         else f"{hub['hub']}持平")
+        else:
+            parts.append(f"{'long' if today > 0 else 'short'} {size} at {hub['hub']}" if today
+                         else f"flat at {hub['hub']}")
+    headline = T("The book is " + _and(parts) + " today.", "今日账簿：" + "，".join(parts) + "。")
     bullets = []
     for hub in hubs[:2]:
         fm = hub["front_month"]
-        side = "long" if fm > 0 else "short" if fm < 0 else "flat"
-        bullets.append(
-            f"{hub['hub']} {stats['front_month']}: {side} {number(abs(fm), 'MWh/d')} on "
-            "average." if side != "flat" else f"{hub['hub']} {stats['front_month']}: flat."
-        )
+        size = number(abs(fm), "MWh/d")
+        side = T("long" if fm > 0 else "short", "多头" if fm > 0 else "空头")
+        bullets.append(T(
+            f"For {stats['front_month']} the {hub['hub']} position averages {size} {side}."
+            if fm else f"For {stats['front_month']} the {hub['hub']} position is flat.",
+            f"{stats['front_month']}的{hub['hub']}头寸平均为{side}{size}。" if fm
+            else f"{stats['front_month']}的{hub['hub']}头寸持平。"))
     return _out(headline, bullets)
+
+
+def _and(parts: list[str]) -> str:
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
 def pnl(stats: dict[str, Any]) -> dict[str, Any]:
@@ -373,57 +391,85 @@ def pnl(stats: dict[str, Any]) -> dict[str, Any]:
     sim = _sim(stats.get("simulated", False))
     valued = [r for r in rows if r.get("change") is not None]
     if valued:
-        parts = [f"{r['hub']} {money(r['change'], r['currency'])}" for r in valued[:3]]
-        headline = "Day P&L change on the open position" + sim + ": " + "; ".join(parts) + "."
+        def one(r):
+            amount = money(abs(r["change"]), r["currency"])
+            if zh():
+                return f"{r['hub']}{'盈利' if r['change'] >= 0 else '亏损'}{amount}"
+            return f"{'gained' if r['change'] >= 0 else 'lost'} {amount} at {r['hub']}"
+        parts = [one(r) for r in valued[:3]]
+        headline = T(f"The open position {_and(parts)} on the day{sim}.",
+                     f"未平仓头寸当日{'，'.join(parts)}{sim}。")
     elif stats.get("snapshots"):
-        headline = "No day P&L change could be computed; the latest imported valuation stands."
+        headline = T("No day P&L change could be computed; the latest imported valuation stands.",
+                     "无法计算当日损益变化；沿用最新导入的估值。")
     else:
-        return _out("No P&L figure is available for the books this report may see.", [])
+        return _out(T("No P&L figure is held for the books you may see.",
+                      "您可查看的账簿没有损益数据。"), [])
     bullets = []
     for snap in (stats.get("snapshots") or [])[:2]:
-        text = f"{snap['portfolio']}: indicative {money(snap['pnl'], 'GBP')}"
+        text = T(f"The {snap['portfolio']} valuation is an indicative {money(snap['pnl'], 'GBP')}",
+                 f"{snap['portfolio']}的指示性估值为{money(snap['pnl'], 'GBP')}")
         if snap.get("change") is not None:
-            text += f", {money(snap['change'], 'GBP')} since the previous valuation"
-        bullets.append(text + _sim(snap.get("simulated", False)) + ".")
+            text += T(f", {money(snap['change'], 'GBP')} since the previous valuation",
+                      f"，较上次估值变化{money(snap['change'], 'GBP')}")
+        bullets.append(text + _sim(snap.get("simulated", False)) + T(".", "。"))
     unvalued = [r for r in rows if r.get("change") is None and r.get("reason")]
     if unvalued:
-        bullets.append(f"{unvalued[0]['hub']}: {unvalued[0]['reason']}.")
+        bullets.append(f"{unvalued[0]['hub']}{T(': ', '：')}{unvalued[0]['reason']}{T('.', '。')}")
     return _out(headline, bullets)
+
+
+_WORDS = {0: "No", 1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven",
+          8: "Eight", 9: "Nine"}
 
 
 def limits(stats: dict[str, Any]) -> dict[str, Any]:
     rows = stats.get("rows") or []
     if not rows:
-        return _out("No credit line or mandate this report may see.", [])
+        return _out(T("No credit line or mandate is held that you may see.",
+                      "没有您可查看的信用额度或授权。"), [])
     breach = [r for r in rows if r["status"] == "breach"]
     watch = [r for r in rows if r["status"] == "watch"]
-    headline = (
-        f"{len(breach)} limit{'s' if len(breach) != 1 else ''} in breach and {len(watch)} on "
-        f"watch, of {len(rows)}."
-    )
+    headline = T(
+        f"{_WORDS.get(len(breach), str(len(breach)))} of {len(rows)} limits "
+        f"{'is' if len(breach) == 1 else 'are'} in breach and "
+        f"{_WORDS.get(len(watch), str(len(watch))).lower()} on watch.",
+        f"{len(rows)}项限额中{len(breach)}项超限，{len(watch)}项处于观察。")
+    kinds = {"credit line": T("credit line", "信用额度"), "mandate": T("mandate", "授权")}
+    states = {"breach": T("in breach", "超限"), "watch": T("on watch", "观察"),
+              "ok": T("within", "正常")}
     bullets = []
     for row in (breach + watch)[:3]:
         used = row.get("utilisation_pct")
-        bullets.append(
-            f"{row['name']} ({row['kind']}): {row['status']}"
-            + (f", {number(used, '%', 0)} used" if used is not None else "")
-            + _sim(row.get("simulated", False)) + "."
-        )
+        kind = kinds.get(row["kind"], row["kind"])
+        state = states.get(row["status"], row["status"])
+        if zh():
+            bullets.append(f"{row['name']}（{kind}）{state}"
+                           + (f"，已使用{number(used, '%', 0)}" if used is not None else "")
+                           + _sim(row.get("simulated", False)) + "。")
+        else:
+            bullets.append(f"The {row['name']} {kind} is {state}"
+                           + (f" at {number(used, '%', 0)} used" if used is not None else "")
+                           + _sim(row.get("simulated", False)) + ".")
     return _out(headline, bullets)
 
 
 def contracts(stats: dict[str, Any]) -> dict[str, Any]:
     rows = stats.get("rows") or []
     if not rows:
-        return _out("No supply contract in effect in the books this report may see.", [])
+        return _out(T("No supply contract is in effect in the books you may see.",
+                      "您可查看的账簿中没有生效的供应合同。"), [])
     total = sum(r["mwh_per_day"] for r in rows)
-    headline = (
-        f"{len(rows)} contract{'s' if len(rows) != 1 else ''} in effect today, "
-        f"{number(total, 'MWh/d')} in total."
-    )
+    headline = T(
+        f"{_WORDS.get(len(rows), str(len(rows)))} supply contract"
+        f"{'s are' if len(rows) != 1 else ' is'} in effect today, "
+        f"{number(total, 'MWh/d')} in total.",
+        f"今日有{len(rows)}份供应合同生效，合计{number(total, 'MWh/d')}。")
     bullets = [
-        f"{r['name']} at {r['point']}: {number(r['mwh_per_day'], 'MWh/d')}, gas year "
-        f"{r['gas_year']}."
+        T(f"{r['name']} delivers {number(r['mwh_per_day'], 'MWh/d')} at {r['point']} "
+          f"(gas year {r['gas_year']}).",
+          f"{r['name']}在{r['point']}交付{number(r['mwh_per_day'], 'MWh/d')}"
+          f"（气年{r['gas_year']}）。")
         for r in rows[:3]
     ]
     return _out(headline, bullets)
@@ -432,14 +478,16 @@ def contracts(stats: dict[str, Any]) -> dict[str, Any]:
 def alerts(stats: dict[str, Any]) -> dict[str, Any]:
     counts = stats["counts"]
     if not counts["open"]:
-        return _out("No critical or watch alert is open.", [])
-    headline = (
+        return _out(T("No critical or watch alert is open.", "没有未关闭的严重或观察级预警。"), [])
+    headline = T(
         f"{counts['open']} alert{'s' if counts['open'] != 1 else ''} open: "
-        f"{counts['critical']} critical, {counts['warning']} watch."
-    )
+        f"{counts['critical']} critical, {counts['warning']} watch.",
+        f"{counts['open']}项预警未关闭：{counts['critical']}项严重，{counts['warning']}项观察。")
     bullets = [
-        f"{'Critical' if row['severity'] == 'critical' else 'Watch'}: {row['title'].rstrip('.')}"
-        f"{_sim(row.get('simulated', False))}."
+        T(f"{'Critical' if row['severity'] == 'critical' else 'Watch'}: "
+          f"{row['title'].rstrip('.')}{_sim(row.get('simulated', False))}.",
+          f"{'严重' if row['severity'] == 'critical' else '观察'}：{row['title'].rstrip('.')}"
+          f"{_sim(row.get('simulated', False))}。")
         for row in stats["items"][:3]
     ]
     return _out(headline, bullets)
@@ -450,42 +498,57 @@ def alerts(stats: dict[str, Any]) -> dict[str, Any]:
 
 def situation_outage(stats: dict[str, Any]) -> dict[str, Any]:
     sim = _sim(stats.get("simulated", False))
-    until = f"until {day(stats['end'])}" if stats.get("end") else "with no end date"
     size = (
         number(stats["gwh"], "GWh/d") if stats.get("gwh") is not None
         else f"{stats.get('capacity')} {stats.get('unit') or ''}".strip()
     )
-    headline = (
-        f"{stats['facility']} ({stats.get('zone') or 'zone n/a'}): {size} unavailable{sim}, "
-        f"{'out since' if stats['status'] == 'active' else 'from'} {day(stats['start'])}, "
-        f"{until}."
-    )
+    zone = f" ({stats['zone']})" if stats.get("zone") else ""
+    if zh():
+        until = f"至{day(stats['end'])}" if stats.get("end") else "未给出结束日期"
+        start = f"自{day(stats['start'])}起" if stats["status"] == "active" else \
+            f"将自{day(stats['start'])}起"
+        headline = f"{stats['facility']}{zone}{start}不可用{size}{sim}，{until}。"
+    else:
+        until = f"until {day(stats['end'])}" if stats.get("end") else "with no end date"
+        verb = "has" if stats["status"] == "active" else "is to have"
+        since = "since" if stats["status"] == "active" else "from"
+        headline = (f"{stats['facility']}{zone} {verb} {size} unavailable{sim} {since} "
+                    f"{day(stats['start'])}, {until}.")
     bullets = []
     if stats.get("before") is not None and stats.get("after") is not None:
-        bullets.append(
+        bullets.append(T(
             f"Norwegian landings averaged {number(stats['before'], 'GWh/d')} in the seven days "
             f"before and {number(stats['after'], 'GWh/d')} since{sim}: "
-            f"{move(stats['after'] - stats['before'], 'GWh/d')}."
-        )
+            f"{move(stats['after'] - stats['before'], 'GWh/d')}.",
+            f"挪威到岸量此前七天平均为{number(stats['before'], 'GWh/d')}，此后为"
+            f"{number(stats['after'], 'GWh/d')}{sim}："
+            f"{move(stats['after'] - stats['before'], 'GWh/d')}。"))
     elif stats.get("before") is not None:
-        bullets.append(
+        bullets.append(T(
             f"Norwegian landings averaged {number(stats['before'], 'GWh/d')} in the seven days "
-            f"to {day(stats['before_until'])}{sim}; no complete day since the start yet."
-        )
+            f"to {day(stats['before_until'])}{sim}; no complete day since the start yet.",
+            f"截至{day(stats['before_until'])}的七天挪威到岸量平均为"
+            f"{number(stats['before'], 'GWh/d')}{sim}；开始以来尚无完整气日。"))
     if stats.get("share_pct") is not None:
-        bullets.append(
+        bullets.append(T(
             f"The unavailable capacity is {number(stats['share_pct'], '%', 0)} of that seven-day "
-            "average."
-        )
-    bullets.append(f"Published {day(stats['published'])}, version {stats['version']}; "
-                   f"{stats.get('event_type') or 'type not stated'}.")
+            "average.", f"不可用容量相当于该七天均值的{number(stats['share_pct'], '%', 0)}。"))
+    kind = {"planned": T("planned", "计划"), "unplanned": T("unplanned", "非计划")}.get(
+        str(stats.get("event_type") or ""), stats.get("event_type"))
+    bullets.append(T(
+        f"The operator published the {kind or 'outage'} notice on {day(stats['published'])} "
+        f"(version {stats['version']}).",
+        f"运营方于{day(stats['published'])}发布{kind or ''}停运通知（第{stats['version']}版）。"))
     return _out(headline, bullets)
 
 
 def situation_alert(stats: dict[str, Any]) -> dict[str, Any]:
     sim = _sim(stats.get("simulated", False))
-    headline = f"{stats['severity'].capitalize()}: {stats['title'].rstrip('.')}{sim}."
+    severity = {"critical": T("Critical", "严重"), "warning": T("Watch", "观察")}.get(
+        stats["severity"], stats["severity"].capitalize())
+    headline = f"{severity}{T(': ', '：')}{stats['title'].rstrip('.')}{sim}{T('.', '。')}"
     bullets = [stats["message"].rstrip(".") + "." if stats.get("message") else None,
-               f"Detected {day(stats['detected'])}, {stats['occurrences']} occurrence"
-               f"{'s' if stats['occurrences'] != 1 else ''}; status {stats['status']}."]
+               T(f"Detected {day(stats['detected'])}, {stats['occurrences']} occurrence"
+                 f"{'s' if stats['occurrences'] != 1 else ''}; status {stats['status']}.",
+                 f"{day(stats['detected'])}检测到，共{stats['occurrences']}次；状态：{stats['status']}。")]
     return _out(headline, bullets)

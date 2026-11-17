@@ -45,6 +45,7 @@ from eurogas_nexus.application.reports.charts import (
     sparkline,
 )
 from eurogas_nexus.application.reports.facts import window_start
+from eurogas_nexus.application.reports.lang import T, writing, zh
 from eurogas_nexus.application.reports.tokens import FONT, LIGHT
 
 PUBLICATION = "Eurogas Nexus · Gas Markets"
@@ -53,9 +54,16 @@ SERIF = ('Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, "Noto Se
 DAGGER = "†"
 STATE_WORDS = {"current": "current", "late": "late", "stale": "stale", "never": "no data",
                "manual": "manual"}
+STATE_WORDS_ZH = {"current": "最新", "late": "延迟", "stale": "过期", "never": "无数据",
+                  "manual": "手动"}
+
+
+def _state(state: Any) -> str:
+    return (STATE_WORDS_ZH if zh() else STATE_WORDS).get(str(state), str(state or ""))
 CLASSIFICATION = {"internal": "INTERNAL", "shareable": "FOR DISTRIBUTION"}
 DISCLAIMER = ("Decision support only: not advice to trade, and nothing here describes "
               "execution, nomination or settlement.")
+DISCLAIMER_ZH = "仅供决策参考：不构成交易建议，亦不涉及执行、提名或结算。"
 
 #: Attribution lines a public source's terms ask for (docs/legal/DATA_SOURCE_TERMS.md).
 ATTRIBUTIONS: dict[str, str] = {
@@ -90,6 +98,87 @@ GLOSSARY = (
     ("AGSI+ / ALSI", "GIE's storage and LNG transparency platforms."),
     ("Implied gas burn", "Gas-fired electricity divided by an assumed plant efficiency."),
 )
+
+GLOSSARY_ZH = {
+    "DA": ("DA", "日前：次一气日交付的天然气。"),
+    "Front month": ("近月", "最近的可交易日历月；每月月底换月。"),
+    "Gas day": ("气日", "欧洲大陆当地时间06:00至次日06:00（冬季为 UTC 05:00 至 05:00）。"),
+    "Gas year": ("气年", "10月1日至次年9月30日。"),
+    "GWh/d": ("GWh/d", "每气日吉瓦时（能量，高位热值）。"),
+    "TWh": ("TWh", "太瓦时能量。"),
+    "EUR/MWh": ("EUR/MWh", "欧元每兆瓦时；欧洲大陆枢纽价格。"),
+    "GBp/th": ("GBp/th", "便士每色姆；NBP 价格。"),
+    "MWh/d": ("MWh/d", "每气日兆瓦时；账簿头寸。"),
+    "Points": ("百分点", "百分点（储气率）。"),
+    "Supply call": ("供应需求", "进入西北欧的挪威管道到岸量、LNG 外输与储气净提取之和。"),
+    "Net withdrawal": ("净提取", "储气提取减注入；注气时为负。"),
+    "REMIT / UMM": ("REMIT / UMM", "欧盟市场诚信规则 / 紧急市场消息：已发布的停运。"),
+    "AGSI+ / ALSI": ("AGSI+ / ALSI", "GIE 的储气与 LNG 透明度平台。"),
+    "Implied gas burn": ("隐含燃气消耗", "燃气发电量除以假定的电厂效率。"),
+}
+#: Method notes in Chinese, by key (the sections' ``methods``).
+METHODS_ZH = {
+    "landing_points": ("登陆点与运营方", "每个 ENTSOG 点每个气日采用一个运营方：登陆登记表为该点"
+                       "指定的运营方；否则沿用前一气日为该点选定且当日有报告的运营方；否则取当日有"
+                       "报告者中排序最先的运营方。进出两侧均采用该运营方的报告，方向相对于其系统；"
+                       "其他运营方的副本不重复计入。"),
+    "storage_scope": ("储气范围", "比利时、德国、丹麦、法国、荷兰公布工作容量的设施；某日仅在报告"
+                      "国家数与覆盖最好的一天相同时计入。英国不公布工作容量，不计入储气率。"),
+    "power_day": ("日期与覆盖", "UTC 日；某区域在某日的时段覆盖至少22.5小时才计入，且某日仅在报告"
+                  "区域数与覆盖最好的一天相同时计入。"),
+    "remit_daily": ("每日不可用容量", "每条消息的最新版本；在消息单位允许时换算为 GWh/d，否则以"
+                    "原单位显示。"),
+    "forecast_call": ("需求", "季节常态加近期偏差"),
+    "forecast_inventory_draw": ("库存提取", "残差减库存外14天均值"),
+    "forecast_lng": ("LNG", "14天均值"),
+    "forecast_norway": ("挪威", "7天均值减 REMIT 停运"),
+    "forecast_storage": ("储气", "残差"),
+    "pipeline_landings_note": ("管道到岸说明", "能量按 ENTSOG 发布值，每个实物登陆点一行。英国终端"
+                               "同时接收英国大陆架天然气与挪威天然气。"),
+    "storage_inventory_basis": ("库存口径", "公布工作容量的设施；英国库存（National Gas）无工作"
+                                "容量，不计入库存与储气率"),
+    "outage_adjustment": ("停运调整", "未来不可用容量减最近七次观测的不可用容量"),
+    "net_position": ("净头寸", "每气日净 MWh：多头为正，合同按日量计，屏幕交易按交付日分摊。"),
+    "day_pnl_change": ("当日损益变化", "枢纽未来12个月净未平仓头寸乘以最近两日收盘价之差：头寸阶梯"
+                       "的平行移动，并非重估。"),
+    "credit_exposure": ("信用敞口", "重置敞口（未交付量按市价减合同价，按交易对手轧差并以零为下限）"
+                        "加最近应收天数的销售应收款，减所持抵押；使用率为其占限额之比。"),
+    "mandate_usage": ("授权使用", "授权所含账簿及交易员自营账户中最大的枢纽月净头寸相对授权规模"
+                      "上限，并核对其枢纽、期限、产品与对冲区间。"),
+}
+#: Why a section is not included, in Chinese (``sections._empty`` reasons; prefix match).
+REASONS_ZH = {
+    "No licensed close for": "您的许可下没有该枢纽的收盘价",
+    "No REMIT messages are held": "未持有 REMIT 消息",
+    "No complete gas day of Norwegian landings is held": "未持有挪威到岸量的完整气日",
+    "No complete gas day of landings in the period": "期间内没有到岸量的完整气日",
+    "No complete gas day of LNG send-out in the period": "期间内没有 LNG 外输的完整气日",
+    "No complete gas day of LNG send-out": "没有 LNG 外输的完整气日",
+    "No LNG send-out is held for the scope": "该范围内未持有 LNG 外输数据",
+    "No complete day of gas-fired generation in the period": "期间内没有燃气发电的完整日",
+    "No complete day of gas-fired generation": "没有燃气发电的完整日",
+    "No gas-fired generation is held for the scope": "该范围内未持有燃气发电数据",
+    "No storage day in the period is still in the season read": "期间内的储气日已不在季节读取范围"
+                                                                "内",
+    "Storage data not connected": "未接入储气数据",
+    "No measured balance day in the period": "期间内没有实测平衡日",
+    "The balance needs ENTSOG flows, GIE storage and LNG": "平衡需要 ENTSOG 流量、GIE 储气与 LNG",
+    "The landings use data outside your licences": "到岸量使用了您许可范围之外的数据",
+    "No position is held in the books you may see": "您可查看的账簿中没有头寸",
+    "No P&L figure is held for the books you may see": "您可查看的账簿没有损益数据",
+    "No credit line or mandate is held that you may see": "没有您可查看的信用额度或授权",
+    "No supply contract is in effect in the books you may see": "您可查看的账簿中没有生效的供应合"
+                                                                "同",
+    "No critical or watch alert is open": "没有未关闭的严重或观察级预警",
+    "The outage is not open or upcoming, or is not visible to you": "该停运未开放或即将开始，或您"
+                                                                    "无权查看",
+    "The alert does not exist or is not visible to you": "该预警不存在或您无权查看",
+    "Only a physical-market alert can open a shareable report": "仅实物市场预警可生成对外分发报告",
+    "the generating principal may see no book": "生成者无权查看任何账簿",
+    "not available": "暂不可用",
+    "Our book is not part of a shareable report": "对外分发报告不含我方账簿",
+    "Open alerts": "未关闭预警",
+}
 
 CSS_TEMPLATE = """
 *{box-sizing:border-box}
@@ -336,6 +425,8 @@ def fmt_date(value: Any) -> str:
         moment = date.fromisoformat(str(value)[:10])
     except ValueError:
         return str(value)
+    if zh():
+        return f"{moment.year}年{moment.month}月{moment.day}日"
     return f"{moment.day} {moment:%b %Y}"
 
 
@@ -344,18 +435,20 @@ def fmt_short(value: Any) -> str:
         moment = date.fromisoformat(str(value)[:10])
     except ValueError:
         return str(value or "")
-    return f"{moment.day} {moment:%b}"
+    return f"{moment.month}月{moment.day}日" if zh() else f"{moment.day} {moment:%b}"
 
 
 def fmt_datetime(value: Any) -> str:
     if not value:
         return ""
     if value == "open":
-        return "open"
+        return T("open", "未定")
     try:
         moment = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return str(value)
+    if zh():
+        return f"{moment.year % 100}年{moment.month}月{moment.day}日 {moment:%H:%M}"
     return f"{moment.day} {moment:%b %y %H:%M}"
 
 
@@ -392,7 +485,7 @@ def _cell(row: dict, column: dict, first_number: str | None) -> str:
     if kind == "datetime":
         return f'<td class="t">{_e(fmt_datetime(value or "open"))}</td>'
     if kind == "state":
-        return f'<td class="st-{_e(value)}">{_e(STATE_WORDS.get(str(value), value or ""))}</td>'
+        return f'<td class="st-{_e(value)}">{_e(_state(value))}</td>'
     return f"<td>{_e(value)}</td>"
 
 
@@ -667,7 +760,8 @@ def _section(section: dict, numbers: Numbering, refs: dict, snapshot: dict, end:
         tables.append(table_exhibit(spec, number, as_of, lang))
     paragraph = " ".join(commentary.get("bullets") or [])
     if cited:
-        paragraph += (" " if paragraph else "") + f"({'; '.join(cited)}.)"
+        paragraph += T((" " if paragraph else "") + f"({'; '.join(cited)}.)",
+                       f"（{'；'.join(cited)}）")
     text = (f'<div class="r-text"><p><span class="r-lead">{mark_simulated(commentary["headline"])}'
             f"</span> {mark_simulated(paragraph)}</p></div>")
     parts: list[str] = []
@@ -693,11 +787,11 @@ def _side(section: dict) -> str:
         unit = fact["unit"]
         parts = [f"{fmt_number(fact['value'])}{unit}" if unit == "%" else
                  f"{fmt_number(fact['value'])} {unit}"]
-        change_unit = "pts" if c.get("unit") == "points" else c.get("unit") or unit
+        change_unit = T("pts", "个百分点") if c.get("unit") == "points" else c.get("unit") or unit
         if c.get("day") is not None:
-            parts.append(f"day {fmt_number(c['day'], 'signed')} {change_unit}")
+            parts.append(f"{T('day', '日')} {fmt_number(c['day'], 'signed')} {change_unit}")
         if c.get("year") is not None:
-            parts.append(f"year {fmt_number(c['year'], 'signed')} {change_unit}")
+            parts.append(f"{T('year', '同比')} {fmt_number(c['year'], 'signed')} {change_unit}")
         dag = f'<span class="r-dag">{DAGGER}</span>' if fact["simulated"] else ""
         rows.append(f"<dt>{_e(fact['label'])}</dt><dd>{_e(' · '.join(parts))}{dag}</dd>")
     return f'<aside class="r-side"><dl>{"".join(rows)}</dl></aside>' if rows else "<div></div>"
@@ -732,15 +826,21 @@ def _sources(snapshot: dict, shown: list[dict]) -> str:
         for item in section["evidence"].get("sources") or []:
             flags = ", ".join(k for k in ("simulated", "licensed") if item.get(k))
             key = (item.get("source_system") or "", fmt_short(item.get("as_of")),
-                   STATE_WORDS.get(str(item.get("state")), item.get("state") or ""), flags)
+                   _state(item.get("state")), flags)
             titles = grouped.setdefault(key, [])
-            if section["title"] not in titles:
-                titles.append(section["title"])
+            title = section_title(section["key"], section["title"])
+            if title not in titles:
+                titles.append(title)
     lines = []
     for (system, newest, state, flags), titles in grouped.items():
-        lines.append(f"<p><b>{_e(system)}</b> ({_e(', '.join(titles))}): newest {_e(newest)}, "
-                     f'<span class="st-{_e(state)}">{_e(state)}</span>'
-                     + (f"; {_e(flags)}" if flags else "") + ".</p>")
+        flags = T(flags, flags.replace("simulated", "模拟").replace("licensed", "授权")) \
+            if flags else ""
+        lines.append(T(f"<p><b>{_e(system)}</b> ({_e(', '.join(titles))}): newest {_e(newest)}, "
+                       f'<span class="st-{_e(state)}">{_e(state)}</span>'
+                       + (f"; {_e(flags)}" if flags else "") + ".</p>",
+                       f"<p><b>{_e(system)}</b>（{_e('、'.join(titles))}）：最新 {_e(newest)}，"
+                       f'<span class="st-{_e(state)}">{_e(state)}</span>'
+                       + (f"；{_e(flags)}" if flags else "") + "。</p>"))
     return "".join(lines)
 
 
@@ -753,96 +853,153 @@ def _glossary_terms(entry: str) -> list[str]:
 
 def _back(snapshot: dict, numbers: Numbering, body: str = "") -> str:
     """Methods, sources, editing, classification and disclaimer: run-in paragraphs in three
-    columns, one page at most. The glossary lists only the terms the report uses."""
+    columns, one page at most, in the report's language. The glossary lists only the terms the
+    report uses."""
 
     lang = _lang(snapshot)
     shown = [s for s in snapshot["sections"] if s["status"] == "ok"]
+    audience = T("internal", "内部") if snapshot["audience"] == "internal" else \
+        T("distribution", "对外分发")
     out = ['<section class="r-back" aria-labelledby="mh">',
            f'<h2 id="mh">{_w(lang, "method")}</h2><div class="r-three">']
-    out.append(
+    out.append(T(
         "<p>Every figure is read from the platform's own stores through the same entitled reads "
         f"as its pages, as of {_e(fmt_datetime(snapshot['as_of']))} UTC, for the "
-        f"{_e(snapshot['audience'])} audience. Gas days run 06:00 to 06:00 continental time. "
+        f"{audience} audience. Gas days run 06:00 to 06:00 continental time. "
         "Day compares with the previous gas day, week with seven days earlier, year with the "
         "same day a year earlier; a range or norm is shown only where held, with the number of "
-        "years. No change is given across a front-month roll.</p>")
+        "years. No change is given across a front-month roll.</p>",
+        f"<p>所有数字均通过与平台页面相同的授权读取取自平台自有存储，数据截至"
+        f"{_e(fmt_datetime(snapshot['as_of']))} UTC，读者范围为{audience}。气日为欧洲大陆时间"
+        "06:00至次日06:00。日变化对比前一气日，周变化对比七天前，同比对比一年前同日；仅在持有"
+        "数据时给出区间或常态，并注明年数。近月合约换月时不计算跨合约变化。</p>"))
     methods: dict[str, dict] = {}
     for section in shown:
         for method in section["evidence"].get("methods") or []:
             methods.setdefault(method["key"], method)
     if methods:
-        plain = [m for m in methods.values() if not m["title"].startswith("Forecast method")]
-        forecast = [m for m in methods.values() if m["title"].startswith("Forecast method")]
-        out.append("<h3>How each indicator is computed</h3>" + "".join(
-            f"<p><b>{_e(m['title'])}.</b> {_e(m['text'])}</p>" for m in plain)
-            + ("<p><b>Forecast methods.</b> " + "; ".join(
-                f"{_e(m['title'].split(':', 1)[-1].strip())}: {_e(m['text'])}"
-                for m in forecast) + ".</p>" if forecast else ""))
+        plain = [m for m in methods.values() if not m["key"].startswith("forecast_")]
+        forecast = [m for m in methods.values() if m["key"].startswith("forecast_")]
+        out.append(f"<h3>{T('How each indicator is computed', '各指标的计算方法')}</h3>" + "".join(
+            f"<p><b>{_e(_method(m)[0])}{T('.', '。')}</b> {_e(_method(m)[1])}</p>" for m in plain)
+            + (f"<p><b>{T('Forecast methods.', '预测方法。')}</b> " + T("; ", "；").join(
+                f"{_e(_method(m)[0])}{T(': ', '：')}{_e(_method(m)[1])}" for m in forecast)
+               + T(".", "。") + "</p>" if forecast else ""))
     if any(f.get("forecast") for f in snapshot.get("fact_sheet") or []):
-        out.append("<p><b>Forecasts.</b> Every forecast in this report is labelled as one where "
-                   "it is stated, with its method above and its limitation beside it; no range "
-                   "is produced.</p>")
-    revisions = [(s["title"], (s["evidence"].get("revisions") or {}).get("count"))
+        out.append(T("<p><b>Forecasts.</b> Every forecast is labelled as one where it is stated, "
+                     "with its method above and its limitation beside it; no range is "
+                     "produced.</p>",
+                     "<p><b>预测。</b>每项预测在出现处均标明为预测，方法见上，局限性随附其旁；"
+                     "不给出区间。</p>"))
+    revisions = [(section_title(s["key"], s["title"]),
+                  (s["evidence"].get("revisions") or {}).get("count"))
                  for s in shown if s["evidence"].get("revisions")]
     counted = [(t, c) for t, c in revisions if c is not None]
-    out.append("<h3>Revisions</h3><p>Providers revise published flows, storage and LNG; each "
-               "replaced value is kept. "
-               + ("Revisions received since the previous issue: "
-                  + "; ".join(f"{_e(t)} {c}" for t, c in counted) + "."
-                  if counted else "First issue of this report kind: no earlier issue to compare "
-                  "with." if revisions else "") + "</p>")
+    out.append(f"<h3>{T('Revisions', '修订')}</h3><p>"
+               + T("Providers revise published flows, storage and LNG; each replaced value is "
+                   "kept. ", "数据提供方会修订已发布的流量、储气与 LNG 数据；被替换的值均予保留。")
+               + (T("Revisions received since the previous issue: ", "自上一期以来收到的修订：")
+                  + T("; ", "；").join(f"{_e(t)} {c}" for t, c in counted) + T(".", "。")
+                  if counted else T("First issue of this kind: no earlier issue to compare with.",
+                                    "此类报告的首期：无可比较的上一期。") if revisions else "")
+               + "</p>")
     sources = _sources(snapshot, shown)
     if sources:
-        out.append("<h3>Sources and freshness</h3>" + sources)
+        out.append(f"<h3>{T('Sources and freshness', '来源与时效')}</h3>" + sources)
     attributions = _attributions(snapshot)
     if attributions:
-        out.append("<h3>Attribution</h3>" + "".join(f"<p>{_e(a)}</p>" for a in attributions))
+        out.append(f"<h3>{T('Attribution', '署名')}</h3>"
+                   + "".join(f"<p>{_e(a)}</p>" for a in attributions))
     omitted = snapshot.get("omitted") or []
     if omitted:
-        out.append("<h3>Not in this report</h3>" + "".join(
-            f"<p><b>{_e(item['title'])}:</b> {_e(item['reason'])}.</p>" for item in omitted))
+        out.append(f"<h3>{T('Not included', '未包含的内容')}</h3>" + "".join(
+            f"<p><b>{_e(section_title(item.get('key') or '', item['title']))}{T(':', '：')}</b> "
+            f"{_e(omitted_reason(item['reason']))}{T('.', '。')}</p>" for item in omitted))
     used = [(a, b) for a, b in GLOSSARY
             if any(re.search(rf"(?<![\w-]){re.escape(term)}(?![\w-])", body)
                    for term in _glossary_terms(a))]
     if used:
-        out.append("<h3>Abbreviations and units</h3><p>" + " ".join(
-            f"<b>{_e(a)}</b> {_e(b)}" for a, b in used) + "</p>")
+        out.append(f"<h3>{T('Abbreviations and units', '缩写与单位')}</h3><p>" + " ".join(
+            f"<b>{_e(GLOSSARY_ZH.get(a, (a, b))[0] if lang != 'en' else a)}</b> "
+            f"{_e(GLOSSARY_ZH.get(a, (a, b))[1] if lang != 'en' else b)}" for a, b in used)
+            + "</p>")
     record = snapshot.get("editorial") or {}
+    heading = f"<h3>{T('Editing, data and use', '编辑、数据与用途')}</h3>"
     if record.get("basis") == "model":
         kept = sum(1 for v in (record.get("elements") or {}).values() if v.get("ok"))
+        total = len(record.get("elements") or {})
         temperature = record.get("temperature")
-        out.append("<h3>Editing, data and use</h3><p><b>Editing.</b> Edited by the AI model "
-                   f"{_e(record.get('model'))} under "
-                   f"directive {_e(record.get('directive'))}"
-                   + (f" at temperature {_e(temperature)}" if temperature is not None else "")
-                   + f": {kept} of {len(record.get('elements') or {})} elements passed the checks "
-                   "and are the model's wording; the others are rule-written. No figure was "
-                   "written by the model.</p>")
+        out.append(heading + T(
+            f"<p><b>Editing.</b> Edited by the AI model {_e(record.get('model'))} under "
+            f"directive {_e(record.get('directive'))}"
+            + (f" at temperature {_e(temperature)}" if temperature is not None else "")
+            + f": {kept} of {total} elements passed the checks and are the model's wording; the "
+            "others are rule-written. No figure was written by the model.</p>",
+            f"<p><b>编辑。</b>由 AI 模型 {_e(record.get('model'))} 依据编辑指引 v"
+            f"{_e(record.get('directive'))}"
+            + (f"（温度 {_e(temperature)}）" if temperature is not None else "")
+            + f"编辑：{total}个元素中{kept}个通过核对，采用模型措辞；其余为规则撰写。所有数字均非"
+            "模型所写。</p>"))
     else:
-        out.append("<h3>Editing, data and use</h3><p><b>Editing.</b> Rule-edited: the findings, "
-                   "their order and every sentence were selected and written by fixed rules "
-                   "from the figures.</p>")
-    out.append("<p><b>Data.</b> "
-               + ("The data annex follows: each series for the report's own window. "
+        out.append(heading + T(
+            "<p><b>Editing.</b> Rule-edited: the findings, their order and every sentence were "
+            "selected and written by fixed rules from the figures.</p>",
+            "<p><b>编辑。</b>规则编辑：要点、其顺序及每个句子均由固定规则依据数字选择和撰写。</p>"))
+    out.append(T("<p><b>Data.</b> ", "<p><b>数据。</b>")
+               + (T("The data annex follows: each series for the report's own window. ",
+                    "随后为数据附录：各序列覆盖本期时段。")
                   if print_annex(snapshot) else
-                  "Every series behind the exhibits is in the report's CSV download (Download "
-                  "data in the viewer); a printed data annex is available on request. ")
+                  T("Every series behind the exhibits is in the CSV download (Download data in "
+                    "the viewer); a printed data annex is available on request. ",
+                    "图表背后的全部序列均可通过 CSV 下载获取（查看器中的“下载数据”）；"
+                    "如需可打印数据附录。"))
                + "</p>")
     licensed = (snapshot.get("licensed") or {}).get("sources")
     classification = CLASSIFICATION.get(snapshot["audience"], "INTERNAL")
-    out.append(f"<p><b>Classification.</b> {_e(classification)}. "
-               + ("For the desk and risk; not for distribution outside the firm. "
+    out.append(f"<p><b>{T('Classification.', '密级。')}</b> {_e(classification)}{T('. ', '。')}"
+               + (T("For the desk and risk; not for distribution outside the firm. ",
+                    "供交易台与风控使用；不得在公司外分发。")
                   if snapshot["audience"] == "internal" else
-                  "May be distributed outside the firm; it holds no position, P&L, limit, "
-                  "counterparty or contract term. ")
-               + (f"Contains licensed data from {_e(', '.join(licensed))}: internal use only. "
+                  T("May be distributed outside the firm; it holds no position, P&L, limit, "
+                    "counterparty or contract term. ",
+                    "可在公司外分发；不含头寸、损益、限额、交易对手或合同条款。"))
+               + (T(f"Contains licensed data from {_e(', '.join(licensed))}: internal use only. ",
+                    f"含有来自{_e('、'.join(licensed))}的授权数据：仅限内部使用。")
                   if licensed else "")
-               + (f"{DAGGER} marks simulated demonstration values: not market data. "
+               + (T(f"{DAGGER} marks simulated demonstration values: not market data. ",
+                    f"{DAGGER} 表示模拟演示数值，非市场数据。")
                   if snapshot.get("simulated") else "") + "</p>")
-    out.append(f"<p><b>Disclaimer.</b> {_e(DISCLAIMER)}</p>"
-               f"<p>Report {_e(snapshot['report_id'])} · template "
+    out.append(f"<p><b>{T('Disclaimer.', '免责声明。')}</b> {_e(T(DISCLAIMER, DISCLAIMER_ZH))}"
+               "</p>"
+               f"<p>{T('Report', '报告')} {_e(snapshot['report_id'])} · {T('template', '模板')} "
                f"{_e(snapshot.get('template_version', TEMPLATE_VERSION))}.</p></div></section>")
     return "".join(out)
+
+
+def _method(method: dict) -> tuple[str, str]:
+    """A method note's title and text in the report's language."""
+
+    title = method["title"]
+    if method["key"].startswith("forecast_"):
+        title = title.split(":", 1)[-1].strip()
+    if not zh():
+        return title, method["text"]
+    return METHODS_ZH.get(method["key"], (title, method["text"]))
+
+
+def section_title(key: str, title: str) -> str:
+    return TITLES_ZH.get(key, title) if zh() else title
+
+
+def omitted_reason(reason: str) -> str:
+    """A reason a section is not included, in the report's language."""
+
+    if not zh():
+        return reason
+    for en, cn in REASONS_ZH.items():
+        if reason.startswith(en):
+            return cn
+    return reason
 
 
 def _annex(snapshot: dict, numbers: Numbering) -> str:
@@ -897,8 +1054,13 @@ LEAD_MIN, LEAD_MAX = 110, 295
 
 
 def render_report(snapshot: dict) -> str:
-    """The report's HTML. Deterministic in ``snapshot``."""
+    """The report's HTML, in the snapshot's language. Deterministic in ``snapshot``."""
 
+    with writing(snapshot.get("language")):
+        return _render_report(snapshot)
+
+
+def _render_report(snapshot: dict) -> str:
     lang = _lang(snapshot)
     numbers = Numbering()
     refs: dict[str, str] = {}

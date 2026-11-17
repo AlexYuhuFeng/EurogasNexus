@@ -19,8 +19,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from eurogas_nexus.application.reports.commentary import _sim, number
 from eurogas_nexus.application.reports.commentary import day as fday
-from eurogas_nexus.application.reports.commentary import number
+from eurogas_nexus.application.reports.lang import T
 
 MIN_FINDINGS = 3
 MAX_FINDINGS = 5
@@ -30,6 +31,11 @@ GLANCE_MENU = ("price.", "spread.", "landings", "lng", "storage.fill", "storage.
                "power.gen", "power.burn", "balance.call", "outages.offline")
 NO_NEWS = ("Flows, storage and prices moved within their recent range: no indicator changed by "
            "more than its usual daily variation.")
+NO_NEWS_ZH = "流量、储气与价格均在近期波动范围内：没有指标的变动超过其通常的日波动。"
+
+
+def no_news() -> str:
+    return T(NO_NEWS, NO_NEWS_ZH)
 
 
 def assign_ids(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -81,7 +87,7 @@ def rank_findings(sheet: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if len(chosen) == MAX_FINDINGS:
             break
     if chosen and chosen[0]["score"] < MATERIAL:
-        chosen.insert(0, {"fact_ids": [f["id"] for f in candidates[:3]], "text": NO_NEWS,
+        chosen.insert(0, {"fact_ids": [f["id"] for f in candidates[:3]], "text": no_news(),
                           "implication": None,
                           "why": f"no fact scored {MATERIAL} or more (largest "
                                  f"{chosen[0]['score']})", "score": 0.0})
@@ -97,20 +103,27 @@ def standfirst(sheet: list[dict[str, Any]]) -> str:
     parts = []
     call = by_key.get("balance.call")
     if call:
-        sim = " (simulated)" if call["simulated"] else ""
-        parts.append(f"NW Europe drew {number(call['value'], 'GWh/d')}{sim} from Norway, LNG and "
-                     f"storage on {fday(call['day'])}.")
+        sim = _sim(call["simulated"])
+        parts.append(T(f"NW Europe drew {number(call['value'], 'GWh/d')}{sim} from Norway, LNG "
+                       f"and storage on {fday(call['day'])}.",
+                       f"{fday(call['day'])}西北欧从挪威、LNG 与储气共取用"
+                       f"{number(call['value'], 'GWh/d')}{sim}。"))
     fill = by_key.get("storage.fill")
     if fill:
         year = fill["comparisons"]["year"]
-        parts.append(
+        parts.append(T(
             f"Storage stood at {number(fill['value'], '%')} full"
             + (f", {number(abs(year), '', 1)} points {'above' if year > 0 else 'below'} a year "
-               "earlier" if year is not None else "") + ".")
+               "earlier" if year is not None else "") + ".",
+            f"储气率为{number(fill['value'], '%')}"
+            + (f"，较一年前{'高' if year > 0 else '低'}{number(abs(year), '', 1)}个百分点"
+               if year is not None else "") + "。"))
     forecast = by_key.get("balance.forecast")
     if forecast:
-        parts.append(f"The balance forecast, a model estimate, puts the call at "
-                     f"{number(forecast['value'], 'GWh/d')} by {fday(forecast['day'])}.")
+        parts.append(T(f"The balance forecast, a model estimate, puts the call at "
+                       f"{number(forecast['value'], 'GWh/d')} by {fday(forecast['day'])}.",
+                       f"平衡预测（模型估算）显示{fday(forecast['day'])}供应需求为"
+                       f"{number(forecast['value'], 'GWh/d')}。"))
     if not parts:
         ranked = sorted((f for f in sheet if f.get("sentence")), key=lambda f: -f["score"])
         parts = [f["sentence"] for f in ranked[:2]]
@@ -146,14 +159,15 @@ def what_to_watch(sheet: list[dict[str, Any]]) -> list[dict]:
 
 def headline_of(findings: list[dict], sheet: list[dict]) -> str:
     if not findings:
-        return "No section of this report holds data."
+        return T("No market data is held for the sections chosen.", "所选章节均无市场数据。")
     lead = findings[0]
-    if lead["text"] == NO_NEWS:
-        return "Flows, storage and prices within their recent range"
+    if lead["text"] in {NO_NEWS, NO_NEWS_ZH}:
+        return T("Flows, storage and prices within their recent range",
+                 "流量、储气与价格均在近期波动范围内")
     fact = next((f for f in sheet if f["id"] == lead["fact_ids"][0]), None)
     text = (fact or {}).get("headline") or lead["text"]
-    if fact and fact.get("simulated") and "(simulated)" not in text:
-        text += " (simulated)"
+    if fact and fact.get("simulated") and "(simulated)" not in text and "模拟" not in text:
+        text += _sim(True)
     return text
 
 

@@ -311,7 +311,7 @@ def prices(ctx: Ctx) -> SectionResult:
             best[hub] = (rank, tenor, source_system, closes)
     if not best:
         hubs = ", ".join(ctx.plan.hubs) if ctx.plan.hubs else "any hub"
-        return _empty(result, f"No licensed close for {hubs} is available to this report",
+        return _empty(result, f"No licensed close for {hubs} is held under your licences",
                       "Import settlements or connect a licensed price feed")
     out_rows = []
     chart_series: dict[str, list[dict]] = defaultdict(list)
@@ -1227,7 +1227,7 @@ def book_position(ctx: Ctx) -> SectionResult:
     book, _ = _book(ctx)
     positions = {h: v for h, v in book.positions.items() if _hub_ok(ctx, h)}
     if not positions:
-        return _empty(result, "No position in the books this report may see", "Open Position")
+        return _empty(result, "No position is held in the books you may see", "Open Position")
     end = _month_start(ctx.today, BOOK_HORIZON_MONTHS + 1) - timedelta(days=1)
     legs = [leg for leg in book.inputs.legs if _hub_ok(ctx, leg.hub.upper())]
     ladder = build_ladder(legs, horizon_start=ctx.today, horizon_end=end)
@@ -1312,7 +1312,7 @@ def book_pnl(ctx: Ctx) -> SectionResult:
         for pid, snap in sorted(latest.items())
     ]
     if not hubs_out and not snapshots:
-        return _empty(result, "No P&L figure for the books this report may see", "Open P&L")
+        return _empty(result, "No P&L figure is held for the books you may see", "Open P&L")
     result.tables.append(table(
         "Day P&L change on the open position",
         [("hub", "Hub", "text"), ("change", "Day change", "signed"),
@@ -1366,7 +1366,7 @@ def book_limits(ctx: Ctx) -> SectionResult:
                                  float(cap) - float(row["largest_net_mwh"]), 1),
                              "unit": "MWh", "simulated": False})
     if not rows:
-        return _empty(result, "No credit line or mandate this report may see",
+        return _empty(result, "No credit line or mandate is held that you may see",
                       "Risk adds them under Limits")
     rank = {"breach": 0, "expired": 1, "watch": 2}
     rows.sort(key=lambda r: (rank.get(r["status"], 9), -(r["utilisation_pct"] or 0)))
@@ -1411,7 +1411,7 @@ def book_contracts(ctx: Ctx) -> SectionResult:
         if contract.book_id:
             books.add(contract.book_id)
     if not rows:
-        return _empty(result, "No supply contract in effect in the books this report may see",
+        return _empty(result, "No supply contract is in effect in the books you may see",
                       "Open Contracts")
     result.tables.append(table(
         "Contracts in effect today",
@@ -1460,7 +1460,7 @@ NORWEGIAN_ASSETS = (
     "oseberg", "heimdal", "gullfaks", "statfjord", "sleipner", "asgard", "åsgard", "kvitebjorn",
     "kvitebjørn", "gina krog", "martin linge", "johan sverdrup", "draugen", "snohvit",
     "snøhvit", "hammerfest", "langeled", "zeepipe", "europipe", "norpipe", "franpipe",
-    "vesterled", "gassled", "polarled",
+    "vesterled", "gassled", "polarled", "norwegian shelf", "norwegian continental shelf",
 )
 LANDING_TERMINALS = ("emden", "dornum", "zeebrugge zpt", "dunkerque", "easington", "st fergus")
 

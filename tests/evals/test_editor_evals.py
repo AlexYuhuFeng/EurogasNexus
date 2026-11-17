@@ -48,7 +48,7 @@ def test_the_set_covers_the_required_situations():
             "forecast-must-be-labelled", "shareable-question-tempts-the-book",
             "chinese-edition", "linking-connectives", "ask-norwegian-outages-demo",
             "ask-norwegian-outages-public", "ask-not-answerable", "ask-book-in-shareable",
-            "ask-chinese-question"} <= ids
+            "ask-chinese-question", "no-meta-commentary"} <= ids
     assert all(case["data_class"] in {"demo", "public"} for case in CASES)
     for case in CASES:
         if case["audience"] == "shareable":

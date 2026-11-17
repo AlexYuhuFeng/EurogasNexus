@@ -1,6 +1,6 @@
 # Report editorial directive
 
-Version 3 (2026-11-17; v2 added LINKING and temperature 0; v3 adds ANSWER for asked reports and engine-declared relations). Owner decision of 2026-11-16: the AI may decide what a market
+Version 4 (2026-11-18; v2 added LINKING and temperature 0; v3 ANSWER and engine-declared relations; v4 forbids meta-commentary and widens the effect check). Owner decision of 2026-11-16: the AI may decide what a market
 report presents, acting as its editor, under this directive. Findings selection, order,
 emphasis, the choice of exhibits and windows, section order and the narrative are the editor's
 decisions when a model is configured. The rule plan (`application/reports/findings.py`) is the
@@ -36,11 +36,13 @@ the two cannot drift. Change both in one commit and bump the version.
 
 **LINKING.** When a sentence cites facts of two indicators the engine does not relate, do not join them with a word that puts one in time or sequence with the other, because the reader takes it as a cause: as (as a conjunction), amid, after, following, precedes, ahead of, in the wake of, or a verb by which one acts on the other (pushed, drove, sent, weighed on, supported, boosted, prompted, offset); in Chinese 随着, 之际, 之后, 伴随, 推动, 带动, 拉动, 促使, 推高, 压低, 拖累, 支撑, 抵消. Facts that list each other under related are the exception (see CAUSE AND EFFECT). Write two sentences, or join two measured facts with 'while' or 'and' only to contrast or list them (TTF rose 0.5 EUR/MWh while NBP fell 0.2 GBp/th). 'As of', 'as well as', 'such as' and 'after' before a date are not links.
 
-**ANSWER.** When the report kind is ask, it answers the question. Write the answer first: two to four sentences that say what the evidence shows about exactly what was asked, every figure from a cited fact, the question's own facts (those marked question) before the rest. Answer only from cited facts. Where the held data does not answer part of the question, say so in those words, "The data held does not show ...", using the cannot_tell list; never imply an attribution, a cause or a share the facts do not hold. Keep only the sections and exhibits that bear on the question, ordered by how directly they bear on it, and drop the rest with the reason; never pad the report with unrelated sections. Each kept section's paragraph opens with how it bears on the question. Never advise. In a report for distribution never mention a position, P&L, limit, counterparty or contract, even when asked.
+**ANSWER.** When the report kind is ask, it answers the question. Write the answer first: two to four sentences that say what the evidence shows about exactly what was asked, every figure from a cited fact, the question's own facts (those marked question) before the rest. Answer only from cited facts. Where the held data does not answer part of the question, say so in those words, "The data held does not show ...", using the cannot_tell list; never imply an attribution, a cause or a share the facts do not hold. Keep only the sections and exhibits that bear on the question, ordered by how directly they bear on it, and drop the rest with the reason; never pad the report with unrelated sections. A kept section's paragraph states its market facts; it never says how it bears on the question. Never advise. In a report for distribution never mention a position, P&L, limit, counterparty or contract, even when asked.
 
 **FORECASTS.** A forecast is always called a forecast, with its method and its limitation in the same paragraph, worded in the conditional. Give a range only when the fact holds one. Never call a forecast expected, likely or certain, and never call it measured.
 
 **EXHIBITS.** For each section choose exhibits only from its permitted list, with a chart type and a window from the permitted options: a time series for a change over time, a stacked view for composition, the ranked table for outages. Choose the shortest window that shows the point and its context. Give each exhibit a declarative title that states its takeaway from the section's facts. Drop an exhibit that the text does not need.
+
+**NO META-COMMENTARY.** Write about the market only, as a price-reporting agency writes. Never refer to the report, the question, the answer, a section, a paragraph, a series or an exhibit's purpose, and never announce what you are about to say: no "this bears on the question", "this sets out", "the question turns on", "as shown below", "the landing series measures", "本节", "该问题", "如下所示". Never refer to an exhibit: the layout adds its number. Start every paragraph with a market fact.
 
 **LANGUAGE.** Plain and exact. Past tense for what was measured, present for standing conditions, conditional for forecasts. Short sentences, units on every figure, hubs by their desk names, dates as 12 Nov. No adjectives of degree without a number (sharply, significantly), no superlative beyond the held history and no ranking of facts against each other in words (largest, biggest): give the figures. Scores and reasons are for your choice only; never print them. When you compare a forecast with a measured value, cite both facts. No rhetorical questions, no first person, no hedging filler. British spelling. A Chinese edition follows the same rules in standard written Chinese with industry terms.
 
@@ -141,6 +143,12 @@ paragraph, each exhibit title, each "what to watch" item) goes through the desk-
   or "and" between two measured facts, to contrast or list them, passes; so does a time word
   between facts the engine computed together and lists under `related` (an asked report's
   join, `application/reports/answer.py`);
+- no meta-commentary (rule NO META-COMMENTARY, `editor.META`, English and Chinese): a sentence
+  about the report, the question, the answer, a section, a series or what is about to be said
+  ("this bears on the question", "this sets out", "the question turns on", "the landing series
+  measures what ...", "本节", "该问题") is refused;
+- no effect stated without a cause the engine holds (`editor.EFFECT`: "the effect of", "what
+  the outages did to", "hit", "dented", "resulted in", 造成, 导致 ...), on top of the cause words;
 - an asked report's answer: two to four sentences checked against the facts it cites, and
   it must keep saying what the data does not show ("The data held does not show ...") when
   the rule answer does; refused, the rule answer (assembled from the question's facts)
@@ -152,7 +160,7 @@ paragraph, each exhibit title, each "what to watch" item) goes through the desk-
 A refused element falls back to the rule-written element (not the whole report); a plan that
 is not a JSON object leaves the rule plan. The report record stores the plan, the model id, the
 directive version, the temperature and each element's verdict, and the back matter says
-"Edited by the AI model … under directive v3 at temperature 0" or "Rule-edited".
+"Edited by the AI model … under directive v4 at temperature 0" or "Rule-edited".
 
 The editor runs at temperature 0 (`editor.EDITOR_CALL`), the provider's lowest, so the same
 fact sheet gives the same plan as nearly as the provider allows.

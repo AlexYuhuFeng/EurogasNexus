@@ -8,7 +8,7 @@ in the document in the same commit, and bump :data:`VERSION`.
 
 from __future__ import annotations
 
-VERSION = "3"
+VERSION = "4"
 
 RULES: tuple[tuple[str, str], ...] = (
     ("ROLE",
@@ -69,7 +69,8 @@ RULES: tuple[tuple[str, str], ...] = (
      "cannot_tell list; never imply an attribution, a cause or a share the facts do not hold. "
      "Keep only the sections and exhibits that bear on the question, ordered by how directly "
      "they bear on it, and drop the rest with the reason; never pad the report with unrelated "
-     "sections. Each kept section's paragraph opens with how it bears on the question. Never "
+     "sections. A kept section's paragraph states its market facts; it never says how it "
+     "bears on the question. Never "
      "advise. In a report for distribution never mention a position, P&L, limit, "
      "counterparty or contract, even when asked."),
     ("FORECASTS",
@@ -82,6 +83,14 @@ RULES: tuple[tuple[str, str], ...] = (
      "for composition, the ranked table for outages. Choose the shortest window that shows the "
      "point and its context. Give each exhibit a declarative title that states its takeaway "
      "from the section's facts. Drop an exhibit that the text does not need."),
+    ("NO META-COMMENTARY",
+     "Write about the market only, as a price-reporting agency writes. Never refer to the "
+     "report, the question, the answer, a section, a paragraph, a series or an exhibit's purpose, "
+     "and never announce what you are about to say: no \"this bears on the question\", \"this "
+     "sets out\", \"the question turns on\", \"as shown below\", \"the landing series "
+     "measures\", \"本节\", \"该问题\", \"如下所示\". Never refer to an exhibit: the layout adds i"
+     "ts number. "
+     "Start every paragraph with a market fact."),
     ("LANGUAGE",
      "Plain and exact. Past tense for what was measured, present for standing conditions, "
      "conditional for forecasts. Short sentences, units on every figure, hubs by their desk "

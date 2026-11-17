@@ -109,6 +109,20 @@ def redistributable_families(session, families: set[str], today) -> set[str]:
 
 
 def _title(plan: ReportPlan, now: datetime) -> str:
+    from eurogas_nexus.application.reports.lang import zh
+
+    if zh():
+        d = f"{now.year}年{now.month}月{now.day}日"
+        if plan.kind == "daily":
+            return f"西北欧天然气{'晨报' if plan.variant == 'morning' else '收盘报告'}，{d}"
+        if plan.kind == "weekly":
+            return (f"西北欧天然气周报，{plan.period_start.month}月{plan.period_start.day}日至"
+                    f"{plan.period_end.year}年{plan.period_end.month}月{plan.period_end.day}日")
+        if plan.kind == "monthly":
+            return f"西北欧天然气月报，{plan.period_start.year}年{plan.period_start.month}月"
+        if plan.kind == "situation":
+            return f"事件报告，{d} {now:%H:%M} UTC"
+        return f"专题报告，{d}"
     if plan.kind == "daily":
         word = "morning report" if plan.variant == "morning" else "end-of-day report"
         return f"NW Europe gas {word}, {now:%a %d %b %Y}"
@@ -122,7 +136,7 @@ def _title(plan: ReportPlan, now: datetime) -> str:
     return f"Asked report, {now:%d %b %Y}"
 
 
-def generate_report(
+def _generate_report(
     session,
     caller: Caller,
     raw_plan: dict[str, Any] | ReportPlan,
@@ -308,6 +322,20 @@ def generate_report(
         store_report(session, report, caller=caller, generated_by_type=generated_by_type,
                      trigger=trigger or {"type": "user"}, now=now)
     return report
+
+
+def generate_report(session, caller: Caller, raw_plan: dict[str, Any] | ReportPlan, *,
+                    language: str = "en", **kwargs) -> GeneratedReport:
+    """Build, render and (by default) store one report in ``language`` (English or Chinese:
+    every rule-written sentence, label and table head follows it). Raises ``PlanError`` or
+    ``ReportRefused``."""
+
+    from eurogas_nexus.application.reports.lang import writing
+
+    if isinstance(raw_plan, dict) and raw_plan.get("language"):
+        language = str(raw_plan["language"])
+    with writing(language):
+        return _generate_report(session, caller, raw_plan, language=language, **kwargs)
 
 
 def _issue_number(session, plan: ReportPlan) -> int:

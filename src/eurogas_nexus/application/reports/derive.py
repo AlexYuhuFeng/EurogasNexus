@@ -21,14 +21,9 @@ import re
 from datetime import date, timedelta
 
 from eurogas_nexus.application.reports import facts as F
+from eurogas_nexus.application.reports.commentary import _sim, number
 from eurogas_nexus.application.reports.commentary import day as fday
-from eurogas_nexus.application.reports.commentary import number
-
-SIM = " (simulated)"
-
-
-def _sim(flag: bool) -> str:
-    return SIM if flag else ""
+from eurogas_nexus.application.reports.lang import T, country, zh
 
 
 def _move(change: float | None, unit: str, digits: int | None = None) -> str:
@@ -37,17 +32,33 @@ def _move(change: float | None, unit: str, digits: int | None = None) -> str:
     return move(change, unit, digits)
 
 
-def _compare_clause(f: dict, *, day_word: str = "on the day") -> str:
+def _compare_clause(f: dict, *, day_word: str | None = None) -> str:
     """``down 0.17 EUR/MWh on the day and up 1.20 EUR/MWh on the week``."""
 
     c = f["comparisons"]
     unit = c["unit"]
     parts = []
+    if zh():
+        if c["day"] is not None:
+            parts.append(f"{day_word or '较前一日'}{_move(c['day'], unit)}")
+        if c["week"] is not None:
+            parts.append(f"较一周前{_move(c['week'], unit)}")
+        return "，".join(parts)
     if c["day"] is not None:
-        parts.append(f"{_move(c['day'], unit)} {day_word}")
+        parts.append(f"{_move(c['day'], unit)} {day_word or 'on the day'}")
     if c["week"] is not None:
         parts.append(f"{_move(c['week'], unit)} on the week")
     return " and ".join(parts)
+
+
+def _then(clause: str) -> str:
+    """The comma that joins a comparison clause to its sentence, in the report's language."""
+
+    return (f"，{clause}" if zh() else f", {clause}") if clause else ""
+
+
+def _end() -> str:
+    return "。" if zh() else "."
 
 
 def _year_clause(f: dict, what: str = "a year earlier") -> str | None:
@@ -55,11 +66,19 @@ def _year_clause(f: dict, what: str = "a year earlier") -> str | None:
     if c["year"] is None:
         return None
     unit = c["unit"]
+    if zh():
+        word = "高" if c["year"] > 0 else "低"
+        size = (f"{number(abs(c['year']), '', 1)}个百分点" if unit in {"points", "pts"}
+                else number(abs(c["year"]), unit))
+        return f"较{_ZH_WHAT.get(what, '一年前')}{word}{size}"
     if unit in {"points", "pts"}:
         word = "above" if c["year"] > 0 else "below"
         return f"{number(abs(c['year']), '', 1)} points {word} {what}"
     word = "above" if c["year"] > 0 else "below"
     return f"{number(abs(c['year']), unit)} {word} {what}"
+
+
+_ZH_WHAT = {"a year earlier": "一年前", "the same day a year earlier": "一年前同日"}
 
 
 def _period_days(ctx) -> int:
@@ -81,7 +100,7 @@ def _annex_from_series(caption: str, unit: str, series: dict[str, dict[date, flo
     days = sorted({d for s in series.values() for d in s if first <= d <= last}, reverse=True)
     rows = [{"day": F.iso(d), **{n: (round(series[n][d], 2) if d in series[n] else None)
                                  for n in names}} for d in days]
-    return F.table(f"{caption} ({unit})", [("day", "Day", "date")]
+    return F.table(f"{caption} ({unit})", [("day", T("Day", "日期"), "date")]
                    + [(n, n, "num") for n in names], rows)
 
 
@@ -116,22 +135,29 @@ def derive_prices(result, ctx) -> None:
             sentence="", headline="",
         )
         clause = _compare_clause(f)
-        f["sentence"] = (
+        f["sentence"] = T(
             f"{hub['hub']} {hub['product']} closed at "
-            f"{number(hub['close'], hub['unit'])}{_sim(sim)}"
-            f" on {fday(last)}" + (f", {clause}" if clause else "") + "."
-        )
-        f["headline"] = (f"{hub['hub']} {hub['product']} {_move(hub['day_change'], hub['unit'])} "
-                         f"at {number(hub['close'], hub['unit'])}{_sim(sim)}")
+            f"{number(hub['close'], hub['unit'])}{_sim(sim)} on {fday(last)}",
+            f"{hub['hub']} {hub['product']} {fday(last)}收于"
+            f"{number(hub['close'], hub['unit'])}{_sim(sim)}") + _then(clause) + _end()
+        f["headline"] = T(
+            f"{hub['hub']} {hub['product']} {_move(hub['day_change'], hub['unit'])} "
+            f"at {number(hub['close'], hub['unit'])}{_sim(sim)}",
+            f"{hub['hub']} {hub['product']}收于{number(hub['close'], hub['unit'])}{_sim(sim)}，"
+            f"日内{_move(hub['day_change'], hub['unit'])}")
         if variation:
             f["implications"].append(
-                "The move was within the range of its recent daily changes." if score < 1 else
-                "The move was larger than its typical daily change over the last 30 days."
+                T("The move was within the range of its recent daily changes.",
+                  "这一变动处于其近期日变动范围之内。") if score < 1 else
+                T("The move was larger than its typical daily change over the last 30 days.",
+                  "这一变动大于其近30天的典型日变动。")
             )
         if hub.get("rolled_from"):
-            f["implications"].insert(0, 
+            f["implications"].insert(0, T(
                 f"The front month rolled from {hub['rolled_from']} to {hub['product']} during "
-                "the period, so no change across the two contracts is given.")
+                "the period, so no change across the two contracts is given.",
+                f"近月合约在此期间由{hub['rolled_from']}换月至{hub['product']}，"
+                "因此不给出跨合约的变化。"))
         facts.append(f)
         by_unit.setdefault(hub["unit"], []).append(hub)
     # A spread only between hubs quoted in the same unit (no silent conversion).
@@ -145,9 +171,11 @@ def derive_prices(result, ctx) -> None:
                     f"spread.{other}-TTF", "prices", f"{other}–TTF spread", spread, "EUR/MWh",
                     day=F.iso(eur["TTF"]["close_day"]), state=eur["TTF"]["state"],
                     simulated=sim, score=0.2, reason="level only; no history weighed",
-                    sentence=f"The {other}–TTF front-month spread was "
-                             f"{number(spread, 'EUR/MWh')}{_sim(sim)} on "
-                             f"{fday(eur['TTF']['close_day'])}.",
+                    sentence=T(f"The {other}–TTF front-month spread was "
+                               f"{number(spread, 'EUR/MWh')}{_sim(sim)} on "
+                               f"{fday(eur['TTF']['close_day'])}.",
+                               f"{fday(eur['TTF']['close_day'])}{other}–TTF近月价差为"
+                               f"{number(spread, 'EUR/MWh')}{_sim(sim)}。"),
                     sources=[f"{other} closes", "TTF closes"],
                 ))
                 break
@@ -156,17 +184,20 @@ def derive_prices(result, ctx) -> None:
         lead = items[0]
         exhibits.append(F.exhibit(
             f"fig.prices.{unit}", "prices", "line",
-            title=(f"{lead['hub']} front month closed at {number(lead['close'], unit)}"
-                   f"{_sim(lead['simulated'])} on {fday(lead['close_day'])}"),
-            subtitle=f"Front-month daily closes, {unit}",
+            title=T(f"{lead['hub']} front month closed at {number(lead['close'], unit)}"
+                    f"{_sim(lead['simulated'])} on {fday(lead['close_day'])}",
+                    f"{lead['hub']}近月合约{fday(lead['close_day'])}收于"
+                    f"{number(lead['close'], unit)}{_sim(lead['simulated'])}"),
+            subtitle=T(f"Front-month daily closes, {unit}", f"近月合约每日收盘价，{unit}"),
             unit=unit,
             series=[{"name": h["hub"], "points": F.series_points(h["series"], longest, end)}
                     for h in items],
             types=("line", "step"), windows=permitted, window=window,
             simulated=any(h["simulated"] for h in items),
-            notes="The front month rolls at each month end; the line joins the contracts.",
+            notes=T("The front month rolls at each month end; the line joins the contracts.",
+                    "近月合约在每月月底换月；曲线连接相邻合约。"),
         ))
-        annex.append(_annex_from_series("Front-month closes", unit,
+        annex.append(_annex_from_series(T("Front-month closes", "近月收盘价"), unit,
                                         {h["hub"]: h["series"] for h in items},
                                         F.window_start(window, end), end))
     rows = [{"hub": h["hub"], "product": h["product"], "unit": h["unit"], "close": h["close"],
@@ -177,19 +208,23 @@ def derive_prices(result, ctx) -> None:
              "period_change": h.get("period_change"), "high": h.get("high"),
              "low": h.get("low"), "average": h.get("average")}
             for h in hubs[: F.BODY_ROWS]]
-    columns = [("hub", "Hub", "text"), ("product", "Contract", "text"), ("unit", "Unit", "text"),
-               ("close", "Close", "num"), ("day", "Day", "signed")]
+    columns = [("hub", T("Hub", "枢纽"), "text"), ("product", T("Contract", "合约"), "text"),
+               ("unit", T("Unit", "单位"), "text"), ("close", T("Close", "收盘"), "num"),
+               ("day", T("Day", "日变化"), "signed")]
     if ctx.period_label:
-        columns += [("period_change", "Period", "signed"), ("average", "Average", "num"),
-                    ("high", "High", "num"), ("low", "Low", "num")]
+        columns += [("period_change", T("Period", "期间变化"), "signed"),
+                    ("average", T("Average", "均值"), "num"), ("high", T("High", "最高"), "num"),
+                    ("low", T("Low", "最低"), "num")]
     else:
-        columns += [("week", "Week", "signed")]
-    columns.append(("year", "Year earlier", "num"))
+        columns += [("week", T("Week", "周变化"), "signed")]
+    columns.append(("year", T("Year earlier", "一年前"), "num"))
     result.tables = [F.table(
-        "Front-month closes", columns, rows,
-        source=F.DEMO_SOURCE if result.simulated else F.SOURCE_LINES["prices"],
-        notes="Day and week: change in the hub's own unit; year earlier: the front month's "
-              "close on the same day a year earlier (a different contract).")]
+        T("Front-month closes", "近月收盘价"), columns, rows,
+        source=F.source_line("prices", result.simulated),
+        notes=T("Day and week: change in the hub's own unit; year earlier: the front month's "
+                "close on the same day a year earlier (a different contract).",
+                "日变化与周变化以该枢纽的报价单位计；一年前为一年前同日近月合约的收盘价"
+                "（不同合约）。"))]
     result.facts, result.charts, result.annex = facts, exhibits, annex
     _prose(result, facts)
 
@@ -217,76 +252,99 @@ def derive_pipeline(result, ctx) -> None:
     if raw["state"] in {"late", "stale"}:
         score, reason = score * 0.7, reason + f"; reduced: data {raw['state']}"
     years = F.years_held(total, latest)
-    f = F.fact("landings", "pipeline_supply", "Norwegian pipeline landings", total[latest],
+    f = F.fact("landings", "pipeline_supply", T("Norwegian pipeline landings", "挪威管道到岸量"),
+               total[latest],
                "GWh/d", day=F.iso(latest), state=raw["state"], simulated=sim, dod=dod, wow=wow,
                yoy=yoy, years=years, score=score, reason=reason,
                spark=F.spark_of(total, latest), sources=["Physical flows at the landing points"],
                exhibits=["fig.landings.total", "fig.landings.split"], sentence="")
     clause = _compare_clause(f)
-    f["sentence"] = (f"Norwegian pipeline landings were {number(total[latest], 'GWh/d')}"
-                     f"{_sim(sim)} "
-                     f"on {fday(latest)}" + (f", {clause}" if clause else "") + ".")
-    f["headline"] = f"Norwegian landings {_move(dod, 'GWh/d')} at {number(total[latest], 'GWh/d')}"
+    f["sentence"] = T(f"Norwegian pipeline landings were {number(total[latest], 'GWh/d')}"
+                      f"{_sim(sim)} on {fday(latest)}",
+                      f"{fday(latest)}挪威管道到岸量为{number(total[latest], 'GWh/d')}"
+                      f"{_sim(sim)}") + _then(clause) + _end()
+    f["headline"] = T(f"Norwegian landings {_move(dod, 'GWh/d')} at "
+                      f"{number(total[latest], 'GWh/d')}",
+                      f"挪威到岸量{number(total[latest], 'GWh/d')}，日内{_move(dod, 'GWh/d')}")
     year = _year_clause(f, "the same day a year earlier")
     if year:
-        f["implications"].append(f"Flows were {year}.")
+        f["implications"].append(T(f"Flows were {year}.", f"流量{year}。"))
     facts = [f]
     if latest in norway and latest in uk:
         facts.append(F.fact(
-            "landings.split", "pipeline_supply", "Landings by scope", norway[latest], "GWh/d",
+            "landings.split", "pipeline_supply", T("Landings by scope", "按到岸范围"),
+            norway[latest], "GWh/d",
             day=F.iso(latest), state=raw["state"], simulated=sim, indicator=False,
             score=0.1, reason="composition",
-            sentence=(f"Continental terminals took {number(norway[latest], 'GWh/d')} and UK "
-                      f"terminals, which also land UK shelf gas, "
-                      f"{number(uk[latest], 'GWh/d')}{_sim(sim)}."),
+            sentence=T(f"Continental terminals took {number(norway[latest], 'GWh/d')} and UK "
+                       f"terminals, which also land UK shelf gas, "
+                       f"{number(uk[latest], 'GWh/d')}{_sim(sim)}.",
+                       f"欧洲大陆终端接收{number(norway[latest], 'GWh/d')}，英国终端（同时接收英国"
+                       f"大陆架天然气）接收{number(uk[latest], 'GWh/d')}{_sim(sim)}。"),
             sources=["Physical flows at the landing points"]))
     if ctx.period_label and raw.get("period_avg") is not None:
         facts.append(F.fact(
-            "landings.period", "pipeline_supply", "Landings, period average", raw["period_avg"],
+            "landings.period", "pipeline_supply", T("Landings, period average", "到岸量，期间均值"),
+            raw["period_avg"],
             "GWh/d", day=F.iso(latest), state=raw["state"], simulated=sim, indicator=False,
             score=score + 0.1, reason="period aggregate",
-            sentence=(f"Over {raw['period_label']} landings averaged "
-                      f"{number(raw['period_avg'], 'GWh/d')}{_sim(sim)}"
-                      + (f", {_move(raw['period_avg'] - raw['previous_avg'], 'GWh/d')} on the "
-                         "period before" if raw.get("previous_avg") is not None else "") + ".")))
+            sentence=T(f"Over {raw['period_label']} landings averaged "
+                       f"{number(raw['period_avg'], 'GWh/d')}{_sim(sim)}"
+                       + (f", {_move(raw['period_avg'] - raw['previous_avg'], 'GWh/d')} on the "
+                          "period before" if raw.get("previous_avg") is not None else "") + ".",
+                       f"期间内到岸量平均为{number(raw['period_avg'], 'GWh/d')}{_sim(sim)}"
+                       + (f"，较上一期间{_move(raw['period_avg'] - raw['previous_avg'], 'GWh/d')}"
+                          if raw.get("previous_avg") is not None else "") + "。")))
     window, permitted = _windows(ctx, "flow")
     longest = end - timedelta(days=394)
     context = F.shifted_year(total, longest, end)
     exhibits = [
         F.exhibit("fig.landings.total", "pipeline_supply", "line",
-                  title=f"Landings {_move(dod, 'GWh/d')} to {number(total[latest], 'GWh/d')}"
-                        f"{_sim(sim)} on {fday(latest)}",
-                  subtitle="Norwegian pipeline landings, GWh/d, against the same days a year "
-                           "earlier" + (f" ({years} prior year held)" if years else ""),
+                  title=T(f"Landings {_move(dod, 'GWh/d')} to {number(total[latest], 'GWh/d')}"
+                          f"{_sim(sim)} on {fday(latest)}",
+                          f"{fday(latest)}到岸量为{number(total[latest], 'GWh/d')}{_sim(sim)}，"
+                          f"日内{_move(dod, 'GWh/d')}"),
+                  subtitle=T("Norwegian pipeline landings, GWh/d, against the same days a year "
+                             "earlier" + (f" ({years} prior year held)" if years else ""),
+                             "挪威管道到岸量，GWh/d，对比一年前同期"
+                             + (f"（持有{years}年历史）" if years else "")),
                   unit="GWh/d",
-                  series=[{"name": "This year", "points": F.series_points(total, longest, end)}]
-                  + ([{"name": "Year earlier", "points": context, "context": True}]
+                  series=[{"name": T("This year", "今年"),
+                           "points": F.series_points(total, longest, end)}]
+                  + ([{"name": T("Year earlier", "一年前"), "points": context, "context": True}]
                      if context else []),
                   types=("line",), windows=permitted, window=window, simulated=sim, half=True),
         F.exhibit("fig.landings.split", "pipeline_supply", "stacked_area",
-                  title="Continental terminals take most of the gas",
-                  subtitle="Landings by terminal scope, GWh/d",
+                  title=T("Continental terminals take most of the gas",
+                          "欧洲大陆终端接收大部分天然气"),
+                  subtitle=T("Landings by terminal scope, GWh/d", "按终端范围的到岸量，GWh/d"),
                   unit="GWh/d",
-                  series=[{"name": "Continental", "points": F.series_points(norway, longest, end)},
-                          {"name": "UK terminals", "points": F.series_points(uk, longest, end)}],
+                  series=[{"name": T("Continental", "欧洲大陆"),
+                           "points": F.series_points(norway, longest, end)},
+                          {"name": T("UK terminals", "英国终端"),
+                           "points": F.series_points(uk, longest, end)}],
                   types=("stacked_area", "stacked_bar"), windows=permitted, window=window,
                   simulated=sim, half=True,
-                  notes="UK terminals carry UK shelf gas with Norwegian gas."),
+                  notes=T("UK terminals carry UK shelf gas with Norwegian gas.",
+                          "英国终端同时接收英国大陆架天然气与挪威天然气。")),
     ]
     if latest in norway and latest in uk and norway[latest] < uk[latest]:
-        exhibits[1]["title"] = "UK terminals take more gas than the continental terminals"
+        exhibits[1]["title"] = T("UK terminals take more gas than the continental terminals",
+                                 "英国终端接收的天然气多于欧洲大陆终端")
     days = [d for d in sorted(total, reverse=True) if d <= end][:7]
     result.tables = [F.table(
-        "Landings, last seven complete gas days (GWh/d)",
-        [("day", "Gas day", "date"), ("continent", "Continental", "num"),
-         ("uk", "UK terminals", "num"), ("total", "Total", "num")],
+        T("Landings, last seven complete gas days (GWh/d)", "到岸量，最近七个完整气日（GWh/d）"),
+        [("day", T("Gas day", "气日"), "date"), ("continent", T("Continental", "欧洲大陆"), "num"),
+         ("uk", T("UK terminals", "英国终端"), "num"), ("total", T("Total", "合计"), "num")],
         [{"day": F.iso(d), "continent": round(norway.get(d, 0.0), 1),
           "uk": round(uk.get(d, 0.0), 1), "total": round(total[d], 1), "simulated": sim}
          for d in days],
-        source=F.DEMO_SOURCE if sim else F.SOURCE_LINES["pipeline_supply"])]
-    result.annex = [_annex_from_series("Norwegian landings", "GWh/d",
-                                       {"Continental": norway, "UK terminals": uk,
-                                        "Total": total}, F.window_start(window, end), end)]
+        source=F.source_line("pipeline_supply", sim))]
+    result.annex = [_annex_from_series(T("Norwegian landings", "挪威到岸量"), "GWh/d",
+                                       {T("Continental", "欧洲大陆"): norway,
+                                        T("UK terminals", "英国终端"): uk,
+                                        T("Total", "合计"): total},
+                                       F.window_start(window, end), end)]
     result.facts, result.charts = facts, exhibits
     _prose(result, facts)
 
@@ -309,40 +367,53 @@ def derive_lng(result, ctx) -> None:
     if raw["state"] in {"late", "stale"}:
         score, reason = score * 0.7, reason + f"; reduced: data {raw['state']}"
     years = F.years_held(total, latest)
-    f = F.fact("lng", "lng", "LNG send-out", total[latest], "GWh/d", day=F.iso(latest),
+    f = F.fact("lng", "lng", T("LNG send-out", "LNG 气化外输"), total[latest], "GWh/d",
+               day=F.iso(latest),
                state=raw["state"], simulated=sim, dod=dod, wow=wow, yoy=yoy, years=years,
                score=score, reason=reason, spark=F.spark_of(total, latest),
                sources=["LNG send-out"], exhibits=["fig.lng.country"], sentence="")
     clause = _compare_clause(f)
-    f["sentence"] = (f"LNG send-out across NW Europe was {number(total[latest], 'GWh/d')}"
-                     f"{_sim(sim)} on {fday(latest)}" + (f", {clause}" if clause else "") + ".")
-    f["headline"] = f"LNG send-out {_move(dod, 'GWh/d')} at {number(total[latest], 'GWh/d')}"
+    f["sentence"] = T(f"LNG send-out across NW Europe was {number(total[latest], 'GWh/d')}"
+                      f"{_sim(sim)} on {fday(latest)}",
+                      f"{fday(latest)}西北欧 LNG 气化外输量为{number(total[latest], 'GWh/d')}"
+                      f"{_sim(sim)}") + _then(clause) + _end()
+    f["headline"] = T(f"LNG send-out {_move(dod, 'GWh/d')} at {number(total[latest], 'GWh/d')}",
+                      f"LNG 外输{number(total[latest], 'GWh/d')}，日内{_move(dod, 'GWh/d')}")
     year = _year_clause(f, "the same day a year earlier")
     if year:
-        f["implications"].append(f"Send-out was {year}.")
+        f["implications"].append(T(f"Send-out was {year}.", f"外输量{year}。"))
     facts = [f]
     top = sorted(by_day[latest].items(), key=lambda kv: -kv[1])
     if top:
-        facts.append(F.fact("lng.top", "lng", f"LNG send-out, {top[0][0]}", top[0][1], "GWh/d",
+        facts.append(F.fact("lng.top", "lng", T(f"LNG send-out, {country(top[0][0])}",
+                                                f"LNG 外输，{country(top[0][0])}"),
+                            top[0][1], "GWh/d",
                             day=F.iso(latest), state=raw["state"], simulated=sim,
                             indicator=False, score=0.1, reason="composition",
-                            sentence=f"{top[0][0]} terminals sent out the most, "
-                                     f"{number(top[0][1], 'GWh/d')}{_sim(sim)}.",
+                            sentence=T(f"{country(top[0][0])} terminals sent out "
+                                       f"{number(top[0][1], 'GWh/d')}{_sim(sim)}, the most of "
+                                       "any country.",
+                                       f"{country(top[0][0])}终端外输{number(top[0][1], 'GWh/d')}"
+                                       f"{_sim(sim)}，为各国之首。"),
                             sources=["LNG send-out"]))
     if raw.get("left_out"):
-        facts.append(F.fact("lng.partial", "lng", "LNG days left out", None, "", day=F.iso(latest),
+        left = ", ".join(fday(d) for d in raw["left_out"][:3])
+        facts.append(F.fact("lng.partial", "lng", T("LNG days left out", "未计入的 LNG 日"), None,
+                            "", day=F.iso(latest),
                             state="late", indicator=False, score=0.05, reason="data note",
-                            sentence="Days not yet reported by every country ("
-                                     + ", ".join(fday(d) for d in raw["left_out"][:3])
-                                     + ") are left out."))
+                            sentence=T(f"Days not yet reported by every country ({left}) are "
+                                       "left out.", f"尚未由所有国家报告的日期（{left}）未计入。")))
     window, permitted = _windows(ctx, "flow")
     longest = end - timedelta(days=394)
     countries = [c for c, _ in top] or sorted({c for d in by_day for c in by_day[d]})
     days_all = sorted(d for d in by_day if longest <= d <= end and d in total)
     exhibits = [F.exhibit(
         "fig.lng.country", "lng", "stacked_bar",
-        title=f"{top[0][0]} led NW Europe send-out on {fday(latest)}" if top else "LNG send-out",
-        subtitle="LNG send-out by country, GWh/d", unit="GWh/d",
+        title=(T(f"{country(top[0][0])} terminals led NW Europe send-out on {fday(latest)}",
+                 f"{fday(latest)}{country(top[0][0])}终端领先西北欧外输") if top
+               else T("LNG send-out", "LNG 气化外输")),
+        subtitle=T("LNG send-out by country, GWh/d", "按国家的 LNG 气化外输，GWh/d"),
+        unit="GWh/d",
         series=[{"name": c, "points": [[F.iso(d), round(by_day[d].get(c, 0.0), 1)]
                                        for d in days_all]} for c in countries],
         types=("stacked_bar", "stacked_area"), windows=permitted, window=window,
@@ -350,21 +421,24 @@ def derive_lng(result, ctx) -> None:
     context = F.shifted_year(total, longest, end)
     exhibits.append(F.exhibit(
         "fig.lng.total", "lng", "line",
-        title=(f"Send-out {('above' if (yoy or 0) > 0 else 'below')} the same days a year "
-               "earlier") if yoy is not None else "LNG send-out over the window",
-        subtitle="LNG send-out, NW Europe total, GWh/d"
-                 + (f"; context: {years} prior year held" if years else ""),
+        title=(T(f"Send-out {('above' if (yoy or 0) > 0 else 'below')} the same days a year "
+                 "earlier", f"外输量{'高于' if (yoy or 0) > 0 else '低于'}一年前同期")
+               if yoy is not None else T("LNG send-out over the window", "期间内 LNG 外输")),
+        subtitle=T("LNG send-out, NW Europe total, GWh/d"
+                   + (f"; context: {years} prior year held" if years else ""),
+                   "西北欧 LNG 外输合计，GWh/d" + (f"；对照：持有{years}年历史" if years else "")),
         unit="GWh/d",
-        series=[{"name": "This year", "points": F.series_points(total, longest, end)}]
-        + ([{"name": "Year earlier", "points": context, "context": True}] if context else []),
+        series=[{"name": T("This year", "今年"), "points": F.series_points(total, longest, end)}]
+        + ([{"name": T("Year earlier", "一年前"), "points": context, "context": True}]
+           if context else []),
         types=("line",), windows=permitted, window=window, simulated=sim, half=True))
     result.tables = [F.table(
-        f"Send-out by country on {fday(latest)} (GWh/d)",
-        [("country", "Country", "text"), ("value", "Send-out", "num")],
+        T(f"Send-out by country on {fday(latest)} (GWh/d)", f"{fday(latest)}按国家外输（GWh/d）"),
+        [("country", T("Country", "国家"), "text"), ("value", T("Send-out", "外输"), "num")],
         [{"country": c, "value": round(v, 1), "simulated": sim} for c, v in top[: F.BODY_ROWS]],
-        source=F.DEMO_SOURCE if sim else F.SOURCE_LINES["lng"])]
+        source=F.source_line("lng", sim))]
     result.annex = [_annex_from_series(
-        "LNG send-out by country", "GWh/d",
+        T("LNG send-out by country", "按国家的 LNG 外输"), "GWh/d",
         {c: {d: by_day[d].get(c, 0.0) for d in days_all} for c in countries},
         F.window_start(window, end), end)]
     result.facts, result.charts = facts, exhibits
@@ -389,35 +463,52 @@ def derive_storage(result, ctx) -> None:
     if yoy is not None and abs(yoy) / 5 > score:
         score, reason = round(abs(yoy) / 5, 2), f"{abs(yoy):.1f} points from a year earlier " \
                                                 "(5 points weighs 1)"
-    f = F.fact("storage.fill", "storage", "NW Europe storage fill", fill[latest], "%",
+    f = F.fact("storage.fill", "storage", T("NW Europe storage fill", "西北欧储气率"), fill[latest],
+               "%",
                day=F.iso(latest), state=raw["state"], simulated=sim, dod=dod, wow=wow, yoy=yoy,
                change_unit="points", years=1 if yoy is not None else 0, score=score,
                reason=reason, spark=F.spark_of(fill, latest), sources=["Storage inventory"],
                exhibits=["fig.storage.season"], sentence="")
     year = _year_clause(f, "a year earlier")
-    week = (f", having {'risen' if wow > 0 else 'fallen'} {number(abs(wow), '', 1)} points in "
-            "seven days") if wow is not None and abs(wow) >= 0.05 else ""
-    f["sentence"] = (f"NW Europe storage was {number(fill[latest], '%')} full{_sim(sim)} on "
-                     f"{fday(latest)}" + (f", {year}" if year else "") + week + ".")
-    f["headline"] = (f"Storage {number(fill[latest], '%')} full, "
-                     + (year if year else "no year-earlier comparison held"))
+    moved = wow is not None and abs(wow) >= 0.05
+    if zh():
+        week = (f"，七天内{'上升' if wow > 0 else '下降'}{number(abs(wow), '', 1)}个百分点"
+                if moved else "")
+        f["sentence"] = (f"{fday(latest)}西北欧储气率为{number(fill[latest], '%')}{_sim(sim)}"
+                         + (f"，{year}" if year else "") + week + "。")
+        f["headline"] = (f"储气率{number(fill[latest], '%')}，"
+                         + (year if year else "无一年前可比数据"))
+    else:
+        week = (f", having {'risen' if wow > 0 else 'fallen'} {number(abs(wow), '', 1)} points "
+                "in seven days") if moved else ""
+        f["sentence"] = (f"NW Europe storage was {number(fill[latest], '%')} full{_sim(sim)} on "
+                         f"{fday(latest)}" + (f", {year}" if year else "") + week + ".")
+        f["headline"] = (f"Storage {number(fill[latest], '%')} full, "
+                         + (year if year else "no year-earlier comparison held"))
     if yoy is not None:
         f["implications"].append(
-            "Stocks are lower than a year earlier at this point of the season." if yoy < 0 else
-            "Stocks are higher than a year earlier at this point of the season.")
+            T("Stocks are lower than a year earlier at this point of the season.",
+              "库存低于一年前同期水平。") if yoy < 0 else
+            T("Stocks are higher than a year earlier at this point of the season.",
+              "库存高于一年前同期水平。"))
     facts = [f]
     if raw.get("inventory") is not None:
-        facts.append(F.fact("storage.inventory", "storage", "Storage inventory",
+        inv = number(raw["inventory"], "TWh", 1)
+        facts.append(F.fact("storage.inventory", "storage", T("Storage inventory", "储气库存"),
                             raw["inventory"], "TWh", day=F.iso(latest), state=raw["state"],
                             simulated=sim, indicator=False, score=0.1, reason="level",
-                            sentence=f"That is {number(raw['inventory'], 'TWh', 1)}{_sim(sim)} in "
-                                     "the facilities that publish a working capacity.",
+                            sentence=T(f"Facilities that publish a working capacity held "
+                                       f"{inv}{_sim(sim)}.",
+                                       f"公布工作容量的储气设施共持有{inv}{_sim(sim)}。"),
                             sources=["Storage inventory"]))
     if raw.get("target"):
-        facts.append(F.fact("storage.target", "storage", "EU filling target", raw["target"], "%",
+        tgt = number(raw["target"], "%", 0)
+        facts.append(F.fact("storage.target", "storage", T("EU filling target", "欧盟充注目标"),
+                            raw["target"], "%",
                             day=F.iso(latest), state="current", indicator=False, score=0.05,
                             reason="reference",
-                            sentence=f"The EU filling target is {number(raw['target'], '%', 0)}."))
+                            sentence=T(f"The EU filling target is {tgt}.", f"欧盟充注目标为{tgt}"
+                                                                           f"。")))
     window, permitted = _windows(ctx, "storage")
     first = F.window_start("gas_year", end) - timedelta(days=90)
     gas_year = F.window_start("gas_year", end)
@@ -425,28 +516,33 @@ def derive_storage(result, ctx) -> None:
     label_prev = f"{gas_year.year - 1}/{str(gas_year.year)[2:]}"
     exhibits = [F.exhibit(
         "fig.storage.season", "storage", "line",
-        title=(f"Storage {number(fill[latest], '%')} full{_sim(sim)}, "
-               + (year if year else "no year-earlier comparison held")),
-        subtitle=f"NW Europe storage fill, % of working capacity; gas year {label_now} against "
-                 f"{label_prev} (one prior year held)",
+        title=T(f"Storage {number(fill[latest], '%')} full{_sim(sim)}, "
+                + (year if year else "no year-earlier comparison held"),
+                f"储气率{number(fill[latest], '%')}{_sim(sim)}，"
+                + (year if year else "无一年前可比数据")),
+        subtitle=T(f"NW Europe storage fill, % of working capacity; gas year {label_now} against "
+                   f"{label_prev} (one prior year held)",
+                   f"西北欧储气率，占工作容量百分比；{label_now}气年对比{label_prev}（持有一年历史）"),
         unit="%",
         series=[{"name": label_now, "points": F.series_points(fill, first, end)},
                 {"name": label_prev, "points": F.series_points(prev, first, end),
                  "context": True}],
         types=("line",), windows=permitted, window=window, simulated=sim,
-        reference_lines=[{"label": f"EU target {raw['target']:.0f}%", "value": raw["target"]}]
+        reference_lines=[{"label": T(f"EU target {raw['target']:.0f}%",
+                                     f"欧盟目标 {raw['target']:.0f}%"), "value": raw["target"]}]
         if raw.get("target") else [],
-        notes="The prior gas year is placed on this year's dates.")]
+        notes=T("The prior gas year is placed on this year's dates.", "上一气年按今年日期对齐。"))]
     days = [d for d in sorted(fill, reverse=True) if d <= end][:7]
     result.tables = [F.table(
-        "Storage fill, last seven gas days (%)",
-        [("day", "Gas day", "date"), ("fill", "Fill", "num"), ("prev", "Year earlier", "num"),
-         ("diff", "Difference (points)", "signed")],
+        T("Storage fill, last seven gas days (%)", "储气率，最近七个气日（%）"),
+        [("day", T("Gas day", "气日"), "date"), ("fill", T("Fill", "储气率"), "num"),
+         ("prev", T("Year earlier", "一年前"), "num"),
+         ("diff", T("Difference (points)", "差值（百分点）"), "signed")],
         [{"day": F.iso(d), "fill": fill[d], "prev": prev.get(d),
           "diff": None if d not in prev else round(fill[d] - prev[d], 2), "simulated": sim}
          for d in days],
-        source=F.DEMO_SOURCE if sim else F.SOURCE_LINES["storage"])]
-    result.annex = [_annex_from_series("Storage fill", "%", {label_now: fill,
+        source=F.source_line("storage", sim))]
+    result.annex = [_annex_from_series(T("Storage fill", "储气率"), "%", {label_now: fill,
                                                            label_prev: prev},
                                        F.window_start("gas_year", end), end)]
     result.facts, result.charts = facts, exhibits
@@ -474,27 +570,33 @@ def derive_power(result, ctx) -> None:
     score, reason = F.materiality(dod, F.recent_variation(total, latest))
     if raw["state"] in {"late", "stale"}:
         score, reason = score * 0.7, reason + f"; reduced: data {raw['state']}"
-    f = F.fact("power.gen", "power_burn", "Gas-fired generation", total[latest], "GWh/d",
+    f = F.fact("power.gen", "power_burn", T("Gas-fired generation", "燃气发电量"), total[latest],
+               "GWh/d",
                day=F.iso(latest), state=raw["state"], simulated=sim, dod=dod, wow=wow,
                score=score, reason=reason, spark=F.spark_of(total, latest),
                sources=["Generation by fuel (gas)"], exhibits=["fig.power.zone"], sentence="")
     clause = _compare_clause(f)
-    f["sentence"] = (f"Gas-fired plants generated {number(total[latest], 'GWh/d')} of "
-                     f"electricity{_sim(sim)} on {fday(latest)}"
-                     + (f", {clause}" if clause else "") + ".")
-    f["headline"] = (f"Gas-fired generation {_move(dod, 'GWh/d')} at "
-                     f"{number(total[latest], 'GWh/d')}")
+    f["sentence"] = T(f"Gas-fired plants generated {number(total[latest], 'GWh/d')} of "
+                      f"electricity{_sim(sim)} on {fday(latest)}",
+                      f"{fday(latest)}燃气电厂发电{number(total[latest], 'GWh/d')}{_sim(sim)}"
+                      ) + _then(clause) + _end()
+    f["headline"] = T(f"Gas-fired generation {_move(dod, 'GWh/d')} at "
+                      f"{number(total[latest], 'GWh/d')}",
+                      f"燃气发电{number(total[latest], 'GWh/d')}，日内{_move(dod, 'GWh/d')}")
     burn = {d: implied_gas_burn_mwh_th(SystemHour(load_mw=0.0, gas_generation_mw=v * 1000 / 24),
                                        hours=24.0, efficiency=GAS_EFFICIENCY)[0] / 1000
             for d, v in total.items()}
     facts = [f, F.fact(
-        "power.burn", "power_burn", "Implied gas burn for power", burn[latest], "GWh/d",
+        "power.burn", "power_burn", T("Implied gas burn for power", "发电隐含燃气消耗"),
+        burn[latest], "GWh/d",
         day=F.iso(latest), state=raw["state"], simulated=sim,
         dod=F.change_at(burn, latest, 1), wow=F.change_at(burn, latest, 7), score=score * 0.5,
         reason="derived from generation at a stated efficiency",
-        sentence=(f"At the {GAS_EFFICIENCY:.0%} plant efficiency the gas-for-power read assumes, "
-                  f"that implies about {number(burn[latest], 'GWh/d')} of gas burned"
-                  f"{_sim(sim)} (implied, not measured)."),
+        sentence=T(f"At an assumed {GAS_EFFICIENCY:.0%} plant efficiency, that output implies "
+                   f"about {number(burn[latest], 'GWh/d')} of gas burn{_sim(sim)}, an estimate "
+                   "rather than a measurement.",
+                   f"按{GAS_EFFICIENCY:.0%}的假定电厂效率，该发电量对应约"
+                   f"{number(burn[latest], 'GWh/d')}的燃气消耗{_sim(sim)}，为估算值而非实测。"),
         spark=F.spark_of(burn, latest), sources=["Generation by fuel (gas)"])]
     window, permitted = _windows(ctx, "flow")
     longest = end - timedelta(days=394)
@@ -502,25 +604,31 @@ def derive_power(result, ctx) -> None:
     days_all = sorted(d for d in by_zone if longest <= d <= end and d in total)
     exhibits = [F.exhibit(
         "fig.power.zone", "power_burn", "stacked_bar",
-        title=f"Gas-fired output {_move(dod, 'GWh/d')} to {number(total[latest], 'GWh/d')}"
-              f"{_sim(sim)}",
-        subtitle="Electricity generated from gas by bidding zone, GWh/d (UTC days)",
+        title=T(f"Gas-fired output {_move(dod, 'GWh/d')} to {number(total[latest], 'GWh/d')}"
+                f"{_sim(sim)}",
+                f"燃气发电{number(total[latest], 'GWh/d')}{_sim(sim)}，日内{_move(dod, 'GWh/d')}"),
+        subtitle=T("Electricity generated from gas by bidding zone, GWh/d (UTC days)",
+                   "按竞价区的燃气发电量，GWh/d（UTC 日）"),
         unit="GWh/d",
         series=[{"name": z, "points": [[F.iso(d), round(by_zone[d].get(z, 0.0), 1)]
                                        for d in days_all]} for z in zones],
         types=("stacked_bar", "stacked_area"), windows=permitted, window=window, simulated=sim,
-        notes=f"Implied gas burn = generation / {GAS_EFFICIENCY:.0%} efficiency; not measured.")]
+        notes=T(f"Implied gas burn = generation / {GAS_EFFICIENCY:.0%} efficiency; not measured.",
+                f"隐含燃气消耗 = 发电量 / {GAS_EFFICIENCY:.0%} 效率；非实测。"))]
     top = sorted(by_zone[latest].items(), key=lambda kv: -kv[1])
     result.tables = [F.table(
-        f"Gas-fired generation and implied burn on {fday(latest)} (GWh/d)",
-        [("zone", "Zone", "text"), ("gen", "Generation", "num"),
-         ("burn", "Implied gas burn", "num")],
+        T(f"Gas-fired generation and implied burn on {fday(latest)} (GWh/d)",
+          f"{fday(latest)}燃气发电量与隐含消耗（GWh/d）"),
+        [("zone", T("Zone", "区域"), "text"), ("gen", T("Generation", "发电量"), "num"),
+         ("burn", T("Implied gas burn", "隐含燃气消耗"), "num")],
         [{"zone": z, "gen": round(v, 1), "burn": round(v / GAS_EFFICIENCY, 1), "simulated": sim}
          for z, v in top[: F.BODY_ROWS]],
-        source=F.DEMO_SOURCE if sim else F.SOURCE_LINES["power_burn"],
-        notes=f"Implied burn assumes {GAS_EFFICIENCY:.0%} efficiency.")]
-    result.annex = [_annex_from_series("Gas-fired generation", "GWh/d",
-                                       {"Generation": total, "Implied burn": burn},
+        source=F.source_line("power_burn", sim),
+        notes=T(f"Implied burn assumes {GAS_EFFICIENCY:.0%} efficiency.",
+                f"隐含消耗按{GAS_EFFICIENCY:.0%}效率计算。"))]
+    result.annex = [_annex_from_series(T("Gas-fired generation", "燃气发电量"), "GWh/d",
+                                       {T("Generation", "发电量"): total,
+                                        T("Implied burn", "隐含消耗"): burn},
                                        F.window_start(window, end), end)]
     result.facts, result.charts = facts, exhibits
     _prose(result, facts)
@@ -554,80 +662,116 @@ def derive_outages(result, ctx) -> None:
                                                       else " outage was"))
     detail = ""
     if largest is not None and count > 1:
-        until = f" until {fday(largest['end'])}" if largest.get("end") else ""
-        detail = (f"; the largest, {largest['facility']}{_zone(largest)}, "
-                  f"has {number(largest['gwh'], 'GWh/d')} unavailable{until}")
+        if zh():
+            until = f"，至{fday(largest['end'])}" if largest.get("end") else ""
+            detail = (f"；其中最大一处为{largest['facility']}{_zone(largest)}，"
+                      f"不可用{number(largest['gwh'], 'GWh/d')}{until}")
+        else:
+            until = f" until {fday(largest['end'])}" if largest.get("end") else ""
+            detail = (f"; the largest, {largest['facility']}{_zone(largest)}, "
+                      f"has {number(largest['gwh'], 'GWh/d')} unavailable{until}")
     facts.append(F.fact(
-        "outages.offline", "outages", "Capacity offline (REMIT)", offline, "GWh/d",
+        "outages.offline", "outages", T("Capacity offline (REMIT)", "停运容量（REMIT）"), offline,
+        "GWh/d",
         # Capacity offline is weighed on the same scale as one outage (10 x its share of the
         # latest Norwegian landings): 5% of landings offline weighs as much as a move of half
         # a standard deviation, 15% outweighs a routine one-day change in storage withdrawal.
         day=F.iso(ctx.today), state=raw["state"], simulated=sim,
         score=round(min(offline / landings * 10, 6.0), 2),
         reason=f"{offline / landings:.0%} of the latest Norwegian landings offline",
-        sentence=(f"{counted} active on {fday(ctx.today)}, removing "
-                  f"{number(offline, 'GWh/d')} in total{_sim(sim)}{detail}."),
-        headline=(f"Outages remove {number(offline, 'GWh/d')}"
-                  + (f", {number(largest['gwh'], 'GWh/d')} of it at {largest['facility']}"
-                     if largest is not None and count > 1 else "")),
+        sentence=T(f"{counted} active on {fday(ctx.today)}, removing "
+                   f"{number(offline, 'GWh/d')} in total{_sim(sim)}{detail}.",
+                   f"{fday(ctx.today)}有{count}处停运处于活跃状态，合计减少"
+                   f"{number(offline, 'GWh/d')}{_sim(sim)}{detail}。"),
+        headline=T(f"Outages remove {number(offline, 'GWh/d')}"
+                   + (f", {number(largest['gwh'], 'GWh/d')} of it at {largest['facility']}"
+                      if largest is not None and count > 1 else ""),
+                   f"停运减少{number(offline, 'GWh/d')}"
+                   + (f"，其中{largest['facility']}占{number(largest['gwh'], 'GWh/d')}"
+                      if largest is not None and count > 1 else "")),
         sources=["REMIT urgent market messages"], exhibits=["tab.outages"]))
     for index, r in enumerate(sorted(active, key=lambda r: -r["gwh"])[:3], start=1):
-        until = f"until {fday(r['end'])}" if r.get("end") else "with no end date"
+        if zh():
+            until = f"至{fday(r['end'])}" if r.get("end") else "未给出结束日期"
+        else:
+            until = f"until {fday(r['end'])}" if r.get("end") else "with no end date"
         facts.append(F.fact(
-            f"outage.{index}", "outages", f"Outage: {r['facility']}", r["gwh"], "GWh/d",
+            f"outage.{index}", "outages", T(f"Outage: {r['facility']}", f"停运：{r['facility']}"),
+            r["gwh"], "GWh/d",
             day=F.iso(r["start"][:10]), state=raw["state"], simulated=sim, indicator=False,
             score=min(r["gwh"] / landings * 10, 6.0),
             reason=f"{r['gwh'] / landings:.0%} of the latest Norwegian landings offline",
-            sentence=(f"{r['facility']}{_zone(r)} has "
-                      f"{number(r['gwh'], 'GWh/d')} unavailable{_sim(sim)} since "
-                      f"{fday(r['start'])}, {until}."),
-            headline=f"{r['facility']} outage removes {number(r['gwh'], 'GWh/d')}",
+            sentence=T(f"{r['facility']}{_zone(r)} has "
+                       f"{number(r['gwh'], 'GWh/d')} unavailable{_sim(sim)} since "
+                       f"{fday(r['start'])}, {until}.",
+                       f"{r['facility']}{_zone(r)}自{fday(r['start'])}起不可用"
+                       f"{number(r['gwh'], 'GWh/d')}{_sim(sim)}，{until}。"),
+            headline=T(f"{r['facility']} outage removes {number(r['gwh'], 'GWh/d')}",
+                       f"{r['facility']}停运减少{number(r['gwh'], 'GWh/d')}"),
             sources=["REMIT urgent market messages"]))
     starting = sorted([r for r in rows if r["status"] == "scheduled" and r["gwh"]],
                       key=lambda r: r["start"])[:3]
     for index, r in enumerate(starting, start=1):
         facts.append(F.fact(
-            f"outage.next.{index}", "outages", f"Scheduled: {r['facility']}", r["gwh"], "GWh/d",
+            f"outage.next.{index}", "outages",
+            T(f"Scheduled: {r['facility']}", f"计划停运：{r['facility']}"), r["gwh"], "GWh/d",
             day=F.iso(r["start"][:10]), state=raw["state"], simulated=sim, indicator=False,
             scheduled=True, score=min(r["gwh"] / landings * 3, 2.0), reason="scheduled event",
-            sentence=(f"{r['facility']} is scheduled to lose {number(r['gwh'], 'GWh/d')}"
-                      f"{_sim(sim)} from {fday(r['start'])}"
-                      + (f" to {fday(r['end'])}" if r.get("end") else "") + "."),
+            sentence=T(f"{r['facility']} is scheduled to lose {number(r['gwh'], 'GWh/d')}"
+                       f"{_sim(sim)} from {fday(r['start'])}"
+                       + (f" to {fday(r['end'])}" if r.get("end") else "") + ".",
+                       f"{r['facility']}计划自{fday(r['start'])}起"
+                       + (f"至{fday(r['end'])}" if r.get("end") else "")
+                       + f"减少{number(r['gwh'], 'GWh/d')}{_sim(sim)}。"),
             sources=["REMIT urgent market messages"]))
     ended = [r for r in rows if r["status"] == "ended" and r["gwh"]]
     if ended:
         facts.append(F.fact(
-            "outages.ended", "outages", "Outages ended in the period",
+            "outages.ended", "outages", T("Outages ended in the period", "期间内结束的停运"),
             sum(r["gwh"] for r in ended), "GWh/d", day=F.iso(ctx.end), state=raw["state"],
             simulated=sim, indicator=False, score=0.3, reason="ended in period",
-            sentence=(f"{len(ended)} outage{'s' if len(ended) != 1 else ''} that removed "
-                      f"{number(sum(r['gwh'] for r in ended), 'GWh/d')} ended during "
-                      f"{ctx.period_label or 'the period'}."),
+            sentence=T(f"{len(ended)} outage{'s' if len(ended) != 1 else ''} that removed "
+                       f"{number(sum(r['gwh'] for r in ended), 'GWh/d')} ended during "
+                       f"{ctx.period_label or 'the period'}.",
+                       f"期间内有{len(ended)}处停运结束，共曾减少"
+                       f"{number(sum(r['gwh'] for r in ended), 'GWh/d')}。"),
             sources=["REMIT urgent market messages"]))
     if raw.get("norway_active") == 0:
-        facts.append(F.fact("outages.norway", "outages", "Norwegian outages", 0.0, "outages",
-                            day=F.iso(ctx.today), state=raw["state"], indicator=False,
+        facts.append(F.fact("outages.norway", "outages", T("Norwegian outages", "挪威停运"), 0.0,
+                            "outages", day=F.iso(ctx.today), state=raw["state"], indicator=False,
                             score=0.05, reason="absence noted",
-                            sentence="No active outage in Norway is among the messages held."))
+                            sentence=T("No outage is reported at a Norwegian field, plant, "
+                                       "pipeline or landing terminal.",
+                                       "挪威油气田、处理厂、管道或登陆终端均无停运报告。")))
     order = {"active": 0, "scheduled": 1, "ended": 2}
     ranked = sorted(rows, key=lambda r: (order.get(r["status"], 3), -(r["gwh"] or 0.0)))
+    status = {"active": T("active", "活跃"), "scheduled": T("scheduled", "计划"),
+              "ended": T("ended", "已结束")}
     result.tables = [F.table(
-        "Outage schedule, largest active first",
-        [("facility", "Asset", "text"), ("operator", "Operator", "text"),
-         ("zone", "Zone", "text"), ("start", "Start", "datetime"), ("end", "End", "datetime"),
-         ("gwh", "Offline (GWh/d)", "num"), ("status", "Status", "text")],
+        T("Outage schedule, largest active first", "停运时间表，按活跃停运规模排序"),
+        [("facility", T("Asset", "资产"), "text"), ("operator", T("Operator", "运营方"), "text"),
+         ("zone", T("Zone", "区域"), "text"), ("start", T("Start", "开始"), "datetime"),
+         ("end", T("End", "结束"), "datetime"),
+         ("gwh", T("Offline (GWh/d)", "停运（GWh/d）"), "num"),
+         ("status_label", T("Status", "状态"), "text")],
         # The operator's EIC-style code is in the annex and the CSV; the body prints the name.
-        [{**r, "operator": _OPERATOR_CODE.sub("", r.get("operator") or ""), "simulated": sim}
+        [{**r, "operator": _OPERATOR_CODE.sub("", r.get("operator") or ""), "simulated": sim,
+          "status_label": status.get(r["status"], r["status"])}
          for r in ranked[: F.BODY_ROWS]],
-        source=F.DEMO_SOURCE if sim else F.SOURCE_LINES["outages"],
-        notes=(f"{len(ranked) - F.BODY_ROWS} more in the data annex. " if len(ranked) > F.BODY_ROWS
-               else "") + "Times UTC; capacity converted to GWh/d where the message's unit "
-                         "allows.")]
+        source=F.source_line("outages", sim),
+        notes=T((f"{len(ranked) - F.BODY_ROWS} more in the data annex. "
+                 if len(ranked) > F.BODY_ROWS else "")
+                + "Times UTC; capacity converted to GWh/d where the message's unit allows.",
+                (f"另有{len(ranked) - F.BODY_ROWS}条见数据附录。" if len(ranked) > F.BODY_ROWS
+                 else "") + "时间为 UTC；在消息单位允许时换算为 GWh/d。"))]
     result.tables[0]["id"] = "tab.outages"
-    result.annex = [F.table("Outage schedule, all messages held",
-                            [("facility", "Asset", "text"), ("zone", "Zone", "text"),
-                             ("start", "Start", "datetime"), ("end", "End", "datetime"),
-                             ("gwh", "Offline (GWh/d)", "num"), ("status", "Status", "text")],
+    result.annex = [F.table(T("Outage schedule, all messages held", "停运时间表，全部消息"),
+                            [("facility", T("Asset", "资产"), "text"),
+                             ("zone", T("Zone", "区域"), "text"),
+                             ("start", T("Start", "开始"), "datetime"),
+                             ("end", T("End", "结束"), "datetime"),
+                             ("gwh", T("Offline (GWh/d)", "停运（GWh/d）"), "num"),
+                             ("status", T("Status", "状态"), "text")],
                             ranked)]
     result.charts = []
     result.facts = facts
@@ -651,20 +795,28 @@ def derive_balance(result, ctx) -> None:
     wow = F.change_at(call, latest, 7)
     prior = F.same_day_last_year(latest)
     score, reason = F.materiality(dod, F.recent_variation(call, latest))
-    f_call = F.fact("balance.call", "balance", "NW Europe supply call", call[latest], "GWh/d",
+    f_call = F.fact("balance.call", "balance", T("NW Europe supply call", "西北欧供应需求"),
+                    call[latest], "GWh/d",
                     day=F.iso(latest), state=raw["state"], simulated=sim, dod=dod, wow=wow,
                     yoy=call[latest] - call[prior] if prior in call else None, years=years,
                     score=score, reason=reason, spark=F.spark_of(call, latest),
                     sources=["NW Europe balance inputs"], exhibits=["fig.balance.call"],
                     sentence="")
     h = history[-1]
-    f_call["sentence"] = (
+    f_call["sentence"] = T(
         f"The NW Europe supply call was {number(call[latest], 'GWh/d')}{_sim(sim)} on "
         f"{fday(latest)}, met by Norway ({number(h['norway_gwh'], 'GWh/d')}), LNG "
         f"({number(h['lng_gwh'], 'GWh/d')}) and a net storage withdrawal of "
-        f"{number(h['storage_net_withdrawal_gwh'], 'GWh/d')}.")
-    f_call["headline"] = f"Supply call {_move(dod, 'GWh/d')} at {number(call[latest], 'GWh/d')}"
-    f_draw = F.fact("storage.withdrawal", "balance", "Net storage withdrawal", draw[latest],
+        f"{number(h['storage_net_withdrawal_gwh'], 'GWh/d')}.",
+        f"{fday(latest)}西北欧供应需求为{number(call[latest], 'GWh/d')}{_sim(sim)}，由挪威"
+        f"（{number(h['norway_gwh'], 'GWh/d')}）、LNG（{number(h['lng_gwh'], 'GWh/d')}）及储气净提"
+        f"取"
+        f"（{number(h['storage_net_withdrawal_gwh'], 'GWh/d')}）满足。")
+    f_call["headline"] = T(f"Supply call {_move(dod, 'GWh/d')} at {number(call[latest], 'GWh/d')}",
+                           f"供应需求{number(call[latest], 'GWh/d')}，日内{_move(dod, 'GWh/d')}")
+    draw_dod = _move(F.change_at(draw, latest, 1), "GWh/d")
+    f_draw = F.fact("storage.withdrawal", "balance", T("Net storage withdrawal", "储气净提取"),
+                    draw[latest],
                     "GWh/d", day=F.iso(latest), state=raw["state"], simulated=sim,
                     dod=F.change_at(draw, latest, 1), wow=F.change_at(draw, latest, 7),
                     yoy=draw[latest] - draw[prior] if prior in draw else None, years=years,
@@ -672,64 +824,89 @@ def derive_balance(result, ctx) -> None:
                                         F.recent_variation(draw, latest))[0] * 0.6,
                     reason="change against recent variation (weighted 0.6: part of the call)",
                     spark=F.spark_of(draw, latest), sources=["NW Europe balance inputs"],
-                    sentence=f"Net withdrawal from storage was {number(draw[latest], 'GWh/d')}"
-                             f"{_sim(sim)} on {fday(latest)}, "
-                             f"{_move(F.change_at(draw, latest, 1), 'GWh/d')} on the day.",
-                    headline=f"Storage withdrawal {_move(F.change_at(draw, latest, 1), 'GWh/d')}"
-                             f" at {number(draw[latest], 'GWh/d')}", indicator=True)
+                    sentence=T(f"Net withdrawal from storage was "
+                               f"{number(draw[latest], 'GWh/d')}{_sim(sim)} on {fday(latest)}, "
+                               f"{draw_dod} on the day.",
+                               f"{fday(latest)}储气净提取量为{number(draw[latest], 'GWh/d')}"
+                               f"{_sim(sim)}，较前一日{draw_dod}。"),
+                    headline=T(f"Storage withdrawal {draw_dod} at "
+                               f"{number(draw[latest], 'GWh/d')}",
+                               f"储气提取{number(draw[latest], 'GWh/d')}，日内{draw_dod}"),
+                    indicator=True)
     facts = [f_call, f_draw]
     exhibits = []
     window, permitted = _windows(ctx, "flow")
     longest = end - timedelta(days=394)
-    series = [{"name": "Measured", "points": F.series_points(call, longest, end)}]
+    series = [{"name": T("Measured", "实测"), "points": F.series_points(call, longest, end)}]
     context = F.shifted_year(call, longest, end)
     if context:
-        series.append({"name": "Year earlier", "points": context, "context": True})
+        series.append({"name": T("Year earlier", "一年前"), "points": context, "context": True})
     if forecast:
         last = forecast[-1]
         method = str((last.get("methods") or {}).get("call") or "stated in Methodology")
         method = method.replace("_", " ")
+        method = T(method, _METHOD_ZH.get(method, method))
         change = last["call_gwh"] - call[latest]
-        limitation = (f"its seasonal normal rests on {years} prior year{'s' if years != 1 else ''}"
-                      " of measured days" if years else
-                      "it has no prior year of measured days to set a seasonal normal")
+        years_word = _COUNT_WORDS.get(years, str(years)).lower()
+        limitation = T((f"its seasonal normal rests on {years_word} year"
+                        f"{'s' if years != 1 else ''} of measured days" if years else
+                        "it has no year of measured days to set a seasonal normal"),
+                       (f"其季节常态仅基于{years}年的实测日数据" if years else
+                        "尚无一年的实测数据可设定季节常态"))
         facts.append(F.fact(
-            "balance.forecast", "balance", "Supply call forecast", last["call_gwh"], "GWh/d",
+            "balance.forecast", "balance", T("Supply call forecast", "供应需求预测"),
+            last["call_gwh"], "GWh/d",
             day=last["day"], state="current", simulated=sim, forecast=method, scheduled=True,
             # A forecast is weighed by the change it projects but capped below a material
             # measured change: rules do not lead an issue with a model estimate.
             indicator=False, score=min(round(abs(change) / call[latest] * 10, 2), 1.5),
             reason=f"forecast change of {abs(change) / call[latest]:.0%} of the latest call "
                    "(capped at 1.5: a forecast)",
-            sentence=(f"The balance forecast ({method}) puts the call at "
-                      f"{number(last['call_gwh'], 'GWh/d')}{_sim(sim)} on {fday(last['day'])}; it "
-                      f"is a forecast, not a measurement, and {limitation}."),
-            headline=f"Forecast call {number(last['call_gwh'], 'GWh/d')} by {fday(last['day'])}",
-            implications=[f"On that forecast the call would be "
-                          f"{'higher' if change > 0 else 'lower'} by {fday(last['day'])} "
-                          f"than on {fday(latest)}."],
+            sentence=T(f"The balance forecast puts the call at "
+                       f"{number(last['call_gwh'], 'GWh/d')}{_sim(sim)} on {fday(last['day'])}; "
+                       f"it is a model estimate ({method}), not a measurement, and {limitation}.",
+                       f"平衡预测显示{fday(last['day'])}供应需求为"
+                       f"{number(last['call_gwh'], 'GWh/d')}{_sim(sim)}；该预测为模型估算"
+                       f"（{method}），并非实测，且{limitation}。"),
+            headline=T(f"Forecast call {number(last['call_gwh'], 'GWh/d')} by "
+                       f"{fday(last['day'])}",
+                       f"预测{fday(last['day'])}供应需求{number(last['call_gwh'], 'GWh/d')}"),
+            implications=[T(f"On that forecast the call would be "
+                            f"{'higher' if change > 0 else 'lower'} by {fday(last['day'])} "
+                            f"than on {fday(latest)}.",
+                            f"按该预测，{fday(last['day'])}的供应需求将"
+                            f"{'高于' if change > 0 else '低于'}{fday(latest)}。")],
             sources=["NW Europe balance forecast"]))
         if last.get("fill_pct") is not None:
             facts.append(F.fact(
-                "balance.forecast_fill", "balance", "Projected storage fill", last["fill_pct"],
+                "balance.forecast_fill", "balance", T("Projected storage fill", "预测储气率"),
+                last["fill_pct"],
                 "%", day=last["day"], state="current", simulated=sim, forecast=method,
                 scheduled=True, indicator=False, score=0.3, reason="forecast level",
-                sentence=f"On the same forecast storage would be {number(last['fill_pct'], '%')}"
-                         f" full by {fday(last['day'])}.",
+                sentence=T(f"On the same forecast, storage would be "
+                           f"{number(last['fill_pct'], '%')} full by {fday(last['day'])}.",
+                           f"按同一预测，{fday(last['day'])}储气率将为"
+                           f"{number(last['fill_pct'], '%')}。"),
                 sources=["NW Europe balance forecast"]))
-        series.append({"name": "Forecast", "points": [[F.iso(latest), call[latest]]]
+        series.append({"name": T("Forecast", "预测"), "points": [[F.iso(latest), call[latest]]]
                        + [[f["day"], f["call_gwh"]] for f in forecast], "forecast": True})
     exhibits.append(F.exhibit(
         "fig.balance.call", "balance", "line",
-        title=(f"Forecast points to a call of {number(forecast[-1]['call_gwh'], 'GWh/d')} by "
-               f"{fday(forecast[-1]['day'])}" if forecast else
-               f"Supply call at {number(call[latest], 'GWh/d')}{_sim(sim)} on {fday(latest)}"),
-        subtitle="NW Europe supply call (Norway + LNG + net storage withdrawal), GWh/d; "
-                 "measured, year earlier and forecast",
+        title=(T(f"Forecast points to a call of {number(forecast[-1]['call_gwh'], 'GWh/d')} by "
+                 f"{fday(forecast[-1]['day'])}",
+                 f"预测{fday(forecast[-1]['day'])}供应需求为"
+                 f"{number(forecast[-1]['call_gwh'], 'GWh/d')}") if forecast else
+               T(f"Supply call at {number(call[latest], 'GWh/d')}{_sim(sim)} on {fday(latest)}",
+                 f"{fday(latest)}供应需求为{number(call[latest], 'GWh/d')}{_sim(sim)}")),
+        subtitle=T("NW Europe supply call (Norway + LNG + net storage withdrawal), GWh/d; "
+                   "measured, year earlier and forecast",
+                   "西北欧供应需求（挪威 + LNG + 储气净提取），GWh/d；实测、一年前与预测"),
         unit="GWh/d", series=series, types=("line",), windows=permitted, window=window,
         simulated=sim,
-        notes=("Forecast: " + facts[2]["sentence"].split("; ", 1)[-1]
-               + " No forecast range is produced.") if forecast else ""))
+        notes=T(f"Forecast: a model estimate ({method}), not a measurement; {limitation}. No "
+                "forecast range is produced.",
+                f"预测：模型估算（{method}），并非实测；{limitation}。未给出预测区间。")
+        if forecast else ""))
     # Supply stack: the period's (or the latest day's) average sources and uses.
     days = [x for x in history if ctx.start.isoformat() <= x["day"] <= end.isoformat()] \
         if ctx.period_label else [history[-1]]
@@ -747,45 +924,52 @@ def derive_balance(result, ctx) -> None:
     scopes_add_up = cont is not None and abs(cont + uk - avg["norway_gwh"]) <= max(
         1.0, 0.02 * avg["norway_gwh"])
     if scopes_add_up:
-        rows += [{"item": "Norway: continental terminals", "value": cont},
-                 {"item": "Norway and UK shelf: UK terminals", "value": uk}]
+        rows += [{"item": T("Norway: continental terminals", "挪威：欧洲大陆终端"), "value": cont},
+                 {"item": T("Norway and UK shelf: UK terminals", "挪威与英国大陆架：英国终端"),
+                  "value": uk}]
     else:
-        rows.append({"item": "Norwegian pipeline landings", "value": avg["norway_gwh"]})
-    rows += [{"item": "LNG send-out", "value": avg["lng_gwh"]},
-             {"item": "Storage net withdrawal (injection negative)",
+        rows.append({"item": T("Norwegian pipeline landings", "挪威管道到岸量"),
+                     "value": avg["norway_gwh"]})
+    rows += [{"item": T("LNG send-out", "LNG 气化外输"), "value": avg["lng_gwh"]},
+             {"item": T("Storage net withdrawal (injection negative)", "储气净提取（注入为负）"),
               "value": avg["storage_net_withdrawal_gwh"]},
-             {"item": "Supply call", "value": avg["call_gwh"], "total": True}]
+             {"item": T("Supply call", "供应需求"), "value": avg["call_gwh"], "total": True}]
     for row in rows:
         row["value"] = round(row["value"], 1)
         row["share"] = round(100 * row["value"] / avg["call_gwh"], 1) if avg["call_gwh"] and \
             not row.get("total") else None
         row["simulated"] = sim
-    label = (f"{ctx.period_label} average" if ctx.period_label else fday(history[-1]["day"]))
+    label = (T(f"{ctx.period_label} average", "期间均值") if ctx.period_label
+             else fday(history[-1]["day"]))
     result.tables = [F.table(
-        f"Supply stack, {label} (GWh/d)",
-        [("item", "", "text"), ("value", "GWh/d", "num"), ("share", "Share of call (%)", "num")],
-        rows, source=F.DEMO_SOURCE if sim else F.SOURCE_LINES["balance"])]
+        T(f"Supply stack, {label} (GWh/d)", f"供应构成，{label}（GWh/d）"),
+        [("item", "", "text"), ("value", "GWh/d", "num"),
+         ("share", T("Share of call (%)", "占需求比例（%）"), "num")],
+        rows, source=F.source_line("balance", sim))]
     if forecast:
         result.tables.append(F.table(
-            "Forecast, not a measurement (GWh/d)",
-            [("day", "Gas day", "date"), ("call_gwh", "Call", "num"),
-             ("norway_gwh", "Norway", "num"), ("lng_gwh", "LNG", "num"),
-             ("storage_net_withdrawal_gwh", "Storage", "signed")],
+            T("Forecast, not a measurement (GWh/d)", "预测，并非实测（GWh/d）"),
+            [("day", T("Gas day", "气日"), "date"), ("call_gwh", T("Call", "需求"), "num"),
+             ("norway_gwh", T("Norway", "挪威"), "num"), ("lng_gwh", "LNG", "num"),
+             ("storage_net_withdrawal_gwh", T("Storage", "储气"), "signed")],
             [{**x, "simulated": sim} for x in forecast[: F.BODY_ROWS]],
-            source=F.SOURCE_LINES["balance"],
-            notes=f"Method: {facts[2]['forecast']}. "
-                  + facts[2]["sentence"].split("; ", 1)[-1].capitalize()))
+            source=F.source_line("balance", False),
+            notes=T(f"Method: {method}; {limitation}.", f"方法：{method}；{limitation}。")))
     result.annex = [_annex_from_series(
-        "NW Europe balance, measured", "GWh/d",
-        {"Norway": {date.fromisoformat(x["day"]): x["norway_gwh"] for x in history},
+        T("NW Europe balance, measured", "西北欧平衡，实测"), "GWh/d",
+        {T("Norway", "挪威"): {date.fromisoformat(x["day"]): x["norway_gwh"] for x in history},
          "LNG": {date.fromisoformat(x["day"]): x["lng_gwh"] for x in history},
-         "Storage": draw, "Call": call}, F.window_start(window, end), end)]
+         T("Storage", "储气"): draw, T("Call", "需求"): call}, F.window_start(window, end), end)]
     result.facts, result.charts = facts, exhibits
     _prose(result, facts)
 
 
 # =========================================================================== prose
 
+
+#: Forecast method names in Chinese.
+_METHOD_ZH = {"seasonal normal plus recent anomaly": "季节常态加近期偏差",
+              "stated in Methodology": "见方法说明"}
 
 #: Openers that link a paragraph's sentences without claiming a relation between them.
 _LINKS = ("", "", "Separately, ", "", "")
@@ -805,7 +989,8 @@ def _prose(result, facts: list[dict]) -> None:
     sentences: list[str] = []
     # An outage the lead already names (the largest, inside the total) is not named again.
     rest = [f for f in rest if not (f["key"].startswith("outage.")
-                                    and f["label"].split(": ", 1)[-1] in lead["sentence"])]
+                                    and re.split(r": |：", f["label"], maxsplit=1)[-1]
+                                    in lead["sentence"])]
     for index, f in enumerate(rest[:3]):
         text = f["sentence"]
         link = _LINKS[index % len(_LINKS)]
@@ -815,6 +1000,8 @@ def _prose(result, facts: list[dict]) -> None:
             text[0].lower() + text[1:]
         )
         sentences.append(link + lowered if link else text)
+        link = "" if zh() else _LINKS[index % len(_LINKS)]
+        sentences.append(link + (text[0].lower() + text[1:] if link else text))
     implication = next((i for f in ordered for i in f["implications"]), None)
     if implication:
         sentences.insert(0, implication)
@@ -908,8 +1095,10 @@ def _short_book(result) -> None:
         if len(spec["rows"]) > DAILY_BOOK_ROWS:
             if not any(a.get("caption") == spec.get("caption") for a in result.annex):
                 result.annex.append(dict(spec))
-            spec["notes"] = (f"First {DAILY_BOOK_ROWS} of {len(spec['rows'])} rows; all rows in "
-                             "the CSV download.")
+            spec["notes"] = T(f"First {DAILY_BOOK_ROWS} of {len(spec['rows'])} rows; all rows in "
+                              "the CSV download.",
+                              f"显示前{DAILY_BOOK_ROWS}行，共{len(spec['rows'])}行；全部行见 CSV "
+                              f"下载。")
             spec["rows"] = spec["rows"][:DAILY_BOOK_ROWS]
         # A column empty in every printed row says nothing.
         spec["columns"] = [c for c in spec["columns"]
@@ -935,16 +1124,17 @@ def _book_or_event_facts(result) -> None:
                            sentence=s, sources=[src["name"] for src in result.sources[:1]])
                     for i, s in enumerate(sentences) if s]
     for spec in result.tables:
-        spec.setdefault("source", F.DEMO_SOURCE if result.simulated else "Eurogas Nexus.")
+        spec.setdefault("source", F.source_line(None, result.simulated))
         if len(spec["rows"]) > F.BODY_ROWS:
             result.annex.append(dict(spec))
-            spec["notes"] = (f"First {F.BODY_ROWS} of {len(spec['rows'])} rows; all rows in the "
-                             "data annex.")
+            spec["notes"] = T(f"First {F.BODY_ROWS} of {len(spec['rows'])} rows; all rows in the "
+                              "data annex.",
+                              f"显示前{F.BODY_ROWS}行，共{len(spec['rows'])}行；全部行见数据附录。")
             spec["rows"] = spec["rows"][: F.BODY_ROWS]
     for chart in result.charts:
         chart.setdefault("id", f"fig.{result.key}")
         chart.setdefault("subtitle", f"{chart.get('title', '')}, {chart.get('unit', '')}")
-        chart.setdefault("source", F.DEMO_SOURCE if result.simulated else "Eurogas Nexus.")
+        chart.setdefault("source", F.source_line(None, result.simulated))
         chart.setdefault("types", [chart["type"]])
         chart.setdefault("windows", ["30d"])
         chart.setdefault("window", "30d")
