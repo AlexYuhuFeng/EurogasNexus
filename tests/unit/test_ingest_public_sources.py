@@ -225,7 +225,7 @@ def test_fresh_reference_is_reported_skipped_without_a_read() -> None:
     from types import SimpleNamespace
 
     script = _load_script()
-    script._recent_reference_refresh = lambda session, hours, *, now: now
+    script._recent_reference_refresh = lambda session, hours, *, now, **_: now
     report = {"sources": {}, "warnings": [], "failures": []}
     client = MagicMock()
     script._ingest_entsog_source(

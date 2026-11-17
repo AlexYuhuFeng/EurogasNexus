@@ -84,7 +84,9 @@ def _period_label(start: date, end_exclusive: date) -> str:
         return f"{start.year}/{(start.year + 1) % 100:02d}"
     if start.month == 1 and start.day == 1 and end_exclusive == date(start.year + 1, 1, 1):
         return str(start.year)
-    return f"{start.isoformat()}..{(end_exclusive - timedelta(days=1)).isoformat()}"
+    # Another period (NaTran's April - March): its months, within the column's 16 characters.
+    last = end_exclusive - timedelta(days=1)
+    return f"{start:%Y-%m}..{last:%y-%m}"
 
 
 def _gas_day(value: Any) -> date | None:

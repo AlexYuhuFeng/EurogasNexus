@@ -87,6 +87,17 @@ def test_a_published_tariff_becomes_a_register_row_named_like_the_route_leg(bund
     assert per_mwh_at_full_load(0.01342699) == pytest.approx(0.5594579, rel=1e-6)
 
 
+def test_a_period_of_any_shape_has_a_label_that_fits_the_register(bundle):
+    rows, _ = entsog_tariff_rows(
+        [record("ITP-00137", "FR-TSO-0003", "entry", 0.0085, "2026-04-01", "2027-04-01")],
+        bundle=bundle,
+        downloaded=DOWNLOADED,
+        received_at=RECEIVED,
+    )
+    assert rows[0]["gas_year"] == "2026-04..27-03"
+    assert all(len(row["gas_year"]) <= 16 for row in rows)  # tso_tariffs.gas_year
+
+
 def test_a_later_period_is_indicative_and_nothing_is_estimated(bundle):
     rows, counts = entsog_tariff_rows(
         [
