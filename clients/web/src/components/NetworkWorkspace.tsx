@@ -177,7 +177,7 @@ export function NetworkWorkspace({
   mode,
   activeLayers,
   searchTerm,
-  highlightedRoute,
+  highlightedRoute: hostHighlightedRoute,
   routesInUse,
   resourcePoolMapPaths,
   poolInputBlockers,
@@ -295,7 +295,7 @@ export function NetworkWorkspace({
     edges,
     activeLayers,
     searchTerm,
-    highlightedRoute,
+    highlightedRoute: hostHighlightedRoute,
   });
   const surveyedPipelineCount = visibleMapLines.filter((line) => line.displayKind === "verified_pipeline").length;
   const connectionLinkCount = visibleMapLines.filter((line) => line.displayKind === "network_link").length;
@@ -312,6 +312,12 @@ export function NetworkWorkspace({
       indicativeRouteCount >
     0;
   const [activeRailView, setActiveRailView] = useState<DecisionRailView>("decision");
+  // The highlighted route follows the path it was priced along (sale option route_adjacency).
+  const highlightedRoute = useMemo(() => {
+    if (!hostHighlightedRoute) return hostHighlightedRoute;
+    const option = saleOptions.find((item) => item.option_id === hostHighlightedRoute.routeId);
+    return { ...hostHighlightedRoute, pathNodeIds: option?.route_adjacency?.path_node_ids ?? null };
+  }, [hostHighlightedRoute, saleOptions]);
   // The book's allocated flows, one line per origin and destination, along the surveyed
   // pipeline route where every leg of it is surveyed.
   const bookFlows = useMemo(() => {

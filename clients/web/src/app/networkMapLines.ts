@@ -10,6 +10,7 @@ import {
   isAdjacencyEdge,
   isDrawnAdjacency,
   isZoneMembershipEdge,
+  polyline,
   straightSegment,
   type LineCoordinate,
 } from "@/app/mapLineGeometry";
@@ -38,6 +39,8 @@ export interface NetworkHighlightedRoute {
   pnlGbp: number | null;
   routeGeometryState: RouteGeometryState;
   routeLegSummary: string[];
+  /** The hub -> interconnection point(s) -> hub path the route was priced along, if known. */
+  pathNodeIds?: string[] | null;
 }
 
 export interface RenderableNetworkLine {
@@ -234,6 +237,7 @@ export function buildSyntheticSelectedRouteLine(
   highlightedRoute: NetworkHighlightedRoute,
   from: NodeDTO,
   to: NodeDTO,
+  nodeLookup?: Map<string, NodeDTO>,
 ): RenderableNetworkLine | null {
   if (
     from.id === to.id ||
@@ -249,7 +253,10 @@ export function buildSyntheticSelectedRouteLine(
     edge: null,
     from,
     to,
-    geometryCoordinates: buildSchematicRouteCoordinates(from, to),
+    // Along the path the route was priced on (hub -> point -> hub), so the map shows what was
+    // priced; one segment between the ends when no path is known.
+    geometryCoordinates: pricedPathCoordinates(highlightedRoute.pathNodeIds, nodeLookup)
+      ?? buildSchematicRouteCoordinates(from, to),
     displayKind: "indicative_route",
     routeCandidate: true,
     geometryBasis: "schematic_endpoint_segment",
@@ -257,6 +264,16 @@ export function buildSyntheticSelectedRouteLine(
     routeLegSequence: 1,
     routeGeometryState: geometryState,
   };
+}
+
+function pricedPathCoordinates(
+  ids: string[] | null | undefined,
+  nodeLookup: Map<string, NodeDTO> | undefined,
+): LineCoordinate[] | null {
+  if (!ids || ids.length < 2 || !nodeLookup) return null;
+  const nodes = ids.map((id) => nodeLookup.get(id));
+  if (nodes.some((node) => !node || !isUsableEndpointCoordinate(node))) return null;
+  return polyline(nodes as NodeDTO[]);
 }
 
 export function networkLineMatchesRoute(line: RenderableNetworkLine, routeId: string): boolean {
@@ -323,7 +340,7 @@ export function buildVisibleMapNetworkLines(params: MapNetworkLinesParams): Rend
   const from = nodeLookup.get(params.highlightedRoute.fromNodeId);
   const to = nodeLookup.get(params.highlightedRoute.toNodeId);
   const syntheticLine = from && to
-    ? buildSyntheticSelectedRouteLine(params.highlightedRoute, from, to)
+    ? buildSyntheticSelectedRouteLine(params.highlightedRoute, from, to, nodeLookup)
     : null;
   return syntheticLine ? [...baseLines, syntheticLine] : baseLines;
 }
