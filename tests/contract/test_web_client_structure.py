@@ -33,7 +33,8 @@ def test_network_cockpit_exposes_warning_evidence_stack() -> None:
     zh = (WEB_SRC / "i18n" / "zh.json").read_text(encoding="utf-8")
 
     assert "reviewEvidenceItems" in model
-    assert "reviewEvidenceItems={portfolio.reviewEvidenceItems}" in market_cockpit
+    # The evidence stack left the Network page with the decision rail (design basis 2, CP-21).
+    assert "reviewEvidenceItems={portfolio.reviewEvidenceItems}" not in market_cockpit
     assert "home.evidence_stack" in en
     assert "home.evidence_stack" in zh
     assert "home.review_warnings" in en

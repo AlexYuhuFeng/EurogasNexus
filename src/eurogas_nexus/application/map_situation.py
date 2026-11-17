@@ -494,6 +494,8 @@ def build_map_situation(
         "simulated": 0,
         "families": ["Kpler"],
     }
+    # Every active contract on the caller's books, placed or not, for the "Our book" view.
+    book_contracts: list[dict[str, Any]] = []
     if include_positions:
         allowed = visible_book_ids(session)
         for record in (
@@ -504,6 +506,17 @@ def build_map_situation(
             if not _own(record.book_id, allowed):
                 continue
             location = locator.find(name=record.delivery_point_name)
+            book_contracts.append(
+                {
+                    "contract_id": record.contract_id,
+                    "contract_name": record.contract_name,
+                    "delivery_point": record.delivery_point_name,
+                    "delivery_mwh_d": record.delivery_quantity_mwh_per_day,
+                    "entry_capacity_mwh_d": record.owned_entry_capacity_mwh_per_day,
+                    "allowed_exit_points": list(record.allowed_exit_points or []),
+                    "location": location,
+                }
+            )
             if location is None:
                 unlocated["contracts"] += 1
                 continue
@@ -635,6 +648,23 @@ def build_map_situation(
             )
         slots.sort(key=lambda item: item["window_start_utc"])
 
+    # The "Our book" view (design basis 2, J.5): what on the network relates to the deals.
+    book_relevance = None
+    if include_positions:
+        from eurogas_nexus.application.map_book import build_book_relevance
+
+        book_relevance = build_book_relevance(
+            session,
+            now=now,
+            contracts=book_contracts,
+            cargoes=cargoes,
+            slots=slots,
+            outages=outages,
+            locate=lambda name: locator.find(name=name),
+            entitled=entitled,
+            book_ids=allowed,
+        )
+
     return {
         "as_of_utc": now.isoformat(),
         "outages": outages,
@@ -670,4 +700,5 @@ def build_map_situation(
         },
         "positions_included": include_positions,
         "vessel_feed": vessel_feed,
+        "book_relevance": book_relevance,
     }

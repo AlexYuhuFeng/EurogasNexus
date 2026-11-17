@@ -190,41 +190,11 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             mode={theme.mode}
             activeLayers={controls.activeLayers}
             searchTerm={controls.searchTerm}
-            highlightedRoute={portfolio.highlightedRoute}
-            routesInUse={portfolio.routesInUse}
-            resourcePoolMapPaths={portfolio.resourcePoolMapPaths}
-            poolInputBlockers={portfolio.poolInputBlockers}
-            commercialDiagnostics={portfolio.commercialDiagnostics}
-            error={api.error}
-            loading={api.workspaceLoading}
-            saleOptions={portfolio.saleOptions}
-            portfolioResources={portfolio.portfolioResources}
-            totalPoolVolume={portfolio.totalPoolVolume}
-            portfolioSummary={api.portfolioSummary}
-            screenOrderCount={api.screenOrders.length}
-            upstreamContractCount={api.upstreamContracts.length}
             networkGeometryState={portfolio.networkGeometryState}
-            routeRecommendation={portfolio.currentRouteRecommendation}
-            decisionPnl={portfolio.decisionPnl}
-            resourcePoolResult={portfolio.currentResourcePoolResult}
-            poolAllocations={portfolio.poolAllocations}
-            saleOptionById={portfolio.saleOptionById}
-            hasPortfolioResources={portfolio.hasPortfolioResources}
-            selectedAllocation={portfolio.selectedAllocation}
-            purchasePrice={portfolio.purchasePrice}
-            salePrice={portfolio.salePrice}
-            routeCharge={portfolio.routeCharge}
-            firstPoolAllocation={portfolio.firstPoolAllocation}
-            firstStrategyTarget={portfolio.firstStrategyTarget}
-            strategyResult={portfolio.currentStrategyResult}
-            strategyContextMismatch={portfolio.strategyContextMismatch}
-            activeWarning={portfolio.activeWarning}
-            reviewEvidenceItems={portfolio.reviewEvidenceItems}
-            intradayOpportunities={api.intradayOpportunities}
-            resultsContextMismatch={portfolio.resultsContextMismatch}
             onResetSearch={() => controls.setSearchTerm("")}
             onToggleLayer={controls.toggleLayer}
-            onOpenReview={() => navigation.openWorkspace("review")}
+            // Hidden while another Desk task shows: nothing it opened stays above that page.
+            active={task === "network"}
             language={controller.i18n.language}
             // The Capacity tab beside the map: the operating board joins the `flows` and
             // `capacity` reads, so it states which of them answered from the store's own facts
@@ -259,17 +229,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
                 t,
               ),
               onRetryBoardRead: () => void api.retryFailedWorkspaceEndpoints(),
-            }}
-            onOpenScenario={() => {
-              // Carried from the shell when the map-first network route moved into this
-              // composition: the hand-off keeps the selected or highlighted route, so the
-              // scenario workspace opens on the route the user was looking at.
-              const routeId =
-                portfolio.selectedAllocation?.route_id ??
-                portfolio.highlightedRoute?.routeId ??
-                null;
-              if (routeId) selection.setRouteId(routeId);
-              navigation.openWorkspace("scenario");
             }}
           />
           </div>

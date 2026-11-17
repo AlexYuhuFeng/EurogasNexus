@@ -191,6 +191,44 @@ companies' cargoes and flows stay in the network view, and the network steps fur
 back. Completed deals never sit in the live picture; they are history. Clicking an item
 selects it on the map with its card, as a click on the map does.
 
+**What relates to our deals (design basis 2, J.5).** The book view also shows everything on
+the network that relates, or could relate, to the deals, derived by the server from the store
+and the pricing graph (`application/map_book.py`, `book_relevance` in
+`GET /api/portfolio/map-situation`), never from a hand list:
+
+- **ours** (full emphasis): each active contract's delivery point and market area, the
+  interconnection points on the path it is priced along to its allowed exits (drawn as our
+  contracts' priced routes, width by contract MWh/d), booked capacity (capacity profiles and
+  owned entry capacity), held storage, expected cargoes with their terminal, held regas slots;
+  counterparties named on the delivery point;
+- **reachable** (medium, dashed): every neighbouring market area within two crossings of an
+  "ours" hub along the proven ENTSOG adjacency, with the crossing points, firm technical
+  capacity where published, the published tariffs the register holds and, when both hub prices
+  and every tariff are held, the spread net of them in GBP/MWh. Always marked indicative, a
+  simulated price marked sim; a missing tariff (named by operator, direction and point) or price
+  is stated, never estimated; no advice wording and no order entry;
+- **opportunity**: the legs of actionable opportunities come from the opportunity core when it
+  lands (`book_opportunity_paths` is the seam); none yet.
+
+Everything else dims. Outages located at an "ours" or "reachable" point say "touches our
+book". The "Our book" tab lists both classes; selecting a row or an object on the map opens its
+card with "On our book because": "Delivery point of Kestrel supply (TTF) with Rhinmark Handel
+GmbH · 18,000 MWh/d", "Reachable from TTF to NBP via Julianadorp, Bacton (BBL): spread −2.57,
+tariff 1.60, net −4.17 GBP/MWh (indicative, sim)". The optimiser's decision rail, P&L,
+warnings and evidence stack left the Network page with the optimiser pages (CP-21).
+
+**The panel.** The right-hand panel collapses to a slim rail of its tabs with their counts
+(the handle at its top left; remembered per user on the device), so the map takes the full
+width; a tab in the rail opens the panel on that tab. At phone width collapsing lowers the
+sheet to its row of tabs. Full screen is the map alone, with the panel as a drawer from the
+right ("Panel"; Escape closes it). While another Desk task or page shows, nothing the map
+opened stays above it: full screen ends, the drawer, key and status popovers close and an
+Inspector opened from the map closes; the selection is kept for coming back.
+
+**The status line** is the same for everyone: Live, Out now, Contracts, LNG vessels. The
+maintenance line (topology checks, network points without a published position, items not
+located) is in the panel's "Map data" fold, for data operations only.
+
 **Replay.** A completed cargo with a timed track (the vessel feed's positions with their
 times) can be replayed from History: the map frames the voyage, draws the whole route
 faintly and the part sailed by the replay clock in the accent, and moves the vessel

@@ -381,11 +381,13 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
     assert "workflow-strip" not in app
 
-    assert "scenario-rail" in network_workspace
-
-    assert "decision-rail" in network_workspace
-
-    assert "trade-result-panel" in network_workspace
+    # The Network page carries no optimiser rail any more (design basis 2, CP-21): the
+    # decision stack left with the optimiser pages; the "Our book" tab keeps the book list and
+    # the relevance lists (J.5).
+    assert "scenario-rail" not in network_workspace
+    assert "decision-rail" not in network_workspace
+    assert "trade-result-panel" not in network_workspace
+    assert "<MapBookRelevance" in network_workspace
 
     # Finding a place on the map is the map's own finder; the top bar no longer carries a
     # second map search (it duplicated the finder and pushed the account menu off screen).
@@ -459,7 +461,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "networkGeometryMissing" not in app
     assert "approximateNodeCount" not in app
     assert "map-node-legend" not in app
-    assert "decision-signal-panel" in network_workspace
+    assert "decision-signal-panel" not in network_workspace
     assert "capacity-page" in capacity_workspace
     assert "review-page" in extracted_pages
     assert "orders-page" in extracted_pages
@@ -1026,13 +1028,13 @@ def test_web_client_network_page_shows_complete_resource_pool_path_ladder() -> N
     )
     web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
-    assert "ResourcePoolPathOverlay," in network_workspace
-    # The builder lives in the portfolio model, the wiring in the composing surface.
+    # The ladder stays with the optimiser surface; the Network page no longer carries it
+    # (design basis 2, CP-21): its "Our book" view draws the contracts' priced paths instead.
     assert "buildResourcePoolMapPaths" in app
-    assert "<ResourcePoolPathOverlay" in network_workspace
-    assert "resourcePoolMapPaths" in market_cockpit
-    assert "highlightedRoute={portfolio.highlightedRoute}" in market_cockpit
-    assert "highlightedRoute={highlightedRoute}" in network_workspace
+    assert "<ResourcePoolPathOverlay" not in network_workspace
+    assert "resourcePoolMapPaths" not in market_cockpit
+    assert "highlightedRoute=" not in market_cockpit
+    assert "contractPathLines(" in network_workspace
     assert "resource-pool-map-overlay" in overlay
     assert "resource-path-geometry-notice" in overlay
     assert "firstIndicativeGeometryPath" in overlay
@@ -1150,17 +1152,21 @@ def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() 
     )
 
     assert "network-workspace-shell" in network_workspace
-    assert "network-resource-rail" in network_workspace
     assert "network-map-column" in network_workspace
-    assert "network-decision-rail" in network_workspace
-    assert "network-route-ladder" in network_workspace
-    assert "network-rail-tabs" in network_workspace
-    assert "network-rail-view" in network_workspace
+    # The resource and decision rails and the route ladder left the Network page with the
+    # optimiser pages (design basis 2, CP-21).
+    for gone in (
+        "network-resource-rail",
+        "network-decision-rail",
+        "network-route-ladder",
+        "network-rail-tabs",
+        "network-rail-view",
+    ):
+        assert gone not in network_workspace
     workspace_tabs = (
         ROOT / "clients" / "web" / "src" / "components" / "ui" / "WorkspaceTabs.tsx"
     ).read_text(encoding="utf-8")
-    assert "<WorkspaceTabs" in network_workspace
-    assert 'idPrefix="network-rail-tab"' in network_workspace
+    assert 'idPrefix="network-rail-tab"' not in network_workspace
     assert 'role?: "tablist"' in workspace_tabs
     # WorkspaceTabs delegates to the Tabs primitive (UX-02), which owns the tab semantics.
     tabs_primitive = (
@@ -1169,12 +1175,9 @@ def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() 
     assert "<Tabs" in workspace_tabs
     assert 'role="tablist"' in tabs_primitive
     assert "aria-selected={selected}" in tabs_primitive
-    assert 'activeRailView === "decision"' in network_workspace
-    assert 'activeRailView === "pnl"' in network_workspace
-    assert 'activeRailView === "warnings"' in network_workspace
-    assert 'activeRailView === "evidence"' in network_workspace
-    assert "<IntradayDecisionFeed" in network_workspace
-    assert "onOpenReview" in network_workspace
+    assert "activeRailView" not in network_workspace
+    assert "<IntradayDecisionFeed" not in network_workspace
+    assert "onOpenReview" not in network_workspace
     assert "defaultOpen" in overlay
     assert "useState(defaultOpen)" in overlay
     assert ".network-workspace-shell" in css
@@ -1714,7 +1717,9 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "sale_price_simulated?: boolean" in api_client
     assert "sale_price_source_family?: string | null" in api_client
     assert 'route_topology_kind?: "LOCAL_MARKET_DISPOSITION" | "NETWORK_ROUTE"' in api_client
-    assert 'sale_price_simulated ? t("market.simulated_source")' in network_workspace
+    # The Network page shows no optimiser allocation any more (design basis 2, CP-21); its
+    # book view marks a simulated price "sim" on the indicative spread.
+    assert 'sale_price_simulated ? t("market.simulated_source")' not in network_workspace
     assert "saveUpstreamContract" in api_client
     assert "saveDraftContract" in store
     portfolio_workspace_source = (

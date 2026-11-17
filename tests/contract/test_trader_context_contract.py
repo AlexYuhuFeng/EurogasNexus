@@ -82,8 +82,8 @@ def test_high_value_cross_workspace_handoffs_are_explicit_actions() -> None:
     decision = _read("components", "DecisionWorkspace.tsx")
     review = _read("components", "ReviewWorkspace.tsx")
 
-    assert "onOpenScenario: () => void" in network
-    assert 't("network.open_in_scenario")' in network
+    # The Network page no longer hands over to the scenario page (design basis 2, CP-21).
+    assert "onOpenScenario" not in network
     assert "onOpenStrategyForResource" in contracts
     assert 't("contracts.open_in_strategy")' in contracts
     # The strategy-run hand-off is the Decision workspace's: it carries the selected run into

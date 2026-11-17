@@ -271,6 +271,9 @@ export function situationCardHtml(
     return `<div class="node-popup situation-card">
       <strong>${escape(item.facility_name)}</strong>
       <em class="situation-tag is-${item.status}">${escape(t(`map.situation.outage_${item.status}`))}</em>
+      ${situation.book_relevance?.outages_touching.includes(item.event_id)
+        ? `<em class="situation-tag is-own">${escape(t("map.book.touches"))}</em>`
+        : ""}
       ${rows([
         [t("map.situation.unavailable"), `${number(item.unavailable_capacity)} / ${number(item.technical_capacity)} ${item.unit}`],
         [t("map.situation.window"), `${shortUtc(item.start_utc)} → ${item.end_utc ? shortUtc(item.end_utc) : "open"} UTC`],

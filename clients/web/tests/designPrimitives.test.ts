@@ -138,7 +138,6 @@ test("primitives are adopted at real call sites", () => {
   const read = (file: string) => readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const uses: Array<[string, RegExp]> = [
     ["components/TodayScreen.tsx", /<Button variant="quiet"/],
-    ["components/NetworkWorkspace.tsx", /<Button variant="secondary"/],
     ["components/DealHedgeApprovalsPanel.tsx", /<Button variant="secondary"/],
     ["components/DeskBriefDialog.tsx", /<Dialog\s/],
     ["components/DeskBriefDialog.tsx", /<Segmented\s/],

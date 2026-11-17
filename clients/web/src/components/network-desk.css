@@ -477,4 +477,184 @@
     flex-direction: column;
     gap: 0;
   }
+
+  /* ---------------------------------------------------------------- collapsible panel */
+  /* Collapsed: the map takes the width, the panel is a slim rail of its tabs and counts. */
+  .workspace-network .network-workspace-shell.network-desk.is-panel-collapsed {
+    grid-template-columns: minmax(0, 1fr) var(--ds-space-8);
+  }
+
+  .network-panel-toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: var(--ds-control);
+    height: var(--ds-control);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    cursor: pointer;
+  }
+
+  .network-panel-toggle:hover,
+  .network-panel-toggle:focus-visible {
+    color: var(--ds-text-1);
+    border-color: var(--ds-border-strong);
+  }
+
+  .network-panel.is-rail {
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-2) 0;
+  }
+
+  .network-panel-rail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+  }
+
+  .network-panel-rail-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-2) 0;
+    border: 0;
+    background: transparent;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    writing-mode: vertical-rl;
+    cursor: pointer;
+  }
+
+  .network-panel-rail-tab.is-active,
+  .network-panel-rail-tab:hover,
+  .network-panel-rail-tab:focus-visible {
+    color: var(--ds-text-1);
+  }
+
+  .network-panel-rail-tab .network-panel-count {
+    writing-mode: horizontal-tb;
+  }
+
+  /* Full screen: the map alone; the panel opens over it as a drawer from the right. */
+  .workspace-network .network-workspace-shell.network-desk.is-fullscreen {
+    grid-template-areas:
+      "toolbar"
+      "map";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace-network .network-desk.is-fullscreen > .network-panel-column {
+    display: none;
+  }
+
+  /* The drawer shares the map's grid cell, over its right edge, below the toolbar. */
+  .workspace-network .network-desk.is-fullscreen.is-drawer-open > .network-panel-column {
+    display: flex;
+    z-index: 45;
+    grid-area: map;
+    justify-self: end;
+    width: min(420px, calc(100% - 2 * var(--ds-space-3)));
+    margin: var(--ds-space-2);
+    box-shadow: var(--ds-shadow-pop);
+  }
+
+  /* Phone: collapsed is the sheet lowered to its row of tabs. */
+  @media (max-width: 900px) {
+    .workspace-network .network-workspace-shell.network-desk.is-panel-collapsed {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .network-panel.is-rail {
+      flex-direction: row;
+      justify-content: flex-start;
+      padding: var(--ds-space-1) var(--ds-space-2);
+    }
+
+    .network-panel-rail {
+      flex-direction: row;
+    }
+
+    .network-panel-rail-tab {
+      flex-direction: row;
+      padding: 0 var(--ds-space-2);
+      writing-mode: horizontal-tb;
+    }
+
+    .network-panel.is-rail .network-panel-toggle svg {
+      transform: rotate(90deg);
+    }
+
+    .network-panel-head .network-panel-toggle svg {
+      transform: rotate(90deg);
+    }
+  }
+
+  /* The book view's relevance lists in the "Our book" tab. */
+  .map-book-relevance {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-3);
+    padding: var(--ds-space-2) 0;
+  }
+
+  .map-book-relevance h3 {
+    margin: 0 0 var(--ds-space-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-book-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .map-book-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .map-book-row small,
+  .map-book-hint {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .map-book-net {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-detail-book-reasons {
+    margin: 0;
+    padding-left: var(--ds-space-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-data-maintenance {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+    margin-top: var(--ds-space-2);
+    font-size: var(--ds-text-xs);
+    color: var(--ds-text-2);
+  }
 }

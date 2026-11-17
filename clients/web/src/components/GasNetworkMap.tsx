@@ -135,6 +135,13 @@ interface GasNetworkMapProps {
    * width by volume, the volume at the destination, one arrowhead for direction.
    */
   bookFlows?: BookFlowLine[];
+  /**
+   * The "Our book" view's emphasis (design basis 2, J.5; see app/mapBookRelevance.ts): node ids
+   * that are ours (full), on a reachable path (medium); everything else dims in the book view.
+   */
+  bookEmphasis?: { ours: ReadonlySet<string>; reachable: ReadonlySet<string> };
+  /** Paths to reachable neighbouring market areas, drawn at medium emphasis in the book view. */
+  bookReachable?: Array<{ id: string; toHub: string; coordinates: Array<[number, number]> }>;
 }
 
 /**
@@ -310,6 +317,8 @@ export function GasNetworkMap({
   replay = null,
   focus = null,
   bookFlows = [],
+  bookEmphasis,
+  bookReachable = [],
   selection: selectionProp,
   onSelectionChange,
   detailCard = true,
@@ -1159,6 +1168,37 @@ export function GasNetworkMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextPipes, mapColors, mapReady, showContextRoutes, view]);
 
+  // Our book view: the paths to the neighbouring market areas our hubs reach, at medium
+  // emphasis (dashed, thinner than our own paths), only in that view.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const accent = SITUATION_COLOURS[effectiveTheme].own;
+    const data = {
+      type: "FeatureCollection" as const,
+      features: bookReachable.map((line) => ({
+        type: "Feature" as const,
+        properties: { id: line.id, to_hub: line.toHub },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: line.coordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
+        },
+      })),
+    };
+    if (upsertSource(map, "book-reachable-lines", data)) {
+      map.addLayer({
+        id: "book-reachable-lines",
+        type: "line",
+        source: "book-reachable-lines",
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: { "line-color": accent, "line-width": 1.8, "line-opacity": 0.55, "line-dasharray": [1.4, 1.4] },
+      }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+    }
+    map.setPaintProperty("book-reachable-lines", "line-color", accent);
+    map.setLayoutProperty("book-reachable-lines", "visibility", view === "book" ? "visible" : "none");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookReachable, effectiveTheme, mapReady, view]);
+
   // The book's flows: one line per origin and destination, width by volume, the volume at the
   // destination and a single arrowhead for direction. Drawn under the points.
   const bookFlowMarkersRef = useRef<Marker[]>([]);
@@ -1711,7 +1751,20 @@ export function GasNetworkMap({
       ["situation-cargo-positions", "circle-opacity"],
       ["situation-outages", "circle-opacity"],
     ];
-    const emphasis = VIEW_EMPHASIS[view];
+    const emphasis: Record<string, unknown> = { ...VIEW_EMPHASIS[view] };
+    if (view === "book" && bookEmphasis && (bookEmphasis.ours.size || bookEmphasis.reachable.size)) {
+      // Our book: what relates to the deals stands out, everything else dims.
+      const ours = ["literal", [...bookEmphasis.ours]];
+      const related = ["literal", [...bookEmphasis.ours, ...bookEmphasis.reachable]];
+      emphasis["nodes-circle"] = ["case", ["in", ["get", "id"], ours], 1, ["in", ["get", "id"], ["literal", [...bookEmphasis.reachable]]], 0.7, 0.12];
+      emphasis["network-link-lines"] = [
+        "case",
+        ["all", ["in", ["get", "from_node_id"], related], ["in", ["get", "to_node_id"], related]],
+        0.6,
+        0.12,
+      ];
+      emphasis["adjacency-points"] = ["case", ["in", ["get", "id"], related], 0.9, 0.15];
+    }
     for (const [layerId, property] of dimmable) {
       if (!map.getLayer(layerId)) continue;
       const key = `${layerId}|${property}`;
@@ -1731,7 +1784,7 @@ export function GasNetworkMap({
       element.textContent = label.text;
       return new Marker({ element, anchor: "left", offset: [12, 0] }).setLngLat(toMapCoordinates(label.at[0], label.at[1])).addTo(map);
     });
-  }, [edges, effectiveTheme, facilities, mapReady, nodeLookup, nodes, selection, situation, sites, verifiedPipelineLines, view, Boolean(replay)]);
+  }, [bookEmphasis, edges, effectiveTheme, facilities, mapReady, nodeLookup, nodes, selection, situation, sites, verifiedPipelineLines, view, Boolean(replay)]);
 
   // Replay of a completed deal: the whole voyage faint, the part sailed by the replay clock
   // drawn in the accent, the vessel where it was. Driven from outside (play, scrub).

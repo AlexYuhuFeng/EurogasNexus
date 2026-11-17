@@ -3233,6 +3233,69 @@ export interface MapSituationDTO {
    * (Kpler or an AIS provider), how many market cargoes are visible, how many simulated.
    */
   vessel_feed?: { entitled: boolean | null; market_cargoes: number; simulated: number; families: string[] };
+  /** The "Our book" view's relevance classes (design basis 2, J.5); newer servers. */
+  book_relevance?: BookRelevanceDTO | null;
+}
+
+/** Why an object is on the "Our book" view: a reason key and its values. */
+export interface BookReasonDTO {
+  key: string;
+  [field: string]: string | number | null | undefined;
+}
+
+export interface BookRelevanceItemDTO {
+  kind: "point" | "hub" | "capacity" | "storage" | "cargo" | "terminal";
+  ref: string;
+  name: string;
+  location: { lon: number; lat: number } | null;
+  reasons: BookReasonDTO[];
+}
+
+export interface BookPriceDTO {
+  price: number;
+  currency: string;
+  unit: string;
+  simulated: boolean;
+  observed_at_utc?: string | null;
+}
+
+export interface BookReachableDTO {
+  from_hub: string;
+  to_hub: string;
+  crossings_count: number;
+  via: string[];
+  path_node_ids: string[];
+  crossings: Array<{ point_key: string; name: string; node_id: string | null; pipeline: string | null; firm_technical_gwh_d: number | null }>;
+  contracts: string[];
+  indicative: true;
+  price_from: BookPriceDTO | null;
+  price_to: BookPriceDTO | null;
+  tariff_gbp_mwh: number | null;
+  tariff_status: "held" | "missing" | "fx_missing" | "not_assessed";
+  missing: string[];
+  missing_legs?: string[];
+  spread_gbp_mwh: number | null;
+  net_gbp_mwh: number | null;
+  simulated: boolean;
+}
+
+export interface BookContractPathDTO {
+  contract_id: string;
+  contract: string;
+  from_hub: string;
+  to_hub: string;
+  mwh_d: number | null;
+  path_node_ids: string[];
+}
+
+export interface BookRelevanceDTO {
+  rule: string;
+  ours: BookRelevanceItemDTO[];
+  contract_paths: BookContractPathDTO[];
+  reachable: BookReachableDTO[];
+  /** Opportunity paths: from the opportunity core when it lands (empty until then). */
+  opportunities: unknown[];
+  outages_touching: string[];
 }
 
 /** North-west Europe balance: measured history and the component forecast. */

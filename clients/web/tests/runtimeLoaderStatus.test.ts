@@ -159,7 +159,8 @@ test("the store carries the unread status and publishes the workspace batch's ow
 
 test("page-level loading claims read the workspace batch, not any in-flight action", () => {
   const cockpit = readWebSource("components/MarketCockpit.tsx");
-  assert.match(cockpit, /<NetworkWorkspace[\s\S]*?loading=\{api\.workspaceLoading\}/);
+  // The Network page reads no decision batch of its own any more (design basis 2, CP-21).
+  assert.doesNotMatch(cockpit, /<NetworkWorkspace[^>]*loading=\{api\.loading\}/);
   assert.equal(cockpit.includes("loading={api.loading}"), false);
 
   const renderer = readWebSource("app/workspaces/WorkspaceRenderer.tsx");

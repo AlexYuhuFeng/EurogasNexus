@@ -70,6 +70,12 @@ interface NetworkInfoPanelProps {
   onHoverRow: (at: LonLat | null) => void;
   capacity: CapacityData;
   book: ReactNode;
+  /** Collapsed to a slim rail of the tabs with their counts (the map takes the width). */
+  collapsed?: boolean;
+  /** Collapse the panel (a handle in its head); absent where it cannot collapse. */
+  onCollapse?: () => void;
+  /** Open the panel again, on the tab chosen in the rail. */
+  onExpand?: (tab: NetworkPanelTab) => void;
   footer: ReactNode;
 }
 
@@ -123,6 +129,9 @@ export function NetworkInfoPanel({
   onHoverRow,
   capacity,
   book,
+  collapsed = false,
+  onCollapse,
+  onExpand,
   footer,
 }: NetworkInfoPanelProps) {
   const { events, note, error } = outages;
@@ -350,9 +359,57 @@ export function NetworkInfoPanel({
     ),
   }));
 
+  if (collapsed) {
+    // The rail: the tabs with their counts, one press opens the panel on that tab.
+    return (
+      <aside className="network-panel is-rail" aria-label={t("network.panel.label")} data-network-panel="rail">
+        <button
+          type="button"
+          className="network-panel-toggle"
+          aria-expanded={false}
+          aria-controls="network-panel-body"
+          aria-label={t("network.panel.expand")}
+          title={t("network.panel.expand")}
+          onClick={() => onExpand?.(tab)}
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+            <path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <nav className="network-panel-rail" aria-label={t("network.panel.rail_label")}>
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={item.id === tab ? "network-panel-rail-tab is-active" : "network-panel-rail-tab"}
+              onClick={() => onExpand?.(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+    );
+  }
+
   return (
     <aside className="network-panel" aria-label={t("network.panel.label")} data-network-panel={tab}>
       <div className="network-panel-head">
+        {onCollapse && (
+          <button
+            type="button"
+            className="network-panel-toggle"
+            aria-expanded
+            aria-controls="network-panel-body"
+            aria-label={t("network.panel.collapse")}
+            title={t("network.panel.collapse")}
+            onClick={onCollapse}
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+              <path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
         <WorkspaceTabs
           idPrefix="network-panel-tab"
           label={t("network.panel.label")}

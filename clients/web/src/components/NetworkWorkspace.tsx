@@ -2,29 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { useApiStore } from "@/stores/api";
 import { useShellLayout } from "@/app/shell/useShellLayout";
-import type {
-  EdgeDTO,
-  IntradayOpportunityDTO,
-  NodeDTO,
-  PortfolioLiveSummaryDTO,
-  PortfolioOptimizationResultDTO,
-  PortfolioResourceDTO,
-  ResourcePoolOptionsDTO,
-  RouteEligibilityDTO,
-  RouteRecommendationResultDTO,
-  StrategyLabResultDTO,
-} from "@/api/client";
+import type { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
 import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
-import { buildBookFlows, legPaths, zoneMemberIds, type LineCoordinate } from "@/app/mapLineGeometry";
-import { buildNodeIdByPointName, buildRouteGeometryEdgesByRouteId } from "@/app/resourcePoolMapPaths";
+import { legPaths, zoneMemberIds } from "@/app/mapLineGeometry";
 import { normalizePointName } from "@/app/routeMetadata";
+import { isMapEligibleNode, type NetworkGeometryState } from "@/app/workspaceDerivedData";
 import {
-  isMapEligibleNode,
-  verifiedEdgeGeometryCoordinates,
-  type NetworkGeometryState,
-} from "@/app/workspaceDerivedData";
+  bookEmphasis,
+  bookReasonLines,
+  contractPathLines,
+  reachablePathLines,
+} from "@/app/mapBookRelevance";
+import { MapBookRelevance } from "@/components/MapBookRelevance";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
-import { Button } from "@/components/ui/Button";
 import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
 import { buildSites, topologyIssues, type MapSelection } from "@/app/mapSelection";
 import { MAP_SITUATION_REFRESH_MS, useMapSituation } from "@/app/hooks/useMapSituation";
@@ -48,28 +38,9 @@ import {
 import type { MapCargoDTO } from "@/api/client";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
-import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
-import { CommercialWarningList } from "@/components/CommercialWarningList";
-import type { CommercialDiagnosticItem } from "@/app/model/commercialWarnings";
-import { Segmented, WorkspaceTabs } from "@/components/ui";
-import {
-  ResourcePoolPathOverlay,
-  type ResourcePoolMapPath,
-} from "@/components/ResourcePoolPathOverlay";
-import { warningCode, warningLabel } from "@/app/warningLabel";
+import { Segmented } from "@/components/ui";
 
 type Translate = (key: string) => string;
-type SaleOption = ResourcePoolOptionsDTO["sale_options"][number];
-type PoolAllocation = PortfolioOptimizationResultDTO["allocations"][number];
-type RouteAllocation = RouteRecommendationResultDTO["allocations"][number];
-type StrategyTarget = StrategyLabResultDTO["allocation_targets"][number];
-
-interface ReviewEvidenceItem {
-  kind: string;
-  text: string;
-}
-
-type DecisionRailView = "decision" | "pnl" | "warnings" | "evidence";
 
 interface NetworkWorkspaceProps {
   t: Translate;
@@ -79,47 +50,18 @@ interface NetworkWorkspaceProps {
   mode: ComponentProps<typeof GasNetworkMap>["themeMode"];
   activeLayers: string[];
   searchTerm: string;
-  highlightedRoute: ComponentProps<typeof GasNetworkMap>["highlightedRoute"];
-  routesInUse?: ComponentProps<typeof GasNetworkMap>["routesInUse"];
-  resourcePoolMapPaths: ResourcePoolMapPath[];
-  poolInputBlockers: string[];
-  commercialDiagnostics: CommercialDiagnosticItem[];
-  error: string | null;
-  loading: boolean;
-  saleOptions: SaleOption[];
-  /** The pool-optimiser run belongs to the Decision workspace's primary action; see below. */
-  portfolioResources: PortfolioResourceDTO[];
-  totalPoolVolume: number;
-  portfolioSummary: PortfolioLiveSummaryDTO | null;
-  screenOrderCount: number;
-  upstreamContractCount: number;
   networkGeometryState: NetworkGeometryState;
-  routeRecommendation: RouteRecommendationResultDTO | null;
-  decisionPnl: number | null;
-  resourcePoolResult: PortfolioOptimizationResultDTO | null;
-  poolAllocations: PoolAllocation[];
-  saleOptionById: Map<string, SaleOption>;
-  hasPortfolioResources: boolean;
-  selectedAllocation: RouteAllocation | null;
-  purchasePrice: number | null;
-  salePrice: number | null;
-  routeCharge: number | null;
-  firstPoolAllocation: PoolAllocation | null;
-  firstStrategyTarget: StrategyTarget | undefined;
-  strategyResult: StrategyLabResultDTO | null;
-  /** The held strategy result was not computed from the inputs the caller now knows. */
-  strategyContextMismatch: boolean;
-  activeWarning: string | null;
-  reviewEvidenceItems: ReviewEvidenceItem[];
-  intradayOpportunities: IntradayOpportunityDTO[];
-  resultsContextMismatch: boolean;
   onResetSearch: () => void;
   onToggleLayer: (layer: string) => void;
-  onOpenReview: () => void;
-  onOpenScenario: () => void;
   /** The reads behind the panel's Capacity tab (the retired "Outages & capacity" board). */
   capacity: Omit<CapacityWorkspaceProps, "t" | "scope" | "selectedKey" | "onSelectPoint">;
   language: string;
+  /**
+   * Whether the Network task is the one on screen. The task stays mounted while another Desk
+   * task shows; while hidden, nothing it opened may stay above other pages (full screen, the
+   * Inspector it opened, the panel drawer, open popovers).
+   */
+  active?: boolean;
 }
 
 /** The panel's tab, held in the URL (`panel=`), following Back and Forward. */
@@ -177,44 +119,12 @@ export function NetworkWorkspace({
   mode,
   activeLayers,
   searchTerm,
-  highlightedRoute: hostHighlightedRoute,
-  routesInUse,
-  resourcePoolMapPaths,
-  poolInputBlockers,
-  commercialDiagnostics,
-  error,
-  loading,
-  saleOptions,
-  portfolioResources,
-  totalPoolVolume,
-  portfolioSummary,
-  screenOrderCount,
-  upstreamContractCount,
   networkGeometryState,
-  routeRecommendation,
-  decisionPnl,
-  resourcePoolResult,
-  poolAllocations,
-  saleOptionById,
-  hasPortfolioResources,
-  selectedAllocation,
-  purchasePrice,
-  salePrice,
-  routeCharge,
-  firstPoolAllocation,
-  firstStrategyTarget,
-  strategyResult,
-  strategyContextMismatch,
-  activeWarning,
-  reviewEvidenceItems,
-  intradayOpportunities,
-  resultsContextMismatch,
   onResetSearch,
   onToggleLayer,
-  onOpenReview,
-  onOpenScenario,
   capacity,
   language,
+  active = true,
 }: NetworkWorkspaceProps) {
   const compactLayout = useShellLayout().widthClass === "compact";
   const [statusOpen, setStatusOpen] = useState(false);
@@ -277,6 +187,44 @@ export function NetworkWorkspace({
   const shellRef = useRef<HTMLDivElement | null>(null);
   const mapColumnRef = useRef<HTMLElement | null>(null);
   const fullscreen = useFullscreen(shellRef);
+  // The right-hand panel collapses to a rail so the map takes the full width; remembered per
+  // user on this device. In full screen the map is alone and the panel opens as a drawer.
+  const principalId = useApiStore((state) => state.currentUser?.principal_id ?? "anonymous");
+  const panelKey = `egn.network.panel.${principalId}`;
+  const [panelCollapsed, setPanelCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(panelKey) === "collapsed";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      setPanelCollapsed(window.localStorage.getItem(panelKey) === "collapsed");
+    } catch {
+      // Not readable: the panel stays as it is.
+    }
+  }, [panelKey]);
+  const choosePanelCollapsed = (collapsed: boolean) => {
+    setPanelCollapsed(collapsed);
+    try {
+      window.localStorage.setItem(panelKey, collapsed ? "collapsed" : "open");
+    } catch {
+      // Not remembered; the choice still holds for this visit.
+    }
+  };
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useEffect(() => {
+    if (!fullscreen.active) setDrawerOpen(false);
+  }, [fullscreen.active]);
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
   // A read that keeps failing leaves the last good picture up; say so once it is old.
   const situationStale = Boolean(situationError) && readAt !== null
     && Date.now() - readAt.getTime() > 2 * MAP_SITUATION_REFRESH_MS;
@@ -287,6 +235,24 @@ export function NetworkWorkspace({
     const subject = inspectorSubjectFor("network-node", nodeId, label, "network");
     if (subject) inspector.open(subject);
   };
+  // Nothing this page opened stays above another page: when the Network task is hidden (another
+  // Desk task shows) or leaves (another mode), full screen ends, the drawer and the popovers
+  // close and an Inspector opened from the map closes. The selection itself is kept for coming
+  // back; its card lives in the panel, which is hidden with the page.
+  const closeTransientRef = useRef<() => void>(() => undefined);
+  closeTransientRef.current = () => {
+    fullscreen.exit();
+    setDrawerOpen(false);
+    setLegendOpen(false);
+    setStatusOpen(false);
+    setHoverAt(null);
+    const open = useInspectorStore.getState();
+    if (open.subject?.originPage === "network" && open.subject.kind === "network-node") open.close();
+  };
+  useEffect(() => {
+    if (!active) closeTransientRef.current();
+  }, [active]);
+  useEffect(() => () => closeTransientRef.current(), []);
   const displayedNetworkCount = nodes.filter(
     (node) =>
       !["hub", "lng", "interconnection", "entry_point"].includes(node.node_type) &&
@@ -304,7 +270,6 @@ export function NetworkWorkspace({
     edges,
     activeLayers,
     searchTerm,
-    highlightedRoute: hostHighlightedRoute,
   });
   const surveyedPipelineCount = visibleMapLines.filter((line) => line.displayKind === "verified_pipeline").length;
   const connectionLinkCount = visibleMapLines.filter((line) => line.displayKind === "network_link").length;
@@ -320,35 +285,15 @@ export function NetworkWorkspace({
       verifiedPipelineCount +
       indicativeRouteCount >
     0;
-  const [activeRailView, setActiveRailView] = useState<DecisionRailView>("decision");
-  // The highlighted route follows the path it was priced along (sale option route_adjacency).
-  const highlightedRoute = useMemo(() => {
-    if (!hostHighlightedRoute) return hostHighlightedRoute;
-    const option = saleOptions.find((item) => item.option_id === hostHighlightedRoute.routeId);
-    return { ...hostHighlightedRoute, pathNodeIds: option?.route_adjacency?.path_node_ids ?? null };
-  }, [hostHighlightedRoute, saleOptions]);
-  // The book's allocated flows, one line per origin and destination, along the surveyed
-  // pipeline route where every leg of it is surveyed.
-  const bookFlows = useMemo(() => {
-    const nodeIdByPointName = buildNodeIdByPointName(nodes);
-    const edgesByRouteId = buildRouteGeometryEdgesByRouteId(edges);
-    const surveyedRoute = (routeId: string): LineCoordinate[] | null => {
-      const legs = [...(edgesByRouteId.get(routeId) ?? [])]
-        .sort((a, b) => Number(a.metadata_json?.route_leg_sequence ?? 0) - Number(b.metadata_json?.route_leg_sequence ?? 0))
-        .map(verifiedEdgeGeometryCoordinates);
-      if (!legs.length || legs.some((leg) => leg === null)) return null;
-      return legs.flatMap((leg) => leg as LineCoordinate[]);
-    };
-    // Each flow follows exactly the hub -> interconnection point -> hub path it was priced along.
-    const pricedPath = new Map(saleOptions.map((option) => [option.option_id, option.route_adjacency?.path_node_ids ?? null]));
-    return buildBookFlows({
-      paths: resourcePoolMapPaths.map((path) => ({ ...path, pathNodeIds: pricedPath.get(path.routeId) ?? null })),
-      resolvePoint: (name) => nodeIdByPointName.get(normalizePointName(name)),
-      nodes: new Map(nodes.map((node) => [node.id, node])),
-      surveyedRoute,
-      legPath: legPaths(edges),
-    });
-  }, [edges, nodes, resourcePoolMapPaths, saleOptions]);
+  // Our book (design basis 2, J.5): the deals' places, hubs and priced paths ("ours") and
+  // the neighbouring market areas they reach ("reachable"), derived by the server.
+  const relevance = rawSituation?.book_relevance ?? null;
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const legPath = useMemo(() => legPaths(edges), [edges]);
+  const emphasis = useMemo(() => bookEmphasis(relevance), [relevance]);
+  // Our contracts' priced paths, width by contract volume, along the drawn legs.
+  const bookFlows = useMemo(() => contractPathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
+  const reachableLines = useMemo(() => reachablePathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
   // Our book: the book's own panels, in the panel's fourth tab, only in the "Our book" view
   // and only for a caller who may read the book. They belong to the book, not to the network.
   const currentUser = useApiStore((state) => state.currentUser);
@@ -444,6 +389,18 @@ export function NetworkWorkspace({
       t={t as (key: string, options?: Record<string, unknown>) => string}
       outagesListed
       zoneOutages={zoneOutages}
+      bookReasons={mapView === "book" ? bookReasonLines(
+        relevance,
+        {
+          nodeIds: selection.kind === "site"
+            ? (sites.find((item) => item.id === selection.id)?.members.map((member) => member.id) ?? [])
+            : selection.kind === "hub"
+              ? nodes.filter((node) => node.node_type === "hub" && node.name.toUpperCase() === selection.id).map((node) => node.id)
+              : [],
+          cargoId: selection.kind === "cargo" ? selection.id : null,
+        },
+        t as (key: string, options?: Record<string, unknown>) => string,
+      ) : undefined}
       onSelect={(next) => {
         // A related object (a cargo's destination terminal): select it and bring it into view.
         selectOnMap(next);
@@ -465,263 +422,21 @@ export function NetworkWorkspace({
         onReplay={setReplayCargo}
         replayingId={replayCargo?.cargo_id ?? null}
       />
-        <aside className="scenario-rail network-resource-rail" aria-label={t("home.resource_pool")} tabIndex={0}>
-          {error && <div className="panel alert">{error}</div>}
-          {loading && <div className="panel">{t("status.loading")}</div>}
-  
-          <div className="panel home-portfolio-panel">
-            <div className="section-heading">
-              <span className="eyebrow">{t("home.portfolio")}</span>
-              <strong>{portfolioResources.length} {t("home.resources")}</strong>
-            </div>
-            <div className="metric-grid two-column compact-metrics">
-              <div>
-                <span>{t("home.pool_volume")}</span>
-                <strong>{totalPoolVolume.toLocaleString()} MWh/d</strong>
-              </div>
-              <div>
-                <span>{t("portfolio.open_orders")}</span>
-                <strong>{portfolioSummary?.open_order_count ?? screenOrderCount}</strong>
-              </div>
-            </div>
-            <div className="route-list compact-route-list resource-contract-list">
-              {portfolioResources.map((resource) => (
-                <div key={`home-resource-${resource.resource_id}`} className="route-row route-candidate">
-                  <span>{resource.resource_name}</span>
-                  <strong>{resource.available_quantity_mwh_per_day.toLocaleString()} MWh/d</strong>
-                  <small>{resource.location_point_name} / {resource.resource_type}</small>
-                  <div className="resource-constraint-line">
-                    <span>{t("home.all_in_cost")}: {(resource.contract_cost_gbp_mwh + (resource.variable_cost_gbp_mwh ?? 0)).toFixed(2)} GBP/MWh</span>
-                    <span>{t("home.required_access")}: {resource.required_tso_access?.join(", ") || t("home.none_declared")}</span>
-                  </div>
-                </div>
-              ))}
-              {upstreamContractCount === 0 && (
-                <div className="route-row route-candidate blocked-route">
-                  <span>{t("home.no_db_contracts")}</span>
-                  <strong>{t("data.partial")}</strong>
-                  <small>{t("home.draft_contract_note")}</small>
-                </div>
-              )}
-            </div>
-          </div>
-  
-          <div className="panel optimizer-control-panel">
-            <div className="section-heading">
-              <span className="eyebrow">{t("home.optimization")}</span>
-              <strong>{saleOptions.length} {t("home.sale_markets")}</strong>
-            </div>
-            <p className="panel-copy">{t("home.optimization_scope")}</p>
-            <div className="action-row">
-              <Button variant="secondary" disabled={!hasPortfolioResources} onClick={onOpenScenario}>
-                {t("network.open_in_scenario")}
-              </Button>
-            </div>
-            {/* One `compute` consequence, one control: the pool optimiser runs from the Decision
-                workspace's primary action, so this panel hands the user over instead of running a
-                second copy of the same act from the map. */}
-            <p className="panel-copy">{t("network.optimizer_location")}</p>
-            {/* Both decision results the map draws from - the pool allocation and the route
-                recommendation - are only current for the trading context they were computed
-                under, so either lane being stale is stated here. */}
-            {resultsContextMismatch && (
-              <div className="runtime-blocker-list compact">
-                <strong>{t("context.result_mismatch")}</strong>
-                <span>{t("context.result_mismatch_hint")}</span>
-              </div>
-            )}
-            {poolInputBlockers.length > 0 && (
-              <div className="runtime-blocker-list">
-                <strong>{t("home.optimizer_blocked")}</strong>
-                {poolInputBlockers.map((blocker) => <span key={`home-blocker-${blocker}`} title={blocker}>{warningLabel(blocker, t)}</span>)}
-              </div>
-            )}
-          </div>
-  
-        </aside>
-        <aside className="decision-rail network-decision-rail" aria-label={t("network.rail_tabs")}>
-          <WorkspaceTabs
-            idPrefix="network-rail-tab"
-            label={t("network.rail_tabs")}
-            tabs={(["decision", "pnl", "warnings", "evidence"] as DecisionRailView[]).map((view) => ({
-              id: view,
-              label: t(`network.rail_${view}`),
-            }))}
-            activeId={activeRailView}
-            panelId="network-rail-panel"
-            className="network-rail-tabs"
-            onActivate={setActiveRailView}
-          />
-          <div
-            id="network-rail-panel"
-            className="network-rail-view"
-            role="tabpanel"
-            aria-labelledby={`network-rail-tab-${activeRailView}`}
-            // Keep the text-only scroll region reachable by keyboard.
-            tabIndex={0}
-          >
-            {activeRailView === "decision" && (
-              <>
-                <div className="panel intraday-home-panel">
-                  <IntradayDecisionFeed
-                    opportunities={intradayOpportunities}
-                    t={t}
-                    compact
-                  />
-                </div>
-                <div className="panel route-alpha-panel">
-                  <div className="panel-title-row">
-                    <h2>{t("result.route_alpha")}</h2>
-                    <span>{t("result.pool_decision")}</span>
-                  </div>
-                  {poolAllocations.length > 0 ? poolAllocations.map((allocation, index) => {
-                    const option = saleOptionById.get(allocation.option_id);
-                    return (
-                      <details key={`pool-allocation-${allocation.resource_id}-${allocation.option_id}`} className="route-decision-card" open={index === 0}>
-                        <summary>
-                          <span>
-                            <small>{option?.target_point_name ?? allocation.option_id}</small>
-                            <strong>{option?.label ?? allocation.option_id}</strong>
-                          </span>
-                          <span className="route-decision-value">
-                            <strong>GBP {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</strong>
-                            <small>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</small>
-                          </span>
-                        </summary>
-                        <div className="route-decision-metrics">
-                          <span><small>{t("result.sale")}</small><strong>{allocation.gross_sale_price_gbp_mwh.toFixed(2)} GBP/MWh</strong></span>
-                          <span><small>{t("result.route_cost")}</small><strong>{(option?.route_cost_gbp_mwh ?? 0).toFixed(2)} GBP/MWh</strong></span>
-                          <span><small>{t("result.net_margin")}</small><strong>{allocation.net_margin_gbp_mwh.toFixed(2)} GBP/MWh</strong></span>
-                          <span><small>{t("result.cash_value")}</small><strong>{allocation.early_cash_value_gbp_mwh.toFixed(3)} GBP/MWh</strong></span>
-                          <span><small>{t("home.capacity_limit")}</small><strong>{option?.capacity_limit_mwh_per_day?.toLocaleString() ?? t("home.unlimited")} MWh/d</strong></span>
-                          <span><small>{t("home.required_access")}</small><strong>{option?.required_tso_access?.join(", ") || t("home.none_declared")}</strong></span>
-                        </div>
-                        <div className="route-decision-evidence">
-                          <span>{t("home.price_source")}: {option?.sale_price_simulated ? t("market.simulated_source") : option?.sale_price_source_system ?? "n/a"}</span>
-                          <span>{t("context.updated")}: {option?.sale_price_observed_at_utc ? new Date(option.sale_price_observed_at_utc).toLocaleString() : "n/a"}</span>
-                          <span>{t("home.source_refs")}: {option?.source_refs?.join(" / ") || t("data.unavailable")}</span>
-                          {allocation.warnings.map((warning) => (
-                            <strong key={`${allocation.option_id}-${warning}`} title={warning} data-warning-code={warningCode(warning)}>{warningLabel(warning, t)}</strong>
-                          ))}
-                        </div>
-                      </details>
-                    );
-                  }) : (
-                    <div className="route-alpha-card">
-                      <span>{t("result.optimal")}</span>
-                      <strong>{hasPortfolioResources ? selectedAllocation?.route_name ?? saleOptions[0]?.label ?? t("home.pending") : t("home.no_db_contracts")}</strong>
-                      <small>{hasPortfolioResources ? routeRecommendation ? t("result.no_route") : t("home.run_pool_optimizer") : t("home.draft_contract_note")}</small>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-  
-            {activeRailView === "pnl" && (
-              <>
-                <div className="panel trade-result-panel">
-                  <div className="panel-title-row">
-                    <div>
-                      <span className="eyebrow">{t("result.eyebrow")}</span>
-                      <h2>{t("result.title")}</h2>
-                    </div>
-                    <span className="status-pill">{routeRecommendation ? t("result.live") : t("result.snapshot")}</span>
-                  </div>
-                  <div className="net-pnl-card">
-                    <span>{t("result.net_pnl")}</span>
-                    <strong>
-                      {decisionPnl === null ? t("home.pending") : `GBP ${Math.round(decisionPnl).toLocaleString()}`}
-                    </strong>
-                    <small>
-                      {t("home.allocated")} {resourcePoolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d / {t("home.unallocated")} {resourcePoolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d
-                    </small>
-                  </div>
-                </div>
-                <div className="panel economics-snapshot">
-                  <h2>{t("result.economics_snapshot")}</h2>
-                  <div className="metric-grid two-column">
-                    <div><span>{t("result.purchase")}</span><strong>{purchasePrice === null ? "n/a" : `GBP ${purchasePrice.toFixed(2)}/MWh`}</strong></div>
-                    <div><span>{t("result.sale")}</span><strong>{salePrice === null ? "n/a" : `GBP ${salePrice.toFixed(2)}/MWh`}</strong></div>
-                    <div><span>{t("result.route_cost")}</span><strong>{routeCharge === null ? "n/a" : `GBP ${routeCharge.toFixed(2)}/MWh`}</strong></div>
-                    <div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? `GBP ${firstPoolAllocation.early_cash_value_gbp_mwh.toFixed(2)}/MWh` : "n/a"}</strong></div>
-                  </div>
-                </div>
-                <div className="panel decision-signal-panel">
-                  <div className="panel-title-row">
-                    <h2>{t("home.signal")}</h2>
-                    <span>
-                      {strategyContextMismatch
-                        ? t("data.stale")
-                        : firstStrategyTarget
-                          ? t("data.live")
-                          : t("result.snapshot")}
-                    </span>
-                  </div>
-                  <div className="net-pnl-card">
-                    <span>{t("home.strategy_process")}</span>
-                    <strong>
-                      {firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}
-                    </strong>
-                    <small>
-                      {strategyContextMismatch
-                        ? t("context.result_mismatch_hint")
-                        : strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}
-                    </small>
-                  </div>
-                </div>
-              </>
-            )}
-  
-            {activeRailView === "warnings" && (
-              <div className="panel network-warning-panel">
-                <div className="panel-title-row">
-                  <h2>{t("home.warning")}</h2>
-                  <span>{activeWarning ? t("data.live") : t("result.snapshot")}</span>
-                </div>
-                <div className="signal-warning">
-                  <span>{t("home.warning")}</span>
-                  <strong>{activeWarning ? warningLabel(activeWarning, t) : t("home.warning_clear")}</strong>
-                </div>
-                <CommercialWarningList
-                  items={commercialDiagnostics}
-                  t={t}
-                  limit={8}
-                  emptyLabel={t("home.warning_clear")}
-                />
-                {error && <div className="panel alert">{error}</div>}
-                {loading && <div className="panel">{t("status.loading")}</div>}
-              </div>
-            )}
-  
-            {activeRailView === "evidence" && (
-              <div className="panel evidence-stack-panel">
-                <div className="panel-title-row">
-                  <h2>{t("home.evidence_stack")}</h2>
-                  <button type="button" className="link-button" onClick={onOpenReview}>
-                    {t("home.review_warnings")}
-                  </button>
-                </div>
-                <div className="review-warning-list compact">
-                  {reviewEvidenceItems.length > 0
-                    ? reviewEvidenceItems.map((item) => (
-                        <span key={`evidence-${item.kind}-${item.text}`}>
-                          <strong>{item.kind}</strong> {item.text}
-                        </span>
-                      ))
-                    : <span>{t("home.no_evidence_warnings")}</span>}
-                </div>
-              </div>
-            )}
-          </div>
-        </aside>
-        <section className="network-route-ladder" aria-label={t("home.resource_paths")}>
-          <ResourcePoolPathOverlay
-            paths={resourcePoolMapPaths}
-            blockers={poolInputBlockers}
-            t={t}
-            defaultOpen
-          />
-        </section>
+      <MapBookRelevance
+        relevance={relevance}
+        t={t as (key: string, options?: Record<string, unknown>) => string}
+        onSelectHub={(hubNodeId) => {
+          const hub = nodeById.get(hubNodeId);
+          if (!hub) return;
+          selectOnMap({ kind: "hub", id: hub.name.toUpperCase() });
+          setFocus({ refId: hub.id, nonce: Date.now() });
+        }}
+        onSelectPlace={(refId) => {
+          const site = sites.find((item) => item.members.some((member) => member.id === refId));
+          if (site) selectOnMap({ kind: "site", id: site.id });
+          setFocus({ refId, nonce: Date.now() });
+        }}
+      />
     </section>
   );
   const footer = (
@@ -760,6 +475,33 @@ export function NetworkWorkspace({
                 <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{displayedHubCount}</strong></span>
               </div>
               <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>
+              {/* The maintenance line, for those who run the sources: topology checks, point
+                  coverage and what could not be placed. The map's status line stays the same
+                  for everyone. */}
+              {summary && (
+                <div className="map-data-maintenance" data-network-points={summary.networkPoints ?? undefined}>
+                  {topology.length > 0 && (
+                    <span className="is-alert" title={topology.map((issue) => `${t(`map.topology.${issue.kind}`)}: ${issue.detail}`).join("\n")}>
+                      {t("map.topology.count").replace("{{count}}", String(topology.length))}
+                    </span>
+                  )}
+                  {summary.networkPoints != null && summary.networkPoints > 0 && (
+                    <span
+                      title={summary.unlocatedPoints.length > 0
+                        ? `${t("map.situation.points_not_located_hint")}\n${summary.unlocatedPoints.map((point) => `${point.point_name} (${point.point_key})`).join("\n")}`
+                        : undefined}
+                    >
+                      {t("map.situation.network_points")} <b>{summary.networkPoints.toLocaleString()}</b>
+                      {summary.unlocatedPoints.length > 0
+                        ? ` · ${t("map.situation.points_not_located").replace("{{count}}", String(summary.unlocatedPoints.length))}`
+                        : ""}
+                    </span>
+                  )}
+                  {summary.unlocated > 0 && (
+                    <span title={t("map.situation.unlocated_hint")}>{t("map.situation.unlocated")} {summary.unlocated}</span>
+                  )}
+                </div>
+              )}
             </div>
       </details>}
       {/* The register the map's topology is drawn against: what the deployment declares,
@@ -774,7 +516,7 @@ export function NetworkWorkspace({
   return (
     <div
       ref={shellRef}
-      className={`network-workspace-shell network-desk${fullscreen.active ? " is-fullscreen" : ""}${fullscreen.expanded ? " is-expanded" : ""}${sheetRaised ? " is-sheet-raised" : ""}`}
+      className={`network-workspace-shell network-desk${fullscreen.active ? " is-fullscreen" : ""}${fullscreen.expanded ? " is-expanded" : ""}${sheetRaised ? " is-sheet-raised" : ""}${panelCollapsed && !fullscreen.active ? " is-panel-collapsed" : ""}${drawerOpen ? " is-drawer-open" : ""}`}
       data-map-view={mapView}
     >
       <div className="map-toolbar network-desk-toolbar">
@@ -900,6 +642,18 @@ export function NetworkWorkspace({
             </svg>
           ) : t(fullscreen.active ? "map.fullscreen.exit" : "map.fullscreen.enter")}
         </button>
+        {fullscreen.active && (
+          // Full screen is the map alone; the panel opens over it as a drawer.
+          <button
+            type="button"
+            className="chip map-drawer-chip"
+            aria-expanded={drawerOpen}
+            aria-controls="network-panel-column"
+            onClick={() => setDrawerOpen((open) => !open)}
+          >
+            {t(drawerOpen ? "network.panel.drawer_close" : "network.panel.drawer_open")}
+          </button>
+        )}
       </div>
       <section
         ref={mapColumnRef}
@@ -916,14 +670,14 @@ export function NetworkWorkspace({
           activeLayers={mapLayers}
           searchTerm={searchTerm}
           t={t}
-          highlightedRoute={highlightedRoute}
-          routesInUse={routesInUse}
           onInspectNode={openNodeInspector}
           situation={situation}
           facilities={facilities}
           view={mapView}
           focus={focus}
           bookFlows={bookFlows}
+          bookEmphasis={emphasis}
+          bookReachable={reachableLines}
           // The page holds the selection: the panel lists what the selected object relates
           // to and shows its card, so the map draws no card of its own.
           selection={selection}
@@ -973,13 +727,6 @@ export function NetworkWorkspace({
             {isLive
               ? <span className="map-situation-live">{t("map.situation.live")}</span>
               : <span className="map-situation-live is-empty">{t("map.situation.no_live_data")}</span>}
-            {/* Topology checks and point coverage are data-operations information: shown to
-                those who run the sources (and in Admin), not on a trader's map. */}
-            {dataOps && topology.length > 0 && (
-              <span className="is-alert" title={topology.map((issue) => `${t(`map.topology.${issue.kind}`)}: ${issue.detail}`).join("\n")}>
-                <i className="situation-dot outage-scheduled" />{t("map.topology.count").replace("{{count}}", String(topology.length))}
-              </span>
-            )}
             {summary.outagesNow > 0 && (
               <span className="is-alert"><i className="situation-dot outage-active" />{t("map.situation.outages_now")} <b>{summary.outagesNow}</b></span>
             )}
@@ -998,19 +745,6 @@ export function NetworkWorkspace({
             {summary.regasNow > 0 && (
               <span><i className="situation-dot own" />{t("map.situation.regas_now")} <b>{summary.regasNow}</b></span>
             )}
-            {dataOps && summary.networkPoints != null && summary.networkPoints > 0 && (
-              <span
-                data-network-points={summary.networkPoints}
-                title={summary.unlocatedPoints.length > 0
-                  ? `${t("map.situation.points_not_located_hint")}\n${summary.unlocatedPoints.map((point) => `${point.point_name} (${point.point_key})`).join("\n")}`
-                  : undefined}
-              >
-                {t("map.situation.network_points")} <b>{summary.networkPoints.toLocaleString()}</b>
-                {summary.unlocatedPoints.length > 0
-                  ? ` · ${t("map.situation.points_not_located").replace("{{count}}", String(summary.unlocatedPoints.length))}`
-                  : ""}
-              </span>
-            )}
             {summary.entryGwhD != null && (
               <span>{t("map.situation.entry_flow")} <b>{Math.round(summary.entryGwhD).toLocaleString()}</b> GWh/d</span>
             )}
@@ -1026,10 +760,9 @@ export function NetworkWorkspace({
               </span>
             )}
             {situationStale && <span className="is-alert">{t("map.situation.stale")}</span>}
-            <small title={t("map.situation.unlocated_hint")}>
+            <small>
               {t("map.situation.as_of")} {summary.asOf.slice(11, 16)} UTC
               {readAt ? ` · ${t("map.situation.read_at")} ${readAt.toISOString().slice(11, 16)} UTC` : ""}
-              {dataOps && summary.unlocated > 0 ? ` · ${t("map.situation.unlocated")} ${summary.unlocated}` : ""}
             </small>
           </div>
         )}
@@ -1078,7 +811,7 @@ export function NetworkWorkspace({
       </div>
       </section>
 
-      <div className="network-panel-column">
+      <div className="network-panel-column" id="network-panel-column">
         {/* Phone width: the handle raises or lowers the sheet (drag, or press). */}
         <button
           type="button"
@@ -1123,6 +856,12 @@ export function NetworkWorkspace({
           capacity={capacity}
           book={bookPanels}
           footer={footer}
+          collapsed={panelCollapsed && !fullscreen.active}
+          onCollapse={fullscreen.active ? () => setDrawerOpen(false) : () => choosePanelCollapsed(true)}
+          onExpand={(tab) => {
+            setPanelTab(tab);
+            choosePanelCollapsed(false);
+          }}
         />
       </div>
     </div>

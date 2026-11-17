@@ -288,6 +288,7 @@ export function MapDetailPanel({
   outagesListed = false,
   zoneOutages = null,
   onSelect,
+  bookReasons,
 }: {
   selection: MapSelection;
   sites: readonly Site[];
@@ -305,6 +306,8 @@ export function MapDetailPanel({
   zoneOutages?: ZoneOutageCounts | null;
   /** Move the selection to a related object (a cargo's destination terminal). */
   onSelect?: (next: MapSelection) => void;
+  /** In the "Our book" view: why this object is on it (app/mapBookRelevance.ts). */
+  bookReasons?: readonly string[];
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -330,6 +333,13 @@ export function MapDetailPanel({
     <aside className="map-detail-panel" aria-label={t("map.detail.title")}>
       <button type="button" className="map-detail-close link-button" onClick={onClose} aria-label={t("map.detail.close")}>×</button>
       {body}
+      {bookReasons && bookReasons.length > 0 && (
+        <Section title={t("map.book.why")}>
+          <ul className="map-detail-book-reasons">
+            {bookReasons.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        </Section>
+      )}
       {onInspect && node && site && (
         <button type="button" className="secondary-button map-detail-inspect" onClick={() => onInspect(node.id, site.name)}>
           {t("map.inspect_node")}

@@ -297,3 +297,60 @@ def test_a_delivered_cargo_comes_back_with_its_timed_track_only_when_history_is_
     assert delivered["status"] == "delivered"
     assert delivered["track"] == [[23.6, 70.68], [4.0, 51.95]]
     assert all(isinstance(when, str) for when in delivered["track_times"])
+
+
+def test_our_book_view_lists_what_relates_to_the_deals_and_why(seeded):
+    """Design basis 2, J.5: ours (deals, their hubs, paths, capacity, cargoes, slots) and
+    reachable (neighbouring market areas along the proven adjacency), derived from the store."""
+
+    import os
+
+    client, headers = seeded
+    engine = create_engine(os.environ["RUNTIME_STORE_DATABASE_URL"], future=True)
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        # Bought at TTF to be sold at NBP: its priced path crosses BBL.
+        session.add(_contract("nl-ttf", "TTF", "uk-nbp", now))
+        session.commit()
+
+    book = client.get("/api/portfolio/map-situation", headers=headers["uk"]).json()["data"][
+        "book_relevance"
+    ]
+    ours = {(item["kind"], item["name"]): item for item in book["ours"]}
+    # Each item says why it is on the book view.
+    point = ours[("point", "Easington")]
+    assert point["reasons"][0] == {
+        "key": "delivery_point",
+        "contract": "uk-norway supply",
+        "counterparty": None,
+        "mwh_d": 12_000.0,
+    }
+    assert ours[("capacity", "Easington")]["reasons"][0]["key"] == "held_capacity"
+    assert ours[("hub", "TTF")]["reasons"] == [{"key": "contract_hub", "contract": "nl-ttf supply"}]
+    assert ours[("cargo", "Arctic Voyager")]["reasons"][0]["key"] == "expected_cargo"
+    assert {reason["key"] for reason in ours[("terminal", "Gate terminal")]["reasons"]} == {
+        "expected_cargo",
+        "regas_slot",
+    }
+    # The contract's priced path to its allowed exit, along the proven adjacency.
+    (path,) = book["contract_paths"]
+    assert (path["from_hub"], path["to_hub"]) == ("TTF", "NBP")
+    assert ("point", "Bacton (BBL)") in ours
+    # Reachable from TTF: NBP through BBL, with the gaps named (no price or tariff held here).
+    reach = {(item["from_hub"], item["to_hub"]): item for item in book["reachable"]}
+    to_nbp = reach[("TTF", "NBP")]
+    assert to_nbp["crossings_count"] == 1 and "Bacton (BBL)" in to_nbp["via"]
+    assert to_nbp["indicative"] is True
+    assert to_nbp["net_gbp_mwh"] is None and to_nbp["tariff_status"] == "missing"
+    assert to_nbp["missing_legs"]
+    assert all(item["crossings_count"] <= 2 for item in book["reachable"])
+    # The outage at our delivery point touches the book; the opportunity class waits for
+    # the opportunity core.
+    assert book["outages_touching"] == ["UMM-1"]
+    assert book["opportunities"] == []
+    # Another office's contract is not on this caller's book view.
+    assert not any(
+        reason.get("contract") == "ca-import supply"
+        for item in book["ours"]
+        for reason in item["reasons"]
+    )

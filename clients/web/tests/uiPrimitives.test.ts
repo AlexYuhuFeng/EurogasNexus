@@ -66,12 +66,13 @@ test("Runtime delegates tablist semantics to WorkspaceTabs", () => {
   assert.doesNotMatch(source, /StatusBadge owns/);
 });
 
-test("the Network panel, Network rail, and Strategy shadow delegate tab semantics to WorkspaceTabs", () => {
+test("the Network panel and Strategy shadow delegate tab semantics to WorkspaceTabs", () => {
   const cases = [
     // Points, storage and LNG inside the Capacity tab are one Segmented choice, not nested tabs.
+    // The Network page's decision rail left with the optimiser pages (design basis 2, CP-21).
     ["components/NetworkInfoPanel.tsx", "network-panel-tab"],
-    ["components/NetworkWorkspace.tsx", "network-rail-tab"],
   ] as const;
+  assert.equal(readWebSource("components/NetworkWorkspace.tsx").includes("network-rail-tab"), false);
 
   for (const [path, prefix] of cases) {
     const source = readWebSource(path);
@@ -104,10 +105,6 @@ test("narrow scroll regions are explicitly keyboard focusable", () => {
     ["components/MarketPositioningWorkspace.tsx", /<DataGrid[\s\S]*?id="screen-orders"[\s\S]*?maxHeight=/],
     ["components/AccessCenter.tsx", /className="data-table" tabIndex=\{0\}/],
     ["components/AgentsWorkspace.tsx", /className="research-table data-table" tabIndex=\{0\}/],
-    // The decision rail scrolls (`overflow-y: auto`) and holds text, not controls: without a focus
-    // stop of its own the keyboard cannot reach the rest of the rail (axe
-    // `scrollable-region-focusable`, measured on `#network-rail-panel` in run 35888959943).
-    ["components/NetworkWorkspace.tsx", /id="network-rail-panel"[\s\S]*?tabIndex=\{0\}/],
   ] as const;
 
   for (const [path, pattern] of cases) {
@@ -115,21 +112,10 @@ test("narrow scroll regions are explicitly keyboard focusable", () => {
   }
 });
 
-test("the scrollable network rail panel keeps its tabpanel contract and a token-based focus ring", () => {
+test("the Network page carries no decision rail (design basis 2, CP-21)", () => {
   const source = readWebSource("components/NetworkWorkspace.tsx");
-  assert.match(
-    source,
-    /id="network-rail-panel"[\s\S]*?role="tabpanel"[\s\S]*?aria-labelledby=\{`network-rail-tab-\$\{activeRailView\}`\}[\s\S]*?tabIndex=\{0\}/,
-  );
-
-  const css = readFileSync(new URL("../src/styles/app.css", import.meta.url), "utf8");
-  const rule = /\.workspace-network \.network-rail-view:focus-visible \{([^}]*)\}/.exec(css);
-  assert.ok(rule, "the rail panel declares a :focus-visible rule");
-  assert.match(rule[1], /outline: 2px solid var\(--ds-accent\);/);
-  assert.match(rule[1], /outline-offset: -2px;/);
-  // The outline must resolve through a declared palette token, not a literal colour.
-  const tokens = readFileSync(new URL("../src/styles/tokens.css", import.meta.url), "utf8");
-  assert.match(tokens, /--ds-accent:\s*#[0-9a-f]{3,8};/i);
+  assert.equal(source.includes("network-rail-panel"), false);
+  assert.equal(source.includes("activeRailView"), false);
 });
 
 test("WorkspaceTabs is the Tabs primitive as a nav landmark holding the tablist", () => {

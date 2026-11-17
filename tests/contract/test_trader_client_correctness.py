@@ -232,7 +232,8 @@ def test_frontend_runtime_business_data_is_api_owned() -> None:
     assert "portfolioResources = [" not in app
     assert "marketObservations = [" not in app
     assert "fetchWorkspace" in store
-    assert "sale_price_simulated" in network
+    # The Network page reads the book view's relevance from the API (design basis 2, J.5).
+    assert "book_relevance" in network
     assert not list(WEB.rglob("*fixture*.json"))
     assert not list(WEB.rglob("*mock*.json"))
 
@@ -454,8 +455,9 @@ def test_network_workspace_is_extracted_from_app_shell() -> None:
     assert "<NetworkWorkspace" in market_cockpit
     assert "scenario-rail" not in app
     assert "decision-rail" not in app
-    assert "scenario-rail" in network_workspace
-    assert "decision-rail" in network_workspace
+    # The rails left the Network page with the optimiser pages (design basis 2, CP-21).
+    assert "scenario-rail" not in network_workspace
+    assert "decision-rail" not in network_workspace
     assert len(_read(WEB / "App.tsx").splitlines()) <= 20
 
 

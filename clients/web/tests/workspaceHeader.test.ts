@@ -102,10 +102,9 @@ test("the direct map-first Network route is composed, not intercepted", () => {
   assert.match(model, /if \(activeWorkspace === "network" \|\| activeWorkspace === "capacity"\) return "network";/);
   assert.match(cockpit, /\{\(task === "network" \|\| networkKept\) && \(/);
 
-  // The hand-off the shell used to own moved with the mount, so the route carried into
-  // the scenario workspace is unchanged.
-  assert.match(cockpit, /const routeId =\s*portfolio\.selectedAllocation\?\.route_id \?\?/s);
-  assert.match(cockpit, /if \(routeId\) selection\.setRouteId\(routeId\);/);
+  // The scenario hand-off left with the decision rail (design basis 2, CP-21): the map
+  // opens no optimiser page.
+  assert.equal(cockpit.includes("onOpenScenario"), false);
 });
 
 test("the narrow alert trigger keeps a visible text label", () => {

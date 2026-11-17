@@ -256,11 +256,9 @@ test("one compute act has one control, across surfaces and not only inside a fil
     [],
     "a surface other than the Decision workspace starts a Decision-workspace run",
   );
-  // The workspace that hands over says so in its own copy rather than leaving the user to guess.
-  assert.match(
-    readWebSource("components/NetworkWorkspace.tsx"),
-    /t\("network\.optimizer_location"\)/,
-  );
+  // The Network page carries no optimiser hand-over any more: the decision rail left the map
+  // with the optimiser pages (design basis 2, CP-21).
+  assert.equal(readWebSource("components/NetworkWorkspace.tsx").includes("network.optimizer_location"), false);
   assert.match(
     readWebSource("components/ScenarioWorkspace.tsx"),
     /t\("scenario\.optimizer_location"\)/,

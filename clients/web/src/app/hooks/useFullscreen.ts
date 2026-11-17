@@ -45,5 +45,14 @@ export function useFullscreen(target: RefObject<HTMLElement | null>) {
     }
   }, [expanded, target]);
 
-  return { active: native || expanded, expanded, toggle };
+  /** Leave full screen (native or expanded), for example when the page is hidden. */
+  const exit = useCallback(() => {
+    const element = target.current;
+    if (document.fullscreenElement && element && element.contains(document.fullscreenElement)) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+    setExpanded(false);
+  }, [target]);
+
+  return { active: native || expanded, expanded, toggle, exit };
 }
