@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import type { CurrentUserDTO } from "../src/api/client.ts";
@@ -24,29 +23,19 @@ import { WORK_MODE_GRANTS_AUTHORITY } from "../src/app/experience/workModes.ts";
 import { navigationCommands } from "../src/app/experience/commandPalette.ts";
 import { visibleModes } from "../src/app/navigation/modeNavigation.ts";
 
-const repo = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8");
+/*
+ * The server's role -> permission table (security/authorization.py ROLE_PERMISSIONS). Client
+ * tests never read backend sources (FF1); tests/contract/test_role_composition_parity.py
+ * proves this copy and JOB_FUNCTION_IDS match the server.
+ */
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  VIEWER: ["agent.read", "capability.read", "market.read", "me.read", "portfolio.read", "review.read", "runtime.read", "source.read", "strategy.read"],
+  REVIEWER: ["agent.read", "capability.read", "market.read", "me.read", "portfolio.read", "review.read", "review.record", "runtime.read", "source.read", "strategy.read"],
+  ANALYST: ["agent.read", "agent.research", "analysis.query", "capability.invoke", "capability.read", "market.read", "me.read", "optimization.run", "portfolio.read", "portfolio.write", "review.read", "runtime.read", "scenario.create", "source.read", "strategy.create", "strategy.edit", "strategy.freeze", "strategy.read", "strategy.retire", "strategy.shadow.manage"],
+  OPERATOR: ["agent.read", "agent.research", "capability.invoke", "capability.read", "market.read", "me.read", "portfolio.read", "review.read", "runtime.read", "source.backfill", "source.certification.manage", "source.credentials.write", "source.read", "source.run", "strategy.read", "strategy.shadow.manage"],
+  ADMIN: ["api_keys.manage", "audit.read", "capability.read", "identity.manage", "identity.read", "me.read", "runtime.read", "source.backfill", "source.certification.manage", "source.credentials.write", "source.read", "source.run"],
+};
 
-/* The server's role → permission table, read from its source so the test follows it. */
-function rolePermissions(): Record<string, string[]> {
-  const source = repo("src/eurogas_nexus/security/authorization.py");
-  const values = new Map<string, string>();
-  for (const match of source.matchAll(/^\s{4}([A-Z_]+) = "([a-z_.]+)"$/gm)) values.set(match[1], match[2]);
-  const block = (name: string) => {
-    const start = source.indexOf(`Role.${name}: frozenset(`);
-    if (start < 0) return null;
-    const end = source.indexOf(")", source.indexOf("}", start));
-    return [...source.slice(start, end).matchAll(/Permission\.([A-Z_]+)/g)].map((m) => values.get(m[1])!);
-  };
-  const commercialBlock = source.slice(source.indexOf("COMMERCIAL_PERMISSIONS:"), source.indexOf("PLATFORM_ADMINISTRATION_PERMISSIONS"));
-  const commercial = new Set([...commercialBlock.matchAll(/Permission\.([A-Z_]+)/g)].map((m) => values.get(m[1])!));
-  const table: Record<string, string[]> = {};
-  for (const role of ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR"]) table[role] = block(role)!;
-  table.ADMIN = [...values.values()].filter((value) => !commercial.has(value));
-  assert.ok(table.ANALYST.includes("scenario.create") && !table.ADMIN.includes("market.read"));
-  return table;
-}
-
-const ROLE_PERMISSIONS = rolePermissions();
 const ADMIN_CAPABILITY: Record<string, string> = {
   "identity.manage": "access.manage",
   "api_keys.manage": "api_keys.manage",
@@ -82,11 +71,7 @@ test("composition grants nothing, like the work modes", () => {
   assert.equal(resolveComposition(user(["ANALYST"], ["TRADER"])).grantsAuthority, false);
 });
 
-test("every server job function has a composition, and every composition is well formed", () => {
-  const server = repo("src/eurogas_nexus/security/capabilities.py");
-  const enumBlock = server.slice(server.indexOf("class FunctionalAssignment"), server.indexOf("class WorkMode"));
-  const declared = [...enumBlock.matchAll(/^\s{4}([A-Z_]+) = "\1"$/gm)].map((m) => m[1]);
-  assert.deepEqual([...declared].sort(), [...JOB_FUNCTION_IDS].sort());
+test("every job function has a composition, and every composition is well formed", () => {
   for (const id of JOB_FUNCTION_IDS) assert.ok(ROLE_COMPOSITIONS[JOB_FUNCTION_COMPOSITION[id]], id);
   for (const id of COMPOSITION_IDS) {
     const composition = ROLE_COMPOSITIONS[id];

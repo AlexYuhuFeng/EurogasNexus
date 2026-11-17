@@ -256,7 +256,7 @@ export function OrganisationDefaultsPanel({ t, canManage }: OrganisationDefaults
       </p>
       {settings &&
         KEYS.map((key) => (
-          <label key={key} className="settings-preference-row" data-preference={key}>
+          <label key={key} className="settings-preference-row">
             <span>{t(LABEL_KEYS[key])}</span>
             {canManage ? (
               <select value={settings[key] ?? ""} onChange={(event) => void save({ [key]: event.target.value })}>
