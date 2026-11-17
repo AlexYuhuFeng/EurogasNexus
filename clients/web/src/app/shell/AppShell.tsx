@@ -5,6 +5,7 @@ import { RestrictedSurface } from "@/components/RestrictedSurface";
 import { SignInScreen } from "@/components/SignInScreen";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import { ShellTicker } from "@/components/ShellTicker";
+import { DataProblemNotice } from "@/components/DataProblemNotice";
 import { DeskBriefDialog, openDeskBrief } from "@/components/DeskBriefDialog";
 import type { AppController } from "@/app/hooks/useAppController";
 import { useCommandPalette } from "@/app/hooks/useCommandPalette";
@@ -38,6 +39,9 @@ import { changeAppLanguage } from "@/i18n";
 import { loadRemotePreferences, saveRemotePreference } from "@/app/preferences/remotePreferences";
 import type { ThemeMode } from "@/stores/theme";
 import { layoutWorkspacePage } from "@/app/context/viewPreference";
+import { requestProblemReport } from "@/app/model/supportReport";
+import { useCompactWidth } from "@/app/shell/useShellLayout";
+import { useWideContent } from "@/app/shell/useWideContent";
 
 interface AppShellProps {
   controller: AppController;
@@ -147,10 +151,9 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     sources,
   } = controller;
 
-  // The one bounded failure surface. Loader keys and backend messages stay in
-  // the store: only translated endpoint labels, safe failure codes and one
-  // "showing N of M" summary are rendered, so the banner cannot leak internals
-  // and cannot grow past five detail rows however much fails.
+  // The one bounded failure model. Loader keys and backend messages stay in the store: only
+  // translated endpoint labels, safe failure messages and one "showing N of M" summary are
+  // rendered (status panel, notice), so nothing leaks internals or grows past five rows.
   const endpointFailures = describeEndpointFailures(api.endpointErrors, api.endpointErrorCodes, t);
   const endpointRetry = describeEndpointRetry(
     {
@@ -225,6 +228,10 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     task: marketView.task,
   });
 
+  // Phone width: a table wider than its box scrolls inside itself (styles/frame.css).
+  const compactWidth = useCompactWidth();
+  useWideContent(compactWidth);
+
   // Wave 9 shell surfaces: the canonical Inspector (object detail in one place)
   // and the command palette (one keyboard entry point to the derived command set).
   const inspector = useInspectorStore();
@@ -297,6 +304,8 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
       if (utility === "access-identity") navigation.openWorkspace("access");
       else if (utility === "brief-morning") openDeskBrief("morning");
       else if (utility === "brief-eod") openDeskBrief("eod");
+      else if (utility === "report-problem") requestProblemReport({});
+      else if (utility === "help") navigation.openPrimaryWorkspace("system");
       else void api.signOut();
     },
   });
@@ -342,6 +351,10 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         sourceEndpointError={api.endpointErrors.sources}
         currentUser={api.currentUser}
         monitoring={api}
+        endpointFailures={endpointFailures}
+        endpointRetry={endpointRetry}
+        onRetryEndpoints={() => void api.retryFailedWorkspaceEndpoints()}
+        onOpenDataSources={() => navigation.openWorkspace("sources")}
         t={t}
         onOpenPrimaryWorkspace={navigation.openPrimaryWorkspace}
         onOpenMode={navigation.openMode}
@@ -357,46 +370,15 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
       {/* The situational strip under the menu: what needs this person now, by role (§5). */}
       <ShellTicker language={i18n.language} t={t} openWorkspace={navigation.openWorkspace} />
 
-      {endpointFailures.total > 0 && (
-        <div
-          className="endpoint-error-banner"
-          role="status"
-          aria-live="polite"
-          aria-busy={endpointRetry.busy}
-        >
-          <div className="endpoint-error-summary">
-            <span className="endpoint-error-eyebrow">{t("workspace.partial_load")}</span>
-            <strong>{endpointFailures.summary}</strong>
-            <ul className="endpoint-error-detail-list">
-              {endpointFailures.entries.map((entry) => (
-                <li className="endpoint-error-detail" key={entry.key}>
-                  <span className="endpoint-error-detail-label">{entry.label}</span>
-                  <code className="endpoint-error-detail-code">{entry.code}</code>
-                  <span className="endpoint-error-detail-message">{entry.message}</span>
-                </li>
-              ))}
-            </ul>
-            {endpointFailures.truncatedSummary && (
-              <p className="endpoint-error-overflow">{endpointFailures.truncatedSummary}</p>
-            )}
-          </div>
-          <div className="endpoint-error-actions">
-            <button
-              type="button"
-              disabled={endpointRetry.disabled}
-              aria-busy={endpointRetry.busy}
-              onClick={() => void api.retryFailedWorkspaceEndpoints()}
-            >
-              {t("workspace.retry_failed")}
-            </button>
-            <span className="endpoint-error-retry-meta">
-              {endpointRetry.attemptsLabel}
-              {endpointRetry.lastAttemptLabel ? ` · ${endpointRetry.lastAttemptLabel}` : ""}
-              {endpointRetry.runningLabel ? ` · ${endpointRetry.runningLabel}` : ""}
-            </span>
-          </div>
-        </div>
-      )}
+      {/* Reads that did not load: a quiet count on the bar's status indicator, and this line once
+          per set of problems (dismissible); a store that does not answer stays (DataProblemNotice). */}
+      <DataProblemNotice
+        t={t}
+        failures={endpointFailures}
+        retry={endpointRetry}
+        onRetry={() => void api.retryFailedWorkspaceEndpoints()}
+        storeDown={api.dataStatus === "unavailable"}
+      />
 
       <main className="app-main" id="workspace-primary-content" data-shell-region="primary-workspace">
         {/* One composition path for every page: the shell owns the regions, the workspace

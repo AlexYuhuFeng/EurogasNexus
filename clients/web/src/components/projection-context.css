@@ -152,4 +152,104 @@
   .projection-context-basis {
     color: var(--ds-text-2);
   }
+
+  /* Phone width: one row. The trading context is one summary button (its sheet holds the three
+     controls); the as-of is short and never wraps; the feed status is a short word. The same
+     structure and order in every language (UX_REFERENCE "Phone rules"). */
+  @media (max-width: 719px) {
+    .projection-context {
+      gap: var(--ds-space-1) var(--ds-space-2);
+      padding: var(--ds-space-1) var(--ds-space-2);
+    }
+
+    /* One row when it fits (the market line does at 360 px); a page that adds its own words to
+       the status lets the status move under the summary, whole, rather than clip it. */
+    .projection-context .trading-context-controls.is-compact {
+      flex: 1 1 8rem;
+      min-width: 0;
+    }
+
+    .projection-context-status {
+      flex: 0 1 auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: var(--ds-space-1);
+      min-width: 0;
+      margin-left: auto;
+    }
+
+    .projection-context-status > :not(.projection-context-asof) {
+      flex: 0 0 auto;
+    }
+
+    .projection-context-trigger,
+    .today-stale-trigger {
+      padding: 0 var(--ds-space-1);
+      white-space: nowrap;
+    }
+  }
+
+  .trading-context-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    max-width: 100%;
+    min-width: 0;
+    height: var(--ds-control);
+    min-height: var(--ds-control);
+    padding: 0 var(--ds-space-2);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-sm);
+    cursor: pointer;
+  }
+
+  .trading-context-summary > svg {
+    flex: none;
+    color: var(--ds-text-2);
+  }
+
+  .trading-context-summary-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trading-context-summary:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  @media (pointer: coarse) {
+    .trading-context-summary {
+      height: var(--ds-control-touch);
+      min-height: var(--ds-control-touch);
+    }
+  }
+
+  .trading-context-sheet-fields {
+    display: grid;
+    gap: var(--ds-space-3);
+  }
+
+  .trading-context-sheet-fields label {
+    display: grid;
+    gap: var(--ds-space-1);
+  }
+
+  .trading-context-sheet-fields label > span {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .trading-context-sheet-fields :is(input, select) {
+    width: 100%;
+    height: var(--ds-control-touch);
+    min-height: var(--ds-control-touch);
+  }
 }

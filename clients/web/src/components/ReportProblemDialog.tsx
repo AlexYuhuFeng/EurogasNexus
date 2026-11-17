@@ -10,7 +10,6 @@ import {
   supportClientContext,
 } from "@/app/model/supportReport";
 import { useApiStore } from "@/stores/api";
-import { IconButton } from "@/components/ui/Button";
 import { Button, Dialog, Field, Select, StatusBadge, Tabs } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -21,7 +20,8 @@ const SEVERITIES = ["P1", "P2", "P3", "P4"] as const;
 /**
  * "Report a problem": one place for any user to tell the IT desk what went wrong, with the
  * page, versions, screen and failing reads attached automatically, and to follow up on
- * earlier reports. Opened from the top bar or by any panel through `requestProblemReport`.
+ * earlier reports. Opened from the account menu, the answer bar ("report a problem") or by any
+ * panel through `requestProblemReport`; it has no button of its own on the top bar.
  */
 export function ReportProblemDialog({ t }: { t: Translate }) {
   const runtimeRelease = useApiStore((state) => state.runtimeRelease);
@@ -93,7 +93,6 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
 
   return (
     <>
-      <IconButton className="topbar-help" variant="secondary" size="md" label={t("support.open")} icon="?" onClick={() => open()} />
       <Dialog
         open={isOpen}
         onClose={() => setIsOpen(false)}

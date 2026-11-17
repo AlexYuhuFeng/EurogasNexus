@@ -156,7 +156,7 @@ test("primitives are adopted at real call sites", () => {
     ["components/RiskLimitsPanel.tsx", /<DataGrid\s/],
     ["components/NweBalancePanel.tsx", /<DataGrid\s/],
     ["components/TodayScreen.tsx", /<DataGrid\s/],
-    ["components/ReportProblemDialog.tsx", /<IconButton className="topbar-help"/],
+    ["components/ReportProblemDialog.tsx", /<Dialog\s/],
     ["components/AlertCenter.tsx", /<IconButton label=/],
     ["components/MarketTerminal.tsx", /<StatusBadge tone="simulated"/],
     ["components/strategy/StrategyShadowRunSections.tsx", /<StatusBadge tone="stale"/],

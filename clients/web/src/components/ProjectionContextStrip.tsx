@@ -19,7 +19,8 @@ import {
   declaredTimeBasisKey,
   type SliceReading,
 } from "@/app/model/projectionModel";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import { useCompactWidth } from "@/app/shell/useShellLayout";
+import { useInstantFormatter } from "@/app/time/useInstant";
 import { Popover, StatusBadge } from "@/components/ui";
 import "@/components/projection-context.css";
 
@@ -62,7 +63,10 @@ export function ProjectionContextStrip({
   controls,
   freshness,
 }: ProjectionContextStripProps) {
+  const compact = useCompactWidth();
+  const formatInstant = useInstantFormatter();
   if (readings.length === 0) return null;
+  const shownAsOf = formatInstant(asOf);
 
   // The declared basis the backend actually reports (`time_basis.basis`), labelled through the
   // vocabulary the Data Product catalogue already uses; an unrecognised code is shown as itself.
@@ -88,11 +92,15 @@ export function ProjectionContextStrip({
         {freshness}
         {/* The as-of instant stays on the line itself: a trader reads how old the page is without
             opening anything, and the browser sweep holds this text to the read it belongs to. */}
-        <span className="projection-context-asof">
-          {asOf
-            ? t(key("as_of"), { value: formatUtcTimestamp(asOf, asOf) })
-            : t(key("as_of_unknown"))}
-        </span>
+        {/* In the reader's zone, short ("as of 00:57 CET"); the full instant is the tooltip and the
+            UTC instant the `dateTime` the sweep compares with the read. */}
+        {shownAsOf ? (
+          <time className="projection-context-asof" dateTime={shownAsOf.iso} title={shownAsOf.title}>
+            {t(compact ? "context_line.as_of_short" : key("as_of"), { value: shownAsOf.text })}
+          </time>
+        ) : (
+          <span className="projection-context-asof">{t(key("as_of_unknown"))}</span>
+        )}
         <Popover
           label={t(key("title"))}
           id="feed-status"
@@ -103,11 +111,13 @@ export function ProjectionContextStrip({
               type="button"
               className={`projection-context-trigger ${degraded.length === 0 || freshness ? "is-ok" : "is-degraded"}`}
             >
-              {freshness
+              {freshness || (compact && degraded.length === 0)
                 ? t("context_line.feeds")
                 : degraded.length === 0
                   ? t("context_line.fresh")
-                  : t("context_line.stale", { count: degraded.length, total: readings.length })}
+                  : compact
+                    ? t("context_line.stale_short", { count: degraded.length, total: readings.length })
+                    : t("context_line.stale", { count: degraded.length, total: readings.length })}
             </button>
           )}
         >
@@ -138,9 +148,10 @@ export function ProjectionContextStrip({
                     {t(key("restricted"), { count: reading.filteredOut })}
                   </span>
                 )}
-                {reading.lastObservedAtUtc && (
-                  <time>{formatUtcTimestamp(reading.lastObservedAtUtc, reading.lastObservedAtUtc)}</time>
-                )}
+                {reading.lastObservedAtUtc && (() => {
+                  const observed = formatInstant(reading.lastObservedAtUtc);
+                  return observed ? <time dateTime={observed.iso} title={observed.title}>{observed.text}</time> : null;
+                })()}
               </li>
             ))}
           </ul>

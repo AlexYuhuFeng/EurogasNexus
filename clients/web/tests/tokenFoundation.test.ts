@@ -98,14 +98,11 @@ test("shared shell surfaces use the tokens at their ownership points", () => {
     css,
     /\.cockpit-app \.cockpit-topbar \{[\s\S]*?gap: var\(--ds-space-2\) var\(--ds-space-3\);[\s\S]*?padding: var\(--ds-space-3\) var\(--ds-space-4\);/,
   );
-  assert.match(
-    css,
-    /\.endpoint-error-banner \{[\s\S]*?gap: var\(--ds-space-1\) var\(--ds-space-3\);[\s\S]*?padding: var\(--ds-space-2\) var\(--ds-space-3\);/,
-  );
   assert.match(css, /\.workspace-pill,[\s\S]*?\.topbar-search \{[\s\S]*?min-height: var\(--ds-control\);/);
   assert.match(css, /\.cockpit-app \.workspace-primary-tabs \{[\s\S]*?border-radius: var\(--ds-radius-sm\);/);
   assert.match(css, /\.workspace-menu \{[\s\S]*?border-radius: var\(--ds-radius-md\);/);
-  assert.match(css, /\.endpoint-error-banner span \{[\s\S]*?font-size: var\(--ds-text-xs\);/);
+  // The endpoint banner is gone (shell status indicator + DataProblemNotice, design-system.css).
+  assert.doesNotMatch(css, /\.endpoint-error-banner/);
 });
 
 test("scoped shell declarations resolve to canonical active values", () => {

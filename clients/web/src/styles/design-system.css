@@ -20,6 +20,8 @@
 
 /* The interface face, bundled with the client (fonts.css; never the device's UI font). */
 @import url("./fonts.css");
+/* The page frame at phone width: nothing makes the page scroll sideways (frame.css). */
+@import url("./frame.css");
 /* Tokens: sizes, radii, durations and colour roles for both themes (tokens.css). */
 @import url("./tokens.css") layer(ds-theme);
 /* Primitives (Button, IconButton, StatusBadge, KeyFigure, Panel, EmptyState, Skeleton). */
@@ -2064,7 +2066,6 @@
     background: var(--ds-surface);
   }
 
-  .cockpit-app .app-header .topbar-help,
   .cockpit-app .app-header .topbar-preferences-trigger {
     width: var(--ds-control);
     min-width: var(--ds-control);
@@ -2074,22 +2075,15 @@
     border-radius: var(--ds-radius-pill);
   }
 
-  .cockpit-app .app-header .topbar-help {
-    border: 1px solid var(--ds-border);
-    background: var(--ds-surface);
-  }
-
   @media (pointer: coarse) {
     .cockpit-app .app-header .topbar-command,
     .cockpit-app .app-header .alert-trigger,
     .cockpit-app .app-header .topbar-status-chip,
-    .cockpit-app .app-header .topbar-help,
     .cockpit-app .app-header .topbar-preferences-trigger {
       height: var(--ds-control-touch);
       min-height: var(--ds-control-touch);
     }
 
-    .cockpit-app .app-header .topbar-help,
     .cockpit-app .app-header .topbar-preferences-trigger {
       width: 44px;
       min-width: 44px;
@@ -2964,25 +2958,6 @@
 
 /* ---------------------------------------------------------- help, reports, notifications */
 @layer ds-components {
-  .topbar-help {
-    display: inline-grid;
-    place-items: center;
-    width: var(--ds-control-sm);
-    height: var(--ds-control-sm);
-    margin-right: var(--ds-space-2);
-    padding: 0;
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-pill);
-    background: var(--ds-surface);
-    color: var(--ds-text-2);
-    font-weight: var(--ds-weight-semibold);
-  }
-
-  .topbar-help:hover {
-    border-color: var(--ds-border-strong);
-    color: var(--ds-text-1);
-  }
-
   .topbar-report-hint {
     font-size: var(--ds-text-xs);
     white-space: nowrap;
@@ -3473,8 +3448,7 @@
     padding: 0;
   }
 
-  [data-width-class="compact"] .alert-trigger > span:not(.alert-trigger-mark),
-  [data-width-class="compact"] .topbar-status-chip > span {
+  [data-width-class="compact"] .alert-trigger > span:not(.alert-trigger-mark) {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -3484,8 +3458,7 @@
   }
 
   [data-width-class="compact"] .alert-trigger,
-  [data-width-class="compact"] .topbar-status-chip,
-  [data-width-class="compact"] .topbar-help {
+  [data-width-class="compact"] .topbar-status-chip {
     min-width: 44px;
     min-height: var(--ds-control-touch);
     justify-content: center;
@@ -4377,5 +4350,257 @@
     font-family: var(--ds-font-mono);
     font-size: var(--ds-text-sm);
     line-height: var(--ds-leading);
+  }
+}
+
+/* ----------------------------------------- shell foundation (2026-11-17): bar, status, notice */
+@layer ds-components {
+  /* Below 1024 px the mark is the menu: one control, not a logo beside a hamburger. */
+  .cockpit-app .app-header .topbar-brand-menu {
+    display: inline-flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: var(--ds-space-1);
+    min-width: var(--ds-control-touch);
+    min-height: var(--ds-control-touch);
+    padding: 0 var(--ds-space-1);
+    border: 0;
+    border-radius: var(--ds-radius-md);
+    background: none;
+    color: var(--ds-text-1);
+    cursor: pointer;
+  }
+
+  .cockpit-app .app-header .topbar-brand-menu .topbar-brand {
+    margin-right: 0;
+  }
+
+  .topbar-brand-menu:hover {
+    background: var(--ds-surface-2);
+  }
+
+  .topbar-brand-menu:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  .topbar-menu-chevron {
+    flex: none;
+    color: var(--ds-text-2);
+    transition: transform var(--ds-duration-fast) var(--ds-ease-out);
+  }
+
+  .topbar-brand-menu[aria-expanded="true"] .topbar-menu-chevron {
+    transform: rotate(180deg);
+  }
+
+  .topbar-brand-group {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--ds-space-2);
+    margin-right: var(--ds-space-2);
+  }
+
+  .cockpit-app .app-header .topbar-brand-group .topbar-brand {
+    margin-right: 0;
+  }
+
+  /* Demo mode, said once and quietly beside the mark (and in the account menu). */
+  .topbar-demo-badge {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    height: var(--ds-chip);
+    padding: 0 var(--ds-space-1);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
+  .topbar-menu-demo {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  /* Search names itself in words where the bar has room; a phone keeps the magnifier, which
+     still carries its name (aria-label, tooltip). */
+  .cockpit-app .app-header .topbar-command .topbar-command-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (min-width: 420px) {
+    [data-width-class="compact"] .cockpit-app .app-header .topbar-command {
+      width: auto;
+      padding: 0 var(--ds-space-3);
+      gap: var(--ds-space-1);
+      display: inline-flex;
+      align-items: center;
+    }
+  }
+
+  @media (max-width: 419px) {
+    .cockpit-app .app-header .topbar-command .topbar-command-label {
+      display: none;
+    }
+
+    [data-width-class="compact"] .cockpit-app .app-header .topbar-command {
+      flex: 0 0 auto;
+      width: var(--ds-control-touch);
+      min-width: var(--ds-control-touch);
+      padding: 0;
+    }
+  }
+
+  /* The data-status indicator: a dot, and a count when something needs attention. */
+  .cockpit-app .app-header .topbar-status-chip {
+    gap: var(--ds-space-1);
+    min-width: var(--ds-control);
+    justify-content: center;
+    padding: 0 var(--ds-space-2);
+  }
+
+  .topbar-status-count {
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+    font-variant-numeric: var(--ds-numeric);
+  }
+
+  .topbar-status.is-checking .topbar-status-chip i {
+    background: var(--ds-text-3);
+  }
+
+  .topbar-status-panel {
+    display: grid;
+    gap: var(--ds-space-3);
+    width: min(360px, calc(100vw - 24px));
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+  }
+
+  [data-width-class="compact"] .topbar-status-panel {
+    position: fixed;
+    top: calc(var(--ds-control-touch) + var(--ds-space-3));
+    right: var(--ds-space-3);
+    left: var(--ds-space-3);
+    width: auto;
+  }
+
+  .topbar-status-head {
+    display: grid;
+    gap: var(--ds-space-05);
+  }
+
+  .topbar-status-head > span,
+  .topbar-status-calm,
+  .topbar-status-demo,
+  .topbar-status-more {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .topbar-status-section {
+    display: grid;
+    gap: var(--ds-space-2);
+    padding-top: var(--ds-space-2);
+    border-top: 1px solid var(--ds-border);
+  }
+
+  .topbar-status-section h3 {
+    margin: 0;
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .topbar-status-section p {
+    margin: 0;
+  }
+
+  .topbar-status-list {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .topbar-status-list li {
+    display: grid;
+    gap: 0;
+  }
+
+  .topbar-status-list small {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .topbar-status-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+  }
+
+  .topbar-status-facts {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding-top: var(--ds-space-2);
+    border-top: 1px solid var(--ds-border);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .topbar-status-facts > div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+  }
+
+  .topbar-status-facts dd {
+    margin: 0;
+    color: var(--ds-text-1);
+    text-align: right;
+  }
+
+  /* A problem appears once per set, as a line under the bar; it is not pinned over the page. */
+  .data-problem-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2) var(--ds-space-3);
+    margin: var(--ds-space-2) max(var(--eg-page-gutter), env(safe-area-inset-left)) var(--ds-space-2);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-status-watch);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-status-watch-soft);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .data-problem-notice.is-critical {
+    border-color: var(--ds-status-breach);
+    background: var(--ds-status-breach-soft);
+  }
+
+  .data-problem-notice p {
+    flex: 1 1 16rem;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .data-problem-notice-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1);
   }
 }

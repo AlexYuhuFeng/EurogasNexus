@@ -1,0 +1,84 @@
+/*
+ * The page frame at phone width: the page never scrolls sideways (docs/product/UX_REFERENCE.md,
+ * "Phone rules"). Imported by design-system.css; tokens only.
+ *
+ * 1. A box never grows its parent: flex and grid items may shrink below their content
+ *    (`min-width: 0`, zero specificity so a component's own rule still wins), a fieldset forgets
+ *    its min-content width, media never exceed their box, long words break instead of pushing.
+ * 2. Wide content scrolls inside its own box: a table wider than its box is marked by the shell
+ *    (`data-wide-table`, app/shell/useWideContent.ts) and scrolls inside itself with edge shadows
+ *    that say so; the DataGrid folds its extra columns into row Details instead.
+ * 3. The frame clips nothing a reader needs, but it does not grow either: the app root clips on the
+ *    x axis (not a scroll container, so sticky headers still stick). The browser sweep fails any
+ *    element whose right edge passes the screen, clipped or not (scripts/uat/phoneOverflow.mjs).
+ */
+@layer ds-base {
+  @media (max-width: 719px) {
+    main :where(div, section, article, aside, form, fieldset, details, dl, dd, ul, ol, li, nav, header, footer, figure, label, p) {
+      min-width: 0;
+    }
+
+    main :where(img, svg, video, canvas, iframe) {
+      max-width: 100%;
+    }
+
+    main {
+      overflow-wrap: break-word;
+    }
+
+    /* Inputs size to their box, not to a browser default of 20 characters. */
+    main :where(input:not([type="checkbox"], [type="radio"]), select, textarea) {
+      max-width: 100%;
+    }
+  }
+}
+
+@layer ds-components {
+  @media (max-width: 719px) {
+    html,
+    body,
+    .cockpit-app,
+    .cockpit-app:not(.workspace-network) {
+      overflow: visible;
+      overflow-x: clip;
+    }
+
+    .cockpit-app .app-main,
+    .cockpit-app .workspace-page {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    /* A wide table scrolls inside itself; the shadows at its edges say there is more. */
+    main table[data-wide-table] {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      background:
+        linear-gradient(to right, var(--ds-surface), var(--ds-surface)) left / var(--ds-space-6) 100% no-repeat local,
+        linear-gradient(to left, var(--ds-surface), var(--ds-surface)) right / var(--ds-space-6) 100% no-repeat local,
+        radial-gradient(farthest-side at 0 50%, var(--ds-scroll-shadow), transparent) left / var(--ds-space-3) 100% no-repeat scroll,
+        radial-gradient(farthest-side at 100% 50%, var(--ds-scroll-shadow), transparent) right / var(--ds-space-3) 100% no-repeat scroll;
+    }
+
+    /* A row of tabs or segments scrolls inside its own box rather than pushing the page. */
+    main :is([role="tablist"], .ds-tabs, .ds-segmented) {
+      flex-wrap: nowrap;
+      max-width: 100%;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+    }
+
+    main :is([role="tablist"], .ds-tabs, .ds-segmented)::-webkit-scrollbar {
+      display: none;
+    }
+
+    main table[data-wide-table]:focus-visible {
+      outline: none;
+      box-shadow: var(--ds-focus);
+    }
+  }
+}

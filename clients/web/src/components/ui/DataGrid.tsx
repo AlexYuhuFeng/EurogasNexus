@@ -17,13 +17,21 @@
  *   price is marked in the cell itself, not only in a banner.
  * - Optional live-cell flash on a value change, once, background only; off under reduced motion.
  *
+ * - Phone width (DESIGN_TOKENS "DataGrid on a phone"): a grid with more columns than a phone shows
+ *   keeps its first columns (or the ones marked `priority: "primary"`) and puts the rest behind a
+ *   per-row "Details" toggle as label/value rows, so it never makes the page wider than the
+ *   screen. `phoneLayout="scroll"` keeps every column and scrolls the grid inside its own box
+ *   instead (a ladder read across).
+ *
  * Performance: no layout reads during render; rows are memoised, sorting is one stable pass,
  * focus moves through the table's own `rows` collection. 500 rows render without measuring.
  */
 import {
+  Fragment,
   memo,
   useEffect,
   useMemo,
+  useId,
   useRef,
   useState,
   type KeyboardEvent,
@@ -31,6 +39,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { useTranslation } from "react-i18next";
+import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { EmptyState } from "./EmptyState";
 import { gridRowIndex } from "./keyboard";
 import { Skeleton } from "./Skeleton";
@@ -81,6 +91,11 @@ export interface DataGridColumn<R> {
   width?: string;
   /** Hidden from screen readers (a decorative bar). */
   decorative?: boolean;
+  /**
+   * At phone width: `primary` columns stay in the row, `secondary` ones move into the row's
+   * Details. Unset on every column: the first `phoneColumns` columns stay.
+   */
+  priority?: "primary" | "secondary";
 }
 
 export interface DataGridProps<R> {
@@ -113,6 +128,27 @@ export interface DataGridProps<R> {
   id?: string;
   /** Extra attributes on the table (`data-position-ladder`). */
   tableAttributes?: Record<string, string | undefined>;
+  /**
+   * At phone width: `columns` (default) keeps the primary columns and folds the rest into each
+   * row's Details; `scroll` keeps every column and scrolls inside the grid's own box.
+   */
+  phoneLayout?: "columns" | "scroll";
+  /** How many columns stay in the row at phone width when none is marked primary (default 3). */
+  phoneColumns?: number;
+}
+
+/** The columns a phone keeps in the row, and the ones it folds into Details. */
+export function phoneColumnSplit<R>(
+  columns: readonly DataGridColumn<R>[],
+  keep = 3,
+): { visible: DataGridColumn<R>[]; folded: DataGridColumn<R>[] } {
+  const declared = columns.some((column) => column.priority === "primary");
+  const visible = columns.filter((column, index) =>
+    declared ? column.priority === "primary" || column.rowHeader : column.priority !== "secondary" && index < keep,
+  );
+  if (visible.length === 0 && columns[0]) visible.push(columns[0]);
+  const folded = columns.filter((column) => !visible.includes(column) && !column.decorative);
+  return { visible, folded };
 }
 
 function alignOf<R>(column: DataGridColumn<R>): "start" | "end" | "center" {
@@ -163,10 +199,18 @@ interface RowProps<R> {
   selected: boolean | undefined;
   attributes?: Record<string, string | undefined>;
   className?: string;
+  /** Phone width: the columns folded into this row's Details, and whether they are open. */
+  folded?: readonly DataGridColumn<R>[];
+  expanded?: boolean;
+  onToggle?: (rowId: string) => void;
+  detailsLabel?: string;
+  detailId?: string;
 }
 
-function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, selected, attributes, className }: RowProps<R>) {
+function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, selected, attributes, className, folded, expanded, onToggle, detailsLabel, detailId }: RowProps<R>) {
+  const hasDetails = Boolean(folded && folded.length > 0);
   return (
+    <Fragment>
     <tr
       data-row-key={rowId}
       data-row-index={index}
@@ -198,14 +242,53 @@ function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, 
           </Cell>
         );
       })}
+      {hasDetails ? (
+        <td className="ds-grid-more" data-align="end">
+          <button
+            type="button"
+            className="ds-grid-more-toggle"
+            aria-expanded={expanded}
+            aria-controls={detailId}
+            aria-label={detailsLabel}
+            title={detailsLabel}
+            onClick={() => onToggle?.(rowId)}
+          >
+            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+          </button>
+        </td>
+      ) : null}
     </tr>
+    {hasDetails && expanded ? (
+      <tr className="ds-grid-detail" id={detailId}>
+        <td colSpan={columns.length + 1}>
+          <dl className="ds-grid-detail-list">
+            {folded!.map((column) => {
+              const state = column.state?.(row) ?? null;
+              return (
+                <div key={column.id} data-col={column.id}>
+                  <dt>
+                    {column.header}
+                    {column.unit ? <span className="ds-grid-unit">{column.unit}</span> : null}
+                  </dt>
+                  <dd data-align={alignOf(column)} title={column.cellTitle?.(row)}>
+                    {display(column, row)}
+                    {state ? <StateMark state={state} /> : null}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </td>
+      </tr>
+    ) : null}
+    </Fragment>
   );
 }
 
 const Row = memo(RowView) as typeof RowView;
 
 export function DataGrid<R>({
-  columns,
+  columns: allColumns,
   rows,
   rowKey,
   label,
@@ -226,7 +309,29 @@ export function DataGrid<R>({
   className,
   id,
   tableAttributes,
+  phoneLayout = "columns",
+  phoneColumns = 3,
 }: DataGridProps<R>) {
+  const { t } = useTranslation();
+  const compactWidth = useCompactWidth();
+  const phoneFold = compactWidth && phoneLayout === "columns" && allColumns.length > phoneColumns;
+  const split = useMemo(
+    () => (phoneFold ? phoneColumnSplit(allColumns, phoneColumns) : { visible: [...allColumns], folded: [] }),
+    [phoneFold, allColumns, phoneColumns],
+  );
+  const columns = split.visible;
+  const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleExpanded = useMemo(
+    () => (rowId: string) =>
+      setExpandedKeys((current) => {
+        const next = new Set(current);
+        if (next.has(rowId)) next.delete(rowId);
+        else next.add(rowId);
+        return next;
+      }),
+    [],
+  );
+  const gridDomId = useId();
   const [ownSort, setOwnSort] = useState<SortState | null>(defaultSort);
   const sort = controlledSort !== undefined ? controlledSort : ownSort;
   const interactive = Boolean(onRowAction) || selectedKey !== undefined;
@@ -234,9 +339,9 @@ export function DataGrid<R>({
 
   const sorted = useMemo(() => {
     if (!sort) return [...rows];
-    const column = columns.find((item) => item.id === sort.columnId);
+    const column = allColumns.find((item) => item.id === sort.columnId);
     return sortRows(rows, column?.value, sort.direction);
-  }, [rows, columns, sort]);
+  }, [rows, allColumns, sort]);
 
   const spans = useMemo(
     () =>
@@ -308,6 +413,7 @@ export function DataGrid<R>({
       // already is.
       tabIndex={interactive || anySortable ? undefined : 0}
       data-grid={id}
+      data-phone-layout={phoneFold ? "folded" : undefined}
     >
       <table className={classes} role={interactive ? "grid" : undefined} aria-label={label} aria-busy={loading || undefined} {...tableAttributes}>
         {caption ? <caption className="ds-grid-caption">{caption}</caption> : null}
@@ -348,6 +454,11 @@ export function DataGrid<R>({
                 </th>
               );
             })}
+            {split.folded.length > 0 ? (
+              <th scope="col" className="ds-grid-more" data-align="end">
+                <span className="ds-visually-hidden">{t("grid.details")}</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         {showBody && sorted.length > 0 ? (
@@ -367,6 +478,11 @@ export function DataGrid<R>({
                   selected={selectedKey === undefined ? undefined : key === selectedKey}
                   attributes={rowAttributes?.(row)}
                   className={rowClassName?.(row)}
+                  folded={split.folded.length > 0 ? split.folded : undefined}
+                  expanded={expandedKeys.has(key)}
+                  onToggle={toggleExpanded}
+                  detailsLabel={t("grid.details")}
+                  detailId={`${gridDomId}-detail-${index}`}
                 />
               );
             })}
@@ -374,7 +490,7 @@ export function DataGrid<R>({
         ) : (
           <tbody>
             <tr className="ds-grid-placeholder">
-              <td colSpan={columns.length}>
+              <td colSpan={columns.length + (split.folded.length > 0 ? 1 : 0)}>
                 {loading ? (
                   <Skeleton label={loadingLabel ?? label} rows={4} />
                 ) : typeof empty === "string" || empty === undefined ? (

@@ -286,33 +286,31 @@ test("the shell renders one bounded structured surface instead of raw loader key
   assert.equal(shell.includes('.join(", ")'), false);
   assert.equal(shell.includes('t("workspace.failed_endpoints")'), false);
 
-  // One surface, still a polite status region in normal flow, now also busy-aware.
-  assert.equal(shell.match(/className="endpoint-error-banner"/g)?.length, 1);
-  assert.match(shell, /role="status"/);
-  assert.match(shell, /aria-live="polite"/);
-  assert.match(shell, /aria-busy=\{endpointRetry\.busy\}/);
-
-  // The safe machine codes now reach the UI through the store's code map.
+  // The failures are listed, not pinned (UX_REFERENCE "Problems are listed, not pinned"): the
+  // shell hands the bounded model to the top bar's status indicator and to one dismissible
+  // notice; there is no banner over the page any more.
+  assert.equal(shell.includes("endpoint-error-banner"), false);
+  assert.match(shell, /<DataProblemNotice/);
+  assert.match(shell, /endpointFailures=\{endpointFailures\}/);
+  assert.match(shell, /storeDown=\{api\.dataStatus === "unavailable"\}/);
   assert.match(shell, /describeEndpointFailures\(api\.endpointErrors, api\.endpointErrorCodes, t\)/);
-  assert.match(shell, /\{entry\.label\}/);
-  assert.match(shell, /\{entry\.code\}/);
-  assert.match(shell, /\{entry\.message\}/);
-  assert.match(shell, /\{endpointFailures\.summary\}/);
-  assert.match(shell, /\{endpointFailures\.truncatedSummary\}/);
-  assert.ok(shell.includes("key={entry.key}"), "the loader key is only a React key");
-  assert.equal(
-    shell.match(/entry\.key/g)?.length,
-    1,
-    "the loader key must appear once, as the React key, and never as text",
-  );
-  assert.equal(shell.includes('role="tab"'), false);
+  assert.match(shell, /onRetry=\{\(\) => void api\.retryFailedWorkspaceEndpoints\(\)\}/);
 
-  // Bounded retry: disabled and aria-busy while running, with attempt evidence.
-  assert.match(shell, /disabled=\{endpointRetry\.disabled\}/);
-  assert.match(shell, /aria-busy=\{endpointRetry\.busy\}/);
-  assert.match(shell, /\{endpointRetry\.attemptsLabel\}/);
-  assert.match(shell, /\{endpointRetry\.lastAttemptLabel\}/);
-  assert.match(shell, /onClick=\{\(\) => void api\.retryFailedWorkspaceEndpoints\(\)\}/);
+  const status = readWebSource("components/TopBarStatus.tsx");
+  const notice = readWebSource("components/DataProblemNotice.tsx");
+  // Translated labels and safe messages only; the loader key is a React key, never text.
+  assert.match(status, /\{entry\.label\}/);
+  assert.match(status, /\{entry\.message\}/);
+  assert.match(status, /key=\{entry\.key\}/);
+  assert.equal(status.match(/entry\.key/g)?.length, 1, "the loader key is only a React key, never text");
+  assert.match(status, /data-endpoint-failure=\{entry\.code\}/);
+  assert.match(status, /\{endpointFailures\.truncatedSummary\}/);
+  // Bounded retry: busy while running, one attempt at a time (Button loading disables it).
+  assert.match(status, /loading=\{endpointRetry\?\.busy\}/);
+  assert.match(notice, /loading=\{retry\.busy\}/);
+  // The notice is a polite status line; a store that does not answer is an alert.
+  assert.match(notice, /role="status" aria-live="polite"/);
+  assert.match(notice, /role="alert"/);
 
   // The store refuses a second concurrent attempt before any request is issued.
   assert.match(store, /if \(get\(\)\.endpointRetryBusy\) return;/);

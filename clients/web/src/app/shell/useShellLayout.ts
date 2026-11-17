@@ -6,7 +6,7 @@
  * `data-pointer`, so CSS and components read one source instead of inventing breakpoints.
  * Layout never grants anything.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 export type WidthClass = "compact" | "medium" | "wide";
 export type PointerKind = "coarse" | "fine";
@@ -76,4 +76,25 @@ export function useShellLayout(): ShellLayout {
     };
   }, []);
   return layout;
+}
+
+/**
+ * Whether the window is compact (a phone, a narrow window), from one shared media query: a
+ * primitive that renders many times (every DataGrid) subscribes without adding a resize listener
+ * per instance. Server/test rendering reads "not compact".
+ */
+const COMPACT_QUERY = `(max-width: ${COMPACT_MAX_PX}px)`;
+
+function subscribeCompact(onChange: () => void): () => void {
+  const query = typeof window !== "undefined" ? window.matchMedia?.(COMPACT_QUERY) : undefined;
+  query?.addEventListener?.("change", onChange);
+  return () => query?.removeEventListener?.("change", onChange);
+}
+
+function readCompact(): boolean {
+  return typeof window !== "undefined" ? Boolean(window.matchMedia?.(COMPACT_QUERY).matches) : false;
+}
+
+export function useCompactWidth(): boolean {
+  return useSyncExternalStore(subscribeCompact, readCompact, () => false);
 }

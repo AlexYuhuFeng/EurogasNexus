@@ -1,4 +1,9 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { SUPPORTED_HUB_IDS } from "@/app/context";
+import { useCompactWidth } from "@/app/shell/useShellLayout";
+import { formatGasDay } from "@/app/time/timeFormat";
+import { Sheet } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -8,7 +13,19 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
  * These used to sit in the top bar on every page; they only change what the trading pages
  * show, so they now live in those pages' context line. The selection is still one shared
  * context: changing it on Market carries to Portfolio and Decision Center.
+ *
+ * One structure in every language: gas day, product, hub, in that order, each a label above or
+ * beside its control. At phone width the three collapse into one summary button
+ * ("16 Nov · All products · All hubs") that opens a sheet with the same three controls, so the
+ * page's context line stays one row (UX_REFERENCE "Phone rules").
  */
+const PRODUCT_LABEL_KEYS: Record<string, string> = {
+  all: "context.all_products",
+  "day-ahead": "context.day_ahead",
+  "within-day": "context.within_day",
+  "month-ahead": "context.month_ahead",
+};
+
 export function TradingContextControls({
   gasDay,
   deliveryProduct,
@@ -26,16 +43,17 @@ export function TradingContextControls({
   onDeliveryProductChange: (value: string) => void;
   onHubChange: (value: string | null) => void;
 }) {
-  return (
-    <div
-      className="trading-context-controls"
-      role="group"
-      aria-label={t("context.title")}
-      // The Active Context in machine-readable form, for the acceptance sweep's reads.
-      data-context-gas-day={gasDay}
-      data-context-product={deliveryProduct}
-      data-context-hub={hubId ?? ""}
-    >
+  const compact = useCompactWidth();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const { i18n } = useTranslation();
+  const language = i18n.language;
+  const summary = [
+    formatGasDay(gasDay, language),
+    t(PRODUCT_LABEL_KEYS[deliveryProduct] ?? "context.all_products"),
+    hubId ?? t("context.no_hub_focus"),
+  ].join(" · ");
+  const fields = (
+    <>
       <label>
         <span>{t("context.gas_day")}</span>
         <input type="date" value={gasDay} onChange={(event) => onGasDayChange(event.target.value)} />
@@ -62,6 +80,46 @@ export function TradingContextControls({
           ))}
         </select>
       </label>
+    </>
+  );
+  return (
+    <div
+      className={compact ? "trading-context-controls is-compact" : "trading-context-controls"}
+      role="group"
+      aria-label={t("context.title")}
+      // The Active Context in machine-readable form, for the acceptance sweep's reads.
+      data-context-gas-day={gasDay}
+      data-context-product={deliveryProduct}
+      data-context-hub={hubId ?? ""}
+    >
+      {compact ? (
+        <>
+          <button
+            type="button"
+            className="trading-context-summary"
+            aria-haspopup="dialog"
+            aria-expanded={sheetOpen}
+            title={`${t("context.title")}: ${summary}`}
+            onClick={() => setSheetOpen(true)}
+          >
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+            <span className="trading-context-summary-text">{summary}</span>
+          </button>
+          <Sheet
+            open={sheetOpen}
+            onClose={() => setSheetOpen(false)}
+            side="bottom"
+            title={t("context.title")}
+            closeLabel={t("context.done")}
+            className="trading-context-sheet"
+            id="trading-context"
+          >
+            <div className="trading-context-sheet-fields">{fields}</div>
+          </Sheet>
+        </>
+      ) : (
+        fields
+      )}
     </div>
   );
 }

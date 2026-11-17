@@ -14,6 +14,7 @@
  * is absent.
  */
 import { useMemo, type ReactNode } from "react";
+import { useCompactWidth } from "@/app/shell/useShellLayout";
 
 import type {
   DeskTodayDTO,
@@ -632,15 +633,13 @@ export function StaleFigureList({
  * it is shown; the demo desk says "Demo data" once instead of counting a static store as stale.
  */
 export function TodayFreshness({ today, t, nowMs }: { today: DeskTodayDTO | null; t: Translate; nowMs: number }) {
+  const compact = useCompactWidth();
   if (!today) return null;
   const stale = today.stale_figures;
   return (
+    // Demo mode is said once, quietly, by the shell (the badge beside the mark and the account
+    // menu); the page's simulated-prices banner still marks every simulated figure.
     <span className="today-freshness" data-today-freshness={today.simulated ? "demo" : stale.length ? "stale" : "current"}>
-      {today.simulated && (
-        <StatusBadge tone="simulated" title={today.simulated_notice ?? undefined}>
-          {t("today.demo_data")}
-        </StatusBadge>
-      )}
       {stale.length > 0 && (
         <Popover
           label={t("today.stale_title")}
@@ -649,7 +648,7 @@ export function TodayFreshness({ today, t, nowMs }: { today: DeskTodayDTO | null
           placement="bottom-end"
           trigger={(props) => (
             <button {...props} type="button" className={`today-stale-trigger${today.simulated ? "" : " is-degraded"}`}>
-              {t("today.stale_link", { count: stale.length })}
+              {t(compact ? "today.stale_link_short" : "today.stale_link", { count: stale.length })}
             </button>
           )}
         >

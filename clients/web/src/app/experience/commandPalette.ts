@@ -77,7 +77,7 @@ export interface PaletteCommand {
     readonly modeTask?: string;
     readonly aiAction?: AiActionKind;
     readonly inspector?: InspectorSubjectKind;
-    readonly utility?: "access-identity" | "sign-out" | "brief-morning" | "brief-eod";
+    readonly utility?: "access-identity" | "sign-out" | "brief-morning" | "brief-eod" | "report-problem" | "help";
   };
 }
 
@@ -238,6 +238,26 @@ export function utilityCommands(): PaletteCommand[] {
       consequence: "read",
       placement: actionPlacement("utility"),
       target: { utility: "brief-eod" },
+    },
+    {
+      // The answer bar is the product's help entry: "help", "manual", "report a problem" and
+      // "bug" find these, as the account menu offers them (no help button on the bar).
+      id: "utility.help",
+      group: "utility",
+      labelKey: "topbar.open_help",
+      aliasKeys: ["topbar.keyboard_shortcuts", "palette.alias.help"],
+      consequence: "read",
+      placement: actionPlacement("utility"),
+      target: { utility: "help" },
+    },
+    {
+      id: "utility.report-problem",
+      group: "utility",
+      labelKey: "topbar.report_problem",
+      aliasKeys: ["support.title", "palette.alias.report_problem"],
+      consequence: "utility",
+      placement: actionPlacement("utility"),
+      target: { utility: "report-problem" },
     },
     {
       id: "utility.sign-out",

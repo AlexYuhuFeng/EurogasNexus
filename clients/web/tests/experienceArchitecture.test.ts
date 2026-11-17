@@ -483,7 +483,7 @@ test("the command palette is derived from the navigation, AI and utility registr
   );
   assert.deepEqual(
     utilityCommands().map((command) => command.id),
-    ["utility.access-identity", "utility.brief-morning", "utility.brief-eod", "utility.sign-out"],
+    ["utility.access-identity", "utility.brief-morning", "utility.brief-eod", "utility.help", "utility.report-problem", "utility.sign-out"],
   );
 
   const en = readJson("i18n/en.json");

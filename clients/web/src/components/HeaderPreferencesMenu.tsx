@@ -28,6 +28,10 @@ interface HeaderPreferencesMenuProps {
   onOpenHelp?: () => void;
   /** Administration (sources, runtime, access), offered only to whoever administers. */
   onOpenAdministration?: () => void;
+  /** "Report a problem": the help desk form (it left the top bar; the answer bar finds it too). */
+  onReportProblem?: () => void;
+  /** A demo deployment: said here once, quietly, instead of a chip on every page. */
+  demoMode?: boolean;
   onSignOut: () => void;
 }
 
@@ -42,6 +46,8 @@ export function HeaderPreferencesMenu({
   onOpenAccess,
   onOpenHelp,
   onOpenAdministration,
+  onReportProblem,
+  demoMode = false,
   onSignOut,
 }: HeaderPreferencesMenuProps) {
   const [open, setOpen] = useState(false);
@@ -168,6 +174,7 @@ export function HeaderPreferencesMenu({
               {currentUser.role}
               {currentUser.experience?.office ? ` · ${currentUser.experience.office}` : ""}
             </span>
+            {demoMode ? <span className="topbar-menu-demo" data-demo-mode="true">{t("topbar.demo_mode")}</span> : null}
           </div>
 
           <div className="topbar-menu-group" role="group" aria-label={t("settings.language")}>
@@ -220,6 +227,11 @@ export function HeaderPreferencesMenu({
             {keyboardHints && (
               <button type="button" role="menuitem" onClick={() => select(() => setShortcutsOpen(true))}>
                 {t("topbar.keyboard_shortcuts")} <kbd>?</kbd>
+              </button>
+            )}
+            {onReportProblem && (
+              <button type="button" role="menuitem" data-utility="report-problem" onClick={() => select(onReportProblem)}>
+                {t("topbar.report_problem")}
               </button>
             )}
             {currentUser.permissions.includes("identity.manage") && (

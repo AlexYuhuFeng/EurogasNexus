@@ -12,7 +12,7 @@ import {
   compositionFromProfile,
   compositionSeesAdministration,
 } from "@/app/experience/experienceProfile";
-import { BrandMark, StatusBadge, WorkspaceTabs } from "@/components/ui";
+import { BrandMark, WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import { useApiStore, type ApiState } from "@/stores/api";
 import type { ThemeMode } from "@/stores/theme";
@@ -23,7 +23,7 @@ import {
   runtimeDataAvailability,
   runtimeDataAvailabilityLabelKey,
 } from "@/app/model/dataPlaneStatus";
-import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import type { EndpointFailureSurface, EndpointRetrySurface } from "@/app/model/endpointFailures";
 import { AlertCenter } from "./AlertCenter";
 import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
 import { ReportProblemDialog } from "./ReportProblemDialog";
@@ -71,6 +71,12 @@ interface WorkspaceTopBarProps {
   onOpenToday?: () => void;
   onLanguageChange: (language: string) => void;
   onModeChange: (mode: ThemeMode) => void;
+  /** Reads that did not load (the status indicator lists them; app/model/endpointFailures.ts). */
+  endpointFailures?: EndpointFailureSurface;
+  endpointRetry?: EndpointRetrySurface;
+  onRetryEndpoints?: () => void;
+  /** Administration → Data sources (offered only to whoever administers). */
+  onOpenDataSources?: () => void;
 }
 
 export function WorkspaceTopBar({
@@ -98,6 +104,10 @@ export function WorkspaceTopBar({
   onOpenToday,
   onLanguageChange,
   onModeChange,
+  endpointFailures,
+  endpointRetry,
+  onRetryEndpoints,
+  onOpenDataSources,
 }: WorkspaceTopBarProps) {
   // Today's read, when a page has made it: the status panel names the same figures that are not
   // current. Cache only: the bar never sends a request of its own.
@@ -174,6 +184,8 @@ export function WorkspaceTopBar({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
+  const shortcutLabel = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K";
+  const demoMode = useApiStore((state) => state.runtimeRelease?.demo_marks === true) || deskToday.today?.simulated === true;
   const closeDrawer = () => {
     setDrawerOpen(false);
     menuButtonRef.current?.focus();
@@ -186,30 +198,36 @@ export function WorkspaceTopBar({
       className="app-header cockpit-topbar workspace-topbar-only workspace-topbar-page"
       data-shell-region="global-context"
     >
-      {/* Top-left: the mark in the text colour (it follows the theme), with the name where the
-          bar has the room; the lines of work and the controls never give width up to it. */}
-      <BrandMark
-        variant={widthClass === "wide" ? "wordmark" : "mark"}
-        size="md"
-        tone="mono"
-        className="topbar-brand"
-      />
-      {drawerNav && (
+      {/* Top-left: the mark. Where the lines of work live in the drawer (below 1024 px) the mark
+          is the one control that opens it, not a logo beside a separate hamburger. A demo
+          deployment says so once, quietly, beside the mark (and in the account menu). */}
+      {drawerNav ? (
         <button
           ref={menuButtonRef}
           type="button"
-          className="topbar-menu-button"
+          className="topbar-menu-button topbar-brand-menu"
           aria-expanded={drawerOpen}
           aria-controls="topbar-drawer"
           aria-label={t("topbar.menu")}
-          // The Active Context in machine-readable form, as on the wide bar's disclosure.
+          title={t("topbar.menu")}
           onClick={() => setDrawerOpen((open) => !open)}
         >
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-          <span className="topbar-menu-label">
-            <span>{menuLabel}</span>
-          </span>
+          <BrandMark variant="mark" size="md" tone="mono" className="topbar-brand" />
+          {demoMode ? <span className="topbar-demo-badge" aria-hidden="true">{t("topbar.demo_badge")}</span> : null}
+          {!compact ? (
+            <span className="topbar-menu-label">
+              <span>{menuLabel}</span>
+            </span>
+          ) : null}
+          <svg className="topbar-menu-chevron" aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
+      ) : (
+        <span className="topbar-brand-group">
+          <BrandMark variant={widthClass === "wide" ? "wordmark" : "mark"} size="md" tone="mono" className="topbar-brand" />
+          {demoMode ? (
+            <span className="topbar-demo-badge" title={t("topbar.demo_mode")}>{t("topbar.demo_badge")}</span>
+          ) : null}
+        </span>
       )}
       {drawerNav && drawerOpen && createPortal(
         // Portalled to <body>: the header's backdrop blur would otherwise contain the fixed
@@ -286,16 +304,14 @@ export function WorkspaceTopBar({
           type="button"
           className="topbar-command"
           aria-label={t("topbar.command")}
+          title={keyboardHints ? `${t("topbar.command")} (${shortcutLabel})` : t("topbar.command")}
           onClick={onOpenCommandPalette}
           aria-keyshortcuts={keyboardHints ? "Control+K Meta+K" : undefined}
         >
           <svg className="topbar-command-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 18 18"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M12 12l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-          {!compact && (
-          <>
-          <span>{t("topbar.command")}</span>
-          {keyboardHints && <kbd aria-hidden="true">{/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K"}</kbd>}
-          </>
-          )}
+          {/* Search says so in words wherever there is room (a magnifier alone was unclear). */}
+          <span className="topbar-command-label">{widthClass === "wide" ? t("topbar.command") : t("topbar.search")}</span>
+          {keyboardHints && <kbd aria-hidden="true">{shortcutLabel}</kbd>}
         </button>
       )}
       {/* Alerts, status and the account menu stay on the bar at every width: on a phone the
@@ -324,9 +340,13 @@ export function WorkspaceTopBar({
             streamingActive={streamingActive}
             marketLastUpdatedAtUtc={marketLastUpdatedAtUtc}
             showSourceCounts={compositionSeesAdministration(composition)}
-            demoPrices={useApiStore((state) => state.runtimeRelease?.demo_marks === true) || deskToday.today?.simulated === true}
+            demoPrices={demoMode}
             staleFigures={seesCommercial ? deskToday.today?.stale_figures ?? [] : []}
             onOpenFigure={openFigure}
+            endpointFailures={endpointFailures}
+            endpointRetry={endpointRetry}
+            onRetry={onRetryEndpoints}
+            onOpenDataSources={seesAdministration ? onOpenDataSources : undefined}
             onReportProblem={currentUser ? () =>
               requestProblemReport({
                 category: "data",
@@ -349,6 +369,8 @@ export function WorkspaceTopBar({
                   onOpenAccess={onOpenAccess}
                   onOpenHelp={() => onOpenPrimaryWorkspace("system")}
                   onOpenAdministration={seesAdministration ? () => onOpenPrimaryWorkspace("administration") : undefined}
+                  onReportProblem={() => requestProblemReport({})}
+                  demoMode={demoMode}
                   onSignOut={onSignOut}
                 />
               </>

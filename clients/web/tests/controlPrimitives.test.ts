@@ -418,10 +418,11 @@ test("Today: four rows, simulated marked beside each value, empty sections give 
   assert.match(html, /aria-label="why\.label\(subject=Demo Haldor field\)"/);
   // Risk figures carry a Method affordance.
   assert.match(html, /data-method="net_position"/);
-  // The demo desk says "Demo data" once; it does not shout stale.
+  // The demo desk does not shout stale, and demo mode is said once by the shell (the badge by the
+  // mark, the account menu), not as a chip in every page's context line.
   const fresh = render(h(TodayFreshness, { today: todayFixture(), t, nowMs: props.nowMs }));
   assert.match(fresh, /data-today-freshness="demo"/);
-  assert.match(fresh, /today\.demo_data/);
+  assert.doesNotMatch(fresh, /today\.demo_data/);
   assert.doesNotMatch(fresh, /stale/);
   const live = { ...todayFixture(), simulated: false, stale_figures: [{ key: "price.NBP", label: "NBP Dec-26", state: "stale" as const, as_of: "2026-11-12" }] };
   const named = render(h(TodayFreshness, { today: live, t, nowMs: props.nowMs }));
