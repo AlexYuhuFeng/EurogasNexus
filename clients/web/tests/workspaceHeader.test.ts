@@ -100,7 +100,7 @@ test("the direct map-first Network route is composed, not intercepted", () => {
   // The route still lands on the map: the task resolves from the page id itself, so no
   // URL change is needed for the map-first entry to keep working.
   assert.match(model, /if \(activeWorkspace === "network" \|\| activeWorkspace === "capacity"\) return "network";/);
-  assert.match(cockpit, /\{task === "network" && \(/);
+  assert.match(cockpit, /\{\(task === "network" \|\| networkKept\) && \(/);
 
   // The hand-off the shell used to own moved with the mount, so the route carried into
   // the scenario workspace is unchanged.

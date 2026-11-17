@@ -15,7 +15,9 @@ function block(source: string, startMarker: string, endMarker: string): string {
 }
 
 const NUMERIC_TASK = '{task === "curves" && (';
-const MAP_TASK = '{task === "network" && (';
+// The network task stays mounted once opened (hidden while another task shows), so the map
+// keeps its camera, selection and data across task switches.
+const MAP_TASK = '{(task === "network" || networkKept) && (';
 // The map task is the page's last task: its block runs to the end of the panel.
 const MAP_TASK_END = '      </div>\n    </div>\n  );';
 
