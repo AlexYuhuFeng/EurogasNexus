@@ -141,7 +141,8 @@ const VIEW_EMPHASIS: Record<"network" | "book", Record<string, unknown>> = {
     // Context routes dimmed; a route the book uses at full strength. Lines stay quieter
     // than the points they join.
     "verified-pipeline-lines": ["case", ["==", ["get", "matters"], true], 0.95, 0.32],
-    "network-link-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.55],
+    "network-link-lines": ["case", ["==", ["get", "matters"], true], 0.95, 0.85],
+    "adjacency-points": 0.9,
     "indicative-route-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.24],
     "book-flow-lines": 0.85,
     "situation-facilities": 0.55,
@@ -150,7 +151,8 @@ const VIEW_EMPHASIS: Record<"network" | "book", Record<string, unknown>> = {
     "nodes-circle": ["case", ["==", ["get", "node_type"], "hub"], 0.55, 0.22],
     "node-clusters": 0.2,
     "verified-pipeline-lines": ["case", ["==", ["get", "matters"], true], 0.95, 0.12],
-    "network-link-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.12],
+    "network-link-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.3],
+    "adjacency-points": 0.35,
     "indicative-route-lines": ["case", ["==", ["get", "matters"], true], 0.9, 0.12],
     "book-flow-lines": 0.95,
     "situation-facilities": 0.2,
@@ -160,6 +162,11 @@ const VIEW_EMPHASIS: Record<"network" | "book", Record<string, unknown>> = {
 /** Context pipelines in the neutral edge colour, routes the book uses in the route colour. */
 function routeLineColor(colors: { edge: string; route: string }): ExpressionSpecification {
   return ["case", ["==", ["get", "matters"], true], colors.route, colors.edge];
+}
+
+/** Connections between market areas in the link colour; one the book uses in the route colour. */
+function linkLineColor(colors: { link: string; route: string }): ExpressionSpecification {
+  return ["case", ["==", ["get", "matters"], true], colors.route, colors.link];
 }
 
 const SITUATION_HOVER_LAYERS = [
@@ -311,6 +318,51 @@ export function GasNetworkMap({
   const viewChangeRef = useRef(onViewChange);
   viewChangeRef.current = onViewChange;
   const sites = useMemo(() => buildSites(nodes, facilities), [facilities, nodes]);
+  const tsoTariffs = useApiStore((state) => state.tsoTariffs);
+  // The hover card of a connection between market areas: the two sides, every point on that
+  // border with its firm technical capacity, and whether the register holds its tariffs.
+  const borderCard = (props: Record<string, unknown>): string => {
+    const byId = new globalThis.Map(nodes.map((node) => [node.id, node]));
+    const nameOfKey = (key: string) =>
+      key.startsWith("pipeline:")
+        ? key.slice("pipeline:".length)
+        : byId.get(`entsog-${key.toLowerCase()}`)?.name ?? key;
+    const held = (pointKey: string) => tsoTariffs.filter((row) => row.point_id === pointKey).length;
+    if (props.edge_type === "interconnector") {
+      const from = byId.get(String(props.from_node_id))?.name ?? "";
+      const to = byId.get(String(props.to_node_id))?.name ?? "";
+      return `<div class="node-popup situation-card"><strong>${escapeHtml(props.name)}</strong>`
+        + `<small>${escapeHtml(t("map.border.pipeline"))}: ${escapeHtml(from)} – ${escapeHtml(to)}</small></div>`;
+    }
+    let joins: string[] = [];
+    try {
+      joins = JSON.parse(String(props.joins ?? "[]"));
+    } catch {
+      joins = [];
+    }
+    const pair = JSON.stringify(joins);
+    const points = new globalThis.Map<string, { name: string; capacity: number | null; drawn: boolean }>();
+    for (const edge of edges) {
+      const meta = edge.metadata_json ?? {};
+      if (edge.edge_type !== "market_area_link" || JSON.stringify([...(Array.isArray(meta.joins) ? meta.joins : [])].sort()) !== pair) continue;
+      const key = String(meta.point_key ?? "");
+      const capacity = typeof meta.firm_technical_kwh_d === "number" ? meta.firm_technical_kwh_d : null;
+      points.set(key, { name: byId.get(edge.from_node_id)?.name ?? key, capacity, drawn: meta.representative === true });
+    }
+    const rows = [...points.entries()]
+      .sort((a, b) => Number(b[1].drawn) - Number(a[1].drawn) || (b[1].capacity ?? 0) - (a[1].capacity ?? 0))
+      .map(([key, point]) => {
+        const capacity = point.capacity !== null ? `${Math.round(point.capacity / 1e6).toLocaleString()} GWh/d` : "–";
+        const tariffs = held(key) > 0 ? t("map.border.tariff_held") : t("map.border.tariff_not_held");
+        return `<span><b>${escapeHtml(point.name)}</b><small>${escapeHtml(capacity)} · ${escapeHtml(tariffs)}</small></span>`;
+      })
+      .join("");
+    const title = joins.map(nameOfKey).join(" – ");
+    return `<div class="node-popup situation-card"><strong>${escapeHtml(title)}</strong>`
+      + `<small>${escapeHtml(t("map.border.points").replace("{{count}}", String(points.size)))}</small>${rows}</div>`;
+  };
+  const borderCardRef = useRef(borderCard);
+  borderCardRef.current = borderCard;
   const sitesRef = useRef<Site[]>(sites);
   sitesRef.current = sites;
   const marketRows = useApiStore((state) => state.normalizedMarkets);
@@ -345,6 +397,8 @@ export function GasNetworkMap({
       ? {
           background: "#080808",
           edge: "#737373",
+          // Connections between market areas: legible on the dark land, still under markers.
+          link: "#b4bcc8",
           route: "#50e3c2",
           // Generic points are neutral: blue on this map means the firm's own positions.
           node: "#94a3b8",
@@ -356,6 +410,7 @@ export function GasNetworkMap({
       : {
           background: "#eeeeee",
           edge: "#6b7280",
+          link: "#4b5563",
           route: "#00b871",
           node: "#64748b",
           hub: "#50e3c2",
@@ -624,8 +679,15 @@ export function GasNetworkMap({
     }
     if (!mapReady) return;
 
-    for (const layerId of ["verified-pipeline-lines", "network-link-lines"]) {
-      if (map.getLayer(layerId)) map.setPaintProperty(layerId, "line-color", routeLineColor(mapColors));
+    if (map.getLayer("verified-pipeline-lines")) {
+      map.setPaintProperty("verified-pipeline-lines", "line-color", routeLineColor(mapColors));
+    }
+    if (map.getLayer("network-link-lines")) {
+      map.setPaintProperty("network-link-lines", "line-color", linkLineColor(mapColors));
+    }
+    if (map.getLayer("adjacency-points")) {
+      map.setPaintProperty("adjacency-points", "circle-color", mapColors.link);
+      map.setPaintProperty("adjacency-points", "circle-stroke-color", mapColors.stroke);
     }
     if (map.getLayer("indicative-route-lines")) {
       map.setPaintProperty("indicative-route-lines", "line-color", mapColors.route);
@@ -709,6 +771,11 @@ export function GasNetworkMap({
           live_flow_mwh_d: flow,
           utilization_pct: utilization,
           matters: matteringLineIds.has(line.id),
+          edge_type: line.edge?.edge_type ?? "",
+          // The pair of market areas (or market area and pipeline) a market-area link joins:
+          // the hover card lists every point on that border.
+          joins: JSON.stringify(Array.isArray(metadata.joins) ? [...metadata.joins].sort() : []),
+          point_key: String(metadata.point_key ?? ""),
         },
         geometry: {
           type: "LineString" as const,
@@ -716,6 +783,18 @@ export function GasNetworkMap({
         },
       };
     });
+    // The interconnection point of each drawn connection, as a small node on the line.
+    const adjacencyPointFeatures = [...new Map(
+      verifiedPipelineLines
+        .filter((line) => line.displayKind === "network_link")
+        .flatMap((line) => [line.from, line.to])
+        .filter((node) => node.node_type !== "hub")
+        .map((node) => [node.id, node]),
+    ).values()].map((node) => ({
+      type: "Feature" as const,
+      properties: { id: node.id, name: node.name },
+      geometry: { type: "Point" as const, coordinates: toMapCoordinates(node.lon, node.lat) },
+    }));
     const indicativeEdgeFeatures = indicativeRouteLines.map((line) => {
       const metadata = line.edge?.metadata_json ?? {};
       return {
@@ -777,16 +856,49 @@ export function GasNetworkMap({
         filter: ["==", ["get", "display_kind"], "network_link"],
         layout: { "line-cap": "butt", "line-join": "round" },
         paint: {
-          "line-color": routeLineColor(mapColors),
-          "line-width": ["case", ["==", ["get", "matters"], true], 2.4, 1.1],
-          "line-opacity": 0.7,
-          "line-dasharray": [3, 2.5],
+          "line-color": linkLineColor(mapColors),
+          "line-width": ["case", ["==", ["get", "matters"], true], 2.6, 1.6],
+          "line-opacity": 0.85,
+          "line-dasharray": [2.2, 1.6],
         },
+      });
+      // A wide transparent band over the dashes makes a connection easy to hover.
+      map.addLayer({
+        id: "network-link-hit",
+        type: "line",
+        source: "verified-pipeline-lines",
+        filter: ["==", ["get", "display_kind"], "network_link"],
+        paint: { "line-color": "rgba(0,0,0,0)", "line-width": 12 },
+      });
+      const hover = new Popup({ closeButton: false, closeOnClick: false, offset: 8, maxWidth: "320px" });
+      map.on("mousemove", "network-link-hit", (event) => {
+        const props = event.features?.[0]?.properties;
+        if (!props) return;
+        map.getCanvas().style.cursor = "pointer";
+        hover.setLngLat(event.lngLat).setHTML(borderCardRef.current(props)).addTo(map);
+      });
+      map.on("mouseleave", "network-link-hit", () => {
+        map.getCanvas().style.cursor = "";
+        hover.remove();
       });
     } else {
       (map.getSource("verified-pipeline-lines") as GeoJSONSource).setData({
         type: "FeatureCollection",
         features: verifiedEdgeFeatures,
+      });
+    }
+    if (upsertSource(map, "adjacency-points", { type: "FeatureCollection", features: adjacencyPointFeatures })) {
+      map.addLayer({
+        id: "adjacency-points",
+        type: "circle",
+        source: "adjacency-points",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 2.5, 7, 4],
+          "circle-color": mapColors.link,
+          "circle-stroke-color": mapColors.stroke,
+          "circle-stroke-width": 1,
+          "circle-opacity": 0.9,
+        },
       });
     }
 
@@ -1487,6 +1599,7 @@ export function GasNetworkMap({
       ["node-clusters", "circle-opacity"],
       ["verified-pipeline-lines", "line-opacity"],
       ["network-link-lines", "line-opacity"],
+      ["adjacency-points", "circle-opacity"],
       ["indicative-route-lines", "line-opacity"],
       ["book-flow-lines", "line-opacity"],
       ["situation-facilities", "icon-opacity"],

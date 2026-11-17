@@ -243,6 +243,12 @@ network map:
   points joining one pair of market areas (19 between TTF and THE) one is drawn by default;
   selecting a hub emphasises its connections and rings every point joining it to a
   neighbour, and its zone's points, without wiring them (no fan).
+  The link is a legible dashed stroke (lighter than the land in the dark theme, darker in
+  the light one), still under the markers, with the interconnection point as a small node
+  on it. Hovering a link opens the border card: the two sides, every interconnection point
+  on that border with its firm technical capacity (ENTSOG), and whether the tariff register
+  holds its tariffs. The drawn point of a pair is the one with the largest firm technical
+  capacity (VIP TTF-THE-H between TTF and THE).
   Points inside a market area (storage, LNG, production) have no line until selected,
   which shows their one link to their own hub. A surveyed pipeline, where one is loaded,
   is drawn along its geometry (key: "Pipeline (surveyed route)").
