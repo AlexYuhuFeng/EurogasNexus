@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, type MarketDataLicenceDTO, type MarketDataLicenceInput } from "@/api/client";
-import { DataGrid } from "@/components/ui";
+import { DataGrid, PeriodPicker } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -122,7 +122,7 @@ export function LicenceRegisterPanel({ t }: { t: Translate }) {
             />
           </label>
         )}
-        <label><span>{t("licence.valid_from")}</span><input type="date" value={draft.valid_from} onChange={field("valid_from")} /></label>
+        <label><span>{t("licence.valid_from")}</span><PeriodPicker label={t("licence.valid_from")} value={draft.valid_from} onChange={(value) => field("valid_from")({ target: { value } } as never)} /></label>
         <label><span>{t("licence.contract")}</span><input value={draft.contract_reference ?? ""} onChange={field("contract_reference")} /></label>
         <button type="button" disabled={!draft.licence_id.trim() || !draft.source_family.trim() || !draft.vendor.trim()} onClick={save}>
           {t("licence.save")}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { PeriodPicker } from "@/components/ui";
 import { api, type FinancingRateDTO } from "@/api/client";
 import { apiErrorDetailCode, describeFailure, presentError } from "@/app/experience/errorPresentation";
 import "./trader-desk.css";
@@ -66,7 +67,7 @@ export function FinancingRateHelper({ t, onApply }: FinancingRateHelperProps) {
         </label>
         <label>
           {t("financing.as_of")}
-          <input type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)} />
+          <PeriodPicker label={t("financing.as_of")} value={asOf} onChange={setAsOf} />
         </label>
         <button type="button" onClick={resolve} disabled={busy}>{t("financing.resolve")}</button>
       </div>

@@ -5686,5 +5686,15 @@
   "preferences.time_zone.device": "本设备时区",
   "preferences.time_zone.utc": "UTC",
   "preferences.time_zone.market": "气日市场时间（CET/CEST）",
-  "preferences.time_zone.preview": "现在："
+  "preferences.time_zone.preview": "现在：",
+  "period.none": "未选择",
+  "period.choose": "请选择…",
+  "period.previous_month": "上个月",
+  "period.next_month": "下个月",
+  "period.previous_year": "上一年",
+  "period.next_year": "下一年",
+  "period.hour": "时",
+  "period.minute": "分",
+  "period.today": "今天",
+  "period.clear": "清除"
 }

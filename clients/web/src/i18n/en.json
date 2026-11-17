@@ -5686,5 +5686,15 @@
   "preferences.time_zone.device": "My device's time zone",
   "preferences.time_zone.utc": "UTC",
   "preferences.time_zone.market": "Gas-day market time (CET/CEST)",
-  "preferences.time_zone.preview": "Now:"
+  "preferences.time_zone.preview": "Now:",
+  "period.none": "none chosen",
+  "period.choose": "Choose…",
+  "period.previous_month": "Previous month",
+  "period.next_month": "Next month",
+  "period.previous_year": "Previous year",
+  "period.next_year": "Next year",
+  "period.hour": "Hour",
+  "period.minute": "Minute",
+  "period.today": "Today",
+  "period.clear": "Clear"
 }

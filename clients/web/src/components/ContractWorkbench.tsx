@@ -1,4 +1,4 @@
-import { DataGrid } from "@/components/ui";
+import { DataGrid, PeriodPicker } from "@/components/ui";
 import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { ContractIntakeDTO, PortfolioResourceDTO, RouteCandidateDTO, UpstreamContractDTO } from "@/api/client";
@@ -469,7 +469,7 @@ export function ContractWorkbench({
             </div>{deliveryHub && hubCurrency(deliveryHub) !== priceCurrency && <div className="contract-model-boundary">{t("contracts.currency_translated", { currency: priceCurrency, hub: deliveryHub, hubCurrency: hubCurrency(deliveryHub) })}</div>}</fieldset>}
             {clauseView === "capacity" && <fieldset><legend>{t("contracts.capacity_rights")}</legend><p>{t("contracts.section_help.capacity")}</p><div className="contract-field-grid">
               <label>{t("contracts.terminal_access")}<input value={contract.terminal_access} onChange={(event) => updateContractText("terminal_access", event.target.value)} /></label>
-              <label>{t("contracts.capacity_expiry")}{/^\d{4}-\d{2}-\d{2}$/.test(contract.capacity_expiry) || !contract.capacity_expiry ? <input type="date" value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} /> : <input value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} />}</label>
+              <label>{t("contracts.capacity_expiry")}{/^\d{4}-\d{2}-\d{2}$/.test(contract.capacity_expiry) || !contract.capacity_expiry ? <PeriodPicker label={t("contracts.capacity_expiry")} value={contract.capacity_expiry} clearable onChange={(value) => updateContractText("capacity_expiry", value)} /> : <input value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} />}</label>
               <label>{t("contracts.entry_capacity")}<input type="number" min="0" value={contract.owned_entry_capacity_mwh_per_day ?? ""} onChange={(event) => updateContractNumber("owned_entry_capacity_mwh_per_day", event.target.value)} /></label>
               <label>{t("contracts.exit_capacity")}<input type="number" min="0" value={contract.owned_exit_capacity_mwh_per_day ?? ""} onChange={(event) => updateContractNumber("owned_exit_capacity_mwh_per_day", event.target.value)} /></label>
             </div></fieldset>}

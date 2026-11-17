@@ -11,7 +11,7 @@ import { formatMoney, formatQuantity, splitList } from "@/app/model/riskLimitsMo
 import { ReportExport } from "./ReportExport";
 import { WhyButton } from "./WhyButton";
 import { MethodNote } from "./MethodNote";
-import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone } from "@/components/ui";
+import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone, PeriodPicker } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -295,7 +295,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           <label><span>{t("limits.rating")}</span><input value={line.rating} onChange={lineField("rating")} /></label>
           <label><span>{t("limits.contracts")}</span><input value={line.contract_ids} onChange={lineField("contract_ids")} /></label>
           <label><span>{t("limits.receivable_days")}</span><input inputMode="numeric" value={line.receivable_days} onChange={lineField("receivable_days")} /></label>
-          <label><span>{t("limits.valid_until")}</span><input type="date" value={line.valid_until} onChange={lineField("valid_until")} /></label>
+          <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={line.valid_until} clearable onChange={(value) => lineField("valid_until")({ target: { value } } as never)} /></label>
           <button
             type="button"
             disabled={!line.counterparty_id.trim() || !line.name.trim() || !(Number(line.limit_amount) >= 0) || !line.limit_amount}
@@ -317,7 +317,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           <label><span>{t("limits.min_hedge")}</span><input inputMode="decimal" value={mandate.min_hedge} onChange={mandateField("min_hedge")} /></label>
           <label><span>{t("limits.max_hedge")}</span><input inputMode="decimal" value={mandate.max_hedge} onChange={mandateField("max_hedge")} /></label>
           <label><span>{t("limits.instruments")}</span><input value={mandate.instruments} placeholder="physical, future, forward, swap" onChange={mandateField("instruments")} /></label>
-          <label><span>{t("limits.valid_until")}</span><input type="date" value={mandate.valid_until} onChange={mandateField("valid_until")} /></label>
+          <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={mandate.valid_until} clearable onChange={(value) => mandateField("valid_until")({ target: { value } } as never)} /></label>
           <button
             type="button"
             disabled={!mandate.mandate_id.trim() || !mandate.trader.trim() || !mandate.display_name.trim()}

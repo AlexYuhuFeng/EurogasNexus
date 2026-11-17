@@ -1,4 +1,4 @@
-import { DataGrid, EvidenceBlock, PanelHeader } from "@/components/ui";
+import { DataGrid, EvidenceBlock, PanelHeader, PeriodPicker } from "@/components/ui";
 import { displayTime } from "@/app/time/displayTime";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
@@ -112,10 +112,10 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
               <input aria-label={t("decision.nomination.window_id")} type="text" maxLength={128} value={draft.windows[index].windowId} onChange={(event) => updateWindow(index, { windowId: event.target.value })} />
             ) },
             { id: "opens", header: t("decision.nomination.opens_at"), render: (index) => (
-              <input aria-label={t("decision.nomination.opens_at")} type="time" value={draft.windows[index].opensAt} onChange={(event) => updateWindow(index, { opensAt: event.target.value })} />
+              <input aria-label={t("decision.nomination.opens_at")} type="text" inputMode="numeric" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" maxLength={5} value={draft.windows[index].opensAt} onChange={(event) => updateWindow(index, { opensAt: event.target.value })} />
             ) },
             { id: "closes", header: t("decision.nomination.closes_at"), render: (index) => (
-              <input aria-label={t("decision.nomination.closes_at")} type="time" value={draft.windows[index].closesAt} onChange={(event) => updateWindow(index, { closesAt: event.target.value })} />
+              <input aria-label={t("decision.nomination.closes_at")} type="text" inputMode="numeric" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" maxLength={5} value={draft.windows[index].closesAt} onChange={(event) => updateWindow(index, { closesAt: event.target.value })} />
             ) },
             { id: "cap", header: t("decision.nomination.maximum_change"), render: (index) => (
               <input aria-label={t("decision.nomination.maximum_change")} type="text" inputMode="decimal" value={draft.windows[index].maximumChange} onChange={(event) => updateWindow(index, { maximumChange: event.target.value })} />
@@ -165,7 +165,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
           density="compact"
           columns={[
             { id: "submitted", header: t("decision.nomination.submitted_at"), render: (index) => (
-              <input aria-label={t("decision.nomination.submitted_at")} type="datetime-local" value={draft.instructions[index].submittedAt} onChange={(event) => updateInstruction(index, { submittedAt: event.target.value })} />
+              <PeriodPicker kind="datetime" label={t("decision.nomination.submitted_at")} value={draft.instructions[index].submittedAt} onChange={(value) => updateInstruction(index, { submittedAt: value })} />
             ) },
             { id: "requested", header: t("decision.nomination.requested"), unit: "MWh", render: (index) => (
               <input aria-label={t("decision.nomination.requested")} type="text" inputMode="decimal" value={draft.instructions[index].requestedQuantity} onChange={(event) => updateInstruction(index, { requestedQuantity: event.target.value })} />

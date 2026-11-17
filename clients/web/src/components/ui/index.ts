@@ -41,3 +41,5 @@ export { compareValues, nextSort, sortRows, spanRuns } from "./dataGridModel";
 export { BrandMark, BRAND_HEX_LOWER, BRAND_HEX_UPPER, BRAND_NAME, BRAND_STROKE, BRAND_WAVE } from "./BrandMark";
 export type { BrandMarkProps, BrandSize, BrandTone, BrandVariant } from "./BrandMark";
 export { Instant } from "./Instant";
+export { PeriodPicker } from "./PeriodPicker";
+export type { PeriodPickerProps } from "./PeriodPicker";

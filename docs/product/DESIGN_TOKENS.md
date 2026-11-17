@@ -61,6 +61,20 @@ desktop bundle and the demo image ship `dist/`, so they carry both.
 `--ds-font-mono` (identifiers and code only) is not bundled; it never carries a feature request
 either.
 
+## PeriodPicker
+
+`components/ui/PeriodPicker.tsx` is the one date control: `kind="day"` (a date or gas day),
+`"month"` (a delivery month) and `"datetime"` (a deadline). It replaces the native
+`<input type="date|month|datetime-local">`, whose text and calendar follow the device's locale
+(a Chinese phone showed "2026年12月" in the English interface); everything here follows the app's
+language. Values are the native strings ("2026-11-16", "2026-12", "2026-11-16T09:30"), so a page
+swaps the control without touching its data. A button opens a dialog with a Monday-first grid
+(arrows a day/week, Home/End the week, PageUp/PageDown a month, Shift a year, Enter chooses,
+Escape closes and returns focus), "Today", and "Clear" for an optional date; 44 px targets on
+touch. A time of day alone is a text field with an `HH:MM` pattern, never `type="time"`.
+`tests/periodPicker.test.ts` fails on a native date input outside the listed pages that are due
+to be deleted.
+
 ## Colour roles
 
 | Role | Tokens |

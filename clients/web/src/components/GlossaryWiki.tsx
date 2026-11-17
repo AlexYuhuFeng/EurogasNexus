@@ -1,3 +1,4 @@
+import { PeriodPicker } from "@/components/ui";
 import type { GlossaryContextDTO, GlossaryTermDTO } from "@/api/client";
 
 type Translate = (key: string) => string;
@@ -304,19 +305,11 @@ export function GlossaryWiki({
         <div className="glossary-controls">
           <label>
             {t("glossary.duration_start")}
-            <input
-              type="datetime-local"
-              value={durationStart}
-              onChange={(event) => onDurationStartChange(event.target.value)}
-            />
+            <PeriodPicker kind="datetime" label={t("glossary.duration_start")} value={durationStart} clearable onChange={onDurationStartChange} />
           </label>
           <label>
             {t("glossary.duration_end")}
-            <input
-              type="datetime-local"
-              value={durationEnd}
-              onChange={(event) => onDurationEndChange(event.target.value)}
-            />
+            <PeriodPicker kind="datetime" label={t("glossary.duration_end")} value={durationEnd} clearable onChange={onDurationEndChange} />
           </label>
           <small className="glossary-time-basis">
             {t("evidence.time_basis")}: {t("evidence.utc")}

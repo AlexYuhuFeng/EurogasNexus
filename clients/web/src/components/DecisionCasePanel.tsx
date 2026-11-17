@@ -45,7 +45,7 @@ import {
 import { decisionPackPresentation } from "@/app/model/decisionPackModel";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { DecisionPackPanel } from "@/components/decision/DecisionPackPanel";
-import { MetricStrip, PanelHeader, WorkspaceTabs } from "@/components/ui";
+import { MetricStrip, PanelHeader, WorkspaceTabs, PeriodPicker } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -308,11 +308,7 @@ export function DecisionCasePanel({
         </label>
         <label>
           <span>{t("decision_case.due")}</span>
-          <input
-            type="datetime-local"
-            value={dueLocal}
-            onChange={(event) => setDueLocal(event.target.value)}
-          />
+          <PeriodPicker kind="datetime" label={t("decision_case.due")} value={dueLocal} clearable onChange={setDueLocal} />
           {dueUtc && <small className="muted">= {formatDeadlineUtc(dueUtc)}</small>}
         </label>
         <button type="button" disabled={busy || !objective.trim()} onClick={() => void openCase()}>

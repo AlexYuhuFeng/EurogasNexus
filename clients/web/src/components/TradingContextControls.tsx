@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { SUPPORTED_HUB_IDS } from "@/app/context";
 import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { formatGasDay } from "@/app/time/timeFormat";
-import { Sheet } from "@/components/ui";
+import { Sheet, PeriodPicker } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -56,7 +56,7 @@ export function TradingContextControls({
     <>
       <label>
         <span>{t("context.gas_day")}</span>
-        <input type="date" value={gasDay} onChange={(event) => onGasDayChange(event.target.value)} />
+        <PeriodPicker label={t("context.gas_day")} value={gasDay} onChange={onGasDayChange} />
       </label>
       <label>
         <span>{t("context.product")}</span>

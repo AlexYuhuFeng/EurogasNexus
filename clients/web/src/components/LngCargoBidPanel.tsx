@@ -8,7 +8,7 @@ import {
 } from "@/api/client";
 import { formatMoney, formatPrice, nextMonth } from "@/app/model/riskLimitsModel";
 import { PanelHelp } from "@/components/ui/PanelHelp";
-import { DataGrid } from "@/components/ui";
+import { DataGrid, PeriodPicker } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -144,7 +144,7 @@ export function LngCargoBidPanel({ t }: { t: Translate }) {
             </select>
           </span>
         </label>
-        <label><span>{t("lngbid.arrival")}</span><input type="month" value={arrival} onChange={(event) => setArrival(event.target.value)} /></label>
+        <label><span>{t("lngbid.arrival")}</span><PeriodPicker kind="month" label={t("lngbid.arrival")} value={arrival} onChange={setArrival} /></label>
         <label><span>{t("lngbid.margin", { currency })}</span><input inputMode="decimal" value={margin} onChange={(event) => setMargin(event.target.value)} /></label>
         <label><span>{t("lngbid.boil_off")}</span><input inputMode="decimal" value={boilOff} onChange={(event) => setBoilOff(event.target.value)} /></label>
         <label><span>{t("lngbid.charter", { currency })}</span><input inputMode="decimal" value={charter} onChange={(event) => setCharter(event.target.value)} /></label>

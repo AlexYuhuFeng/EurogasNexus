@@ -430,4 +430,154 @@
       animation: ds-enter var(--ds-duration-base) var(--ds-ease-out);
     }
   }
+
+  /* ------------------------------------------------------------ PeriodPicker */
+  .ds-period {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+    box-sizing: border-box;
+    min-width: 9rem;
+    max-width: 100%;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-control-pad-sm);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-base);
+    font-variant-numeric: var(--ds-numeric);
+    cursor: pointer;
+  }
+
+  .ds-period > svg {
+    flex: none;
+    color: var(--ds-text-2);
+  }
+
+  .ds-period-placeholder {
+    color: var(--ds-text-3);
+  }
+
+  .ds-period:focus-visible,
+  .ds-period-grid button:focus-visible,
+  .ds-period-months button:focus-visible,
+  .ds-period-nav:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  .ds-period-calendar {
+    display: grid;
+    gap: var(--ds-space-2);
+  }
+
+  .ds-period-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .ds-period-nav {
+    width: var(--ds-control);
+    height: var(--ds-control);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-md);
+    cursor: pointer;
+  }
+
+  .ds-period-grid {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .ds-period-grid th {
+    padding: 0 0 var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    text-align: center;
+  }
+
+  .ds-period-grid td {
+    padding: 1px;
+    text-align: center;
+  }
+
+  .ds-period-grid button,
+  .ds-period-months button {
+    width: 100%;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    height: var(--ds-control);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-variant-numeric: var(--ds-numeric);
+    cursor: pointer;
+  }
+
+  .ds-period-grid button:hover:not(:disabled),
+  .ds-period-months button:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+  }
+
+  .ds-period-grid button[aria-current="date"] {
+    box-shadow: inset 0 0 0 1px var(--ds-border-strong);
+  }
+
+  .ds-period-grid button[aria-selected="true"],
+  .ds-period-months button[aria-pressed="true"] {
+    background: var(--ds-ink);
+    color: var(--ds-on-ink);
+  }
+
+  .ds-period-grid button:disabled,
+  .ds-period-months button:disabled {
+    color: var(--ds-text-3);
+    cursor: not-allowed;
+  }
+
+  .ds-period-months {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--ds-space-1);
+  }
+
+  .ds-period-time {
+    display: flex;
+    align-items: end;
+    gap: var(--ds-space-1);
+  }
+
+  .ds-period-time label {
+    display: grid;
+    gap: var(--ds-space-05);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .ds-period-foot {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  @media (pointer: coarse) {
+    .ds-period,
+    .ds-period-grid button,
+    .ds-period-months button,
+    .ds-period-nav {
+      height: var(--ds-control-touch);
+      min-height: var(--ds-control-touch);
+    }
+  }
 }

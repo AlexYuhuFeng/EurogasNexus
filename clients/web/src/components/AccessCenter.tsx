@@ -20,6 +20,7 @@ import {
   type DataScopeCatalogue,
 } from "@/app/model/accessCatalogueModel";
 import { Button, PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
+import { PanelHeader, StatusBadge, WorkspaceTabs, PeriodPicker } from "@/components/ui";
 import { LicenceRegisterPanel } from "@/components/LicenceRegisterPanel";
 import { AccessUsers } from "@/components/AccessUsers";
 import { OPEN_SETUP_EVENT } from "@/components/FirstRunSetup";
@@ -267,11 +268,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
               </label>
               <label>
                 {t("access.key.expires_on")}
-                <input
-                  type="date"
-                  value={keyExpiresOn}
-                  onChange={(event) => setKeyExpiresOn(event.target.value)}
-                />
+                <PeriodPicker label={t("access.key.expires_on")} value={keyExpiresOn} clearable onChange={setKeyExpiresOn} />
               </label>
             </div>
             <fieldset className="access-key-scopes">
@@ -425,11 +422,11 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
           >
             <label>
               <span>{t("access.audit_from")}</span>
-              <input type="datetime-local" value={auditFrom} onChange={(event) => setAuditFrom(event.target.value)} />
+              <PeriodPicker kind="datetime" label={t("access.audit_from")} value={auditFrom} clearable onChange={setAuditFrom} />
             </label>
             <label>
               <span>{t("access.audit_to")}</span>
-              <input type="datetime-local" value={auditTo} onChange={(event) => setAuditTo(event.target.value)} />
+              <PeriodPicker kind="datetime" label={t("access.audit_to")} value={auditTo} clearable onChange={setAuditTo} />
             </label>
             <label>
               <span>{t("access.audit_action")}</span>

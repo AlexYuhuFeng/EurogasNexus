@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { DataGrid, type DataGridColumn } from "@/components/ui";
+import { DataGrid, type DataGridColumn, PeriodPicker } from "@/components/ui";
 
 import { api, type HedgeApprovalRowDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
@@ -158,7 +158,7 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
           <label><span>{t("hedgeapproval.min")}</span><input inputMode="decimal" value={draft.min} onChange={field("min")} /></label>
           <label><span>{t("hedgeapproval.max")}</span><input inputMode="decimal" value={draft.max} onChange={field("max")} /></label>
           <label><span>{t("hedgeapproval.ref")}</span><input value={draft.ref} maxLength={128} onChange={field("ref")} /></label>
-          <label><span>{t("limits.valid_until")}</span><input type="date" value={draft.valid_until} onChange={field("valid_until")} /></label>
+          <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={draft.valid_until} clearable onChange={(value) => field("valid_until")({ target: { value } } as never)} /></label>
           <label><span>{t("hedgeapproval.notes")}</span><input value={draft.notes} maxLength={500} onChange={field("notes")} /></label>
           <button type="button" disabled={!draft.contract_id || (draft.min === "" && draft.max === "")} onClick={save}>
             {t("limits.save")}
