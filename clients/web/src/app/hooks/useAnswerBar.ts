@@ -73,6 +73,7 @@ const reads = (units: () => UnitsReferenceDTO | null): AnswerReads => ({
   ladder: () => shared("ladder", () => api.positionLadder(12).then((r) => r.data)),
   credit: () => shared("credit", () => api.creditExposure().then((r) => r.data)),
   contracts: () => shared("contracts", () => api.upstreamContracts().then((r) => r.data)),
+  normalise: (body) => shared(`normalise:${JSON.stringify(body)}`, () => api.normaliseMarket(body).then((r) => r.data)),
   units,
 });
 

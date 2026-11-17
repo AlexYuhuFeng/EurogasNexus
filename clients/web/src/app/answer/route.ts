@@ -6,8 +6,9 @@
  * 2. Instant (tier 1, synchronous, no network): a unit or price conversion, arithmetic, a
  *    gas-day/date answer, or a definition question whose subject is a glossary term
  *    ("what is TTF", "TTF 是什么"), which goes to the glossary and never to the model.
- * 3. Looked up (tier 2): a price, storage, LNG, Norway, outages or, with `portfolio.read`, a
- *    book look-up (`intent.ts`).
+ * 3. Looked up (tier 2): a price conversion for a future delivery period (`78 p/th in eur/mwh
+ *    jan27`, converted by the server at the forward FX of that period), a price, storage, LNG,
+ *    Norway, outages or, with `portfolio.read`, a book look-up (`intent.ts`).
  * 4. A bare glossary term ("hedge ratio", "UMM") shows its definition.
  * 5. A question ("why …", "what's going on …", "…?", "为什么…") or a definition question with
  *    no glossary hit offers Ask (tier 3), which runs only on Enter.
@@ -18,7 +19,8 @@ import { calculate, type Calculation } from "./expression.ts";
 import { gasDayAnswer, type GasDayAnswer } from "./gasDay.ts";
 import { definitionSubject, findTerm, glossaryAnswer, type GlossaryAnswer, type GlossaryEntry } from "./glossary.ts";
 import { lookupIntent, type LookupIntent } from "./intent.ts";
-import { convertQuery, type Conversion, type FxHeld } from "./units.ts";
+import { splitTrailingPeriod } from "./period.ts";
+import { convertQuery, priceConversionParts, type Conversion, type FxHeld } from "./units.ts";
 import type { UnitsReferenceDTO } from "../../api/client.ts";
 
 export type Route =
@@ -63,6 +65,23 @@ export function routeQuery(raw: string, context: RouteContext): Route {
   const forced = text.startsWith("=");
   const body = forced ? text.slice(1).trim() : text;
 
+  // A price conversion for a delivery period ("78 p/th in eur/mwh jan27"): across currencies
+  // and for a future period the server converts at the forward (a look-up); a prompt period or
+  // one currency converts here at once, as without a period.
+  const withPeriod = splitTrailingPeriod(body);
+  const parts = withPeriod ? priceConversionParts(withPeriod.rest, context.units) : null;
+  if (withPeriod && parts) {
+    if (withPeriod.period.prompt || parts.from.currency === parts.to.currency) {
+      const spot = convertQuery(withPeriod.rest, context.units, context.fx);
+      if (spot) return { tier: 1, kind: "convert", conversion: spot };
+    } else {
+      return {
+        tier: 2,
+        kind: "lookup",
+        intent: { kind: "convert", value: parts.value, from: parts.from.label, to: parts.to.label, period: withPeriod.period.code },
+      };
+    }
+  }
   const conversion = convertQuery(body, context.units, context.fx);
   if (conversion) return { tier: 1, kind: "convert", conversion };
   const calc = calculate(body, forced);

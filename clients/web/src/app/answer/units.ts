@@ -126,6 +126,31 @@ function priceUnit(raw: string, reference: UnitsReferenceDTO): PriceUnit | null 
   return { ...money, energy, label };
 }
 
+/**
+ * The two price units and the number of a typed price conversion (`78 p/th in eur/mwh`), or
+ * null when the line is not one. Used to send a conversion with a delivery period to the
+ * server (`app/answer/forward.ts`); the factors stay the authority's.
+ */
+export function priceConversionParts(
+  raw: string,
+  reference: UnitsReferenceDTO | null,
+): { value: number; from: { label: string; currency: string }; to: { label: string; currency: string } } | null {
+  if (!reference) return null;
+  const text = normalizeTyped(raw).trim().replace(/[?？]$/, "").trim();
+  const number = readNumber(text);
+  if (!number) return null;
+  const parts = text.slice(number.length).trim().split(CONNECTOR);
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  const from = priceUnit(parts[0], reference);
+  const to = priceUnit(parts[1], reference);
+  if (!from || !to) return null;
+  return {
+    value: number.value,
+    from: { label: from.label, currency: from.currency },
+    to: { label: to.label, currency: to.currency },
+  };
+}
+
 /** How a desk writes a unit: `p/th` for pence per therm, `m³` for cubic metres, `/d`. */
 export function deskUnitLabel(code: string): string {
   return code

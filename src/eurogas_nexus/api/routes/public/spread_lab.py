@@ -46,6 +46,9 @@ class SpreadAnalysisInput(BaseModel):
     date_from: date | None = None
     date_to: date | None = None
     rule: SpreadRuleInput = Field(default_factory=SpreadRuleInput)
+    #: Display unit for legs in different units (``EUR/MWh``, ``p/th``, ``USD/MMBtu``); the
+    #: first leg's native unit when omitted.
+    unit: str | None = Field(default=None, min_length=3, max_length=16)
 
 
 def _env(data: object, *, warnings: list[str] | None = None) -> dict:
@@ -132,20 +135,27 @@ def list_spread_series(request: Request) -> dict:
 def run_spread_analysis(body: SpreadAnalysisInput, request: Request) -> dict:
     """Weighted spread of 1-4 daily series, its statistics and a declared-rule backtest.
 
-    计算 1–4 条日度序列的加权价差、统计量及声明式规则回测（无前视偏差）。
+    Legs quoted in different units or currencies (NBP in p/th against TTF in EUR/MWh) are
+    converted to one display unit through the normalisation service: ``unit`` when given, else
+    the first leg's native unit. Each day uses the FX of that day for that day's delivery
+    period (spot for prompt products, the forward of D.5 otherwise), and the response states
+    the conversion per leg. A day whose FX is not held is left out and counted; a leg with no
+    convertible day is refused with the reason. Legs in one unit are not converted.
+    计算 1–4 条日度序列的加权价差、统计量及声明式规则回测（无前视偏差）；不同单位/币种的
+    腿按当日交割期汇率换算为同一单位，并逐腿说明换算方式。
 
     Raises:
-        HTTPException: 422 ``spread_analysis_invalid`` (unknown series, mixed units,
-            too little overlap, bad rule).
+        HTTPException: 422 ``spread_analysis_invalid`` (unknown series, a leg that cannot be
+            converted, too little overlap, bad rule).
     """
 
     rows = _daily_rows(request, body.date_from, body.date_to)
-    legs: list[SpreadLeg] = []
+    collected: list[tuple[str, str, float, dict[date, dict[str, Any]]]] = []
     units: set[str] = set()
     simulated = False
     for leg in body.legs:
         hub, tenor = leg.hub.strip().upper(), leg.tenor.strip().lower()
-        closes: dict[date, float] = {}
+        closes: dict[date, dict[str, Any]] = {}
         for row in rows:
             if row["hub"] != hub or row["tenor"] != tenor:
                 continue
@@ -155,7 +165,7 @@ def run_spread_analysis(body: SpreadAnalysisInput, request: Request) -> dict:
                 continue
             if body.date_to and row["day"] > body.date_to:
                 continue
-            closes[row["day"]] = row["price"]  # rows are time-ordered: last one wins
+            closes[row["day"]] = row  # rows are time-ordered: last one wins
             units.add(row["unit"])
             simulated = simulated or row["simulated"]
         if not closes:
@@ -168,16 +178,21 @@ def run_spread_analysis(body: SpreadAnalysisInput, request: Request) -> dict:
                 },
             )
         source = f" ({leg.source_system})" if leg.source_system else ""
-        legs.append(SpreadLeg(f"{hub} {tenor}{source}", leg.weight, closes))
-    if len(units) > 1:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "spread_analysis_invalid",
-                "message": "legs are quoted in different units "
-                f"({', '.join(sorted(units))}); convert first or pick same-unit series",
-            },
+        collected.append((f"{hub} {tenor}{source}", hub, leg.weight, closes))
+
+    normalisation: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    if body.unit is None and len(units) == 1:
+        display = next(iter(units))
+        legs = [
+            SpreadLeg(label, weight, {day: row["price"] for day, row in closes.items()})
+            for label, _, weight, closes in collected
+        ]
+    else:
+        display, legs, normalisation, warnings, converted_simulated = _normalised_legs(
+            request, collected, body.unit
         )
+        simulated = simulated or converted_simulated
     try:
         analysis = analyse_spread(
             legs, SpreadRule(**body.rule.model_dump()), simulated_sources=simulated
@@ -188,5 +203,100 @@ def run_spread_analysis(body: SpreadAnalysisInput, request: Request) -> dict:
             detail={"code": "spread_analysis_invalid", "message": str(exc)},
         ) from exc
     payload = analysis.as_dict()
-    payload["unit"] = next(iter(units))
-    return _env(payload, warnings=list(analysis.limitations))
+    payload["unit"] = display
+    payload["normalisation"] = normalisation
+    return _env(payload, warnings=[*analysis.limitations, *warnings])
+
+
+def _normalised_legs(
+    request: Any,
+    collected: list[tuple[str, str, float, dict[date, dict[str, Any]]]],
+    requested_unit: str | None,
+) -> tuple[str, list[SpreadLeg], list[dict[str, Any]], list[str], bool]:
+    """Every leg's closes in one display unit, with the conversion stated per leg."""
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.market_normalisation import (
+        NormalisationError,
+        SeriesPoint,
+        display_unit,
+        load_holdings,
+        normalise_series,
+        parse_price_unit,
+    )
+    from eurogas_nexus.domain.market.fx_forward import delivery_from_bounds
+    from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT
+
+    first_hub, first_closes = collected[0][1], collected[0][3]
+    target = requested_unit or HUB_NATIVE_PRICE_UNIT.get(first_hub) or next(
+        iter(first_closes.values())
+    )["unit"]
+    try:
+        display = display_unit(parse_price_unit(target))
+    except NormalisationError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": "spread_analysis_invalid", "message": str(exc)}
+        ) from exc
+    try:
+        holdings = load_holdings(request)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "runtime_db_unavailable", "error_class": exc.__class__.__name__},
+        ) from exc
+    legs: list[SpreadLeg] = []
+    records: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    any_simulated = False
+    for label, _hub, weight, closes in collected:
+        by_unit: dict[str, list[SeriesPoint]] = {}
+        leg_simulated = False
+        for day, row in sorted(closes.items()):
+            delivery = None
+            if row.get("period_start_utc") is not None and row.get("period_end_utc") is not None:
+                delivery = delivery_from_bounds(row["period_start_utc"], row["period_end_utc"])
+            by_unit.setdefault(row["unit"], []).append(SeriesPoint(day, row["price"], delivery))
+            leg_simulated = leg_simulated or bool(row["simulated"])
+        values: dict[date, float] = {}
+        refused: list[dict[str, Any]] = []
+        for unit, points in by_unit.items():
+            try:
+                result = normalise_series(
+                    points, unit, target, holdings=holdings, simulated=leg_simulated
+                )
+            except NormalisationError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"code": "spread_analysis_invalid", "message": f"{label}: {exc}"},
+                ) from exc
+            for point in result["points"]:
+                if point["value"] is not None:
+                    values[date.fromisoformat(point["day"])] = point["value"]
+            refused.extend(result["refused"])
+            any_simulated = any_simulated or result["simulated"]
+            records.append(
+                {
+                    "leg": label,
+                    "from_unit": result["native_unit"],
+                    "to_unit": result["unit"],
+                    "converted": result["converted"],
+                    "refused": result["refused"],
+                    "fx_methods": result["fx_methods"],
+                    "fx_labels": result["fx_labels"],
+                    "max_tolerance_pct": result["max_tolerance_pct"],
+                    "latest": result["latest"],
+                    "simulated": result["simulated"],
+                }
+            )
+        if not values:
+            reason = refused[0]["reason"] if refused else "no convertible day"
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "spread_analysis_invalid", "message": f"{label}: {reason}"},
+            )
+        skipped = sum(item["points"] for item in refused)
+        if skipped:
+            warnings.append(f"{label}: {skipped} day(s) left out ({refused[0]['reason']}).")
+        legs.append(SpreadLeg(label, weight, values))
+    return display, legs, records, warnings, any_simulated

@@ -321,6 +321,12 @@ def test_real_public_data_replaces_the_simulated_series_it_covers(session):
     ])
     session.commit()
     sim_flows = session.query(FlowObservationRecord).count()
+    # The demo holds a daily EUR/GBP history (for conversions at each day's rate): all of it goes.
+    sim_gbp = (
+        session.query(FxObservationRecord)
+        .filter_by(pair="EURGBP", source_system=seed.SOURCE)
+        .count()
+    )
 
     removed = seed.retire_simulated_series(session)
     session.commit()
@@ -337,7 +343,7 @@ def test_real_public_data_replaces_the_simulated_series_it_covers(session):
         (row.pair, row.source_system) for row in session.query(FxObservationRecord)
     }
     assert ("EURGBP", seed.SOURCE) not in pairs and ("EURUSD", seed.SOURCE) in pairs
-    assert removed["storage"] == 40 and removed["fx"] == 1
+    assert removed["storage"] == 40 and removed["fx"] == sim_gbp > 1
     assert "flows" not in removed and session.query(FlowObservationRecord).count() == sim_flows
     assert session.query(MarketObservationRecord).count() > 0  # demo prices stay
 
@@ -360,3 +366,59 @@ def test_real_public_data_replaces_the_simulated_series_it_covers(session):
         source for (source,) in session.query(FlowObservationRecord.source_system).distinct()
     } == {"ENTSOG"}
     assert storage("DE") == {"GIE"}
+
+
+def test_demo_rates_convert_forward_and_give_way_to_real_fixings(session):
+    """The demo holds daily simulated EUR reference rates and SONIA/€STR/SOFR fixings, so a
+    demo price converts at its own day's rates (and a forward month at the derived forward,
+    marked simulated). A real fixing of the same benchmark and day replaces the demo one
+    instead of failing the one-fixing-per-day constraint."""
+
+    from datetime import date
+
+    from eurogas_nexus.application.market_normalisation import normalise_value
+    from eurogas_nexus.db.models import FxObservationRecord, InterestRateObservationRecord
+    from eurogas_nexus.domain.market.fx_forward import Delivery, FxHoldings
+    from eurogas_nexus.domain.market.interest_rates import RateFixing
+
+    seed = _load()
+    seed.seed(session, datetime(2026, 11, 7, 9, tzinfo=UTC), history_days=20)
+    session.commit()
+    fixings = session.query(InterestRateObservationRecord).all()
+    assert {row.benchmark_id for row in fixings} == {"SONIA", "ESTR", "SOFR"}
+    assert all(row.source_system == seed.SOURCE for row in fixings)
+    holdings = FxHoldings.from_rows(
+        [
+            {"pair": r.pair, "rate": r.rate, "rate_type": r.rate_type, "value_date": r.value_date,
+             "source_system": r.source_system}
+            for r in session.query(FxObservationRecord).all()
+        ],
+        [
+            {"benchmark_id": r.benchmark_id, "value_date": r.value_date, "rate_pct": r.rate_pct,
+             "source_system": r.source_system}
+            for r in fixings
+        ],
+    )
+    converted = normalise_value(
+        78.0, "p/th", "EUR/MWh", holdings=holdings, as_of=date(2026, 11, 6),
+        delivery=Delivery(date(2027, 1, 1), date(2027, 1, 31), "month", "Jan-27"),
+    )
+    assert converted["simulated"] is True
+    assert converted["normalisation"]["fx"]["method"] == "derived: covered interest parity"
+    # Twelve days earlier the demo still holds that day's rates.
+    assert normalise_value(
+        78.0, "p/th", "EUR/MWh", holdings=holdings, as_of=date(2026, 10, 26)
+    )["simulated"] is True
+
+    spec = importlib.util.spec_from_file_location(
+        "ingest_interest_rates", SCRIPT.parent.parent / "ops" / "ingest_interest_rates.py"
+    )
+    ingest = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ingest)
+    real = RateFixing("SONIA", date(2026, 11, 6), 3.7271, "BOE", "boe-iadb:IUDSOIA")
+    assert ingest.upsert(session, [real], now=datetime(2026, 11, 7, 10, tzinfo=UTC)) == (1, 0)
+    session.commit()
+    on_day = session.query(InterestRateObservationRecord).filter_by(
+        benchmark_id="SONIA", value_date=date(2026, 11, 6)
+    ).all()
+    assert [(row.source_system, row.rate_pct) for row in on_day] == [("BOE", 3.7271)]

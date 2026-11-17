@@ -101,7 +101,7 @@ def test_the_ttf_spread_analysis(tmp_path, monkeypatch):
     assert response.json()["meta"]["research_only"] is True
 
 
-def test_unknown_series_and_mixed_units_are_refused(tmp_path, monkeypatch):
+def test_unknown_series_and_unconvertible_units_are_refused(tmp_path, monkeypatch):
     extra = [_observation("PEG", day, 30.0, unit="GBP/MWh") for day in range(45)]
     client = _client(tmp_path, monkeypatch, extra=extra)
     unknown = client.post(
@@ -122,4 +122,6 @@ def test_unknown_series_and_mixed_units_are_refused(tmp_path, monkeypatch):
                        {"hub": "TTF", "tenor": "month-ahead", "weight": -1}]},
     )
     assert mixed.status_code == 422
-    assert "different units" in mixed.json()["detail"]["message"]
+    # Different currencies are converted through the normalisation service; with no EUR/GBP
+    # rate held the leg is refused with the missing rate named.
+    assert "not convertible: no EURGBP rate held" in mixed.json()["detail"]["message"]

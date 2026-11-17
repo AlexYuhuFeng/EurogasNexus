@@ -51,7 +51,9 @@ export type LookupIntent =
   | { kind: "outages"; zone: Hub | null; country: string | null; facility: string | null }
   | { kind: "position"; hub: Hub | null; month: { year: number; month: number; label: string } | null }
   | { kind: "credit"; counterparty: string }
-  | { kind: "contract"; name: string };
+  | { kind: "contract"; name: string }
+  /** A price conversion for a future delivery period: the server converts at the forward. */
+  | { kind: "convert"; value: number; from: string; to: string; period: string };
 
 /** Words that make an outage query a question for Ask rather than a facility name. */
 const QUESTION_WORDS = /^(?:the|all|any|summari[sz]e|summary|what|why|how|which|show|list|explain|recent|current|today'?s|major|big)\b/;

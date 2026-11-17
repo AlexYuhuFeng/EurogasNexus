@@ -101,6 +101,7 @@ function reads(overrides: Partial<AnswerReads> = {}): AnswerReads {
     credit: async () => ({ as_of: "2026-11-16", rows: [{ counterparty_id: "RHM", counterparty: "Rhinmark Handel GmbH", currency: "EUR", headroom: -491592,
       net_exposure: 4491592, limit: 4000000, utilisation_pct: 112.3, status: "breach" }] as never }),
     contracts: async () => [],
+    normalise: async () => ({ values: [], series: null }),
     units: () => UNITS,
     ...overrides,
   };

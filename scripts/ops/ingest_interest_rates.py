@@ -83,6 +83,13 @@ def upsert(session, fixings: list[RateFixing], *, now: datetime) -> tuple[int, i
         record = fixing.as_record()
         existing = session.get(InterestRateObservationRecord, record["observation_id"])
         if existing is None:
+            # A simulated demo fixing of the same benchmark and day gives way to the real one
+            # (one fixing per benchmark and day is a table constraint).
+            session.query(InterestRateObservationRecord).filter(
+                InterestRateObservationRecord.benchmark_id == record["benchmark_id"],
+                InterestRateObservationRecord.value_date == record["value_date"],
+                InterestRateObservationRecord.source_system.endswith("_Sim"),
+            ).delete(synchronize_session=False)
             session.add(InterestRateObservationRecord(**record, ingested_at_utc=now))
             inserted += 1
         elif abs(existing.rate_pct - fixing.rate_pct) > 1e-9:

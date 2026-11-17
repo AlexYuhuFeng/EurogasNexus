@@ -122,6 +122,7 @@ def daily_rows(
             MarketObservationRecord.source_system,
             MarketObservationRecord.metadata_json,
             MarketObservationRecord.period_start_utc,
+            MarketObservationRecord.period_end_utc,
         ).filter(
             or_(
                 func.upper(MarketObservationRecord.unit).like("%MWH%"),
@@ -174,6 +175,8 @@ def daily_rows(
                     "day": record.observed_at_utc.date(),
                     "observed_at_utc": record.observed_at_utc,
                     "period_start_utc": record.period_start_utc,
+                    "period_end_utc": record.period_end_utc,
+                    "settlement": bool(metadata.get("settlement")),
                     "price": float(record.price),
                     "price_mwh": converted[0],
                     "unit_mwh": converted[1],

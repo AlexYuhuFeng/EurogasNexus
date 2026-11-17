@@ -13,6 +13,8 @@
  *   (`GET /api/storage/target-trajectory`); LNG and Norway from the Today read's NW Europe
  *   balance, or a country's terminals (`GET /api/lng/observations`);
  * - outages: `GET /api/physical/outages` (14 days), as the Events task lists them;
+ * - a price conversion for a future delivery period: `POST /api/market/normalise`, which
+ *   converts at that period's forward FX and states the rate, method and dates (`forward.ts`);
  * - the book (only offered with `portfolio.read`; the server re-checks): the Today read's
  *   positions, the position ladder, credit exposure and the contract library.
  */
@@ -30,7 +32,9 @@ import type {
   UnitsReferenceDTO,
   UpstreamContractDTO,
 } from "../../api/client.ts";
+import type { NormaliseRequestDTO, NormaliseResponseDTO } from "../../api/comparablePrices.ts";
 import { buildMarketLadder } from "../model/marketLadderModel.ts";
+import { forwardAnswer, forwardRequest } from "./forward.ts";
 import { formatChange, formatValue } from "../model/todayModel.ts";
 import type { AnswerText, AnswerView } from "./answerModel.ts";
 import type { LookupIntent } from "./intent.ts";
@@ -48,6 +52,8 @@ export interface AnswerReads {
   ladder(signal: AbortSignal): Promise<PositionLadderDTO>;
   credit(signal: AbortSignal): Promise<{ rows: CreditExposureRowDTO[]; as_of: string }>;
   contracts(signal: AbortSignal): Promise<UpstreamContractDTO[]>;
+  /** `POST /api/market/normalise`: a price conversion with a delivery period. */
+  normalise(body: NormaliseRequestDTO, signal: AbortSignal): Promise<NormaliseResponseDTO>;
   units(): UnitsReferenceDTO | null;
 }
 
@@ -465,5 +471,7 @@ export async function lookup(intent: LookupIntent, reads: AnswerReads, signal: A
       return creditAnswer(intent.counterparty, reads, signal);
     case "contract":
       return contractAnswer(intent.name, reads, signal);
+    case "convert":
+      return forwardAnswer(intent, await reads.normalise(forwardRequest(intent), signal));
   }
 }

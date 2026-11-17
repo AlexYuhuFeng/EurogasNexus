@@ -52,6 +52,7 @@ from eurogas_nexus.db.models import (
     CreditLineRecord,
     FlowObservationRecord,
     FxObservationRecord,
+    InterestRateObservationRecord,
     LngTerminalTermsRecord,
     MarketObservationRecord,
     RemitUmmRecord,
@@ -284,6 +285,9 @@ def _clear(session) -> None:
     session.query(FxObservationRecord).filter(FxObservationRecord.source_system == SOURCE).delete(
         synchronize_session=False
     )
+    session.query(InterestRateObservationRecord).filter(
+        InterestRateObservationRecord.source_system == SOURCE
+    ).delete(synchronize_session=False)
     session.query(RemitUmmRecord).filter(RemitUmmRecord.source_system == "DEMO").delete(
         synchronize_session=False
     )
@@ -430,6 +434,10 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 research_only=True,
             )
         )
+
+    # A daily FX and benchmark-rate history, so a demo price of any day converts at that day's
+    # (simulated) rates and a forward month at the derived forward (CP-01); labelled simulated.
+    session.add_all(_new_rows_only(session, _demo_rate_rows(now, history_days)))
 
     horizon_end = _month_start(today, CREDIT_HORIZON_MONTHS) - timedelta(days=1)
     legs_by_counterparty: dict[str, list[CounterpartyLeg]] = {row[0]: [] for row in COUNTERPARTIES}
@@ -1148,6 +1156,7 @@ SIMULATED_SERIES = (
     ("lng", LngObservationRecord, SOURCE, "country"),
     ("power", PowerObservationRecord, SOURCE, "zone"),
     ("fx", FxObservationRecord, SOURCE, "pair"),
+    ("rates", InterestRateObservationRecord, SOURCE, "benchmark_id"),
     # The two fictional outages feed the balance forecast; next to real UMMs they would be
     # counted as if they were market events.
     ("outages", RemitUmmRecord, "DEMO", None),
@@ -1297,6 +1306,9 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
     counts["curve_rows"] = _roll_curve(session, now)
     counts["month_ahead_rows"] = _roll_month_ahead(session, now, rng)
     counts["fx_rows"] = _roll_fx(session, now)
+    rate_rows = _new_rows_only(session, _demo_rate_rows(now, 14))
+    session.add_all(rate_rows)
+    counts["rate_rows"] = len(rate_rows)
     counts["delivery_rows"] = _roll_deliveries(session, now, rng)
     counts["outage_rows"] = _roll_outages(session, now)
     counts["vessel_rows"] = _roll_vessels(session, now)
@@ -1434,6 +1446,61 @@ def _roll_fx(session, now: datetime) -> int:
     rows = _new_rows_only(session, rows)
     session.add_all(rows)
     return len(rows)
+
+
+#: Demo EUR reference rates and overnight benchmark fixings (simulated, flat): the same
+#: figures the single demo FX row has always used, and benchmark levels of the right order.
+DEMO_EUR_RATES = (("GBP", 0.853), ("USD", 1.087))
+DEMO_BENCHMARKS = (("SONIA", "GBP", 3.75, "ACT/365F"), ("ESTR", "EUR", 1.90, "ACT/360"),
+                   ("SOFR", "USD", 4.30, "ACT/360"))
+
+
+def _demo_rate_rows(now: datetime, days: int) -> list:
+    """Business-day demo FX reference rates and benchmark fixings for the last ``days`` days.
+
+    Keyed by date, so a re-run adds only what is missing (``_new_rows_only``). Real ECB, BoE,
+    ECB €STR or NY Fed rows retire them by pair or benchmark (``retire_simulated_series``).
+    """
+
+    rows: list = []
+    today = now.date()
+    for back in range(days, 0, -1):
+        day = today - timedelta(days=back)
+        if day.weekday() >= 5:
+            continue
+        stamp = datetime.combine(day, datetime.min.time(), tzinfo=UTC) + timedelta(hours=15)
+        for quote, rate in DEMO_EUR_RATES:
+            rows.append(
+                FxObservationRecord(
+                    observation_id=f"demo-fx-h-{quote}-{day:%Y%m%d}",
+                    pair=f"EUR{quote}",
+                    base_currency="EUR",
+                    quote_currency=quote,
+                    rate=rate,
+                    rate_type="reference",
+                    value_date=day.isoformat(),
+                    observed_at_utc=stamp,
+                    source_system=SOURCE,
+                    source_reference="demo:fx-history",
+                    freshness="daily",
+                    research_only=True,
+                )
+            )
+        for benchmark, currency, rate_pct, day_count in DEMO_BENCHMARKS:
+            rows.append(
+                InterestRateObservationRecord(
+                    observation_id=f"demo-{benchmark.lower()}-{day.isoformat()}",
+                    benchmark_id=benchmark,
+                    currency=currency,
+                    value_date=day,
+                    rate_pct=rate_pct,
+                    day_count=day_count,
+                    source_system=SOURCE,
+                    source_reference="demo:rates",
+                    ingested_at_utc=stamp,
+                )
+            )
+    return rows
 
 
 def _demo_outages(now: datetime, suffix: str = "") -> list:

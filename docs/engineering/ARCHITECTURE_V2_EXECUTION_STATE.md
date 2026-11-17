@@ -6,6 +6,21 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-17 — CP-01 normalisation and forward FX (branch `cp-01-02`, not pushed)
+
+- `domain/market/fx_forward.py`: forward FX by covered interest parity from the held ECB
+  reference rates and SONIA/€STR/SOFR (GBP ACT/365F, EUR/USD ACT/360), value date = a month's
+  15th or the period's middle gas day, spot for prompt products, simple interest to one year and
+  annual compounding beyond, refused beyond 24 months, licensed outright forwards
+  (`rate_type=forward_outright`) override; tolerance 0.1/0.3/1 %; every result names method,
+  inputs and dates; simulated inputs make the rate simulated.
+- `application/market_normalisation.py`: one service for values and series (units authority,
+  heating value stated or assumed, spot or forward FX per delivery period); refuses with the
+  missing rate named. `GET /api/market/fx-forward`, `POST /api/market/normalise` (READ).
+  Spread analysis converts mixed-unit legs (NBP p/th vs TTF EUR/MWh). The answer bar sends
+  `78 p/th in eur/mwh jan27` to the server; spot stays instant.
+- Demo seed holds daily simulated FX and benchmark fixings; a real fixing replaces the demo one.
+- Surface 258 / 284 (256 / 282 before). Golden cases in `tests/unit/test_fx_forward.py`.
 ## 2026-11-17 — CP-03 chart standard (branch `cp-03-04`, not pushed)
 
 - `components/ui/charts`: history bands from the prior years held (none / grey lines / 5-yr

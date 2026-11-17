@@ -1,6 +1,11 @@
 /** Typed API client for /api. All data flows through backend API only. */
 
 import { HOST_COMMANDS, resolveHostKind, tryHostCommand } from "@/app/host/hostCapabilities";
+import type {
+  FxForwardDTO,
+  NormaliseRequestDTO,
+  NormaliseResponseDTO,
+} from "./comparablePrices";
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -5569,6 +5574,19 @@ export const api = {
     body: { legs: SpreadLegInputDTO[]; date_from?: string | null; date_to?: string | null; rule: SpreadRuleInputDTO },
     options?: ApiRequestOptions,
   ) => post<SpreadAnalysisDTO>("/research/spread-analysis", body, options),
+  /** A pair's rate for a delivery period: forward by interest parity, licensed, or spot. */
+  fxForward: (
+    query: { base: string; quote: string; product?: string; value_date?: string; as_of?: string },
+    options?: ApiRequestOptions,
+  ) =>
+    get<FxForwardDTO>(
+      "/market/fx-forward",
+      Object.fromEntries(Object.entries(query).filter((entry): entry is [string, string] => typeof entry[1] === "string")),
+      options,
+    ),
+  /** Prices into one unit, each with its normalisation record (server-side factors and FX). */
+  normaliseMarket: (body: NormaliseRequestDTO, options?: ApiRequestOptions) =>
+    post<NormaliseResponseDTO>("/market/normalise", body, options),
   researchFeatures: (options?: ApiRequestOptions) => get<ResearchFeatureDTO[]>("/research/features", undefined, options),
   researchTargets: (options?: ApiRequestOptions) => get<ResearchTargetDTO[]>("/research/targets", undefined, options),
   researchDatasets: (options?: ApiRequestOptions) => get<ResearchDatasetDTO[]>("/research/datasets", undefined, options),

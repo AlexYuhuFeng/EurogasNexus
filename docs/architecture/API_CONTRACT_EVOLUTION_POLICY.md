@@ -25,6 +25,20 @@ grant it), writes nothing and calls no model. Every figure carries unit, as-of t
 freshness state; risk figures carry a method note. The web client has a typed
 `api.deskToday()`; no SDK method yet. Census: 244 paths / 264 operations.
 
+Additive 2026-11-17 (comparable prices, design basis 2 CP-01): two paths, two operations,
+both READ under `/api/market/`. `GET /api/market/fx-forward` (`base`, `quote`,
+`product` or `value_date`, `as_of`) returns a rate with `method` ("derived: covered interest
+parity", "licensed" or the ECB spot), `label`, `input_class`, `value_date`, the spot rate and
+its date, the benchmark fixings with day counts, and `tolerance`; 422 `beyond_horizon` beyond
+24 months without licensed forwards, 422 `fx_not_convertible` naming the missing rate.
+`POST /api/market/normalise` (`to_unit`, `values[]` and/or one `series`) returns each value in
+the target unit with `native`, `simulated`, `normalisation` (factors, heating value, FX) and
+`tolerance`, or `refused` with the reason. `POST /api/research/spread-analysis` gains an optional `unit` and converts legs
+quoted in different units or currencies (the "different units" refusal is gone; a leg whose FX
+is not held is refused with the missing rate named), and its response gains `normalisation`.
+`/api/research/spread-series` is unchanged. No field changes meaning. Census: 258 paths /
+284 operations.
+
 Additive 2026-11-17 (local accounts and SSO pre-provisioning): four paths, six operations.
 `POST /api/auth/login` (PUBLIC: user name or e-mail and password; 401 `invalid_credentials`
 for every refusal; a temporary password answers `password_change_required` with a single-use
