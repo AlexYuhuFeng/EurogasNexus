@@ -57,6 +57,7 @@ export function TopBarStatus({
   endpointRetry,
   onRetry,
   onOpenDataSources,
+  heldSources = 0,
 }: {
   t: Translate;
   health: DataHealth;
@@ -82,6 +83,8 @@ export function TopBarStatus({
   onRetry?: () => void;
   /** Administration → Data sources, for whoever administers them. */
   onOpenDataSources?: () => void;
+  /** Public sources the approval gate holds back: one calm line for those who cannot act. */
+  heldSources?: number;
 }) {
   // Hover previews the panel; a click or tap pins it until Escape or a click elsewhere.
   const [hovered, setHovered] = useState(false);
@@ -222,6 +225,10 @@ export function TopBarStatus({
                 </div>
               ) : null}
             </section>
+          ) : null}
+
+          {heldSources > 0 && !onOpenDataSources ? (
+            <p className="topbar-status-calm" data-status-section="held-sources">{t("status.sources_held", { count: heldSources })}</p>
           ) : null}
 
           {count === 0 && shown === "ok" ? <p className="topbar-status-calm">{t("status.all_clear")}</p> : null}

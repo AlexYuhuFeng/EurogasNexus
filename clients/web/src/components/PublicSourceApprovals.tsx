@@ -33,6 +33,13 @@ export function approvalSources(sources: readonly SourceSystemDTO[]): SourceSyst
   return sources.filter((source) => source.approval?.required);
 }
 
+/** Sources the approval gate holds back from live data (not approved, waiting for a key, failing). */
+export function heldApprovalSources(sources: readonly SourceSystemDTO[]): SourceSystemDTO[] {
+  return approvalSources(sources).filter((source) =>
+    ["not_approved", "approved_waiting_for_key", "failing"].includes(source.approval?.state ?? ""),
+  );
+}
+
 export function openApprovals(sources: readonly SourceSystemDTO[]): SourceSystemDTO[] {
   return approvalSources(sources).filter((source) => source.approval?.state === "not_approved");
 }
@@ -218,10 +225,12 @@ export function SourceApprovalNotice({
   t: Translate;
   onOpen: () => void;
 }) {
-  const held = approvalSources(sources).filter((source) =>
-    ["not_approved", "approved_waiting_for_key", "failing"].includes(source.approval?.state ?? ""),
-  );
-  if (held.length === 0) return null;
+  // Plumbing, shown only to whoever can act on it (an administrator); everyone else reads one
+  // calm line in the top bar's data-status panel (heldApprovalSources).
+  const currentUser = useApiStore((state) => state.currentUser);
+  const canAct = Boolean(currentUser?.roles?.includes("ADMIN") || currentUser?.role === "ADMIN");
+  const held = heldApprovalSources(sources);
+  if (!canAct || held.length === 0) return null;
   return (
     <p className="source-approval-notice" role="status" data-record="source-approval-notice">
       {held.map((source) => (

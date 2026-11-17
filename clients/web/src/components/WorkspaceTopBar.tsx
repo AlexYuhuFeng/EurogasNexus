@@ -25,6 +25,7 @@ import {
 } from "@/app/model/dataPlaneStatus";
 import type { EndpointFailureSurface, EndpointRetrySurface } from "@/app/model/endpointFailures";
 import { AlertCenter } from "./AlertCenter";
+import { heldApprovalSources } from "./PublicSourceApprovals";
 import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
 import { ReportProblemDialog } from "./ReportProblemDialog";
 import { TopBarStatus, dataHealth } from "./TopBarStatus";
@@ -186,6 +187,8 @@ export function WorkspaceTopBar({
   }, [drawerOpen]);
   const shortcutLabel = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K";
   const demoMode = useApiStore((state) => state.runtimeRelease?.demo_marks === true) || deskToday.today?.simulated === true;
+  const storeSources = useApiStore((state) => state.sources);
+  const heldSources = heldApprovalSources(storeSources ?? []).length;
   const closeDrawer = () => {
     setDrawerOpen(false);
     menuButtonRef.current?.focus();
@@ -347,6 +350,7 @@ export function WorkspaceTopBar({
             endpointRetry={endpointRetry}
             onRetry={onRetryEndpoints}
             onOpenDataSources={seesAdministration ? onOpenDataSources : undefined}
+            heldSources={heldSources}
             onReportProblem={currentUser ? () =>
               requestProblemReport({
                 category: "data",

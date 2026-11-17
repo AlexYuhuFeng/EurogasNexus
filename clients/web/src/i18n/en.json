@@ -2088,9 +2088,9 @@
   "workspace.retry_attempts": "Attempts: {{attempts}}",
   "workspace.retry_last_attempt": "Last retry attempt {{time}} UTC",
   "workspace.retry_in_progress": "Retry in progress",
-  "workspace.failure.timeout": "No response within the 10 second read timeout",
+  "workspace.failure.timeout": "No answer within 10 seconds: the server was busy. Retry, or it reloads on its own.",
   "workspace.failure.aborted": "Superseded by a newer load",
-  "workspace.failure.request": "The request was refused",
+  "workspace.failure.request": "The server did not accept the request.",
   "workspace.failure.unknown": "Failure not classified",
   "workspace.endpoint.unknown": "Other read",
   "workspace.endpoint.reference_nodes": "Reference nodes",
@@ -5676,5 +5676,10 @@
   "setup.item.src-deepseek.purpose": "Why, the desk brief and alert analysis written by a model of the firm's choice.",
   "setup.item.users.name": "People",
   "setup.item.users.purpose": "Everyone who will use the product, with their roles.",
-  "source_approval.catch_up": "Live data is catching up: {{done}} of {{total}} sources done"
+  "source_approval.catch_up": "Live data is catching up: {{done}} of {{total}} sources done",
+  "status.sources_held": "{{count}} public data sources are not switched on yet; your administrator approves them.",
+  "workspace.failure.forbidden": "Not included in your access: ask your administrator if you need it.",
+  "workspace.failure.not_found": "Not available on this server version.",
+  "workspace.failure.server": "The server failed while reading it; IT can see the error in its log.",
+  "workspace.failure.network": "The server could not be reached: check the connection."
 }

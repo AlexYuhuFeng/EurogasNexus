@@ -106,3 +106,13 @@ test("a set of problems has one identity, so a dismissal holds until the set cha
   assert.equal(noticeNames(failures(["a", "b", "c", "d", "e"], 7), t), "status.notice_more(L-a, L-b, L-c|4)");
   assert.equal(dataProblemCount({ endpointFailures: 5, staleFigures: 2, sourceIssues: 0 }), 7);
 });
+
+test("a failed read says what happened: not permitted, missing, server failure, unreachable", async () => {
+  const { requestFailureCode } = await import("../src/stores/workspaceLoading.ts");
+  assert.equal(requestFailureCode({ status: 403 }), "forbidden");
+  assert.equal(requestFailureCode({ status: 401 }), "forbidden");
+  assert.equal(requestFailureCode({ status: 404 }), "not_found");
+  assert.equal(requestFailureCode({ status: 503 }), "server");
+  assert.equal(requestFailureCode({ status: 422 }), "request");
+  assert.equal(requestFailureCode(new TypeError("Failed to fetch")), "network");
+});

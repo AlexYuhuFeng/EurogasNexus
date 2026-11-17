@@ -84,7 +84,27 @@ export function isUnauthenticated(authState: AuthState): boolean {
   return authState === UNAUTHENTICATED_AUTH_STATE;
 }
 
-export type WorkspaceEndpointFailureCode = "timeout" | "aborted" | "request";
+export type WorkspaceEndpointFailureCode =
+  | "timeout"
+  | "aborted"
+  | "request"
+  | "forbidden"
+  | "not_found"
+  | "server"
+  | "network";
+
+/**
+ * What a failed read means, from what the request returned: the status panel says "not
+ * permitted" or "the server failed", not a blanket "refused" (a timeout or a 500 is not a refusal).
+ */
+export function requestFailureCode(error: unknown): WorkspaceEndpointFailureCode {
+  const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : null;
+  if (status === 401 || status === 403) return "forbidden";
+  if (status === 404) return "not_found";
+  if (status !== null && status >= 500) return "server";
+  if (status === null || status === 0) return error instanceof TypeError ? "network" : "request";
+  return "request";
+}
 
 export interface WorkspaceEndpointFailure {
   code: WorkspaceEndpointFailureCode;
@@ -266,8 +286,10 @@ export async function loadWorkspaceEndpoint<T>(
       if (parentSignal?.aborted || isAbortError(error)) {
         return { ok: false, error: { code: "aborted", message: "Workspace load was superseded." } };
       }
-      if (attempt >= retries) {
-        return { ok: false, error: { code: "request", message: loadErrorMessage(error) } };
+      const code = requestFailureCode(error);
+      // A refusal or a missing route does not change on a second try; a busy server may.
+      if (attempt >= retries || code === "forbidden" || code === "not_found") {
+        return { ok: false, error: { code, message: loadErrorMessage(error) } };
       }
       await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
     } finally {

@@ -2088,9 +2088,9 @@
   "workspace.retry_attempts": "尝试次数：{{attempts}}",
   "workspace.retry_last_attempt": "最近一次重试 {{time}} UTC",
   "workspace.retry_in_progress": "正在重试",
-  "workspace.failure.timeout": "10 秒读取超时内无响应",
+  "workspace.failure.timeout": "10 秒内无应答：服务器繁忙。可重试，稍后也会自动重新加载。",
   "workspace.failure.aborted": "已被更新的加载取代",
-  "workspace.failure.request": "请求被拒绝",
+  "workspace.failure.request": "服务器未接受该请求。",
   "workspace.failure.unknown": "故障未分类",
   "workspace.endpoint.unknown": "其他端点",
   "workspace.endpoint.reference_nodes": "参考节点",
@@ -5676,5 +5676,10 @@
   "setup.item.src-deepseek.purpose": "由公司选择的模型生成“原因”、交易台简报与告警分析。",
   "setup.item.users.name": "人员",
   "setup.item.users.purpose": "所有使用本产品的人员及其角色。",
-  "source_approval.catch_up": "实时数据正在补齐：已完成 {{done}} / {{total}} 个数据源"
+  "source_approval.catch_up": "实时数据正在补齐：已完成 {{done}} / {{total}} 个数据源",
+  "status.sources_held": "{{count}} 个公共数据源尚未启用，需由管理员批准。",
+  "workspace.failure.forbidden": "不在您的访问权限内：如需要请联系管理员。",
+  "workspace.failure.not_found": "此服务器版本不提供该数据。",
+  "workspace.failure.server": "服务器读取时出错；IT 可在日志中查看错误。",
+  "workspace.failure.network": "无法连接服务器：请检查网络连接。"
 }

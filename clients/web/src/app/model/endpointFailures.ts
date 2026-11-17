@@ -76,6 +76,10 @@ export const ENDPOINT_FAILURE_CODE_KEYS: Record<EndpointFailureCode, string> = {
   timeout: "workspace.failure.timeout",
   aborted: "workspace.failure.aborted",
   request: "workspace.failure.request",
+  forbidden: "workspace.failure.forbidden",
+  not_found: "workspace.failure.not_found",
+  server: "workspace.failure.server",
+  network: "workspace.failure.network",
   unknown: "workspace.failure.unknown",
 };
 
@@ -86,12 +90,16 @@ export const ENDPOINT_RETRY_ATTEMPTS_KEY = "workspace.retry_attempts";
 export const ENDPOINT_RETRY_LAST_ATTEMPT_KEY = "workspace.retry_last_attempt";
 export const ENDPOINT_RETRY_RUNNING_KEY = "workspace.retry_in_progress";
 
-/** Severity order: no response, rejected, superseded, unclassified. */
+/** Severity order: unreachable, server failure, no response, not permitted, missing, rejected, superseded, unclassified. */
 const FAILURE_CODE_ORDER: Record<EndpointFailureCode, number> = {
-  timeout: 0,
-  request: 1,
-  aborted: 2,
-  unknown: 3,
+  network: 0,
+  server: 1,
+  timeout: 2,
+  forbidden: 3,
+  not_found: 4,
+  request: 5,
+  aborted: 6,
+  unknown: 7,
 };
 
 export interface EndpointFailureDetail {
@@ -131,7 +139,10 @@ export interface EndpointFailureSurface {
 export function safeEndpointFailureCode(
   code: string | null | undefined,
 ): EndpointFailureCode {
-  return code === "timeout" || code === "aborted" || code === "request" ? code : "unknown";
+  return code === "timeout" || code === "aborted" || code === "request" || code === "forbidden" ||
+    code === "not_found" || code === "server" || code === "network"
+    ? code
+    : "unknown";
 }
 
 function compareDetails(left: EndpointFailureDetail, right: EndpointFailureDetail): number {
