@@ -57,11 +57,13 @@
       max-width: 100% !important;
       overflow-x: auto !important;
       overscroll-behavior-x: contain;
+      /* The edge covers are the surface colour, so the box is a surface (a white sheet in light
+         mode) whatever sits behind it. */
       background:
         linear-gradient(to right, var(--ds-surface), var(--ds-surface)) left / var(--ds-space-6) 100% no-repeat local,
         linear-gradient(to left, var(--ds-surface), var(--ds-surface)) right / var(--ds-space-6) 100% no-repeat local,
         radial-gradient(farthest-side at 0 50%, var(--ds-scroll-shadow), transparent) left / var(--ds-space-3) 100% no-repeat scroll,
-        radial-gradient(farthest-side at 100% 50%, var(--ds-scroll-shadow), transparent) right / var(--ds-space-3) 100% no-repeat scroll;
+        radial-gradient(farthest-side at 100% 50%, var(--ds-scroll-shadow), transparent) right / var(--ds-space-3) 100% no-repeat scroll var(--ds-surface);
     }
 
     /* A row of tabs or segments scrolls inside its own box rather than pushing the page. */

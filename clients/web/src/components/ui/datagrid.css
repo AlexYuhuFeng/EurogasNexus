@@ -364,6 +364,16 @@
     overflow-wrap: break-word;
   }
 
+  /* A header and a row's name are read as one word: they never break inside it. */
+  [data-phone-layout="folded"] .ds-grid thead th,
+  [data-phone-layout="folded"] .ds-grid tbody th {
+    white-space: nowrap;
+  }
+
+  .ds-grid-more-toggle > span {
+    font-size: var(--ds-text-md);
+  }
+
   @media (pointer: coarse) {
     .ds-grid .ds-grid-more,
     .ds-grid-more-toggle {
