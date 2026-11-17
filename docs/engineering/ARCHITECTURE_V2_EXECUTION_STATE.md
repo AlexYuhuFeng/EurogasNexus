@@ -39,6 +39,18 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   evaluator in CP-09 (its three states map to `actionable`/`watch`/`blocked`).
 - Not built here: evaluators L, C, S, E, T, R, D, A; scheduled and outbox triggers (seams
   only); the workbench `POST /api/opportunities/evaluate` and the `evaluation` table (CP-15).
+## 2026-11-18 — market reports round 5 (part 1): market facts only, no refusals, the report's language, AI in the interface language (branch `reports-round5`, not pushed)
+
+- No meta-commentary: the source was the directive's ANSWER rule ("each section opens with how
+  it bears on the question"); directive v4 forbids it (NO META-COMMENTARY), `editor.META`
+  refuses it (EN/ZH) and `editor.EFFECT` widens the cause check; rule templates rewritten.
+- Refusals moved before Generate: `GET /api/reports/catalogue` carries `availability` (role,
+  per-section data held, period limits, AI) from the reports' own builders; a report for
+  distribution drops book sections instead of refusing; the form validates and explains
+  failures with Retry / Generate without AI.
+- Report language (English / 中文) end to end (`reports/lang.py`).
+- AI replies in the interface language on every surface: `ai_style.language_rule` and the
+  language check in `text_verdict`; Chinese rule fallbacks for Why, the brief and Ask.
 
 ## 2026-11-17 — CP-03 chart standard (branch `cp-03-04`, not pushed)
 
