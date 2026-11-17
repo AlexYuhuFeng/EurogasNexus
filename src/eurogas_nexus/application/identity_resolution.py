@@ -72,12 +72,14 @@ def _as_utc(value: datetime) -> datetime:
 def load_resolver(session, *, at_utc: datetime | None = None) -> IdentityResolver:
     """The resolver for this store; an empty one when the table is not there."""
 
-    from sqlalchemy import inspect, select
+    from sqlalchemy import select
 
     from eurogas_nexus.db.models import SourceEntityMappingRecord
 
     try:
-        if not inspect(session.connection()).has_table("source_entity_mappings"):
+        from eurogas_nexus.db.schema_cache import has_table
+
+        if not has_table(session, "source_entity_mappings"):
             return IdentityResolver()
         rows = session.execute(
             select(
@@ -142,6 +144,8 @@ def entsog_reference_identities(
 
 def record_identities(session, identities: Iterable[SourceIdentity]) -> dict[str, int]:
     """Upsert canonical entities and their source mappings; idempotent, never commits."""
+
+    invalidate_identity_report()  # this process's cached reports may now be out of date
 
     from sqlalchemy import select
 
@@ -234,10 +238,11 @@ def identity_report(
     Read-only. A table that is missing in this store is skipped.
     """
 
-    from sqlalchemy import inspect, text
+    from sqlalchemy import text
+
+    from eurogas_nexus.db.schema_cache import has_table
 
     resolver = resolver or load_resolver(session)
-    inspector = inspect(session.connection())
     dialect = session.get_bind().dialect.name
     operator = (
         "metadata_json->>'operatorKey'"
@@ -248,7 +253,7 @@ def identity_report(
     for source_id, entity_type, query in _STORED_IDENTIFIERS:
         tables = [word for word in query.split() if word.endswith("_observations")
                   or word == "national_gas_actual_demand"]
-        if not all(inspector.has_table(table) for table in tables):
+        if not all(has_table(session, table) for table in tables):
             continue
         counts: dict[str, int] = {}
         for identifier, rows in session.execute(text(query.format(operator=operator))):
@@ -365,10 +370,11 @@ def _builtin_identifiers(source_id: str, entity_type: str) -> list[str]:
 
 
 def _mappings_table(session) -> bool:
-    from sqlalchemy import inspect
 
     try:
-        return inspect(session.connection()).has_table("source_entity_mappings")
+        from eurogas_nexus.db.schema_cache import has_table
+
+        return has_table(session, "source_entity_mappings")
     except Exception:  # noqa: BLE001 - no table: only the built-ins can be judged
         return False
 
@@ -457,7 +463,7 @@ def identity_clause(session, model):
 def withheld_counts(session) -> dict[str, int]:
     """Rows each observation table withholds from readers now (stored minus served)."""
 
-    from sqlalchemy import func, inspect, select
+    from sqlalchemy import func, select
 
     from eurogas_nexus.db.models import (
         CapacityObservationRecord,
@@ -467,8 +473,8 @@ def withheld_counts(session) -> dict[str, int]:
     )
     from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
     from eurogas_nexus.db.models.power import PowerObservationRecord
+    from eurogas_nexus.db.schema_cache import has_table
 
-    inspector = inspect(session.connection())
     counts: dict[str, int] = {}
     for model in (
         FlowObservationRecord,
@@ -478,7 +484,7 @@ def withheld_counts(session) -> dict[str, int]:
         PowerObservationRecord,
         NationalGasActualDemandRecord,
     ):
-        if not inspector.has_table(model.__tablename__):
+        if not has_table(session, model.__tablename__):
             continue
         stored = session.execute(select(func.count()).select_from(model)).scalar() or 0
         served = (
@@ -489,3 +495,77 @@ def withheld_counts(session) -> dict[str, int]:
         )
         counts[model.__tablename__] = int(stored) - int(served)
     return counts
+
+
+# ------------------------------------------------------------------ cached identity report
+
+#: Backstop for the cached identity report (seconds). The cache is keyed by a data version
+#: (row count and newest receipt of each identifier table, and of the mapping table), so an
+#: ingest that adds rows or a mapping change is seen at the next read; the TTL only bounds
+#: an in-place change those counters miss (a provider revising a row's operator key).
+IDENTITY_REPORT_TTL_SECONDS = 60.0
+_IDENTITY_CACHE: dict[str, tuple[float, tuple, dict[str, dict[str, Any]]]] = {}
+_IDENTITY_TABLES = (
+    "flow_observations",
+    "capacity_observations",
+    "storage_observations",
+    "lng_observations",
+    "power_observations",
+    "national_gas_actual_demand",
+    "source_entity_mappings",
+)
+
+
+def _identity_data_version(session) -> tuple:
+    """Cheap fingerprint of what the identity report reads (indexed counts and maxima)."""
+
+    from sqlalchemy import text
+
+    from eurogas_nexus.db.schema_cache import table_columns
+
+    version = []
+    for table in _IDENTITY_TABLES:
+        columns = table_columns(session, table)
+        if columns is None:
+            version.append((table, None))
+            continue
+        stamp = next(
+            (column for column in ("updated_at_utc", "ingested_at_utc", "observed_at_utc")
+             if column in columns),
+            None,
+        )
+        newest = f", MAX({stamp})" if stamp else ""
+        row = session.execute(text(f"SELECT COUNT(*){newest} FROM {table}")).one()  # noqa: S608
+        version.append((table, *(str(value) for value in row)))
+    return tuple(version)
+
+
+def invalidate_identity_report() -> None:
+    """Forget every cached identity report (after a write that changes identities)."""
+
+    _IDENTITY_CACHE.clear()
+
+
+def cached_identity_report(session, *, now: float | None = None) -> dict[str, dict[str, Any]]:
+    """:func:`identity_report`, reused while the data it reads is unchanged.
+
+    ``GET /api/sources`` built it on every call: grouping every ENTSOG flow and capacity row
+    by the operator key inside its JSON metadata (0.35-0.7 s on 36k flow rows, 2026-11-16).
+    """
+
+    import copy
+    import time
+
+    key = str(session.get_bind().url)
+    version = _identity_data_version(session)
+    moment = time.monotonic() if now is None else now
+    cached = _IDENTITY_CACHE.get(key)
+    if (
+        cached is not None
+        and cached[1] == version
+        and moment - cached[0] < IDENTITY_REPORT_TTL_SECONDS
+    ):
+        return copy.deepcopy(cached[2])
+    report = identity_report(session)
+    _IDENTITY_CACHE[key] = (moment, version, report)
+    return copy.deepcopy(report)

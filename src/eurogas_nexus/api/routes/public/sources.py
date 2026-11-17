@@ -361,11 +361,11 @@ def _identity_report() -> dict[str, dict[str, Any]]:
     if not _db_is_configured():
         return {}
     try:
-        from eurogas_nexus.application.identity_resolution import identity_report
+        from eurogas_nexus.application.identity_resolution import cached_identity_report
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            return identity_report(session)
+            return cached_identity_report(session)
     except Exception as exc:  # noqa: BLE001 - the identity list must not fail the registry
         logger.warning(
             "identity report unavailable: %s", type(exc).__name__,

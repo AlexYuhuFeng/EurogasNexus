@@ -149,6 +149,44 @@ the parent review; this file does not claim a live figure.
   or an indexed `COUNT(*)` for the failure counter would be the next
   optimisation candidates if profiling justifies them.
 
+## Source Center and physical reads with real ENTSOG data (2026-11-17)
+
+Measured in-process (FastAPI test client, development profile) against a scratch
+PostgreSQL 16 holding a live ENTSOG read: 29,909 flow rows, 11,113 capacity rows, 789
+reference points.
+
+| Read | Before | After |
+|---|---|---|
+| `GET /api/sources`, warm | 1.1-1.4 s, 138 statements | 0.27-0.37 s, 54 statements |
+| `GET /api/sources`, first call of a process | 2.3 s, 138 statements | 2.4 s, 107 statements (fills the caches) |
+| `GET /api/physical/flows` (volume mode) | 4-7 s (whole table loaded and validated in Python) | 0.14 s (filter in SQL; 2026-11-16) |
+| `GET /api/physical/capacity` | 2.3 s | unchanged (2.6 s, same read) |
+
+What changed for `/api/sources`:
+
+- 60 of the 138 statements were catalogue lookups (`has_table`, column lists) repeated on
+  every request by the data-quality receipts and the identity report.
+  `db/schema_cache.py` remembers a table found once, with its columns, per engine (a
+  weak reference, so a reused engine id is never mistaken). A missing table is never
+  remembered; the schema only grows through a migration, which restarts the service.
+- The identity report groups every ENTSOG flow and capacity row by the operator key inside
+  its JSON metadata (0.35-0.7 s at this size, growing with the store). It is now reused
+  while the data it reads is unchanged (`application/identity_resolution.cached_identity_report`):
+  keyed by a cheap data version (row count and newest receipt of each identifier table and
+  of `source_entity_mappings`), invalidated in the process by `record_identities` (the ENTSOG reference read, releasing a
+  quarantined identifier), and bounded by a 60 s TTL for an in-place change those counters
+  cannot see (a provider revising a row's operator key). An ingest that adds rows, or a new
+  mapping, is therefore listed at the next read; an approval does not change identities.
+
+`/api/physical/capacity` is left unbounded, deliberately. In volume mode it loads every
+capacity row in the window and resolves overlapping validity ranges across rows
+(`capacity_resolution.resolve_capacity`): the latest-received range of a series cuts the
+others, including ranges that publish energy and no volume. Filtering the energy-only
+rows in SQL, as `/flows` now does, could therefore change which value is served for a
+period, so it is not a provably equivalent change. A bounded read needs the resolution to
+move into SQL (or a resolved-capacity projection maintained at ingestion); until then the
+read is 2-3 s at five weeks of ENTSOG capacity.
+
 ## Methodology rules
 
 - Always record environment, row counts, concurrency, warm/cold state, duration,

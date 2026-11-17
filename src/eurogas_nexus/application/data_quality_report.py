@@ -415,12 +415,9 @@ def _median_lateness(session, spec, base: str) -> float | None:
 
 
 def _columns(session, table: str) -> set[str]:
-    from sqlalchemy import inspect
+    from eurogas_nexus.db.schema_cache import table_columns
 
-    inspector = inspect(session.connection())  # the session's own connection and transaction
-    if not inspector.has_table(table):
-        return set()
-    return {column["name"] for column in inspector.get_columns(table)}
+    return set(table_columns(session, table) or ())
 
 
 def _instant(value: Any) -> datetime:

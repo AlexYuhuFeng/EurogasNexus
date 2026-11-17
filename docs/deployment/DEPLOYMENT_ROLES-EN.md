@@ -190,7 +190,9 @@ docker compose run --rm public-ingestion python scripts/ops/approve_public_sourc
   --all-open --operator <your id> --reason "<ticket or reason>" --accept-terms
 ```
 
-`--list` prints each source's state and its terms summary; `--accept-terms` states that
+`--revoke --source entsog --operator <id> --reason "<why>"` withdraws an approval (reads stop
+at the next scheduled run; stored data is kept). `--list` prints each source's state and its
+terms summary; `--accept-terms` states that
 you read it and accept it for the firm (without it nothing is recorded). The approval is
 audited (`source.approval`) and runs a bounded live check. GIE approved before its key
 exists reads "approved, waiting for key" and is checked at the first read after the key

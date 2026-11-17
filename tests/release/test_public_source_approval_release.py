@@ -172,6 +172,21 @@ def test_fresh_install_approval_then_ingestion_stores_rows(fresh_store, monkeypa
     with fresh_store() as session:
         assert session.query(FlowObservationRecord).count() > 0
         assert _state(session)["state"] == "approved"
+        stored = session.query(FlowObservationRecord).count()
+
+    # Revoked: the next read is refused again and nothing stored is deleted.
+    from eurogas_nexus.application.public_source_approval import revoke_public_source_approval
+
+    with fresh_store() as session:
+        revoke_public_source_approval(
+            session, "src-entsog", actor="admin.anna", reason="terms review", now=now
+        )
+        session.commit()
+        assert _state(session)["state"] == "not_approved"
+    code, report = _ingest(monkeypatch, capsys)
+    assert code == 1 and report["failures"][0]["reason"] == NOT_APPROVED_CODE
+    with fresh_store() as session:
+        assert session.query(FlowObservationRecord).count() == stored
 
 
 def test_gie_approved_before_its_key_waits_for_the_key(fresh_store, monkeypatch):

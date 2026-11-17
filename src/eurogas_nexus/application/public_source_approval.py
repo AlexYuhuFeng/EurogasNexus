@@ -487,6 +487,76 @@ def approve_public_source(
     }
 
 
+def revoke_public_source_approval(
+    session, source: str, *, actor: str, reason: str, now: datetime | None = None
+) -> dict[str, Any]:
+    """Withdraw an administrator's approval: the source reads "Not approved yet" again.
+
+    The certification record drops to ``configured`` without the approval and live checks,
+    so the ingestion gate refuses the next read with ``source_not_approved``; nothing stored
+    is deleted. The withdrawn approval and the revocation (who, when, why) stay in the
+    record's evidence and in the audit log (``source.approval``, action
+    ``revoke_public_source_approval``). Idempotent: revoking what is not approved changes
+    nothing (``changed`` false). The caller commits.
+    """
+
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+    from eurogas_nexus.db.repositories.certification import (
+        latest_certification,
+        upsert_provider_certification,
+    )
+
+    system = approval_system(source)
+    actor = str(actor or "").strip()
+    reason = str(reason or "").strip()
+    if not actor:
+        raise ApprovalError("actor_required", "A revocation names who revokes.")
+    if not reason:
+        raise ApprovalError("reason_required", "A revocation states why (for the audit log).")
+    now = now or datetime.now(UTC)
+    current = latest_certification(session, system)
+    if not current or not is_approved(current):
+        return {"source_id": APPROVAL_SOURCE_IDS[system], "source_system": system,
+                "state": "not_approved", "changed": False}
+    evidence = dict(current.get("evidence") or {})
+    evidence["revoked_approval"] = approval_info(current)
+    evidence["revocation"] = {
+        "revoked_by": actor, "revoked_at_utc": now.isoformat(), "reason": reason,
+    }
+    evidence.pop("approval", None)
+    upsert_provider_certification(
+        session,
+        source_system=system,
+        stage="configured",
+        checks=[],
+        evidence=evidence,
+        evaluated_by=actor,
+        note=f"approval revoked by {actor}: {reason}",
+        now_utc=now,
+        adapter_version=current.get("adapter_version"),
+        credential_label=current.get("credential_label"),
+        entitlement_scope=system,
+        expires_at_utc=None,
+        evidence_ref=current.get("evidence_ref"),
+    )
+    record_audit_event(
+        session,
+        event_type="source.approval",
+        principal=actor,
+        action="revoke_public_source_approval",
+        resource=f"source:{APPROVAL_SOURCE_IDS[system]}",
+        outcome="not_approved",
+        severity="warning",
+        detail=f"{system} approval revoked by {actor}; reason: {reason}; reads stop at the "
+               "next scheduled run",
+        source_system=system,
+        now_utc=now,
+    )
+    session.flush()
+    return {"source_id": APPROVAL_SOURCE_IDS[system], "source_system": system,
+            "state": "not_approved", "changed": True}
+
+
 def ensure_approved_source_validated(
     session, system: str, *, now: datetime | None = None, client=None, session_factory=None
 ) -> bool:
@@ -528,6 +598,7 @@ __all__ = [
     "decide",
     "ensure_approved_source_validated",
     "live_validation",
+    "revoke_public_source_approval",
 ]
 
 

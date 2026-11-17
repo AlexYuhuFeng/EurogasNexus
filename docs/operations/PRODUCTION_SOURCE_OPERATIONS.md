@@ -33,7 +33,12 @@ The approval shows the provider's terms summary first
 (`domain/ingestion/source_approval.py`, from docs/legal/DATA_SOURCE_TERMS.md), records who,
 when, why and which summary was accepted, writes the audit event `source.approval`, and
 runs the bounded live validation (`application/public_source_approval.py`: a small live
-sample, a normaliser dry run, field shape; nothing stored). GIE approved before its key
+sample, a normaliser dry run, field shape; nothing stored). An approval is withdrawn
+with `DELETE /api/sources/{source_id}/approve` (ADMIN, body `reason`, `confirm: true`), the
+panel's **Revoke approval** or `approve_public_source.py --revoke`: the record drops to
+`configured` (the withdrawn approval and the revocation stay in its evidence), the next read
+is refused with `source_not_approved`, stored data is kept, and it is audited
+(`revoke_public_source_approval`). GIE approved before its key
 exists is "approved, waiting for key"; the first read after the key arrives runs the
 validation under the approver's record. Until approved, the run is refused with the
 stable reason `source_not_approved` (run row `error_code`, the report's `reason`), and

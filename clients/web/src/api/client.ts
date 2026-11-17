@@ -559,6 +559,15 @@ async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   return parseResponse<ApiResponse<T>>(response);
 }
 
+async function deleteWithBody<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+  const response = await fetch(apiUrl(path), requestInit({
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+  return parseResponse<ApiResponse<T>>(response);
+}
+
 async function post<T, M = ApiMeta>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<ApiResponse<T, M>> {
   const res = await fetch(apiUrl(path), requestInit({
     method: "POST",
@@ -5587,6 +5596,15 @@ export const api = {
       `/sources/${encodeURIComponent(sourceId)}/approve`,
       { reason, accept_terms: acceptTerms },
       options,
+    ),
+  /**
+   * Withdraw a public-source approval (ADMIN, audited). The caller confirmed it: reads stop at
+   * the next scheduled run and the source reads "Not approved yet"; stored data is kept.
+   */
+  revokeSourceApproval: (sourceId: string, reason: string) =>
+    deleteWithBody<{ source_id: string; state: string; changed: boolean }>(
+      `/sources/${encodeURIComponent(sourceId)}/approve`,
+      { reason, confirm: true },
     ),
   requestSourceRun: (sourceId: string, reason: string, options?: ApiRequestOptions) =>
     post<Record<string, unknown>>(

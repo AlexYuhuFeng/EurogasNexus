@@ -41,6 +41,8 @@ export function PublicSourceApprovals({ sources, t }: { sources: readonly Source
   const currentUser = useApiStore((state) => state.currentUser);
   const isAdmin = Boolean(currentUser?.roles?.includes("ADMIN") || currentUser?.role === "ADMIN");
   const [pending, setPending] = useState<readonly string[] | null>(null);
+  // The same form approves or, for an approved source, revokes (with its own confirmation).
+  const [mode, setMode] = useState<"approve" | "revoke">("approve");
   const [reason, setReason] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,8 @@ export function PublicSourceApprovals({ sources, t }: { sources: readonly Source
   const open = openApprovals(sources);
   const chosen = listed.filter((source) => pending?.includes(source.source_id));
 
-  const start = (ids: readonly string[]) => {
+  const start = (ids: readonly string[], next: "approve" | "revoke" = "approve") => {
+    setMode(next);
     setPending(ids);
     setReason("");
     setAccepted(false);
@@ -65,11 +68,16 @@ export function PublicSourceApprovals({ sources, t }: { sources: readonly Source
     const results: string[] = [];
     for (const sourceId of pending) {
       try {
+        if (mode === "revoke") {
+          const response = await api.revokeSourceApproval(sourceId, reason.trim());
+          results.push(`${sourceId}: ${t(`source_approval.state.${response.data.state}`)}`);
+          continue;
+        }
         const response = await api.approveSource(sourceId, reason.trim(), true);
         const failure = response.data.failure ? ` (${response.data.failure})` : "";
         results.push(`${sourceId}: ${t(`source_approval.state.${response.data.state}`)}${failure}`);
       } catch {
-        results.push(`${sourceId}: ${t("source_approval.failed")}`);
+        results.push(`${sourceId}: ${t(mode === "revoke" ? "source_approval.revoke_failed" : "source_approval.failed")}`);
       }
     }
     setBusy(false);
@@ -122,6 +130,11 @@ export function PublicSourceApprovals({ sources, t }: { sources: readonly Source
                       })
                     : t(`source_approval.next.${approval.state}`)}
               </span>
+              {isAdmin && approval.state !== "not_approved" && (
+                <Button size="sm" variant="quiet" onClick={() => start([source.source_id], "revoke")}>
+                  {t("source_approval.revoke")}
+                </Button>
+              )}
               {approval.state === "not_approved" && (isAdmin ? (
                 <Button size="sm" onClick={() => start([source.source_id])}>
                   {t("source_approval.approve")}
@@ -141,8 +154,8 @@ export function PublicSourceApprovals({ sources, t }: { sources: readonly Source
             void submit();
           }}
         >
-          <p>{t("source_approval.terms_intro")}</p>
-          {chosen.map((source) => (
+          <p>{t(mode === "revoke" ? "source_approval.revoke_intro" : "source_approval.terms_intro")}</p>
+          {mode === "approve" && chosen.map((source) => (
             <div key={source.source_id} className="public-source-approval-terms">
               <strong>{source.approval?.terms?.provider}</strong>
               <p>{source.approval?.terms?.summary}</p>
@@ -164,11 +177,17 @@ export function PublicSourceApprovals({ sources, t }: { sources: readonly Source
           />
           <label className="settings-checkbox">
             <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
-            {t("source_approval.accept")}
+            {t(mode === "revoke" ? "source_approval.revoke_accept" : "source_approval.accept")}
           </label>
           <div className="public-source-approval-actions">
-            <Button type="submit" disabled={busy || !reason.trim() || !accepted}>
-              {busy ? t("source_approval.approving") : t("source_approval.confirm", { count: chosen.length })}
+            <Button
+              type="submit"
+              variant={mode === "revoke" ? "danger" : "primary"}
+              disabled={busy || !reason.trim() || !accepted}
+            >
+              {busy
+                ? t(mode === "revoke" ? "source_approval.revoking" : "source_approval.approving")
+                : t(mode === "revoke" ? "source_approval.revoke_confirm" : "source_approval.confirm", { count: chosen.length })}
             </Button>
             <Button variant="quiet" onClick={() => setPending(null)} disabled={busy}>
               {t("source_approval.cancel")}

@@ -29,8 +29,13 @@ Admin → **Data sources** → *Public sources that need your approval*:
    `source.approval`) and runs a bounded live check (a small sample, nothing stored). The
    next scheduled read brings the data in.
 
-Only an ADMIN may approve; a job function or work mode never grants it, and the product
-never accepts terms by itself. Without a browser: `scripts/ops/approve_public_source.py`
+To withdraw an approval (a terms review, a change of provider terms): **Revoke approval** on
+the same panel, with a reason and the confirmation *I understand that this source stops being
+read*. The source reads "Not approved yet" again, the next scheduled read is refused, and the
+data already stored is kept; the revocation is audited like the approval.
+
+Only an ADMIN may approve or revoke; a job function or work mode never grants it, and the
+product never accepts terms by itself. Without a browser: `scripts/ops/approve_public_source.py`
 (see [DEPLOYMENT_ROLES-EN.md](../../deployment/DEPLOYMENT_ROLES-EN.md), "First run").
 
 ## 1. Route email notifications

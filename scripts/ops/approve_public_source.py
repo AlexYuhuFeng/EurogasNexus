@@ -7,7 +7,8 @@ them (the fail-closed ingestion gate); every other public source needs no approv
     # what needs approval, its state and each provider's terms summary
     python scripts/ops/approve_public_source.py --list
 
-    # approve one source (or --all-open for every source not approved yet)
+    # approve one source (or --all-open for every source not approved yet);
+    # --revoke --source entsog withdraws an approval
     python scripts/ops/approve_public_source.py --source entsog --operator ops.name \\
         --reason "first run, ticket OPS-12" --accept-terms
 
@@ -74,6 +75,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reason", help="why (recorded and audited)")
     parser.add_argument("--accept-terms", action="store_true",
                         help="you read the terms summary (--list) and accept it for your firm")
+    parser.add_argument("--revoke", action="store_true",
+                        help="withdraw the approval of --source (reads stop at the next run)")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
@@ -101,7 +104,28 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  attribution: {terms.get('attribution')}  [{terms.get('terms_url')}]")
         return 0
     if not (args.operator and args.reason):
-        parser.error("--operator and --reason are required to approve")
+        parser.error("--operator and --reason are required to approve or revoke")
+    if args.revoke:
+        if not args.source:
+            parser.error("--revoke needs --source")
+        from eurogas_nexus.application.public_source_approval import (
+            revoke_public_source_approval,
+        )
+
+        for source in args.source:
+            try:
+                with factory() as session:
+                    result = revoke_public_source_approval(
+                        session, source, actor=args.operator, reason=args.reason
+                    )
+                    session.commit()
+            except ApprovalError as exc:
+                print(f"{source}: {exc.code}: {exc}", file=sys.stderr)
+                return 2
+            print(json.dumps(result) if args.json else
+                  f"{result['source_id']}: not approved"
+                  + ("" if result["changed"] else " (was not approved; nothing changed)"))
+        return 0
     sources = args.source or [
         row["source_id"] for row in states if row["state"] == "not_approved"
     ]

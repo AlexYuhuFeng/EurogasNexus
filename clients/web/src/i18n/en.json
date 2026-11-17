@@ -5101,5 +5101,11 @@
   "source_approval.held.approved_waiting_for_key": "approved, waiting for the provider key",
   "source_approval.held.failing": "source failing",
   "source_approval.open_connectors": "Admin → Connectors",
-  "sources.freshness_contract.blocked": "held back: {{reason}} ({{action}})"
+  "sources.freshness_contract.blocked": "held back: {{reason}} ({{action}})",
+  "source_approval.revoke": "Revoke approval",
+  "source_approval.revoke_intro": "Revoking stops this source's reads at the next scheduled run; the data already stored is kept. The source then reads “Not approved yet” until an administrator approves it again.",
+  "source_approval.revoke_accept": "I understand that this source stops being read",
+  "source_approval.revoke_confirm": "Revoke approval",
+  "source_approval.revoking": "Revoking…",
+  "source_approval.revoke_failed": "not revoked (see the audit log or ask an administrator)"
 }

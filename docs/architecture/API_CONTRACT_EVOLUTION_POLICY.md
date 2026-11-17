@@ -12,6 +12,14 @@ grant it), writes nothing and calls no model. Every figure carries unit, as-of t
 freshness state; risk figures carry a method note. The web client has a typed
 `api.deskToday()`; no SDK method yet. Census: 244 paths / 264 operations.
 
+Additive 2026-11-17 (public-source approval revocation): no new path, one operation.
+`DELETE /api/sources/{source_id}/approve` (ADMIN, same route permission as the approval), body
+`{reason, confirm}` (`confirm` must be true, else 422 `confirmation_required`), withdraws an
+approval: the source's `approval.state` returns to `not_approved`, the ingestion gate refuses
+its next read with `source_not_approved`, nothing stored is deleted, and the audit event
+`source.approval` (action `revoke_public_source_approval`) records who, when and why.
+Idempotent. Census: 251 paths / 273 operations.
+
 Additive 2026-11-17 (public-source approval): one path, one operation under the existing
 `/api/sources/` operator prefix: `POST /api/sources/{source_id}/approve` (ADMIN), body
 `{reason, accept_terms}`. An administrator approves ENTSOG or GIE for the firm; the call

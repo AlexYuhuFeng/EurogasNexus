@@ -207,4 +207,4 @@ docker compose run --rm public-ingestion python scripts/ops/approve_public_sourc
   --all-open --operator <您的标识> --reason "<工单或原因>" --accept-terms
 ```
 
-`--list` 显示每个数据源的状态及其条款摘要；`--accept-terms` 表示您已阅读并代表公司接受（缺少该参数则不记录任何内容）。批准会写入审计（`source.approval`），并执行一次有界的实时检查。若 GIE 在存储密钥之前获批，其状态为“已批准，等待密钥”，并在密钥存储后的首次读取时进行检查。
+`--revoke --source entsog --operator <标识> --reason "<原因>"` 撤销批准（下一次计划运行起停止读取，已存储数据保留）。`--list` 显示每个数据源的状态及其条款摘要；`--accept-terms` 表示您已阅读并代表公司接受（缺少该参数则不记录任何内容）。批准会写入审计（`source.approval`），并执行一次有界的实时检查。若 GIE 在存储密钥之前获批，其状态为“已批准，等待密钥”，并在密钥存储后的首次读取时进行检查。

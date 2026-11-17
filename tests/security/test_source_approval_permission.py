@@ -116,3 +116,37 @@ def test_only_an_admin_approves_and_the_approval_names_them(store) -> None:
     assert by_id["src-gie"]["approval"]["state"] in {"not_approved"}
     assert by_id["src-gie"]["approval"]["reason"] == "source_not_approved"
     assert by_id["src-ecb"]["approval"]["state"] == "not_required"
+
+
+def test_only_an_admin_revokes_with_confirmation_and_the_source_is_not_approved_again(store):
+    client = TestClient(create_app(Settings(api_profile="release")))
+    admin = _bearer(store, "admin.anna", ["ADMIN"])
+    operator = _bearer(store, "ops.olga", ["OPERATOR"], ["DATA_OPERATOR"])
+    assert _post(client, admin).status_code == 200
+
+    def revoke(bearer, **body):
+        return client.request(
+            "DELETE", "/api/sources/src-entsog/approve",
+            json={"reason": "terms review", "confirm": True, **body},
+            headers={"X-Eurogas-Api-Key": PUBLIC_TOKEN, "X-Eurogas-Identity": bearer},
+        )
+
+    assert revoke(operator).status_code == 403
+    unconfirmed = revoke(admin, confirm=False)
+    assert unconfirmed.status_code == 422
+    assert unconfirmed.json()["detail"]["code"] == "confirmation_required"
+    revoked = revoke(admin)
+    assert revoked.status_code == 200 and revoked.json()["data"]["changed"] is True
+    assert revoke(admin).json()["data"]["changed"] is False  # idempotent
+    sources = client.get(
+        "/api/sources", headers={"X-Eurogas-Api-Key": PUBLIC_TOKEN, "X-Eurogas-Identity": admin}
+    )
+    entsog = next(row for row in sources.json()["data"] if row["source_id"] == "src-entsog")
+    assert entsog["approval"]["state"] == "not_approved"
+    with Session(store) as session:
+        actions = [
+            row.action for row in session.query(AuditEventRecord)
+            .filter(AuditEventRecord.event_type == "source.approval")
+            .order_by(AuditEventRecord.event_ts_utc)
+        ]
+    assert actions == ["approve_public_source", "revoke_public_source_approval"]

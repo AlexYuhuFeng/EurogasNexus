@@ -5101,5 +5101,11 @@
   "source_approval.held.approved_waiting_for_key": "已批准，等待提供方密钥",
   "source_approval.held.failing": "数据源失败",
   "source_approval.open_connectors": "管理 → 连接器",
-  "sources.freshness_contract.blocked": "已暂停：{{reason}}（{{action}}）"
+  "sources.freshness_contract.blocked": "已暂停：{{reason}}（{{action}}）",
+  "source_approval.revoke": "撤销批准",
+  "source_approval.revoke_intro": "撤销后，该数据源将在下一次计划运行时停止读取；已存储的数据保留。在管理员再次批准之前，状态为“尚未批准”。",
+  "source_approval.revoke_accept": "我了解该数据源将停止读取",
+  "source_approval.revoke_confirm": "确认撤销",
+  "source_approval.revoking": "正在撤销…",
+  "source_approval.revoke_failed": "未撤销（请查看审计日志或联系管理员）"
 }

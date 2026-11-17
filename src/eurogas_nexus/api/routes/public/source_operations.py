@@ -290,6 +290,53 @@ def post_source_approval(source_id: str, body: SourceApprovalRequest, request: R
     return _env(data, request, source="runtime-postgresql")
 
 
+class SourceRevocationRequest(BaseModel):
+    """Withdraw a public-source approval; ``confirm`` must be true."""
+
+    reason: str = Field(min_length=1, max_length=512)
+    confirm: bool = False
+
+
+@router.delete("/api/sources/{source_id}/approve")
+def delete_source_approval(
+    source_id: str, body: SourceRevocationRequest, request: Request
+) -> dict:
+    """Revoke a public source's approval (ADMIN, audited, explicit confirmation).
+
+    The source reads "Not approved yet" again and the ingestion gate refuses its next read
+    with ``source_not_approved``; stored data is kept. Idempotent.
+    """
+
+    _require_db()
+    if not body.confirm:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "confirmation_required",
+                    "message": "Revoking stops this source's reads; confirm to proceed."},
+        )
+    from eurogas_nexus.application.public_source_approval import (
+        ApprovalError,
+        revoke_public_source_approval,
+    )
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with _session() as session:
+            data = revoke_public_source_approval(
+                session, source_id, actor=_actor(request), reason=body.reason
+            )
+            session.commit()
+    except ApprovalError as exc:
+        status = 404 if exc.code == "approval_not_required" else 422
+        raise HTTPException(
+            status_code=status, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    _emit_operator_event("revoke_approval", source_id, actor=_actor(request))
+    return _env(data, request, source="runtime-postgresql")
+
+
 @router.get("/api/source-certifications")
 def list_source_certifications(request: Request) -> dict:
     """List persisted certification records (no credential material)."""
