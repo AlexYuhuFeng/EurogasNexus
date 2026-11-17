@@ -123,6 +123,28 @@ unchanged; these rules govern how much of that evidence is *on screen by default
     Ctrl/⌘+C copies the number. Hooks: `#palette-answer`, `#palette-ask`, `[data-answer-kind]`,
     `[data-answer-value]`, `.answer-ask-panel[aria-busy]`.
 
+13. **The strip under the top bar is a calm instrument line, not a news ticker**
+    (situational strip, 2026-11-17; [design basis](ROLE_FIRST_REDESIGN.md) §5,
+    [user guide](../user/SITUATION_STRIP.md)). It shows what needs *this person* now, by
+    role: a trader sees a large unplanned outage where the book holds a position or at a
+    focus hub and a breach of their own mandate, never pipeline or ingestion state (that is
+    the administrator's and data operator's strip only); finance has none. Four states:
+    **hidden** (no element at all, so no empty band), **quiet** (one static muted line: booked
+    today from the ETRM import, read-only, or the next nomination window, or the counts a
+    risk manager starts from), **urgent** (one static line: severity mark, the top item, its
+    comparison, "+n more"; a coloured edge; no marquee, nothing to pause) and **expanded**
+    (at most seven items, a popover on a desktop and a sheet on a phone; each with its link
+    to where the job continues, Hide, Acknowledge only with the permission, Why and Report,
+    and a line saying why this person sees it). An item is urgent for six hours after it
+    became true or materially changed, then it is standing and only the bell lists it. Every
+    item names its source and is a translated sentence built from fields; an unsourced item
+    is rejected; a demo figure carries `sim`. Hide is personal and the item comes back when
+    its size or status changes. A new item is announced once; a standing state never is.
+    Thresholds (outage GWh/d and share, price move %, focus hubs, the quiet line) are personal
+    preferences with organisation defaults. Hooks: `[data-shell-region="ticker"]`,
+    `[data-strip-state]`, `[data-strip-expand]`, `[data-strip-list]`, `[data-strip-rule]`,
+    `[data-strip-why]`, `[data-strip-action]`, `[data-strip-announcer]`.
+
 Source-pinning contract tests should assert behaviour and data hooks
 (`data-market-board`, `data-record`, `aria-pressed`) rather than CSS class names or
 exact copy, so that presentation can improve without weakening a gate.

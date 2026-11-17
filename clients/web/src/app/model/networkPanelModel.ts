@@ -50,6 +50,16 @@ export function networkPanelToSearch(search: string, tab: NetworkPanelTab): stri
   return next.toString();
 }
 
+/**
+ * The outage an address selects (`outage=<event id>`): the situational strip opens an outage
+ * where the job continues, on Network with the Outages panel and that outage selected.
+ */
+export const NETWORK_OUTAGE_PARAM = "outage";
+
+export function networkOutageFromSearch(search: string): string | null {
+  return new URLSearchParams(search).get(NETWORK_OUTAGE_PARAM) || null;
+}
+
 /* ------------------------------------------------------------------ view and placement */
 
 export interface MapBounds {

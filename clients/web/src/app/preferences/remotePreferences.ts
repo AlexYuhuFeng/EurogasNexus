@@ -9,6 +9,7 @@ import {
 } from "@/app/context/viewPreference";
 import { resolveSignInPreferences } from "./preferenceResolution";
 import { applyPnlColorConvention } from "@/app/model/pnlColor";
+import { applyStripPreferences, setLocalHidden } from "./stripPreferences";
 
 /**
  * Personal preferences live on the server per principal (`/api/me/preferences`), so a
@@ -69,6 +70,7 @@ export async function applyEffectivePreferences(
   writeMarketViewPreference(principalId, normalizeMarketViewPreference(effective.market_view));
   writeBoardLayout(effective.market_board_layout);
   writeLocalPnlColors(effective.pnl_colors);
+  applyStripPreferences(effective);
   window.dispatchEvent(new Event(PREFERENCES_APPLIED_EVENT));
 }
 
@@ -116,4 +118,9 @@ export function saveRemotePreference(key: PreferenceKey, value: string | null): 
 export function writeLocalBoardLayout(layout: "board" | "ladder"): void {
   writeBoardLayout(layout);
   saveRemotePreference("market_board_layout", layout);
+}
+
+/** Hide strip items for this person (stored with their preferences; the alerts are untouched). */
+export function saveStripHidden(hidden: readonly string[]): void {
+  saveRemotePreference("strip_hidden", setLocalHidden(hidden) || null);
 }

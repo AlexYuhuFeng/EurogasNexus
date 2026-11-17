@@ -77,3 +77,28 @@ def test_bad_values_and_non_admin_organisation_writes_are_refused(tmp_path, monk
     denied = clients["trader"].put("/api/settings/organisation", json={"theme": "dark"})
     assert denied.status_code == 403
     assert clients["trader"].get("/api/settings/organisation").status_code == 200
+
+
+def test_strip_thresholds_round_trip_and_unknown_keys_are_refused(tmp_path, monkeypatch):
+    clients = _clients(tmp_path, monkeypatch)
+    saved = clients["trader"].put(
+        "/api/me/preferences",
+        json={"strip_outage_gwh_d": "100", "strip_focus_hubs": "NBP", "strip_quiet_line": "off"},
+    )
+    assert saved.status_code == 200, saved.text
+    effective = saved.json()["data"]["effective"]
+    assert effective["strip_outage_gwh_d"] == "100"
+    assert effective["strip_outage_share_pct"] == "50"
+    assert effective["strip_focus_hubs"] == "NBP"
+    unknown = clients["trader"].put("/api/me/preferences", json={"strip_marquee": "on"})
+    assert unknown.status_code == 422
+    assert unknown.json()["detail"]["code"] == "preference_invalid"
+    org = clients["admin"].put("/api/settings/organisation", json={"strip_price_move_pct": "3"})
+    assert org.status_code == 200, org.text
+    assert clients["other"].get("/api/me/preferences").json()["data"]["effective"][
+        "strip_price_move_pct"
+    ] == "3"
+    personal_only = clients["admin"].put(
+        "/api/settings/organisation", json={"strip_hidden": "outage:x@a"}
+    )
+    assert personal_only.status_code == 422

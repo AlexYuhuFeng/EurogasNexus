@@ -3,11 +3,18 @@ import { useEffect, useState } from "react";
 import { api, type OrganisationSettingsDTO, type PreferenceKey, type PreferencesDTO } from "@/api/client";
 import { LOCALES } from "@/i18n/locales";
 import { applyEffectivePreferences } from "@/app/preferences/remotePreferences";
+import { FOCUS_HUB_CHOICES, MAX_FOCUS_HUBS, STRIP_BUILT_IN, STRIP_CHOICES } from "@/app/preferences/stripPreferences";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const CHOICES: Record<PreferenceKey, { value: string; labelKey?: string; label?: string }[]> = {
+/** Keys chosen from a closed list (the focus hubs and the hide list are edited differently). */
+type ChoiceKey = Exclude<PreferenceKey, "strip_focus_hubs" | "strip_hidden">;
+
+const stripChoices = (key: keyof typeof STRIP_CHOICES, labelKey: string) =>
+  STRIP_CHOICES[key].map((value) => ({ value, labelKey, labelValue: value }));
+
+const CHOICES: Record<ChoiceKey, { value: string; labelKey?: string; label?: string; labelValue?: string }[]> = {
   language: LOCALES.map((locale) => ({ value: locale.code, label: locale.nativeName })),
   theme: [
     { value: "system", labelKey: "theme.system" },
@@ -26,31 +33,100 @@ const CHOICES: Record<PreferenceKey, { value: string; labelKey?: string; label?:
     { value: "green_up", labelKey: "preferences.pnl_green_up" },
     { value: "red_up", labelKey: "preferences.pnl_red_up" },
   ],
+  strip_outage_gwh_d: stripChoices("strip_outage_gwh_d", "strip.pref.gwh_value"),
+  strip_outage_share_pct: stripChoices("strip_outage_share_pct", "strip.pref.pct_value"),
+  strip_price_move_pct: stripChoices("strip_price_move_pct", "strip.pref.pct_value"),
+  strip_quiet_line: [
+    { value: "on", labelKey: "strip.pref.quiet_on" },
+    { value: "off", labelKey: "strip.pref.quiet_off" },
+  ],
 };
 
-const LABEL_KEYS: Record<PreferenceKey, string> = {
+const LABEL_KEYS: Record<ChoiceKey, string> = {
   language: "settings.language",
   theme: "settings.appearance",
   market_view: "settings.market_default_view",
   market_board_layout: "preferences.board_layout",
   pnl_colors: "preferences.pnl_colors",
+  strip_outage_gwh_d: "strip.pref.outage_gwh_d",
+  strip_outage_share_pct: "strip.pref.outage_share_pct",
+  strip_price_move_pct: "strip.pref.price_move_pct",
+  strip_quiet_line: "strip.pref.quiet_line",
 };
 
-const KEYS = Object.keys(LABEL_KEYS) as PreferenceKey[];
+const GENERAL_KEYS: ChoiceKey[] = ["language", "theme", "market_view", "market_board_layout", "pnl_colors"];
+/** The situational strip's thresholds (role-first redesign §5.2), grouped under their own heading. */
+const STRIP_KEYS: ChoiceKey[] = ["strip_outage_gwh_d", "strip_outage_share_pct", "strip_price_move_pct", "strip_quiet_line"];
+const KEYS: ChoiceKey[] = [...GENERAL_KEYS, ...STRIP_KEYS];
 
 /** Mirrors BUILT_IN_DEFAULTS in domain/settings/preferences.py. */
-const BUILT_IN: Record<PreferenceKey, string> = {
+const BUILT_IN: Record<ChoiceKey, string> = {
   language: "en",
   theme: "system",
   market_view: "curves",
   market_board_layout: "board",
   pnl_colors: "green_up",
+  strip_outage_gwh_d: STRIP_BUILT_IN.strip_outage_gwh_d,
+  strip_outage_share_pct: STRIP_BUILT_IN.strip_outage_share_pct,
+  strip_price_move_pct: STRIP_BUILT_IN.strip_price_move_pct,
+  strip_quiet_line: STRIP_BUILT_IN.strip_quiet_line,
 };
 
-function choiceLabel(t: Translate, key: PreferenceKey, value: string | undefined): string {
+function optionLabel(t: Translate, choice: { value: string; labelKey?: string; label?: string; labelValue?: string }): string {
+  if (choice.label) return choice.label;
+  return t(choice.labelKey ?? choice.value, choice.labelValue !== undefined ? { value: choice.labelValue } : undefined);
+}
+
+function choiceLabel(t: Translate, key: ChoiceKey, value: string | undefined): string {
   const choice = CHOICES[key].find((item) => item.value === value);
   if (!choice) return t("preferences.built_in");
-  return choice.label ?? t(choice.labelKey ?? value ?? "");
+  return optionLabel(t, choice);
+}
+
+/** The person's focus hubs: a set of toggles; none chosen means "the hubs of my book". */
+function FocusHubsField({
+  t,
+  value,
+  fallback,
+  onChange,
+}: {
+  t: Translate;
+  value: string | undefined;
+  fallback: string;
+  onChange: (next: string | null) => void;
+}) {
+  const chosen = (value ?? "").split(",").filter(Boolean);
+  const toggle = (hub: string) => {
+    const next = chosen.includes(hub) ? chosen.filter((item) => item !== hub) : [...chosen, hub];
+    onChange(next.length ? next.join(",") : null);
+  };
+  return (
+    <fieldset className="settings-focus-hubs" data-preference="strip_focus_hubs">
+      <legend>{t("strip.pref.focus_hubs")}</legend>
+      <div className="settings-focus-hub-set">
+        {FOCUS_HUB_CHOICES.map((hub) => {
+          const on = chosen.includes(hub);
+          return (
+            <button
+              key={hub}
+              type="button"
+              className={on ? "settings-hub-toggle is-on" : "settings-hub-toggle"}
+              aria-pressed={on}
+              disabled={!on && chosen.length >= MAX_FOCUS_HUBS}
+              onClick={() => toggle(hub)}
+            >
+              {hub}
+            </button>
+          );
+        })}
+      </div>
+      <small className="muted">
+        {chosen.length
+          ? t("strip.pref.focus_hubs_chosen")
+          : t("strip.pref.focus_hubs_auto", { value: fallback || t("strip.pref.focus_hubs_book") })}
+      </small>
+    </fieldset>
+  );
 }
 
 interface PersonalPreferencesPanelProps {
@@ -100,26 +176,40 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
             ? CHOICES.language.filter((item) => state.effective.enabled_languages.includes(item.value))
             : CHOICES[key];
           return (
-            <label key={key} className="settings-preference-row">
-              <span>{t(LABEL_KEYS[key])}</span>
-              <select
-                value={personal ?? ""}
-                onChange={(event) => void save(key, event.target.value === "" ? null : event.target.value)}
-              >
-                <option value="">
-                  {t("preferences.use_default", {
-                    value: choiceLabel(t, key, state.organisation_defaults[key] ?? state.effective[key]),
-                  })}
-                </option>
-                {options.map((choice) => (
-                  <option key={choice.value} value={choice.value}>
-                    {choice.label ?? t(choice.labelKey ?? choice.value)}
+            <div key={key} className="settings-preference-group">
+              {key === STRIP_KEYS[0] && (
+                <h3 className="settings-subheading" id="settings-strip-title">{t("strip.pref.title")}</h3>
+              )}
+              {key === STRIP_KEYS[0] && <p className="panel-copy">{t("strip.pref.help")}</p>}
+              <label className="settings-preference-row" data-preference={key}>
+                <span>{t(LABEL_KEYS[key])}</span>
+                <select
+                  value={personal ?? ""}
+                  onChange={(event) => void save(key, event.target.value === "" ? null : event.target.value)}
+                >
+                  <option value="">
+                    {t("preferences.use_default", {
+                      value: choiceLabel(t, key, state.organisation_defaults[key] ?? state.effective[key] ?? BUILT_IN[key]),
+                    })}
                   </option>
-                ))}
-              </select>
-            </label>
+                  {options.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {optionLabel(t, choice)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           );
         })}
+      {state && (
+        <FocusHubsField
+          t={t}
+          value={state.personal.strip_focus_hubs}
+          fallback={state.organisation_defaults.strip_focus_hubs ?? ""}
+          onChange={(next) => void save("strip_focus_hubs", next)}
+        />
+      )}
       <small className="muted">{t("preferences.follows_you")}</small>
     </section>
   );
@@ -166,7 +256,7 @@ export function OrganisationDefaultsPanel({ t, canManage }: OrganisationDefaults
       </p>
       {settings &&
         KEYS.map((key) => (
-          <label key={key} className="settings-preference-row">
+          <label key={key} className="settings-preference-row" data-preference={key}>
             <span>{t(LABEL_KEYS[key])}</span>
             {canManage ? (
               <select value={settings[key] ?? ""} onChange={(event) => void save({ [key]: event.target.value })}>
@@ -179,7 +269,7 @@ export function OrganisationDefaultsPanel({ t, canManage }: OrganisationDefaults
                   .filter((choice) => key !== "language" || enabled.includes(choice.value))
                   .map((choice) => (
                     <option key={choice.value} value={choice.value}>
-                      {choice.label ?? t(choice.labelKey ?? choice.value)}
+                      {optionLabel(t, choice)}
                     </option>
                   ))}
               </select>

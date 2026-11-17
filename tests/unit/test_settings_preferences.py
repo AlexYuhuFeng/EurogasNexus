@@ -41,3 +41,55 @@ def test_null_clears_and_organisation_language_must_be_enabled():
     assert validate_organisation_defaults({"enabled_languages": ["zh-CN", "en", "en"]}) == {
         "enabled_languages": ["zh-CN", "en"]
     }
+
+
+def test_strip_thresholds_are_closed_vocabularies_with_defaults():
+    effective = effective_preferences({"strip_outage_gwh_d": "100"}, {"strip_quiet_line": "off"})
+    assert effective["strip_outage_gwh_d"] == "100"  # organisation default
+    assert effective["strip_outage_share_pct"] == "50"  # built in
+    assert effective["strip_price_move_pct"] == "5"
+    assert effective["strip_quiet_line"] == "off"  # personal
+    assert effective["strip_focus_hubs"] == ""
+    assert validate_preferences({"strip_outage_gwh_d": "25", "strip_price_move_pct": "10"}) == {
+        "strip_outage_gwh_d": "25",
+        "strip_price_move_pct": "10",
+    }
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"strip_outage_gwh_d": "37"},
+        {"strip_outage_gwh_d": 50},
+        {"strip_outage_share_pct": "100"},
+        {"strip_price_move_pct": "-5"},
+        {"strip_quiet_line": "maybe"},
+        {"strip_focus_hubs": "TTF,XYZ"},
+        {"strip_focus_hubs": "TTF,TTF"},
+        {"strip_focus_hubs": "TTF,NBP,THE,PEG,ZTP,PSV,CEGH"},
+        {"strip_focus_hubs": ["TTF"]},
+        {"strip_hidden": "not an entry"},
+        {"strip_hidden": "\n".join(f"outage:e{n}@active|1" for n in range(41))},
+        {"strip_threshold": "50"},
+    ],
+)
+def test_strip_preferences_refuse_values_and_keys_outside_their_rules(values):
+    with pytest.raises(SettingsError):
+        validate_preferences(values)
+
+
+def test_focus_hubs_and_the_hide_list_accept_bounded_lists():
+    assert validate_preferences({"strip_focus_hubs": "NBP,TTF"}) == {"strip_focus_hubs": "NBP,TTF"}
+    assert validate_preferences({"strip_focus_hubs": ""}) == {"strip_focus_hubs": ""}
+    hidden = "outage:demo-umm-1@active|563|1\ncredit:CP-1@breach|105"
+    assert validate_preferences({"strip_hidden": hidden}) == {"strip_hidden": hidden}
+
+
+def test_the_hide_list_is_personal_never_an_organisation_default():
+    with pytest.raises(SettingsError):
+        validate_organisation_defaults({"strip_hidden": "outage:x@active"})
+    assert validate_organisation_defaults({"strip_outage_share_pct": "75"}) == {
+        "strip_outage_share_pct": "75"
+    }
+    # A stray stored row cannot leak one person's hide list to everyone.
+    assert effective_preferences({"strip_hidden": "outage:x@a"}, {})["strip_hidden"] == ""

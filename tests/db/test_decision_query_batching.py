@@ -172,6 +172,8 @@ def _expected_summary(full: dict) -> dict:
         "gas_day": full["gas_day"],
         "delivery_product": full["delivery_product"],
         "hub_id": full["hub_id"],
+        "created_by": full["created_by"],
+        "created_at_utc": full["created_at_utc"],
         "decision_due_at_utc": full["decision_due_at_utc"],
         "deadline_state": full["deadline_state"],
         "evidence_count": len(full["evidence"]),

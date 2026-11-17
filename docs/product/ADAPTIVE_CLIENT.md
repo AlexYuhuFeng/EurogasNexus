@@ -108,10 +108,12 @@ shell. The rules now are:
 6. **Checked by machine.** The browser acceptance sweep fails on any two overlapping top-bar
    controls at 1366, 1920 and 390 px (`scripts/uat/browser_workflow_smoke.mjs`).
 
-The breaking-news ticker (`BreakingTicker.tsx`) sits under the bar. It shows open alerts and the
-outages active now, critical first. It reads "Breaking" and flashes once when a new critical item
-arrives, pauses on hover, focus or its own button, does not move with reduced motion, and is
-absent when there is nothing to report.
+The situational strip (`BreakingTicker.tsx`, fed by `ShellTicker.tsx`) sits under the bar. It is
+one static line at every width, or nothing: what needs this person now, by role
+(`UX_REFERENCE.md` rule 13). On a desktop "+n more" opens the list as a popover; on a phone
+(compact width) as a sheet from the bottom. At 390 px the comparison drops and the headline ends
+in an ellipsis rather than wrapping; on a coarse pointer the line and its controls are 44 px.
+Nothing in it moves.
 
 **Shell choice.** Tauri renders the same web layout as the browser (WebView2 on Windows, WebKitGTK
 on Linux). Layout quality does not depend on the shell, so no shell change is needed for it. If

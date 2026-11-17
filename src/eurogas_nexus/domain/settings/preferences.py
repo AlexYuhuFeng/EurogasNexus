@@ -15,8 +15,11 @@ they choose how permitted data is shown, not what is permitted.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import re
+from collections.abc import Callable, Mapping
 from typing import Any
+
+from eurogas_nexus.domain.ontology.markets import european_gas_hubs
 
 #: The interface languages the clients ship. A new language is added here and in the
 #: client locale registry (clients/web/src/i18n/locales.ts) with its translation file.
@@ -31,7 +34,51 @@ PREFERENCE_VOCABULARY: dict[str, tuple[str, ...]] = {
     "market_board_layout": ("board", "ladder"),
     # Profit colour: green (Europe, Americas) or red (China and much of Asia).
     "pnl_colors": ("green_up", "red_up"),
+    # The situational strip under the top bar (docs/product/ROLE_FIRST_REDESIGN.md, section 5):
+    # an unplanned outage qualifies at or above either size; a price move at or above the share.
+    "strip_outage_gwh_d": ("25", "50", "100", "200", "500"),
+    "strip_outage_share_pct": ("25", "50", "75"),
+    "strip_price_move_pct": ("2", "3", "5", "10"),
+    # One calm standing fact when nothing is urgent (booked today, the next window, counts).
+    "strip_quiet_line": ("on", "off"),
 }
+
+#: Preferences whose values are a bounded list rather than one word of a closed vocabulary.
+#: Each is still refused unless every part is valid.
+_HUBS = european_gas_hubs()
+_HIDE_ENTRY = re.compile(r"^[a-z_]{2,16}:[A-Za-z0-9:._\-]{1,120}@[A-Za-z0-9:._|+\-]{0,80}$")
+MAX_FOCUS_HUBS = 6
+MAX_HIDDEN_ITEMS = 40
+
+
+def _focus_hubs(value: str) -> bool:
+    """Comma-separated hub codes the strip follows; empty means the book's hubs."""
+
+    if value == "":
+        return True
+    hubs = value.split(",")
+    return len(hubs) <= MAX_FOCUS_HUBS and len(set(hubs)) == len(hubs) and set(hubs) <= set(_HUBS)
+
+
+def _hidden_items(value: str) -> bool:
+    """Strip items the person hid, ``id@signature`` separated by newlines."""
+
+    if value == "":
+        return True
+    entries = value.split("\n")
+    return len(entries) <= MAX_HIDDEN_ITEMS and all(_HIDE_ENTRY.match(entry) for entry in entries)
+
+
+PREFERENCE_PATTERNS: dict[str, tuple[Callable[[str], bool], str]] = {
+    "strip_focus_hubs": (
+        _focus_hubs,
+        f"comma-separated hub codes ({', '.join(_HUBS)}), at most {MAX_FOCUS_HUBS}, or empty",
+    ),
+    "strip_hidden": (_hidden_items, f"at most {MAX_HIDDEN_ITEMS} id@signature lines"),
+}
+
+#: A person's own record, never an organisation default (which items they hid).
+PERSONAL_ONLY_KEYS: frozenset[str] = frozenset({"strip_hidden"})
 
 BUILT_IN_DEFAULTS: dict[str, str] = {
     "language": "en",
@@ -39,7 +86,16 @@ BUILT_IN_DEFAULTS: dict[str, str] = {
     "market_view": "curves",
     "market_board_layout": "board",
     "pnl_colors": "green_up",
+    "strip_outage_gwh_d": "50",
+    "strip_outage_share_pct": "50",
+    "strip_price_move_pct": "5",
+    "strip_quiet_line": "on",
+    "strip_focus_hubs": "",
+    "strip_hidden": "",
 }
+
+#: Every key a client may store.
+PREFERENCE_KEYS: frozenset[str] = frozenset(PREFERENCE_VOCABULARY) | frozenset(PREFERENCE_PATTERNS)
 
 
 class SettingsError(ValueError):
@@ -51,13 +107,19 @@ def validate_preferences(values: Mapping[str, Any]) -> dict[str, str]:
 
     accepted: dict[str, str] = {}
     for key, value in values.items():
-        allowed = PREFERENCE_VOCABULARY.get(key)
-        if allowed is None:
+        if key not in PREFERENCE_KEYS:
             raise SettingsError(f"unknown preference {key!r}")
         if value is None:
             continue  # null clears a personal choice back to the organisation default
-        if not isinstance(value, str) or value not in allowed:
-            raise SettingsError(f"{key} must be one of {', '.join(allowed)}")
+        pattern = PREFERENCE_PATTERNS.get(key)
+        if pattern is not None:
+            valid, described = pattern
+            if not isinstance(value, str) or not valid(value):
+                raise SettingsError(f"{key} must be {described}")
+        else:
+            allowed = PREFERENCE_VOCABULARY[key]
+            if not isinstance(value, str) or value not in allowed:
+                raise SettingsError(f"{key} must be one of {', '.join(allowed)}")
         accepted[key] = value
     return accepted
 
@@ -65,6 +127,9 @@ def validate_preferences(values: Mapping[str, Any]) -> dict[str, str]:
 def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
     """Organisation defaults use the preference vocabulary plus the languages offered."""
 
+    personal_only = sorted(PERSONAL_ONLY_KEYS & set(values))
+    if personal_only:
+        raise SettingsError(f"{personal_only[0]} is a personal preference, not a default")
     enabled = values.get("enabled_languages")
     rest = {key: value for key, value in values.items() if key != "enabled_languages"}
     accepted: dict[str, Any] = validate_preferences(rest)
@@ -94,8 +159,14 @@ def effective_preferences(
     """
 
     effective: dict[str, Any] = dict(BUILT_IN_DEFAULTS)
-    effective.update({k: v for k, v in organisation.items() if k in PREFERENCE_VOCABULARY})
-    effective.update({k: v for k, v in personal.items() if k in PREFERENCE_VOCABULARY})
+    effective.update(
+        {
+            k: v
+            for k, v in organisation.items()
+            if k in PREFERENCE_KEYS and k not in PERSONAL_ONLY_KEYS
+        }
+    )
+    effective.update({k: v for k, v in personal.items() if k in PREFERENCE_KEYS})
     languages = list(organisation.get("enabled_languages") or SUPPORTED_LANGUAGES)
     if effective["language"] not in languages:
         effective["language"] = organisation.get("language", languages[0])

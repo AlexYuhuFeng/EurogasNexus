@@ -11,6 +11,8 @@
 // - Modes (WF-05): the top bar is four modes in one Tab stop; arrows move and open them;
 //   Ctrl+Shift+n opens the n-th; old area addresses redirect; the palette finds old names; a
 //   utility page selects no mode.
+// - Situational strip (I13): absent or one static line; with an urgent item, Enter on "+n more"
+//   opens the list with focus inside, ArrowDown moves, Escape closes it and focus returns.
 //
 // Exits 1 on the first broken path. Optional screenshots of each state go to OUTPUT_DIR.
 // Environment: EUROGAS_UAT_BASE_URL (default http://127.0.0.1:3000), EUROGAS_UAT_PLAYWRIGHT_PATH,
@@ -18,6 +20,8 @@
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+
+import { readStripShape, stripShapeProblems } from "./situationStrip.mjs";
 
 const require = createRequire(import.meta.url);
 const BASE = process.env.EUROGAS_UAT_BASE_URL || "http://127.0.0.1:3000";
@@ -228,6 +232,35 @@ export async function runKeyboardPaths() {
     await go(page, "?workspace=settings");
     check((await page.locator(".workspace-primary-tabs [aria-selected=true]").count()) === 0, "Settings selects no mode");
     check((await page.locator(".workspace-primary-tabs [role=tab][tabindex='0']").count()) === 1, "and the mode row keeps one Tab stop");
+
+    // Situational strip (I13) --------------------------------------------------------------------
+    await go(page, "?workspace=market&task=overview");
+    const strip = await page.evaluate(readStripShape);
+    const stripProblems = stripShapeProblems(strip);
+    check(stripProblems.length === 0, `the strip is absent or one static line (${strip.present ? `${strip.state}, ${strip.height}px` : "absent"}${stripProblems.length ? `: ${stripProblems.join("; ")}` : ""})`);
+    if (strip.present && strip.state === "urgent") {
+      const expand = page.locator("[data-strip-expand]");
+      await expand.focus();
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(400);
+      check((await active(page)).inDialog, "Enter on the strip's '+n more' opens the list with focus inside");
+      const links = page.locator("[data-strip-list] [data-strip-open]");
+      const count = await links.count();
+      check(count >= 1 && count <= 7, `the list holds one to seven items (${count})`);
+      if (count > 1) {
+        await links.first().focus();
+        await page.keyboard.press("ArrowDown");
+        const index = await page.evaluate(() => [...document.querySelectorAll("[data-strip-list] [data-strip-open]")].indexOf(document.activeElement));
+        check(index === 1, `ArrowDown moves to the next item (${index})`);
+      }
+      await shot(page, "strip-expanded");
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(300);
+      check(await page.evaluate(() => document.activeElement?.hasAttribute("data-strip-expand") ?? false), "Escape closes the list and focus returns to '+n more'");
+      check((await page.locator("[data-strip-list]").count()) === 0, "the list is gone");
+    } else {
+      check(true, `no urgent strip item for this identity (${strip.present ? strip.state : "absent"}): list path skipped`);
+    }
 
     // Dialog: shortcuts -------------------------------------------------------------------------
     await go(page, "?workspace=market&task=curves");

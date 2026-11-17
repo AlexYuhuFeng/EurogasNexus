@@ -7,11 +7,12 @@
  * "Follow map" keeps the lists to the map's view. The selected object's detail sits at the top
  * of the panel, above its rows: one place for object detail.
  */
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import { api, type MapPointFlowDTO, type MapSituationDTO, type OutageEventDTO } from "@/api/client";
 import {
   compareOutages,
+  networkOutageFromSearch,
   panelFilter,
   type LonLat,
   type MapBounds,
@@ -144,6 +145,29 @@ export function NetworkInfoPanel({
     [bounds, followMap, outageRows, scope],
   );
   const shownOutages = scopedOutages.filter((row) => (outageFilter === "live" ? row.state !== "ended" : row.state === outageFilter));
+
+  // An outage the address names (`outage=`, the situational strip's link): the Outages tab with
+  // that row selected, once per address, so the person lands where the job continues.
+  const [linkedOutage, setLinkedOutage] = useState(() =>
+    typeof window === "undefined" ? null : networkOutageFromSearch(window.location.search),
+  );
+  useEffect(() => {
+    const sync = () => setLinkedOutage(networkOutageFromSearch(window.location.search));
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+  const appliedOutage = useRef<string | null>(null);
+  useEffect(() => {
+    if (!linkedOutage || appliedOutage.current === linkedOutage || !events) return;
+    appliedOutage.current = linkedOutage;
+    const row = outageRows.find((item) => item.eventId === linkedOutage);
+    if (!row) return;
+    if (tab !== "outages") onTab("outages");
+    onSelectRow({ tab: "outages", key: row.key }, { refId: row.refId, at: row.at });
+    window.requestAnimationFrame(() =>
+      document.querySelector(`[data-panel-row="${CSS.escape(row.key)}"]`)?.scrollIntoView({ block: "nearest" }),
+    );
+  }, [events, linkedOutage, onSelectRow, onTab, outageRows, tab]);
 
   const describePoint = useMemo(() => {
     const cache = new Map<string, ReturnType<typeof locatePoint>>();

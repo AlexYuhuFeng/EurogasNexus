@@ -1,5 +1,4 @@
 import { useCallback, useEffect } from "react";
-import { networkPanelToSearch } from "@/app/model/networkPanelModel";
 import { CommandPalette } from "@/components/CommandPalette";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
@@ -351,18 +350,8 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         onLanguageChange={chooseLanguage}
         onModeChange={chooseTheme}
       />
-      {/* Breaking news under the menu: latest alerts and outages, without leaving the page. */}
-      <ShellTicker
-        alerts={api.monitoringAlerts}
-        language={i18n.language}
-        commercial={needsCommercialWorkspaceReads(api.currentUser)}
-        t={t}
-        // Outages are the Network page's default panel tab, beside the map.
-        onOpenOutages={() => {
-          navigation.openWorkspace("market", "network");
-          window.history.replaceState(window.history.state, "", `?${networkPanelToSearch(window.location.search, "outages")}`);
-        }}
-      />
+      {/* The situational strip under the menu: what needs this person now, by role (§5). */}
+      <ShellTicker language={i18n.language} t={t} openWorkspace={navigation.openWorkspace} />
 
       {endpointFailures.total > 0 && (
         <div

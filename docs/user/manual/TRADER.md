@@ -17,6 +17,13 @@ context line lists every such figure and takes you to it. Simulated figures carr
 beside the value, and the demo desk says "Demo data" once. Risk figures have a **Method**
 note: what the figure includes and what it leaves out.
 
+Under the top bar a single line, the **situational strip**, tells you when something needs you
+now: a large unplanned outage where your book holds a position or at one of your focus hubs, or a
+breach of your own mandate. When nothing does, it shows one quiet fact (trades booked today from
+the ETRM import, read-only, or the next nomination window), or nothing at all. It never shows
+data-pipeline state. See [the situational strip](../SITUATION_STRIP.md); its thresholds are under
+Settings → Personal preferences → Situational strip.
+
 Your work is mostly under **Deals** (Evaluate, Optimise, Routes & netback for capacity, LNG and
 tariffs, Contracts, Review) and **Book** (Position, Limits & P&L, Delivery for the daily balance
 and sell-down, Nominations, Storage plan). Help & Settings and Administration are in the

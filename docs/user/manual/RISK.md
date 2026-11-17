@@ -39,7 +39,8 @@ two or three lines and what would clear it (for a breach, the headroom needed), 
 credit line or mandate it rests on. The same button is on outages, alerts and P&L rows.
 
 A breach, a watch, an expired line with exposure or an incomplete valuation also raises an
-alert: it appears in the ticker and the alert centre, and an administrator can send it by
+alert: it appears in the alert centre (and, while it is new, on the strip under the top bar;
+see [the situational strip](../SITUATION_STRIP.md)), and an administrator can send it by
 email through a channel subscribed to **limits** (Settings → Notifications). With portfolio
 isolation on, a limits alert is shown only to people who can see every book behind it.
 

@@ -1,0 +1,248 @@
+@layer legacy {
+  /*
+   * The situational strip under the top bar (BreakingTicker.tsx, role-first redesign §5.1).
+   * A calm instrument line: static, one line, tokens only. Hidden is no element at all, so there
+   * is never an empty band. Nothing moves: a new urgent item brightens the edge once through a
+   * colour transition, which reduced motion turns off.
+   */
+
+  .situation-strip {
+    /* Never squeezed: on full-height pages (the map) the page shrinks, not the strip. */
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-width: 0;
+    height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-3);
+    border-bottom: 1px solid var(--ds-border-subtle);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+    overflow: hidden;
+    transition: background-color var(--ds-duration-slow) var(--ds-ease-out);
+    --strip-edge: var(--ds-border-strong);
+    --strip-tint: var(--ds-surface-2);
+  }
+
+  .situation-strip.is-urgent {
+    /* The coloured edge: the severity, at the start of the line. */
+    box-shadow: inset 3px 0 0 var(--strip-edge);
+    color: var(--ds-text-1);
+  }
+
+  .situation-strip.is-critical {
+    --strip-edge: var(--ds-status-breach);
+    --strip-tint: var(--ds-status-breach-soft);
+  }
+
+  .situation-strip.is-warning {
+    --strip-edge: var(--ds-status-watch);
+    --strip-tint: var(--ds-status-watch-soft);
+  }
+
+  .situation-strip.is-info {
+    --strip-edge: var(--ds-status-info);
+    --strip-tint: var(--ds-status-info-soft);
+  }
+
+  /* Once, when a new urgent item arrives. */
+  .situation-strip.is-flash {
+    background: var(--strip-tint);
+  }
+
+  .strip-mark {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-radius: var(--ds-radius-pill);
+    background: var(--strip-edge);
+  }
+
+  .strip-list-item.is-critical .strip-mark {
+    background: var(--ds-status-breach);
+  }
+
+  .strip-list-item.is-warning .strip-mark {
+    background: var(--ds-status-watch);
+  }
+
+  .strip-list-item.is-info .strip-mark {
+    background: var(--ds-status-info);
+  }
+
+  .strip-top,
+  .strip-quiet-line,
+  .strip-open {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .strip-top,
+  .strip-quiet-line {
+    flex: 1 1 auto;
+    min-height: var(--ds-control-sm);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .strip-top:hover .strip-headline,
+  .strip-quiet-line:hover,
+  .strip-open:hover .strip-headline {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .strip-top:focus-visible,
+  .strip-quiet-line:focus-visible,
+  .strip-open:focus-visible,
+  .strip-expand:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+    border-radius: var(--ds-radius-sm);
+  }
+
+  .strip-headline {
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .is-quiet .strip-quiet-line {
+    color: var(--ds-text-2);
+    font-weight: var(--ds-weight-regular);
+  }
+
+  .strip-comparison {
+    color: var(--ds-text-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .strip-sim {
+    flex: 0 0 auto;
+    margin-inline-start: var(--ds-space-1);
+    color: var(--ds-status-simulated);
+    font-size: var(--ds-text-xs);
+    text-decoration: none;
+  }
+
+  .strip-expand {
+    flex: 0 0 auto;
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    font: inherit;
+    font-size: var(--ds-text-xs);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .strip-expand:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-text-1);
+  }
+
+  /* The expanded list: a popover on a desktop, a sheet from the bottom on a phone. */
+  .strip-popover {
+    padding: var(--ds-space-2);
+  }
+
+  .strip-list ul {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .strip-list-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--ds-space-2);
+    align-items: start;
+    padding: var(--ds-space-2);
+    border-radius: var(--ds-radius-sm);
+  }
+
+  .strip-list-item + .strip-list-item {
+    border-top: 1px solid var(--ds-border-subtle);
+  }
+
+  .strip-list-item .strip-mark {
+    margin-top: var(--ds-space-1);
+  }
+
+  .strip-list-body {
+    display: grid;
+    gap: var(--ds-space-05);
+    min-width: 0;
+  }
+
+  .strip-open {
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-base);
+    line-height: var(--ds-line-base);
+    overflow-wrap: anywhere;
+  }
+
+  .strip-meta {
+    margin: 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .strip-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    margin-top: var(--ds-space-05);
+    font-size: var(--ds-text-xs);
+  }
+
+  .strip-not-listed {
+    padding: var(--ds-space-1) var(--ds-space-2) 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .situation-strip {
+      transition: none;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .situation-strip {
+      height: var(--ds-control-touch);
+    }
+
+    .strip-top,
+    .strip-quiet-line,
+    .strip-expand,
+    .strip-open,
+    .strip-actions > button,
+    .strip-actions > a {
+      min-height: var(--ds-control-touch);
+    }
+  }
+
+  /* Phone: one line, nothing clipped but the headline's own ellipsis; the list is a sheet. */
+  @media (max-width: 719px) {
+    .situation-strip {
+      padding: 0 var(--ds-space-2);
+    }
+
+    .strip-comparison {
+      display: none;
+    }
+  }
+}

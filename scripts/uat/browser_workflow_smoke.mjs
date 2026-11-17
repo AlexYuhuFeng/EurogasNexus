@@ -45,6 +45,7 @@ import {
 } from "./readToRender.mjs";
 import { inspectNativeCapacityInteraction } from "./nativeCapacityInteraction.mjs";
 import { inspectReferenceIndexInteraction } from "./referenceIndexInteraction.mjs";
+import { readStripShape, situationStripInteraction, stripShapeProblems } from "./situationStrip.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(
@@ -636,7 +637,7 @@ async function inspectSurfaceFunction(
     // Layout: no two visible controls may overlap anywhere on the page (the hub picker once
     // sat under the alerts button on 1366 px laptops, the map toolbar over its zoom buttons).
     // A control's visible part is its box cut by every clipping ancestor; content inside a
-    // closed fold is not on screen, and the ticker's looping copy is aria-hidden.
+    // closed fold is not on screen, and anything aria-hidden is not a control.
     const headerOverlaps = [];
     {
       const shown = (element) => {
@@ -734,6 +735,10 @@ async function inspectSurfaceFunction(
   }
   if (state.headerOverlaps && state.headerOverlaps.length > 0) {
     recordFailure(failures, scope, `controls overlap: ${state.headerOverlaps.join("; ")}`);
+  }
+  // I13: the situational strip is absent or one static line, on every page and width.
+  for (const problem of stripShapeProblems(await page.evaluate(readStripShape))) {
+    recordFailure(failures, scope, problem);
   }
     if (state.reactErrors && state.reactErrors.length > 0) {
     // A failure, with the captured stack: React's internal error is one per application mount and
@@ -2617,6 +2622,16 @@ export async function runWorkflowSmoke() {
     // The answer bar's keyboard paths, axe and phone width (docs/user/ANSWER_BAR.md).
     currentScope = "interaction/answer-bar";
     await answerBarInteraction(page, failures);
+
+    // The situational strip (I13): keyboard, axe, Hide, and no band once nothing is left.
+    currentScope = "interaction/situation-strip";
+    await situationStripInteraction(
+      page,
+      BASE,
+      (message) => recordFailure(failures, currentScope, message),
+      (selector) => axeViolations(page, selector),
+      (message) => recordObservation(observations, message),
+    );
 
     // The Source Center's catalog, selection and category filter are asserted the same way: the
     // rows are compared with the registry read by exact source id, the detail panel must follow the

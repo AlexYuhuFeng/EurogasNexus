@@ -193,6 +193,8 @@ def test_evidence_is_deduplicated_and_carries_the_assumptions() -> None:
         "gas_day",
         "delivery_product",
         "hub_id",
+        "created_by",
+        "created_at_utc",
         "decision_due_at_utc",
         "deadline_state",
         "evidence_count",

@@ -1269,6 +1269,8 @@ export interface DecisionCaseDTO {
 export interface DecisionCaseSummaryDTO {
   case_id: string; objective: string; status: string;
   gas_day: string; delivery_product: string; hub_id: string;
+  /** Who opened the case and when (absent from servers before the situational strip). */
+  created_by?: string; created_at_utc?: string;
   evidence_count: number; alternative_count: number; assumption_count: number;
   record_count: number; reproducible: boolean;
   decision_due_at_utc?: string | null; deadline_state?: string;
@@ -2994,7 +2996,20 @@ export interface AnalysisResultDTO {
 
 // --- API functions ---
 
-export type PreferenceKey = "language" | "theme" | "market_view" | "market_board_layout" | "pnl_colors";
+export type PreferenceKey =
+  | "language"
+  | "theme"
+  | "market_view"
+  | "market_board_layout"
+  | "pnl_colors"
+  // The situational strip (docs/product/ROLE_FIRST_REDESIGN.md §5): thresholds, focus hubs,
+  // the quiet line, and the items this person hid (personal only).
+  | "strip_outage_gwh_d"
+  | "strip_outage_share_pct"
+  | "strip_price_move_pct"
+  | "strip_quiet_line"
+  | "strip_focus_hubs"
+  | "strip_hidden";
 
 export interface PreferencesDTO {
   personal: Partial<Record<PreferenceKey, string>>;

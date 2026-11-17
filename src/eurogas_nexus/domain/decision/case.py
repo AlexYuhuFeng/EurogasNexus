@@ -314,6 +314,10 @@ def case_summary(case: DecisionCase) -> dict[str, object]:
         "gas_day": case.gas_day,
         "delivery_product": case.delivery_product,
         "hub_id": case.hub_id,
+        # Who opened it and when: the strip tells an originator about a decision on their own
+        # case and a desk head about a case past half its time (the full read carries both).
+        "created_by": case.created_by,
+        "created_at_utc": case.created_at_utc,
         "decision_due_at_utc": case.decision_due_at_utc or None,
         "deadline_state": deadline_state(case),
         "evidence_count": len(case.evidence),
