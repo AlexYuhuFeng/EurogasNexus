@@ -27,8 +27,9 @@
   }
 
   .situation-strip.is-urgent {
-    /* The coloured edge: the severity, at the start of the line. */
-    box-shadow: inset 3px 0 0 var(--strip-edge);
+    /* The coloured edge: the severity, at the start of the line (a border, not a shadow). */
+    border-inline-start: 3px solid var(--strip-edge);
+    padding-inline-start: calc(var(--ds-space-3) - 3px);
     color: var(--ds-text-1);
   }
 
