@@ -103,6 +103,7 @@ from eurogas_nexus.ingestion.entsog_ingestion import (
     persist_entsog_reference,
 )
 from eurogas_nexus.ingestion.entsog_scope import validate_entsog_point_directions
+from eurogas_nexus.ingestion.entsog_tariffs import persist_entsog_tariffs, tariff_points
 from eurogas_nexus.ingestion.entsog_transport import (
     ENTSOG_DATASET_MAX_PAGE_SIZE,
     EntsogFetchResult,
@@ -125,6 +126,7 @@ from eurogas_nexus.ingestion.public_sources import (
     gie_storage_observations_from_json,
     reconcile_hub_codes,
 )
+from eurogas_nexus.reference_data.network_bundle import load_bundle
 
 # Sources that are export-restricted and therefore require certification
 # before live ingestion (ECB public reference rates are fully public).
@@ -156,6 +158,7 @@ RUN_SOURCE_ID_BY_SOURCE_NAME = {
     "ENTSOG": "src-entsog",
     "ENTSOG-capacity": "src-entsog",
     "ENTSOG-reference": "src-entsog",
+    "ENTSOG-tariffs": "src-entsog",
     "GIE": "src-gie",
     "GIE-AGSI": "src-gie",
     "GIE-ALSI": "src-gie",
@@ -208,6 +211,7 @@ def main() -> int:
             "entsog",
             "entsog-capacity",
             "entsog-reference",
+            "entsog-tariffs",
             "gie-agsi",
             "gie-alsi",
             "eex-ngp",
@@ -235,6 +239,13 @@ def main() -> int:
     )
     parser.add_argument("--entsog-page-size", type=int, default=100)
     parser.add_argument("--entsog-max-pages", type=int, default=50)
+    parser.add_argument(
+        "--entsog-tariffs-max-age-hours",
+        type=float,
+        default=None,
+        help="Skip the ENTSOG tariff read when one succeeded within this many hours "
+        "(tariffs change once a period; a scheduler refreshes them at most daily).",
+    )
     parser.add_argument(
         "--entsog-reference-max-age-hours",
         type=float,
@@ -314,7 +325,7 @@ def main() -> int:
         with session_factory() as gate_session:
             gate_families = (
                 ("ECB", {"ecb"}),
-                ("ENTSOG", {"entsog", "entsog-capacity", "entsog-reference"}),
+                ("ENTSOG", {"entsog", "entsog-capacity", "entsog-reference", "entsog-tariffs"}),
                 ("GIE", {"gie-agsi", "gie-alsi"}),
                 ("EEX", {"eex-ngp"}),
             )
@@ -448,7 +459,12 @@ def main() -> int:
                             "dataset": "fx-reference-rates",
                         }
 
-                for entsog_route in ("entsog-reference", "entsog", "entsog-capacity"):
+                for entsog_route in (
+                    "entsog-reference",
+                    "entsog-tariffs",
+                    "entsog",
+                    "entsog-capacity",
+                ):
                     if entsog_route in selected:
                         _ingest_entsog_source(
                             client, session, route=entsog_route, args=args,
@@ -1118,6 +1134,7 @@ def _ingest_entsog_source(
         "entsog": "ENTSOG",
         "entsog-capacity": "ENTSOG-capacity",
         "entsog-reference": "ENTSOG-reference",
+        "entsog-tariffs": "ENTSOG-tariffs",
     }[route]
     run_id = _new_run_id(source_name)
     results: list[EntsogFetchResult] = []
@@ -1130,9 +1147,18 @@ def _ingest_entsog_source(
         "snapshot_consistent": False,
     }
     report["sources"][source_name] = detail
-    if route == "entsog-reference":
+    if route in {"entsog-reference", "entsog-tariffs"}:
         refreshed_at = _recent_reference_refresh(
-            session, getattr(args, "entsog_reference_max_age_hours", None), now=started
+            session,
+            getattr(
+                args,
+                "entsog_reference_max_age_hours"
+                if route == "entsog-reference"
+                else "entsog_tariffs_max_age_hours",
+                None,
+            ),
+            now=started,
+            source_name=source_name,
         )
         if refreshed_at is not None:
             # Not a read at all: nothing fetched, nothing written, no run row. The report says
@@ -1150,6 +1176,16 @@ def _ingest_entsog_source(
             queries = (
                 ("connectionpoints", {"extended": "1"}),
                 ("operatorpointdirections", {"hasData": "1"}),
+            )
+        elif route == "entsog-tariffs":
+            # The points route pricing crosses, over the tariff periods around the run: the
+            # gas year before the current one through the one after it.
+            year = started.year if started.month >= 10 else started.year - 1
+            window = {"from": f"{year - 1}-10-01", "to": f"{year + 2}-09-30"}
+            detail["window"] = window
+            queries = tuple(
+                ("tariffsfulls", {"pointKey": point, **window})
+                for point in tariff_points(load_bundle())
             )
         else:
             policy = EntsogWindowPolicy(
@@ -1213,6 +1249,8 @@ def _ingest_entsog_source(
                 run_id=run_id,
                 replace_network=_replace_reference_network,
             )
+        elif route == "entsog-tariffs":
+            counts = persist_entsog_tariffs(session, results=results, run_id=run_id)
         else:
             counts = persist_entsog_observations(
                 session,
@@ -1292,7 +1330,9 @@ def _ingest_entsog_source(
 _REFERENCE_REFRESHED_STATUSES = ("succeeded", "SUCCEEDED_WITH_WARNINGS")
 
 
-def _recent_reference_refresh(session, max_age_hours, *, now: datetime) -> datetime | None:
+def _recent_reference_refresh(
+    session, max_age_hours, *, now: datetime, source_name: str = "ENTSOG-reference"
+) -> datetime | None:
     """When the ENTSOG reference was last refreshed, if within ``max_age_hours`` of ``now``.
 
     Only a run recorded as succeeded counts, and the reference route records success only
@@ -1302,11 +1342,11 @@ def _recent_reference_refresh(session, max_age_hours, *, now: datetime) -> datet
     if max_age_hours is None:
         return None
     if not 0 < float(max_age_hours) <= 24 * 7:
-        raise ValueError("--entsog-reference-max-age-hours must be within (0, 168].")
+        raise ValueError(f"the {source_name} max age must be within (0, 168] hours.")
     latest = (
         session.query(IngestionRunRecord.finished_at_utc)
         .filter(
-            IngestionRunRecord.source_name == "ENTSOG-reference",
+            IngestionRunRecord.source_name == source_name,
             IngestionRunRecord.status.in_(_REFERENCE_REFRESHED_STATUSES),
             IngestionRunRecord.finished_at_utc.is_not(None),
         )

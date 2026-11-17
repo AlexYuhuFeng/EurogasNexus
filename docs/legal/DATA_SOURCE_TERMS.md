@@ -7,7 +7,7 @@ confirm each provider's current terms before a production deployment.
 
 | Source | Use in product | Commercial-use position | How the product enforces it |
 |---|---|---|---|
-| ENTSOG Transparency Platform | flows, capacity, tariffs | Free public data; attribution | Live ingest gated by a provider certification record |
+| ENTSOG Transparency Platform | flows, capacity, tariffs (`tariffsfulls`: the reserve prices TSOs publish per interconnection point, stored in the tariff register for route pricing) | Free public data; TP Terms of Use Art. 5 (see "Reference network bundle" below): store and use with the source and download date cited | Live ingest gated by a provider certification record; every tariff row cites "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/" and its ENTSOG row id |
 | ENTSOG Transparency Platform, shipped reference bundle | NWE network points, operators and approximate positions on a fresh or offline installation | TP Terms of Use (Rev. 3, 10 Nov 2026) Art. 5: download, store and use in good faith with the source and download date cited; no clause excludes commercial use or redistribution (see "Reference network bundle" below) | `src/eurogas_nexus/reference_data/nwe_reference_network.json` carries the citation; positions marked approximate; links marked schematic |
 | ENTSOG Transparency Platform, urgent market messages | transmission outages (REMIT UMMs TSOs publish to ENTSOG) | Same TP Terms of Use (Rev. 3) Art. 5 as the rows above: download, store and use, citing "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/" | `src-entsog-umm`, `scripts/ops/ingest_remit_entsog.py`; the download date is in every stored message's source reference and the citation is returned with each outage row (`attribution`) |
 | GIE AGSI+/ALSI | storage, LNG; facility listing (EIC, name, country, operator) as facility identity | Free with a registered API key; attribution | Key held server-side; certification gate; the listing is loaded by `scripts/ops/ingest_gie_facilities.py` into the identity tables (no position: GIE publishes none) |
@@ -73,6 +73,16 @@ in the file and in every seeded row's metadata).
 approximate lon/lat transform the live ingestion stores (`display_approximation`, never
 `verified`). 51 NWE points (including the Dornum and Emden landings) have no ENTSOG map
 position; they carry no coordinate, are counted as "not located" and are never placed.
+
+**Tariffs (decided 2026-11-17).** The TSO tariffs route pricing needs at interconnection
+points are read from ENTSOG's `tariffsfulls` dataset under the same TP terms (the owner's
+decision above covers ENTSOG data). IUK and BBL publish their own charging statements; the
+product does not read their websites, because ENTSOG already publishes both operators'
+charges at Bacton and Zeebrugge (IUK) and Bacton (BBL), and their site terms were not
+reviewed. A leg no published row covers (the GTS exit at Balgzand, for one: ENTSOG has no
+tariff there) stays "tariff not held"; nothing is estimated. The demo desk's simulated
+tariffs for such legs are marked `SIMULATOR_ONLY` and removed once a published row covers the
+same leg.
 
 **Lines.** ENTSOG's API publishes no route geometry, and its map drawings are ENTSOG
 property; no OpenStreetMap or other share-alike geometry is used. The bundle's edges are

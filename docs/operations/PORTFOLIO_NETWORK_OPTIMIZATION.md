@@ -38,7 +38,8 @@ submits orders, nominations, bookings, or amendments.
 | Sale destinations | `market_observations` joined to active `route_candidates` |
 | Route topology and route capacity | `route_candidates` |
 | Canonical node ids | `reference_nodes` |
-| Tariff selection | `tso_tariffs` (exact point/TSO/direction/gas-year/product/firmness match) |
+| Route legs | the market-area graph of the shipped reference bundle (`domain/route_cost/route_adjacency.py`): exit, pipeline and entry legs of every crossing on the proven path |
+| Tariff selection | `tso_tariffs` (exact point/TSO/direction/product/firmness match; a path leg takes the tariff whose period covers the gas day, `TARIFF_GAS_YEAR_BY_PERIOD`; ENTSOG-published rows, `ingestion/entsog_tariffs.py`) |
 | Company TSO access | `company_tso_access` (`ACTIVE`/`CONFIRMED` pass; `DENIED`/`INACTIVE`/`SUSPENDED` block) |
 | FX as-of conversion | `fx_observations` (value date not later than `gas_day`) |
 

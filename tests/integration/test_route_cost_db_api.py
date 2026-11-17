@@ -67,7 +67,9 @@ def test_route_cost_api_reads_tso_tariffs_from_runtime_db(tmp_path, monkeypatch)
 
     assert response.status_code == 200
     assert response.json()["meta"]["source_references"] == ["runtime-postgresql"]
-    assert response.json()["data"]["tariffs"][0]["tariff_id"] == "db-bbl-forward-2025-plus"
+    assert "db-bbl-forward-2025-plus" in [
+        row["tariff_id"] for row in response.json()["data"]["tariffs"]
+    ]
 
 
 def test_route_recommendation_uses_runtime_db_tariffs(tmp_path, monkeypatch) -> None:

@@ -545,9 +545,10 @@ def catch_up_steps(
         CatchUpStep("ecb", "ECB reference rates", [*ingest, "--source", "ecb"]),
         CatchUpStep(
             "entsog",
-            f"ENTSOG reference, flows and capacity ({ENTSOG_WEEK} gas days)",
+            f"ENTSOG reference, tariffs, flows and capacity ({ENTSOG_WEEK} gas days)",
             [*ingest, *ENTSOG_BOUNDS, "--source", "entsog-reference", "--source", "entsog",
              "--source", "entsog-capacity", "--entsog-reference-max-age-hours", "24",
+             "--source", "entsog-tariffs", "--entsog-tariffs-max-age-hours", "24",
              "--entsog-lookback-gas-days", str(ENTSOG_WEEK), "--entsog-window-anchor", anchor],
         ),
     ]

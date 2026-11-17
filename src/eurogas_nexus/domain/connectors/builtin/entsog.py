@@ -53,5 +53,13 @@ MANIFEST = ConnectorManifest(
             162,
             "Capacity validity ranges republished with the operational data, hourly.",
         ),
+        # A tariff period opens once a year (October for gas-year TSOs, January for
+        # calendar-year ones); the newest period is late after 13 months, stale after 25.
+        DatasetFreshness(
+            "TSO tariffs (ENTSOG)",
+            24 * 395,
+            24 * 760,
+            "Each TSO publishes its reserve prices per tariff period, read daily.",
+        ),
     ),
 )

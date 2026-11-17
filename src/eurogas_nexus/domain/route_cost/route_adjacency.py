@@ -9,8 +9,8 @@ the portfolio network and the scenario context all price the same thing:
   (:class:`~eurogas_nexus.domain.route_cost.market_area_graph.MarketAreaGraph`): its legs become
   the exit, pipeline and entry legs of every crossing on the path, in flow order. Points the
   candidate names (a leg's ``point_key``, or ``via_point_keys``) fix which crossing is used.
-  A leg the author entered that matches a generated leg keeps its capacity, gas year, product
-  and firmness; one that matches none is kept as an extra charge;
+  The author's legs contribute the route's capacity (the smallest they state) and the
+  booking product and firmness; the path's legs replace them, so nothing is charged twice;
 - a network route with **no proven path**, or whose endpoints are not market areas of the
   network, gets no legs and a ``route_adjacency`` status saying why: every pricing path then
   blocks it (``ROUTE_TARIFF_LEGS_REQUIRED``) instead of pricing a connection that does not
@@ -24,7 +24,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from eurogas_nexus.domain.route_cost.market_area_graph import MarketAreaGraph
+from eurogas_nexus.domain.route_cost.market_area_graph import (
+    TARIFF_GAS_YEAR_BY_PERIOD,
+    MarketAreaGraph,
+)
 
 PROVEN = "proven"
 LOCAL = "local"
@@ -33,22 +36,6 @@ ENDPOINT_NOT_IN_NETWORK = "endpoint_not_in_network"
 
 #: Blocker code a pricing consumer reports for an unproven route.
 ROUTE_NOT_CONNECTED = "ROUTE_NOT_CONNECTED"
-
-_CARRIED = (
-    "available_capacity_mwh_per_day",
-    "gas_year",
-    "capacity_product",
-    "firmness",
-    "component_type",
-)
-
-
-def _key(leg: dict[str, Any]) -> tuple[str, str, str]:
-    return (
-        str(leg.get("tso") or "").strip().lower(),
-        str(leg.get("point_name") or "").strip().lower(),
-        str(leg.get("direction") or "").strip().upper(),
-    )
 
 
 def apply_route_adjacency(
@@ -100,8 +87,17 @@ def _apply(candidate: dict[str, Any], graph: MarketAreaGraph) -> dict[str, Any]:
             "target_hub": target,
         }
         return out
-    authored = {_key(leg): leg for leg in legs}
-    used: set[tuple[str, str, str]] = set()
+    # What the author's legs still say once the path fixes the legs: the capacity the route
+    # has (the smallest any authored leg states), and the booking product and firmness.
+    capacities = [
+        float(leg["available_capacity_mwh_per_day"])
+        for leg in legs
+        if isinstance(leg.get("available_capacity_mwh_per_day"), int | float)
+    ]
+    booking = {
+        name: next((leg[name] for leg in legs if leg.get(name)), None)
+        for name in ("capacity_product", "firmness")
+    }
     priced: list[dict[str, Any]] = []
     route_id = str(candidate.get("route_id") or "route")
     for hop, crossing in enumerate(crossings, start=1):
@@ -113,18 +109,16 @@ def _apply(candidate: dict[str, Any], graph: MarketAreaGraph) -> dict[str, Any]:
                 "market_area": spec.market_area,
                 "point_name": spec.point_name,
                 "direction": spec.direction,
+                # The tariff covering the delivery gas day, whatever its period (ENTSOG
+                # publishes calendar-year and gas-year tariffs side by side).
+                "gas_year": TARIFF_GAS_YEAR_BY_PERIOD,
                 "point_key": spec.point_key,
                 "role": spec.role,
             }
-            match = authored.get(_key(leg))
-            if match is not None:
-                used.add(_key(leg))
-                leg["leg_id"] = str(match.get("leg_id") or leg["leg_id"])
-                for field_name in _CARRIED:
-                    if match.get(field_name) is not None:
-                        leg[field_name] = match[field_name]
+            if capacities:
+                leg["available_capacity_mwh_per_day"] = min(capacities)
+            leg.update({name: value for name, value in booking.items() if value})
             priced.append(leg)
-    priced += [leg for key, leg in authored.items() if key not in used and not leg.get("point_key")]
     out["route_legs"] = priced
     out["route_adjacency"] = {
         "status": PROVEN,

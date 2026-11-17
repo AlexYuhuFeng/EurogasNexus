@@ -39,6 +39,14 @@ reason (one read a day at 09:00 Brussels).
 freshness engine returns `NOT_EXPECTED`, and no late or stale alarm fires for them. The
 category's next action is "update the register when the TSO publishes".
 
+**Published TSO tariffs from ENTSOG** (`src-entsog`, route `entsog-tariffs`, dataset
+"TSO tariffs (ENTSOG)") are read, not kept by hand: the reserve prices ENTSOG's
+`tariffsfulls` dataset publishes for every interconnection point route pricing crosses
+(`ingestion/entsog_tariffs.py`), at most daily (`--entsog-tariffs-max-age-hours 24`, the
+scheduler, the reference worker of `deploy/runtime/compose.yaml` and the demo start-up). A
+tariff period opens once a year, so the newest period is late after 13 months and stale after
+25 (`DatasetFreshness` in the ENTSOG manifest).
+
 ## Symptoms
 
 - Market/Strategy/Shadow surfaces show stale or degraded evidence.

@@ -216,7 +216,7 @@ def test_projection_passes_its_context_gas_day_and_echoes_the_composition_date(
     assert option["route_cost_currency"] == "GBP"
     assert option["route_cost_unit"] == "GBP/MWh"
     assert option["tariff_applicability_date"] == GAS_DAY
-    assert "tariff:jan" in option["route_cost_source_refs"]
+    assert "tariff:jan-bbl-exit-bacton" in option["route_cost_source_refs"]
     assert "test:portfolio-bridge-tariff" in option["route_cost_source_refs"]
     assert option["capacity_status"] == "KNOWN"
 

@@ -36,6 +36,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
@@ -43,8 +44,20 @@ ENTSOG_BASE_URL = "https://transparency.entsog.eu/api/v1"
 #: ``urgentmarketmessages`` (transmission UMMs, ``ingestion/entsog_umm.py``) pages like
 #: ``operationaldatas`` (checked live 2026-11-16: total is rows left, 404 past the end).
 ENTSOG_DATASETS = frozenset(
-    {"operationaldatas", "connectionpoints", "operatorpointdirections", "urgentmarketmessages"}
+    {
+        "operationaldatas",
+        "connectionpoints",
+        "operatorpointdirections",
+        "urgentmarketmessages",
+        # Published TSO tariffs per point, operator, direction, product and period
+        # (``ingestion/entsog_tariffs.py``).
+        "tariffsfulls",
+    }
 )
+#: Datasets whose first page answers HTTP 404 ("No result found") when a filtered query has
+#: no rows (a point whose operators publish no tariff, Balgzand for one; checked live
+#: 2026-11-17): an empty, complete read, not a transport failure.
+ENTSOG_EMPTY_ANSWERS_404 = frozenset({"tariffsfulls"})
 # Application safety ceilings, not claimed provider maxima.
 ENTSOG_MAX_PAGE_SIZE = 1000
 ENTSOG_HARD_MAX_PAGES = 50
@@ -55,7 +68,7 @@ ENTSOG_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 #: raw rows is 302,522 bytes (about 3 KB a row), so a page of 1,000 was refused as
 #: ``entsog_response_too_large``; 400 rows is about 1.2 MB. ``connectionpoints`` is about
 #: 0.7 KB a row and fits at the platform maximum.
-ENTSOG_DATASET_MAX_PAGE_SIZE = {"operatorpointdirections": 400}
+ENTSOG_DATASET_MAX_PAGE_SIZE = {"operatorpointdirections": 400, "tariffsfulls": 250}
 _RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 _FILTERS = frozenset(
     {
@@ -496,6 +509,29 @@ def fetch_entsog_dataset(
                 expected_indicators=expected_indicators,
             )
         except EntsogTransportError as exc:
+            if (
+                isinstance(exc, EntsogHttpError)
+                and exc.status_code == 404
+                and not pages
+                and dataset in ENTSOG_EMPTY_ANSWERS_404
+            ):
+                # Keep the receipt: an empty page stands for the answer, so the read is
+                # auditable and dated like any other.
+                pages.append(
+                    EntsogPage(
+                        dataset,
+                        offset,
+                        limit,
+                        0,
+                        0,
+                        f"{ENTSOG_BASE_URL}/{dataset}?" + urlencode(params),
+                        clock(),
+                        json.dumps({"meta": {"total": 0, "count": 0}, dataset: []}).encode(),
+                    )
+                )
+                complete = True
+                stop_reason = "provider_no_result"
+                break
             if pages and isinstance(exc, EntsogHttpError) and exc.status_code == 404:
                 # Past the last raw row the provider answers 404, not an empty page.
                 complete = True

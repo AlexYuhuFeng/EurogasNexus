@@ -85,6 +85,13 @@ SPECS: tuple[DatasetSpec, ...] = (
                 where="source_system = 'ENTSOG'", received="observed_at_utc",
                 # ENTSOG re-splits validity ranges between reads; each range is a row.
                 period_end="period_end_utc"),
+    # Published tariffs per tariff period: one row per operator, point, direction, product,
+    # firmness and period, received with each read (ingestion/entsog_tariffs.py).
+    DatasetSpec("TSO tariffs (ENTSOG)", "ENTSOG", "tso_tariffs", "effective_from",
+                ("point_id", "tso", "direction", "capacity_product", "firmness"),
+                ("tariff_value",), 0, "src-entsog",
+                where="document_id LIKE 'entsog-tariffsfulls-%'", received="created_at_utc",
+                check_coverage=False),
     DatasetSpec("GIE storage (AGSI)", "GIE", "storage_observations", "period_start_utc",
                 ("facility_id",), ("inventory_twh", "fill_pct"), 1440, "src-gie",
                 where="source_system = 'GIE'", received="observed_at_utc"),

@@ -22,33 +22,20 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-#: Pipeline charges as the tariff register holds them, by pipeline operator and direction of
-#: flow (near end -> far end): (tso, source point name, direction, country, market area).
-#: A pipeline direction not listed has its charges priced as missing.
-PIPELINE_CHARGES: dict[tuple[str, str, str], tuple[tuple[str, str, str, str, str], ...]] = {
-    # IUK (Interconnector): Bacton (ITP-00005) <-> Zeebrugge IZT (ITP-00061).
-    ("UK-TSO-0003", "ITP-00005", "ITP-00061"): (
-        ("Interconnector UK", "IUK Bacton Entry", "ENTRY", "GB", "IUK"),
-        ("Interconnector UK", "IUK Zeebrugge Exit", "EXIT", "BE", "IUK"),
-    ),
-    ("UK-TSO-0003", "ITP-00061", "ITP-00005"): (
-        ("Interconnector UK", "IUK Zeebrugge Entry", "ENTRY", "BE", "IUK"),
-        ("Interconnector UK", "IUK Bacton Exit", "EXIT", "GB", "IUK"),
-    ),
-    # BBL: Balgzand (ITP-00063) <-> Bacton (BBL) (ITP-00207); one capacity charge per direction.
-    ("UK-TSO-0004", "ITP-00063", "ITP-00207"): (
-        ("BBL Company", "BBL Forward Flow NL to GB", "EXIT", "NL", "BBL"),
-    ),
-    ("UK-TSO-0004", "ITP-00207", "ITP-00063"): (
-        ("BBL Company", "BBL Reverse Flow GB to NL", "ENTRY", "GB", "BBL"),
-    ),
-}
+from eurogas_nexus.domain.route_cost.tariff_selection import TARIFF_GAS_YEAR_BY_PERIOD
 
-#: Market-area TSO charges at an interconnection point as the register holds them:
-#: (operator key, point key, direction) -> (tso, source point name, country, market area).
-#: None are held yet (the register holds National Gas beach-terminal entries, not its IP
-#: tariffs), so a crossing's market-area legs are priced as missing until one is loaded.
-POINT_CHARGES: dict[tuple[str, str, str], tuple[str, str, str, str]] = {}
+__all__ = ["TARIFF_GAS_YEAR_BY_PERIOD", "MarketAreaGraph", "Crossing", "TariffLegSpec"]
+
+#: Where a two-point pipeline publishes its capacity charges, by operator and flow direction
+#: (near end -> far end): the (point key, direction) of each charge, in ENTSOG terms. From
+#: ENTSOG ``tariffsfulls`` (read 2026-11-17): IUK charges an entry and an exit at each end;
+#: BBL publishes one charge per direction, both at Bacton (BBL), none at Balgzand.
+PIPELINE_CHARGES: dict[tuple[str, str, str], tuple[tuple[str, str], ...]] = {
+    ("UK-TSO-0003", "ITP-00005", "ITP-00061"): (("ITP-00005", "ENTRY"), ("ITP-00061", "EXIT")),
+    ("UK-TSO-0003", "ITP-00061", "ITP-00005"): (("ITP-00061", "ENTRY"), ("ITP-00005", "EXIT")),
+    ("UK-TSO-0004", "ITP-00063", "ITP-00207"): (("ITP-00207", "EXIT"),),
+    ("UK-TSO-0004", "ITP-00207", "ITP-00063"): (("ITP-00207", "ENTRY"),),
+}
 
 
 @dataclass(frozen=True)
@@ -269,47 +256,32 @@ class MarketAreaGraph:
     # -- legs ------------------------------------------------------------------------
 
     def legs(self, crossing: Crossing) -> list[TariffLegSpec]:
-        """Exit, pipeline and entry legs of one crossing, in flow order."""
+        """Exit, pipeline and entry legs of one crossing, in flow order.
+
+        Every leg is named as ENTSOG publishes the tariff: the operator (by its name in the
+        reference bundle), the point (its bundle name), the direction. A tariff the register
+        holds under the same names prices the leg; otherwise it is missing.
+        """
 
         near, far = crossing.points[0], crossing.points[-1]
-        legs = [self._market_area_leg(near, crossing.from_hub, "EXIT")]
+        legs = [self._operator_leg(near, crossing.from_hub, "EXIT", "market_area_exit")]
         if crossing.pipeline_operator:
-            charges = PIPELINE_CHARGES.get((crossing.pipeline_operator, near, far))
-            if charges:
-                for tso, point_name, direction, country, area in charges:
-                    legs.append(
-                        TariffLegSpec(near, point_name, country, tso, direction, area, "pipeline")
-                    )
-            else:
-                name = self.operator_names.get(
-                    crossing.pipeline_operator, crossing.pipeline_operator
-                )
-                for point, direction in ((near, "ENTRY"), (far, "EXIT")):
-                    facts = self.points.get(point, {})
-                    legs.append(
-                        TariffLegSpec(
-                            point,
-                            str(facts.get("name") or point),
-                            str(facts.get("country") or ""),
-                            name,
-                            direction,
-                            name,
-                            "pipeline",
-                        )
-                    )
-        legs.append(self._market_area_leg(far, crossing.to_hub, "ENTRY"))
+            operator = crossing.pipeline_operator
+            charges = PIPELINE_CHARGES.get((operator, near, far), ((near, "ENTRY"), (far, "EXIT")))
+            for point, direction in charges:
+                legs.append(self._leg(point, (operator,), direction, "pipeline"))
+        legs.append(self._operator_leg(far, crossing.to_hub, "ENTRY", "market_area_entry"))
         return legs
 
-    def _market_area_leg(self, point: str, hub: str, direction: str) -> TariffLegSpec:
-        operators = self.point_hubs.get(point, {}).get(hub, ())
-        for operator in operators:
-            held = POINT_CHARGES.get((operator, point, direction))
-            if held:
-                tso, point_name, country, area = held
-                return TariffLegSpec(
-                    point, point_name, country, tso, direction, area, _role(direction)
-                )
+    def _operator_leg(self, point: str, hub: str, direction: str, role: str) -> TariffLegSpec:
+        return self._leg(point, self.point_hubs.get(point, {}).get(hub, ()), direction, role)
+
+    def _leg(
+        self, point: str, operators: Sequence[str], direction: str, role: str
+    ) -> TariffLegSpec:
         facts = self.points.get(point, {})
+        # Two TSOs on one side of a physical point: which one the shipper books is not
+        # known here, so the leg names both and stays unpriced until a route names one.
         tso = " / ".join(self.operator_names.get(op, op) for op in operators) or "unknown TSO"
         return TariffLegSpec(
             point,
@@ -317,8 +289,8 @@ class MarketAreaGraph:
             str(facts.get("country") or ""),
             tso,
             direction,
-            self.hub_names.get(hub),
-            _role(direction),
+            None,
+            role,
         )
 
     def path_node_ids(self, crossings: Iterable[Crossing]) -> list[str]:
@@ -331,7 +303,3 @@ class MarketAreaGraph:
                 if node_id and (not ids or ids[-1] != node_id):
                     ids.append(node_id)
         return ids
-
-
-def _role(direction: str) -> str:
-    return "market_area_exit" if direction == "EXIT" else "market_area_entry"

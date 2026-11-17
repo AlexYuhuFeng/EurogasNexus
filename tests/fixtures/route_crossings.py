@@ -3,9 +3,11 @@
 Route pricing now prices a network route along its proven interconnection path
 (``domain/route_cost/route_adjacency.py``): TTF -> NBP through BBL is the GTS exit at
 Julianadorp/Balgzand, the BBL forward-flow charge, and the National Gas entry at Bacton (BBL).
-The tariff register holds only the BBL charge, so a fixture that wants the route *priced* (to
-test something downstream of pricing) must also hold the two market-area legs. These are
-synthetic test rows, a zero charge each, so the BBL-only totals the tests assert stay the same.
+Legs are named as ENTSOG publishes tariffs (operator, point, direction); BBL publishes its
+forward charge as an exit at Bacton (BBL). A fixture that wants the route *priced* (to test
+something downstream of pricing) holds the three legs: the BBL charge at the fixture's own BBL
+value, the two market-area legs as zero-charge synthetic rows, so the totals the tests assert
+stay the same.
 """
 
 from __future__ import annotations
@@ -14,10 +16,12 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models import TsoTariffRecord
 
-#: (tariff id suffix, country, tso, market area, point name, direction)
+#: (tariff id suffix, country, tso, market area, point name, direction, keeps the BBL value)
+#: The crossing's legs as route pricing names them (ENTSOG operator and point names).
 BBL_CROSSING_LEGS = (
-    ("gts-exit-balgzand", "NL", "GTS", "TTF", "Julianadorp (GTS) /Balgzand (BBL)", "EXIT"),
-    ("ng-entry-bacton-bbl", "GB", "National Gas TSO", "NBP", "Bacton (BBL)", "ENTRY"),
+    ("gts-exit-balgzand", "NL", "GTS", "TTF", "Julianadorp (GTS) /Balgzand (BBL)", "EXIT", False),
+    ("bbl-exit-bacton", "GB", "BBL company", "BBL", "Bacton (BBL)", "EXIT", True),
+    ("ng-entry-bacton-bbl", "GB", "National Gas TSO", "NBP", "Bacton (BBL)", "ENTRY", False),
 )
 
 
@@ -34,7 +38,7 @@ def add_bbl_crossing_tariffs(session: Session) -> None:
     for row in rows:
         if "synthetic-bbl-crossing" in str(row.source_refs):
             continue
-        for suffix, country, tso, area, point, direction in BBL_CROSSING_LEGS:
+        for suffix, country, tso, area, point, direction, keeps_value in BBL_CROSSING_LEGS:
             values = {
                 column.name: getattr(row, column.name)
                 for column in TsoTariffRecord.__table__.columns
@@ -47,9 +51,13 @@ def add_bbl_crossing_tariffs(session: Session) -> None:
                 point_id=f"{row.point_id}-{suffix}",
                 source_point_name=point,
                 direction=direction,
-                tariff_value=0.0,
+                tariff_value=row.tariff_value if keeps_value else 0.0,
                 source_table="synthetic test row: market-area leg of the BBL crossing",
-                source_refs=["test:synthetic-bbl-crossing-leg"],
+                source_refs=(
+                    [*row.source_refs, "test:synthetic-bbl-crossing-leg"]
+                    if keeps_value
+                    else ["test:synthetic-bbl-crossing-leg"]
+                ),
             )
             values.pop("id", None)
             if values["tariff_id"] in existing:

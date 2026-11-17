@@ -38,7 +38,7 @@ INGEST_SCRIPT = Path(__file__).with_name("ingest_public_sources.py")
 
 _SOURCE_ARGS = {
     "src-ecb": ("ecb",),
-    "src-entsog": ("entsog", "entsog-capacity", "entsog-reference"),
+    "src-entsog": ("entsog", "entsog-capacity", "entsog-reference", "entsog-tariffs"),
     "src-gie": ("gie-agsi", "gie-alsi"),
 }
 
@@ -63,6 +63,8 @@ _SOURCE_BOUNDS: dict[str, tuple[tuple[str, str], ...]] = {
         ("--entsog-page-size", "1000"),
         ("--entsog-max-pages", "50"),
         ("--entsog-reference-max-age-hours", "24"),
+        # Published tariffs change once a tariff period: read at most daily.
+        ("--entsog-tariffs-max-age-hours", "24"),
     ),
     "src-gie": (("--limit", "30"), ("--gie-country", "nwe")),
 }

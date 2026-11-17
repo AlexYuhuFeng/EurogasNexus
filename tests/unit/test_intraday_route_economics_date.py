@@ -105,10 +105,7 @@ def _bbl_component(route) -> dict:
     """The BBL charge among the crossing's legs (GTS exit, BBL, National Gas entry)."""
 
     return next(
-        item
-        for item in route.cost_components
-        if "gts" not in str(item.get("tariff_id"))
-        and "ng-entry" not in str(item.get("tariff_id"))
+        item for item in route.cost_components if "bbl-exit" in str(item.get("tariff_id"))
     )
 
 
@@ -150,7 +147,7 @@ def test_explicit_date_selects_covering_intraday_tariff() -> None:
     assert routes[0].total_cost == 1.0
     assert routes[0].missing_inputs == []
     assert TARIFF_APPLICABILITY_NOT_ASSESSED not in routes[0].warnings
-    assert _bbl_component(routes[0])["tariff_id"] == "jan"
+    assert _bbl_component(routes[0])["tariff_id"].startswith("jan")
 
 
 def test_explicit_date_gap_blocks_intraday_route_without_clock_fallback() -> None:
@@ -176,7 +173,7 @@ def test_explicit_date_gap_blocks_intraday_route_without_clock_fallback() -> Non
     assert len(routes) == 1
     assert routes[0].total_cost is None
     assert (
-        f"{TARIFF_NOT_EFFECTIVE_ON_DATE}:bbl-forward"
+        f"{TARIFF_NOT_EFFECTIVE_ON_DATE}:intraday-bbl:1.2:ITP-00207:exit"
         in routes[0].missing_inputs
     )
 
@@ -212,7 +209,7 @@ def test_explicit_date_overlap_blocks_intraday_route() -> None:
     assert len(routes) == 1
     assert routes[0].total_cost is None
     assert (
-        f"{TARIFF_APPLICABILITY_AMBIGUOUS}:bbl-forward"
+        f"{TARIFF_APPLICABILITY_AMBIGUOUS}:intraday-bbl:1.2:ITP-00207:exit"
         in routes[0].missing_inputs
     )
 

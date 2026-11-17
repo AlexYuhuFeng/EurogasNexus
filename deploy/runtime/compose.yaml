@@ -149,6 +149,8 @@ services:
       - entsog-capacity
       - --source
       - entsog-reference
+      - --source
+      - entsog-tariffs
       - --limit
       - "10000"
       # ENTSOG flows and capacity need a window (at most 30 gas days rolling) and the

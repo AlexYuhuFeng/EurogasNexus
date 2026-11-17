@@ -43,6 +43,13 @@ STATUS_PRIORITY = {
 #: No exact-match tariff row exists for the declared exact key.
 TARIFF_MISSING = "TARIFF_MISSING"
 
+#: A leg's gas year when its tariff is the one whose period covers the delivery gas day,
+#: whatever the period's label: ENTSOG publishes calendar-year (GTS, Fluxys, THE TSOs) and
+#: gas-year (National Gas, IUK, BBL) tariffs side by side. Selection then matches every other
+#: field exactly and the period by date; without a date it takes the latest period of the
+#: best status and says applicability was not assessed.
+TARIFF_GAS_YEAR_BY_PERIOD = "by-tariff-period"
+
 #: Warning carried by a selection made without an explicit applicability date.
 TARIFF_APPLICABILITY_NOT_ASSESSED = "TARIFF_APPLICABILITY_NOT_ASSESSED"
 
@@ -152,7 +159,7 @@ def select_latest_tariff(
         and tariff.tso == tso
         and tariff.source_point_name == point_name
         and tariff.direction is direction
-        and tariff.gas_year == gas_year
+        and (gas_year == TARIFF_GAS_YEAR_BY_PERIOD or tariff.gas_year == gas_year)
         and tariff.capacity_product is capacity_product
         and tariff.firmness is firmness
     ]
@@ -173,9 +180,19 @@ def select_latest_tariff(
     if applicability_date is None:
         # Legacy wire-compatible path: status priority and stable first-row
         # tie-break, explicitly disclosed as not date-assessed.
-        selected = sorted(
-            matches, key=lambda item: STATUS_PRIORITY[item.tariff_status]
-        )[0]
+        if gas_year == TARIFF_GAS_YEAR_BY_PERIOD:
+            # The latest period of the best status; never a guess at which one applies today.
+            selected = sorted(
+                matches,
+                key=lambda item: (
+                    STATUS_PRIORITY[item.tariff_status],
+                    -item.effective_from.toordinal(),
+                ),
+            )[0]
+        else:
+            selected = sorted(
+                matches, key=lambda item: STATUS_PRIORITY[item.tariff_status]
+            )[0]
         warnings = [TARIFF_APPLICABILITY_NOT_ASSESSED]
         human_review_required = True
         if selected.tariff_status is not TariffStatus.FINAL:

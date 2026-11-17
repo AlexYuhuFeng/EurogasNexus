@@ -42,6 +42,11 @@ def legs(graph, start: str, target: str, via=()):
     ]
 
 
+def test_the_drawn_ttf_the_point_is_the_h_gas_vip_by_capacity(graph):
+    [crossing] = graph.route(hub(graph, "TTF"), hub(graph, "THE"))
+    assert crossing.points == ("ITP-10012",)  # VIP TTF-THE-H, the largest firm capacity
+
+
 def test_ttf_and_the_are_joined_directly_through_the_nl_de_points(graph):
     points = {c.points[0] for c in graph.crossings(hub(graph, "TTF"), hub(graph, "THE"))}
     # The VIPs and the physical border points (Bocholtz, Oude Statenzijl, Winterswijk, ...).
@@ -59,7 +64,8 @@ def test_ttf_to_nbp_goes_through_bbl_with_both_market_area_legs(graph):
     assert [c.pipeline_operator for c in crossings] == ["UK-TSO-0004"]
     assert priced == [
         ("EXIT", "GTS", "ITP-00063", "market_area_exit"),
-        ("EXIT", "BBL Company", "ITP-00063", "pipeline"),
+        # BBL publishes its forward charge as an exit at Bacton (BBL), none at Balgzand.
+        ("EXIT", "BBL company", "ITP-00207", "pipeline"),
         ("ENTRY", "National Gas TSO", "ITP-00207", "market_area_entry"),
     ]
 
@@ -68,14 +74,17 @@ def test_nbp_and_ztp_go_through_iuk_with_the_charges_of_the_flow_direction(graph
     _, forward = legs(graph, "NBP", "ZTP")
     assert forward == [
         ("EXIT", "National Gas TSO", "ITP-00005", "market_area_exit"),
-        ("ENTRY", "Interconnector UK", "ITP-00005", "pipeline"),
-        ("EXIT", "Interconnector UK", "ITP-00005", "pipeline"),
+        ("ENTRY", "Interconnector", "ITP-00005", "pipeline"),
+        ("EXIT", "Interconnector", "ITP-00061", "pipeline"),
         ("ENTRY", "Fluxys Belgium", "ITP-00061", "market_area_entry"),
     ]
     reverse = [
         leg for c in graph.route(hub(graph, "ZTP"), hub(graph, "NBP")) for leg in graph.legs(c)
     ]
-    assert [leg.point_name for leg in reverse][1:3] == ["IUK Zeebrugge Entry", "IUK Bacton Exit"]
+    assert [(leg.point_key, leg.direction) for leg in reverse][1:3] == [
+        ("ITP-00061", "ENTRY"),
+        ("ITP-00005", "EXIT"),
+    ]
 
 
 def test_the_borders_peg_and_ztp_directly(graph):
@@ -143,9 +152,9 @@ def test_an_authored_route_gets_the_full_crossing_and_keeps_its_capacity():
         "entsog-itp-00207",
         "entsog-vtp-00006",
     ]
-    by_role = {leg["role"]: leg for leg in candidate["route_legs"]}
-    assert by_role["pipeline"]["leg_id"] == "bbl-forward"
-    assert by_role["pipeline"]["available_capacity_mwh_per_day"] == 2000.0
+    # The path's legs replace the authored one; its stated capacity holds for every leg.
+    assert all(leg["available_capacity_mwh_per_day"] == 2000.0 for leg in candidate["route_legs"])
+    assert all(leg["gas_year"] == "by-tariff-period" for leg in candidate["route_legs"])
     assert len(candidate["route_legs"]) == 3
 
 
