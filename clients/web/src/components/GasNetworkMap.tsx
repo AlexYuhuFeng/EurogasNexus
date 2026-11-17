@@ -41,6 +41,7 @@ import {
   type BookFlowLine,
   compactMwhPerDay,
   hubAdjacencyEdges,
+  presentationPath,
   isDrawnAdjacency,
   isZoneMembershipEdge,
   zoneMemberIds,
@@ -60,6 +61,12 @@ import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
 import { FACILITY_ICON, drawFacilityIcon } from "@/app/mapIcons";
 import { MapFinder, type MapFinderPlace } from "@/components/MapFinder";
 import { MapDetailPanel } from "@/components/MapDetailPanel";
+import {
+  CONTEXT_PIPELINES_ATTRIBUTION,
+  loadContextPipelines,
+  projectContextPipelines,
+  type ContextPipelineCollection,
+} from "@/app/contextPipelines";
 import { buildSites, siteOf, sitePipelines, siteSituation, type MapSelection, type Site } from "@/app/mapSelection";
 import { useApiStore } from "@/stores/api";
 import { useShellLayout } from "@/app/shell/useShellLayout";
@@ -369,14 +376,19 @@ export function GasNetworkMap({
     const rows = [...points.entries()]
       .sort((a, b) => Number(b[1].drawn) - Number(a[1].drawn) || (b[1].capacity ?? 0) - (a[1].capacity ?? 0))
       .map(([key, point]) => {
-        const capacity = point.capacity !== null ? `${Math.round(point.capacity / 1e6).toLocaleString()} GWh/d` : "–";
+        const capacity = point.capacity !== null ? `${Math.round(point.capacity / 1e6).toLocaleString()} GWh/d` : t("map.border.capacity_unpublished");
         const tariffs = held(key) > 0 ? t("map.border.tariff_held") : t("map.border.tariff_not_held");
         return `<span><b>${escapeHtml(point.name)}</b><small>${escapeHtml(capacity)} · ${escapeHtml(tariffs)}</small></span>`;
       })
       .join("");
     const title = joins.map(nameOfKey).join(" – ");
     return `<div class="node-popup situation-card"><strong>${escapeHtml(title)}</strong>`
-      + `<small>${escapeHtml(t("map.border.points").replace("{{count}}", String(points.size)))}</small>${rows}</div>`;
+      + `<small>${escapeHtml(t("map.border.points").replace("{{count}}", String(points.size)))}</small>${rows}`
+      // Drawn along the open reference trunk lines: the general direction, not a surveyed route.
+      + (props.geometry_basis === "reference_pipeline_direction"
+        ? `<small class="muted">${escapeHtml(t("map.border.drawn_along"))}</small>`
+        : "")
+      + "</div>";
   };
   const borderCardRef = useRef(borderCard);
   borderCardRef.current = borderCard;
@@ -1103,6 +1115,50 @@ export function GasNetworkMap({
     }
   }, [filteredNodes, highlightedRouteSegmentFeatures, indicativeRouteLines, mapColors, mapReady, onInspectNode, t, verifiedPipelineLines]);
 
+  // The open reference trunk lines (SciGRID_gas), faint, under the connections: the general
+  // direction pipes run. Network view with Routes on; never selectable, never priced.
+  const [contextPipes, setContextPipes] = useState<ContextPipelineCollection | null>(null);
+  useEffect(() => {
+    let live = true;
+    void loadContextPipelines().then((data) => {
+      if (live) setContextPipes(data);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !contextPipes) return;
+    const data = projectContextPipelines(contextPipes, toMapCoordinates);
+    const source = map.getSource("context-pipelines") as GeoJSONSource | undefined;
+    if (source) source.setData(data);
+    else {
+      map.addSource("context-pipelines", { type: "geojson", data, attribution: CONTEXT_PIPELINES_ATTRIBUTION });
+      map.addLayer(
+        {
+          id: "context-pipelines",
+          type: "line",
+          source: "context-pipelines",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": linkLineColor(mapColors),
+            "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.5, 6, 0.9, 9, 1.4],
+            "line-opacity": 0.32,
+          },
+        },
+        map.getLayer("verified-pipeline-lines") ? "verified-pipeline-lines" : undefined,
+      );
+    }
+    map.setLayoutProperty(
+      "context-pipelines",
+      "visibility",
+      showContextRoutes && view === "network" ? "visible" : "none",
+    );
+    map.setPaintProperty("context-pipelines", "line-color", linkLineColor(mapColors));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextPipes, mapColors, mapReady, showContextRoutes, view]);
+
   // The book's flows: one line per origin and destination, width by volume, the volume at the
   // destination and a single arrowhead for direction. Drawn under the points.
   const bookFlowMarkersRef = useRef<Marker[]>([]);
@@ -1577,7 +1633,7 @@ export function GasNetworkMap({
           const from = nodeLookup.get(edge.from_node_id);
           const to = nodeLookup.get(edge.to_node_id);
           if (!from || !to || ![from.lon, from.lat, to.lon, to.lat].every(Number.isFinite)) continue;
-          lines.push({ part: "link", coords: [[from.lon, from.lat], [to.lon, to.lat]] });
+          lines.push({ part: "link", coords: presentationPath(edge) ?? [[from.lon, from.lat], [to.lon, to.lat]] });
         }
         for (const node of nodes) {
           if (hubMembers.has(node.id) && Number.isFinite(node.lon) && Number.isFinite(node.lat)) {

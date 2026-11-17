@@ -5357,5 +5357,8 @@
   "access.error.not_a_local_account": "此人通过公司单点登录，密码由公司管理。",
   "access.error.unknown_job_function": "未知的岗位职能。",
   "map.detail.simulated": "模拟",
-  "map.detail.destination_sendout": "{{terminal}} 的气化外输"
+  "map.detail.destination_sendout": "{{terminal}} 的气化外输",
+  "map.border.capacity_unpublished": "未公布容量",
+  "map.border.drawn_along": "沿开放参考管道（SciGRID_gas）绘制：仅示大致走向，并非实测路线",
+  "map.key.context_pipelines": "管道大致走向（SciGRID_gas，CC BY 4.0）"
 }

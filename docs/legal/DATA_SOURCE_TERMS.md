@@ -27,6 +27,7 @@ confirm each provider's current terms before a production deployment.
 | Norwegian Offshore Directorate (Sodir) FactMaps | field, platform and pipeline locations | NLOD 2.0: commercial reuse with attribution | Infrastructure import records licence and attribution per facility |
 | North Sea Transition Authority open data | UK offshore installation locations | Open Government Licence v3: commercial reuse with attribution | As above |
 | Global Energy Monitor trackers | LNG terminal, storage and pipeline locations | CC BY 4.0: commercial use with attribution | As above |
+| SciGRID_gas IGGIELGN (DLR Institute of Networked Energy Systems, v1.1.2, doi:10.5281/zenodo.4767098) | map presentation only: generalised NW Europe trunk lines drawn faintly under the connections, and the general direction of each drawn connection leg | CC BY 4.0 (licence text in the dataset's `LICENSE`, checked 2026-11-17): commercial use, adaptation and redistribution with attribution; no share-alike | Built once into the bundle and `clients/web/public/map/context-pipelines.geojson` with source, version, DOI, licence and file SHA-256; attribution "Pipelines: SciGRID_gas IGGIELGN (DLR), CC BY 4.0" on the map and in the line key; never priced (see "Presentation geometry" below) |
 | OpenStreetMap extracts | infrastructure gap filling | ODbL 1.0: attribution and share-alike for the database | As above; the import refuses non-commercial licences such as CC BY-NC |
 | Kpler, Spire, MarineTraffic vessel data | LNG cargo positions, tracks, ETAs (the map's "LNG vessels" layer) | Licensed per subscriber; not redistributable; no AIS source is used whose terms this register has not reviewed for commercial use | Loaded only from the customer's own export or connector; market cargoes need the source's data scope (family `Kpler`); without it the map says the entitlement is missing. Demo vessels are `Kpler_Sim`, fictional and marked simulated |
 | Map tiles | basemap | OSM Foundation and CARTO public tiles are not for commercial embedding; OpenFreeMap and VersaTiles allow commercial use (OpenStreetMap data, ODbL attribution) | Default is OpenFreeMap; none in a China installation; an operator may configure a licensed or self-hosted service |
@@ -91,6 +92,37 @@ belongs to), which are membership and never drawn, and market-area adjacency (wh
 areas an interconnection point joins, and the two ends of the IUK and BBL pipelines), derived
 from the TP `interconnections` and `connectionpoints` datasets under the same TP Terms of Use
 Art. 5 and cited "ENTSOG TP [16-11-2026] https://transparency.entsog.eu/" in the bundle's
-`adjacency` block and every seeded adjacency row. They are drawn as straight dashed
-schematic segments and never presented as pipeline routes.
+`adjacency` block and every seeded adjacency row. They are drawn as dashed schematic lines,
+along the open SciGRID_gas trunk lines where those give the general direction (see
+"Presentation geometry"), else straight, and never presented as surveyed pipeline routes.
 
+## Presentation geometry (P2, decided 2026-11-17)
+
+**Dataset.** SciGRID_gas IGGIELGN 1.1.2 (Zenodo record 4767098, published 2021-05-17 by the
+DLR Institute of Networked Energy Systems; `IGGIELGN.zip` SHA-256
+`a3caa7d94f212da67d69bb0106d893e0ad1548761cfcd185aca78f0a5d745b9f`), an abstracted European gas
+transmission network assembled by the SciGRID_gas project from open sources (its INET, GIE,
+GSE, IGU, LKD, GB and NO inputs).
+
+**Terms, as checked on 2026-11-17.** The Zenodo record states the licence `cc-by-4.0`; the
+archive's `data/LICENSE` says the data was "collated in such a way, that it has a copyright,
+that does not restrict the project from making the data available to other users. Hence the
+following applies to this data set and the documentation" followed by the full text of
+Creative Commons Attribution 4.0 International. CC BY 4.0 permits commercial use, adaptation
+and redistribution, requires attribution, a licence reference and an indication of changes,
+and imposes no share-alike. The product relies on the publisher's licence for the whole
+dataset; some segment ids show their geometry came from public maps (for example
+`EntsoG_Map_*`), which the publisher collated under that licence.
+
+**Use.** Presentation only. The bundle build keeps the trunk lines (diameter of at least
+600 mm) with an end in north-west Europe, generalised (Douglas-Peucker, about 2 km; positions
+to three decimals), and gives each drawn connection leg a path along them where one runs
+within 45 km of both ends without a long detour. Changes are indicated in the file's
+provenance (`use`, `trunk_lines`). Route pricing, capacity and tariffs never read it (contract
+test `tests/contract/test_reference_presentation_geometry.py`); the connections stay dashed
+and schematic, and their hover card says they are drawn along the open reference pipelines
+for the general direction, not a surveyed route.
+
+**Attribution.** "Pipelines: SciGRID_gas IGGIELGN (DLR), CC BY 4.0" in the map's attribution
+control (the context layer's source) and in the line key; source, DOI and licence in the
+bundle's `presentation_geometry` block and in the context file's properties.

@@ -152,6 +152,9 @@ def validate_bundle(bundle: dict[str, Any]) -> list[str]:
             problems.append(f"edge {eid}: adjacency edge without provenance")
         if kind == MARKET_AREA_LINK and not edge.get("evidence"):
             problems.append(f"edge {eid}: market-area link without ENTSOG evidence")
+        path = edge.get("presentation_path")
+        if path is not None:
+            problems += _presentation_problems(eid, kind, path, edge, nodes, bundle)
         # Zone membership and adjacency may join the same pair (a border point is in a zone
         # and joins it to the next); within one kind a pair is listed once.
         pair = (str(kind), *sorted(str(end) for end in ends))
@@ -159,8 +162,45 @@ def validate_bundle(bundle: dict[str, Any]) -> list[str]:
             problems.append(f"edge {eid}: duplicate connection {pair[1:]}")
         pairs.add(pair)
     has_adjacency = any(edge.get("type") in ADJACENCY_EDGE_TYPES for edge in edges)
+    if any("presentation_path" in edge for edge in edges) and not (
+        (bundle.get("presentation_geometry") or {}).get("licence")
+    ):
+        problems.append("presentation paths without their source and licence")
     if has_adjacency and not bundle.get("adjacency"):
         problems.append("adjacency edges without the adjacency block (rule, download date)")
+    return problems
+
+
+def _presentation_problems(
+    eid: Any,
+    kind: Any,
+    path: Any,
+    edge: dict[str, Any],
+    nodes: list[dict[str, Any]],
+    bundle: dict[str, Any],
+) -> list[str]:
+    """A presentation path is a drawn line from the leg's first end to its second."""
+
+    if kind not in ADJACENCY_EDGE_TYPES:
+        return [f"edge {eid}: only a drawn connection carries a presentation path"]
+    if not (
+        isinstance(path, list)
+        and len(path) >= 3
+        and all(
+            isinstance(point, list)
+            and len(point) == 2
+            and -180 <= point[0] <= 180
+            and -90 <= point[1] <= 90
+            for point in path
+        )
+    ):
+        return [f"edge {eid}: presentation path is not a line of [lon, lat] points"]
+    by_id = {node.get("id"): node for node in nodes}
+    start, end = by_id.get(edge.get("from")), by_id.get(edge.get("to"))
+    problems = []
+    for point, node, label in ((path[0], start, "first"), (path[-1], end, "last")):
+        if node and (abs(point[0] - node["lon"]) > 1e-3 or abs(point[1] - node["lat"]) > 1e-3):
+            problems.append(f"edge {eid}: presentation path's {label} point is not its end")
     return problems
 
 
@@ -310,6 +350,18 @@ def reference_rows(bundle: dict[str, Any], *, now: datetime) -> dict[str, list[d
             "verification_status": "schematic",
             "reference_bundle_version": version,
         }
+        if edge.get("presentation_path"):
+            # Drawn along the open reference trunk lines (general direction; never priced).
+            presentation = bundle.get("presentation_geometry") or {}
+            metadata.update(
+                {
+                    "geometry_basis": "reference_pipeline_direction",
+                    "presentation_path": edge["presentation_path"],
+                    "presentation_source": presentation.get("name"),
+                    "presentation_licence": presentation.get("licence"),
+                    "presentation_attribution": presentation.get("attribution"),
+                }
+            )
         if kind == "virtual":
             metadata["name"] = f"{names[edge['from']]} - {names[edge['to']]} (zone link)"
             dataset = "entry-exit-zone-links"

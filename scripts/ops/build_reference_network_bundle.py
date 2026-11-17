@@ -23,6 +23,17 @@ Edges, two kinds:
 
 ENTSOG publishes no route geometry through its API; every edge is schematic.
 
+Presentation geometry (``--scigrid-dir``, the unpacked SciGRID_gas IGGIELGN ``data`` folder,
+CC BY 4.0, doi:10.5281/zenodo.4767098): the generalised trunk lines of north-west Europe are
+written to ``clients/web/public/map/context-pipelines.geojson`` (a faint layer under the
+connections) and each drawn connection leg gets a ``presentation_path`` along them where one
+runs close to both ends (``reference_data/reference_geometry.py``). Presentation only: route
+pricing never reads it. Without ``--scigrid-dir`` a rebuild keeps the shipped paths of the legs
+whose ends are unchanged. Only the geometry, on the shipped bundle:
+
+    python scripts/ops/build_reference_network_bundle.py --presentation-only \
+        --scigrid-dir IGGIELGN/data --version 2026-11-17
+
     RUNTIME_STORE_DATABASE_URL=... python scripts/ops/build_reference_network_bundle.py \
         --version 2026-11-14 --downloaded 2026-11-14
 
@@ -54,6 +65,16 @@ from eurogas_nexus.reference_data.network_bundle import (
     bundle_path,
     load_bundle,
     validate_bundle,
+)
+from eurogas_nexus.reference_data.reference_geometry import (
+    SOURCE as SCIGRID_SOURCE,
+)
+from eurogas_nexus.reference_data.reference_geometry import (
+    apply_presentation_geometry,
+    context_geojson,
+    context_pipelines,
+    read_pipe_segments,
+    trunk_segments,
 )
 
 ENTSOG_API = "https://transparency.entsog.eu/api/v1"
@@ -380,6 +401,51 @@ def with_adjacency(bundle: dict, entsog_dir: Path | None, downloaded: date) -> d
     )
 
 
+CONTEXT_PIPELINES_PATH = (
+    Path(__file__).resolve().parents[2] / "clients/web/public/map/context-pipelines.geojson"
+)
+
+
+def with_presentation(
+    bundle: dict, scigrid_dir: Path | None, previous: dict, context_out: Path
+) -> dict:
+    """The SciGRID_gas presentation paths; without a source, the shipped ones that still fit."""
+
+    if scigrid_dir is None:
+        kept = {
+            edge["id"]: edge
+            for edge in previous.get("edges") or []
+            if edge.get("presentation_path")
+        }
+        edges = []
+        for edge in bundle["edges"]:
+            old = kept.get(edge["id"])
+            if old and (old["from"], old["to"]) == (edge["from"], edge["to"]):
+                edge = {**edge, "presentation_path": old["presentation_path"]}
+            edges.append(edge)
+        out = {**bundle, "edges": edges}
+        if previous.get("presentation_geometry") and any(
+            "presentation_path" in edge for edge in edges
+        ):
+            out["presentation_geometry"] = previous["presentation_geometry"]
+        return out
+    features, sha256 = read_pipe_segments(scigrid_dir)
+    pipelines = context_pipelines(trunk_segments(features))
+    provenance = {
+        **SCIGRID_SOURCE,
+        "file": "IGGIELGN_PipeSegments.geojson",
+        "sha256": sha256,
+        "trunk_lines": len(pipelines),
+        "context_layer": "clients/web/public/map/context-pipelines.geojson",
+    }
+    context_out.parent.mkdir(parents=True, exist_ok=True)
+    context_out.write_text(
+        json.dumps(context_geojson(pipelines, provenance), separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return apply_presentation_geometry(bundle, pipelines, provenance)
+
+
 def write(bundle: dict, path: Path) -> None:
     """One record per line: small, and a refresh reads as a line diff."""
 
@@ -414,7 +480,37 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="saved interconnections.json and connectionpoints.json",
     )
+    parser.add_argument(
+        "--scigrid-dir",
+        type=Path,
+        help="unpacked SciGRID_gas IGGIELGN data folder (presentation geometry)",
+    )
+    parser.add_argument(
+        "--presentation-only",
+        action="store_true",
+        help="re-derive only the presentation geometry of the shipped bundle",
+    )
+    parser.add_argument("--context-out", type=Path, default=CONTEXT_PIPELINES_PATH)
     args = parser.parse_args(argv)
+    previous = load_bundle()
+    if args.presentation_only:
+        if args.scigrid_dir is None:
+            print("--presentation-only needs --scigrid-dir", file=sys.stderr)
+            return 2
+        bundle = with_presentation(
+            {**previous, "version": args.version}, args.scigrid_dir, previous, args.context_out
+        )
+        problems = validate_bundle(bundle)
+        if problems:
+            print("bundle failed its checks:\n  " + "\n  ".join(problems[:20]), file=sys.stderr)
+            return 1
+        write(bundle, args.out)
+        print(
+            f"{args.out}: {bundle['presentation_geometry']['routed_edges']} connection legs "
+            f"follow the trunk lines; {args.context_out}: "
+            f"{bundle['presentation_geometry']['trunk_lines']} trunk lines"
+        )
+        return 0
     if args.adjacency_only:
         bundle = {**load_bundle(), "version": args.version}
     else:
@@ -425,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
             bundle = build(session, version=args.version, downloaded=args.downloaded)
             session.rollback()  # read-only
     bundle = with_adjacency(bundle, args.entsog_dir, args.downloaded)
+    bundle = with_presentation(bundle, args.scigrid_dir, previous, args.context_out)
     problems = validate_bundle(bundle)
     if problems:
         print("bundle failed its checks:\n  " + "\n  ".join(problems[:20]), file=sys.stderr)

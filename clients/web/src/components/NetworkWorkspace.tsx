@@ -15,7 +15,7 @@ import type {
   StrategyLabResultDTO,
 } from "@/api/client";
 import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
-import { buildBookFlows, zoneMemberIds, type LineCoordinate } from "@/app/mapLineGeometry";
+import { buildBookFlows, legPaths, zoneMemberIds, type LineCoordinate } from "@/app/mapLineGeometry";
 import { buildNodeIdByPointName, buildRouteGeometryEdgesByRouteId } from "@/app/resourcePoolMapPaths";
 import { normalizePointName } from "@/app/routeMetadata";
 import {
@@ -346,6 +346,7 @@ export function NetworkWorkspace({
       resolvePoint: (name) => nodeIdByPointName.get(normalizePointName(name)),
       nodes: new Map(nodes.map((node) => [node.id, node])),
       surveyedRoute,
+      legPath: legPaths(edges),
     });
   }, [edges, nodes, resourcePoolMapPaths, saleOptions]);
   // Our book: the book's own panels, in the panel's fourth tab, only in the "Our book" view
@@ -1066,6 +1067,9 @@ export function NetworkWorkspace({
         {mapHasVisibleEvidence && legendOpen && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
           {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
           {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
+          {mapLayers.includes("routes") && mapView === "network" && (
+            <span><i className="line-swatch context" />{t("map.key.context_pipelines")}</span>
+          )}
           {indicativeRouteCount > 0 && <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}</span>}
           {bookFlows.length > 0 && mapLayers.includes("positions") && <span><i className="line-swatch flow" />{t("map.key.book_flow")}</span>}
           {displayedHubCount > 0 && <span><i className="node-swatch hubs" />{t("map.key.hub_area")}</span>}

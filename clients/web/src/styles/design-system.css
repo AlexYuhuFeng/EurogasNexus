@@ -1295,6 +1295,12 @@
     border-radius: 0;
   }
 
+  /* The open reference trunk lines: faint and thin, as drawn under the connections. */
+  .line-swatch.context {
+    border-top-width: 1px;
+    opacity: 0.45;
+  }
+
   .line-swatch.flow {
     border-top-width: 4px;
     border-top-color: var(--ds-accent);

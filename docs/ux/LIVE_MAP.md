@@ -266,9 +266,13 @@ network map:
   join where, because route pricing walks exactly that graph: market area -
   interconnection point - market area, and through IUK and BBL, whose two ends are both
   drawn (`docs/operations/REFERENCE_NETWORK_BUNDLE.md`, "Market-area adjacency"). Each
-  adjacency is a quiet straight dashed segment from the hub to the interconnection point
-  and on to the neighbouring hub (key: "Connection between market areas via
-  interconnection point (schematic)"). Geographic direction carries no meaning. Of the
+  adjacency is a quiet dashed line from the hub to the interconnection point and on to the
+  neighbouring hub (key: "Connection between market areas via interconnection point
+  (schematic)"). It follows the general direction of the open reference trunk lines
+  (SciGRID_gas, CC BY 4.0) where they run close to both ends, else it is straight; under it,
+  with Routes on in the network view, those trunk lines are drawn faintly (key: "Pipelines,
+  general direction (SciGRID_gas, CC BY 4.0)"). Neither is a surveyed route, and nothing is
+  priced from them; the hover card says so. Of the
   points joining one pair of market areas (19 between TTF and THE) one is drawn by default;
   selecting a hub emphasises its connections and rings every point joining it to a
   neighbour, and its zone's points, without wiring them (no fan).

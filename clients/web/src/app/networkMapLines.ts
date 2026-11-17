@@ -10,8 +10,11 @@ import {
   isAdjacencyEdge,
   isDrawnAdjacency,
   isZoneMembershipEdge,
+  legPaths,
   polyline,
+  presentationPath,
   straightSegment,
+  type LegPath,
   type LineCoordinate,
 } from "@/app/mapLineGeometry";
 
@@ -29,7 +32,9 @@ export type NetworkLineDisplayKind = "verified_pipeline" | "network_link" | "ind
 export type NetworkLineGeometryBasis =
   | "verified_geometry"
   | "backend_route_geometry_coordinates"
-  | "schematic_endpoint_segment";
+  | "schematic_endpoint_segment"
+  /** Schematic, drawn along the open reference trunk lines (general direction; never priced). */
+  | "reference_pipeline_direction";
 
 export interface NetworkHighlightedRoute {
   fromNodeId: string;
@@ -182,15 +187,16 @@ export function buildRenderableNetworkLine(
     // the others show when a hub is selected (GasNetworkMap's selection layer).
     if (isAdjacencyEdge(edge) && !isDrawnAdjacency(edge)) return null;
     const sequence = metadataNumber(edge.metadata_json, "route_leg_sequence", 1);
+    const along = presentationPath(edge);
     return {
       id: edge.id,
       edge,
       from,
       to,
-      geometryCoordinates: buildSchematicRouteCoordinates(from, to),
+      geometryCoordinates: along ?? buildSchematicRouteCoordinates(from, to),
       displayKind: "network_link",
       routeCandidate: false,
-      geometryBasis: "schematic_endpoint_segment",
+      geometryBasis: along ? "reference_pipeline_direction" : "schematic_endpoint_segment",
       routeId: routeEdgeRouteId(edge) ?? edge.source_record_id ?? "",
       routeLegSequence: sequence,
       routeGeometryState: routeGeometryStateFromMetadata(edge, "directLineFallback"),
@@ -229,7 +235,11 @@ export function buildRenderableNetworkLines(
   // Several records for the same pair of places (both directions, a leg per route) are one
   // schematic line; surveyed pipelines stay as they run.
   return collapseSchematicPairs(
-    lines.map((line) => ({ ...line, schematic: line.geometryBasis === "schematic_endpoint_segment", kind: line.displayKind })),
+    lines.map((line) => ({
+      ...line,
+      schematic: line.geometryBasis === "schematic_endpoint_segment" || line.geometryBasis === "reference_pipeline_direction",
+      kind: line.displayKind,
+    })),
   ).map(({ schematic: _schematic, kind: _kind, ...line }) => line);
 }
 
@@ -238,6 +248,7 @@ export function buildSyntheticSelectedRouteLine(
   from: NodeDTO,
   to: NodeDTO,
   nodeLookup?: Map<string, NodeDTO>,
+  legPath?: LegPath,
 ): RenderableNetworkLine | null {
   if (
     from.id === to.id ||
@@ -255,7 +266,7 @@ export function buildSyntheticSelectedRouteLine(
     to,
     // Along the path the route was priced on (hub -> point -> hub), so the map shows what was
     // priced; one segment between the ends when no path is known.
-    geometryCoordinates: pricedPathCoordinates(highlightedRoute.pathNodeIds, nodeLookup)
+    geometryCoordinates: pricedPathCoordinates(highlightedRoute.pathNodeIds, nodeLookup, legPath)
       ?? buildSchematicRouteCoordinates(from, to),
     displayKind: "indicative_route",
     routeCandidate: true,
@@ -269,11 +280,12 @@ export function buildSyntheticSelectedRouteLine(
 function pricedPathCoordinates(
   ids: string[] | null | undefined,
   nodeLookup: Map<string, NodeDTO> | undefined,
+  legPath?: LegPath,
 ): LineCoordinate[] | null {
   if (!ids || ids.length < 2 || !nodeLookup) return null;
   const nodes = ids.map((id) => nodeLookup.get(id));
   if (nodes.some((node) => !node || !isUsableEndpointCoordinate(node))) return null;
-  return polyline(nodes as NodeDTO[]);
+  return polyline(nodes as NodeDTO[], legPath);
 }
 
 export function networkLineMatchesRoute(line: RenderableNetworkLine, routeId: string): boolean {
@@ -340,7 +352,7 @@ export function buildVisibleMapNetworkLines(params: MapNetworkLinesParams): Rend
   const from = nodeLookup.get(params.highlightedRoute.fromNodeId);
   const to = nodeLookup.get(params.highlightedRoute.toNodeId);
   const syntheticLine = from && to
-    ? buildSyntheticSelectedRouteLine(params.highlightedRoute, from, to, nodeLookup)
+    ? buildSyntheticSelectedRouteLine(params.highlightedRoute, from, to, nodeLookup, legPaths(params.edges))
     : null;
   return syntheticLine ? [...baseLines, syntheticLine] : baseLines;
 }

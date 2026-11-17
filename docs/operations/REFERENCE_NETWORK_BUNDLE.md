@@ -173,6 +173,34 @@ counted, never placed at a guessed position. Twynholm and Carrickfergus (Norther
 have no zone trading point in ENTSOG's list and stay unlinked, so the map's topology check
 reports them.
 
+## Presentation geometry: the general direction pipes run
+
+The drawn connections follow the open SciGRID_gas IGGIELGN trunk lines (DLR, CC BY 4.0,
+doi:10.5281/zenodo.4767098; terms in `docs/legal/DATA_SOURCE_TERMS.md`, "Presentation
+geometry"). The build keeps the transmission pipes of at least 600 mm with an end in
+north-west Europe, generalised to about 2 km, and writes them to
+`clients/web/public/map/context-pipelines.geojson` (about 340 kB, 37 kB compressed; served by
+the application, drawn faintly under the connections with Routes on). Each drawn connection
+leg (interconnection point - market area) gets a `presentation_path` along them when both ends
+are within 45 km of the trunk network and the path is at most 1.5 times the straight distance
+plus 40 km (58 of the 72 drawn legs on 2026-11-17); the others, and the subsea IUK and BBL
+interconnectors, stay straight. The bundle's
+`presentation_geometry` block carries source, version, DOI, licence, the pipe file's SHA-256,
+the rule and the counts.
+
+Presentation only: route pricing builds its graph from the adjacency edges and never reads the
+geometry (`tests/contract/test_reference_presentation_geometry.py` proves the pricing graph is
+identical with and without it); the lines stay dashed and schematic.
+
+```bash
+# unpack IGGIELGN.zip from https://zenodo.org/records/4767098 into its own folder, then
+python scripts/ops/build_reference_network_bundle.py --presentation-only \
+    --scigrid-dir <folder>/data --version <yyyy-mm-dd.n>
+```
+
+A full or adjacency-only rebuild without `--scigrid-dir` keeps the shipped path of every leg
+whose two ends are unchanged.
+
 ## Refreshing it
 
 After a complete ENTSOG reference read on a development store:

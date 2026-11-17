@@ -5357,5 +5357,8 @@
   "access.error.not_a_local_account": "This person signs in with company SSO; the password is managed there.",
   "access.error.unknown_job_function": "Unknown job function.",
   "map.detail.simulated": "Simulated",
-  "map.detail.destination_sendout": "Send-out at {{terminal}}"
+  "map.detail.destination_sendout": "Send-out at {{terminal}}",
+  "map.border.capacity_unpublished": "capacity not published",
+  "map.border.drawn_along": "Drawn along the open reference pipelines (SciGRID_gas): general direction, not a surveyed route",
+  "map.key.context_pipelines": "Pipelines, general direction (SciGRID_gas, CC BY 4.0)"
 }

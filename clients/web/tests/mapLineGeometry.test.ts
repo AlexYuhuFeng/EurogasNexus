@@ -10,7 +10,9 @@ import {
   isAdjacencyEdge,
   isDrawnAdjacency,
   isZoneMembershipEdge,
+  legPaths,
   pairKey,
+  presentationPath,
   straightSegment,
   zoneMemberIds,
   type LineEndpoint,
@@ -182,4 +184,25 @@ test("a book flow follows exactly the path it was priced along", () => {
   // It passes through both ends of IUK.
   assert.ok(flow.coordinates.some(([lon, lat]) => lon === bacton.lon && lat === bacton.lat));
   assert.ok(flow.coordinates.some(([lon, lat]) => lon === zeebrugge.lon && lat === zeebrugge.lat));
+});
+
+test("a connection leg drawn along the reference trunk lines keeps that path in both directions", () => {
+  const along: [number, number][] = [[bacton.lon, bacton.lat], [2.5, 52.2], [zeebrugge.lon, zeebrugge.lat]];
+  const edge = { id: "pipe-iuk", from_node_id: "bacton-iuk", to_node_id: "zeebrugge-izt", edge_type: "interconnector", metadata_json: { presentation_path: along } };
+  assert.deepEqual(presentationPath(edge), along);
+  assert.equal(presentationPath({ metadata_json: { presentation_path: [[1, "x"]] } }), null);
+  const leg = legPaths([edge]);
+  assert.deepEqual(leg("bacton-iuk", "zeebrugge-izt"), along);
+  assert.deepEqual(leg("zeebrugge-izt", "bacton-iuk"), [...along].reverse());
+  assert.equal(leg("bacton-iuk", "vtp-nbp"), null);
+  // A priced flow follows the same drawn path for that leg, straight elsewhere.
+  const nbp = node("vtp-nbp", -0.96, 53.03, "hub");
+  const ztp = node("vtp-ztp", 4.02, 50.94, "hub");
+  const [flow] = buildBookFlows({
+    paths: [{ ...path("nbp-ztp", "NBP", "ZTP", 12_000), pathNodeIds: ["vtp-nbp", "bacton-iuk", "zeebrugge-izt", "vtp-ztp"] }],
+    resolvePoint: (name) => ({ nbp: "vtp-nbp", ztp: "vtp-ztp" } as Record<string, string>)[name.toLowerCase()],
+    nodes: new Map([nbp, bacton, zeebrugge, ztp].map((item) => [item.id, item])),
+    legPath: leg,
+  });
+  assert.ok(flow.coordinates.some(([lon, lat]) => lon === 2.5 && lat === 52.2));
 });

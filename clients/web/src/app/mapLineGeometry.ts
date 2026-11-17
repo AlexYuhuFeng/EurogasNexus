@@ -90,6 +90,41 @@ export function straightSegment(from: LineEndpoint, to: LineEndpoint): LineCoord
   });
 }
 
+/**
+ * A drawn connection's path along the open reference trunk lines (SciGRID_gas IGGIELGN,
+ * ``metadata_json.presentation_path``): the general direction pipes run. Presentation only -
+ * the line stays schematic and nothing is priced from it.
+ */
+export function presentationPath(edge: Pick<LineEdgeLike, "metadata_json">): LineCoordinate[] | null {
+  const raw = edge.metadata_json?.presentation_path;
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const out: LineCoordinate[] = [];
+  for (const point of raw) {
+    if (!Array.isArray(point) || point.length !== 2) return null;
+    const [lon, lat] = point;
+    if (typeof lon !== "number" || typeof lat !== "number" || !Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    out.push([lon, lat]);
+  }
+  return out;
+}
+
+/** A leg's drawn path between two places, in the order asked, when an edge carries one. */
+export type LegPath = (fromId: string, toId: string) => LineCoordinate[] | null;
+
+export function legPaths(edges: readonly LineEdgeLike[]): LegPath {
+  const byPair = new Map<string, LineCoordinate[]>();
+  for (const edge of edges) {
+    const path = presentationPath(edge);
+    if (path) byPair.set(`${edge.from_node_id}|${edge.to_node_id}`, path);
+  }
+  return (fromId, toId) => {
+    const forward = byPair.get(`${fromId}|${toId}`);
+    if (forward) return forward;
+    const backward = byPair.get(`${toId}|${fromId}`);
+    return backward ? [...backward].reverse() : null;
+  };
+}
+
 /** An order-free key for the pair of places a line joins. */
 export function pairKey(fromId: string, toId: string): string {
   return fromId < toId ? `${fromId}|${toId}` : `${toId}|${fromId}`;
@@ -187,6 +222,8 @@ interface BuildBookFlowsParams {
   nodes: ReadonlyMap<string, LineEndpoint>;
   /** The surveyed path of a route from origin to destination, when one exists. */
   surveyedRoute?: (routeId: string) => LineCoordinate[] | null;
+  /** A connection leg's drawn path (``legPaths``), so a flow follows the same lines. */
+  legPath?: LegPath;
 }
 
 /**
@@ -195,7 +232,7 @@ interface BuildBookFlowsParams {
  * (a local disposition) has no line. A delivery at a hub with no physical origin is a badge
  * at the hub, which the caller draws.
  */
-export function buildBookFlows({ paths, resolvePoint, nodes, surveyedRoute }: BuildBookFlowsParams): BookFlowLine[] {
+export function buildBookFlows({ paths, resolvePoint, nodes, surveyedRoute, legPath }: BuildBookFlowsParams): BookFlowLine[] {
   const byPair = new Map<string, BookFlowLine>();
   for (const path of paths) {
     const volume = path.allocatedQuantityMwhPerDay ?? 0;
@@ -227,7 +264,7 @@ export function buildBookFlows({ paths, resolvePoint, nodes, surveyedRoute }: Bu
       routeIds: path.routeId ? [path.routeId] : [],
       pathCount: 1,
       geometryBasis: followsPricedPath ? "priced_path" : "segment",
-      coordinates: followsPricedPath ? polyline(pricedPath as LineEndpoint[]) : straightSegment(from, to),
+      coordinates: followsPricedPath ? polyline(pricedPath as LineEndpoint[], legPath) : straightSegment(from, to),
     });
   }
   return [...byPair.values()].map((flow) => {
@@ -245,12 +282,15 @@ export function buildBookFlows({ paths, resolvePoint, nodes, surveyedRoute }: Bu
   });
 }
 
-/** Straight segments through a sequence of places (hub -> point -> hub). */
-export function polyline(points: readonly LineEndpoint[]): LineCoordinate[] {
+/**
+ * Through a sequence of places (hub -> point -> hub): each leg along its drawn path when the
+ * connection carries one (``legPath``), else a straight segment.
+ */
+export function polyline(points: readonly LineEndpoint[], legPath?: LegPath): LineCoordinate[] {
   const out: LineCoordinate[] = [];
   points.forEach((point, index) => {
     if (index === 0) return;
-    const segment = straightSegment(points[index - 1], point);
+    const segment = legPath?.(points[index - 1].id, point.id) ?? straightSegment(points[index - 1], point);
     out.push(...(out.length ? segment.slice(1) : segment));
   });
   return out;
