@@ -5951,6 +5951,10 @@ export const api = {
     start_utc?: string; end_utc?: string; cursor?: string;
   }) => get<AuditEventDTO[], ApiMeta & { continuation?: AuditContinuationDTO }>("/audit", params),
   ssoProfile: () => get<Record<string, unknown>>("/access/sso"),
+  /** First-run setup (ADMIN): the welcome flow's pages and where it stands. */
+  setup: (options?: ApiRequestOptions) => get<SetupViewDTO>("/setup", undefined, options),
+  saveSetup: (status: "in_progress" | "completed" | "dismissed", step: string | null) =>
+    put<SetupViewDTO>("/setup", { status, step }),
 };
 
 
@@ -6123,6 +6127,50 @@ export interface DataScopeCatalogueDTO {
   public_baseline: string[];
   commercial: string[];
   wildcard: string;
+}
+
+/** One entry of a first-run setup page: a registered source, or a product capability. */
+export interface SetupItemDTO {
+  item_id: string;
+  source_id?: string;
+  source_system?: string;
+  category?: string;
+  integration?: string;
+  /**
+   * How the product connects to it today: open, approval, approval_and_key, key, model,
+   * licensed_key, licensed_import, licensed_none, register, template; for the book and people
+   * pages: import, api_key, admin.
+   */
+  connection: string;
+  credential_provider?: string | null;
+  key_registration_url?: string | null;
+  licence_family?: string | null;
+  import_tools?: string[];
+  tool?: string;
+  datasets?: string[];
+}
+
+export interface SetupViewDTO {
+  state: {
+    status: "not_started" | "in_progress" | "completed" | "dismissed";
+    current_step: string | null;
+    steps_visited: string[];
+    configured_by: "admin" | "demo_profile" | "environment" | null;
+    updated_by: string | null;
+    updated_at_utc: string | null;
+  };
+  show_on_sign_in: boolean;
+  catalogue: {
+    steps: { step: string; items: SetupItemDTO[] }[];
+    excluded: { source_id: string; reason: string }[];
+  };
+  key_storage_ready: boolean;
+  ai_external_enabled: boolean;
+  /** LNG terminal tariffs the product holds (`lng_terminal_terms`) and where they came from. */
+  terminal_tariffs: {
+    held: number; from_operator: number; desk_entered: number;
+    terminals: string[]; latest_read_at_utc: string | null;
+  };
 }
 
 /** Where an audit walk stands (#59): the anchor, whether more matches exist, the next cursor. */

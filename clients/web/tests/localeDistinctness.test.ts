@@ -49,6 +49,16 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "sources.category.llm": "an acronym",
   "status.alembic": "a tool's own name",
   "strategy_lab.kpi": "an acronym",
+  "setup.item.src-argus.name": "a provider's own name",
+  "setup.item.src-eex.name": "a provider's own name",
+  "setup.item.src-gie.name": "a provider's own name",
+  "setup.item.src-ice-endex.name": "a provider's own name",
+  "setup.item.src-ice-ocm.name": "a provider's own name",
+  "setup.item.src-icis.name": "a provider's own name",
+  "setup.item.src-ngx.name": "a provider's own name",
+  "setup.item.src-platts.name": "a provider's own name",
+  "setup.item.src-trayport.name": "a provider's own name",
+  "setup.step.ai.title": "an acronym",
 };
 
 test("the two locales declare exactly the same keys", () => {

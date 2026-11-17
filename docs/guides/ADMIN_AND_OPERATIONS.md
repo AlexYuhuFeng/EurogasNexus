@@ -24,6 +24,35 @@ Complete [Client onboarding](CLIENT_ONBOARDING.md) with the desk before handing 
 The business owner approves commercial access; the administrator applies the approved change.
 Platform administration and commercial-data access are separate permissions.
 
+## First run: the setup guide
+
+The first administrator to sign in on a fresh installation sees a welcome guide, one page per
+kind of data: open market data, prices and trading screens, LNG and shipping, weather, FX and
+rates, your book, AI and people, then a summary. Each page lists the sources of that kind (from
+the product's connector registry) with one line on what each turns on, its state and what it
+needs. Every step has **Skip for now**; **Finish later** closes it; nothing blocks the product.
+Reopen it at any time from **Admin → Access & Identity → Setup**. It is never shown to anyone
+without administration rights.
+
+- **Keys** (GIE, ENTSO-E, EIA, the model provider) are typed once, stored on your server
+  encrypted with this installation's key (`EUROGAS_NEXUS_SECRET_KEY`, Fernet), and never shown
+  again: the page shows "Key saved · …last four". **Test** runs the provider's live check where
+  the product has one (GIE, the model); a failed test says why and the key stays saved. Storing
+  the key for EIA, ENTSO-E, GIE or GIE IIP switches that source on at the next scheduler scan.
+- **Approvals** (ENTSOG, GIE): read the terms summary, give the reason and accept the terms for
+  the firm. The product never accepts them for you.
+- **Licensed sources** (Trayport, ICE, EEX, CME, NGX, Argus, Platts, ICIS, Kpler, WM/Reuters,
+  BFIX): the guide says how each connects today. None has a live connector yet; most are imports
+  of the export you already receive (the command is shown), ICIS has no import yet. **Record the
+  licence** opens the licence register so access can be granted.
+- **LNG terminal tariffs**: held or not held, and how many were read from the operator's
+  published document versus entered by the desk.
+- **AI**: optional; a release environment keeps external model calls off unless IT enables them.
+- **People**: opens Admin → Users.
+
+The state (not started, in progress, completed, finished later) is stored per installation and
+audited (`setup.state`). A demo server marks it "configured by the demo profile".
+
 ## Add and manage users
 
 **Admin → Access & Identity → Users** lists everyone who can sign in, how they sign in, one

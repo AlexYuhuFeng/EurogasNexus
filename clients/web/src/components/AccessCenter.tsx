@@ -6,6 +6,7 @@ import {
   type AccessApiKeyDTO,
   type AccessUserDTO,
   type AccountOptionsDTO,
+  type SetupViewDTO,
   type AuditEventDTO,
   type CurrentUserDTO,
 } from "@/api/client";
@@ -18,15 +19,16 @@ import {
   undeclaredScopes,
   type DataScopeCatalogue,
 } from "@/app/model/accessCatalogueModel";
-import { PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
+import { Button, PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
 import { LicenceRegisterPanel } from "@/components/LicenceRegisterPanel";
 import { AccessUsers } from "@/components/AccessUsers";
+import { OPEN_SETUP_EVENT } from "@/components/FirstRunSetup";
 import { groupPermissions } from "@/app/permissionVocabulary";
 import { useUrlView } from "@/app/navigation/useUrlView";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 
-type AccessViewId = "users" | "api_keys" | "catalogue" | "audit" | "sso";
-const ACCESS_VIEWS: AccessViewId[] = ["users", "api_keys", "catalogue", "audit", "sso"];
+type AccessViewId = "users" | "api_keys" | "catalogue" | "audit" | "sso" | "setup";
+const ACCESS_VIEWS: AccessViewId[] = ["users", "api_keys", "catalogue", "audit", "sso", "setup"];
 
 interface AccessCenterProps {
   currentUser: CurrentUserDTO | null;
@@ -466,6 +468,12 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
         </div>
       )}
 
+      {activeView === "setup" && (
+        <div id="access-active-panel" role="tabpanel" aria-labelledby="access-tab-setup" className="workspace-panel span-3">
+          <SetupPanel t={t} />
+        </div>
+      )}
+
       {activeView === "sso" && (
         <div id="access-active-panel" role="tabpanel" aria-labelledby="access-tab-sso" className="workspace-panel span-3">
           <PanelHeader title={t("access.sso_title")} />
@@ -476,3 +484,26 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
   );
 }
 
+
+/** Admin → Access → Setup: where the first-run guide stands, and the way back into it. */
+function SetupPanel({ t }: { t: (key: string) => string }) {
+  const [state, setState] = useState<SetupViewDTO["state"] | null>(null);
+  useEffect(() => {
+    api.setup().then((response) => setState(response.data.state)).catch(() => setState(null));
+  }, []);
+  return (
+    <section className="access-setup" aria-labelledby="access-setup-title">
+      <PanelHeader headingId="access-setup-title" title={t("access.setup.title")} />
+      <p className="panel-copy">{t("access.setup.body")}</p>
+      {state && (
+        <p className="panel-copy" data-setup-status={state.status}>
+          <StatusBadge tone={state.status === "completed" ? "ok" : "neutral"}>{t(`access.setup.status.${state.status}`)}</StatusBadge>
+          {state.configured_by ? ` ${t(`access.setup.by.${state.configured_by}`)}` : ""}
+        </p>
+      )}
+      <Button variant="primary" size="md" onClick={() => window.dispatchEvent(new Event(OPEN_SETUP_EVENT))}>
+        {t("access.setup.open")}
+      </Button>
+    </section>
+  );
+}

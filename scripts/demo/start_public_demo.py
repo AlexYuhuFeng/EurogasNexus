@@ -398,6 +398,23 @@ def ensure_test_accounts(session, *, reapply: bool) -> tuple[list[str], list[str
     return [spec.username for spec in specs], disabled
 
 
+def mark_setup_configured(session) -> None:
+    """The demo profile configures the open-data steps from its environment: say so once.
+
+    The first-run setup flow is then not shown at sign-in; Admin -> Access -> Setup still
+    opens it. An administrator's own later choice (completed, dismissed) is kept.
+    """
+
+    from eurogas_nexus.application import first_run_setup
+
+    if first_run_setup.setup_state(session)["status"] in {"completed", "dismissed"}:
+        return
+    first_run_setup.update_setup_state(
+        session, status="completed", step=None, actor="demo-start", configured_by="demo_profile"
+    )
+    log("first-run setup: configured by the demo profile")
+
+
 def prepare_database() -> None:
     from eurogas_nexus.db.session import get_session_factory
 
@@ -439,6 +456,9 @@ def prepare_database() -> None:
     )
     with factory() as session:
         listed, disabled = ensure_test_accounts(session, reapply=bool(reason))
+        session.commit()
+    with factory() as session:
+        mark_setup_configured(session)
         session.commit()
     if listed:
         log(

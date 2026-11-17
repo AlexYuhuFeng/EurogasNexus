@@ -80,6 +80,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/access/api-keys/{key_id}/revoke", Permission.ADMIN),
     ("/api/audit", Permission.ADMIN),
     ("/api/access/sso", Permission.ADMIN),
+    # First-run setup: the welcome flow's pages and state; keys and approvals go through
+    # their own routes.
+    ("/api/setup", Permission.ADMIN),
     # --- credentials: reads are safe metadata; every write is operator-only ---
     ("/api/credentials/providers", Permission.READ),
     ("/api/credentials/{provider_id}", Permission.OPERATOR),

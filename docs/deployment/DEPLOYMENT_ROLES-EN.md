@@ -199,6 +199,20 @@ parameters; see [Local accounts](../security/LOCAL_ACCOUNTS.md) for storage, loc
 threat notes. `EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS` (demo test accounts) is refused by a customer
 server: the API does not start with it set.
 
+### First run without the browser (headless)
+
+Everything the setup guide does has a server-side equivalent, and the guide shows what is
+already configured:
+
+- keys: the provider variables in `env.server.example` (`GIE_API_KEY`, `ENTSOE_SECURITY_TOKEN`,
+  `EIA_API_KEY`, `EUROGAS_NEXUS_LLM_API_KEY`, or a key file where the variable list offers one);
+  the guide then reads
+  "Key saved" for them;
+- approvals: `scripts/ops/approve_public_source.py` (below);
+- people: `python -m eurogas_nexus.cli.accounts` (above);
+- the guide itself: `python -m eurogas_nexus.cli.setup complete` records it as configured from
+  the environment, so administrators are not shown it at sign-in (`status`, `reopen`).
+
 ### First run: approve the public sources
 
 ENTSOG and GIE are read only after an administrator approves them for the firm (a

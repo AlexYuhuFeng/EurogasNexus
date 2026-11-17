@@ -21,6 +21,11 @@ const COMMERCIAL_WORKSPACE_KEYS = new Set([
  * persisted case evidence and portfolio projections instead of issuing this
  * governed preparation read. This is composition, never an authorization gate. */
 export function workspaceReadNeeded(key: string, user: CurrentUserDTO | null): boolean {
+  if (key === "reviewDecisions" && viewerOnly(user)) {
+    // GET /api/review/decisions has the REVIEWER role floor: a VIEWER-only identity is refused,
+    // and the refusal read as "some data failed to load" on every page of a fresh installation.
+    return false;
+  }
   if (key === "upstreamContracts" && Array.isArray(user?.permissions)) {
     return needsCommercialWorkspaceReads(user) && user.permissions.includes("scenario.create");
   }
@@ -36,4 +41,10 @@ export function workspaceReadNeeded(key: string, user: CurrentUserDTO | null): b
 export function runsGovernedResearch(user: CurrentUserDTO | null): boolean {
   if (!user || !Array.isArray(user.permissions)) return true;
   return user.permissions.includes("strategy.create");
+}
+
+/** An identity whose only role is VIEWER (composition only; the server decides access). */
+function viewerOnly(user: CurrentUserDTO | null): boolean {
+  const roles = Array.isArray(user?.roles) && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : [];
+  return roles.length > 0 && roles.every((role) => String(role).toUpperCase() === "VIEWER");
 }

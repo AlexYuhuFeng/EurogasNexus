@@ -24,6 +24,10 @@ Checks:
   and, measured on its own branch, after
   the comparable-price reads `GET /api/market/fx-forward` and `POST /api/market/normalise` (READ, like every `/api/market/` read: nothing stored, FX
   facts and prices filtered by the caller's data entitlements); 256 / 282 after
+  and, measured on its own branch, after
+  `GET`/`PUT /api/setup` (ADMIN: the first-run setup flow's pages and state; it stores no key,
+  keys go through the credential routes and approvals through the approval route); 256 / 282
+  on 2026-11-17, after
   the local-account routes: `POST /api/auth/login` and `POST /api/auth/password-change`
   (PUBLIC credential-issuing entry points: uniform refusal, per-account back-off,
   per-address throttle, foreign Origin refused), `POST /api/me/password` (READ: own

@@ -61,6 +61,7 @@ by a CLI flag.
   (2026-11-17: assumption sets, firm marks and valuation snapshots, CP-07 of the commercial
   design basis 2: six paths and eight operations under `/api/assumption-sets` and
   `/api/market/`; 256 / 282 before)
+  (2026-11-18: first-run setup, `GET`/`PUT /api/setup` (ADMIN); 256 / 282 before)
   (2026-11-17: local accounts and SSO pre-provisioning, four paths and six operations under
   `/api/auth/`, `/api/me/` and `/api/access/users`; 252 / 276 before)
   (2026-11-17: report library — delete, rename and bulk delete of stored reports — and the

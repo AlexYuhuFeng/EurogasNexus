@@ -148,6 +148,7 @@ from eurogas_nexus.db.models.settings import (
     OrganisationSettingRecord,
     PrincipalPreferenceRecord,
 )
+from eurogas_nexus.db.models.setup import InstallationSetupRecord
 from eurogas_nexus.db.models.shadow import (
     StrategyShadowAlertRecord,
     StrategyShadowCandidateRecord,
@@ -350,6 +351,7 @@ __all__ = [
     "IdentityApiKeyRecord",
     "IdentityExternalIdRecord",
     "IdentityLocalCredentialRecord",
+    "InstallationSetupRecord",
     "IdentityPrincipalRecord",
     "OidcAuthorizationStateRecord",
     "UserSessionRecord",

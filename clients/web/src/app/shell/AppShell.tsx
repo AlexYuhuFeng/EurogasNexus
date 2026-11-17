@@ -42,6 +42,7 @@ import { layoutWorkspacePage } from "@/app/context/viewPreference";
 import { requestProblemReport } from "@/app/model/supportReport";
 import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { useWideContent } from "@/app/shell/useWideContent";
+import { FirstRunSetupGate } from "@/components/FirstRunSetup";
 
 interface AppShellProps {
   controller: AppController;
@@ -202,8 +203,11 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     // the shell shows the default page for a moment before it applies the deep link, and
     // redirecting on that would drop an administrator's link to Access or Settings.
     if (!commercialRestricted || !profileReady) return;
-    if (!isCommercialPage(workspaceFromLocation())) return;
-    openWorkspace(ownSurface);
+    // Reading the location can itself resolve the persona home into the URL (the identity
+    // profile arrives after the first render at sign-in): follow it, or the business page that
+    // rendered first stays on screen as a restriction while the URL already names Access.
+    const requested = workspaceFromLocation();
+    openWorkspace(isCommercialPage(requested) ? ownSurface : requested);
   }, [commercialRestricted, profileReady, ownSurface, openWorkspace]);
 
   // A mode task the caller's role cannot use is absent, never an error page: a link to one opens
@@ -401,6 +405,21 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
       )}
 
       <DeskBriefDialog language={i18n.language} t={t} />
+
+      {/* The first administrator's welcome flow (first-run setup); admins only, skippable. */}
+      <FirstRunSetupGate
+        currentUser={currentUser}
+        t={t}
+        onNavigate={(destination) => {
+          navigation.openWorkspace(destination.page);
+          if (destination.view) {
+            const url = new URL(window.location.href);
+            url.search = viewToSearch(url.search, destination.page, destination.view);
+            window.history.replaceState(window.history.state, "", url);
+            window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+          }
+        }}
+      />
 
       <CommandPalette
         open={palette.open}

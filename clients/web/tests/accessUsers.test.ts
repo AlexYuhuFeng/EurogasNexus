@@ -88,3 +88,11 @@ test("Admin -> Users uses the shared primitives and shows the one-time password 
   assert.doesNotMatch(panel, /localStorage|sessionStorage/);
   assert.match(panel, /kind: "secret"/);
 });
+
+test("a VIEWER-only identity does not issue the review read its role floor refuses", async () => {
+  const { workspaceReadNeeded } = await import("../src/stores/workspaceReadScope.ts");
+  const viewer = { roles: ["VIEWER"], role: "VIEWER", permissions: ["review.read", "market.read", "portfolio.read"] } as never;
+  const reviewer = { roles: ["REVIEWER"], role: "REVIEWER", permissions: ["review.read", "review.record"] } as never;
+  assert.equal(workspaceReadNeeded("reviewDecisions", viewer), false);
+  assert.equal(workspaceReadNeeded("reviewDecisions", reviewer), true);
+});

@@ -51,6 +51,14 @@ quoted in different units or currencies (the "different units" refusal is gone; 
 is not held is refused with the missing rate named), and its response gains `normalisation`.
 `/api/research/spread-series` is unchanged. No field changes meaning. Census: 258 paths /
 284 operations.
+Additive 2026-11-18 (first-run setup): one path, two operations. `GET /api/setup` (ADMIN)
+answers the welcome flow's pages (`catalogue.steps[].items[]`: source, how the product connects
+to it today, credential provider, key registration URL, licence family, import tools), the
+installation's `state` (`not_started` / `in_progress` / `completed` / `dismissed`, step,
+`configured_by`), `show_on_sign_in`, `key_storage_ready`, `ai_external_enabled` and
+`terminal_tariffs` (LNG terminal tariffs held and their source). `PUT /api/setup` (ADMIN) records
+`{status, step}`, audited `setup.state`. No key or approval passes through it. Census: 257 paths
+/ 284 operations.
 
 Additive 2026-11-17 (local accounts and SSO pre-provisioning): four paths, six operations.
 `POST /api/auth/login` (PUBLIC: user name or e-mail and password; 401 `invalid_credentials`

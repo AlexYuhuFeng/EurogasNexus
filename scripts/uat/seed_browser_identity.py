@@ -73,8 +73,16 @@ def main() -> int:
         row.data_scopes = ["*"]
         row.updated_at_utc = now
         session.flush()
-        session.commit()
         principal_id = row.principal_id
+        # The acceptance sweep's administrator works the product, not the first-run flow:
+        # the flow is recorded as dismissed so it never covers the page being checked.
+        from eurogas_nexus.application import first_run_setup
+
+        if first_run_setup.setup_state(session)["status"] not in {"completed", "dismissed"}:
+            first_run_setup.update_setup_state(
+                session, status="dismissed", step=None, actor="uat-seed", configured_by="admin"
+            )
+        session.commit()
 
     print(f"Browser UAT principal ready: {principal_id} (roles: {', '.join(UAT_ROLES)})")
     return 0

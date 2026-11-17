@@ -51,6 +51,20 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
 - Report language (English / 中文) end to end (`reports/lang.py`).
 - AI replies in the interface language on every surface: `ai_style.language_rule` and the
   language check in `text_verdict`; Chinese rule fallbacks for Why, the brief and Ask.
+## 2026-11-18 — first-run setup guide (branch `accounts-first-run`, not pushed)
+
+- `application/first_run_setup.py`: one mapping of every registered source to a page (open
+  data, prices, LNG and shipping, weather, FX and rates; book, AI and people as capability
+  items), how each connects today (approval, key, licensed import, none yet, register, ...)
+  from the manifests, approval classes and the import tools that exist; a test fails for a
+  manifest with no page or an entry without EN/ZH words. LNG terminal tariffs: held / not held
+  and from which source (`lng_terminal_terms`).
+- `GET`/`PUT /api/setup` (ADMIN), state in `installation_setup` (migration
+  `0066_installation_setup`), audited. Keys through the credential routes, approvals through
+  the approval route. Surface 257 / 284.
+- Web: the welcome dialog for the first administrator (skippable, resumable from Admin →
+  Access → Setup), demo marks it configured, UAT seed dismisses it, headless CLI
+  `python -m eurogas_nexus.cli.setup`.
 
 ## 2026-11-17 — CP-03 chart standard (branch `cp-03-04`, not pushed)
 

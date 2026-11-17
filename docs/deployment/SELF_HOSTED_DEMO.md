@@ -120,6 +120,8 @@ forward (the fictional unplanned outage is revised every five hours, so the situ
 under the top bar always has a live, `sim`-marked item for the roles it concerns) and runs one
 monitoring scan with the demo's configuration, so the alerts bell and the strip agree with the
 risk pages.
+The first-run setup guide is recorded as "configured by the demo profile" at start-up, so it
+does not open at sign-in; administrators reach it from Admin → Access & Identity → Setup.
 
 ### Demo test accounts (optional)
 
