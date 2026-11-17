@@ -662,7 +662,7 @@ def _seed_cross_border_position(session, now: datetime, today: date) -> None:
     session.add(
         UpstreamResourceContractRecord(
             contract_id=CROSS_BORDER_CONTRACT,
-            contract_name="Kestrel UK leg (TTF to NBP via BBL)",
+            contract_name="Kestrel UK leg (TTF, sold at NBP)",
             resource_type="PIPELINE_IMPORT",
             delivery_point_name="TTF",
             gas_year=label,
@@ -681,7 +681,8 @@ def _seed_cross_border_position(session, now: datetime, today: date) -> None:
             allowed_exit_points=["NBP"],
             eligible_sale_modes=["LOCAL_MARKET_SALE"],
             notes="Demo contract (fictional): sold at NBP through BBL.",
-            book_id="demo-nl-ttf",
+            # The UK book sells it at NBP; inside its mandate (the NL book is near its own).
+            book_id="demo-uk-nbp",
             created_at_utc=now,
             updated_at_utc=now,
         )

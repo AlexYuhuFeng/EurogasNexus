@@ -74,7 +74,8 @@ def test_reseeding_replaces_the_demo_rows(session):
     seed.seed(session, now)
     session.commit()
     assert session.query(CreditLineRecord).count() == 3
-    assert session.query(UpstreamResourceContractRecord).count() == 3
+    # Three supply contracts and the cross-border position (TTF sold at NBP through BBL).
+    assert session.query(UpstreamResourceContractRecord).count() == 4
 
 
 def test_the_seed_refuses_release_and_demo_marks_stay_off_by_default(monkeypatch, capsys):
