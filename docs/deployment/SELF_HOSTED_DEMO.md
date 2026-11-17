@@ -216,7 +216,7 @@ commands and read bounds the product's own scheduler uses on a real store
 
 | Step | Needs | Window of the first round (45-day gap) | Later rounds |
 |---|---|---|---|
-| Certification of ENTSOG and GIE (see below) | – (GIE: `GIE_API_KEY`) | when no current record | renewed 7 days before expiry |
+| Approval of ENTSOG and GIE (see below) | – (GIE: `GIE_API_KEY`) | when no approval is in force | not repeated while in force |
 | ECB reference rates | – | the latest fixing | the same |
 | ENTSOG reference network, flows and capacity | – | the newest 7 gas days, all points; reference at most daily | the same |
 | GIE AGSI storage and ALSI LNG (Europe total and the NW Europe countries) | `GIE_API_KEY` | 45 gas days | at least 30 |
@@ -237,8 +237,8 @@ the next round, while the others read only theirs. Expected lines (first round):
 
 ```
 [demo-start] catch-up: reading the gap since each source's last good round (45 day(s))
-[demo-start] catch-up ENTSOG certification (no certification record): live_validated in 7s
-[demo-start] catch-up GIE certification (no certification record): live_validated in 3s
+[demo-start] catch-up ENTSOG approval (no certification record): approved in 7s
+[demo-start] catch-up GIE approval (no certification record): approved in 3s
 [demo-start] catch-up ECB reference rates: ok in 2s (records 12)
 [demo-start] catch-up ENTSOG reference, flows and capacity (7 gas days): ok in 114s (records ...)
 [demo-start] catch-up Elexon GB power (7 days): failed (exit 1) in 62s (records 1198, inserted 1198; failures: TimeoutError)
@@ -250,19 +250,21 @@ Each round is an audit event `demo.catch_up` (`ok=` and `failed=` step lists); a
 hand: `docker compose exec demo python scripts/demo/start_public_demo.py catch-up`. While a
 dataset is behind it shows late or stale on screen; nothing stale is presented as current.
 
-**Certification.** ENTSOG and GIE ingest only with a certification record (the fail-closed
-source gate in `scripts/ops/ingest_public_sources.py`; without one a read logs
-`source_gate_blocked`). On a real store an operator earns the record with
-`scripts/ops/certify_public_source.py` (docs/data/LIVE_BRINGUP_2026-11-12.md): a bounded live
-sample through the ingestion transport, a dry run of the normaliser, a field-shape check, and
-the evidence (counts and the sample's SHA-256) recorded with a 90-day expiry, or nothing when a
-check fails. The demo runs exactly that command at the start of a round, as a demo-profile
-action: operator `demo-start`, note "demo profile: bounded live sample of a public source,
-certified by the demo start-up ...", an audit event `demo.certify` beside the command's own
-`certification.upsert`. It runs only when there is no current record (none, a failed stage,
-or expiry within 7 days). The gate itself is unchanged, and the customer runtime image does
-not contain this script. Using a provider's data is still the operator's decision: use only
-keys and sources whose terms allow this use.
+**Approval.** ENTSOG and GIE are read only after an administrator approves them for the
+firm (the fail-closed gate in `scripts/ops/ingest_public_sources.py`; without an approval a
+read is refused with `source_not_approved`). A customer installation does this on Admin →
+Data sources or with `scripts/ops/approve_public_source.py` (see
+[DEPLOYMENT_ROLES-EN.md](DEPLOYMENT_ROLES-EN.md), "First run"). The demo runs that same
+command at the start of a round, as a demo-profile action. **On the demo, setting a key in
+`.env` or `EUROGAS_NEXUS_DEMO_LIVE_SOURCES=on` is the operator's acceptance of the ENTSOG and
+GIE terms for that demo; a customer installation never does this and always requires an
+administrator's explicit approval.** The
+approval is recorded as operator `demo-start` with the reason "demo profile: approved by the
+demo start-up because the operator turned live public sources on for this demo", audited by
+the product (`source.approval`) and by the demo (`demo.certify`). It runs the product's
+bounded live validation and only when no approval is in force. The gate itself is unchanged.
+Use only keys and sources whose terms allow this use; the terms summary each approval
+records is in [DATA_SOURCE_TERMS.md](../legal/DATA_SOURCE_TERMS.md).
 
 **Real and simulated data.** The demo desk ships simulated flows, storage, LNG, power
 fundamentals, FX and two fictional outages so every screen works without keys. Once a real
@@ -275,8 +277,11 @@ book, its deliveries and curve. Scopes a source did not cover (no key, a failed 
 simulated until it does.
 
 Catch-up time, measured on a fresh stack with all three keys (2026-11-16, through a slow
-outbound proxy): the server answered 30 s after start; the first round took 17 minutes
-(certification 10 s; ECB 2 s; ENTSOG reference, newest week and capacity 114 s, then six
+outbound proxy). With the approval step and a week of ENTSO-E: the server answered 32 s
+after start and the first round took 13 minutes with all 15 sources ok (approvals 6 s and
+10 s; ENTSOG newest week 119 s; GIE 56 s; ENTSO-E 88 s; GIE IIP 222 s; six older ENTSOG
+weeks 19–51 s each). An earlier run, before those changes: the first round took 17 minutes
+(approval 10 s; ECB 2 s; ENTSOG reference, newest week and capacity 114 s, then six
 older weeks of flows 27–70 s each; GIE 9 s; National Gas 4 s; Elexon 62 s; ENTSO-E 409 s for
 a month, now read a week at a time, about 4 minutes; EIA, rates 2–4 s each; GIE IIP 94 s;
 ENTSOG UMMs 4 s). A later round took about 8 minutes, most of it ENTSO-E and ENTSOG. Stored

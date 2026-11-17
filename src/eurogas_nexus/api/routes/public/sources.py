@@ -262,9 +262,48 @@ def _sources_with_runtime_status() -> tuple[list[dict], list[str]]:
                 is IngestionRunStatus.SUCCEEDED_WITH_WARNINGS
             ),
         )
+    _attach_approval(sources, certifications)
     _attach_preview_substitute_status(sources)
     _attach_operational_status(sources)
     return sources, warnings
+
+
+def _attach_approval(sources: list[dict], certifications: dict[str, dict[str, Any]]) -> None:
+    """Each source's approval class and state, in plain words (Admin -> Connectors).
+
+    A public source the fail-closed gate holds back until an administrator approves it
+    (ENTSOG, GIE) is never a silent gap: its state and stable reason
+    (``source_not_approved``) are on the source and on every freshness-contract row, so
+    the Connectors screen and Data feeds can name it and link to the action.
+    """
+
+    from eurogas_nexus.domain.ingestion.source_approval import (
+        STATE_WORDS,
+        approval_state,
+        classify_source,
+    )
+
+    for source in sources:
+        approval = approval_state(
+            source["source_system"],
+            certification=certifications.get(source["source_system"]),
+            gate_allows_live=bool(source.get("certification_allows_live")),
+            credential_state=str(source.get("credential_state") or ""),
+            connectivity_status=str(source.get("connectivity_status") or ""),
+            last_message=source.get("last_ingestion_message"),
+            last_success_at_utc=source.get("last_success_at_utc"),
+        )
+        approval["class"] = classify_source(source)
+        approval["state_words"] = STATE_WORDS.get(approval["state"], approval["state"])
+        source["approval"] = approval
+        if approval["state"] in {"not_approved", "approved_waiting_for_key", "failing"}:
+            for row in source.get("freshness_contract") or []:
+                row["blocked_reason"] = approval["reason"]
+                row["blocked_action"] = approval.get("action")
+            if approval["state"] == "not_approved" and "source_not_approved" not in source.get(
+                "diagnostics", []
+            ):
+                source.setdefault("diagnostics", []).insert(0, "source_not_approved")
 
 
 def _record_total(sources: list[dict]) -> int | None:
@@ -1280,6 +1319,7 @@ def _ingestion_run_payload(row) -> dict:
         "records_failed": 0,
         "normalization": "normalized",
         "error_message": (None if canonical_status in SUCCESS_RUN_STATUSES else row.notes),
+        "error_code": getattr(row, "error_code", None),
         "source_reference": row.notes,
     }
 

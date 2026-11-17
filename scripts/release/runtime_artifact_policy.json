@@ -3,6 +3,7 @@
   "description": "Customer API image scripts are an explicit allowlist. Source-checkout simulation producers, UAT/research seed tools, fixtures and local .dnx artifacts never ship. Historical provenance metadata and simulation-refusal/read filters remain necessary runtime code.",
   "excluded_wheel_modules": ["eurogas_nexus/ingestion/simulated_market_prices"],
   "runtime_scripts": [
+    "scripts/ops/approve_public_source.py",
     "scripts/ops/backup_restore_drill.py",
     "scripts/ops/backup_runtime.py",
     "scripts/ops/check_config.py",

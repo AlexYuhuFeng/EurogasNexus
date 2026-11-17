@@ -71,3 +71,22 @@ test("a TSO tariff register is a manual register: never stale, never an alarm (D
   assert.equal(held.group, "connected");
   assert.equal(held.statusKey, "connectors.status.manual_register");
 });
+
+test("a public source the gate holds back says so in plain words, with the approve action", () => {
+  // ENTSOG on a fresh installation: no records, no key needed, not approved yet.
+  const entsog = { ...base, source_id: "src-entsog", approval: { required: true, state: "not_approved" } };
+  assert.deepEqual(connectorCard(entsog), {
+    sourceId: "src-entsog", group: "attention", statusKey: "connectors.status.not_approved", action: "approve",
+  });
+  const waiting = { ...entsog, approval: { required: true, state: "approved_waiting_for_key" } };
+  assert.equal(connectorCard(waiting).statusKey, "connectors.status.approved_waiting_for_key");
+  assert.equal(connectorCard(waiting).action, "connect");
+  const failing = { ...entsog, approval: { required: true, state: "failing" } };
+  assert.equal(connectorCard(failing).statusKey, "connectors.status.failing");
+  // Approved and reading: the ordinary statuses apply.
+  const running = { ...entsog, connectivity_status: "active", operational_status: "active", approval: { required: true, state: "running" } };
+  assert.equal(connectorCard(running).statusKey, "connectors.status.live");
+  // A source that needs no approval is untouched.
+  const ecb = { ...base, approval: { required: false, state: "not_required" } };
+  assert.deepEqual(connectorCard(ecb), connectorCard(base));
+});

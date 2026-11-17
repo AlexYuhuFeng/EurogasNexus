@@ -112,4 +112,32 @@ def health_ready(request: Request) -> dict:
             "runtime_db": "ok",
             "required_tables": "ok",
         },
+        # Informational, never a readiness failure (providers are optional): public sources
+        # the ingestion gate holds back until an administrator approves them, so a fresh
+        # installation says at its first probe what stands between it and live data.
+        "attention": _public_source_attention(),
+    }
+
+
+def _public_source_attention() -> dict:
+    try:
+        from eurogas_nexus.application.public_source_approval import held_back_sources
+        from eurogas_nexus.db.session import get_session_factory
+        from eurogas_nexus.domain.ingestion.source_approval import (
+            APPROVAL_ACTION,
+            APPROVAL_SOURCE_IDS,
+        )
+
+        with get_session_factory()() as session:
+            held = held_back_sources(session)
+    except Exception:  # noqa: BLE001 - informational; readiness stays the DB checks
+        return {}
+    if not held:
+        return {}
+    return {
+        "public_sources_held_back": [
+            {"source_id": APPROVAL_SOURCE_IDS[item["source_system"]], "state": item["state"]}
+            for item in held
+        ],
+        "action": f"{APPROVAL_ACTION} (or scripts/ops/approve_public_source.py)",
     }

@@ -1,0 +1,55 @@
+@layer legacy {
+/* Public-source approvals on Admin → Connectors (ENTSOG, GIE): state, terms, one action. */
+
+.public-source-approval-list {
+  display: grid;
+  gap: var(--ds-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-source-approval-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: center;
+  font-size: var(--ds-text-sm);
+}
+
+.public-source-approval-form {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin-top: var(--ds-space-2);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+}
+
+.public-source-approval-terms p {
+  margin: var(--ds-space-1) 0 0;
+}
+
+.public-source-approval-actions {
+  display: flex;
+  gap: var(--ds-space-2);
+}
+
+.public-source-approval-result {
+  margin: var(--ds-space-2) 0 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.source-approval-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: center;
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+}
+}

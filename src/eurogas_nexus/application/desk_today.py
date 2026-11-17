@@ -43,6 +43,17 @@ BALANCE_DAYS = 14
 LATE_STATES = frozenset({"late", "stale"})
 
 
+def _held_back(session, systems) -> list[dict[str, str]]:
+    """Approval-required sources the ingestion gate holds back (never raises)."""
+
+    try:
+        from eurogas_nexus.application.public_source_approval import held_back_sources
+
+        return held_back_sources(session, systems)
+    except Exception:  # noqa: BLE001 - an empty state must not fail the read
+        return []
+
+
 def empty(code: str, reason: str, action: str) -> dict[str, str]:
     """An explicit empty state: why there is nothing, and what would fill it."""
 
@@ -821,6 +832,11 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
     rows, simulated = window(now, STORAGE_CHART_DAYS)
     by_day, starts, all_days = complete_days(rows)
     if not all_days:
+        held = _held_back(session, ("GIE",))
+        if held:
+            # Not a silent gap: the gate holds GIE back until an administrator approves it.
+            return {"empty": empty("source_not_approved", held[0]["text"],
+                                   "Admin → Connectors")}
         return {"empty": empty("storage_not_connected", "Storage data not connected",
                                "Connect GIE AGSI in Sources")}
     days = all_days[-STORAGE_DAYS:]
@@ -934,6 +950,11 @@ def _balance(session, caller: Caller, now, balance_reader, read: _Read) -> dict[
         data = {}
     history = list(data.get("history") or [])[-BALANCE_DAYS:]
     if not history:
+        held = _held_back(session, ("ENTSOG", "GIE"))
+        if held:
+            return {"empty": empty("source_not_approved",
+                                   "; ".join(item["text"] for item in held),
+                                   "Admin → Connectors")}
         return {"empty": empty("balance_not_connected",
                                "Balance needs ENTSOG flows, GIE storage and LNG",
                                "Connect ENTSOG and GIE in Sources")}

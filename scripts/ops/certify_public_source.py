@@ -23,201 +23,36 @@ expires (default 90 days), so validation is repeated rather than assumed.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
-from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-USER_AGENT = "EurogasNexus public-source-certification"
-#: At least this share of a live sample must normalise for the adapter to be called valid.
-MIN_ACCEPTED_SHARE = 0.9
-DEFAULT_VALID_DAYS = 90
+# The live checks live in the product (application.public_source_approval), shared with the
+# administrator's approval on the Connectors screen and scripts/ops/approve_public_source.py.
+from eurogas_nexus.application.public_source_approval import (  # noqa: E402
+    DEFAULT_VALID_DAYS,
+    EXPECTED_FIELDS,
+    MIN_ACCEPTED_SHARE,
+    USER_AGENT,
+    DatasetCheck,
+    _has_value,
+    _missing,
+    _period,
+    _sha,
+    check_entsog,
+    check_gie,
+    decide,
+)
 
-#: Fields each normaliser reads, per dataset: the shape it was built and replay-tested on.
-EXPECTED_FIELDS: dict[str, tuple[str, ...]] = {
-    "entsog:connectionpoints": ("pointKey", "pointLabel"),
-    "entsog:operationaldatas": (
-        "pointKey", "operatorKey", "directionKey", "indicator", "periodFrom", "periodTo",
-        "value", "unit",
-    ),
-    "gie:AGSI": ("name", "code", "gasDayStart", "gasInStorage", "full"),
-    "gie:ALSI": ("name", "code", "gasDayStart"),
-}
-
-
-@dataclass
-class DatasetCheck:
-    dataset: str
-    records: int = 0
-    normalised: int = 0
-    missing_fields: list[str] = field(default_factory=list)
-    sample_sha256: str = ""
-    period: tuple[str | None, str | None] = (None, None)
-    error: str = ""
-
-    @property
-    def shape_ok(self) -> bool:
-        return self.records > 0 and not self.missing_fields
-
-    @property
-    def sample_ok(self) -> bool:
-        return self.records > 0 and self.normalised >= MIN_ACCEPTED_SHARE * self.records
-
-    def as_evidence(self) -> dict[str, Any]:
-        return {
-            "dataset": self.dataset,
-            "records": self.records,
-            "normalised": self.normalised,
-            "missing_fields": self.missing_fields,
-            "sample_sha256": self.sample_sha256,
-            "period_from": self.period[0],
-            "period_to": self.period[1],
-            "error": self.error,
-        }
-
-
-def _sha(payload: object) -> str:
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, default=str, ensure_ascii=False).encode()
-    ).hexdigest()
-
-
-def _missing(records: list[dict[str, Any]], expected: tuple[str, ...]) -> list[str]:
-    """Expected fields absent from every record (a field may be null on some rows)."""
-
-    return [name for name in expected if not any(name in record for record in records)]
-
-
-def _has_value(value: object) -> bool:
-    """A zero flow is a value; only a missing or blank one is a placeholder."""
-
-    return value is not None and str(value).strip() != ""
-
-
-def _period(rows: list[dict[str, Any]]) -> tuple[str | None, str | None]:
-    def values(keys: tuple[str, ...]) -> list[str]:
-        return [str(row[key]) for row in rows for key in keys if row.get(key)]
-
-    starts, ends = values(("period_start_utc", "gas_day")), values(("period_end_utc", "gas_day"))
-    return (min(starts) if starts else None, max(ends) if ends else None)
-
-
-def check_entsog(client, now: datetime) -> list[DatasetCheck]:
-    from eurogas_nexus.ingestion.entsog_transport import EntsogTransportError, fetch_entsog_dataset
-    from eurogas_nexus.ingestion.public_sources import (
-        entsog_flow_observations_from_json,
-        entsog_reference_nodes_from_connectionpoints,
-    )
-
-    day = (now - timedelta(days=2)).date()
-    plans = (
-        ("connectionpoints", {"extended": "1"}, "connectionpoints",
-         entsog_reference_nodes_from_connectionpoints),
-        ("operationaldatas",
-         {"from": day.isoformat(), "to": (day + timedelta(days=1)).isoformat(),
-          "indicator": "Physical Flow", "periodType": "day"},
-         "operationaldatas", entsog_flow_observations_from_json),
-    )
-    checks = []
-    for dataset, filters, key, normalise in plans:
-        check = DatasetCheck(f"entsog:{dataset}")
-        try:
-            # One whole gas day of flows (a few thousand raw rows); a bounded slice of the
-            # reference points. Rows the provider publishes with no value ("not available"
-            # placeholders) are not expected to normalise and are not counted against it.
-            whole_day = dataset == "operationaldatas"
-            result = fetch_entsog_dataset(
-                client,
-                dataset,
-                filters=filters,
-                page_size=1000 if whole_day else 200,
-                max_records=10_000 if whole_day else 200,
-                max_pages=10 if whole_day else 1,
-            )
-            if whole_day:
-                result.require_complete()
-            records: list[dict[str, Any]] = []
-            rows: list[dict[str, Any]] = []
-            for page in result.pages:
-                records += [
-                    r
-                    for r in page.payload.get(key, [])
-                    if isinstance(r, dict) and (not whole_day or _has_value(r.get("value")))
-                ]
-                if dataset == "operationaldatas":
-                    # As ingestion does: exact numeric text and the response receipt time.
-                    rows += normalise(
-                        page.numeric_lexeme_payload, observed_at_utc=page.received_at_utc
-                    )
-                else:
-                    rows += normalise(page.payload)
-            check.records, check.normalised = len(records), len(rows)
-            check.missing_fields = _missing(records, EXPECTED_FIELDS[check.dataset])
-            check.sample_sha256 = _sha(records)
-            check.period = _period(rows)
-        except (EntsogTransportError, ValueError, RuntimeError) as exc:
-            check.error = f"{exc.__class__.__name__}: {exc}"[:300]
-        checks.append(check)
-    return checks
-
-
-def check_gie(client, now: datetime, api_key: str) -> list[DatasetCheck]:
-    from eurogas_nexus.ingestion.gie_transport import (
-        GieProduct,
-        GieTransportError,
-        fetch_gie_product,
-    )
-    from eurogas_nexus.ingestion.public_sources import (
-        gie_lng_observations_from_json,
-        gie_storage_observations_from_json,
-    )
-
-    plans = (
-        (GieProduct.agsi("https://agsi.gie.eu/api"), gie_storage_observations_from_json),
-        (GieProduct.alsi("https://alsi.gie.eu/api"), gie_lng_observations_from_json),
-    )
-    checks = []
-    for product, normalise in plans:
-        check = DatasetCheck(f"gie:{product.product}")
-        try:
-            result = fetch_gie_product(
-                client, product=product, api_key=api_key, max_records=100, max_pages=1
-            )
-            records = [dict(record) for record in result.records]
-            rows: list[dict[str, Any]] = []
-            for page in result.pages:
-                rows += normalise(page.raw_payload, observed_at_utc=page.received_at_utc)
-            check.records, check.normalised = len(records), len(rows)
-            check.missing_fields = _missing(records, EXPECTED_FIELDS[check.dataset])
-            check.sample_sha256 = _sha(records)
-            check.period = _period(rows)
-        except (GieTransportError, ValueError) as exc:
-            check.error = f"{exc.__class__.__name__}: {exc}"[:300]
-        checks.append(check)
-    return checks
-
-
-def decide(checks: list[DatasetCheck], *, credential_checked: bool) -> tuple[str, list[str]]:
-    """The stage and check ids the evidence supports. Never more than was shown."""
-
-    reached = bool(checks) and all(check.records > 0 and not check.error for check in checks)
-    if not reached:
-        return "configured", []
-    passed = ["credential_verified"] if credential_checked else []
-    if all(check.shape_ok for check in checks):
-        passed.append("simulated_shape_match")
-    if all(check.sample_ok for check in checks):
-        passed.append("live_sample_validation")
-    passed.append("sample_archived")  # the sample's hash and counts are in the evidence
-    complete = {"simulated_shape_match", "live_sample_validation"} <= set(passed)
-    return ("live_validated" if complete else "connection_verified"), passed
+__all__ = [
+    "DEFAULT_VALID_DAYS", "EXPECTED_FIELDS", "MIN_ACCEPTED_SHARE", "USER_AGENT", "DatasetCheck",
+    "_has_value", "_missing", "_period", "_sha", "check_entsog", "check_gie", "decide",
+]
 
 
 def main(argv: list[str] | None = None) -> int:

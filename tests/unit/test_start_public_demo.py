@@ -264,7 +264,7 @@ def test_certification_step_runs_the_documented_command_as_the_demo_actor(
 
     class Done:
         returncode = 0
-        stdout = '{"stage": "live_validated"}'
+        stdout = '{"ok": true, "results": [{"state": "approved"}]}'
         stderr = ""
 
     def fake_run(command, **kwargs):
@@ -279,9 +279,10 @@ def test_certification_step_runs_the_documented_command_as_the_demo_actor(
     start.certify_public_sources(sessionmaker(bind=bind), now, environ={})
     assert len(calls) == 1  # GIE without a key is not certified
     command = calls[0]
-    assert command[1:4] == ["scripts/ops/certify_public_source.py", "--source", "entsog"]
+    assert command[1:4] == ["scripts/ops/approve_public_source.py", "--source", "entsog"]
     assert command[command.index("--operator") + 1] == "demo-start"
-    assert "demo profile" in command[command.index("--note") + 1]
+    assert "demo profile" in command[command.index("--reason") + 1]
+    assert "--accept-terms" in command
     event = (
         session.query(AuditEventRecord)
         .filter(AuditEventRecord.action == start.CERTIFY_ACTION)

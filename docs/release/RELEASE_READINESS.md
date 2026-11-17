@@ -50,7 +50,7 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **250 paths / 271 operations**
+- OpenAPI public surface: **251 paths / 272 operations**
   (2026-11-16: market reports, five paths under `/api/reports/`; 244 / 264 before)
   (2026-11-15: `GET /api/desk/today`, the Today read, added as a reviewed READ path)
   (functional branch adds task/model operations; no new release acceptance).
@@ -223,6 +223,12 @@ Still needed, and only people outside engineering can provide them:
 - An approver identity for those external gates in `authorized_external_approvals`
   (scripts/release/policy/stable_gate_policy.json), the GitHub `production` environment
   with required reviewers, and branch protection on `main`.
+- On the customer's side, at first run: an administrator approves the public sources
+  ENTSOG and GIE for the firm (Admin → Data sources, or
+  `scripts/ops/approve_public_source.py --list` / `--all-open --accept-terms`), after
+  reading the terms summary; `/api/health/ready` lists them under `attention` until then.
+  Held by `tests/release/test_public_source_approval_release.py` (fresh database: refused
+  with `source_not_approved` before any fetch; approval; the same read stores rows).
 - On the customer's side: enterprise IdP acceptance against their identity provider,
   deployment migration to head `0059_functional_runs`, and an incident-response drill.
 

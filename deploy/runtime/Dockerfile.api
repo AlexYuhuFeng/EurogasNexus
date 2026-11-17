@@ -52,7 +52,8 @@ COPY alembic ./alembic
 COPY apps ./apps
 # Explicit customer script payload. Do not restore a recursive scripts copy:
 # it would ship development seeds, simulators and UAT fixtures in image layers.
-COPY scripts/ops/backup_restore_drill.py \
+COPY scripts/ops/approve_public_source.py \
+     scripts/ops/backup_restore_drill.py \
      scripts/ops/backup_runtime.py \
      scripts/ops/check_config.py \
      scripts/ops/ingest_public_sources.py \

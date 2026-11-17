@@ -354,7 +354,11 @@ def main() -> int:
                         # failed run (it is recorded as one above). Reporting ok with no
                         # rows read like success on the first live run (2026-11-12).
                         report["failures"].append(
-                            {"source": run_name, "code": "source_gate_blocked"}
+                            {
+                                "source": run_name,
+                                "code": "source_gate_blocked",
+                                "reason": ",".join(blockers),
+                            }
                         )
                     selected -= names
             gate_session.commit()
@@ -664,8 +668,37 @@ def _gate_blockers(session, source_system: str) -> list[str]:
         stage=(certification or {}).get("stage", "unverified"),
         checks=(certification or {}).get("checks"),
     )
-    if not gate.allows_live:
+    if gate.allows_live:
+        return blockers
+    from eurogas_nexus.domain.ingestion.source_approval import (
+        NOT_APPROVED_CODE,
+        approval_required,
+        is_approved,
+    )
+
+    if approval_required(source_system):
+        if not is_approved(certification):
+            # Nothing reads a public source an administrator has not approved (Admin ->
+            # Connectors, or scripts/ops/approve_public_source.py). The stable code is what
+            # the run row, the Source Center and Data feeds show.
+            blockers.append(NOT_APPROVED_CODE)
+            return blockers
+        from eurogas_nexus.application.public_source_approval import (
+            ensure_approved_source_validated,
+        )
+
+        # Approved, not validated yet (the key arrived after the approval, or an upstream
+        # failure): the bounded live validation runs now, under the approver's record.
+        try:
+            if ensure_approved_source_validated(session, source_system):
+                session.flush()
+                return blockers
+        except Exception as exc:  # noqa: BLE001 - a failed validation is a blocker, not a crash
+            blockers.append(f"live_validation_failed:{exc.__class__.__name__}")
+            return blockers
         blockers.append(f"certification:{gate.reason}")
+        return blockers
+    blockers.append(f"certification:{gate.reason}")
     return blockers
 
 
@@ -1730,6 +1763,11 @@ def _record_run(
             started_at_utc=started,
             finished_at_utc=finished_at,
             notes=f"{records} normalized records upserted from {reference}.",
+            # A gate refusal carries its stable reason (``source_not_approved`` ...), so the
+            # Source Center and Data feeds show why nothing was read, never a silent gap.
+            error_code=reference.removeprefix("gate:")[:96]
+            if status == "failed" and reference.startswith("gate:")
+            else None,
         )
     )
     record_audit_event(

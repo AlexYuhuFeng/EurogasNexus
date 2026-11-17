@@ -5,6 +5,7 @@ import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import type { SourceRegistryReadSurface } from "@/app/model/sourceRegistryRead";
 import { useInspectorStore } from "@/stores/inspector";
 import { WeatherForecastEvidence } from "@/components/WeatherForecastEvidence";
+import { PublicSourceApprovals } from "@/components/PublicSourceApprovals";
 import {
   EvidenceBlock,
   MetricStrip,
@@ -401,6 +402,8 @@ export function SourceCenter({
         )}
       </div>
 
+      {registryRead.hasReading && <PublicSourceApprovals sources={sources} t={t} />}
+
       <WorkspaceTabs
         idPrefix="source-tab"
         role="tablist"
@@ -685,6 +688,7 @@ export function SourceCenter({
                       title={`${t("sources.freshness_contract.expected")}: ${row.expected.publication || row.expected.schedule_type} · ${t("sources.freshness_contract.next_expected")}: ${formatSourceTimestamp(row.next_expected_at_utc)}`}
                     >
                       {row.dataset}: {t(`sources.freshness_contract.state.${row.state}`)} · {t("sources.freshness_contract.last_received")} {formatSourceTimestamp(row.last_received_at_utc)}
+                      {row.blocked_reason ? ` · ${t("sources.freshness_contract.blocked", { reason: row.blocked_reason, action: row.blocked_action ?? "" })}` : ""}
                     </strong>
                   ))}
                 </div>

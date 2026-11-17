@@ -50,6 +50,11 @@ def build_ingestion_command(
     if set(sources) & ENTSOG_POINT_SCOPE_SOURCES:
         for point_direction in point_directions:
             command.extend(["--entsog-point-direction", point_direction])
+    if set(sources) & (ENTSOG_POINT_SCOPE_SOURCES | {"entsog-reference"}):
+        # The scheduler's complete-read bounds (run_dataops_scheduler._SOURCE_BOUNDS): under the
+        # ingestor's sample page size of 100 an unscoped ENTSOG read stopped after 200
+        # placeholder rows and normalised nothing (entsog_empty_normalization, 2026-11-16).
+        command.extend(["--entsog-page-size", "1000", "--entsog-max-pages", "50"])
     command.extend(["--limit", str(limit), "--json"])
     return command
 

@@ -10,6 +10,7 @@ import { TraderDeskPanel } from "@/components/TraderDeskPanel";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
+import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
 import { TodayFreshness, TodayScreen } from "@/components/TodayScreen";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
@@ -118,6 +119,12 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               <TodayFreshness today={desk.today} t={t} nowMs={nowMs} />
             ) : undefined
           }
+        />
+        {/* A public source the ingestion gate holds back is never a silent gap on the desk. */}
+        <SourceApprovalNotice
+          sources={api.sources}
+          t={t}
+          onOpen={() => navigation.openWorkspace("sources", "attention")}
         />
         {task === "overview" && (
           <TodayScreen

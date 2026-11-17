@@ -42,8 +42,10 @@ def test_gate_blockers_require_certification_for_restricted_sources(
 
     blockers = script._gate_blockers(session, "ENTSOG")
 
-    assert blockers and blockers[0].startswith("certification:")
-    assert blockers[0] == "certification:certification_stage_not_live_validated"
+    # Still refused without a record; the reason now names the missing approval.
+    assert blockers == ["source_not_approved"]
+    # EEX (licensed) keeps the certification wording.
+    assert script._gate_blockers(session, "EEX")[0].startswith("certification:")
 
 
 def test_gate_blockers_deny_unknown_sources(tmp_path, monkeypatch) -> None:
@@ -66,7 +68,9 @@ def test_gie_gate_still_requires_certification(tmp_path, monkeypatch) -> None:
 
     blockers = script._gate_blockers(session, "GIE")
 
-    assert blockers == ["certification:certification_stage_not_live_validated"]
+    # No administrator approved GIE: the stable reason every surface shows (Admin ->
+    # Connectors, scripts/ops/approve_public_source.py).
+    assert blockers == ["source_not_approved"]
 
 
 def test_gie_gate_allows_live_only_with_both_required_checks(monkeypatch) -> None:
@@ -249,7 +253,9 @@ def test_main_ecb_gate_blocks_fetch_and_records_failed_run(
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
     assert payload["sources"] == {}
-    assert payload["failures"] == [{"source": "ECB", "code": "source_gate_blocked"}]
+    assert payload["failures"] == [
+        {"source": "ECB", "code": "source_gate_blocked", "reason": expected_blocker}
+    ]
     assert payload["warnings"] == [
         f"ECB live ingestion blocked (fail-closed): {expected_blocker}"
     ]

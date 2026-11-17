@@ -139,6 +139,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/sources/{source_id}/backfill", Permission.OPERATOR),
     ("/api/sources/{source_id}/retry", Permission.OPERATOR),
     ("/api/sources/{source_id}/enabled", Permission.OPERATOR),
+    # A public source's approval is the firm's decision on the provider's terms: ADMIN.
+    ("/api/sources/{source_id}/approve", Permission.ADMIN),
     ("/api/source-certifications", Permission.READ),
     ("/api/source-certifications/{source_id}/certify", Permission.OPERATOR),
     ("/api/storage/", Permission.READ),

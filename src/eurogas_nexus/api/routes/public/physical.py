@@ -428,7 +428,24 @@ def _load_flow_observations(
                 )
             else:
                 legacy = False
-                query = query.order_by(
+                # Only a row with a stored volume can be listed in volume mode
+                # (``row_volume_admissible``). Reading every row to drop the energy-only
+                # ENTSOG rows in Python loaded and validated the whole table (36k rows, 7 s
+                # on the demo, 2026-11-16) to answer an empty list; the rows without a
+                # volume are now only asked whether they exist, for the warnings below.
+                withheld = query.filter(FlowObservationRecord.flow_mcm_d.is_(None))
+                entsog = func.lower(func.trim(FlowObservationRecord.source_system)) == "entsog"
+                withheld_legacy = session.query(
+                    withheld.filter(
+                        entsog,
+                        FlowObservationRecord.normalizer_version.is_(None),
+                        FlowObservationRecord.native_rate_json.is_(None),
+                    ).exists()
+                ).scalar()
+                withheld_energy = session.query(
+                    withheld.filter(FlowObservationRecord.normalizer_version.is_not(None)).exists()
+                ).scalar()
+                query = query.filter(FlowObservationRecord.flow_mcm_d.is_not(None)).order_by(
                     FlowObservationRecord.point_name.asc(),
                     FlowObservationRecord.direction.asc(),
                     FlowObservationRecord.observed_at_utc.desc(),
@@ -443,6 +460,11 @@ def _load_flow_observations(
         quantity_basis=quantity_basis,
         volume_field="flow_mcm_d",
     )
+    if quantity_basis != "native":
+        if withheld_legacy and LEGACY_ENTSOG_EXCLUDED_WARNING not in warnings:
+            warnings.insert(0, LEGACY_ENTSOG_EXCLUDED_WARNING)
+        if withheld_energy and NATIVE_ENERGY_WITHHELD_WARNING not in warnings:
+            warnings.append(NATIVE_ENERGY_WITHHELD_WARNING)
     if legacy:
         warnings.append(LEGACY_ENTSOG_NOT_NATIVE_WARNING)
     return rows, warnings

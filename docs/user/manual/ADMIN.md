@@ -6,6 +6,33 @@ the firm's strategies or market data unless also granted them. The top bar there
 only Help & Settings and Admin, the sign-in lands on Data sources, and a link into a trading page
 brings the administrator back to their own surface.
 
+## First run: approve the public sources
+
+A fresh installation reads ECB, Elexon, National Gas and the other open sources at once.
+**ENTSOG** (flows, capacity, network) and **GIE AGSI/ALSI** (storage, LNG) are read only
+after an administrator approves them for the firm: their terms ask for attribution and
+good-faith reuse, and the product records that someone at the firm accepted them. Until
+then Today, the balance and the network say "ENTSOG flows: source not approved" with a link
+here, and `/api/health/ready` lists them under `attention`.
+
+Admin → **Data sources** → *Public sources that need your approval*:
+
+1. Each source shows its state in plain words: **Not approved yet**, **Approved, waiting
+   for key** (GIE: add the key under Credentials), **Approved**, **Running**, or
+   **Failing** with the reason.
+2. **Approve this public source** (or **Approve all open public sources**) opens each
+   provider's terms summary and attribution, with a link to the provider's terms. Read
+   them, confirm the current terms with the provider if your firm requires it, type a
+   reason (it goes to the audit log), tick *I have read these terms and accept them for my
+   firm* and confirm.
+3. The server records who, when, why and which summary was shown (audit event
+   `source.approval`) and runs a bounded live check (a small sample, nothing stored). The
+   next scheduled read brings the data in.
+
+Only an ADMIN may approve; a job function or work mode never grants it, and the product
+never accepts terms by itself. Without a browser: `scripts/ops/approve_public_source.py`
+(see [DEPLOYMENT_ROLES-EN.md](../../deployment/DEPLOYMENT_ROLES-EN.md), "First run").
+
 ## 1. Route email notifications
 
 Help & Settings → **Settings** → **Notifications**. Alerts go by email through the firm's own SMTP

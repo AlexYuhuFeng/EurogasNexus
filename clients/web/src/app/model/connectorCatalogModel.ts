@@ -12,7 +12,7 @@
  * Grouping is a view: it grants nothing, and the backend decides every read.
  */
 export type ConnectorGroup = "attention" | "connected" | "available";
-export type ConnectorAction = "fix" | "open" | "connect" | "import" | "configure" | "set_up";
+export type ConnectorAction = "fix" | "open" | "connect" | "import" | "configure" | "set_up" | "approve";
 
 export interface ConnectorSourceFacts {
   readonly source_id: string;
@@ -24,6 +24,8 @@ export interface ConnectorSourceFacts {
   readonly last_success_at_utc: string | null;
   readonly effective_last_success_at_utc: string | null;
   readonly consecutive_failures: number;
+  /** Public-source approval (ENTSOG, GIE): the gate reads nothing until an administrator approves. */
+  readonly approval?: { readonly required: boolean; readonly state: string };
 }
 
 export interface ConnectorCard {
@@ -42,6 +44,21 @@ export function connectorCard(source: ConnectorSourceFacts): ConnectorCard {
   const attention = (statusKey: string): ConnectorCard => ({ sourceId, group: "attention", statusKey, action: "fix" });
 
   if (status === "runtime_unconfigured") return attention("connectors.status.no_store");
+  // A public source the ingestion gate holds back until an administrator approves it for the firm
+  // (ENTSOG, GIE): never a silent gap, so it needs attention with the one action that opens it.
+  const approval = source.approval;
+  if (approval?.required) {
+    if (approval.state === "not_approved") {
+      return { sourceId, group: "attention", statusKey: "connectors.status.not_approved", action: "approve" };
+    }
+    if (approval.state === "approved_waiting_for_key") {
+      return { sourceId, group: "attention", statusKey: "connectors.status.approved_waiting_for_key", action: "connect" };
+    }
+    if (approval.state === "failing") return attention("connectors.status.failing");
+    if (approval.state === "approved") {
+      return { sourceId, group: "connected", statusKey: "connectors.status.approved", action: "open" };
+    }
+  }
   // A TSO tariff register an operator keeps (DATA-05): not a feed, never stale, never an alarm.
   if (source.integration === "manual_register" || status === "manual_register") {
     return {

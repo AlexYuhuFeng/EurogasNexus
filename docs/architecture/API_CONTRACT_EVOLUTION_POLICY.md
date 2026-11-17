@@ -12,6 +12,15 @@ grant it), writes nothing and calls no model. Every figure carries unit, as-of t
 freshness state; risk figures carry a method note. The web client has a typed
 `api.deskToday()`; no SDK method yet. Census: 244 paths / 264 operations.
 
+Additive 2026-11-17 (public-source approval): one path, one operation under the existing
+`/api/sources/` operator prefix: `POST /api/sources/{source_id}/approve` (ADMIN), body
+`{reason, accept_terms}`. An administrator approves ENTSOG or GIE for the firm; the call
+records who, when, why and which terms summary was accepted, writes the audit event
+`source.approval` and runs the bounded live validation the ingestion gate requires.
+`GET /api/sources` rows gain an optional `approval` object (class, state, reason, terms,
+approver) and freshness-contract rows of a held-back source gain `blocked_reason` and
+`blocked_action`. No field changes meaning. Census: 251 paths / 272 operations.
+
 Additive 2026-11-16 (answer bar): one path, one operation. `POST /api/analysis/ask` (READ,
 like `POST /api/analysis/explain` and `POST /api/analysis/brief`) answers a question typed
 into the search bar from the caller's Today facts, each with its source and as-of; book and

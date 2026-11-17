@@ -184,3 +184,17 @@ Web 部署通过 `VITE_EUROGAS_API_BASE_URL` 指定相同的 HTTPS 地址策略�
 
 升级或清除前必须备份 PostgreSQL。不得将 `.env`、私钥、供应商原始数据或
 客户数据放入支持工单或公开仓库。
+
+## 首次运行：批准公共数据源
+
+ENTSOG 与 GIE 仅在管理员代表贵公司批准后才会读取（这是一道“默认拒绝”的闸门：其条款要求署名，产品会记录由谁接受了条款）。安装程序不会批准任何数据源：是否接受提供方条款由客户决定。批准之前，摄取运行会以稳定原因码 `source_not_approved` 被拒绝（在数据源中心、数据馈送与运行历史中可见），交易台页面显示“ENTSOG 流量：数据源尚未批准 — 管理 → 连接器”，`/api/health/ready` 在 `attention` 下列出这些数据源（就绪状态本身仍为 `ready`）。
+
+使用浏览器：管理 → 数据源 →“需要您批准的公共数据源”，见 [ADMIN.md](../user/manual/ADMIN.md)。无界面安装（幂等；重复已生效的批准不会改变任何内容）：
+
+```bash
+docker compose run --rm public-ingestion python scripts/ops/approve_public_source.py --list
+docker compose run --rm public-ingestion python scripts/ops/approve_public_source.py \
+  --all-open --operator <您的标识> --reason "<工单或原因>" --accept-terms
+```
+
+`--list` 显示每个数据源的状态及其条款摘要；`--accept-terms` 表示您已阅读并代表公司接受（缺少该参数则不记录任何内容）。批准会写入审计（`source.approval`），并执行一次有界的实时检查。若 GIE 在存储密钥之前获批，其状态为“已批准，等待密钥”，并在密钥存储后的首次读取时进行检查。

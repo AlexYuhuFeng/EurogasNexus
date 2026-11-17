@@ -36,8 +36,13 @@ environment, adapter version, credential label (never the secret),
 entitlement scope, sample period, tests performed, evidence reference and
 expiry. `certified` additionally requires `evidence.live_test == "passed"`.
 
-For the public sources ENTSOG and GIE, one command performs the live test and records
-the evidence:
+For the public sources ENTSOG and GIE the product path is the administrator's
+**approval** (Admin → Data sources, `POST /api/sources/{source_id}/approve`, or
+`scripts/ops/approve_public_source.py`; see
+[PRODUCTION_SOURCE_OPERATIONS.md](PRODUCTION_SOURCE_OPERATIONS.md#public-source-approval)).
+It runs the same live test below and records the approver, reason and accepted terms
+summary with the evidence; such a record does not expire. The engineering command below
+stays for diagnosis (`--dry-run`) and records a 90-day operator certification:
 
 ```bash
 python scripts/ops/certify_public_source.py --source entsog --operator <your id>

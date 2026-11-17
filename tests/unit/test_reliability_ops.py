@@ -79,6 +79,11 @@ def test_readiness_with_complete_sqlite_schema(tmp_path, monkeypatch, revision) 
         return
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
+    # A fresh store: ready, and it names the public sources waiting for an approval.
+    attention = response.json()["attention"]
+    held = {item["source_id"]: item["state"] for item in attention["public_sources_held_back"]}
+    assert held["src-entsog"] == "not_approved"
+    assert "Admin → Connectors" in attention["action"]
 
 
 def test_optional_provider_outage_does_not_change_liveness() -> None:

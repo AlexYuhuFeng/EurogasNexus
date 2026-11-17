@@ -246,6 +246,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/runtime/source-operations",
         "/api/source-certifications",
         "/api/source-certifications/{source_id}/certify",
+        "/api/sources/{source_id}/approve",
         "/api/sources/{source_id}/backfill",
         "/api/sources/{source_id}/enabled",
         "/api/sources/{source_id}/health",

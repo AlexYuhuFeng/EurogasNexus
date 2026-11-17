@@ -244,6 +244,52 @@ def patch_source_enabled(
         raise _db_unavailable(exc) from exc
 
 
+class SourceApprovalRequest(BaseModel):
+    """An administrator's approval of a public source, for the firm."""
+
+    reason: str = Field(min_length=1, max_length=512)
+    #: The administrator read the provider's terms summary and accepts it for the firm.
+    accept_terms: bool = False
+
+
+@router.post("/api/sources/{source_id}/approve")
+def post_source_approval(source_id: str, body: SourceApprovalRequest, request: Request) -> dict:
+    """Approve a public source (ENTSOG, GIE) so the ingestion gate lets it read.
+
+    ADMIN only (the route permission registry; a job function or work mode never grants
+    it). Records who, when, why and which terms summary was accepted, writes the audit
+    event ``source.approval``, then runs the bounded live validation the gate requires.
+    Idempotent: an approved, validated source is left unchanged.
+    """
+
+    _require_db()
+    from eurogas_nexus.application.public_source_approval import (
+        ApprovalError,
+        approve_public_source,
+    )
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with _session() as session:
+            data = approve_public_source(
+                session,
+                source_id,
+                actor=_actor(request),
+                reason=body.reason,
+                accept_terms=body.accept_terms,
+            )
+            session.commit()
+    except ApprovalError as exc:
+        status = 404 if exc.code == "approval_not_required" else 422
+        raise HTTPException(
+            status_code=status, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    _emit_operator_event("approve", source_id, actor=_actor(request))
+    return _env(data, request, source="runtime-postgresql")
+
+
 @router.get("/api/source-certifications")
 def list_source_certifications(request: Request) -> dict:
     """List persisted certification records (no credential material)."""

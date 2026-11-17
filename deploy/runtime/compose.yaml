@@ -151,6 +151,14 @@ services:
       - entsog-reference
       - --limit
       - "10000"
+      # ENTSOG flows and capacity need a window (at most 30 gas days rolling) and the
+      # complete-read page bounds; without them the read was refused or normalised nothing.
+      - --entsog-lookback-gas-days
+      - "7"
+      - --entsog-page-size
+      - "1000"
+      - --entsog-max-pages
+      - "50"
       - --json
     depends_on:
       migrate:
@@ -177,6 +185,9 @@ services:
       - gie-alsi
       - --limit
       - "10000"
+      # A rolling week of ENTSOG flows and capacity each round (revisions arrive for days).
+      - --entsog-lookback-gas-days
+      - "7"
       - --interval-seconds
       - "1800"
     depends_on:

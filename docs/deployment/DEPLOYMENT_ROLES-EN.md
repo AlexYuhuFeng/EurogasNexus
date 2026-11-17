@@ -139,7 +139,7 @@ Installation performs, in order:
 4. PostgreSQL startup and health check;
 5. explicit `alembic upgrade head` in a one-shot container;
 6. API and HTTPS gateway startup;
-7. ECB and ENTSOG ingestion unless `-SkipPublicData` is set;
+7. ECB ingestion, and ENTSOG once approved (see "First run"), unless `-SkipPublicData` is set;
 8. end-to-end API and database revision validation.
 
 After the initial load, the runtime refreshes ECB, ENTSOG operational/capacity,
@@ -150,6 +150,32 @@ the worker does not manufacture replacement infrastructure data.
 GIE ingestion remains disabled until the customer stores its own GIE key via
 the backend-managed Data Sources workflow. Licensed providers remain disabled
 until customer credentials are configured.
+
+### First run: approve the public sources
+
+ENTSOG and GIE are read only after an administrator approves them for the firm (a
+fail-closed gate: their terms require attribution, and the product records who accepted
+them). The installer does not approve anything: accepting a provider's terms is the
+customer's decision. Until approved, the ingestion run is refused with the stable reason
+`source_not_approved` (in Source Center, Data feeds and the run history), the desk screens
+say "ENTSOG flows: source not approved — Admin → Connectors", and `/api/health/ready`
+lists the sources under `attention` (readiness itself stays `ready`).
+
+With a browser: Admin → Data sources → *Public sources that need your approval*, see
+[ADMIN.md](../user/manual/ADMIN.md). Headless (idempotent; repeating an approval in force
+changes nothing):
+
+```bash
+docker compose run --rm public-ingestion python scripts/ops/approve_public_source.py --list
+docker compose run --rm public-ingestion python scripts/ops/approve_public_source.py \
+  --all-open --operator <your id> --reason "<ticket or reason>" --accept-terms
+```
+
+`--list` prints each source's state and its terms summary; `--accept-terms` states that
+you read it and accept it for the firm (without it nothing is recorded). The approval is
+audited (`source.approval`) and runs a bounded live check. GIE approved before its key
+exists reads "approved, waiting for key" and is checked at the first read after the key
+is stored.
 
 Package version `0.8.0` on the `preview` channel has no multi-user login or SSO.
 Server therefore requires `-PrivateNetworkOnly`, must sit behind a customer

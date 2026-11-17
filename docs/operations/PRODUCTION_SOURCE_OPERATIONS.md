@@ -8,6 +8,47 @@ R33 adds production-shaped controls around public-source ingestion. Providers
 are still called only by backend scripts/connectors; clients never call a
 provider directly.
 
+## Public-source approval
+
+**Why a fresh installation read no ENTSOG or GIE data.** `scripts/ops/ingest_public_sources.py`
+checks a fail-closed gate before every live read (`_gate_blockers`): the source family must
+be in the entitlement baseline, its runtime operation must not be disabled, and for the
+families in `CERTIFICATION_REQUIRED_SOURCES` (ENTSOG, GIE and the licensed EEX route) a
+certification record must be at `live_validated` with both required checks
+(`simulated_shape_match`, `live_sample_validation`). ECB passes the first two checks and
+needs no certification; EIA, ENTSO-E, Elexon, National Gas, the rate fixings and the
+REMIT collectors are separate scripts that never consult this gate. Nothing in the product
+produced the ENTSOG/GIE record: the live bring-up (2026-11-12) certified by hand with an
+engineering command that the customer image did not even contain, so every fresh install,
+the demo included, read `source_gate_blocked`. Two configuration defects sat behind it:
+the customer worker ran ENTSOG without a window (refused) and with the ingestor's sample
+page size of 100 (a read that stopped after 200 placeholder rows,
+`entsog_empty_normalization`); both now use the scheduler's bounds.
+
+**The product step.** The gate stays. An administrator approves ENTSOG and GIE for the
+firm: Admin → Data sources ("Public sources that need your approval"),
+`POST /api/sources/{source_id}/approve` (ADMIN; body `reason`, `accept_terms`), or
+`scripts/ops/approve_public_source.py` (`--list`, `--source`, `--all-open`, idempotent).
+The approval shows the provider's terms summary first
+(`domain/ingestion/source_approval.py`, from docs/legal/DATA_SOURCE_TERMS.md), records who,
+when, why and which summary was accepted, writes the audit event `source.approval`, and
+runs the bounded live validation (`application/public_source_approval.py`: a small live
+sample, a normaliser dry run, field shape; nothing stored). GIE approved before its key
+exists is "approved, waiting for key"; the first read after the key arrives runs the
+validation under the approver's record. Until approved, the run is refused with the
+stable reason `source_not_approved` (run row `error_code`, the report's `reason`), and
+`/api/sources` (`approval`, freshness-contract `blocked_reason`), the desk screens and
+`/api/health/ready` (`attention`) say so.
+
+| Class | Sources | What a fresh installation needs |
+|---|---|---|
+| Needs no approval | ECB FX, ECB €STR, Bank of England SONIA, NY Fed SOFR, Elexon, National Gas (supply, demand), ENTSOG UMMs, ECMWF Open Data | nothing |
+| Needs only a key | EIA (`EIA_API_KEY`), ENTSO-E (`ENTSOE_SECURITY_TOKEN`), GIE IIP REMIT (the GIE key) | the key |
+| Needs approval | ENTSOG flows, capacity, reference | an administrator's approval |
+| Needs approval and a key | GIE AGSI/ALSI | approval and the GIE key |
+| Licensed only | EEX (incl. NGP), ICE Endex, ICE OCM, CME, NGX, Trayport, Platts, ICIS, Argus, Kpler, weather vendor, WM/Reuters, BFIX | the customer's licence, credentials and data scopes (G16) |
+| Not a feed | TSO tariff registers (operator-kept), `*_Sim` demo sources, the model service | — |
+
 ## Retry policy
 
 `src/eurogas_nexus/application/source_operations.py` owns bounded exponential

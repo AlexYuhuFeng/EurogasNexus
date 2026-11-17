@@ -33,8 +33,8 @@ mapping and defaults as the server.
 
 ``catch-up`` runs one such round in the foreground and exits (by hand: ``docker compose
 exec demo python scripts/demo/start_public_demo.py catch-up``). A round first performs the
-documented certification step for ENTSOG and GIE when their record is missing, failed or
-about to expire (``scripts/ops/certify_public_source.py`` as the demo actor ``demo-start``,
+product's public-source approval for ENTSOG and GIE when none is in force
+(``scripts/ops/approve_public_source.py`` as the demo actor ``demo-start``,
 with the demo reason and an audit event ``demo.certify``), then runs the ingestion commands
 the product's scheduler runs on a real store (``catch_up_steps``): ECB, ENTSOG reference,
 flows and capacity, GIE storage and LNG, National Gas GB supply and demand, Elexon, ENTSO-E,
@@ -687,8 +687,8 @@ CERTIFIED_SOURCES = (("ENTSOG", "entsog", ()), ("GIE", "gie", ("GIE_API_KEY", "G
 #: Renew a demo certification this long before it expires (the record is valid 90 days).
 CERTIFICATION_RENEW_DAYS = 7
 CERTIFICATION_REASON = (
-    "demo profile: bounded live sample of a public source, certified by the demo start-up "
-    "so the demo reads it (EUROGAS_NEXUS_API_PROFILE=demo)"
+    "demo profile: approved by the demo start-up because the operator turned live public "
+    "sources on for this demo (EUROGAS_NEXUS_API_PROFILE=demo)"
 )
 
 
@@ -713,14 +713,16 @@ def certification_due(session, system: str, now: datetime) -> str | None:
 
 
 def certify_public_sources(factory, now: datetime, environ=os.environ) -> None:
-    """The documented certification step, run as a demo-profile action.
+    """The product's public-source approval, run as a demo-profile action.
 
-    ENTSOG and GIE ingest only with a certification record (the fail-closed source gate,
-    ``scripts/ops/ingest_public_sources.py``). On a real store an operator earns it with
-    ``scripts/ops/certify_public_source.py`` (docs/data/LIVE_BRINGUP_2026-11-12.md); the
-    demo runs the same command, which reads a bounded live sample, dry-runs the normaliser,
-    and records the evidence or nothing. The record names the demo actor and reason, and an
-    audit event ``demo.certify`` says the demo start-up did it. The gate is not changed.
+    ENTSOG and GIE are read only after an administrator approved them (the fail-closed
+    ingestion gate). A customer administrator approves on Admin -> Connectors or with
+    ``scripts/ops/approve_public_source.py``; the demo runs that same command at start-up,
+    because the operator who turned live sources on for the demo (a key in ``.env`` or
+    ``EUROGAS_NEXUS_DEMO_LIVE_SOURCES=on``) asked for them. It is recorded as the demo actor
+    ``demo-start`` with the demo reason, audited (``source.approval`` from the product and
+    ``demo.certify`` from the demo), and runs the same bounded live validation. The gate is
+    not changed, and nothing here is in the customer image.
     """
 
     from eurogas_nexus.db.models.observation import AuditEventRecord
@@ -731,21 +733,22 @@ def certify_public_sources(factory, now: datetime, environ=os.environ) -> None:
         with factory() as session:
             reason = certification_due(session, system, now)
         if reason is None:
-            log(f"catch-up {system} certification: current, not repeated")
+            log(f"catch-up {system} approval: in force, not repeated")
             continue
         started = time.monotonic()
         result = subprocess.run(
-            [sys.executable, "scripts/ops/certify_public_source.py", "--source", source,
-             "--operator", DEMO_CERTIFY_ACTOR, "--note", CERTIFICATION_REASON],
+            [sys.executable, "scripts/ops/approve_public_source.py", "--source", source,
+             "--operator", DEMO_CERTIFY_ACTOR, "--reason", CERTIFICATION_REASON,
+             "--accept-terms", "--json"],
             cwd=ROOT, check=False, capture_output=True, text=True,
         )
         try:
-            stage = json.loads(result.stdout).get("stage", "unknown")
-        except ValueError:
-            stage = "not recorded"
+            state = (json.loads(result.stdout).get("results") or [{}])[0].get("state", "unknown")
+        except (ValueError, AttributeError):
+            state = "not recorded"
         outcome = "success" if result.returncode == 0 else "failed"
         log(
-            f"catch-up {system} certification ({reason}): {stage} in "
+            f"catch-up {system} approval ({reason}): {state} in "
             f"{time.monotonic() - started:.0f}s"
             + ("" if result.returncode == 0 else
                f" ({((result.stderr or '').strip().splitlines() or [''])[-1][:200]})")
@@ -760,7 +763,7 @@ def certify_public_sources(factory, now: datetime, environ=os.environ) -> None:
                     action=CERTIFY_ACTION,
                     resource=f"provider_certification:{system}",
                     outcome=outcome,
-                    detail=f"source={system}; stage={stage}; due={reason}; "
+                    detail=f"source={system}; state={state}; due={reason}; "
                            f"reason={CERTIFICATION_REASON}",
                     event_ts_utc=datetime.now(UTC),
                     source_system="demo-start",

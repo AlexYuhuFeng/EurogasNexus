@@ -655,6 +655,38 @@ export interface SourceSystemDTO {
   unresolved_identifiers?: UnresolvedIdentifierDTO[];
   /** The configured model endpoint of a model service (#33); never a key. */
   model_service?: { provider_name: string; model: string; host: string } | null;
+  /** Public-source approval (ENTSOG, GIE): class, state and the terms an administrator accepts. */
+  approval?: SourceApprovalDTO;
+}
+
+/** The approval classes of the registry (`domain/ingestion/source_approval.py`). */
+export type SourceApprovalClass =
+  | "approval" | "approval_and_key" | "no_approval" | "key_only" | "licensed"
+  | "register" | "simulated" | "model";
+
+export type SourceApprovalState =
+  | "not_required" | "not_approved" | "approved_waiting_for_key" | "approved" | "running" | "failing";
+
+export interface SourceApprovalDTO {
+  required: boolean;
+  class?: SourceApprovalClass;
+  state: SourceApprovalState;
+  state_words?: string;
+  /** Stable reason code (`source_not_approved`, `credential_missing`, a validation failure). */
+  reason: string | null;
+  action?: string;
+  approved_by?: string | null;
+  approved_at_utc?: string | null;
+  terms?: {
+    provider: string; summary: string; attribution: string; terms_url: string;
+    reference: string; version: string;
+  } | null;
+}
+
+export interface SourceApprovalResultDTO {
+  source_id: string; source_system: string; state: SourceApprovalState | "approved";
+  changed: boolean; stage: string; failure?: string | null;
+  approval: { approved_by: string | null; approved_at_utc: string | null; reason: string | null };
 }
 
 export interface SourceFreshnessContractDTO {
@@ -673,6 +705,9 @@ export interface SourceFreshnessContractDTO {
   /** The scheduler's next run has passed without a run (the scheduler is not running). */
   next_expected_overdue?: boolean;
   state: "current" | "late" | "stale" | "never" | "manual";
+  /** Why the gate holds this dataset back (`source_not_approved` ...), and where to act. */
+  blocked_reason?: string | null;
+  blocked_action?: string | null;
 }
 
 export interface UnresolvedIdentifierDTO {
@@ -865,6 +900,12 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
     certification_state: typeof raw.certification_state === "string" ? raw.certification_state : null,
     entitlement_state: typeof raw.entitlement_state === "string" ? raw.entitlement_state : null,
     adapter_version: typeof raw.adapter_version === "string" ? raw.adapter_version : null,
+    // Carried through as the server sent them (they were dropped before, so the detail panel
+    // never showed the freshness contract).
+    ...(Array.isArray(raw.freshness_contract) ? { freshness_contract: raw.freshness_contract } : {}),
+    ...(Array.isArray(raw.unresolved_identifiers) ? { unresolved_identifiers: raw.unresolved_identifiers } : {}),
+    ...(raw.model_service !== undefined ? { model_service: raw.model_service } : {}),
+    ...(raw.approval && typeof raw.approval === "object" ? { approval: raw.approval } : {}),
   };
 }
 
@@ -5505,6 +5546,17 @@ export const api = {
    * guards (credential state, circuit breaker, certification) still decide whether the run will
    * produce data, so the surface discloses what it sees instead of pre-empting the platform.
    */
+  /**
+   * Approve a public source (ENTSOG, GIE) for the firm: ADMIN only, checked on the server. The
+   * administrator has read the provider's terms summary; the server records who, when and why,
+   * audits it and runs the bounded live validation the ingestion gate requires.
+   */
+  approveSource: (sourceId: string, reason: string, acceptTerms: boolean, options?: ApiRequestOptions) =>
+    post<SourceApprovalResultDTO>(
+      `/sources/${encodeURIComponent(sourceId)}/approve`,
+      { reason, accept_terms: acceptTerms },
+      options,
+    ),
   requestSourceRun: (sourceId: string, reason: string, options?: ApiRequestOptions) =>
     post<Record<string, unknown>>(
       `/sources/${encodeURIComponent(sourceId)}/run`,
