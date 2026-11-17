@@ -479,6 +479,58 @@ def start_background_refresh() -> None:
     log("live public sources on: catch-up starts in the background once the server answers")
 
 
+#: The demo's own events (the fictional outages, the alerts they and the demo book raise) are
+#: refreshed hourly: an item is news on the situational strip for six hours after it happens.
+DEMO_EVENTS_INTERVAL_SECONDS = 3600
+
+
+def monitoring_command() -> list[str]:
+    """One monitoring scan, as the production worker runs it; no model call unless AI is on."""
+
+    command = [sys.executable, "scripts/ops/run_monitoring_worker.py", "--once"]
+    if (os.environ.get("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED") or "").lower() != "true":
+        command.append("--no-llm")
+    return command
+
+
+def scan_alerts() -> None:
+    """Raise the alerts the demo desk warrants (outages, limits); a failure never stops start-up."""
+
+    started = time.monotonic()
+    result = subprocess.run(monitoring_command(), cwd=ROOT, check=False)  # noqa: S603
+    outcome = "done" if result.returncode == 0 else f"failed (exit {result.returncode})"
+    log(f"monitoring scan {outcome} in {time.monotonic() - started:.1f}s")
+
+
+def start_demo_events() -> None:
+    """Spawn the hourly demo-events loop (roll the demo events forward, then scan for alerts)."""
+
+    subprocess.Popen(  # noqa: S603 - fixed command, this interpreter and this script
+        [sys.executable, str(Path(__file__).resolve()), "demo-events"],
+        cwd=ROOT,
+        start_new_session=True,
+    )
+    log("demo events: rolled forward and scanned for alerts every hour")
+
+
+def demo_events_loop() -> int:
+    """Background: keep the demo's events current so a demo opened any day shows live items."""
+
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+    while True:
+        time.sleep(DEMO_EVENTS_INTERVAL_SECONDS)
+        roll = subprocess.run(  # noqa: S603 - fixed command
+            [sys.executable, "scripts/demo/seed_demo_desk.py", "--roll-forward"], cwd=ROOT,
+            check=False,
+        )
+        if roll.returncode != 0:
+            log(f"demo roll-forward failed (exit {roll.returncode}); retried in an hour")
+        scan_alerts()
+
+
 def serve() -> int:
     started = time.monotonic()
     filled = configure_environment(os.environ)
@@ -486,6 +538,8 @@ def serve() -> int:
         log("defaults applied: " + ", ".join(filled))
     wait_for_database(float(os.environ.get("DEMO_DB_WAIT_SECONDS") or 90))
     prepare_database()
+    scan_alerts()
+    start_demo_events()
     port = (os.environ.get("PORT") or "8080").strip()
     if live_sources_enabled():
         start_background_refresh()
@@ -952,10 +1006,12 @@ def main(argv: list[str]) -> int:
             return catch_up()
         if mode == "refresh-loop":
             return refresh_loop()
+        if mode == "demo-events":
+            return demo_events_loop()
     except StartupError as exc:
         log(f"FATAL: {exc}")
         return 1
-    log(f"unknown mode {mode!r}; expected serve, catch-up or run -- <command>")
+    log(f"unknown mode {mode!r}; expected serve, catch-up, demo-events or run -- <command>")
     return 2
 
 

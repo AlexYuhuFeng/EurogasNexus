@@ -115,6 +115,12 @@ possible, because the product has no such function: trade execution or order ent
 nomination submission, settlement or payment. Demo figures carry **Demo data** in the top
 bar and `sim` beside each value.
 
+The demo keeps its own events current: at start and then every hour it rolls the demo series
+forward (the fictional unplanned outage is revised every five hours, so the situational strip
+under the top bar always has a live, `sim`-marked item for the roles it concerns) and runs one
+monitoring scan with the demo's configuration, so the alerts bell and the strip agree with the
+risk pages.
+
 ### Demo test accounts (optional)
 
 For a public demo the owner can add simple sign-in names, each with its own password, with

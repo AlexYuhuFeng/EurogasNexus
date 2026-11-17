@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -422,3 +422,33 @@ def test_demo_rates_convert_forward_and_give_way_to_real_fixings(session):
         benchmark_id="SONIA", value_date=date(2026, 11, 6)
     ).all()
     assert [(row.source_system, row.rate_pct) for row in on_day] == [("BOE", 3.7271)]
+def test_the_running_unplanned_demo_outage_is_revised_so_it_stays_news(session):
+    """The strip shows an outage for six hours after it is published: the demo revises its
+    unplanned outage after five, so a demo opened at any hour has one live urgent item."""
+
+    from eurogas_nexus.db.models import RemitUmmRecord
+
+    seed = _load()
+    seeded_at = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    seed.seed(session, seeded_at, history_days=10)
+    session.commit()
+    # Within five hours of the last publication: nothing new.
+    assert seed._roll_outages(session, seeded_at + timedelta(hours=1)) == 0
+    later = seeded_at + timedelta(hours=6)
+    assert seed._roll_outages(session, later) == 1
+    session.commit()
+    revised = (
+        session.query(RemitUmmRecord)
+        .filter(RemitUmmRecord.message_id == "demo-umm-1")
+        .order_by(RemitUmmRecord.version.desc())
+        .first()
+    )
+    assert revised.version == 2 and revised.source_system == "DEMO"
+    assert revised.published_at_utc.replace(tzinfo=UTC) == later
+    assert revised.source_reference == "demo:umm"  # still marked as demo data
+    assert revised.unavailable_capacity != 52.0  # a revision changes the size a little
+    assert seed._roll_outages(session, later + timedelta(minutes=30)) == 0  # idempotent
+    # The planned one is a schedule and is left as it is.
+    planned = session.query(RemitUmmRecord).filter(RemitUmmRecord.message_id == "demo-umm-2")
+    assert planned.count() == 1
+

@@ -338,3 +338,29 @@ def test_run_maps_the_url_and_becomes_the_command(monkeypatch, restored_environ)
     assert seen["args"] == ["python", "scripts/ops/check_config.py"]
     assert seen["url"].startswith("postgresql+pg8000://")
     assert start.main(["start_public_demo.py", "run"]) == 1
+
+
+def test_the_demo_scans_for_alerts_with_its_own_configuration(monkeypatch):
+    """The demo raises its alerts at start and hourly, under the demo's configuration (demo
+    marks on), so the strip and the bell agree with the risk page; no model call unless AI is
+    on."""
+
+    start = _load()
+    monkeypatch.setenv("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED", "false")
+    command = start.monitoring_command()
+    assert command[1:] == ["scripts/ops/run_monitoring_worker.py", "--once", "--no-llm"]
+    monkeypatch.setenv("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED", "true")
+    assert "--no-llm" not in start.monitoring_command()
+    # Hourly: an item is news on the strip for six hours.
+    assert start.DEMO_EVENTS_INTERVAL_SECONDS == 3600
+    calls = []
+    monkeypatch.setattr(
+        start.subprocess, "run", lambda command, **_: calls.append(command) or _Done(3)
+    )
+    start.scan_alerts()  # a failed scan is logged, never fatal
+    assert calls and calls[0][1] == "scripts/ops/run_monitoring_worker.py"
+
+
+class _Done:
+    def __init__(self, code: int) -> None:
+        self.returncode = code

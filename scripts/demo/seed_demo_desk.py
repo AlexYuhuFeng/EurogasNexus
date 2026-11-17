@@ -1565,17 +1565,65 @@ def _roll_vessels(session, now: datetime) -> int:
     return len(SIMULATED_VESSELS)
 
 
+#: A demo outage is news for six hours after it is published (the situational strip's urgent
+#: window, BREAKING_WINDOW_MS in the web client). The demo revises its unplanned outage a little
+#: sooner, so a demo opened at any hour shows one live urgent item, marked as demo data.
+DEMO_OUTAGE_REVISION = timedelta(hours=5)
+
+
 def _roll_outages(session, now: datetime) -> int:
-    """When every demo outage has ended (a paused server), publish the pair again from now."""
+    """Keep the fictional outages current.
+
+    When every demo outage has ended (a paused server), the pair is published again from now.
+    While the unplanned one runs, a new version of its message is published whenever the
+    newest is older than :data:`DEMO_OUTAGE_REVISION`: the same event, its size nudged by one
+    mcm/d either way, as an operator's revision would. Only ``DEMO`` messages are touched.
+    """
 
     newest_stop = _newest(
         session, RemitUmmRecord.event_stop_utc, RemitUmmRecord.source_system == "DEMO"
     )
-    if newest_stop is None or newest_stop > now:
+    if newest_stop is None:
         return 0
-    rows = _new_rows_only(session, _demo_outages(now, suffix=f"-{now:%Y%m%d}"))
-    session.add_all(rows)
-    return len(rows)
+    if newest_stop <= now:
+        rows = _new_rows_only(session, _demo_outages(now, suffix=f"-{now:%Y%m%d}"))
+        session.add_all(rows)
+        return len(rows)
+    latest = (
+        session.query(RemitUmmRecord)
+        .filter(RemitUmmRecord.source_system == "DEMO")
+        .filter(RemitUmmRecord.unavailability_type == "unplanned")
+        .order_by(RemitUmmRecord.published_at_utc.desc(), RemitUmmRecord.version.desc())
+        .first()
+    )
+    if latest is None or _aware(latest.event_stop_utc) <= now:
+        return 0
+    if now - _aware(latest.published_at_utc) < DEMO_OUTAGE_REVISION:
+        return 0
+    from sqlalchemy import func
+
+    version = (
+        session.query(func.max(RemitUmmRecord.version))
+        .filter(RemitUmmRecord.message_id == latest.message_id)
+        .scalar()
+    ) + 1
+    unavailable = latest.unavailable_capacity + (1.0 if version % 2 else -1.0)
+    session.add(RemitUmmRecord(
+        record_id=f"{latest.message_id}:{version}", message_id=latest.message_id,
+        version=version, published_at_utc=now, event_status="active",
+        unavailability_type=latest.unavailability_type, event_start_utc=latest.event_start_utc,
+        event_stop_utc=latest.event_stop_utc, asset_name=latest.asset_name,
+        asset_eic=latest.asset_eic, asset_type=latest.asset_type,
+        balancing_zone=latest.balancing_zone, direction=latest.direction, unit=latest.unit,
+        technical_capacity=latest.technical_capacity,
+        available_capacity=latest.technical_capacity - unavailable,
+        unavailable_capacity=unavailable, unavailable_mcm_d=unavailable,
+        unavailable_gwh_d=round(unavailable * 10.83, 1), reason=latest.reason,
+        market_participant=latest.market_participant,
+        remarks="Fictional demo message, revised.", source_system="DEMO",
+        source_reference="demo:umm", ingested_at_utc=now,
+    ))
+    return 1
 
 
 def _roll_deliveries(session, now: datetime, rng: random.Random) -> int:
