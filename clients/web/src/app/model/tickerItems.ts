@@ -32,9 +32,11 @@ import type {
   DecisionCaseSummaryDTO,
   DeskTodayDTO,
   ExplainSubject,
+  JobDTO,
   MonitoringAlertDTO,
   NominationWindowOccurrenceDTO,
   ScreenOrderObservationDTO,
+  SupportReportDTO,
 } from "../../api/client.ts";
 import type { StripAudience } from "../experience/roleComposition.ts";
 import type { WorkspacePageId } from "../../workspaceNavigation.ts";
@@ -69,6 +71,8 @@ export interface StripSource {
   attention: boolean;
   statusKey: string;
   last_failure_at_utc: string | null;
+  /** When the scheduler runs it next (the analyst's "next data arrival"). */
+  next_run_at_utc?: string | null;
 }
 
 /** Figures from the Today read (`/api/desk/today`) the strip uses. */
@@ -81,7 +85,7 @@ export interface StripTodayFacts {
   simulated: boolean;
 }
 
-/** G3 (backend pending): a DA or front-month move against the prior close at a hub. */
+/** G3: a DA or front-month move against the prior close at a hub (a `market/price_move` alert). */
 export interface PriceMoveSignal {
   hub: string;
   product: "DA" | "FM";
@@ -91,9 +95,11 @@ export interface PriceMoveSignal {
   at_utc: string;
   source: string;
   simulated: boolean;
+  /** The monitoring alert it came from (Acknowledge, Why, Report). */
+  alert_id?: string | null;
 }
 
-/** G5 (backend pending): a contract delivering short of its nomination beyond tolerance. */
+/** G5: a contract delivering short of its nomination beyond tolerance. */
 export interface DeliveryShortfallSignal {
   contract_id: string;
   contract_name: string;
@@ -104,9 +110,11 @@ export interface DeliveryShortfallSignal {
   at_utc: string;
   source: string;
   book_ids: string[];
+  simulated?: boolean;
+  alert_id?: string | null;
 }
 
-/** Fundamentals rule (backend pending): a daily series outside its band vs the 7-day average. */
+/** Fundamentals rule: a daily series outside its band vs the 7-day average (a `fundamentals` alert). */
 export interface FundamentalsSignal {
   series: "storage_change" | "supply_call" | "lng_sendout";
   value: number;
@@ -115,6 +123,8 @@ export interface FundamentalsSignal {
   hub: string | null;
   at_utc: string;
   source: string;
+  simulated?: boolean;
+  alert_id?: string | null;
 }
 
 export interface SituationSignals {
@@ -131,6 +141,9 @@ export interface SituationInputs extends SituationSignals {
   bookedTrades: readonly ScreenOrderObservationDTO[] | null;
   sources: readonly StripSource[] | null;
   today: StripTodayFacts | null;
+  /** Platform audience: recent jobs and problem reports (`/api/jobs`, `/api/support/reports`). */
+  jobs?: readonly JobDTO[] | null;
+  reports?: readonly SupportReportDTO[] | null;
 }
 
 /** The person's own thresholds (personal preference, else organisation default). */
@@ -181,7 +194,9 @@ export type SituationKind =
   | "fundamentals"
   | "booked_trade"
   | "source"
-  | "strategy";
+  | "strategy"
+  | "job"
+  | "problem_report";
 
 export type SituationSeverity = "critical" | "warning" | "info";
 
@@ -218,7 +233,9 @@ export type AudienceRule =
   | "shortfall"
   | "window_closing"
   | "source_failing"
-  | "source_alert";
+  | "source_alert"
+  | "job_failed"
+  | "problem_report";
 
 export interface SituationItem {
   id: string;
@@ -804,13 +821,13 @@ function qualifySignals(inputs: SituationInputs, context: SituationContext, focu
         comparison: { key: "strip.comparison.vs_close", values: { pct: move.move_pct.toFixed(1) } },
         affects: { ...NO_AFFECTS(), hubs: [move.hub] },
         occurredAt: iso(became),
-        source: { name: move.source, ref: null },
+        source: { name: move.source, ref: move.alert_id ?? null },
         target: { page: "market", task: "curves" },
         audience: "price_move",
         simulated: move.simulated,
-        alertId: null,
-        explain: null,
-        report: null,
+        alertId: move.alert_id ?? null,
+        explain: move.alert_id ? { subject: "alert", id: move.alert_id } : null,
+        report: move.alert_id ? { kind: "alert", id: move.alert_id } : null,
         signature: `${Math.trunc(move.move_pct)}`,
         ownBook: false,
         ratio: Math.abs(move.move_pct) / thresholds.priceMovePct,
@@ -835,10 +852,10 @@ function qualifySignals(inputs: SituationInputs, context: SituationContext, focu
         source: { name: gap.source, ref: gap.contract_id },
         target: { page: "contracts", task: "delivery", params: { contract: gap.contract_id } },
         audience: "shortfall",
-        simulated: false,
-        alertId: null,
-        explain: null,
-        report: null,
+        simulated: Boolean(gap.simulated),
+        alertId: gap.alert_id ?? null,
+        explain: gap.alert_id ? { subject: "alert", id: gap.alert_id } : null,
+        report: gap.alert_id ? { kind: "alert", id: gap.alert_id } : null,
         signature: `${round(gap.shortfall_mwh)}`,
         ownBook: true,
         ratio: gap.shortfall_pct / Math.max(gap.tolerance_pct, 0.1),
@@ -862,15 +879,132 @@ function qualifySignals(inputs: SituationInputs, context: SituationContext, focu
         source: { name: surprise.source, ref: null },
         target: { page: "market", task: "overview" },
         audience: "fundamentals",
-        simulated: false,
-        alertId: null,
-        explain: null,
-        report: null,
+        simulated: Boolean(surprise.simulated),
+        alertId: surprise.alert_id ?? null,
+        explain: surprise.alert_id ? { subject: "alert", id: surprise.alert_id } : null,
+        report: surprise.alert_id ? { kind: "alert", id: surprise.alert_id } : null,
         signature: `${Math.trunc(surprise.deviation_pct)}`,
         ownBook: false,
         ratio: 1,
       });
     }
+  }
+  return items;
+}
+
+/* ------------------------------------------------------------------ signals from the server's alerts */
+
+function num(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * The open alerts behind the rows that needed a backend rule: price moves (G3), delivery
+ * shortfalls (G5) and fundamentals surprises. Each keeps its alert id (Acknowledge, Why, Report)
+ * and the source the server named; one without a usable figure is left out.
+ */
+export function signalsFromAlerts(alerts: readonly MonitoringAlertDTO[]): Required<SituationSignals> {
+  const out: Required<SituationSignals> = { priceMoves: [], shortfalls: [], fundamentals: [] };
+  for (const alert of alerts) {
+    if (alert.status !== "open") continue;
+    const facts = evidence(alert);
+    const at = alert.detected_at_utc || alert.updated_at_utc;
+    if (alert.category === "market" && alert.alert_type === "price_move") {
+      const move = num(facts.move_pct);
+      const price = num(facts.price);
+      const product = facts.product === "DA" ? "DA" : facts.product === "FM" ? "FM" : null;
+      if (move === null || price === null || !product || !facts.hub) continue;
+      out.priceMoves = [...out.priceMoves, {
+        hub: String(facts.hub), product, move_pct: move, price, unit: String(facts.unit ?? ""),
+        at_utc: at, source: String(facts.source_system ?? ""), simulated: Boolean(alert.simulated),
+        alert_id: alert.alert_id,
+      }];
+    } else if (alert.category === "delivery" && alert.alert_type === "shortfall") {
+      const mwh = num(facts.shortfall_mwh);
+      const pct = num(facts.shortfall_pct);
+      const tolerance = num(facts.tolerance_pct);
+      if (mwh === null || pct === null || tolerance === null) continue;
+      out.shortfalls = [...out.shortfalls, {
+        contract_id: String(facts.contract_id ?? ""), contract_name: String(facts.contract_name ?? facts.contract_id ?? ""),
+        gas_day: String(facts.gas_day ?? ""), shortfall_mwh: mwh, tolerance_pct: tolerance, shortfall_pct: pct,
+        at_utc: at, source: String(facts.source_system ?? sourceName(alert)), book_ids: stringList(facts.book_ids),
+        simulated: Boolean(alert.simulated), alert_id: alert.alert_id,
+      }];
+    } else if (alert.category === "fundamentals") {
+      const value = num(facts.value);
+      const deviation = num(facts.deviation_pct);
+      const series = facts.series;
+      if (value === null || deviation === null || (series !== "storage_change" && series !== "lng_sendout" && series !== "supply_call")) continue;
+      out.fundamentals = [...out.fundamentals, {
+        series, value, unit: String(facts.unit ?? ""), deviation_pct: deviation, hub: null, at_utc: at,
+        source: String(facts.source_system ?? ""), simulated: Boolean(alert.simulated), alert_id: alert.alert_id,
+      }];
+    }
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ jobs and problem reports (platform) */
+
+function qualifyPlatformWork(inputs: SituationInputs, context: SituationContext): SituationItem[] {
+  if (context.audience !== "platform") return [];
+  const items: SituationItem[] = [];
+  for (const job of inputs.jobs ?? []) {
+    if (job.status !== "FAILED") continue;
+    const failed = at(job.finished_at_utc ?? job.started_at_utc ?? job.created_at_utc);
+    if (!Number.isFinite(failed)) continue;
+    items.push({
+      id: `job:${job.job_id}`,
+      kind: "job",
+      severity: "warning",
+      urgentUntil: urgentUntil(failed),
+      headline: { key: `strip.headline.job_failed.${job.kind}`, values: {} },
+      magnitude: null,
+      unit: null,
+      comparison: null,
+      affects: NO_AFFECTS(),
+      occurredAt: iso(failed),
+      source: { name: "jobs", ref: job.job_id },
+      target: { page: "runtime", params: { view: "delivery" } },
+      audience: "job_failed",
+      simulated: false,
+      alertId: null,
+      explain: null,
+      report: null,
+      signature: `${job.status}|${job.finished_at_utc ?? ""}`,
+      ownBook: false,
+      ratio: 1,
+    });
+  }
+  for (const report of inputs.reports ?? []) {
+    if (report.status !== "open") continue;
+    const filed = at(report.created_at_utc);
+    if (!Number.isFinite(filed)) continue;
+    items.push({
+      id: `report:${report.report_id}`,
+      kind: "problem_report",
+      severity: report.severity === "P1" ? "critical" : report.severity === "P2" ? "warning" : "info",
+      urgentUntil: urgentUntil(filed),
+      headline: {
+        key: "strip.headline.problem_report",
+        values: { severity: report.severity, summary: report.summary.length > 60 ? `${report.summary.slice(0, 59)}…` : report.summary },
+      },
+      magnitude: null,
+      unit: null,
+      comparison: null,
+      affects: NO_AFFECTS(),
+      occurredAt: iso(filed),
+      source: { name: "support", ref: report.report_id },
+      target: { page: "runtime", params: { view: "support" } },
+      audience: "problem_report",
+      simulated: false,
+      alertId: null,
+      explain: null,
+      report: null,
+      signature: `${report.status}|${report.severity}`,
+      ownBook: false,
+      ratio: 1,
+    });
   }
   return items;
 }
@@ -957,7 +1091,19 @@ function quietLine(inputs: SituationInputs, context: SituationContext): QuietLin
     if (!count) return null;
     return { phrase: { key: "strip.quiet.sources_attention", values: { count } }, target: { page: "sources", params: { view: "attention" } }, source: "sources" };
   }
-  // Finance has no strip; the analyst's "next data arrival" needs the source schedule (pending).
+  if (audience === "analyst") {
+    // The next scheduled data arrival, from the source registry's schedule.
+    let next: StripSource | null = null;
+    for (const source of inputs.sources ?? []) {
+      const run = at(source.next_run_at_utc);
+      if (!Number.isFinite(run) || run <= nowMs) continue;
+      if (!next || run < at(next.next_run_at_utc)) next = source;
+    }
+    return next
+      ? { phrase: { key: "strip.quiet.next_data", values: { source: next.source_system, close: String(next.next_run_at_utc) } }, target: null, source: next.source_system }
+      : null;
+  }
+  // Finance has no strip.
   return null;
 }
 
@@ -994,6 +1140,17 @@ export function focusHubs(thresholds: StripThresholds, bookHubs: readonly string
   return hubs;
 }
 
+/** The signals given directly (tests, a future read) plus those the open alerts carry. */
+function withAlertSignals(inputs: SituationInputs): SituationInputs {
+  const fromAlerts = signalsFromAlerts(inputs.alerts);
+  return {
+    ...inputs,
+    priceMoves: [...(inputs.priceMoves ?? []), ...fromAlerts.priceMoves],
+    shortfalls: [...(inputs.shortfalls ?? []), ...fromAlerts.shortfalls],
+    fundamentals: [...(inputs.fundamentals ?? []), ...fromAlerts.fundamentals],
+  };
+}
+
 /** Every item that qualifies for the audience, before the urgent window and the hide list. */
 export function qualifyingItems(inputs: SituationInputs, context: SituationContext): { items: SituationItem[]; rejected: number } {
   if (context.audience === "finance") return { items: [], rejected: 0 };
@@ -1006,8 +1163,9 @@ export function qualifyingItems(inputs: SituationInputs, context: SituationConte
     ...qualifyCases(inputs, context),
     ...qualifyCategoryAlerts(inputs, context, sourceSystems),
     ...qualifySources(inputs, context),
+    ...qualifyPlatformWork(inputs, context),
     ...qualifyWindows(inputs, context),
-    ...qualifySignals(inputs, context, focus),
+    ...qualifySignals(withAlertSignals(inputs), context, focus),
   ];
   const accepted = all.filter(hasNamedSource);
   return { items: accepted, rejected: all.length - accepted.length };

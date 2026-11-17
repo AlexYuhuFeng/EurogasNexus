@@ -470,3 +470,60 @@ test("the strip's stylesheet has no animation and uses tokens; the old marquee i
   assert.match(shell, /role="status" aria-live="polite" data-strip-announcer/);
   assert.ok(shell.indexOf("data-strip-announcer") > shell.indexOf("<SituationStrip"));
 });
+
+/* ------------------------------------------------------------------ server alerts behind the backend rows */
+
+test("the server's price-move, shortfall and fundamentals alerts reach the strip with their alert", () => {
+  const price = alert("pm1", "market", "price_move", "warning",
+    { hub: "NBP", product: "DA", move_pct: -6.4, price: 82.1, unit: "GBp/th", source_system: "DEMO_Sim", simulated: true },
+    { simulated: true });
+  const small = alert("pm2", "market", "price_move", "warning",
+    { hub: "NBP", product: "FM", move_pct: 2.4, price: 84, unit: "GBp/th", source_system: "DEMO_Sim" });
+  const trader = buildSituation(inputs({ alerts: [price, small] }), context("trader"));
+  // The person's own threshold (5 %) applies on top of the server's 2 % floor.
+  assert.deepEqual(ids(trader), ["price:NBP:DA"]);
+  assert.equal(trader.items[0].alertId, "pm1");
+  assert.equal(trader.items[0].simulated, true);
+  assert.equal(trader.items[0].source.name, "DEMO_Sim");
+  assert.deepEqual(trader.items[0].explain, { subject: "alert", id: "pm1" });
+  const lower = buildSituation(inputs({ alerts: [price, small] }), context("trader", { thresholds: stripThresholdsFrom({ strip_price_move_pct: "2" }) }));
+  assert.equal(lower.items.length, 2);
+
+  const short = alert("sf1", "delivery", "shortfall", "critical",
+    { contract_id: "C1", contract_name: "Haldor supply", gas_day: "2026-11-16", shortfall_mwh: 1200, shortfall_pct: 20, tolerance_pct: 5, source_system: "DEMO", book_ids: ["UK"] });
+  const ops = buildSituation(inputs({ alerts: [short] }), context("operations"));
+  assert.deepEqual(ids(ops), ["shortfall:C1:2026-11-16"]);
+  assert.equal(ops.items[0].alertId, "sf1");
+  // Behind a book the person cannot see: dropped (alert_scope.py).
+  assert.deepEqual(ids(buildSituation(inputs({ alerts: [short] }), context("operations", {}, { dataScopes: ["BOOKS:NL"] }))), []);
+
+  const lng = alert("fd1", "fundamentals", "lng_sendout", "warning",
+    { series: "lng_sendout", value: 1.9, unit: "TWh/d", deviation_pct: 140, source_system: "GIE" });
+  assert.deepEqual(ids(buildSituation(inputs({ alerts: [lng] }), context("analyst"))), ["fundamentals:lng_sendout"]);
+  // Each row reaches only its audience.
+  assert.deepEqual(ids(buildSituation(inputs({ alerts: [lng, short] }), context("trader"))), []);
+});
+
+test("platform: a failed job and a new problem report within six hours; the analyst's next data arrival", () => {
+  const job = { job_id: "j1", kind: "INGESTION", status: "FAILED", finished_at_utc: hoursAgo(1), started_at_utc: hoursAgo(1), created_at_utc: hoursAgo(1) };
+  const oldJob = { ...job, job_id: "j0", finished_at_utc: hoursAgo(9) };
+  const report = { report_id: "r1", severity: "P2", summary: "Prices board blank on my laptop", status: "open", created_at_utc: hoursAgo(2) };
+  const platform = buildSituation(
+    inputs({ jobs: [job, oldJob] as never, reports: [report] as never }),
+    context("platform"),
+  );
+  assert.deepEqual(ids(platform).sort(), ["job:j1", "report:r1"]);
+  assert.equal(platform.items.find((item) => item.kind === "job")?.headline.key, "strip.headline.job_failed.INGESTION");
+  assert.deepEqual(platform.items.find((item) => item.kind === "problem_report")?.target, { page: "runtime", params: { view: "support" } });
+  // Nobody else sees platform work.
+  assert.deepEqual(ids(buildSituation(inputs({ jobs: [job] as never, reports: [report] as never }), context("trader"))), []);
+
+  const scheduled: StripSource[] = [
+    { source_id: "gie", source_system: "GIE AGSI", attention: false, statusKey: "connectors.status.live", last_failure_at_utc: null, next_run_at_utc: inMinutes(95) },
+    { source_id: "ecb", source_system: "ECB", attention: false, statusKey: "connectors.status.live", last_failure_at_utc: null, next_run_at_utc: inMinutes(40) },
+    { source_id: "old", source_system: "Old", attention: false, statusKey: "connectors.status.live", last_failure_at_utc: null, next_run_at_utc: hoursAgo(1) },
+  ];
+  const analyst = buildSituation(inputs({ sources: scheduled }), context("analyst"));
+  assert.equal(analyst.state, "quiet");
+  assert.deepEqual(analyst.quiet?.phrase, { key: "strip.quiet.next_data", values: { source: "ECB", close: inMinutes(40) } });
+});

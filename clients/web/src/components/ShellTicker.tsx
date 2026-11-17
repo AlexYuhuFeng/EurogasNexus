@@ -13,11 +13,19 @@
  * | decision cases | originator, risk, compliance, desk head |
  * | nomination windows | trader, operations |
  * | ETRM trades (booked today, read-only) | trader |
- * | sources (the store's) | platform |
+ * | sources (the store's) | platform; analyst (the schedule: next data arrival) |
+ * | failed jobs, open problem reports | platform |
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { api, type DecisionCaseSummaryDTO, type NominationWindowOccurrenceDTO, type ScreenOrderObservationDTO } from "@/api/client";
+import {
+  api,
+  type DecisionCaseSummaryDTO,
+  type JobDTO,
+  type NominationWindowOccurrenceDTO,
+  type ScreenOrderObservationDTO,
+  type SupportReportDTO,
+} from "@/api/client";
 import { resolveComposition, type StripAudience } from "@/app/experience/roleComposition";
 import { connectorCard } from "@/app/model/connectorCatalogModel";
 import {
@@ -134,6 +142,20 @@ export function ShellTicker({
     principal,
   );
   const desk = useDeskToday(uses("today"));
+  const platform = Boolean(user) && audience === "platform";
+  const jobs = usePeriodicRead<JobDTO[]>(
+    platform,
+    () => api.jobs({ status: "FAILED", limit: "20" }).then((response) => response.data ?? []),
+    REFRESH_MS,
+    principal,
+  );
+  const reports = usePeriodicRead<SupportReportDTO[]>(
+    platform,
+    // The IT desk's inbox: only a reader who sees every report gets "new problem report".
+    () => api.supportReports("open").then((response) => (response.data?.scope === "all" ? response.data.rows : [])),
+    REFRESH_MS,
+    principal,
+  );
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -142,7 +164,7 @@ export function ShellTicker({
   }, []);
 
   const stripSources = useMemo<StripSource[] | null>(() => {
-    if (audience !== "platform") return null;
+    if (audience !== "platform" && audience !== "analyst") return null;
     return sources.map((source) => {
       const card = connectorCard({
         source_id: source.source_id,
@@ -162,6 +184,7 @@ export function ShellTicker({
         attention: card.group === "attention",
         statusKey: card.statusKey,
         last_failure_at_utc: source.last_failure_at_utc ?? null,
+        next_run_at_utc: source.next_run_at_utc ?? null,
       };
     });
   }, [audience, sources]);
@@ -175,8 +198,10 @@ export function ShellTicker({
       bookedTrades: trades,
       sources: stripSources,
       today: desk.today ? todayFacts(desk.today) : null,
+      jobs,
+      reports,
     }),
-    [alerts, cases, commercial, desk.today, outages, stripSources, trades, windows],
+    [alerts, cases, commercial, desk.today, jobs, outages, reports, stripSources, trades, windows],
   );
   const context = useMemo(
     () => ({

@@ -289,7 +289,9 @@ class StreamGuard:
             from eurogas_nexus.security.portfolio_scope import scope_for_principal
 
             visible = alert_visibility(
-                session, scope=scope_for_principal(self.principal.data_scopes)
+                session,
+                scope=scope_for_principal(self.principal.data_scopes),
+                principal=self.principal,
             )
             return [row for row in rows if visible(row)]
         return []  # an unknown topic sends nothing

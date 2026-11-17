@@ -24,15 +24,15 @@ follows your permissions.
 
 | Role | Urgent | Quiet line |
 |---|---|---|
-| Trader | Unplanned outage at or above your size threshold (GWh/d or share of the asset) in a zone where your book holds a position or at a focus hub; a breach of your own mandate or of a credit line your books trade against | Trades booked today from the ETRM import (read-only; a count when the import holds no booking times), else the next nomination window |
+| Trader | A day-ahead or front-month move at a focus hub beyond your threshold; unplanned outage at or above your size threshold (GWh/d or share of the asset) in a zone where your book holds a position or at a focus hub; a breach of your own mandate or of a credit line your books trade against | Trades booked today from the ETRM import (read-only; a count when the import holds no booking times), else the next nomination window |
 | Originator | A decision recorded on a case you opened | Your cases awaiting review, and the nearest due time |
-| Analyst | A large unplanned outage anywhere in north-west Europe; a shadow-strategy alert | None |
+| Analyst | A large unplanned outage anywhere in north-west Europe; a fundamentals surprise; a shadow-strategy alert | The next scheduled data arrival |
 | Risk manager | Any limit breach; a credit line moving onto watch; a decision case past its due time | Breach and watch counts and decisions waiting |
-| Operations | An outage in a zone where the book delivers; a nomination window closing within the hour (information only: nominations are made in the TSO or shipper system) | The next window and its time to close |
+| Operations | A contract delivering short beyond its tolerance; an outage in a zone where the book delivers; a nomination window closing within the hour (information only: nominations are made in the TSO or shipper system) | The next window and its time to close |
 | Finance | None | None |
 | Compliance | None | Cases decided this week |
 | Desk head | Any limit breach; an unplanned outage touching the book; a case waiting past half its time | The day's P&L change and the breach count |
-| Administrator, data operations | A source failing, or held back by its approval, in the last six hours | Sources needing attention |
+| Administrator, data operations | A source failing or held back by its approval, a failed job or a new problem report, in the last six hours | Sources needing attention |
 
 Data-source and ingestion problems appear only on the administrator's and data operator's strip.
 Limits items behind books you cannot see are never shown to you. A figure from the demo desk
@@ -66,13 +66,19 @@ defaults under **Organisation defaults**.
 An outage qualifies when it reaches either size. Raising the threshold makes the strip quieter;
 lowering it brings smaller outages onto it. Nothing here changes what you may read.
 
-## Not yet on the strip
+## Where the items come from
 
-These rows of the design wait on a server read or alert that does not exist yet; the strip
-already handles them and shows them as soon as the server sends them:
+The strip reads what the product already holds; nothing on it is written by a model.
 
-- a day-ahead or front-month price move against the prior close at a focus hub;
-- a contract delivering short of its nomination beyond tolerance;
-- a fundamentals surprise (storage change, supply call or LNG send-out outside its band against
-  the seven-day average);
-- the analyst's next scheduled data arrival.
+| Item | From |
+|---|---|
+| Outages | REMIT messages (the Network list's events) |
+| Limits and credit | The risk pages' own figures, computed firm-wide by the monitoring scan |
+| Price move (trader) | Day-ahead and front-month closes moving at least 2 % against the prior close (your own threshold applies on top); shown only to readers entitled to the price's source |
+| Delivery shortfall (operations) | Allocated against nominated per contract and gas day, beyond the contract's delivery tolerance |
+| Fundamentals surprise (analyst) | NW Europe storage daily change or LNG send-out at least 30 % from its 7-day average |
+| Failed jobs, problem reports (administrator) | The job runs and the support inbox |
+| Next data arrival (analyst's quiet line) | The source registry's schedule |
+
+Not yet on the strip: the NW Europe supply call as a fundamentals surprise (the balance is
+computed per request today), and an outage on the route or terminal of an open evaluation.

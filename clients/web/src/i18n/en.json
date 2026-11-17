@@ -5425,5 +5425,18 @@
   "status.notice_details": "Details",
   "status.notice_reads": "Some data did not load: {{names}}.",
   "status.notice_more": "{{names}} and {{count}} more",
-  "status.store_down": "The data store is not answering: figures may be missing or out of date until it is back."
+  "status.store_down": "The data store is not answering: figures may be missing or out of date until it is back.",
+  "strip.headline.problem_report": "New problem report ({{severity}}): {{summary}}",
+  "strip.quiet.next_data": "Next data: {{source}} in {{until}} ({{clock}})",
+  "strip.why.job_failed": "You see this because you run the platform and a job failed.",
+  "strip.why.problem_report": "You see this because you work the support inbox and a new report arrived.",
+  "strip.source_name.jobs": "job runs",
+  "strip.source_name.support": "support inbox",
+  "strip.headline.job_failed.INGESTION": "An ingestion job failed",
+  "strip.headline.job_failed.DATASET_BUILD": "A dataset build failed",
+  "strip.headline.job_failed.OPTIMISATION": "An optimisation run failed",
+  "strip.headline.job_failed.BACKTEST": "A backtest failed",
+  "strip.headline.job_failed.REPORT": "A report job failed",
+  "strip.headline.job_failed.AGENT_RUN": "An assistant run failed",
+  "strip.headline.job_failed.SNAPSHOT": "A snapshot job failed"
 }

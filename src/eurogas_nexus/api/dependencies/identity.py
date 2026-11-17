@@ -81,10 +81,13 @@ async def require_identity(request: Request) -> None:
     """
 
     await _resolve_identity(request)
+    from eurogas_nexus.application.alert_scope import set_request_principal
     from eurogas_nexus.security.portfolio_scope import set_request_scope
 
     principal = getattr(request.state, "identity", None)
     set_request_scope(principal.data_scopes if principal is not None else ())
+    # Price-bearing alerts are shown by the reader's source entitlement (alert_scope).
+    set_request_principal(principal)
 
 
 async def _resolve_identity(request: Request) -> None:

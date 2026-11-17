@@ -5425,5 +5425,18 @@
   "status.notice_details": "详情",
   "status.notice_reads": "部分数据未能加载：{{names}}。",
   "status.notice_more": "{{names}} 等 {{count}} 项",
-  "status.store_down": "数据存储无响应：恢复前数据可能缺失或过期。"
+  "status.store_down": "数据存储无响应：恢复前数据可能缺失或过期。",
+  "strip.headline.problem_report": "新问题报告（{{severity}}）：{{summary}}",
+  "strip.quiet.next_data": "下次数据：{{source}}，{{until}}后（{{clock}}）",
+  "strip.why.job_failed": "显示原因：你负责平台运行，一个作业失败。",
+  "strip.why.problem_report": "显示原因：你处理支持收件箱，收到新的问题报告。",
+  "strip.source_name.jobs": "作业运行",
+  "strip.source_name.support": "支持收件箱",
+  "strip.headline.job_failed.INGESTION": "一个数据接入作业失败",
+  "strip.headline.job_failed.DATASET_BUILD": "一个数据集构建失败",
+  "strip.headline.job_failed.OPTIMISATION": "一次优化运行失败",
+  "strip.headline.job_failed.BACKTEST": "一次回测失败",
+  "strip.headline.job_failed.REPORT": "一个报告作业失败",
+  "strip.headline.job_failed.AGENT_RUN": "一次助手运行失败",
+  "strip.headline.job_failed.SNAPSHOT": "一个快照作业失败"
 }

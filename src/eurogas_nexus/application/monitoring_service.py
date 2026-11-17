@@ -70,6 +70,9 @@ def scan_monitoring_conditions(
         *_outage_candidates(session, now),
         *_opportunity_evaluator_candidates(session),
     ]
+    candidates += _price_move_candidates(session, now)
+    candidates += _shortfall_candidates(session, now)
+    candidates += _fundamentals_candidates(session, now)
     limit_candidates, limits_failed = _limit_candidates(session, now)
     candidates += limit_candidates
     active_fingerprints = {candidate.fingerprint for candidate in candidates}
@@ -525,6 +528,291 @@ def _outage_candidates(session: Session, now: datetime) -> list[MonitoringCandid
         )
     return candidates
 
+
+
+# ------------------------------------------------------------------ price moves (G3)
+
+#: The smallest move a person can choose for the situational strip; the strip applies each
+#: person's own threshold (2, 3, 5 or 10 %) on top of this.
+PRICE_MOVE_MIN_PCT = 2.0
+PRICE_MOVE_CRITICAL_PCT = 10.0
+
+
+def _price_move_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
+    """Day-ahead and front-month closes that moved at least 2 % against the prior close.
+
+    The closes are the Today board's own (``daily_closes.daily_rows``), read firm-wide as
+    non-display use; one series per hub and tenor, a provider's closes winning over simulated
+    ones. A close older than four days, or one whose prior close is more than four days
+    earlier, is not a day move. Each alert names its source system, and a reader sees it only
+    when entitled to that family (``alert_scope``); simulated closes are marked simulated.
+    """
+
+    from eurogas_nexus.application.caller import firm_caller
+    from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
+    from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS
+
+    today = now.date()
+    try:
+        rows = daily_rows(firm_caller(None, session), today - timedelta(days=10), today)
+    except Exception:  # noqa: BLE001 - no price read, no price alert; the others stand
+        return []
+    series: dict[tuple[str, str, str], dict] = {}
+    for row in rows:
+        if row["tenor"] not in {"day-ahead", "month-ahead"} or not row.get("hub_resolved", True):
+            continue
+        if not row.get("source_system"):
+            continue  # only a named source raises an alert
+        series.setdefault((row["hub"], row["tenor"], row["source_system"]), {})[row["day"]] = row
+    best: dict[tuple[str, str], tuple] = {}
+    for (hub, tenor, source), closes in series.items():
+        rank = (not closes[max(closes)]["simulated"], max(closes))
+        if (hub, tenor) not in best or rank > best[(hub, tenor)][0]:
+            best[(hub, tenor)] = (rank, source, closes)
+    candidates: list[MonitoringCandidate] = []
+    for (hub, tenor), (_, source, closes) in sorted(best.items()):
+        days = sorted(closes)
+        if len(days) < 2 or (today - days[-1]).days > MAX_VAR_GAP_DAYS:
+            continue
+        if (days[-1] - days[-2]).days > MAX_VAR_GAP_DAYS:
+            continue
+        last, prior = closes[days[-1]], closes[days[-2]]
+        price, unit = in_native_unit(hub, last["price"], last["unit"])
+        previous, _ = in_native_unit(hub, prior["price"], last["unit"])
+        if not previous:
+            continue
+        move = 100.0 * (price - previous) / abs(previous)
+        if abs(move) < PRICE_MOVE_MIN_PCT:
+            continue
+        product = "DA" if tenor == "day-ahead" else "FM"
+        simulated = bool(last["simulated"])
+        candidates.append(
+            MonitoringCandidate(
+                fingerprint=f"price_move:{hub}:{product}:{days[-1].isoformat()}",
+                category="market",
+                alert_type="price_move",
+                severity="critical" if abs(move) >= PRICE_MOVE_CRITICAL_PCT else "warning",
+                title_en=f"{hub} {product} {move:+.1f}% vs prior close ({price:,.2f} {unit})",
+                title_zh_cn=f"{hub} {product} 较前收盘 {move:+.1f}%（{price:,.2f} {unit}）",
+                message_en=(
+                    f"{hub} {product} closed at {price:,.3f} {unit} on {days[-1]:%d %b}, "
+                    f"{move:+.1f}% against {previous:,.3f} on {days[-2]:%d %b}."
+                ),
+                message_zh_cn=(
+                    f"{hub} {product} 于 {days[-1]:%m-%d} 收于 {price:,.3f} {unit}，"
+                    f"较 {days[-2]:%m-%d} 的 {previous:,.3f} 变动 {move:+.1f}%。"
+                ),
+                entity_type="market_close",
+                entity_id=f"{hub}:{product}",
+                event_time_utc=now,
+                evidence_snapshot={
+                    "hub": hub,
+                    "product": product,
+                    "tenor": tenor,
+                    "move_pct": round(move, 2),
+                    "price": round(price, 4),
+                    "previous_price": round(previous, 4),
+                    "unit": unit,
+                    "close_day": days[-1].isoformat(),
+                    "previous_day": days[-2].isoformat(),
+                    "source_system": source,
+                    "simulated": simulated,
+                },
+                source_refs=[f"market-close:{source}:{hub}:{tenor}:{days[-1].isoformat()}"],
+                simulated=simulated,
+                human_review_required=True,
+            )
+        )
+    return candidates
+
+
+# ------------------------------------------------------------------ delivery shortfalls (G5)
+
+#: Gas days a shortfall stays an alert after it was allocated.
+SHORTFALL_LOOKBACK_DAYS = 3
+
+
+def _shortfall_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
+    """Contracts that delivered short of their nomination by more than their tolerance.
+
+    Per contract and gas day of the last three: allocated against nominated, against the
+    contract's own delivery tolerance. A day not yet allocated is not a shortfall. The alert
+    carries the contract's book, so book isolation applies (``alert_scope``).
+    """
+
+    from eurogas_nexus.db.models import ContractDeliveryRecord, UpstreamResourceContractRecord
+
+    first = now.date() - timedelta(days=SHORTFALL_LOOKBACK_DAYS)
+    rows = (
+        session.query(ContractDeliveryRecord)
+        .filter(ContractDeliveryRecord.gas_day >= first)
+        .filter(ContractDeliveryRecord.allocated_mwh.isnot(None))
+        .filter(ContractDeliveryRecord.nominated_mwh > 0)
+        .all()
+    )
+    contracts = {
+        row.contract_id: row
+        for row in session.query(UpstreamResourceContractRecord).filter(
+            UpstreamResourceContractRecord.contract_id.in_({row.contract_id for row in rows})
+        )
+    } if rows else {}
+    candidates: list[MonitoringCandidate] = []
+    for row in rows:
+        contract = contracts.get(row.contract_id)
+        if contract is None:
+            continue
+        nominated = float(row.nominated_mwh)
+        shortfall = nominated - float(row.allocated_mwh)
+        pct = 100.0 * shortfall / nominated
+        tolerance = float(contract.delivery_tolerance_pct or 0.0)
+        if shortfall <= 0 or pct <= tolerance:
+            continue
+        name = contract.contract_name
+        candidates.append(
+            MonitoringCandidate(
+                fingerprint=f"shortfall:{row.contract_id}:{row.gas_day.isoformat()}",
+                category="delivery",
+                alert_type="shortfall",
+                severity="critical" if pct > 2 * tolerance else "warning",
+                title_en=f"{name} delivered {shortfall:,.0f} MWh short on {row.gas_day:%d %b}",
+                title_zh_cn=f"{name} 于 {row.gas_day:%m-%d} 交付短缺 {shortfall:,.0f} MWh",
+                message_en=(
+                    f"Allocated {float(row.allocated_mwh):,.0f} MWh against {nominated:,.0f} MWh "
+                    f"nominated: {pct:.1f}% short, beyond the {tolerance:.1f}% tolerance."
+                ),
+                message_zh_cn=(
+                    f"分配 {float(row.allocated_mwh):,.0f} MWh，提名 {nominated:,.0f} MWh："
+                    f"短缺 {pct:.1f}%，超出 {tolerance:.1f}% 容差。"
+                ),
+                entity_type="contract_delivery",
+                entity_id=f"{row.contract_id}:{row.gas_day.isoformat()}",
+                event_time_utc=now,
+                evidence_snapshot={
+                    "contract_id": row.contract_id,
+                    "contract_name": name,
+                    "gas_day": row.gas_day.isoformat(),
+                    "nominated_mwh": nominated,
+                    "allocated_mwh": float(row.allocated_mwh),
+                    "shortfall_mwh": round(shortfall, 1),
+                    "shortfall_pct": round(pct, 2),
+                    "tolerance_pct": tolerance,
+                    "point": row.point,
+                    "tso": row.tso,
+                    "source_system": row.source_system,
+                    "book_ids": [contract.book_id] if contract.book_id else [],
+                },
+                source_refs=[f"contract-delivery:{row.contract_id}:{row.gas_day.isoformat()}"],
+                simulated=row.source_system == "DEMO",
+                human_review_required=True,
+            )
+        )
+    return candidates
+
+
+# ------------------------------------------------------------------ fundamentals surprises
+
+#: A daily figure is a surprise when it is this far from its 7-day average...
+FUNDAMENTALS_BAND_PCT = 30.0
+#: ...and at least this far in its own unit, so a near-zero average does not alarm.
+FUNDAMENTALS_FLOOR = {"storage_change": 0.3, "lng_sendout": 0.1}
+
+
+def _fundamentals_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
+    """NW Europe storage daily change and LNG send-out outside their band vs the 7-day average.
+
+    Summed over the north-west European countries (the balance's scope), on days every
+    reporting country covers. The comparison is the mean of the seven days before the latest.
+    """
+
+    from eurogas_nexus.db.models.observation import LngObservationRecord as Lng
+    from eurogas_nexus.db.models.observation import StorageObservationRecord as Storage
+    from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
+
+    first = now - timedelta(days=12)
+    naive = session.get_bind().dialect.name == "sqlite"
+    bound = first.replace(tzinfo=None) if naive else first
+
+    def daily(model, column) -> tuple[dict, set[str]]:
+        by_day: dict = {}
+        sources: set[str] = set()
+        for record in (
+            session.query(model.period_start_utc, model.country, model.source_system, column)
+            .filter(model.country.in_(NWE_COUNTRIES), model.period_start_utc >= bound)
+            .filter(column.isnot(None))
+        ):
+            day = _as_utc(record[0]).date()
+            by_day.setdefault(day, {}).setdefault(record[1], 0.0)
+            by_day[day][record[1]] += float(record[3])
+            sources.add(str(record[2]))
+        if not by_day:
+            return {}, sources
+        countries = set.intersection(*(set(values) for values in by_day.values()))
+        return (
+            {day: sum(values[c] for c in countries) for day, values in by_day.items()},
+            sources,
+        )
+
+    inventory, storage_sources = daily(Storage, Storage.inventory_twh)
+    days = sorted(inventory)
+    change = {b: inventory[b] - inventory[a] for a, b in zip(days, days[1:], strict=False)}
+    sendout, lng_sources = daily(Lng, Lng.send_out_twh_d)
+    candidates: list[MonitoringCandidate] = []
+    for series, values, unit, sources, label_en, label_zh in (
+        ("storage_change", change, "TWh", storage_sources, "storage change", "储气日变化"),
+        ("lng_sendout", sendout, "TWh/d", lng_sources, "LNG send-out", "LNG 外输"),
+    ):
+        ordered = sorted(values)
+        if len(ordered) < 8:
+            continue
+        latest_day = ordered[-1]
+        latest = values[latest_day]
+        average = sum(values[d] for d in ordered[-8:-1]) / 7
+        gap = latest - average
+        if abs(gap) < FUNDAMENTALS_FLOOR[series]:
+            continue
+        deviation = 100.0 * gap / abs(average) if average else 100.0
+        if abs(deviation) < FUNDAMENTALS_BAND_PCT:
+            continue
+        source = sorted(sources)[0] if sources else ""
+        simulated = any(item.endswith("_Sim") for item in sources)
+        candidates.append(
+            MonitoringCandidate(
+                fingerprint=f"fundamentals:{series}:{latest_day.isoformat()}",
+                category="fundamentals",
+                alert_type=series,
+                severity="warning",
+                title_en=(
+                    f"NW Europe {label_en} {latest:+,.2f} {unit} on {latest_day:%d %b}, "
+                    f"{deviation:+.0f}% vs the 7-day average"
+                ),
+                title_zh_cn=(
+                    f"西北欧{label_zh} {latest_day:%m-%d} 为 {latest:+,.2f} {unit}，"
+                    f"较 7 日均值 {deviation:+.0f}%"
+                ),
+                message_en=(
+                    f"{label_en.capitalize()} {latest:,.2f} {unit} against a 7-day average of "
+                    f"{average:,.2f} {unit} ({', '.join(sorted(sources))})."
+                ),
+                message_zh_cn=f"{label_zh} {latest:,.2f} {unit}，7 日均值 {average:,.2f} {unit}。",
+                entity_type="fundamentals_series",
+                entity_id=series,
+                event_time_utc=now,
+                evidence_snapshot={
+                    "series": series,
+                    "value": round(latest, 3),
+                    "average_7d": round(average, 3),
+                    "deviation_pct": round(deviation, 1),
+                    "unit": unit,
+                    "day": latest_day.isoformat(),
+                    "source_system": source,
+                    "simulated": simulated,
+                },
+                source_refs=[f"fundamentals:{series}:{source}:{latest_day.isoformat()}"],
+                simulated=simulated,
+                human_review_required=True,
+            )
+        )
+    return candidates
 
 
 def _limit_candidates(
