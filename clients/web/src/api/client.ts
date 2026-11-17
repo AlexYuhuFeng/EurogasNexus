@@ -550,6 +550,11 @@ async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   return parseResponse<ApiResponse<T>>(response);
 }
 
+async function del<T>(path: string): Promise<ApiResponse<T>> {
+  const response = await fetch(apiUrl(path), requestInit({ method: "DELETE" }));
+  return parseResponse<ApiResponse<T>>(response);
+}
+
 async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   const response = await fetch(apiUrl(path), requestInit({
     method: "PUT",
@@ -2000,6 +2005,10 @@ export interface ReportSummaryDTO {
   simulated: boolean;
   licensed_families: string[];
   model_use: { attempted?: number; passed?: number };
+  /** An asked report's question. */
+  question?: string | null;
+  generated_by?: string;
+  edited_by?: "model" | "rule";
 }
 
 export interface ReportMetadataDTO {
@@ -2020,6 +2029,7 @@ export interface ReportMetadataDTO {
   pdf: string;
   issue?: number;
   standfirst?: string | null;
+  answer?: { text: string; fact_ids: string[]; basis: "model" | "rule" } | null;
   findings?: { fact_ids: string[]; text: string; implication: string | null; why: string; basis?: string }[];
   editorial?: { basis: "model" | "rule"; model: string | null; directive: string | null; temperature?: number | null; elements?: Record<string, { ok: boolean; detail: string }> };
 }
@@ -5204,7 +5214,18 @@ export const api = {
   reportPlan: (question: string, audience: ReportAudience) =>
     post<ReportPlanProposalDTO>("/reports/plan", { question, audience }),
 
-  generateReport: (body: ReportRequestDTO) => post<ReportMetadataDTO>("/reports/market", body),
+  generateReport: (body: ReportRequestDTO, options?: ApiRequestOptions) =>
+    post<ReportMetadataDTO>("/reports/market", body, options),
+
+  deleteReport: (reportId: string) =>
+    del<{ deleted: string[] }>(`/reports/market/${encodeURIComponent(reportId)}`),
+
+  deleteReports: (reportIds: string[]) =>
+    post<{ deleted: string[]; refused: { report_id: string; code: string }[] }>(
+      "/reports/market/bulk-delete", { report_ids: reportIds }),
+
+  renameReport: (reportId: string, title: string) =>
+    patch<{ renamed: string[]; title: string }>(`/reports/market/${encodeURIComponent(reportId)}`, { title }),
 
   marketReports: (options?: ApiRequestOptions) =>
     get<ReportSummaryDTO[]>("/reports/market", { limit: "50" }, options),

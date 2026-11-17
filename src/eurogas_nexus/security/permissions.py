@@ -113,6 +113,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/reports/market", Permission.READ),
     ("/api/reports/market/{report_id}", Permission.READ),
     ("/api/reports/market/{report_id}/html", Permission.READ),
+    # Deleting or renaming stored reports: the generating principal or an administrator,
+    # checked per report in the route and audited.
+    ("/api/reports/market/bulk-delete", Permission.GOVERNED),
     ("/api/review/decisions", Permission.REVIEW),
     ("/api/ingestion-runs", Permission.READ),
     # --- read families ---
@@ -315,6 +318,8 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/analysis-snapshots", Permission.GOVERNED),
     ("POST", "/api/decision-cases", Permission.GOVERNED),
     ("POST", "/api/reports/market", Permission.GOVERNED),
+    ("DELETE", "/api/reports/market/{report_id}", Permission.GOVERNED),
+    ("PATCH", "/api/reports/market/{report_id}", Permission.GOVERNED),
     ("PUT", "/api/settings/organisation", Permission.ADMIN),
     # Book structure and assignment is middle-office configuration, not a market read.
     ("PUT", "/api/portfolio/books/{book_id}", Permission.OPERATOR),

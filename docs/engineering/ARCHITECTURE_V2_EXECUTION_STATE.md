@@ -6,6 +6,22 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-17 — market reports round 4: asked reports answer the question; report library (branch `reports-round4`, not pushed)
+
+- `reports/answer.py`: question facts for an asked report (outages tied to Norwegian supply,
+  landings over the outages' days against the week before, scheduled Norwegian outages),
+  engine-declared `related` facts, "what the data cannot tell", the rule answer and the
+  relevance order. Rendered as question title, Answer, Evidence, What the data cannot tell.
+- Directive v3 adds ANSWER; the checker verifies the answer (rule fallback), refuses a cause
+  (only `causes`, none today), allows a time word between related facts, and refuses book words
+  in a shareable report. Five recorded asked cases.
+- Outage events grouped (`remit_umm.outage_events`) in report reads; a situation report finds
+  its outage by any member message id.
+- Report library: delete, rename and bulk delete (author or administrator, audited
+  `report.manage`); surface 252 paths / 276 operations (+1 / +3 on 251 / 273).
+- Viewer: Generate straight from a question (scope optional, collapsed), staged progress with
+  Cancel, list with period, by and edited-by, Manage dialog.
+
 ## 2026-11-16 — market reports round 3: page economy, exhibits, brand mark (branch `reports-editorial`, not pushed)
 
 - Template `market-report/3`: text beside half-width exhibits, only exhibits kept from splitting,

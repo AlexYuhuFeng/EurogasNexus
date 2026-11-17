@@ -149,3 +149,59 @@
   }
 }
 }
+
+.reports-scope {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.reports-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.reports-progress ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-3);
+}
+
+.reports-progress li[data-state="done"] {
+  color: var(--ds-text-2);
+}
+
+.reports-progress li[data-state="current"] {
+  color: var(--ds-text-1);
+  font-weight: 600;
+}
+
+.reports-manage {
+  display: grid;
+  gap: var(--ds-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.reports-manage legend {
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-2);
+  margin-bottom: var(--ds-space-2);
+}
+
+.reports-manage label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+}

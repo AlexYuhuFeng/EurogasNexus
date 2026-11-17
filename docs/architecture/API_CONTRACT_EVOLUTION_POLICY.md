@@ -29,6 +29,13 @@ records who, when, why and which terms summary was accepted, writes the audit ev
 approver) and freshness-contract rows of a held-back source gain `blocked_reason` and
 `blocked_action`. No field changes meaning. Census: 251 paths / 272 operations.
 
+Additive 2026-11-17 (report library): one path, three operations. `DELETE` and `PATCH`
+`/api/reports/market/{report_id}` (delete a stored report; rename it) and
+`POST /api/reports/market/bulk-delete` (GOVERNED; only the principal who generated a report or
+an administrator, checked per report and audited as `report.manage`). Report summaries gain
+`question`, `generated_by` and `edited_by`; report metadata gains `answer`. No field changes
+meaning. Census: 252 paths / 276 operations.
+
 Additive 2026-11-16 (answer bar): one path, one operation. `POST /api/analysis/ask` (READ,
 like `POST /api/analysis/explain` and `POST /api/analysis/brief`) answers a question typed
 into the search bar from the caller's Today facts, each with its source and as-of; book and

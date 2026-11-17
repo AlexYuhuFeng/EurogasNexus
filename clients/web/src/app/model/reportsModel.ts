@@ -3,7 +3,7 @@
  * "Report" action carries in the URL (`?workspace=research&task=reports&subject=outage:<id>`).
  * Pure functions, so the request a form makes is tested without a browser.
  */
-import type { ReportAudience, ReportKind, ReportRequestDTO } from "../../api/client.ts";
+import type { ReportAudience, ReportKind, ReportRequestDTO, ReportSummaryDTO } from "../../api/client.ts";
 
 export interface ReportSubject {
   kind: "alert" | "outage";
@@ -110,4 +110,39 @@ export function reportCsv(html: string): string {
 /** The report with only page one shown: what "Summary only" prints. */
 export function summaryOnlyHtml(html: string): string {
   return html.replace("</head>", "<style>.r-body,.r-back-sheet{display:none!important}</style></head>");
+}
+
+/**
+ * Generation progress. A report is one request (the server does not stream its steps yet),
+ * so the stages after planning advance on the typical durations measured on the demo desk
+ * and the public store (rule-written about 5 s; AI-edited 20 to 80 s, most of it writing);
+ * "laying out" holds until the reply arrives. Kept separate from the component so a shared
+ * progress hook can replace it without touching the page.
+ */
+export type ReportStage = "planning" | "collecting" | "writing" | "checking" | "laying_out";
+
+export const REPORT_STAGES: readonly ReportStage[] = ["planning", "collecting", "writing", "checking", "laying_out"];
+
+/** The stage to show `elapsedMs` after the report request was sent (planning is its own step). */
+export function reportStageAt(elapsedMs: number): Exclude<ReportStage, "planning"> {
+  if (elapsedMs < 3_000) return "collecting";
+  if (elapsedMs < 45_000) return "writing";
+  if (elapsedMs < 60_000) return "checking";
+  return "laying_out";
+}
+
+/** The stored-report list's "who edited it" word. */
+export function editedByLabel(summary: Pick<ReportSummaryDTO, "edited_by">): "model" | "rule" {
+  return summary.edited_by === "model" ? "model" : "rule";
+}
+
+/** A report's period as the list shows it ("9 Nov – 15 Nov", one day, or empty). */
+export function reportPeriodLabel(start: string | null, end: string | null): string {
+  const short = (value: string) => {
+    const day = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+    return `${day.getUTCDate()} ${day.toLocaleString("en-GB", { month: "short", timeZone: "UTC" })}`;
+  };
+  if (!start && !end) return "";
+  if (start && end && start !== end) return `${short(start)} – ${short(end)}`;
+  return short((end ?? start) as string);
 }

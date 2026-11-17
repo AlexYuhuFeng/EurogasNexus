@@ -87,6 +87,64 @@ def list_reports(session, reader: Caller, *, kind: str | None = None, limit: int
     return out
 
 
+def may_manage(record, actor: Caller) -> bool:
+    """Who may delete or rename a stored report: the principal who generated it, or an
+    administrator. Reading it is not enough."""
+
+    principal = actor.principal
+    roles = {str(r).upper() for r in (getattr(principal, "roles", ()) or ())} | {
+        str(getattr(principal, "role", "") or "").upper()}
+    return record.generated_by == (actor.principal_id or "") or "ADMIN" in roles
+
+
+def manage_reports(session, actor: Caller, report_ids: list[str], *, action: str,
+                   title: str | None = None, now: datetime, correlation_id: str | None = None
+                   ) -> dict[str, list]:
+    """Delete (``action="delete"``) or rename (``action="rename"``) stored reports, each
+    checked and audited one by one: a report the actor may not see is reported as not found
+    (nothing about it is echoed), one the actor may see but not manage as refused."""
+
+    from eurogas_nexus.db.models import MarketReportRecord
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+
+    done: list[str] = []
+    refused: list[dict[str, str]] = []
+    for report_id in dict.fromkeys(report_ids):
+        record = session.get(MarketReportRecord, report_id)
+        if record is None or not reader_may_see(session, record, actor)[0]:
+            refused.append({"report_id": report_id, "code": "report_not_found"})
+            continue
+        if not may_manage(record, actor):
+            refused.append({"report_id": report_id, "code": "report_not_owned"})
+            record_audit_event(session, event_type="report.manage",
+                               principal=(actor.principal_id or "unknown")[:64],
+                               action=f"report.{action}", resource=f"report:{report_id}"[:128],
+                               outcome="refused", severity="warning",
+                               detail="not the generating principal and not an administrator",
+                               source_system="reports", now_utc=now,
+                               correlation_id=correlation_id)
+            continue
+        before = {"title": record.title, "kind": record.kind, "audience": record.audience,
+                  "created_at": summary(record)["created_at"],
+                  "generated_by": record.generated_by, "html_sha256": record.html_sha256}
+        if action == "delete":
+            session.delete(record)
+            after = None
+        else:
+            record.title = (title or "").strip()[:256] or record.title
+            after = {"title": record.title}
+        record_audit_event(session, event_type="report.manage",
+                           principal=(actor.principal_id or "unknown")[:64],
+                           action=f"report.{action}", resource=f"report:{report_id}"[:128],
+                           outcome="deleted" if action == "delete" else "renamed",
+                           severity="info", detail=f"{before['kind']} {before['audience']}",
+                           source_system="reports", now_utc=now, correlation_id=correlation_id,
+                           before_summary=before, after_summary=after)
+        done.append(report_id)
+    session.commit()
+    return {"done": done, "refused": refused}
+
+
 def summary(record) -> dict[str, Any]:
     created = record.created_at_utc
     if created is not None and created.tzinfo is None:
@@ -108,6 +166,10 @@ def summary(record) -> dict[str, Any]:
         "model_use": {k: v for k, v in (record.model_use or {}).items() if k != "sections"},
         "trigger": {k: v for k, v in (record.trigger_json or {}).items()
                     if k in {"type", "alert_id", "outage_id", "schedule"}},
+        "question": (record.plan_json or {}).get("question"),
+        "generated_by": record.generated_by,
+        "edited_by": ((record.snapshot_json or {}).get("editorial") or {}).get("basis")
+        or "rule",
     }
 
 

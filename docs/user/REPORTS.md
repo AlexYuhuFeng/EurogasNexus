@@ -83,14 +83,45 @@ be licensed to the reader, and an internal report's books must be books the read
 
 ## Asked reports
 
-Type a question ("Norwegian supply this week and outages affecting it") and press **Propose
-plan**. The question becomes a *plan*: catalogue sections with hubs, countries and a period. When
-your firm enables the AI model, the model proposes the plan as structured data; it is used only
-when it validates against the catalogue and names no hub your question did not name (a question
-about ETF never becomes a TTF report). Otherwise keyword rules propose it. You see and edit the
-plan before anything is generated. A question the held data cannot answer (oil, carbon, Asian
-prices, vessel tracking) says "Cannot answer from held data" and what is missing. The model never
-writes SQL and is sent only the question and the catalogue.
+Type a question ("How are the recent Norwegian outages affecting the supply?") and press
+**Generate**. You do not choose sections: the question decides the scope (when your firm enables
+the AI model, the model proposes it as structured data, used only when it validates against the
+catalogue and names no hub your question did not name; otherwise keyword rules). **Adjust scope**
+opens the plan (sections, period, hubs) if you want to change it before generating. While the
+report is made the form shows its stages (planning, collecting, writing, checking, laying out)
+with **Cancel**.
+
+The report answers the question:
+
+- **Title and Answer.** The question is the title; page one opens with an **Answer** of two to
+  four sentences on what the evidence shows, every figure from a fact the report holds. Where the
+  held data does not answer part of the question it says so: "The data held does not show ...".
+- **Question facts.** The engine adds facts for the question on top of each section's own. For
+  outages and Norwegian supply: the outages tied to Norwegian supply (a Norwegian balancing zone,
+  a Norwegian field, plant or export pipeline, or a landing terminal for Norwegian gas; the basis
+  is stated) with their capacity as a share of the latest landings, and the landings averaged
+  over the days those outages were active against the seven days before. The engine marks those
+  two as computed together, so the report may say "over the days ... were active"; it never says
+  the outage caused the change, because the data held cannot show that.
+- **Evidence.** Only the sections that bear on the question, in order of relevance, each
+  paragraph opening with how it bears on it; the outage schedule lists the outages tied to
+  Norwegian supply first.
+- **What the data cannot tell**: outages that cannot be tied to the question, flows not yet
+  reported, sources that are not held, the forecast's missing range, and that a coincidence is
+  not a measured effect. Then **What to watch** (scheduled events only).
+
+A question the held data cannot answer at all (oil, carbon, Asian prices, vessel tracking) says
+"Cannot answer from held data" and what is missing. A report for distribution never mentions the
+book, even when the question asks about it.
+
+## Your report library
+
+The stored list shows the kind, the title (the question for an asked report), the period, when
+and by whom it was generated, and whether it was AI-edited or rule-edited. **Rename** and
+**Delete** in the viewer act on the open report; **Manage** deletes several at once after a
+confirmation. You can rename or delete reports you generated; an administrator can delete any.
+Each change is checked on the server and recorded in the audit trail (`report.manage`); a
+deleted report cannot be restored.
 
 ## What the model does and does not do
 
@@ -130,4 +161,5 @@ data scopes, never an administrator.
 
 `GET /api/reports/catalogue`, `POST /api/reports/plan`, `POST /api/reports/market`,
 `GET /api/reports/market`, `GET /api/reports/market/{report_id}`,
-`GET /api/reports/market/{report_id}/html`.
+`GET /api/reports/market/{report_id}/html`, `PATCH` and `DELETE /api/reports/market/{report_id}`
+(rename, delete) and `POST /api/reports/market/bulk-delete`.

@@ -53,6 +53,16 @@ class ReportRequest(BaseModel):
     use_model: bool = True
 
 
+class ReportTitle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1, max_length=256)
+
+
+class ReportIds(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    report_ids: list[str] = Field(min_length=1, max_length=100)
+
+
 class PlanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question: str = Field(min_length=3, max_length=500)
@@ -266,3 +276,67 @@ def get_market_report_html(report_id: str, request: Request) -> HTMLResponse:
             "Cache-Control": "private, no-store",
         },
     )
+
+
+def _manage(request: Request, report_ids: list[str], action: str, title: str | None = None):
+    from datetime import UTC, datetime
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.caller import Caller
+    from eurogas_nexus.application.reports.store import manage_reports
+
+    request_id = getattr(request.state, "request_id", None)
+    try:
+        with _db() as session:
+            return manage_reports(session, Caller(ai_caller(request)), report_ids,
+                                  action=action, title=title, now=datetime.now(UTC),
+                                  correlation_id=request_id[:64] if request_id else None)
+    except SQLAlchemyError as exc:
+        raise _unavailable(exc) from exc
+
+
+def _one(outcome: dict, report_id: str) -> None:
+    if report_id in outcome["done"]:
+        return
+    code = outcome["refused"][0]["code"] if outcome["refused"] else "report_not_found"
+    raise HTTPException(status_code=404 if code == "report_not_found" else 403,
+                        detail={"code": code})
+
+
+@router.delete("/api/reports/market/{report_id}")
+def delete_market_report(report_id: str, request: Request) -> dict:
+    """Delete one stored report: the principal who generated it, or an administrator; audited.
+
+    删除一份已存档报告（仅生成者或管理员；记录审计）。
+    """
+
+    outcome = _manage(request, [report_id], "delete")
+    _one(outcome, report_id)
+    return _env({"deleted": outcome["done"]}, request, "runtime-postgresql:market-report", [])
+
+
+@router.patch("/api/reports/market/{report_id}")
+def rename_market_report(report_id: str, body: ReportTitle, request: Request) -> dict:
+    """Give a stored report a new title (the document itself is unchanged); audited.
+
+    重命名一份已存档报告（报告正文不变；记录审计）。
+    """
+
+    outcome = _manage(request, [report_id], "rename", body.title)
+    _one(outcome, report_id)
+    return _env({"renamed": outcome["done"], "title": body.title.strip()[:256]}, request,
+                "runtime-postgresql:market-report", [])
+
+
+@router.post("/api/reports/market/bulk-delete")
+def bulk_delete_market_reports(body: ReportIds, request: Request) -> dict:
+    """Delete several stored reports; each is checked and audited on its own and the reply
+    lists what was deleted and what was refused.
+
+    批量删除报告：逐份校验与审计，返回已删除与被拒绝的列表。
+    """
+
+    outcome = _manage(request, body.report_ids, "delete")
+    return _env({"deleted": outcome["done"], "refused": outcome["refused"]}, request,
+                "runtime-postgresql:market-report", [])

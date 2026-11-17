@@ -500,3 +500,129 @@ def test_a_chinese_edition_prints_its_furniture_in_chinese(env):
                        language="zh-CN")
     assert '<html lang="zh-CN">' in report.html
     assert "要点" in report.html and "一览" in report.html and "第 \" counter(page)" in report.html
+
+
+# ------------------------------------------------- round 4: asked reports answer the question
+
+from eurogas_nexus.application.reports import answer as asked_answer  # noqa: E402
+from eurogas_nexus.application.reports.plan import plan_for_question  # noqa: E402
+from eurogas_nexus.application.reports.store import manage_reports  # noqa: E402
+
+NORWAY_QUESTION = "How are the recent Norwegian outages affecting the supply?"
+
+
+def _asked(env, question=NORWAY_QUESTION, audience="shareable", caller=None):
+    plan = plan_for_question(question, audience=audience, now=NOW)["plan"]
+    return _generate(env, caller or _caller("DEMO", "BOOKS:*"), plan)
+
+
+def test_an_asked_report_is_titled_by_its_question_and_answers_it_first(env):
+    report = _asked(env)
+    snapshot = report.snapshot
+    front = report.html.split('class="r-sheet r-body"')[0]
+    assert f'<h1 class="r-question">{NORWAY_QUESTION}</h1>' in front
+    assert 'class="r-answer"' in front and "Answer" in front
+    answer = snapshot["answer"]
+    assert answer["basis"] == "rule" and 2 <= len(re.findall(r"[.!?](?:\s|$)", answer["text"])) <= 4
+    # The demo desk holds no outage on a Norwegian asset: the answer says so plainly.
+    assert asked_answer.NOT_SHOWN in answer["text"]
+    sheet = {f["id"]: f for f in snapshot["fact_sheet"]}
+    assert sheet[answer["fact_ids"][0]]["key"] == "q.outages.norway"
+    body = _body(report.html)
+    assert "Evidence" in body and "What the data cannot tell" in body
+    assert snapshot["section_order"][0] == "outages"
+    assert not BOOK.search(report.html.split('class="r-sheet r-back-sheet"')[0])
+
+
+def test_the_question_join_attributes_norwegian_outages_and_relates_the_landings():
+    rows = [{"facility": "Kollsnes processing plant", "gwh": 300.0, "status": "active",
+             "start": "2026-11-05T06:00:00+00:00", "end": None, "norway": "asset"},
+            {"facility": "Speicher Breitbrunn", "gwh": 100.0, "status": "active",
+             "start": "2026-11-01T06:00:00+00:00", "end": None, "norway": None}]
+    days = {date(2026, 10, 28) + timedelta(days=i): 4000.0 + (0 if i < 8 else -250.0)
+            for i in range(10)}
+    results = {"outages": {"simulated": False}, "pipeline_supply": {"simulated": False}}
+    facts_, cannot = asked_answer._outage_supply(
+        results, {"outages": {"rows": rows, "state": "current"},
+                  "pipeline_supply": {"total": days, "latest": max(days), "state": "current"}},
+        date(2026, 11, 6))
+    by_key = {f["key"]: f for f in facts_}
+    nor = by_key["q.outages.norway"]
+    assert nor["value"] == 300.0 and "Kollsnes" in nor["sentence"]
+    window = by_key["q.landings.outage_window"]
+    assert window["related"] == ["q.outages.norway"] and nor["related"] == [window["key"]]
+    assert "down 250 GWh/d" in window["sentence"]
+    assert any("Speicher Breitbrunn" in c for c in cannot)
+    assert any("coincidence" in c for c in cannot)
+
+
+def test_an_unanswerable_part_is_said_plainly_and_a_shareable_ask_holds_no_book(env):
+    report = _asked(env, "How do oil prices and our book react to TTF this week?")
+    assert report.snapshot["cannot_tell"][0].startswith(asked_answer.NOT_SHOWN + " oil")
+    assert asked_answer.NOT_SHOWN in report.snapshot["answer"]["text"]
+    assert not any(f["section"].startswith("book_") for f in report.snapshot["fact_sheet"])
+
+
+def test_a_situation_report_finds_its_outage_by_any_grouped_message_id(env):
+    from eurogas_nexus.application.reports.sections import Ctx, find_outage
+
+    with Session(env) as session:
+        plan = validate_plan({"kind": "situation", "outage_id": "x"}, now=NOW)
+        ctx = Ctx(session=session, caller=_caller("DEMO"), now=NOW, plan=plan)
+        rows = sections_outage_rows(ctx)
+        assert rows and all("messages" in r for r in rows)
+        member = rows[0]["messages"][-1]
+        assert find_outage(ctx, member)["event_id"] == rows[0]["event_id"]
+
+
+def sections_outage_rows(ctx):
+    from eurogas_nexus.application.reports.sections import _outage_rows
+
+    return _outage_rows(ctx, 400)
+
+
+def test_a_report_is_deleted_or_renamed_only_by_its_author_or_an_administrator(env):
+    from eurogas_nexus.db.models import AuditEventRecord, MarketReportRecord
+
+    author, other = _caller("DEMO", pid="p-author"), _caller("DEMO", pid="p-other")
+    admin = Caller(AuthenticatedPrincipal(
+        principal_id="p-admin", name="admin", principal_type="USER", role="ADMIN",
+        status="ACTIVE", data_scopes=("DEMO",), roles=("ADMIN",)))
+    first = _generate(env, author, {"kind": "daily", "sections": ["prices"]})
+    second = _generate(env, author, {"kind": "daily", "sections": ["prices"]})
+    with Session(env) as session:
+        refused = manage_reports(session, other, [first.report_id], action="delete", now=NOW)
+        assert refused == {"done": [], "refused": [{"report_id": first.report_id,
+                                                    "code": "report_not_owned"}]}
+        renamed = manage_reports(session, author, [first.report_id], action="rename",
+                                 title="  Desk note  ", now=NOW)
+        assert renamed["done"] == [first.report_id]
+        assert session.get(MarketReportRecord, first.report_id).title == "Desk note"
+        bulk = manage_reports(session, admin, [first.report_id, second.report_id, "mr-none"],
+                              action="delete", now=NOW)
+        assert bulk["done"] == [first.report_id, second.report_id]
+        assert bulk["refused"] == [{"report_id": "mr-none", "code": "report_not_found"}]
+        assert session.get(MarketReportRecord, first.report_id) is None
+        actions = [(e.action, e.outcome) for e in session.query(AuditEventRecord)
+                   .filter(AuditEventRecord.event_type == "report.manage")]
+        assert ("report.delete", "refused") in actions and ("report.rename", "renamed") in actions
+        assert actions.count(("report.delete", "deleted")) == 2
+
+
+def test_the_api_deletes_renames_and_lists_with_question_and_editor(env):
+    from eurogas_nexus.api.app import create_app
+
+    client = TestClient(create_app())
+    made = client.post("/api/reports/market", json={
+        "kind": "ask", "question": NORWAY_QUESTION, "audience": "shareable",
+        "sections": ["pipeline_supply", "outages"], "use_model": False}).json()["data"]
+    assert made["answer"]["text"]
+    row = next(r for r in client.get("/api/reports/market").json()["data"]
+               if r["report_id"] == made["report_id"])
+    assert row["question"] == NORWAY_QUESTION and row["edited_by"] == "rule"
+    assert client.patch(f"/api/reports/market/{made['report_id']}",
+                        json={"title": "Norway outages"}).status_code == 200
+    assert client.delete(f"/api/reports/market/{made['report_id']}").status_code == 200
+    assert client.delete(f"/api/reports/market/{made['report_id']}").status_code == 404
+    bulk = client.post("/api/reports/market/bulk-delete", json={"report_ids": ["mr-x"]})
+    assert bulk.json()["data"]["refused"][0]["code"] == "report_not_found"

@@ -4,7 +4,11 @@ import test from "node:test";
 
 import {
   annexByDefault,
+  editedByLabel,
   parseHubs,
+  REPORT_STAGES,
+  reportPeriodLabel,
+  reportStageAt,
   reportRequestFromForm,
   reportSubjectFromSearch,
   reportSubjectSearch,
@@ -61,4 +65,18 @@ test("the viewer's CSV comes from the report's own data block; summary hides the
   assert.equal(reportCsv(html), "storage: Fill (%)\nday,fill\n2026-11-15,72.6\n2026-11-14,");
   assert.equal(reportCsv("<html></html>"), "");
   assert.match(summaryOnlyHtml(html), /\.r-body,\.r-back-sheet\{display:none!important\}<\/style><\/head>/);
+});
+
+test("generation stages advance in order and hold at laying out until the reply", () => {
+  assert.deepEqual(REPORT_STAGES, ["planning", "collecting", "writing", "checking", "laying_out"]);
+  const seen = [0, 2_000, 10_000, 50_000, 120_000].map(reportStageAt);
+  assert.deepEqual(seen, ["collecting", "collecting", "writing", "checking", "laying_out"]);
+});
+
+test("the stored list shows the period and who edited the report", () => {
+  assert.equal(reportPeriodLabel("2026-11-09", "2026-11-15"), "9 Nov – 15 Nov");
+  assert.equal(reportPeriodLabel(null, "2026-11-15"), "15 Nov");
+  assert.equal(reportPeriodLabel(null, null), "");
+  assert.equal(editedByLabel({ edited_by: "model" }), "model");
+  assert.equal(editedByLabel({}), "rule");
 });
