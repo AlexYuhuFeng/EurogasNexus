@@ -1,9 +1,34 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { readFileSync } from "fs";
+
+/**
+ * The bundled fonts' licence texts travel with the build (dist/licenses/), beside the font files
+ * Vite emits into dist/assets: the web build, the desktop bundle and the demo image all ship
+ * dist/. The manifest is src/assets/fonts/fonts.json (recorded in THIRD_PARTY_NOTICES.md).
+ */
+function bundledFontLicences() {
+  const fontsDir = path.resolve(__dirname, "src/assets/fonts");
+  return {
+    name: "eurogas-bundled-font-licences",
+    generateBundle(this: { emitFile: (file: { type: "asset"; fileName: string; source: string }) => void }) {
+      const manifest = JSON.parse(readFileSync(path.join(fontsDir, "fonts.json"), "utf8")) as {
+        fonts: { name: string; license: string; license_file: string }[];
+      };
+      for (const font of manifest.fonts) {
+        this.emitFile({
+          type: "asset",
+          fileName: `licenses/${font.name}-${font.license}.txt`,
+          source: readFileSync(path.join(fontsDir, font.license_file), "utf8"),
+        });
+      }
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), bundledFontLicences()],
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
@@ -15,7 +40,8 @@ export default defineConfig({
       ignored: [/[\\/]\.[^\\/]+\.tmpdir(?:[\\/]|$)/],
     },
     proxy: {
-      "/api": "http://127.0.0.1:8000",
+      // EUROGAS_API_PROXY_TARGET lets a second local stack run beside the default one.
+      "/api": process.env.EUROGAS_API_PROXY_TARGET || "http://127.0.0.1:8000",
     },
   },
   // Name the runtime dependencies so the dev server pre-bundles them in its first pass. A

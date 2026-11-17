@@ -45,6 +45,14 @@ def test_client_routes_fall_back_to_index_and_files_are_served(client):
     assert client.get("/favicon.svg").status_code == 200
 
 
+def test_the_bundled_interface_font_is_served_as_a_font(client, build_dir):
+    (build_dir / "assets" / "inter-latin-1a2b.woff2").write_bytes(b"wOF2-not-a-real-font")
+    font = client.get("/assets/inter-latin-1a2b.woff2")
+    assert font.status_code == 200
+    assert font.headers["content-type"] == "font/woff2"
+    assert "immutable" in font.headers["cache-control"]
+
+
 def test_the_client_never_answers_for_the_api(client):
     unknown = client.get("/api/does-not-exist")
     assert unknown.status_code == 404

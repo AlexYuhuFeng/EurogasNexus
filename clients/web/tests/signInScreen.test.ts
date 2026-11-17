@@ -53,7 +53,8 @@ test("sign-in is one heading and the methods: no eyebrow, no body line, no brand
 });
 
 test("sign-in styling uses the established type, spacing, control, and radius tokens", () => {
-  assert.match(css, /font-family: Inter, -apple-system/);
+  // The bundled interface face through its token (fonts.css), never a device stack.
+  assert.match(css, /font-family: var\(--ds-font-ui\)/);
   // The design-token roles and steps (tokens.css), not the legacy families they replaced.
   for (const token of [
     "--ds-text-base",

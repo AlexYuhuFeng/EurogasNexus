@@ -27,6 +27,7 @@ HTTPS.
 
 from __future__ import annotations
 
+import mimetypes
 import os
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,12 @@ from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 WEB_CLIENT_DIR_ENV = "EUROGAS_NEXUS_WEB_CLIENT_DIR"
+
+# The client ships its interface font (clients/web/src/styles/fonts.css). A slim image has no
+# /etc/mime.types and Python's own table may lack the font types, which would serve the face as
+# application/octet-stream; name them here so the file arrives as what it is.
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
 
 #: Paths FastAPI itself serves outside ``/api`` (only when a profile exposes docs).
 _FRAMEWORK_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"})

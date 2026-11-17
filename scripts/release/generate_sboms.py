@@ -22,6 +22,7 @@ sources count as crates.io.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -85,8 +86,9 @@ INVENTORY_SCOPE: dict[str, Any] = {
         "project packages) and are not counted in the package inventory"
     ),
     "notices_scope": (
-        "THIRD_PARTY_NOTICES.md lists locked packages and lock-declared license expressions "
-        "only; it contains no full license texts and is not a legal review"
+        "THIRD_PARTY_NOTICES.md lists locked packages and lock-declared license expressions; "
+        "it contains no full license texts except the reviewed Cargo choices' evidence and the "
+        "bundled fonts' licences, and is not a legal review"
     ),
     "acceptance_note": (
         "lock-derived documents only; not artifact-complete SBOM coverage and not G10 acceptance"
@@ -630,6 +632,114 @@ def collect_components(
     return components, inputs
 
 
+#: Fonts the web client ships (data, not code): the manifest beside them names each file, its
+#: SHA-256, its licence and the licence text. They reach every artefact that carries the built
+#: client (the web build, the Tauri desktop bundle, the demo image).
+BUNDLED_FONTS_DIR = Path("clients/web/src/assets/fonts")
+BUNDLED_FONTS_MANIFEST = BUNDLED_FONTS_DIR / "fonts.json"
+#: Licences a shipped font may carry: redistributable inside a proprietary product.
+BUNDLED_FONT_LICENSES = frozenset({"OFL-1.1", "Apache-2.0", "MIT"})
+
+
+def collect_bundled_fonts(*, root: Path | None = None) -> list[dict[str, Any]]:
+    """Return the shipped fonts, each file checked against its recorded SHA-256.
+
+    Raises :class:`SbomInputError` when a font file is missing, differs from its record, carries
+    a licence outside :data:`BUNDLED_FONT_LICENSES`, or lacks its licence text, and when a font
+    file sits in the directory without a record: a font is never shipped unrecorded.
+    """
+
+    base = Path(root) if root is not None else ROOT
+    directory = base / BUNDLED_FONTS_DIR
+    manifest_path = base / BUNDLED_FONTS_MANIFEST
+    if not manifest_path.is_file():
+        if directory.is_dir() and any(directory.rglob("*.woff*")):
+            raise SbomInputError(f"{BUNDLED_FONTS_MANIFEST}: font files without a manifest")
+        return []
+    errors: list[str] = []
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise SbomInputError(f"{BUNDLED_FONTS_MANIFEST}: unreadable ({error})") from error
+    recorded: set[str] = set()
+    fonts: list[dict[str, Any]] = []
+    for font in manifest.get("fonts", []):
+        name = str(font.get("name") or "")
+        license_id = str(font.get("license") or "")
+        if license_id not in BUNDLED_FONT_LICENSES:
+            errors.append(f"font {name!r}: licence {license_id!r} is not approved for shipping")
+        license_path = directory / str(font.get("license_file") or "")
+        license_text = ""
+        if license_path.is_file():
+            license_text = license_path.read_text(encoding="utf-8")
+        else:
+            errors.append(f"font {name!r}: licence text {font.get('license_file')!r} is missing")
+        files: list[dict[str, Any]] = []
+        for entry in font.get("files", []):
+            relative = str(entry.get("path") or "")
+            recorded.add(relative)
+            file_path = directory / relative
+            if not file_path.is_file():
+                errors.append(f"font {name!r}: file {relative!r} is missing")
+                continue
+            digest = hashlib.sha256(file_path.read_bytes()).hexdigest()
+            if digest != entry.get("sha256"):
+                errors.append(f"font {name!r}: {relative!r} does not match its recorded SHA-256")
+            files.append({"path": relative, "sha256": digest, "size": file_path.stat().st_size})
+        fonts.append(
+            {
+                "name": name,
+                "version": str(font.get("version") or ""),
+                "license": license_id,
+                "copyright": str(font.get("copyright") or ""),
+                "source": str(font.get("source") or ""),
+                "files": files,
+                "license_text": license_text,
+            }
+        )
+    for path in sorted(directory.rglob("*")):
+        if path.suffix.lower() in {".woff", ".woff2", ".ttf", ".otf"}:
+            relative = path.relative_to(directory).as_posix()
+            if relative not in recorded:
+                errors.append(f"font file {relative!r} is not recorded in {BUNDLED_FONTS_MANIFEST}")
+    if errors:
+        raise SbomInputError(errors)
+    return fonts
+
+
+def bundled_fonts_notice(fonts: list[dict[str, Any]]) -> str:
+    """The notice section for shipped fonts, with each licence text in full."""
+
+    if not fonts:
+        return ""
+    lines = [
+        "## Bundled fonts (web client, desktop bundle, demo image)",
+        "",
+        "Font files shipped inside the built web client. Each file's SHA-256 is checked",
+        "against its record when this file is generated; the licence text is reproduced in full.",
+        "",
+    ]
+    for font in fonts:
+        lines.extend(
+            [
+                f"### {font['name']} {font['version']} ({font['license']})",
+                "",
+                f"- {font['copyright']}",
+                f"- Source: {font['source']}",
+                *[
+                    f"- `{item['path']}` (SHA-256 `{item['sha256']}`, {item['size']} bytes)"
+                    for item in font["files"]
+                ],
+                "",
+                "```text",
+                *font["license_text"].splitlines(),
+                "```",
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def _add_packages(document: dict[str, Any], packages: list[dict]) -> None:
     for index, item in enumerate(packages, start=1):
         spdx_id = f"SPDXRef-Package-{index}"
@@ -727,7 +837,8 @@ def notices(packages_by_component: dict[str, list[dict]]) -> str:
         "  exact package identity; the original expression remains declared above,",
         "  the other branches are not approved, and this is not legal clearance.",
         "- This file is not a legal review; it includes full retained AUTHORS text",
-        "  only for exact reviewed Cargo choices and otherwise no full license texts.",
+        "  only for exact reviewed Cargo choices, the full licence text of each bundled",
+        "  font (last section), and otherwise no full license texts.",
         "  Obtain other texts from the upstream packages and confirm obligations with",
         "  legal counsel before distribution.",
         "",
@@ -815,6 +926,7 @@ def main(argv: list[str] | None = None) -> int:
     notices_path = Path(args.notices)
     try:
         components, inputs = collect_components()
+        fonts = collect_bundled_fonts()
     except SbomInputError as error:
         print(json.dumps({"ok": False, "errors": error.errors}, indent=2))
         return 1
@@ -825,7 +937,10 @@ def main(argv: list[str] | None = None) -> int:
         for key, packages in components.items()
     }
     notices_path.parent.mkdir(parents=True, exist_ok=True)
-    notices_path.write_text(notices(components), encoding="utf-8")
+    font_notice = bundled_fonts_notice(fonts)
+    notices_path.write_text(
+        notices(components) + ("\n" + font_notice if font_notice else ""), encoding="utf-8"
+    )
 
     manifest = {
         "schema_version": 1,
@@ -836,6 +951,9 @@ def main(argv: list[str] | None = None) -> int:
         "generated_at_utc": generated_at,
         "inputs": inputs,
         "inventory_scope": INVENTORY_SCOPE,
+        "bundled_fonts": [
+            {key: value for key, value in font.items() if key != "license_text"} for font in fonts
+        ],
         "component_packages": {
             key: {
                 "packages": len(packages),

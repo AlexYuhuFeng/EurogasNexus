@@ -7,7 +7,7 @@
   padding: var(--ds-space-8) var(--ds-space-6);
   background: var(--ds-bg);
   color: var(--ds-text-1);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--ds-font-ui);
   font-size: var(--ds-text-base);
 }
 

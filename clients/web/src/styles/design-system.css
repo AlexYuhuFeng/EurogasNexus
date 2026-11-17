@@ -18,6 +18,8 @@
 
 @layer ds-base, legacy, ds-theme, ds-components, ds-motion;
 
+/* The interface face, bundled with the client (fonts.css; never the device's UI font). */
+@import url("./fonts.css");
 /* Tokens: sizes, radii, durations and colour roles for both themes (tokens.css). */
 @import url("./tokens.css") layer(ds-theme);
 /* Primitives (Button, IconButton, StatusBadge, KeyFigure, Panel, EmptyState, Skeleton). */
@@ -43,7 +45,11 @@
     font-family: var(--ds-font-ui);
     font-size: var(--ds-text-base);
     line-height: var(--ds-line-base);
-    font-feature-settings: "cv11", "ss01";
+    /* No ligature, contextual alternate or stylistic set: a feature tag means whatever the
+       face that happens to draw the glyph says it means, and a phone's UI font maps its sets to
+       status-bar unit glyphs ("ᴮreaking"). tests/fontFoundation.test.ts keeps it this way. */
+    font-variant-ligatures: none;
+    font-feature-settings: normal;
     /* Every figure lines up: tabular numerals everywhere, not only in tables. */
     font-variant-numeric: var(--ds-numeric);
   }

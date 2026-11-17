@@ -46,7 +46,12 @@ Scope: runtime (web and desktop bundles). Network, process, data or deployment r
 
 Non-code assets:
 
-- Fonts are system fonts; none are bundled.
+- One font is bundled: Inter (SIL OFL 1.1, Latin and Latin Extended WOFF2 subsets, from
+  `@fontsource-variable/inter` 5.3.0, copied as data; the package is not a dependency). The OFL
+  allows bundling in a commercial product as long as the font is not sold by itself and the
+  licence travels with it: it is reproduced in `THIRD_PARTY_NOTICES.md` and emitted as
+  `dist/licenses/Inter-OFL-1.1.txt`. Record: `clients/web/src/assets/fonts/fonts.json`. Chinese
+  text uses the device's own CJK face.
 - Map tiles default to no basemap; public OSM/CARTO tiles are marked not for
   commercial use (`clients/web/src/app/mapTileProviders.ts`).
 

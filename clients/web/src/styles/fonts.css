@@ -1,0 +1,46 @@
+/*
+ * The interface face, shipped with the product (docs/product/DESIGN_TOKENS.md, "Typeface").
+ *
+ * Inter, SIL Open Font License 1.1 (assets/fonts/inter/OFL.txt), variable weight, Latin and
+ * Latin Extended subsets, served from the client's own origin: no request leaves the
+ * deployment. It is bundled because the device's system font is not ours to trust: a phone's
+ * own UI font renders "B" and "%" as status-bar unit glyphs when a page asks for a stylistic
+ * set, which turned "Breaking", "NBP" and "GBP/MWh" into "ᴮreaking", "NᴮP" and "ᴳᴮP/MWh".
+ *
+ * Chinese text keeps the device's CJK face through the fallback list in --ds-font-ui: these
+ * faces declare only Latin ranges, so a CJK character never resolves to them.
+ *
+ * Declared outside every cascade layer on purpose: @font-face is not cascaded, and the token
+ * lint and tests/fontFoundation.test.ts read this file as the one place the face is defined.
+ */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/inter/inter-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/inter/inter-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * Ligatures and contextual alternates off for every element, unlayered so that no `font:`
+ * shorthand in a layered stylesheet (which resets font-variant-ligatures to `normal`) can turn
+ * them back on. Numerals keep their own property (font-variant-numeric: tabular-nums).
+ */
+*,
+*::before,
+*::after {
+  font-variant-ligatures: none;
+}

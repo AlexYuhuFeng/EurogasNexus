@@ -71,7 +71,11 @@ const rel = (file) => path.relative(WEB_ROOT, file).split(path.sep).join("/");
 
 /** Declarations as {prop, value, line}. Selectors and at-rule preludes never match. */
 function declarations(text) {
-  const clean = text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, " "));
+  const clean = text
+    .replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, " "))
+    // @font-face holds descriptors, not properties: its `font-weight: 100 900` is the range a
+    // variable face covers, not a weight anything is drawn in.
+    .replace(/@font-face\s*\{[^}]*\}/g, (c) => c.replace(/[^\n]/g, " "));
   const out = [];
   const re = /(^|[{;\s])(--[\w-]+|[a-z-]+)\s*:\s*([^;{}]+?)\s*(?=;|})/g;
   let m;

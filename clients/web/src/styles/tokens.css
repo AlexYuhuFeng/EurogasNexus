@@ -17,9 +17,12 @@
   color-scheme: light;
 
   /* ---------------------------------------------------------------- type */
-  --ds-font-ui: "Inter", "Inter var", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-    "Noto Sans CJK SC", sans-serif;
+  /* "Inter" is the bundled face (fonts.css), first so Latin text never reaches a device font.
+     The rest only draws what Inter's subsets do not cover: Chinese (the CJK faces) and rare
+     symbols. */
+  --ds-font-ui: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC",
+    "Noto Sans SC", "Source Han Sans SC", ui-sans-serif, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   /* Identifiers and code only. Prices use the interface face with tabular numerals. */
   --ds-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --ds-numeric: tabular-nums;

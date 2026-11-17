@@ -28,6 +28,39 @@ These follow the review's M.2 scale. Where it left a choice: `md` is 15 px for p
 budget); badges keep a 20 px chip height of their own because a badge is not a control; the
 spacing step 20 px is retired (the old `--ds-space-5` alias now resolves to 16).
 
+## Typeface
+
+The interface face is **Inter** (SIL Open Font License 1.1), shipped with the client: variable
+weight, Latin and Latin Extended subsets (133 kB of WOFF2, tabular figures included), declared in
+`clients/web/src/styles/fonts.css` with `font-display: swap` and served from the client's own
+origin, so no request leaves the deployment. `--ds-font-ui` names it first; Chinese text keeps
+the device's CJK face through the fallback list after it (PingFang SC, Microsoft YaHei, Noto Sans
+CJK SC, ...), because the Inter faces declare only Latin ranges. Reports print with their own
+stack (`styles/reports.css`).
+
+Why it is bundled: on 2026-11-17 a tester's Android phone showed "ᴮreaking", "NᴮP", "ᴳᴮP/MWh"
+and "46.2ˣ" everywhere. The stylesheet asked for Inter's stylistic sets (`"cv11", "ss01"`,
+`"ss01", "ss02"`) on `body`, but Inter was not shipped, so the phone's own UI font (reached
+through `BlinkMacSystemFont`/`Roboto`) drew the text, and in that font `ss01` is the set of
+status-bar unit glyphs (the small "B" of "KB/s", the small "%" of the battery). A feature tag means
+whatever the face that happens to draw the glyph says it means. So:
+
+- no stylesheet requests a letter feature (`ssNN`, `cvNN`, `liga`, `calt`, `dlig`); only numeral
+  features (`tnum` through `font-variant-numeric`) are used;
+- `font-variant-ligatures: none` is set on every element, unlayered in `fonts.css`, so a layered
+  `font:` shorthand (which resets it) cannot turn ligatures back on;
+- no font stack starts with a system family (`system-ui`, `-apple-system`, `sans-serif`, ...).
+
+`clients/web/tests/fontFoundation.test.ts` fails on any of these, and on a face that is not
+self-hosted. The font files and their licence are recorded in
+`clients/web/src/assets/fonts/fonts.json`; `scripts/release/generate_sboms.py` checks each file's
+SHA-256 and reproduces the licence in `THIRD_PARTY_NOTICES.md`
+(`tests/release/test_bundled_fonts.py`), and the build copies it to `dist/licenses/`. The
+desktop bundle and the demo image ship `dist/`, so they carry both.
+
+`--ds-font-mono` (identifiers and code only) is not bundled; it never carries a feature request
+either.
+
 ## Colour roles
 
 | Role | Tokens |
