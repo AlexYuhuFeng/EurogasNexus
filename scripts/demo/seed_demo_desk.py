@@ -62,6 +62,7 @@ from eurogas_nexus.db.models import (
     TsoTariffRecord,
     UpstreamResourceContractRecord,
 )
+from eurogas_nexus.db.models.lng_positions import LngCargoRecord
 from eurogas_nexus.db.models.observation import LngObservationRecord, StorageObservationRecord
 from eurogas_nexus.db.models.power import PowerObservationRecord
 from eurogas_nexus.db.session import get_session_factory
@@ -193,8 +194,69 @@ SIMULATED_TARIFFS = (
 )
 
 
+#: Simulated market LNG vessels, so the vessel layer and its link to terminal send-out can be
+#: shown without a licensed feed. ``Kpler_Sim``: the simulated twin of the licensed family, so
+#: they follow the same entitlement as real vessels and carry the simulated mark; removed by
+#: ``retire_simulated_series`` once a real vessel feed delivers. Names and voyages fictional.
+SIMULATED_VESSEL_SOURCE = "Kpler_Sim"
+SIMULATED_VESSELS = (
+    # id, vessel, load port, (lat, lon), terminal, country, (lat, lon), now (lat, lon), days to ETA
+    ("demo-vsl-1", "Demo Aurora", "Sabine Pass", (29.73, -93.87), "Gate Terminal", "NL",
+     (51.96, 4.04), (46.9, -14.2), 3),
+    ("demo-vsl-2", "Demo Borealis", "Hammerfest", (70.67, 23.68), "Eemshaven", "NL",
+     (53.45, 6.83), (62.4, 4.1), 2),
+    ("demo-vsl-3", "Demo Cassiopeia", "Ras Laffan", (25.90, 51.55), "Zeebrugge LNG", "BE",
+     (51.33, 3.20), (36.1, -9.6), 5),
+    ("demo-vsl-4", "Demo Dorado", "Corpus Christi", (27.80, -97.40), "Isle of Grain", "GB",
+     (51.44, 0.72), (49.2, -6.9), 1),
+    ("demo-vsl-5", "Demo Eridanus", "Bonny", (4.42, 7.15), "Dunkerque LNG", "FR",
+     (51.03, 2.21), (43.6, -10.4), 4),
+)
+
+
+def _seed_simulated_vessels(session, now: datetime) -> None:
+    for cid, vessel, port, load, terminal, country, dest, here, days in SIMULATED_VESSELS:
+        departed = now - timedelta(days=12 - days)
+        midway = ((load[0] + here[0]) / 2, (load[1] + here[1]) / 2)
+        session.add(
+            LngCargoRecord(
+                cargo_id=cid,
+                vessel_name=vessel,
+                vessel_imo=None,
+                status="laden",
+                load_port=port,
+                load_country=None,
+                load_lat=load[0],
+                load_lon=load[1],
+                departed_at_utc=departed,
+                destination_terminal=terminal,
+                destination_country=country,
+                destination_lat=dest[0],
+                destination_lon=dest[1],
+                eta_utc=now + timedelta(days=days),
+                position_lat=here[0],
+                position_lon=here[1],
+                position_at_utc=now - timedelta(hours=2),
+                track=[
+                    [load[1], load[0], departed.isoformat()],
+                    [midway[1], midway[0], (departed + (now - departed) / 2).isoformat()],
+                    [here[1], here[0], (now - timedelta(hours=2)).isoformat()],
+                ],
+                volume_m3=170_000.0,
+                energy_gwh=1_150.0,
+                book_id=None,
+                source_system=SIMULATED_VESSEL_SOURCE,
+                source_reference="demo:simulated-vessel",
+                updated_at_utc=now,
+            )
+        )
+
+
 def _clear(session) -> None:
     ids = [row[0] for row in CONTRACTS] + [CROSS_BORDER_CONTRACT]
+    session.query(LngCargoRecord).filter(
+        LngCargoRecord.source_system == SIMULATED_VESSEL_SOURCE
+    ).delete(synchronize_session=False)
     session.query(TsoTariffRecord).filter(
         TsoTariffRecord.document_id == SIMULATED_TARIFF_DOCUMENT
     ).delete(synchronize_session=False)
@@ -651,6 +713,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
         )
     )
     _seed_cross_border_position(session, now, today)
+    _seed_simulated_vessels(session, now)
     seed_market_around_the_book(session, now, rng, history_days=history_days)
     return sizing
 
@@ -1087,6 +1150,8 @@ SIMULATED_SERIES = (
     # The two fictional outages feed the balance forecast; next to real UMMs they would be
     # counted as if they were market events.
     ("outages", RemitUmmRecord, "DEMO", None),
+    # Simulated market vessels step aside once any real cargo row (a vessel feed) arrives.
+    ("vessels", LngCargoRecord, SIMULATED_VESSEL_SOURCE, None),
 )
 
 
@@ -1233,6 +1298,7 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
     counts["fx_rows"] = _roll_fx(session, now)
     counts["delivery_rows"] = _roll_deliveries(session, now, rng)
     counts["outage_rows"] = _roll_outages(session, now)
+    counts["vessel_rows"] = _roll_vessels(session, now)
     session.flush()
     # What a real source covers stays real: the rows just appended for such a scope go again.
     for name, rows in retire_simulated_series(session).items():
@@ -1393,6 +1459,21 @@ def _demo_outages(now: datetime, suffix: str = "") -> list:
             source_system="DEMO", source_reference="demo:umm", ingested_at_utc=now,
         ))
     return rows
+
+
+def _roll_vessels(session, now: datetime) -> int:
+    """Sail the simulated vessels again from ``now`` once any of them has arrived."""
+
+    rows = session.query(LngCargoRecord).filter(
+        LngCargoRecord.source_system == SIMULATED_VESSEL_SOURCE
+    )
+    if not rows.count():
+        return 0  # none seeded, or retired by a real feed
+    if all((row.eta_utc and _aware(row.eta_utc) > now) for row in rows):
+        return 0
+    rows.delete(synchronize_session=False)
+    _seed_simulated_vessels(session, now)
+    return len(SIMULATED_VESSELS)
 
 
 def _roll_outages(session, now: datetime) -> int:

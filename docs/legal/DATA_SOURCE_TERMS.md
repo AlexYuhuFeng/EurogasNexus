@@ -28,7 +28,7 @@ confirm each provider's current terms before a production deployment.
 | North Sea Transition Authority open data | UK offshore installation locations | Open Government Licence v3: commercial reuse with attribution | As above |
 | Global Energy Monitor trackers | LNG terminal, storage and pipeline locations | CC BY 4.0: commercial use with attribution | As above |
 | OpenStreetMap extracts | infrastructure gap filling | ODbL 1.0: attribution and share-alike for the database | As above; the import refuses non-commercial licences such as CC BY-NC |
-| Kpler, Spire, MarineTraffic vessel data | LNG cargo positions, tracks, ETAs | Licensed per subscriber; not redistributable | Loaded only from the customer's own export or connector; market cargoes need the source's data scope |
+| Kpler, Spire, MarineTraffic vessel data | LNG cargo positions, tracks, ETAs (the map's "LNG vessels" layer) | Licensed per subscriber; not redistributable; no AIS source is used whose terms this register has not reviewed for commercial use | Loaded only from the customer's own export or connector; market cargoes need the source's data scope (family `Kpler`); without it the map says the entitlement is missing. Demo vessels are `Kpler_Sim`, fictional and marked simulated |
 | Map tiles | basemap | OSM Foundation and CARTO public tiles are not for commercial embedding; OpenFreeMap and VersaTiles allow commercial use (OpenStreetMap data, ODbL attribution) | Default is OpenFreeMap; none in a China installation; an operator may configure a licensed or self-hosted service |
 | DeepSeek API (optional) | alert explanations | Provider API terms; prompts leave the deployment | Off unless an API key is configured server-side; payloads exclude licensed raw data |
 

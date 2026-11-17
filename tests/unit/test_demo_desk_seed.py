@@ -129,6 +129,49 @@ def test_market_around_the_book_is_simulated_and_fills_the_balance_and_map(sessi
     payload = build_map_situation(session, now=now, entitled=lambda rows: list(rows))
     assert len(payload["flows"]) >= 20
 
+    # Simulated market LNG vessels (Kpler_Sim) heading to NW Europe terminals, counted as such.
+    vessels = [cargo for cargo in payload["cargoes"] if not cargo["own"]]
+    assert len(vessels) == 5
+    assert all(cargo["source_system"] == "Kpler_Sim" for cargo in vessels)
+    assert payload["vessel_feed"]["market_cargoes"] == 5
+    assert payload["vessel_feed"]["simulated"] == 5
+    # Without the licensed-feed entitlement the sea stays empty and the map says why.
+    unentitled = build_map_situation(
+        session,
+        now=now,
+        entitled=lambda rows: [row for row in rows if not row["source_system"].startswith("Kpler")],
+        vessel_feed_entitled=False,
+    )
+    assert unentitled["vessel_feed"] == {
+        "entitled": False,
+        "market_cargoes": 0,
+        "simulated": 0,
+        "families": ["Kpler"],
+    }
+
+
+def test_simulated_vessels_step_aside_for_a_real_vessel_feed(session):
+    from eurogas_nexus.db.models.lng_positions import LngCargoRecord
+
+    seed = _load()
+    now = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    seed.seed(session, now)
+    session.commit()
+    real = LngCargoRecord(
+        cargo_id="kpler-1",
+        vessel_name="Real vessel",
+        status="laden",
+        load_port="Port",
+        source_system="Kpler",
+        source_reference="kpler:export",
+        updated_at_utc=now,
+    )
+    session.add(real)
+    session.flush()
+    removed = seed.retire_simulated_series(session)
+    assert removed["vessels"] == 5
+    assert session.query(LngCargoRecord).filter_by(source_system="Kpler_Sim").count() == 0
+
 
 def test_reseeding_keeps_one_copy_of_the_simulated_history(session):
     from eurogas_nexus.db.models import FlowObservationRecord

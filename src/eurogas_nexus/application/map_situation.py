@@ -231,6 +231,7 @@ def build_map_situation(
     include_positions: bool = True,
     outage_horizon_days: int = 14,
     history_days: int = 0,
+    vessel_feed_entitled: bool | None = None,
 ) -> dict[str, Any]:
     """The live map payload. ``entitled`` filters market rows by the caller's data scopes.
 
@@ -484,6 +485,15 @@ def build_map_situation(
     contracts: list[dict[str, Any]] = []
     cargoes: list[dict[str, Any]] = []
     slots: list[dict[str, Any]] = []
+    # Market LNG vessels come only from the customer's licensed vessel feed (Kpler or an AIS
+    # provider, docs/legal/DATA_SOURCE_TERMS.md): the map says when the caller holds no such
+    # entitlement instead of showing an empty sea.
+    vessel_feed: dict[str, Any] = {
+        "entitled": vessel_feed_entitled,
+        "market_cargoes": 0,
+        "simulated": 0,
+        "families": ["Kpler"],
+    }
     if include_positions:
         allowed = visible_book_ids(session)
         for record in (
@@ -573,7 +583,12 @@ def build_map_situation(
                 ],
             }
             (cargoes if own else market_cargoes).append(item)
-        cargoes.extend(entitled(market_cargoes))
+        visible_market = entitled(market_cargoes)
+        cargoes.extend(visible_market)
+        vessel_feed["market_cargoes"] = len(visible_market)
+        vessel_feed["simulated"] = sum(
+            1 for item in visible_market if str(item.get("source_system", "")).endswith("_Sim")
+        )
 
         slot_cutoff = now + timedelta(days=SLOT_HORIZON_DAYS)
         for record in session.query(RegasSlotRecord).all():
@@ -654,4 +669,5 @@ def build_map_situation(
             "regas_slots": len(slots) + unlocated["regas_slots"],
         },
         "positions_included": include_positions,
+        "vessel_feed": vessel_feed,
     }

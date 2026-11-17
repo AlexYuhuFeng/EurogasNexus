@@ -540,8 +540,9 @@ def map_situation(
     Book-held items follow portfolio isolation; market items the caller's data scopes.
     """
 
-    from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal, filter_rows
     from eurogas_nexus.application.map_situation import build_map_situation
+    from eurogas_nexus.domain.dataops.entitlement import principal_allows_source
 
     if not _db_is_configured():
         return _env({}, request, source="runtime-db-not-configured", warnings=[])
@@ -556,6 +557,7 @@ def map_situation(
                 session,
                 now=datetime.now(UTC),
                 entitled=lambda rows: list(filter_rows(request, rows)),
+                vessel_feed_entitled=principal_allows_source(current_principal(request), "Kpler"),
                 outage_horizon_days=outage_horizon_days,
                 history_days=history_days,
             )
