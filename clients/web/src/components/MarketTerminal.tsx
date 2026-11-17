@@ -638,6 +638,7 @@ export function MarketTerminal({
       id: "hub",
       header: t("market.hub"),
       rowHeader: true,
+      priority: "primary",
       sortable: true,
       value: (row) => row.hub,
       render: (row) => (
@@ -649,6 +650,7 @@ export function MarketTerminal({
     {
       id: "bidask",
       header: t("market.bid_ask"),
+      priority: "primary",
       type: "number",
       render: (row) =>
         row.quote ? `${formatPriceValue(row.quote.bid_price)} / ${formatPriceValue(row.quote.ask_price)}` : row.latest ? formatPrice(row.latest) : "–",
@@ -657,6 +659,7 @@ export function MarketTerminal({
     {
       id: "mid",
       header: t("market.mid"),
+      priority: "primary",
       type: "number",
       sortable: true,
       flash: true,
@@ -712,6 +715,8 @@ export function MarketTerminal({
     {
       id: "meta",
       header: t("market.unit_age"),
+      // On a phone the price keeps its unit beside it (the rest folds into the row's Details).
+      priority: "primary",
       render: (row) => (row.priced ? `${row.unit} · ${formatAge(row.ageSeconds)}` : t("market.awaiting_feed")),
       cellAttributes: () => ({ "data-price-meta": "" }),
     },

@@ -79,3 +79,25 @@ export function spanRuns(values: readonly SortValue[]): number[] {
   }
   return spans;
 }
+
+/** What the phone split reads from a column. */
+export interface PhoneColumn {
+  rowHeader?: boolean;
+  decorative?: boolean;
+  priority?: "primary" | "secondary";
+}
+
+/** The columns a phone keeps in the row, and the ones it folds into Details. */
+export function phoneColumnSplit<C extends PhoneColumn>(
+  columns: readonly C[],
+  keep = 3,
+): { visible: C[]; folded: C[] } {
+  const declared = columns.some((column) => column.priority === "primary");
+  const visible = columns.filter((column, index) =>
+    declared ? column.priority === "primary" || column.rowHeader : column.priority !== "secondary" && index < keep,
+  );
+  if (visible.length === 0 && columns[0]) visible.push(columns[0]);
+  const folded = columns.filter((column) => !visible.includes(column) && !column.decorative);
+  return { visible, folded };
+}
+

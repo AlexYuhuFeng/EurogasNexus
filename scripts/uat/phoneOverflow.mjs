@@ -78,6 +78,10 @@ export function measurePhoneOverflow() {
     if (rect.width === 0 || rect.height === 0) continue;
     const style = getComputedStyle(element);
     if (style.visibility === "hidden" || style.position === "fixed") continue;
+    // The body of a closed <details> keeps a box but is not drawn (content-visibility: hidden).
+    if (typeof element.checkVisibility === "function" && !element.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true })) continue;
+    const closed = element.closest("details:not([open])");
+    if (closed && !element.closest("summary")) continue;
     // MapLibre draws its own canvas and controls; the map owns their geometry.
     if (element.closest(".maplibregl-map")) continue;
     if ((rect.right > width + 1 || rect.left < -1) && !contained(element)) over.add(element);

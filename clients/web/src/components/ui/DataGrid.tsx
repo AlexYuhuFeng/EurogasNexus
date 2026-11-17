@@ -44,7 +44,9 @@ import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { EmptyState } from "./EmptyState";
 import { gridRowIndex } from "./keyboard";
 import { Skeleton } from "./Skeleton";
-import { nextSort, sortRows, spanRuns, type SortDirection, type SortState, type SortValue } from "./dataGridModel";
+import { nextSort, phoneColumnSplit, sortRows, spanRuns, type SortDirection, type SortState, type SortValue } from "./dataGridModel";
+
+export { phoneColumnSplit };
 
 export type { SortDirection, SortState } from "./dataGridModel";
 
@@ -135,20 +137,6 @@ export interface DataGridProps<R> {
   phoneLayout?: "columns" | "scroll";
   /** How many columns stay in the row at phone width when none is marked primary (default 3). */
   phoneColumns?: number;
-}
-
-/** The columns a phone keeps in the row, and the ones it folds into Details. */
-export function phoneColumnSplit<R>(
-  columns: readonly DataGridColumn<R>[],
-  keep = 3,
-): { visible: DataGridColumn<R>[]; folded: DataGridColumn<R>[] } {
-  const declared = columns.some((column) => column.priority === "primary");
-  const visible = columns.filter((column, index) =>
-    declared ? column.priority === "primary" || column.rowHeader : column.priority !== "secondary" && index < keep,
-  );
-  if (visible.length === 0 && columns[0]) visible.push(columns[0]);
-  const folded = columns.filter((column) => !visible.includes(column) && !column.decorative);
-  return { visible, folded };
 }
 
 function alignOf<R>(column: DataGridColumn<R>): "start" | "end" | "center" {

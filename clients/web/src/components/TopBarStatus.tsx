@@ -19,6 +19,9 @@ import type { SourceSummary } from "@/app/workspaceDerivedData";
 import type { DeskTodayDTO } from "@/api/client";
 import type { EndpointFailureSurface, EndpointRetrySurface } from "@/app/model/endpointFailures";
 import { StaleFigureList } from "./TodayScreen";
+import { dataProblemCount } from "@/app/model/dataProblems";
+
+export { dataProblemCount };
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -33,19 +36,6 @@ export function dataHealth(sourceSummary: SourceSummary, storeState: string, loa
   if (storeState === "unavailable" || sourceSummary.viewState === "unavailable") return "down";
   if (storeState !== "ready" || sourceSummary.viewState !== "ready") return "attention";
   return "ok";
-}
-
-/** How many things the panel lists as affected: the indicator's count. */
-export function dataProblemCount({
-  endpointFailures,
-  staleFigures,
-  sourceIssues,
-}: {
-  endpointFailures: number;
-  staleFigures: number;
-  sourceIssues: number;
-}): number {
-  return endpointFailures + staleFigures + sourceIssues;
 }
 
 export function TopBarStatus({

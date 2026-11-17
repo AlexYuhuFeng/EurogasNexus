@@ -14,19 +14,13 @@ import { useEffect, useState } from "react";
 import { Button, IconButton } from "@/components/ui";
 import type { EndpointFailureSurface, EndpointRetrySurface } from "@/app/model/endpointFailures";
 import { OPEN_DATA_STATUS_EVENT } from "./TopBarStatus";
+import { noticeNames, problemSignature } from "@/app/model/dataProblems";
+
+export { noticeNames, problemSignature };
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 export const DISMISSED_PROBLEMS_STORAGE_KEY = "eurogas.data_problems.dismissed";
-
-/** The identity of a set of problems: its affected reads, sorted. */
-export function problemSignature(failures: EndpointFailureSurface | null | undefined): string {
-  return (failures?.entries ?? [])
-    .map((entry) => entry.key)
-    .concat(failures && failures.hiddenCount > 0 ? [`+${failures.hiddenCount}`] : [])
-    .sort()
-    .join("|");
-}
 
 function readDismissed(): string | null {
   try {
@@ -42,14 +36,6 @@ function writeDismissed(signature: string): void {
   } catch {
     // Private window: the dismissal holds until the page reloads.
   }
-}
-
-/** The affected reads named in one line: three names, then "and N more". */
-export function noticeNames(failures: EndpointFailureSurface, t: Translate): string {
-  const labels = failures.entries.map((entry) => entry.label);
-  const shown = labels.slice(0, 3).join(", ");
-  const more = failures.total - Math.min(3, labels.length);
-  return more > 0 ? t("status.notice_more", { names: shown, count: more }) : shown;
 }
 
 export function DataProblemNotice({

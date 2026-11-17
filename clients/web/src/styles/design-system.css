@@ -3608,6 +3608,20 @@
     box-shadow: var(--ds-shadow-pop);
   }
 
+  /* On a phone the layers list opens under the whole toolbar, not from the button's left edge
+     (which pushed it 140 px past the screen). */
+  @media (max-width: 719px) {
+    .network-desk-toolbar .map-layers-panel {
+      position: static;
+    }
+
+    .network-desk-toolbar .map-layers-panel-body {
+      right: 0;
+      left: 0;
+      width: auto;
+    }
+  }
+
   .map-layers-panel-body .map-toolbar-divider {
     display: none;
   }

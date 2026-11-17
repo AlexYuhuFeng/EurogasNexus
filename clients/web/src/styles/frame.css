@@ -51,9 +51,11 @@
 
     /* The box of a wide table scrolls sideways; the shadows at its edges say there is more. The
        table keeps its own width, so its columns are not squeezed. */
+    /* !important: a page's own `overflow-x: visible` on that box (set for its desktop layout)
+       must not undo the one thing that keeps the phone page from widening. */
     main [data-wide-box] {
-      max-width: 100%;
-      overflow-x: auto;
+      max-width: 100% !important;
+      overflow-x: auto !important;
       overscroll-behavior-x: contain;
       background:
         linear-gradient(to right, var(--ds-surface), var(--ds-surface)) left / var(--ds-space-6) 100% no-repeat local,
