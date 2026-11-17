@@ -6,6 +6,23 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-17 — CP-03 chart standard (branch `cp-03-04`, not pushed)
+
+- `components/ui/charts`: history bands from the prior years held (none / grey lines / 5-yr
+  min-max band and mean, label never claims more years than drawn; a day any year lacks is a
+  gap), ghost series, end labels (≤ 4 lines, never colliding; a line ending early labelled
+  beside its last point), rules labelled in the same gutter, gas-year season axis (29 Feb has
+  no slot), readout with band and stated comparison, touch-and-drag, screen-reader summary,
+  `AlignedPanels`, `SmallMultiples` (shared scale default, list when narrow), `Waterfall`
+  (reconciles its totals), `PercentileStrip`, stack form/limit rules. Reports gain the `band`
+  and `term_structure` forms; existing exhibits byte-identical.
+- Applied: Prices forward curve → term structure with prior-close and week-ago ghosts;
+  Delivery → aligned signed shortfall panel; balance stack → area beyond 14 days; board
+  sparkline names its last change. Left: NBP–TTF bar spread and Prices furniture (removal
+  package; the two-panel spread primitive is ready for CP-20), supply-call sparkline
+  comparison (Today recomposition, CP-19), storage season chart (CP-04 replaces it).
+- No new path or operation.
+
 ## 2026-11-17 — user accounts: local accounts, SSO pre-provisioning, demo test accounts (branch `accounts-first-run`, not pushed)
 
 - Admin → Users can add people: an SSO invite (`INVITED` until the first company sign-in links

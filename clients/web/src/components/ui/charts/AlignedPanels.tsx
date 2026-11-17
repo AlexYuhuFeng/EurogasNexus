@@ -40,6 +40,8 @@ export function alignedLabelRoom(panels: readonly Pick<AlignedPanel, "data">[]):
 
 export function AlignedPanels({ id, title, panels, t, asOf, simulated, subtitle, note, controls }: AlignedPanelsProps) {
   const room = alignedLabelRoom(panels);
+  // A bar panel pads its x range by half a day; the others pad alike so the days line up.
+  const xPad = panels.some((panel) => panel.data.series.some((item) => item.style === "bar"));
   return (
     <section className="ds-aligned" data-aligned={id} aria-labelledby={`${id}-title`}>
       <header className="ds-multiples-head">
@@ -60,6 +62,7 @@ export function AlignedPanels({ id, title, panels, t, asOf, simulated, subtitle,
           compare={panel.compare}
           syncKey={id}
           labelRoom={room}
+          xPad={xPad}
           note={panel.note}
         />
       ))}

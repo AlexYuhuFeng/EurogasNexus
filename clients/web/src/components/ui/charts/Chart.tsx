@@ -90,6 +90,8 @@ export interface ChartProps {
   syncKey?: string;
   /** Room right of the plot for end labels, when panels must align (px). */
   labelRoom?: number;
+  /** Pad the x range by half a step, as bars do (aligned panels beside a bar panel). */
+  xPad?: boolean;
 }
 
 interface Palette {
@@ -255,6 +257,7 @@ export function Chart({
   compact = false,
   syncKey,
   labelRoom,
+  xPad = false,
 }: ChartProps) {
   const [view, setView] = useState<"chart" | "table">("chart");
   const [index, setIndex] = useState<number | null>(null);
@@ -331,7 +334,7 @@ export function Chart({
       ? [-0.5, Math.max(0.5, xs.length - 0.5)]
       : data.axis === "season"
         ? [0, Math.max(1, xs.length - 1)]
-        : hasBars && xs.length > 1
+        : (hasBars || xPad) && xs.length > 1
           ? [xs[0] - (xs[1] - xs[0]) / 2, xs[xs.length - 1] + (xs[1] - xs[0]) / 2]
           : [xs[0], xs.length > 1 ? xs[xs.length - 1] : xs[0] + 1];
 
@@ -513,7 +516,7 @@ export function Chart({
       plot.destroy();
       plotInstance.current = null;
     };
-  }, [data, prepared, height, hasData, themeKey, view, UPlot, yRange, compact, syncKey]);
+  }, [data, prepared, height, hasData, themeKey, view, UPlot, yRange, compact, syncKey, xPad]);
 
   /** Move the cursor to a point (keyboard), as a pointer would. */
   function focusPoint(at: number) {
