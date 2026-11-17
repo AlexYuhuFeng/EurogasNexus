@@ -435,3 +435,26 @@ def seed_reference_bundle(
     session.flush()
     unlocated = sum(1 for node in bundle["nodes"] if not node.get("located"))
     return {**summary, "status": "seeded", "unlocated_points": unlocated}
+
+
+_SHIPPED_EDGES: dict[str, list[dict[str, Any]]] = {}
+
+
+def shipped_reference_edges() -> list[dict[str, Any]]:
+    """The bundle's edges as reference-edge rows: zone links and market-area adjacency.
+
+    One source of truth for every store. Route pricing builds its graph from the shipped
+    bundle (``shipped_market_area_graph``); the edge reader serves these same rows in place of
+    any stored bundle edges, so a store that holds a live ENTSOG read (where the bundle seed is
+    skipped) draws the same adjacency the pricing walks, and a seeded store cannot drift from
+    it. ``created_at_utc`` is the bundle's build instant.
+    """
+
+    if "edges" not in _SHIPPED_EDGES:
+        bundle = load_bundle()
+        built = str(bundle.get("built_at_utc") or "2026-11-14T00:00:00+00:00")
+        rows = reference_rows(bundle, now=datetime.fromisoformat(built))["edges"]
+        _SHIPPED_EDGES["edges"] = [
+            {key: value for key, value in row.items() if key != "created_at_utc"} for row in rows
+        ]
+    return [dict(row) for row in _SHIPPED_EDGES["edges"]]

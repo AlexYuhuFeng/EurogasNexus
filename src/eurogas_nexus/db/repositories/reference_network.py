@@ -18,6 +18,10 @@ from eurogas_nexus.db.models.reference_network import (
     ReferenceNode,
     ReferenceTsoAccessPoint,
 )
+from eurogas_nexus.reference_data.network_bundle import (
+    BUNDLE_EDGE_SOURCE,
+    shipped_reference_edges,
+)
 
 # --- Domain-safe dataclasses -------------------------------------------------
 
@@ -289,12 +293,43 @@ class SqlAlchemyEdgeRepository:
             EdgeDTO list.
         """
 
-        q = self._session.query(ReferenceEdge)
+        q = self._session.query(ReferenceEdge).filter(
+            or_(
+                ReferenceEdge.source_system.is_(None),
+                ReferenceEdge.source_system != BUNDLE_EDGE_SOURCE,
+            )
+        )
         if from_node_id is not None:
             q = q.filter(ReferenceEdge.from_node_id == from_node_id)
         if to_node_id is not None:
             q = q.filter(ReferenceEdge.to_node_id == to_node_id)
-        return [_edge_to_dto(row) for row in q.all()]
+        stored = [_edge_to_dto(row) for row in q.all()]
+        return stored + [
+            edge
+            for edge in self._shipped_edges()
+            if (from_node_id is None or edge.from_node_id == from_node_id)
+            and (to_node_id is None or edge.to_node_id == to_node_id)
+        ]
+
+    def _shipped_edges(self) -> list[EdgeDTO]:
+        """The reference bundle's edges between nodes this store holds.
+
+        Zone links and market-area adjacency come from the shipped bundle on every store, the
+        same graph route pricing walks (``shipped_reference_edges``), whether the store was
+        seeded from the bundle or holds a live ENTSOG read. Stored copies are not read.
+        """
+
+        held = {
+            node_id
+            for (node_id,) in self._session.query(ReferenceNode.id)
+            .filter(_current(ReferenceNode))
+            .all()
+        }
+        return [
+            EdgeDTO(**row)
+            for row in shipped_reference_edges()
+            if row["from_node_id"] in held and row["to_node_id"] in held
+        ]
 
     def get_by_id(self, edge_id: str) -> EdgeDTO | None:
         """Fetch one edge by id.
@@ -307,7 +342,9 @@ class SqlAlchemyEdgeRepository:
         """
 
         row = self._session.get(ReferenceEdge, edge_id)
-        return _edge_to_dto(row) if row else None
+        if row is not None and row.source_system != BUNDLE_EDGE_SOURCE:
+            return _edge_to_dto(row)
+        return next((edge for edge in self._shipped_edges() if edge.id == edge_id), None)
 
 
 class SqlAlchemyFacilityRepository:

@@ -8,7 +8,7 @@ network and loads it at install time.
 ## What ships
 
 `src/eurogas_nexus/reference_data/nwe_reference_network.json` (package data, version
-`2026-11-16`, about 420 KB, one record per line):
+`2026-11-17`, about 420 KB, one record per line):
 
 | Part | Count | Content |
 |---|---|---|
@@ -30,7 +30,7 @@ A route from one hub to another passes through a named interconnection point, or
 them, where the exit of one market area and the entry of the next apply. The bundle's
 `market_area_link` and `interconnector` edges say which market areas each interconnection
 point joins. They are derived from ENTSOG's published `interconnections` and
-`connectionpoints` datasets (read live on 2026-11-16) by the deterministic rule in
+`connectionpoints` datasets (read live on 2026-11-17) by the deterministic rule in
 `src/eurogas_nexus/reference_data/network_adjacency.py`, recorded in the bundle's
 `adjacency` block:
 
@@ -48,7 +48,11 @@ point joins. They are derived from ENTSOG's published `interconnections` and
    internal point.
 4. A pipeline whose two located ends each join a market area gets one `interconnector` edge.
 5. Of the points joining the same pair, one is marked `representative`: the map draws it
-   by default. Pricing uses all of them.
+   by default and route pricing uses it when a route names no point. It is the point with
+   the largest firm technical capacity ENTSOG publishes for the build's gas day
+   (`operationaldatas`, indicator Firm Technical, read with the adjacency): VIP TTF-THE-H
+   (816 GWh/d) over the L-gas VIP, VIP THE-ZTP, VIP BENE, Obergailbach. Ties fall to a VIP,
+   then the most ENTSOG rows. The capacity is kept on the edge for the map's border card.
 
 Nothing is inferred from names, distances or countries; a point whose other side cannot be
 proven is listed in `adjacency.unconnected`, not connected.
@@ -61,11 +65,11 @@ proven is listed in `adjacency.unconnected`, not connected.
 | NBP – IUK | 1 | **Bacton (IUK)** |
 | PEG – THE | 2 | **Obergailbach (FR) / Medelsheim (DE)**; VIP France - Germany |
 | TTF – BBL | 1 | **Julianadorp (GTS) /Balgzand (BBL)** |
-| TTF – THE | 19 | Bocholtz-Vetschau; Bunde (DE) / Oude Statenzijl (H) (NL) (GASCADE); Winterswijk; Bunde (DE) / Oude Statenzijl (H) (NL) (GUD); Bunde (DE) / Oude Statenzijl (H) (NL) I (OGE); Bunde (DE) / Oude Statenzijl (L) (NL) (GUD); Bunde (DE) / Oude Statenzijl (L) (NL) (GTG Nord); Vlieghuis; Bocholtz; Tegelen; Zevenaar; Bunde (DE) / Oude Statenzijl (H) (NL) (GTG Nord); Zone Oude Statenzijl H; VIP TTF-NCG H; VIP TTF-NCG L; VIP TTF-GASPOOL L; VIP TTF-GASPOOL H; **VIP TTF-THE-L**; VIP TTF-THE-H |
+| TTF – THE | 19 | Bocholtz-Vetschau; Bunde (DE) / Oude Statenzijl (H) (NL) (GASCADE); Winterswijk; Bunde (DE) / Oude Statenzijl (H) (NL) (GUD); Bunde (DE) / Oude Statenzijl (H) (NL) I (OGE); Bunde (DE) / Oude Statenzijl (L) (NL) (GUD); Bunde (DE) / Oude Statenzijl (L) (NL) (GTG Nord); Vlieghuis; Bocholtz; Tegelen; Zevenaar; Bunde (DE) / Oude Statenzijl (H) (NL) (GTG Nord); Zone Oude Statenzijl H; VIP TTF-NCG H; VIP TTF-NCG L; VIP TTF-GASPOOL L; VIP TTF-GASPOOL H; VIP TTF-THE-L; **VIP TTF-THE-H** |
 | TTF – ZTP | 4 | Zelzate; Zelzate (Zebra Pijpleiding); 's Gravenvoeren Dilsen (BE) // 's Gravenvoeren/Obbicht (NL); **VIP BENE** |
 | ZTP – IUK | 1 | **Zeebrugge IZT** |
 | ZTP – PEG | 1 | **VIRTUALYS** |
-| ZTP – THE | 5 | Remich; Eynatten 1 (BE) // Lichtenbusch / Raeren (DE); **Eynatten 2 (BE) // Lichtenbusch / Raeren (DE)**; VIP Belgium - NCG; VIP THE-ZTP |
+| ZTP – THE | 5 | Remich; Eynatten 1 (BE) // Lichtenbusch / Raeren (DE); Eynatten 2 (BE) // Lichtenbusch / Raeren (DE); VIP Belgium - NCG; **VIP THE-ZTP** |
 
 | Pipeline | Ends |
 |---|---|
@@ -114,6 +118,19 @@ point, the pipeline's own charges where the route crosses IUK or BBL, entry to t
 market area, chained hop by hop. A leg whose tariff the register does not hold is reported
 missing, never priced at zero; a route between market areas with no proven path gets no
 legs and is blocked (`ROUTE_NOT_CONNECTED`).
+
+**Every store draws the same adjacency.** The edge reader (`SqlAlchemyEdgeRepository`) serves
+the shipped bundle's zone links and adjacency between the nodes the store holds, in place of
+any stored bundle edges: a store seeded from the bundle and a store holding a live ENTSOG read
+(where the seed is skipped) draw the graph route pricing walks
+(`tests/unit/test_reference_network_bundle.py`).
+
+**Tariffs for the crossings.** Each leg is named as ENTSOG publishes the tariff (operator,
+point, direction); `scripts/ops/ingest_public_sources.py --source entsog-tariffs` reads
+`tariffsfulls` for every adjacency point into the tariff register (EUR/MWh at full load,
+period, FINAL or INDICATIVE, citation per row; `ingestion/entsog_tariffs.py`). Read
+2026-11-17, NBP - ZTP through IUK is fully published; TTF - NBP through BBL lacks the GTS exit
+at Balgzand, which ENTSOG does not publish, so that route reports the leg as missing.
 
 Refresh the adjacency on the shipped bundle (no database; ENTSOG read live, retried on a
 reset, or from saved responses):

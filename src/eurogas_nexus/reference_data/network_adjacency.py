@@ -39,9 +39,11 @@ operator and infrastructure type.
 5. **Only located points.** An edge needs both ends in the bundle with a position; a point
    ENTSOG publishes without one is listed with what it would join.
 6. **One drawn line per pair of market areas.** Of the points joining the same two market areas,
-   one is marked ``representative`` (the map draws it by default; the others show when either
-   hub is selected): a VIP first (a point other points fold into, or ENTSOG ``commercialType``
-   Virtual), then the most ENTSOG rows, then the lowest point key. Pricing uses every edge.
+   one is marked ``representative`` (the map draws it by default and pricing uses it when a
+   route names no point): the largest firm technical capacity ENTSOG publishes for the build's
+   gas day (``operationaldatas``, indicator Firm Technical), then a VIP (a point other points
+   fold into, or ENTSOG ``commercialType`` Virtual), then the most ENTSOG rows, then the
+   lowest point key. Pricing can use every edge.
 """
 
 from __future__ import annotations
@@ -117,6 +119,8 @@ def derive_adjacency(
     connection_points: list[Mapping[str, Any]] | None = None,
     aliases: Mapping[str, str] | None = None,
     operator_names: Mapping[str, str] | None = None,
+    capacities: Mapping[str, float] | None = None,
+    capacity_gas_day: str | None = None,
     downloaded: str,
 ) -> dict[str, Any]:
     """Adjacency edges and the points left unconnected, from ENTSOG's published data.
@@ -130,6 +134,9 @@ def derive_adjacency(
         aliases: Alias point key to canonical point key (one physical point).
         operator_names: Operator key to name, for edge labels.
         downloaded: Download date of the ENTSOG rows (YYYY-MM-DD), recorded on every edge.
+        capacities: Point key to its largest firm technical capacity ENTSOG publishes for
+            ``capacity_gas_day`` (kWh/d, any operator and direction): the first criterion for
+            the point drawn for a pair of market areas.
 
     Returns:
         ``{"edges", "unconnected", "pipelines", "folded"}``, sorted, so the same input always
@@ -254,6 +261,8 @@ def derive_adjacency(
                     "folded_points": sorted(folded_into.get(point, set())),
                     "evidence": sorted(evidence[point]),
                     "virtual_point": point in virtual_type or bool(folded_into.get(point)),
+                    "firm_technical_kwh_d": (capacities or {}).get(point),
+                    "capacity_gas_day": capacity_gas_day if (capacities or {}).get(point) else None,
                     "representative": False,
                     "downloaded": downloaded,
                 }
@@ -320,11 +329,18 @@ def _mark_representatives(edges: list[dict[str, Any]]) -> None:
     for edge in edges:
         if edge["type"] == MARKET_AREA_LINK:
             by_point[edge["point_key"]].append(edge)
-    best: dict[tuple[str, ...], tuple[tuple[int, int, str], str]] = {}
+    best: dict[tuple[str, ...], tuple[tuple[float, int, int, str], str]] = {}
     for point, point_edges in by_point.items():
         first = point_edges[0]
         pair = tuple(sorted(first["joins"]))
-        score = (1 if first["virtual_point"] else 0, len(first["evidence"]), _negated(point))
+        # The busiest border point first: the largest firm technical capacity ENTSOG publishes
+        # (VIP TTF-THE-H, 816 GWh/d, over the L-gas VIP); then a VIP, then the most rows.
+        score = (
+            float(first.get("firm_technical_kwh_d") or 0.0),
+            1 if first["virtual_point"] else 0,
+            len(first["evidence"]),
+            _negated(point),
+        )
         if pair not in best or score > best[pair][0]:
             best[pair] = (score, point)
     chosen = {point for _, point in best.values()}
@@ -346,6 +362,8 @@ def apply_to_bundle(
     *,
     downloaded: str,
     aliases: Mapping[str, str] | None = None,
+    capacities: Mapping[str, float] | None = None,
+    capacity_gas_day: str | None = None,
 ) -> dict[str, Any]:
     """The bundle with its adjacency edges (re)derived; zone-membership edges are kept."""
 
@@ -358,6 +376,8 @@ def apply_to_bundle(
             key: str(value.get("name") or key)
             for key, value in (bundle.get("operators") or {}).items()
         },
+        capacities=capacities,
+        capacity_gas_day=capacity_gas_day,
         downloaded=downloaded,
     )
     kept = [

@@ -162,3 +162,57 @@ def test_map_reads_the_seeded_bundle_offline_and_counts_unlocated_points(session
     assert payload["totals"]["network_points"] == located + len(unlocated)
     dornum = next(i for i in payload["unlocated_network_points"] if i["point_key"] == "ITP-00126")
     assert dornum["operators"]
+
+
+def _adjacency(edges) -> set[tuple[str, str, str]]:
+    return {
+        (edge.edge_type, edge.from_node_id, edge.to_node_id)
+        for edge in edges
+        if edge.edge_type in {"market_area_link", "interconnector"}
+    }
+
+
+def test_every_store_reads_the_adjacency_the_pricing_walks(session, bundle):
+    """A seeded store and a store holding a live ENTSOG read (where the seed is skipped) serve
+    the same adjacency edges: the shipped bundle's, the graph route pricing builds on."""
+
+    from eurogas_nexus.db.repositories.reference_network import SqlAlchemyEdgeRepository
+
+    shipped = {
+        (edge["type"], edge["from"], edge["to"])
+        for edge in bundle["edges"]
+        if edge["type"] in {"market_area_link", "interconnector"}
+    }
+    assert len(shipped) == 72
+
+    seed_reference_bundle(session, bundle=bundle, now=NOW)
+    session.commit()
+    assert _adjacency(SqlAlchemyEdgeRepository(session).list_all()) == shipped
+
+    # The same store as a live ENTSOG read leaves it: points from the live read, no bundle edges.
+    for node in session.query(ReferenceNode).all():
+        node.metadata_json = {**(node.metadata_json or {}), "data_status": "live_source_metadata"}
+    session.query(ReferenceEdge).delete()
+    session.commit()
+    assert seed_reference_bundle(session, bundle=bundle, now=NOW)["status"] == (
+        "skipped_live_reference_present"
+    )
+    repository = SqlAlchemyEdgeRepository(session)
+    assert _adjacency(repository.list_all()) == shipped
+    some = next(iter(shipped))
+    served = {
+        (edge.edge_type, edge.from_node_id, edge.to_node_id): edge.id
+        for edge in repository.list_all()
+    }
+    assert repository.get_by_id(served[some]) is not None
+
+
+def test_an_edge_to_a_point_the_store_does_not_hold_is_not_served(session, bundle):
+    from eurogas_nexus.db.repositories.reference_network import SqlAlchemyEdgeRepository
+
+    seed_reference_bundle(session, bundle=bundle, now=NOW)
+    session.commit()
+    session.query(ReferenceNode).filter(ReferenceNode.id == "entsog-itp-00005").delete()
+    session.commit()
+    served = SqlAlchemyEdgeRepository(session).list_all()
+    assert all("entsog-itp-00005" not in (edge.from_node_id, edge.to_node_id) for edge in served)

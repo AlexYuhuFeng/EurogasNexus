@@ -41,7 +41,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from eurogas_nexus.application.pipeline_supply import LANDING_POINTS, SAME_PHYSICAL_POINT
@@ -290,8 +290,19 @@ def fetch_entsog(dataset: str, *, attempts: int = 5) -> list[dict]:
     for attempt in range(1, attempts + 1):
         try:
             with urllib.request.urlopen(url, timeout=180) as response:  # noqa: S310 - fixed host
-                return json.load(response)[dataset]
-        except (urllib.error.URLError, TimeoutError, ConnectionError, json.JSONDecodeError) as exc:
+                payload = json.load(response)
+            # ENTSOG names the list after the dataset, in either case (connectionPoints).
+            key = next((name for name in payload if name.lower() == dataset.lower()), None)
+            if key is None:
+                raise ValueError(f"no {dataset} in the response: {str(payload)[:200]}")
+            return payload[key]
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ConnectionError,
+            json.JSONDecodeError,
+            ValueError,
+        ) as exc:
             if attempt == attempts:
                 raise
             print(f"{dataset}: attempt {attempt} failed ({exc}); retrying", file=sys.stderr)
@@ -302,21 +313,70 @@ def fetch_entsog(dataset: str, *, attempts: int = 5) -> list[dict]:
 def entsog_rows(entsog_dir: Path | None) -> tuple[list[dict], list[dict]]:
     if entsog_dir:
         def read(name: str) -> list[dict]:
-            text = (entsog_dir / f"{name}.json").read_text(encoding="utf-8")
-            return json.loads(text)[name]
+            payload = json.loads((entsog_dir / f"{name}.json").read_text(encoding="utf-8"))
+            return next(value for key, value in payload.items() if key.lower() == name.lower())
 
         return read("interconnections"), read("connectionpoints")
     return fetch_entsog("interconnections"), fetch_entsog("connectionpoints")
 
 
+def firm_technical_capacities(
+    points: list[str], gas_day: date, entsog_dir: Path | None
+) -> dict[str, float]:
+    """Largest firm technical capacity per point for one gas day (kWh/d), ENTSOG published."""
+
+    saved = entsog_dir / "firm_technical.json" if entsog_dir else None
+    if saved and saved.exists():
+        return {key: float(value) for key, value in json.loads(saved.read_text()).items()}
+    out: dict[str, float] = {}
+    day = gas_day.isoformat()
+    for point in points:
+        url = (
+            f"{ENTSOG_API}/operationaldatas?pointKey={point}&indicator=Firm%20Technical"
+            f"&periodType=day&from={day}&to={day}&limit=-1"
+        )
+        for attempt in range(1, 6):
+            try:
+                with urllib.request.urlopen(url, timeout=180) as response:  # noqa: S310
+                    rows = json.load(response).get("operationaldatas") or []
+                break
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404:  # ENTSOG answers "No result found" with a 404
+                    rows = []
+                    break
+                if attempt == 5:
+                    raise
+            except (urllib.error.URLError, TimeoutError, ConnectionError):
+                if attempt == 5:
+                    raise
+            time.sleep(5 * attempt)
+        values = [float(row["value"]) for row in rows if row.get("value") not in (None, "")]
+        if values:
+            out[point] = max(values)
+    return out
+
+
 def with_adjacency(bundle: dict, entsog_dir: Path | None, downloaded: date) -> dict:
     interconnections, connection_points = entsog_rows(entsog_dir)
+    aliases = {key: alias.canonical for key, alias in SAME_PHYSICAL_POINT.items()}
+    first = apply_to_bundle(
+        bundle, interconnections, connection_points,
+        downloaded=downloaded.isoformat(), aliases=aliases,
+    )
+    # The capacity read ranks only the points of a pair with more than one.
+    by_pair: dict[tuple, set[str]] = defaultdict(set)
+    for edge in first["edges"]:
+        if edge.get("type") == "market_area_link":
+            by_pair[tuple(sorted(edge["joins"]))].add(edge["point_key"])
+    contested = sorted(
+        {point for points in by_pair.values() if len(points) > 1 for point in points}
+    )
+    capacity_day = downloaded - timedelta(days=1)
+    capacities = firm_technical_capacities(contested, capacity_day, entsog_dir)
     return apply_to_bundle(
-        bundle,
-        interconnections,
-        connection_points,
-        downloaded=downloaded.isoformat(),
-        aliases={key: alias.canonical for key, alias in SAME_PHYSICAL_POINT.items()},
+        bundle, interconnections, connection_points,
+        downloaded=downloaded.isoformat(), aliases=aliases,
+        capacities=capacities, capacity_gas_day=capacity_day.isoformat(),
     )
 
 
