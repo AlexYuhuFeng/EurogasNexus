@@ -95,6 +95,13 @@ const WORKSPACES = [
   "agents",
 ];
 
+/**
+ * Page addresses whose task now lives on another page's layout. `capacity` was the Desk's
+ * "Outages & capacity"; it is the Network page's panel beside the map (Capacity tab), and its
+ * operating board is still compared with both of its reads there.
+ */
+const MERGED_WORKSPACE_LAYOUT = { capacity: "network" };
+
 const LANGUAGES = [
   { id: "en", htmlPrefix: "en", i18n: "en.json" },
   { id: "zh-CN", htmlPrefix: "zh", i18n: "zh.json" },
@@ -682,14 +689,18 @@ async function inspectSurfaceFunction(
   if (state.contextProblem) {
     recordFailure(failures, scope, state.contextProblem);
   }
-  if (state.markedWorkspace && state.markedWorkspace !== workspace) {
+  // A retired page address lands on the task that took it over: `?workspace=capacity` (the old
+  // "Outages & capacity") is the Network page with its Capacity tab open, so its layout is
+  // Network's.
+  const expectedLayout = MERGED_WORKSPACE_LAYOUT[workspace] ?? workspace;
+  if (state.markedWorkspace && state.markedWorkspace !== expectedLayout) {
     // The deep link resolved to a different surface: the screenshot is evidence for the wrong page.
     // This is the defect that let `contracts.png` capture Portfolio Overview for a run that stayed
     // green.
     recordFailure(
       failures,
       scope,
-      `the displayed page is the '${state.markedWorkspace}' workspace, not '${workspace}'`,
+      `the displayed page is the '${state.markedWorkspace}' workspace, not '${expectedLayout}'`,
     );
   }
   if (state.loading) {

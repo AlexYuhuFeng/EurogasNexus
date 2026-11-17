@@ -11,7 +11,9 @@ alternative. Have the relevant book, delivery period and price sources available
 2. Choose **Hub board** for a hub comparison or **Ladder** for products across markets.
 3. Check bid/offer, source and age before comparing levels. Keep NBP p/th and continental
    EUR/MWh quotes on a common basis when comparing them.
-4. Open **Capacity & Events** for flows, capacity, storage, LNG and published outages.
+4. Open **Network** for the map with published outages, capacity (points, storage, LNG) and
+   flows in the panel beside it; choose a row to find it on the map, or a hub on the map to
+   list its zone.
 5. Review relevant alerts and investigate the source behind an exception.
 
 **Result:** a consistent market view for the period you are assessing.

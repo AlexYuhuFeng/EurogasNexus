@@ -29,7 +29,7 @@ address, so a link or a refresh returns to it.
 
 | Mode | Tasks | The question it answers |
 | --- | --- | --- |
-| Desk | Today, Prices, Network, Outages & capacity | What changed, and does it touch us? |
+| Desk | Today, Prices, Network (map with outages, capacity and flows beside it) | What changed, and does it touch us? |
 | Deals | Evaluate, Optimise, Routes & netback, Contracts, Review | What is this deal worth to us, and has it been approved? |
 | Book | Position, Limits & P&L, Delivery, Nominations, Storage plan | Where do we stand, and what is near a limit? |
 | Research | Strategies, Data, Research assistant | Why is the market here, and what does history say? |

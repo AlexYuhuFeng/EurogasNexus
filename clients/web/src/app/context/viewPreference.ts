@@ -208,8 +208,8 @@ export function resolveMarketViewTask(input: {
 }): MarketViewTaskResolution {
   const urlTask = marketTaskFromSearch(input.search);
   if (urlTask) return { task: urlTask, source: "url" };
-  if (input.activeWorkspace === "network") return { task: "network", source: "url" };
-  if (input.activeWorkspace === "capacity") return { task: "capacity", source: "url" };
+  // The retired capacity page is Network's Capacity tab now.
+  if (input.activeWorkspace === "network" || input.activeWorkspace === "capacity") return { task: "network", source: "url" };
   if (isMarketViewPreferenceId(input.persisted)) {
     return { task: input.persisted, source: "persisted" };
   }
@@ -225,7 +225,6 @@ export function resolveMarketViewTask(input: {
  */
 export function marketTaskWorkspacePage(task: MarketTask): WorkspacePageId {
   if (task === "network") return "network";
-  if (task === "capacity") return "capacity";
   return MARKET_SHELL_PAGE_ID;
 }
 

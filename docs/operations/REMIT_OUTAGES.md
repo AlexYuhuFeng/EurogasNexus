@@ -92,8 +92,10 @@ messages stored, 19 of 19 operators resolved; 27 live or upcoming transmission o
 together. The map places 20 of the 27 in its 14-day horizon by EIC (24 placements by EIC in
 all, from 7). None is in the Norwegian zone, so the balance's outage read is unchanged (0).
 Four GRTgaz/NaTran Deutschland messages each state 81 GWh/d off VIP France-Germany entry from
-1 Oct 2026 to 2029 (`...P012`, `P014`, `P015`, `P016`): separate messages as published, shown
-as four outages; whether they describe one reduction is the operator's to say.
+1 Oct 2026 to 2029 (`...P012`, `P014`, `P015`, `P016`): separate messages as published, stored
+as four. Since 16 Nov 2026 the outage list and Today show them as one event (same asset, period
+and size: `remit_umm.outage_events`, "One row per event" in docs/ux/LIVE_MAP.md) naming every
+message; the plain `GET /api/physical/outages` still returns each message.
 
 ## Event status
 
@@ -219,7 +221,9 @@ messages (Gassco, EEX Transparency, PRISMA) until a collector for those platform
 
 ## Where it shows
 
-- Market → Capacity & Events → **Outages**: live and upcoming events (90 days), soonest first.
+- Desk → Network → **Outages** (the panel beside the map): one row per event (90 days, and
+  events ended in the last 7 days), largest capacity offline first; see "One row per event"
+  in docs/ux/LIVE_MAP.md and `GET /api/physical/outages?grouped=true&ended_days=7`.
 - `GET /api/physical/outages?horizon_days=90&asset_type=production` and the SDK's
   `fetch_outages`.
 - `GET /api/desk/today` (the Today read): active and scheduled counts over 14 days from the

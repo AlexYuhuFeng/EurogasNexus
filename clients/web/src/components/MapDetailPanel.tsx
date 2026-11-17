@@ -44,7 +44,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function SiteDetail({ site, edges, situation, t }: { site: Site; edges: readonly EdgeDTO[]; situation: MapSituationDTO | null; t: Translate }) {
+function SiteDetail({ site, edges, situation, t, outagesListed = false }: { site: Site; edges: readonly EdgeDTO[]; situation: MapSituationDTO | null; t: Translate; outagesListed?: boolean }) {
   const roles = siteRoles(site, edges, situation);
   const facts = siteFacts(site, situation);
   const pipelines = sitePipelines(site, edges);
@@ -82,7 +82,7 @@ function SiteDetail({ site, edges, situation, t }: { site: Site; edges: readonly
           <p className="muted map-detail-none">{t("map.detail.no_figures")}</p>
         )}
       </div>
-      {facts.outages.length > 0 && (
+      {facts.outages.length > 0 && !outagesListed && (
         <Section title={t("map.detail.outages")}>
           {facts.outages.map((outage) => (
             <div key={outage.event_id} className="map-detail-row">
@@ -248,6 +248,7 @@ export function MapDetailPanel({
   onClose,
   onInspect,
   t,
+  outagesListed = false,
 }: {
   selection: MapSelection;
   sites: readonly Site[];
@@ -259,6 +260,8 @@ export function MapDetailPanel({
   /** Hand a network point to the canonical Inspector for full detail and provenance. */
   onInspect?: (nodeId: string, label: string) => void;
   t: Translate;
+  /** The page lists the object's outages beside the card (the Network panel): one place. */
+  outagesListed?: boolean;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -270,7 +273,7 @@ export function MapDetailPanel({
   let body: React.ReactNode = null;
   if (selection.kind === "site") {
     const site = sites.find((item) => item.id === selection.id);
-    if (site) body = <SiteDetail site={site} edges={edges} situation={situation} t={t} />;
+    if (site) body = <SiteDetail site={site} edges={edges} situation={situation} t={t} outagesListed={outagesListed} />;
   } else if (selection.kind === "hub") {
     body = <HubDetail hub={selection.id} rows={marketRows} situation={situation} nodes={nodes} edges={edges} t={t} />;
   } else {

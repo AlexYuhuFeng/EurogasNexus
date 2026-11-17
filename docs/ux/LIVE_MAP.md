@@ -21,6 +21,60 @@ and entry capacity held; a cargo's route, ETA, size and when its position was re
 regas windows and send-out held at a terminal. Clicking a network point still hands it to
 the Inspector, so the map never grows a second detail pane.
 
+## The Network page: map and panel, one selection
+
+Desk → Network is one task: the map and what used to be the separate "Outages & capacity"
+page (AGENTS rule 9: a capability does not earn a page). It sits in the same page frame as
+Today and Prices (width, gutters, header, context strip), so switching Desk tabs does not move
+the page; the map is a panel inside that frame and, at desktop sizes, map and panel fill the
+height below the header without a page scroll. Full screen stays the deliberate edge-to-edge
+view (below).
+
+| Width | Layout |
+|---|---|
+| Desktop | One toolbar row (view, reset, layers, situation chips, Full screen) above the map (about 63 %) and the information panel (about 37 %) |
+| Phone | The map on top (about 45 % of the screen) and the panel below as a sheet; its handle (drag or press) raises the sheet to about 78 % and lowers it again; choosing a row brings the map back into view |
+
+**Panel tabs** (the tab is in the URL: `?workspace=market&task=network&panel=capacity`):
+
+| Tab | Rows | Units |
+|---|---|---|
+| **Outages** (default) | One row per outage event (below); filter Live · Out now · Planned · Ended recently (7 days); sorted by capacity offline, largest first; Why and Report on every row | Offline in GWh/d, the desk unit, through the server's unit authority; a message with no daily figure shows "–" and its published figure in the cell's tooltip |
+| **Capacity** | Points · Storage · LNG. Points is the operating board (flow, firm technical, utilisation, headroom, posture; search, country, TSO, preset order and posture filter; pages of 50); a selected point shows its stack, booking products, tariffs and source above the rows. The native ENTSOG query and the declared capacity profiles are one line each until opened | mcm/d as the board's standardised basis; storage TWh and %; LNG TWh and TWh/d |
+| **Flows** | Closed-gas-day flow at each located point (the map's Flows layer), largest first | GWh/d |
+| **Our book** | Only in the "Our book" view and only with book permission: the book list (in progress, next 7 days, later, history with replay), upstream portfolio, the optimiser hand-off, the Decision · P&L · Warnings · Evidence tabs and the resource paths | Native per panel |
+
+The tab labels count what the current filter shows. The retired addresses keep working:
+`?workspace=capacity` and `?workspace=market&task=capacity` open Network with the Capacity tab
+and are rewritten to the canonical address.
+
+**One selection, both ways.**
+
+- Choosing a row (outage, capacity point, flow point) selects its object on the map and flies
+  there; an outage the map cannot place has nothing to fly to, and says so in the row.
+  Hovering a row draws a quiet ring where it is.
+- Selecting an object on the map (hub, point, facility, terminal) filters the panel to it, a
+  hub to its zone (its countries' points and the outages in its balancing zone), and a line
+  "Showing: TTF zone ×" clears it. The object's card heads the panel, above its rows: the
+  object's detail has one place, and the card leaves the outages to the list below it.
+- **Follow map** (on by default, remembered per browser): the lists hold what is in the map's
+  current view; off, everything. A selection filters instead while it lasts. A row with no
+  position (an outage at a known facility with no published position, or one not located at
+  all) is never hidden by the view: it cannot be in or out of it.
+
+**One row per event.** REMIT publishes messages, not events: an operator may publish the same
+reduction several times, and both operators at an interconnection point publish their side.
+The server collapses them (`remit_umm.outage_events`, `GET /api/physical/outages?grouped=true`),
+and Today's outage list uses the same rule. Two rows (each already the latest version of its
+message) are one event when they name the same asset (the same EIC, or the same name compared
+without case, spaces or punctuation), for the same period (start and stop to the minute) and
+the same size (GWh/d to 0.1, or the published figure and unit where no daily figure exists);
+direction is not compared. The event row is the latest-published member and names every
+operator; its tooltip lists every message. The four GRTgaz Deutschland messages for 81 GWh/d
+off VIP France - Germany from 1 Oct 2026 to 1 Oct 2029 are one row. A window that leaves the
+current year or spans years shows its years ("1 Oct 2026 – 1 Oct 2029"); a window of a week or
+more drops the clock.
+
 A status strip states the picture in one line: "Live · 2 out now · 1 scheduled · 3
 contracts · 1 own cargo at sea · 1 regas slot · as of 09:30 UTC · 1 not located". The map
 re-reads the situation every five minutes; a failed read keeps the last picture.
@@ -83,7 +137,9 @@ AMap's public endpoint is listed for evaluation only. The outline is rebuilt wit
 Like a control tower, the map has one selection at a time. Hovering shows a name and one
 figure; clicking selects. The selected object's card docks on the map's right edge, the
 object and what it relates to are drawn on top in the accent colour, and everything else
-steps back to 30 %. Escape, the card's ×, or a click on empty map clears it. The card is
+steps back to 30 %. Escape, the card's × (on the Network page: the panel's "Showing:" ×), or a
+click on empty map clears it. On the Network page the card heads the information panel rather
+than floating over the map (see above). The card is
 the map's quick context; **Inspect** hands a network point to the app's Inspector for full
 detail and provenance, so the map never grows a second detail page.
 
@@ -145,14 +201,14 @@ points is not invented. The map asks for 120 days of completed deals in the book
 
 ## Full screen: the wall view
 
-The map normally sits on the Network page with the resource and decision rails below it: a
-cockpit, where the trader reads the map next to the numbers. A desk also wants the map on
-its own, on a wall screen or a second monitor, watching the day: cargoes moving along their
-tracks, regas windows open, outages, measured entry flows. **Full screen** (the last chip on
-the map's toolbar) shows the map column alone on the display:
+The map normally sits on the Network page beside its information panel: a cockpit, where the
+trader reads the map next to the lists. A desk also wants it on a wall screen or a second
+monitor, watching the day: cargoes moving along their tracks, regas windows open, outages,
+measured entry flows. **Full screen** (the last chip on the toolbar) shows the whole Network
+instrument edge to edge on the display:
 
-- Everything that belongs to the map comes along: the layer chips, the place finder, the
-  live strip, the selection card and the line key. Nothing else does.
+- The toolbar, the map with its place finder, live strip and line key, and the panel with the
+  selected object's card come along. The page header and the rest of the shell do not.
 - It keeps refreshing on the same five-minute cycle as the page. The strip says when the
   situation is as of and when this screen last read it; when reads keep failing it says
   so ("Not refreshed: showing the last good read") instead of showing an old picture as

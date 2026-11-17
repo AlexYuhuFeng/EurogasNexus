@@ -1,0 +1,480 @@
+/*
+ * Desk → Network: one page frame with Today and Prices, the map as a panel inside it and the
+ * information panel beside it (NetworkWorkspace.tsx, NetworkInfoPanel.tsx).
+ *
+ * The frame is the one Today and Prices use (max width, gutters, header, context strip), so
+ * switching Desk tabs does not move the page; the page's top padding is set with the gutter
+ * rules in design-system.css. Imported into the design system (ds-components).
+ */
+
+@layer ds-components {
+  /* ------------------------------------------------------------------ the page frame */
+  .cockpit-app.workspace-network .workspace-page {
+    width: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 1880px) {
+    .cockpit-app.workspace-network .workspace-page {
+      max-width: 1800px;
+    }
+  }
+
+  @media (min-width: 2400px) {
+    .cockpit-app.workspace-network .workspace-page {
+      max-width: 2240px;
+    }
+  }
+
+  /* The map and the panel fill the height below the header: no page scroll at desktop. */
+  .cockpit-app.workspace-network .market-cockpit-panel {
+    overflow: hidden;
+  }
+
+  .workspace-network .network-workspace-shell.network-desk {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-areas:
+      "toolbar toolbar"
+      "map panel";
+    grid-template-columns: minmax(0, 63fr) minmax(360px, 37fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--ds-space-2) var(--ds-space-3);
+    min-height: 420px;
+    padding: 0;
+  }
+
+  /* One toolbar row above map and panel. */
+  .workspace-network .network-desk > .network-desk-toolbar {
+    position: static;
+    inset: auto;
+    z-index: auto;
+    grid-area: toolbar;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .workspace-network .network-desk > .network-map-column {
+    grid-area: map;
+    min-height: 0;
+  }
+
+  .workspace-network .network-desk > .network-panel-column {
+    grid-area: panel;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+  }
+
+  /* Full screen: the whole instrument, edge to edge. */
+  .workspace-network .network-desk.is-fullscreen {
+    padding: var(--ds-space-3);
+    background: var(--ds-bg);
+  }
+
+  .workspace-network .network-desk.is-expanded {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+  }
+
+  /* ---------------------------------------------------------------- the panel */
+  .network-panel {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .network-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+    padding: 0 var(--ds-space-3);
+    border-bottom: 1px solid var(--ds-border);
+  }
+
+  .network-panel-head .network-panel-tabs {
+    min-width: 0;
+  }
+
+  .network-panel-head [role="tablist"] {
+    border-bottom: 0;
+  }
+
+  .network-panel-count {
+    margin-left: var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: 400;
+  }
+
+  .network-panel-follow {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--ds-space-1);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .network-panel-scope {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+    margin: 0;
+    padding: var(--ds-space-1) var(--ds-space-3);
+    border-bottom: 1px solid var(--ds-border-subtle);
+    background: var(--ds-accent-soft);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  .network-panel-scope-clear {
+    min-width: var(--ds-control-sm);
+    height: var(--ds-control-sm);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-text-2);
+    cursor: pointer;
+    font-size: var(--ds-text-md);
+  }
+
+  .network-panel-scope-clear:hover {
+    background: var(--ds-surface-2);
+  }
+
+  .network-panel-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--ds-space-3);
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--ds-space-3);
+  }
+
+  .network-panel-body:focus-visible {
+    outline: 2px solid var(--ds-focus-ring);
+    outline-offset: -2px;
+  }
+
+  .network-panel-section,
+  .network-book-tab {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .network-panel-cell-stack {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .network-panel-cell-stack small {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .network-panel-cell-stack .network-panel-placement {
+    color: var(--ds-text-2);
+    font-style: italic;
+  }
+
+  .network-panel-actions {
+    display: inline-flex;
+    gap: var(--ds-space-2);
+    white-space: nowrap;
+  }
+
+  .network-panel-source {
+    margin: 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .network-panel-footer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-1);
+    margin-top: auto;
+    padding-top: var(--ds-space-2);
+    border-top: 1px solid var(--ds-border-subtle);
+  }
+
+  .network-panel-fold > summary,
+  .network-panel-provenance > summary,
+  .capacity-in-panel details > summary {
+    color: var(--ds-text-2);
+    cursor: pointer;
+    font-size: var(--ds-text-xs);
+  }
+
+  .network-panel-fold[open] {
+    padding-bottom: var(--ds-space-2);
+  }
+
+  /* The selected object's card: in the panel, not floating over the map. */
+  .network-panel-detail .map-detail-panel {
+    position: static;
+    inset: auto;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 0 0 var(--ds-space-3);
+    border: 0;
+    border-bottom: 1px solid var(--ds-border);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* The "Showing:" line above already clears the selection. */
+  .network-panel-detail .map-detail-close {
+    display: none;
+  }
+
+  /* The capacity board inside the panel: one column of controls and lists. */
+  .capacity-in-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .capacity-in-panel .capacity-command-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+    gap: var(--ds-space-1);
+  }
+
+  .capacity-in-panel .capacity-kpi-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .capacity-in-panel .capacity-kpi-strip > div {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--ds-space-1);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .capacity-in-panel .capacity-kpi-strip span {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .capacity-in-panel .capacity-kpi-strip strong {
+    font-size: var(--ds-text-sm);
+  }
+
+  .capacity-in-panel .capacity-point-inspector {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+    padding: 0 0 var(--ds-space-3);
+    border: 0;
+    border-bottom: 1px solid var(--ds-border);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .capacity-in-panel .capacity-point-actions {
+    display: inline-flex;
+    gap: var(--ds-space-3);
+  }
+
+  .capacity-in-panel td.utilization-critical {
+    color: var(--ds-negative);
+    font-weight: 600;
+  }
+
+  .capacity-in-panel .capacity-board-panel,
+  .capacity-in-panel .capacity-assets-panel {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  /* The book's own panels in the Our book tab: in flow, not rails beside a map. */
+  .workspace-network .network-book-tab .network-resource-rail,
+  .workspace-network .network-book-tab .network-decision-rail,
+  .workspace-network .network-book-tab .network-route-ladder,
+  .network-book-tab .map-book-panel {
+    position: static;
+    inset: auto;
+    grid-area: auto;
+    width: auto;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+  }
+
+  .workspace-network .network-book-tab .network-rail-view {
+    overflow: visible;
+  }
+
+  /* A list row's quiet mark on the map. */
+  .map-hover-ring {
+    width: var(--ds-space-6);
+    aspect-ratio: 1;
+    border: 2px solid var(--ds-accent);
+    border-radius: var(--ds-radius-pill);
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .network-sheet-handle {
+    display: none;
+  }
+
+  /* ---------------------------------------------------------------- medium widths */
+  @media (max-width: 1100px) {
+    .workspace-network .network-workspace-shell.network-desk {
+      grid-template-columns: minmax(0, 55fr) minmax(320px, 45fr);
+    }
+  }
+
+  /* ---------------------------------------------------------------- phone: map on top, a sheet below */
+  @media (max-width: 900px) {
+    /* The page scrolls past the header; then map and sheet fill the screen together. */
+    .cockpit-app.workspace-network {
+      height: auto;
+      min-height: 100dvh;
+      overflow: visible;
+    }
+
+    .cockpit-app.workspace-network .market-cockpit-panel {
+      overflow: visible;
+    }
+
+    .workspace-network .network-workspace-shell.network-desk {
+      flex: 0 0 auto;
+      /* The screen below the sticky top bar. */
+      height: calc(100dvh - var(--ds-space-8) * 2);
+      scroll-margin-top: calc(var(--ds-space-8) * 2);
+      grid-template-areas:
+        "toolbar"
+        "map"
+        "panel";
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 45fr) minmax(0, 55fr);
+      gap: var(--ds-space-2);
+      min-height: 0;
+      padding: 0;
+      transition: grid-template-rows var(--ds-duration-slow) ease;
+    }
+
+    .workspace-network .network-workspace-shell.network-desk.is-sheet-raised {
+      grid-template-rows: auto minmax(0, 22fr) minmax(0, 78fr);
+    }
+
+    .workspace-network .network-desk > .network-map-column {
+      min-height: 0;
+    }
+
+    .workspace-network .network-desk > .network-panel-column {
+      border-radius: var(--ds-radius-md) var(--ds-radius-md) 0 0;
+      box-shadow: var(--ds-shadow-pop);
+    }
+
+    .network-sheet-handle {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: var(--ds-control-sm);
+      border: 0;
+      background: transparent;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .network-sheet-handle > span {
+      width: 36px;
+      height: 4px;
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-border-strong);
+    }
+
+    .network-panel-head {
+      flex-wrap: wrap;
+      padding: 0 var(--ds-space-2);
+    }
+
+    .network-panel-body {
+      padding: var(--ds-space-2);
+    }
+
+    .capacity-in-panel .capacity-command-bar {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+  }
+  /* A period reads on two lines rather than being cut at the panel's edge. */
+  .network-panel .ds-grid {
+    width: 100%;
+  }
+
+  .network-panel .ds-grid td,
+  .network-panel .ds-grid th {
+    white-space: normal;
+    vertical-align: top;
+  }
+
+  .network-panel .ds-grid td[data-col="period"],
+  .network-panel .ds-grid td[data-col="offline"],
+  .network-panel .ds-grid td[data-col="actions"] {
+    white-space: nowrap;
+  }
+
+  .network-panel-title-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-2);
+  }
+
+  .network-panel-actions-stack {
+    flex-direction: column;
+    gap: 0;
+  }
+}

@@ -91,9 +91,10 @@ export const WORKSTATION_PROFILES: readonly WorkstationProfile[] = [
     windows: [
       { windowId: "market", page: "market", task: "overview", role: "primary", requires: ["multiWindow"] },
       {
+        // The outage and capacity monitor is the Network page (its panel beside the map).
         windowId: "capacity",
-        page: "capacity",
-        task: null,
+        page: "market",
+        task: "network",
         role: "supporting",
         requires: ["multiWindow", "notifications"],
       },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // maplibre-gl v6 is ESM-only and has no default export: every symbol the map uses is imported by
 // name. (The upgrade from v5 to v6.10.0 is a security fix - see the package note in
 // `clients/web/package.json` and `docs/operations/VALIDATION.md`.)
@@ -103,8 +103,25 @@ interface GasNetworkMapProps {
    * would cover most of a small map; the full map is one click away (#12).
    */
   compact?: boolean;
-  /** Select and fly to a place or a cargo from outside the map (the book list); `nonce` re-fires it. */
-  focus?: { refId?: string | null; cargoId?: string; nonce: number } | null;
+  /**
+   * Select and fly to a place or a cargo from outside the map (the book list, the Network
+   * panel); `nonce` re-fires it. `at` (longitude, latitude) flies there when the item names no
+   * network point or facility of its own.
+   */
+  focus?: { refId?: string | null; cargoId?: string; at?: [number, number] | null; nonce: number } | null;
+  /**
+   * The selection, when the page holds it (the Network panel lists what the selected object
+   * relates to). Omitted, the map keeps its own. Either way every change is reported through
+   * `onSelectionChange`.
+   */
+  selection?: MapSelection | null;
+  onSelectionChange?: (selection: MapSelection | null) => void;
+  /** false: the page shows the selected object's card (the Network panel), not the map. */
+  detailCard?: boolean;
+  /** The visible area after each move, in longitude and latitude (the panel's "Follow map"). */
+  onViewChange?: (bounds: { west: number; south: number; east: number; north: number }) => void;
+  /** A quiet ring where a hovered list row is (longitude, latitude); null for none. */
+  hoverAt?: [number, number] | null;
   /**
    * The book's allocated flows, one per origin and destination (see mapLineGeometry.ts):
    * width by volume, the volume at the destination, one arrowhead for direction.
@@ -268,6 +285,11 @@ export function GasNetworkMap({
   replay = null,
   focus = null,
   bookFlows = [],
+  selection: selectionProp,
+  onSelectionChange,
+  detailCard = true,
+  onViewChange,
+  hoverAt = null,
 }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -276,7 +298,18 @@ export function GasNetworkMap({
   const [tier, setTier] = useState<ZoomTier>("overview");
   // The "control tower" selection: one object at a time, its card docked on the right, the
   // object and what it relates to highlighted and the rest dimmed.
-  const [selection, setSelection] = useState<MapSelection | null>(null);
+  const [ownSelection, setOwnSelection] = useState<MapSelection | null>(null);
+  const selectionControlled = selectionProp !== undefined;
+  const selection = selectionControlled ? selectionProp : ownSelection;
+  // Stable for the handlers the map registers once: they always reach the current owner.
+  const selectionOwnerRef = useRef({ controlled: selectionControlled, report: onSelectionChange });
+  selectionOwnerRef.current = { controlled: selectionControlled, report: onSelectionChange };
+  const setSelection = useCallback((next: MapSelection | null) => {
+    if (!selectionOwnerRef.current.controlled) setOwnSelection(next);
+    selectionOwnerRef.current.report?.(next);
+  }, []);
+  const viewChangeRef = useRef(onViewChange);
+  viewChangeRef.current = onViewChange;
   const sites = useMemo(() => buildSites(nodes, facilities), [facilities, nodes]);
   const sitesRef = useRef<Site[]>(sites);
   sitesRef.current = sites;
@@ -1554,11 +1587,44 @@ export function GasNetworkMap({
       const node = nodes.find((item) => item.id === focus.refId);
       const facility = facilities.find((item) => item.id === focus.refId);
       const place = node ?? facility;
-      if (place && place.lon != null && place.lat != null) focusOn(map, toMapCoordinates(place.lon, place.lat), 7);
+      if (place && place.lon != null && place.lat != null) {
+        focusOn(map, toMapCoordinates(place.lon, place.lat), 7);
+        return;
+      }
     }
+    if (focus.at) focusOn(map, toMapCoordinates(focus.at[0], focus.at[1]), 7);
     // Only a new request moves the map; data refreshes do not.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.nonce, mapReady]);
+
+  // The visible area, for a page list that follows the map.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return undefined;
+    const report = () => {
+      const bounds = map.getBounds();
+      viewChangeRef.current?.({ west: bounds.getWest(), south: bounds.getSouth(), east: bounds.getEast(), north: bounds.getNorth() });
+    };
+    report();
+    map.on("moveend", report);
+    return () => {
+      map.off("moveend", report);
+    };
+  }, [mapReady]);
+
+  // A quiet ring where a hovered list row is: a hint, not a selection.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !hoverAt) return undefined;
+    const element = document.createElement("div");
+    element.className = "map-hover-ring";
+    element.setAttribute("aria-hidden", "true");
+    const ring = new Marker({ element }).setLngLat(toMapCoordinates(hoverAt[0], hoverAt[1])).addTo(map);
+    return () => {
+      ring.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverAt?.[0], hoverAt?.[1], mapReady]);
 
   // Motion that carries meaning only: gas moving along flowing pipelines, the firm's laden
   // cargoes heading in, and a slow pulse on capacity that is out now. Off under
@@ -1887,7 +1953,7 @@ export function GasNetworkMap({
     <div className="gas-map" aria-label={t("map.gas_network_map")}>
       <div ref={containerRef} className="maplibre-canvas" />
       {mapReady && !compact && <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} />}
-      {selection && (
+      {selection && detailCard && (
         <MapDetailPanel
           selection={selection}
           sites={sites}
@@ -1900,7 +1966,7 @@ export function GasNetworkMap({
           t={t as (key: string, options?: Record<string, unknown>) => string}
         />
       )}
-      {mapReady && !selection && !compact && (
+      {mapReady && !(selection && detailCard) && !compact && (
         <div className="map-zoom-tier" role="status" aria-live="polite">
           {view === "network" && (
             <>

@@ -12,7 +12,6 @@ interface ManualWorkspaceProps {
 
 const WORKSPACE_GUIDE_KEYS = [
   "network",
-  "capacity",
   "market",
   "contracts",
   "strategy",

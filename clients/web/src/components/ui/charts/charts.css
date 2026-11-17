@@ -157,11 +157,111 @@
     line-height: var(--ds-line-xs);
   }
 
+  /* The sparkline: inline SVG, readable on hover, focus and touch (Chart.tsx `Sparkline`). */
   .ds-sparkline {
+    position: relative;
     display: block;
     width: 100%;
     min-width: 0;
-    overflow: hidden;
+    border-radius: var(--ds-radius-sm);
+    outline: none;
+    cursor: crosshair;
+    touch-action: pan-y;
+  }
+
+  .ds-sparkline.is-openable {
+    cursor: pointer;
+  }
+
+  .ds-sparkline:focus-visible {
+    box-shadow: var(--ds-focus);
+  }
+
+  .ds-sparkline > svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .ds-sparkline-line {
+    fill: none;
+    stroke: var(--ds-series-1);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .ds-sparkline-line.is-simulated {
+    stroke-dasharray: 3 2;
+  }
+
+  .ds-sparkline-dot,
+  .ds-sparkline-last {
+    fill: var(--ds-series-1);
+  }
+
+  .ds-sparkline-extreme {
+    fill: var(--ds-surface);
+    stroke: var(--ds-text-3);
+    stroke-width: 1;
+  }
+
+  .ds-sparkline-cursor {
+    stroke: var(--ds-border-strong);
+    stroke-width: 1;
+  }
+
+  .ds-sparkline-marker {
+    fill: var(--ds-surface);
+    stroke: var(--ds-series-1);
+    stroke-width: 2;
+  }
+
+  .ds-sparkline-tip {
+    position: absolute;
+    bottom: calc(100% + var(--ds-space-1));
+    left: var(--ds-spark-x, 0);
+    z-index: 5;
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: baseline;
+    gap: 0 var(--ds-space-2);
+    width: max-content;
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-pop);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translateX(calc(-1 * var(--ds-space-2)));
+  }
+
+  .ds-sparkline-tip.is-left {
+    transform: translateX(calc(-100% + var(--ds-space-2)));
+  }
+
+  .ds-sparkline-tip strong {
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: 600;
+  }
+
+  .ds-sparkline-tip .ds-sparkline-sim {
+    justify-self: start;
+    color: var(--ds-status-simulated);
+  }
+
+  .ds-sparkline-tip > span:not(.ds-sparkline-sim) {
+    grid-column: 1 / -1;
+  }
+
+  .ds-sparkline-tip .ds-sparkline-range {
+    grid-column: 1 / -1;
+    color: var(--ds-text-3);
   }
 }
 

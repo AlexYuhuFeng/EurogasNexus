@@ -497,7 +497,7 @@ test("the board renders the state it was given, and its retry is the store's own
   assert.match(component, /key: "capacity\.no_matching_points", marker: "capacity-filter-no-match"/);
   assert.match(component, /boardRead\.measured && filtersApplied && filteredRows\.length === 0/);
   // The rows carry their own record id, so a later scoped comparison can name them.
-  assert.match(component, /data-record="capacity-point" data-record-id=\{row\.key\}/);
+  assert.match(component, /"data-record": "capacity-point", "data-record-id": row\.key/);
   // The vocabulary is the shared endpoint taxonomy, not a second one.
   assert.match(component, /t\(failedRead\.labelKey\)/);
   assert.match(component, /t\(failedRead\.messageKey\)/);
@@ -508,7 +508,7 @@ test("the board renders the state it was given, and its retry is the store's own
   assert.match(cockpit, /error: api\.endpointErrors\.capacity/);
   assert.match(cockpit, /errorCode: api\.endpointErrorCodes\.flows/);
   assert.match(cockpit, /committedPasses: api\.workspaceLoadsCommitted/);
-  assert.match(cockpit, /onRetryBoardRead=\{\(\) => void api\.retryFailedWorkspaceEndpoints\(\)\}/);
+  assert.match(cockpit, /onRetryBoardRead(=\{|: )\(\) => void api\.retryFailedWorkspaceEndpoints\(\)/);
 
   // The browser check refuses exactly the board's own capacity read and holds it to the pure
   // rules; the joined rows are compared by the sweep's own probe, so no component gains a fetch

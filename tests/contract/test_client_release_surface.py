@@ -417,7 +417,8 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     portfolio_workspace_for_contract = (
         ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
     ).read_text(encoding="utf-8")
-    assert '"capacity"' in market_cockpit_for_contract
+    # Outages and capacity are the Network task's panel beside the map (one task, not a page).
+    assert "capacity={{" in market_cockpit_for_contract
     assert '"exposure"' in portfolio_workspace_for_contract
     assert '"manual"' in app
     assert 'activePrimaryWorkspace.id === "market"' in app

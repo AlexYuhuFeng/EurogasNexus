@@ -16,12 +16,13 @@ function block(source: string, startMarker: string, endMarker: string): string {
 
 const NUMERIC_TASK = '{task === "curves" && (';
 const MAP_TASK = '{task === "network" && (';
-const CAPACITY_TASK = '{task === "capacity" && (';
+// The map task is the page's last task: its block runs to the end of the panel.
+const MAP_TASK_END = '      </div>\n    </div>\n  );';
 
 test("the numeric task mounts no map while the map task mounts the map", () => {
   const market = readWebSource("components/MarketCockpit.tsx");
   const numeric = block(market, NUMERIC_TASK, MAP_TASK);
-  const mapView = block(market, MAP_TASK, CAPACITY_TASK);
+  const mapView = block(market, MAP_TASK, MAP_TASK_END);
 
   assert.match(numeric, /<MarketTerminal/);
   assert.equal(numeric.includes("GasNetworkMap"), false);
@@ -78,7 +79,7 @@ test("neither view resets trader context when it mounts", () => {
     assert.equal(effect.includes("setHubId"), false);
   }
 
-  const mapView = block(market, MAP_TASK, CAPACITY_TASK);
+  const mapView = block(market, MAP_TASK, MAP_TASK_END);
   assert.doesNotMatch(mapView, /gasDay=\{traderContext\.gasDay\}/);
   assert.doesNotMatch(mapView, /deliveryProduct=\{traderContext\.deliveryProduct\}/);
   assert.doesNotMatch(mapView, /hubId=\{traderContext\.hubId\}/);

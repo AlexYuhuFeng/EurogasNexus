@@ -66,9 +66,10 @@ test("Runtime delegates tablist semantics to WorkspaceTabs", () => {
   assert.doesNotMatch(source, /StatusBadge owns/);
 });
 
-test("Capacity, Network rail, and Strategy shadow delegate tab semantics to WorkspaceTabs", () => {
+test("the Network panel, Network rail, and Strategy shadow delegate tab semantics to WorkspaceTabs", () => {
   const cases = [
-    ["components/CapacityWorkspace.tsx", "capacity-view"],
+    // Points, storage and LNG inside the Capacity tab are one Segmented choice, not nested tabs.
+    ["components/NetworkInfoPanel.tsx", "network-panel-tab"],
     ["components/NetworkWorkspace.tsx", "network-rail-tab"],
   ] as const;
 
@@ -90,7 +91,10 @@ test("Capacity, Network rail, and Strategy shadow delegate tab semantics to Work
 
 test("narrow scroll regions are explicitly keyboard focusable", () => {
   const cases = [
-    ["components/CapacityWorkspace.tsx", /className="capacity-operating-table"[\s\S]*?tabIndex=\{0\}/],
+    // The capacity board and the outage list are interactive DataGrids; the panel body scrolls
+    // and is a tab stop of its own.
+    ["components/CapacityWorkspace.tsx", /className="capacity-operating-table"[\s\S]*?<DataGrid[\s\S]*?onRowAction=/],
+    ["components/NetworkInfoPanel.tsx", /id="network-panel-body"[\s\S]*?role="tabpanel"[\s\S]*?tabIndex=\{0\}/],
     // The hub board is an interactive DataGrid: its rows are the Tab stop (one at a time).
     ["components/ui/DataGrid.tsx", /tabIndex=\{interactive \|\| anySortable \? undefined : 0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-command-actions" tabIndex=\{0\}/],

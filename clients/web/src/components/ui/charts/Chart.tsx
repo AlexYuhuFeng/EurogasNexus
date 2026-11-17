@@ -19,6 +19,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type uPlot from "uplot";
 import { useUplot } from "./uplotLoader";
+import { nearestPoint, sparkGeometry, sparkPath, sparkSummary, sparkValue, sparkWhen, stepPoint, type SparkAxis } from "./sparklineModel";
 
 import { DataGrid, type DataGridColumn } from "../DataGrid";
 import { StatusBadge } from "../StatusBadge";
@@ -484,58 +485,141 @@ export function Chart({ id, title, data, t, height = 220, asOf, state, simulated
 }
 
 export interface SparklineProps {
-  /** The figure's daily series, oldest first; null is a gap. */
+  /** The figure's series, oldest first; null is a gap (never interpolated). */
   values: readonly (number | null)[];
-  /** Gas days of the values (for the gas-day x positions). */
+  /** Gas days of the values (`axis` "gas-day") or ISO instants (`axis` "time"). */
   days: readonly string[];
-  /** What the line is, for assistive technology ("NW Europe fill, last 30 gas days"). */
+  axis?: SparkAxis;
+  /** What the line is ("NW Europe storage fill"): the start of its accessible name. */
   label: string;
+  /** The series' unit ("%", "GWh/d", "EUR/MWh"), shown with every value. */
+  unit?: string;
+  decimals?: number;
   simulated?: boolean;
   height?: number;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  /** Click or Enter: open the full chart of this series. */
+  onOpen?: () => void;
 }
 
 /**
- * A small line beside a figure: shape only, the figure carries the number. Same renderer, same
- * gas-day x positions, same simulated dash as the full chart; no axes, no interaction.
+ * A small line beside a figure that answers "what is this value and when": pointing at it (or
+ * touching, or stepping with the arrow keys once it has focus) shows the date and value of the
+ * nearest point, with the low and high marked; the last point is always marked. Click or Enter
+ * opens the full chart. A light inline SVG with tokens only: no chart library, so it draws
+ * before uPlot loads, in both themes.
  */
-export function Sparkline({ values, days, label, simulated = false, height = 28 }: SparklineProps) {
+export function Sparkline({
+  values,
+  days,
+  axis = "gas-day",
+  label,
+  unit = "",
+  decimals = 1,
+  simulated = false,
+  height = 28,
+  t,
+  onOpen,
+}: SparklineProps) {
   const host = useRef<HTMLSpanElement | null>(null);
-  const themeKey = useThemeKey();
-  const UPlot = useUplot();
+  const [width, setWidth] = useState(120);
+  const [active, setActive] = useState(-1);
   useEffect(() => {
     const element = host.current;
-    if (!element || !UPlot || values.filter((value) => value != null).length < 2) return undefined;
-    const palette = readPalette();
-    const xs = xValues({ axis: "gas-day", x: days });
-    const plot = new UPlot(
-      {
-        width: Math.max(40, element.clientWidth),
-        height,
-        legend: { show: false },
-        cursor: { show: false },
-        axes: [{ show: false }, { show: false }],
-        scales: { x: { time: false } },
-        padding: [2, 1, 2, 1],
-        series: [{}, { stroke: palette.series[0], width: 1.5, dash: simulated ? [3, 2] : undefined, spanGaps: false, points: { show: false } }],
-      },
-      [xs, [...values]] as uPlot.AlignedData,
-      element,
-    );
-    plot.root.setAttribute("aria-hidden", "true");
-    let frame = 0;
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver((entries) => {
-      const next = Math.round(entries[0]?.contentRect.width ?? 0);
-      if (!next || next === Math.round(plot.width)) return;
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => plot.setSize({ width: Math.max(40, next), height }));
-    });
-    observer?.observe(element);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer?.disconnect();
-      plot.destroy();
+    if (!element || typeof ResizeObserver === "undefined") return undefined;
+    const measure = () => {
+      const next = Math.round(element.clientWidth);
+      if (next > 0) setWidth((current) => (current === next ? current : next));
     };
-  }, [values, days, simulated, height, themeKey, UPlot]);
-  if (values.filter((value) => value != null).length < 2) return null;
-  return <span className="ds-sparkline" ref={host} role="img" aria-label={label} style={{ height: `${height}px` }} data-sparkline-points={values.length} />;
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const geometry = useMemo(() => sparkGeometry(values, days, { axis, width, height }), [axis, days, height, values, width]);
+  const summary = useMemo(() => sparkSummary(geometry, axis, unit, decimals), [axis, decimals, geometry, unit]);
+  if (!summary || geometry.points.length < 2) return null;
+  const { points } = geometry;
+  const point = active >= 0 ? points[active] : null;
+  const sim = simulated ? ` ${t("today.simulated_short")}` : "";
+  const readout = point ? t("chart.spark.readout", { day: sparkWhen(axis, point.key), value: sparkValue(point.value, unit, decimals) }) + sim : "";
+  const name = t("chart.spark.summary", { label, ...summary }) + (simulated ? ` ${t("today.simulated_long")}.` : "") + (onOpen ? ` ${t("chart.spark.open")}` : "");
+  const choose = (position: number) => setActive(position);
+  const fromPointer = (clientX: number) => {
+    const box = host.current?.getBoundingClientRect();
+    if (!box) return;
+    choose(nearestPoint(points, clientX - box.left));
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
+    if ((event.key === "Enter" || event.key === " ") && onOpen) {
+      event.preventDefault();
+      onOpen();
+      return;
+    }
+    if (event.key === "Escape") {
+      setActive(-1);
+      return;
+    }
+    const next = stepPoint(points.length, active, event.key);
+    if (next === null) return;
+    event.preventDefault();
+    choose(next);
+  };
+  const last = points[geometry.last];
+  const low = points[geometry.min];
+  const high = points[geometry.max];
+  // The readout sits over the line, away from the edge it would run off.
+  const tipLeft = point ? Math.min(Math.max(point.x, 0), width) : 0;
+  return (
+    <span
+      className={`ds-sparkline${onOpen ? " is-openable" : ""}${point ? " is-reading" : ""}`}
+      ref={host}
+      role={onOpen ? "button" : "img"}
+      tabIndex={0}
+      aria-label={name}
+      style={{ height: `${height}px` }}
+      data-sparkline-points={values.length}
+      data-sparkline-active={point ? point.index : undefined}
+      onPointerMove={(event) => fromPointer(event.clientX)}
+      onPointerDown={(event) => fromPointer(event.clientX)}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse") setActive(-1);
+      }}
+      onBlur={() => setActive(-1)}
+      onKeyDown={onKeyDown}
+      onClick={onOpen}
+    >
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" focusable="false">
+        <path className={`ds-sparkline-line${simulated ? " is-simulated" : ""}`} d={sparkPath(geometry.segments)} />
+        {/* A point standing alone between gaps still shows. */}
+        {geometry.segments.filter((segment) => segment.length === 1).map(([alone]) => (
+          <circle key={`alone-${alone.index}`} className="ds-sparkline-dot" cx={alone.x} cy={alone.y} r={1.5} />
+        ))}
+        {point && (
+          <>
+            <circle className="ds-sparkline-extreme" cx={low.x} cy={low.y} r={2} />
+            <circle className="ds-sparkline-extreme" cx={high.x} cy={high.y} r={2} />
+            <line className="ds-sparkline-cursor" x1={point.x} x2={point.x} y1={0} y2={height} />
+          </>
+        )}
+        <circle className="ds-sparkline-last" cx={last.x} cy={last.y} r={2.5} />
+        {point && <circle className="ds-sparkline-marker" cx={point.x} cy={point.y} r={3} />}
+      </svg>
+      {point && (
+        <span
+          className={`ds-sparkline-tip${tipLeft > width / 2 ? " is-left" : ""}`}
+          style={{ ["--ds-spark-x" as string]: `${tipLeft}px` }}
+          aria-hidden="true"
+        >
+          <strong>{sparkValue(point.value, unit, decimals)}</strong>
+          {simulated && <span className="ds-sparkline-sim">{t("today.simulated_short")}</span>}
+          <span>{sparkWhen(axis, point.key)}</span>
+          <span className="ds-sparkline-range">
+            {t("chart.spark.low")} {sparkValue(low.value, unit, decimals)} · {t("chart.spark.high")} {sparkValue(high.value, unit, decimals)}
+          </span>
+        </span>
+      )}
+      <span className="ds-visually-hidden" aria-live="polite">{readout}</span>
+    </span>
+  );
 }

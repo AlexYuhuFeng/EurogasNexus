@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Sparkline } from "@/components/ui/charts";
 import {
   PREFERENCES_APPLIED_EVENT,
   readBoardLayout,
@@ -210,26 +211,45 @@ const isSimulatedSource = (row: NormalizedMarketObsDTO | null): boolean => {
 const sortNewestFirst = (left: NormalizedMarketObsDTO, right: NormalizedMarketObsDTO): number =>
   Date.parse(getObservedTime(right)) - Date.parse(getObservedTime(left));
 
-function MarketSparkline({ values, label }: { values: number[]; label: string }) {
-  if (values.length < 2) {
-    // `role="img"` keeps the label permitted on a non-interactive element and
-    // matches the populated branch below (axe: aria-prohibited-attr).
+/**
+ * A hub's recent prices beside its quote: the shared sparkline (date and price on hover, focus
+ * or touch; the full chart below on click). Prices keep their native unit.
+ */
+function MarketSparkline({
+  points,
+  label,
+  unit,
+  simulated,
+  t,
+}: {
+  points: { at: string; value: number }[];
+  label: string;
+  unit: string;
+  simulated: boolean;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  if (points.length < 2) {
+    // `role="img"` keeps the label permitted on a non-interactive element (axe: aria-prohibited-attr).
     return <div className="market-sparkline empty" role="img" aria-label={label} />;
   }
-
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = Math.max(max - min, 0.01);
-  const points = values.map((value, index) => {
-    const x = (index / Math.max(values.length - 1, 1)) * 100;
-    const y = 28 - ((value - min) / span) * 24;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-
   return (
-    <svg className="market-sparkline" viewBox="0 0 100 32" role="img" aria-label={label}>
-      <polyline points={points} />
-    </svg>
+    <Sparkline
+      axis="time"
+      values={points.map((point) => point.value)}
+      days={points.map((point) => point.at)}
+      label={label}
+      unit={unit}
+      decimals={3}
+      simulated={simulated}
+      t={t}
+      onOpen={() => {
+        const charts = document.querySelector<HTMLElement>("[data-price-charts]");
+        if (!charts) return;
+        charts.scrollIntoView({ block: "start", behavior: "smooth" });
+        if (!charts.hasAttribute("tabindex")) charts.setAttribute("tabindex", "-1");
+        charts.focus({ preventScroll: true });
+      }}
+    />
   );
 }
 
@@ -272,18 +292,25 @@ const formatAge = (seconds: number | null): string => {
   return `${Math.round(seconds / 86_400)}d`;
 };
 
+const quoteHistoryPoints = (quotes: MarketQuoteDTO[]): { at: string; value: number }[] => quotes
+  .slice()
+  .sort((left, right) => Date.parse(left.observed_at_utc) - Date.parse(right.observed_at_utc))
+  .map((quote) => ({ at: quote.observed_at_utc, value: quoteMid(quote) }))
+  .filter((point): point is { at: string; value: number } => point.value !== null)
+  .slice(-40);
+
+const observationHistoryPoints = (rows: NormalizedMarketObsDTO[]): { at: string; value: number }[] => rows
+  .slice()
+  .sort((left, right) => Date.parse(getObservedTime(left)) - Date.parse(getObservedTime(right)))
+  .map((row) => ({ at: getObservedTime(row), value: row.price }))
+  .filter((point) => Number.isFinite(point.value))
+  .slice(-40);
+
 const quoteHistoryValues = (quotes: MarketQuoteDTO[]): number[] => quotes
   .slice()
   .sort((left, right) => Date.parse(left.observed_at_utc) - Date.parse(right.observed_at_utc))
   .map(quoteMid)
   .filter((price): price is number => price !== null)
-  .slice(-40);
-
-const observationHistoryValues = (rows: NormalizedMarketObsDTO[]): number[] => rows
-  .slice()
-  .sort((left, right) => Date.parse(getObservedTime(left)) - Date.parse(getObservedTime(right)))
-  .map((row) => row.price)
-  .filter((price) => Number.isFinite(price))
   .slice(-40);
 
 const quoteDelta = (quotes: MarketQuoteDTO[]): number | null => {
@@ -842,8 +869,11 @@ export function MarketTerminal({
               </span>
               <span className="market-sparkline-cell" data-label={t("market.trend")} role="cell">
                 <MarketSparkline
-                  values={quoteHistoryValues(history)}
+                  points={quoteHistoryPoints(history)}
                   label={`${latest.hub} ${latest.source_system} ${tenorLabel(activeTenor, t)} ${t("market.trend")}`}
+                  unit={`${latest.currency}/${latest.unit}`}
+                  simulated={latest.source_system?.toLowerCase().includes("_sim") === true}
+                  t={t}
                 />
               </span>
             </div>
@@ -862,8 +892,11 @@ export function MarketTerminal({
                 </span>
                 <span className="market-sparkline-cell" data-label={t("market.trend")} role="cell">
                   <MarketSparkline
-                    values={observationHistoryValues(row.history)}
+                    points={observationHistoryPoints(row.history)}
                     label={`${row.hub} ${tenorLabel(row.tenor, t)} ${t("market.trend")}`}
+                    unit={row.latest ? `${row.latest.currency}/${row.latest.unit}` : ""}
+                    simulated={isSimulatedSource(row.latest)}
+                    t={t}
                   />
                 </span>
               </div>

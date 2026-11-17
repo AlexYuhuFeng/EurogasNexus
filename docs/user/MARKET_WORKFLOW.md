@@ -5,7 +5,7 @@ resource?
 
 1. Set gas day, delivery product, and hub focus in the top context bar.
 2. Read the hub board: bid/ask, mid, spread to TTF, source, freshness.
-3. Use Curves & Spreads for tenor context and Network/Capacity & Events for
+3. Use Curves & Spreads for tenor context and Network (map, outages, capacity and flows) for
    physical and capacity context.
 4. Inspect route candidates. Each row shows source, freshness, assumptions,
    and whether it is blocked, unavailable, or feasible.

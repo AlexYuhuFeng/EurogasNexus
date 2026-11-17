@@ -1,6 +1,6 @@
-import { tabLabels } from "@/components/ui/tabLabels";
 import { useMemo, useState } from "react";
-import { EvidenceBlock, Segmented, WorkspaceTabs } from "@/components/ui";
+import { DataGrid, EvidenceBlock, Segmented, type DataGridColumn, type SortState } from "@/components/ui";
+import { sortRows } from "@/components/ui/dataGridModel";
 import { CapacityContractBook } from "@/components/CapacityContractBook";
 import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
 import type { CapacityOperatingBoardReadSurface } from "@/app/model/capacityOperatingBoardRead";
@@ -21,7 +21,7 @@ type CapacityView = "network" | "storage" | "lng";
 type CapacityPosture = "all" | "constrained" | "available" | "stale" | "incomplete";
 type CapacitySort = "attention" | "utilization" | "headroom" | "point";
 
-interface CapacityWorkspaceProps {
+export interface CapacityWorkspaceProps {
   flows: FlowObsDTO[];
   capacity: CapacityObsDTO[];
   tsoAccess: TsoAccessPointDTO[];
@@ -37,9 +37,17 @@ interface CapacityWorkspaceProps {
   /** The store's existing bounded retry, offered for this board's own reads. */
   onRetryBoardRead: () => void;
   t: Translate;
+  /**
+   * The Network panel's filter (the map selection, or the map's view with "Follow map"): a
+   * point outside it is not listed. Omitted, every point is.
+   */
+  scope?: (row: OperatingRow) => boolean;
+  /** The point selected on the page (shared with the map), and how a row selects or hovers. */
+  selectedKey?: string | null;
+  onSelectPoint?: (row: OperatingRow | null) => void;
 }
 
-interface OperatingRow {
+export interface OperatingRow {
   key: string;
   pointId: string;
   pointName: string;
@@ -95,7 +103,7 @@ function capacityRole(capacityType: string): "technical" | "booked" | "nominatio
   return "other";
 }
 
-function buildOperatingRows(
+export function buildOperatingRows(
   flows: FlowObsDTO[],
   capacities: CapacityObsDTO[],
   accessRows: TsoAccessPointDTO[],
@@ -243,7 +251,7 @@ function latestRowsByKey<T extends { observed_at_utc?: string; period_end_utc?: 
  * the shared endpoint vocabulary and the store's bounded retry, disabled exactly while an attempt
  * is in flight.
  */
-function CapacityBoardStateNotice({
+export function CapacityBoardStateNotice({
   read,
   t,
   onRetry,
@@ -304,6 +312,9 @@ export function CapacityWorkspace({
   boardRead,
   onRetryBoardRead,
   t,
+  scope,
+  selectedKey = null,
+  onSelectPoint,
 }: CapacityWorkspaceProps) {
   const inspector = useInspectorStore();
   const [activeView, setActiveView] = useState<CapacityView>("network");
@@ -312,13 +323,16 @@ export function CapacityWorkspace({
   const [operator, setOperator] = useState("all");
   const [posture, setPosture] = useState<CapacityPosture>("all");
   const [sort, setSort] = useState<CapacitySort>("attention");
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // A column the user sorted by; choosing a preset order clears it.
+  const [columnSort, setColumnSort] = useState<SortState | null>(null);
   const [page, setPage] = useState(0);
 
-  const operatingRows = useMemo(
+  const allRows = useMemo(
     () => buildOperatingRows(flows, capacity, tsoAccess),
     [capacity, flows, tsoAccess],
   );
+  // The panel's own scope (map selection or view) first; the board's filters inside it.
+  const operatingRows = useMemo(() => (scope ? allRows.filter(scope) : allRows), [allRows, scope]);
   const countries = useMemo(
     () => [...new Set(operatingRows.map((row) => row.country).filter((value) => value !== "n/a"))].sort(),
     [operatingRows],
@@ -326,6 +340,43 @@ export function CapacityWorkspace({
   const operators = useMemo(
     () => [...new Set(operatingRows.map((row) => row.operator).filter((value) => value !== "n/a"))].sort(),
     [operatingRows],
+  );
+  const columns = useMemo<DataGridColumn<OperatingRow>[]>(
+    () => [
+      {
+        id: "point",
+        header: t("panel.point"),
+        rowHeader: true,
+        sortable: true,
+        value: (row) => row.pointName,
+        render: (row) => (
+          <span className="network-panel-cell-stack">
+            <strong>{row.pointName}</strong>
+            <small>{[row.direction, row.operator !== "n/a" ? row.operator : null].filter(Boolean).join(" · ")}</small>
+          </span>
+        ),
+      },
+      { id: "flow", header: t("capacity.flow"), unit: "mcm/d", type: "number", sortable: true, value: (row) => row.flowMcmD, format: (value) => formatCell(value) },
+      { id: "technical", header: t("capacity.technical"), unit: "mcm/d", type: "number", sortable: true, value: (row) => row.technicalCapacityMcmD, format: (value) => formatCell(value) },
+      {
+        id: "utilization",
+        header: t("capacity.utilization"),
+        unit: "%",
+        type: "number",
+        sortable: true,
+        value: (row) => row.utilizationPct,
+        format: (value) => formatCell(value, 0),
+        cellClassName: (row) => ((row.utilizationPct ?? 0) >= 85 ? "utilization-critical" : undefined),
+      },
+      { id: "headroom", header: t("capacity.headroom_short"), unit: "mcm/d", type: "number", sortable: true, value: (row) => row.physicalHeadroomMcmD, format: (value) => formatCell(value) },
+      {
+        id: "posture",
+        header: t("capacity.posture"),
+        value: (row) => row.posture,
+        render: (row) => <span className={`capacity-readiness capacity-readiness-${row.posture}`}>{t(`capacity.${row.posture}`)}</span>,
+      },
+    ],
+    [t],
   );
   const filteredRows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -342,8 +393,11 @@ export function CapacityWorkspace({
         && (operator === "all" || row.operator === operator)
         && postureMatch;
     });
-    return sortOperatingRows(matching, sort);
-  }, [country, operatingRows, operator, posture, query, sort]);
+    const preset = sortOperatingRows(matching, sort);
+    if (!columnSort) return preset;
+    const column = columns.find((item) => item.id === columnSort.columnId);
+    return sortRows(preset, column?.value, columnSort.direction);
+  }, [columnSort, columns, country, operatingRows, operator, posture, query, sort]);
 
   const pageCount = Math.max(Math.ceil(filteredRows.length / PAGE_SIZE), 1);
   const activePage = Math.min(page, pageCount - 1);
@@ -356,15 +410,20 @@ export function CapacityWorkspace({
   // nothing" are different answers, and a read that did not answer is neither.
   const boardEmptyState = !boardRead.hasReading
     ? null
-    : operatingRows.length === 0
+    : allRows.length === 0
       ? { key: "capacity.board.empty", marker: "capacity-operating-points" }
-      : boardRead.measured && filtersApplied && filteredRows.length === 0
+      // Points exist, none in the panel's scope (the map's view or selection).
+      : operatingRows.length === 0
+        ? { key: "network.panel.none_in_view", marker: "capacity-none-in-scope" }
+        : boardRead.measured && filtersApplied && filteredRows.length === 0
         ? { key: "capacity.no_matching_points", marker: "capacity-filter-no-match" }
         : null;
   // The runtime served no point at all: filters, zero counts and an empty inspector would only
   // repeat that, so the board is one line until data arrives (#69).
-  const boardEmpty = boardRead.measured && operatingRows.length === 0;
-  const selected = operatingRows.find((row) => row.key === selectedKey) ?? filteredRows[0] ?? null;
+  const boardEmpty = boardRead.measured && allRows.length === 0;
+  // The point inspector shows the point chosen on the page (a row, or the map), never a
+  // first row standing in for one.
+  const selected = selectedKey ? allRows.find((row) => row.key === selectedKey) ?? null : null;
   const selectedAccess = selected
     ? tsoAccess.filter((row) => row.point_id === selected.pointId || normalize(row.point_name) === normalize(selected.pointName))
     : [];
@@ -400,179 +459,30 @@ export function CapacityWorkspace({
   // context this board was compared under instead of driving its controls (readToRender.mjs).
   return (
     <div
-      className="capacity-page capacity-operations"
+      className="capacity-page capacity-operations capacity-in-panel"
       data-capacity-read-state={boardRead.state}
       data-capacity-board-filters={filtersApplied ? "applied" : "none"}
       data-capacity-board-sort={sort}
     >
-      <section className="workspace-panel capacity-command-panel">
-        <div className="capacity-view-header">
-          <div>
-            <strong>{t("capacity.title")}</strong>
-            <p>{t("capacity.subtitle")}</p>
-          </div>
-          <WorkspaceTabs
-            idPrefix="capacity-view"
-            label={t("capacity.views")}
-            tabs={(["network", "storage", "lng"] as CapacityView[]).map((view) => ({
-              id: view,
-              ...tabLabels(t, `capacity.view_${view}`),
-            }))}
-            activeId={activeView}
-            panelId="capacity-active-panel"
-            className="capacity-view-control"
-            onActivate={setActiveView}
-          />
-        </div>
+      {/* Points, storage and LNG: one choice inside the Capacity tab, not tabs inside tabs. */}
+      <Segmented
+        className="capacity-view-control"
+        label={t("capacity.views")}
+        options={(["network", "storage", "lng"] as CapacityView[]).map((view) => ({ value: view, label: t(`capacity.view_${view}`) }))}
+        value={activeView}
+        onChange={setActiveView}
+      />
 
-        {/* A measured empty board still states its measurement, in one line: the runtime
-            answered with no point, which is not the same as a read that did not answer. */}
-        {activeView === "network" && boardEmpty && (
-          <div className="capacity-kpi-strip metric-inline">
-            <div><span>{t("capacity.physical_flow_records")}</span><strong>{counts.flowPublished}</strong></div>
-            <div><span>{t("capacity.technical_records")}</span><strong>{counts.technicalPublished}</strong></div>
-            <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestOperationalAt)}</strong></div>
-          </div>
-        )}
-        {activeView === "network" && !boardEmpty && (
-          <>
-            <div className="capacity-command-bar">
-              <input value={query} onChange={(event) => { setQuery(event.target.value); resetPage(); }} placeholder={t("capacity.search_points")} aria-label={t("capacity.search_points")} />
-              <select value={country} onChange={(event) => { setCountry(event.target.value); resetPage(); }} aria-label={t("panel.country")}>
-                <option value="all">{t("capacity.all_countries")}</option>
-                {countries.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
-              <select value={operator} onChange={(event) => { setOperator(event.target.value); resetPage(); }} aria-label="TSO">
-                <option value="all">{t("capacity.all_tsos")}</option>
-                {operators.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
-              <select value={sort} onChange={(event) => setSort(event.target.value as CapacitySort)} aria-label={t("capacity.sort_by")}>
-                {(["attention", "utilization", "headroom", "point"] as CapacitySort[]).map((value) => <option key={value} value={value}>{t(`capacity.sort_${value}`)}</option>)}
-              </select>
+      {activeView === "network" && selected && (
+        <section className="capacity-point-inspector" aria-label={t("capacity.point_inspector")} data-capacity-point={selected.key}>
+          <div className="capacity-point-heading">
+            <div>
+              <strong>{selected.pointName}</strong>
+              <span className={`capacity-readiness capacity-readiness-${selected.posture}`}>{t(`capacity.${selected.posture}`)}</span>
             </div>
-            <Segmented
-              className="capacity-posture-control"
-              label={t("capacity.posture")}
-              options={(["all", "constrained", "available", "stale", "incomplete"] as CapacityPosture[]).map((value) => ({ value, label: t(`capacity.${value}`) }))}
-              value={posture}
-              onChange={(value) => { setPosture(value); resetPage(); }}
-            />
-            {/* Counts and their latest-update instant are a measurement of both required reads:
-                one that has not answered is not a zero, and the rows held from one read are not
-                the joined board. */}
-            {boardRead.measured && (
-            <div className="capacity-kpi-strip">
-              <div><span>{t("capacity.physical_flow_records")}</span><strong>{counts.flowPublished}</strong></div>
-              <div><span>{t("capacity.technical_records")}</span><strong>{counts.technicalPublished}</strong></div>
-              <div><span>{t("capacity.comparable_records")}</span><strong>{counts.complete}</strong></div>
-              <div className={counts.constrained > 0 ? "issue" : ""}><span>{t("capacity.constrained")}</span><strong>{counts.constrained}</strong></div>
-              <div className={counts.incomplete > 0 ? "warning" : ""}><span>{t("capacity.incomplete")}</span><strong>{counts.incomplete}</strong></div>
-              <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestOperationalAt)}</strong></div>
-            </div>
-            )}
-            {boardRead.measured && counts.complete === 0 && operatingRows.length > 0 && (
-              <div className="capacity-data-warning" role="status">
-                <strong>{t("capacity.no_comparable_title")}</strong>
-                <span>{t("capacity.no_comparable_body")}</span>
-              </div>
-            )}
-          </>
-        )}
-
-        {activeView === "storage" && (
-          <div className="capacity-kpi-strip capacity-asset-kpis">
-            <div><span>{t("capacity.storage_sites")}</span><strong>{latestStorage.length}</strong></div>
-            <div><span>{t("capacity.average_fill")}</span><strong>{storageFillValues.length ? `${formatNumber(storageFillValues.reduce((a, b) => a + b, 0) / storageFillValues.length, 1)}%` : "n/a"}</strong></div>
-            <div><span>{t("capacity.total_inventory")}</span><strong>{formatNumber(storageInventory)} TWh</strong></div>
-            <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestTimestamp(...latestStorage.map((row) => row.observed_at_utc)))}</strong></div>
-          </div>
-        )}
-
-        {activeView === "lng" && (
-          <div className="capacity-kpi-strip capacity-asset-kpis">
-            <div><span>{t("capacity.lng_terminals")}</span><strong>{latestLng.length}</strong></div>
-            <div><span>{t("capacity.total_inventory")}</span><strong>{formatNumber(lngInventory)} TWh</strong></div>
-            <div><span>{t("capacity.total_send_out")}</span><strong>{formatNumber(lngSendOut)} TWh/d</strong></div>
-            <div><span>{t("capacity.total_dtmi")}</span><strong>{formatNumber(lngDtmi)} TWh</strong></div>
-            <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestTimestamp(...latestLng.map((row) => row.observed_at_utc)))}</strong></div>
-          </div>
-        )}
-      </section>
-
-      <div
-        id="capacity-active-panel"
-        role="tabpanel"
-        aria-labelledby={`capacity-view-${activeView}`}
-      >
-      {activeView === "network" && (
-        <div className={`capacity-network-layout${boardEmpty ? " is-empty" : ""}`}>
-          <section className="workspace-panel capacity-board-panel">
-            <div className="panel-title-row">
-              <div><h2>{t("capacity.operating_board")}</h2><p>{t("capacity.operating_board_note")}</p></div>
-              {boardRead.measured && (
-                <span data-capacity-board-count={`${filteredRows.length}/${operatingRows.length}`}>
-                  {filteredRows.length} / {operatingRows.length}
-                </span>
-              )}
-            </div>
-            <CapacityBoardStateNotice read={boardRead} t={t} onRetry={onRetryBoardRead} />
-            {/* The rows are select buttons, so the container is a labelled group rather than a
-                table: claiming role="table" with button children is invalid ARIA
-                (axe: aria-required-children) and misleads assistive technology. Selection is
-                exposed with aria-pressed. Partial rows remain under the incomplete-read notice. */}
-            {boardRead.hasReading && (
-            <div
-              className="capacity-operating-table"
-              tabIndex={0}
-              role="group"
-              aria-label={t("capacity.operating_board")}
-            >
-              <div className="capacity-operating-row header">
-                <span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("capacity.flow")}</span><span>{t("capacity.technical")}</span><span>{t("capacity.utilization")}</span><span>{t("capacity.booked")}</span><span>{t("capacity.headroom_short")}</span><span>{t("capacity.posture")}</span>
-              </div>
-              {visibleRows.map((row) => (
-                <button key={row.key} type="button" data-record="capacity-point" data-record-id={row.key} aria-pressed={selected?.key === row.key} className={selected?.key === row.key ? "capacity-operating-row active" : "capacity-operating-row"} onClick={() => setSelectedKey(row.key)}>
-                  <span><strong>{row.pointName}</strong><small>{row.country} · {row.operator}</small></span>
-                  <span>{row.direction}</span>
-                  <span>{formatNumber(row.flowMcmD)}</span>
-                  <span>{formatNumber(row.technicalCapacityMcmD)}</span>
-                  <span className={`capacity-utilization-cell ${(row.utilizationPct ?? 0) >= 85 ? "utilization-critical" : ""}`}>
-                    <span>{formatNumber(row.utilizationPct, 1)}{row.utilizationPct === null ? "" : "%"}</span>
-                    {row.utilizationPct !== null && <span className="capacity-utilization-track" aria-hidden="true"><span style={{ width: `${Math.min(row.utilizationPct, 100)}%` }} /></span>}
-                  </span>
-                  <span>{formatNumber(row.bookedCapacityMcmD)}</span>
-                  <span>{formatNumber(row.physicalHeadroomMcmD)}</span>
-                  <span><span className={`capacity-readiness capacity-readiness-${row.posture}`}>{t(`capacity.${row.posture}`)}</span></span>
-                </button>
-              ))}
-              {boardEmptyState && (
-                <div className="capacity-empty-state" data-empty-state={boardEmptyState.marker}>
-                  {t(boardEmptyState.key)}
-                </div>
-              )}
-            </div>
-            )}
-            {filteredRows.length > 0 && (
-              <div
-                className="capacity-pagination"
-                aria-label={t("capacity.pagination")}
-                data-capacity-page-start={pageStart}
-              >
-                <span>{t("capacity.showing")} {pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filteredRows.length)} {t("capacity.of")} {filteredRows.length}</span>
-                <div>
-                  <button type="button" onClick={() => setPage(Math.max(activePage - 1, 0))} disabled={activePage === 0}>{t("capacity.previous")}</button>
-                  <strong>{activePage + 1} / {pageCount}</strong>
-                  <button type="button" onClick={() => setPage(Math.min(activePage + 1, pageCount - 1))} disabled={activePage >= pageCount - 1}>{t("capacity.next")}</button>
-                </div>
-              </div>
-            )}
-          </section>
-
-          {!boardEmpty && (
-          <aside className="workspace-panel capacity-point-inspector">
-            <div className="panel-title-row">
-              <h2>{t("capacity.point_inspector")}</h2>
-              <span>{selected ? formatTimestamp(selected.observedAtUtc) : "n/a"}</span>
+            <span>{selected.country} · {selected.operator} · {selected.direction} · {formatTimestamp(selected.observedAtUtc)}</span>
+            <p className="capacity-readiness-note">{t(`capacity.readiness_${selected.posture}`)}</p>
+            <span className="capacity-point-actions">
               {/* Wave 9: the panel keeps its aggregate analysis (utilisation, booking,
                   headroom, access and tariffs); the point's own observation record is
                   handed to the canonical Inspector rather than shown a second time. */}
@@ -593,92 +503,223 @@ export function CapacityWorkspace({
                   {t("capacity.inspect_point")}
                 </button>
               )}
-            </div>
-            {selected ? (
-              <>
-                <div className="capacity-point-heading">
-                  <div><strong>{selected.pointName}</strong><span className={`capacity-readiness capacity-readiness-${selected.posture}`}>{t(`capacity.${selected.posture}`)}</span></div>
-                  <span>{selected.country} · {selected.operator} · {selected.direction}</span>
-                </div>
-                <p className="capacity-readiness-note">{t(`capacity.readiness_${selected.posture}`)}</p>
-                <div className="capacity-stack" aria-label={t("capacity.capacity_stack")}>
-                  <div className="capacity-stack-row technical"><span>{t("capacity.technical")}</span><strong>{formatNumber(selected.technicalCapacityMcmD)} mcm/d</strong><i><b style={{ width: selected.technicalCapacityMcmD ? "100%" : "0%" }} /></i></div>
-                  <div className="capacity-stack-row booked"><span>{t("capacity.booked")}</span><strong>{formatNumber(selected.bookedCapacityMcmD)} mcm/d</strong><i><b style={{ width: capacityBarWidth(selected.bookedCapacityMcmD, selected.technicalCapacityMcmD) }} /></i></div>
-                  <div className="capacity-stack-row nomination"><span>{t("capacity.nomination")}</span><strong>{formatNumber(selected.nominationMcmD)} mcm/d</strong><i><b style={{ width: capacityBarWidth(selected.nominationMcmD, selected.technicalCapacityMcmD) }} /></i></div>
-                  <div className="capacity-stack-row flow"><span>{t("capacity.physical_flow")}</span><strong>{formatNumber(selected.flowMcmD)} mcm/d</strong><i><b style={{ width: capacityBarWidth(selected.flowMcmD, selected.technicalCapacityMcmD) }} /></i></div>
-                </div>
-                <dl className="capacity-point-metrics">
-                  <div><dt>{t("capacity.utilization")}</dt><dd>{formatNumber(selected.utilizationPct, 1)}{selected.utilizationPct === null ? "" : "%"}</dd></div>
-                  <div><dt>{t("capacity.booking_occupancy")}</dt><dd>{formatNumber(selected.bookingPct, 1)}{selected.bookingPct === null ? "" : "%"}</dd></div>
-                  <div><dt>{t("capacity.physical_headroom")}</dt><dd>{formatNumber(selected.physicalHeadroomMcmD)} mcm/d</dd></div>
-                  <div><dt>{t("capacity.products")}</dt><dd>{selectedAccess.length}</dd></div>
-                </dl>
-                <EvidenceBlock
-                  className="capacity-evidence-block"
-                  ariaLabel={t("capacity.source_record")}
-                  items={[
-                    {
-                      label: t("capacity.source_record"),
-                      value: selected.sourceReference ?? t("data.unavailable"),
-                    },
-                    {
-                      label: t("capacity.latest_update"),
-                      value: formatTimestamp(selected.observedAtUtc),
-                    },
-                    {
-                      label: t("capacity.posture"),
-                      value: t(`capacity.${selected.posture}`),
-                      detail: t(`capacity.readiness_${selected.posture}`),
-                    },
-                  ]}
-                />
-                <div className="capacity-inspector-section">
-                  <span>{t("capacity.booking_products")}</span>
-                  {selectedAccess.slice(0, 5).map((row) => (
-                    <div key={row.access_id}>
-                      <strong>{row.booking_platform ?? "n/a"}</strong><span>{row.direction}</span>
-                      <small>{[row.annual_contracts_available && t("capacity.annual"), row.monthly_contracts_available && t("capacity.monthly"), row.daily_contracts_available && t("capacity.daily"), row.day_ahead_contracts_available && t("capacity.day_ahead")].filter(Boolean).join(" · ") || t("capacity.no_published_products")}</small>
-                    </div>
-                  ))}
-                  {selectedAccess.length === 0 && <p>{t("capacity.no_access_record")}</p>}
-                </div>
-                <div className="capacity-inspector-section">
-                  <span>{t("capacity.tariffs")}</span>
-                  {selectedTariffs.slice(0, 5).map((row) => (
-                    <div key={row.tariff_id}><strong>{row.capacity_product}</strong><span>{row.tariff_value.toFixed(4)} {row.currency}/{row.unit}</span><small>{row.effective_from} · {row.tariff_status}</small></div>
-                  ))}
-                  {selectedTariffs.length === 0 && <p>{t("capacity.no_tariff_record")}</p>}
-                </div>
-              </>
-            ) : (
-              // The inspector holds no point to analyse: state what the board knows, never a
-              // filter result for a board whose reads have not both answered.
-              <div className="capacity-empty-state">
-                {t(boardEmptyState?.key ?? boardRead.noticeKey ?? "capacity.no_matching_points")}
+              {onSelectPoint && (
+                <button type="button" className="link-button" onClick={() => onSelectPoint(null)}>
+                  {t("network.panel.clear")}
+                </button>
+              )}
+            </span>
+          </div>
+          <div className="capacity-stack" aria-label={t("capacity.capacity_stack")}>
+            <div className="capacity-stack-row technical"><span>{t("capacity.technical")}</span><strong>{formatNumber(selected.technicalCapacityMcmD)} mcm/d</strong><i><b style={{ width: selected.technicalCapacityMcmD ? "100%" : "0%" }} /></i></div>
+            <div className="capacity-stack-row booked"><span>{t("capacity.booked")}</span><strong>{formatNumber(selected.bookedCapacityMcmD)} mcm/d</strong><i><b style={{ width: capacityBarWidth(selected.bookedCapacityMcmD, selected.technicalCapacityMcmD) }} /></i></div>
+            <div className="capacity-stack-row nomination"><span>{t("capacity.nomination")}</span><strong>{formatNumber(selected.nominationMcmD)} mcm/d</strong><i><b style={{ width: capacityBarWidth(selected.nominationMcmD, selected.technicalCapacityMcmD) }} /></i></div>
+            <div className="capacity-stack-row flow"><span>{t("capacity.physical_flow")}</span><strong>{formatNumber(selected.flowMcmD)} mcm/d</strong><i><b style={{ width: capacityBarWidth(selected.flowMcmD, selected.technicalCapacityMcmD) }} /></i></div>
+          </div>
+          <dl className="capacity-point-metrics">
+            <div><dt>{t("capacity.utilization")}</dt><dd>{formatNumber(selected.utilizationPct, 1)}{selected.utilizationPct === null ? "" : "%"}</dd></div>
+            <div><dt>{t("capacity.booking_occupancy")}</dt><dd>{formatNumber(selected.bookingPct, 1)}{selected.bookingPct === null ? "" : "%"}</dd></div>
+            <div><dt>{t("capacity.physical_headroom")}</dt><dd>{formatNumber(selected.physicalHeadroomMcmD)} mcm/d</dd></div>
+            <div><dt>{t("capacity.products")}</dt><dd>{selectedAccess.length}</dd></div>
+          </dl>
+          <div className="capacity-inspector-section">
+            <span>{t("capacity.booking_products")}</span>
+            {selectedAccess.slice(0, 5).map((row) => (
+              <div key={row.access_id}>
+                <strong>{row.booking_platform ?? "n/a"}</strong><span>{row.direction}</span>
+                <small>{[row.annual_contracts_available && t("capacity.annual"), row.monthly_contracts_available && t("capacity.monthly"), row.daily_contracts_available && t("capacity.daily"), row.day_ahead_contracts_available && t("capacity.day_ahead")].filter(Boolean).join(" · ") || t("capacity.no_published_products")}</small>
               </div>
-            )}
-          </aside>
-          )}
+            ))}
+            {selectedAccess.length === 0 && <p>{t("capacity.no_access_record")}</p>}
+          </div>
+          <div className="capacity-inspector-section">
+            <span>{t("capacity.tariffs")}</span>
+            {selectedTariffs.slice(0, 5).map((row) => (
+              <div key={row.tariff_id}><strong>{row.capacity_product}</strong><span>{row.tariff_value.toFixed(4)} {row.currency}/{row.unit}</span><small>{row.effective_from} · {row.tariff_status}</small></div>
+            ))}
+            {selectedTariffs.length === 0 && <p>{t("capacity.no_tariff_record")}</p>}
+          </div>
+          {/* Provenance on demand. */}
+          <details className="network-panel-provenance">
+            <summary>{t("capacity.source_record")}</summary>
+            <EvidenceBlock
+              className="capacity-evidence-block"
+              ariaLabel={t("capacity.source_record")}
+              items={[
+                {
+                  label: t("capacity.source_record"),
+                  value: selected.sourceReference ?? t("data.unavailable"),
+                },
+                {
+                  label: t("capacity.latest_update"),
+                  value: formatTimestamp(selected.observedAtUtc),
+                },
+                {
+                  label: t("capacity.posture"),
+                  value: t(`capacity.${selected.posture}`),
+                  detail: t(`capacity.readiness_${selected.posture}`),
+                },
+              ]}
+            />
+          </details>
+        </section>
+      )}
+
+      {/* A measured empty board still states its measurement, in one line: the runtime
+          answered with no point, which is not the same as a read that did not answer. */}
+      {activeView === "network" && boardEmpty && (
+        <div className="capacity-kpi-strip metric-inline">
+          <div><span>{t("capacity.physical_flow_records")}</span><strong>{counts.flowPublished}</strong></div>
+          <div><span>{t("capacity.technical_records")}</span><strong>{counts.technicalPublished}</strong></div>
+          <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestOperationalAt)}</strong></div>
         </div>
+      )}
+      {activeView === "network" && !boardEmpty && (
+        <>
+          <div className="capacity-command-bar">
+            <input value={query} onChange={(event) => { setQuery(event.target.value); resetPage(); }} placeholder={t("capacity.search_points")} aria-label={t("capacity.search_points")} />
+            <select value={country} onChange={(event) => { setCountry(event.target.value); resetPage(); }} aria-label={t("panel.country")}>
+              <option value="all">{t("capacity.all_countries")}</option>
+              {countries.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+            <select value={operator} onChange={(event) => { setOperator(event.target.value); resetPage(); }} aria-label="TSO">
+              <option value="all">{t("capacity.all_tsos")}</option>
+              {operators.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+            <select value={sort} onChange={(event) => { setSort(event.target.value as CapacitySort); setColumnSort(null); }} aria-label={t("capacity.sort_by")}>
+              {(["attention", "utilization", "headroom", "point"] as CapacitySort[]).map((value) => <option key={value} value={value}>{t(`capacity.sort_${value}`)}</option>)}
+            </select>
+          </div>
+          <Segmented
+            className="capacity-posture-control"
+            label={t("capacity.posture")}
+            options={(["all", "constrained", "available", "stale", "incomplete"] as CapacityPosture[]).map((value) => ({ value, label: t(`capacity.${value}`) }))}
+            value={posture}
+            onChange={(value) => { setPosture(value); resetPage(); }}
+          />
+          {/* Counts and their latest-update instant are a measurement of both required reads:
+              one that has not answered is not a zero, and the rows held from one read are not
+              the joined board. */}
+          {boardRead.measured && (
+          <div className="capacity-kpi-strip">
+            <div className={counts.constrained > 0 ? "issue" : ""}><span>{t("capacity.constrained")}</span><strong>{counts.constrained}</strong></div>
+            <div><span>{t("capacity.comparable_records")}</span><strong>{counts.complete}</strong></div>
+            <div className={counts.incomplete > 0 ? "warning" : ""}><span>{t("capacity.incomplete")}</span><strong>{counts.incomplete}</strong></div>
+            <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestOperationalAt)}</strong></div>
+          </div>
+          )}
+          {boardRead.measured && counts.complete === 0 && operatingRows.length > 0 && (
+            <div className="capacity-data-warning" role="status">
+              <strong>{t("capacity.no_comparable_title")}</strong>
+              <span>{t("capacity.no_comparable_body")}</span>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeView === "network" && (
+        <section className="capacity-board-panel" aria-label={t("capacity.operating_board")}>
+          <CapacityBoardStateNotice read={boardRead} t={t} onRetry={onRetryBoardRead} />
+          {boardRead.measured && (
+            <span
+              className="visually-hidden"
+              data-capacity-board-count={`${filteredRows.length}/${operatingRows.length}`}
+              // Points the panel's scope (map view or selection) leaves out of the board.
+              data-capacity-board-scoped-out={allRows.length - operatingRows.length}
+            >
+              {filteredRows.length} / {operatingRows.length}
+            </span>
+          )}
+          {boardRead.hasReading && visibleRows.length > 0 && (
+            <div className="capacity-operating-table">
+              <DataGrid
+                id="capacity-points"
+                label={t("capacity.operating_board")}
+                columns={columns}
+                rows={visibleRows}
+                rowKey={(row) => row.key}
+                density="compact"
+                sort={columnSort}
+                onSortChange={setColumnSort}
+                selectedKey={selectedKey}
+                onRowAction={(row) => onSelectPoint?.(row)}
+                rowAttributes={(row) => ({ "data-record": "capacity-point", "data-record-id": row.key, "data-panel-row": row.key })}
+              />
+            </div>
+          )}
+          {boardEmptyState && (
+            <div className="capacity-empty-state" data-empty-state={boardEmptyState.marker}>
+              {t(boardEmptyState.key)}
+            </div>
+          )}
+          {filteredRows.length > PAGE_SIZE && (
+            <div
+              className="capacity-pagination"
+              aria-label={t("capacity.pagination")}
+              data-capacity-page-start={pageStart}
+            >
+              <span>{t("capacity.showing")} {pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filteredRows.length)} {t("capacity.of")} {filteredRows.length}</span>
+              <div>
+                <button type="button" onClick={() => setPage(Math.max(activePage - 1, 0))} disabled={activePage === 0}>{t("capacity.previous")}</button>
+                <strong>{activePage + 1} / {pageCount}</strong>
+                <button type="button" onClick={() => setPage(Math.min(activePage + 1, pageCount - 1))} disabled={activePage >= pageCount - 1}>{t("capacity.next")}</button>
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
       {activeView === "storage" && (
-        <section className="workspace-panel capacity-assets-panel">
-          <div className="panel-title-row"><div><h2>{t("capacity.storage_title")}</h2><p>{t("capacity.storage_note")}</p></div><span>GIE AGSI</span></div>
-          <div className="data-table capacity-asset-table" tabIndex={0}>
-            <div className="data-table-row header five"><span>{t("panel.storage")}</span><span>{t("panel.country")}</span><span>{t("capacity.fill")}</span><span>{t("capacity.inventory")}</span><span>{t("capacity.net_cycle")}</span></div>
-            {latestStorage.map((row) => <div key={row.observation_id} className="data-table-row five"><strong>{row.facility_name}</strong><span>{row.country ?? "n/a"}</span><span>{formatNumber(row.fill_pct, 1)}%</span><span>{formatNumber(row.inventory_twh)} TWh</span><span>{formatNumber((row.injection_twh_d ?? 0) - (row.withdrawal_twh_d ?? 0))} TWh/d</span></div>)}
+        <section className="capacity-assets-panel" aria-label={t("capacity.storage_title")}>
+          <div className="capacity-kpi-strip capacity-asset-kpis">
+            <div><span>{t("capacity.storage_sites")}</span><strong>{latestStorage.length}</strong></div>
+            <div><span>{t("capacity.average_fill")}</span><strong>{storageFillValues.length ? `${formatNumber(storageFillValues.reduce((a, b) => a + b, 0) / storageFillValues.length, 1)}%` : "n/a"}</strong></div>
+            <div><span>{t("capacity.total_inventory")}</span><strong>{formatNumber(storageInventory)} TWh</strong></div>
+            <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestTimestamp(...latestStorage.map((row) => row.observed_at_utc)))}</strong></div>
           </div>
+          <DataGrid
+            id="capacity-storage"
+            label={t("capacity.storage_title")}
+            density="compact"
+            rows={latestStorage}
+            rowKey={(row) => row.observation_id}
+            defaultSort={{ columnId: "inventory", direction: "descending" }}
+            columns={[
+              { id: "site", header: t("panel.storage"), rowHeader: true, sortable: true, value: (row) => row.facility_name },
+              { id: "country", header: t("panel.country"), sortable: true, value: (row) => row.country ?? "" },
+              { id: "fill", header: t("capacity.fill"), unit: "%", type: "number", sortable: true, value: (row) => row.fill_pct, format: (value) => formatCell(value, 1) },
+              { id: "inventory", header: t("capacity.inventory"), unit: "TWh", type: "number", sortable: true, value: (row) => row.inventory_twh, format: (value) => formatCell(value) },
+              { id: "net", header: t("capacity.net_cycle"), unit: "TWh/d", type: "number", sortable: true, value: (row) => (row.injection_twh_d ?? 0) - (row.withdrawal_twh_d ?? 0), format: (value) => formatCell(value) },
+            ]}
+          />
+          <p className="network-panel-source">GIE AGSI · {t("capacity.storage_note")}</p>
         </section>
       )}
 
       {activeView === "lng" && (
-        <section className="workspace-panel capacity-assets-panel">
-          <div className="panel-title-row"><div><h2>{t("capacity.lng_title")}</h2><p>{t("capacity.lng_note")}</p></div><span>GIE ALSI</span></div>
-          <div className="data-table capacity-asset-table" tabIndex={0}>
-            <div className="data-table-row header five"><span>{t("panel.lng")}</span><span>{t("panel.country")}</span><span>{t("capacity.inventory")}</span><span>{t("capacity.send_out")}</span><span>DTMI TWh</span></div>
-            {latestLng.map((row) => <div key={row.observation_id} className="data-table-row five"><strong>{row.terminal_name}</strong><span>{row.country ?? "n/a"}</span><span>{formatNumber(row.inventory_twh)} TWh</span><span>{formatNumber(row.send_out_twh_d)} TWh/d</span><span>{formatNumber(row.dtmi_twh)} TWh</span></div>)}
+        <section className="capacity-assets-panel" aria-label={t("capacity.lng_title")}>
+          <div className="capacity-kpi-strip capacity-asset-kpis">
+            <div><span>{t("capacity.lng_terminals")}</span><strong>{latestLng.length}</strong></div>
+            <div><span>{t("capacity.total_inventory")}</span><strong>{formatNumber(lngInventory)} TWh</strong></div>
+            <div><span>{t("capacity.total_send_out")}</span><strong>{formatNumber(lngSendOut)} TWh/d</strong></div>
+            <div><span>{t("capacity.total_dtmi")}</span><strong>{formatNumber(lngDtmi)} TWh</strong></div>
           </div>
+          <DataGrid
+            id="capacity-lng"
+            label={t("capacity.lng_title")}
+            density="compact"
+            rows={latestLng}
+            rowKey={(row) => row.observation_id}
+            defaultSort={{ columnId: "sendout", direction: "descending" }}
+            columns={[
+              { id: "terminal", header: t("panel.lng"), rowHeader: true, sortable: true, value: (row) => row.terminal_name },
+              { id: "country", header: t("panel.country"), sortable: true, value: (row) => row.country ?? "" },
+              { id: "inventory", header: t("capacity.inventory"), unit: "TWh", type: "number", sortable: true, value: (row) => row.inventory_twh, format: (value) => formatCell(value) },
+              { id: "sendout", header: t("capacity.send_out"), unit: "TWh/d", type: "number", sortable: true, value: (row) => row.send_out_twh_d, format: (value) => formatCell(value) },
+              { id: "dtmi", header: "DTMI", unit: "TWh", type: "number", sortable: true, value: (row) => row.dtmi_twh, format: (value) => formatCell(value) },
+            ]}
+          />
+          <p className="network-panel-source">GIE ALSI · {t("capacity.lng_note")}</p>
         </section>
       )}
 
@@ -691,10 +732,19 @@ export function CapacityWorkspace({
       )}
 
       {/* The capacity the operator has declared, behind the board's measured and technical
-          capacity: the profiles the runtime stores, on the same page as the points they belong to
-          (slice D). */}
-      <CapacityContractBook t={t} />
-      </div>
+          capacity: the profiles the runtime stores, on the same tab as the points they belong
+          to (slice D), behind one line. */}
+      <details className="capacity-contract-fold">
+        <summary>{t("network.panel.contract_book")}</summary>
+        <CapacityContractBook t={t} />
+      </details>
     </div>
   );
+}
+
+/** A figure cell: "–" when missing, grouped thousands, fixed decimals. */
+function formatCell(value: unknown, digits = 1): string {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value.toLocaleString("en-GB", { maximumFractionDigits: digits, minimumFractionDigits: digits })
+    : "–";
 }

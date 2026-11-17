@@ -30,7 +30,7 @@ test("rendered network wrappers retain their stylesheet hooks", () => {
   assert.match(cockpit, /<div className="market-cockpit">/);
   assert.match(cockpit, /<div id="market-cockpit-panel" className="market-cockpit-panel">/);
   const network = source("components/NetworkWorkspace.tsx");
-  assert.match(network, /<div className="network-workspace-shell">/);
+  assert.match(network, /className=\{`network-workspace-shell network-desk/);
   assert.ok(network.includes('className="map-container map-stage network-map-stage"'));
 });
 

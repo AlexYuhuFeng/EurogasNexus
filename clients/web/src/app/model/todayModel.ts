@@ -85,12 +85,24 @@ export function shortDay(day: string | null | undefined): string {
   return at.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-/** "06:00–10 Nov 04:00" style window for an outage, in UTC. */
-export function timeWindow(startUtc: string, endUtc: string | null): string {
-  const format = (value: string) => {
-    const at = new Date(value);
-    if (Number.isNaN(at.getTime())) return value;
-    return `${at.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })} ${at.toISOString().slice(11, 16)}`;
+/**
+ * An outage's window in UTC, as a desk reads it: "16 Nov 09:56 – 19 Nov 09:56" for a short
+ * outage; a window of a week or more drops the clock ("1 Oct – 15 Nov"); the year is shown on
+ * both ends whenever the window leaves the current year or spans years ("1 Oct 2026 –
+ * 1 Oct 2029"). An open end reads "1 Oct 2026 –". `nowMs` fixes "the current year".
+ */
+export function timeWindow(startUtc: string, endUtc: string | null, nowMs: number = Date.now()): string {
+  const start = new Date(startUtc);
+  const end = endUtc ? new Date(endUtc) : null;
+  if (Number.isNaN(start.getTime()) || (end && Number.isNaN(end.getTime()))) {
+    return endUtc ? `${startUtc} – ${endUtc}` : startUtc;
+  }
+  const currentYear = new Date(nowMs).getUTCFullYear();
+  const withYear = start.getUTCFullYear() !== currentYear || (end !== null && end.getUTCFullYear() !== start.getUTCFullYear());
+  const long = end === null || end.getTime() - start.getTime() >= 7 * 24 * 3600 * 1000;
+  const format = (at: Date) => {
+    const day = at.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC", ...(withYear ? { year: "numeric" } : {}) });
+    return long ? day : `${day} ${at.toISOString().slice(11, 16)}`;
   };
-  return endUtc ? `${format(startUtc)} – ${format(endUtc)}` : format(startUtc);
+  return end ? `${format(start)} – ${format(end)}` : `${format(start)} –`;
 }

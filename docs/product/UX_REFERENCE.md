@@ -21,7 +21,10 @@ repository UI standard.
 ## Reference targets
 
 - 1920x1080 and dense 1440x900 desktop layouts; 2560x1440 remains readable.
-- Market workspace active with Network/Market/Capacity local tasks.
+- Desk mode with three tasks: Today, Prices, Network. Network is the map with an information
+  panel beside it (Outages · Capacity · Flows, and Our book in the book view); the former
+  "Outages & capacity" task is that panel, not a page (docs/ux/LIVE_MAP.md). All three share
+  one page frame, so switching tasks does not move the header or the context strip.
 - Strategy Lab and Decision Center follow the same shell rather than bespoke
   navigation.
 

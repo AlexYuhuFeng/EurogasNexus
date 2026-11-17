@@ -2,13 +2,10 @@ import { PriceCharts } from "@/components/PriceCharts";
 import { openDeskBrief } from "@/components/DeskBriefDialog";
 import { useEffect, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
-import { CapacityWorkspace } from "@/components/CapacityWorkspace";
-import { OutagesPanel } from "@/components/OutagesPanel";
 import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { TraderDeskPanel } from "@/components/TraderDeskPanel";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
-import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
 import { TodayFreshness, TodayScreen } from "@/components/TodayScreen";
@@ -25,6 +22,7 @@ import "./market-cockpit.css";
 import {
   type MarketTask,
 } from "@/app/model/marketCockpitModel";
+import { networkPanelToSearch } from "@/app/model/networkPanelModel";
 
 /** Age words on Today move on without a refetch: a minute clock, paused while hidden. */
 function useMinuteClock(): number {
@@ -65,7 +63,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
     navigation.openWorkspace("market", next);
   };
 
-  // The Desk mode's task row (WF-05): Today, Prices, Network, Events are this page's tasks.
+  // The Desk mode's task row (WF-05): Today, Prices and Network are this page's tasks.
   const mode = useModeHeader("market", task, navigation.openWorkspace, t);
   // One read for the first screen; the context line on every market task uses it to say
   // "Demo data" once on the demo desk instead of counting a static store's feeds as stale.
@@ -141,7 +139,11 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             // Before noon the desk writes its morning brief; after, its end-of-day report.
             onOpenBrief={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}
             onOpenLimits={() => navigation.openWorkspace("contracts", "exposure")}
-            onOpenOutages={() => openTask("capacity")}
+            // Outages live on Network, in the panel beside the map (its default tab).
+            onOpenOutages={() => {
+              openTask("network");
+              window.history.replaceState(window.history.state, "", `?${networkPanelToSearch(window.location.search, "outages")}`);
+            }}
             onInspectPrice={(price) => {
               const ref = priceObservation(price);
               return ref ? () => inspectObservation(ref, `${price.hub} ${price.product}`) : null;
@@ -215,6 +217,41 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             onResetSearch={() => controls.setSearchTerm("")}
             onToggleLayer={controls.toggleLayer}
             onOpenReview={() => navigation.openWorkspace("review")}
+            language={controller.i18n.language}
+            // The Capacity tab beside the map: the operating board joins the `flows` and
+            // `capacity` reads, so it states which of them answered from the store's own facts
+            // (`app/model/capacityOperatingBoardRead.ts`), as the Source Center does.
+            capacity={{
+              flows: api.flows,
+              capacity: api.capacity,
+              tsoAccess: api.tsoAccess,
+              tsoTariffs: api.tsoTariffs,
+              storage: api.storage,
+              lng: api.lng,
+              boardRead: capacityOperatingBoardRead(
+                {
+                  flows: {
+                    rows: api.flows.length,
+                    error: api.endpointErrors.flows,
+                    errorCode: api.endpointErrorCodes.flows,
+                  },
+                  capacity: {
+                    rows: api.capacity.length,
+                    error: api.endpointErrors.capacity,
+                    errorCode: api.endpointErrorCodes.capacity,
+                  },
+                  loading: api.workspaceLoading,
+                  committedPasses: api.workspaceLoadsCommitted,
+                  retry: {
+                    busy: api.endpointRetryBusy,
+                    attempts: api.endpointRetryAttempts,
+                    lastAttemptAtUtc: api.endpointRetryLastAttemptAtUtc,
+                  },
+                },
+                t,
+              ),
+              onRetryBoardRead: () => void api.retryFailedWorkspaceEndpoints(),
+            }}
             onOpenScenario={() => {
               // Carried from the shell when the map-first network route moved into this
               // composition: the hand-off keeps the selected or highlighted route, so the
@@ -227,50 +264,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               navigation.openWorkspace("scenario");
             }}
           />
-          {/* The register the map's topology is drawn against, on the same task as the map: what
-              the deployment declares, including the rows the map does not place (slice D). */}
-          <ReferenceNetworkCatalogue t={t} />
           </>
-        )}
-        {/* Outages first: they are the time-critical events on this task (#69). */}
-        {task === "capacity" && <OutagesPanel t={t} />}
-        {task === "capacity" && (
-          <CapacityWorkspace
-            flows={api.flows}
-            capacity={api.capacity}
-            tsoAccess={api.tsoAccess}
-            tsoTariffs={api.tsoTariffs}
-            storage={api.storage}
-            lng={api.lng}
-            // The operating board joins the `flows` and `capacity` reads, so it states which of
-            // them answered from the store's own facts - the batch's failure records, its
-            // committed passes and the bounded retry's bookkeeping - as the Source Center does for
-            // its registry lane (`app/model/capacityOperatingBoardRead.ts`).
-            boardRead={capacityOperatingBoardRead(
-              {
-                flows: {
-                  rows: api.flows.length,
-                  error: api.endpointErrors.flows,
-                  errorCode: api.endpointErrorCodes.flows,
-                },
-                capacity: {
-                  rows: api.capacity.length,
-                  error: api.endpointErrors.capacity,
-                  errorCode: api.endpointErrorCodes.capacity,
-                },
-                loading: api.workspaceLoading,
-                committedPasses: api.workspaceLoadsCommitted,
-                retry: {
-                  busy: api.endpointRetryBusy,
-                  attempts: api.endpointRetryAttempts,
-                  lastAttemptAtUtc: api.endpointRetryLastAttemptAtUtc,
-                },
-              },
-              t,
-            )}
-            onRetryBoardRead={() => void api.retryFailedWorkspaceEndpoints()}
-            t={t}
-          />
         )}
       </div>
     </div>

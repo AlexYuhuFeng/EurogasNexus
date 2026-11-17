@@ -123,6 +123,35 @@ export async function runKeyboardPaths() {
     );
     await page.keyboard.press("Enter");
 
+    // Sparkline: a figure's small line reads out on the keyboard (Today) ------------------------
+    await go(page, "?workspace=market&task=overview");
+    const spark = page.locator(".today-fundamental .ds-sparkline").first();
+    if (await spark.count()) {
+      await spark.focus();
+      check((await active(page)).tag === "span", "a sparkline takes focus");
+      check(/low .* high /i.test((await spark.getAttribute("aria-label")) ?? ""), "its name states first, last, low and high");
+      await page.keyboard.press("ArrowLeft");
+      await page.keyboard.press("ArrowLeft");
+      await page.waitForTimeout(200);
+      const live = (await spark.locator("[aria-live=polite]").textContent())?.trim() ?? "";
+      check(live.length > 0 && (await spark.getAttribute("data-sparkline-active")) !== null, `arrow keys step through its points (${live})`);
+      await shot(page, "keyboard-sparkline");
+      await page.keyboard.press("Escape");
+    } else {
+      check(true, "no sparkline on this desk (no fundamentals): skipped");
+    }
+
+    // Network panel: the panel's tabs and its outage list ---------------------------------------
+    await go(page, "?workspace=market&task=network");
+    const panelTabs = page.locator("#network-panel-tab-outages, [id^=network-panel-tab-][aria-selected=true]");
+    check((await panelTabs.count()) > 0, "the Network panel has its tabs");
+    await page.locator("[id^=network-panel-tab-][aria-selected=true]").focus();
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(400);
+    check(/panel=capacity/.test(page.url()), "ArrowRight opens the Capacity tab and the URL says so");
+    await go(page, "?workspace=capacity");
+    check(/task=network/.test(page.url()) && /panel=capacity/.test(page.url()), `the retired capacity address lands on Network → Capacity (${new URL(page.url()).search})`);
+
     // DataGrid: sort -----------------------------------------------------------------------------
     await go(page, "?workspace=contracts&task=exposure");
     const credit = page.locator("[data-grid=credit-exposure] table");

@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { networkPanelToSearch } from "@/app/model/networkPanelModel";
 import { CommandPalette } from "@/components/CommandPalette";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
@@ -356,7 +357,11 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         language={i18n.language}
         commercial={needsCommercialWorkspaceReads(api.currentUser)}
         t={t}
-        onOpenOutages={() => navigation.openWorkspace("market", "capacity")}
+        // Outages are the Network page's default panel tab, beside the map.
+        onOpenOutages={() => {
+          navigation.openWorkspace("market", "network");
+          window.history.replaceState(window.history.state, "", `?${networkPanelToSearch(window.location.search, "outages")}`);
+        }}
       />
 
       {endpointFailures.total > 0 && (

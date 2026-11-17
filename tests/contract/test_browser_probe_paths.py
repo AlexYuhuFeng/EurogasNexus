@@ -852,8 +852,9 @@ def test_the_capacity_probe_compares_the_board_with_both_of_its_reads() -> None:
         "data-capacity-read-state={boardRead.state}",
         "data-capacity-notice={read.state}",
         'data-capacity-board-retry="true"',
-        'data-record="capacity-point"',
-        "data-record-id={row.key}",
+        # The board is a DataGrid: its rows carry the markers through rowAttributes.
+        '"data-record": "capacity-point"',
+        '"data-record-id": row.key',
         'data-capacity-board-filters={filtersApplied ? "applied" : "none"}',
         "data-capacity-board-sort={sort}",
         "data-capacity-board-count={`${filteredRows.length}/${operatingRows.length}`}",
@@ -917,7 +918,7 @@ def test_the_live_capture_runner_reads_the_market_route_the_app_serves() -> None
     )
     assert '"market"' in navigation, "the workspace the runner navigates is a declared page id"
     cockpit_model = MARKET_COCKPIT_MODEL.read_text(encoding="utf-8")
-    assert '"overview", "curves", "network", "capacity"' in cockpit_model
+    assert '"overview", "curves", "network"' in cockpit_model
     assert 'DEFAULT_MARKET_TASK: MarketTask = "curves"' in cockpit_model, (
         "the runner navigates the declared numeric landing task"
     )

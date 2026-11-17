@@ -201,21 +201,25 @@ test("resolution precedence is URL task, then persisted view, then numeric defau
   );
 });
 
-test("the network and capacity deep links keep their own task", () => {
+test("the network deep link keeps its task; the retired capacity links open Network", () => {
   assert.deepEqual(
     resolveMarketViewTask({ search: "?workspace=network", activeWorkspace: "network", persisted: "curves" }),
     { task: "network", source: "url" },
   );
   assert.deepEqual(
-    resolveMarketViewTask({ search: "?workspace=capacity", activeWorkspace: "capacity", persisted: "network" }),
-    { task: "capacity", source: "url" },
+    resolveMarketViewTask({ search: "?workspace=capacity", activeWorkspace: "capacity", persisted: "curves" }),
+    { task: "network", source: "url" },
   );
   assert.deepEqual(
     resolveMarketViewTask({ search: "?workspace=capacity&task=capacity", activeWorkspace: "capacity", persisted: null }),
-    { task: "capacity", source: "url" },
+    { task: "network", source: "url" },
+  );
+  assert.deepEqual(
+    resolveMarketViewTask({ search: "?workspace=market&task=capacity", activeWorkspace: "market", persisted: "curves" }),
+    { task: "network", source: "url" },
   );
   assert.equal(marketTaskFromLocation("?workspace=network", "network"), "network");
-  assert.equal(marketTaskFromLocation("?workspace=capacity", "capacity"), "capacity");
+  assert.equal(marketTaskFromLocation("?workspace=capacity", "capacity"), "network");
 });
 
 test("the fused overview task stays reachable and is never implicit", () => {

@@ -16,8 +16,10 @@ function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
 }
 
-test("market cockpit has four linked analysis tasks", () => {
-  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network", "capacity"]);
+test("market cockpit has three linked tasks; the retired capacity task lands on Network", () => {
+  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network"]);
+  // "Outages & capacity" became the Network page's panel beside the map.
+  assert.equal(marketTaskFromSearch("?task=capacity"), "network");
 });
 
 test("the numeric and map views are the two separate persisted market views", () => {
@@ -30,7 +32,8 @@ test("the numeric and map views are the two separate persisted market views", ()
 
 test("legacy technical deep links map to cockpit tasks", () => {
   assert.equal(marketTaskFromLocation("?workspace=network", "network"), "network");
-  assert.equal(marketTaskFromLocation("?workspace=capacity", "capacity"), "capacity");
+  assert.equal(marketTaskFromLocation("?workspace=capacity", "capacity"), "network");
+  assert.equal(marketTaskFromLocation("?workspace=market&task=capacity", "market"), "network");
   assert.equal(marketTaskFromLocation("?workspace=market&task=curves", "market"), "curves");
   // The numeric view is the landing task; the fused overview needs `?task=`.
   assert.equal(marketTaskFromLocation("?workspace=market", "market"), "curves");

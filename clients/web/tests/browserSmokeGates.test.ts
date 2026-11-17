@@ -657,8 +657,9 @@ test("the capacity board's joined rows are compared with both reads, and its ref
     "data-capacity-read-state={boardRead.state}",
     "data-capacity-notice={read.state}",
     'data-capacity-board-retry="true"',
-    'data-record="capacity-point"',
-    "data-record-id={row.key}",
+    // The board is a DataGrid: its rows carry the record markers through rowAttributes.
+    '"data-record": "capacity-point"',
+    '"data-record-id": row.key',
     "data-empty-state={boardEmptyState.marker}",
     'data-capacity-board-filters={filtersApplied ? "applied" : "none"}',
     "data-capacity-board-sort={sort}",

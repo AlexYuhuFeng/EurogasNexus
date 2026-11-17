@@ -59,8 +59,9 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     tasks: [
       { id: "today", labelKey: "nav.mode.desk.today", page: "market", pageTask: "overview", permissions: ["market.read"], aliasKeys: ["market.task.overview"] },
       { id: "prices", labelKey: "nav.mode.desk.prices", page: "market", pageTask: "curves", permissions: ["market.read"], aliasKeys: ["market.task.curves", "nav.market"] },
-      { id: "network", labelKey: "nav.mode.desk.network", page: "market", pageTask: "network", alsoPages: ["network"], permissions: ["market.read"], aliasKeys: ["nav.network"] },
-      { id: "events", labelKey: "nav.mode.desk.events", shortLabelKey: "nav.mode.desk.events.short", page: "market", pageTask: "capacity", alsoPages: ["capacity"], permissions: ["market.read"], aliasKeys: ["market.task.capacity", "nav.capacity"] },
+      // One Network task: the map with outages, capacity and flows in the panel beside it. The
+      // retired "Outages & capacity" task and its `capacity` page land here (AGENTS rule 9).
+      { id: "network", labelKey: "nav.mode.desk.network", page: "market", pageTask: "network", alsoPages: ["network", "capacity"], permissions: ["market.read"], aliasKeys: ["nav.network", "nav.mode.desk.events", "nav.mode.desk.events.short", "market.task.capacity", "nav.capacity"] },
     ],
   },
   {

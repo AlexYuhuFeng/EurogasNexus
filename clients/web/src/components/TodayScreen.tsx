@@ -316,7 +316,12 @@ function ChangesRow({ row, t, nowMs, language, onOpenOutages }: { row: TodayChan
                     <span className="today-list-text">
                       <strong>{outage.facility}</strong>
                       {outage.zone ? <span className="muted"> {outage.zone}</span> : null}
-                      <span className="muted"> · {timeWindow(outage.start_utc, outage.end_utc)}</span>
+                      <span className="muted"> · {timeWindow(outage.start_utc, outage.end_utc, nowMs)}</span>
+                      {(outage.message_count ?? 1) > 1 && (
+                        <span className="muted" title={(outage.operators ?? []).join(" · ")}>
+                          {" · "}{t("outages.messages_count", { count: outage.message_count })}
+                        </span>
+                      )}
                     </span>
                     <span className="today-list-figure">
                       {outage.unavailable == null ? "–" : formatValue(outage.unavailable, outage.unit ?? "")}
@@ -520,7 +525,12 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
                 values={storage.series.map((point) => point.fill_pct)}
                 days={storage.series.map((point) => point.day)}
                 simulated={storage.latest.simulated}
-                label={t("today.storage_spark", { days: storage.series.length })}
+                label={t("today.storage_fill")}
+                unit={storage.latest.unit || "%"}
+                decimals={1}
+                t={t}
+                // The full chart of this series is the season chart below.
+                onOpen={() => openChart("chart-storage-season-title")}
               />
             </div>
           )}
@@ -539,7 +549,11 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
                 values={balance.series.map((point) => point.call_gwh)}
                 days={balance.series.map((point) => point.day)}
                 simulated={balance.latest.simulated}
-                label={t("today.balance_spark", { days: balance.series.length })}
+                label={t("today.supply_call")}
+                unit={balance.latest.unit || "GWh/d"}
+                decimals={0}
+                t={t}
+                onOpen={() => openChart("chart-nwe-balance-chart-title")}
               />
             </div>
           )}
@@ -554,6 +568,19 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
       </div>
     </RowSection>
   );
+}
+
+/**
+ * Bring a chart on this page into view and give it focus: a sparkline's "open the full chart".
+ * The chart's own title names it, so focus lands on its panel.
+ */
+function openChart(titleId: string): void {
+  const title = document.getElementById(titleId);
+  const target = (title?.closest("section, figure, .ds-chart") as HTMLElement | null) ?? title;
+  if (!target) return;
+  target.scrollIntoView({ block: "start", behavior: "smooth" });
+  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
 }
 
 /* ---------------------------------------------------------- freshness (FRESH-02) */

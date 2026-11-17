@@ -1,12 +1,19 @@
-export type MarketTask = "overview" | "curves" | "network" | "capacity";
+export type MarketTask = "overview" | "curves" | "network";
 
-export const MARKET_TASKS: MarketTask[] = ["overview", "curves", "network", "capacity"];
+export const MARKET_TASKS: MarketTask[] = ["overview", "curves", "network"];
+
+/**
+ * Task names that no longer have a page of their own and the task that now shows them. The
+ * Desk's "Outages & capacity" (`capacity`) became the Network page's panel beside the map
+ * (Capacity tab: `networkPanelFromSearch`), so its links keep working.
+ */
+export const RETIRED_MARKET_TASKS: Readonly<Record<string, MarketTask>> = { capacity: "network" };
 
 /**
  * The two separate market task views: numeric analysis (`curves`) and
  * geographic/network inspection (`network`). Only these are selectable as a
  * persisted per-user landing view; `overview` stays an explicit combined
- * opt-in and `capacity` stays a page-level task.
+ * opt-in.
  */
 export const MARKET_VIEW_TASKS: MarketTask[] = ["curves", "network"];
 
@@ -18,6 +25,7 @@ export const MAJOR_MARKET_HUBS = ["TTF", "NBP", "ZTP", "THE", "PEG", "PSV"];
 /** Explicit `?task=` value, or null when the URL does not request a task. */
 export function marketTaskFromSearch(search: string): MarketTask | null {
   const value = new URLSearchParams(search).get("task");
+  if (value && RETIRED_MARKET_TASKS[value]) return RETIRED_MARKET_TASKS[value];
   return MARKET_TASKS.includes(value as MarketTask) ? (value as MarketTask) : null;
 }
 
@@ -25,8 +33,8 @@ export function marketTaskFromLocation(
   search: string,
   activeWorkspace: string,
 ): MarketTask {
-  if (activeWorkspace === "network") return "network";
-  if (activeWorkspace === "capacity") return "capacity";
+  // The retired capacity page opens Network (its Capacity tab).
+  if (activeWorkspace === "network" || activeWorkspace === "capacity") return "network";
   return marketTaskFromSearch(search) ?? DEFAULT_MARKET_TASK;
 }
 

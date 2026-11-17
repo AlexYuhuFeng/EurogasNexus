@@ -30,7 +30,8 @@ Each installation uses the credentials issued for that environment.
 1. Open **Desk → Prices**.
 2. Select the gas day, delivery product and hub relevant to your task.
 3. Find the quote's source, unit and timestamp. Inspect bid/offer and mid on the same basis.
-4. Open **Capacity & Events** for physical context, or **Network** to inspect a location.
+4. Open **Network** for physical context: the map, with outages, capacity and flows listed
+   beside it.
 5. Compare a displayed record with the source or imported file used by your desk.
 
 **Check the result:** the selected delivery period and units match your intended comparison.

@@ -3,7 +3,7 @@
 Operators of gas production, storage, LNG and transmission facilities publish unavailability
 as urgent market messages under REMIT. Export them from the platform your desk follows
 (EEX Transparency, GIE IIP, Gassco UMM...) as JSON or CSV in ACER's fields and import them
-here; each message version is stored once, and Market → Capacity & Events shows the latest
+here; each message version is stored once, and Desk → Network → Outages shows the latest
 version of each live or upcoming event. The platform is recorded with every message;
 platforms whose reuse terms are not published need ``--terms-confirmed`` (see
 ``eurogas_nexus.domain.observations.remit_platforms``).

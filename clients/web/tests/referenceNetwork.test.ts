@@ -228,8 +228,8 @@ test("the panels read the declared calls and state what each read established", 
   }
 
   // They are mounted on tasks that already exist, and the register shares the network task with
-  // the map it is the register for.
-  assert.match(readWebSource("components/MarketCockpit.tsx"), /<ReferenceNetworkCatalogue t=\{t\} \/>/);
+  // the map it is the register for (one line in the panel beside the map until opened).
+  assert.match(readWebSource("components/NetworkWorkspace.tsx"), /<ReferenceNetworkCatalogue t=\{t\} \/>/);
   assert.match(readWebSource("components/CapacityWorkspace.tsx"), /<CapacityContractBook t=\{t\} \/>/);
 });
 

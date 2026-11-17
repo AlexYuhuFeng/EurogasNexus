@@ -2123,6 +2123,9 @@ export interface TodayChangesRowDTO {
       unit: string | null;
       as_of: string | null;
       simulated: boolean;
+      /** Every operator that published the event (newer servers). */
+      operators?: string[];
+      message_count?: number;
       why: TodayWhyDTO;
     }[];
     more: number;
@@ -3156,6 +3159,18 @@ export interface MapSituationDTO {
     Partial<Record<"network_points" | "flows", number>>;
   /** Network points the reference knows but no source places (newer servers). */
   unlocated_network_points?: MapUnlocatedPointDTO[];
+  /** Outages no source places, with why (newer servers). */
+  unlocated_outages?: Array<{ event_id: string; facility_name: string; facility_id: string; market_participant?: string | null; reason: string }>;
+  /** Outages at a facility GIE identifies but no accepted source positions (newer servers). */
+  known_facility_outages?: Array<{
+    facility_eic: string;
+    facility_name: string | null;
+    country: string | null;
+    operator: string | null;
+    reason: string;
+    outages: number;
+    event_ids: string[];
+  }>;
   /** Counts of everything the caller may see, placed on the map or not. */
   totals?: Record<"outages_active" | "outages_scheduled" | "contracts" | "cargoes" | "regas_slots", number> &
     Partial<Record<"network_points", number>>;
@@ -3210,10 +3225,18 @@ export interface OutageEventDTO {
   capacity_impact_mcm_d: number;
   description: string;
   market_participant: string;
-  /** The unavailable capacity per gas day in GWh, where the message states or converts it. */
+  /** The daily figure through the unit authority; null where the message has none. */
   unavailable_gwh_d?: number | null;
+  /** How the daily figure was made (`per_day`, `per_hour_x_24h`, `unconverted:<reason>`). */
+  daily_basis?: string;
+  direction?: string;
   source_system?: string;
   source_reference?: string;
+  attribution?: string;
+  /** With `grouped=true`: every message of the event, its operators and how many. */
+  messages?: string[];
+  operators?: string[];
+  message_count?: number;
 }
 
 export interface LadderRollupDTO {
@@ -5392,8 +5415,16 @@ export const api = {
         : { outage_horizon_days: String(outageHorizonDays) },
       options,
     ),
-  outages: (horizonDays = 90, options?: ApiRequestOptions) =>
-    get<OutageEventDTO[]>("/physical/outages", { horizon_days: String(horizonDays) }, options),
+  outages: (horizonDays = 90, options?: ApiRequestOptions, view: { grouped?: boolean; endedDays?: number } = {}) =>
+    get<OutageEventDTO[]>(
+      "/physical/outages",
+      {
+        horizon_days: String(horizonDays),
+        ...(view.grouped ? { grouped: "true" } : {}),
+        ...(view.endedDays ? { ended_days: String(view.endedDays) } : {}),
+      },
+      options,
+    ),
   positionLadder: (
     months = 12,
     options?: ApiRequestOptions,

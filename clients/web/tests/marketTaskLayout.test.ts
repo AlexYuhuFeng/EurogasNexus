@@ -62,7 +62,7 @@ function layoutFor(input: {
 }
 
 test("every market task composes on a market page that resolves the same task back", () => {
-  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network", "capacity"]);
+  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network"]);
   assert.equal(DEFAULT_MARKET_TASK, "curves");
 
   for (const task of MARKET_TASKS) {
@@ -83,7 +83,6 @@ test("every market task composes on a market page that resolves the same task ba
 
   // The map's layout lives under `.workspace-network`, never under the market shell.
   assert.equal(marketTaskWorkspacePage("network"), "network");
-  assert.equal(marketTaskWorkspacePage("capacity"), "capacity");
   assert.equal(marketTaskWorkspacePage("curves"), "market");
   assert.equal(marketTaskWorkspacePage("overview"), "market");
 });
