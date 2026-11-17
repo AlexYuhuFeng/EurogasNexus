@@ -78,7 +78,7 @@ def run(repeat: int = 1) -> dict:
 
     # The product's own budgets for each use.
     settings = {"explain": NOTE_CALL, "brief": NOTE_CALL, "answer": ANSWER_CALL,
-                "enrichment": ENRICHMENT_CALL}
+                "enrichment": ENRICHMENT_CALL, "report": NOTE_CALL}
     from eurogas_nexus.security.provider_keys import load_provider_api_key
 
     evidence, _cases = ai_eval.load()
