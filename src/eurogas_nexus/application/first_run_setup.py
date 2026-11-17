@@ -106,7 +106,11 @@ STATIC_ITEMS: dict[str, tuple[dict[str, str], ...]] = {
     # Regulated LNG terminal tariffs and slot terms are public at most European terminals.
     # The product holds them in ``lng_terminal_terms`` (operator documents read by
     # scripts/ops/refresh_lng_terminal_tariffs.py, or desk-entered); this item reports what is
-    # held. Collecting more terminals is another package's work, not this flow's.
+    # held. Collecting more terminals is another package's work, not this flow's: when the
+    # public register (CP-11: ``lng_terminal_tariff`` and its ``lng-terminal-tariffs``
+    # connector) lands, its source maps to ``lng_shipping`` in SOURCE_STEPS, this static item
+    # goes, and ``terminal_tariff_facts`` reads reviewed and candidate public rows beside the
+    # firm's own terms.
     "lng_shipping": (
         {"item_id": "lng-terminal-tariffs", "connection": "public_tariffs",
          "tool": "scripts/ops/refresh_lng_terminal_tariffs.py"},
