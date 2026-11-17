@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api, type NweBalanceDTO, type NweBalanceDayDTO } from "@/api/client";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
-import { Chart, type ChartData } from "@/components/ui/charts";
+import { Chart, limitStack, stackForm, type ChartData } from "@/components/ui/charts";
 import { ReportExport } from "./ReportExport";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -53,7 +53,8 @@ export function NweBalancePanel({ t, simulated = false }: {
     [balance],
   );
   // The chart: two weeks measured, then the forecast (dashed), supply stacked by source and the
-  // call on that supply as a line, all in GWh/d on one axis.
+  // call on that supply as a line, all in GWh/d on one axis. The stack is an area beyond 14 gas
+  // days and bars up to 14, its members ordered by size, largest at the bottom (F.1).
   const chart = useMemo<ChartData | null>(() => {
     if (!balance) return null;
     const history = balance.history.slice(-14);
@@ -77,9 +78,11 @@ export function NweBalancePanel({ t, simulated = false }: {
       xTitle: t("chart.gas_day"),
       unit: balance.unit ?? "GWh/d",
       series: [
-        series("norway", t("nwe.norway"), (row) => row.norway_gwh, { style: "bar", stack: true, colour: 1 }),
-        series("lng", t("nwe.lng"), (row) => row.lng_gwh, { style: "bar", stack: true, colour: 2 }),
-        series("storage", t("nwe.storage"), (row) => row.storage_net_withdrawal_gwh, { style: "bar", stack: true, colour: 3 }),
+        ...limitStack([
+          series("norway", t("nwe.norway"), (row) => row.norway_gwh, { style: stackForm(days.length), stack: true, colour: 1 }),
+          series("lng", t("nwe.lng"), (row) => row.lng_gwh, { style: stackForm(days.length), stack: true, colour: 2 }),
+          series("storage", t("nwe.storage"), (row) => row.storage_net_withdrawal_gwh, { style: stackForm(days.length), stack: true, colour: 3 }),
+        ], t("chart.other")),
         series("call", t("nwe.call"), (row) => row.call_gwh, { style: "line", colour: 4 }),
       ],
     };

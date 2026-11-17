@@ -149,6 +149,48 @@
     color: var(--ds-text-3);
   }
 
+  .ds-chart-subtitle {
+    flex-basis: 100%;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  /* A panel of a small multiple: a compact head, no actions of its own. */
+  .ds-chart.is-compact {
+    gap: 0;
+  }
+
+  .ds-chart.is-compact .ds-chart-head {
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  /* Touch-and-drag reads the chart; a vertical swipe still scrolls the page. */
+  .ds-chart-plot {
+    touch-action: pan-y;
+  }
+
+  [data-series-style="ghost"] .ds-chart-swatch {
+    height: 1px;
+  }
+
+  .ds-chart-swatch.is-band {
+    height: var(--ds-space-2);
+    background: var(--ds-border-strong);
+  }
+
+  .ds-chart-tip-row.is-ghost span:nth-child(2),
+  .ds-chart-tip-row.is-ghost .ds-chart-tip-value {
+    color: var(--ds-text-3);
+  }
+
+  .ds-chart-tip-compare {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
   .ds-chart-empty,
   .ds-chart-note {
     margin: 0;
@@ -262,6 +304,229 @@
   .ds-sparkline-tip .ds-sparkline-range {
     grid-column: 1 / -1;
     color: var(--ds-text-3);
+  }
+}
+
+/* Small multiples, aligned panels, waterfall, percentile strip (chart standard F). */
+@layer ds-components {
+  .ds-multiples,
+  .ds-aligned {
+    display: grid;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .ds-multiples-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ds-space-1) var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .ds-multiples-head h3 {
+    margin: 0;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-sm);
+  }
+
+  .ds-multiples-scale {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .ds-multiples-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: var(--ds-space-3) var(--ds-space-4);
+    min-width: 0;
+  }
+
+  .ds-multiples-cell {
+    min-width: 0;
+    padding: var(--ds-space-1);
+    border-radius: var(--ds-radius-sm);
+  }
+
+  .ds-multiples-cell.is-selected {
+    background: var(--ds-accent-soft);
+  }
+
+  .ds-multiples-list {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ds-multiples-list li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(64px, 30%);
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-1) 0;
+    border-bottom: 1px solid var(--ds-border-subtle);
+  }
+
+  .ds-multiples-list li[aria-current="true"] {
+    background: var(--ds-accent-soft);
+  }
+
+  .ds-multiples-row {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+    min-height: var(--ds-control-touch);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ds-text-1);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ds-multiples-name {
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .ds-multiples-headline {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-multiples-more {
+    justify-self: start;
+  }
+
+  .ds-waterfall-plot {
+    position: relative;
+    min-width: 0;
+    border-radius: var(--ds-radius-sm);
+    outline: none;
+  }
+
+  .ds-waterfall-plot:focus-visible {
+    box-shadow: var(--ds-focus);
+  }
+
+  .ds-waterfall-plot > svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .ds-waterfall-zero {
+    stroke: var(--ds-text-2);
+    stroke-width: 1;
+  }
+
+  .ds-waterfall-connector {
+    stroke: var(--ds-border-strong);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+  }
+
+  .ds-waterfall-step.is-total rect {
+    fill: var(--ds-series-1);
+  }
+
+  .ds-waterfall-step.is-up rect {
+    fill: var(--ds-text-3);
+  }
+
+  .ds-waterfall-step.is-down rect {
+    fill: var(--ds-border-strong);
+  }
+
+  .ds-waterfall-step.is-simulated rect {
+    stroke: var(--ds-status-simulated);
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
+  }
+
+  .ds-waterfall-step.is-active rect {
+    stroke: var(--ds-text-1);
+    stroke-width: 1.5;
+  }
+
+  .ds-waterfall-value,
+  .ds-waterfall-label {
+    fill: var(--ds-text-2);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-waterfall-label {
+    fill: var(--ds-text-3);
+  }
+
+  .ds-waterfall-tip {
+    top: var(--ds-space-1);
+    right: var(--ds-space-1);
+    left: auto;
+    transform: none;
+  }
+
+  .ds-waterfall-mismatch {
+    color: var(--ds-status-breach);
+  }
+
+  .ds-percentile {
+    display: inline-grid;
+    gap: var(--ds-space-05);
+    width: 100%;
+    max-width: 240px;
+    min-width: 96px;
+  }
+
+  .ds-percentile-track {
+    position: relative;
+    display: block;
+    height: var(--ds-space-2);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-border);
+  }
+
+  .ds-percentile-mid {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: var(--ds-border-strong);
+  }
+
+  .ds-percentile-marker {
+    position: absolute;
+    top: calc(-1 * var(--ds-space-05));
+    bottom: calc(-1 * var(--ds-space-05));
+    left: var(--ds-percentile-at, 50%);
+    width: var(--ds-space-05);
+    margin-left: -1px;
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-accent);
+  }
+
+  .ds-percentile-marker.is-outside {
+    background: var(--ds-status-watch);
+  }
+
+  .ds-percentile-ends {
+    display: flex;
+    justify-content: space-between;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-percentile-caption {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
   }
 }
 

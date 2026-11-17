@@ -22,7 +22,10 @@ Every chart is ``role="img"`` with ``<title>``/``<desc>``; hover values are nati
 tooltips. :func:`chart_table` gives the same numbers for the data annex (a test holds the
 drawing to the data). Chart types are the catalogue's: ``line``, ``step``, ``stacked_area``,
 ``stacked_bar``, ``bar`` (horizontal, ranked) and ``sankey`` (kept for the API; the house
-standard prints a supply-stack table instead), plus :func:`sparkline`.
+standard prints a supply-stack table instead), plus :func:`sparkline`. The in-app chart
+standard adds two forms so reports and the app draw the same thing: ``band`` (lines over a
+grey history range and its mean, the range labelled with the years it is drawn from) and
+``term_structure`` (price by delivery month with a marker per month, prior curves in grey).
 """
 
 from __future__ import annotations
@@ -102,18 +105,22 @@ def _parse_x(value: Any) -> float:
     return float(date.fromisoformat(str(value)[:10]).toordinal())
 
 
-def _x_label(value: Any, span_days: float) -> str:
+def _x_label(value: Any, span_days: float, months: bool = False) -> str:
     try:
         moment = date.fromisoformat(str(value)[:10])
     except ValueError:
         return str(value)
+    if months:
+        return f"{moment:%b}-{moment:%y}"
     return f"{moment:%b %y}" if span_days > 120 else f"{moment.day} {moment:%b}"
 
 
-def date_ticks(xs: list, scale_x, left: float, right: float) -> list[tuple[float, str, str]]:
+def date_ticks(xs: list, scale_x, left: float, right: float,
+               months: bool = False) -> list[tuple[float, str, str]]:
     """(x, label, anchor) for a date axis: the last day right-aligned at the end of the plot,
     then calendar boundaries (weeks back from the last day for a month, month starts beyond),
-    kept only where a label clears its neighbours; the first one starts at the left edge."""
+    kept only where a label clears its neighbours; the first one starts at the left edge.
+    ``months``: the points are delivery months (a term structure), labelled "Jan-27"."""
 
     if not xs:
         return []
@@ -133,11 +140,15 @@ def date_ticks(xs: list, scale_x, left: float, right: float) -> list[tuple[float
 
     gap = 12.0
     ticks: list[tuple[float, str, str]] = []
-    last_label = _x_label(by_day[last], span)
+    last_label = _x_label(by_day[last], span, months)
     last_x = min(scale_x(by_day[last]), right)
     ticks.append((last_x, last_label, "end"))
     occupied = [(last_x - width(last_label), last_x)]
-    if span <= 21:
+    if months:
+        step = max(1, math.ceil(len(days) / 8))
+        candidates = [d for position, d in enumerate(reversed(days))
+                      if d != last and position % step == 0]
+    elif span <= 21:
         step_days = max(1, math.ceil(span / 4))
         candidates = [d for d in reversed(days) if (last - d).days % step_days == 0
                       and d != last]
@@ -151,7 +162,7 @@ def date_ticks(xs: list, scale_x, left: float, right: float) -> list[tuple[float
             candidates = [d for d in reversed(days) if d.day == 1 and d != last]
     for day in candidates:
         x = scale_x(by_day[day])
-        text = _x_label(by_day[day], span)
+        text = _x_label(by_day[day], span, months)
         w = width(text)
         lo, hi, anchor = x - w / 2, x + w / 2, "middle"
         if lo < left - 4:
@@ -311,11 +322,12 @@ def _grid(ticks: list[float], scale, left: float, right: float, zero_line: bool)
     return "".join(out)
 
 
-def _x_axis(xs: list, scale_x, bottom: float, left: float, right: float) -> str:
+def _x_axis(xs: list, scale_x, bottom: float, left: float, right: float,
+            months: bool = False) -> str:
     return "".join(
         f'<text x="{x:.1f}" y="{bottom + 13:.1f}" text-anchor="{anchor}" class="r-ink-3" '
         f'fill="{LIGHT["text-3"]}">{_e(text)}</text>'
-        for x, text, anchor in date_ticks(xs, scale_x, left, right))
+        for x, text, anchor in date_ticks(xs, scale_x, left, right, months))
 
 
 def _label_room(labels: list[str], width: int) -> float:
@@ -394,11 +406,19 @@ def _place_labels(items: list[tuple[float, str, str]], top: float, bottom: float
     return [(y, text, colour) for y, (_, text, colour) in zip(ys, placed, strict=True)]
 
 
-def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
+def _line_chart(spec: dict, chart_id: str, step: bool, band: dict | None = None,
+                markers: bool = False) -> str:
+    """Lines (or steps) with end labels. ``band``: a history range drawn under the lines in
+    grey (``low``/``high``/``mean`` point lists, ``label``, ``mean_label``); ``markers``: a dot
+    per point (a term structure's delivery months). Without either the output is unchanged."""
+
     width, height = _size(spec)
     series_list = spec.get("series", [])
     xs = _all_x(spec)
     values = [y for s in series_list for _, y in s.get("points", []) if y is not None]
+    if band:
+        values += [y for key in ("low", "high", "mean") for _, y in band.get(key) or []
+                   if y is not None]
     refs = [r["value"] for r in spec.get("reference_lines", []) if r.get("value") is not None]
     if not values:
         return ""
@@ -406,6 +426,8 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
     bottom = height - PAD_BOTTOM
     texts = _end_labels(series_list)
     ref_texts = [str(r.get("label", "")) for r in spec.get("reference_lines", [])]
+    if band:
+        ref_texts += [str(band.get("label") or ""), str(band.get("mean_label") or "")]
     room = _label_room(texts + ref_texts, width)
     # A label that does not fit its room ("Year earlier 4,404" beside a half-width plot) is
     # set on two lines, the name over the value, instead of being cut short.
@@ -435,6 +457,8 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
             f'font-size="8.5">{_e(_fit_label(str(ref.get("label", "")), room))}</text>'
         )
     labels = []
+    if band:
+        out.append(_band_shapes(band, sx, sy, labels))
     # Context first, so the main series draws over it.
     order = sorted(range(len(series_list)), key=lambda i: not series_list[i].get("context"))
     for index in order:
@@ -465,15 +489,79 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
                     f'<polyline points="{" ".join(points)}" fill="none" stroke="{colour}"{cls} '
                     f'stroke-width="{stroke}" stroke-linejoin="round"{dash_attr}/>'
                 )
+                if markers and not series.get("context"):
+                    out.extend(
+                        f'<circle cx="{p.split(",")[0]}" cy="{p.split(",")[1]}" r="2.2" '
+                        f'fill="#ffffff" stroke="{colour}" stroke-width="1.2"/>'
+                        for p in points)
         if last_point is not None and texts[index]:
             labels.append((last_point[1], texts[index] if two_lines
                            else _fit_label(texts[index], room), colour))
     for y, text, colour in _place_labels(labels, PAD_TOP, bottom, gap=20.0 if two_lines else 11.0):
         out.append(_end_label(text, right + 4, y, colour, room, two_lines))
-    out.append(_x_axis(xs, sx, bottom, PAD_LEFT, right))
+    out.append(_x_axis(xs, sx, bottom, PAD_LEFT, right, months=markers))
     out.append(_hover(spec, xs, sx, PAD_TOP, bottom))
     out.append("</svg>")
     return "".join(out)
+
+
+def _band_shapes(band: dict, sx, sy, labels: list) -> str:
+    """The history range as grey areas (one per run of days where low and high are both held:
+    a missing day is a gap) and its mean as a dashed grey line; both labelled at their ends."""
+
+    low = {str(x): y for x, y in band.get("low") or []}
+    high = {str(x): y for x, y in band.get("high") or []}
+    order = sorted({str(x): x for x, _ in band.get("low") or []}.values(), key=_parse_x)
+    runs: list[list] = [[]]
+    for x in order:
+        if low.get(str(x)) is None or high.get(str(x)) is None:
+            runs.append([])
+            continue
+        runs[-1].append(x)
+    out = []
+    last = None
+    for run in runs:
+        if len(run) < 2:
+            continue
+        top = [f"{sx(x):.1f},{sy(high[str(x)]):.1f}" for x in run]
+        bottom = [f"{sx(x):.1f},{sy(low[str(x)]):.1f}" for x in reversed(run)]
+        out.append(f'<polygon points="{" ".join(top + bottom)}" fill="{CONTEXT}" '
+                   f'fill-opacity="0.22" stroke="none" class="r-band"/>')
+        last = run[-1]
+    if last is not None and band.get("label"):
+        middle = (high[str(last)] + low[str(last)]) / 2
+        labels.append((sy(middle), str(band["label"]), CONTEXT))
+    mean = [(x, y) for x, y in sorted(band.get("mean") or [], key=lambda p: _parse_x(p[0]))]
+    segment: list[str] = []
+    segments = [segment]
+    for x, y in mean:
+        if y is None:
+            segment = []
+            segments.append(segment)
+            continue
+        segment.append(f"{sx(x):.1f},{sy(y):.1f}")
+    for points in segments:
+        if len(points) > 1:
+            out.append(f'<polyline points="{" ".join(points)}" fill="none" stroke="{CONTEXT}" '
+                       f'stroke-width="1" stroke-dasharray="4 3" class="r-band-mean"/>')
+    held = [(x, y) for x, y in mean if y is not None]
+    if held and band.get("mean_label"):
+        labels.append((sy(held[-1][1]), f"{band['mean_label']} {_fmt(held[-1][1])}", CONTEXT))
+    return "".join(out)
+
+
+def _term_structure(spec: dict, chart_id: str) -> str:
+    """Price by delivery month: a line with a marker per month (never bars), prior curves as
+    grey context lines, delivery months labelled "Jan-27". Points' x are months "2027-01"."""
+
+    def month_day(x: Any) -> str:
+        text = str(x)
+        return f"{text[:7]}-01" if len(text) == 7 else text
+
+    drawn = dict(spec)
+    drawn["series"] = [{**s, "points": [[month_day(x), y] for x, y in s.get("points", [])]}
+                       for s in spec.get("series", [])]
+    return _line_chart(drawn, chart_id, step=False, markers=True)
 
 
 def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
@@ -683,6 +771,10 @@ def render_chart(spec: dict, chart_id: str) -> str:
     kind = spec.get("type")
     if kind in {"line", "step"}:
         return _line_chart(spec, chart_id, step=kind == "step")
+    if kind == "band":
+        return _line_chart(spec, chart_id, step=False, band=spec.get("band") or {})
+    if kind == "term_structure":
+        return _term_structure(spec, chart_id)
     if kind == "stacked_area":
         return _stacked(spec, chart_id, bars=False)
     if kind == "stacked_bar":
@@ -710,6 +802,12 @@ def chart_table(spec: dict) -> tuple[list[str], list[list[str]]]:
     xs = _all_x(spec)
     header = ["Day"] + [f"{s.get('name')} ({unit})" for s in spec.get("series", [])]
     lookups = [{str(x): y for x, y in s.get("points", [])} for s in spec.get("series", [])]
+    band = spec.get("band") if spec.get("type") == "band" else None
+    if band:
+        for key, name in (("low", "low"), ("high", "high"), ("mean", "mean")):
+            if band.get(key):
+                header.append(f"{band.get('label', 'Range')} {name} ({unit})")
+                lookups.append({str(x): y for x, y in band[key]})
     rows = []
     for x in xs:
         cells = [_fmt(lk.get(str(x))) if str(x) in lk else "" for lk in lookups]

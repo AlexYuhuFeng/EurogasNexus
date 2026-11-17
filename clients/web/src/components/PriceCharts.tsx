@@ -1,16 +1,23 @@
 /**
- * Prices charts (UX-09): the forward curve of one hub by delivery month, in its quotation, and
+ * Prices charts (UX-09, F.3 #1): the term structure of one hub by delivery month, in its
+ * quotation, with the prior close and a week ago as grey ghost curves; and
  * the NBP–TTF spread by delivery month in p/th. Both read the normalized rows the board reads,
  * so the charts and the board say the same prices; the preparation is `priceCharts.ts`.
  */
 import { useMemo, useState } from "react";
 
 import type { NormalizedMarketObsDTO } from "@/api/client";
-import { curveHubs, forwardCurve, nbpTtfSpread, type CurveRow } from "@/app/model/priceCharts";
+import { curveHubs, nbpTtfSpread, termStructure, type CurveRow } from "@/app/model/priceCharts";
 import { Segmented } from "@/components/ui";
 import { Chart, type ChartData } from "@/components/ui/charts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+/** "2026-11-16" -> "16 Nov": a close day in a ghost curve's label. */
+function shortClose(day: string): string {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(day.slice(8, 10))} ${months[Number(day.slice(5, 7)) - 1] ?? ""}`;
+}
 
 /** The front delivery month: the month after the current one (UTC). */
 function frontMonth(now = new Date()): string {
@@ -24,15 +31,25 @@ export function PriceCharts({ markets, t }: { markets: readonly NormalizedMarket
   const [chosen, setChosen] = useState<string | null>(null);
   const hub = chosen && hubs.includes(chosen) ? chosen : hubs[0] ?? null;
   const front = frontMonth();
-  const curve = useMemo(() => (hub ? forwardCurve(rows, hub, front) : null), [rows, hub, front]);
+  const curve = useMemo(() => (hub ? termStructure(rows, hub, front) : null), [rows, hub, front]);
   const spread = useMemo(() => nbpTtfSpread(rows, front), [rows, front]);
 
+  // The term structure (F.1): today's curve with a marker per delivery month, the prior close
+  // and a week ago as grey ghost curves, one unit, labelled at the line ends.
   const curveData = useMemo<ChartData | null>(() => curve && hub ? {
     axis: "period",
     x: curve.months,
     xTitle: t("chart.delivery_month"),
     unit: curve.unit,
-    series: [{ id: hub.toLowerCase(), label: hub, values: curve.values, simulated: curve.simulated, decimals: 3 }],
+    series: [
+      ...(curve.weekAgo
+        ? [{ id: "week-ago", label: t("prices.chart.week_ago", { day: shortClose(curve.weekAgo.day) }), values: curve.weekAgo.values, ghost: true, simulated: curve.simulated, decimals: 3 }]
+        : []),
+      ...(curve.priorClose
+        ? [{ id: "prior-close", label: t("prices.chart.prior_close", { day: shortClose(curve.priorClose.day) }), values: curve.priorClose.values, ghost: true, simulated: curve.simulated, decimals: 3 }]
+        : []),
+      { id: hub.toLowerCase(), label: hub, values: curve.current, simulated: curve.simulated, decimals: 3 },
+    ],
   } : null, [curve, hub, t]);
   const spreadData = useMemo<ChartData>(() => ({
     axis: "period",
@@ -62,6 +79,7 @@ export function PriceCharts({ markets, t }: { markets: readonly NormalizedMarket
               onChange={setChosen}
             />
           ) : undefined}
+          subtitle={curve && !curve.priorClose && !curve.weekAgo ? t("prices.chart.no_prior_close") : undefined}
           note={t("prices.chart.curve_note")}
         />
       )}

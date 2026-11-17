@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Sparkline } from "@/components/ui/charts";
+import { formatSigned, Sparkline } from "@/components/ui/charts";
 import {
   PREFERENCES_APPLIED_EVENT,
   readBoardLayout,
@@ -232,12 +232,15 @@ function MarketSparkline({
     // `role="img"` keeps the label permitted on a non-interactive element (axe: aria-prohibited-attr).
     return <div className="market-sparkline empty" role="img" aria-label={label} />;
   }
+  // F.3 #3: the last value's change is in the sparkline's name (and its hover title).
+  const change = points[points.length - 1].value - points[points.length - 2].value;
+  const named = t("market.spark_change", { label, change: formatSigned(change, 3), unit });
   return (
     <Sparkline
       axis="time"
       values={points.map((point) => point.value)}
       days={points.map((point) => point.at)}
-      label={label}
+      label={named}
       unit={unit}
       decimals={3}
       simulated={simulated}

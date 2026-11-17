@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type DeliveryPerformanceDTO, type DeliveryPerformanceRowDTO } from "@/api/client";
 import { ReportExport } from "./ReportExport";
 import { DataGrid, Field, Select, type DataGridColumn } from "@/components/ui";
-import { Chart, type ChartData } from "@/components/ui/charts";
+import { AlignedPanels, type ChartData } from "@/components/ui/charts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -87,7 +87,8 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
     },
   ], [t]);
 
-  // The selected contract's gas days: nominated and allocated against the DCQ.
+  // The selected contract's gas days: nominated and allocated against the DCQ, and beneath it,
+  // on the same days, the signed difference (allocated minus nominated: below zero is short).
   const chart = useMemo<ChartData | null>(() => {
     if (!detail || detail.series.length === 0) return null;
     const series = detail.series;
@@ -101,6 +102,24 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
         { id: "allocated", label: t("delivery.allocated"), values: series.map((day) => day.allocated_mwh), style: "step", colour: 1, decimals: 0 },
         { id: "dcq", label: t("delivery.dcq"), values: series.map((day) => day.dcq_mwh), reference: true, decimals: 0 },
       ],
+    };
+  }, [detail, t]);
+  const shortfall = useMemo<ChartData | null>(() => {
+    if (!detail || detail.series.length === 0) return null;
+    const series = detail.series;
+    return {
+      axis: "gas-day",
+      x: series.map((day) => day.gas_day),
+      xTitle: t("chart.gas_day"),
+      unit: "MWh",
+      series: [{
+        id: "deviation",
+        label: t("delivery.deviation_series"),
+        values: series.map((day) => (day.allocated_mwh == null || day.nominated_mwh == null ? null : day.allocated_mwh - day.nominated_mwh)),
+        colour: 1,
+        decimals: 0,
+      }],
+      rules: [{ id: "zero", value: 0, kind: "zero" }],
     };
   }, [detail, t]);
   const contractName = data?.rows.find((row) => row.contract_id === selected)?.contract ?? selected ?? "";
@@ -129,13 +148,15 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
           tableAttributes={{ "data-delivery-performance": "true" }}
         />
       )}
-      {chart && (
-        <Chart
+      {chart && shortfall && (
+        <AlignedPanels
           id="delivery-days"
           title={t("delivery.strip_label", { contract: contractName })}
-          data={chart}
           t={t}
-          height={180}
+          panels={[
+            { id: "volumes", title: t("delivery.volumes_panel"), data: chart, height: 180 },
+            { id: "deviation", title: t("delivery.deviation_panel"), data: shortfall, height: 100 },
+          ]}
           controls={<ReportExport t={t} path="/contracts/delivery-performance" params={{ days: String(days), contract_id: selected ?? "" }} />}
         />
       )}

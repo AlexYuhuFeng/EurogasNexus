@@ -144,3 +144,105 @@ export function nbpTtfSpread(rows: readonly CurveRow[], fromMonth?: string): Cur
     asOf: used.reduce<string | null>((newest, row) => (!newest || row.observed_at_utc > newest ? row.observed_at_utc : newest), null),
   };
 }
+
+/* ------------------------------------------------------------ term structure (F.1, F.3 #1) */
+
+/** The observation day (UTC date) of a row: one close per day. */
+function closeDay(row: CurveRow): string {
+  return String(row.observed_at_utc).slice(0, 10);
+}
+
+/** The distinct close days held for a hub's monthly curve, oldest first. */
+export function curveCloseDays(rows: readonly CurveRow[], hub: string): string[] {
+  const days = new Set<string>();
+  for (const row of rows) {
+    if (row.hub?.toUpperCase() === hub.toUpperCase() && MONTH.test(row.tenor) && row.is_gas_price !== false && Number.isFinite(row.price)) {
+      days.add(closeDay(row));
+    }
+  }
+  return [...days].sort();
+}
+
+export interface GhostCurve {
+  /** The close day the curve is as of ("2026-11-16"). */
+  day: string;
+  values: (number | null)[];
+}
+
+export interface TermStructure {
+  months: string[];
+  unit: string;
+  current: (number | null)[];
+  /** The previous close held, when one is. */
+  priorClose: GhostCurve | null;
+  /** The close one week (seven days or more) before the newest, when one is held. */
+  weekAgo: GhostCurve | null;
+  simulated: boolean;
+  asOf: string | null;
+}
+
+function curveAsOf(rows: readonly CurveRow[], hub: string, months: readonly string[], day: string): (number | null)[] {
+  const held = rows.filter((row) => closeDay(row) <= day);
+  const latest = latestByMonth(held, hub);
+  return months.map((month) => {
+    const row = latest.get(month);
+    // A month's close from another day is not this day's curve: the ghost shows only that day.
+    if (!row || closeDay(row) !== day) return null;
+    const value = inQuoteUnit(hub, row.price, row.unit);
+    return value == null ? null : Number(value.toFixed(4));
+  });
+}
+
+/**
+ * One hub's term structure: today's curve by delivery month in the hub's quotation, with the
+ * prior close and a week ago as ghost curves on the same months (F.1: never bars). A ghost is
+ * left out when that close is not held, never filled from another day.
+ */
+export function termStructure(rows: readonly CurveRow[], hub: string, fromMonth?: string): TermStructure {
+  const now = forwardCurve(rows, hub, fromMonth);
+  const days = curveCloseDays(rows, hub);
+  const newest = days.at(-1) ?? null;
+  const priorDay = days.length > 1 ? days[days.length - 2] : null;
+  let weekDay: string | null = null;
+  if (newest) {
+    const limit = new Date(Date.parse(`${newest}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10);
+    weekDay = [...days].reverse().find((day) => day <= limit) ?? null;
+  }
+  const ghost = (day: string | null): GhostCurve | null => {
+    if (!day) return null;
+    const values = curveAsOf(rows, hub, now.months, day);
+    return values.some((value) => value != null) ? { day, values } : null;
+  };
+  return {
+    months: now.months,
+    unit: now.unit,
+    current: now.values,
+    priorClose: ghost(priorDay),
+    weekAgo: weekDay === priorDay ? null : ghost(weekDay),
+    simulated: now.simulated,
+    asOf: now.asOf,
+  };
+}
+
+export interface SpreadByMonth {
+  /** Different units cannot be subtracted: the spread is refused, with the offer to convert. */
+  refused: "units" | null;
+  months: string[];
+  values: (number | null)[];
+  unit: string;
+  /** Fewer than six months held: a table says it better than a chart (F.1). */
+  form: "chart" | "table";
+}
+
+/** Near minus far by delivery month, both curves in one unit (F.1 "spread by delivery month"). */
+export function spreadByMonth(near: CurvePoints, far: CurvePoints): SpreadByMonth {
+  if (near.unit !== far.unit) return { refused: "units", months: [], values: [], unit: near.unit, form: "table" };
+  const months = near.months.filter((month) => far.months.includes(month));
+  const values = months.map((month) => {
+    const a = near.values[near.months.indexOf(month)];
+    const b = far.values[far.months.indexOf(month)];
+    return a == null || b == null ? null : Number((a - b).toFixed(4));
+  });
+  const held = values.filter((value) => value != null).length;
+  return { refused: null, months, values, unit: near.unit, form: held < 6 ? "table" : "chart" };
+}
