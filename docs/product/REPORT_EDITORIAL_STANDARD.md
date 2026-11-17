@@ -144,3 +144,11 @@ finding says so. The editor may choose differently under the directive.
 group titles, page footer, "Page X of Y") in Chinese and carries the editor's Chinese text where
 it passes the checks; rule-written fallbacks, chart subtitles, fact labels in At a glance and
 the methodology stay in English (the methodology heading says so).
+
+**Asked reports.** The question is the title; page one opens with the Answer (two to four
+sentences, every figure cited to a fact, "The data held does not show ..." for what it cannot
+answer), then the key findings, At a glance and the lead exhibit. The body is headed Evidence:
+only the sections that bear on the question, ordered by relevance (those holding the answer's
+facts first), each paragraph led by the question's own fact. Then "What the data cannot tell"
+and "What to watch". Question facts and their engine-declared relations are built in
+`application/reports/answer.py`; the rule answer is the fallback for the editor's.

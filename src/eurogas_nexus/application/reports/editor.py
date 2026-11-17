@@ -35,6 +35,7 @@ from eurogas_nexus.application.reports.findings import (
     GLANCE_MENU,
     MAX_FINDINGS,
     MIN_FINDINGS,
+    family,
 )
 
 PARAGRAPH_WORDS = (40, 140)
@@ -42,7 +43,7 @@ CITE = re.compile(r"\s*\[(F\d+)(?:\s*,\s*F\d+)*\]")
 CITE_IDS = re.compile(r"F\d+")
 FACT_FIELDS = ("id", "label", "value", "unit", "day", "phrases", "comparisons", "score",
                "reason", "state", "simulated", "forecast", "scheduled", "sentence",
-               "implications", "related")
+               "implications", "related", "question")
 CAUSAL = re.compile(r"\b(because|due to|driven by|as a result|caused|causing|led to|owing to|"
                     r"on the back of|thanks to)\b|由于|因为|导致|受.{0,6}影响", re.I)
 #: Connectives that link two facts in time or sequence and so read as a cause ("X fell as
@@ -70,13 +71,19 @@ LINK_VERB = re.compile(
 #: same plan as nearly as the provider allows; the record states it. A reasoning model spends
 #: most of its budget thinking before it writes the plan; at 8,000 tokens the daily plan came
 #: back empty (live run, 2026-11-16).
+#: An answer is two to four sentences.
+ANSWER_SENTENCES = 4
+#: Words by which an answer says what the held data does not show.
+NOT_SHOWN = re.compile(r"does not show|do not show|not held|cannot (?:tell|show|attribute)|"
+                       r"no .{0,40}is held|无法|未显示|不显示|没有显示|并未显示", re.I)
 EDITOR_CALL = {"temperature": 0.0, "max_tokens": 24000, "timeout_seconds": 240.0}
 
 
 # --------------------------------------------------------------------------- payload
 
 
-def fact_sheet_payload(sheet: list[dict], sections: list[dict], plan, language: str) -> dict:
+def fact_sheet_payload(sheet: list[dict], sections: list[dict], plan, language: str,
+                       cannot_tell: list[str] | None = None) -> dict:
     """Exactly what the editor is sent (``ai_payloads.REPORT_EDITOR_FIELDS``)."""
 
     by_section: dict[str, list[str]] = {}
@@ -99,7 +106,11 @@ def fact_sheet_payload(sheet: list[dict], sections: list[dict], plan, language: 
                         and any(f["key"] == p or (p.endswith(".") and f["key"].startswith(p))
                                 for p in GLANCE_MENU)],
         "limits": {"findings": [MIN_FINDINGS, MAX_FINDINGS],
-                   "paragraph_words": list(PARAGRAPH_WORDS)},
+                   "paragraph_words": list(PARAGRAPH_WORDS),
+                   "answer_sentences": [2, ANSWER_SENTENCES]},
+        # An asked report: what the engine found the held data cannot tell (sentences built
+        # from the facts above; no identifier).
+        "cannot_tell": list(cannot_tell or []),
     }
 
 
@@ -120,9 +131,17 @@ def cited(text: str, listed: list[str] | None = None) -> list[str]:
     return sorted(ids | set(listed or []), key=lambda x: int(x[1:]))
 
 
+#: Words that speak of the book; a report for distribution never carries them, even when the
+#: question asks (the book's facts are never gathered for it, so this catches an allusion).
+BOOK_WORDS = re.compile(r"\b(?:our|the desk's|net|open) (?:book|position)s?\b|\bP&L\b|\bPnL\b|"
+                        r"\bcredit (?:line|limit|exposure)s?\b|counterpart|\bmandates?\b|"
+                        r"头寸|损益|限额|交易对手|授权额度", re.I)
+
+
 def check_text(text: str, fact_ids: list[str], facts: dict[str, dict], *,
                max_sentences: int = 3, max_chars: int = 420,
-               max_words: int | None = None, context: str = "") -> tuple[bool, str]:
+               max_words: int | None = None, context: str = "",
+               audience: str = "internal") -> tuple[bool, str]:
     """The checks on one model text element (see the module text)."""
 
     from eurogas_nexus.application.ai_style import text_verdict
@@ -140,14 +159,21 @@ def check_text(text: str, fact_ids: list[str], facts: dict[str, dict], *,
                                                   "forecast", "state")} for f in used],
                           ensure_ascii=False, default=str) + context
     plain = strip_citations(text)
+    if audience == "shareable" and BOOK_WORDS.search(plain):
+        return False, "book: a report for distribution mentions the book"
     verdict = text_verdict(plain, evidence_text=evidence,
                            simulated=any(f.get("simulated") for f in used),
                            max_sentences=max_sentences, max_chars=max_chars,
                            max_words=max_words)
     if not verdict.ok:
         return False, f"{verdict.check}: {verdict.detail}"[:160]
-    if CAUSAL.search(plain) and not any(
-            other in (f.get("related") or []) for f in used for other in
+    # A stated cause needs a cause the engine computed (``causes``); a relation in time
+    # (``related``) permits a time word, never "because".
+    # A sentence that says what the data does not show ("does not show how much the outage
+    # caused") states no cause.
+    claimed = " ".join(x for x in re.split(r"(?<=[.!?。])\s*", plain) if not NOT_SHOWN.search(x))
+    if CAUSAL.search(claimed) and not any(
+            other in (f.get("causes") or []) for f in used for other in
             (g["key"] for g in used if g is not f)):
         return False, "cause: a cause is stated between facts the engine does not relate"
     if _unrelated(used) and (LINK.search(plain) or LINK_VERB.search(plain)):
@@ -164,8 +190,6 @@ def check_text(text: str, fact_ids: list[str], facts: dict[str, dict], *,
 
 def _unrelated(used: list[dict]) -> bool:
     """True when the cited facts span two indicators and none lists another as related."""
-
-    from eurogas_nexus.application.reports.findings import family
 
     if len({family(f) for f in used}) < 2:
         return False
@@ -229,8 +253,11 @@ def _record(record: dict, element: str, ok: bool, detail: str = "") -> bool:
 
 
 def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
-               model_id: str, report_days: tuple = ()) -> dict:
+               model_id: str, report_days: tuple = (), audience: str = "internal") -> dict:
     """The editorial plan to render: the model's elements that pass, rule elements otherwise."""
+
+    def check(text, ids, facts_, **kw):
+        return check_text(text, ids, facts_, audience=audience, **kw)
 
     facts = {f["id"]: f for f in sheet}
     context = _report_context(sheet, report_days)
@@ -246,12 +273,25 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
         element = raw.get(key) or {}
         text = element.get("text") if isinstance(element, dict) else None
         ids = cited(text or "", element.get("facts") if isinstance(element, dict) else None)
-        ok, why = check_text(text or "", ids, facts, max_sentences=sentences, max_chars=chars,
+        ok, why = check(text or "", ids, facts, max_sentences=sentences, max_chars=chars,
                               context=context)
         if _record(record, key, ok, why):
             value = strip_citations(text)
             out[key] = _mark_simulated(value.rstrip(".") if key == "headline" else value,
                                        ids, facts)
+    # The answer of an asked report: checked like any element, and it must keep saying what
+    # the data does not show when the rule answer does (never imply an attribution).
+    if rule.get("answer"):
+        element = raw.get("answer") or {}
+        text = element.get("text") if isinstance(element, dict) else None
+        ids = cited(text or "", element.get("facts") if isinstance(element, dict) else None)
+        ok, why = check(text or "", ids, facts, max_sentences=ANSWER_SENTENCES,
+                              max_chars=760, context=context)
+        if ok and NOT_SHOWN.search(rule["answer"]["text"]) and not NOT_SHOWN.search(text):
+            ok, why = False, "answer: drops what the data held does not show"
+        if _record(record, "answer", ok, why):
+            out["answer"] = {"text": _mark_simulated(strip_citations(text), ids, facts),
+                             "fact_ids": ids, "basis": "model"}
     # Findings: 3 to 5, each checked; a refused finding is replaced in place by the rule's
     # finding on the same fact, and the list is topped up from the rule findings.
     findings = raw.get("findings") if isinstance(raw.get("findings"), list) else []
@@ -266,18 +306,20 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
                 continue
             ids = cited(f"{item.get('finding', '')} {item.get('implication') or ''}",
                         item.get("facts"))
-            ok, why = check_text(item.get("finding", ""), ids, facts, max_sentences=2,
+            ok, why = check(item.get("finding", ""), ids, facts, max_sentences=2,
                                   context=context)
             implication = item.get("implication")
             if ok and implication:
-                ok_i, why_i = check_text(implication, ids, facts, max_sentences=1, context=context)
+                ok_i, why_i = check(implication, ids, facts, max_sentences=1, context=context)
                 if not ok_i:
                     implication = None
                     _record(record, f"finding.{index}.implication", False, why_i)
             # A finding is about its first cited fact (a "within range" finding may cite
             # several); two findings may not share that indicator.
             primary = [i for i in (item.get("facts") or ids) if i in facts][:1]
-            fam = {facts[i]["key"] for i in primary}
+            # Two findings may not be about one indicator family (the outages total and its
+            # largest outage are one).
+            fam = {family(facts[i]) for i in primary}
             if ok and fam & families:
                 ok, why = False, "second finding about the same indicator"
             if not _record(record, f"finding.{index}", ok, why):
@@ -287,7 +329,7 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
                              if set(r["fact_ids"]) & set(primary or ids)
                              and not set(r["fact_ids"]) & {i for c in chosen
                                                            for i in c["fact_ids"]}), None)
-                same_fam = {facts[i]["key"] for i in same["fact_ids"][:1] if i in facts} \
+                same_fam = {family(facts[i]) for i in same["fact_ids"][:1] if i in facts} \
                     if same else set()
                 if same and not same_fam & families:
                     families |= same_fam
@@ -323,7 +365,7 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
         paragraph = str(item.get("paragraph") or "")
         ids = cited(paragraph, item.get("facts"))
         words = word_count(strip_citations(paragraph))
-        ok, why = check_text(paragraph, ids, facts, max_sentences=7, max_chars=1100,
+        ok, why = check(paragraph, ids, facts, max_sentences=7, max_chars=1100,
                               context=context)
         if ok and not PARAGRAPH_WORDS[0] <= words <= PARAGRAPH_WORDS[1]:
             ok, why = False, f"length: {words} words"
@@ -365,7 +407,7 @@ def apply_plan(raw: Any, sheet: list[dict], sections: list[dict], rule: dict,
             continue
         ids = cited(item.get("text", ""), item.get("facts"))
         scheduled = all(facts.get(i, {}).get("scheduled") for i in ids) and ids
-        ok, why = check_text(item.get("text", ""), ids, facts, max_sentences=2,
+        ok, why = check(item.get("text", ""), ids, facts, max_sentences=2,
                               context=context)
         if ok and not scheduled:
             ok, why = False, "watch item cites a fact that is not scheduled"
@@ -380,7 +422,7 @@ def edit_report(model, sheet: list[dict], sections: list[dict], rule: dict, plan
                 language: str = "en", model_id: str = "deepseek-v4-flash") -> dict:
     """Ask the editor for a plan, check it, apply it to the sections (in place)."""
 
-    payload = fact_sheet_payload(sheet, sections, plan, language)
+    payload = fact_sheet_payload(sheet, sections, plan, language, rule.get("cannot_tell"))
     started = time.monotonic()
     try:
         content = model(editor_messages(payload))
@@ -392,7 +434,8 @@ def edit_report(model, sheet: list[dict], sections: list[dict], rule: dict, plan
     latency = round(time.monotonic() - started, 1)
     raw = parse(content)
     edited = apply_plan(raw, sheet, sections, rule, model_id,
-                        report_days=(plan.period_start, plan.period_end))
+                        report_days=(plan.period_start, plan.period_end),
+                        audience=plan.audience)
     edited["record"]["latency_s"] = latency
     if raw is None:
         edited["record"].update(basis="rule", invalid="not JSON" if content else "empty reply",

@@ -8,7 +8,7 @@ in the document in the same commit, and bump :data:`VERSION`.
 
 from __future__ import annotations
 
-VERSION = "2"
+VERSION = "3"
 
 RULES: tuple[tuple[str, str], ...] = (
     ("ROLE",
@@ -44,18 +44,34 @@ RULES: tuple[tuple[str, str], ...] = (
      "compare across a front-month roll; never compare a partial period with a full one "
      "without saying so."),
     ("CAUSE AND EFFECT",
-     "State a cause only when both facts are cited and one lists the other under related. "
-     "Otherwise write that the two coincided, or state them separately. Never infer intent or "
-     "market sentiment."),
+     "State a cause only when both facts are cited and one lists the other under causes (the "
+     "engine lists none today, so never write because, due to, driven by or caused). A fact "
+     "that lists another under related was computed with it over the same days: you may put "
+     "the two in one sentence with a time word (over the days, while, as), and you still say "
+     "that the data does not show how much of the change the one caused. Never infer intent "
+     "or market sentiment."),
     ("LINKING",
      "When a sentence cites facts of two indicators the engine does not relate, do not join "
      "them with a word that puts one in time or sequence with the other, because the reader "
      "takes it as a cause: as (as a conjunction), amid, after, following, precedes, ahead of, "
      "in the wake of, or a verb by which one acts on the other (pushed, drove, sent, weighed "
      "on, supported, boosted, prompted, offset); in Chinese 随着, 之际, 之后, 伴随, 推动, 带动, "
-     "拉动, 促使, 推高, 压低, 拖累, 支撑, 抵消. Write two sentences, or join two measured facts "
+     "拉动, 促使, 推高, 压低, 拖累, 支撑, 抵消. Facts that list each other under related are "
+     "the exception (see CAUSE AND EFFECT). Write two sentences, or join two measured facts "
      "with 'while' or 'and' only to contrast or list them (TTF rose 0.5 EUR/MWh while NBP fell "
      "0.2 GBp/th). 'As of', 'as well as', 'such as' and 'after' before a date are not links."),
+    ("ANSWER",
+     "When the report kind is ask, it answers the question. Write the answer first: two to "
+     "four sentences that say what the evidence shows about exactly what was asked, every "
+     "figure from a cited fact, the question's own facts (those marked question) before the "
+     "rest. Answer only from cited facts. Where the held data does not answer part of the "
+     "question, say so in those words, \"The data held does not show ...\", using the "
+     "cannot_tell list; never imply an attribution, a cause or a share the facts do not hold. "
+     "Keep only the sections and exhibits that bear on the question, ordered by how directly "
+     "they bear on it, and drop the rest with the reason; never pad the report with unrelated "
+     "sections. Each kept section's paragraph opens with how it bears on the question. Never "
+     "advise. In a report for distribution never mention a position, P&L, limit, "
+     "counterparty or contract, even when asked."),
     ("FORECASTS",
      "A forecast is always called a forecast, with its method and its limitation in the same "
      "paragraph, worded in the conditional. Give a range only when the fact holds one. Never "
@@ -98,6 +114,8 @@ RULES: tuple[tuple[str, str], ...] = (
 
 #: The editorial plan the model returns (validated by ``editor.validate_plan``).
 PLAN_SCHEMA = {
+    "answer": {"text": "asked reports only: two to four sentences answering the question, "
+                       "citing facts as [F1]", "facts": ["F1"]},
     "headline": {"text": "one sentence stating the lead finding", "facts": ["F1"]},
     "standfirst": {"text": "two or three sentences on the state of the system",
                    "facts": ["F1"]},

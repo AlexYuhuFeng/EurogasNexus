@@ -789,6 +789,546 @@
      }
     }
    ]
+  },
+  {
+   "id": "ask-norwegian-outages-demo",
+   "audience": "shareable",
+   "language": "en",
+   "data_class": "demo",
+   "question": "How are the recent Norwegian outages affecting the supply?",
+   "_note": "Demo desk shape: no active outage can be attributed to Norwegian supply; the answer must say so and must not attribute the 661 GWh/d.",
+   "facts": [
+    {
+     "key": "q.outages.norway",
+     "section": "outages",
+     "label": "Norwegian capacity offline",
+     "value": 0.0,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 4.0,
+     "reason": "the question's subject",
+     "indicator": false,
+     "question": true,
+     "sentence": "Neither of the two active outages (661 GWh/d on 17 Nov) is on a Norwegian field, plant, export pipeline or landing terminal, by the zone and asset the messages name."
+    },
+    {
+     "key": "outages.offline",
+     "section": "outages",
+     "label": "Capacity offline (REMIT)",
+     "value": 661.0,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 1.51,
+     "reason": "15% of the latest Norwegian landings offline",
+     "sentence": "Two outages were active on 17 Nov, removing 661 GWh/d in total; the largest, Demo Haldor field (NBP (GB)), has 563 GWh/d unavailable until 19 Nov."
+    },
+    {
+     "key": "landings",
+     "section": "pipeline_supply",
+     "label": "Norwegian pipeline landings",
+     "value": 4388.0,
+     "unit": "GWh/d",
+     "day": "2026-11-15",
+     "dod": 25.4,
+     "wow": -29.9,
+     "score": 0.61,
+     "reason": "change 0.6x the standard deviation of daily changes over 30 days",
+     "sentence": "Norwegian pipeline landings were 4,388 GWh/d on 15 Nov, up 25.4 GWh/d on the day and down 29.9 GWh/d on the week."
+    },
+    {
+     "key": "storage.withdrawal",
+     "section": "balance",
+     "label": "Net storage withdrawal",
+     "value": 2038.0,
+     "unit": "GWh/d",
+     "day": "2026-11-15",
+     "dod": 142.0,
+     "score": 1.3,
+     "reason": "change against recent variation",
+     "sentence": "Net withdrawal from storage was 2,038 GWh/d on 15 Nov, up 142 GWh/d on the day."
+    }
+   ],
+   "expected_lead": "q.outages.norway",
+   "cannot_tell": [
+    "661 GWh/d of the capacity offline is on assets the messages do not tie to Norwegian supply (largest: Demo Haldor field, Demo Kestrel export line); the data held does not show whether any of it carries Norwegian gas.",
+    "A change in flows over the days an outage is active is a coincidence the report states; the data held does not show how much of it the outage caused."
+   ],
+   "rule_answer": {
+    "text": "Neither of the two active outages (661 GWh/d on 17 Nov) is on a Norwegian field, plant, export pipeline or landing terminal, by the zone and asset the messages name. Norwegian pipeline landings were 4,388 GWh/d on 15 Nov, up 25.4 GWh/d on the day and down 29.9 GWh/d on the week. The data held does not show a Norwegian outage affecting supply in this period.",
+    "facts": [
+     "F1",
+     "F3"
+    ]
+   },
+   "plans": [
+    {
+     "name": "good-says-not-attributable",
+     "plan": {
+      "answer": {
+       "text": "Neither of the two active outages, 661 GWh/d on 17 Nov, is on a Norwegian field, plant, export pipeline or landing terminal [F1]. Norwegian pipeline landings were 4,388 GWh/d on 15 Nov, down 29.9 GWh/d on the week [F3]. The data held does not show a Norwegian outage affecting supply in this period.",
+       "facts": [
+        "F1",
+        "F3"
+       ]
+      }
+     },
+     "expect": {
+      "answer": true
+     }
+    },
+    {
+     "name": "drops-what-is-not-shown",
+     "plan": {
+      "answer": {
+       "text": "Two outages removed 661 GWh/d on 17 Nov [F2]. Norwegian pipeline landings were 4,388 GWh/d on 15 Nov, down 29.9 GWh/d on the week [F3].",
+       "facts": [
+        "F2",
+        "F3"
+       ]
+      }
+     },
+     "expect": {
+      "answer": false
+     },
+     "expect_detail": {
+      "answer": "answer"
+     }
+    },
+    {
+     "name": "states-a-cause",
+     "plan": {
+      "answer": {
+       "text": "Norwegian pipeline landings were down 29.9 GWh/d on the week because two outages removed 661 GWh/d [F3][F2]. The data held does not show more.",
+       "facts": [
+        "F3",
+        "F2"
+       ]
+      }
+     },
+     "expect": {
+      "answer": false
+     },
+     "expect_detail": {
+      "answer": "cause"
+     }
+    },
+    {
+     "name": "links-unrelated-facts",
+     "plan": {
+      "answer": {
+       "text": "Norwegian landings were down 29.9 GWh/d on the week as two outages removed 661 GWh/d [F3][F2]. The data held does not show a Norwegian outage.",
+       "facts": [
+        "F3",
+        "F2"
+       ]
+      }
+     },
+     "expect": {
+      "answer": false
+     },
+     "expect_detail": {
+      "answer": "link"
+     }
+    }
+   ]
+  },
+  {
+   "id": "ask-norwegian-outages-public",
+   "audience": "shareable",
+   "language": "en",
+   "data_class": "public",
+   "question": "How are the recent Norwegian outages affecting the supply?",
+   "_note": "Public store shape: one outage at a Norwegian landing terminal; the engine relates it to the landings over the same days, so a time word passes, a cause does not.",
+   "facts": [
+    {
+     "key": "q.outages.norway",
+     "section": "outages",
+     "label": "Norwegian capacity offline",
+     "value": 22.2,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 4.0,
+     "reason": "the question's subject",
+     "indicator": false,
+     "question": true,
+     "related": [
+      "q.landings.outage_window"
+     ],
+     "sentence": "Of the 1,286 GWh/d offline on 17 Nov, 22.2 GWh/d is on one Norwegian asset (Emden EMS/ EPT), 0.5% of the latest Norwegian landings."
+    },
+    {
+     "key": "q.landings.outage_window",
+     "section": "pipeline_supply",
+     "label": "Norwegian landings since the Norwegian outages began",
+     "value": 4586.0,
+     "unit": "GWh/d",
+     "day": "2026-11-12",
+     "score": 3.5,
+     "reason": "the question's join",
+     "indicator": false,
+     "question": true,
+     "related": [
+      "q.outages.norway"
+     ],
+     "sentence": "Norwegian landings averaged 4,586 GWh/d over the 12 gas days from 1 Nov to 12 Nov, while Norwegian outages were active, against 4,463 GWh/d in the seven days before: up 122 GWh/d."
+    },
+    {
+     "key": "landings",
+     "section": "pipeline_supply",
+     "label": "Norwegian pipeline landings",
+     "value": 4595.0,
+     "unit": "GWh/d",
+     "day": "2026-11-12",
+     "dod": -42.8,
+     "wow": -47.3,
+     "state": "late",
+     "score": 0.6,
+     "reason": "change; reduced: data late",
+     "sentence": "Norwegian pipeline landings were 4,595 GWh/d on 12 Nov, down 42.8 GWh/d on the day and down 47.3 GWh/d on the week."
+    },
+    {
+     "key": "outages.offline",
+     "section": "outages",
+     "label": "Capacity offline (REMIT)",
+     "value": 1286.0,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 2.8,
+     "reason": "28% of the latest Norwegian landings offline",
+     "sentence": "Thirty-one outages were active on 17 Nov, removing 1,286 GWh/d in total; the largest, VIP THE-ZTP (BE-LUX), has 120 GWh/d unavailable until 28 Nov."
+    }
+   ],
+   "expected_lead": "q.outages.norway",
+   "cannot_tell": [
+    "1,264 GWh/d of the capacity offline is on assets the messages do not tie to Norwegian supply; the data held does not show whether any of it carries Norwegian gas.",
+    "Norwegian landings are late: the newest complete gas day held is 12 Nov.",
+    "A change in flows over the days an outage is active is a coincidence the report states; the data held does not show how much of it the outage caused."
+   ],
+   "rule_answer": {
+    "text": "Of the 1,286 GWh/d offline on 17 Nov, 22.2 GWh/d is on one Norwegian asset (Emden EMS/ EPT), 0.5% of the latest Norwegian landings. Norwegian landings averaged 4,586 GWh/d over the 12 gas days from 1 Nov to 12 Nov, while Norwegian outages were active, against 4,463 GWh/d in the seven days before: up 122 GWh/d. The data held does not show how much of any change in landings the outages caused.",
+    "facts": [
+     "F1",
+     "F2"
+    ]
+   },
+   "plans": [
+    {
+     "name": "good-uses-the-engine-relation",
+     "plan": {
+      "answer": {
+       "text": "Of the 1,286 GWh/d offline on 17 Nov, 22.2 GWh/d is on one Norwegian asset, Emden EMS/ EPT [F1]. Norwegian landings averaged 4,586 GWh/d from 1 Nov to 12 Nov while Norwegian outages were active, up 122 GWh/d on the seven days before [F2]. The data held does not show how much of that change the outages caused.",
+       "facts": [
+        "F1",
+        "F2"
+       ]
+      }
+     },
+     "expect": {
+      "answer": true
+     }
+    },
+    {
+     "name": "cause-on-a-relation",
+     "plan": {
+      "answer": {
+       "text": "Norwegian landings rose 122 GWh/d from 1 Nov to 12 Nov because 22.2 GWh/d of Norwegian capacity was offline [F2][F1]. The data held does not show more.",
+       "facts": [
+        "F2",
+        "F1"
+       ]
+      }
+     },
+     "expect": {
+      "answer": false
+     },
+     "expect_detail": {
+      "answer": "cause"
+     }
+    },
+    {
+     "name": "attributes-all-outages",
+     "plan": {
+      "answer": {
+       "text": "Outages removed 1,286 GWh/d of Norwegian supply on 17 Nov [F4]. The data held does not show the effect on landings.",
+       "facts": [
+        "F4"
+       ]
+      }
+     },
+     "expect": {
+      "answer": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "ask-not-answerable",
+   "audience": "shareable",
+   "language": "en",
+   "data_class": "public",
+   "question": "How will oil prices affect TTF this winter?",
+   "_note": "Oil is not held: the answer must say so and must not invent a relation.",
+   "facts": [
+    {
+     "key": "price.TTF",
+     "section": "prices",
+     "label": "TTF Dec-26",
+     "value": 42.47,
+     "unit": "EUR/MWh",
+     "day": "2026-11-15",
+     "dod": -0.17,
+     "wow": 0.67,
+     "score": 0.32,
+     "reason": "change 0.3x",
+     "sentence": "TTF Dec-26 closed at 42.47 EUR/MWh on 15 Nov, down 0.17 EUR/MWh on the day and up 0.67 EUR/MWh on the week."
+    }
+   ],
+   "expected_lead": "NO_NEWS",
+   "cannot_tell": [
+    "The data held does not show oil prices (no oil source is connected)."
+   ],
+   "rule_answer": {
+    "text": "TTF Dec-26 closed at 42.47 EUR/MWh on 15 Nov, down 0.17 EUR/MWh on the day and up 0.67 EUR/MWh on the week. The data held does not show oil prices (no oil source is connected).",
+    "facts": [
+     "F1"
+    ]
+   },
+   "plans": [
+    {
+     "name": "good-says-oil-is-not-held",
+     "plan": {
+      "answer": {
+       "text": "The data held does not show oil prices, so it cannot answer how oil will affect TTF. TTF Dec-26 closed at 42.47 EUR/MWh on 15 Nov, up 0.67 EUR/MWh on the week [F1].",
+       "facts": [
+        "F1"
+       ]
+      }
+     },
+     "expect": {
+      "answer": true
+     }
+    },
+    {
+     "name": "invents-a-relation",
+     "plan": {
+      "answer": {
+       "text": "TTF Dec-26 closed at 42.47 EUR/MWh on 15 Nov [F1] and higher oil prices will lift it further this winter.",
+       "facts": [
+        "F1"
+       ]
+      }
+     },
+     "expect": {
+      "answer": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "ask-book-in-shareable",
+   "audience": "shareable",
+   "language": "en",
+   "data_class": "demo",
+   "question": "How exposed is our book to the Norwegian outages?",
+   "_note": "A shareable report gathers no book facts; an answer alluding to the book is refused.",
+   "facts": [
+    {
+     "key": "q.outages.norway",
+     "section": "outages",
+     "label": "Norwegian capacity offline",
+     "value": 0.0,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 4.0,
+     "reason": "the question's subject",
+     "indicator": false,
+     "question": true,
+     "sentence": "Neither of the two active outages (661 GWh/d on 17 Nov) is on a Norwegian field, plant, export pipeline or landing terminal, by the zone and asset the messages name."
+    },
+    {
+     "key": "outages.offline",
+     "section": "outages",
+     "label": "Capacity offline (REMIT)",
+     "value": 661.0,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 1.51,
+     "reason": "15% of the latest Norwegian landings offline",
+     "sentence": "Two outages were active on 17 Nov, removing 661 GWh/d in total; the largest, Demo Haldor field (NBP (GB)), has 563 GWh/d unavailable until 19 Nov."
+    },
+    {
+     "key": "landings",
+     "section": "pipeline_supply",
+     "label": "Norwegian pipeline landings",
+     "value": 4388.0,
+     "unit": "GWh/d",
+     "day": "2026-11-15",
+     "dod": 25.4,
+     "wow": -29.9,
+     "score": 0.61,
+     "reason": "change 0.6x the standard deviation of daily changes over 30 days",
+     "sentence": "Norwegian pipeline landings were 4,388 GWh/d on 15 Nov, up 25.4 GWh/d on the day and down 29.9 GWh/d on the week."
+    }
+   ],
+   "expected_lead": "q.outages.norway",
+   "cannot_tell": [
+    "This report is for distribution: it holds no position, P&L, limit, counterparty or contract term.",
+    "661 GWh/d of the capacity offline is on assets the messages do not tie to Norwegian supply (largest: Demo Haldor field, Demo Kestrel export line); the data held does not show whether any of it carries Norwegian gas.",
+    "A change in flows over the days an outage is active is a coincidence the report states; the data held does not show how much of it the outage caused."
+   ],
+   "rule_answer": {
+    "text": "Neither of the two active outages (661 GWh/d on 17 Nov) is on a Norwegian field, plant, export pipeline or landing terminal, by the zone and asset the messages name. The data held does not show a Norwegian outage affecting supply in this period.",
+    "facts": [
+     "F1"
+    ]
+   },
+   "plans": [
+    {
+     "name": "good-no-book",
+     "plan": {
+      "answer": {
+       "text": "Neither of the two active outages, 661 GWh/d on 17 Nov, is on a Norwegian field, plant, export pipeline or landing terminal [F1]. This report is for distribution and holds no book figures; the data held does not show any exposure.",
+       "facts": [
+        "F1"
+       ]
+      }
+     },
+     "expect": {
+      "answer": true
+     }
+    },
+    {
+     "name": "leaks-the-book",
+     "plan": {
+      "answer": {
+       "text": "Our net position is exposed while two outages remove 661 GWh/d on 17 Nov [F2]. The data held does not show a Norwegian outage.",
+       "facts": [
+        "F2"
+       ]
+      }
+     },
+     "expect": {
+      "answer": false
+     },
+     "expect_detail": {
+      "answer": "book"
+     }
+    }
+   ]
+  },
+  {
+   "id": "ask-chinese-question",
+   "audience": "shareable",
+   "language": "zh-CN",
+   "data_class": "public",
+   "question": "最近挪威的停运如何影响供应？",
+   "_note": "The Chinese answer is checked like the English one; a Chinese linking word between unrelated facts is refused.",
+   "facts": [
+    {
+     "key": "q.outages.norway",
+     "section": "outages",
+     "label": "Norwegian capacity offline",
+     "value": 22.2,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 4.0,
+     "reason": "the question's subject",
+     "indicator": false,
+     "question": true,
+     "related": [
+      "q.landings.outage_window"
+     ],
+     "sentence": "Of the 1,286 GWh/d offline on 17 Nov, 22.2 GWh/d is on one Norwegian asset (Emden EMS/ EPT), 0.5% of the latest Norwegian landings."
+    },
+    {
+     "key": "q.landings.outage_window",
+     "section": "pipeline_supply",
+     "label": "Norwegian landings since the Norwegian outages began",
+     "value": 4586.0,
+     "unit": "GWh/d",
+     "day": "2026-11-12",
+     "score": 3.5,
+     "reason": "the question's join",
+     "indicator": false,
+     "question": true,
+     "related": [
+      "q.outages.norway"
+     ],
+     "sentence": "Norwegian landings averaged 4,586 GWh/d over the 12 gas days from 1 Nov to 12 Nov, while Norwegian outages were active, against 4,463 GWh/d in the seven days before: up 122 GWh/d."
+    },
+    {
+     "key": "landings",
+     "section": "pipeline_supply",
+     "label": "Norwegian pipeline landings",
+     "value": 4595.0,
+     "unit": "GWh/d",
+     "day": "2026-11-12",
+     "dod": -42.8,
+     "wow": -47.3,
+     "state": "late",
+     "score": 0.6,
+     "reason": "change; reduced: data late",
+     "sentence": "Norwegian pipeline landings were 4,595 GWh/d on 12 Nov, down 42.8 GWh/d on the day and down 47.3 GWh/d on the week."
+    },
+    {
+     "key": "outages.offline",
+     "section": "outages",
+     "label": "Capacity offline (REMIT)",
+     "value": 1286.0,
+     "unit": "GWh/d",
+     "day": "2026-11-17",
+     "score": 2.8,
+     "reason": "28% of the latest Norwegian landings offline",
+     "sentence": "Thirty-one outages were active on 17 Nov, removing 1,286 GWh/d in total; the largest, VIP THE-ZTP (BE-LUX), has 120 GWh/d unavailable until 28 Nov."
+    }
+   ],
+   "expected_lead": "q.outages.norway",
+   "cannot_tell": [
+    "1,264 GWh/d of the capacity offline is on assets the messages do not tie to Norwegian supply; the data held does not show whether any of it carries Norwegian gas.",
+    "Norwegian landings are late: the newest complete gas day held is 12 Nov.",
+    "A change in flows over the days an outage is active is a coincidence the report states; the data held does not show how much of it the outage caused."
+   ],
+   "rule_answer": {
+    "text": "Of the 1,286 GWh/d offline on 17 Nov, 22.2 GWh/d is on one Norwegian asset (Emden EMS/ EPT), 0.5% of the latest Norwegian landings. Norwegian landings averaged 4,586 GWh/d over the 12 gas days from 1 Nov to 12 Nov, while Norwegian outages were active, against 4,463 GWh/d in the seven days before: up 122 GWh/d. The data held does not show how much of any change in landings the outages caused.",
+    "facts": [
+     "F1",
+     "F2"
+    ]
+   },
+   "plans": [
+    {
+     "name": "good-chinese",
+     "plan": {
+      "answer": {
+       "text": "11月17日停运合计1,286 GWh/d，其中22.2 GWh/d位于一处挪威资产（Emden EMS/ EPT）。[F1] 数据无法说明停运对到岸量变化的影响有多大。",
+       "facts": [
+        "F1"
+       ]
+      }
+     },
+     "expect": {
+      "answer": true
+     }
+    },
+    {
+     "name": "chinese-link-unrelated",
+     "plan": {
+      "answer": {
+       "text": "随着停运合计1,286 GWh/d，挪威管道到岸量为4,595 GWh/d [F4][F3]。数据无法说明影响。",
+       "facts": [
+        "F4",
+        "F3"
+       ]
+      }
+     },
+     "expect": {
+      "answer": false
+     },
+     "expect_detail": {
+      "answer": "link"
+     }
+    }
+   ]
   }
  ]
 }

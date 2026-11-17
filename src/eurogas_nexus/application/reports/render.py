@@ -116,6 +116,10 @@ color:var(--ink);font-weight:600}
 color:var(--ink-2);font-weight:600;margin:0 0 1.5mm}
 h1{font:600 19pt/23pt SERIF;margin:0 0 2.5mm;max-width:150mm;letter-spacing:-.005em}
 .r-standfirst{font-size:11pt;line-height:14.5pt;margin:0 0 4mm;max-width:128mm;color:var(--ink)}
+.r-question{font:600 17pt/21pt SERIF}
+.r-answer{border-left:2pt solid var(--accent);padding:0.5mm 0 0.5mm 4mm;margin:0 0 4mm;
+max-width:150mm}
+.r-answer p{font-size:10.5pt;line-height:14pt;margin:0}
 .r-findings{border-top:0.5pt solid var(--ink);padding-top:2mm;margin-bottom:4mm}
 .r-findings ol{margin:0;padding:0;list-style:none;counter-reset:f;max-width:150mm}
 .r-findings li{counter-increment:f;position:relative;padding-left:7mm;margin:0 0 1.4mm;
@@ -230,6 +234,8 @@ WORDS: dict[str, dict[str, str]] = {
         "simulated_foot": "† Simulated demonstration data, not market prices",
         "glance_source": "Eurogas Nexus calculations from the sources listed in Methodology.",
         "rows_newest": "rows, newest first",
+        "answer": "Answer", "evidence": "Evidence",
+        "cannot_tell": "What the data cannot tell",
     },
     "zh-CN": {
         "key_findings": "要点", "at_a_glance": "一览",
@@ -245,6 +251,8 @@ WORDS: dict[str, dict[str, str]] = {
         "simulated_foot": "† 模拟演示数据，非市场价格",
         "glance_source": "Eurogas Nexus 根据方法说明所列来源计算。",
         "rows_newest": "行，最新在前",
+        "answer": "回答", "evidence": "依据",
+        "cannot_tell": "数据无法说明的内容",
     },
 }
 #: Section and group titles of the Chinese edition (keys as in the catalogue).
@@ -465,13 +473,14 @@ def _masthead(snapshot: dict) -> str:
                 f"{fmt_date(period['end'])}")
     kind = (KIND_ZH.get(snapshot["kind"], snapshot["kind_label"]) if lang != "en"
             else snapshot["kind_label"])
+    line = (_e(snapshot["title"]) if snapshot["title"].startswith(kind)
+            else f"{_e(kind)} · {_e(snapshot['title'])}")
     issue_text = f"第 {issue} 期" if lang != "en" else f"Issue {issue}"
     # The paper is white in every medium, so the mark is drawn in its colour tone.
     brand = mark_svg("colour", size=20, title=None)
     return (
         '<header class="r-masthead"><div><p class="r-brand">'
-        f'{brand}<span class="r-pub">{_e(PUBLICATION)}</span></p><div>{_e(kind)} · '
-        f"{_e(snapshot['title'])}</div></div>"
+        f'{brand}<span class="r-pub">{_e(PUBLICATION)}</span></p><div>{line}</div></div>'
         f'<div class="r-mast-right"><div class="r-class">{_e(classification)}</div>'
         f"<div>{_e(issue_text)} · {_e(fmt_date(snapshot['as_of']))}{_e(span)}</div>"
         f"<div>{_w(lang, 'data_as_of')} {_e(fmt_datetime(snapshot['as_of']))} UTC{demo}</div>"
@@ -533,6 +542,19 @@ def split_lead_clause(text: str) -> tuple[str, str]:
     return text[: match.start()], text[match.start():]
 
 
+def _answer(snapshot: dict) -> str:
+    """The direct answer: two to four sentences, every figure from a cited fact."""
+
+    lang = _lang(snapshot)
+    answer = snapshot.get("answer") or {}
+    if not answer.get("text"):
+        return ""
+    edited = ' data-edited="model"' if answer.get("basis") == "model" else ""
+    return (f'<section class="r-answer" aria-labelledby="ah1"{edited}><h2 class="r-label" '
+            f'id="ah1">{_w(lang, "answer")}</h2><p>{mark_simulated(answer["text"])}</p>'
+            "</section>")
+
+
 def _findings(snapshot: dict) -> str:
     lang = _lang(snapshot)
     items = []
@@ -563,11 +585,17 @@ def front_room_mm(snapshot: dict) -> float:
     (deterministic: the same snapshot gives the same size)."""
 
     used = 26.0  # masthead and its margin
-    used += _lines(snapshot.get("headline") or "", 44) * 8.1 + 2.5
-    if snapshot.get("question"):
-        used += 5.0
-    if snapshot.get("standfirst"):
-        used += _lines(snapshot["standfirst"], 70) * 5.1 + 4.0
+    if snapshot.get("kind") == "ask" and snapshot.get("question"):
+        used += 5.0 + _lines(snapshot["question"], 50) * 7.4 + 2.5
+        answer = (snapshot.get("answer") or {}).get("text") or ""
+        if answer:
+            used += 5.0 + _lines(answer, 84) * 4.94 + 5.0
+    else:
+        used += _lines(snapshot.get("headline") or "", 44) * 8.1 + 2.5
+        if snapshot.get("question"):
+            used += 5.0
+        if snapshot.get("standfirst"):
+            used += _lines(snapshot["standfirst"], 70) * 5.1 + 4.0
     findings = snapshot.get("findings") or []
     if findings:
         used += 10.5
@@ -883,11 +911,18 @@ def render_report(snapshot: dict) -> str:
         shown = [s for s in shown if s["key"] in rank]
     # Page one: masthead, headline, standfirst, findings, At a glance, the lead exhibit sized
     # to fill what is left of the page.
-    front = [_masthead(snapshot), f"<h1>{mark_simulated(snapshot['headline'])}</h1>"]
-    if snapshot.get("question"):
-        front.append(f'<p class="r-label">{_w(lang, "question")} {_e(snapshot["question"])}</p>')
-    if snapshot.get("standfirst"):
-        front.append(f'<p class="r-standfirst">{mark_simulated(snapshot["standfirst"])}</p>')
+    asked = snapshot.get("kind") == "ask" and bool(snapshot.get("question"))
+    if asked:
+        # An asked report is titled by its question and answers it first.
+        front = [_masthead(snapshot), f'<p class="r-label">{_w(lang, "question")}</p>',
+                 f'<h1 class="r-question">{_e(snapshot["question"])}</h1>', _answer(snapshot)]
+    else:
+        front = [_masthead(snapshot), f"<h1>{mark_simulated(snapshot['headline'])}</h1>"]
+        if snapshot.get("question"):
+            front.append(f'<p class="r-label">{_w(lang, "question")} '
+                         f'{_e(snapshot["question"])}</p>')
+        if snapshot.get("standfirst"):
+            front.append(f'<p class="r-standfirst">{mark_simulated(snapshot["standfirst"])}</p>')
     front.append(_findings(snapshot))
     front.append(_glance(snapshot, numbers.table()))
     lead_chart = _lead_chart(snapshot, shown)
@@ -913,18 +948,28 @@ def render_report(snapshot: dict) -> str:
                     + (f"<li>{_w(lang, 'annex')}</li>" if print_annex(snapshot) else "")
                     + "</ol></nav>")
     groups = GROUPS if not order else tuple(dict.fromkeys(s["group"] for s in shown))
+    if asked:
+        # The evidence, in order of relevance to the question (no house grouping).
+        groups = (None,)
+        body.append(f'<p class="r-label r-group">{_w(lang, "evidence")}</p>')
     for group in groups:
-        members = [s for s in shown if s["group"] == group]
+        members = [s for s in shown if group is None or s["group"] == group]
         if not members:
             continue
-        label = TITLES_ZH.get(group, group) if lang != "en" else group
-        body.append(f'<p class="r-label r-group">{_e(label)}</p>')
+        if group is not None:
+            label = TITLES_ZH.get(group, group) if lang != "en" else group
+            body.append(f'<p class="r-label r-group">{_e(label)}</p>')
         for section in members:
             if lead_chart is not None:
                 section = {**section, "charts": [c for c in section.get("charts") or []
                                                  if c is not lead_chart
                                                  and c.get("id") != lead_chart["id"]]}
             body.append(_section(section, numbers, refs, snapshot, end))
+    if asked and snapshot.get("cannot_tell"):
+        body.append('<section class="r-watch r-cannot" aria-labelledby="ch"><h2 class="r-label" '
+                    f'id="ch">{_w(lang, "cannot_tell")}</h2><ul>' + "".join(
+                        f"<li>{mark_simulated(item)}</li>" for item in snapshot["cannot_tell"])
+                    + "</ul></section>")
     # What to watch never repeats a sentence the body already prints.
     printed = "".join(body)
     watch = [w for w in snapshot.get("watch") or []

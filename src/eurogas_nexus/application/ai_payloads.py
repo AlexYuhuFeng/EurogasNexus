@@ -51,7 +51,7 @@ REPORT_SECTION_FIELDS = ("section", "lines", "sources", "simulated_inputs", "for
 #: scores and reasons, states, rule sentences, derivable implications); each section's fact
 #: ids and permitted exhibits; the At a glance menu; the length limits. No identifier, row or
 #: book fact for an audience that may not see the book.
-REPORT_EDITOR_FIELDS = ("report", "facts", "sections", "glance_menu", "limits")
+REPORT_EDITOR_FIELDS = ("report", "facts", "sections", "glance_menu", "limits", "cannot_tell")
 
 #: A question to a report plan (``reports/plan.plan_payload``): the question, the catalogue's
 #: section keys with one-line descriptions, hub and country codes, the audience. No figure.

@@ -890,6 +890,7 @@ def power_burn(ctx: Ctx) -> SectionResult:
 def _outage_rows(ctx: Ctx, horizon_days: int, ended_since: datetime | None = None) -> list[dict]:
     from eurogas_nexus.application.remit_outages import load_outage_rows
     from eurogas_nexus.domain.dataops.entitlement import filter_rows_for_principal
+    from eurogas_nexus.domain.observations.remit_umm import outage_events
 
     key = f"outages:{horizon_days}:{ended_since}"
     if key not in ctx.cache:
@@ -897,7 +898,9 @@ def _outage_rows(ctx: Ctx, horizon_days: int, ended_since: datetime | None = Non
                                 ended_since=ended_since)
         rows = [r for r in rows
                 if datetime.fromisoformat(str(r["published_at_utc"])) <= ctx.now]
-        ctx.cache[key] = filter_rows_for_principal(ctx.caller.principal, rows)
+        # One row per outage event (the outage list's rule): the exit and entry sides of an
+        # interconnection point, published by two operators, are one outage counted once.
+        ctx.cache[key] = outage_events(filter_rows_for_principal(ctx.caller.principal, rows))
     return ctx.cache[key]
 
 
@@ -941,7 +944,7 @@ def outages(ctx: Ctx) -> SectionResult:
     simulated = any(is_simulated_source(r.get("source_reference")) for r in rows)
     ranked = sorted(rows, key=lambda r: (r["status"] != "active", -(gwh(r) or 0.0)))
     largest = next((r for r in ranked if r["status"] == "active" and gwh(r)), None)
-    norway = [r for r in active if is_norway(r.get("balancing_zone"))]
+    norway = [r for r in active if norwegian_basis(r)]
     stats = {
         "active": len(active), "total": len(rows), "horizon_days": horizon,
         "active_gwh": round(sum(gwh(r) or 0.0 for r in active), 1),
@@ -994,7 +997,8 @@ def outages(ctx: Ctx) -> SectionResult:
                   "operator": r.get("market_participant") or "",
                   "zone": zone_label(r.get("balancing_zone")),
                   "start": r["start_utc"], "end": r.get("end_utc"), "gwh": gwh(r),
-                  "status": r["status"]} for r in [*rows, *ended_rows]],
+                  "status": r["status"], "messages": r.get("message_count") or 1,
+                  "norway": norwegian_basis(r)} for r in [*rows, *ended_rows]],
     }
     result.methods.append({"key": "remit_daily", "title": "Unavailable capacity per day",
                            "text": "The latest version of each message; capacity converted to "
@@ -1448,6 +1452,34 @@ def is_norway(zone: str | None) -> bool:
     return any(t in {"NO", "NORWAY"} or t.startswith("NO-") for t in _zone_tokens(zone))
 
 
+#: Assets whose name ties an outage to Norwegian supply: Norwegian fields and processing
+#: plants, the export pipelines and the landing terminals that take them (a UK terminal also
+#: lands UK shelf gas, which the basis says).
+NORWEGIAN_ASSETS = (
+    "troll", "kollsnes", "karsto", "kårstø", "nyhamna", "ormen lange", "aasta hansteen",
+    "oseberg", "heimdal", "gullfaks", "statfjord", "sleipner", "asgard", "åsgard", "kvitebjorn",
+    "kvitebjørn", "gina krog", "martin linge", "johan sverdrup", "draugen", "snohvit",
+    "snøhvit", "hammerfest", "langeled", "zeepipe", "europipe", "norpipe", "franpipe",
+    "vesterled", "gassled", "polarled",
+)
+LANDING_TERMINALS = ("emden", "dornum", "zeebrugge zpt", "dunkerque", "easington", "st fergus")
+
+
+def norwegian_basis(row: dict) -> str | None:
+    """Why an outage counts as Norwegian supply, or ``None``: its balancing zone is Norway,
+    its asset is a Norwegian field, plant or export pipeline, or it is a landing terminal for
+    Norwegian gas. Deterministic and stated, so a report can say how it attributed."""
+
+    if is_norway(row.get("balancing_zone")):
+        return "zone"
+    name = str(row.get("facility_name") or "").casefold()
+    if any(word in name for word in NORWEGIAN_ASSETS):
+        return "asset"
+    if any(word in name for word in LANDING_TERMINALS):
+        return "landing terminal"
+    return None
+
+
 def zone_hubs(zone: str | None) -> list[str]:
     """Hubs a REMIT balancing zone touches: by hub name, EIC code or country code."""
 
@@ -1481,8 +1513,13 @@ def situation_event(ctx: Ctx) -> SectionResult:
 
 
 def find_outage(ctx: Ctx, event_id: str) -> dict | None:
+    """The outage event a situation report is about, by its message id or the id of any
+    message grouped into the event (a link may carry either side's message)."""
+
     rows = _outage_rows(ctx, 400)
-    return next((r for r in rows if str(r["event_id"]) == str(event_id)), None)
+    wanted = str(event_id)
+    return next((r for r in rows if str(r["event_id"]) == wanted
+                 or wanted in {str(m) for m in r.get("messages") or []}), None)
 
 
 def _situation_outage(ctx: Ctx, result: SectionResult) -> SectionResult:

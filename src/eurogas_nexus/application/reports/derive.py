@@ -803,6 +803,9 @@ def _prose(result, facts: list[dict]) -> None:
     lead = ordered[0]
     rest = [f for f in ordered[1:]]
     sentences: list[str] = []
+    # An outage the lead already names (the largest, inside the total) is not named again.
+    rest = [f for f in rest if not (f["key"].startswith("outage.")
+                                    and f["label"].split(": ", 1)[-1] in lead["sentence"])]
     for index, f in enumerate(rest[:3]):
         text = f["sentence"]
         link = _LINKS[index % len(_LINKS)]

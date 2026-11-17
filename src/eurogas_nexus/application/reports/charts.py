@@ -326,6 +326,17 @@ def _label_room(labels: list[str], width: int) -> float:
     return min(budget, max(24.0, longest * LABEL_CHAR + 8))
 
 
+def _end_label(text: str, x: float, y: float, colour: str, room: float, two_lines: bool) -> str:
+    """One end label; on two lines (name, then value) when the chart's labels need it."""
+
+    head = (f'<text x="{x}" y="{{y:.1f}}" fill="{colour}" class="r-dl" font-size="8.5">')
+    name, _, value = text.rpartition(" ")
+    if not two_lines or not name:
+        return head.format(y=y + 3) + f"{_e(_fit_label(text, room))}</text>"
+    return (head.format(y=y - 1.5) + f"{_e(_fit_label(name, room))}"
+            f'<tspan x="{x}" dy="9">{_e(value)}</tspan></text>')
+
+
 def _fit_label(text: str, room: float) -> str:
     most = max(4, int((room - 6) / LABEL_CHAR))
     return text if len(text) <= most else text[: most - 1] + "…"
@@ -396,6 +407,12 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
     texts = _end_labels(series_list)
     ref_texts = [str(r.get("label", "")) for r in spec.get("reference_lines", [])]
     room = _label_room(texts + ref_texts, width)
+    # A label that does not fit its room ("Year earlier 4,404" beside a half-width plot) is
+    # set on two lines, the name over the value, instead of being cut short.
+    two_lines = any(len(t) * LABEL_CHAR + 8 > room for t in texts if t)
+    if two_lines:
+        parts = [p for t in texts for p in t.rpartition(" ")[::2] if p]
+        room = _label_room(parts + ref_texts, width)
     right = width - room
     lo, hi = ticks[0], ticks[-1]
     x_lo, x_hi = _parse_x(xs[0]), _parse_x(xs[-1])
@@ -449,11 +466,10 @@ def _line_chart(spec: dict, chart_id: str, step: bool) -> str:
                     f'stroke-width="{stroke}" stroke-linejoin="round"{dash_attr}/>'
                 )
         if last_point is not None and texts[index]:
-            labels.append((last_point[1], _fit_label(texts[index], room), colour))
-    for y, text, colour in _place_labels(labels, PAD_TOP, bottom):
-        out.append(f'<text x="{right + 4}" y="{y + 3:.1f}" fill="{colour}" class="r-dl" '
-                   'font-size="8.5">'
-                   f"{_e(text)}</text>")
+            labels.append((last_point[1], texts[index] if two_lines
+                           else _fit_label(texts[index], room), colour))
+    for y, text, colour in _place_labels(labels, PAD_TOP, bottom, gap=20.0 if two_lines else 11.0):
+        out.append(_end_label(text, right + 4, y, colour, room, two_lines))
     out.append(_x_axis(xs, sx, bottom, PAD_LEFT, right))
     out.append(_hover(spec, xs, sx, PAD_TOP, bottom))
     out.append("</svg>")

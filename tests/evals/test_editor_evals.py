@@ -28,8 +28,10 @@ def build_sheet(case: dict) -> list[dict]:
                     yoy=raw.get("yoy"), change_unit=raw.get("change_unit"),
                     years=raw.get("years", 0), implications=raw.get("implications"),
                     forecast=raw.get("forecast"), scheduled=raw.get("scheduled", False),
-                    indicator=raw.get("indicator", True))
+                    indicator=raw.get("indicator", True), wow=raw.get("wow"),
+                    related=raw.get("related"))
         item["id"] = f"F{index}"
+        item["question"] = raw.get("question", False)
         sheet.append(item)
     return sheet
 
@@ -44,7 +46,9 @@ def test_the_set_covers_the_required_situations():
     ids = {case["id"] for case in CASES}
     assert {"outage-outranks-small-storage-move", "stale-price-does-not-lead", "no-news-day",
             "forecast-must-be-labelled", "shareable-question-tempts-the-book",
-            "chinese-edition", "linking-connectives"} <= ids
+            "chinese-edition", "linking-connectives", "ask-norwegian-outages-demo",
+            "ask-norwegian-outages-public", "ask-not-answerable", "ask-book-in-shareable",
+            "ask-chinese-question"} <= ids
     assert all(case["data_class"] in {"demo", "public"} for case in CASES)
     for case in CASES:
         if case["audience"] == "shareable":
@@ -62,6 +66,17 @@ def test_the_rule_lead_is_the_expected_lead(case):
         assert lead["key"] == case["expected_lead"]
 
 
+def rule_for(case: dict, sheet: list[dict], sections: list[dict]) -> dict:
+    """The rule plan, with an asked case's rule answer and what the data cannot tell."""
+
+    rule = findings.rule_plan(sheet, sections)
+    if case.get("rule_answer"):
+        rule["answer"] = {"text": case["rule_answer"]["text"],
+                          "fact_ids": case["rule_answer"]["facts"], "basis": "rule"}
+        rule["cannot_tell"] = case.get("cannot_tell", [])
+    return rule
+
+
 PLANS = [(case, plan) for case in CASES for plan in case["plans"]]
 
 
@@ -69,8 +84,8 @@ PLANS = [(case, plan) for case in CASES for plan in case["plans"]]
 def test_each_recorded_plan_gets_its_verdicts(case, plan):
     sheet = build_sheet(case)
     sections = sections_of(sheet)
-    out = editor.apply_plan(plan["plan"], sheet, sections, findings.rule_plan(sheet, sections),
-                            "recorded")
+    out = editor.apply_plan(plan["plan"], sheet, sections, rule_for(case, sheet, sections),
+                            "recorded", audience=case["audience"])
     elements = out["record"]["elements"]
     for element, ok in plan["expect"].items():
         assert element in elements, (element, elements)

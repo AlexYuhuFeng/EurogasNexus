@@ -72,6 +72,8 @@ _SUPERLATIVES = (
     "record", "highest", "lowest", "largest", "smallest", "biggest", "unprecedented",
     "all-time", "ever", "worst", "best", "最高", "最低", "最大", "最小", "创纪录", "历史",
 )
+#: A Chinese superlative is held when the (English) evidence states its English equivalent.
+_SUPERLATIVE_EN = {"最高": "highest", "最低": "lowest", "最大": "largest", "最小": "smallest"}
 _RECORD_CLAIM = (
     r"\b(?:a|new|at a|all-time) record\b|\brecord[- ](?:high|low|levels?|outage|flows?|"
     r"demand|prices?|spread|withdrawals?|injections?|imports?|exports?|send-?out)\b"
@@ -273,7 +275,8 @@ def check_grounding(note: str, evidence_text: str) -> Grounding:
         if word == "record" and present:
             # "the ENTSOG point record" is a noun; "a record low", "record demand" is a claim.
             present = re.search(_RECORD_CLAIM, lower_note) is not None
-        if present and word not in lower_evidence:
+        held = word in lower_evidence or _SUPERLATIVE_EN.get(word, "\0") in lower_evidence
+        if present and not held:
             return Grounding(False, f"superlative not in the evidence: {word}", "superlative")
 
     for source in _SOURCE_NAMES:

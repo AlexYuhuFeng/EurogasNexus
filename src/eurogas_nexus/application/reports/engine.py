@@ -145,6 +145,7 @@ def generate_report(
               balance_reader=balance_reader)
     omitted: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
+    raws: dict[str, Any] = {}
     with book_scope_of(caller):
         from eurogas_nexus.security.portfolio_scope import visible_book_ids
 
@@ -170,6 +171,7 @@ def generate_report(
                 from eurogas_nexus.application.reports.derive import derive
 
                 derive(built, ctx)
+                raws[key] = built.raw
                 result = built.as_dict()
             except Exception as exc:  # noqa: BLE001 - one failing read must not lose the report
                 omitted.append({"key": key, "title": stype.title,
@@ -213,10 +215,25 @@ def generate_report(
 
         model_use = rewrite_sections(results, model, language=language)
     shown = [s for s in results if s["status"] == "ok"]
+    from eurogas_nexus.application.reports import answer as asked
     from eurogas_nexus.application.reports import findings as page_one
 
+    question_info = None
+    if plan.kind == "ask" and plan.question:
+        from eurogas_nexus.application.reports.plan import _not_held
+
+        # The question's own facts (joins and engine-declared relations) and what the data
+        # cannot tell, before the facts are numbered.
+        question_info = asked.build(plan, results, raws, today=ctx.today,
+                                    missing=_not_held(plan.question))
     sheet = page_one.assign_ids(results)
     editorial = page_one.rule_plan(sheet, results)
+    if question_info is not None:
+        editorial["answer"] = asked.rule_answer(sheet, question_info, plan)
+        editorial["cannot_tell"] = question_info["cannot_tell"]
+        editorial["sections"] = [
+            {"key": key} for key in asked.relevance_order(
+                sheet, editorial["answer"], [s["key"] for s in shown])]
     if plan.kind == "situation":
         # A situation report leads with the event whatever the other facts weigh.
         event = [f for f in sheet if f["section"] == "situation_event"]
@@ -260,6 +277,8 @@ def generate_report(
         "findings": editorial["findings"],
         "glance": page_one.glance_rows(sheet, editorial.get("glance")),
         "watch": editorial["watch"],
+        "answer": editorial.get("answer"),
+        "cannot_tell": (question_info or {}).get("cannot_tell") or [],
         "editorial": editorial["record"],
         "dropped": editorial.get("dropped", []),
         "section_order": [x["key"] for x in editorial.get("sections", [])],
@@ -355,6 +374,7 @@ def report_metadata_from(snapshot: dict, snapshot_hash: str, html_hash: str) -> 
         ],
         "omitted": snapshot["omitted"],
         "standfirst": snapshot.get("standfirst"),
+        "answer": snapshot.get("answer"),
         "findings": snapshot.get("findings") or [],
         "editorial": {k: v for k, v in (snapshot.get("editorial") or {}).items()
                       if k != "plan"},

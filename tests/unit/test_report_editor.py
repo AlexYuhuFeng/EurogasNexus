@@ -211,3 +211,12 @@ def test_the_fact_sheet_payload_holds_only_the_allowlisted_fields():
     assert "book_" not in blob
     assert re.search(r'"fact": "F\d+"', blob)
     assert payload["report"]["period_start"] == date(2026, 11, 16).isoformat()
+
+
+def test_a_chinese_superlative_is_held_when_the_evidence_states_it_in_english():
+    from eurogas_nexus.application.grounding import check_grounding
+
+    evidence = "Two outages removed 661 GWh/d; the largest, Demo Haldor field, has 563 GWh/d."
+    assert check_grounding("最大的一处停运为 563 GWh/d。", evidence).ok
+    bare = "Demo Haldor field has 563 GWh/d."
+    assert not check_grounding("最大的一处停运为 563 GWh/d。", bare).ok

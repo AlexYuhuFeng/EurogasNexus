@@ -25,9 +25,9 @@ sys.path.insert(0, str(ROOT / "tests" / "evals"))
 
 
 def main() -> int:
-    from test_editor_evals import CASES, build_sheet, sections_of
+    from test_editor_evals import CASES, build_sheet, rule_for, sections_of
 
-    from eurogas_nexus.application.reports import editor, findings
+    from eurogas_nexus.application.reports import editor
     from eurogas_nexus.application.reports.catalogue import validate_plan
     from eurogas_nexus.core.config import get_settings
     from eurogas_nexus.llm import invoke_deepseek
@@ -50,19 +50,26 @@ def main() -> int:
     for case in CASES:
         sheet = build_sheet(case)
         sections = sections_of(sheet)
-        plan = validate_plan({"kind": "daily", "audience": case["audience"],
-                              "question": case.get("question")},
+        asked = bool(case.get("rule_answer"))
+        plan = validate_plan({"kind": "ask" if asked else "daily", "audience": case["audience"],
+                              "question": case.get("question"),
+                              **({"sections": sorted({f["section"] for f in sheet}
+                                                     & {"prices", "pipeline_supply", "lng",
+                                                        "storage", "outages", "balance"})}
+                                 if asked else {})},
                              now=datetime(2026, 11, 16, 8, tzinfo=UTC))
+        rule = rule_for(case, sheet, sections)
         for _ in range(args.repeat):
-            payload = editor.fact_sheet_payload(sheet, sections, plan, case["language"])
+            payload = editor.fact_sheet_payload(sheet, sections, plan, case["language"],
+                                                rule.get("cannot_tell"))
             started = time.monotonic()
             result = invoke_deepseek(api_key=key, messages=editor.editor_messages(payload),
                                      **editor.EDITOR_CALL)
             latency = time.monotonic() - started
             raw = editor.parse(result.content if result.status == "success" else None)
-            out = editor.apply_plan(raw, sheet, sections, findings.rule_plan(sheet, sections),
-                                    "deepseek",
-                                    report_days=(plan.period_start, plan.period_end))
+            out = editor.apply_plan(raw, sheet, sections, dict(rule), "deepseek",
+                                    report_days=(plan.period_start, plan.period_end),
+                                    audience=case["audience"])
             elements = out["record"]["elements"]
             lead_ids = (out["findings"][0]["fact_ids"] if out["findings"] else [])
             lead = next((f["key"] for f in sheet if lead_ids and f["id"] == lead_ids[0]), None)
@@ -76,6 +83,8 @@ def main() -> int:
                 "lead_from_model": bool(out["findings"]) and
                 out["findings"][0].get("basis") == "model",
                 "refused": {k: v["detail"] for k, v in elements.items() if not v["ok"]},
+                **({"answer": (out.get("answer") or {}).get("text"),
+                    "answer_basis": (out.get("answer") or {}).get("basis")} if asked else {}),
             })
             print(json.dumps(runs[-1], ensure_ascii=False))
     valid = [r for r in runs if r["valid"]]
