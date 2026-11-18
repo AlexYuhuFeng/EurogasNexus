@@ -93,3 +93,15 @@ def test_the_hide_list_is_personal_never_an_organisation_default():
     }
     # A stray stored row cannot leak one person's hide list to everyone.
     assert effective_preferences({"strip_hidden": "outage:x@a"}, {})["strip_hidden"] == ""
+
+
+def test_display_preferences_are_closed_vocabularies_with_defaults():
+    assert BUILT_IN_DEFAULTS["reporting_currency"] == "EUR"
+    assert BUILT_IN_DEFAULTS["energy_unit"] == "MWh"
+    assert validate_preferences({"reporting_currency": "CNY", "energy_unit": "th"}) == {
+        "reporting_currency": "CNY",
+        "energy_unit": "th",
+    }
+    for values in ({"reporting_currency": "BTC"}, {"energy_unit": "Sm3"}, {"energy_unit": "mwh"}):
+        with pytest.raises(SettingsError):
+            validate_preferences(values)

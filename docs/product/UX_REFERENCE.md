@@ -223,6 +223,18 @@ exact copy, so that presentation can improve without weakening a gate.
     panel) opened on one page, task or view closes when the reader moves to another
     (`app/shell/navigationKey.ts`, `useCloseOnNavigation`, applied in the primitives). Changing a
     filter on the same page (gas day, hub) is not a move.
+23. **Native first; the reader's currency beside it, named.** A price, quote, position or contract
+    figure is shown in its native unit and currency; Account → Preferences → Currency and units
+    (`reporting_currency`, `energy_unit`) only sets the secondary value. A price shows it on hover,
+    focus or tap; P&L, limits and totals show it as a second line when the currencies differ. The
+    secondary value always names its rate, the rate's date and the method ("−440,444 USD at
+    EUR/USD 1.0870 (ECB 16 Nov; spot)"); a forward that cannot be derived says "Not converted"
+    rather than falling back to spot. Contract terms, tariffs and frozen decision evidence are
+    never converted; a total over mixed currencies is shown only converted; simulated inputs never
+    join a non-simulated total. The server converts (`/api/market/normalise`,
+    `/api/market/fx-forward`); the client formats (`app/time/valueFormat.ts`,
+    `app/time/useConversion.ts`, `KeyFigure converted`, `ConvertedValue`). Exports add
+    `conversionExportColumns` (pair, rate, rate date, method, source).
 
 ## Implementation note
 

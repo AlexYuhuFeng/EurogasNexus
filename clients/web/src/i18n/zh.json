@@ -4842,5 +4842,22 @@
   "enum.feasible": "可行",
   "enum.infeasible": "不可行",
   "enum.degraded": "降级",
-  "enum.unavailable": "不可用"
+  "enum.unavailable": "不可用",
+  "convert.rate": "{{pair}} {{rate}}（{{source}} {{date}}；{{method}}）",
+  "convert.source.ecb": "欧洲央行",
+  "convert.source.simulated": "模拟演示汇率",
+  "convert.source.licensed": "授权来源",
+  "convert.method.forward": "{{delivery}} 远期，推导",
+  "convert.method.spot": "即期",
+  "convert.method.licensed": "授权远期",
+  "convert.method.identity": "同币种",
+  "convert.at": "{{figure}}，汇率 {{rate}}",
+  "convert.units_only": "{{figure}}（仅单位换算，无汇率）",
+  "preferences.display_title": "币种与单位",
+  "preferences.display_hint": "交易价格始终使用其原生单位。此处设置旁边显示的第二个数值，以及跨币种合计所用的币种。",
+  "preferences.reporting_currency": "报告币种",
+  "preferences.energy_unit": "能量单位",
+  "preferences.energy_unit.th": "撒姆（th）",
+  "convert.refused.not_held": "未换算：未持有该交割期的汇率。",
+  "convert.refused.beyond_horizon": "未换算：超出 24 个月远期期限。"
 }

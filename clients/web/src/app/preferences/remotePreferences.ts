@@ -11,6 +11,7 @@ import { resolveSignInPreferences } from "./preferenceResolution";
 import { applyPnlColorConvention } from "@/app/model/pnlColor";
 import { TIME_ZONE_STORAGE_KEY, useTimePreferenceStore } from "@/stores/timePreference";
 import { isTimeZonePreference } from "@/app/time/timeFormat";
+import { useDisplayPreferenceStore } from "@/stores/displayPreference";
 import { applyStripPreferences, setLocalHidden } from "./stripPreferences";
 
 /**
@@ -73,6 +74,10 @@ export async function applyEffectivePreferences(
   writeBoardLayout(effective.market_board_layout);
   writeLocalPnlColors(effective.pnl_colors);
   if (isTimeZonePreference(effective.time_zone)) useTimePreferenceStore.getState().setPreference(effective.time_zone);
+  useDisplayPreferenceStore.getState().setDisplayPreference({
+    reportingCurrency: effective.reporting_currency,
+    energyUnit: effective.energy_unit as never,
+  });
   applyStripPreferences(effective);
   window.dispatchEvent(new Event(PREFERENCES_APPLIED_EVENT));
 }

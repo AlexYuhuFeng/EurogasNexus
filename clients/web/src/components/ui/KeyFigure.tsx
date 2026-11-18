@@ -1,6 +1,8 @@
 import { useId, type ReactNode } from "react";
 
 import { pnlClass } from "@/app/model/pnlColor";
+import type { ConvertedText } from "@/app/time/valueFormat";
+import { ConvertedValue } from "./ConvertedValue";
 
 /**
  * One headline number (UX-02): a label, the value in tabular numerals, its unit, and optionally
@@ -41,6 +43,13 @@ export interface KeyFigureProps {
   notes?: ReactNode;
   /** Shown beside the value itself (the simulated marker): never only in a banner. */
   marker?: ReactNode;
+  /**
+   * The value in the reader's reporting currency or energy unit, with its rate, date and method
+   * (design basis G3; app/time/useConversion.ts). `hover` shows on hover, focus or tap; `line`
+   * is always visible (reporting contexts). The native value stays the figure.
+   */
+  converted?: ConvertedText | null;
+  convertedMode?: "hover" | "line";
   className?: string;
 }
 
@@ -59,9 +68,13 @@ export function KeyFigure({
   action,
   notes,
   marker,
+  converted,
+  convertedMode = "hover",
   className,
 }: KeyFigureProps) {
   const labelId = useId();
+  const convertedId = useId();
+  const hoverConverted = converted && convertedMode === "hover";
   const classes = ["key-figure", size === "lg" ? "key-figure-lg" : "", className].filter(Boolean).join(" ");
   return (
     <div className={classes} role="group" aria-labelledby={labelId} data-state={state === "current" ? undefined : state}>
@@ -73,11 +86,18 @@ export function KeyFigure({
       ) : (
         <span id={labelId}>{label}</span>
       )}
-      <strong className={valueClassName} title={title}>
+      <strong
+        className={valueClassName}
+        title={title}
+        tabIndex={hoverConverted ? 0 : undefined}
+        aria-describedby={converted ? convertedId : undefined}
+        data-converted-host={hoverConverted ? "" : undefined}
+      >
         {value}
         {unit ? <small className="metric-strip-unit key-figure-unit">{unit}</small> : null}
         {marker}
       </strong>
+      <ConvertedValue converted={converted ?? null} mode={convertedMode} id={convertedId} />
       {delta ? <small className={`key-figure-delta ${pnlClass(delta.value)}`.trim()}>{delta.text}</small> : null}
       {state !== "current" || age ? (
         <small className="key-figure-age">

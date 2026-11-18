@@ -25,6 +25,18 @@ from eurogas_nexus.domain.ontology.markets import european_gas_hubs
 #: client locale registry (clients/web/src/i18n/locales.ts) with its translation file.
 SUPPORTED_LANGUAGES: tuple[str, ...] = ("en", "zh-CN")
 
+#: Currencies a reader may report in: the euro and the currencies in the ECB euro reference
+#: table, so every conversion has a published rate (design basis G2, L7).
+REPORTING_CURRENCIES: tuple[str, ...] = (
+    "EUR", "USD", "GBP", "CHF", "NOK", "SEK", "DKK", "PLN", "CZK", "HUF", "RON", "JPY",
+    "CNY", "HKD", "SGD", "KRW", "INR", "AUD", "NZD", "CAD", "BRL", "MXN", "ZAR", "TRY",
+    "ILS", "ISK", "IDR", "MYR", "PHP", "THB",
+)  # fmt: skip
+
+#: Energy units a reader may read secondary values in; codes of the units authority
+#: (domain.ontology.quantity). Volume units need a heating value and are not offered.
+ENERGY_UNITS: tuple[str, ...] = ("MWh", "th", "MMBtu", "GJ")
+
 PREFERENCE_VOCABULARY: dict[str, tuple[str, ...]] = {
     "language": SUPPORTED_LANGUAGES,
     "theme": ("system", "light", "dark"),
@@ -37,6 +49,11 @@ PREFERENCE_VOCABULARY: dict[str, tuple[str, ...]] = {
     # Times shown in: the device's zone, UTC, or the gas market's clock (CET/CEST). Instants are
     # stored and sent in UTC whatever this says; gas days are never shifted.
     "time_zone": ("device", "utc", "market"),
+    # Display only (design basis G1-G7): the currency and energy unit of the secondary value
+    # beside a native figure, and of totals across currencies. A traded price, a contract
+    # term or a limit is never replaced by these; conversion is server-side and named.
+    "reporting_currency": REPORTING_CURRENCIES,
+    "energy_unit": ENERGY_UNITS,
     # The situational strip under the top bar (docs/product/ROLE_FIRST_REDESIGN.md, section 5):
     # an unplanned outage qualifies at or above either size; a price move at or above the share.
     "strip_outage_gwh_d": ("25", "50", "100", "200", "500"),
@@ -90,6 +107,8 @@ BUILT_IN_DEFAULTS: dict[str, str] = {
     "market_board_layout": "board",
     "pnl_colors": "green_up",
     "time_zone": "device",
+    "reporting_currency": "EUR",
+    "energy_unit": "MWh",
     "strip_outage_gwh_d": "50",
     "strip_outage_share_pct": "50",
     "strip_price_move_pct": "5",

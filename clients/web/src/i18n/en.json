@@ -4842,5 +4842,22 @@
   "enum.feasible": "Feasible",
   "enum.infeasible": "Not feasible",
   "enum.degraded": "Degraded",
-  "enum.unavailable": "Unavailable"
+  "enum.unavailable": "Unavailable",
+  "convert.rate": "{{pair}} {{rate}} ({{source}} {{date}}; {{method}})",
+  "convert.source.ecb": "ECB",
+  "convert.source.simulated": "simulated demo rate",
+  "convert.source.licensed": "licensed",
+  "convert.method.forward": "forward {{delivery}}, derived",
+  "convert.method.spot": "spot",
+  "convert.method.licensed": "licensed forward",
+  "convert.method.identity": "same currency",
+  "convert.at": "{{figure}} at {{rate}}",
+  "convert.units_only": "{{figure}} (unit factors only, no FX)",
+  "preferences.display_title": "Currency and units",
+  "preferences.display_hint": "Prices you trade stay in their own unit. These set the second value shown beside them and the currency of totals across currencies.",
+  "preferences.reporting_currency": "Reporting currency",
+  "preferences.energy_unit": "Energy unit",
+  "preferences.energy_unit.th": "therm (th)",
+  "convert.refused.not_held": "Not converted: the rate for this delivery is not held.",
+  "convert.refused.beyond_horizon": "Not converted: beyond the 24-month forward horizon."
 }

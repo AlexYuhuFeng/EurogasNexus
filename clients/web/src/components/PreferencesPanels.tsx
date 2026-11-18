@@ -7,6 +7,7 @@ import { FOCUS_HUB_CHOICES, MAX_FOCUS_HUBS, STRIP_BUILT_IN, STRIP_CHOICES } from
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { useTranslation } from "react-i18next";
 import { formatInstant, TIME_ZONE_PREFERENCES } from "@/app/time/timeFormat";
+import { ENERGY_UNITS, REPORTING_CURRENCIES } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -40,6 +41,9 @@ const CHOICES: Record<ChoiceKey, { value: string; labelKey?: string; label?: str
     { value: "utc", labelKey: "preferences.time_zone.utc" },
     { value: "market", labelKey: "preferences.time_zone.market" },
   ],
+  reporting_currency: REPORTING_CURRENCIES.map((code) => ({ value: code, label: code })),
+  // Unit symbols are written the same in every language; only the therm is a word.
+  energy_unit: ENERGY_UNITS.map((unit) => (unit === "th" ? { value: unit, labelKey: "preferences.energy_unit.th" } : { value: unit, label: unit })),
   strip_outage_gwh_d: stripChoices("strip_outage_gwh_d", "strip.pref.gwh_value"),
   strip_outage_share_pct: stripChoices("strip_outage_share_pct", "strip.pref.pct_value"),
   strip_price_move_pct: stripChoices("strip_price_move_pct", "strip.pref.pct_value"),
@@ -56,6 +60,8 @@ const LABEL_KEYS: Record<ChoiceKey, string> = {
   market_board_layout: "preferences.board_layout",
   pnl_colors: "preferences.pnl_colors",
   time_zone: "preferences.time_zone",
+  reporting_currency: "preferences.reporting_currency",
+  energy_unit: "preferences.energy_unit",
   strip_outage_gwh_d: "strip.pref.outage_gwh_d",
   strip_outage_share_pct: "strip.pref.outage_share_pct",
   strip_price_move_pct: "strip.pref.price_move_pct",
@@ -63,9 +69,11 @@ const LABEL_KEYS: Record<ChoiceKey, string> = {
 };
 
 const GENERAL_KEYS: ChoiceKey[] = ["language", "theme", "time_zone", "market_view", "market_board_layout", "pnl_colors"];
+/** Currency and units (design basis G2): the secondary value beside native figures, never the price itself. */
+const DISPLAY_KEYS: ChoiceKey[] = ["reporting_currency", "energy_unit"];
 /** The situational strip's thresholds (role-first redesign §5.2), grouped under their own heading. */
 const STRIP_KEYS: ChoiceKey[] = ["strip_outage_gwh_d", "strip_outage_share_pct", "strip_price_move_pct", "strip_quiet_line"];
-const KEYS: ChoiceKey[] = [...GENERAL_KEYS, ...STRIP_KEYS];
+const KEYS: ChoiceKey[] = [...GENERAL_KEYS, ...DISPLAY_KEYS, ...STRIP_KEYS];
 
 /** Mirrors BUILT_IN_DEFAULTS in domain/settings/preferences.py. */
 const BUILT_IN: Record<ChoiceKey, string> = {
@@ -75,6 +83,8 @@ const BUILT_IN: Record<ChoiceKey, string> = {
   market_board_layout: "board",
   pnl_colors: "green_up",
   time_zone: "device",
+  reporting_currency: "EUR",
+  energy_unit: "MWh",
   strip_outage_gwh_d: STRIP_BUILT_IN.strip_outage_gwh_d,
   strip_outage_share_pct: STRIP_BUILT_IN.strip_outage_share_pct,
   strip_price_move_pct: STRIP_BUILT_IN.strip_price_move_pct,
@@ -207,6 +217,10 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
             : CHOICES[key];
           return (
             <div key={key} className="settings-preference-group">
+              {key === DISPLAY_KEYS[0] && (
+                <h3 className="settings-subheading" id="settings-display-title">{t("preferences.display_title")}</h3>
+              )}
+              {key === DISPLAY_KEYS[0] && <p className="panel-copy">{t("preferences.display_hint")}</p>}
               {key === STRIP_KEYS[0] && (
                 <h3 className="settings-subheading" id="settings-strip-title">{t("strip.pref.title")}</h3>
               )}

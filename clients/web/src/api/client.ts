@@ -617,6 +617,20 @@ async function post<T, M = ApiMeta>(path: string, body: unknown, options: ApiReq
   return parseResponse<ApiResponse<T, M>>(res);
 }
 
+/**
+ * A read sent as POST because its question does not fit a query string (a list of prices to
+ * convert). It changes nothing on the server, so kept answers stay valid: no write notice.
+ */
+async function postRead<T, M = ApiMeta>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<ApiResponse<T, M>> {
+  const res = await fetch(apiUrl(path), requestInit({
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: options.signal,
+  }));
+  return parseResponse<ApiResponse<T, M>>(res);
+}
+
 // --- Types ---
 
 export interface NodeDTO {
@@ -3135,6 +3149,10 @@ export type PreferenceKey =
   | "pnl_colors"
   // Times shown in: device | utc | market (app/time/timeFormat.ts).
   | "time_zone"
+  // The secondary value beside a native figure and totals across currencies
+  // (app/time/valueFormat.ts, design basis G2): an ECB currency and MWh | th | MMBtu | GJ.
+  | "reporting_currency"
+  | "energy_unit"
   // The situational strip (docs/product/ROLE_FIRST_REDESIGN.md §5): thresholds, focus hubs,
   // the quiet line, and the items this person hid (personal only).
   | "strip_outage_gwh_d"
@@ -5922,7 +5940,7 @@ export const api = {
     ),
   /** Prices into one unit, each with its normalisation record (server-side factors and FX). */
   normaliseMarket: (body: NormaliseRequestDTO, options?: ApiRequestOptions) =>
-    post<NormaliseResponseDTO>("/market/normalise", body, options),
+    postRead<NormaliseResponseDTO>("/market/normalise", body, options),
   researchFeatures: (options?: ApiRequestOptions) => get<ResearchFeatureDTO[]>("/research/features", undefined, options),
   researchTargets: (options?: ApiRequestOptions) => get<ResearchTargetDTO[]>("/research/targets", undefined, options),
   researchDatasets: (options?: ApiRequestOptions) => get<ResearchDatasetDTO[]>("/research/datasets", undefined, options),

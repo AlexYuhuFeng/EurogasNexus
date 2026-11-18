@@ -53,6 +53,9 @@ import { MethodNote } from "@/components/MethodNote";
 import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
+import { useConvertedAmount, useConvertedPrice } from "@/app/time/useConversion";
+import type { ConvertedText } from "@/app/time/valueFormat";
+import { ConvertedValue } from "@/components/ui/ConvertedValue";
 import { Sparkline } from "@/components/ui/charts";
 import {
   Button,
@@ -131,6 +134,8 @@ function Figure({
   valueClassName,
   signed = false,
   wide = false,
+  converted,
+  convertedMode,
 }: {
   figure: TodayFigureDTO;
   label: ReactNode;
@@ -146,6 +151,9 @@ function Figure({
   /** Takes two columns of the strip (a figure with a named counterparty under it). */
   wide?: boolean;
   valueClassName?: string;
+  /** The value in the reader's reporting currency / energy unit (design basis G3). */
+  converted?: ConvertedText | null;
+  convertedMode?: "hover" | "line";
 }) {
   const words = stateWords(figure, nowMs, t);
   return (
@@ -165,6 +173,8 @@ function Figure({
         marker={figure.simulated ? <SimulatedMark t={t} /> : undefined}
         // Provenance on demand: the source is the figure's tooltip, not a link beside it.
         title={figure.source ?? undefined}
+        converted={converted}
+        convertedMode={convertedMode}
       />
     </div>
   );
@@ -202,9 +212,46 @@ function MarketFigure({ figure, t, nowMs, onInspect }: { figure: TodayMarketFigu
       {name}
     </button>
   ) : name;
+function PriceFigure({ price, t, nowMs, onInspect }: { price: TodayPriceDTO; t: Translate; nowMs: number; onInspect?: (() => void) | null }) {
+  const label = `${price.hub} ${price.product}`;
+  return (
+    <Figure
+      figure={price}
+      label={label}
+      t={t}
+      nowMs={nowMs}
+      notes={
+        onInspect ? (
+          <button type="button" className="ds-inline-link" data-inspect-price={price.hub} aria-label={t("today.source_of", { name: label })} title={t("today.source_of", { name: label })} onClick={onInspect}>
+            {t("today.source")}
+          </button>
+        ) : undefined
+      }
+      delta={
+        price.day_change == null
+          ? undefined
+          : { text: t("today.day_change", { change: formatChange(price.day_change, price.unit), day: shortDay(price.day_change_vs) }), value: price.day_change }
+      }
+      detail={t("today.close_of", { day: shortDay(price.close_day) })}
+    />
+  );
+}
+
+/** A day P&L in another currency than the reader reports in: the converted figure under it, at
+ * the rate of the P&L's own day (G3, G5), its rate and method in the title. */
+function PnlInReportingCurrency({ change }: { change: TodayFigureDTO }) {
+  const converted = useConvertedAmount({ amount: change.value, currency: change.unit, valueDate: change.as_of?.slice(0, 10), subject: "pnl", simulated: change.simulated });
+  return <ConvertedValue converted={converted} mode="line" compact />;
+}
+
+function MarketFigure({ figure, t, nowMs, onInspect }: { figure: TodayMarketFigureDTO; t: Translate; nowMs: number; onInspect?: (() => void) | null }) {
+  const label = `${figure.hub} ${figure.product}`;
+  // Native first (G1); the reader's currency and unit on hover, with the rate that made it.
+  const converted = useConvertedPrice({ value: figure.value, unit: figure.unit, product: figure.product, simulated: figure.simulated });
   return (
     <Figure
       figure={figure}
+      converted={converted}
       label={label}
       t={t}
       nowMs={nowMs}
@@ -363,6 +410,9 @@ function markTitle(mark: NonNullable<BookHub["mark"]>, labels: Record<string, st
 /** My book's headline: net position today and front month, and the tightest limit. */
 function BookFigures({ row, t, nowMs, language, onOpenLimits }: { row: TodayKeyFiguresRowDTO; t: Translate; nowMs: number; language: string; onOpenLimits: () => void }) {
   const limit = row.tightest_limit;
+  // A limit is tested in the currency it was approved in (G7); the reporting currency is a
+  // second line under it when they differ.
+  const limitConverted = useConvertedAmount({ amount: limit?.value, currency: limit?.unit ?? "EUR", subject: "limit", simulated: limit?.simulated });
   if (!row.position && !limit && !row.limit_empty) return null;
   return (
     <div className="today-figures today-book-figures">
@@ -392,6 +442,8 @@ function BookFigures({ row, t, nowMs, language, onOpenLimits }: { row: TodayKeyF
           t={t}
           nowMs={nowMs}
           wide
+          converted={limitConverted}
+          convertedMode="line"
           detail={
             <span className="today-limit-detail">
               <span className="today-limit-name">{limit.name}</span>
@@ -480,6 +532,7 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
             <>
               <span className={pnlClass(change.value)}>{formatValue(change.value, change.unit, true)}</span>{" "}
               <small className="ds-grid-unit">{change.unit}</small>
+              <PnlInReportingCurrency change={change as TodayFigureDTO} />
             </>
           );
         },

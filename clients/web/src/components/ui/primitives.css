@@ -312,6 +312,49 @@
     margin-top: var(--ds-space-05);
   }
 
+  /* The converted value (design basis G3). A line is always shown, muted, under the figure; a
+     hover value is a small card under the figure while it is hovered, focused or tapped, so the
+     figure keeps its height and its neighbours do not move. */
+  .converted-value {
+    display: block;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    font-variant-numeric: var(--ds-numeric);
+    overflow-wrap: anywhere;
+  }
+
+  .key-figure:has(> [data-converted-host]) {
+    position: relative;
+  }
+
+  [data-converted-host] {
+    cursor: help;
+  }
+
+  .converted-value[data-converted="hover"] {
+    display: none;
+    position: absolute;
+    z-index: 5;
+    top: 100%;
+    left: 0;
+    max-width: min(22rem, calc(100vw - 2rem));
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    box-shadow: var(--ds-shadow-pop);
+  }
+
+  [data-converted-host]:is(:hover, :focus-visible, :focus) + .converted-value[data-converted="hover"] {
+    display: block;
+  }
+
+  .converted-value[data-converted-refused] {
+    font-style: italic;
+  }
+
   /* The simulated marker beside a value: a figure that is not a market price says so in place. */
   .key-figure > strong .ds-cell-mark {
     vertical-align: middle;
