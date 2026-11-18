@@ -162,26 +162,6 @@
   gap: var(--ds-space-3);
 }
 
-.reports-progress ol {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-1) var(--ds-space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--ds-text-sm);
-  color: var(--ds-text-3);
-}
-
-.reports-progress li[data-state="done"] {
-  color: var(--ds-text-2);
-}
-
-.reports-progress li[data-state="current"] {
-  color: var(--ds-text-1);
-  font-weight: 600;
-}
-
 .reports-manage {
   display: grid;
   gap: var(--ds-space-1);
@@ -222,47 +202,6 @@
 
 .reports-failure p {
   margin: 0;
-}
-
-.reports-progress li {
-  position: relative;
-}
-
-/* The active stage carries an indeterminate bar, so a long generation is visibly alive. */
-.reports-progress-bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -4px;
-  height: 2px;
-  overflow: hidden;
-  background: var(--ds-border);
-}
-
-.reports-progress-bar::after {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 40%;
-  background: var(--ds-accent);
-  animation: reports-progress-slide 1.2s ease-in-out infinite;
-}
-
-@keyframes reports-progress-slide {
-  from {
-    transform: translateX(-100%);
-  }
-
-  to {
-    transform: translateX(250%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .reports-progress-bar::after {
-    animation: none;
-    width: 100%;
-  }
 }
 
 .reports-elapsed {

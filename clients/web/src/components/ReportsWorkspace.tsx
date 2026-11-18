@@ -21,6 +21,7 @@ import {
   type ReportRequestDTO,
   type ReportSummaryDTO,
 } from "@/api/client";
+import { WorkProgress } from "@/components/ui/WorkProgress";
 import { Button, DataGrid, Dialog, EmptyState, Field, Panel, Segmented, Select, StatusBadge, type DataGridColumn } from "@/components/ui";
 import {
   annexByDefault,
@@ -362,6 +363,22 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   />
                 </Field>
               </div>
+              <div className="reports-row">
+                <Field label={t("reports.currency")} hint={t("reports.conversion_hint")}>
+                  <Select<"" | "EUR" | "GBP" | "USD">
+                    value={form.currency ?? ""}
+                    options={[{ value: "", label: t("reports.native") }, { value: "EUR", label: "EUR" }, { value: "GBP", label: "GBP" }, { value: "USD", label: "USD" }]}
+                    onChange={(currency) => update({ currency })}
+                  />
+                </Field>
+                <Field label={t("reports.energy_unit")}>
+                  <Select<"" | "MWh" | "th" | "MMBtu">
+                    value={form.energyUnit ?? ""}
+                    options={[{ value: "", label: t("reports.native") }, { value: "MWh", label: "MWh" }, { value: "th", label: "th" }, { value: "MMBtu", label: "MMBtu" }]}
+                    onChange={(energyUnit) => update({ energyUnit })}
+                  />
+                </Field>
+              </div>
               {form.audience === "shareable" && (
                 <p className="reports-note" data-report-audience-note="">{t("reports.no_book_for_distribution")}</p>
               )}
@@ -472,17 +489,14 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
 
 /** Staged progress while a report is planned, collected, written, checked and laid out. */
 function ReportProgress({ stage, elapsed, onCancel, t }: { stage: ReportStage; elapsed: number; onCancel: () => void; t: Translate }) {
-  const current = REPORT_STAGES.indexOf(stage);
+  // The shared stage indicator (UX_REFERENCE rule 18), with the time taken and Cancel beside it.
   return (
-    <div className="reports-progress" role="status" aria-live="polite" data-report-stage={stage}>
-      <ol>
-        {REPORT_STAGES.map((item, index) => (
-          <li key={item} data-state={index < current ? "done" : index === current ? "current" : "next"} aria-current={index === current ? "step" : undefined}>
-            {t(`reports.stage.${item}`)}
-            {index === current && <span className="reports-progress-bar" aria-hidden="true" />}
-          </li>
-        ))}
-      </ol>
+    <div className="reports-progress" data-report-stage={stage}>
+      <WorkProgress
+        stages={REPORT_STAGES.map((item) => t(`reports.stage.${item}`))}
+        current={Math.max(0, REPORT_STAGES.indexOf(stage))}
+        label={t("reports.generate")}
+      />
       <span className="reports-note reports-elapsed" aria-label={t("reports.elapsed")}>{elapsedLabel(elapsed)}</span>
       <Button size="sm" variant="quiet" onClick={onCancel}>{t("reports.cancel")}</Button>
     </div>
