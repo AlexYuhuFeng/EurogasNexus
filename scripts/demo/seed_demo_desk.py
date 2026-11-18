@@ -75,6 +75,10 @@ from eurogas_nexus.reference_data.network_bundle import seed_reference_bundle
 SOURCE = "DEMO_Sim"
 PROFILES = Path(__file__).with_name("demo_profiles.json")
 HISTORY_DAYS = 400  # more than a gas year, so the balance has a seasonal normal
+#: Storage keeps six gas years and the current one, so the storage read draws its five-year
+#: range from simulated history on the demo desk (CP-04); still marked simulated, and removed
+#: per country once real GIE rows cover it (``retire_simulated_series``).
+STORAGE_HISTORY_DAYS = 7 * 365
 MAP_FLOW_DAYS = 7
 POWER_DAYS = 31
 STORAGE_NAMES = {
@@ -1053,6 +1057,7 @@ def seed_market_around_the_book(
     rng: random.Random,
     *,
     history_days: int = HISTORY_DAYS,
+    storage_history_days: int | None = None,
     map_days: int = MAP_FLOW_DAYS,
     power_days: int = POWER_DAYS,
     load_reference: bool = True,
@@ -1099,12 +1104,39 @@ def seed_market_around_the_book(
     counts["map_flows"] = len(rows) - before
 
     # Storage (AGSI-shaped, per country and the EU total) and GB storage (National Gas-shaped).
+    # Storage reaches back further than the other series (``STORAGE_HISTORY_DAYS``), and each
+    # country's level drifts slowly from year to year, so the five-year range has a width.
     before = len(rows)
+    if storage_history_days is None:
+        storage_history_days = (
+            STORAGE_HISTORY_DAYS if history_days == HISTORY_DAYS else history_days
+        )
+    storage_days = (
+        _closed_gas_days(now, storage_history_days) if storage_history_days > 0 else []
+    )
+    recent = {day for day, _, _ in days}
     for code, profile in profiles["storage"].items():
         capacity = profile["working_capacity_twh"]
+        # The days of the other series draw from the shared generator exactly as before, so
+        # nothing else on the demo desk changes; the older years have their own generator.
         fill_noise, flow_noise = _Wobble(rng, 0.004, 0.97), _Wobble(rng, 0.06)
-        for day, start, end in days:
-            fill = min(100.0, _shape(profile["fill_pct_by_month"], day) * fill_noise())
+        phase = sum(ord(letter) for letter in code)
+        older = random.Random(f"demo-storage-history-{code}")
+        old_fill, old_flow = _Wobble(older, 0.004, 0.97), _Wobble(older, 0.06)
+        newest = storage_days[-1][0] if storage_days else None
+        for day, start, end in storage_days:
+            is_recent = day in recent
+            fill_draw, flow_draw = (fill_noise, flow_noise) if is_recent else (old_fill, old_flow)
+            # Older years drift a few points from year to year (the range gets a width); the
+            # drift eases in over 60 days beyond the shared window and is 1 inside it.
+            age = (newest - day).days if newest else 0
+            ramp = 0.0 if is_recent else min(1.0, max(0.0, (age - len(recent)) / 60))
+            drift = 1 + ramp * (
+                0.07 * math.sin(2 * math.pi * day.toordinal() / (3.3 * 365) + phase)
+                + 0.04 * math.sin(2 * math.pi * day.toordinal() / (1.9 * 365) + phase / 3)
+            )
+            fill = min(100.0, max(1.0, _shape(profile["fill_pct_by_month"], day) * fill_draw()
+                                  * drift))
             rows.append(
                 StorageObservationRecord(
                     observation_id=f"demo-agsi-{code}-{day:%Y%m%d}",
@@ -1116,10 +1148,10 @@ def seed_market_around_the_book(
                     working_capacity_twh=capacity,
                     fill_pct=round(fill, 2),
                     injection_twh_d=round(
-                        _shape(profile["injection_twh_d_by_month"], day) * flow_noise(), 5
+                        _shape(profile["injection_twh_d_by_month"], day) * flow_draw(), 5
                     ),
                     withdrawal_twh_d=round(
-                        _shape(profile["withdrawal_twh_d_by_month"], day) * flow_noise(), 5
+                        _shape(profile["withdrawal_twh_d_by_month"], day) * flow_draw(), 5
                     ),
                     period_start_utc=start,
                     period_end_utc=end,
@@ -1420,6 +1452,7 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
             now,
             rng,
             history_days=min(max(gap, 0), HISTORY_DAYS),
+            storage_history_days=min(max(gap, 0), STORAGE_HISTORY_DAYS),
             map_days=min(max(gap, 0), MAP_FLOW_DAYS),
             power_days=min(power_gap, POWER_DAYS),
             load_reference=False,
