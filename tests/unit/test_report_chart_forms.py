@@ -46,7 +46,8 @@ def test_band_draws_the_range_in_grey_split_at_a_missing_day() -> None:
     polygons = re.findall(r'<polygon [^>]*class="r-band"', svg)
     assert len(polygons) == 2, "a day the range does not hold breaks it in two"
     assert 'class="r-band-mean"' in svg and 'stroke-dasharray="4 3"' in svg
-    assert "5-yr range" in svg  # the full years are in the subtitle and the data annex
+    # A long label is shortened by its name, never its years (reports `_fit_label`).
+    assert "2021/22–2025/26" in svg
     assert "5-yr mean" in svg
     # The subject is drawn after (over) the context and the band.
     assert svg.index('class="r-band"') < svg.index('class="r-stroke-1"')
