@@ -7,8 +7,9 @@ For an evaluation instant it reads, on request and once per key:
   (``indicative``: real but not executable), else the firm's own mark (``firm_mark``); on a
   demo desk only, a demo price (``simulated``). A real input always wins over a simulated
   one, and on a real desk simulated rows are never read at all;
-- **FX** through an adapter (:class:`SpotEcbFx` until forward FX lands; a forward delivery
-  period converted at spot is ``indicative`` and says "FX: spot");
+- **FX** through an adapter: :class:`ForwardFx` (design D.5: licensed forward ``sourced``,
+  covered interest parity ``derived`` with its tolerance, spot for a prompt period); the
+  spot-only :class:`SpotEcbFx` labels a forward period converted at spot ``indicative``;
 - **rates** (the currency's overnight benchmark), **tariffs** (published FINAL ``sourced``,
   INDICATIVE ``indicative``, demo rows ``simulated`` on a demo desk only), **capacity**,
   **outages** (REMIT), the firm's **approved assumption set** in force (``assumption``) and
@@ -33,6 +34,7 @@ from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.domain.valuation.periods import DeliveryPeriod
 from eurogas_nexus.domain.valuation.quality import InputClass
 from eurogas_nexus.domain.valuation.snapshot import (
+    FX_METHOD_FORWARD,
     FX_METHOD_SPOT,
     InputKind,
     RecordingReader,
@@ -166,6 +168,96 @@ class SpotEcbFx:
             source_family=DEMO_FAMILY if simulated else "ECB",
             source_ref=",".join(leg.observation_id for leg in used) or "identity",
             note=note,
+        )
+
+
+class ForwardFx:
+    """Forward FX for the delivery period (design D.5, ``domain/market/fx_forward.py``).
+
+    The rate a cash flow of the period could be hedged at today: a licensed outright forward
+    held through the customer's entitlement (``sourced``), else covered interest parity from
+    the ECB reference rate and the overnight benchmarks (``derived``, with its tolerance), or
+    the spot reference rate for a prompt period or one whose value date has passed
+    (``sourced``). Demo rows are read only on a demo desk and make the rate ``simulated``.
+    A refusal (no rate, no benchmark, beyond 24 months without licensed forwards) is missing.
+    """
+
+    method = FX_METHOD_FORWARD
+
+    def __init__(self, *, demo_desk: bool, caller: Caller) -> None:
+        self.demo_desk = demo_desk
+        self.caller = caller
+        self._holdings = None
+
+    def _load(self, session):
+        from eurogas_nexus.application.market_normalisation import _interest_rate_rows
+        from eurogas_nexus.application.projections.market_reads import (
+            filter_entitled_rows,
+            fx_observations,
+        )
+        from eurogas_nexus.domain.market.fx_forward import FxHoldings, is_simulated_source
+
+        def keep(rows):
+            rows = filter_entitled_rows(self.caller.principal, rows, source_key="source_system")
+            if self.demo_desk:
+                return rows
+            return [row for row in rows if not is_simulated_source(row.get("source_system"))]
+
+        return FxHoldings.from_rows(
+            keep(fx_observations(session)), keep(_interest_rate_rows(session))
+        )
+
+    def __call__(self, session, base, quote, period, as_of_utc) -> FxAnswer | None:
+        from eurogas_nexus.domain.market.fx_forward import (
+            METHOD_LICENSED,
+            Delivery,
+            FxForwardError,
+            conversion_rate,
+        )
+
+        if self._holdings is None:
+            self._holdings = self._load(session)
+        kind = {"day": "day_ahead"}.get(period.kind, period.kind)
+        delivery = Delivery(period.start, period.end - timedelta(days=1), kind, period.label)
+        try:
+            found = conversion_rate(
+                self._holdings, base, quote, as_of=as_of_utc.date(), delivery=delivery
+            )
+        except FxForwardError:
+            return None
+        klass = {
+            "simulated": InputClass.SIMULATED,
+            "derived": InputClass.DERIVED,
+        }.get(found.input_class, InputClass.SOURCED)
+        if found.simulated:
+            family = DEMO_FAMILY
+        elif found.method == METHOD_LICENSED and found.licensed is not None:
+            family = found.licensed.source_system
+        else:
+            family = "ECB"
+        refs = []
+        if found.spot is not None:
+            refs.append(f"spot {found.spot.value_date.isoformat()}")
+        refs += [
+            f"{item.benchmark.benchmark_id} {item.fixing_date.isoformat()}" for item in found.rates
+        ]
+        value_date = (found.value_date or as_of_utc.date()).isoformat()
+        return FxAnswer(
+            rate=Decimal(str(found.rate)).quantize(_PLACES),
+            input_class=klass,
+            method=found.method,
+            as_of_utc=datetime.combine(
+                found.spot.value_date if found.spot else as_of_utc.date(),
+                datetime.min.time(),
+                tzinfo=UTC,
+            ),
+            value_date=value_date,
+            source_family=family,
+            source_ref="; ".join(refs) or found.method,
+            note=f"FX: {found.label}, value date {value_date}",
+            tolerance=(
+                Decimal(str(found.tolerance_abs)).quantize(_PLACES) if found.tolerance_pct else None
+            ),
         )
 
 
@@ -741,7 +833,8 @@ def open_valuation_snapshot(
         assumption_set_id: The assumption set to read; default the book's own approved set,
             else the organisation's most recently approved one.
         book_id: The book an on-demand evaluation is for (selects a book-owned set).
-        fx_source: FX adapter; default :class:`SpotEcbFx`.
+        fx_source: FX adapter; default :class:`ForwardFx` (design D.5); :class:`SpotEcbFx`
+            remains for a caller that wants the spot reference rate alone.
         demo_desk: Override the deployment's demo-marks setting (tests).
 
     Returns:
@@ -761,7 +854,7 @@ def open_valuation_snapshot(
         caller=caller,
         as_of_utc=moment,
         demo_desk=demo,
-        fx_source=fx_source or SpotEcbFx(demo_desk=demo),
+        fx_source=fx_source or ForwardFx(demo_desk=demo, caller=caller),
         assumption=assumption,
         hedge_cover_loader=lambda: hedge_cover_rows(caller, moment.date()),
     )

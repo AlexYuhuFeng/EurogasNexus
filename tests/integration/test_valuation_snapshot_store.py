@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.valuation_snapshot import (
+    SpotEcbFx,
     freeze_snapshot,
     open_valuation_snapshot,
     replay_snapshot,
@@ -143,6 +144,17 @@ def session(tmp_path, monkeypatch):
                     research_only=True,
                 ),
                 InterestRateObservationRecord(
+                    observation_id="sonia-1",
+                    benchmark_id="SONIA",
+                    currency="GBP",
+                    value_date=date(2026, 11, 16),
+                    rate_pct=3.75,
+                    day_count="ACT/365",
+                    source_system="BOE",
+                    source_reference="boe:sonia",
+                    ingested_at_utc=yesterday,
+                ),
+                InterestRateObservationRecord(
                     observation_id="estr-1",
                     benchmark_id="ESTR",
                     currency="EUR",
@@ -230,12 +242,23 @@ def test_reading_rules_on_a_real_desk(session) -> None:
     assert mark.value.quantize(Decimal("0.001")) == Decimal("26.615")  # 78 p/th x 0.341214
     demo_only = reader.price("TTF", FEB27, "ask")
     assert demo_only.input_class is InputClass.MISSING  # a real desk never reads demo prices
+    # Design D.5: spot EUR/GBP 0.8700 (2026-11-16), SONIA 3.75 % ACT/365, ESTR 1.90 % ACT/360,
+    # value date 2027-01-15 (60 days): F = 0.87 x (1 + 0.0375 x 60/365) / (1 + 0.019 x 60/360)
+    # = 0.8726, derived, with the 0.1 % tolerance of a forward up to three months.
     fx = reader.fx("EUR", "GBP", JAN27)
-    assert fx.input_class is InputClass.INDICATIVE and "FX: spot" in fx.label
-    assert fx.value == Decimal("0.87")
-    assert reader.fx("EUR", "GBP", DeliveryPeriod.gas_day(date(2026, 11, 18))).input_class is (
-        InputClass.SOURCED
-    )
+    assert fx.input_class is InputClass.DERIVED and "interest parity" in fx.label
+    assert fx.value.quantize(Decimal("0.0001")) == Decimal("0.8726")
+    assert fx.detail["value_date"] == "2027-01-15" and fx.detail["tolerance"]
+    prompt = reader.fx("EUR", "GBP", DeliveryPeriod.gas_day(date(2026, 11, 18)))
+    assert prompt.input_class is InputClass.SOURCED and prompt.value == Decimal("0.87")
+    spot_only = open_valuation_snapshot(
+        session,
+        caller=_caller(("*",)),
+        as_of_utc=AS_OF,
+        demo_desk=False,
+        fx_source=SpotEcbFx(demo_desk=False),
+    ).fx("EUR", "GBP", JAN27)
+    assert spot_only.input_class is InputClass.INDICATIVE and "FX: spot" in spot_only.label
     assert reader.rate("EUR").value == Decimal("1.9")
     tariff = reader.tariff("ITP-00063", "EXIT", "MONTHLY", JAN27)
     assert tariff.input_class is InputClass.SOURCED and tariff.value == Decimal("0.0101")
