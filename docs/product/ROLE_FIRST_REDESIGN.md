@@ -530,3 +530,45 @@ Shared conflict points that set the parallelism:
 | D4 | Add job functions for originator and operations; settle finance's role. | Add both as composition-only assignments. Finance stays VIEWER (reads only) and the roles document is corrected. |
 | D5 | Let REVIEWER acknowledge alerts, and give compliance a read of the audit trail. | Yes to acknowledgement for limit alerts (risk owns them). For audit, a scoped read of decision and contract events rather than the whole log. Both change authority, so they need a security review and are outside the presentation work. |
 | D6 | Tasks outside a role's shortlist: under "More", or removed from the row entirely. | "More". The owner's aim is a calmer default, and hiding permitted tasks would make persona behave like authority. |
+## 9. Role-aware discovery (CP-24)
+
+The product finds what each person should look at from the data it already holds. Every
+finding is computed deterministically (an evaluator of `domain/opportunities/` or a limit
+calculation of `domain/risk/limits.py`) with its value, its weakest input class and the
+evidence rows; no model invents a finding or a figure. A job function changes only the rank
+and the first sentence; it never grants a read (a finding the caller may not see is not
+returned). `GET /api/discoveries` serves the list; Today ("What needs you") and the strip
+read it.
+
+### 9.1 What each function decides, and when to interrupt
+
+| Function | Recurring decision | The question behind it | Data that answers it today | Worth interrupting when |
+|---|---|---|---|---|
+| Trader | Where to place gas, what to buy or sell, how to use held capacity | Is there a spread, net of every cost, that our book or capacity can capture? | Opportunities L, C, T, R (prices or marks, published tariffs, forward FX, held capacity) | net margin above the minimum after all costs and value above the minimum; ranked by value, then by the volume held capacity can carry |
+| Trader | Tomorrow's balance | Is tomorrow's position left open to cash-out? | Opportunity S (daily balance, day-ahead price, the desk's cash-out terms) | any open residual before the gas day starts |
+| Trader | Outage response | Does an outage cut our supply, and what does cover cost? | Opportunity E (REMIT, contracts, prices) | any linked outage active now or within 14 days |
+| Risk | Credit limits | Is a counterparty over its line now, or would a price move put it over? | Credit lines, contracts and trades facing it, marks by month (`credit_exposure`), price shocks +10/+20/+30 % and the move that reaches the limit | current breach; projected breach within +30 %; watch at 75 % of the line |
+| Risk | Mandates and hedge policy | Is a trader outside their mandate or a contract outside its hedge band? | Mandate usage, approved hedge bands (opportunity G) | breach; cover outside the band in a remaining month |
+| Risk | Mark quality | Which valuations stand on simulated or indicative inputs? | the input class carried on every finding | a breach or opportunity whose weakest input is simulated or indicative is labelled, never stated as fact |
+| Operations | Deliveries and capacity | Will a delivery or a booked route fail? | Opportunity E (supply cut), held capacity (C), tomorrow's balance (S) | supply cut on a delivering contract; open residual for tomorrow |
+| Analyst | What changed in the market | Is a spread unusual against its own history? | not yet covered (needs the Spreads history read, CP-16) | - |
+| Finance | Cash and exposure | What does a breach or an outage cost? | the same credit and E findings, phrased in money | breach; cover cost above the minimum value |
+| Compliance | Limit and policy adherence | Was any limit or band exceeded? | credit and mandate breaches, hedge-band gaps | any breach |
+| Desk head | What needs a decision today | Which items are urgent across the desk? | every finding the head may read | must-act items first |
+
+### 9.2 Not yet covered (listed, not guessed)
+
+Spread against its own history (CP-16 Spreads read), storage against its five-year band
+(CP-04), concentration by hub or counterparty beyond credit lines, stale-source findings for
+non-administrators, delivery reconciliation breaks, LNG terminal and origin types (D, A:
+CP-12).
+
+### 9.3 Credit under a price move (method)
+
+A mark-to-market sensitivity, not a potential-future-exposure model: every month of every
+leg facing the counterparty is revalued with the forward mark scaled by (1 + s), for s =
++10, +20, +30 %, and the move s* at which the net exposure reaches the limit is found by
+bisection (reported as EUR/MWh on the front mark and as a percentage). The tenor of a
+projected breach is the first month whose cumulative exposure under the move crosses the
+limit. A finding standing on simulated or indicative marks says "projected on simulated
+(or indicative) marks" and is never phrased as a breach in fact.
