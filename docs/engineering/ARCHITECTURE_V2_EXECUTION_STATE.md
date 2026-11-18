@@ -24,6 +24,18 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   factor (the entry tariff is the firm's terms or an entered figure); the design's C.3 "lifting
   basis +10.3" contradicts C.4, the engine gives 15.22 EUR/MWh by the stated arithmetic.
 
+## 2026-11-18 — CP-17 Research → Fundamentals (branch `cp-17`, not pushed)
+
+- Research gains the task Fundamentals (`task=fundamentals`, tabs in `view=`): Storage (the
+  storage-by-country panel, then every country as small multiples), LNG (new
+  `GET /api/fundamentals/lng`: EU total and the 12 GIE ALSI countries, send-out as a 7-day
+  mean against the N-yr band, inventory against DTMI), Balance and Gas for power (re-homed).
+  Surface 281 / 312 (+1 / +1). GR and FI added to the GIE identity list.
+- Scheduler: `src-gie` runs `backfill_gie_history.py --years 5 --refresh --max-windows 40`
+  (history kept filled, last week re-read; every window through the gated ingestor). Checked
+  with the scheduler's own attempt runner: 36 windows, 2,051 rows unchanged.
+- Left: a Flows tab (Norway by landing point against history needs a per-point read and a
+  year of ENTSOG history); demo LNG keeps ~400 days, so it says "no complete prior year held".
 ## 2026-11-18 — market reports round 5 (part 2): progress, conversion, question joins (branch `reports-round5b`, not pushed)
 
 - Generation progress uses the shared `WorkProgress` (motion stops under reduced motion).
