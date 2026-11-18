@@ -118,4 +118,7 @@ def test_seed_then_real_rows_then_roll_forward_on_postgresql():
         again = seed.roll_forward(session, later)
         session.commit()
         assert again["rate_rows"] == 0
+        # The demo market (every product of every hub) writes and rolls on PostgreSQL too.
+        assert counts["market_close_rows"] > 0 and counts["market_quote_rows"] > 0
+        assert again["market_close_rows"] == 0 and again["market_quote_rows"] == 0
         assert session.query(func.count(MarketObservationRecord.observation_id)).scalar() > 0

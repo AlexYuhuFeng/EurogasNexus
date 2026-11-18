@@ -163,6 +163,38 @@ with the setting, preflight reports it, and these accounts never sign in on a se
 not the demo profile. Five wrong passwords lock a test account for 15 minutes (anyone can do
 that to a public name); a restart or a tester with `tester`'s administrator rights unlocks it.
 
+## The demo market
+
+Every demo hub (TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB, ETF, GTF) is quoted for every product
+the board and the instrument catalogue know: WD, DA, WE, BOM, the next twelve months, four
+quarters, two seasons (Sum/Win) and two calendar years. Quotes are two-sided, in the hub's own
+quotation (NBP in p/th, the others in EUR/MWh), on its tick (0.01 p/th, 0.005 EUR/MWh), with a
+width that depends on the hub and the product. 400 days of daily closes are kept for WD, DA, WE,
+BOM, Q+1, S+1 and Cal+1 (and the existing month-ahead), plus 30 days for each dated quarter,
+season and year, so backtests and z-scores have history. Instrument ids follow the catalogue:
+`TTF:DA`, `TTF:Q1-27`, `TTF:Win-27`, `TTF:Cal-28`.
+
+The market is derived from the month-ahead history the demo already keeps, so it is coherent by
+construction: each month is the hub's seasonal curve plus that day's move; a quarter, season or
+year is the day-weighted average of its months (to the tick); DA mean-reverts to the front month;
+WD sits near DA, WE below it. Draws come from a separate named stream
+(`scripts/demo/demo_market.py`), so the other demo series are unchanged. Everything is
+`DEMO_Sim`, marked simulated, and the roll-forward extends it day by day. It exists only in the
+demo image; the customer runtime does not ship `scripts/demo`.
+
+Planted dislocations (and no others) give the opportunity evaluators something true to find:
+
+| Case | Evaluator | Where | What is planted |
+|---|---|---|---|
+| `L1-nbp-over-ttf-da` | L / A | NBP vs TTF, DA | NBP DA (in EUR at the demo fixing) over TTF DA exceeds the simulated BBL route cost (1.88 EUR/MWh) by 1.20 on days with ordinal % 23 in {0, 1}; on every other day the net is 0.65-1.15 below the cost (0.05-0.55 while O1 is active), so it flips sign on exactly those days |
+| `W1-ttf-wd-over-da` | A | TTF, WD vs DA | WD 1.50 over DA on days with ordinal % 17 = 5; elsewhere, and at every other hub, \|WD - DA\| <= 0.25 |
+| `T1-cegh-winter-over-summer` | T | CEGH, Sum vs Win | A 1.00 EUR/MWh far-winter premium on winter months 6+ months ahead, so its next winter over the summer before exceeds the storage cost used (3.80 EUR/MWh); every other hub stays below |
+| `O1-nbp-outage-basis` | event exposure | NBP, DA | +0.60 EUR/MWh while the demo's unplanned NBP-zone outage is active; L1's net stays below zero on non-planted days |
+
+The cases are also in `PLANTED_CASES` in `scripts/demo/demo_market.py`, and the closes they
+touch carry `demo_planted_case` in their metadata; `tests/unit/test_demo_market.py` checks that
+each holds on exactly its days.
+
 ## Reaching it from other devices
 
 The demo port is bound to `127.0.0.1`. Do **not** publish it on a router or set

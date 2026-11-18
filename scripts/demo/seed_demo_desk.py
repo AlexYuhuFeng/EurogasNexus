@@ -297,6 +297,11 @@ def _clear(session) -> None:
     session.query(MarketObservationRecord).filter(
         MarketObservationRecord.source_system == SOURCE
     ).delete(synchronize_session=False)
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    session.query(MarketQuoteRecord).filter(
+        MarketQuoteRecord.source_system == SOURCE
+    ).delete(synchronize_session=False)
     session.query(ScreenOrderObservationRecord).filter(
         ScreenOrderObservationRecord.order_observation_id.like("demo-%")
     ).delete(synchronize_session=False)
@@ -782,6 +787,8 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     _seed_simulated_vessels(session, now)
     seed_market_around_the_book(session, now, rng, history_days=history_days)
     seed_demo_review_case(session, now)
+    session.flush()
+    seed_demo_market(session, now, history_days)
     return sizing
 
 
@@ -1499,6 +1506,8 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
 
     counts["curve_rows"] = _roll_curve(session, now)
     counts["month_ahead_rows"] = _roll_month_ahead(session, now, rng)
+    session.flush()
+    counts.update(seed_demo_market(session, now, _demo_market_gap(session, now)))
     counts["fx_rows"] = _roll_fx(session, now)
     rate_rows = _new_rows_only(session, _demo_rate_rows(now, 14))
     session.add_all(rate_rows)
@@ -1962,3 +1971,296 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# ---------------------------------------------------------------------------
+# The demo market: every product of every demo hub (scripts/demo/demo_market.py)
+# ---------------------------------------------------------------------------
+
+#: Fixed (dated) quarters, seasons and years are kept as closes for this many recent days; the
+#: rolling Q+1/S+1/Cal+1 series carry the long history backtests and z-scores need.
+FIXED_PRODUCT_HISTORY_DAYS = 30
+#: Board quotes older than this are removed by the roll-forward (only the demo's own).
+DEMO_QUOTE_KEEP_DAYS = 3
+_BOARD_PROMPT = (("WD", "within_day"), ("DA", "day_ahead"), ("WE", "weekend"),
+                 ("BOM", "balance_of_month"))
+_BOARD_CURVE = (
+    *(f"M+{n}" for n in range(1, 13)),
+    *(f"Q+{n}" for n in range(1, 5)),
+    "S+1", "S+2", "Cal+1", "Cal+2",
+)
+_PROMPT_TENOR = {"WD": "within-day", "DA": "day-ahead", "WE": "weekend", "BOM": "bom"}
+
+
+def _load_demo_market():
+    import importlib.util
+
+    path = Path(__file__).with_name("demo_market.py")
+    spec = importlib.util.spec_from_file_location("demo_market", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("demo_market", module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _native_price(hub: str, price_per_mwh: float) -> float:
+    native = _native(hub, price_per_mwh).get("native")
+    return float(native["price"]) if native else price_per_mwh
+
+
+_DELIVERY_CACHE: dict[tuple[str, date], object] = {}
+
+
+def _delivery(code: str, day: date):
+    key = (code, day)
+    if key not in _DELIVERY_CACHE:
+        _DELIVERY_CACHE[key] = _resolve_delivery(code, day)
+    return _DELIVERY_CACHE[key]
+
+
+def _resolve_delivery(code: str, day: date):
+    """The product's delivery on ``day``; ``None`` where it has none (BOM on a month's last day)."""
+
+    from eurogas_nexus.domain.market.products import ProductCodeError, resolve_product
+
+    try:
+        period = resolve_product(code, day)
+    except ProductCodeError:
+        return None
+    start = datetime.combine(period.first_gas_day, datetime.min.time(), tzinfo=UTC)
+    end = datetime.combine(period.last_gas_day + timedelta(days=1), datetime.min.time(),
+                           tzinfo=UTC)
+    return period, start, end
+
+
+def _outage_days(session) -> list[tuple[date, date]]:
+    """Days covered by the demo's unplanned outages in the NBP zone (the O1 case)."""
+
+    rows = (
+        session.query(RemitUmmRecord.event_start_utc, RemitUmmRecord.event_stop_utc)
+        .filter(RemitUmmRecord.source_system == "DEMO",
+                RemitUmmRecord.unavailability_type == "unplanned",
+                RemitUmmRecord.balancing_zone == "NBP")
+        .all()
+    )
+    return [(_aware(start).date(), _aware(stop).date()) for start, stop in rows]
+
+
+def _month_ahead_history(session, hub: str, since: date) -> dict[date, tuple[float, datetime]]:
+    rows = (
+        session.query(MarketObservationRecord.price, MarketObservationRecord.observed_at_utc)
+        .filter(MarketObservationRecord.source_system == SOURCE,
+                MarketObservationRecord.source_reference == "demo:history",
+                MarketObservationRecord.product == f"{hub} month-ahead",
+                MarketObservationRecord.observed_at_utc
+                >= datetime.combine(since, datetime.min.time(), tzinfo=UTC))
+        .all()
+    )
+    return {_aware(observed).date(): (float(price), _aware(observed)) for price, observed in rows}
+
+
+def _close_row(hub, currency, tenor_key, label, kind, price, observed, start, end, day, case):
+    metadata = {"hub": hub, "tenor": tenor_key, "simulated": True, "product_label": label,
+                "product_kind": kind, "demo_market": "v1", **_native(hub, price)}
+    if case:
+        metadata["demo_planted_case"] = case
+    return dict(
+        observation_id=f"demo-mkt-{hub}-{tenor_key}-{day:%Y%m%d}"[:128],
+        market_venue="Demo",
+        product=f"{hub} {label}",
+        price=round(price, 4),
+        unit=f"{currency}/MWh",
+        currency=currency,
+        period_start_utc=start,
+        period_end_utc=end,
+        observed_at_utc=observed,
+        source_system=SOURCE,
+        source_reference="demo:market",
+        source_record_id=None,
+        freshness="end_of_day",
+        quality_score=0.0,
+        research_only=True,
+        metadata_json=metadata,
+    )
+
+
+def demo_market_rows(session, now: datetime, days: int) -> tuple[list, list]:
+    """Closes (history) and board quotes of every demo hub's products for the last ``days``.
+
+    Derived from the stored month-ahead history (``demo:history``); a hub a provider prices
+    is skipped, as its month-ahead is. Returns (observation rows, quote rows); quotes only for
+    the newest day.
+    """
+
+    market_module = _load_demo_market()
+    market = market_module.DemoMarket(_curve_price, eur_per_mwh_to_native=_native_price)
+    today = now.date()
+    since = today - timedelta(days=days + 1)
+    real = _real_price_hubs(session)
+    outages = _outage_days(session)
+    closes: list = []
+    quotes: list = []
+    ttf_da: dict[date, float] = {}
+    ordered = sorted(DEMO_PRICE_HUBS, key=lambda item: item[0] != "TTF")
+    for hub, currency in ordered:
+        if hub in real:
+            continue
+        history = _month_ahead_history(session, hub, since)
+        if not history:
+            continue
+        newest = max(history)
+        for day, (month_ahead, observed) in sorted(history.items()):
+            outage = any(first <= day <= last for first, last in outages)
+            prompt = market.prompt(hub, day, month_ahead, ttf_day_ahead=ttf_da.get(day),
+                                   outage=outage)
+            if hub == "TTF":
+                ttf_da[day] = prompt["day-ahead"]
+            planted = {
+                "day-ahead": "L1-nbp-over-ttf-da" if hub == "NBP"
+                and market_module.l1_planted(day) else None,
+                "within-day": "W1-ttf-wd-over-da" if hub == "TTF"
+                and market_module.w1_planted(day) else None,
+            }
+            for code, tenor_key in _PROMPT_TENOR.items():
+                delivery = _delivery(code, day)
+                if delivery is None:
+                    continue
+                period, start, end = delivery
+                closes.append(_close_row(hub, currency, tenor_key, code, period.kind,
+                                         prompt[tenor_key], observed, start, end, day,
+                                         planted.get(tenor_key)))
+            for code, tenor_key in (("Q+1", "q+1"), ("S+1", "s+1"), ("Cal+1", "cal+1")):
+                delivery = _delivery(code, day)
+                if delivery is None:
+                    continue
+                period, start, end = delivery
+                price = market.strip(hub, day, month_ahead, period.first_gas_day,
+                                     period.last_gas_day)
+                closes.append(_close_row(hub, currency, tenor_key, code, period.kind, price,
+                                         observed, start, end, day, None))
+            if (newest - day).days < FIXED_PRODUCT_HISTORY_DAYS:
+                for code in ("Q+1", "Q+2", "Q+3", "Q+4", "S+1", "S+2", "Cal+1", "Cal+2"):
+                    delivery = _delivery(code, day)
+                    if delivery is None:
+                        continue
+                    period, start, end = delivery
+                    price = market.strip(hub, day, month_ahead, period.first_gas_day,
+                                         period.last_gas_day)
+                    closes.append(_close_row(hub, currency, period.label.lower(), period.label,
+                                             period.kind, price, observed, start, end, day,
+                                             "T1-cegh-winter-over-summer"
+                                             if hub == "CEGH" and period.kind == "season"
+                                             else None))
+            if day != newest:
+                continue
+            for code, kind in _BOARD_PROMPT:
+                delivery = _delivery(code, day)
+                if delivery is None:
+                    continue
+                period, start, end = delivery
+                # Prompt products keep their desk code (the dated window is in the delivery).
+                quotes.append(_quote_row(market, hub, currency, code, code, kind,
+                                         prompt[_PROMPT_TENOR[code]], start, end, now, day))
+            for code in _BOARD_CURVE:
+                delivery = _delivery(code, day)
+                if delivery is None:
+                    continue
+                period, start, end = delivery
+                price = market.strip(hub, day, month_ahead, period.first_gas_day,
+                                     period.last_gas_day)
+                quotes.append(_quote_row(market, hub, currency, code, period.label, period.kind,
+                                         price, start, end, now, day))
+    return closes, quotes
+
+
+def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, day):
+    from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT
+
+    bid, native_mid, ask = market.quote(hub, mid, kind)
+    native_unit = HUB_NATIVE_PRICE_UNIT.get(hub) or f"{currency}/MWh"
+    per_mwh = (lambda value: value) if native_unit.endswith("/MWh") else (
+        lambda value: value * mid / _native_price(hub, mid)
+    )
+    observed = now - timedelta(minutes=5)
+    return dict(
+        quote_id=f"demo-q-{hub}-{label}-{day:%Y%m%d}".replace(" ", "")[:128],
+        source_system=SOURCE,
+        source_record_id=None,
+        venue="Demo",
+        instrument_id=f"{hub}:{label}",
+        hub=hub,
+        product=label,
+        delivery_start_utc=start,
+        delivery_end_utc=end,
+        bid_price=round(per_mwh(bid), 4),
+        ask_price=round(per_mwh(ask), 4),
+        last_price=round(per_mwh(native_mid), 4),
+        bid_quantity_mwh=None,
+        ask_quantity_mwh=None,
+        currency=currency,
+        unit="MWh",
+        observed_at_utc=observed,
+        received_at_utc=observed,
+        source_reference="demo:market",
+        freshness="simulated",
+        quality_score=0.0,
+        simulated=True,
+        metadata_json={
+            "simulated": True, "demo_market": "v1", "product_label": label,
+            "product_kind": kind, "rolling_code": code, "native_unit": native_unit,
+            "native_bid": bid, "native_ask": ask, "native_mid": native_mid,
+            "tick": market_tick(hub),
+        },
+    )
+
+
+def market_tick(hub: str) -> float:
+    return _load_demo_market().tick_of(hub)
+
+
+def _insert_new(session, model, key: str, rows: list[dict]) -> list[dict]:
+    from sqlalchemy import insert
+
+    column = getattr(model, key)
+    ids = [row[key] for row in rows]
+    stored: set = set()
+    for offset in range(0, len(ids), 500):
+        chunk = ids[offset : offset + 500]
+        stored.update(value for (value,) in session.query(column).filter(column.in_(chunk)))
+    fresh = [row for row in rows if row[key] not in stored]
+    for offset in range(0, len(fresh), 2000):
+        session.execute(insert(model), fresh[offset : offset + 2000])
+    return fresh
+
+
+def _demo_market_gap(session, now: datetime) -> int:
+    """Days the demo market's closes lag ``now`` (the whole history when it has none)."""
+
+    newest = _newest(session, MarketObservationRecord.observed_at_utc,
+                     MarketObservationRecord.source_system == SOURCE,
+                     MarketObservationRecord.source_reference == "demo:market")
+    if newest is None:
+        return HISTORY_DAYS
+    return min(HISTORY_DAYS, max(1, (now.date() - newest.date()).days + 1))
+
+
+def seed_demo_market(session, now: datetime, days: int = HISTORY_DAYS) -> dict[str, int]:
+    """Write the demo market (closes and the board) for the last ``days``; keyed, idempotent."""
+
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    closes, quotes = demo_market_rows(session, now, days)
+    # Some 30 000 rows on a fresh seed: core inserts of the rows not yet stored, not ORM
+    # objects (which took longer than generating them).
+    closes = _insert_new(session, MarketObservationRecord, "observation_id", closes)
+    quotes = _insert_new(session, MarketQuoteRecord, "quote_id", quotes)
+    cutoff = now - timedelta(days=DEMO_QUOTE_KEEP_DAYS)
+    removed = (
+        session.query(MarketQuoteRecord)
+        .filter(MarketQuoteRecord.source_system == SOURCE,
+                MarketQuoteRecord.source_reference == "demo:market",
+                MarketQuoteRecord.observed_at_utc < cutoff)
+        .delete(synchronize_session=False)
+    )
+    return {"market_close_rows": len(closes), "market_quote_rows": len(quotes),
+            "market_quotes_removed": removed}
