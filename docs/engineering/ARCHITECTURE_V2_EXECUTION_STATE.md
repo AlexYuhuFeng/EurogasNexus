@@ -18,6 +18,25 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   keyboard, bottom sheet ≤ 480 px, tokens only, `sim` mark. Hub-only scope adopted for the
   Prices forward-curve hub. Story page `clients/web/instrument-picker-story.html` (dev only).
 - Surface 273 / 304 (272 / 303 before).
+## 2026-11-18 — CP-04 storage history and the fundamentals read (branch `cp-04-wip`, not pushed)
+
+- `GET /api/fundamentals/storage` (`application/fundamentals_storage.py`,
+  `domain/fundamentals/storage_history.py`): the EU total (GIE's own aggregate) or NW Europe,
+  then each country: fill, stock, capacity, day/week change, same gas day last year, N-yr
+  average and band (N = complete prior gas years held; band = last five; gaps never filled),
+  7-day net rate, EU target, sparkline, full gas-year series on request; missing countries
+  named; provider and simulated rows never mixed; EU total reconciled with its countries.
+  Surface 273 / 304 (+1 / +1).
+- Backfill: `scripts/ops/backfill_gie_history.py` (one gas year per call of the gated
+  ingestion script, `--gie-from/--gie-to/--gie-skip-total`; resumable from store coverage;
+  2 s pace; `--incremental` for a scheduler). Scratch public store: EU total and 18 countries
+  hold 2021-10-01 to 2026-11-16 (5 complete gas years each); 3 countries x 3 dates equal
+  AGSI's published fill and stock. GIE terms recorded in `docs/legal/DATA_SOURCE_TERMS.md`.
+- Client: "Storage by country" replaces Today's NW Europe storage block (region figures,
+  the CP-03 season chart with band and last-year ghost, sortable country table with
+  sparklines, a row opens its chart). Demo desk: seven years of simulated storage per country.
+- Left: ALSI terminal-level series (the transport reads countries only); not scheduled yet
+  (the incremental command exists; adding it to the scheduler is a data-operations change).
 
 ## 2026-11-17 — CP-01 normalisation and forward FX (branch `cp-01-02`, not pushed)
 

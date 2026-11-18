@@ -51,7 +51,8 @@ PAGE = 300
 REVISION_DAYS = 7
 #: The EU total is stored under GIE's own code.
 TOTAL = "eu"
-#: ALSI publishes LNG by these countries (checked live on 2026-11-17).
+#: ALSI publishes LNG by these countries (checked live on 2026-11-18; MT, EE, LV, SE, DK, CY
+#: and IE answer with no data).
 ALSI_COUNTRIES = ("BE", "DE", "ES", "FR", "GR", "HR", "IT", "LT", "NL", "PL", "PT", "FI")
 
 
