@@ -1695,9 +1695,13 @@ def _demo_outages(now: datetime, suffix: str = "") -> list:
     ):
         message_id = f"{message_id}{suffix}"
         start = now - timedelta(hours=hours_ago)
+        # The unplanned outage runs for days, but its message is news: the operator's
+        # latest word on it is three hours old, so the strip shows it and the roll-forward
+        # revises it after DEMO_OUTAGE_REVISION.
+        published = start if kind == "planned" else now - timedelta(hours=min(hours_ago, 3))
         rows.append(RemitUmmRecord(
             record_id=f"{message_id}:1", message_id=message_id, version=1,
-            published_at_utc=start, event_status="active", unavailability_type=kind,
+            published_at_utc=published, event_status="active", unavailability_type=kind,
             event_start_utc=start, event_stop_utc=start + timedelta(days=days), asset_name=asset,
             asset_eic=f"DEMO-{message_id}", asset_type="production", balancing_zone=zone,
             direction="entry", unit="mcm/d", technical_capacity=technical,
