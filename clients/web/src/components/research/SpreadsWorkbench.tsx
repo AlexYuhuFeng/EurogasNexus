@@ -34,6 +34,7 @@ import {
   toggleCost,
   weakestClass,
 } from "@/app/model/spreadsWorkbench";
+import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/SimulatedScope";
 import { Button, InstrumentPicker, Segmented, Select, WorkProgress } from "@/components/ui";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 
@@ -371,6 +372,12 @@ function RuleChips({ spec, onChange }: { spec: StrategySpecDTO; onChange: (spec:
   );
 }
 
+/** A price's own simulated mark: dropped when the whole result is simulated (said once). */
+function SimPill() {
+  const { t } = useTranslation();
+  return useSimulatedPills() ? <span className="spreads-sim">{t("instrument_picker.sim")}</span> : null;
+}
+
 function ClassLine({ classes, result }: { classes: readonly InputClass[]; result: InputClass }) {
   const { t } = useTranslation();
   return (
@@ -441,9 +448,12 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
   const title = chart.hasCost && spec.cost
     ? t("spreads.title.curve_net", { spread: spreadName(spec), from: spec.cost.from_hub, to: spec.cost.to_hub })
     : t("spreads.title.curve", { spread: spreadName(spec) });
+  // Said once when every price is simulated; a mixed curve keeps the banner and its pills.
+  const scope = simulatedScopeOf(result.rows.flatMap((row) => row.legs.map((leg) => leg.price_class === "simulated")));
   return (
     <section className="spreads-result" data-result="curve" aria-label={title}>
-      {result.simulated && <p className="spreads-simulated" role="note">{t("spreads.simulated_banner")}</p>}
+      <SimulatedScope scope={scope} notice={t("spreads.simulated_banner")}>
+      {result.simulated && scope !== "all" && <p className="spreads-simulated" role="note">{t("spreads.simulated_banner")}</p>}
       <ClassLine classes={classes} result={result.input_class} />
       {result.empty ? (
         <p className="spreads-empty">{t("spreads.empty_curve")}</p>
@@ -507,7 +517,7 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
           {route.missing.length > 0 && <p className="spreads-missing">{t("spreads.route.missing", { legs: route.missing.join("; ") })}</p>}
         </div>
       )}
-      {uniform && (
+      {uniform && !(uniform === "simulated" && scope === "all") && (
         <p className="spreads-uniform" data-uniform-class={uniform}>
           {t("spreads.table.uniform", { count: result.rows.length })}{" "}
           <span className="spreads-class" data-class={uniform}>{t(`spreads.class.${uniform}`)}</span>
@@ -541,7 +551,7 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
                           <>
                             <span>{fixed(cell.native_value)} {cell.native_unit}</span>
                             {cell.native_unit !== result.unit && <span className="spreads-converted"> = {fixed(cell.value)}</span>}
-                            {!uniform && cell.price_class === "simulated" && <span className="spreads-sim">{t("instrument_picker.sim")}</span>}
+                            {!uniform && cell.price_class === "simulated" && <SimPill />}
                           </>
                         ) : "–"}
                       </td>
@@ -569,6 +579,7 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
         )}
         {result.rows.some((row) => row.tariff_year_differs) && <p className="spreads-footnote">* {t("spreads.tariff_year_note")}</p>}
       </div>
+      </SimulatedScope>
     </section>
   );
 }
@@ -592,7 +603,7 @@ function HistoryResult({ result, spec }: { result: HistoryResultDTO; spec: Strat
   const classes = weakestClass([result.simulated ? "simulated" : "indicative"]);
   return (
     <section className="spreads-result" data-result="history">
-      {result.simulated && <p className="spreads-simulated" role="note">{t("spreads.simulated_banner")}</p>}
+      <SimulatedScope scope={result.simulated ? "all" : "none"} notice={t("spreads.simulated_banner")}>
       <ClassLine classes={[classes]} result={classes} />
       <Chart
         id="spreads-history"
@@ -634,6 +645,7 @@ function HistoryResult({ result, spec }: { result: HistoryResultDTO; spec: Strat
           </>
         )}
       </dl>
+      </SimulatedScope>
     </section>
   );
 }

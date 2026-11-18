@@ -2615,6 +2615,7 @@
   "market.tenor_short.month-ahead": "月前",
   "market.simulated_banner_title": "模拟价格",
   "market.simulated_banner_body": "合成测试数据，并非市场价格。请接入您的 Trayport/ICE/EEX 授权（运营方报价导入）以获取真实报价。",
+  "market.all_simulated": "演示数据：模拟值，并非市场价格。接入您的 Trayport、ICE 或 EEX 授权（运营方报价导入）即可获得真实报价。",
   "ladder.view": "价格视图",
   "ladder.view.board": "枢纽看板",
   "ladder.view.ladder": "阶梯",

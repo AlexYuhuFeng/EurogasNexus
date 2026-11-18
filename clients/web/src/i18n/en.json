@@ -2615,6 +2615,7 @@
   "market.tenor_short.month-ahead": "MA",
   "market.simulated_banner_title": "Simulated prices",
   "market.simulated_banner_body": "Synthetic test data, not market prices. Connect your Trayport/ICE/EEX entitlement (operator quote import) for real quotes.",
+  "market.all_simulated": "Demo data: simulated, not market prices. Connect your Trayport, ICE or EEX entitlement (operator quote import) for real quotes.",
   "ladder.view": "Price view",
   "ladder.view.board": "Hub board",
   "ladder.view.ladder": "Ladder",

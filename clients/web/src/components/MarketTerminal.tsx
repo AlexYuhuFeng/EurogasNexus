@@ -15,6 +15,7 @@ import {
 } from "@/app/model/priceBoard";
 import { displayTime } from "@/app/time/displayTime";
 import { formatSigned, Sparkline } from "@/components/ui/charts";
+import { SimulatedScope, simulatedScopeOf } from "@/components/SimulatedScope";
 import {
   PREFERENCES_APPLIED_EVENT,
   readBoardLayout,
@@ -737,7 +738,8 @@ export function MarketTerminal({
   // What the board says once instead of on every row (the owner: "a lot that says nothing").
   const pricedRows = boardRows.filter((row) => row.priced);
   const twoSided = boardRows.some((row) => row.quote !== null);
-  const allSimulated = pricedRows.length > 0 && pricedRows.every((row) => row.simulated);
+  const boardScope = simulatedScopeOf(pricedRows.map((row) => row.simulated));
+  const allSimulated = boardScope === "all";
   const anyAge = boardRows.some((row) => row.ageSeconds !== null);
   const anyTick = boardRows.some((row) => row.delta !== null);
   // Spread to TTF in one basis: TTF's EUR/MWh mid against each hub's EUR/MWh value (its own
@@ -915,12 +917,15 @@ export function MarketTerminal({
             />
           )}
         </Toolbar>
-        {simulatedOnBoard && (
+        {/* Said once when every priced row is simulated (components/SimulatedScope.tsx, shared
+            with Today and Spreads); a mixed board keeps the banner and the per-row marks. */}
+        {simulatedOnBoard && boardScope !== "all" && (
           <div className="market-simulated-banner" role="alert" data-simulated-board="true">
             <strong>{t("market.simulated_banner_title")}</strong>
             <span>{t("market.simulated_banner_body")}</span>
           </div>
         )}
+        <SimulatedScope scope={boardScope} notice={t("market.all_simulated")}>
         {boardView === "ladder" ? (
           <MarketLadder
             quotes={marketQuotes}
@@ -985,6 +990,7 @@ export function MarketTerminal({
         />
         </>
         )}
+        </SimulatedScope>
         <p className="market-terminal-note">
           {t("market.board_note")}
           {marketUnavailableRows.length > 0 && (
