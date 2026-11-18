@@ -95,7 +95,7 @@ def test_migration_0066_up_down_and_model_match():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.down_revision == "0067_opportunities"
-    assert DB_SCHEMA_REVISION == "0068_installation_setup"
+    assert DB_SCHEMA_REVISION == "0069_lng_terminal_tariff"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

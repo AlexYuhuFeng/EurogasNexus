@@ -63,6 +63,10 @@ from eurogas_nexus.db.models.identity import (
     UserSessionRecord,
 )
 from eurogas_nexus.db.models.jobs import JobRecord
+from eurogas_nexus.db.models.lng_terminal_tariff import (
+    LngTerminalOperatorTermsRecord,
+    LngTerminalTariffRecord,
+)
 from eurogas_nexus.db.models.lng_positions import LngCargoRecord, RegasSlotRecord
 from eurogas_nexus.db.models.market_data import MarketDataLicenceRecord
 from eurogas_nexus.db.models.market_intelligence import (
@@ -338,6 +342,8 @@ __all__ = [
     "SupportReportRecord",
     "ContractDeliveryRecord",
     "CreditLineRecord",
+    "LngTerminalOperatorTermsRecord",
+    "LngTerminalTariffRecord",
     "LngTerminalTermsRecord",
     "HedgeApprovalRecord",
     "TraderMandateRecord",
