@@ -119,21 +119,22 @@ const page = (id: WorkspacePageId): PlaceRef => ({ kind: "page", page: id });
 
 /** §4.2, one row per composition. */
 export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>> = {
-  // D1: the trader lands on Today, whose first row carries the home-hub prices.
+  // D1: the trader lands on Today, whose first row carries the home-hub prices; place 3 is
+  // Deals → Opportunities (design basis 2, B.8).
   trader: {
     id: "trader",
     landing: task("desk", "today"),
-    shortlist: [task("desk", "today"), task("desk", "prices"), task("book", "delivery"), task("book", "limits")],
+    shortlist: [task("desk", "today"), task("desk", "prices"), task("deals", "opportunities"), task("book", "limits")],
     panels: {},
     todayRows: ["market", "book", "needs_me", "fundamentals"],
     stripAudience: "trader",
   },
-  // The originator lands on Deals → Opportunities when it exists (design basis 2, A.4); until
-  // then on Contracts, the book the evaluation will read. Evaluate and Routes left with CP-00.
+  // The originator lands on Deals → Opportunities (design basis 2, A.4 and B.8), then the book
+  // the evaluation reads. Evaluate and Routes left with CP-00; their links land there too.
   originator: {
     id: "originator",
-    landing: task("deals", "contracts"),
-    shortlist: [task("deals", "contracts"), task("deals", "review"), task("desk", "prices"), task("desk", "network")],
+    landing: task("deals", "opportunities"),
+    shortlist: [task("deals", "opportunities"), task("deals", "contracts"), task("deals", "review"), task("desk", "prices")],
     panels: {},
     todayRows: ["needs_me", "market", "fundamentals"],
     stripAudience: "originator",

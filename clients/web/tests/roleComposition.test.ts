@@ -94,7 +94,7 @@ test("every job function has a composition, and every composition is well formed
 test("§4.2 landings: trader on Today (D1), risk on Limits, operations on Delivery, admin on Connectors", () => {
   const landing = (roles: string[], fn: string) => placeKey(composedLanding(resolveComposition(user(roles, [fn])).composition, user(roles, [fn]))!);
   assert.equal(landing(["ANALYST"], "TRADER"), "desk.today");
-  assert.equal(landing(["ANALYST"], "ORIGINATOR"), "deals.contracts");
+  assert.equal(landing(["ANALYST"], "ORIGINATOR"), "deals.opportunities");
   assert.equal(landing(["REVIEWER"], "RISK_MANAGER"), "book.limits");
   assert.equal(landing(["VIEWER"], "OPERATIONS"), "book.delivery");
   assert.equal(landing(["VIEWER"], "FINANCE_SETTLEMENT"), "book.position");

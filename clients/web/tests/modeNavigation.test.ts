@@ -18,7 +18,7 @@ import {
   retiredTaskAddresses,
   visibleModes,
 } from "../src/app/navigation/modeNavigation.ts";
-import { workspacePageIds, type WorkspacePageId } from "../src/workspaceNavigation.ts";
+import { workspacePageIds, workspaceTaskSearch, type WorkspacePageId } from "../src/workspaceNavigation.ts";
 import { registeredViews } from "../src/app/navigation/viewRegistry.ts";
 import type { CurrentUserDTO } from "../src/api/client.ts";
 
@@ -37,8 +37,8 @@ test("the primary row is four modes in the plan's order, each with its tasks", (
   assert.deepEqual(PRODUCT_MODES.map((mode) => mode.id), ["desk", "deals", "book", "research"]);
   assert.deepEqual(PRODUCT_MODES.map((mode) => mode.tasks.map((task) => task.id)), [
     ["today", "prices", "network"],
-    // Opportunities arrives later; Evaluate, Optimise and Routes & netback left with CP-00.
-    ["contracts", "review"],
+    // Opportunities first (CP-14); Evaluate, Optimise and Routes & netback left with CP-00.
+    ["opportunities", "contracts", "review"],
     // Nominations and Storage are one Planning task, two views behind a switch (A.4).
     ["position", "limits", "delivery", "planning"],
     ["spreads", "fundamentals", "cargo", "reports"],
@@ -83,7 +83,8 @@ test("every old task address lands on its new task; Decision Center's tasks each
     "contracts.delivery": "book/delivery",
     "contracts.resources": "deals/contracts",
     // Decision Center dissolved: review sits with the deals it approves; nomination and storage
-    // planning are the two views of Book → Planning.
+    // planning are the two views of Book → Planning; Opportunities is the first Deals task.
+    "scenario.opportunities": "deals/opportunities",
     "scenario.review": "deals/review",
     "scenario.nomination": "book/planning",
     "scenario.dispatch": "book/planning",
@@ -100,12 +101,12 @@ test("every old task address lands on its new task; Decision Center's tasks each
 });
 
 test("a task removed by CP-00 redirects to the nearest surviving task, keeping the context", () => {
-  // Design basis 2, I.1: Evaluate, Optimise and Routes & netback land on Deals → Contracts;
-  // Research → Data's views land on Reports.
+  // Design basis 2, I.1 and B.8: Evaluate, Optimise and Routes & netback land on Deals →
+  // Opportunities; Research → Data's views land on Reports.
   const expected: Record<string, string> = {
-    "scenario:scenario": "deals/contracts",
-    "scenario:optimize": "deals/contracts",
-    "contracts:routes": "deals/contracts",
+    "scenario:scenario": "deals/opportunities",
+    "scenario:optimize": "deals/opportunities",
+    "contracts:routes": "deals/opportunities",
     "research:datasets": "research/reports",
     "research:products": "research/reports",
     "research:features": "research/reports",
@@ -133,18 +134,19 @@ test("old area addresses and mode addresses redirect to a page address, keeping 
     "?workspace=portfolio": "workspace=contracts&task=overview",
     "?workspace=system": "workspace=manual",
     "?workspace=administration": "workspace=sources",
-    "?workspace=optimize": "workspace=contracts&task=resources",
+    "?workspace=optimize": "workspace=scenario&task=opportunities",
     "?workspace=nomination": "workspace=scenario&task=nomination",
     "?workspace=dispatch": "workspace=scenario&task=dispatch",
     "?workspace=exposure": "workspace=contracts&task=exposure",
     "?workspace=desk": "workspace=market&task=overview",
-    "?workspace=deals": "workspace=contracts&task=resources",
+    "?workspace=deals": "workspace=scenario&task=opportunities",
     "?workspace=book": "workspace=contracts&task=overview",
     "?workspace=research": null as unknown as string,
     "?workspace=strategy": "workspace=research&task=spreads",
     "?workspace=agents": "workspace=research&task=reports",
     "?workspace=book&task=limits": "workspace=contracts&task=exposure",
     "?mode=deals&task=review": "workspace=scenario&task=review",
+    "?mode=deals&task=evaluate": "workspace=scenario&task=opportunities",
     "?mode=book&task=storage": "workspace=scenario&task=dispatch",
     "?mode=research&task=assistant": "workspace=research&task=reports",
   };
@@ -182,13 +184,13 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
   // A reviewer reviews and reads, but prepares no nomination or storage plan.
   assert.deepEqual(ids(user(["REVIEWER"], reviewer)), [
     "desk:today,prices,network",
-    "deals:contracts,review",
+    "deals:opportunities,contracts,review",
     "book:position,limits,delivery",
     "research:spreads,fundamentals,cargo,reports",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
-  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 13);
+  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 14);
   // No identity, or an older server without a permission list: what it had before.
   assert.equal(visibleModes(null).length, 4);
   assert.equal(visibleModes(user(["TRADER"], undefined)).length, 4);
@@ -220,4 +222,15 @@ test("Reports is a task of the Research page, held in the URL (task=reports)", (
   assert.equal(modeLocationFor("research", "fundamentals")?.task.id, "fundamentals");
   assert.equal(modeLocationFor("research", "reports")?.task.id, "reports");
   assert.equal(modeLocationFor("research", undefined)?.task.id, "spreads");
+});
+
+test("a link from Today opens one opportunity on Deals → Opportunities (CP-14)", () => {
+  // CP-19's "What needs me" targets ?mode=deals&task=opportunities&opportunity=<id>.
+  const target = redirectSearch("?mode=deals&task=opportunities&opportunity=opp_1&gasDay=2026-11-18");
+  assert.equal(target, "workspace=scenario&task=opportunities&opportunity=opp_1&gasDay=2026-11-18");
+  assert.equal(redirectSearch(`?${target}`), null);
+  assert.equal(lands(`?${target}`), "deals/opportunities");
+  // The opportunity belongs to the Deals page: leaving for another page drops it.
+  assert.doesNotMatch(workspaceTaskSearch(target!, "market", "overview"), /opportunity=/);
+  assert.match(workspaceTaskSearch(target!, "scenario", "review"), /opportunity=opp_1/);
 });

@@ -6,12 +6,13 @@ import type {
 } from "@/api/client";
 
 export type PortfolioTask = "overview" | "resources" | "exposure" | "delivery";
-//: The Decision workspace's tasks: Book → Planning (`nomination` and `dispatch` behind one
-//: switch, register C14/D8) and Deals → Review. Scenario and Optimise left with CP-00.
-export type DecisionTask = "nomination" | "dispatch" | "review";
+//: The Decision workspace's tasks: Deals → Opportunities (CP-14), Book → Planning
+//: (`nomination` and `dispatch` behind one switch, register C14/D8) and Deals → Review.
+//: Scenario and Optimise left with CP-00; their links land on Opportunities.
+export type DecisionTask = "opportunities" | "nomination" | "dispatch" | "review";
 
 export const PORTFOLIO_TASKS: PortfolioTask[] = ["overview", "resources", "exposure", "delivery"];
-export const DECISION_TASKS: DecisionTask[] = ["nomination", "dispatch", "review"];
+export const DECISION_TASKS: DecisionTask[] = ["opportunities", "nomination", "dispatch", "review"];
 
 export function portfolioTaskFromLocation(search: string): PortfolioTask {
   const params = new URLSearchParams(search);

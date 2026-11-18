@@ -30,6 +30,8 @@ import {
 } from "@/app/model/commercialWorkflowModel";
 import "./commercial-workflow.css";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { OpportunitiesPage } from "@/components/opportunities/OpportunitiesPage";
+import { opportunityFromLocation, withOpportunity } from "@/app/model/opportunitiesModel";
 
 export function DecisionWorkspace({ controller }: { controller: AppController }) {
   const { t, api, portfolio, review, selection, i18n, navigation, traderContext } = controller;
@@ -43,9 +45,23 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
   const dispatch = useStorageDispatchAssessment();
   const optimizationRun = useOptimizationRunRecord();
 
+  // The opportunity open beside the list travels in the URL (`opportunity=`), so a link from
+  // Today or the strip opens it and the browser's back button closes it.
+  const [opportunityId, setOpportunityId] = useState<string | null>(() =>
+    opportunityFromLocation(window.location.search),
+  );
+
   useEffect(() => {
     setTask(decisionTaskFromLocation(window.location.search));
+    setOpportunityId(opportunityFromLocation(window.location.search));
   }, [controller.navigation.locationRevision]);
+
+  function selectOpportunity(id: string | null) {
+    setOpportunityId(id);
+    const next = new URL(window.location.href);
+    next.search = withOpportunity(window.location.search, id);
+    window.history.replaceState(window.history.state, "", next);
+  }
 
   // Wave 5: the review surface reads its own projection when it opens. Resolving review
   // evidence is per-entity work, so it belongs here rather than on every workspace load;
@@ -128,9 +144,10 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
     navigation.openWorkspace(next === "review" ? "review" : "scenario", next);
   }
 
-  // Decision Center is no longer an area (WF-05): Review is a Deals task; Nominations and Storage
-  // are the two views of Book → Planning, behind one switch. The header is the row of the task's
-  // mode. Scenario, Optimise and the desk replay left the product with CP-00.
+  // Decision Center is no longer an area (WF-05): Opportunities and Review are Deals tasks;
+  // Nominations and Storage are the two views of Book → Planning, behind one switch. The header is
+  // the row of the task's mode. Scenario, Optimise and the desk replay left the product with
+  // CP-00; Opportunities (CP-14) is where their links land.
   const mode = useModeHeader(navigation.activeWorkspace, task, navigation.openWorkspace, t);
 
   // Action geography (`app/experience/actionGeography.ts`): assessing the nominations or the
@@ -178,6 +195,22 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         }}
       />
       <div id="decision-task-panel">
+        {task === "opportunities" && (
+          <OpportunitiesPage
+            t={t}
+            canEnterMarks={Boolean(api.currentUser?.permissions?.includes("portfolio.write"))}
+            initialOpportunityId={opportunityId}
+            onSelect={selectOpportunity}
+            onAddContract={() => navigation.openWorkspace("contracts", "resources")}
+            onOpenCase={(caseId) => {
+              // The case carries the frozen legs as evidence; Review opens on it.
+              selection.setDecisionCaseId(caseId);
+              openTask("review");
+            }}
+          />
+        )}
+        {task !== "opportunities" && (
+          <>
         {/* The desk's clock sits above the tabs' panels: it is the workspace's, and burying it in
             one task would hide the deadline from a trader standing in another. It navigates - it
             computes nothing and records nothing - so it takes no primary action slot. */}
@@ -296,7 +329,8 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
           />
           </details>
         )}
-
+          </>
+        )}
       </div>
     </div>
   );

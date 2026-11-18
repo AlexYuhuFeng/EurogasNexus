@@ -72,6 +72,8 @@ export function coerceWorkspacePageId(
 export const PAGE_OBJECT_PARAMS: Partial<Record<WorkspacePageId, readonly string[]>> = {
   sources: ["source"],
   contracts: ["contract"],
+  // The opportunity open beside the list (Deals → Opportunities).
+  scenario: ["opportunity"],
   // The board's tenor once the user chose one (Prices); the Network panel's tab and the outage
   // it selects.
   market: ["tenor", "panel", "outage"],

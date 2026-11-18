@@ -74,8 +74,9 @@ test("portfolio tasks are overview resources exposure delivery", () => {
   // netback left with CP-00.
   assert.deepEqual(PORTFOLIO_TASKS, ["overview", "resources", "exposure", "delivery"]);
   // Register C14/D8: the two desk assessments live in the Decision workspace as the two views of
-  // Book → Planning, each with its own primary action; Scenario and Optimise left with CP-00.
-  assert.deepEqual(DECISION_TASKS, ["nomination", "dispatch", "review"]);
+  // Book → Planning, each with its own primary action; Scenario and Optimise left with CP-00 and
+  // Deals → Opportunities (CP-14) is the page's first task.
+  assert.deepEqual(DECISION_TASKS, ["opportunities", "nomination", "dispatch", "review"]);
 });
 
 test("portfolio and decision task deep links preserve context", () => {

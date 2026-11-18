@@ -6,8 +6,8 @@
  * A mode is a row of tasks. A task names the technical page that renders it and, where that page
  * has several, the page's own task: the URL stays the page's address (`?workspace=<page>&task=`),
  * so every link, test and bookmark that worked before keeps working, and the mode is derived from
- * where the user is. Decision Center no longer exists as an area: scenario and optimisation are
- * Deals → Evaluate and Optimise, the review of a decision sits with the deals it approves, and
+ * where the user is. Decision Center no longer exists as an area: Deals → Opportunities replaced
+ * scenario and optimisation (CP-14), the review of a decision sits with the deals it approves, and
  * nomination and storage planning are Book planning views.
  *
  * Presentation only. Whether a mode or task is offered follows the caller's identity (a task the
@@ -72,6 +72,9 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     descriptionKey: "nav.mode.deals.description",
     aliasKeys: ["nav.primary.decision"],
     tasks: [
+      // Opportunities first (design basis 2, B.7/B.8): ways to earn or save money with the book,
+      // with the arithmetic shown. The retired Evaluate, Optimise and Routes & netback land here.
+      { id: "opportunities", labelKey: "nav.mode.deals.opportunities", page: "scenario", pageTask: "opportunities", permissions: ["portfolio.read"], aliasKeys: ["decision.task.opportunities", "nav.mode.deals.evaluate"] },
       { id: "contracts", labelKey: "nav.mode.deals.contracts", page: "contracts", pageTask: "resources", permissions: ["portfolio.read"], aliasKeys: ["portfolio.task.resources", "nav.contracts"] },
       // Approvals belong with the work they approve: a decision review accepts or rejects a
       // deal's evaluation, so it sits in Deals.
@@ -230,8 +233,8 @@ const AREA_REDIRECTS: Readonly<Record<string, { page: WorkspacePageId; task?: st
   system: { page: "manual" },
   administration: { page: "sources" },
   // Task names once used as page ids.
-  // Optimise left with CP-00: its old page id lands where its task does.
-  optimize: { page: "contracts", task: "resources" },
+  // Optimise left with CP-00: its old page id lands on Opportunities (type R, CP-14).
+  optimize: { page: "scenario", task: "opportunities" },
   nomination: { page: "scenario", task: "nomination" },
   dispatch: { page: "scenario", task: "dispatch" },
   exposure: { page: "contracts", task: "exposure" },
@@ -241,14 +244,14 @@ const AREA_REDIRECTS: Readonly<Record<string, { page: WorkspacePageId; task?: st
 };
 
 /**
- * Tasks of a surviving page that were removed (section I.1), and where their links now land:
- * Deals → Evaluate and Optimise and Routes & netback land on Deals → Contracts; Research →
- * Data lands on Reports.
+ * Tasks of a surviving page that were removed (section I.1, B.8), and where their links now
+ * land: Deals → Evaluate and Optimise and Routes & netback land on Deals → Opportunities;
+ * Research → Data lands on Reports.
  */
 const TASK_REDIRECTS: Readonly<Record<string, { page: WorkspacePageId; task?: string }>> = {
-  "scenario:scenario": { page: "contracts", task: "resources" },
-  "scenario:optimize": { page: "contracts", task: "resources" },
-  "contracts:routes": { page: "contracts", task: "resources" },
+  "scenario:scenario": { page: "scenario", task: "opportunities" },
+  "scenario:optimize": { page: "scenario", task: "opportunities" },
+  "contracts:routes": { page: "scenario", task: "opportunities" },
   "research:datasets": { page: "research", task: "reports" },
   "research:products": { page: "research", task: "reports" },
   "research:features": { page: "research", task: "reports" },
@@ -262,9 +265,9 @@ const TASK_REDIRECTS: Readonly<Record<string, { page: WorkspacePageId; task?: st
 const RETIRED_MODE_TASKS: Readonly<Record<string, { page: WorkspacePageId; task?: string }>> = {
   "book:nominations": { page: "scenario", task: "nomination" },
   "book:storage": { page: "scenario", task: "dispatch" },
-  "deals:evaluate": { page: "contracts", task: "resources" },
-  "deals:optimise": { page: "contracts", task: "resources" },
-  "deals:routes": { page: "contracts", task: "resources" },
+  "deals:evaluate": { page: "scenario", task: "opportunities" },
+  "deals:optimise": { page: "scenario", task: "opportunities" },
+  "deals:routes": { page: "scenario", task: "opportunities" },
   "research:strategies": { page: "research", task: "spreads" },
   "research:data": { page: "research", task: "reports" },
   "research:assistant": { page: "research", task: "reports" },

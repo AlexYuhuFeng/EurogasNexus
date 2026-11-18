@@ -2358,6 +2358,160 @@ export interface TodayFundamentalsRowDTO {
   storage_europe?: { region: unknown; countries: unknown[]; focus_countries: string[]; simulated: boolean } | { empty: TodayEmptyDTO };
 }
 
+/** A measure as the opportunity engine carries it: decimal text, never a float. */
+export interface OpportunityMeasureDTO {
+  value: string | null;
+  unit: string;
+  currency?: string | null;
+}
+
+/** One row of `GET /api/opportunities` (CP-08): the claim and its figures, ranked by the server. */
+export interface OpportunityRowDTO {
+  opportunity_id: string;
+  key: string;
+  type: string;
+  type_code: string;
+  lane: "must_act" | "could_act";
+  state: "new" | "actionable" | "indicative" | "watch" | "blocked" | "expired" | "converted";
+  claim: string;
+  headline: { value: string | null; unit: string };
+  value: { amount: string | null; currency: string } | null;
+  volume: { value: string | null; unit: string } | null;
+  period: string;
+  quality: { class: string; label: string };
+  simulated: boolean;
+  book_ids: string[];
+  expires_at_utc: string;
+  deadline_utc: string | null;
+  version: number;
+  first_seen_utc: string;
+  last_evaluated_utc: string;
+  reasons: string[];
+  blocked: { code: string; subject: string; text: string; fix: string } | null;
+  rank: { position: number; reason: string } | null;
+  user_state: { state: string; reason: string | null; at_version: number; changed_since: boolean } | Record<string, never> | null;
+}
+
+export interface OpportunityBucketDTO {
+  total: number;
+  offset: number;
+  items: OpportunityRowDTO[];
+  next_cursor: string | null;
+}
+
+/** What the engine needs before it can find anything (B.7 "Empty on day one"). */
+export interface OpportunityReadinessDTO {
+  book: { ready: boolean; contracts: number; approved_hedge_bands: number; missing: string | null };
+  prices: {
+    ready: boolean;
+    licensed_quote_sources: string[];
+    settlement_sources: string[];
+    firm_marks: number;
+    missing: string | null;
+  };
+  published_costs: { ready: boolean; transport_tariffs: number; terminal_terms: number; missing: string | null };
+  assumptions: { ready: boolean; approved_versions: number; missing: string | null };
+  types_now: string[];
+}
+
+export interface OpportunityListDTO {
+  as_of_utc: string | null;
+  evaluation: {
+    evaluation_id: string;
+    status: string;
+    finished_at_utc: string;
+    demo_desk: boolean;
+    next: string;
+  } | null;
+  lanes: Partial<Record<"must_act" | "could_act", OpportunityBucketDTO>>;
+  groups: Partial<Record<"watching" | "blocked", OpportunityBucketDTO>>;
+  confirming: number;
+  hidden_by_you: number;
+  per_lane_shown: number;
+  simulated: boolean;
+  banner: string | null;
+  readiness: OpportunityReadinessDTO;
+}
+
+export interface OpportunityLegDTO {
+  kind: "term" | "subtotal" | "conversion" | "result" | "volume" | "value";
+  label_key: string;
+  label: string;
+  quantity: OpportunityMeasureDTO | null;
+  rate: OpportunityMeasureDTO | null;
+  fx: OpportunityMeasureDTO | null;
+  contribution: OpportunityMeasureDTO | null;
+  subtotal: OpportunityMeasureDTO | null;
+  input_class: string | null;
+  source_family: string | null;
+  source_ref: string;
+  as_of_utc: string | null;
+  input_keys: string[];
+  note: string;
+}
+
+/** The frozen object of one version: what the arithmetic was when it was evaluated. */
+export interface OpportunityObjectDTO {
+  type: string;
+  lane: string;
+  claim: { key: string; fields: Record<string, unknown>; text: string };
+  legs: OpportunityLegDTO[];
+  assumptions: {
+    key: string;
+    value: OpportunityMeasureDTO;
+    origin: string;
+    set_by: string;
+    set_at_utc: string;
+    input_key: string | null;
+    range_low: string | null;
+    range_high: string | null;
+  }[];
+  falsifiers: { key: string; text: string }[];
+  sensitivity: { driver: string; kind: string; value: OpportunityMeasureDTO; text: string }[];
+  checks: { kind: string; result: "pass" | "fail" | "not_assessed"; figure: string; reference: string }[];
+  quality: {
+    class: string;
+    label: string;
+    simulated: boolean;
+    inputs: {
+      key: string;
+      kind: string;
+      class: string;
+      label: string;
+      source_family: string | null;
+      source_ref: string;
+      as_of_utc: string | null;
+      value: string | null;
+      unit: string;
+    }[];
+  };
+}
+
+/** `GET /api/opportunities/{id}`: the row, its frozen object, snapshot, versions and case. */
+export interface OpportunityDetailDTO extends OpportunityRowDTO {
+  object: OpportunityObjectDTO | null;
+  snapshot: Record<string, unknown> | null;
+  versions: { version: number; state: string; snapshot_id: string; recorded_at_utc: string }[];
+  case: { case_id: string; converted_by: string; converted_at_utc: string } | null;
+  ended_reason: string | null;
+  next_steps: ("open_as_case" | "watch" | "dismiss")[];
+}
+
+/** One of the firm's own marks (`/api/market/firm-marks`): always "firm's mark", never a market price. */
+export interface FirmMarkDTO {
+  mark_id: string;
+  hub: string;
+  period: string;
+  value: number;
+  unit: string;
+  currency: string;
+  input_class: "firm_mark";
+  class_label: string;
+  entered_by: string;
+  entered_at_utc: string;
+  note: string;
+}
+
 /** ``GET /api/desk/today`` (UX-05): the four rows of the Today screen, computed once. */
 export interface DeskTodayDTO {
   as_of: string;
@@ -5599,6 +5753,30 @@ export const api = {
     post<DeskBriefDTO>("/analysis/brief", { kind, language }),
 
   deskToday: (options?: ApiRequestOptions) => get<DeskTodayDTO>("/desk/today", undefined, options),
+
+  opportunities: (options?: ApiRequestOptions) => get<OpportunityListDTO>("/opportunities", undefined, options),
+
+  opportunity: (opportunityId: string, options?: ApiRequestOptions) =>
+    get<OpportunityDetailDTO>(`/opportunities/${encodeURIComponent(opportunityId)}`, undefined, options),
+
+  evaluateOpportunities: () => post<Record<string, unknown>>("/opportunities/evaluations", {}),
+
+  setOpportunityState: (
+    opportunityId: string,
+    body: { action: "dismiss" | "restore" | "watch" | "unwatch"; reason?: string; note?: string },
+  ) => put<Record<string, unknown>>(`/opportunities/${encodeURIComponent(opportunityId)}/state`, body),
+
+  firmMarks: (options?: ApiRequestOptions) =>
+    get<{ marks: FirmMarkDTO[]; statement: string }>("/market/firm-marks", undefined, options),
+
+  putFirmMarks: (marks: { hub: string; period: string; value: number; unit: string; note?: string }[]) =>
+    put<{ marks: FirmMarkDTO[] }>("/market/firm-marks", { marks }),
+
+  openOpportunityCase: (opportunityId: string) =>
+    post<{ case: { case_id: string } | null; evidence_ref: string }>(
+      `/opportunities/${encodeURIComponent(opportunityId)}/case`,
+      {},
+    ),
 
   reportCatalogue: (language?: string, options?: ApiRequestOptions) =>
     get<ReportCatalogueDTO>("/reports/catalogue", language ? { language } : undefined, options),

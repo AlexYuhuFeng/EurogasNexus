@@ -156,15 +156,9 @@ DELIBERATE: dict[str, str] = {
     "/api/assumption-sets/{set_id}/versions/{version}/approve": (
         "CP-07 backend; the risk approval view is a later package"
     ),
-    "/api/market/firm-marks": "CP-07 backend; the marks grid is a later package (CP-14)",
-    "/api/opportunities": "CP-08 backend; the Deals page is a later package (CP-14)",
-    "/api/discoveries": "CP-24 backend; Today and the strip read it (role worker, CP-19)",
-    "/api/opportunities/evaluations": "CP-08 backend; the Deals page is a later package",
+    "/api/discoveries": "CP-24; Today reads it server-side (desk_today), the strip later",
     "/api/opportunities/settings": "CP-08 backend; the Admin settings view is a later package",
     "/api/opportunities/statistics": "CP-08 backend; the Admin precision view is later",
-    "/api/opportunities/{opportunity_id}": "CP-08 backend; the Deals page is a later package",
-    "/api/opportunities/{opportunity_id}/state": "CP-08 backend; Deals page is a later package",
-    "/api/opportunities/{opportunity_id}/case": "CP-08 backend; Deals page is a later package",
     "/api/market/valuation-snapshots/{snapshot_id}": (
         "CP-07 backend; read from an opportunity's evidence in the later Deals page"
     ),

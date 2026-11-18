@@ -35,6 +35,8 @@
 @import url("../components/today.css");
 /* Desk → Network: the page frame, the map panel and the information panel beside it. */
 @import url("../components/network-desk.css");
+/* Deals → Opportunities (CP-14): lanes, folded groups, the detail beside the list. */
+@import url("../components/opportunities/opportunities.css");
 
 /* ------------------------------------------------------------- element base */
 @layer ds-base {

@@ -246,9 +246,10 @@ def test_four_modes_are_the_primary_row_and_decision_center_is_dissolved() -> No
     modes_text = _read(MODE_NAVIGATION_TS)
     assert 'export const MODE_IDS = ["desk", "deals", "book", "research"] as const;' in modes_text
     # Review sits with the deals it approves; nomination and storage planning are the two views
-    # of Book → Planning. Scenario and Optimise left with CP-00 and redirect to Deals → Contracts.
-    # The page addresses stay, so old links keep working.
+    # of Book → Planning. Scenario and Optimise left with CP-00 and redirect to Deals →
+    # Opportunities (CP-14), the first Deals task. The page addresses stay, so old links work.
     for task_id, page, page_task in [
+        ("opportunities", "scenario", "opportunities"),
         ("review", "scenario", "review"),
         ("planning", "scenario", "nomination"),
     ]:
@@ -258,7 +259,7 @@ def test_four_modes_are_the_primary_row_and_decision_center_is_dissolved() -> No
             modes_text,
         ), task_id
     assert 'alsoPageTasks: ["dispatch"]' in modes_text
-    assert '"scenario:optimize": { page: "contracts", task: "resources" }' in modes_text
+    assert '"scenario:optimize": { page: "scenario", task: "opportunities" }' in modes_text
     assert "export function redirectSearch" in modes_text
     en = json.loads(_read(I18N_EN))
     zh = json.loads(_read(I18N_ZH))
