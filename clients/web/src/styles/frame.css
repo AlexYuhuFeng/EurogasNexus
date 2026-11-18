@@ -110,6 +110,13 @@
       display: none;
     }
 
+    /* The guide's two-column lists (workspace map) read term, then explanation, on a phone. */
+    main .manual-step-list > div {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--ds-space-05);
+    }
+
     /* A segmented row that scrolls says so: its ends fade into the track. */
     main .ds-segmented {
       background:
