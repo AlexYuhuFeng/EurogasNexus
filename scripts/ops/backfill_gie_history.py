@@ -165,6 +165,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--country", action="append", help="Country code (repeatable).")
     parser.add_argument("--years", type=int, default=5, help="Complete prior gas years.")
     parser.add_argument("--incremental", action="store_true")
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="With the year windows: also re-read each series from a week before its newest "
+        "stored day (provider revisions). What the scheduler runs (run_dataops_scheduler).",
+    )
     parser.add_argument("--max-windows", type=int, default=60)
     parser.add_argument("--pace-seconds", type=float, default=2.0)
     parser.add_argument("--dry-run", action="store_true", help="Plan and coverage only.")
@@ -198,9 +204,19 @@ def main(argv: list[str] | None = None) -> int:
                     # A complete window is skipped: the run resumes where it stopped.
                     if held_days(session, window) < window.days:
                         plan.append(window)
+                newest = newest_day(session, product, series) if args.refresh else None
+                if newest is not None:
+                    refresh = Window(product, series, newest - timedelta(days=REVISION_DAYS),
+                                     today - timedelta(days=1))
+                    # Unless the series' current gas year is being read in full already.
+                    if refresh.first <= refresh.last and not any(
+                        w.series == series and w.product == product and w.first <= refresh.first
+                        and w.last >= refresh.last for w in plan
+                    ):
+                        plan.append(refresh)
 
-    report: dict = {"planned": len(plan), "done": [], "empty": [], "failed": [],
-                    "remaining": [], "stopped": None}
+    report: dict = {"ok": False, "planned": len(plan), "done": [], "empty": [], "failed": [],
+                    "remaining": [], "stopped": None, "sources": {}}
     if args.dry_run:
         report["remaining"] = [f"{w.product}:{w.series}:{w.first}..{w.last}" for w in plan]
         print(json.dumps(report, indent=2) if args.json else f"{len(plan)} windows to read")
@@ -225,6 +241,10 @@ def main(argv: list[str] | None = None) -> int:
         codes = sorted({str(f.get("code")) for f in outcome.get("failures") or []})
         records = sum(int(v.get("records") or 0) for v in (outcome.get("sources") or {}).values()
                       if isinstance(v, dict))
+        # The ingestion report's counters per window, in the shape the scheduler reads.
+        for name, detail in (outcome.get("sources") or {}).items():
+            if isinstance(detail, dict) and "records" in detail:
+                report["sources"][f"{name} {window.first}..{window.last}"] = detail
         if completed.returncode == 0 and not codes:
             report["done"].append({"window": label, "records": records})
         elif codes == ["gie_no_published_values"]:
@@ -241,9 +261,13 @@ def main(argv: list[str] | None = None) -> int:
                 report["stopped"] = codes
         if not args.json:
             print(label, "ok" if label in str(report["done"][-1:]) else "failed", flush=True)
+    report["ok"] = not report["failed"] and not report["stopped"]
+    if report["ok"] and not report["sources"]:
+        # Nothing to read (every window complete): still a valid, empty success report.
+        report["sources"]["GIE up to date"] = {"records": 0}
     if args.json:
         print(json.dumps(report, indent=2))
-    return 0 if not report["failed"] else 1
+    return 0 if report["ok"] else 1
 
 
 if __name__ == "__main__":

@@ -194,7 +194,11 @@ def test_scheduled_public_reads_carry_complete_read_bounds() -> None:
     # A reference read (~790 points, ~1,300 directions) fits many times over.
     assert ENTSOG_HARD_MAX_RECORDS > 10 * 1300
     assert float(value(entsog, "--entsog-reference-max-age-hours")) == 24
-    assert int(value(gie, "--limit")) >= 7 and value(gie, "--gie-country") == "nwe"
+    # GIE runs the history driver: five years kept filled, the last week re-read, each window
+    # through the gated ingestor (scripts/ops/backfill_gie_history.py).
+    assert gie[1].endswith("backfill_gie_history.py")
+    assert value(gie, "--years") == "5" and "--refresh" in gie and "--json" in gie
+    assert int(value(gie, "--max-windows")) >= 1
     assert len(_gie_plan(["nwe"])) > 2
     assert set(_SOURCE_BOUNDS) <= set(_SOURCE_ARGS)
 

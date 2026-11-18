@@ -54,9 +54,9 @@ _SOURCE_ARGS = {
 #:   smaller bound than the transport allows. A query that reaches the bound is incomplete
 #:   and the attempt fails (``entsog_read_bound_reached``); it never passes as complete.
 #:   The reference network changes rarely, so it is re-read at most once a day.
-#: * GIE: the newest 30 gas days of each product and country (one page each), which covers
-#:   the revisions seen live (up to 4 days back); history is a separate back-fill. The
-#:   per-country series the north-west Europe balance reads are included (``nwe``).
+#: * GIE: read by ``backfill_gie_history.py`` (``_SCRIPT_COMMANDS``), not with a record bound
+#:   here: one gas year per window through this ingestor, so every gate and revision rule
+#:   applies.
 _SOURCE_BOUNDS: dict[str, tuple[tuple[str, str], ...]] = {
     "src-entsog": (
         ("--limit", "50000"),
@@ -66,7 +66,6 @@ _SOURCE_BOUNDS: dict[str, tuple[tuple[str, str], ...]] = {
         # Published tariffs change once a tariff period: read at most daily.
         ("--entsog-tariffs-max-age-hours", "24"),
     ),
-    "src-gie": (("--limit", "30"), ("--gie-country", "nwe")),
 }
 
 # Sources with their own ingest script; each prints the same JSON report with --json.
@@ -89,6 +88,15 @@ _SCRIPT_COMMANDS = {
     "src-ecb-estr": ("ingest_interest_rates.py", "--json", "--benchmark", "ESTR", "--days", "10"),
     "src-eia": ("ingest_eia.py", "--json", "--days", "14"),
     "src-nyfed": ("ingest_interest_rates.py", "--json", "--benchmark", "SOFR", "--days", "10"),
+    # GIE AGSI and ALSI for the EU total and every country GIE publishes: five complete gas
+    # years kept filled (at most 40 missing windows a run, so a new store fills in a few
+    # runs), and the last week of each series re-read for provider revisions (up to 4 days
+    # back seen live). Each window goes through ingest_public_sources.py, so the approval,
+    # certification and key gates and the revision rules are unchanged.
+    "src-gie": (
+        "backfill_gie_history.py", "--product", "agsi", "--product", "alsi", "--years", "5",
+        "--refresh", "--max-windows", "40", "--json",
+    ),
 }
 
 
