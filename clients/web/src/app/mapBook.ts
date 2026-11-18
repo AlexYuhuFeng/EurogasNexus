@@ -146,11 +146,14 @@ export function bookItems(situation: MapSituationDTO | null, now: number): BookI
  */
 export function bookSituation(situation: MapSituationDTO | null, now: number): MapSituationDTO | null {
   if (!situation) return null;
+  const arriving = new Set((situation.book_relevance?.arrivals ?? []).map((item) => item.cargo_id));
   return {
     ...situation,
     flows: [],
     outages: situation.outages.filter((outage) => outage.status === "active"),
-    cargoes: situation.cargoes.filter((cargo) => cargo.own && cargoPhase(cargo, now) !== "completed"),
+    // Ours, and market vessels expected at terminals where we hold slots (book_relevance).
+    cargoes: situation.cargoes.filter((cargo) =>
+      (cargo.own || arriving.has(cargo.cargo_id)) && cargoPhase(cargo, now) !== "completed"),
     regas_slots: situation.regas_slots.filter((slot) => slotPhase(slot, now) !== "completed"),
     contracts: situation.contracts.filter((contract) => contractPhase(contract, now) !== "completed"),
   };

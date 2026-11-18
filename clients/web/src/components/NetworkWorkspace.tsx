@@ -159,7 +159,7 @@ export function NetworkWorkspace({
     [mapView, nowMs, rawSituation],
   );
   const book = useMemo(() => bookItems(rawSituation, nowMs), [nowMs, rawSituation]);
-  const [focus, setFocus] = useState<{ refId?: string | null; cargoId?: string; at?: [number, number] | null; nonce: number } | null>(null);
+  const [focus, setFocus] = useState<{ refId?: string | null; cargoId?: string; at?: [number, number] | null; path?: Array<[number, number]> | null; nonce: number } | null>(null);
   const [replayCargo, setReplayCargo] = useState<MapCargoDTO | null>(null);
   const replayPath = useMemo(() => (replayCargo ? replayTrack(replayCargo) : null), [replayCargo]);
   const replay = useReplay(replayPath);
@@ -440,6 +440,9 @@ export function NetworkWorkspace({
         onSelectOpportunity={(id) => {
           setOpenOpportunityId(id);
           setSelection(null);
+          // Fly the map to the opportunity's path.
+          const line = opportunityLines.find((item) => item.opportunityId === id);
+          if (line) setFocus({ path: line.coordinates, nonce: Date.now() });
         }}
         t={t as (key: string, options?: Record<string, unknown>) => string}
         onSelectHub={(hubNodeId) => {
@@ -816,6 +819,7 @@ export function NetworkWorkspace({
         {mapHasVisibleEvidence && legendOpen && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
           {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
           {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
+          {mapView === "book" && <span className="map-book-legend-line">{t("map.book.legend")}</span>}
           {mapLayers.includes("routes") && mapView === "network" && (
             <span><i className="line-swatch context" />{t("map.key.context_pipelines")}</span>
           )}

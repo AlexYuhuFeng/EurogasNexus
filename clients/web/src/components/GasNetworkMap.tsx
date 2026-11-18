@@ -119,7 +119,14 @@ interface GasNetworkMapProps {
    * panel); `nonce` re-fires it. `at` (longitude, latitude) flies there when the item names no
    * network point or facility of its own.
    */
-  focus?: { refId?: string | null; cargoId?: string; at?: [number, number] | null; nonce: number } | null;
+  focus?: {
+    refId?: string | null;
+    cargoId?: string;
+    at?: [number, number] | null;
+    /** A path to frame (an opportunity's): the map fits it in view. */
+    path?: Array<[number, number]> | null;
+    nonce: number;
+  } | null;
   /**
    * The selection, when the page holds it (the Network panel lists what the selected object
    * relates to). Omitted, the map keeps its own. Either way every change is reported through
@@ -1998,6 +2005,16 @@ export function GasNetworkMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !focus) return;
+    if (focus.path && focus.path.length > 1) {
+      const projected = focus.path.map(([lon, lat]) => toMapCoordinates(lon, lat));
+      const lons = projected.map((point) => point[0]);
+      const lats = projected.map((point) => point[1]);
+      map.fitBounds(
+        [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+        { padding: 80, maxZoom: 7, duration: prefersReducedMotion() ? 0 : 900 },
+      );
+      return;
+    }
     if (focus.cargoId) {
       const cargo = situationRef.current?.cargoes.find((item) => item.cargo_id === focus.cargoId);
       setSelection({ kind: "cargo", id: focus.cargoId });

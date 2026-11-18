@@ -5481,5 +5481,12 @@
   "contracts.status.upcoming": "Starts later",
   "contracts.status.expired": "Expired",
   "contracts.status.retired": "Retired",
-  "contracts.kind.required_hint": "* needed to save."
+  "contracts.kind.required_hint": "* needed to save.",
+  "map.book.reason.pipeline_end": "Other end of {{pipeline}}, where we hold capacity at {{point}}",
+  "map.book.with_held_capacity": "our capacity on the way",
+  "map.book.route_not_stated": "Route not stated by the evaluator: drawn along the default proven crossing.",
+  "map.book.open_in_deals": "Open in Deals → Opportunities",
+  "map.book.arrivals_title": "Expected at our terminals",
+  "map.book.arrival": "To {{terminal}}, ETA {{eta}}",
+  "map.book.legend": "Ours: bold · Reachable: dashed · Opportunity: green (outline = watching or adjacent)"
 }

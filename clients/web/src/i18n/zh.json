@@ -5481,5 +5481,12 @@
   "contracts.status.upcoming": "尚未开始",
   "contracts.status.expired": "已到期",
   "contracts.status.retired": "已退役",
-  "contracts.kind.required_hint": "* 为保存所需。"
+  "contracts.kind.required_hint": "* 为保存所需。",
+  "map.book.reason.pipeline_end": "{{pipeline}} 的另一端（我方在 {{point}} 持有容量）",
+  "map.book.with_held_capacity": "途经我方容量",
+  "map.book.route_not_stated": "评估器未说明路线：沿默认的已证实跨境点绘制。",
+  "map.book.open_in_deals": "在交易项目 → 机会中打开",
+  "map.book.arrivals_title": "预计抵达我方接收站",
+  "map.book.arrival": "前往 {{terminal}}，预计到达 {{eta}}",
+  "map.book.legend": "我方：粗线 · 可达：虚线 · 机会：绿色（轮廓 = 关注中或相邻）"
 }

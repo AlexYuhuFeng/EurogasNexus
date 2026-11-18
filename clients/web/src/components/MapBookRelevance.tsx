@@ -25,6 +25,19 @@ export function OpportunityCard({
       <p className="map-opportunity-headline" data-figure="opportunity-headline">{opportunityLabel(item)}</p>
       <p className="muted">{t("map.book.opportunity_period", { period: item.period })}</p>
       <p className="muted">{t("map.book.opportunity_via", { via: item.via.join(", ") })}</p>
+      {item.route_stated === false && <p className="muted">{t("map.book.route_not_stated")}</p>}
+      <a
+        className="map-detail-link"
+        href={`?mode=deals&task=opportunities&opportunity=${encodeURIComponent(item.opportunity_id)}`}
+        onClick={(event) => {
+          // In-app navigation to Deals → Opportunities (CP-14) on this opportunity.
+          event.preventDefault();
+          window.history.pushState({}, "", `?mode=deals&task=opportunities&opportunity=${encodeURIComponent(item.opportunity_id)}`);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }}
+      >
+        {t("map.book.open_in_deals")}
+      </a>
       <footer className="map-detail-footer muted">{t("map.book.opportunity_core")}</footer>
     </aside>
   );
@@ -56,6 +69,7 @@ export function MapBookRelevance({
   const places = relevance.ours.filter((item) => item.kind !== "cargo");
   return (
     <div className="map-book-relevance">
+      <p className="muted map-book-hint">{t("map.book.legend")}</p>
       <section aria-labelledby="map-book-opportunities-title">
         <h3 id="map-book-opportunities-title">{t("map.book.opportunities_title")}</h3>
         {(relevance.opportunities ?? []).length === 0 ? (
@@ -97,6 +111,19 @@ export function MapBookRelevance({
           </ul>
         )}
       </section>
+      {(relevance.arrivals ?? []).length > 0 && (
+        <section aria-labelledby="map-book-arrivals-title">
+          <h3 id="map-book-arrivals-title">{t("map.book.arrivals_title")}</h3>
+          <ul className="map-book-rows">
+            {relevance.arrivals!.map((item) => (
+              <li key={item.cargo_id} className="map-book-row is-static">
+                <strong>{item.vessel}{item.simulated ? <small> sim</small> : null}</strong>
+                <small>{t("map.book.arrival", { terminal: item.terminal ?? "–", eta: (item.eta_utc ?? "").slice(0, 10) })}</small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section aria-labelledby="map-book-reachable-title">
         <h3 id="map-book-reachable-title">{t("map.book.reachable_title")}</h3>
         <p className="muted map-book-hint">{t("map.book.reachable_hint")}</p>

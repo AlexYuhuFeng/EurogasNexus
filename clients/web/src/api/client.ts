@@ -3402,6 +3402,8 @@ export interface BookReachableDTO {
   spread_gbp_mwh: number | null;
   net_gbp_mwh: number | null;
   simulated: boolean;
+  /** We hold capacity at a crossing on the way. */
+  with_held_capacity?: boolean;
 }
 
 export interface BookOpportunityPathDTO {
@@ -3419,6 +3421,18 @@ export interface BookOpportunityPathDTO {
   to_hub: string;
   path_node_ids: string[];
   via: string[];
+  /** The record stated the crossing its evaluator priced (else the default one is drawn). */
+  route_stated?: boolean;
+  /** on_book: starts or ends at one of our hubs; adjacent: a crossing away; other. */
+  relation?: "on_book" | "adjacent" | "other";
+}
+
+export interface BookArrivalDTO {
+  cargo_id: string;
+  vessel: string;
+  terminal: string | null;
+  eta_utc: string | null;
+  simulated: boolean;
 }
 
 export interface BookContractPathDTO {
@@ -3437,6 +3451,8 @@ export interface BookRelevanceDTO {
   reachable: BookReachableDTO[];
   /** The caller's live opportunities with a path between two hubs (opportunity core). */
   opportunities: BookOpportunityPathDTO[];
+  /** Expected LNG arrivals at terminals where we hold slots (newer servers). */
+  arrivals?: BookArrivalDTO[];
   outages_touching: string[];
 }
 

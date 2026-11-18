@@ -140,7 +140,8 @@ const gbp = (value: number | null) => (value === null ? "–" : value.toFixed(2)
 /** "Reachable from TTF via BBL: spread a, tariff b, net c GBP/MWh (indicative, sim)". */
 export function reachableLine(path: BookReachableDTO, t: Translate): string {
   const via = path.via.join(", ");
-  const tag = t(path.simulated ? "map.book.indicative_sim" : "map.book.indicative");
+  const tag = t(path.simulated ? "map.book.indicative_sim" : "map.book.indicative")
+    + (path.with_held_capacity ? ` · ${t("map.book.with_held_capacity")}` : "");
   if (path.net_gbp_mwh !== null) {
     return t("map.book.reason.reachable_net", {
       from: path.from_hub,
@@ -203,6 +204,8 @@ export function reasonLine(reason: BookReasonDTO, t: Translate, language = "en")
       return t("map.book.reason.held_storage", { mwh: num(reason.max_inventory_mwh, language), hub: reason.hub });
     case "expected_cargo":
       return t("map.book.reason.expected_cargo", { vessel: reason.vessel, eta: when(reason.eta_utc), terminal: reason.terminal ?? "–" });
+    case "pipeline_end":
+      return t("map.book.reason.pipeline_end", { pipeline: reason.pipeline, point: reason.point });
     case "regas_slot":
       return t("map.book.reason.regas_slot", { start: when(reason.window_start_utc), end: when(reason.window_end_utc) });
     default:
