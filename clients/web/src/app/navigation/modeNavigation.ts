@@ -100,6 +100,9 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     descriptionKey: "nav.mode.research.description",
     aliasKeys: ["nav.primary.strategy"],
     tasks: [
+      // Spreads (design basis 2, D.2): relative value on the picker, the normalisation service and
+      // the chart standard; a description is interpreted into the same spec the form edits.
+      { id: "spreads", labelKey: "nav.mode.research.spreads", page: "research", pageTask: "spreads", permissions: ["market.read"] },
       { id: "strategies", labelKey: "nav.mode.research.strategies", page: "strategy", permissions: ["strategy.read"], aliasKeys: ["nav.strategy"] },
       // Market reports: assembled from the catalogue's sections on the server (the Research page's
       // own task, so a capability does not earn a page of its own, AGENTS rule 9).
@@ -135,7 +138,8 @@ export function pageTaskFromLocation(page: WorkspacePageId, search: string): str
     return portfolioTaskFromLocation(page === "orders" ? withWorkspace(search, "orders") : search);
   }
   if (page === "research") {
-    return new URLSearchParams(search).get("task") === "reports" ? "reports" : undefined;
+    const task = new URLSearchParams(search).get("task");
+    return task === "reports" || task === "spreads" ? task : undefined;
   }
   if (page === "scenario" || page === "review") {
     return decisionTaskFromLocation(page === "review" ? withWorkspace(search, "review") : search);

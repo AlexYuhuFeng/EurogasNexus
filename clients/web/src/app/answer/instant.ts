@@ -91,6 +91,15 @@ export function instantAnswer(route: Route): AnswerView | null {
         lines: [],
         target: { kind: "glossary", term: route.answer.term },
       };
+    case "spreads":
+      return {
+        kind: "spreads",
+        label: route.text,
+        value: null,
+        sentence: { key: "answer.spreads.open" },
+        lines: [],
+        target: { kind: "task", mode: "research", task: "spreads", params: { describe: route.text } },
+      };
     case "not-calc":
       return { kind: "not-calc", label: route.text, value: null, sentence: { key: "answer.calc.not" }, lines: [] };
   }

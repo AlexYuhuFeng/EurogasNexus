@@ -172,21 +172,26 @@ export interface WaterfallLine {
 }
 
 /**
- * The front month as a waterfall: each leg's price signed by its weight, the gross spread, each
+ * The front month as a waterfall: the gross spread, each
  * tariff leg (in the display unit, scaled from the route's own currency by the server's
  * conversion of the total), and the net. The steps reconcile to the server's net.
  */
-export function frontWaterfall(result: CurveResultDTO, labels: { gross: string; net: string; leg: (hub: string) => string }): { row: CurveRowDTO; items: WaterfallLine[] } | null {
+export function frontWaterfall(
+  result: CurveResultDTO,
+  labels: { gross: string; net: string; leg: (hub: string) => string; tariff?: (tso: string, direction: string) => string },
+): { row: CurveRowDTO; items: WaterfallLine[] } | null {
   const row = result.rows.find((item) => !item.refused && item.gross !== null);
   if (!row || row.gross === null) return null;
-  const items: WaterfallLine[] = row.legs.map((leg) => ({ id: `leg-${leg.hub}`, label: labels.leg(leg.hub), value: leg.weight * leg.value }));
-  items.push({ id: "gross", label: labels.gross, value: row.gross, kind: "total" });
+  // Starts at the gross spread: the legs' full prices would dwarf the costs being compared.
+  void labels.leg;
+  const items: WaterfallLine[] = [{ id: "gross", label: labels.gross, value: row.gross, kind: "total" }];
   const route = result.route;
   if (row.cost !== null && row.cost !== undefined && route && route.total) {
     const scale = row.cost / route.total;
     for (const [index, leg] of route.legs.entries()) {
       if (leg.value === null) continue;
-      items.push({ id: `tariff-${index}`, label: `${leg.point_name} ${leg.direction.toLowerCase()}`, value: -leg.value * scale });
+      const label = labels.tariff ? labels.tariff(leg.tso, leg.direction) : `${leg.tso} ${leg.direction.toLowerCase()}`;
+      items.push({ id: `tariff-${index}`, label, value: -leg.value * scale });
     }
     items.push({ id: "net", label: labels.net, value: row.net ?? row.gross - row.cost, kind: "total" });
   }

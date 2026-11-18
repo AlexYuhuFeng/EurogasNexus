@@ -38,7 +38,7 @@ test("the primary row is four modes in the plan's order, each with its tasks", (
     ["today", "prices", "network"],
     ["evaluate", "optimise", "routes", "contracts", "review"],
     ["position", "limits", "delivery", "nominations", "storage"],
-    ["strategies", "reports", "data", "assistant"],
+    ["spreads", "strategies", "reports", "data", "assistant"],
   ]);
 });
 
@@ -155,11 +155,11 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
     "desk:today,prices,network",
     "deals:evaluate,optimise,routes,contracts,review",
     "book:position,limits,delivery",
-    "research:strategies,reports,data,assistant",
+    "research:spreads,strategies,reports,data,assistant",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
-  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 17);
+  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 18);
   // No identity, or an older server without a permission list: what it had before.
   assert.equal(visibleModes(null).length, 4);
   assert.equal(visibleModes(user(["TRADER"], undefined)).length, 4);

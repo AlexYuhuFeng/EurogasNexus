@@ -20,6 +20,7 @@ import { gasDayAnswer, type GasDayAnswer } from "./gasDay.ts";
 import { definitionSubject, findTerm, glossaryAnswer, type GlossaryAnswer, type GlossaryEntry } from "./glossary.ts";
 import { lookupIntent, type LookupIntent } from "./intent.ts";
 import { splitTrailingPeriod } from "./period.ts";
+import { spreadStudy } from "./strategy.ts";
 import { convertQuery, priceConversionParts, type Conversion, type FxHeld } from "./units.ts";
 import type { UnitsReferenceDTO } from "../../api/client.ts";
 
@@ -29,6 +30,7 @@ export type Route =
   | { tier: 1; kind: "gasday"; answer: GasDayAnswer }
   | { tier: 1; kind: "glossary"; answer: GlossaryAnswer }
   | { tier: 1; kind: "not-calc"; text: string }
+  | { tier: 1; kind: "spreads"; text: string }
   | { tier: 2; kind: "lookup"; intent: LookupIntent }
   | { tier: 3; kind: "ask"; question: string; forced: boolean }
   | { tier: 0; kind: "none" };
@@ -89,6 +91,10 @@ export function routeQuery(raw: string, context: RouteContext): Route {
   const day = gasDayAnswer(body, context.now);
   if (day) return { tier: 1, kind: "gasday", answer: day };
   if (forced) return body ? { tier: 1, kind: "not-calc", text: body } : { tier: 0, kind: "none" };
+
+  // A spread study ("NBP vs TTF front month net of tariff") opens Research → Spreads.
+  const study = spreadStudy(body);
+  if (study) return { tier: 1, kind: "spreads", text: study };
 
   const subject = definitionSubject(body);
   if (subject) {

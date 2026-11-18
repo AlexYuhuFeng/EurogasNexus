@@ -308,6 +308,11 @@
     .ds-ipicker-list {
       max-height: none;
     }
+
+    /* A phone has no keyboard to describe. */
+    .ds-ipicker-hint {
+      display: none;
+    }
   }
 
   @media (pointer: coarse) {

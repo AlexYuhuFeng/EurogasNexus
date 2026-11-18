@@ -10,11 +10,11 @@ export interface AnswerText {
 
 /** Where Enter takes the reader: a mode's task, or a glossary entry. */
 export type AnswerTarget =
-  | { kind: "task"; mode: "desk" | "deals" | "book" | "research"; task: string }
+  | { kind: "task"; mode: "desk" | "deals" | "book" | "research"; task: string; params?: Record<string, string> }
   | { kind: "glossary"; term: string };
 
 export type AnswerKind =
-  | "calc" | "convert" | "gasday" | "glossary" | "not-calc"
+  | "calc" | "convert" | "gasday" | "glossary" | "not-calc" | "spreads"
   | "price" | "storage" | "lng" | "norway" | "outages" | "position" | "credit" | "contract";
 
 export interface AnswerView {

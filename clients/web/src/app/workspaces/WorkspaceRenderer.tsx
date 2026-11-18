@@ -17,6 +17,7 @@ import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import { RuntimeWorkspace } from "@/components/RuntimeWorkspace";
 import { ResearchDataWorkspace } from "@/components/ResearchDataWorkspace";
 import { ReportsWorkspace } from "@/components/ReportsWorkspace";
+import { SpreadsWorkbench } from "@/components/research/SpreadsWorkbench";
 import { pageTaskFromLocation } from "@/app/navigation/modeNavigation";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
@@ -278,7 +279,9 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <AccessCenter currentUser={api.currentUser} t={t} />
       )}
 
-      {activeWorkspace === "research" && researchTask !== "reports" && (
+      {activeWorkspace === "research" && researchTask === "spreads" && <SpreadsWorkbench />}
+
+      {activeWorkspace === "research" && researchTask !== "reports" && researchTask !== "spreads" && (
         <ResearchDataWorkspace t={t} />
       )}
 

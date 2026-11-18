@@ -350,8 +350,13 @@ export function InstrumentPicker({
                 >
                   <span className="ds-ipicker-code">{state.level === "tenor" && !state.query && !option.recent ? item.code : item.label}</span>
                   <span className="ds-ipicker-name">
-                    {option.recent ? t("instrument_picker.recent") : kindLabel(item.productKind)}
-                    {item.thin ? ` · ${t("instrument_picker.thin", { count: item.observations })}` : ""}
+                    {/* Under a kind's tab the kind is already said: only search results and
+                        recent picks name it. */}
+                    {[
+                      option.recent ? t("instrument_picker.recent") : null,
+                      state.level !== "tenor" || state.query ? kindLabel(item.productKind) : null,
+                      item.thin ? t("instrument_picker.thin", { count: item.observations }) : null,
+                    ].filter(Boolean).join(" · ")}
                   </span>
                   <span className="ds-ipicker-meta">
                     {unitLabel(item.nativeUnit)}

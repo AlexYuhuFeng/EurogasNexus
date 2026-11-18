@@ -6,6 +6,21 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-18 — CP-16 Research → Spreads and CP-23 "Describe a strategy" (branch `cp-16`, not pushed)
+
+- One StrategySpec (curve | history, legs, unit, forward/spot FX, route tariff, rule) edited
+  two ways: the "Describe it" box (`POST /api/research/spreads/interpret`: built-in EN/ZH reader,
+  or the model when allowed, translating only; code is read, never run) and the "Understood
+  as" chips (picker legs, swap, unit, FX, transport). `POST /api/research/spreads/evaluate`
+  computes every figure: curve by delivery month at forward FX net of the proven route's
+  published tariffs (gas year, class, missing named, never zero), or a history through the
+  spread lab with the route cost both ways as lines. Gaps come back as questions with choices.
+- Research → Spreads task (`task=spreads`); chart standard line (net) + grey gross, front-month
+  waterfall, tariff table, per-row FX and input classes, weakest class as the result; simulated
+  banner. Ctrl K: a spread study opens Spreads with the description.
+- Demo acceptance: "forward spread net of transport tariff between TTF and NBP" → NBP − TTF in
+  EUR/MWh, BBL route 1.880 EUR/MWh (simulated demo tariffs). Surface 275 / 306.
+
 ## 2026-11-18 — CP-02 instrument catalogue and picker (branch `cp-02`, not pushed)
 
 - `GET /api/market/instruments` (READ; `application/instrument_catalogue.py`): the caller's

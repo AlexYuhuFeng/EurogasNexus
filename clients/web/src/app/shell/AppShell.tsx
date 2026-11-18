@@ -343,6 +343,16 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
       ? glossaryCommands([{ term: target.term }])[0]
       : commandById(`navigate.mode.${target.mode}.${target.task}`);
     if (command) palette.run(command);
+    // A target that carries a question for the task (Spreads' description) puts it in the URL,
+    // where the task reads it.
+    if (command && target.kind === "task" && target.params) {
+      const url = new URL(window.location.href);
+      // The page's own task (Research → Spreads is `task=spreads` on the Research page).
+      url.searchParams.set("task", target.task);
+      for (const [key, value] of Object.entries(target.params)) url.searchParams.set(key, value);
+      window.history.replaceState(window.history.state, "", url);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+    }
   };
   const openAskedReport = (question: string) => {
     const command = commandById("navigate.mode.research.reports");
