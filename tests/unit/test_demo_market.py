@@ -109,12 +109,15 @@ def test_closes_cover_the_history_for_every_rolling_product(store):
     assert row.metadata_json["simulated"] is True and row.source_system == "DEMO_Sim"
 
 
-def test_prompt_products_stay_around_the_front_month(store):
+@pytest.mark.parametrize("hub", ["THE", "NBP", "PVB"])
+def test_prompt_products_stay_around_the_front_month(store, hub):
     market = _market()
-    for day, row in _closes(store, "THE", "day-ahead").items():
-        month_ahead = SEED._month_ahead_history(store, "THE", day - timedelta(days=1))[day][0]
-        front = market.month_price("THE", day, month_ahead, MARKET.month_start(day))
-        assert abs(row.price - front) < 2.0
+    for day, row in _closes(store, hub, "day-ahead").items():
+        if hub == "NBP" and MARKET.l1_planted(day):
+            continue  # the planted squeeze is the exception, by design
+        month_ahead = SEED._month_ahead_history(store, hub, day - timedelta(days=1))[day][0]
+        front = market.month_price(hub, day, month_ahead, MARKET.month_start(day))
+        assert abs(row.price - front) < 2.0, (hub, day)
 
 
 def test_l1_and_w1_hold_exactly_on_their_planted_days(store):

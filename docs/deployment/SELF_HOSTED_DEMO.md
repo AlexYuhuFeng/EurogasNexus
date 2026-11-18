@@ -186,10 +186,10 @@ Planted dislocations (and no others) give the opportunity evaluators something t
 
 | Case | Evaluator | Where | What is planted |
 |---|---|---|---|
-| `L1-nbp-over-ttf-da` | L / A | NBP vs TTF, DA | NBP DA (in EUR at the demo fixing) over TTF DA exceeds the simulated BBL route cost (1.88 EUR/MWh) by 1.20 on days with ordinal % 23 in {0, 1}; on every other day the net is 0.65-1.15 below the cost (0.05-0.55 while O1 is active), so it flips sign on exactly those days |
+| `L1-nbp-over-ttf-da` | L / A | NBP vs TTF, DA | NBP DA (in EUR at the demo fixing) over TTF DA exceeds the simulated BBL route cost (1.88 EUR/MWh) by 1.20 on days with ordinal % 23 in {0, 1}; on every other day arbitrage through BBL keeps the net at least 0.65 below the cost (NBP DA otherwise follows its own front month), so it flips sign on exactly those days |
 | `W1-ttf-wd-over-da` | A | TTF, WD vs DA | WD 1.50 over DA on days with ordinal % 17 = 5; elsewhere, and at every other hub, \|WD - DA\| <= 0.25 |
 | `T1-cegh-winter-over-summer` | T | CEGH, Sum vs Win | A 1.00 EUR/MWh far-winter premium on winter months 6+ months ahead, so its next winter over the summer before exceeds the storage cost used (3.80 EUR/MWh); every other hub stays below |
-| `O1-nbp-outage-basis` | event exposure | NBP, DA | +0.60 EUR/MWh while the demo's unplanned NBP-zone outage is active; L1's net stays below zero on non-planted days |
+| `O1-nbp-outage-basis` | event exposure | NBP, DA | +0.60 EUR/MWh on NBP DA while the demo's unplanned NBP-zone outage is active, within the L1 arbitrage bound on non-planted days |
 
 The cases are also in `PLANTED_CASES` in `scripts/demo/demo_market.py`, and the closes they
 touch carry `demo_planted_case` in their metadata; `tests/unit/test_demo_market.py` checks that

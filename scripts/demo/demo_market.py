@@ -44,6 +44,11 @@ BBL_ROUTE_COST_EUR_MWH = 0.56 + 1.20 + 0.12
 #: The storage cost the time-spread case is measured against (EUR/MWh, injection, withdrawal
 #: and capacity together; invented).
 STORAGE_COST_EUR_MWH = 3.8
+#: L1: NBP DA net of the BBL route over TTF DA on planted days, and the arbitrage margin
+#: below which it stays on every other day (EUR/MWh). O1: NBP DA premium during the outage.
+L1_PLANTED_EXCESS = 1.20
+L1_NO_ARB_MARGIN = 0.65
+O1_OUTAGE_PREMIUM_EUR = 0.60
 #: Tick per hub, in the hub's native quotation.
 TICKS = {"NBP": 0.01}  # pence per therm
 DEFAULT_TICK = 0.005  # EUR/MWh
@@ -80,9 +85,8 @@ PLANTED_CASES: tuple[PlantedCase, ...] = (
         "L1-nbp-over-ttf-da", "L (locational) / A (arbitrage)", ("TTF", "NBP"), ("DA",),
         "NBP day-ahead (in EUR at the demo fixing) over TTF day-ahead exceeds the simulated "
         f"BBL route cost ({BBL_ROUTE_COST_EUR_MWH:.2f} EUR/MWh) by 1.20 on planted days "
-        "(ordinal % 23 in {0, 1}); on every other day it is 0.65-1.15 below the cost (0.05-0.55 "
-        "while O1 is active), so the "
-        "net spread flips sign on exactly those days.",
+        "(ordinal % 23 in {0, 1}); on every other day arbitrage through BBL keeps it at least "
+        "0.65 below the cost, so the net spread flips sign on exactly those days.",
     ),
     PlantedCase(
         "W1-ttf-wd-over-da", "A (prompt arbitrage)", ("TTF",), ("WD", "DA"),
@@ -196,11 +200,20 @@ class DemoMarket:
         front = self.month_price(hub, day, month_ahead, month_start(day))
         basis = prompt_basis(hub, day)
         day_ahead = front + basis
-        if hub == "NBP" and ttf_day_ahead is not None:
-            gap = 1.20 if l1_planted(day) else -0.90 + max(-0.25, min(0.25, _noise(
-                hub, "l1", day, 0.12)))
-            net_eur = BBL_ROUTE_COST_EUR_MWH + gap + (0.60 if outage else 0.0)
-            day_ahead = (ttf_day_ahead + net_eur) * DEMO_EURGBP
+        if hub == "NBP":
+            # NBP's own prompt (its front month plus its prompt basis), lifted by O1 while the
+            # demo outage runs. Against TTF through BBL: arbitrage keeps NBP DA at least
+            # L1_NO_ARB_MARGIN below TTF DA + the route cost, except on L1's planted days,
+            # when it is L1_PLANTED_EXCESS above it.
+            if outage:
+                day_ahead += O1_OUTAGE_PREMIUM_EUR * DEMO_EURGBP
+            if ttf_day_ahead is not None:
+                net = day_ahead / DEMO_EURGBP - ttf_day_ahead - BBL_ROUTE_COST_EUR_MWH
+                if l1_planted(day):
+                    net = L1_PLANTED_EXCESS
+                elif net > -L1_NO_ARB_MARGIN:
+                    net = -L1_NO_ARB_MARGIN
+                day_ahead = (ttf_day_ahead + BBL_ROUTE_COST_EUR_MWH + net) * DEMO_EURGBP
         wd_gap = max(-0.25, min(0.25, _noise(hub, "wd", day, 0.08)))
         if hub == "TTF" and w1_planted(day):
             wd_gap = 1.50
