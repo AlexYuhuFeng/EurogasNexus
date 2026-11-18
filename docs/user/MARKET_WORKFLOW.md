@@ -7,10 +7,8 @@ resource?
 2. Read the hub board: bid/ask, mid, spread to TTF, source, freshness.
 3. Use Curves & Spreads for tenor context and Network (map, outages, capacity and flows) for
    physical and capacity context.
-4. Inspect route candidates. Each row shows source, freshness, assumptions,
-   and whether it is blocked, unavailable, or feasible.
-5. Use **Open in Scenario** to carry the selected route into **Deals → Evaluate**.
-   The context bar must still match the decision you are making.
+4. Route candidates and the scenario hand-off left the screens with Deals → Evaluate
+   (commercial design basis 2, section I); they return as **Deals → Opportunities**.
 
 If a value is stale or simulated, the source column says `_Sim` or the warning
 register says so. Do not interpret simulated evidence as live licensed data.

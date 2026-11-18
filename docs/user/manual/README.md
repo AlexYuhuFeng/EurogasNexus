@@ -36,11 +36,9 @@ covers it.
 | New deal | Read a signed confirmation PDF into a draft and check each term | Deals → Contracts → Import | [Steps](TRADER.md#2-read-a-confirmation-pdf-into-a-draft) |
 | Change | Edit a stored contract (the edit token prevents overwriting a colleague's change) | Deals → Contracts → Library → Inspect | Guide |
 | End of deal | Retire a terminated contract with a reason; reinstate it if the termination is withdrawn | Deals → Contracts → Library | [Steps](TRADER.md#3-retire-and-reinstate-a-contract) |
-| Cargo | Price the most to bid DES for an LNG cargo at each terminal | Deals → Routes & netback → LNG cargo bid | [Steps](TRADER.md#6-price-an-lng-cargo-bid) |
-| Capacity | Cost a route with entry/exit tariffs; compare alternatives | Deals → Routes & netback | Guide |
-| Yearly | Track each TSO's indicative and final tariffs for the next gas year | Deals → Routes & netback → Tariff publications | [Steps](TRADER.md#7-track-tso-tariff-publications) |
+| Yearly | Track each TSO's indicative and final tariffs for the next gas year | Administration → Data Sources → Infrastructure → Tariff publications | [Steps](TRADER.md#7-track-tso-tariff-publications) |
 | Reporting | Export the ladder, credit and mandate tables to Excel, PDF or CSV | Export buttons on each table | [Steps](TRADER.md#4-monitor-the-book-position) |
-| Research | Back-test a spread or benchmark strategy | Research → Strategies | Guide |
+| Research | Write a market report from the catalogue's sections | Research → Reports | Guide |
 | Start and end of day | Draft the morning brief or end-of-day report | Desk → Today → Desk brief, or Ctrl K | [Steps](TRADER.md#8-draft-the-morning-brief-or-end-of-day-report) |
 | Any time | Look up a term, its unit, formula and where it appears | Help & Settings → Glossary | [Steps](TRADER.md#9-look-up-a-term) |
 | Any time | Report a problem to the IT desk with diagnostics attached | Top bar "?" | [Steps](TRADER.md#10-report-a-problem) |

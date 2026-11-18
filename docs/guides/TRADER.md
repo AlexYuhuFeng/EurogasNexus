@@ -35,17 +35,10 @@ For contract entry, PDF intake, retirement and reinstatement, use the
 
 ## Compare routes and sales
 
-1. Open **Deals → Routes & netback** and inspect the candidate's costs, capacity and access.
-2. Use the available scenario handoff to carry the candidate into **Deals → Evaluate**.
-3. Confirm which saved resources and sale options form the comparison. Panel edits and
-   saved contract terms can have different roles in a calculation.
-4. Run the comparison or optimisation. Inspect allocated and unallocated volume, binding
-   constraints, price/FX basis and financing assumptions.
-5. Retain the candidate and its evidence for review.
-
-**Result:** alternatives whose quantities, costs and assumptions can be explained.
-A blocked result names the input or constraint to resolve; a blank result needs data
-or configuration, rather than a presumed zero economic value.
+Route comparison and pool optimisation were removed from the screens with Deals → Evaluate,
+Optimise and Routes & netback (commercial design basis 2, section I). The engines remain on the
+API; on screen they return as **Deals → Opportunities**, where each candidate states its legs,
+costs and assumptions.
 
 Each resource uses its own recorded contract financing rate. A resource without a rate
 uses the scenario default; in the UI, that default comes from the first saved upstream

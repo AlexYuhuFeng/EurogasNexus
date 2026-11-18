@@ -1,5 +1,7 @@
 # Economics workflow acceptance — capacity billing and LNG economics-only
 
+> **Removed from the product (CP-00, commercial design basis 2, section I).** The screens this page describes no longer exist; their links open Research → Reports or Deals → Contracts. The backend stays dormant (I.3). Kept as a record.
+
 Status: **bounded synthetic browser and installed-SDK acceptance passed on 2026-10-28.**
 Root independently executed the scripts against the dedicated PostgreSQL-backed
 loopback API/Web stack. These results cover the two compute-only workflows;

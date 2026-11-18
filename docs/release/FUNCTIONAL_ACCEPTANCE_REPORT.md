@@ -1,5 +1,7 @@
 # Functional acceptance report
 
+> **2026-11-18, CP-00:** the `research` (Data) and `agents` (Assistant) gaps below are retired with their pages; Research is Reports now, and the sweep declares no functional gap or surface defect for it.
+
 **Status: NOT ACCEPTED.** Measured, not asserted: the browser acceptance sweep now checks whether
 each surface *renders what its own API returned*, and on 2026-09-19 it reported **140 failures across
 the three viewports and both languages**, dominated by one systemic defect.

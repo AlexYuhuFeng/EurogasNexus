@@ -303,28 +303,3 @@ test("an unrecorded financing rate is refused, never run as a 0% fallback", () =
     source: "unknown",
   });
 });
-
-test("the panel's vocabulary is translated and the false EUR/MWh labels are gone", () => {
-  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
-  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
-
-  const keys = [
-    "scenario.financing_rate_from_saved_contract",
-    "scenario.financing_rate_from_draft_fallback",
-    "scenario.compare_location",
-    "scenario.optimizer_location",
-    ...SCENARIO_EDITABLE_DRAFT_INPUTS.map((input) => input.labelKey),
-  ];
-  for (const key of keys) {
-    assert.ok(en[key]?.trim(), `en ${key}`);
-    assert.ok(zh[key]?.trim(), `zh ${key}`);
-    assert.notEqual(en[key], zh[key], `untranslated ${key}`);
-  }
-
-  // The labels that named GBP-named draft fields as EUR/MWh are deleted, not reworded: the
-  // fields have no consumer in either action, so nothing may name them as money.
-  for (const removedKey of ["economics.nbp_price", "economics.physical_price"]) {
-    assert.equal(removedKey in en, false, removedKey);
-    assert.equal(removedKey in zh, false, removedKey);
-  }
-});

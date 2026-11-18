@@ -25,7 +25,7 @@ backend authorises.
 | Management | ANALYST or REVIEWER | Portfolio → Overview | Portfolio footprint, P&L, exposure summary, decisions needing attention |
 | Decision reviewer | REVIEWER | Decision Center → Review | Cases awaiting a decision |
 | Data operator | OPERATOR | Administration → Sources | Source health, ingestion, certification |
-| Originator / structurer | ANALYST | Deals → Evaluate | Deal economics, LNG cargo bids, supply contracts, cases they opened |
+| Originator / structurer | ANALYST | Deals → Contracts (Deals → Opportunities once it exists) | Deal economics, supply contracts, cases they opened |
 | Operations (deliveries, scheduling) | VIEWER or ANALYST | Book → Delivery | Delivered against contracted, nomination deadlines, outages at delivery points |
 | Platform administrator | ADMIN | Administration → Access | Users, roles, keys, audit |
 

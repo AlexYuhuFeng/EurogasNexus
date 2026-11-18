@@ -554,8 +554,6 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     assert zh["nav.orders"] == "\u5e02\u573a\u5b9a\u4f4d"
     assert en["nav.manual"] == "Manual"
     assert zh["nav.manual"] == "\u7528\u6237\u624b\u518c"
-    assert en["home.resource_pool"] == "Resource pool"
-    assert zh["home.resource_pool"] == "\u8d44\u6e90\u6c60"
 
     assert en["result.route_alpha"] == "Route alpha ladder"
 

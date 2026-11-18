@@ -5,18 +5,10 @@
 ## Compare resources and routes
 
 1. Open **Deals → Contracts** and inspect saved resources, quantity, all-in cost and access.
-2. Open **Routes** and compare alternatives, including the reason a route is blocked.
-3. Carry a route into **Deals → Evaluate**. **Compare Options** uses the saved
-   resource-pool read: resource volume/cost, sale-option price, route cost/capacity, each
-   value's currency/unit and the saved gas year. Inspect that saved basis separately from
-   temporary edits in the Scenario panel.
-4. Open **Optimize** and run **Optimize Resource Pool**. Each resource uses its recorded
-   contract financing rate. Resources with no rate use the scenario default, which the UI
-   derives from the first saved upstream contract or the draft fallback. Rates are annual
-   percentages. Inspect each allocation's applied rate, source (`contract` or
-   `scenario_default`) and day-count convention.
-5. Review allocated and unallocated volume, binding constraints and P&L attribution.
-6. Open **Review**, inspect assumptions and source references, and record the permitted outcome.
+2. Route comparison (Routes) and the pool optimiser (Evaluate, Optimise) were removed from the
+   screens (commercial design basis 2, section I); they return as **Deals → Opportunities**.
+   The engines stay on the API.
+3. Open **Review**, inspect assumptions and source references, and record the permitted outcome.
 
 The allocation engine uses min-cost flow over the declared inputs and constraints.
 The [data guide](DATA_STATUS_AND_PROVENANCE.md#resource-pool-financing) gives the simple-interest

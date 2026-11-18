@@ -24,9 +24,8 @@ the ETRM import, read-only, or the next nomination window), or nothing at all. I
 data-pipeline state. See [the situational strip](../SITUATION_STRIP.md); its thresholds are under
 Settings → Personal preferences → Situational strip.
 
-Your work is mostly under **Deals** (Evaluate, Optimise, Routes & netback for capacity, LNG and
-tariffs, Contracts, Review) and **Book** (Position, Limits & P&L, Delivery for the daily balance
-and sell-down, Nominations, Storage plan). Help & Settings and Administration are in the
+Your work is mostly under **Deals** (Contracts, Review) and **Book** (Position, Limits & P&L,
+Delivery for the daily balance and sell-down, Planning for nominations and the storage plan). Help & Settings and Administration are in the
 account menu.
 
 ![Sign-in](img/00-signin.png)
@@ -181,19 +180,14 @@ nominated, shortfalls beyond tolerance and the last 7 days.
 
 ## 6. Price an LNG cargo bid
 
-Deals → **Routes & netback** → **LNG cargo bid**. Enter the cargo size (MMBtu or MWh), arrival
-month, target margin, boil-off and charter per day, then **Price the bid**. Each
-terminal's maximum DES bid is the hub forward for the arrival month less regas (from the
-terminal's published tariff: Fluxys indexed slot, Elengy term or SMART SPOT by cargo
-class, DET auction, or your own terms where the terminal negotiates), entry, fuel, port,
-boil-off and charter. **Terminal terms** shows each terminal's regime and the document its
-figures come from.
-
-![LNG cargo bid](img/tr-17-lngbid.png)
+The LNG cargo bid panel was removed with Routes & netback (commercial design basis 2, section I).
+Cargo economics return as **Deals → Opportunities** and **Research → Cargo & netback**; until
+then the terminal terms and tariffs are kept under Administration.
 
 ## 7. Track TSO tariff publications
 
-Deals → **Routes & netback** → **Tariff publications**. Register each TSO and gas year you hold
+Administration → **Data Sources** → **Infrastructure** → **Tariff publications** (a register,
+not a desk page, since commercial design basis 2). Register each TSO and gas year you hold
 capacity in, with the publication page: **Register a publication** → TSO, country, gas
 year (`2027/28`), held (expected, indicative or final) and the page URL → **Save**. The
 final tariff is due 30 days before July's annual yearly auction (NC TAR); the register

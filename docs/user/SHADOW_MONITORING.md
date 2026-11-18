@@ -1,5 +1,7 @@
 # Shadow Monitoring
 
+> **Removed from the product (CP-00, commercial design basis 2, section I).** The screens this page describes no longer exist; their links open Research → Reports or Deals → Contracts. The backend stays dormant (I.3). Kept as a record.
+
 Shadow monitoring repeatedly evaluates a frozen strategy against current
 evidence. It produces candidates for human review, not orders.
 

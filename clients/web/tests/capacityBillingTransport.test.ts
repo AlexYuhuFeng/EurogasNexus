@@ -312,16 +312,7 @@ test("the method is transport only and the request type declares no authority fi
     1,
     "one typed method for the one route",
   );
-
-  const hookSource = readFileSync(
-    new URL("../src/app/model/useCapacityBilling.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(hookSource, /api\.capacityBilling\(body, \{ signal: controller\.signal \}\)/);
-  assert.match(hookSource, /capacityBillingRefusal\(error\)/);
-  assert.equal(hookSource.includes("decision_context"), false);
-  assert.match(hookSource, /abortRef\.current\?\.abort\(\)/, "an edit or rerun aborts the old request");
-  assert.match(hookSource, /if \(sequence !== runSequence\.current\) return;/, "stale responses are ignored");
+  // The calculator panel and its hook left the UI with CP-00; the typed method stays.
 });
 
 test("the harness keeps store modules fresh and the real client unmocked", async () => {

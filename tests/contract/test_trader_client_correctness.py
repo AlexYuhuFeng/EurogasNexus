@@ -27,7 +27,6 @@ def _read_application() -> str:
 
 def test_strategy_prices_consume_backend_normalized_market_view() -> None:
     scenario = _read(WEB / "app" / "strategyScenario.ts")
-    presentation = _read(WEB / "app" / "model" / "shadowRunPresentation.ts")
     market_terminal = _read(WEB / "components" / "MarketTerminal.tsx")
     store = _read(WEB / "stores" / "api.ts")
     app = _read_application()
@@ -56,9 +55,8 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
     assert "const nbpPrice" not in scenario
     assert "Math.max(nbpPrice - 0.4, 0)" not in scenario
 
-    # the shadow-run presentation consumes backend-owned normalized prices
-    assert "item.price_gbp_mwh" in presentation
-    assert "item.is_gas_price" in presentation
+    # the shadow-run presentation left with the Strategies page (CP-00)
+    assert not (WEB / "app" / "model" / "shadowRunPresentation.ts").exists()
 
     # market terminal consumes backend hub/tenor and backend-owned spreads
     assert "row.tenor" in market_terminal
@@ -406,18 +404,6 @@ def test_app_no_longer_owns_duplicate_workspace_menu() -> None:
     assert "groupedMenuOpen" not in topbar
     assert "workspace-primary-tabs" in topbar
     assert "[legacyProp: string]" not in topbar
-
-
-def test_strategy_freshness_uses_latest_observation_per_basis() -> None:
-    presentation = _read(WEB / "app" / "model" / "shadowRunPresentation.ts")
-
-    # Freshness is a statement about the figure the board shows: a basis is stale when the latest
-    # observation of it is old, not when any observation behind it is. Counting the archive would
-    # mark a live quote stale because last month's rows are old.
-    assert "staleCount:\n        latest &&\n        isStaleObservation(" in presentation
-    assert "staleCount:\n          latestFx &&\n          isStaleObservation(" in presentation
-    assert "staleCount: observations.filter" not in presentation
-    assert "staleCount: input.fxRates.filter" not in presentation
 
 
 def test_source_credentials_follow_selected_public_source() -> None:

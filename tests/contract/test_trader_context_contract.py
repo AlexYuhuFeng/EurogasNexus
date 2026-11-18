@@ -116,13 +116,10 @@ def test_context_labels_have_en_zh_parity() -> None:
         "context.result_mismatch",
         "context.result_mismatch_hint",
         "network.open_in_scenario",
-        "scenario.carried_route",
         "strategy.carried_resource",
         "strategy.review",
         "strategy.review_decision",
         "review.carried_strategy_run",
-        "contracts.open_in_strategy",
-        "contracts.open_in_strategy_unavailable",
     ]
     for key in keys:
         assert en[key].strip()

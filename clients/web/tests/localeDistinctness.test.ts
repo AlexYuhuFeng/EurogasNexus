@@ -26,7 +26,6 @@ function readLocale(name: "en" | "zh"): Record<string, string> {
  */
 const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "access.view.sso": "an acronym",
-  "agents.run_id_placeholder": "an identifier shape, not prose",
   "answer.as_of_source": "a date and a source name joined by a separator, no words",
   "answer.gasday.window": "two times joined by an arrow, no words",
   "answer.outages.top": "a list of facility names and figures, no words",
@@ -38,7 +37,6 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "experience.palette.group.ai": "an acronym",
   "map.layer.lng": "an acronym",
   "nwe.lng": "an acronym",
-  "prices.chart.spread_series": "two hub names, the same in both locales",
   "panel.lng": "an acronym in a vendor's own product name",
   "preferences.time_zone.utc": "the time standard's name, written UTC in both locales",
   "report.format_csv": "a file format's name",
@@ -49,7 +47,6 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "settings.english": "a language named in its own language",
   "sources.category.llm": "an acronym",
   "status.alembic": "a tool's own name",
-  "strategy_lab.kpi": "an acronym",
   "setup.item.src-argus.name": "a provider's own name",
   "setup.item.src-eex.name": "a provider's own name",
   "setup.item.src-gie.name": "a provider's own name",

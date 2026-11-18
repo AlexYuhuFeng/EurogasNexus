@@ -171,24 +171,3 @@ test("a state this build has no label for is shown as its own code", () => {
   assert.equal(dataProductFreshnessKey("FRESH"), "data_product.freshness.fresh");
   assert.equal(dataProductFreshnessKey("UNRECOGNISED"), "UNRECOGNISED");
 });
-
-test("every catalogue string exists in both locales, and says something different", () => {
-  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
-  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
-
-  const keys = Object.keys(en).filter((key) => key.startsWith("data_product."));
-  // The surface's vocabulary is enumerated from the locale itself, so a key added to one
-  // locale and not the other cannot hide.
-  assert.ok(keys.length >= 30, `only ${keys.length} catalogue keys were found`);
-  assert.deepEqual(
-    Object.keys(zh).filter((key) => key.startsWith("data_product.")).sort(),
-    [...keys].sort(),
-  );
-  for (const key of keys) {
-    assert.notEqual(en[key], zh[key], `${key} is not translated`);
-    assert.equal(en[key].includes("?"), false, `${key} carries a placeholder`);
-    assert.equal(zh[key].includes("\ufffd"), false, `${key} carries a replacement character`);
-  }
-  assert.ok(en["research.tab.products"]);
-  assert.ok(zh["research.tab.products"]);
-});

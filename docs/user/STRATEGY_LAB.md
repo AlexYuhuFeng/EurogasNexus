@@ -1,5 +1,7 @@
 # Strategy Lab
 
+> **Removed from the product (CP-00, commercial design basis 2, section I).** The screens this page describes no longer exist; their links open Research → Reports or Deals → Contracts. The backend stays dormant (I.3). Kept as a record.
+
 A strategy is a long-lived research identity. Versions are immutable once
 frozen. Runs are immutable evaluations of one exact version.
 

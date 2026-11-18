@@ -30,20 +30,21 @@ address, so a link or a refresh returns to it.
 | Mode | Tasks | The question it answers |
 | --- | --- | --- |
 | Desk | Today, Prices, Network (map with outages, capacity and flows beside it) | What changed, and does it touch us? |
-| Deals | Evaluate, Optimise, Routes & netback, Contracts, Review | What is this deal worth to us, and has it been approved? |
-| Book | Position, Limits & P&L, Delivery, Nominations, Storage plan | Where do we stand, and what is near a limit? |
-| Research | Strategies, Data, Research assistant | Why is the market here, and what does history say? |
+| Deals | Contracts, Review (Opportunities is coming) | What have we contracted, and has it been approved? |
+| Book | Position, Limits & P&L, Delivery, Planning (Nominations and Storage plan behind one switch) | Where do we stand, and what is near a limit? |
+| Research | Reports (Spreads, Fundamentals and Cargo & netback are coming) | Why is the market here, and what does history say? |
 
 **Help & Settings** (Settings, Manual, Glossary) and **Administration** (Data Sources, Runtime,
 Access & Identity) are in the account menu, not the top bar. Keyboard users reach the modes with
 **Ctrl+Shift+1** to **4** (⌘ on a Mac), Help & Settings with **Ctrl+Shift+5** and Administration
 with **Ctrl+Shift+6**; the top bar is one Tab stop, and the arrow keys move between modes.
 
-Decision Center is no longer a separate area. Scenarios and optimisation are **Deals → Evaluate**
-and **Deals → Optimise**; a decision review is **Deals → Review**, with the deals it approves;
-nomination and storage assessments are **Book → Nominations** and **Book → Storage plan**. Old
-links (a bookmarked Decision Center or Portfolio address) open the new place, and the search
-(Ctrl+K) still finds the old names.
+Decision Center is no longer a separate area. A decision review is **Deals → Review**, with the
+deals it approves; nomination and storage assessments are the two views of **Book → Planning**.
+Evaluate, Optimise, Routes & netback, Strategies, Data and the Research assistant were removed
+(commercial design basis 2, section I): a bookmarked link to one of them opens the nearest
+surviving task (Deals → Contracts, or Research → Reports), and the search (Ctrl+K) still finds the
+old names of the tasks that remain.
 
 The available workspaces depend on your access and job profile. A job profile organises
 your workspace; roles and data scopes determine the actions and information available.

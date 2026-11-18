@@ -57,7 +57,6 @@ test("evidence labels remain paired across English and Mandarin", () => {
   for (const key of [
     "data.stale",
     "evidence.lineage",
-    "evidence.observed",
     "evidence.freshness",
     "evidence.review_boundary",
     "evidence.research_boundary",

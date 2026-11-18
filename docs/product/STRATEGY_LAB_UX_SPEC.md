@@ -1,5 +1,7 @@
 # Strategy Lab UX Specification — CR-05
 
+> **Removed from the product (CP-00, commercial design basis 2, section I).** The screens this page describes no longer exist; their links open Research → Reports or Deals → Contracts. The backend stays dormant (I.3). Kept as a record.
+
 Status: accepted CR-05 architecture. This document owns the Strategy Lab
 information architecture, workflow, component boundaries, validation, state,
 density, comparison semantics, and Shadow shell.
