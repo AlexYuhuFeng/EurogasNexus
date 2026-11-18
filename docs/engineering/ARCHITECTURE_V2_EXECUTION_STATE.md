@@ -60,7 +60,7 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   manifest with no page or an entry without EN/ZH words. LNG terminal tariffs: held / not held
   and from which source (`lng_terminal_terms`).
 - `GET`/`PUT /api/setup` (ADMIN), state in `installation_setup` (migration
-  `0066_installation_setup`), audited. Keys through the credential routes, approvals through
+  `0068_installation_setup`), audited. Keys through the credential routes, approvals through
   the approval route. Surface 257 / 284.
 - Web: the welcome dialog for the first administrator (skippable, resumable from Admin →
   Access → Setup), demo marks it configured, UAT seed dismisses it, headless CLI

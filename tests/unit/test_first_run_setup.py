@@ -90,12 +90,12 @@ def test_migration_0066_up_down_and_model_match():
     from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     spec = importlib.util.spec_from_file_location(
-        "tests.migration_0066", ROOT / "alembic/versions/0066_installation_setup.py"
+        "tests.migration_0068", ROOT / "alembic/versions/0068_installation_setup.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert module.down_revision == "0065_local_accounts"
-    assert DB_SCHEMA_REVISION == "0066_installation_setup"
+    assert module.down_revision == "0067_opportunities"
+    assert DB_SCHEMA_REVISION == "0068_installation_setup"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

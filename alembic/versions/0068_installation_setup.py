@@ -13,8 +13,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0066_installation_setup"
-down_revision = "0065_local_accounts"
+revision = "0068_installation_setup"
+down_revision = "0067_opportunities"
 branch_labels = None
 depends_on = None
 
