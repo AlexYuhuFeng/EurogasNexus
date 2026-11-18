@@ -2562,13 +2562,18 @@ async function capacityBoardFailureInteraction(page, failures) {
 export async function runWorkflowSmoke() {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
+  const contextOptions = {
     viewport: { width: 1440, height: 900 },
     // Accessibility scans must sample settled colours, not a panel mid-entrance: the design
     // system turns motion off under reduced motion, as it does for users who ask for it.
     reducedMotion: "reduce",
-  });
-  const page = await context.newPage();
+  };
+  let context = await browser.newContext(contextOptions);
+  let page = await context.newPage();
+  // A renderer crash (or a page closed under memory pressure) used to end the run with
+  // "Target page closed" and no summary. It is now a named failure for the scope it happened
+  // in, and the sweep continues on a new page (2026-11-18).
+  let pageCrashed = false;
 
   const failures = [];
   // Observations are not failures: a declared gap or a check that could not measure anything. They
@@ -2617,23 +2622,51 @@ export async function runWorkflowSmoke() {
     };
   };
 
-  page.on("pageerror", (error) => {
-    pageErrors.push({ scope: currentScope, detail: String(error) });
-  });
+  const attachPageListeners = (target) => {
+    target.on("pageerror", (error) => {
+      pageErrors.push({ scope: currentScope, detail: String(error) });
+    });
 
-  // A React internal error arrives as a console error rather than a pageerror, so a console
-  // listener is the only way to see it. Anything outside the declared allowlist is a defect.
-  page.on("console", (message) => {
-    if (message.type() !== "error") return;
-    const text = message.text();
-    if (ALLOWED_CONSOLE_ERRORS.some((pattern) => pattern.test(text))) return;
-    const induced = inducedReadRefusalFor(message);
-    if (induced) {
-      induced.consoleEntries.push({ scope: currentScope, detail: text.slice(0, 200) });
-      return;
+    // A React internal error arrives as a console error rather than a pageerror, so a console
+    // listener is the only way to see it. Anything outside the declared allowlist is a defect.
+    target.on("console", (message) => {
+      if (message.type() !== "error") return;
+      const text = message.text();
+      if (ALLOWED_CONSOLE_ERRORS.some((pattern) => pattern.test(text))) return;
+      const induced = inducedReadRefusalFor(message);
+      if (induced) {
+        induced.consoleEntries.push({ scope: currentScope, detail: text.slice(0, 200) });
+        return;
+      }
+      consoleErrors.push({ scope: currentScope, detail: text.slice(0, 300) });
+    });
+    target.on("crash", () => {
+      pageCrashed = true;
+    });
+  };
+  attachPageListeners(page);
+
+  /** A new page (and context, if that went too) after a crash; the crash is a failure. */
+  const recoverPage = async (languageId) => {
+    if (!pageCrashed && !page.isClosed()) return;
+    recordFailure(
+      failures,
+      currentScope,
+      pageCrashed ? "page crashed (renderer); continued on a new page" : "page closed unexpectedly; continued on a new page",
+    );
+    pageCrashed = false;
+    await page.close().catch(() => {});
+    try {
+      page = await context.newPage();
+    } catch {
+      context = await browser.newContext(contextOptions);
+      page = await context.newPage();
     }
-    consoleErrors.push({ scope: currentScope, detail: text.slice(0, 300) });
-  });
+    attachPageListeners(page);
+    await installReactErrorStackCapture(page);
+    await ensureAuthenticated(page);
+    if (languageId) await setLanguage(page, languageId);
+  };
 
   try {
     await installReactErrorStackCapture(page);
@@ -2645,6 +2678,12 @@ export async function runWorkflowSmoke() {
         for (const workspace of WORKSPACES) {
           currentScope = `${language.id}/${viewport.id}/${workspace}`;
           try {
+            await recoverPage(language.id);
+            if (process.env.EUROGAS_UAT_INDUCE_CRASH_AT === currentScope) {
+              // Proves the crash path: chrome://crash kills this page's renderer.
+              await page.goto("chrome://crash").catch(() => {});
+              await recoverPage(language.id);
+            }
             results.push(
               await inspectWorkspace(
                 page,
@@ -2664,6 +2703,7 @@ export async function runWorkflowSmoke() {
     }
 
     currentScope = "phone-overflow";
+    await recoverPage(null);
     await phoneOverflowSweep(page, failures, observations);
 
     currentScope = "interaction-checks";
@@ -2782,9 +2822,17 @@ export async function runWorkflowSmoke() {
       + " error(s) for exactly that request URL (the harness's own induced failure, attributed by"
       + " exact URL)",
     );
+  } catch (error) {
+    // Whatever stopped the run is reported with the scope it stopped in, and the summary is
+    // still written: a run that ends early is a failure with a name, not a stack trace.
+    recordFailure(
+      failures,
+      currentScope,
+      `sweep stopped${pageCrashed ? " after a page crash" : ""}: ${String(error).slice(0, 300)}`,
+    );
   } finally {
-    await context.close();
-    await browser.close();
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
   }
 
   for (const error of pageErrors) {
