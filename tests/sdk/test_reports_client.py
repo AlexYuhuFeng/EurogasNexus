@@ -45,8 +45,12 @@ def client(tmp_path, monkeypatch):
             kwargs["headers"] = {**(kwargs.get("headers") or {}),
                                  "X-Eurogas-Api-Key": "sdk-test-token"}
             response = app.request(method, path, **kwargs)
+            # The test client has already decoded the body, so the encoding header must not
+            # travel with it (reads above 2 kB are compressed).
+            headers = {key: value for key, value in response.headers.items()
+                       if key.lower() not in {"content-encoding", "content-length"}}
             return httpx.Response(response.status_code, content=response.content,
-                                  headers=response.headers, request=httpx.Request(method, url))
+                                  headers=headers, request=httpx.Request(method, url))
         return call
 
     monkeypatch.setattr(httpx, "get", route("GET"))

@@ -144,12 +144,12 @@ def gie_api_payloads(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict[str, Any
     monkeypatch.setattr(
         storage_routes,
         "_db_storage_observations",
-        lambda: [storage_routes._storage_row(row) for row in storage_rows],
+        lambda *_bounds: [storage_routes._storage_row(row) for row in storage_rows],
     )
     monkeypatch.setattr(
         lng_routes,
         "_db_lng_observations",
-        lambda: [lng_routes._lng_row(row) for row in lng_rows],
+        lambda *_bounds: [lng_routes._lng_row(row) for row in lng_rows],
     )
     # tests/sdk/conftest.py clears ambient tokens. Configure the shared
     # deployment token explicitly so both the TestClient and the SDK calls
