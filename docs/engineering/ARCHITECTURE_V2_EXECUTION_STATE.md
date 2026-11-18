@@ -6,6 +6,22 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-18 — CP-13 evaluation scheduling (branch `cp-13-eval-scheduling`, not pushed)
+
+- Migration `0071_opportunity_pending_inputs`: one row per input class changed since the last
+  scheduled evaluation. `application/opportunities/schedule.py`: `note_input_changed` (in the
+  writer's transaction), `note_ingestion_changes` (a successful ingestion that inserted or
+  updated rows: price, fx, rates, tariff, outage or capacity source), `run_due` (one full
+  evaluation, trigger `schedule`, at most once per 5 minutes on the evaluation instant; it
+  clears the classes noted before it started, a change during the run stays pending),
+  `StoreTrigger`.
+- The data-operations scheduler calls it after each execution, in its own transactions, so an
+  evaluation failure never stops ingestion. On-write triggers: firm marks, assumption-set
+  approval, credit lines and mandates (limits), hedge approvals, books and upstream contracts
+  (book), the firm's terminal terms and a reviewed register figure (tariffs), freight routes.
+- A failing evaluator: no opportunity changes, one administrator alert (the monitoring scan).
+  The outbox subscription stays an interface until M4. No new path or operation.
+
 ## 2026-11-18 — CP-12 voyage and cargo model (branch `cp-12-cargo-model`, not pushed)
 
 - `domain/lng/voyage.py`, `domain/lng/cargo_economics.py`: the chain of design C.1 in Decimal;

@@ -221,3 +221,20 @@ class OpportunitySettingRecord(Base):
     value_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     updated_by: Mapped[str] = mapped_column(String(64), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class OpportunityPendingInputRecord(Base):
+    """An input class that changed since the last scheduled evaluation (CP-13).
+
+    One row per class; a further change only moves ``last_noted_at_utc`` on. The job runner
+    starts a debounced full evaluation when rows are pending and removes the rows the run
+    covered (noted before it started); a change during the run stays pending.
+    """
+
+    __tablename__ = "opportunity_pending_inputs"
+
+    input_class: Mapped[str] = mapped_column(String(32), primary_key=True)
+    first_noted_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_noted_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    changes: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    last_reason: Mapped[str] = mapped_column(String(128), nullable=False)

@@ -23,6 +23,7 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.application.opportunities.schedule import note_input_changed
 from eurogas_nexus.domain.valuation.assumptions import (
     ASSUMPTION_CATALOGUE,
     AssumptionError,
@@ -302,6 +303,7 @@ def approve_assumption_version(set_id: str, version: int, request: Request) -> d
             payload = approve(session, set_id=set_id, version=version, actor=principal.principal_id)
         except AssumptionError as exc:
             raise _assumption_error(exc) from exc
+        note_input_changed(session, "assumptions", reason=f"assumption set {set_id} v{version}")
         session.commit()
     return _env(payload)
 
@@ -381,6 +383,7 @@ def put_firm_marks(body: FirmMarksPut, request: Request) -> dict:
 
     with _session() as session:
         stored = put_marks(session, entries, actor=principal.principal_id)
+        note_input_changed(session, "marks", reason="firm marks")
         session.commit()
         rows = [mark_payload(mark) for mark in stored]
     return _env({"marks": rows})

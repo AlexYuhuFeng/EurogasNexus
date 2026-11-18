@@ -389,6 +389,10 @@ def review_tariff(
         detail=f"terminal={row.terminal_id}; amount={row.amount} {row.unit}",
         now=now,
     )
+    from eurogas_nexus.application.opportunities.schedule import note_input_changed
+
+    # A reviewed figure can price an actionable opportunity: an evaluation is due.
+    note_input_changed(session, "tariffs", reason=f"tariff {tariff_id} reviewed", at_utc=now)
     return tariff_payload(row)
 
 

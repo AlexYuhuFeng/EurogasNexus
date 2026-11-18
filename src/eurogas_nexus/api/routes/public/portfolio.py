@@ -506,6 +506,9 @@ def put_book(book_id: str, body: BookRequest, request: Request) -> dict:
                 source_system="portfolio-api",
                 now_utc=datetime.now(UTC),
             )
+            from eurogas_nexus.application.opportunities.schedule import note_input_changed
+
+            note_input_changed(session, "book", reason=f"book {book_id}")
             session.commit()
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc

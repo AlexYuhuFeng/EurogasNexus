@@ -150,6 +150,9 @@ def record_route(session, route_id: str, values: dict[str, Any], *, actor: str) 
         resource=f"freight_route:{route_id}",
         detail=f"version {row.version}",
     )
+    from eurogas_nexus.application.opportunities.schedule import note_input_changed
+
+    note_input_changed(session, "freight", reason=f"freight route {route_id}")
     return route_payload(row)
 
 

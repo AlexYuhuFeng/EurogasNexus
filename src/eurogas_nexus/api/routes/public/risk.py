@@ -180,6 +180,15 @@ def _require_risk_function(request: Request) -> None:
         )
 
 
+#: What each reference write changes for the opportunity evaluators (CP-13).
+_INPUT_CLASS_BY_ACTION = {
+    "risk.credit_line.update": "limits",
+    "risk.mandate.update": "limits",
+    "risk.hedge_approval.update": "book",
+    "lng.terminal_terms.update": "tariffs",
+}
+
+
 def _write(
     request: Request,
     *,
@@ -190,6 +199,8 @@ def _write(
     resource: str,
     risk_only: bool = True,
 ):
+    from eurogas_nexus.application.opportunities.schedule import note_input_changed
+
     if risk_only:
         _require_risk_function(request)
     if not _db_is_configured():
@@ -220,6 +231,8 @@ def _write(
                 severity="info",
                 detail=", ".join(f"{k}={v}" for k, v in values.items() if k != "aliases")[:500],
             )
+            # CP-13: a limit, hedge band or terminal terms change makes an evaluation due.
+            note_input_changed(session, _INPUT_CLASS_BY_ACTION[action], reason=action)
             session.commit()
             return {"key": key, "created": created, "updated_by": actor}
     except sqlalchemy_error as exc:

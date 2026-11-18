@@ -417,6 +417,42 @@ def run_ingestor_attempt(
     return run
 
 
+def evaluate_opportunities_if_due(session_factory, outcomes, *, now_utc) -> dict:
+    """Note the input classes the ingestions changed, then run the debounced evaluation.
+
+    Its own transactions: a failure here is reported and never undoes or stops ingestion.
+    """
+
+    from eurogas_nexus.application.opportunities.schedule import (
+        note_ingestion_changes,
+        run_due,
+    )
+
+    try:
+        with session_factory() as session:
+            noted = note_ingestion_changes(session, outcomes, now_utc=now_utc)
+            session.commit()
+        with session_factory() as session:
+            result = run_due(session, now_utc=now_utc)
+            session.commit()
+    except Exception as exc:  # noqa: BLE001 - the evaluation never stops the ingestion loop
+        emit_event(
+            event="scheduler.opportunity_evaluation.failed",
+            level="error",
+            error_category="INTERNAL",
+            details={"error_type": exc.__class__.__name__},
+        )
+        return {"status": "failed", "error_type": exc.__class__.__name__}
+    evaluation = result.get("evaluation") or {}
+    return {
+        "status": result["status"],
+        "noted": noted,
+        "classes": result.get("classes", []),
+        "evaluation_id": evaluation.get("evaluation_id"),
+        "evaluation_status": evaluation.get("status"),
+    }
+
+
 def run_loop(
     *,
     interval_seconds: float,
@@ -489,6 +525,11 @@ def run_loop(
                     now_utc=now_utc,
                 )
                 session.commit()
+            # CP-13: ingestions that wrote rows mark their input class pending; a debounced
+            # full opportunity evaluation follows. Never stops the ingestion loop.
+            execution["opportunity_evaluation"] = evaluate_opportunities_if_due(
+                session_factory, execution.get("outcomes", []), now_utc=now_utc
+            )
             failures = [
                 outcome
                 for outcome in execution.get("outcomes", [])

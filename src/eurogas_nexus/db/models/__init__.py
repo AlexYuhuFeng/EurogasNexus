@@ -99,6 +99,7 @@ from eurogas_nexus.db.models.opportunities import (
     OpportunityDependencyRecord,
     OpportunityEvaluationRecord,
     OpportunityLegRecord,
+    OpportunityPendingInputRecord,
     OpportunityRecord,
     OpportunitySettingRecord,
     OpportunityUserStateRecord,
@@ -285,6 +286,7 @@ class IngestionRunRecord(Base):
 
 
 __all__ = [
+    "OpportunityPendingInputRecord",
     "FreightRouteRecord",
     "FunctionalDependencyRecord",
     "FunctionalRunRecord",
