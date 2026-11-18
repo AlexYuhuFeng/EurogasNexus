@@ -449,6 +449,14 @@ jobs:
           fi
           exit "$sweep_status"
 
+      - name: The default map makes no third-party request (P3)
+        # The bundled basemap (Natural Earth, Inter glyphs) is served by the application; this
+        # fails when the default map asks any other host for tiles, styles, glyphs or data.
+        env:
+          EUROGAS_UAT_PLAYWRIGHT_PATH: scripts/ci/browser-acceptance/node_modules/playwright/index.js
+          EUROGAS_UAT_BASE_URL: http://127.0.0.1:3000
+        run: node scripts/uat/map_no_third_party.mjs
+
       - name: Geometry audit (UX-10, report only)
         # Distinct font sizes, control heights and radii on the key screens, against
         # scripts/uat/geometry_budget.json. The budgets were measured on the demo desk; until they

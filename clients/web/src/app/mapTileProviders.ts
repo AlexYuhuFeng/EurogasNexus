@@ -87,8 +87,8 @@ export const BUNDLED_FONTSTACK = "Inter Regular";
 /** The bundled basemap's colours in each theme (also used to recolour it in place). */
 export function bundledPalette(theme: "light" | "dark") {
   return theme === "dark"
-    ? { land: "#18181b", coast: "#3f3f46", border: "#52525b", country: "#a1a1aa", city: "#8b8b94", halo: "#0b0b0d" }
-    : { land: "#ffffff", coast: "#d4d4d8", border: "#c4c4cc", country: "#71717a", city: "#8a8a93", halo: "#ffffff" };
+    ? { land: "#18181b", coast: "#3f3f46", border: "#52525b", country: "#6b6b74", city: "#8b8b94", halo: "#0b0b0d" }
+    : { land: "#ffffff", coast: "#d4d4d8", border: "#c4c4cc", country: "#a8a8b0", city: "#8a8a93", halo: "#ffffff" };
 }
 
 /** The application's own origin and base path, for style URLs MapLibre needs absolute. */
@@ -494,9 +494,10 @@ export function buildMapStyle(
         layout: {
           "text-field": ["get", nameField],
           "text-font": [BUNDLED_FONTSTACK],
-          "text-size": ["interpolate", ["linear"], ["zoom"], 3, 10, 7, 13],
+          // Context, not content: quieter than the network's own names.
+          "text-size": ["interpolate", ["linear"], ["zoom"], 3, 9.5, 7, 12],
           "text-transform": "uppercase",
-          "text-letter-spacing": 0.12,
+          "text-letter-spacing": 0.08,
           "text-max-width": 8,
           "symbol-sort-key": ["get", "rank"],
           "text-optional": true,

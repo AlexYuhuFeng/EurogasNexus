@@ -425,6 +425,22 @@ export function GasNetworkMap({
   // office proxy, an air-gapped network) falls back to the bundled outline and says so.
   const deploymentMapDefault = useApiStore((state) => state.runtimeRelease?.deployment?.map_default_provider ?? null);
   const [unreachableBasemap, setUnreachableBasemap] = useState<string | null>(null);
+  // The zoom card's hint can be dismissed; the choice is remembered on the device.
+  const [tierHintHidden, setTierHintHidden] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem("egn.map.tier_hint") === "hidden";
+    } catch {
+      return false;
+    }
+  });
+  const hideTierHint = () => {
+    setTierHintHidden(true);
+    try {
+      window.localStorage.setItem("egn.map.tier_hint", "hidden");
+    } catch {
+      // Not remembered; hidden for this visit.
+    }
+  };
   const configuredProvider = useMemo(configuredMapTileProvider, [deploymentMapDefault]);
   const basemapFellBack = unreachableBasemap === configuredProvider.id;
   const mapTileProvider = basemapFellBack ? mapTileProviderById("outline")! : configuredProvider;
@@ -1089,6 +1105,9 @@ export function GasNetworkMap({
           "text-size": 11,
           // The bundled basemap's Inter glyphs; a vector basemap keeps its own font.
           ...(mapTileProvider.id === "bundled" ? { "text-font": [BUNDLED_FONTSTACK] } : {}),
+          // A count always shows inside its circle, and never pushes a basemap name away.
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
         },
         paint: { "text-color": mapColors.stroke },
       });
@@ -1198,7 +1217,8 @@ export function GasNetworkMap({
           paint: {
             "line-color": linkLineColor(mapColors),
             "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.5, 6, 0.9, 9, 1.4],
-            "line-opacity": 0.32,
+            // Context, not content: quieter than the priced routes and our positions.
+            "line-opacity": effectiveTheme === "dark" ? 0.24 : 0.16,
           },
         },
         map.getLayer("verified-pipeline-lines") ? "verified-pipeline-lines" : undefined,
@@ -1210,8 +1230,9 @@ export function GasNetworkMap({
       showContextRoutes && view === "network" ? "visible" : "none",
     );
     map.setPaintProperty("context-pipelines", "line-color", linkLineColor(mapColors));
+    map.setPaintProperty("context-pipelines", "line-opacity", effectiveTheme === "dark" ? 0.24 : 0.16);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextPipes, mapColors, mapReady, showContextRoutes, view]);
+  }, [contextPipes, effectiveTheme, mapColors, mapReady, showContextRoutes, view]);
 
   // Our book view: the paths to the neighbouring market areas our hubs reach, at medium
   // emphasis (dashed, thinner than our own paths), only in that view.
@@ -1975,8 +1996,43 @@ export function GasNetworkMap({
       labelMarkersRef.current.forEach((marker) => marker.remove());
       labelMarkersRef.current = [];
     };
+    // Our labels are HTML; an invisible copy of each in the map's own symbol placement makes the
+    // bundled basemap's names give way to them (a country or city name that would overlap a hub,
+    // terminal or asset label is hidden). Only the bundled basemap has the glyphs for it.
+    const blockers: Array<{ at: [number, number]; text: string; offset: [number, number] }> = [];
+    const publishBlockers = () => {
+      if (!map.getLayer("bundled-country-labels")) return;
+      const data = {
+        type: "FeatureCollection" as const,
+        features: blockers.map((item) => ({
+          type: "Feature" as const,
+          // Offsets in ems of the 12 px text, as the HTML label is offset in pixels.
+          properties: { text: item.text, offset: [item.offset[0] / 12, item.offset[1] / 12] },
+          geometry: { type: "Point" as const, coordinates: item.at },
+        })),
+      };
+      if (upsertSource(map, "label-blockers", data)) {
+        map.addLayer({
+          id: "label-blockers",
+          type: "symbol",
+          source: "label-blockers",
+          layout: {
+            "text-field": ["get", "text"],
+            "text-font": [BUNDLED_FONTSTACK],
+            "text-size": 12,
+            "text-anchor": "left",
+            "text-offset": ["array", "number", 2, ["get", "offset"]],
+            "text-allow-overlap": true,
+            "text-ignore-placement": false,
+            "text-padding": 6,
+          },
+          paint: { "text-opacity": 0 },
+        });
+      }
+    };
     const renderLabels = () => {
       clearLabels();
+      blockers.length = 0;
       const occupied: Array<{ x: number; y: number }> = [];
       const budget = labelBudgetForZoom(map.getZoom());
       const bounds = map.getBounds();
@@ -2017,6 +2073,7 @@ export function GasNetworkMap({
           labelMarkersRef.current.push(
             new Marker({ element, anchor: "left", offset: [12, dy] }).setLngLat(at).addTo(map),
           );
+          blockers.push({ at, text, offset: [12, dy] });
         }
       }
       priorityLabelNodes.forEach((node) => {
@@ -2041,6 +2098,7 @@ export function GasNetworkMap({
             .setLngLat(toMapCoordinates(node.lon, node.lat))
             .addTo(map),
         );
+        blockers.push({ at: toMapCoordinates(node.lon, node.lat), text: fallbackNodeLabel(node), offset: [9, -7] });
       });
       // Close in, infrastructure gets names too, quieter than network points.
       if (map.getZoom() >= 7 && activeLayers.includes("infrastructure")) {
@@ -2058,8 +2116,10 @@ export function GasNetworkMap({
           labelMarkersRef.current.push(
             new Marker({ element, anchor: "left", offset: [10, 0] }).setLngLat(at).addTo(map),
           );
+          blockers.push({ at, text: facility.name, offset: [10, 0] });
         }
       }
+      publishBlockers();
     };
 
     renderLabels();
@@ -2285,11 +2345,22 @@ export function GasNetworkMap({
         />
       )}
       {mapReady && !(selection && detailCard) && !compact && !phoneWidth && (
+        // One line: the zoom's question as a chip the user may dismiss (remembered), and the
+        // way back to our positions. It covers as little of the map as it can.
         <div className="map-zoom-tier" role="status" aria-live="polite">
-          {view === "network" && (
+          {view === "network" && !tierHintHidden && (
             <>
               <span className={`map-zoom-tier-name is-${tier}`}>{t(`map.tier.${tier}`)}</span>
-              <small>{t(`map.tier.${tier}_hint`)}</small>
+              <small title={t(`map.tier.${tier}_hint`)}>{t(`map.tier.${tier}_hint`)}</small>
+              <button
+                type="button"
+                className="map-zoom-tier-dismiss"
+                aria-label={t("map.tier.dismiss")}
+                title={t("map.tier.dismiss")}
+                onClick={hideTierHint}
+              >
+                ×
+              </button>
             </>
           )}
           {situation && (situation.contracts.length > 0 || situation.regas_slots.length > 0 || situation.cargoes.some((item) => item.own)) && (
