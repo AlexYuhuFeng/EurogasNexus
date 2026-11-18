@@ -1333,40 +1333,6 @@ export interface DecisionCaseCreateInputDTO {
   decision_due_at_utc?: string | null;
 }
 
-/** One response to a revised outage: what it covers, or why it is blocked (#49). */
-export interface DeskReplayAlternativeDTO {
-  record_id: string;
-  kind: "BUY_GAS" | "CHANGE_ROUTE" | "WITHDRAW_STORAGE";
-  blocked?: string[];
-  quantity_mwh?: string;
-  remaining_gap_mwh?: string;
-  incremental_cost?: string;
-  incremental_credit?: string | null;
-  action_deadline?: string;
-}
-
-export interface DeskReplayResourceDTO {
-  resource_id: string;
-  position_record_ids: string[];
-  committed_mwh: string | null;
-  deliverable_mwh: string | null;
-  outage_loss_mwh: string;
-  remaining_mwh: string | null;
-  prior_gap_mwh: string | null;
-  keep_plan_gap_mwh: string | null;
-  alternatives: DeskReplayAlternativeDTO[];
-}
-
-export interface DeskReplayResultDTO {
-  engine_version: string;
-  input_sha256: string;
-  frozen_inputs: Record<string, unknown>;
-  delivery_start: string;
-  delivery_end: string;
-  unmatched_record_ids: string[];
-  resources: DeskReplayResourceDTO[];
-}
-
 export interface DecisionCaseEvidenceInputDTO {
   kind:
     | "MARKET_CONTEXT"
@@ -1789,17 +1755,6 @@ export async function fetchNativeCapacity(
   );
 }
 
-export interface GasProductDTO {
-  code: string; label: string; kind: string; first_gas_day: string; last_gas_day: string;
-  gas_days: number; delivery_start_utc: string; delivery_end_utc: string; hours: number;
-  calendar: string;
-}
-
-export interface GasProductStripDTO {
-  trade_date: string;
-  products: GasProductDTO[];
-}
-
 export interface PriceConversionDTO {
   value: number;
   from_unit: string;
@@ -1871,12 +1826,6 @@ export interface StorageTrajectoryDTO {
   projected_fill_at_deadline_pct: number | null;
   status: "target_met" | "on_track" | "behind" | "unreachable" | "withdrawal_season";
   limitations: string[];
-}
-
-export interface FinancingRateDTO {
-  benchmark_id: string; currency: string; day_count: string; fixing_date: string; as_of: string;
-  benchmark_rate_pct: number; spread_bps: number; all_in_pct: number; all_in_act365_pct: number;
-  staleness_days: number; source_system: string; source_reference: string; attribution: string;
 }
 
 export interface StorageObsDTO {
@@ -2930,49 +2879,7 @@ export interface StrategySummaryDTO {
   last_started_at_utc: string | null; latest_status: string | null;
 }
 
-export interface StrategyRegistryParameterDTO {
-  parameter_id: string; name: string; type: string; unit?: string | null;
-  description?: string; min_value?: number | null; max_value?: number | null;
-  allowed_values?: string[]; optimization_allowed?: boolean;
-  sensitivity_allowed?: boolean;
-}
-
-/** One frozen per-leg delivery declaration (CR-04 temporal amendment). */
-export interface StrategyEvidenceTargetDTO {
-  leg_id: string; price_names: string[]; role: string; hub: string; tenor: string;
-  price_basis: string; target_basis: string;
-  /** EXPLICIT_INTERVAL only: the aware UTC half-open interval endpoints. */
-  delivery_start_utc?: string | null; delivery_end_utc?: string | null;
-  /** GAS_DAY only: the explicit canonical calendar and 0/1 gas-day offset. */
-  calendar_id?: string | null; gas_day_offset?: number | null;
-}
-
-export interface StrategyRegistryComponentDTO {
-  component_id: string; component_type: string; role?: string; hubs?: string[];
-  tenors?: string[]; price_basis?: string | null; resource_id?: string | null;
-  parameter_refs?: string[]; required_evidence?: string[];
-  extension_json?: Record<string, unknown>;
-  /** The API accepts JSON objects here; this surface only writes the typed shape. */
-  evidence_targets?: (StrategyEvidenceTargetDTO | Record<string, unknown>)[] | null;
-}
-
-export interface StrategyVersionDefinitionDTO {
-  components?: StrategyRegistryComponentDTO[];
-  parameter_definitions?: StrategyRegistryParameterDTO[];
-  parameter_values?: Record<string, unknown>;
-  risk_controls?: Record<string, unknown>;
-  economic_assumptions?: Record<string, unknown>;
-  data_requirements?: Record<string, unknown>;
-  evaluation_windows?: Record<string, unknown>[];
-}
-
 export type StrategyVisibility = "PRIVATE" | "PUBLIC" | "GROUPS";
-
-export interface StrategySharingInputDTO {
-  visibility: StrategyVisibility; group_ids: string[];
-}
-
-export interface StrategyGroupDTO { group_id: string; name: string }
 
 export interface StrategyDTO {
   owner_principal_id?: string | null; visibility?: StrategyVisibility;
@@ -2989,41 +2896,6 @@ export interface StrategyVersionDTO {
   definition_json: Record<string, unknown>; parent_version_id: string | null;
   created_by: string; created_at_utc: string; frozen_at_utc: string | null;
   content_hash: string; research_only: boolean;
-}
-
-export interface StrategyCreateInputDTO {
-  strategy_id?: string; name: string; description?: string; tags?: string[];
-}
-
-export interface StrategyMetadataUpdateInputDTO {
-  name?: string | null; description?: string | null; tags?: string[] | null;
-}
-
-export interface StrategyVersionCreateInputDTO {
-  hypothesis?: string; definition: StrategyVersionDefinitionDTO;
-  strategy_name?: string | null;
-  run_mode?: string;
-  resource_contexts?: Record<string, unknown>[];
-  price_observations?: Record<string, unknown>[];
-  existing_shadow_pnl_gbp?: number;
-}
-
-export interface StrategyForkInputDTO {
-  hypothesis?: string | null; definition?: StrategyVersionDefinitionDTO | null;
-}
-
-export interface StrategyRunCreateInputDTO {
-  strategy_version_id: string;
-  run_type?: string;
-  deterministic_seed?: string | null;
-  trigger_type?: string;
-  correlation_request_id?: string | null;
-  evaluation_period_start_utc?: string | null;
-  evaluation_period_end_utc?: string | null;
-  decision_schedule?: Record<string, unknown> | null;
-  economic_assumptions?: Record<string, unknown> | null;
-  parameter_values?: Record<string, unknown>;
-  experiment_id?: string | null;
 }
 
 export interface BacktestMetricSetDTO {
@@ -3057,124 +2929,6 @@ export interface BacktestMetricSetDTO {
   distinct_admitted_price_refs?: number;
   events_reusing_admitted_price_refs?: number;
   events_with_simulated_evidence?: number;
-}
-
-export interface BacktestDecisionEventDTO {
-  event_id: string; run_id: string; experiment_id?: string | null;
-  decision_sequence: number; decision_time_utc: string;
-  gas_day: string; gas_day_start_utc: string; gas_day_end_utc: string;
-  outcome: string; candidate_action_for_review?: string | null;
-  weighted_score?: number | null;
-  day_ahead_average_gbp_mwh?: number | null;
-  intraday_average_gbp_mwh?: number | null;
-  intraday_vs_day_ahead_spread_gbp_mwh?: number | null;
-  allocation_targets: Record<string, unknown>[];
-  gross_indicative_pnl_gbp: number;
-  modeled_costs_gbp: number;
-  net_indicative_pnl_gbp: number;
-  cumulative_net_indicative_pnl_gbp: number;
-  ending_exposure_mwh_per_day: number;
-  missing_inputs: string[]; warnings: string[];
-  price_evidence_refs: string[]; fx_evidence_refs: string[];
-  cost_evidence_refs: string[]; resource_evidence_refs: string[];
-  cost_trace: Record<string, unknown>[];
-  attribution: Record<string, unknown>[];
-  research_only: boolean; human_review_required: boolean;
-}
-
-export interface BacktestSeriesPointDTO {
-  series_point_id: string; run_id: string;
-  decision_sequence: number; decision_time_utc: string; gas_day: string;
-  gross_indicative_pnl_gbp: number; modeled_costs_gbp: number;
-  net_indicative_pnl_gbp: number; cumulative_net_indicative_pnl_gbp: number;
-  ending_exposure_mwh_per_day: number; drawdown_gbp?: number;
-  research_only: boolean;
-}
-
-export interface BacktestAttributionDTO {
-  attribution_id: string; run_id: string; event_id: string;
-  decision_time_utc: string; dimension: string; key: string;
-  gross_indicative_pnl_gbp: number; modeled_costs_gbp: number;
-  net_indicative_pnl_gbp: number; quantity_mwh_per_day: number | null;
-  source_refs: string[]; research_only: boolean;
-}
-
-export interface BacktestExperimentDTO {
-  experiment_id: string; strategy_id: string;
-  base_strategy_version_id: string; name: string; hypothesis: string;
-  experiment_type: string; evaluation_period: Record<string, unknown>;
-  run_ids: string[]; status: string; created_by: string;
-  created_at_utc: string; updated_at_utc: string; research_only: boolean;
-}
-
-export interface ShadowMonitorDTO {
-  shadow_monitor_id: string; strategy_id: string; strategy_version_id: string;
-  baseline_run_id?: string | null; state: string;
-  schedule: Record<string, unknown>; created_by: string;
-  created_at_utc: string; activated_at_utc?: string | null;
-  paused_at_utc?: string | null; retired_at_utc?: string | null;
-  last_evaluation_at_utc?: string | null; next_evaluation_at_utc?: string | null;
-  latest_evaluation_id?: string | null; consecutive_failures: number;
-  health_state: string; cumulative_shadow_pnl_gbp: number;
-  current_exposure_mwh_per_day: number; research_only: boolean;
-}
-
-export interface ShadowMonitorCreateInputDTO {
-  strategy_version_id: string; baseline_run_id?: string | null;
-  schedule: Record<string, unknown>; activate?: boolean;
-}
-
-export interface ShadowEvaluationDTO {
-  shadow_evaluation_id: string; shadow_monitor_id: string;
-  strategy_version_id: string; scheduled_for_utc: string;
-  started_at_utc?: string | null; decision_time_utc?: string | null;
-  completed_at_utc?: string | null; state: string;
-  gas_day?: string | null; gas_day_start_utc?: string | null;
-  gas_day_end_utc?: string | null; snapshot_id?: string | null;
-  candidate_id?: string | null; price_evidence_refs: string[];
-  fx_evidence_refs: string[]; resource_evidence_refs: string[];
-  source_systems: string[]; freshness: Record<string, unknown>[];
-  missing_inputs: string[]; warnings: string[];
-  result?: Record<string, unknown> | null; failure_class?: string | null;
-  retry_count: number; research_only: boolean; human_review_required: boolean;
-  risk_checks?: ShadowRiskCheckDTO[];
-  candidate?: Record<string, unknown> | null;
-}
-
-export interface ShadowRiskCheckDTO {
-  risk_check_id: string; shadow_evaluation_id: string;
-  control_id: string; observed_value?: number | null;
-  limit_value?: number | null; state: string; severity: string; explanation: string;
-}
-
-export interface ShadowAlertDTO {
-  alert_id: string; shadow_monitor_id: string;
-  shadow_evaluation_id?: string | null; alert_type: string; severity: string;
-  state: string; fingerprint: string; summary: string; evidence_refs: string[];
-  first_seen_at_utc: string; last_seen_at_utc: string;
-  occurrence_count: number; acknowledged_at_utc?: string | null;
-  acknowledged_by?: string | null; resolved_at_utc?: string | null;
-  research_only: boolean;
-}
-
-export interface ShadowDriftDTO {
-  drift_snapshot_id: string; shadow_monitor_id: string;
-  baseline_run_id?: string | null; observation_window: Record<string, unknown>;
-  state: string; metrics: Record<string, unknown>[]; sample_size: number;
-  explanation: string; created_at_utc: string;
-}
-
-export interface ShadowRuntimeStatusDTO {
-  scheduler: string; last_heartbeat_at_utc?: string | null;
-  active_monitors: number; pending_evaluations: number;
-  failed_evaluations_24h: number; duplicate_claims_prevented: number;
-}
-
-export interface BacktestExperimentCreateInputDTO {
-  experiment_id?: string; strategy_id: string;
-  base_strategy_version_id: string; name: string; hypothesis?: string;
-  experiment_type?: string;
-  evaluation_period_start_utc: string; evaluation_period_end_utc: string;
 }
 
 export interface CapacityContractDTO {
@@ -4061,53 +3815,6 @@ export type LngTerminalTermsInput = Omit<
   "terminal_id" | "currency" | "updated_by" | "updated_at_utc" | "by_cargo_class" | "source_sha256" | "retrieved_at_utc"
 >;
 
-export interface LngCargoBidRowDTO {
-  rank: number;
-  terminal: string;
-  terminal_id: string;
-  country: string | null;
-  hub: string;
-  currency: string;
-  hub_mark: number;
-  mark_month: string;
-  spot: number | null;
-  sent_out_mwh: number;
-  costs_per_mwh: number;
-  breakeven_per_mwh: number;
-  max_bid_per_mwh: number;
-  bid_low_per_mwh: number;
-  bid_high_per_mwh: number;
-  max_bid_usd_mmbtu: number | null;
-  bid_vs_hub_per_mwh: number;
-  bid_pct_of_hub: number | null;
-  cargo_value: number;
-  terms_source: string;
-  regas_basis?: string;
-  regime?: string;
-  regas_per_mwh?: number;
-  tariff_from?: string;
-  [ranking: `max_bid_${string}_per_mwh`]: number;
-}
-
-export interface LngCargoBidDTO {
-  cargo_mwh: number;
-  cargo_mmbtu: number;
-  arrival_month: string;
-  ranking_currency: string;
-  rows: LngCargoBidRowDTO[];
-  regions: { country: string; terminals: number; low: number; high: number }[];
-}
-
-export interface LngCargoBidInput {
-  cargo_mwh?: number;
-  cargo_mmbtu?: number;
-  arrival_month: string;
-  target_margin_per_mwh: number;
-  boil_off_pct_per_day: number;
-  charter_per_day: number;
-  ranking_currency: string;
-}
-
 export interface SupportReportDTO {
   report_id: string;
   reporter: string;
@@ -4319,198 +4026,6 @@ export interface SpreadAnalysisDTO {
   analysis_hash: string;
 }
 
-export interface ResearchFeatureDTO {
-  feature_id: string;
-  content_hash: string;
-  status: string;
-  definition: {
-    feature_id: string;
-    name: string;
-    description: string;
-    category: string;
-    input_dependencies: string[];
-    output_unit: string;
-    frequency: string;
-    availability_class: string;
-    transformation: string;
-    transformation_version: string;
-    missing_data_policy: string;
-    point_in_time_policy: string;
-    future_knowledge_policy: string;
-  };
-}
-
-export interface ResearchTargetDTO {
-  target_id: string;
-  content_hash: string;
-  status: string;
-  definition: {
-    target_id: string;
-    name: string;
-    description: string;
-    target_type: string;
-    entity_type: string;
-    entity_id: string;
-    metric: string;
-    horizon: string;
-    target_window: string;
-    unit: string;
-    aggregation: string;
-    label_calculation: string;
-    availability_delay: string;
-  };
-}
-
-export interface ResearchDatasetDTO {
-  dataset_snapshot_id: string;
-  dataset_spec_id: string;
-  source_cutoff_utc: string;
-  row_count: number | null;
-  column_count: number | null;
-  coverage: number | null;
-  temporal_integrity: string;
-  status: string;
-  created_at_utc: string;
-}
-
-export interface ResearchDatasetDetailDTO {
-  spec_hash: string;
-  ontology_version: string;
-  content_hash?: string | null;
-  dataset_snapshot_id: string;
-  dataset_spec_id: string;
-  source_cutoff_utc: string;
-  row_count: number | null;
-  column_count: number | null;
-  coverage: number | null;
-  temporal_integrity: string;
-  status: string;
-  entitlement_envelope: Record<string, unknown>;
-  artifact_ref: string | null;
-  metadata: Record<string, unknown>;
-}
-
-export interface ResearchDatasetQualityDTO {
-  dataset_snapshot_id: string;
-  quality_report: Record<string, unknown>;
-  leakage_issues: Array<Record<string, unknown>>;
-  warnings: string[];
-}
-
-export interface ResearchDatasetExportDTO {
-  dataset_snapshot_id: string;
-  format: "parquet" | "csv";
-  artifact_ref: string | null;
-  /** Registered artifact identity and digest of the referenced file. */
-  artifact_id?: string | null;
-  artifact_sha256?: string | null;
-  /** Formats the backend has registered for this snapshot. Server-reported only. */
-  available_formats?: string[];
-  entitlement_policy: string;
-}
-
-/** One structured dataset-registry/validation issue: ``{field, code, message}``. */
-export interface ResearchDatasetIssueDTO {
-  field: string;
-  code: string;
-  message: string;
-}
-
-export interface ResearchDatasetValidationDTO {
-  ok: boolean;
-  issues: ResearchDatasetIssueDTO[];
-  spec_hash: string;
-  registry_resolution: string;
-}
-
-/**
- * Build reply: the snapshot metadata the materialize route returns. It carries
- * no artifact list, so available formats stay "not reported" until a server
- * answer names them.
- */
-export interface ResearchDatasetBuildDTO extends Record<string, unknown> {
-  dataset_snapshot_id: string;
-  dataset_spec_id: string;
-  dataset_spec_version: string;
-  spec_hash?: string;
-  row_count: number | null;
-  column_count: number | null;
-  artifact_ref?: string | null;
-  entitlement_envelope?: Record<string, unknown>;
-}
-
-/**
- * The two research computes the Routes task runs (slice D).
- *
- * Both engines answer with the research contract: the figure, the assumptions it rests on, the
- * inputs it lacked, its warnings, and provenance that names `operator-input` - these are the
- * caller's own numbers, not market data. The provenance and the as-of travel inside `data` here,
- * which is why the surface reads them from the payload rather than from the envelope's meta.
- */
-export interface RouteCostComponentDTO {
-  component_type: string;
-  amount: number;
-  unit: string;
-  currency: string;
-  description: string;
-}
-
-export interface RouteCostRequestDTO {
-  route_name: string;
-  from_node_id: string;
-  to_node_id: string;
-  components: RouteCostComponentDTO[];
-  route_km?: number | null;
-}
-
-export interface RouteCostOutcomeDTO {
-  route_name: string;
-  from_node_id: string;
-  to_node_id: string;
-  total_cost_eur_mwh: number;
-  total_cost_boe: number;
-  components: RouteCostComponentDTO[];
-  route_km: number | null;
-  research_only: boolean;
-  human_review_required: boolean;
-  assumptions: string[];
-  missing_inputs: string[];
-  warnings: string[];
-  source_references: string[];
-  lineage: string[];
-  generated_at_utc: string;
-}
-
-export interface NetbackRequestDTO {
-  route_name: string;
-  from_market: string;
-  to_market: string;
-  market_price_eur_mwh: number;
-  route_cost_eur_mwh: number;
-  fx_rate: number;
-  fx_pair: string;
-}
-
-export interface NetbackOutcomeDTO {
-  route_name: string;
-  from_market: string;
-  to_market: string;
-  market_price_eur_mwh: number;
-  route_cost_eur_mwh: number;
-  netback_eur_mwh: number;
-  netback_local_mwh: number;
-  fx_rate: number;
-  fx_pair: string;
-  research_only: boolean;
-  human_review_required: boolean;
-  assumptions: string[];
-  missing_inputs: string[];
-  warnings: string[];
-  source_references: string[];
-  lineage: string[];
-  generated_at_utc: string;
-}
-
 /**
  * The shared dated cash valuation (`POST /api/research/cash-valuation`).
  *
@@ -4550,53 +4065,6 @@ export const CASH_VALUATION_LEG_CATEGORIES = [
 /** The cash-flow leg vocabulary `CashFlowLegCategory` declares. */
 export type CashValuationLegCategoryDTO = (typeof CASH_VALUATION_LEG_CATEGORIES)[number];
 
-/** Explicit FX reference of one cross-currency cash-flow leg (exact decimal string rate). */
-export interface CashValuationFxInputDTO {
-  /** Reporting-currency amount per one leg-currency unit, in the engine's declared direction. */
-  rate_reporting_per_leg: string;
-  /** Mandatory provenance of the quoted rate. */
-  source_reference: string;
-  /** Quote date `YYYY-MM-DD`; never after the valuation date. */
-  as_of: string;
-}
-
-/** One signed, dated cash-flow leg (inflow positive, outflow negative). */
-export interface CashValuationLegInputDTO {
-  leg_id: string;
-  category: CashValuationLegCategoryDTO;
-  /** Cash date `YYYY-MM-DD`. */
-  payment_date: string;
-  /** Exact decimal string; never a `number`. */
-  signed_amount: string;
-  /** Uppercase three-letter currency code of the leg amount. */
-  currency: string;
-  /** Mandatory provenance of the amount. */
-  source_reference: string;
-  /** Cross-currency FX block; absent for same-currency legs. */
-  fx?: CashValuationFxInputDTO;
-  description?: string;
-}
-
-/** One explicit discount factor for one payment date (exact decimal string, never inferred). */
-export interface CashValuationDiscountFactorInputDTO {
-  payment_date: string;
-  /** Exact decimal string; never a `number` and never a curve interpolation. */
-  factor: string;
-  curve_reference: string;
-  source_reference: string;
-  as_of: string;
-}
-
-export interface CashValuationRequestDTO {
-  /** Canonical `concept:value` references, echoed unverified; the backend resolves nothing. */
-  business_context: string[];
-  valuation_date: string;
-  reporting_currency: string;
-  legs: CashValuationLegInputDTO[];
-  discount_factors: CashValuationDiscountFactorInputDTO[];
-  model_version?: string;
-}
-
 /** One valued leg as the engine serialized it: Decimals are exact strings, dates are ISO dates. */
 export interface CashValuationLegValuationDTO {
   leg_id: string;
@@ -4617,178 +4085,6 @@ export interface CashValuationLegValuationDTO {
   description: string;
 }
 
-export interface CashValuationResultDTO {
-  research_only: boolean;
-  human_review_required: boolean;
-  model_version: string;
-  /** `ActionKind.COMPUTE_CASH_FLOW.value`. */
-  action: string;
-  business_context: string[];
-  valuation_date: string;
-  reporting_currency: string;
-  leg_valuations: CashValuationLegValuationDTO[];
-  total_undiscounted_cash_reporting_ccy: string;
-  net_present_value_reporting_ccy: string;
-  assumptions: string[];
-  warnings: string[];
-  source_references: string[];
-  lineage: string[];
-}
-
-/**
- * The research sandbox envelope metadata this route adds to the shared `ApiMeta`.
- *
- * It states the boundary out loud instead of leaving it to the reader: the inputs are the
- * caller's, the references are unverified (`false`), nothing is customer approval, and the
- * decision context is the sandbox scenario.
- */
-export interface CashValuationMetaDTO extends ApiMeta {
-  /** Always `"SANDBOX_SCENARIO"`; the route exists only in the sandbox. */
-  decision_context: "SANDBOX_SCENARIO";
-  caller_supplied: boolean;
-  references_verified: false;
-  customer_approval: false;
-  source_references: string[];
-  warnings: string[];
-}
-
-/**
- * The shared capacity-billing research primitive (`POST /api/research/capacity-billing`).
- *
- * One explicitly supplied capacity tariff over one explicit UTC billing window. Every numeric
- * input is an **exact decimal string on the wire in both directions**; the client never converts
- * one to `number`, never parses one and never performs financial arithmetic. The backend engine
- * (`domain/research/capacity_billing.py`) remains the sole owner of the formulas, bounds, rounding
- * and stable refusal codes.
- *
- * The request carries no `decision_context` claim. The backend's sandbox gate refuses a
- * `RUNTIME_DECISION` claim before validation and this model forbids the field as an unknown
- * property, so the only correct composition is to send no context claim at all; the response's
- * `meta.decision_context` is what labels the run `SANDBOX_SCENARIO`.
- *
- * `billed_capacity_energy_mwh` is deliberately an input. The engine verifies it against booked
- * capacity and the exact UTC duration by integer cross-multiplication; the client must never infer
- * or derive it from the billing window, and must never send a default tariff, FX, market price or
- * source-verification claim.
- */
-export interface CapacityBillingRequestDTO {
-  /** Caller-supplied scenario identifier; never resolved to a persisted entity. */
-  scenario_id: string;
-  /** Caller-supplied tariff identifier; never looked up. */
-  tariff_id: string;
-  /** Exact decimal string in `tariff_unit`; never a `number`. */
-  tariff_rate: string;
-  /** Explicit currency the tariff unit requires. */
-  currency: string;
-  /** Explicit capacity unit, e.g. `EUR/(MWh/h)/h`. */
-  tariff_unit: string;
-  /** Exact decimal string of booked capacity in MWh/h; never a `number`. */
-  booked_capacity_mwh_per_h: string;
-  /** Exact decimal string of delivered energy in MWh; never a `number`. */
-  delivered_energy_mwh: string;
-  /** Exact decimal string of billed capacity energy in MWh; never inferred by the client. */
-  billed_capacity_energy_mwh: string;
-  /** ISO-8601 timestamp with an explicit UTC offset. */
-  billing_start: string;
-  /** ISO-8601 timestamp with an explicit UTC offset. */
-  billing_end: string;
-  /** Mandatory caller-supplied provenance references; the backend does not verify them. */
-  source_references: string[];
-}
-
-/** Raw explicit basis the engine retained, with exact strings and integer microseconds. */
-export interface CapacityBillingBasisDTO {
-  tariff_rate: string;
-  tariff_unit: string;
-  booked_capacity_mwh_per_h: string;
-  billed_capacity_energy_mwh: string;
-  delivered_energy_mwh: string;
-  billing_start_utc: string;
-  billing_end_utc: string;
-  duration_microseconds: number;
-}
-
-/** One engine result as the route serialized it: Decimals are exact strings, timestamps ISO UTC. */
-export interface CapacityBillingResultDTO {
-  research_only: boolean;
-  human_review_required: boolean;
-  model_version: string;
-  scenario_id: string;
-  tariff_id: string;
-  currency: string;
-  tariff_unit: string;
-  tariff_rate: string;
-  booked_capacity_mwh_per_h: string;
-  billed_capacity_energy_mwh: string;
-  delivered_energy_mwh: string;
-  billing_start: string;
-  billing_end: string;
-  duration_microseconds: number;
-  duration_hours: string;
-  total_cost: string;
-  cost_per_delivered_mwh: string;
-  basis: CapacityBillingBasisDTO;
-  provenance: string[];
-  source_references: string[];
-  assumptions: string[];
-  warnings: string[];
-  lineage: string[];
-  physical_readiness: string;
-}
-
-/**
- * The sandbox envelope of the capacity-billing route.
- *
- * It states the boundary explicitly: caller-supplied, unverified references, no booked rights,
- * physical readiness not assessed, no customer approval, and `SANDBOX_SCENARIO` as the only
- * decision context this route can ever carry.
- */
-export interface CapacityBillingMetaDTO extends ApiMeta {
-  decision_context: "SANDBOX_SCENARIO";
-  caller_supplied: true;
-  references_verified: false;
-  booked_rights_established: false;
-  physical_readiness: string;
-  customer_approval: false;
-  source_references: string[];
-  warnings: string[];
-}
-
-/**
- * The LNG economics-only research composition (`POST /api/research/lng-economics-only`).
- *
- * Explicit caller-supplied EUR cash amounts, an explicit ordered MWh energy-stage chain and
- * explicit per-payment-date discount factors. Every numeric input is an **exact decimal string on
- * the wire in both directions**; the client never converts one to `number`, never parses one and
- * never performs financial or energy arithmetic. The backend composition owns every formula,
- * conservation identity, rounding step and stable refusal code.
- *
- * The request carries no readiness scenario, no `decision_context` claim and no `model_version`.
- * The response's `physical_readiness` is only the backend's own value (`NOT_ASSESSED` here), and
- * `readiness_assessed` is only ever the backend's boolean - the surface never infers either.
- */
-export interface LngEconomicsOnlyDiscountFactorDTO {
-  /** Cash date the factor discounts, `YYYY-MM-DD`. */
-  payment_date: string;
-  /** Exact decimal string; never a `number` and never inferred from a curve. */
-  factor: string;
-  curve_reference: string;
-  source_reference: string;
-  as_of: string;
-}
-
-export interface LngEconomicsOnlyDownstreamCostDTO {
-  cost_id: string;
-  /** The shared cash-flow leg vocabulary, e.g. `regas`, `shipping` or `other`. */
-  category: string;
-  /** Exact nonnegative EUR total as a decimal string. */
-  amount_eur: string;
-  payment_date: string;
-  source_reference: string;
-  /** `invoiced_cash`, `in_kind` or `unknown`; only invoiced cash is accepted. */
-  charge_basis: string;
-}
-
 export interface LngEconomicsOnlyEnergyStageDTO {
   stage_id: string;
   /** `cargo_transfer`, `shipping`, `storage`, `regasification` or `other`. */
@@ -4798,34 +4094,6 @@ export interface LngEconomicsOnlyEnergyStageDTO {
   consumed_energy_mwh: string;
   physical_loss_energy_mwh: string;
   source_references: string[];
-}
-
-export interface LngEconomicsOnlyRequestDTO {
-  contract_id: string;
-  cargo_id: string;
-  terminal_id: string;
-  resource_id: string;
-  valuation_date: string;
-  /** Only `EUR` is supported by the current engine. */
-  reporting_currency: string;
-  energy_basis_reference: string;
-  /** Only `MWh` is supported; no volume or heat-unit conversion is performed. */
-  energy_unit: string;
-  purchased_energy_mwh: string;
-  delivered_energy_mwh: string;
-  purchase_unit_price_eur_per_mwh: string;
-  sale_unit_price_eur_per_mwh: string;
-  purchase_price_source_reference: string;
-  sale_price_source_reference: string;
-  /** `FOB` or `DES`; any other value is refused by the engine. */
-  purchase_basis: string;
-  purchase_included_cost_items: string[];
-  cost_scope_statement: string;
-  purchase_payment_date: string;
-  sale_payment_date: string;
-  downstream_costs: LngEconomicsOnlyDownstreamCostDTO[];
-  energy_stages: LngEconomicsOnlyEnergyStageDTO[];
-  discount_factors: LngEconomicsOnlyDiscountFactorDTO[];
 }
 
 /** The exact ordered energy balance the backend composed from the declared stages. */
@@ -5110,18 +4378,6 @@ export interface OptimizationRunDTO {
   human_review_required: boolean;
 }
 
-export interface ResearchCapabilityDTO {
-  name: string;
-  description: string;
-  read_write_class: string;
-  deterministic: boolean;
-  side_effect_class: string;
-  required_permission: string;
-  required_entitlement?: string | null;
-  provenance_behavior: string;
-  timeout_seconds: number;
-}
-
 export interface CapabilityDTO {
   capability_id: string;
   name: string;
@@ -5168,27 +4424,6 @@ export interface AnalysisSnapshotDTO {
   created_by?: string;
 }
 
-export interface AgentRunDetailDTO extends AgentRunDTO {
-  research_plan_id: string | null;
-  evidence_dependencies: string[];
-  warnings: string[];
-  blockers: string[];
-  final_output_reference: string | null;
-  /** Presence/identity summary only; the replay read carries the artifact bodies. */
-  artifact_chain?: AgentArtifactChainSummaryDTO;
-  /** Review artifact kind a human decision is recorded against. */
-  review_entity_type?: string;
-}
-
-/** Ordered CR-15 governed research artifact chain, exactly as persisted. */
-export type AgentArtifactType =
-  | "research_plan"
-  | "findings"
-  | "strategy_ir"
-  | "validation"
-  | "challenge_report"
-  | "review_pack";
-
 /** Frozen run inputs one persisted agent run was produced from. */
 export interface AgentFixtureDTO {
   fixture_id: string;
@@ -5231,198 +4466,6 @@ export interface AgentArtifactTimestampsDTO {
   run_completed_at: string | null;
 }
 
-export interface AgentArtifactChainSummaryDTO {
-  order: string[];
-  present: string[];
-  missing: string[];
-  complete: boolean;
-  artifact_ids: Record<string, string[]>;
-  /** Returned by the replay read only; the detail read carries the summary alone. */
-  chain_hash?: string;
-}
-
-export interface AgentEvidenceRequirementDTO {
-  series_id: string;
-  required?: boolean;
-  max_source_age_seconds?: number | null;
-  temporal_integrity_min?: string | null;
-  unit?: string | null;
-}
-
-export interface AgentResearchPlanStepDTO {
-  analysis_id: string;
-  analysis_type: string;
-  input_series: string[];
-  parameters: Record<string, unknown>;
-}
-
-/** Persisted research plan row as returned in the plan artifact payload. */
-export interface AgentResearchPlanPayloadDTO {
-  research_plan_id: string;
-  agent_run_id: string | null;
-  objective: string;
-  question: string;
-  market_scope: string[];
-  entities: string[];
-  product: string;
-  horizon: string;
-  hypotheses_to_test: string[];
-  required_evidence: AgentEvidenceRequirementDTO[];
-  analyses: AgentResearchPlanStepDTO[];
-  data_quality_requirements: Record<string, unknown>;
-  statistical_requirements: Record<string, unknown>;
-  strategy_generation_allowed: boolean;
-  stopping_conditions: string[];
-  status: string;
-  created_by: string;
-  created_at: string;
-}
-
-/** One persisted research finding row. */
-export interface AgentResearchFindingPayloadDTO {
-  finding_id: string;
-  research_plan_id: string | null;
-  agent_run_id: string | null;
-  question: string;
-  statistic: string;
-  value: string | null;
-  unit: string | null;
-  sample: string;
-  period: string;
-  methodology: string;
-  evidence: string[];
-  limitations: string[];
-  quality_state: string;
-  created_at: string;
-}
-
-export interface AgentStrategyIRConditionDTO {
-  feature_id: string;
-  operator: string;
-  value: number;
-  unit: string;
-}
-
-export interface AgentStrategyIRComponentDTO {
-  component_id: string;
-  component_type: string;
-  weight: number;
-  conditions: AgentStrategyIRConditionDTO[];
-}
-
-export interface AgentStrategyIRParameterDTO {
-  parameter_id: string;
-  name?: string;
-  parameter_type: string;
-  unit?: string | null;
-  default_value?: unknown;
-  min_value?: number | null;
-  max_value?: number | null;
-  allowed_values?: string[];
-  optimization_allowed?: boolean;
-  sensitivity_allowed?: boolean;
-}
-
-/** Persisted StrategyIR specification (the reviewed strategy artifact). */
-export interface AgentStrategyIRPayloadDTO {
-  schema_version?: string;
-  hypothesis: string;
-  universe: {
-    origin_hub: string;
-    destination_hub: string;
-    product: string;
-    currency: string;
-  };
-  components: AgentStrategyIRComponentDTO[];
-  parameters: AgentStrategyIRParameterDTO[];
-  sizing: {
-    method: string;
-    max_pct: number;
-    max_quantity_mwh_per_day?: number | null;
-  };
-  risk_controls: Record<string, unknown>;
-  economic_assumptions: Record<string, unknown>;
-  data_requirements: Record<string, unknown>;
-  evaluation_windows?: Array<Record<string, unknown>>;
-}
-
-export interface AgentPlanValidationIssueDTO {
-  code: string;
-  detail: string;
-  evidence?: string | null;
-}
-
-export interface AgentStrategyIRValidationIssueDTO {
-  code: string;
-  detail: string;
-  field?: string | null;
-}
-
-export interface AgentStrategyIRValidationDTO {
-  ok: boolean;
-  issues: AgentStrategyIRValidationIssueDTO[];
-}
-
-/** Persisted plan validation plus the recomputed StrategyIR validation view. */
-export interface AgentValidationPayloadDTO {
-  plan_id: string | null;
-  plan_status: string | null;
-  plan_validation_issues: AgentPlanValidationIssueDTO[];
-  plan_validation_source: string;
-  strategy_ir_validation: AgentStrategyIRValidationDTO | null;
-  strategy_ir_validation_source: string;
-  feature_catalog_id: string;
-  run_blockers: string[];
-  run_warnings: string[];
-}
-
-export interface AgentChallengeItemDTO {
-  challenge: string;
-  severity: string;
-  evidence: Record<string, unknown>;
-  result: string;
-  recommended_follow_up?: string;
-}
-
-/** Persisted challenge report row. */
-export interface AgentChallengeReportPayloadDTO {
-  challenge_report_id: string;
-  agent_run_id: string | null;
-  strategy_version_id: string | null;
-  backtest_run_id: string | null;
-  items: AgentChallengeItemDTO[];
-  overall_result: string;
-  recommended_follow_up: string;
-  created_at: string;
-}
-
-/** Human decisions recorded against the review pack through /review/decisions. */
-export interface AgentReviewPackConfirmationDTO {
-  entity_type: string;
-  entity_id: string;
-  decisions: ReviewDecisionDTO[];
-}
-
-/** Persisted review pack row plus its recorded human confirmation. */
-export interface AgentReviewPackPayloadDTO {
-  review_pack_id: string;
-  agent_run_id: string | null;
-  objective: string;
-  research_plan: Record<string, unknown>;
-  key_findings: unknown[];
-  strategy_specification: Record<string, unknown> | null;
-  backtest: Record<string, unknown> | null;
-  robustness: Record<string, unknown>;
-  challenge_report: Record<string, unknown> | null;
-  data_provenance: string[];
-  warnings: string[];
-  known_limitations: string[];
-  alternative_hypotheses: string[];
-  status: string;
-  created_at: string;
-  human_confirmation?: AgentReviewPackConfirmationDTO;
-}
-
 interface AgentArtifactEnvelopeBaseDTO {
   operation_id: string;
   stage: string;
@@ -5436,50 +4479,6 @@ interface AgentArtifactEnvelopeBaseDTO {
   rights: AgentArtifactRightsDTO;
   timestamps: AgentArtifactTimestampsDTO;
   /** Persisted null: no reasoning text is stored or returned for any artifact. */
-  hidden_chain_of_thought: null;
-}
-
-/**
- * One chain artifact with its payload narrowed by artifact kind.
- *
- * The discriminated union lets a renderer switch on ``artifact_type`` and read a
- * typed payload; an absent artifact keeps ``payload: null`` instead of failing.
- */
-export type AgentArtifactEnvelopeDTO =
-  | (AgentArtifactEnvelopeBaseDTO & {
-      artifact_type: "research_plan";
-      payload: AgentResearchPlanPayloadDTO | null;
-    })
-  | (AgentArtifactEnvelopeBaseDTO & {
-      artifact_type: "findings";
-      payload: AgentResearchFindingPayloadDTO[] | null;
-    })
-  | (AgentArtifactEnvelopeBaseDTO & {
-      artifact_type: "strategy_ir";
-      payload: AgentStrategyIRPayloadDTO | null;
-    })
-  | (AgentArtifactEnvelopeBaseDTO & {
-      artifact_type: "validation";
-      payload: AgentValidationPayloadDTO | null;
-    })
-  | (AgentArtifactEnvelopeBaseDTO & {
-      artifact_type: "challenge_report";
-      payload: AgentChallengeReportPayloadDTO | null;
-    })
-  | (AgentArtifactEnvelopeBaseDTO & {
-      artifact_type: "review_pack";
-      payload: AgentReviewPackPayloadDTO | null;
-    });
-
-export type AgentArtifactsDTO = Record<AgentArtifactType, AgentArtifactEnvelopeDTO>;
-
-export interface AgentReplayDTO extends AgentRunDetailDTO {
-  started_at: string;
-  review_entity_type: string;
-  fixture: AgentFixtureDTO;
-  artifact_chain: AgentArtifactChainSummaryDTO;
-  artifacts: AgentArtifactsDTO;
-  tool_invocations: unknown[];
   hidden_chain_of_thought: null;
 }
 
@@ -5606,12 +4605,6 @@ export const api = {
   createDecisionCase: (body: DecisionCaseCreateInputDTO) =>
     post<DecisionCaseDTO>("/decision-cases", body),
 
-  /**
-   * Reconcile one book, hub and gas day as it was knowable and compare responses to a revised
-   * outage (#48-#50). Read-only compute over caller-supplied evidence; nothing is executed.
-   */
-  deskReplay: (evidence: unknown) => post<DeskReplayResultDTO>("/portfolio/desk-replay", evidence),
-
   attachDecisionCaseEvidence: (caseId: string, body: DecisionCaseEvidenceInputDTO) =>
     post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/evidence`, body),
 
@@ -5677,10 +4670,6 @@ export const api = {
 
   storageObservations: (options?: ApiRequestOptions) => get<StorageObsDTO[]>("/storage/observations", undefined, options),
 
-  /** Standard desk strip (WD..Cal+1) resolved to gas-day delivery periods by the backend. */
-  gasProductStrip: (options?: ApiRequestOptions) =>
-    get<GasProductStripDTO>("/market/products", undefined, options),
-
   /**
    * Backend price conversion with a named FX fix: ECB (default), WMR (WM/Reuters) or BFIX
    * (Bloomberg). Licensed fixes answer only for principals holding that data scope.
@@ -5694,14 +4683,6 @@ export const api = {
     get<PriceConversionDTO>(
       "/market/price-conversion",
       { value: String(value), from_unit: fromUnit, fx_source: fxSource },
-      options,
-    ),
-
-  /** Contract financing rate: benchmark fixing on/before `asOf` + spread (backend-resolved). */
-  financingRate: (benchmark: string, spreadBps: number, asOf?: string, options?: ApiRequestOptions) =>
-    get<FinancingRateDTO>(
-      "/market/financing-rate",
-      { benchmark, spread_bps: String(spreadBps), ...(asOf ? { as_of: asOf } : {}) },
       options,
     ),
 
@@ -5901,109 +4882,11 @@ export const api = {
       ...(params?.run_mode ? { run_mode: params.run_mode } : {}),
     }),
 
-  strategies: () => get<StrategyDTO[]>("/strategies"),
-
   strategy: (strategyId: string) =>
     get<StrategyDTO>(`/strategies/${encodeURIComponent(strategyId)}`),
 
-  createStrategy: (body: StrategyCreateInputDTO) => post<StrategyDTO>("/strategies", body),
-
-  updateStrategyMetadata: (strategyId: string, body: StrategyMetadataUpdateInputDTO) =>
-    patch<StrategyDTO>(`/strategies/${encodeURIComponent(strategyId)}/metadata`, body),
-
-  strategyGroups: () => get<StrategyGroupDTO[]>("/me/groups"),
-
-  updateStrategySharing: (strategyId: string, body: StrategySharingInputDTO) =>
-    patch<StrategyDTO>(`/strategies/${encodeURIComponent(strategyId)}/sharing`, body),
-
-  strategyVersions: (strategyId: string) =>
-    get<StrategyVersionDTO[]>(`/strategies/${encodeURIComponent(strategyId)}/versions`),
-
-  createStrategyVersion: (strategyId: string, body: StrategyVersionCreateInputDTO) =>
-    post<StrategyVersionDTO>(`/strategies/${encodeURIComponent(strategyId)}/versions`, body),
-
   strategyVersion: (versionId: string) =>
     get<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}`),
-
-  updateStrategyVersionDraft: (versionId: string, body: StrategyVersionCreateInputDTO) =>
-    put<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}/draft`, body),
-
-  freezeStrategyVersion: (versionId: string) =>
-    post<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}/freeze`, {}),
-
-  forkStrategyVersion: (versionId: string, body?: StrategyForkInputDTO) =>
-    post<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}/fork`, body ?? {}),
-
-  createStrategyRun: (body: StrategyRunCreateInputDTO) =>
-    post<StrategyRunDTO>("/strategy-runs", body),
-
-  strategyRegistryRuns: (params?: {
-    strategy_id?: string; strategy_version_id?: string; run_type?: string; limit?: number;
-  }) =>
-    get<StrategyRunDTO[]>("/strategy-runs", {
-      ...(params?.strategy_id ? { strategy_id: params.strategy_id } : {}),
-      ...(params?.strategy_version_id ? { strategy_version_id: params.strategy_version_id } : {}),
-      ...(params?.run_type ? { run_type: params.run_type } : {}),
-      ...(params?.limit ? { limit: String(params.limit) } : {}),
-    }),
-
-  strategyRegistryRun: (runId: string) =>
-    get<StrategyRunDTO>(`/strategy-runs/${encodeURIComponent(runId)}`),
-
-  strategyRunEvents: (runId: string) =>
-    get<BacktestDecisionEventDTO[]>(`/strategy-runs/${encodeURIComponent(runId)}/events`),
-
-  strategyRunSeries: (runId: string) =>
-    get<BacktestSeriesPointDTO[]>(`/strategy-runs/${encodeURIComponent(runId)}/series`),
-
-  strategyRunAttribution: (runId: string) =>
-    get<BacktestAttributionDTO[]>(`/strategy-runs/${encodeURIComponent(runId)}/attribution`),
-
-  createBacktestExperiment: (body: BacktestExperimentCreateInputDTO) =>
-    post<BacktestExperimentDTO>("/backtest-experiments", body),
-
-  backtestExperiments: () => get<BacktestExperimentDTO[]>("/backtest-experiments"),
-
-  backtestExperiment: (experimentId: string) =>
-    get<BacktestExperimentDTO>(`/backtest-experiments/${encodeURIComponent(experimentId)}`),
-
-  createShadowMonitor: (body: ShadowMonitorCreateInputDTO) =>
-    post<ShadowMonitorDTO>("/shadow-monitors", body),
-
-  shadowMonitors: () => get<ShadowMonitorDTO[]>("/shadow-monitors"),
-
-  shadowMonitor: (monitorId: string) =>
-    get<ShadowMonitorDTO>(`/shadow-monitors/${encodeURIComponent(monitorId)}`),
-
-  pauseShadowMonitor: (monitorId: string) =>
-    post<ShadowMonitorDTO>(`/shadow-monitors/${encodeURIComponent(monitorId)}/pause`, {}),
-
-  resumeShadowMonitor: (monitorId: string) =>
-    post<ShadowMonitorDTO>(`/shadow-monitors/${encodeURIComponent(monitorId)}/resume`, {}),
-
-  retireShadowMonitor: (monitorId: string) =>
-    post<ShadowMonitorDTO>(`/shadow-monitors/${encodeURIComponent(monitorId)}/retire`, {}),
-
-  shadowEvaluations: (monitorId: string) =>
-    get<ShadowEvaluationDTO[]>(`/shadow-monitors/${encodeURIComponent(monitorId)}/evaluations`),
-
-  shadowEvaluation: (evaluationId: string) =>
-    get<ShadowEvaluationDTO>(`/shadow-evaluations/${encodeURIComponent(evaluationId)}`),
-
-  shadowDrift: (monitorId: string) =>
-    get<ShadowDriftDTO[]>(`/shadow-monitors/${encodeURIComponent(monitorId)}/drift`),
-
-  shadowAlerts: (params?: { state?: string; severity?: string; monitor_id?: string }) =>
-    get<ShadowAlertDTO[]>("/shadow-alerts", {
-      ...(params?.state ? { state: params.state } : {}),
-      ...(params?.severity ? { severity: params.severity } : {}),
-      ...(params?.monitor_id ? { monitor_id: params.monitor_id } : {}),
-    }),
-
-  acknowledgeShadowAlert: (alertId: string) =>
-    post<ShadowAlertDTO>(`/shadow-alerts/${encodeURIComponent(alertId)}/acknowledge`, { actor: "operator" }),
-
-  shadowRuntimeStatus: () => get<ShadowRuntimeStatusDTO>("/shadow-runtime/status"),
 
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 
@@ -6156,8 +5039,6 @@ export const api = {
     put<{ key: string; created: boolean }>(`/portfolio/hedge-approvals/${encodeURIComponent(contractId)}`, body),
   sellDownPlan: (body: SellDownInput, options?: ApiRequestOptions) =>
     post<SellDownPlanDTO>("/portfolio/sell-down-plan", body, options),
-  lngCargoBid: (body: LngCargoBidInput, options?: ApiRequestOptions) =>
-    post<LngCargoBidDTO>("/portfolio/lng-cargo-bid", body, options),
   tradingBooks: (options?: ApiRequestOptions) => get<TradingBooksDTO>("/portfolio/books", undefined, options),
   saveTradingBook: (bookId: string, body: TradingBookInput) =>
     put<{ book_id: string; created: boolean; contracts_assigned: number; orders_assigned: number }>(
@@ -6198,49 +5079,10 @@ export const api = {
   /** Prices into one unit, each with its normalisation record (server-side factors and FX). */
   normaliseMarket: (body: NormaliseRequestDTO, options?: ApiRequestOptions) =>
     postRead<NormaliseResponseDTO>("/market/normalise", body, options),
-  researchFeatures: (options?: ApiRequestOptions) => get<ResearchFeatureDTO[]>("/research/features", undefined, options),
-  researchTargets: (options?: ApiRequestOptions) => get<ResearchTargetDTO[]>("/research/targets", undefined, options),
-  researchDatasets: (options?: ApiRequestOptions) => get<ResearchDatasetDTO[]>("/research/datasets", undefined, options),
-  researchCapabilities: () => get<ResearchCapabilityDTO[]>("/research/capabilities"),
-  researchDataset: (datasetSnapshotId: string, options?: ApiRequestOptions) =>
-    get<ResearchDatasetDetailDTO>(`/research/datasets/${encodeURIComponent(datasetSnapshotId)}`, undefined, options),
-  researchDatasetQuality: (datasetSnapshotId: string, options?: ApiRequestOptions) =>
-    get<ResearchDatasetQualityDTO>(`/research/datasets/${encodeURIComponent(datasetSnapshotId)}/quality`, undefined, options),
-  exportResearchDataset: (
-    datasetSnapshotId: string,
-    body: { format: "parquet" | "csv" },
-    options?: ApiRequestOptions,
-  ) =>
-    post<ResearchDatasetExportDTO>(
-      `/research/datasets/${encodeURIComponent(datasetSnapshotId)}/export`,
-      body,
-      options,
-    ),
   capabilities: (params?: { domain?: string }) =>
     get<CapabilityDTO[]>("/capabilities", params),
-  searchCapabilities: (q: string) => get<CapabilityDTO[]>("/capabilities/search", { q }),
   capability: (capabilityId: string) =>
     get<CapabilityDTO>(`/capabilities/${encodeURIComponent(capabilityId)}`),
-  /**
-   * Invoke one registered capability (Architecture V2 Wave 7 / CR-15).
-   *
-   * `human_confirmation` answers a capability whose declared `action_policy` is
-   * `HUMAN_CONFIRMATION`; the runtime refuses such a capability without it, and the flag buys no
-   * authority - permissions, data scopes and argument validation are evaluated either way. The
-   * response is a `CapabilityResult`: a refusal comes back as `status: "BLOCKED"` with a stable
-   * failure code, so the surface renders what stopped it rather than an error string.
-   */
-  invokeCapability: (
-    capabilityId: string,
-    argumentsBody: Record<string, unknown>,
-    confirmation?: { humanConfirmation: boolean; confirmationNote?: string },
-  ) =>
-    post<Record<string, unknown>>(`/capabilities/${encodeURIComponent(capabilityId)}/invoke`, {
-      arguments: argumentsBody,
-      human_confirmation: confirmation?.humanConfirmation ?? false,
-      confirmation_note: confirmation?.confirmationNote ?? "",
-    }),
-  agentProfiles: () => get<Record<string, unknown>[]>("/agent/profiles"),
   /**
    * The declared Data Product catalogue with this caller's entitlement verdict
    * (Architecture V2 Wave 4).
@@ -6282,8 +5124,6 @@ export const api = {
       { reason },
       options,
     ),
-  dataProducts: (options?: ApiRequestOptions) =>
-    get<DataProductCatalogueDTO>("/data-products", undefined, options),
   /**
    * Record an Analysis Snapshot from the Active Context (Architecture V2 Wave 4).
    *
@@ -6310,23 +5150,6 @@ export const api = {
       params ? { limit: String(params.limit) } : undefined,
       options,
     ),
-  agentRuns: (params?: { limit?: number }) =>
-    get<AgentRunDTO[]>("/agent/runs", params ? { limit: String(params.limit) } : undefined),
-  agentRun: (agentRunId: string) =>
-    get<AgentRunDetailDTO>(`/agent/runs/${encodeURIComponent(agentRunId)}`),
-  agentReplay: (agentRunId: string) =>
-    get<AgentReplayDTO>(`/agent/runs/${encodeURIComponent(agentRunId)}/replay`),
-  runAgentResearch: (body: { objective: string; agent_profile?: string; strategy_generation_allowed?: boolean }) =>
-    post<Record<string, unknown>>("/agent/research", body),
-  validateResearchDataset: (spec: Record<string, unknown>, options?: ApiRequestOptions) =>
-    post<ResearchDatasetValidationDTO>("/research/datasets/validate", { dataset_spec: spec }, options),
-  buildResearchDataset: (spec: Record<string, unknown>, options?: ApiRequestOptions) =>
-    post<ResearchDatasetBuildDTO>(
-      "/research/datasets",
-      { dataset_spec: spec, materialize: true },
-      options,
-    ),
-
   glossary: (lang: string = "en", params?: { category?: string; q?: string }, options?: ApiRequestOptions) =>
     get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }, options),
 
@@ -6339,59 +5162,6 @@ export const api = {
   analysisQuery: (body: AnalysisRequestDTO) => post<AnalysisResultDTO>("/analysis/query", body),
 
   portfolioReport: (body: AnalysisRequestDTO) => post<AnalysisResultDTO>("/reports/portfolio", body),
-
-  routeCost: (body: RouteCostRequestDTO) => post<RouteCostOutcomeDTO>("/research/route-cost", body),
-  netback: (body: NetbackRequestDTO) => post<NetbackOutcomeDTO>("/research/netback", body),
-
-  /**
-   * Value explicit signed cash flows through the one shared cash engine (transport only).
-   *
-   * The body travels exactly as composed: every decimal stays the caller's own string, the
-   * route receives no `decision_context` claim (the request contract forbids unknown fields and
-   * the sandbox gate refuses a `RUNTIME_DECISION` claim, so the safe composition is to send
-   * none), and the answer's `meta.decision_context` is what labels the run `SANDBOX_SCENARIO`.
-   * A refusal rejects with the standard `ApiError` carrying the typed `detail`
-   * (`cash_valuation_input_invalid` / `cash_valuation_refused` and the engine's stable codes);
-   * nothing is persisted and no client arithmetic or parsing happens here.
-   */
-  cashValuation: (body: CashValuationRequestDTO, options?: ApiRequestOptions) =>
-    post<CashValuationResultDTO, CashValuationMetaDTO>("/research/cash-valuation", body, options),
-
-  /**
-   * Bill one explicit capacity tariff through the shared backend engine (transport only).
-   *
-   * The body travels exactly as composed: every decimal is the caller's own string, every
-   * timestamp is the caller's own aware ISO-8601 text, and no `decision_context` claim is sent.
-   * The backend owns the arithmetic, the exact billed-energy cross-multiplication, the unit and
-   * currency rules, the UTC duration and every stable refusal code. A refusal rejects with the
-   * standard `ApiError` carrying the typed `detail` (`capacity_billing_input_invalid` /
-   * `capacity_billing_refused` and the engine's codes); nothing is persisted and the client does
-   * no parsing, conversion or arithmetic here.
-   */
-  capacityBilling: (body: CapacityBillingRequestDTO, options?: ApiRequestOptions) =>
-    post<CapacityBillingResultDTO, CapacityBillingMetaDTO>(
-      "/research/capacity-billing",
-      body,
-      options,
-    ),
-
-  /**
-   * Compose explicit LNG economics without assessing physical readiness (transport only).
-   *
-   * The body travels exactly as composed: every price, quantity, cost, stage amount and discount
-   * factor is the caller's own string, and no `decision_context` or `model_version` claim is sent.
-   * The backend composition owns the money and energy arithmetic, conservation, chain adjacency,
-   * discount coverage and every stable refusal code. A refusal rejects with the standard
-   * `ApiError` carrying the typed `detail` (`lng_economics_only_input_invalid` /
-   * `lng_economics_only_refused` and the engine's codes); nothing is persisted and no client
-   * parsing, conversion or arithmetic happens here.
-   */
-  lngEconomicsOnly: (body: LngEconomicsOnlyRequestDTO, options?: ApiRequestOptions) =>
-    post<LngEconomicsOnlyResultDTO, LngEconomicsOnlyMetaDTO>(
-      "/research/lng-economics-only",
-      body,
-      options,
-    ),
 
   /**
    * The two desk assessments, and the run record that makes them checkable (register C14/D8).
