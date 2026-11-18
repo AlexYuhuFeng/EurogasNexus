@@ -46,7 +46,7 @@ import {
 import { inspectNativeCapacityInteraction } from "./nativeCapacityInteraction.mjs";
 import { inspectReferenceIndexInteraction } from "./referenceIndexInteraction.mjs";
 import { readStripShape, situationStripInteraction, stripShapeProblems } from "./situationStrip.mjs";
-import { measurePhoneOverflow, PHONE_ROUTES } from "./phoneOverflow.mjs";
+import { ENUM_RULE_EXEMPT_ROUTES, findVisibleEnums, measurePhoneOverflow, PHONE_ROUTES } from "./phoneOverflow.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(
@@ -1495,6 +1495,11 @@ async function phoneOverflowSweep(page, failures, observations) {
         await page.waitForTimeout(600);
         const { problems } = await page.evaluate(measurePhoneOverflow);
         for (const problem of problems) recordFailure(failures, scope, `phone overflow: ${problem}`);
+        // Enums are said in words on every page a user works on (UX_REFERENCE rule 21).
+        if (!ENUM_RULE_EXEMPT_ROUTES.has(route)) {
+          const enums = await page.evaluate(findVisibleEnums);
+          if (enums.length) recordFailure(failures, scope, `raw enum on screen: ${enums.join(", ")}`);
+        }
         measured += 1;
       } catch (error) {
         recordFailure(failures, scope, error);

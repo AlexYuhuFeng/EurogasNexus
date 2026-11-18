@@ -210,6 +210,15 @@ exact copy, so that presentation can improve without weakening a gate.
     On a phone a segmented row scrolls inside itself with its ends fading into the track, never
     clipped mid-word and never wrapped into a second row. Filter chips (several on at once) and
     row selections are not segmented controls.
+21. **Enums are said in words; plumbing stays with whoever acts on it.** A state, kind or reason
+    the server sends as a code (`SUCCEEDED_WITH_WARNINGS`, `NOT_REQUIRED`, `AVAILABLE`) reads in
+    words through `app/model/enumLabels.ts` (`enum.<value>` in the locale, else the humanized
+    code); `StatusBadge` does this for every badge and keeps the code in its title. Source
+    identifiers read as the desk names them (`ICE_ENDEX` -> "ICE Endex"). Internal ids, evidence
+    references and environment switches never appear in a trader's text; they live behind a
+    Details disclosure, the Inspector or Administration. Setup notices ("source not approved ->
+    Admin -> Connectors") show only to whoever can act on them. The browser sweep's phone pass
+    fails on a bare enum code on any page except the ones being deleted.
 
 ## Implementation note
 

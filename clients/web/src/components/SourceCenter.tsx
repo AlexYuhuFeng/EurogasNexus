@@ -1,4 +1,5 @@
 import { tabLabels } from "@/components/ui/tabLabels";
+import { sourceSystemLabel } from "@/app/model/enumLabels";
 import { type FormEventHandler, useEffect, useRef, useState } from "react";
 import type { SourceRunOutcome, SourceRunReadiness } from "@/app/model/sourceRunModel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
@@ -109,7 +110,7 @@ interface SourceCenterProps {
 /** A source's name as the desk knows it: a model service shows its configured provider and model. */
 function sourceDisplayName(source: SourceSystemDTO): string {
   const service = source.model_service;
-  return service ? `${service.provider_name} · ${service.model}` : source.source_system;
+  return service ? `${service.provider_name} · ${service.model}` : sourceSystemLabel(source.source_system);
 }
 
 function sourcePriority(source: SourceSystemDTO): number {

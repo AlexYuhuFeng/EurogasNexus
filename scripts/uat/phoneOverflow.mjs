@@ -93,3 +93,39 @@ export function measurePhoneOverflow() {
   }
   return { problems: problems.slice(0, 12) };
 }
+
+/**
+ * Pages being deleted under COMMERCIAL_PRODUCT_DESIGN_2 (Deals -> Evaluate/Optimise/Routes,
+ * Research -> Strategies/Data/Assistant): not polished, so not held to the enum rule. The list may
+ * only shrink.
+ */
+export const ENUM_RULE_EXEMPT_ROUTES = new Set([
+  "?workspace=scenario&task=scenario",
+  "?workspace=scenario&task=optimize",
+  "?workspace=contracts&task=routes",
+  ...["spread", "design", "backtest", "experiments"].map((task) => `?workspace=strategy&task=${task}`),
+  ...["datasets", "products", "features", "targets"].map((view) => `?workspace=research&view=${view}`),
+  ...["capabilities", "research", "runs"].map((view) => `?workspace=agents&view=${view}`),
+]);
+
+/**
+ * Runs in the page: visible text that is a bare enum code (`SUCCEEDED_WITH_WARNINGS`), which the
+ * screen must say in words (UX_REFERENCE rule 21). Code and preformatted text, closed disclosures
+ * and hidden text are not read; an element's `title` is where a code may stay.
+ */
+export function findVisibleEnums() {
+  const found = new Map();
+  const root = document.querySelector("main") ?? document.body;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const element = node.parentElement;
+    if (!element || element.closest("code, pre, kbd, samp, script, style, [hidden], .ds-visually-hidden")) continue;
+    if (typeof element.checkVisibility === "function" && !element.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true })) continue;
+    const rect = element.getBoundingClientRect();
+    if (!rect.width || !rect.height) continue;
+    for (const match of String(node.textContent).matchAll(/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/g)) {
+      found.set(match[0], element.tagName.toLowerCase());
+    }
+  }
+  return [...found.keys()].slice(0, 8);
+}

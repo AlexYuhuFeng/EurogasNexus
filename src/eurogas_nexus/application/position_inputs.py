@@ -463,8 +463,9 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
                 month = (month.replace(day=1) + timedelta(days=32)).replace(day=1)
     if demo_marks_used:
         warnings.append(
-            "DEMO: marks are simulated demo prices, not market prices "
-            "(EUROGAS_NEXUS_DEMO_MARKS is on)."
+            # Shown to traders: plain words, not the switch's name (UX_REFERENCE rule 3). The
+            # "DEMO" prefix is the marker the desk, explain, alerts and reports look for.
+            "DEMO: marks are simulated demo prices, not market prices."
         )
     return LadderInputs(
         legs=legs,

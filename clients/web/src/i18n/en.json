@@ -4829,5 +4829,18 @@
   "prices.board.hubs": "Hubs",
   "prices.board.hubs_count": "{{count}} hubs",
   "prices.board.unit": "Unit",
-  "prices.board.spread_to_ttf": "Spread to TTF (EUR/MWh)"
+  "prices.board.spread_to_ttf": "Spread to TTF (EUR/MWh)",
+  "enum.available": "Available",
+  "enum.unknown": "Not known yet",
+  "enum.not_required": "Not needed",
+  "enum.not_configured": "Not set up",
+  "enum.succeeded": "Succeeded",
+  "enum.succeeded_with_warnings": "Succeeded with warnings",
+  "enum.failed": "Failed",
+  "enum.running": "Running",
+  "enum.feasible_with_warnings": "Feasible, with warnings",
+  "enum.feasible": "Feasible",
+  "enum.infeasible": "Not feasible",
+  "enum.degraded": "Degraded",
+  "enum.unavailable": "Unavailable"
 }

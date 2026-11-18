@@ -79,6 +79,37 @@
       display: none;
     }
 
+    /* The older div tables (.data-table) reflow on a phone instead of scrolling a 720 px row: the
+       row's name on its own line, its facts wrapping beside each other under it (Admin -> Runtime
+       health, the guide's tables). Their column heads repeat what the values say, so they go. */
+    main .data-table {
+      overflow-x: visible;
+    }
+
+    main .data-table-row:not(.header) {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--ds-space-1) var(--ds-space-3);
+      min-width: 0;
+      padding: var(--ds-space-2) var(--ds-space-3);
+    }
+
+    main .data-table-row:not(.header) > * {
+      min-width: 0;
+      overflow: visible;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    main .data-table-row:not(.header) > :first-child {
+      flex-basis: 100%;
+    }
+
+    main .data-table-row.header {
+      display: none;
+    }
+
     /* A segmented row that scrolls says so: its ends fade into the track. */
     main .ds-segmented {
       background:

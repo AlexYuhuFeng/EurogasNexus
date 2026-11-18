@@ -1,4 +1,5 @@
 import { localDeadlineToUtc } from "@/app/model/decisionDeadline";
+import { sourceSystemLabel } from "@/app/model/enumLabels";
 import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useState } from "react";
 import {
@@ -288,7 +289,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
                         )
                       }
                     />
-                    {scope}
+                    <span title={scope}>{sourceSystemLabel(scope)}</span>
                   </label>
                 ))
               )}
@@ -400,7 +401,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
                 {scopeFamilyRows(scopeCatalogue).map((row) => (
                   <div key={row.family} className="data-table-row two">
                     <strong>{t(`access.catalogue.family_${row.family}`)}</strong>
-                    <span>{row.scopes.join(", ")}</span>
+                    <span title={row.scopes.join(", ")}>{row.scopes.map(sourceSystemLabel).join(", ")}</span>
                   </div>
                 ))}
               </div>

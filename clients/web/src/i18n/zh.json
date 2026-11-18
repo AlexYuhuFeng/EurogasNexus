@@ -4829,5 +4829,18 @@
   "prices.board.hubs": "枢纽",
   "prices.board.hubs_count": "{{count}} 个枢纽",
   "prices.board.unit": "单位",
-  "prices.board.spread_to_ttf": "相对 TTF 价差（EUR/MWh）"
+  "prices.board.spread_to_ttf": "相对 TTF 价差（EUR/MWh）",
+  "enum.available": "可用",
+  "enum.unknown": "尚未知",
+  "enum.not_required": "无需",
+  "enum.not_configured": "未配置",
+  "enum.succeeded": "成功",
+  "enum.succeeded_with_warnings": "成功（有警告）",
+  "enum.failed": "失败",
+  "enum.running": "运行中",
+  "enum.feasible_with_warnings": "可行（有警告）",
+  "enum.feasible": "可行",
+  "enum.infeasible": "不可行",
+  "enum.degraded": "降级",
+  "enum.unavailable": "不可用"
 }
