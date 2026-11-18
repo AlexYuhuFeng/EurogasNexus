@@ -503,3 +503,19 @@ def test_every_board_hub_has_a_simulated_market_that_a_real_one_replaces(session
     }
     assert "THE" not in rolled and "TTF" in rolled
 
+def test_one_case_awaits_review_and_reseeding_keeps_one_copy(session):
+    from eurogas_nexus.db.models.decision import DecisionCaseRecord
+
+    seed = _load()
+    seed.seed(session, datetime(2026, 11, 7, 9, tzinfo=UTC))
+    session.commit()
+    seed.seed(session, datetime(2026, 11, 8, 9, tzinfo=UTC))
+    session.commit()
+
+    cases = session.query(DecisionCaseRecord).all()
+    assert [case.case_id for case in cases] == [seed.DEMO_REVIEW_CASE_ID]
+    case = cases[0]
+    assert case.status == "UNDER_REVIEW"
+    assert case.created_by == "demo.trader"  # never a reviewer's own case
+    assert case.gas_day == "2026-11-08"
+    assert any("simulated" in warning.lower() for warning in case.warnings_json)

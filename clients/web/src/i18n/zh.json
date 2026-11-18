@@ -636,7 +636,7 @@
   "capacity.board.pending": "物理流量与管容读取正在进行，读取返回前运行板不显示任何行或计数。",
   "capacity.board.failed": "运行板的必需读取中至少有一路未返回，因此不显示任何行、计数或筛选结果：未返回的读取不等于零值运行板。",
   "capacity.board.partial": "运行板的两路读取中有一路未返回。下方各行来自已返回的读取，缺少未返回读取本应提供的数值，因此该运行板并不完整。",
-  "capacity.board.empty": "当前筛选的数据源暂无流量或容量观测。",
+  "capacity.board.empty": "此看板暂无以体积（mcm/d）计的点位。ENTSOG 以能量（kWh/d）发布容量，原始单位数据见下方“ENTSOG 原生容量背景”。",
   "capacity.board.retry": "重试失败的读取",
   "capacity.point_inspector": "点位与准入检视",
   "capacity.inspect_point": "查看管容记录详情",

@@ -777,7 +777,77 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     _seed_cross_border_position(session, now, today)
     _seed_simulated_vessels(session, now)
     seed_market_around_the_book(session, now, rng, history_days=history_days)
+    seed_demo_review_case(session, now)
     return sizing
+
+
+#: The one decision case the demo opens for review (fixed id, so a re-seed replaces it).
+DEMO_REVIEW_CASE_ID = "case-demo-review-haldor"
+
+
+def seed_demo_review_case(session, now: datetime) -> int:
+    """One case awaiting review, so the reviewer, risk and compliance desks have something
+    to open: opened by the demo trader (a reviewer never reviews their own case), about the
+    demo book's open Haldor volume. Replaced on a re-seed; never touches other cases.
+    Returns rows written."""
+
+    from eurogas_nexus.db.models.decision import DecisionCaseRecord
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+    from eurogas_nexus.domain.ontology.vocabulary import DecisionCaseStatus
+
+    existing = session.get(DecisionCaseRecord, DEMO_REVIEW_CASE_ID)
+    if existing is not None:
+        session.delete(existing)
+        session.flush()
+    gas_day = now.date().isoformat()
+    session.add(
+        DecisionCaseRecord(
+            case_id=DEMO_REVIEW_CASE_ID,
+            objective=(
+                "Demo: the Haldor supply (Easington) volume is open on the NBP book; cover "
+                "tomorrow on NBP day-ahead or from storage?"
+            ),
+            status=DecisionCaseStatus.UNDER_REVIEW.value,
+            created_by="demo.trader",
+            created_at_utc=now,
+            updated_at_utc=now,
+            gas_day=gas_day,
+            delivery_product="DA",
+            hub_id="NBP",
+            portfolio_ref="demo-uk-nbp",
+            snapshot_id="",
+            decision_due_at_utc=now + timedelta(days=1),
+            assumptions_json=[
+                {"key": "haldor_dcq_mwh_d", "value": "24000", "source": "MANUAL",
+                 "note": "Daily contract quantity of the demo Haldor contract"},
+            ],
+            alternatives_json=[
+                {"alternative_id": "buy-nbp-da", "label": "Buy NBP day-ahead",
+                 "description": "Priced at the demo mark (simulated).", "economics_ref": "",
+                 "warnings": ["simulated price"]},
+                {"alternative_id": "draw-storage", "label": "Draw demo storage",
+                 "description": "Within the demo book's storage terms.", "economics_ref": "",
+                 "warnings": []},
+            ],
+            evidence_json=[],
+            ai_findings_json=[],
+            warnings_json=["Demo case: every figure behind it is simulated."],
+        )
+    )
+    record_audit_event(
+        session,
+        event_type="decision.case",
+        principal="demo-seed",
+        action="decision_case_create",
+        resource=f"decision_case:{DEMO_REVIEW_CASE_ID}",
+        outcome="created",
+        severity="info",
+        detail=f"demo seed; gas_day={gas_day}; status=UNDER_REVIEW",
+        source_system="decision",
+        now_utc=now,
+    )
+    session.flush()
+    return 1
 
 
 def _seed_cross_border_position(session, now: datetime, today: date) -> None:

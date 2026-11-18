@@ -636,7 +636,7 @@
   "capacity.board.pending": "The flow and capacity reads are in flight, so the board states no row and no count until they answer.",
   "capacity.board.failed": "A required read of the board did not answer, so the board states no row, no count and no filter result: a read that has not answered is not a board of zero.",
   "capacity.board.partial": "One of the board's two reads did not answer. The rows below are the reading that did, without the figures the missing read would have supplied, so this board is incomplete.",
-  "capacity.board.empty": "No flow or capacity observations are loaded for the current filters' source data.",
+  "capacity.board.empty": "No point on this board has a volume (mcm/d) yet. ENTSOG publishes capacity as energy (kWh/d); open “Native ENTSOG capacity context” below to read them.",
   "capacity.board.retry": "Retry failed reads",
   "capacity.point_inspector": "Point and access inspector",
   "capacity.inspect_point": "Inspect capacity record",
