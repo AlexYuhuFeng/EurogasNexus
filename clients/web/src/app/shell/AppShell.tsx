@@ -48,6 +48,7 @@ import { invalidateReads, setReadCacheScope } from "@/app/data/readCache";
 import { onApiWrite } from "@/api/client";
 
 import { scrollMemoryKey, useScrollMemory } from "@/app/shell/useScrollMemory";
+import { navigationKeyFor, useNavigationKeyStore } from "@/app/shell/navigationKey";
 
 // Any write through the API client marks the kept read answers stale.
 onApiWrite(invalidateReads);
@@ -185,6 +186,17 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
   }, [principalId]);
   // Back on a page or task, the reader is where they left it.
   useScrollMemory(scrollMemoryKey(typeof window === "undefined" ? "" : window.location.search));
+  // Floating surfaces (Popover, Dialog, Sheet) close when the place changes (navigationKey.ts).
+  const navigationPlace = navigationKeyFor(typeof window === "undefined" ? "" : window.location.search);
+  useEffect(() => {
+    useNavigationKeyStore.getState().setKey(navigationPlace);
+  }, [navigationPlace]);
+  useEffect(() => {
+    // A sub-view written by replaceState + popstate (administration views) is a move too.
+    const follow = () => useNavigationKeyStore.getState().setKey(navigationKeyFor(window.location.search));
+    window.addEventListener("popstate", follow);
+    return () => window.removeEventListener("popstate", follow);
+  }, []);
 
   // Kept answers belong to one principal: another identity starts from an empty read cache.
   setReadCacheScope(principalId);

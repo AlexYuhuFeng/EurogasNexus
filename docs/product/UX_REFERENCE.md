@@ -219,6 +219,10 @@ exact copy, so that presentation can improve without weakening a gate.
     Details disclosure, the Inspector or Administration. Setup notices ("source not approved ->
     Admin -> Connectors") show only to whoever can act on them. The browser sweep's phone pass
     fails on a bare enum code on any page except the ones being deleted.
+22. **Nothing floats over the next page.** A Popover, Dialog or Sheet (and the top bar's status
+    panel) opened on one page, task or view closes when the reader moves to another
+    (`app/shell/navigationKey.ts`, `useCloseOnNavigation`, applied in the primitives). Changing a
+    filter on the same page (gas day, hub) is not a move.
 
 ## Implementation note
 

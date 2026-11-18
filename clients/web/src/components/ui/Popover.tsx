@@ -25,6 +25,7 @@ import {
   type RefObject,
 } from "react";
 
+import { useCloseOnNavigation } from "@/app/shell/navigationKey";
 import { placePopover, type PopoverPlacement } from "./popoverPosition";
 
 export interface PopoverTriggerProps {
@@ -83,6 +84,9 @@ export function Popover({
     },
     [setOpen],
   );
+
+  // A floating panel never outlives the page it was opened on (UX_REFERENCE rule 22).
+  useCloseOnNavigation(open, () => close(false));
 
   // Position without a React render: read the two boxes once per frame and write the style.
   const place = useCallback(() => {

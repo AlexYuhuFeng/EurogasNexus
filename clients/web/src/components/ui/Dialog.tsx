@@ -21,6 +21,7 @@ import {
   type RefObject,
 } from "react";
 
+import { useCloseOnNavigation } from "@/app/shell/navigationKey";
 import { IconButton } from "./Button";
 
 export interface DialogProps {
@@ -87,6 +88,8 @@ export function Dialog({
   const titleId = useId();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // A dialog or sheet opened on one page closes when the reader moves to another (rule 22).
+  useCloseOnNavigation(open, () => onCloseRef.current());
 
   useEffect(() => {
     const dialog = ref.current;

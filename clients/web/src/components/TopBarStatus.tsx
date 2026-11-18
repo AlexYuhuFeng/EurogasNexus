@@ -19,6 +19,7 @@ import type { SourceSummary } from "@/app/workspaceDerivedData";
 import type { DeskTodayDTO } from "@/api/client";
 import type { EndpointFailureSurface, EndpointRetrySurface } from "@/app/model/endpointFailures";
 import { StaleFigureList } from "./TodayScreen";
+import { useCloseOnNavigation } from "@/app/shell/navigationKey";
 import { dataProblemCount } from "@/app/model/dataProblems";
 
 export { dataProblemCount };
@@ -95,6 +96,8 @@ export function TopBarStatus({
     if (!value) setPinned(false);
   };
   const rootRef = useRef<HTMLDivElement | null>(null);
+  // The panel does not follow the reader to another page (UX_REFERENCE rule 22).
+  useCloseOnNavigation(open, () => setOpen(false));
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!open) return undefined;
