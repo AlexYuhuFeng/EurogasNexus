@@ -304,7 +304,8 @@ def test_declared_job_functions_win_but_never_exceed_the_role() -> None:
 
     from eurogas_nexus.security.capabilities import parse_job_functions
 
-    # Risk challenges decisions, so the declared function needs ANALYST + REVIEWER.
+    # RISK_MANAGER needs market and book reads plus review; REVIEWER alone satisfies it (the
+    # demo risk manager is REVIEWER only). This principal also holds ANALYST.
     analyst = replace(
         _principal("ANALYST", roles=("ANALYST", "REVIEWER"), scopes=("EEX",)),
         job_functions=("RISK_MANAGER", "PLATFORM_ADMINISTRATOR"),

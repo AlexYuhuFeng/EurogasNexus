@@ -116,13 +116,16 @@ export function useAnswerBar({ open, query, glossary, permissions, language }: A
 
   // Read once a signed-in caller is known (not at the first keystroke), and again on open
   // if the first read failed.
+  // Both reads are commercial market reads: a platform administrator (no market.read) is
+  // refused them, and the refusal showed as reads that did not load (2026-11-17).
   const signedIn = permissions.length > 0;
+  const marketAllowed = permissions.includes("market.read");
   useEffect(() => {
-    if (!open && !signedIn) return;
+    if (!marketAllowed || (!open && !signedIn)) return;
     let live = true;
     void loadReference().then((loaded) => { if (live) setReference(loaded); });
     return () => { live = false; };
-  }, [open, signedIn]);
+  }, [open, signedIn, marketAllowed]);
 
   const bookAllowed = permissions.includes("portfolio.read");
   const aiAllowed = permissions.includes("analysis.query");
