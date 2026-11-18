@@ -143,6 +143,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/lng/terminal-tariffs/price", Permission.READ),
     ("/api/lng/terminal-tariffs/{tariff_id}/review", Permission.OPERATOR),
     ("/api/lng/terminal-tariffs/operators/{operator}", Permission.ADMIN),
+    ("/api/lng/freight-routes", Permission.READ),
+    ("/api/lng/freight-routes/{route_id}", Permission.GOVERNED),
+    ("/api/lng/cargo-economics", Permission.READ),
     ("/api/market/", Permission.READ),
     # Comparable prices: forward FX and normalisation (a computation, nothing stored) are
     # market reads like the rest of the family.

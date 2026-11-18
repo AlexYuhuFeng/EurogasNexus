@@ -105,6 +105,11 @@ ASSUMPTION_CATALOGUE: dict[str, AssumptionSpec] = {
         _spec("lng.port_costs", "Port costs per call", "{ccy}/cargo", "0", "10000000", "cargo"),
         _spec("lng.freight", "Freight", "{ccy}/MMBtu", "0", "20", "cargo"),
         _spec("lng.cargo_size", "Cargo size", "MMBtu", "100000", "5000000", "cargo"),
+        _spec("lng.speed", "Service speed", "kn", "8", "22", "cargo"),
+        _spec("lng.ballast_fuel", "Ballast fuel", "MMBtu/day", "0", "10000", "cargo"),
+        _spec("lng.insurance", "Cargo insurance", "%", "0", "2", "cargo"),
+        _spec("lng.fob_slope", "FOB formula slope", "x HH", "0", "3", "cargo"),
+        _spec("lng.fob_fee", "FOB formula constant", "{ccy}/MMBtu", "-5", "10", "cargo"),
     )
 }
 

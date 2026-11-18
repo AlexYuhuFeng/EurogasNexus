@@ -1,6 +1,7 @@
-"""Read-only /api/lng routes."""
+"""/api/lng routes: terminal reads, the tariff register and cargo economics."""
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.routes.public import observation_window
 
@@ -116,9 +117,7 @@ def list_observations(
     return _env([], request)
 
 
-def _db_lng_observations(
-    days: int | None = None, window: dict | None = None
-) -> list[dict] | None:
+def _db_lng_observations(days: int | None = None, window: dict | None = None) -> list[dict] | None:
     if not _db_is_configured():
         return None
 
@@ -298,3 +297,130 @@ def record_terminal_operator_terms(operator: str, body: dict, request: Request) 
             raise _register_error(exc) from exc
         session.commit()
         return _runtime_env(payload)
+
+
+# --------------------------------------------------------------- CP-12 cargo economics
+
+
+
+class FreightRouteBody(BaseModel):
+    """One version of a route's distance; ``source`` says where the distance comes from."""
+
+    model_config = ConfigDict(extra="forbid")
+    load_port: str = Field(min_length=1, max_length=96)
+    discharge_port: str = Field(min_length=1, max_length=96)
+    discharge_terminal_id: str | None = Field(default=None, max_length=64)
+    routing: str = Field(pattern="^(direct|suez|panama|cape)$")
+    distance_nm: float = Field(gt=0, le=30_000)
+    canal: str = Field(default="none", pattern="^(none|suez|panama)$")
+    source: str = Field(min_length=1, max_length=256)
+
+
+class CargoBody(BaseModel):
+    """One cargo: FOB with own shipping, or DES. Omitted figures come from the assumption set."""
+
+    model_config = ConfigDict(extra="forbid")
+    cargo_id: str = Field(min_length=1, max_length=64)
+    label: str | None = Field(default=None, max_length=128)
+    term: str = Field(pattern="^(FOB|DES)$")
+    pricing_month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    q_load_mmbtu: float | None = Field(default=None, gt=0, le=6_000_000)
+    hh: float | None = Field(default=None, gt=-10, le=100)
+    slope: float | None = Field(default=None, ge=0, le=3)
+    fee: float | None = Field(default=None, ge=-5, le=10)
+    fob_price: float | None = Field(default=None, gt=-10, le=100)
+    des_price: float | None = Field(default=None, gt=-500, le=1000)
+    des_currency: str | None = Field(default=None, pattern="^(EUR|GBP|USD)$")
+    route_id: str | None = Field(default=None, max_length=96)
+    ballast: str | None = Field(default=None, pattern="^(round|one_way)$")
+    speed_kn: float | None = Field(default=None, ge=8, le=22)
+    hire_per_day: float | None = Field(default=None, ge=0, le=1_000_000)
+    boil_off_pct_per_day: float | None = Field(default=None, ge=0, le=1)
+    ballast_fuel_mmbtu_per_day: float | None = Field(default=None, ge=0, le=10_000)
+    port_cost: float | None = Field(default=None, ge=0, le=10_000_000)
+    canal_cost: float | None = Field(default=None, ge=0, le=10_000_000)
+    insurance_pct: float | None = Field(default=None, ge=0, le=2)
+
+
+class TerminalInputBody(BaseModel):
+    """Figures the desk enters for one terminal where the register holds none."""
+
+    model_config = ConfigDict(extra="forbid")
+    entry_per_mwh: float | None = Field(default=None, ge=0, le=50)
+    gas_in_kind_pct: float | None = Field(default=None, ge=0, le=10)
+
+
+class CargoEconomicsBody(BaseModel):
+    """Cargoes to price for one arrival month, against the held (or the named) terminals."""
+
+    model_config = ConfigDict(extra="forbid")
+    arrival_month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    product: str = Field(default="spot", pattern="^(spot|term|prompt|annual)$")
+    cargoes: list[CargoBody] = Field(min_length=1, max_length=10)
+    terminal_ids: list[str] = Field(default_factory=list, max_length=50)
+    terminal_inputs: dict[str, TerminalInputBody] = Field(default_factory=dict, max_length=50)
+
+
+def _cargo_error(exc) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"error": exc.code, "code": exc.code, "message": exc.message},
+    )
+
+
+@router.get("/api/lng/freight-routes")
+def list_freight_routes() -> dict:
+    """Voyage distances the firm holds, latest version of each route (READ)."""
+
+    from eurogas_nexus.application import lng_cargo_economics as cargo
+
+    with _register_session() as session:
+        return _runtime_env([cargo.route_payload(row) for row in cargo.current_routes(session)])
+
+
+@router.put("/api/lng/freight-routes/{route_id}")
+def record_freight_route(route_id: str, body: FreightRouteBody, request: Request) -> dict:
+    """Add a version of one route's distance (LNG desk reference data, audited)."""
+
+    from eurogas_nexus.application import lng_cargo_economics as cargo
+    from eurogas_nexus.security.authorization import Permission
+
+    if not route_id or len(route_id) > 96:
+        raise HTTPException(status_code=422, detail={"code": "route_id_invalid"})
+    actor = _actor(request, Permission.PORTFOLIO_WRITE)
+    with _register_session() as session:
+        try:
+            payload = cargo.record_route(session, route_id, body.model_dump(), actor=actor)
+        except cargo.CargoEconomicsError as exc:
+            session.rollback()
+            raise _cargo_error(exc) from exc
+        session.commit()
+        return _runtime_env(payload)
+
+
+@router.post("/api/lng/cargo-economics")
+def post_cargo_economics(body: CargoEconomicsBody, request: Request) -> dict:
+    """FOB and DES cargoes in one table: cost at the ship's rail, netback and margin per
+    terminal for the arrival month, every input with its class and source (design C.1-C.3).
+
+    Prices cargoes for the desk to decide; nothing is offered, nominated or sent.
+    """
+
+    from eurogas_nexus.application import lng_cargo_economics as cargo
+    from eurogas_nexus.application.caller import caller_of
+
+    payload = body.model_dump()
+    payload["cargoes"] = [
+        {key: value for key, value in item.items() if value is not None}
+        for item in payload["cargoes"]
+    ]
+    payload["terminal_inputs"] = {
+        key: {k: v for k, v in value.items() if v is not None}
+        for key, value in payload["terminal_inputs"].items()
+    }
+    with _register_session() as session:
+        try:
+            result = cargo.cargo_economics(session, payload, caller=caller_of(request))
+        except cargo.CargoEconomicsError as exc:
+            raise _cargo_error(exc) from exc
+        return _runtime_env(result)

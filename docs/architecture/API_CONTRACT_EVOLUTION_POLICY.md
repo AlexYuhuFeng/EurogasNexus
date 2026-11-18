@@ -4,6 +4,18 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-18 (LNG cargo economics, CP-12): three paths, three operations.
+`GET /api/lng/freight-routes` (READ) lists the latest version of each route (`route_id`,
+`version`, ports, `routing` direct|suez|panama|cape, `distance_nm`, `canal`, `source`, who and
+when). `PUT /api/lng/freight-routes/{route_id}` (GOVERNED, PORTFOLIO_WRITE) adds a version.
+`POST /api/lng/cargo-economics` (READ) takes `arrival_month`, `product`, up to ten `cargoes`
+(FOB with `route_id` or DES with `des_price`; any omitted figure comes from the approved
+assumption set, else is missing), optional `terminal_ids` and per-terminal `terminal_inputs`,
+and answers per cargo the cost legs, `cost_usd_mmbtu` and `lifting_cost_usd_mmbtu`, terminals
+best first (`netback_per_mwh`, `margin_per_mwh`, `margin_usd_mmbtu`, `margin_total`,
+`lifting_margin_per_mwh`, slip range, `regas_basis`, `grade`, `assumptions`, legs) or `blocked`
+with its reason, plus one comparison `table`. Census: 283 paths / 314 operations.
+
 Additive 2026-11-18 (LNG terminal tariff register, CP-11): four paths, four operations.
 `GET /api/lng/terminal-tariffs` (READ) answers `operators[]` (reuse terms as checked, the
 firm's `permission_state` `needs_firm_terms` / `permitted`, reference, who and when),

@@ -5706,6 +5706,17 @@ export const api = {
     post<LngTerminalTariffDTO>(`/lng/terminal-tariffs/${encodeURIComponent(tariffId)}/review`, {}),
   recordLngTariffOperatorTerms: (operator: string, body: { permitted: boolean; reference: string }) =>
     put<LngTariffOperatorDTO>(`/lng/terminal-tariffs/operators/${encodeURIComponent(operator)}`, body),
+  freightRoutes: (options?: ApiRequestOptions) =>
+    get<FreightRouteDTO[]>("/lng/freight-routes", undefined, options),
+  saveFreightRoute: (routeId: string, body: Omit<FreightRouteDTO, "route_id" | "version" | "recorded_by" | "recorded_at_utc">) =>
+    put<FreightRouteDTO>(`/lng/freight-routes/${encodeURIComponent(routeId)}`, body),
+  cargoEconomics: (body: {
+    arrival_month: string;
+    product?: "spot" | "term" | "prompt" | "annual";
+    cargoes: CargoInput[];
+    terminal_ids?: string[];
+    terminal_inputs?: Record<string, { entry_per_mwh?: number; gas_in_kind_pct?: number }>;
+  }) => post<CargoEconomicsDTO>("/lng/cargo-economics", body),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
   saveTariffPublication: (
@@ -6319,6 +6330,121 @@ export interface LngTerminalTariffRegisterDTO {
   operators: LngTariffOperatorDTO[];
   tariffs: LngTerminalTariffDTO[];
   counts: { reviewed: number; candidate: number; terminals: number };
+}
+
+/** One version of a voyage distance the firm holds (CP-12 `freight_route`). */
+export interface FreightRouteDTO {
+  route_id: string;
+  version: number;
+  load_port: string;
+  discharge_port: string;
+  discharge_terminal_id: string | null;
+  routing: "direct" | "suez" | "panama" | "cape";
+  distance_nm: number;
+  canal: "none" | "suez" | "panama";
+  source: string;
+  recorded_by: string;
+  recorded_at_utc: string | null;
+}
+
+export interface CargoLegDTO {
+  key: string;
+  label: string;
+  amount: number | null;
+  unit: string;
+  input_class: string;
+  source: string;
+}
+
+export interface CargoTerminalDTO {
+  terminal_id: string;
+  name: string;
+  hub: string;
+  currency: string;
+  arrival_month: string;
+  reason: string | null;
+  cost_per_mwh: number | null;
+  netback_per_mwh: number | null;
+  margin_per_mwh: number | null;
+  margin_usd_mmbtu: number | null;
+  margin_total: number | null;
+  lifting_margin_per_mwh: number | null;
+  margin_low_per_mwh: number | null;
+  margin_high_per_mwh: number | null;
+  regas_basis: string;
+  grade: string;
+  assumptions: number;
+  excludes: string[];
+  legs: CargoLegDTO[];
+}
+
+export interface CargoResultDTO {
+  cargo_id: string;
+  label: string;
+  term: "FOB" | "DES";
+  blocked: string | null;
+  q_load_mmbtu: number | null;
+  q_del_mmbtu: number | null;
+  q_del_mwh: number | null;
+  fob_price_usd_mmbtu: number | null;
+  lifting_price_usd_mmbtu: number | null;
+  cost_usd_mmbtu: number | null;
+  lifting_cost_usd_mmbtu: number | null;
+  freight_usd: number | null;
+  days: { laden: number; ballast: number; port: number } | null;
+  legs: CargoLegDTO[];
+  terminals: CargoTerminalDTO[];
+  best_terminal_id: string | null;
+  no_winner: boolean;
+  grade: string;
+  assumptions: number;
+}
+
+/** A cargo to price; omitted figures come from the firm's approved assumption set. */
+export interface CargoInput {
+  cargo_id: string;
+  label?: string;
+  term: "FOB" | "DES";
+  pricing_month?: string;
+  q_load_mmbtu?: number;
+  hh?: number;
+  slope?: number;
+  fee?: number;
+  fob_price?: number;
+  des_price?: number;
+  des_currency?: "EUR" | "GBP" | "USD";
+  route_id?: string;
+  ballast?: "round" | "one_way";
+  speed_kn?: number;
+  hire_per_day?: number;
+  boil_off_pct_per_day?: number;
+  ballast_fuel_mmbtu_per_day?: number;
+  port_cost?: number;
+  canal_cost?: number;
+  insurance_pct?: number;
+}
+
+export interface CargoEconomicsDTO {
+  arrival_month: string;
+  fx_method: string;
+  cargoes: CargoResultDTO[];
+  table: {
+    cargo_id: string;
+    label: string;
+    term: "FOB" | "DES";
+    arrives: string;
+    blocked: string | null;
+    cost_per_mwh: number | null;
+    best_terminal: string | null;
+    netback_per_mwh: number | null;
+    margin_per_mwh: number | null;
+    lifting_margin_per_mwh: number | null;
+    currency: string | null;
+    no_winner: boolean;
+    grade: string;
+    assumptions: number;
+  }[];
+  terminals_considered: string[];
 }
 
 export interface SetupViewDTO {

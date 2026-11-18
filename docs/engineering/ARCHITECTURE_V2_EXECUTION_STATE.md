@@ -6,6 +6,24 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-18 — CP-12 voyage and cargo model (branch `cp-12-cargo-model`, not pushed)
+
+- `domain/lng/voyage.py`, `domain/lng/cargo_economics.py`: the chain of design C.1 in Decimal;
+  FOB (a x HH + b or a fixed FOB price) and DES cargoes in one result; full and lifting cost;
+  netback and margin per terminal, slip range, no winner inside 0.10/MWh; input classes, the
+  weakest grades the result; a missing input blocks with its reason, never zero. Golden: C.3 to
+  the cent and a 200-cargo reconciliation property test.
+- Migration `0070_freight_route` (versioned, shipped empty: no licensed distance source yet);
+  assumption keys `lng.speed`, `lng.ballast_fuel`, `lng.insurance`, `lng.fob_slope`,
+  `lng.fob_fee`; `application/lng_cargo_economics.py` reads marks and FX through the valuation
+  snapshot, HH forward else the EIA spot as an indicative proxy (EIA stopped publishing futures
+  in April 2024), regas through the CP-11 resolution order. `GET/PUT /api/lng/freight-routes`,
+  `POST /api/lng/cargo-economics`; typed client methods for CP-18. Surface 283 / 314.
+- Not built here: evaluators D and A (they need snapshot reads for cargoes, terminal regas and
+  routes, so that a replay reproduces them); the ENTSOG entry tariff conversion at a load
+  factor (the entry tariff is the firm's terms or an entered figure); the design's C.3 "lifting
+  basis +10.3" contradicts C.4, the engine gives 15.22 EUR/MWh by the stated arithmetic.
+
 ## 2026-11-18 — market reports round 5 (part 2): progress, conversion, question joins (branch `reports-round5b`, not pushed)
 
 - Generation progress uses the shared `WorkProgress` (motion stops under reduced motion).
@@ -16,6 +34,7 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   since a date; border flows are named as not held. Each join fact declares its `relation`.
 - The text-and-side-panel row may break across pages; a text-and-figure row still moves whole.
 - No new path or operation.
+
 ## 2026-11-18 — CP-11 regulated LNG terminal tariff register (branch `cp-11-terminal-tariffs`, not pushed)
 
 - Terms check first (docs/legal/DATA_SOURCE_TERMS.md): the Fluxys LNG and Elengy legal notices

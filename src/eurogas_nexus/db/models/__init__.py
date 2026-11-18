@@ -48,6 +48,7 @@ from eurogas_nexus.db.models.decision import (
     DecisionCaseRecord,
 )
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
+from eurogas_nexus.db.models.freight_route import FreightRouteRecord
 from eurogas_nexus.db.models.functional import (
     FunctionalDependencyRecord,
     FunctionalModelRecord,
@@ -284,6 +285,7 @@ class IngestionRunRecord(Base):
 
 
 __all__ = [
+    "FreightRouteRecord",
     "FunctionalDependencyRecord",
     "FunctionalRunRecord",
     "FunctionalModelRecord",

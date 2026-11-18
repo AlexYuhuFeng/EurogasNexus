@@ -50,7 +50,10 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **280 paths / 311 operations**
+- OpenAPI public surface: **283 paths / 314 operations**
+  (2026-11-18: LNG cargo economics, CP-12: `GET`/`PUT /api/lng/freight-routes[/{route_id}]`
+  (READ; the PUT GOVERNED, versioned and audited) and `POST /api/lng/cargo-economics` (READ:
+  computes, stores nothing); 280 / 311 before)
   (2026-11-18: the LNG terminal tariff register, four paths under `/api/lng/terminal-tariffs`
   (two READ, review OPERATOR, operator permission ADMIN); 276 / 307 before)
   (2026-11-18: `POST /api/research/spreads/interpret` and `/evaluate`, CP-16/CP-23 backend,
