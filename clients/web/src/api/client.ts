@@ -7,6 +7,7 @@ import type {
   NormaliseRequestDTO,
   NormaliseResponseDTO,
 } from "./comparablePrices";
+import type { EvaluationDTO, InterpretationDTO, StrategySpecDTO } from "./spreads";
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -5763,6 +5764,12 @@ export const api = {
     body: { legs: SpreadLegInputDTO[]; date_from?: string | null; date_to?: string | null; rule: SpreadRuleInputDTO },
     options?: ApiRequestOptions,
   ) => post<SpreadAnalysisDTO>("/research/spread-analysis", body, options),
+  /** Research → Spreads: a description into a StrategySpec, with its questions. */
+  spreadsInterpret: (body: { text: string; language: "en" | "zh-CN" }, options?: ApiRequestOptions) =>
+    post<InterpretationDTO>("/research/spreads/interpret", body, options),
+  /** Research → Spreads: a spec's checks and its result, every figure from the engine. */
+  spreadsEvaluate: (spec: StrategySpecDTO, options?: ApiRequestOptions) =>
+    post<EvaluationDTO>("/research/spreads/evaluate", { spec }, options),
   /** Hub → product kind → tenor: the caller's entitled daily series (the instrument picker). */
   marketInstruments: (options?: ApiRequestOptions) =>
     get<InstrumentCatalogueDTO>("/market/instruments", undefined, options),

@@ -47,6 +47,7 @@ from eurogas_nexus.api.routes.public.shadow import router as shadow_router
 from eurogas_nexus.api.routes.public.source_operations import router as source_operations_router
 from eurogas_nexus.api.routes.public.sources import router as sources_router
 from eurogas_nexus.api.routes.public.spread_lab import router as spread_lab_router
+from eurogas_nexus.api.routes.public.spreads import router as spreads_router
 from eurogas_nexus.api.routes.public.storage import router as storage_router
 from eurogas_nexus.api.routes.public.strategy_lab import router as strategy_lab_router
 from eurogas_nexus.api.routes.public.strategy_registry import router as strategy_registry_router
@@ -99,6 +100,7 @@ def register_routes(
         app.include_router(glossary_router)
         app.include_router(research_router)
         app.include_router(spread_lab_router)
+        app.include_router(spreads_router)
         app.include_router(preferences_router)
         app.include_router(setup_router)
         app.include_router(research_data_router)

@@ -4,6 +4,18 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-18 (commercial design basis 2, CP-16/CP-23 backend: Spreads, "describe a
+strategy"): two paths, two operations, GOVERNED under `/api/research/`. `POST
+/api/research/spreads/interpret` (`text` up to 4000 characters, `language`, `model`) returns a
+StrategySpec (`version`, `kind` curve|history, `legs` hub/tenor/weight, `unit`, `fx`
+forward|spot, `cost` route_tariff from/to hub, `rule`, `lookback_days`, `volume_mwh_per_day`),
+`issues` as questions with `choices`, `basis` parser|model|none, `ai` off|used|failed and
+`read_as_text` (pasted code is never run). `POST /api/research/spreads/evaluate` (`spec`,
+`as_of`) returns the issues or the result: a curve by delivery month (each leg native and
+converted with its FX record, gross, route cost with legs, gas years and classes, net, the
+weakest input class) or a history through the spread lab with the route cost both ways as
+lines. Census: 276 paths / 307 operations.
+
 Additive 2026-11-18 (commercial design basis 2, CP-02: instrument catalogue): one path, one
 operation. `GET /api/market/instruments` (READ, like every `/api/market/` read) returns the
 caller's entitled daily price series as hub → product kind (spot, rolling, month, quarter,
