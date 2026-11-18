@@ -5705,5 +5705,9 @@
   "contracts.import_stage.read": "Reading the file",
   "contracts.import_stage.terms": "Finding the contract terms",
   "contracts.import_stage.fill": "Filling the draft",
-  "status.updating": "Updating"
+  "status.updating": "Updating",
+  "reports.currency": "Reporting currency",
+  "reports.energy_unit": "Energy unit",
+  "reports.native": "Native",
+  "reports.conversion_hint": "Prices keep their native unit; a converted column is added, with the ECB rate and factors in Methodology."
 }

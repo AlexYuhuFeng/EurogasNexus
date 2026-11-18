@@ -129,6 +129,10 @@ The form knows what the server will accept, for you, before you press Generate:
 - **Language.** English or 中文 (default: the interface language). The whole report follows it:
   rule-written text, exhibit titles, table heads, At a glance, back matter and "What the data
   cannot tell". Figures, units and names do not change.
+- **Reporting currency and energy unit.** Optional (default: native). Prices keep their own
+  unit; the closes table gains a converted column, and Methodology states the ECB reference
+  rate (pair, value and date) and the unit factor used. A close with no rate held stays
+  native, and the table note says so. Nothing is converted silently.
 - **AI editing.** When AI editing is not available to you the form says why; the report is
   rule-written.
 

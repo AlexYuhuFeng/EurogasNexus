@@ -216,7 +216,7 @@ def derive_prices(result, ctx) -> None:
                                         {h["hub"]: h["series"] for h in items},
                                         F.window_start(window, end), end))
     rows = [{"hub": h["hub"], "product": h["product"], "unit": h["unit"], "close": h["close"],
-             "day": h["day_change"],
+             "close_day": F.iso(h["close_day"]), "day": h["day_change"],
              "week": next((f["comparisons"]["week"] for f in facts
                            if f["key"] == f"price.{h['hub']}"), None),
              "year": h["year_ago"], "simulated": h["simulated"], "state": h["state"],
@@ -233,13 +233,14 @@ def derive_prices(result, ctx) -> None:
     else:
         columns += [("week", T("Week", "周变化"), "signed")]
     columns.append(("year", T("Year earlier", "一年前"), "num"))
+    conversion_notes = _convert_closes(result, ctx, rows, columns)
     result.tables = [F.table(
         T("Front-month closes", "近月收盘价"), columns, rows,
         source=F.source_line("prices", result.simulated),
         notes=T("Day and week: change in the hub's own unit; year earlier: the front month's "
                 "close on the same day a year earlier (a different contract).",
                 "日变化与周变化以该枢纽的报价单位计；一年前为一年前同日近月合约的收盘价"
-                "（不同合约）。"))]
+                "（不同合约）。") + conversion_notes)]
     result.facts, result.charts, result.annex = facts, exhibits, annex
     _prose(result, facts)
 
@@ -1020,6 +1021,113 @@ def _prose(result, facts: list[dict]) -> None:
     result.headline = lead["sentence"]
     # At most three facts under the headline (commentary.MAX_BULLETS).
     result.bullets = sentences[:3]
+
+
+# ======================================================================= conversions
+
+
+def _fx_holdings(ctx):
+    """The FX reference rates and fixings this caller may read, from the report's session."""
+
+    from eurogas_nexus.application.market_normalisation import _interest_rate_rows
+    from eurogas_nexus.application.projections.market_reads import (
+        filter_entitled_rows,
+        fx_observations,
+    )
+    from eurogas_nexus.domain.market.fx_forward import FxHoldings
+
+    principal = ctx.caller.principal
+    return FxHoldings.from_rows(
+        filter_entitled_rows(principal, fx_observations(ctx.session), source_key="source_system"),
+        filter_entitled_rows(principal, _interest_rate_rows(ctx.session),
+                             source_key="source_system"))
+
+
+def _target_unit(native: str, currency: str | None, energy: str | None) -> str:
+    from eurogas_nexus.application.market_normalisation import parse_price_unit
+
+    source = parse_price_unit(native)
+    cur = currency or source.currency
+    unit = energy or source.unit.code
+    # The desk quotes sterling per therm in pence.
+    return f"GBp/{unit}" if cur == "GBP" and unit == "th" else f"{cur}/{unit}"
+
+
+#: FX methods as the Chinese edition names them (``domain.market.fx_forward``).
+_FX_METHOD_ZH = {"spot: ECB reference rate": "即期：欧洲央行参考汇率",
+                 "derived: covered interest parity": "推导：抛补利率平价", "licensed": "授权远期"}
+
+
+def _convert_closes(result, ctx, rows: list[dict], columns: list) -> str:
+    """Add a converted close beside each native one when the plan asks for a reporting
+    currency or energy unit; record the rate and factors in Methodology. Nothing is converted
+    silently, and a close with no rate held stays native with the reason in the table note.
+    Spot ECB reference rates for now; ``market_normalisation`` also serves forward FX for a
+    delivery period when a report needs it."""
+
+    plan = ctx.plan
+    if not (plan.currency or plan.energy_unit) or not rows:
+        return ""
+    from eurogas_nexus.application.market_normalisation import (
+        NormalisationError,
+        display_unit,
+        normalise_value,
+        parse_price_unit,
+    )
+
+    try:
+        holdings = _fx_holdings(ctx)
+    except Exception:  # noqa: BLE001 - no FX read: every row stays native, with the reason
+        ctx.session.rollback()
+        from eurogas_nexus.domain.market.fx_forward import FxHoldings
+
+        holdings = FxHoldings()
+    used: dict[str, dict] = {}
+    refused: list[str] = []
+    for row in rows:
+        try:
+            target = _target_unit(row["unit"], plan.currency, plan.energy_unit)
+            native = display_unit(parse_price_unit(row["unit"]))
+            if display_unit(parse_price_unit(target)) == native:
+                # Already in the reporting unit: the column shows the close as it is.
+                row["converted"], row["converted_unit"] = row["close"], native
+                continue
+            day = date.fromisoformat(row["close_day"]) if row.get("close_day") else ctx.end
+            out = normalise_value(row["close"], row["unit"], target, holdings=holdings,
+                                  as_of=day, simulated=bool(row.get("simulated")))
+        except NormalisationError as exc:
+            refused.append(f"{row['hub']}: {exc}")
+            continue
+        row["converted"] = round(out["value"], 3)
+        row["converted_unit"] = out["unit"]
+        used[f"{row['unit']}>{out['unit']}"] = out["normalisation"]
+    if not used and not refused:
+        return ""
+    columns.append(("converted", T("Converted", "折算"), "num"))
+    columns.append(("converted_unit", T("Converted unit", "折算单位"), "text"))
+    lines = []
+    for record in used.values():
+        fx = record.get("fx") or {}
+        rate = (T(f"; FX {fx.get('base')}{fx.get('quote')} {fx.get('rate'):.4f} "
+                  f"({fx.get('method')}, {fx.get('value_date') or 'latest'})",
+                  f"；汇率 {fx.get('base')}{fx.get('quote')} {fx.get('rate'):.4f}"
+                  f"（{_FX_METHOD_ZH.get(str(fx.get('method')), fx.get('method'))}，"
+                  f"{fx.get('value_date') or '最新'}）")
+                if fx else "")
+        lines.append(T(f"{record['from_unit']} to {record['to_unit']}: unit factor "
+                       f"{record['unit_factor']:.6g}{rate}.",
+                       f"{record['from_unit']}折算为{record['to_unit']}：单位系数"
+                       f"{record['unit_factor']:.6g}{rate}。"))
+    if lines:
+        result.methods.append({
+            "key": "conversion",
+            "title": T("Converted prices", "价格折算"),
+            "text": T("Prices stay in their native unit; the converted column uses the units "
+                      "authority's factors and the ECB reference rate shown. ",
+                      "价格保留原报价单位；折算列使用单位权威表的系数及所示欧洲央行参考汇率。")
+                    + " ".join(lines)})
+    return (T(" Not converted: ", " 未折算：") + "; ".join(refused) + T(".", "。")) if refused \
+        else ""
 
 
 DERIVERS = {

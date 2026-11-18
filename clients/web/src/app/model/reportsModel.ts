@@ -25,6 +25,9 @@ export interface ReportForm {
   annex: boolean | null;
   /** The report's language; defaults to the interface language. */
   language?: "en" | "zh-CN";
+  /** Reporting currency and energy unit; empty: native only. */
+  currency?: "" | "EUR" | "GBP" | "USD";
+  energyUnit?: "" | "MWh" | "th" | "MMBtu";
 }
 
 /** Whether a report of this kind prints its data annex unless asked otherwise. */
@@ -86,6 +89,8 @@ export function reportRequestFromForm(
   }
   if (kind === "ask" && form.question.trim()) body.question = form.question.trim();
   if (form.annex !== null && form.annex !== annexByDefault(kind)) body.annex = form.annex;
+  if (form.currency) body.currency = form.currency;
+  if (form.energyUnit) body.energy_unit = form.energyUnit;
   return body;
 }
 

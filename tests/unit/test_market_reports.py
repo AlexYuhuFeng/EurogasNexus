@@ -734,3 +734,24 @@ def test_availability_reasons_follow_the_interface_language(env):
     assert offer["ai"]["reason"].startswith("您的角色")
     held = [v["reason"] for v in offer["sections"].values() if v["reason"]]
     assert held and all(re.search(r"[一-鿿]", r) for r in held), held
+
+
+def test_a_reporting_currency_adds_a_converted_close_and_states_the_rate(env):
+    """Prices keep their native unit; the converted column carries the ECB rate and factors in
+    Methodology, and a close with no rate held is left native with the reason."""
+
+    report = _generate(env, _caller("DEMO"), {"kind": "daily", "currency": "EUR",
+                                             "energy_unit": "MWh"})
+    table = _sections(report)["prices"]["tables"][0]
+    nbp = next(r for r in table["rows"] if r["hub"] == "NBP")
+    ttf = next(r for r in table["rows"] if r["hub"] == "TTF")
+    assert nbp["unit"] == "GBp/th" and nbp["converted_unit"] == "EUR/MWh"
+    assert 0.3 < nbp["converted"] / nbp["close"] < 0.5  # p/th to EUR/MWh
+    assert ttf["converted"] == ttf["close"]  # already in the reporting unit
+    assert "ECB reference rate" in report.html and "GBPEUR" in report.html
+    with pytest.raises(PlanError):
+        validate_plan({"kind": "daily", "currency": "JPY"}, now=NOW)
+    usd = _generate(env, _caller("DEMO"), {"kind": "daily", "currency": "USD"})
+    note = _sections(usd)["prices"]["tables"][0]["notes"]
+    converted = [r for r in _sections(usd)["prices"]["tables"][0]["rows"] if "converted" in r]
+    assert converted or "Not converted" in note

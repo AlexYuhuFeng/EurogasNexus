@@ -2034,6 +2034,9 @@ export interface ReportRequestDTO {
   question?: string;
   /** Print the data annex; omitted: the kind's default (weekly and monthly). */
   annex?: boolean;
+  /** Optional reporting currency and energy unit; prices keep their native unit. */
+  currency?: "EUR" | "GBP" | "USD";
+  energy_unit?: "MWh" | "th" | "MMBtu";
   language?: "en" | "zh-CN";
   use_model?: boolean;
 }

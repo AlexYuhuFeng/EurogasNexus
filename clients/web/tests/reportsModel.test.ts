@@ -119,3 +119,12 @@ test("a failure says what failed and offers what helps", () => {
   assert.equal(explainFailure(503, "runtime_db_unavailable", false).key, "reports.fail.store");
   assert.equal(elapsedLabel(83_400), "1:23");
 });
+
+test("a reporting currency and energy unit go to the server only when chosen", () => {
+  const native = reportRequestFromForm(form, "standard", ["prices"], "en");
+  assert.equal(native.currency, undefined);
+  assert.equal(native.energy_unit, undefined);
+  const body = reportRequestFromForm({ ...form, currency: "EUR", energyUnit: "MWh" }, "standard", ["prices"], "en");
+  assert.equal(body.currency, "EUR");
+  assert.equal(body.energy_unit, "MWh");
+});

@@ -209,6 +209,10 @@ class ReportPlan:
     annex: bool | None = None
     #: Sections dropped while validating, with the reason (printed in Methodology).
     notes: list[str] = field(default_factory=list)
+    #: Optional reporting currency and energy unit: prices keep their native unit and gain
+    #: a converted column (``None``: native only).
+    currency: str | None = None
+    energy_unit: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -225,6 +229,8 @@ class ReportPlan:
             "question": self.question,
             "annex": self.annex,
             "notes": list(self.notes),
+            "currency": self.currency,
+            "energy_unit": self.energy_unit,
         }
 
 
@@ -363,7 +369,22 @@ def validate_plan(raw: dict[str, Any], *, now: datetime) -> ReportPlan:
         question=_text(raw.get("question"), 500),
         annex=raw.get("annex") if isinstance(raw.get("annex"), bool) else None,
         notes=notes,
+        currency=_choice(raw.get("currency"), REPORTING_CURRENCIES, "currency"),
+        energy_unit=_choice(raw.get("energy_unit"), ENERGY_UNITS, "energy unit"),
     )
+
+
+#: Reporting currencies and energy units a report may convert prices into.
+REPORTING_CURRENCIES = ("EUR", "GBP", "USD")
+ENERGY_UNITS = ("MWh", "th", "MMBtu")
+
+
+def _choice(value: Any, allowed: tuple[str, ...], what: str) -> str | None:
+    if value in (None, "", "native"):
+        return None
+    if value not in allowed:
+        raise PlanError("bad_conversion", f"Unknown {what} {value!r}; one of {', '.join(allowed)}")
+    return str(value)
 
 
 def _day(value: Any) -> date | None:

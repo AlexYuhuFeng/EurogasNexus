@@ -5705,5 +5705,9 @@
   "contracts.import_stage.read": "读取文件",
   "contracts.import_stage.terms": "识别合同条款",
   "contracts.import_stage.fill": "填写草稿",
-  "status.updating": "更新中"
+  "status.updating": "更新中",
+  "reports.currency": "报告币种",
+  "reports.energy_unit": "能量单位",
+  "reports.native": "原单位",
+  "reports.conversion_hint": "价格保留原报价单位，另加折算列；欧洲央行汇率与换算系数见方法说明。"
 }

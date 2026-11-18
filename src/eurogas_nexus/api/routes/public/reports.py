@@ -49,6 +49,9 @@ class ReportRequest(BaseModel):
     question: str | None = Field(default=None, max_length=500)
     #: Print the data annex; omitted: the kind's default (weekly and monthly).
     annex: bool | None = None
+    #: Optional reporting currency and energy unit (prices keep their native unit).
+    currency: Literal["EUR", "GBP", "USD"] | None = None
+    energy_unit: Literal["MWh", "th", "MMBtu"] | None = None
     language: Literal["en", "zh-CN"] = "en"
     use_model: bool = True
 
