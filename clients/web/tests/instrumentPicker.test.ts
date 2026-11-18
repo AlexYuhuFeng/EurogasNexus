@@ -227,3 +227,19 @@ test("rendered picker: a combobox over a listbox, at most twelve options, sim ma
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgba?\(/);
   assert.match(css, /@media \(max-width: 480px\)[\s\S]*position: fixed/);
 });
+
+test("multi-select hub picker: the board's hubs ticked, a listbox that says it is multi-select", async () => {
+  const harness = await loadApiStore();
+  const { InstrumentPicker } = await harness.load<typeof import("../src/components/ui/InstrumentPicker.tsx")>(
+    "/src/components/ui/InstrumentPicker.tsx",
+  );
+  const hubs = catalogueFromHubs([{ hub: "TTF", nativeUnit: "EUR/MWh" }, { hub: "NBP", nativeUnit: "GBp/th" }, { hub: "THE", nativeUnit: "EUR/MWh" }]);
+  const html = renderToStaticMarkup(React.createElement(InstrumentPicker, {
+    catalogue: hubs, value: null, onChange: () => {}, label: "Hubs", scope: "hub", defaultOpen: true,
+    multiSelected: ["TTF", "THE"], triggerLabel: "2 hubs",
+  }));
+  assert.match(html, /aria-multiselectable="true"/);
+  assert.equal((html.match(/aria-selected="true"/g) ?? []).length, 2);
+  assert.equal((html.match(/data-ticked="true"/g) ?? []).length, 2);
+  assert.match(html, /2 hubs/);
+});

@@ -65,6 +65,13 @@ export interface InstrumentPickerProps {
   id?: string;
   /** Render open (a story page, a server-rendered test). */
   defaultOpen?: boolean;
+  /**
+   * Hub scope only: a multi-select. The hubs listed here are ticked; choosing one toggles it
+   * (the caller adds or removes it) and the panel stays open for the next.
+   */
+  multiSelected?: readonly string[];
+  /** What the trigger says (a multi-select names its count). */
+  triggerLabel?: string;
 }
 
 function storage(): Storage | null {
@@ -97,7 +104,10 @@ export function InstrumentPicker({
   className,
   id,
   defaultOpen = false,
+  multiSelected,
+  triggerLabel,
 }: InstrumentPickerProps) {
+  const multi = scope === "hub" && multiSelected !== undefined;
   const { t } = useTranslation();
   const [state, setState] = useState<PickerState>(defaultOpen ? { ...CLOSED, open: true } : CLOSED);
   const [recent, setRecent] = useState<string[]>(() => readRecent(storage()));
@@ -116,7 +126,7 @@ export function InstrumentPicker({
 
   const currentHub = state.level === "tenor" ? data.hubs.find((hub) => hub.hub === state.hub) ?? null : null;
   const kinds = hubKinds(currentHub);
-  const { options, hidden } = pickerOptions(state, data, { recent, today: anchor, scope });
+  const { options, hidden } = pickerOptions(state, data, { recent: multi ? [] : recent, today: anchor, scope });
   const optionId = (option: PickerOption) => `${baseId}-opt-${option.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
   const active = options[Math.min(state.active, options.length - 1)];
 
@@ -150,12 +160,14 @@ export function InstrumentPicker({
       setState((current) => enterHub(current, option.hub));
       return;
     }
-    const remembered = selection.instrument ? selection.instrument.id : selection.hub;
-    const next = withRecent(recent, remembered);
-    setRecent(next);
-    writeRecent(storage(), next);
+    if (!multi) {
+      const remembered = selection.instrument ? selection.instrument.id : selection.hub;
+      const next = withRecent(recent, remembered);
+      setRecent(next);
+      writeRecent(storage(), next);
+    }
     onChange(selection);
-    close(true);
+    if (!multi) close(true);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -187,7 +199,7 @@ export function InstrumentPicker({
   const hubName = (hub: PickerHub) => t(`instrument_picker.hub_name.${hub.hub}`, { defaultValue: hub.name });
   const kindLabel = (kind: string) => t(`instrument_picker.kind.${kind}`);
 
-  const triggerText = picked
+  const triggerText = triggerLabel ? triggerLabel : picked
     ? `${picked.hub.hub} ${picked.instrument.code}`
     : pickedHub
       ? pickedHub.hub
@@ -311,7 +323,7 @@ export function InstrumentPicker({
               ))}
             </div>
           )}
-          <ul className="ds-ipicker-list" role="listbox" id={listId} aria-label={label}>
+          <ul className="ds-ipicker-list" role="listbox" id={listId} aria-label={label} aria-multiselectable={multi ? true : undefined}>
             {options.map((option, index) => {
               const selected = index === state.active;
               if (option.type === "hub") {
@@ -321,12 +333,14 @@ export function InstrumentPicker({
                     key={option.id}
                     id={optionId(option)}
                     role="option"
-                    aria-selected={selected}
+                    aria-selected={multi ? Boolean(multiSelected?.includes(hub.hub)) : selected}
                     className="ds-ipicker-option"
                     data-active={selected ? "true" : undefined}
+                    data-ticked={multi && multiSelected?.includes(hub.hub) ? "true" : undefined}
                     onPointerDown={(event) => event.preventDefault()}
                     onClick={() => choose(option)}
                   >
+                    {multi && <span className="ds-ipicker-tick" aria-hidden="true">{multiSelected?.includes(hub.hub) ? "✓" : ""}</span>}
                     <span className="ds-ipicker-code">{hub.hub}</span>
                     <span className="ds-ipicker-name">{hubName(hub)}</span>
                     <span className="ds-ipicker-meta">{unitLabel(hub.nativeUnit)}</span>

@@ -2606,7 +2606,7 @@
   "market.updated": "更新于",
   "market.curve": "日内 · 日前 · 周末 · 月前",
   "market.unit_age": "单位 · 时效",
-  "market.board_note": "点击枢纽可让所有面板聚焦该枢纽。对 TTF 价差 = 枢纽中间价 − TTF 中间价（按该行单位）。",
+  "market.board_note": "点击枢纽可让所有面板聚焦该枢纽。相对 TTF 价差 = 枢纽中间价 − TTF 中间价（EUR/MWh）；其他报价单位的枢纽在服务器端换算（悬停中间价可见汇率与方法）。",
   "market.source_detail": "分来源报价、来源矩阵与参考指数",
   "market.terminal_title": "枢纽价格",
   "market.tenor_short.within-day": "日内",
@@ -4641,8 +4641,6 @@
   "prices.chart.compare_refused": "未换算：{{reasons}}。",
   "prices.chart.spread_link_text": "{{pair}} 按交割月、扣除公布的运输费率、按远期汇率：",
   "prices.chart.spread_link": "在 研究 → 价差 中打开",
-  "prices.board.add_hub": "添加枢纽",
-  "prices.board.remove_hub": "移除枢纽",
   "prices.board.reset_hubs": "六大枢纽",
   "prices.board.reporting": "= {{value}} {{unit}}，汇率 {{pair}} {{rate}}（{{method}}）",
   "prices.board.reporting_plain": "= {{value}} {{unit}}",
@@ -4650,5 +4648,9 @@
   "prices.chart.compare_beyond": "{{count}} 个超过 24 个月的交割月未换算：无授权远期时不推导远期汇率。",
   "instrument_picker.choose_hub": "选择枢纽",
   "today.all_simulated": "演示数据：模拟值，并非市场价格",
-  "today.needs.since": "自 {{when}} 起"
+  "today.needs.since": "自 {{when}} 起",
+  "prices.board.hubs": "枢纽",
+  "prices.board.hubs_count": "{{count}} 个枢纽",
+  "prices.board.unit": "单位",
+  "prices.board.spread_to_ttf": "相对 TTF 价差（EUR/MWh）"
 }

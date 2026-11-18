@@ -389,10 +389,6 @@ export function MarketTerminal({
     api.marketInstruments().then((response) => { if (live) setCatalogue(catalogueFromDTO(response.data)); }).catch(() => undefined);
     return () => { live = false; };
   }, []);
-  const addableHubs = useMemo<PickerCatalogue | null>(
-    () => (catalogue ? { hubs: catalogue.hubs.filter((hub) => !boardHubCodes.includes(hub.hub)) } : null),
-    [catalogue, boardHubCodes],
-  );
   // The tenor is in the URL once the user chooses one (a link or a refresh keeps it); until then
   // the board opens on the first tenor this desk has prices for.
   const [chosenTenor, setChosenTenor] = useState<string | null>(() =>
@@ -674,7 +670,7 @@ export function MarketTerminal({
       bidAskText: quote
         ? `${formatPriceValue(bid?.value)} / ${formatPriceValue(ask?.value)}`
         : last
-          ? `${last.value === null ? "n/a" : last.value.toFixed(2)} ${last.unit}`
+          ? (last.value === null ? "n/a" : last.value.toFixed(2))
           : "–",
       tenor: row.tenor,
       quote: quote ?? null,
@@ -736,11 +732,27 @@ export function MarketTerminal({
     }
     return out;
   }, [reportingValues, t]);
-  const boardHubCatalogue = useMemo<PickerCatalogue>(
-    () => ({ hubs: (catalogue?.hubs ?? []).filter((hub) => boardHubCodes.includes(hub.hub)) }),
-    [catalogue, boardHubCodes],
-  );
   const boardIsDefault = boardHubCodes.join() === BOARD_DEFAULT_HUBS.join();
+
+  // What the board says once instead of on every row (the owner: "a lot that says nothing").
+  const pricedRows = boardRows.filter((row) => row.priced);
+  const twoSided = boardRows.some((row) => row.quote !== null);
+  const allSimulated = pricedRows.length > 0 && pricedRows.every((row) => row.simulated);
+  const anyAge = boardRows.some((row) => row.ageSeconds !== null);
+  const anyTick = boardRows.some((row) => row.delta !== null);
+  // Spread to TTF in one basis: TTF's EUR/MWh mid against each hub's EUR/MWh value (its own
+  // mid when quoted in EUR/MWh, else the server's conversion at the stated FX).
+  const ttfRow = boardRows.find((row) => row.hub === "TTF");
+  const ttfEur = ttfRow && ttfRow.unit === "EUR/MWh" ? ttfRow.mid : null;
+  const spreadToTtf = (row: BoardRow): number | null => {
+    if (ttfEur === null || row.mid === null) return null;
+    if (row.hub === "TTF") return 0;
+    if (row.unit === "EUR/MWh") return row.mid - ttfEur;
+    const converted = reportingValues.get(row.hub)?.value ?? null;
+    return converted === null ? null : converted - ttfEur;
+  };
+  const anySpread = boardRows.some((row) => row.hub !== "TTF" && spreadToTtf(row) !== null);
+  const heldTenors = marketTenorOrder.filter((_, index) => boardRows.some((row) => row.lane[index] !== null));
 
   const boardColumns: DataGridColumn<BoardRow>[] = [
     {
@@ -751,20 +763,33 @@ export function MarketTerminal({
       sortable: true,
       value: (row) => row.hub,
       render: (row) => (
-        <span className="market-hub-focus-button" data-focused={focusedHub === row.hub ? "true" : "false"} title={t("market.board_note")}>
+        <span
+          className="market-hub-focus-button"
+          data-focused={focusedHub === row.hub ? "true" : "false"}
+          title={allSimulated && row.priced ? `${t("market.board_note")} · ${t("market.source")}: ${row.sourceLabel}` : t("market.board_note")}
+        >
           <strong data-price-hub-label>{row.hub}</strong>
+          {/* With the source column folded away (one source class for every row) the source
+              stays on hover and for assistive technology. */}
+          {allSimulated && row.priced && <span className="ds-visually-hidden" data-price-source>{row.sourceLabel}</span>}
         </span>
       ),
     },
     {
       id: "bidask",
-      header: t("market.bid_ask"),
+      header: t(twoSided ? "market.bid_ask" : "market.price"),
+      state: (row: BoardRow) => (!twoSided && row.simulated && row.priced && !allSimulated ? { kind: "simulated" as const, label: t("today.simulated_short"), description: t("today.simulated_long") } : null),
       priority: "primary",
       type: "number",
       render: (row) => row.bidAskText,
-      cellAttributes: () => ({ "data-price-value": "" }),
+      // Single-sided, the price is the mid: the reporting value is on this cell's hover.
+      cellAttributes: (row) => {
+        const found = twoSided ? null : reporting.get(row.hub);
+        return found ? { "data-price-value": "", title: found.text, "data-reporting": found.text } : { "data-price-value": "" };
+      },
     },
-    {
+    // With no two-sided quote the mid is the price itself: one column, not two.
+    ...(!twoSided ? [] : [{
       id: "mid",
       header: t("market.mid"),
       priority: "primary",
@@ -779,9 +804,10 @@ export function MarketTerminal({
         return found ? { title: found.text, "data-reporting": found.text } : {};
       },
       // A simulated price is marked beside the number itself (AGENTS.md rule 17).
-      state: (row) => (row.simulated && row.priced ? { kind: "simulated", label: t("today.simulated_short"), description: t("today.simulated_long") } : null),
-    },
-    {
+      // Tagged only where it differs from the rest: when every row is simulated the banner says so.
+      state: (row) => (row.simulated && row.priced && !allSimulated ? { kind: "simulated", label: t("today.simulated_short"), description: t("today.simulated_long") } : null),
+    } satisfies DataGridColumn<BoardRow>]),
+    ...(anyTick ? [{
       id: "tick",
       header: t("market.tick_change"),
       type: "number",
@@ -792,16 +818,19 @@ export function MarketTerminal({
           {row.delta === null ? "–" : formatDelta(row.delta)}
         </span>
       ),
-    },
-    {
+    } satisfies DataGridColumn<BoardRow>] : []),
+    ...(anySpread ? [{
       id: "spread",
-      header: t("market.spread_to_ttf"),
-      type: "number",
+      header: t("prices.board.spread_to_ttf"),
+      type: "number" as const,
       sortable: true,
-      value: (row) => row.premium,
-      format: (value) => (value == null ? "–" : `${(value as number) >= 0 ? "+" : ""}${(value as number).toFixed(2)}`),
-    },
-    ...marketTenorOrder.map<DataGridColumn<BoardRow>>((tenor, index) => ({
+      value: (row: BoardRow) => spreadToTtf(row),
+      format: (value: unknown) => (value == null ? "–" : `${(value as number) >= 0 ? "+" : ""}${(value as number).toFixed(2)}`),
+    } satisfies DataGridColumn<BoardRow>] : []),
+    // The other tenors beside the active one, only those held and only when there is more than
+    // the active tenor (otherwise the column repeats the mid).
+    ...marketTenorOrder.flatMap<DataGridColumn<BoardRow>>((tenor, index) => (
+      heldTenors.length > 1 && heldTenors.includes(tenor) ? [{
       id: `curve-${tenor}`,
       header: t(`market.tenor_short.${tenor}`),
       headerTitle: tenorLabel(tenor, t),
@@ -809,8 +838,8 @@ export function MarketTerminal({
       value: (row) => row.lane[index] ?? null,
       format: (value) => (value == null ? "–" : (value as number).toFixed(2)),
       cellClassName: () => (tenor === activeTenor ? "market-curve-active" : "market-curve"),
-    })),
-    {
+    }] : [])),
+    ...(allSimulated ? [] : [{
       id: "source",
       header: t("market.source"),
       // A price names where it came from on a phone too.
@@ -826,13 +855,13 @@ export function MarketTerminal({
           </em>
         );
       },
-    },
+    } satisfies DataGridColumn<BoardRow>]),
     {
       id: "meta",
-      header: t("market.unit_age"),
+      header: t(anyAge ? "market.unit_age" : "prices.board.unit"),
       // On a phone the price keeps its unit beside it (the rest folds into the row's Details).
       priority: "primary",
-      render: (row) => (row.priced ? `${row.unit} · ${formatAge(row.ageSeconds)}` : t("market.awaiting_feed")),
+      render: (row) => (row.priced ? (anyAge ? `${row.unit} · ${formatAge(row.ageSeconds)}` : row.unit) : t("market.awaiting_feed")),
       cellAttributes: () => ({ "data-price-meta": "" }),
     },
   ];
@@ -908,26 +937,21 @@ export function MarketTerminal({
             the board shows every row the projection serves. */}
         {catalogue && (
           <div className="market-board-hubs" data-board-hubs={boardHubCodes.join(",")}>
-            {addableHubs && addableHubs.hubs.length > 0 && boardHubCodes.length < 12 && (
-              <InstrumentPicker
-                id="board-add-hub"
-                scope="hub"
-                label={t("prices.board.add_hub")}
-                catalogue={addableHubs}
-                value={null}
-                onChange={(selection) => changeBoardHubs(withHub(boardHubCodes, selection.hub))}
-              />
-            )}
-            {boardHubCodes.length > 1 && (
-              <InstrumentPicker
-                id="board-remove-hub"
-                scope="hub"
-                label={t("prices.board.remove_hub")}
-                catalogue={boardHubCatalogue}
-                value={null}
-                onChange={(selection) => changeBoardHubs(withoutHub(boardHubCodes, selection.hub))}
-              />
-            )}
+            {/* One control: every hub held, the board's ticked; choosing one adds or removes it. */}
+            <InstrumentPicker
+              id="board-hubs"
+              scope="hub"
+              label={t("prices.board.hubs")}
+              catalogue={catalogue}
+              value={null}
+              multiSelected={boardHubCodes}
+              triggerLabel={t("prices.board.hubs_count", { count: boardHubCodes.length })}
+              onChange={(selection) => changeBoardHubs(
+                boardHubCodes.includes(selection.hub)
+                  ? withoutHub(boardHubCodes, selection.hub)
+                  : withHub(boardHubCodes, selection.hub),
+              )}
+            />
             {!boardIsDefault && (
               <Button variant="secondary" size="sm" onClick={() => changeBoardHubs([...BOARD_DEFAULT_HUBS])}>
                 {t("prices.board.reset_hubs")}

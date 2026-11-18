@@ -34,7 +34,10 @@ export function TradingContextControls({
   onGasDayChange,
   onDeliveryProductChange,
   onHubChange,
+  showProduct = true,
 }: {
+  /** False where the page has its own product selector (Prices' board tenors). */
+  showProduct?: boolean;
   gasDay: string;
   deliveryProduct: string;
   hubId: string | null;
@@ -49,7 +52,7 @@ export function TradingContextControls({
   const language = i18n.language;
   const summary = [
     formatGasDay(gasDay, language),
-    t(PRODUCT_LABEL_KEYS[deliveryProduct] ?? "context.all_products"),
+    ...(showProduct ? [t(PRODUCT_LABEL_KEYS[deliveryProduct] ?? "context.all_products")] : []),
     hubId ?? t("context.no_hub_focus"),
   ].join(" · ");
   const fields = (
@@ -58,7 +61,7 @@ export function TradingContextControls({
         <span>{t("context.gas_day")}</span>
         <PeriodPicker label={t("context.gas_day")} value={gasDay} onChange={onGasDayChange} />
       </label>
-      <label>
+      {showProduct && <label>
         <span>{t("context.product")}</span>
         <select value={deliveryProduct} onChange={(event) => onDeliveryProductChange(event.target.value)}>
           <option value="all">{t("context.all_products")}</option>
@@ -66,7 +69,7 @@ export function TradingContextControls({
           <option value="within-day">{t("context.within_day")}</option>
           <option value="month-ahead">{t("context.month_ahead")}</option>
         </select>
-      </label>
+      </label>}
       <label>
         <span>{t("context.hub")}</span>
         <select
@@ -135,9 +138,11 @@ export function tradingContextControlsFor(
     setHubId: (value: string | null) => void;
   },
   t: Translate,
+  { product = true }: { product?: boolean } = {},
 ) {
   return (
     <TradingContextControls
+      showProduct={product}
       gasDay={traderContext.gasDay}
       deliveryProduct={traderContext.deliveryProduct}
       hubId={traderContext.hubId}

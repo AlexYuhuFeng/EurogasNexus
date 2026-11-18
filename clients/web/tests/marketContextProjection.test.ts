@@ -262,6 +262,8 @@ test("the market surface renders the coherent context and its vocabulary is bili
   // On Today the strip is the page's one header line: the gas-day headline, not the controls.
   assert.match(cockpit, /<MarketContextStrip\s+projection=\{api\.marketContext\}\s+t=\{t\}[\s\S]*?task === "overview"\s*\?\s*<TodayHeadline[\s\S]*?:\s*tradingContextControlsFor\(traderContext, t\)/);
   assert.match(cockpit, /<TodayHeadActions/);
+  // No filter strip on Today (design basis 2, E.1); on Prices no product filter (the board's).
+  assert.match(cockpit, /<MarketContextStrip\s+projection=\{api\.marketContext\}\s+t=\{t\}[\s\S]*?controls=\{task === "overview" \? undefined : tradingContextControlsFor\(traderContext, t, \{ product: task !== "curves" \}\)\}/);
 
   // The strip renders the backend's reading; it does not fetch or recompute.
   assert.match(strip, /sliceReadings\(projection\)/);

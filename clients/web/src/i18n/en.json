@@ -2606,7 +2606,7 @@
   "market.updated": "Updated",
   "market.curve": "WD · DA · WE · MA",
   "market.unit_age": "Unit · age",
-  "market.board_note": "Click a hub to focus every panel on it. Spread vs TTF = hub mid − TTF mid in the row's unit.",
+  "market.board_note": "Click a hub to focus every panel on it. Spread to TTF = hub mid − TTF mid in EUR/MWh; a hub quoted in another unit is converted on the server (hover its mid for the rate and method).",
   "market.source_detail": "Quotes by source, source matrix and reference indices",
   "market.terminal_title": "Hub prices",
   "market.tenor_short.within-day": "WD",
@@ -4641,8 +4641,6 @@
   "prices.chart.compare_refused": "Not converted: {{reasons}}.",
   "prices.chart.spread_link_text": "{{pair}} by delivery month, net of the published transport tariffs, at forward FX:",
   "prices.chart.spread_link": "open in Research → Spreads",
-  "prices.board.add_hub": "Add a hub",
-  "prices.board.remove_hub": "Remove a hub",
   "prices.board.reset_hubs": "The six majors",
   "prices.board.reporting": "= {{value}} {{unit}} at {{pair}} {{rate}} ({{method}})",
   "prices.board.reporting_plain": "= {{value}} {{unit}}",
@@ -4650,5 +4648,9 @@
   "prices.chart.compare_beyond": "{{count}} months more than 24 months ahead are not converted: a derived forward is refused there without licensed forwards.",
   "instrument_picker.choose_hub": "Choose a hub",
   "today.all_simulated": "Demo data: simulated, not market prices",
-  "today.needs.since": "since {{when}}"
+  "today.needs.since": "since {{when}}",
+  "prices.board.hubs": "Hubs",
+  "prices.board.hubs_count": "{{count}} hubs",
+  "prices.board.unit": "Unit",
+  "prices.board.spread_to_ttf": "Spread to TTF (EUR/MWh)"
 }

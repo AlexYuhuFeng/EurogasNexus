@@ -249,6 +249,16 @@
     color: var(--ds-text-3);
   }
 
+  .ds-ipicker-list[aria-multiselectable="true"] .ds-ipicker-option {
+    grid-template-columns: 1.25rem minmax(64px, auto) 1fr auto auto;
+  }
+
+  .ds-ipicker-tick {
+    color: var(--ds-accent);
+    font-weight: var(--ds-weight-semibold);
+    text-align: center;
+  }
+
   .ds-ipicker-code {
     font-weight: var(--ds-weight-semibold);
     font-variant-numeric: tabular-nums;
