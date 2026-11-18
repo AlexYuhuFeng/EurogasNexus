@@ -425,7 +425,9 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
     closes: dict[str, dict] = {}
     simulated_skipped = 0
     demo_marks_used = demo_marks_allowed()
-    for row in daily_rows(caller, today - timedelta(days=400), today):
+    for row in daily_rows(
+        caller, today - timedelta(days=400), today, tenors=("month-ahead", "day-ahead")
+    ):
         if not row.get("hub_resolved", True):
             continue  # a series whose product names no hub cannot mark a hub
         if row["simulated"]:

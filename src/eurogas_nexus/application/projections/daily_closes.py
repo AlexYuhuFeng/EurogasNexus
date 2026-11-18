@@ -110,27 +110,41 @@ def shared_daily_rows() -> Iterator[None]:
 
 
 def daily_rows(
-    who: Any, date_from: date | None = None, date_to: date | None = None
+    who: Any,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    *,
+    tenors: tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
-    """Entitled gas-price closes, one per series per trade date (see :func:`_daily_rows`)."""
+    """Entitled gas-price closes, one per series per trade date (see :func:`_daily_rows`).
+
+    ``tenors`` narrows the read in SQL to rows whose stated tenor (``metadata_json.tenor``) is
+    one of them; a row that states none is still read, and the caller's own tenor check
+    decides. The marks need month-ahead and day-ahead only; the demo market alone stores
+    some 30 000 closes of other tenors (2026-11-18).
+    """
 
     shared = _SHARED_READS.get()
     if shared is None:
-        return _daily_rows(who, date_from, date_to)
+        return _daily_rows(who, date_from, date_to, tenors)
     principal = caller_of(who).principal
     key = (
         getattr(principal, "principal_id", None),
         tuple(getattr(principal, "data_scopes", ()) or ()),
         date_from,
         date_to,
+        tenors,
     )
     if key not in shared:
-        shared[key] = _daily_rows(who, date_from, date_to)
+        shared[key] = _daily_rows(who, date_from, date_to, tenors)
     return list(shared[key])
 
 
 def _daily_rows(
-    who: Any, date_from: date | None = None, date_to: date | None = None
+    who: Any,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    tenors: tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
     """Entitled gas-price observations reduced to one close per series per trade date.
 
@@ -187,6 +201,9 @@ def _daily_rows(
             query = query.filter(
                 MarketObservationRecord.observed_at_utc < bound(date_to + timedelta(days=1))
             )
+        if tenors:
+            stated = MarketObservationRecord.metadata_json["tenor"].as_string()
+            query = query.filter(or_(stated.is_(None), stated.in_(tenors)))
         records = (
             query.order_by(MarketObservationRecord.observed_at_utc)
             .limit(MAX_OBSERVATION_ROWS + 1)
