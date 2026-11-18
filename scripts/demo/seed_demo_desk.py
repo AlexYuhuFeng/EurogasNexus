@@ -1552,13 +1552,16 @@ def _real_price_hubs(session) -> set[str]:
     """Hubs a provider (anything but the demo) has stored gas prices for."""
 
     hubs: set[str] = set()
-    for metadata, product in (
-        session.query(MarketObservationRecord.metadata_json, MarketObservationRecord.product)
+    # DISTINCT over the hub text, not the JSON document: PostgreSQL has no equality operator
+    # for ``json``, and the demo would not start on its own store (2026-11-18).
+    stated_hub = MarketObservationRecord.metadata_json["hub"].as_string()
+    for hub, product in (
+        session.query(stated_hub, MarketObservationRecord.product)
         .filter(MarketObservationRecord.source_system != SOURCE)
         .filter(~MarketObservationRecord.source_system.like("%\\_Sim", escape="\\"))
         .distinct()
     ):
-        stated = (metadata or {}).get("hub") or str(product or "").split(" ")[0]
+        stated = hub or str(product or "").split(" ")[0]
         hubs.add(str(stated).upper())
     return hubs & set(_CURVE_SHAPE)
 
