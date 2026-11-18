@@ -8,7 +8,9 @@ serve, not change - and the fixture had written its paired NBP/TTF day-ahead sam
 seed day only. Five minutes later the window the run read was the day that began at midnight, so it
 held no paired history and the run correctly refused to fabricate findings.
 
-The coordination is the fixture refresh the browser harness runs immediately before the governed
+The browser sweep no longer runs the governed research interaction (the Assistant left the UI with
+CP-00 and the agents routes are deferred, design basis 2, I.3); the fixture's own rules stay tested.
+The coordination was the fixture refresh the browser harness ran immediately before the governed
 research interaction (``scripts/uat/seed_uat_fixture.py --agent-window-only``, through the harness's
 own fixture process, never a product write endpoint): it re-stamps the same samples inside the UTC
 day the run's own clock read will cover, and every sample is at or before the clock that writes it -
@@ -22,7 +24,6 @@ from __future__ import annotations
 
 import importlib.util
 import os
-import re
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
@@ -46,7 +47,6 @@ from eurogas_nexus.db.models import (
 from eurogas_nexus.domain.agents.contracts import AgentInvocationContext
 
 ROOT = Path(__file__).resolve().parents[2]
-HARNESS = ROOT / "scripts" / "uat" / "browser_workflow_smoke.mjs"
 SEED_SCRIPT = ROOT / "scripts" / "uat" / "seed_uat_fixture.py"
 
 
@@ -457,63 +457,6 @@ def test_the_ci_run_reaches_the_review_gate_with_the_coordinated_fixture(
     )
     assert len(paired) >= FIXTURE.AGENT_WINDOW_MIN_PAIRED_TIMESTAMPS
     assert int(outcome.findings[0].sample) == len(paired)
-
-
-def test_the_browser_harness_refreshes_the_agent_window_immediately_before_the_run() -> None:
-    """The coordination lives in the interaction, not only in the fixture.
-
-    A refresh that ran with the job-start seed would be in the *seed's* day again; the point of the
-    coordination is that it happens immediately before the governed research run files, through the
-    harness's own fixture process (never a product write endpoint), with the UTC-day rollover check
-    bounded and explicit.
-    """
-
-    harness = HARNESS.read_text(encoding="utf-8")
-
-    assert 'AGENT_WINDOW_FLAG = "--agent-window-only";' in harness
-    assert "spawnSync(PYTHON, [AGENT_WINDOW_SCRIPT, AGENT_WINDOW_FLAG]" in harness
-    assert "a product write endpoint" in harness
-
-    script = re.search(
-        r"const AGENT_WINDOW_SCRIPT = path\.join\((?P<body>.*?)\);", harness, re.DOTALL
-    )
-    assert script, "the harness declares the fixture script it runs"
-    for part in ('"scripts"', '"uat"', '"seed_uat_fixture.py"'):
-        assert part in script.group("body"), f"the refreshed fixture is the UAT seed script: {part}"
-
-    interaction = harness.index("async function agentResearchE2E(")
-    refresh_call = harness.index("refreshAgentWindowFixture(failures, scope)", interaction)
-    research_post = harness.index('includes("/api/agent/research")', interaction)
-    assert interaction < refresh_call < research_post, (
-        "the fixture refresh happens inside the research interaction and before the run is filed"
-    )
-
-    helper = harness.index("function refreshAgentWindowFixture(")
-    assert helper < interaction, "the refresh helper is declared once, above its call site"
-    assert "AGENT_WINDOW_MAX_ATTEMPTS" in harness[helper:interaction], (
-        "the refresh retries are bounded by the declared attempt count"
-    )
-    assert "utcDayStart(new Date()).getTime() === summary.dayStart.getTime()" in harness, (
-        "the rollover check compares the harness day with the day the fixture stamped"
-    )
-
-
-def test_the_harness_parses_the_report_line_the_fixture_prints() -> None:
-    """The refresh is coordination only if the harness reads the day the fixture reports.
-
-    The fixture prints one machine-readable line for what it stamped and the harness turns it into
-    the day it compares with its own; the field names on both sides are the interface between the
-    two processes, so they are pinned here rather than discovered when a CI run disagrees.
-    """
-
-    fixture = SEED_SCRIPT.read_text(encoding="utf-8")
-    harness = HARNESS.read_text(encoding="utf-8")
-    prefix = "UAT agent window ready:"
-
-    assert prefix in fixture and prefix in harness
-    for field in ("day_start", "stamped_at", "rows"):
-        assert f"{field}=" in fixture, f"the fixture reports {field}"
-        assert f"fields.{field}" in harness, f"the harness parses {field}"
 
 
 def test_the_agent_window_command_stamps_one_utc_day_in_an_isolated_process(
