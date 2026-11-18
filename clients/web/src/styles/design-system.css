@@ -743,72 +743,23 @@
     color: var(--ds-positive, currentColor);
   }
 
-  /* The contract work chain (#32): four steps in one quiet row; the next step is the one in ink. */
-  .contract-chain ol {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: var(--ds-space-2);
-    margin: var(--ds-space-3) 0;
-    padding: 0;
-    list-style: none;
-  }
+  
 
-  .contract-chain-step {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-space-1);
-    padding: var(--ds-space-2) var(--ds-space-3);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-sm);
-    min-width: 0;
-  }
+  
 
-  .contract-chain-step button {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-space-2);
-    padding: 0;
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-  }
+  
 
-  .contract-chain-step button:disabled {
-    cursor: default;
-  }
+  
 
-  .contract-chain-index {
-    display: inline-grid;
-    place-items: center;
-    width: 1.25rem;
-    height: 1.25rem;
-    border-radius: var(--ds-radius-pill);
-    border: 1px solid var(--ds-border);
-    font-size: var(--ds-text-sm);
-  }
+  
 
-  .contract-chain-reason {
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-base);
-  }
+  
 
-  .contract-chain-step.chain-next button[aria-current="step"] .contract-chain-index {
-    background: var(--ds-ink);
-    color: var(--ds-on-ink);
-    border-color: transparent;
-  }
+  
 
-  .contract-chain-step.chain-done .contract-chain-index {
-    border-color: var(--ds-positive, var(--ds-border));
-  }
+  
 
-  .contract-chain-step.chain-blocked {
-    opacity: 0.6;
-  }
+  
 
   /* A task row under the shell's page title: tabs first, the primary action at the end. */
   .workspace-page-header.workspace-subheader {
@@ -1113,72 +1064,25 @@
     gap: var(--ds-space-3) var(--ds-space-4);
   }
 
-  /* Market overview (#13): the rail is as tall as its content (no scroll trap inside the
-     page) and the map row takes the extra height, so the rail's last panel is never cut off. */
-
-  /* The rail's panels keep their content height, so the row grows with them. */
-
-  /* Rail action rows wrap to the rail's width instead of running off its edge. */
+  
 
   
-  /* Data Products (#28): name, id and description each on their own line; the table fits
-     its panel and long explanations wrap instead of being cut off. */
-  .data-product-catalogue .research-semantic-table {
-    width: 100%;
-    table-layout: fixed;
-  }
 
-  .data-product-catalogue .research-semantic-table th:first-child {
-    width: 32%;
-  }
+  
 
-  .data-product-catalogue .research-semantic-table th[scope="row"] > strong,
-  .data-product-catalogue .research-semantic-table th[scope="row"] > code,
-  .data-product-catalogue .research-semantic-table th[scope="row"] > small,
-  .data-product-catalogue .research-semantic-table td > small {
-    display: block;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
+  
 
-  .data-product-catalogue .research-semantic-table th[scope="row"] > code {
-    margin: 2px 0;
-    color: var(--ds-text-3);
-    font-size: var(--ds-text-xs);
-    font-weight: normal;
-  }
+  
 
-  .data-product-catalogue .research-semantic-table th[scope="row"] > small {
-    color: var(--ds-text-2);
-    font-weight: normal;
-  }
+  
 
-  .data-product-catalogue .research-semantic-table td,
-  .data-product-catalogue .research-semantic-table th[scope="row"] {
-    white-space: normal;
-    vertical-align: top;
-  }
+  
 
-  .data-product-more > summary {
-    color: var(--ds-text-3);
-    font-size: var(--ds-text-xs);
-    cursor: pointer;
-  }
+  
 
-  .data-product-catalogue .research-table-wrap {
-    overflow-x: visible;
-  }
+  
 
-  .research-capability-details > summary {
-    color: var(--ds-accent);
-    cursor: pointer;
-  }
-
-  .capability-tag {
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-sm);
-    white-space: normal;
-  }
+  
 
   /* A heading that starts with an eyebrow is a title group: the eyebrow above the title,
      both left-aligned (#10). "Title ... meta" headings keep their spread. */
@@ -4202,79 +4106,29 @@
 
 /* Outage response replay (#48-#50): facts in a compact grid, blocked responses as warnings. */
 @layer ds-components {
-  .desk-replay-input {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-    align-items: end;
-    gap: var(--ds-space-3);
-  }
+  
 
-  .desk-replay-input label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-space-1);
-  }
+  
 
-  [data-width-class="compact"] .desk-replay-input {
-    grid-template-columns: 1fr;
-  }
+  
 
-  .desk-replay-resource {
-    margin-top: var(--ds-space-3);
-    padding-top: var(--ds-space-3);
-    border-top: 1px solid var(--ds-border);
-  }
+  
 
-  .desk-replay-facts {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-    gap: var(--ds-space-2);
-    margin: var(--ds-space-2) 0;
-  }
+  
 
-  .desk-replay-facts dt {
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-base);
-  }
+  
 
-  .desk-replay-facts dd {
-    margin: 0;
-  }
+  
 
-  .desk-replay-alternatives {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
+  
 
-  .desk-replay-alternatives li {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--ds-space-2);
-    align-items: baseline;
-  }
+  
 
-  .desk-replay-blocked,
-  .desk-replay-unmatched {
-    color: var(--ds-status-watch);
-  }
+  
 
-  .desk-replay-attach {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
-    gap: var(--ds-space-3);
-    margin-top: var(--ds-space-3);
-  }
+  
 
-  .desk-replay-attach label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-space-1);
-  }
+  
 }
 
 /* Touch (coarse pointer): every tab and chip is a 44 px target, whatever its component sets

@@ -58,32 +58,6 @@
   font-size: var(--ds-text-base);
 }
 
-.commercial-routes-panel,
-.commercial-route-table {
-  min-width: 0;
-}
-
-.commercial-route-table {
-  max-height: 520px;
-  overflow: auto;
-}
-
-.commercial-route-table .data-table-row {
-  grid-template-columns: 1.2fr 1.4fr 1fr 0.9fr 0.8fr 0.8fr;
-  min-width: 720px;
-  font-size: var(--ds-text-base);
-}
-
-.commercial-route-table button.data-table-row {
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-}
-
-.commercial-route-table button.data-table-row.selected {
-  background: var(--ds-surface-2);
-}
-
 .commercial-warning-list {
   margin: 0;
   padding-left: var(--ds-space-6);

@@ -55,11 +55,6 @@
   margin: 0;
 }
 
-.market-rail-note {
-  margin: 0;
-  font-size: var(--ds-text-xs);
-}
-
 /* Placement only: the strip's own styling is shared in projection-context.css. */
 .market-context-strip {
   grid-area: context;
@@ -152,24 +147,6 @@
 
 .market-source-details[open] > summary {
   margin-bottom: var(--ds-space-2);
-}
-
-.intraday-expired-toggle {
-  display: inline-block;
-  width: auto;
-  margin-bottom: var(--ds-space-2);
-  align-self: flex-start;
-  border: 1px solid var(--ds-border);
-  background: transparent;
-  color: var(--ds-text-3);
-  font-size: var(--ds-text-sm);
-  padding: 2px var(--ds-space-2);
-  cursor: pointer;
-}
-
-.intraday-decision-feed > .intraday-expired-toggle {
-  width: auto;
-  min-width: 0;
 }
 
 .market-simulated-banner {
@@ -276,9 +253,6 @@
   outline-offset: -2px;
 }
 
-.intraday-decision-feed > .intraday-expired-toggle {
-  justify-self: start;
-}
 }
 
 /* The rail reads as label/value lines, not boxed tiles: six counts in six rows (#69). */

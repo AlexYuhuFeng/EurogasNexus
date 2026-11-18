@@ -113,7 +113,6 @@
     margin-left: 0;
   }
 
-
   .today-figure-empty {
     display: grid;
     gap: var(--ds-space-05);
@@ -145,17 +144,9 @@
     min-width: 0;
   }
 
-  /* Row 2: alerts beside outages. */
-  .today-changes {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--ds-space-3);
-  }
+  
 
-  .today-changes > .workspace-panel {
-    padding: 0;
-    border: 0;
-  }
+  
 
   .today-list {
     display: grid;
@@ -177,13 +168,7 @@
     border-bottom: 0;
   }
 
-  .today-list-text {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  
 
   .today-list-time {
     flex: none;
@@ -191,17 +176,9 @@
     font-size: var(--ds-text-sm);
   }
 
-  .today-list-figure {
-    flex: none;
-    font-variant-numeric: var(--ds-numeric);
-    white-space: nowrap;
-  }
+  
 
-  .today-more {
-    margin: var(--ds-space-1) 0 0;
-    color: var(--ds-text-3);
-    font-size: var(--ds-text-sm);
-  }
+  
 
   /* Row 4: figure and its small line side by side. */
   .today-fundamental {
@@ -215,14 +192,9 @@
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
 
-  .today-fundamentals-detail {
-    display: grid;
-    gap: var(--ds-space-3);
-  }
+  
 
-  .today-fundamentals-detail > .workspace-panel {
-    margin: 0;
-  }
+  
 
   /* Freshness: the demo badge once, or a link naming the late and stale figures. */
   .today-freshness {
@@ -309,7 +281,6 @@
   .today-stale-state[data-state="late"] {
     color: var(--ds-status-watch);
   }
-
 
   /* My market (design basis 2, E.2 row 1): one column per focus hub, DA and front month with
      the front month's 30 closes; the spreads on one line each under it. */
@@ -440,11 +411,7 @@
       flex-wrap: wrap;
     }
 
-    .today-list-text {
-      flex-basis: 100%;
-      order: 2;
-      white-space: normal;
-    }
+    
 
     /* The phone's five elements (E.4): the strip, my market (two hubs), my position and the
        tightest limit, what needs me (three), storage. The book table and the supply figures
