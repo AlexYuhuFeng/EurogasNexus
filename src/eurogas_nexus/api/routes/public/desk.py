@@ -31,6 +31,7 @@ def get_today(request: Request) -> dict:
 
     from eurogas_nexus.application.caller import caller_of
     from eurogas_nexus.application.desk_today import BALANCE_DAYS, build_today
+    from eurogas_nexus.application.projections.daily_closes import shared_daily_rows
     from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
     if resolve_database_url() is None:
@@ -45,7 +46,8 @@ def get_today(request: Request) -> dict:
         return response.get("data") if isinstance(response, dict) else None
 
     try:
-        with get_session_factory()() as session:
+        # The book, credit lines and mandates read the same closes: once, not three times.
+        with shared_daily_rows(), get_session_factory()() as session:
             data = build_today(session, caller_of(request), balance_reader=balance)
     except SQLAlchemyError as exc:
         raise HTTPException(

@@ -6,6 +6,9 @@ applied for the caller (an API request or an explicit worker caller).
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date
 from typing import Any
 
@@ -85,7 +88,48 @@ def in_native_unit(hub: str, price: float, unit: str) -> tuple[float, str]:
 MAX_OBSERVATION_ROWS = 150_000
 
 
+#: Within :func:`shared_daily_rows`, identical reads are answered once (see there).
+_SHARED_READS: ContextVar[dict | None] = ContextVar("daily_rows_shared", default=None)
+
+
+@contextmanager
+def shared_daily_rows() -> Iterator[None]:
+    """Answer identical :func:`daily_rows` reads once inside this block (one composed read).
+
+    The Today read builds the book, the credit lines and the mandates, and each reads 400 days
+    of closes for the same caller: three identical reads of every stored price, about 1.4 s
+    each on the demo store (2026-11-18). Inside this block the second and third are served
+    from the first. Rows are shared, so callers must not mutate them (none does).
+    """
+
+    token = _SHARED_READS.set({})
+    try:
+        yield
+    finally:
+        _SHARED_READS.reset(token)
+
+
 def daily_rows(
+    who: Any, date_from: date | None = None, date_to: date | None = None
+) -> list[dict[str, Any]]:
+    """Entitled gas-price closes, one per series per trade date (see :func:`_daily_rows`)."""
+
+    shared = _SHARED_READS.get()
+    if shared is None:
+        return _daily_rows(who, date_from, date_to)
+    principal = caller_of(who).principal
+    key = (
+        getattr(principal, "principal_id", None),
+        tuple(getattr(principal, "data_scopes", ()) or ()),
+        date_from,
+        date_to,
+    )
+    if key not in shared:
+        shared[key] = _daily_rows(who, date_from, date_to)
+    return list(shared[key])
+
+
+def _daily_rows(
     who: Any, date_from: date | None = None, date_to: date | None = None
 ) -> list[dict[str, Any]]:
     """Entitled gas-price observations reduced to one close per series per trade date.
@@ -151,10 +195,13 @@ def daily_rows(
         if len(records) > MAX_OBSERVATION_ROWS:
             raise ObservationWindowTooLarge(MAX_OBSERVATION_ROWS)
         rows = []
+        resolved: dict[str, Any] = {}
         for record in records:
             metadata = record.metadata_json or {}
             stated = metadata.get("hub") or record.product
-            resolution = resolve_hub(stated)
+            resolution = resolved.get(stated)
+            if resolution is None:
+                resolution = resolved[stated] = resolve_hub(stated)
             # An unresolved product keeps its stated text as its series name (the spread
             # lab lists it) and is marked unresolved, so nothing values a hub with it. No
             # first word is taken as a hub (ONT-02).
