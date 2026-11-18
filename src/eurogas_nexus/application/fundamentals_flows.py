@@ -142,12 +142,14 @@ def series_view(code: str, name: str, daily: dict[date, float], *, season: bool,
 
 
 def _sources(session, since: datetime) -> set[str]:
+    from eurogas_nexus.application.identity_resolution import identity_clause
     from eurogas_nexus.db.models import FlowObservationRecord as Flow
 
     naive = session.get_bind().dialect.name == "sqlite"
     return {
         value
         for (value,) in session.query(Flow.source_system)
+        .filter(identity_clause(session, Flow))
         .filter(Flow.point_id.in_(sorted(LANDINGS)))
         .filter(Flow.period_start_utc >= (since.replace(tzinfo=None) if naive else since))
         .distinct()
