@@ -39,7 +39,7 @@ import os
 import subprocess
 import time
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -263,6 +263,21 @@ def main() -> int:
         "(GB; LU; DK LNG) is not requested. Default: the Europe total only.",
     )
     parser.add_argument(
+        "--gie-from",
+        type=date.fromisoformat,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="First gas day of a GIE window (with --gie-to): the provider's from/to filter, "
+        "for a bounded history backfill (scripts/ops/backfill_gie_history.py).",
+    )
+    parser.add_argument("--gie-to", type=date.fromisoformat, default=None, metavar="YYYY-MM-DD")
+    parser.add_argument(
+        "--gie-skip-total",
+        action="store_true",
+        help="Read only the --gie-country series, not the Europe total (a backfill reads "
+        "each series in its own window).",
+    )
+    parser.add_argument(
         "--entsog-point-direction",
         action="append",
         default=[],
@@ -282,6 +297,10 @@ def main() -> int:
     except ValueError as exc:
         parser.error(f"invalid --entsog-point-direction: {exc}")
 
+    if (args.gie_from is None) != (args.gie_to is None):
+        parser.error("--gie-from and --gie-to go together")
+    if args.gie_from is not None and args.gie_to < args.gie_from:
+        parser.error("--gie-to must not be before --gie-from")
     selected = _resolve_selected_sources(args.source)
     if "eex-ngp" in selected and _positive_int(args.limit) is None:
         # The EEX bound is validated before database resolution and before any
@@ -478,7 +497,13 @@ def main() -> int:
                             f"{skipped} not requested: GIE publishes no such series."
                         )
                 for gie_route, gie_product, source_name in _gie_plan(
-                    getattr(args, "gie_country", None)
+                    getattr(args, "gie_country", None),
+                    window=(
+                        (args.gie_from, args.gie_to)
+                        if getattr(args, "gie_from", None) is not None
+                        else None
+                    ),
+                    skip_total=bool(getattr(args, "gie_skip_total", False)),
                 ):
                     if gie_route not in selected:
                         continue
@@ -1398,7 +1423,12 @@ def _gie_countries(countries) -> list[str]:
     return list(dict.fromkeys(codes))
 
 
-def _gie_plan(countries) -> list[tuple[str, GieProduct, str]]:
+def _gie_plan(
+    countries,
+    *,
+    window: tuple[date, date] | None = None,
+    skip_total: bool = False,
+) -> list[tuple[str, GieProduct, str]]:
     """The GIE reads of one run: the Europe total, then each requested country.
 
     The fundamentals read storage and LNG by country, so a deployment that ingests only
@@ -1407,12 +1437,18 @@ def _gie_plan(countries) -> list[tuple[str, GieProduct, str]]:
     (``GIE_UNPUBLISHED_COUNTRIES``) is left out, whether named or implied by ``nwe``.
     """
 
-    plan = [("gie-agsi", GIE_AGSI_PRODUCT, "GIE-AGSI"), ("gie-alsi", GIE_ALSI_PRODUCT, "GIE-ALSI")]
+    plan = [] if skip_total else [
+        ("gie-agsi", GIE_AGSI_PRODUCT, "GIE-AGSI"),
+        ("gie-alsi", GIE_ALSI_PRODUCT, "GIE-ALSI"),
+    ]
     for code in _gie_countries(countries):
         if code not in GIE_UNPUBLISHED_COUNTRIES["AGSI"]:
             plan.append(("gie-agsi", GIE_AGSI_PRODUCT.for_country(code), f"GIE-AGSI-{code}"))
         if code not in GIE_UNPUBLISHED_COUNTRIES["ALSI"]:
             plan.append(("gie-alsi", GIE_ALSI_PRODUCT.for_country(code), f"GIE-ALSI-{code}"))
+    if window is not None:
+        # A history window: the provider's from/to filter on every read of the run.
+        plan = [(route, product.for_window(*window), name) for route, product, name in plan]
     return plan
 
 

@@ -64,7 +64,7 @@ import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -333,6 +333,21 @@ class GieProduct:
         if not re.fullmatch(r"[A-Z]{2}", code):
             raise ValueError("A GIE country is a two-letter code.")
         return replace(self, dataset=f"EU > {code}", selector=(("country", code),))
+
+    def for_window(self, first: date, last: date) -> GieProduct:
+        """This product limited to gas days ``first``..``last`` (``from``/``to``, inclusive).
+
+        The provider's documented date filter, checked live on 2026-11-17: ``country=DE``,
+        ``from=2021-10-01``, ``to=2021-10-05`` returns those five gas days. The dataset label
+        is unchanged, so the response identity check still applies.
+        """
+
+        if last < first:
+            raise ValueError("A GIE window ends on or after its first day.")
+        kept = tuple(item for item in self.selector if item[0] not in {"from", "to"})
+        return replace(
+            self, selector=(*kept, ("from", first.isoformat()), ("to", last.isoformat()))
+        )
 
     @property
     def host(self) -> str:
