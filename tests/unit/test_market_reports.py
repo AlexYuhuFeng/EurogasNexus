@@ -675,7 +675,9 @@ def test_a_chinese_report_is_written_in_chinese_throughout(env):
                "GBp", "TTF", "NBP", "Dec", "LNG", "Rhinmark", "Handel", "GmbH", "Nordvik",
                "Petroleum", "ASA", "Aldermoor", "Energy", "plc", "desk", "trader", "Brae",
                "North", "supply", "Easington", "Fergus", "NETRA", "Dornum", "Emden",
-               "Norwegian", "shelf"}
+               "Norwegian", "shelf",
+               # Every hub of the demo market is a name, not English prose.
+               "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "GTF"}
     english = [s for s in _sentences(report.snapshot)
                if [w for w in re.findall(r"[A-Za-z]{3,}", s) if w not in allowed]]
     assert not english, english[:5]
@@ -700,10 +702,9 @@ def test_the_form_knows_before_generate_what_each_section_holds(env):
                            "reason": "No AI provider key is configured; reports are rule-written."}
     assert offer["period"]["max_days"] == 400 and offer["period"]["latest_end"] == "2026-11-07"
     assert "left out" in offer["audiences"]["shareable"]["reason"]
-    # A section with nothing held is offered as "listed as not held", with its reason.
-    assert offer["sections"]["alerts"] == {
-        "state": "not_held", "reason": "No critical or watch alert is open",
-        "action": "Open Events"}
+    # The demo raises critical and watch alerts (limits breaches, delivery shortfalls), so the
+    # alerts section is held; every section of the demo desk is offered.
+    assert offer["sections"]["alerts"] == {"state": "ok", "reason": None}
 
 
 def test_availability_reasons_follow_the_interface_language(env):

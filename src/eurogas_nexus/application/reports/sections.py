@@ -447,7 +447,8 @@ def alerts(ctx: Ctx) -> SectionResult:
         {
             "severity": row.severity,
             "category": row.category,
-            "title": row.title_en,
+            # The alert's own title in the report's language (the scan writes both).
+            "title": (row.title_zh_cn or row.title_en) if zh() else row.title_en,
             "as_of": _iso(row.updated_at_utc or row.detected_at_utc),
             "simulated": bool(row.simulated),
         }
