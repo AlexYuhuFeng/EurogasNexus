@@ -74,8 +74,8 @@ export function LngByCountryPanel({ t, language }: { t: Translate; language: str
         </>
       ),
     },
-    { id: "send-out", header: t("lng_panel.send_out_7d"), unit: "GWh/d", type: "number", sortable: true, priority: "primary", value: (row) => row.send_out_7d_gwh_d, format: (v) => num(v as number | null) },
-    { id: "last-year", header: t("storage_panel.vs_last_year_short"), unit: "GWh/d", type: "number", sortable: true, priority: "primary", value: (row) => row.vs_last_year.diff_gwh_d, format: (v) => signed(v as number | null) },
+    { id: "send-out", header: t("lng_panel.send_out_short"), headerTitle: t("lng_panel.send_out_7d"), unit: "GWh/d", type: "number", sortable: true, priority: "primary", value: (row) => row.send_out_7d_gwh_d, format: (v) => num(v as number | null) },
+    { id: "last-year", header: t("storage_panel.vs_last_year_short"), unit: "GWh/d", type: "number", sortable: true, priority: "secondary", value: (row) => row.vs_last_year.diff_gwh_d, format: (v) => signed(v as number | null) },
     {
       id: "average", header: t("storage_panel.vs_avg_column"), unit: "GWh/d", type: "number", sortable: true,
       value: (row) => row.vs_average.diff_gwh_d, format: (v) => signed(v as number | null), cellTitle: (row) => row.history.label,

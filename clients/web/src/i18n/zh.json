@@ -3621,6 +3621,7 @@
   "fundamentals.storage_all": "各国与其自身历史对比",
   "lng_panel.title": "各国液化天然气外输",
   "lng_panel.send_out_7d": "外输量（7 日均值）",
+  "lng_panel.send_out_short": "7 日均值",
   "lng_panel.day_value": "燃气日 {{day}}：{{value}} GWh/d",
   "lng_panel.inventory": "储罐库存",
   "lng_panel.of_dtmi": "占申报上限 {{pct}} %",

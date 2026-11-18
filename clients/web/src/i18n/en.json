@@ -3621,6 +3621,7 @@
   "fundamentals.storage_all": "Every country against its own history",
   "lng_panel.title": "LNG send-out by country",
   "lng_panel.send_out_7d": "Send-out, 7-day mean",
+  "lng_panel.send_out_short": "7-day mean",
   "lng_panel.day_value": "{{value}} GWh/d on gas day {{day}}",
   "lng_panel.inventory": "Tank inventory",
   "lng_panel.of_dtmi": "{{pct}} % of the declared maximum",
