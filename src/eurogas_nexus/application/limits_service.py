@@ -44,18 +44,35 @@ def latest_close_day(closes: dict) -> str | None:
     return max(days).isoformat() if days else None
 
 
-def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
-    """Exposure to each counterparty with an approved credit line, against its limit."""
+@dataclass
+class CounterpartyBook:
+    """One credit line with the legs that face its counterparty and the marks that value them."""
+
+    line: Any
+    legs: list
+    books: tuple[str, ...]
+
+
+@dataclass
+class CreditInputs:
+    """Every credit line's legs, with the marks, FX and warnings of the position ladder."""
+
+    lines: list[CounterpartyBook]
+    mark: Any
+    fx: Any
+    warnings: list[str]
+    marks_as_of: str | None
+    simulated_marks: bool
+
+
+def credit_inputs(caller: Caller, today: date) -> CreditInputs:
+    """The legs facing each counterparty with an approved credit line (one place builds them)."""
 
     from eurogas_nexus.application.position_inputs import ladder_inputs
+    from eurogas_nexus.core.config import demo_marks_allowed
     from eurogas_nexus.db.models import CreditLineRecord
     from eurogas_nexus.db.session import get_session_factory
-    from eurogas_nexus.domain.risk.limits import (
-        CounterpartyLeg,
-        CreditLine,
-        credit_exposure,
-        fx_lookup,
-    )
+    from eurogas_nexus.domain.risk.limits import CounterpartyLeg, CreditLine, fx_lookup
 
     start, end = horizon(today)
     with get_session_factory()() as session:
@@ -64,7 +81,6 @@ def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
     # Receivables look back before today, so read legs from the earliest look-back.
     lookback = max([line.receivable_days for line in lines] or [0])
     inputs = ladder_inputs(caller, today, start - timedelta(days=lookback), end)
-    result = LimitRows(warnings=list(inputs.warnings), marks_as_of=latest_close_day(inputs.closes))
     legs_by_ref = {leg.reference: leg for leg in inputs.legs}
     etrm_by_name: dict[str, list[str]] = {}
     for order in inputs.orders:
@@ -72,11 +88,11 @@ def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
             etrm_by_name.setdefault(order.account_label.casefold(), []).append(
                 order.order_observation_id
             )
-    fx = fx_lookup(inputs.eur_rates)
 
     def mark(hub: str, month: str) -> float | None:
         return inputs.marks.get((hub, month))
 
+    out = []
     for record in lines:
         names = {record.name, record.counterparty_id, *(record.aliases or [])}
         references = [*(record.contract_ids or [])]
@@ -112,12 +128,34 @@ def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
             legal_entity=record.legal_entity,
             rating=record.rating,
         )
-        result.rows.append(credit_exposure(line, legs, today=today, mark=mark, fx=fx).as_row())
-        result.books.append(tuple(sorted(books)))
+        out.append(CounterpartyBook(line, legs, tuple(sorted(books))))
+    warnings = list(inputs.warnings)
     if not lines:
-        result.warnings.append(
-            "No credit lines are recorded; risk adds them under Portfolio > Limits."
+        warnings.append("No credit lines are recorded; risk adds them under Portfolio > Limits.")
+    return CreditInputs(
+        lines=out,
+        mark=mark,
+        fx=fx_lookup(inputs.eur_rates),
+        warnings=warnings,
+        marks_as_of=latest_close_day(inputs.closes),
+        simulated_marks=demo_marks_allowed(),
+    )
+
+
+def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
+    """Exposure to each counterparty with an approved credit line, against its limit."""
+
+    from eurogas_nexus.domain.risk.limits import credit_exposure
+
+    built = credit_inputs(caller, today)
+    result = LimitRows(warnings=built.warnings, marks_as_of=built.marks_as_of)
+    for item in built.lines:
+        result.rows.append(
+            credit_exposure(
+                item.line, item.legs, today=today, mark=built.mark, fx=built.fx
+            ).as_row()
         )
+        result.books.append(item.books)
     return result
 
 

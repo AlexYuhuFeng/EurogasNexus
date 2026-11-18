@@ -40,6 +40,8 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/market/valuation-snapshots/{snapshot_id}",
         # Commercial design basis 2, CP-08: opportunities.
         "/api/opportunities",
+        # CP-24 role-aware discovery.
+        "/api/discoveries",
         "/api/opportunities/evaluations",
         "/api/opportunities/settings",
         "/api/opportunities/statistics",

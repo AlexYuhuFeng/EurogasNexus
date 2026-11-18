@@ -281,6 +281,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # permission (GOVERNED, as POST /api/decision-cases). Thresholds are the risk function's
     # (REVIEW floor, REVIEWER held itself in the route). Statistics need review read.
     ("/api/opportunities", Permission.READ),
+    # CP-24 role-aware discovery: findings built from reads that run under the caller.
+    ("/api/discoveries", Permission.READ),
     ("/api/opportunities/evaluations", Permission.READ),
     ("/api/opportunities/settings", Permission.READ),
     ("/api/opportunities/statistics", Permission.READ),
@@ -460,6 +462,7 @@ COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
     "/api/agent/",
     "/api/assumption-sets/",
     "/api/opportunities/",
+    "/api/discoveries/",
 )
 
 

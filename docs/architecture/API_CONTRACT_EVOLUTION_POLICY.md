@@ -53,6 +53,13 @@ indicative, reason, tariff_ids, excludes}`. `POST /api/lng/terminal-tariffs/{id}
 `candidate` and `operators_needing_terms`; `from_operator` now counts register terminals.
 Census: 280 paths / 311 operations (+4 / +4 on 276 / 307).
 
+Additive 2026-11-18 (CP-24 role-aware discovery): one path, one operation. `GET
+/api/discoveries?function=&lang=&limit=` returns the caller's findings (opportunities they
+may read, credit breach or projected breach under a stated price move with its tenor and the
+move that reaches the line, mandate breaches) ranked and phrased for one of the caller's own
+job functions (403 `function_not_held` otherwise), each with value, input class, evidence,
+link and `phrasing` ("template"). Census: 286 paths / 318 operations (+1 / +1 on 285 / 317).
+
 Additive 2026-11-18 (commercial design basis 2, CP-16/CP-23 backend: Spreads, "describe a
 strategy"): two paths, two operations, GOVERNED under `/api/research/`. `POST
 /api/research/spreads/interpret` (`text` up to 4000 characters, `language`, `model`) returns a

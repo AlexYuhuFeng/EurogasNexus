@@ -1,0 +1,296 @@
+"""Role-aware discovery (CP-24): findings the caller may read, ranked and phrased for a role.
+
+Sources (each computed by the product's own calculation, never by a model):
+
+- **opportunities** in the store, already filtered by book scope, source entitlement and the
+  caller's own dismissals (``application/opportunities/listing``); new, blocked and ended
+  records are left out;
+- **credit** per counterparty with an approved line (``limits_service.credit_inputs``, the
+  same legs and marks as the credit report): a breach today, or a projected breach under a
+  stated price move with its tenor and the move that reaches the limit
+  (``domain/discovery/credit_moves``);
+- **mandates** in breach (``limits_service.mandate_usage_rows``).
+
+A job function changes only the rank and the first sentence (``domain/discovery/findings``);
+the reads run under the caller, so a finding the caller may not read is never built. The
+sentence is the deterministic template; a model may rephrase it later from the same facts
+(``phrasing`` says which was used).
+"""
+
+from __future__ import annotations
+
+import time
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
+
+from eurogas_nexus.domain.discovery.credit_moves import credit_under_moves
+from eurogas_nexus.domain.discovery.findings import (
+    Finding,
+    audience_of,
+    phrase,
+    rank,
+    weight,
+)
+from eurogas_nexus.domain.opportunities.claims import grouped
+from eurogas_nexus.domain.opportunities.model import Lane
+from eurogas_nexus.domain.valuation.quality import CLASS_LABEL, InputClass
+
+MAX_ITEMS = 25
+CACHE_SECONDS = 60
+_CACHE: dict[tuple, tuple[float, dict]] = {}
+
+CREDIT_METHOD = (
+    "Mark-to-market sensitivity, not a potential-future-exposure model: every remaining "
+    "month facing the counterparty revalued with the forward mark moved by the stated "
+    "percentage; the reach move is found by bisection; the tenor is the first month whose "
+    "cumulative exposure crosses the limit."
+)
+
+
+def _money(value: float | Decimal, currency: str) -> str:
+    return f"{currency} {grouped(Decimal(str(value)))}"
+
+
+def opportunity_findings(session, principal, now: datetime) -> list[Finding]:
+    """Shown opportunities the caller may read, as findings."""
+
+    from eurogas_nexus.application.opportunities.listing import user_states, visible_records
+
+    rows = visible_records(session, principal)
+    mine = user_states(session, getattr(principal, "principal_id", None), [r.opp_key for r in rows])
+    out = []
+    for row in rows:
+        if row.state not in {"actionable", "indicative", "watch"}:
+            continue
+        held = mine.get(row.opp_key)
+        if held is not None and held.state == "dismissed" and held.at_version == row.version:
+            continue
+        must = row.lane == Lane.MUST_ACT.value
+        severity = 3 if must else (2 if row.state != "watch" else 1)
+        value = row.value_amount
+        size = Decimal(str(row.reporting_value or value or row.volume_value or 0))
+        headline = f"{grouped(Decimal(str(row.headline_value)), 3)} {row.headline_unit}"
+        out.append(
+            Finding(
+                finding_id=f"opportunity:{row.opportunity_id}",
+                kind=f"opportunity.{row.type}",
+                severity=severity,
+                facts={
+                    "claim": row.claim_text,
+                    "period": row.period_label,
+                    "headline": headline,
+                    "value": "-" if value is None else _money(value, row.value_currency),
+                },
+                input_class=InputClass(row.quality_class),
+                simulated=row.simulated,
+                value=None if value is None else Decimal(str(value)),
+                value_unit=row.value_currency or "",
+                size=size,
+                evidence=(
+                    {
+                        "opportunity_id": row.opportunity_id,
+                        "state": row.state,
+                        "snapshot_id": row.snapshot_id,
+                        "reasons": list(row.reasons or []),
+                    },
+                ),
+                book_ids=tuple(row.book_ids or ()),
+                link={"page": "deals/opportunities", "opportunity_id": row.opportunity_id},
+                due_utc=row.deadline_utc,
+            )
+        )
+    return out
+
+
+def credit_findings(caller, today) -> list[Finding]:
+    """A breach today, or the smallest stated move that breaches, per counterparty."""
+
+    from eurogas_nexus.application.limits_service import credit_inputs
+
+    built = credit_inputs(caller, today)
+    klass = InputClass.SIMULATED if built.simulated_marks else InputClass.INDICATIVE
+    out = []
+    for item in built.lines:
+        moves = credit_under_moves(item.line, item.legs, today=today, mark=built.mark, fx=built.fx)
+        currency = moves.currency
+        evidence = [
+            {
+                "move_pct": round(100 * result.move),
+                "net_exposure": round(result.net_exposure, 2),
+                "breach": result.breach,
+                "tenor": result.tenor,
+            }
+            for result in moves.moves
+        ]
+        common = {
+            "counterparty": moves.name,
+            "exposure": _money(moves.net_exposure, currency),
+            "limit": _money(moves.limit, currency),
+        }
+        link = {"page": "book/limits", "counterparty_id": moves.counterparty_id}
+        if moves.status == "breach":
+            out.append(
+                Finding(
+                    finding_id=f"credit:{moves.counterparty_id}",
+                    kind="credit.breach",
+                    severity=3,
+                    facts=common,
+                    input_class=klass,
+                    simulated=klass is InputClass.SIMULATED,
+                    value=Decimal(str(round(moves.net_exposure - moves.limit, 2))),
+                    value_unit=currency,
+                    size=Decimal(str(round(moves.net_exposure, 2))),
+                    evidence=tuple(evidence),
+                    book_ids=item.books,
+                    link=link,
+                    method=CREDIT_METHOD,
+                )
+            )
+            continue
+        projected = moves.projected
+        if projected is None or moves.reach_move is None:
+            continue
+        move_price = moves.reach_price_move
+        out.append(
+            Finding(
+                finding_id=f"credit-projected:{moves.counterparty_id}",
+                kind="credit.projected",
+                severity=2,
+                facts={
+                    **common,
+                    "hub": moves.front_hub or "the curve",
+                    "move_pct": f"{100 * moves.reach_move:+.1f} %",
+                    "move_price": "-"
+                    if move_price is None
+                    else f"{move_price:+.2f} {currency}/MWh on {moves.front_mark:.2f}",
+                    "shock": f"{100 * projected.move:+.0f} %",
+                    "tenor": projected.tenor or "-",
+                },
+                input_class=klass,
+                simulated=klass is InputClass.SIMULATED,
+                value=None if move_price is None else Decimal(str(round(move_price, 4))),
+                value_unit=f"{currency}/MWh",
+                size=Decimal(str(round(moves.net_exposure, 2))),
+                evidence=tuple(evidence),
+                book_ids=item.books,
+                link=link,
+                method=CREDIT_METHOD,
+            )
+        )
+    return out
+
+
+def mandate_findings(caller, today) -> list[Finding]:
+    """Mandates in breach."""
+
+    from eurogas_nexus.application.limits_service import mandate_usage_rows
+
+    rows = mandate_usage_rows(caller, today)
+    out = []
+    for row, books in zip(rows.rows, rows.books, strict=False):
+        if row.get("status") != "breach":
+            continue
+        out.append(
+            Finding(
+                finding_id=f"mandate:{row['mandate_id']}",
+                kind="mandate.breach",
+                severity=3,
+                facts={
+                    "mandate": str(row.get("name") or row["mandate_id"]),
+                    "detail": str(row.get("breaches") or "limit exceeded"),
+                },
+                input_class=InputClass.INDICATIVE,
+                simulated=False,
+                size=Decimal(str(row.get("utilisation_pct") or 0)),
+                evidence=(
+                    {
+                        k: row.get(k)
+                        for k in ("utilisation_pct", "largest_net_mwh", "largest_at", "breaches")
+                    },
+                ),
+                book_ids=tuple(books or ()),
+                link={"page": "book/limits", "mandate_id": str(row["mandate_id"])},
+            )
+        )
+    return out
+
+
+def discoveries(
+    session,
+    request_or_caller,
+    *,
+    function: str | None,
+    language: str = "en",
+    limit: int = MAX_ITEMS,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """The caller's findings ranked for ``function`` (one of their job functions)."""
+
+    from eurogas_nexus.application.caller import caller_of
+    from eurogas_nexus.application.opportunities.listing import latest_evaluation
+
+    caller = caller_of(request_or_caller)
+    principal = caller.principal
+    moment = now or datetime.now(UTC)
+    audience = audience_of(function)
+    evaluation = latest_evaluation(session)
+    key = (
+        getattr(principal, "principal_id", None),
+        audience,
+        language,
+        limit,
+        None if evaluation is None else evaluation.evaluation_id,
+        moment.date(),
+    )
+    cached = _CACHE.get(key)
+    if cached is not None and time.monotonic() - cached[0] < CACHE_SECONDS:
+        return cached[1]
+    findings: list[Finding] = []
+    warnings: list[str] = []
+    findings += opportunity_findings(session, principal, moment)
+    from eurogas_nexus.security.authorization import Permission, authorize
+
+    if authorize(principal, Permission.PORTFOLIO_READ).allowed:
+        for source in (credit_findings, mandate_findings):
+            try:
+                findings += source(caller, moment.date())
+            except Exception as exc:  # noqa: BLE001 - one source failing hides only itself
+                warnings.append(
+                    f"{source.__name__.split('_')[0]} findings unavailable: {type(exc).__name__}"
+                )
+    ranked = rank(findings, audience)[: max(1, min(limit, MAX_ITEMS))]
+    items = [
+        {
+            "finding_id": item.finding_id,
+            "kind": item.kind,
+            "severity": item.severity,
+            "relevance": weight(item.kind, audience),
+            "sentence": phrase(item, audience, language),
+            "phrasing": "template",
+            "value": None
+            if item.value is None
+            else {"value": str(item.value), "unit": item.value_unit},
+            "quality": {"class": item.input_class.value, "label": CLASS_LABEL[item.input_class]},
+            "simulated": item.simulated,
+            "book_ids": list(item.book_ids),
+            "link": dict(item.link),
+            "due_utc": item.due_utc.isoformat() if item.due_utc else None,
+            "evidence": list(item.evidence),
+            "method": item.method or None,
+        }
+        for item in ranked
+    ]
+    payload = {
+        "audience": audience,
+        "function": function,
+        "language": "zh" if language.lower().startswith("zh") else "en",
+        "as_of_utc": moment.isoformat(),
+        "items": items,
+        "total": len(findings),
+        "warnings": warnings,
+    }
+    _CACHE[key] = (time.monotonic(), payload)
+    if len(_CACHE) > 512:
+        _CACHE.clear()
+    return payload

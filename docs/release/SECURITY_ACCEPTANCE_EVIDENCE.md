@@ -10,6 +10,9 @@ Checks:
 
 - API import is DB/network safe.
 - Public surface is bounded (286 paths / 318 operations as measured on 2026-11-18, after
+  and, measured on its own branch, after
+  `GET /api/discoveries` (READ; findings are built from reads that run under the caller, a
+  job function only ranks and phrases them and must be one the caller holds); 285 / 317 after
   `GET`/`PUT /api/reports/schedules` (READ; ADMIN to change: scheduled reports run as the
   service principal, for distribution, listed only for their roles, audited); 284 / 315 after
   and, measured on its own branch, after
