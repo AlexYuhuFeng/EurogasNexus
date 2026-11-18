@@ -71,7 +71,7 @@ def _pct(ratio: float) -> str:
 
 
 def kind_of(question: str, sections: list[str]) -> str:
-    """Which join the question asks for: ``outages_supply`` or ``general``."""
+    """``outages_supply`` or ``general``; the other joins are in ``joins.py``."""
 
     if OUTAGE_WORDS.search(question) and (NORWAY_WORDS.search(question)
                                           or SUPPLY_WORDS.search(question)) \
@@ -223,7 +223,7 @@ def _outage_supply(results: dict[str, dict], raws: dict[str, Any], today: date
 
 
 def build(plan, results: list[dict], raws: dict[str, Any], *, today: date,
-          missing: list[str] | None = None) -> dict[str, Any]:
+          missing: list[str] | None = None, ctx=None) -> dict[str, Any]:
     """Question facts (added to their sections in place), what cannot be told, and the order
     of the sections by relevance to the question."""
 
@@ -234,6 +234,24 @@ def build(plan, results: list[dict], raws: dict[str, Any], *, today: date,
     cannot: list[str] = []
     if kind == "outages_supply":
         added, cannot = _outage_supply(by_key, raws, today)
+    else:
+        from eurogas_nexus.application.reports import joins
+        from eurogas_nexus.application.reports.plan import _countries
+
+        countries = list(plan.countries) or _countries(question)
+        join = joins.kind_of(question, list(by_key), list(plan.hubs), countries, today)
+        if join == "storage_country":
+            added, cannot = joins.storage_country(by_key, raws, countries)
+        elif join == "lng_country":
+            added, cannot = joins.lng_country(by_key, raws, countries)
+        elif join == "hub_spread" and ctx is not None:
+            added, cannot = joins.hub_spread(by_key, raws, list(plan.hubs), ctx)
+        elif join == "since_date":
+            added, cannot = joins.since(by_key, raws, joins.since_date(question, today))
+        elif join == "border_flows":
+            added, cannot = joins.border_flows()
+        if join:
+            kind = join
     if kind == "outages_supply" and "outages" in by_key:
         # The schedule lists the outages tied to Norwegian supply first.
         nor_names = {r["facility"] for r in (raws.get("outages") or {}).get("rows") or []
@@ -260,7 +278,10 @@ def build(plan, results: list[dict], raws: dict[str, Any], *, today: date,
             continue
         # The question's fact leads its section's facts and, unless it is only scheduled,
         # its paragraph: each section of the evidence is tied back to the question.
-        section["facts"] = [fact, *(section.get("facts") or [])]
+        # In the join's order: after the question facts already placed in this section.
+        current = section.get("facts") or []
+        placed = sum(1 for f in current if f.get("question"))
+        section["facts"] = [*current[:placed], fact, *current[placed:]]
         if fact["scheduled"]:
             continue
         for key in ("commentary", "rule_commentary"):
@@ -310,6 +331,14 @@ def rule_answer(sheet: list[dict], info: dict[str, Any], plan) -> dict[str, Any]
                    if nor and nor["value"] else
                    T(f"{NOT_SHOWN} a Norwegian outage affecting supply in this period.",
                      f"{NOT_SHOWN_ZH}本期有挪威停运影响供应。"))
+    elif info["kind"] != "general":
+        from eurogas_nexus.application.reports import joins
+
+        # A join's own facts, in the order it computed them, then what it does not establish.
+        keys = set(info.get("question_keys") or [])
+        cited = [f for f in sheet if f["key"] in keys and not f.get("scheduled")][:3]
+        closing = joins.closing(info["kind"]) if cited else next(
+            (c for c in info["cannot_tell"] if c.startswith((NOT_SHOWN, NOT_SHOWN_ZH))), None)
     else:
         ranked = sorted((f for f in sheet if f.get("sentence") and not f.get("scheduled")
                          and not f.get("forecast")), key=lambda f: -f["score"])

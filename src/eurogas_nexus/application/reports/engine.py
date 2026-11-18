@@ -239,7 +239,7 @@ def _generate_report(
         # The question's own facts (joins and engine-declared relations) and what the data
         # cannot tell, before the facts are numbered.
         question_info = asked.build(plan, results, raws, today=ctx.today,
-                                    missing=_not_held(plan.question))
+                                    missing=_not_held(plan.question), ctx=ctx)
     sheet = page_one.assign_ids(results)
     editorial = page_one.rule_plan(sheet, results)
     if question_info is not None:

@@ -49,6 +49,9 @@ NOT_HELD = (
     (("vessel", "ship", "cargo", "tanker", "船"), "LNG cargo tracking (no vessel source is "
                                                   "connected)"),
     (("electricity price", "power price", "电价"), "power prices in a report section"),
+    (("border", "interconnector", "跨境", "边境"),
+     "flows at a border point (reports hold Norwegian landings by terminal; the Network view "
+     "shows cross-border flows)"),
 )
 PERIOD_WORDS = (
     (("today", "this morning", "今天", "今日"), 1),
@@ -122,11 +125,20 @@ def _not_held(text: str) -> list[str]:
 def rule_plan(question: str, audience: str) -> dict[str, Any]:
     """The deterministic proposal: keywords and the ontology."""
 
+    from eurogas_nexus.application.reports import joins
+
     sections = _sections_for(question)
+    hubs = hubs_in_question(question)
+    countries = _countries(question)
+    if not sections and joins.SINCE.search(question):
+        # "What changed since <date>" with no topic: the market indicators that have a series.
+        sections = ["prices", "pipeline_supply", "lng", "storage"]
+    if len(hubs) >= 2 and joins.SPREAD_WORDS.search(question) and "prices" not in sections:
+        sections.insert(0, "prices")
     return {
         "sections": sections,
-        "hubs": hubs_in_question(question),
-        "countries": _countries(question),
+        "hubs": hubs,
+        "countries": countries,
         "period_days": _period_days(question),
         "missing": _not_held(question),
     }
@@ -226,7 +238,13 @@ def plan_for_question(
         "hubs": proposal["hubs"], "countries": proposal["countries"],
         "question": question, "drop_internal": True,
     }
-    if proposal.get("period_days"):
+    from eurogas_nexus.application.reports.joins import since_date
+
+    since = since_date(question, now.date())
+    if since is not None:
+        # "What changed since <date>": the period runs from that date to today.
+        raw["period_start"], raw["period_end"] = since.isoformat(), now.date().isoformat()
+    elif proposal.get("period_days"):
         raw["period_start"] = (now.date() - timedelta(days=proposal["period_days"] - 1)).isoformat()
         raw["period_end"] = now.date().isoformat()
     notes: list[str] = []

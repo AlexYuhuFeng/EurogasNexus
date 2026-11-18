@@ -224,8 +224,7 @@ h2{font:600 12pt/15pt SERIF;margin:0 0 1.5mm;break-after:avoid}
 .r-group{border-top:0.5pt solid var(--ink);padding-top:1.5mm;margin:5mm 0 1mm;break-after:avoid}
 .r-section{margin:0 0 3mm}
 .r-section>h2+*{break-before:avoid}
-.r-cols{display:grid;grid-template-columns:118mm 1fr;gap:0 8mm;margin:0 0 2mm;
-break-inside:avoid}
+.r-cols{display:grid;grid-template-columns:118mm 1fr;gap:0 8mm;margin:0 0 2mm}
 .r-row{display:grid;grid-template-columns:1fr 1fr;gap:0 6mm;margin:0 0 2mm}
 .r-row>*{min-width:0}
 .r-text p{margin:0 0 2mm;widows:2;orphans:2}

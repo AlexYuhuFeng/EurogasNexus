@@ -613,7 +613,10 @@ def lng(ctx: Ctx) -> SectionResult:
     from eurogas_nexus.domain.fundamentals.balance import NWE_COUNTRIES
 
     result = _new("lng")
-    countries = ctx.plan.countries or list(NWE_COUNTRIES)
+    # An asked report reads the whole region: its question join sets a country against the
+    # NW Europe total (``joins.lng_country``).
+    countries = (list(NWE_COUNTRIES) if ctx.plan.kind == "ask"
+                 else ctx.plan.countries or list(NWE_COUNTRIES))
     first = min(ctx.chart_start, _same_day_last_year(ctx.start) - timedelta(days=7))
     records = (
         ctx.session.query(Lng.period_start_utc, Lng.country, Lng.source_system,
@@ -780,6 +783,8 @@ def storage(ctx: Ctx) -> SectionResult:
                      if p["previous_year_fill_pct"] is not None},
         "latest": date.fromisoformat(latest["day"]), "state": stats["state"],
         "inventory": stats.get("inventory_twh"), "target": stats.get("target"),
+        "by_country": data.get("by_country") or {},
+        "by_country_week": data.get("by_country_week") or {},
     }
     return _apply(result, rules.storage(stats))
 

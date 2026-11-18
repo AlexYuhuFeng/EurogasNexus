@@ -899,9 +899,15 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
             countries=sorted(by_day[last]),
         )
     )
+    week_before = next((d for d in reversed(days) if d <= last - timedelta(days=7)), None)
     return {
         "latest": item,
         "inventory_twh": latest["inventory_twh"],
+        # Inventory and working capacity (TWh) by country, on the newest complete day and a
+        # week before it: the reports' storage-by-country join reads these.
+        "by_country": {c: tuple(v) for c, v in by_day[last].items()},
+        "by_country_week": ({c: tuple(v) for c, v in by_day[week_before].items()}
+                            if week_before else {}),
         "series": series,
         "season": season,
         # The EU filling target (Regulation (EU) 2022/1032 as amended): met at any point in

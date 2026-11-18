@@ -755,3 +755,43 @@ def test_a_reporting_currency_adds_a_converted_close_and_states_the_rate(env):
     note = _sections(usd)["prices"]["tables"][0]["notes"]
     converted = [r for r in _sections(usd)["prices"]["tables"][0]["rows"] if "converted" in r]
     assert converted or "Not converted" in note
+
+
+# ================================================================ question joins (joins.py)
+
+JOIN_CASES = (
+    ("How does Dutch storage compare with NW Europe?", "q.storage.NL", "difference",
+     ("Dutch storage was", "NW Europe fill")),
+    ("How much LNG did French terminals send out this week?", "q.lng.FR", "share_of",
+     ("French terminals sent out", "of the NW Europe total")),
+    ("What is the TTF NBP spread this month?", "q.spread.TTF.NBP", "spread",
+     ("TTF closed", "spread averaged")),
+    ("What changed since 1 Nov?", "q.since.price.TTF", "change_since",
+     ("TTF Dec-26 stood at", "from")),
+)
+
+
+@pytest.mark.parametrize("question,key,relation,phrases", JOIN_CASES)
+def test_a_question_join_answers_with_an_engine_computed_relation(env, question, key, relation,
+                                                                  phrases):
+    plan = plan_for_question(question, audience="internal", now=NOW)
+    assert plan["answerable"], plan
+    report = _generate(env, _caller("DEMO", "BOOKS:*"), plan["plan"])
+    facts = [f for s in report.snapshot["sections"] for f in s.get("facts") or []]
+    fact = next(f for f in facts if f["key"] == key)
+    assert fact["relation"] == relation and fact["question"]
+    answer = report.snapshot["answer"]["text"]
+    assert all(p in answer for p in phrases), answer
+    assert answer.rstrip(".").endswith(("differ", "moved", "spread", "moves"))
+    # Honesty: a relation is arithmetic, never a cause.
+    assert not re.search(r"\b(because|due to|caused by|driven by|led to)\b", answer)
+
+
+def test_the_spread_join_states_its_conversion_and_a_border_question_is_not_held(env):
+    plan = plan_for_question("What is the TTF NBP spread this month?", now=NOW)["plan"]
+    report = _generate(env, _caller("DEMO"), plan)
+    assert any("ECB reference rate" in c and "one rate for every day" in c
+               for c in report.snapshot["cannot_tell"])
+    border = plan_for_question("What are flows at the Belgian border?", now=NOW)
+    assert not border["answerable"]
+    assert any("border point" in m for m in border["missing"])

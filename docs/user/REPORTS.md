@@ -102,10 +102,24 @@ The report answers the question:
   is stated) with their capacity as a share of the latest landings, and the landings averaged
   over the days those outages were active against the seven days before. The engine marks those
   two as computed together, so the report may say "over the days ... were active"; it never says
-  the outage caused the change, because the data held cannot show that.
+  the outage caused the change, because the data held cannot show that. Other questions the
+  engine relates (each fact declares the arithmetic it is: a share, a difference, a spread or a
+  change since a date):
+  - **A country's storage against NW Europe** ("How does Dutch storage compare with NW
+    Europe?"): the country's fill, inventory and working capacity, the gap to the NW Europe
+    fill and the move over seven days.
+  - **A country's LNG send-out** ("How much LNG did French terminals send out this week?"): the
+    latest day, its share of the NW Europe total and the average over the last days held.
+  - **The spread between two hubs** ("What is the TTF NBP spread this month?"): the latest
+    spread, its average and range over the common close days, in the first hub's unit; a
+    second hub in another unit is converted at one ECB reference rate, which is stated.
+  - **What changed since a date** ("What changed since 1 Nov?", "11月1日以来有什么变化？"): TTF,
+    NBP, landings, LNG and storage from the last day held on or before the date to the newest.
+  - **Flows at a border point** are not a report section: the question says so and points to
+    the Network view.
 - **Evidence.** Only the sections that bear on the question, in order of relevance, each
-  paragraph opening with how it bears on it; the outage schedule lists the outages tied to
-  Norwegian supply first.
+  opening with the question's fact; the outage schedule lists the outages tied to Norwegian
+  supply first.
 - **What the data cannot tell**: outages that cannot be tied to the question, flows not yet
   reported, sources that are not held, the forecast's missing range, and that a coincidence is
   not a measured effect. Then **What to watch** (scheduled events only).

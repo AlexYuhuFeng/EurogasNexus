@@ -6,6 +6,17 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-18 — market reports round 5 (part 2): progress, conversion, question joins (branch `reports-round5b`, not pushed)
+
+- Generation progress uses the shared `WorkProgress` (motion stops under reduced motion).
+- Optional reporting currency and energy unit: the closes table keeps the native price and adds
+  a converted one through `market_normalisation` (spot ECB, rate and factor in Methodology).
+- `reports/joins.py`: storage by country against NW Europe (`desk_today._storage` now returns
+  `by_country`), LNG by country, the spread between two hubs (conversion stated), what changed
+  since a date; border flows are named as not held. Each join fact declares its `relation`.
+- The text-and-side-panel row may break across pages; a text-and-figure row still moves whole.
+- No new path or operation.
+
 ## 2026-11-18 — CP-16 Research → Spreads and CP-23 "Describe a strategy" (branch `cp-16`, not pushed)
 
 - One StrategySpec (curve | history, legs, unit, forward/spot FX, route tariff, rule) edited
