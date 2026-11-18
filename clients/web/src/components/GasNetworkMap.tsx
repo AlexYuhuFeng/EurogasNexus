@@ -46,8 +46,11 @@ import {
   isZoneMembershipEdge,
   zoneMemberIds,
 } from "@/app/mapLineGeometry";
+import i18n from "@/i18n";
 import {
+  BUNDLED_FONTSTACK,
   buildMapStyle,
+  bundledPalette,
   configuredMapTileProvider,
   mapTileProviderById,
   quietBasemapMinZoom,
@@ -634,6 +637,7 @@ export function GasNetworkMap({
           rasterContrast: effectiveTheme === "dark" ? 0.2 : 0.28,
           rasterBrightnessMin: effectiveTheme === "dark" ? 0.12 : 0.2,
           rasterBrightnessMax: effectiveTheme === "dark" ? 0.76 : 0.96,
+          language: i18n.language,
         },
         effectiveTheme === "dark" ? "dark" : "light",
       ),
@@ -650,6 +654,21 @@ export function GasNetworkMap({
       // against the Mediterranean as on a flat Mercator map; MapLibre flattens it as the view
       // narrows to a region.
       map.setProjection({ type: "globe" });
+      // The bundled basemap is revealed rather than popped in: land, coast, borders and names
+      // fade up together (at once under reduced motion).
+      if (map.getLayer("bundled-borders")) {
+        const duration = prefersReducedMotion() ? 0 : 700;
+        for (const [layerId, property, value] of [
+          ["outline-land", "fill-opacity", 1],
+          ["outline-coast", "line-opacity", 1],
+          ["bundled-borders", "line-opacity", 0.9],
+          ["bundled-country-labels", "text-opacity", 1],
+          ["bundled-city-labels", "text-opacity", 0.9],
+        ] as const) {
+          map.setPaintProperty(layerId, `${property}-transition` as never, { duration, delay: 0 } as never);
+          map.setPaintProperty(layerId, property as never, value as never);
+        }
+      }
       if (mapTileProvider.styleUrl) {
         for (const layer of map.getStyle().layers) {
           if (layer.type !== "symbol") continue;
@@ -707,6 +726,22 @@ export function GasNetworkMap({
     };
   }, [basemapStyleKey]);
 
+  // The bundled basemap names places in the app language (English or Chinese).
+  useEffect(() => {
+    const apply = (language: string) => {
+      const map = mapRef.current;
+      if (!map || !mapReady || !map.getLayer("bundled-country-labels")) return;
+      const field = String(language).toLowerCase().startsWith("zh") ? "name_zh" : "name_en";
+      map.setLayoutProperty("bundled-country-labels", "text-field", ["get", field]);
+      map.setLayoutProperty("bundled-city-labels", "text-field", ["get", field]);
+    };
+    apply(i18n.language);
+    i18n.on("languageChanged", apply);
+    return () => {
+      i18n.off("languageChanged", apply);
+    };
+  }, [mapReady]);
+
   useEffect(() => {
     const map = mapRef.current;
     // "load" (mapReady) means the style can be edited. isStyleLoaded() is also false while a
@@ -720,6 +755,14 @@ export function GasNetworkMap({
     if (map.getLayer("outline-land")) {
       map.setPaintProperty("outline-land", "fill-color", effectiveTheme === "dark" ? "#18181b" : "#ffffff");
       map.setPaintProperty("outline-coast", "line-color", effectiveTheme === "dark" ? "#3f3f46" : "#d4d4d8");
+    }
+    if (map.getLayer("bundled-borders")) {
+      const palette = bundledPalette(effectiveTheme === "dark" ? "dark" : "light");
+      map.setPaintProperty("bundled-borders", "line-color", palette.border);
+      for (const [layerId, colour] of [["bundled-country-labels", palette.country], ["bundled-city-labels", palette.city]] as const) {
+        map.setPaintProperty(layerId, "text-color", colour);
+        map.setPaintProperty(layerId, "text-halo-color", palette.halo);
+      }
     }
     for (const rasterLayerId of ["basemap-raster", "tianditu-vec-raster", "tianditu-label-raster"]) {
       if (!map.getLayer(rasterLayerId)) continue;
@@ -1044,6 +1087,8 @@ export function GasNetworkMap({
         layout: {
           "text-field": ["get", "point_count_abbreviated"],
           "text-size": 11,
+          // The bundled basemap's Inter glyphs; a vector basemap keeps its own font.
+          ...(mapTileProvider.id === "bundled" ? { "text-font": [BUNDLED_FONTSTACK] } : {}),
         },
         paint: { "text-color": mapColors.stroke },
       });

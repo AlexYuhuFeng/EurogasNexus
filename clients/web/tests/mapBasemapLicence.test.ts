@@ -27,9 +27,22 @@ function locale(name: "en" | "zh"): Record<string, string> {
 test("no third-party basemap is the default", () => {
   const source = readWebSource("src/app/mapTileProviders.ts");
 
-  // The default is the bundled outline, served by the application itself.
-  assert.match(source, /export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "outline";/);
+  // The default is the bundled basemap (P3), served by the application itself: land, borders
+  // and names from Natural Earth, labels in glyphs built from the bundled Inter.
+  assert.match(source, /export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "bundled";/);
   assert.ok(readWebSource("public/basemaps/land-trading-region.geojson").includes("Natural Earth"));
+  assert.ok(readWebSource("public/basemaps/borders-trading-region.geojson").includes("Natural Earth"));
+  const places = JSON.parse(readWebSource("public/basemaps/places-trading-region.geojson")) as {
+    features: Array<{ properties: { kind: string; name_en: string; name_zh: string } }>;
+  };
+  assert.ok(places.features.some((feature) => feature.properties.kind === "country" && feature.properties.name_zh));
+  for (const range of ["0-255", "256-511", "8192-8447"]) {
+    assert.ok(readFileSync(resolve(web, `public/basemaps/glyphs/Inter Regular/${range}.pbf`)).length > 1000, range);
+  }
+  // The bundled style names no other host: every URL it holds is built from the app's origin.
+  const bundled = source.slice(source.indexOf('if (providerId === "bundled")'), source.indexOf('if (providerId === "outline")'));
+  assert.doesNotMatch(bundled, /https?:\/\//);
+  assert.match(bundled, /ownAssetUrl\(BUNDLED_GLYPHS_PATH\)/);
   // The old default was chosen from the browser's language, which put AMap's public endpoint in
   // front of a Chinese-locale operator without anybody deciding it.
   assert.doesNotMatch(source, /navigator\.language/);

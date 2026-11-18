@@ -121,7 +121,7 @@ with it.
 
 | Installation | Default | Why |
 |---|---|---|
-| Global | OpenFreeMap (OpenStreetMap data, free for commercial use with attribution) | Street-level detail, no key |
+| Global | Bundled basemap (Natural Earth land, coast, borders and names, labels in the bundled Inter) | Served by the application: no third-party request, works offline and air-gapped; land, borders and names fade in when the map loads (at once under reduced motion); names follow the app language |
 | Mainland China | Bundled outline (Natural Earth, public domain) | Foreign tile services are often unreachable and published maps of China need approval. The outline is served by the application, covers Europe, North Africa and the Middle East only, and draws no Chinese territory and no borders |
 | Air-gapped | Bundled outline, or the firm's own tile server | Nothing leaves the network |
 
@@ -130,7 +130,12 @@ provider: **Tianditu** (government service, free key; confirm the current terms 
 enterprise use) or **AMap / 高德**, whose enterprise use requires its paid commercial
 licence (public reports put the basic tier at about CNY 50,000 a year; confirm with AMap).
 AMap's public endpoint is listed for evaluation only. The outline is rebuilt with
-`scripts/ui/build_offline_basemap.py`.
+`scripts/ui/build_offline_basemap.py`; its `--natural-earth` mode rebuilds the bundled
+basemap's borders and names, and `scripts/ui/build_map_glyphs.mjs` its Inter label glyphs.
+An operator who wants street-level detail names an external style
+(`EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=openfreemap` or `versatiles`, a licensed or own tile
+service, or Settings → Map per user). `scripts/uat/map_no_third_party.mjs` checks in a browser
+that the default map makes no request to another host.
 
 ## Selecting: what each thing tells you
 

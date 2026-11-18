@@ -52,7 +52,8 @@ def test_release_profile_requires_public_token_for_release_metadata() -> None:
 def test_deployment_profile_picks_region_appropriate_basemaps():
     from eurogas_nexus.api.routes.public.runtime import deployment_profile
 
-    assert deployment_profile({}) == {"region": "global", "map_default_provider": "openfreemap"}
+    # The bundled basemap: no third-party request by default.
+    assert deployment_profile({}) == {"region": "global", "map_default_provider": "bundled"}
     china = deployment_profile({"EUROGAS_NEXUS_DEPLOYMENT_REGION": "china"})
     assert china["map_default_provider"] == "outline"
     chosen = deployment_profile(
@@ -64,5 +65,11 @@ def test_deployment_profile_picks_region_appropriate_basemaps():
     assert chosen["map_default_provider"] == "tianditu"
     assert (
         deployment_profile({"EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": "osm"})["map_default_provider"]
-        == "openfreemap"
+        == "bundled"
     )  # a non-commercial endpoint is never a deployment default
+    assert (
+        deployment_profile({"EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": "openfreemap"})[
+            "map_default_provider"
+        ]
+        == "openfreemap"
+    )  # an external style the operator names

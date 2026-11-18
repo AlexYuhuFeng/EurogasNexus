@@ -26,6 +26,7 @@ import type { StyleSpecification } from "maplibre-gl";
 
 export type MapTileProviderId =
   | "none"
+  | "bundled"
   | "outline"
   | "custom"
   | "openfreemap"
@@ -72,27 +73,62 @@ const MAP_TILE_TOKEN_KEY = "eurogas.settings.map_tile_token";
  * served by the application itself) gives the network a coastline without fetching anything
  * from a third party, so it is safe in every jurisdiction and in air-gapped networks.
  */
-export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "outline";
+export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "bundled";
 
 /** Land polygons built by scripts/ui/build_offline_basemap.py (Europe, North Africa, Middle East). */
 export const OUTLINE_BASEMAP_PATH = "basemaps/land-trading-region.geojson";
+/** Country borders and place names for the bundled basemap (same script, Natural Earth). */
+export const BUNDLED_BORDERS_PATH = "basemaps/borders-trading-region.geojson";
+export const BUNDLED_PLACES_PATH = "basemaps/places-trading-region.geojson";
+/** Label glyphs built from the bundled Inter (scripts/ui/build_map_glyphs.mjs). */
+export const BUNDLED_GLYPHS_PATH = "basemaps/glyphs/{fontstack}/{range}.pbf";
+export const BUNDLED_FONTSTACK = "Inter Regular";
+
+/** The bundled basemap's colours in each theme (also used to recolour it in place). */
+export function bundledPalette(theme: "light" | "dark") {
+  return theme === "dark"
+    ? { land: "#18181b", coast: "#3f3f46", border: "#52525b", country: "#a1a1aa", city: "#8b8b94", halo: "#0b0b0d" }
+    : { land: "#ffffff", coast: "#d4d4d8", border: "#c4c4cc", country: "#71717a", city: "#8a8a93", halo: "#ffffff" };
+}
+
+/** The application's own origin and base path, for style URLs MapLibre needs absolute. */
+function ownAssetUrl(relative: string): string {
+  const base = (import.meta.env?.BASE_URL as string | undefined) ?? "/";
+  const prefix = base.endsWith("/") ? base : `${base}/`;
+  const origin = typeof window !== "undefined" && window.location ? window.location.origin : "";
+  return `${origin}${prefix.startsWith("/") ? prefix : `/${prefix}`}${relative}`;
+}
 
 export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
   {
+    id: "bundled",
+    label: "Bundled basemap (Natural Earth)",
+    labelZh: "内置底图（Natural Earth，默认）",
+    requiresToken: false,
+    licence: "open-licence",
+    availability: "outside-mainland-china",
+    description:
+      "The default. Land, coastlines, country borders and place names of Europe, North Africa and "
+      + "the Middle East from Natural Earth (public domain), labels in the bundled Inter, all served "
+      + "by the application itself: no request leaves for a third party and it works offline. "
+      + "Draws country borders, so a mainland China installation uses the outline instead.",
+    attribution: "Natural Earth",
+  },
+  {
     id: "none",
     label: "No basemap",
-    labelZh: "无底图（默认）",
+    labelZh: "无底图",
     requiresToken: false,
     licence: "licensed-by-deployment",
     availability: "anywhere",
     description:
-      "The default. The network draws on a plain background, so no third-party licence is implied "
-      + "by using the platform and nothing has to be reachable from the browser.",
+      "The network draws on a plain background, so no third-party licence is implied by using "
+      + "the platform and nothing has to be reachable from the browser.",
   },
   {
     id: "outline",
     label: "Offline outline (Natural Earth)",
-    labelZh: "离线轮廓底图（Natural Earth，默认）",
+    labelZh: "离线轮廓底图（Natural Earth，中国大陆默认）",
     requiresToken: false,
     licence: "open-licence",
     availability: "anywhere",
@@ -200,7 +236,7 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
  * more and only exaggerate the error of approximate positions.
  */
 export function mapZoomRange(id: MapTileProviderId): { minZoom: number; maxZoom: number } {
-  return id === "none" || id === "outline" ? { minZoom: 2, maxZoom: 10 } : { minZoom: 2, maxZoom: 17 };
+  return id === "none" || id === "outline" || id === "bundled" ? { minZoom: 2, maxZoom: 10 } : { minZoom: 2, maxZoom: 17 };
 }
 
 /** How many place labels the map shows at a zoom: more as the view narrows. */
@@ -288,7 +324,7 @@ export function mapTileBasemapState(
   token: string,
 ): "configured" | "no-basemap" | "unavailable" {
   if (provider.id === "none") return "no-basemap";
-  if (provider.id === "outline") return "configured";
+  if (provider.id === "outline" || provider.id === "bundled") return "configured";
   if (provider.id === "custom") {
     return configuredCustomTileTemplate() ? "configured" : "unavailable";
   }
@@ -379,6 +415,8 @@ export function transformCoordinate(
 
 export interface MapStyleOptions {
   background: string;
+  /** App language for the bundled basemap's place names (English or Chinese). */
+  language?: string;
   rasterOpacity: number;
   rasterSaturation: number;
   rasterContrast: number;
@@ -422,6 +460,66 @@ export function buildMapStyle(
   if (providerId === "none") {
     // The deployment chose no basemap, so the background layer is the whole style and the map
     // states that. Nothing is fetched from a third party on the operator's behalf.
+    return style;
+  }
+
+  if (providerId === "bundled") {
+    // Everything from the application's own origin: land, coast, borders, place names and the
+    // Inter glyphs they are drawn with. The land starts transparent and is revealed on load
+    // (GasNetworkMap), so the map fades in rather than popping.
+    const palette = bundledPalette(theme);
+    const nameField = String(options.language ?? "").toLowerCase().startsWith("zh") ? "name_zh" : "name_en";
+    style.glyphs = ownAssetUrl(BUNDLED_GLYPHS_PATH);
+    style.sources = {
+      land: { type: "geojson", data: ownAssetUrl(OUTLINE_BASEMAP_PATH), attribution: "Natural Earth" },
+      borders: { type: "geojson", data: ownAssetUrl(BUNDLED_BORDERS_PATH) },
+      places: { type: "geojson", data: ownAssetUrl(BUNDLED_PLACES_PATH) },
+    };
+    style.layers.push(
+      { id: "outline-land", type: "fill", source: "land", paint: { "fill-color": palette.land, "fill-opacity": 0 } },
+      { id: "outline-coast", type: "line", source: "land", paint: { "line-color": palette.coast, "line-width": 0.6, "line-opacity": 0 } },
+      {
+        id: "bundled-borders",
+        type: "line",
+        source: "borders",
+        paint: { "line-color": palette.border, "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.5, 7, 1], "line-opacity": 0 },
+      },
+      {
+        id: "bundled-country-labels",
+        type: "symbol",
+        source: "places",
+        filter: ["==", ["get", "kind"], "country"],
+        // The larger countries name first; small ones as the view narrows.
+        minzoom: 3,
+        layout: {
+          "text-field": ["get", nameField],
+          "text-font": [BUNDLED_FONTSTACK],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 3, 10, 7, 13],
+          "text-transform": "uppercase",
+          "text-letter-spacing": 0.12,
+          "text-max-width": 8,
+          "symbol-sort-key": ["get", "rank"],
+          "text-optional": true,
+        },
+        paint: { "text-color": palette.country, "text-halo-color": palette.halo, "text-halo-width": 1.2, "text-opacity": 0 },
+      },
+      {
+        id: "bundled-city-labels",
+        type: "symbol",
+        source: "places",
+        filter: ["all", ["!=", ["get", "kind"], "country"], ["<=", ["get", "rank"], ["step", ["zoom"], 1, 4.5, 3, 5.5, 5, 6.5, 7]]],
+        minzoom: 4,
+        layout: {
+          "text-field": ["get", nameField],
+          "text-font": [BUNDLED_FONTSTACK],
+          "text-size": 11,
+          "text-anchor": "left",
+          "text-offset": [0.5, 0],
+          "symbol-sort-key": ["get", "rank"],
+        },
+        paint: { "text-color": palette.city, "text-halo-color": palette.halo, "text-halo-width": 1.2, "text-opacity": 0 },
+      },
+    );
     return style;
   }
 

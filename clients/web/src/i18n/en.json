@@ -5920,5 +5920,6 @@
   "spreads.rule.volume": "Size (MWh/d)",
   "spreads.rule.trades": "Rule trades",
   "spreads.rule.hit_rate": "Hit rate",
-  "spreads.rule.pnl": "Rule result ({{unit}} × MWh)"
+  "spreads.rule.pnl": "Rule result ({{unit}} × MWh)",
+  "settings.map_tile_provider_bundled": "Bundled basemap (default): land, coastlines, country borders and place names from Natural Earth (public domain), labels in the bundled Inter, all served by this application. No request leaves for a third party; works offline. Draws country borders, so a mainland China installation uses the outline."
 }

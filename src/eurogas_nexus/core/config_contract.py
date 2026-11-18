@@ -397,11 +397,12 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         name="EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER",
         scope="OPERATOR",
         purpose=(
-            "Default basemap for this installation: openfreemap, versatiles (open licences, "
-            "global), outline (bundled Natural Earth coastlines, offline; China default), "
+            "Default basemap for this installation: bundled (Natural Earth land, borders and "
+            "names served by the application, offline; global default), outline (bundled "
+            "coastlines only; China default), openfreemap or versatiles (external open styles), "
             "tianditu (mainland China, key required), custom (own tile service) or none."
         ),
-        example="openfreemap",
+        example="bundled",
         notes=("Use none or custom in networks without internet access",),
     ),
     ConfigVar(
