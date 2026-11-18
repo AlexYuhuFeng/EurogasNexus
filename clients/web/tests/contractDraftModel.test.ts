@@ -285,6 +285,12 @@ test("a database that is not ready blocks the write and says why", () => {
   );
 });
 
+test("a data-store status read that has not answered is not reported as a disconnection", () => {
+  const state = saveState({ runtimeDbReady: false, runtimeDbKnown: false });
+  assert.equal(state.canSave, false);
+  assert.equal(state.statusKey, "home.blocker_runtime_unknown");
+});
+
 test("a read in flight blocks the write without misreporting the draft as incomplete", () => {
   const state = saveState({ loading: true });
   assert.equal(state.canSave, false);

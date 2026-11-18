@@ -339,6 +339,11 @@ export interface ContractSaveState {
 export function contractSaveState(input: {
   readonly contract: ContractDraft;
   readonly runtimeDbReady: boolean;
+  /**
+   * False while the data-store status read has not answered: "not ready" is then not
+   * "not connected" (a slow read during ingestion said so, 2026-11-17). Defaults to known.
+   */
+  readonly runtimeDbKnown?: boolean;
   readonly loading: boolean;
   /** What the surface is showing, resolved once by `contractViewFacts`. */
   readonly viewFacts: ContractViewFacts;
@@ -352,7 +357,9 @@ export function contractSaveState(input: {
         : "status.unknown"
       : "contracts.library"
     : !input.runtimeDbReady
-      ? "home.blocker_runtime_db"
+      ? input.runtimeDbKnown === false
+        ? "home.blocker_runtime_unknown"
+        : "home.blocker_runtime_db"
       : issues.length > 0
         ? "contracts.validation.blocked"
         : "contracts.validation.ready";

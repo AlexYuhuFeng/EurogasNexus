@@ -193,6 +193,8 @@ interface ContractWorkbenchProps {
   totalPoolVolume: number;
   firstPoolAllocation: { early_cash_value_gbp_mwh: number; net_margin_gbp_mwh: number; net_pnl_gbp_per_day: number } | null;
   runtimeDbReady: boolean;
+  /** False while the data-store status read has not answered. */
+  runtimeDbKnown?: boolean;
   loading: boolean;
   draftDirty: boolean;
   selectedResourceId: string | null;
@@ -255,7 +257,7 @@ function formatTimestamp(value: string | undefined): string {
 
 export function ContractWorkbench({
   contract, upstreamContracts, portfolioResources, totalPoolVolume,
-  firstPoolAllocation, runtimeDbReady, loading, draftDirty, selectedResourceId,
+  firstPoolAllocation, runtimeDbReady, runtimeDbKnown = true, loading, draftDirty, selectedResourceId,
   taskView, onTaskViewChange, viewFacts, saveState,
   onOpenStrategyForResource, contractImportRef, contractImportMessage, contractImportBusy = false,
   contractIntake = null, onDismissContractIntake, onContractLifecycle,
@@ -345,7 +347,7 @@ export function ContractWorkbench({
         <dl className="contract-command-facts">
           <div><dt>{t("contracts.counterparty")}</dt><dd>{readOnlySelectedResource ? selectedCounterparty : contract.counterparty || "n/a"}</dd></div>
           <div><dt>{t("status.source")}</dt><dd>{readOnlySelectedResource ? selectedResource?.source_refs?.join(", ") || selectedPersistedSourceReference || t("contracts.no_source_reference") : contract.document_name || t("contracts.manual_entry")}</dd></div>
-          <div><dt>{t("status.db")}</dt><dd>{runtimeDbReady ? t("data.ready") : t("data.unavailable")}</dd></div>
+          <div><dt>{t("status.db")}</dt><dd>{runtimeDbReady ? t("data.ready") : runtimeDbKnown ? t("data.unavailable") : t("status.chip.checking")}</dd></div>
           <div><dt>{t("panel.status")}</dt><dd>{readOnlySelectedResource ? selectedPersistedTerm?.human_review_required === true ? t("settings.human_review") : t("data.unavailable") : t("settings.human_review")}</dd></div>
         </dl>
         <div className="contract-command-actions" tabIndex={0}>

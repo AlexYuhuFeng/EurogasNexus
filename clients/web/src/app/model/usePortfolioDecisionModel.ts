@@ -575,6 +575,8 @@ export function usePortfolioDecisionModel({
     latestCapacityRows,
     reviewWarnings,
     runtimeDbReady,
+    /** False while the data-store status read has not answered (not a disconnection). */
+    runtimeDbKnown: runtimeStore !== "unknown",
     canRunPoolOptimizer,
     canCompareRoutes,
     poolOptimizeGate,

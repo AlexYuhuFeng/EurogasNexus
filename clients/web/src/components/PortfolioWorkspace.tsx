@@ -300,6 +300,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   const contractSaveStateForDraft = contractSaveState({
     contract: contractEditor.contract,
     runtimeDbReady: portfolio.runtimeDbReady,
+    runtimeDbKnown: portfolio.runtimeDbKnown,
     loading: api.loading,
     viewFacts: contractViewFactsForSelection,
   });
@@ -407,6 +408,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             totalPoolVolume={portfolio.totalPoolVolume}
             firstPoolAllocation={portfolio.firstPoolAllocation}
             runtimeDbReady={portfolio.runtimeDbReady}
+            runtimeDbKnown={portfolio.runtimeDbKnown}
             loading={api.loading}
             draftDirty={contractEditor.draftDirty}
             selectedResourceId={selection.resourceId}
