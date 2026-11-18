@@ -591,11 +591,12 @@ function ReportViewer({ reportId, t, onRemoved, onRenamed }: {
   const printFrame = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
-    if (!reportId) return undefined;
-    let live = true;
     setHtml(null);
     setMeta(null);
     setFailed(false);
+    // A deleted (or unselected) report leaves the viewer empty, not showing the old document.
+    if (!reportId) return undefined;
+    let live = true;
     Promise.all([fetchReportHtml(reportId), api.marketReport(reportId)])
       .then(([text, response]) => {
         if (!live) return;
