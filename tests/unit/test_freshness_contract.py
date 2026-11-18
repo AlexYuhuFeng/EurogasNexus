@@ -81,7 +81,7 @@ def test_tariff_registers_are_manual_and_raise_no_freshness_alarm() -> None:
     tariffs = [d for d in source_definitions() if d.integration == MANUAL_REGISTER]
     assert {d.source_id for d in tariffs} == {
         "src-national-gas-nts", "src-bbl", "src-iuk", "src-gts", "src-natran",
-        "src-german-tso", "src-fluxys-belgium", "src-cnmc-enagas",
+        "src-german-tso", "src-fluxys-belgium", "src-cnmc-enagas", "src-lng-terminal-tariffs",
     }
     ancient = NOW - timedelta(days=400)
     for definition in tariffs:

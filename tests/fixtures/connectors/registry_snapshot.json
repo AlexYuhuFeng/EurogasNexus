@@ -304,6 +304,47 @@
    "credential_state": "not_required",
    "credential_status": null,
    "datasets": [
+    "regas-slot-tariffs",
+    "cargo-class-tariffs",
+    "gas-in-kind",
+    "slot-terms"
+   ],
+   "description": "Regulated LNG terminal tariffs and slot terms as the operators publish them (Fluxys LNG, Elengy, DET), versioned by document and reviewed before use. Read only for operators whose reuse permission the firm has recorded.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "LNG_TERMINAL_TARIFFS",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 43200,
+   "integration": "manual_register",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-lng-terminal-tariffs",
+   "source_system": "LNG_TERMINAL_TARIFFS",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "tariff",
+   "category_label": "TSO Tariffs",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
     "interconnector-tariffs",
     "forward-flow",
     "reverse-flow"
@@ -2019,6 +2060,67 @@
    },
    "source_class": "reference",
    "source_id": "src-national-gas-nts"
+  },
+  {
+   "access_mode": "public_http",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "regas-slot-tariffs",
+   "datasets": [
+    "regas-slot-tariffs",
+    "cargo-class-tariffs",
+    "gas-in-kind",
+    "slot-terms"
+   ],
+   "description": "Regulated LNG terminal tariffs and slot terms as the operators publish them (Fluxys LNG, Elengy, DET), versioned by document and reviewed before use. Read only for operators whose reuse permission the firm has recorded.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 64800,
+    "normal_max_age_minutes": 43200,
+    "stale_after_minutes": 129600
+   },
+   "integration": "manual_register",
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "LNG_TERMINAL_TARIFFS",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 60.0,
+    "jitter": true,
+    "max_delay_seconds": 1800.0,
+    "retry_max": 2
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "reference",
+   "source_id": "src-lng-terminal-tariffs"
   },
   {
    "access_mode": "public_http",
