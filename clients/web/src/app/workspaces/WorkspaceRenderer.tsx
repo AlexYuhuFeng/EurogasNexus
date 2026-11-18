@@ -1,7 +1,6 @@
 import { tabLabels } from "@/components/ui/tabLabels";
 import type { AppController } from "@/app/hooks/useAppController";
 import { AccessCenter } from "@/components/AccessCenter";
-import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
 import { headerModeForPage } from "@/app/experience/workspacePatterns";
 import { sourceRunReadiness, sourceRunReason } from "@/app/model/sourceRunModel";
@@ -15,16 +14,11 @@ import { PortfolioWorkspace } from "@/components/PortfolioWorkspace";
 import { DecisionWorkspace } from "@/components/DecisionWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import { RuntimeWorkspace } from "@/components/RuntimeWorkspace";
-import { ResearchDataWorkspace } from "@/components/ResearchDataWorkspace";
 import { ReportsWorkspace } from "@/components/ReportsWorkspace";
 import { SpreadsWorkbench } from "@/components/research/SpreadsWorkbench";
 import { pageTaskFromLocation } from "@/app/navigation/modeNavigation";
-import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
-import { StrategyLabWorkspace } from "@/components/strategy/StrategyLabWorkspace";
-import { useStrategyLab } from "@/app/model/useStrategyLab";
-import { useStrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
 import { useModeHeader } from "@/app/navigation/useModeHeader";
 
 interface WorkspaceRendererProps {
@@ -48,27 +42,12 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
   } = controller;
   const activeWorkspace = navigation.activeWorkspace;
   const activePrimaryWorkspace = primaryWorkspaceForPage(activeWorkspace);
-  const strategyLab = useStrategyLab({
-    gasDay: traderContext.gasDay,
-    locationRevision: navigation.locationRevision,
-    selection: {
-      strategyId: selection.strategyId,
-      strategyVersionId: selection.strategyVersionId,
-      strategyRunId: selection.strategyRunId,
-      setStrategyId: selection.setStrategyId,
-      setStrategyVersionId: selection.setStrategyVersionId,
-      setStrategyRunId: selection.setStrategyRunId,
-    },
-  });
-  // Keep the unsaved Design draft alive when the user visits Contracts.
-  const designDraft = useStrategyDesignDraft({ controller: strategyLab, selection, t });
   // Header composition is read from the Architecture V2 workspace-pattern
   // registry instead of a local list of primary ids, so the composition rule has
   // exactly one owner (docs/engineering/Architecture-V2/W1-02_*.md).
   const usesConsolidatedHeader = headerModeForPage(activeWorkspace) === "consolidated";
-  // A page in a mode (Research: Strategies, Data, Assistant) shows the mode's task row; a utility
-  // page (help, settings, administration) keeps its own pages as tabs.
-  // Research has one task of its own in the URL (`task=reports`); the others are its views.
+  // A page in a mode shows the mode's task row; a utility page (help, settings, administration)
+  // keeps its own pages as tabs. Research's one task today is Reports (`task=reports`).
   const researchTask =
     activeWorkspace === "research" && typeof window !== "undefined"
       ? pageTaskFromLocation("research", window.location.search)
@@ -128,35 +107,11 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       )}
 
       {activePrimaryWorkspace.id === "portfolio" && (
-        <PortfolioWorkspace controller={controller} onOpenStrategyForResource={(resourceId) => {
-          const contract = api.upstreamContracts.find((item) => item.contract_id === resourceId);
-          if (!contract) return;
-          designDraft.offerContract(contract);
-          navigation.openWorkspace("strategy");
-          strategyLab.openTask("design");
-        }} />
+        <PortfolioWorkspace controller={controller} />
       )}
 
       {activePrimaryWorkspace.id === "decision" && (
         <DecisionWorkspace controller={controller} />
-      )}
-
-      {activeWorkspace === "strategy" && (
-        <StrategyLabWorkspace
-          controller={strategyLab}
-          designDraft={designDraft}
-          selection={{
-            strategyId: selection.strategyId,
-            strategyVersionId: selection.strategyVersionId,
-            strategyRunId: selection.strategyRunId,
-            setStrategyId: selection.setStrategyId,
-            setStrategyVersionId: selection.setStrategyVersionId,
-            setStrategyRunId: selection.setStrategyRunId,
-          }}
-          gasDay={traderContext.gasDay}
-          language={i18n.language}
-          t={t}
-        />
       )}
 
       {activeWorkspace === "sources" && (
@@ -279,27 +234,10 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <AccessCenter currentUser={api.currentUser} t={t} />
       )}
 
-      {activeWorkspace === "research" && researchTask === "spreads" && <SpreadsWorkbench />}
-
-      {activeWorkspace === "research" && researchTask !== "reports" && researchTask !== "spreads" && (
-        <ResearchDataWorkspace t={t} />
-      )}
+      {activeWorkspace === "research" && researchTask !== "reports" && <SpreadsWorkbench />}
 
       {activeWorkspace === "research" && researchTask === "reports" && (
         <ReportsWorkspace t={t} language={i18n.language} />
-      )}
-
-      {activeWorkspace === "agents" && (
-        <AgentsWorkspace
-          t={t}
-          principalId={api.currentUser?.principal_id ?? null}
-          // A research run persists its own rows, so the route refuses it with 503 until the
-          // runtime database is configured and reachable. The action is gated on the same
-          // fact the portfolio optimiser uses instead of being offered and then failing.
-          runtimeDbReady={
-            api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok
-          }
-        />
       )}
 
       {activeWorkspace === "runtime" && (

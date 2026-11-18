@@ -67,7 +67,7 @@ export const panelTaxonomy: readonly PanelContract[] = [
   {
     kind: "time-series",
     purpose: "A price, volume, exposure or PnL series over the active time basis.",
-    owners: ["clients/web/src/components/strategy/StrategyLabCharts.tsx"],
+    owners: ["clients/web/src/components/ui/charts/Chart.tsx"],
     implementation: "partial",
     disclosures: ["as-of", "units", "time-basis", "provenance"],
     patterns: ["MONITOR", "ANALYSE", "COMPARE"],
@@ -111,8 +111,7 @@ export const panelTaxonomy: readonly PanelContract[] = [
     kind: "evidence",
     purpose: "Provenance and lineage for a result or artifact: source, version, hash and rights state.",
     owners: [
-      "clients/web/src/components/agents/AgentArtifactChain.tsx",
-      "clients/web/src/components/agents/AgentReviewGate.tsx",
+      "clients/web/src/components/ui/EvidenceBlock.tsx",
     ],
     implementation: "partial",
     disclosures: ["provenance", "entitlement", "as-of"],
@@ -129,7 +128,7 @@ export const panelTaxonomy: readonly PanelContract[] = [
   {
     kind: "comparison",
     purpose: "Two or more alternatives, scenarios or routes side by side on one time basis.",
-    owners: ["clients/web/src/components/strategy/StrategyCompareWorkspace.tsx"],
+    owners: [],
     implementation: "partial",
     disclosures: ["assumption", "as-of", "units"],
     patterns: ["COMPARE"],
@@ -137,7 +136,7 @@ export const panelTaxonomy: readonly PanelContract[] = [
   {
     kind: "decision-history",
     purpose: "What was decided, by whom, when, and against which evidence - never execution approval.",
-    owners: ["clients/web/src/components/agents/AgentReviewGate.tsx"],
+    owners: ["clients/web/src/components/ReviewWorkspace.tsx"],
     implementation: "partial",
     disclosures: ["provenance", "correlation-id"],
     patterns: ["REVIEW"],
@@ -145,7 +144,7 @@ export const panelTaxonomy: readonly PanelContract[] = [
   {
     kind: "ai-explanation",
     purpose: "AI interpretation, comparison or challenge of deterministic results, with its own boundary visible.",
-    owners: ["clients/web/src/components/agents/AgentArtifactChain.tsx"],
+    owners: ["clients/web/src/components/AnswerBar.tsx"],
     implementation: "partial",
     disclosures: ["provenance", "entitlement"],
     patterns: ["REVIEW", "ANALYSE", "MONITOR"],

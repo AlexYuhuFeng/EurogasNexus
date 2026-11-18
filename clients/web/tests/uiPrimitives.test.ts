@@ -66,7 +66,7 @@ test("Runtime delegates tablist semantics to WorkspaceTabs", () => {
   assert.doesNotMatch(source, /StatusBadge owns/);
 });
 
-test("the Network panel and Strategy shadow delegate tab semantics to WorkspaceTabs", () => {
+test("the Network panel delegates tab semantics to WorkspaceTabs", () => {
   const cases = [
     // Points, storage and LNG inside the Capacity tab are one Segmented choice, not nested tabs.
     // The Network page's decision rail left with the optimiser pages (design basis 2, CP-21).
@@ -82,12 +82,6 @@ test("the Network panel and Strategy shadow delegate tab semantics to WorkspaceT
     assert.doesNotMatch(source, /<button[\s\S]*?role="tab"/);
   }
 
-  const strategy = readWebSource("components/strategy/StrategyShadowRunDetail.tsx");
-  // The shadow detail renders panels only: no tab set of its own, and no hand-rolled tab keyboard
-  // handling, because the task's views belong to the workspace shell.
-  assert.doesNotMatch(strategy, /handleViewKeyDown/);
-  assert.doesNotMatch(strategy, /<WorkspaceTabs/);
-  assert.doesNotMatch(strategy, /role="tab"/);
 });
 
 test("narrow scroll regions are explicitly keyboard focusable", () => {
@@ -104,7 +98,6 @@ test("narrow scroll regions are explicitly keyboard focusable", () => {
     // Screen orders and P&L snapshots are DataGrids (UX-06): the grid's scroll box takes focus.
     ["components/MarketPositioningWorkspace.tsx", /<DataGrid[\s\S]*?id="screen-orders"[\s\S]*?maxHeight=/],
     ["components/AccessCenter.tsx", /className="data-table" tabIndex=\{0\}/],
-    ["components/AgentsWorkspace.tsx", /className="research-table data-table" tabIndex=\{0\}/],
   ] as const;
 
   for (const [path, pattern] of cases) {

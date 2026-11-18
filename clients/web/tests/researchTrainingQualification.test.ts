@@ -253,21 +253,3 @@ test("every status and reason the model can produce has a translated key", () =>
     assert.notEqual(en[key], zh[key], `${key} must be translated, not copied`);
   }
 });
-
-test("the workspace and catalog surface the qualification next to materialization", () => {
-  const workspace = source("components/ResearchDataWorkspace.tsx");
-  assert.match(workspace, /researchTrainingQualification\(/);
-  assert.match(workspace, /researchTrainingStatusKey\(qualification\.status\)/);
-  assert.match(workspace, /researchTrainingReasonKey\(reason\)/);
-  assert.match(workspace, /buildState\.summary\.trainingQualification/);
-  // The catalog column derives from the coverage field the list endpoint
-  // actually returns, and that derivation can never claim availability.
-  assert.match(workspace, /researchTrainingQualification\(\{\}, dataset\.coverage\)/);
-  for (const coverage of [null, undefined, 0, 0.5, 1]) {
-    assert.notEqual(
-      researchTrainingQualification({}, coverage).status,
-      "available",
-      `list-level coverage ${String(coverage)} must not claim availability`,
-    );
-  }
-});

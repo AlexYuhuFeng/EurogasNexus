@@ -3,17 +3,15 @@
 These checks do not run a browser or an HTTP server. They prove that the typed
 SDK example is importable, that its synthetic goldens are the documented exact
 values, that its base-URL rules refuse implicit/unsafe access, and that its
-refusal reporting never echoes free-text server messages. The browser script is
-held to its no-mock/no-secret-file safety contract and syntax-checked when Node
-is available.
+refusal reporting never echoes free-text server messages. The browser harness
+for the capacity-billing and LNG sandboxes left with those panels (CP-00); the
+API and the SDK example stay.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import json
-import shutil
-import subprocess
 from decimal import Decimal
 from pathlib import Path
 from types import ModuleType
@@ -23,7 +21,6 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_SCRIPT = ROOT / "scripts" / "examples" / "lng_capacity_economics.py"
-BROWSER_SCRIPT = ROOT / "scripts" / "uat" / "economics_workflow_smoke.mjs"
 
 
 def _load_example() -> ModuleType:
@@ -210,42 +207,3 @@ def test_missing_config_emits_clean_json_without_traceback(
     assert payload["error"]["code"] == "CONFIG_INVALID"
     assert "Traceback" not in captured.out
     assert "Traceback" not in captured.err
-
-
-def test_browser_script_has_no_mock_money_or_secret_harness() -> None:
-    """The browser script keeps timing-only interception and no secret-file assumptions."""
-
-    source = BROWSER_SCRIPT.read_text(encoding="utf-8")
-    assert "route.continue()" in source
-    assert "route.fulfill" not in source
-    assert "browser-runtime-secrets" not in source
-    assert ".local-runtime" not in source
-    assert "readFileSync(local" not in source
-    assert "EUROGAS_NEXUS_DEV_LOGIN_USERNAME" in source
-    assert "EUROGAS_NEXUS_DEV_LOGIN_PASSWORD" in source
-    assert "EUROGAS_UAT_BASE_URL" in source
-    assert "EUROGAS_UAT_PLAYWRIGHT_PATH" in source
-    assert "EUROGAS_UAT_OUTPUT_DIR" in source
-    assert "EUROGAS_UAT_AXE_PATH" in source
-    assert "Control+Enter" in source
-    assert "zh-CN" in source
-    assert "1440" in source
-    assert "390" in source
-    assert "STAGE_CONSERVATION_FAILED" in source
-    assert "BILLED_CAPACITY_ENERGY_INCONSISTENT" in source
-
-
-def test_browser_script_syntax_when_node_is_available() -> None:
-    """Node parses the browser module when the repository's Node runtime exists."""
-
-    node = shutil.which("node")
-    if node is None:
-        pytest.skip("node is not available on PATH")
-    completed = subprocess.run(
-        [node, "--check", str(BROWSER_SCRIPT)],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
-    assert completed.returncode == 0, completed.stderr

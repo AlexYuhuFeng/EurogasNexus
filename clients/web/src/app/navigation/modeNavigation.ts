@@ -33,6 +33,8 @@ export interface ModeTask {
   readonly page: WorkspacePageId;
   /** The page's own task (`task=`), when the page has several. */
   readonly pageTask?: string;
+  /** Other page tasks the same mode task shows behind a switch (Planning: `dispatch`). */
+  readonly alsoPageTasks?: readonly string[];
   /** Older page ids that land on this task (kept as deep links). */
   readonly alsoPages?: readonly WorkspacePageId[];
   /** Permissions any one of which makes the task usable; none listed: any commercial identity. */
@@ -70,9 +72,6 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     descriptionKey: "nav.mode.deals.description",
     aliasKeys: ["nav.primary.decision"],
     tasks: [
-      { id: "evaluate", labelKey: "nav.mode.deals.evaluate", page: "scenario", pageTask: "scenario", permissions: ["scenario.create", "review.read"], aliasKeys: ["decision.task.scenario", "nav.scenario", "nav.primary.decision"] },
-      { id: "optimise", labelKey: "nav.mode.deals.optimise", page: "scenario", pageTask: "optimize", permissions: ["optimization.run", "review.read"], aliasKeys: ["decision.task.optimize"] },
-      { id: "routes", labelKey: "nav.mode.deals.routes", shortLabelKey: "nav.mode.deals.routes.short", page: "contracts", pageTask: "routes", permissions: ["portfolio.read"], aliasKeys: ["portfolio.task.routes"] },
       { id: "contracts", labelKey: "nav.mode.deals.contracts", page: "contracts", pageTask: "resources", permissions: ["portfolio.read"], aliasKeys: ["portfolio.task.resources", "nav.contracts"] },
       // Approvals belong with the work they approve: a decision review accepts or rejects a
       // deal's evaluation, so it sits in Deals.
@@ -90,8 +89,9 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
       // and the P&L snapshots; the legacy `orders` page lands here.
       { id: "limits", labelKey: "nav.mode.book.limits", shortLabelKey: "nav.mode.book.limits.short", page: "contracts", pageTask: "exposure", alsoPages: ["orders"], permissions: ["portfolio.read"], aliasKeys: ["portfolio.task.exposure", "nav.orders"] },
       { id: "delivery", labelKey: "nav.mode.book.delivery", page: "contracts", pageTask: "delivery", permissions: ["portfolio.read"] },
-      { id: "nominations", labelKey: "nav.mode.book.nominations", shortLabelKey: "nav.mode.book.nominations.short", page: "scenario", pageTask: "nomination", permissions: ["scenario.create"], aliasKeys: ["decision.task.nomination"] },
-      { id: "storage", labelKey: "nav.mode.book.storage", shortLabelKey: "nav.mode.book.storage.short", page: "scenario", pageTask: "dispatch", permissions: ["scenario.create"], aliasKeys: ["decision.task.dispatch"] },
+      // Planning: nominations and storage, two views of the same optimisation run behind one
+      // switch (basis 1 WP-12). `task=nomination` and `task=dispatch` both land here.
+      { id: "planning", labelKey: "nav.mode.book.planning", page: "scenario", pageTask: "nomination", alsoPageTasks: ["dispatch"], permissions: ["scenario.create"], aliasKeys: ["decision.task.nomination", "decision.task.dispatch", "nav.mode.book.nominations", "nav.mode.book.storage"] },
     ],
   },
   {
@@ -103,13 +103,10 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
       // Spreads (design basis 2, D.2): relative value on the picker, the normalisation service and
       // the chart standard; a description is interpreted into the same spec the form edits.
       { id: "spreads", labelKey: "nav.mode.research.spreads", page: "research", pageTask: "spreads", permissions: ["market.read"] },
-      { id: "strategies", labelKey: "nav.mode.research.strategies", page: "strategy", permissions: ["strategy.read"], aliasKeys: ["nav.strategy"] },
-      // Market reports: assembled from the catalogue's sections on the server (the Research page's
-      // own task, so a capability does not earn a page of its own, AGENTS rule 9).
-      { id: "reports", labelKey: "nav.mode.research.reports", page: "research", pageTask: "reports", permissions: ["market.read"] },
-      { id: "data", labelKey: "nav.mode.research.data", page: "research", permissions: ["market.read", "analysis.query"], aliasKeys: ["nav.research"] },
-      // Agents sit under Research until a desk use is shown (M.6).
-      { id: "assistant", labelKey: "nav.mode.research.assistant", shortLabelKey: "nav.mode.research.assistant.short", page: "agents", permissions: ["agent.read"], aliasKeys: ["nav.agents"] },
+      // Market reports: assembled from the catalogue's sections on the server. Strategies, Data
+      // and the Assistant were removed (COMMERCIAL_PRODUCT_DESIGN_2.md L1); Fundamentals and
+      // Cargo & netback arrive as tasks of this page.
+      { id: "reports", labelKey: "nav.mode.research.reports", page: "research", pageTask: "reports", permissions: ["market.read"], aliasKeys: ["nav.research"] },
     ],
   },
 ];
@@ -138,8 +135,8 @@ export function pageTaskFromLocation(page: WorkspacePageId, search: string): str
     return portfolioTaskFromLocation(page === "orders" ? withWorkspace(search, "orders") : search);
   }
   if (page === "research") {
-    const task = new URLSearchParams(search).get("task");
-    return task === "reports" || task === "spreads" ? task : undefined;
+    // Spreads is the page's first task; Reports is named in the URL.
+    return new URLSearchParams(search).get("task") === "reports" ? "reports" : "spreads";
   }
   if (page === "scenario" || page === "review") {
     return decisionTaskFromLocation(page === "review" ? withWorkspace(search, "review") : search);
@@ -165,7 +162,12 @@ export function modeLocationFor(page: WorkspacePageId, pageTask?: string): ModeL
       const onPage = task.page === page || task.alsoPages?.includes(page);
       if (!onPage) continue;
       // A legacy page id (network, capacity, review, orders) is the task itself.
-      if (task.alsoPages?.includes(page) || task.pageTask === undefined || task.pageTask === pageTask) return { mode, task };
+      if (
+        task.alsoPages?.includes(page) ||
+        task.pageTask === undefined ||
+        task.pageTask === pageTask ||
+        (pageTask !== undefined && task.alsoPageTasks?.includes(pageTask))
+      ) return { mode, task };
     }
   }
   // A page whose own task is unknown here (a stale value): its mode's first task on that page.
@@ -218,17 +220,54 @@ export function modeLanding(mode: ModeId, user: CurrentUserDTO | null | undefine
 const AREA_REDIRECTS: Readonly<Record<string, { page: WorkspacePageId; task?: string }>> = {
   // Old top-level areas.
   portfolio: { page: "contracts", task: "overview" },
-  decision: { page: "scenario", task: "scenario" },
+  // Decision Center: its Evaluate task is gone (CP-00); Review is what remains of it in Deals.
+  decision: { page: "scenario", task: "review" },
   system: { page: "manual" },
   administration: { page: "sources" },
   // Task names once used as page ids.
-  optimize: { page: "scenario", task: "optimize" },
+  // Optimise left with CP-00: its old page id lands where its task does.
+  optimize: { page: "contracts", task: "resources" },
   nomination: { page: "scenario", task: "nomination" },
   dispatch: { page: "scenario", task: "dispatch" },
   exposure: { page: "contracts", task: "exposure" },
+  // Pages removed by COMMERCIAL_PRODUCT_DESIGN_2.md (L1): the nearest surviving task.
+  strategy: { page: "research", task: "spreads" },
+  agents: { page: "research", task: "reports" },
+};
+
+/**
+ * Tasks of a surviving page that were removed (section I.1), and where their links now land:
+ * Deals → Evaluate and Optimise and Routes & netback land on Deals → Contracts; Research →
+ * Data lands on Reports.
+ */
+const TASK_REDIRECTS: Readonly<Record<string, { page: WorkspacePageId; task?: string }>> = {
+  "scenario:scenario": { page: "contracts", task: "resources" },
+  "scenario:optimize": { page: "contracts", task: "resources" },
+  "contracts:routes": { page: "contracts", task: "resources" },
+  "research:datasets": { page: "research", task: "reports" },
+  "research:products": { page: "research", task: "reports" },
+  "research:features": { page: "research", task: "reports" },
+  "research:targets": { page: "research", task: "reports" },
+};
+
+/**
+ * Mode task ids that a `?mode=` link may still carry after CP-00 merged or removed them: the two
+ * Planning views keep their own page task; removed tasks land on the nearest surviving one.
+ */
+const RETIRED_MODE_TASKS: Readonly<Record<string, { page: WorkspacePageId; task?: string }>> = {
+  "book:nominations": { page: "scenario", task: "nomination" },
+  "book:storage": { page: "scenario", task: "dispatch" },
+  "deals:evaluate": { page: "contracts", task: "resources" },
+  "deals:optimise": { page: "contracts", task: "resources" },
+  "deals:routes": { page: "contracts", task: "resources" },
+  "research:strategies": { page: "research", task: "spreads" },
+  "research:data": { page: "research", task: "reports" },
+  "research:assistant": { page: "research", task: "reports" },
 };
 
 function landingOf(mode: ProductMode, taskId: string | null): { page: WorkspacePageId; task?: string } {
+  const retired = RETIRED_MODE_TASKS[`${mode.id}:${taskId}`];
+  if (retired) return retired;
   const task = mode.tasks.find((item) => item.id === taskId) ?? mode.tasks[0];
   return { page: task.page, task: task.pageTask };
 }
@@ -253,6 +292,15 @@ export function redirectSearch(search: string): string | null {
   } else if (workspace && !isWorkspacePageId(workspace)) {
     if (isModeId(workspace)) target = landingOf(productMode(workspace), params.get("task"));
     else if (AREA_REDIRECTS[workspace]) target = AREA_REDIRECTS[workspace];
+  } else if (workspace) {
+    // A removed task of a surviving page (`?workspace=scenario&task=optimize`), or a removed
+    // view (`?workspace=research&view=datasets`). A bare page address never redirects: the
+    // scenario page with no task opens Review (its default since CP-00).
+    const task = params.get("task") ?? params.get("view");
+    if (task && TASK_REDIRECTS[`${workspace}:${task}`]) {
+      target = TASK_REDIRECTS[`${workspace}:${task}`];
+      params.delete("view");
+    }
   }
   if (!target) return null;
   // The page address first, then whatever context the link carried.
@@ -268,6 +316,11 @@ export function redirectSearch(search: string): string | null {
 /** Every old address the redirect table knows, for tests and the user manual. */
 export function legacyAddresses(): string[] {
   return Object.keys(AREA_REDIRECTS);
+}
+
+/** Removed tasks of surviving pages, as `page:task`, for tests and the user manual. */
+export function retiredTaskAddresses(): string[] {
+  return Object.keys(TASK_REDIRECTS);
 }
 
 /* ------------------------------------------------------------------ shortcuts */

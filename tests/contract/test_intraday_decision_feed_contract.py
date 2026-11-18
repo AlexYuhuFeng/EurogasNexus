@@ -57,22 +57,14 @@ def test_web_refreshes_db_backed_decisions_every_ten_seconds() -> None:
     api_client = (
         ROOT / "clients" / "web" / "src" / "api" / "client.ts"
     ).read_text(encoding="utf-8")
-    feed = (
-        ROOT
-        / "clients"
-        / "web"
-        / "src"
-        / "components"
-        / "IntradayDecisionFeed.tsx"
-    ).read_text(encoding="utf-8")
 
     assert "MARKET_REFRESH_INTERVAL_MS = 10_000" in hook
     assert "setInterval" in hook
     assert 'get<MarketQuoteDTO[]>("/market/quotes"' in api_client
     assert 'get<IntradayOpportunityDTO[]>("/market/opportunities"' in api_client
-    assert "gross_spread =" not in feed
-    assert "net_margin =" not in feed
-    assert "postgres" not in feed.lower()
+    # The intraday decision feed panel left the Prices page with CP-00 (it is merged into
+    # Opportunities); the client still reads the DB-backed opportunities for the day board.
+    assert not (ROOT / "clients" / "web" / "src" / "components" / "IntradayDecisionFeed.tsx").exists()
 
     store = (
         ROOT / "clients" / "web" / "src" / "stores" / "api.ts"

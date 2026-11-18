@@ -270,11 +270,10 @@ test("operations: a window closing within the hour is information, then the next
   assert.deepEqual(ids(buildSituation(inputs({ outages: [outage("big")] }), ops)), ["outage:big"]);
 });
 
-test("analyst: a large unplanned outage anywhere in north-west Europe and shadow-strategy alerts", () => {
+test("analyst: a large unplanned outage anywhere in north-west Europe; strategy alerts left with the Strategies pages", () => {
   const strategy = alert("st1", "strategy", "drift", "warning", { entity_id: "run-7" });
   const situation = buildSituation(inputs({ outages: [outage("ttf", { balancing_zone: "NL" }), outage("it", { balancing_zone: "IT" })], alerts: [strategy] }), context("analyst"));
-  assert.deepEqual(ids(situation), ["outage:ttf", "alert:st1"]);
-  assert.deepEqual(situation.items[1].target, { page: "strategy", task: "shadow" });
+  assert.deepEqual(ids(situation), ["outage:ttf"]);
 });
 
 /* ------------------------------------------------------------------ rows waiting on a backend */

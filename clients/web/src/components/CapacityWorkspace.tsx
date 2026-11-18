@@ -2,8 +2,6 @@ import { useMemo, useState } from "react";
 import { displayTime } from "@/app/time/displayTime";
 import { DataGrid, EvidenceBlock, Segmented, type DataGridColumn, type SortState } from "@/components/ui";
 import { sortRows } from "@/components/ui/dataGridModel";
-import { CapacityContractBook } from "@/components/CapacityContractBook";
-import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
 import type { CapacityOperatingBoardReadSurface } from "@/app/model/capacityOperatingBoardRead";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
@@ -723,21 +721,6 @@ export function CapacityWorkspace({
         </section>
       )}
 
-      {/* A query by exact ENTSOG point id is an analyst's tool, not a reading: folded (#69). */}
-      {activeView === "network" && (
-        <details className="capacity-native-fold">
-          <summary>{t("nativeCapacity.title")}</summary>
-          <NativeCapacityContextPanel t={t} />
-        </details>
-      )}
-
-      {/* The capacity the operator has declared, behind the board's measured and technical
-          capacity: the profiles the runtime stores, on the same tab as the points they belong
-          to (slice D), behind one line. */}
-      <details className="capacity-contract-fold">
-        <summary>{t("network.panel.contract_book")}</summary>
-        <CapacityContractBook t={t} />
-      </details>
     </div>
   );
 }

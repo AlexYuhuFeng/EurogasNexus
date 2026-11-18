@@ -7,7 +7,6 @@ export const MARKET_REFRESH_INTERVAL_MS = 10_000;
 const LIVE_MARKET_WORKSPACES = new Set<WorkspacePageId>([
   "network",
   "market",
-  "strategy",
 ]);
 
 interface WorkspaceRuntimeParams {

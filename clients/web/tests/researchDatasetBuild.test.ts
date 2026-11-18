@@ -314,31 +314,6 @@ test("request error copy is localised and never echoes backend detail", () => {
   assert.equal(researchRequestErrorMessage(new Error("API 422: dataset_registry_invalid — /srv/app/sql/secret"), messages), "generic");
 });
 
-test("the workspace wires the governed surface and gates the artifact control on the answer", () => {
-  const workspace = source("components/ResearchDataWorkspace.tsx");
-  assert.match(workspace, /validateResearchDataset\(requestedSpec, options\)/);
-  assert.match(workspace, /buildResearchDataset\(requestedSpec, options\)/);
-  assert.match(workspace, /researchBuildGate\(lastValidation, specFingerprint\)/);
-  // Wave 9: the build is the workspace's primary action, gated by that same rule; the panel
-  // reports what locks it and keeps the validate step.
-  assert.match(workspace, /disabled=\{buildBusy \|\| !buildGate\.canBuild\}/);
-  assert.match(workspace, /researchBuildGateLockKey\(buildGate\.reason\)/);
-  assert.match(workspace, /researchValidationOutcome\(answer\)/);
-  assert.match(workspace, /researchIssuesFromAnswer\(failure\)/);
-  assert.match(workspace, /researchExportStateFromAnswer\(/);
-  assert.match(workspace, /researchExportCanRequest\(researchExportDecision\(policy\)\)/);
-  assert.match(workspace, /const showControl = canRequest && requestableFormats\.length > 0/);
-  assert.match(workspace, /exportState\.status !== "restricted"/);
-  assert.match(workspace, /pendingSnapshotRef\.current = summary\.datasetSnapshotId/);
-  assert.match(workspace, /setCatalogReloadKey\(\(value\) => value \+ 1\)/);
-  assert.match(workspace, /buildState\.summary\.availableFormats === null/);
-  assert.match(workspace, /<PanelHeader/);
-  assert.match(workspace, /<MetricStrip/);
-  assert.match(workspace, /<StatusBadge/);
-  assert.match(workspace, /<WorkspaceHeader/);
-  assert.doesNotMatch(workspace, /<button[^>]*role="tab"/);
-});
-
 test("the transport keeps the structured HTTP envelope for governed surfaces", () => {
   const client = source("api/client.ts");
   assert.match(client, /export class ApiError extends Error/);

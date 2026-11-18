@@ -6,6 +6,10 @@ import type { SourceRegistryReadSurface } from "@/app/model/sourceRegistryRead";
 import { useInspectorStore } from "@/stores/inspector";
 import { WeatherForecastEvidence } from "@/components/WeatherForecastEvidence";
 import { DemoCatchUpLine, PublicSourceApprovals } from "@/components/PublicSourceApprovals";
+import { TariffPublicationsPanel } from "@/components/TariffPublicationsPanel";
+import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
+import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
+import { CapacityContractBook } from "@/components/CapacityContractBook";
 import {
   EvidenceBlock,
   MetricStrip,
@@ -938,6 +942,25 @@ export function SourceCenter({
             )}
           </div>
         </div>
+        {/* Registers and plumbing that left the commercial pages with CP-00 (design basis 2,
+            I.2): the tariff publications, the reference network the map is drawn against, the
+            ENTSOG point query and the declared capacity profiles. Each is one line until opened. */}
+        <details className="source-infrastructure-fold">
+          <summary>{t("tariffs.title")}</summary>
+          <TariffPublicationsPanel t={t} />
+        </details>
+        <details className="source-infrastructure-fold">
+          <summary>{t("network.reference.title")}</summary>
+          <ReferenceNetworkCatalogue t={t} />
+        </details>
+        <details className="source-infrastructure-fold">
+          <summary>{t("nativeCapacity.title")}</summary>
+          <NativeCapacityContextPanel t={t} />
+        </details>
+        <details className="source-infrastructure-fold">
+          <summary>{t("network.panel.contract_book")}</summary>
+          <CapacityContractBook t={t} />
+        </details>
       </div>
       )}
     </div>

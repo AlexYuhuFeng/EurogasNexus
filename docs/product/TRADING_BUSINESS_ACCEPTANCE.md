@@ -292,8 +292,9 @@ Scope (proposed files):
    `/api/route-cost/` family is already classified commercial data.
 5. Web — `clients/web/src/api/client.ts` DTO (exact strings), an action in
    `clients/web/src/stores/api.ts`, and a disclosure inside the existing
-   Decision or contract settlement surface (for example
-   [ScenarioWorkspace.tsx](../../clients/web/src/components/ScenarioWorkspace.tsx))
+   contract settlement surface (Deals → Contracts,
+   [ContractWorkbench.tsx](../../clients/web/src/components/ContractWorkbench.tsx); the
+   Scenario page it once named left with CP-00)
    showing per-leg date/amount/currency/unit, discount basis, missing-input and
    refusal states, revision citation and decision-support labels. No arithmetic
    in React.

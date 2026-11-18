@@ -171,50 +171,6 @@ test("experiments are filtered by strategy and read their own period", () => {
   assert.deepEqual(experimentPeriod(experiment({ evaluation_period: {} })), { start: "", end: "" });
 });
 
-test("the panel uses the declared experiment and metadata calls, not ad-hoc ones", () => {
-  const panel = readWebSource("components/strategy/StrategyBacktestWorkspace.tsx");
-  const controller = readWebSource("app/model/useStrategyLab.ts");
-  const design = readWebSource("components/strategy/StrategyDesignWorkspace.tsx");
-  const identity = readWebSource("app/model/useStrategyIdentityMetadata.ts");
-
-  // The three reads and the create call the client declared and nothing used.
-  assert.match(controller, /apiClient\.createBacktestExperiment\(/);
-  assert.match(controller, /apiClient\.backtestExperiments\(\)/);
-  assert.match(controller, /apiClient\.strategyRegistryRun\(/);
-  assert.match(controller, /apiClient\.updateStrategyMetadata\(/);
-
-  // The panel gates the create action on the mirrored rule and never composes a body itself.
-  assert.match(panel, /experimentReadiness\(\{/);
-  assert.match(panel, /controller\.createExperiment\(experimentDraft\)/);
-  assert.equal(panel.includes("apiClient."), false);
-  assert.equal(panel.includes("/api/"), false);
-
-  // The identity edit follows the same split: the hook holds what would be written and performs the
-  // write through the controller; the panel renders the fields and reports the verdict it is handed,
-  // which is the property the workspace's own test holds every panel to.
-  assert.match(identity, /controller\.updateStrategyMetadata\(/);
-  assert.match(design, /void identity\.save\(\)/);
-  assert.match(design, /disabled=\{readOnly \|\| !identity\.canSave \|\| identity\.busy\}/);
-  assert.equal(design.includes("useState"), false);
-  assert.ok(EXPERIMENT_NAME_MAX_LENGTH === 256);
-});
-
-test("the shadow surface reads one evaluation, and one monitor, for the detail it shows", () => {
-  // `GET /api/shadow-evaluations/{id}` is the only read that carries an evaluation's risk checks, and
-  // `GET /api/shadow-monitors/{id}` is the only read that answers where the monitor stands now. Both
-  // were declared in the client and never called: the surface showed a list, so a blocked candidate's
-  // controls were invisible and the monitor's state could only be as fresh as the last list read.
-  const shell = readWebSource("components/strategy/StrategyShadowShell.tsx");
-
-  assert.match(shell, /apiClient\.shadowEvaluation\(evaluationId\)/);
-  assert.match(shell, /apiClient\.shadowMonitor\(monitorId\)/);
-  assert.match(shell, /apiClient\.shadowMonitor\(selectedMonitorId\)/);
-  assert.match(shell, /openOneEvaluation\(/);
-  assert.match(shell, /openEvaluation\.risk_checks/);
-  // The state strip reads the monitor's own record, not the list entry it was loaded from.
-  assert.match(shell, /const monitorNow = freshMonitor \?\? selectedMonitor;/);
-});
-
 test("the experiment vocabulary is bilingual", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

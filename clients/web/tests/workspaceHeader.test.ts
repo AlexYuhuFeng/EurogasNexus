@@ -39,7 +39,7 @@ test("initial, deep-link, and history task locations resolve the labels used by 
   assert.equal(marketTaskFromLocation("?workspace=network", "network"), "network");
   assert.equal(portfolioTaskFromLocation(""), "overview");
   assert.equal(portfolioTaskFromLocation("?workspace=contracts&task=exposure"), "exposure");
-  assert.equal(decisionTaskFromLocation("?workspace=scenario&task=optimize"), "optimize");
+  assert.equal(decisionTaskFromLocation("?workspace=scenario&task=dispatch"), "dispatch");
   assert.equal(decisionTaskFromLocation("?workspace=review&task=review"), "review");
 });
 
@@ -71,17 +71,10 @@ test("a page has one h1, and the registry decides which header owns it", () => {
     /export function workspaceHeaderTitleLevel\(page: WorkspacePageId\): 1 \| 2 \{\s*return headerModeForPage\(page\) === "local-tabs" \? 2 : 1;/s,
   );
 
-  for (const [file, page] of [
-    ["components/strategy/StrategyLabWorkspace.tsx", "strategy"],
-    ["components/ResearchDataWorkspace.tsx", "research"],
-    ["components/AgentsWorkspace.tsx", "agents"],
-  ] as const) {
-    assert.match(
-      readWebSource(file),
-      new RegExp(`titleLevel=\\{workspaceHeaderTitleLevel\\("${page}"\\)\\}`),
-      file,
-    );
-  }
+  // Those three surfaces left with CP-00. Research is Reports now, a `local-tabs` page whose
+  // workspace renders section headings only, under the shell's h1.
+  const reports = readWebSource("components/ReportsWorkspace.tsx");
+  assert.equal(/<h1[\s>]/.test(reports), false);
 });
 
 test("the direct map-first Network route is composed, not intercepted", () => {

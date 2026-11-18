@@ -5922,5 +5922,6 @@
   "spreads.rule.hit_rate": "胜率",
   "spreads.rule.pnl": "规则结果（{{unit}} × MWh）",
   "settings.map_tile_provider_bundled": "内置底图（默认）：Natural Earth（公有领域）的陆地、海岸线、国界和地名，标注使用内置 Inter 字体，全部由本应用自身提供。不向第三方发出任何请求，可离线使用。因绘制国界，中国大陆安装使用离线轮廓底图。",
-  "map.tier.dismiss": "隐藏此提示"
+  "map.tier.dismiss": "隐藏此提示",
+  "nav.mode.book.planning": "计划"
 }

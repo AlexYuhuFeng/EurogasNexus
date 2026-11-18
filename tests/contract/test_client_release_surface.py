@@ -349,7 +349,6 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     extracted_pages = "".join(
         (ROOT / "clients" / "web" / "src" / "components" / filename).read_text(encoding="utf-8")
         for filename in [
-            "ScenarioWorkspace.tsx",
             "ReviewWorkspace.tsx",
             "MarketPositioningWorkspace.tsx",
             "RuntimeWorkspace.tsx",
@@ -602,7 +601,6 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
         "market",
         "scenario",
         "contracts",
-        "strategy",
         "review",
         "orders",
         "sources",
@@ -612,6 +610,9 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
         "manual",
     ]:
         assert f'"{page}"' in navigation
+    # The Strategies and Assistant pages left with CP-00 (design basis 2, I.1).
+    for retired in ["strategy", "agents"]:
+        assert f'| "{retired}"' not in navigation
     assert "function workspaceFromLocation(): WorkspacePageId" in app
     assert 'new URLSearchParams(window.location.search).get("workspace")' in app
     assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in app
@@ -746,214 +747,6 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert en["market.live_polling"] == "Live polling"
     assert en["market.live_exchange_prices"].startswith("Exchange and broker")
     assert zh["market.terminal"] == "\u6b27\u6d32\u4e3b\u8981\u5929\u7136\u6c14\u5e02\u573a"
-
-
-def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
-    """The strategy page presents shadow-run economics on the shadow task itself.
-
-    The owner retired `StrategyShadowRunTerminal.tsx` - 838 lines that nothing mounted, carrying
-    its own four task views - in favour of two halves on the shadow task: the monitor management the
-    task already had, and what the run's economics rest on. The derivations moved to
-    `app/model/shadowRunPresentation.ts`, the panels to `StrategyShadowRunDetail.tsx`, and
-    `docs/clients/WEB_CLIENT_DESIGN_SPEC.md` was updated with the change. This test holds the client
-    to that structure, to the vocabulary the surviving panels use, and to the spec.
-    """
-    app = _read_application_source()
-    retired_terminal_path = (
-        ROOT / "clients" / "web" / "src" / "components" / "StrategyShadowRunTerminal.tsx"
-    )
-    detail_path = (
-        ROOT / "clients" / "web" / "src" / "components" / "strategy" / "StrategyShadowRunDetail.tsx"
-    )
-    sections_path = (
-        ROOT
-        / "clients"
-        / "web"
-        / "src"
-        / "components"
-        / "strategy"
-        / "StrategyShadowRunSections.tsx"
-    )
-    model_path = ROOT / "clients" / "web" / "src" / "app" / "model" / "shadowRunPresentation.ts"
-    detail = detail_path.read_text(encoding="utf-8")
-    sections = sections_path.read_text(encoding="utf-8")
-    model = model_path.read_text(encoding="utf-8")
-    strategy_surface = detail + sections + model
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
-    en = json.loads(
-        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
-    )
-    zh = json.loads(
-        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
-    )
-    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
-
-    assert (
-        'import { StrategyLabWorkspace } from "@/components/strategy/StrategyLabWorkspace";' in app
-    )
-    assert "<StrategyLabWorkspace" in app
-    assert "controller={strategyLab}" in app
-    assert "useStrategyLab({" in app
-    strategy_model = (
-        ROOT / "clients" / "web" / "src" / "app" / "model" / "strategyLabModel.ts"
-    ).read_text(encoding="utf-8")
-    strategy_lab_model = (
-        ROOT / "clients" / "web" / "src" / "app" / "model" / "useStrategyLab.ts"
-    ).read_text(encoding="utf-8")
-    assert '"design"' in strategy_model
-    assert "runBacktest" in app
-    assert "apiClient.createStrategyRun({" in strategy_lab_model
-
-    # The parallel terminal is retired, and the task renders both halves: the monitor management it
-    # already had, and the economics those monitors produce.
-    assert not retired_terminal_path.exists()
-    lab_workspace = (
-        ROOT / "clients" / "web" / "src" / "components" / "strategy" / "StrategyLabWorkspace.tsx"
-    ).read_text(encoding="utf-8")
-    assert "<StrategyShadowShell" in lab_workspace
-    assert "<StrategyShadowRunDetail" in lab_workspace
-    assert 'controller.task === "shadow"' in lab_workspace
-    # One view owner per task: the detail renders no tab set of its own.
-    assert "<WorkspaceTabs" not in detail
-    assert 'role="tabpanel"' not in detail
-
-    # The panels survive with their own classes, and the derivations live in the pure model.
-    for marker in (
-        "StrategyPriceBasisBoard",
-        "StrategyPnlCurvePanel",
-        "StrategyBasisExposureLadder",
-        "StrategyContractPnlAttribution",
-        "StrategyPerformancePanel",
-    ):
-        assert marker in sections
-        assert marker in detail
-    for marker in (
-        "priceBasisRows",
-        "pnlCurveRows",
-        "basisExposureRows",
-        "contractPnlRows",
-        "weightedPoolCost",
-        "classifyPriceBasis",
-        "isSimulatedSource",
-        "isStaleObservation",
-        "latestPriceObservation",
-    ):
-        assert marker in model
-    assert "strategy-price-basis-board" in strategy_surface
-    assert "strategy-price-basis-selector" in strategy_surface
-    assert "strategy-basis-option" in strategy_surface
-    assert "strategy-price-basis-card" in strategy_surface
-    assert "strategy-basis-exposure-ladder" in strategy_surface
-    assert "strategy-basis-exposure-row" in strategy_surface
-    assert "strategy-pnl-curve" in strategy_surface
-    assert "strategy-contract-pnl-attribution" in strategy_surface
-    assert "strategy-performance-chart" in strategy_surface
-    assert 'useState<PriceBasisId>("WITHIN_DAY")' in detail
-    assert "onSelectBasis={setActiveBasis}" in detail
-    assert "onSelectBasis(row.basis)" in sections
-    assert "aria-pressed={activeBasis === row.basis}" in strategy_surface
-    # FX is a basis for reading a price, not a basis to sell at, so it has no PnL row.
-    assert 'activeBasis === "FX"' in detail
-    assert "displayTime(value)" in detail
-    assert "<EvidenceBlock" in detail
-    # The economics panel starts nothing: the task's run control is the workspace's primary action.
-    assert "apiClient." not in detail
-    for basis in (
-        "WITHIN_DAY",
-        "DAY_AHEAD",
-        "MONTHLY",
-        "ICIS_ASSESSMENT",
-        "ICE_OCM_MARK",
-        "EEX_CURVE",
-        "FX",
-    ):
-        assert basis in model
-    assert "portfolio_resources" in detail
-    assert "normalizedMarkets" in detail
-    assert "strategyRuns" in detail
-    assert "allocation_targets" in detail
-    assert "candidate_action_for_review" in model
-    assert "human_review_required" in model
-    assert "sourceSystems.join" in sections
-    assert "run.cumulative_pnl_gbp !== null" in sections
-    assert "plottedRuns.length > 0" in sections
-    assert '<polyline className="strategy-chart-line"' in sections
-    assert 'className="strategy-chart-point"' in sections
-
-    # The classes the surviving panels render still have rules in the stylesheet.
-    for css_class in (
-        "strategy-price-basis-board",
-        "strategy-price-basis-selector",
-        "strategy-basis-option",
-        "strategy-basis-exposure-ladder",
-        "strategy-basis-exposure-row",
-        "strategy-pnl-curve",
-        "strategy-contract-pnl-attribution",
-        "strategy-contract-pnl-row",
-        "strategy-data-quality-banner",
-        "strategy-market-tape",
-        "strategy-allocation-ladder",
-        "strategy-performance-chart",
-        "strategy-chart-line",
-        "strategy-warning-stack",
-    ):
-        assert css_class in css, css_class
-
-    assert en["strategy.price_basis_board"] == "Price-basis comparison"
-    assert en["strategy.basis_exposure_ladder"] == "Basis exposure ladder"
-    assert en["strategy.pool_pnl_at_risk"] == "Pool PnL at risk"
-    assert en["strategy.margin_vs_pool_cost"] == "Margin vs pool cost"
-    assert en["strategy.pnl_curve"] == "Resource-pool PnL curve"
-    assert en["strategy.selected_price_basis"] == "Selected price basis"
-    assert en["strategy.contract_pnl_attribution"] == "Contract PnL attribution"
-    assert en["strategy.unavailable_basis_count"] == "Unavailable bases"
-    assert en["strategy.simulated_data"] == "Simulated data"
-    assert en["strategy.stale_data"] == "Stale data"
-    assert en["strategy.market_tape"] == "Market tape"
-    assert en["strategy.paper_state"] == "Paper state"
-    assert en["strategy.no_execution"] == "No execution"
-    assert en["strategy.cumulative_paper_pnl"] == "Cumulative paper PnL"
-    # The panels this slice moved into the task own their own copy, in both locales.
-    for key in (
-        "strategy.shadow_detail_note",
-        "strategy.observation_time_basis",
-        "strategy.contract_pnl_note",
-        "strategy.run_provenance_note",
-        "strategy.market_tape_note",
-        "strategy.allocation_note",
-        "strategy.paper_state_note",
-        "strategy.reproducible_yes",
-    ):
-        assert en[key].strip(), key
-        assert zh[key].strip(), key
-        assert en[key] != zh[key], key
-    assert zh["strategy.price_basis_board"] == "\u4ef7\u683c\u57fa\u51c6\u5bf9\u6bd4"
-    assert zh["strategy.basis_exposure_ladder"] == "\u57fa\u51c6\u66b4\u9732\u9636\u68af"
-    assert zh["strategy.pool_pnl_at_risk"] == "\u8d44\u6e90\u6c60\u98ce\u9669 PnL"
-    assert zh["strategy.margin_vs_pool_cost"] == (
-        "\u76f8\u5bf9\u8d44\u6e90\u6c60\u6210\u672c\u5229\u5dee"
-    )
-    assert zh["strategy.pnl_curve"] == "\u8d44\u6e90\u6c60 PnL \u66f2\u7ebf"
-    assert zh["strategy.selected_price_basis"] == "\u9009\u5b9a\u4ef7\u683c\u57fa\u51c6"
-    assert zh["strategy.contract_pnl_attribution"] == "\u5408\u7ea6 PnL \u5f52\u56e0"
-
-    # The spec describes the structure that exists, and no longer claims the retired one.
-    assert "shadow-run terminal" not in web_spec
-    assert "Monitor, Economics, Risk & Evidence, and Run History" not in web_spec
-    assert "monitor management" in web_spec
-    assert "what the run's economics rest on" in web_spec
-    assert "market tape, paper state, allocation ladder" in web_spec
-    assert "price-basis comparison board" in web_spec
-    assert "basis exposure ladder" in web_spec
-    assert "selected price-basis control" in web_spec
-    assert "contract-level PnL attribution" in web_spec
-    assert "stale/simulated/unavailable data banner" in web_spec
-    assert "resource-pool PnL curve" in web_spec
-    assert "persisted strategy runs" in web_spec
-    assert (
-        "within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks, "
-        "EEX curves, and ECB FX"
-    ) in web_spec
 
 
 def test_web_client_settings_page_is_trader_preference_center() -> None:
@@ -1452,7 +1245,8 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
         "contractImportRef",
         "importContractDraftFile",
         "loadTerm",
-        ".pdf,.json,.txt,application/pdf,application/json,text/plain",
+        # The UI accepts PDF only since CP-00; JSON stays on the API (design basis 2, H).
+        'accept=".pdf,application/pdf"',
         't("contracts.upload_contract")',
         't("contracts.beach_delivery_point")',
         't("contracts.title_transfer_point")',

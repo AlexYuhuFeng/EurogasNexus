@@ -195,7 +195,8 @@ def _workspace_sources(workspace: str) -> str:
 
 def test_every_workspace_declares_a_probe_for_the_sweep() -> None:
     probes = _declared_probes()
-    assert len(probes) >= 16, "the sweep still declares a signal per workspace"
+    # The Strategies and Assistant pages left with CP-00 (design basis 2, I.1).
+    assert len(probes) >= 14, "the sweep still declares a signal per workspace"
     assert set(probes) == _declared_workspaces(), (
         "every declared workspace has a signal, and no signal names a workspace the sweep "
         "does not visit"

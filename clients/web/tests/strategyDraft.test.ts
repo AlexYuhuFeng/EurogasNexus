@@ -198,36 +198,6 @@ test("a stored version reads back into the form, and an empty definition stays d
   assert.equal(restored.resourceQuantity, "250");
 });
 
-test("the workspace hosts the save and the panel keeps only the guarded acts", () => {
-  const workspace = readWebSource("components/strategy/StrategyLabWorkspace.tsx");
-  const panel = readWebSource("components/strategy/StrategyDesignWorkspace.tsx");
-  const hook = readWebSource("app/model/useStrategyDesignDraft.ts");
-
-  // The draft and its rule live with the action.
-  assert.match(hook, /export function useStrategyDesignDraft\(/);
-  assert.match(hook, /const baseReadiness = strategyDraftReadiness\(\{ validation, busy, frozen \}\);/);
-  assert.match(hook, /if \(readOnly \|\| !readiness\.canSave \|\| saveInFlight\.current\) return;/);
-  assert.match(hook, /const body = strategyDraftBody\(form\);/);
-  assert.match(readWebSource("app/workspaces/WorkspaceRenderer.tsx"), /const designDraft = useStrategyDesignDraft\(/);
-  assert.match(workspace, /controller\.task === "design" && !designDraft\.frozen \? \(/);
-  assert.match(workspace, /onClick=\{\(\) => void designDraft\.saveDraft\(\)\}/);
-  assert.match(workspace, /draft=\{designDraft\}/);
-
-  // The panel no longer owns or writes the draft; it renders it and reports the verdict.
-  assert.equal(panel.includes("useState"), false);
-  assert.equal(panel.includes("apiClient"), false);
-  assert.equal(panel.includes("strategy_lab.save_draft"), false);
-  assert.equal(panel.includes("const buildBody"), false);
-  assert.match(panel, /const \{ form, setField: set, validation \} = draft;/);
-  assert.match(panel, /\{validation\.blockerKeys\.map\(\(key\) => <div key=\{key\}>BLOCKER: \{t\(key\)\}<\/div>\)\}/);
-
-  // The two `lifecycle` acts stay bounded, with the reason stated where they sit.
-  assert.match(panel, /className="strategy-version-actions"/);
-  assert.match(panel, /t\("strategy_lab\.version_actions_note"\)/);
-  assert.match(panel, /onClick=\{\(\) => void draft\.freezeVersion\(\)\}/);
-  assert.match(panel, /onClick=\{\(\) => void draft\.createNewVersion\(\)\}/);
-});
-
 test("every new strategy-draft string exists in both locales, and says something different", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

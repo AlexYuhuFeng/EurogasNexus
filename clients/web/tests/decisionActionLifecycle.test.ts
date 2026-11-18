@@ -639,43 +639,10 @@ test("the store writes provenance only on a successful response", () => {
   assert.match(reset, /routeCompareAction: IDLE_DECISION_ACTION_STATE,/);
 });
 
-test("the Decision surface renders the action's own state next to the action and its result", () => {
-  const decision = readWebSource("components/DecisionWorkspace.tsx");
-  const status = readWebSource("components/decision/DecisionActionStatus.tsx");
-
-  // Both governed computes report their own lane, and the buttons read the shared gates.
-  assert.match(decision, /state=\{portfolio\.routeCompareAction\}/);
-  assert.match(decision, /state=\{portfolio\.poolOptimizeAction\}/);
-  assert.match(decision, /blockerKey=\{portfolio\.routeCompareGate\.blockerKey\}/);
-  assert.match(decision, /blockerKey=\{portfolio\.poolOptimizeGate\.blockerKey\}/);
-  assert.match(decision, /disabled=\{!portfolio\.canRunPoolOptimizer\}/);
-  assert.match(decision, /disabled=\{!portfolio\.canCompareRoutes\}/);
-  // The Scenario panel's mismatch banner covers both results it displays, and the Optimize
-  // panels and Review workspace state a stale pool result rather than presenting it as current.
-  assert.match(decision, /contextMismatch=\{portfolio\.resultsContextMismatch\}/);
-  assert.match(decision, /poolResultContextMismatch=\{portfolio\.optimizerContextMismatch\}/);
-  assert.match(readWebSource("components/ReviewWorkspace.tsx"), /poolResultContextMismatch && resourcePoolResult !== null/);
-
-  // The presentation itself: taxonomy copy, the correlation id, and no raw error string.
-  assert.match(status, /presentError\(t, describeFailure\(state\.error\)\)/);
-  assert.match(status, /failure\.correlationId/);
-  assert.match(status, /role="alert"/);
-  assert.match(status, /role="status"/);
-  // Currency is stated from a settled run only, and it stays visible under a later failure
-  // because the retained result is still the older run's.
-  assert.match(status, /const currencyText = !pending && hasResult/);
-  assert.match(status, /result_current/);
-  assert.match(status, /result_stale/);
-  assert.match(status, /failure\.action\}<\/p>\s*\{currencyText && <p/);
-  assert.equal(status.includes("String(state.error)"), false);
-  assert.equal(status.includes("state.error.message"), false);
-});
-
 test("every consumer derives from the model's results provenanced to the current inputs", () => {
   const model = readWebSource("app/model/usePortfolioDecisionModel.ts");
   const portfolio = readWebSource("components/PortfolioWorkspace.tsx");
   const market = readWebSource("components/MarketCockpit.tsx");
-  const decision = readWebSource("components/DecisionWorkspace.tsx");
   const review = readWebSource("components/ReviewWorkspace.tsx");
 
   // One gate in the model: a payload whose provenance is not the inputs the caller now knows is
@@ -696,17 +663,11 @@ test("every consumer derives from the model's results provenanced to the current
   assert.match(model, /currentResourcePoolResult\?\.total_net_pnl_gbp_per_day \?\?/);
   assert.match(model, /const firstStrategyTarget = currentStrategyResult\?\.allocation_targets\[0\];/);
 
-  // Portfolio's route verdicts and PnL metrics read the model's provenanced values...
+  // Portfolio's PnL metrics read the model's provenanced values...
   assert.match(
     portfolio,
     /const poolResult = portfolio\.currentResourcePoolResult;/,
   );
-  assert.match(
-    portfolio,
-    /const recommendation = portfolio\.currentRouteRecommendation;/,
-  );
-  assert.match(portfolio, /classifyRouteFeasibility\(\s*route,\s*recommendation,\s*poolResult,\s*api\.resourcePoolOptions,\s*\)/);
-  assert.match(portfolio, /const allocation = poolResult\?\.allocations\.find\(/);
   assert.match(portfolio, /money\(poolResult\??\.total_net_pnl_gbp_per_day, "\/d"\)/);
   // ...the map no longer carries a decision rail (design basis 2, CP-21): no decision result
   // reaches it, gated or not...
@@ -714,10 +675,6 @@ test("every consumer derives from the model's results provenanced to the current
   assert.equal(market.includes("strategyResult="), false);
   assert.equal(market.includes("routeRecommendation={api.routeRecommendation}"), false);
   assert.equal(market.includes("resourcePoolResult={api.resourcePoolResult}"), false);
-  // ...the Scenario and Optimize panels read the same gated payloads...
-  assert.match(decision, /routeRecommendation=\{portfolio\.currentRouteRecommendation\}/);
-  assert.match(decision, /resourcePoolResult=\{portfolio\.currentResourcePoolResult\}/);
-  assert.match(decision, /const result = portfolio\.currentResourcePoolResult;/);
   // ...and the Review task gates its evidence pack with the same flag, naming a withheld run
   // instead of presenting it as evidence.
   assert.match(review, /const poolResult = poolResultContextMismatch \? null : resourcePoolResult;/);

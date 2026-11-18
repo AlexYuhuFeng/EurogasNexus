@@ -53,10 +53,11 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
     commercial: true,
     labelKey: "nav.primary.strategy",
     descriptionKey: "nav.primary.strategy.description",
-    // One research line (#30): the strategy lifecycle, the data it is built on and the
-    // assisted research that cites it, so preparing data no longer means leaving for System.
-    pages: ["strategy", "research", "agents"],
-    defaultPage: "strategy",
+    // Research (COMMERCIAL_PRODUCT_DESIGN_2.md D): the strategy lifecycle, the data builder and
+    // the assistant workspace were removed (L1); Reports stays, Spreads, Fundamentals and Cargo
+    // & netback join it as tasks of this one page.
+    pages: ["research"],
+    defaultPage: "research",
   },
   {
     id: "decision",

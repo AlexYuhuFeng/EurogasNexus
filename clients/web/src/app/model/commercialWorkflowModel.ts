@@ -5,24 +5,18 @@ import type {
   RouteRecommendationResultDTO,
 } from "@/api/client";
 
-export type PortfolioTask = "overview" | "resources" | "routes" | "exposure" | "delivery";
-//: The Decision workspace's tasks. `nomination` and `dispatch` (register C14/D8) are the desk's
-//: two assessment engines, each the primary act of its own task.
-export type DecisionTask = "scenario" | "optimize" | "nomination" | "dispatch" | "review";
+export type PortfolioTask = "overview" | "resources" | "exposure" | "delivery";
+//: The Decision workspace's tasks: Book → Planning (`nomination` and `dispatch` behind one
+//: switch, register C14/D8) and Deals → Review. Scenario and Optimise left with CP-00.
+export type DecisionTask = "nomination" | "dispatch" | "review";
 
-export const PORTFOLIO_TASKS: PortfolioTask[] = ["overview", "resources", "routes", "exposure", "delivery"];
-export const DECISION_TASKS: DecisionTask[] = [
-  "scenario",
-  "optimize",
-  "nomination",
-  "dispatch",
-  "review",
-];
+export const PORTFOLIO_TASKS: PortfolioTask[] = ["overview", "resources", "exposure", "delivery"];
+export const DECISION_TASKS: DecisionTask[] = ["nomination", "dispatch", "review"];
 
 export function portfolioTaskFromLocation(search: string): PortfolioTask {
   const params = new URLSearchParams(search);
   const value = params.get("task");
-  if (value === "resources" || value === "routes" || value === "exposure" || value === "delivery") return value;
+  if (value === "resources" || value === "exposure" || value === "delivery") return value;
   // Conflicting register C10: the legacy `orders` page id is kept for deep-link
   // compatibility, and it names the market-positioning view. A bare link to it opens that
   // view rather than the overview, so the page and the surface it names agree.
@@ -34,13 +28,11 @@ export function decisionTaskFromLocation(search: string): DecisionTask {
   const params = new URLSearchParams(search);
   const task = params.get("task");
   const workspace = params.get("workspace");
-  // Legacy deep links: ?workspace=review must open Review, not Scenario.
   if (workspace === "review") return "review";
   // Every declared task round-trips (decisionTaskToSearch writes any of them); a value that
-  // names none falls back to Scenario. Nomination and dispatch used to fall back too (#16).
+  // names none (the retired Scenario and Optimise among them) falls back to Review.
   if ((DECISION_TASKS as readonly string[]).includes(task ?? "")) return task as DecisionTask;
-  if (workspace === "optimize") return "optimize";
-  return "scenario";
+  return "review";
 }
 
 export function portfolioTaskToSearch(search: string, task: PortfolioTask): string {

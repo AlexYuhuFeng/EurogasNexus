@@ -11,7 +11,8 @@ import { workspaceTaskSearch } from "../src/workspaceNavigation.ts";
 
 test("every registered sub-view round-trips through the URL (#31)", () => {
   const views = registeredViews();
-  assert.ok(views.length >= 30, `only ${views.length} registered views`);
+  // The Strategies, Data and Assistant views left with CP-00, and Scenario, Optimise and Routes.
+  assert.ok(views.length >= 20, `only ${views.length} registered views`);
   for (const { page, view } of views) {
     const search = viewToSearch("gasDay=2026-11-05&hub=NBP", page, view);
     assert.equal(viewFromSearch(page, search), view, `${page}/${view}`);
@@ -30,13 +31,11 @@ test("an unknown or stale sub-view falls back to the page's default", () => {
   }
 });
 
-test("the admin and research pages keep their view in the URL", () => {
+test("the admin pages keep their view in the URL", () => {
   for (const [page, view] of [
     ["sources", "catalog"],
     ["runtime", "support"],
     ["access", "api_keys"],
-    ["research", "targets"],
-    ["agents", "runs"],
   ] as const) {
     assert.equal(viewFromSearch(page, `workspace=${page}&view=${view}`), view);
   }

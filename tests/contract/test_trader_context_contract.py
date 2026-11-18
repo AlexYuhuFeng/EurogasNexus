@@ -84,12 +84,10 @@ def test_high_value_cross_workspace_handoffs_are_explicit_actions() -> None:
 
     # The Network page no longer hands over to the scenario page (design basis 2, CP-21).
     assert "onOpenScenario" not in network
-    assert "onOpenStrategyForResource" in contracts
-    assert 't("contracts.open_in_strategy")' in contracts
-    # The strategy-run hand-off is the Decision workspace's: it carries the selected run into
-    # Review, which opens on it and says so. The retired shadow terminal's own button went with the
-    # terminal (see `test_web_client_strategy_page_is_shadow_run_terminal`); the hand-off itself is
-    # one explicit action in one place rather than two.
+    # Nor does the contract workbench hand over to the Strategies page, which left with CP-00.
+    assert "onOpenStrategyForResource" not in contracts
+    assert 't("contracts.open_in_strategy")' not in contracts
+    # A strategy run carried in the URL still reaches Review, which opens on it and says so.
     assert "carriedStrategyRunId={selection.strategyRunId}" in decision
     assert "carriedStrategyRunId" in review
     assert "carried_strategy_run" in review

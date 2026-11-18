@@ -443,53 +443,6 @@ test("Ctrl+Enter is recognised only for a ready, idle panel", () => {
   );
 });
 
-test("every panel and blocker string exists in both English and Mandarin resources", () => {
-  const readWebSource = (relativePath: string): string =>
-    readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
-  const panelSource = readWebSource("components/LngEconomicsPanel.tsx");
-  const workbenchSource = readWebSource("components/ContractWorkbench.tsx");
-  const hookSource = readWebSource("app/model/useLngEconomicsOnly.ts");
-  const modelSource = readWebSource("app/model/lngEconomicsModel.ts");
-
-  const keys = new Set(
-    [...panelSource.matchAll(/t\("([^"]+)"\)/g)].map((match) => match[1]),
-  );
-  keys.add("contracts.lng_economics.ready");
-  keys.add("contracts.lng_economics.blocker.energy_stages_required");
-  keys.add("contracts.lng_economics.blocker.discount_factors_required");
-  keys.add("contracts.view.lng_economics");
-  assert.ok(workbenchSource.includes('t("contracts.view.lng_economics")'));
-
-  const allRowsDraft = draftWith({
-    ...goldenDraft(),
-    downstreamCosts: [emptyLngEconomicsCostDraft()],
-    energyStages: [emptyLngEconomicsStageDraft()],
-    discountFactors: [emptyLngEconomicsDiscountDraft()],
-  });
-  for (const key of lngEconomicsReadiness(allRowsDraft).blockerKeys) keys.add(key);
-  assert.ok(keys.size > 100);
-
-  const resources = ["i18n/en.json", "i18n/zh.json"].map((path) =>
-    JSON.parse(readWebSource(path)) as Record<string, unknown>,
-  );
-  for (const key of keys) {
-    for (const catalog of resources) {
-      assert.equal(typeof catalog[key], "string", `missing translation: ${key}`);
-    }
-  }
-
-  for (const source of [modelSource, panelSource, hookSource]) {
-    for (const forbidden of ["Number(", "parseFloat(", "parseInt(", "toFixed(", "Math."]) {
-      assert.equal(source.includes(forbidden), false, forbidden);
-    }
-  }
-  assert.match(hookSource, /gate\.begin\(\)/, "the synchronous duplicate guard is used");
-  assert.match(hookSource, /if \(!gate\.isCurrent\(ticket\.sequence\)\) return;/);
-  assert.match(hookSource, /gate\.invalidate\(\)/, "edits, context changes and unmount abort");
-  assert.match(hookSource, /lngEconomicsRefusal\(error\)/);
-  assert.match(hookSource, /type: "context_changed"/);
-});
-
 test("the meta type is the only decision context this request declares", () => {
   const meta: LngEconomicsOnlyMetaDTO = goldenMeta();
   assert.equal(meta.decision_context, "SANDBOX_SCENARIO");

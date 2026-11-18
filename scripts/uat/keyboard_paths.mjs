@@ -197,13 +197,13 @@ export async function runKeyboardPaths() {
     await page.locator(".workspace-primary-tabs [role=tab][aria-selected=true]").focus();
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(1500);
-    check(/workspace=scenario/.test(page.url()) && (await active(page)).text === "Deals", `ArrowRight opens Deals (${page.url()})`);
+    check(/workspace=contracts&task=resources/.test(page.url()) && (await active(page)).text === "Deals", `ArrowRight opens Deals at Contracts (${page.url()})`);
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(1500);
     check(/workspace=contracts&task=overview/.test(page.url()), `ArrowRight again opens Book at Position (${page.url()})`);
     await page.keyboard.press("End");
     await page.waitForTimeout(1500);
-    check(/workspace=strategy/.test(page.url()), `End opens Research (${page.url()})`);
+    check(/workspace=research&task=reports/.test(page.url()), `End opens Research at Reports (${page.url()})`);
     await shot(page, "modes-research");
     await page.locator("body").click({ position: { x: 5, y: 300 } });
     await page.keyboard.press("Control+Shift+Digit3");
@@ -211,7 +211,10 @@ export async function runKeyboardPaths() {
     check(/workspace=contracts/.test(page.url()), `Ctrl+Shift+3 opens Book (${page.url()})`);
     // Old addresses land in their new place.
     for (const [from, url, mode] of [
-      ["?workspace=decision", /workspace=scenario&task=scenario/, "Deals"],
+      ["?workspace=decision", /workspace=scenario&task=review/, "Deals"],
+      // Pages and tasks removed by CP-00 land on the nearest surviving task.
+      ["?workspace=scenario&task=optimize", /workspace=contracts&task=resources/, "Deals"],
+      ["?workspace=strategy&task=backtest", /workspace=research&task=reports/, "Research"],
       ["?workspace=portfolio", /workspace=contracts&task=overview/, "Book"],
       ["?workspace=scenario&task=nomination", /workspace=scenario&task=nomination/, "Book"],
       ["?mode=book&task=limits", /workspace=contracts&task=exposure/, "Book"],

@@ -24,7 +24,7 @@ Placement is presentation, never authority: a header action is disabled by the s
 
 ### Run lifecycle beside a `compute` action
 
-A `compute` action's own state belongs with the action and the result it produces, not in global chrome and not nowhere: pending, refusal, failure (through the product error taxonomy, with the backend correlation id when supplied, never a raw exception string), and whether the result on screen was computed for the current trading context. A disabled control states its reason as visible text, because a disabled button cannot be focused and a tooltip therefore cannot reach a keyboard user. This is the geography of [`DecisionActionStatus`](../../clients/web/src/components/decision/DecisionActionStatus.tsx) for the Decision workspace's two governed runs; the rule is stated in [`COMMERCIAL_DECISION_WORKFLOW_SPEC.md`](../product/COMMERCIAL_DECISION_WORKFLOW_SPEC.md) section 26.
+A `compute` action's own state belongs with the action and the result it produces, not in global chrome and not nowhere: pending, refusal, failure (through the product error taxonomy, with the backend correlation id when supplied, never a raw exception string), and whether the result on screen was computed for the current trading context. A disabled control states its reason as visible text, because a disabled button cannot be focused and a tooltip therefore cannot reach a keyboard user. This was the geography of `DecisionActionStatus` for the Decision workspace's two governed runs (Scenario and Optimise, which left with CP-00; the Planning views keep the rule in their own panels); the rule is stated in [`COMMERCIAL_DECISION_WORKFLOW_SPEC.md`](../product/COMMERCIAL_DECISION_WORKFLOW_SPEC.md) section 26.
 
 ## Local filters and data actions
 

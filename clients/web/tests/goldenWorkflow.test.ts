@@ -7,8 +7,8 @@ import {
 } from "../src/app/model/commercialWorkflowModel.ts";
 import { buildResourcePoolOptimizationRequest } from "../src/app/resourcePoolRequest.ts";
 
-test("market to scenario handoff keeps route identity in the decision task", () => {
-  assert.equal(decisionTaskFromLocation("?workspace=scenario"), "scenario");
+test("a retired Scenario link lands on Review and the route identity rides along", () => {
+  assert.equal(decisionTaskFromLocation("?workspace=scenario"), "review");
   assert.equal(decisionTaskFromLocation("?workspace=review"), "review");
   assert.equal(
     decisionTaskToSearch("?gasDay=2026-09-07&route=route-1", "review"),

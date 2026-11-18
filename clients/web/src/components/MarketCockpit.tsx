@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
 import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
 import { MarketTerminal } from "@/components/MarketTerminal";
-import { TraderDeskPanel } from "@/components/TraderDeskPanel";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
@@ -161,7 +160,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             markets={api.normalizedMarkets}
             marketSpreads={api.marketSpreads}
             marketQuotes={api.marketQuotes}
-            intradayOpportunities={api.intradayOpportunities}
             fxRates={api.fxRates}
             sources={api.sources}
             lastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
@@ -172,9 +170,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             t={t}
           />
           <PriceCharts markets={api.normalizedMarkets} t={t} />
-          {/* Desk conventions beside the board: product strip, hub price conversion and the
-              storage-target trajectory, all computed by the backend. */}
-          <TraderDeskPanel t={t} />
           </>
         )}
         {(task === "network" || networkKept) && (

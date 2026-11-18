@@ -23,7 +23,6 @@ import { bookItems, bookSituation, liveSituation, replayTrack, type BookItem } f
 import { MapBookPanel, MapReplayBar, useReplay } from "@/components/MapBookPanel";
 import { MapDetailPanel } from "@/components/MapDetailPanel";
 import { NetworkInfoPanel, useOutageEvents, type PanelRowRef, type PanelRowTarget } from "@/components/NetworkInfoPanel";
-import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import type { CapacityWorkspaceProps } from "@/components/CapacityWorkspace";
 import {
   networkPanelFromSearch,
@@ -506,12 +505,6 @@ export function NetworkWorkspace({
               )}
             </div>
       </details>}
-      {/* The register the map's topology is drawn against: what the deployment declares,
-          including the rows the map does not place (slice D), one line until opened. */}
-      <details className="network-panel-fold">
-        <summary>{t("network.reference.title")}</summary>
-        <ReferenceNetworkCatalogue t={t} />
-      </details>
     </>
   );
 

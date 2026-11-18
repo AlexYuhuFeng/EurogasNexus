@@ -3,7 +3,6 @@ import { PRODUCT_MODES } from "@/app/navigation/modeNavigation";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
-import { ContractChainStrip } from "@/components/ContractChainStrip";
 import { DataGrid, PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
@@ -11,27 +10,19 @@ import { PositionLadderPanel } from "@/components/PositionLadderPanel";
 import { TradingBooksPanel } from "@/components/TradingBooksPanel";
 import { RiskLimitsPanel } from "@/components/RiskLimitsPanel";
 import { DeliveryPerformancePanel } from "@/components/DeliveryPerformancePanel";
-import { LngCargoBidPanel } from "@/components/LngCargoBidPanel";
 import { DailyBalancePanel } from "@/components/DailyBalancePanel";
 import { DealHedgeApprovalsPanel } from "@/components/DealHedgeApprovalsPanel";
 import { SellDownPanel } from "@/components/SellDownPanel";
-import { TariffPublicationsPanel } from "@/components/TariffPublicationsPanel";
-import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
-import { routeCostDraftForRoute } from "@/app/model/routeCostModel";
-import { useRouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
 import { PortfolioContextStrip } from "@/components/PortfolioContextStrip";
 import { TodayFreshness } from "@/components/TodayScreen";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
-import { CapacityBillingPanel } from "@/components/CapacityBillingPanel";
 import type { AppController } from "@/app/hooks/useAppController";
-import { useCapacityBilling } from "@/app/model/useCapacityBilling";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import {
   contractSaveState,
   contractViewFacts,
 } from "@/app/model/contractDraftModel";
 import {
-  classifyRouteFeasibility,
   portfolioTaskFromLocation,
   type PortfolioTask,
 } from "@/app/model/commercialWorkflowModel";
@@ -132,101 +123,12 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
       {/* Three links do not need a panel and a heading of their own (#69). */}
       <nav className="commercial-handoff-actions inline-links" aria-label={t("portfolio.handoffs")}>
         <button type="button" className="link-button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
-        <button type="button" className="link-button" onClick={() => navigation.openWorkspace("strategy")}>{t("portfolio.inspect_strategy")}</button>
-        <button type="button" className="link-button" onClick={() => navigation.openWorkspace("scenario")}>{t("portfolio.open_scenario")}</button>
       </nav>
     </div>
   );
 }
 
-function PortfolioRoutes({ controller }: { controller: AppController }) {
-  const { api, portfolio, selection, navigation, t } = controller;
-  const routes = api.routeCandidates;
-  // Feasibility and allocated volume are claims about *this* context's economics, so they are
-  // derived only from the model's provenanced results: a run whose inputs the client can no
-  // longer vouch for is withheld here and named stale, rather than presented as this route's
-  // current verdict.
-  const poolResult = portfolio.currentResourcePoolResult;
-  const recommendation = portfolio.currentRouteRecommendation;
-  const resultsStale = portfolio.resultsContextMismatch;
-  const allocationOf = (route: (typeof routes)[number]) => {
-    const allocation = poolResult?.allocations.find(
-      (item) => item.option_id === route.route_id,
-    );
-    return allocation ?? null;
-  };
-  const feasibilityOf = (route: (typeof routes)[number]) =>
-    classifyRouteFeasibility(
-      route,
-      recommendation,
-      poolResult,
-      api.resourcePoolOptions,
-    );
-  return (
-    <section className="workspace-panel commercial-routes-panel">
-      <PanelHeader
-        title={t("portfolio.route_comparison")}
-        meta={`${routes.length} ${t("panel.routes")}`}
-      />
-      {resultsStale && (
-        <div className="runtime-blocker-list compact" role="status">
-          <strong>{t("context.result_mismatch")}</strong>
-          <span>{t("context.result_mismatch_hint")}</span>
-        </div>
-      )}
-      <DataGrid
-        id="commercial-routes"
-        className="commercial-route-table"
-        label={t("portfolio.route_comparison")}
-        rows={routes}
-        rowKey={(route) => route.route_id}
-        density="compact"
-        selectedKey={selection.routeId ?? null}
-        onRowAction={(route) => {
-          selection.setRouteId(route.route_id);
-          navigation.openWorkspace("scenario");
-        }}
-        rowAttributes={(route) => ({ "data-record": "commercial-route", "data-record-id": route.route_id })}
-        empty={<p className="muted panel-empty-line">{t("portfolio.no_routes")}</p>}
-        columns={[
-          { id: "route", header: t("portfolio.route"), rowHeader: true, sortable: true, value: (route) => route.route_name },
-          { id: "path", header: t("portfolio.path"), value: (route) => `${route.start_point_name} → ${route.target_point_name}` },
-          { id: "access", header: t("portfolio.access"), value: (route) => route.required_tso_access?.join(", ") || t("home.none_declared") },
-          {
-            id: "feasibility",
-            header: t("portfolio.feasibility"),
-            value: (route) => feasibilityOf(route),
-            render: (route) => {
-              const feasibility = feasibilityOf(route);
-              return <span className={`status-badge status-${feasibility.toLowerCase()}`}>{feasibility}</span>;
-            },
-          },
-          {
-            id: "quantity",
-            header: t("portfolio.quantity"),
-            unit: "MWh/d",
-            type: "number",
-            value: (route) => allocationOf(route)?.allocated_quantity_mwh_per_day ?? null,
-            format: (value) => (value == null ? "–" : (value as number).toLocaleString("en-GB")),
-          },
-          {
-            id: "margin",
-            header: t("portfolio.margin"),
-            unit: "GBP/d",
-            type: "number",
-            value: (route) => allocationOf(route)?.net_pnl_gbp_per_day ?? null,
-            format: (value) => (value == null ? "–" : Math.round(value as number).toLocaleString("en-GB")),
-          },
-        ]}
-      />
-    </section>
-  );
-}
-
-export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
-  controller: AppController;
-  onOpenStrategyForResource: (resourceId: string) => void;
-}) {
+export function PortfolioWorkspace({ controller }: { controller: AppController }) {
   const { t, api, portfolio, selection, navigation, contractEditor } = controller;
   const currentUser = api.currentUser;
   const canMaintainRisk = currentUser?.role === "REVIEWER"
@@ -240,14 +142,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   const [contractView, setContractView] = useState<ContractTaskView>(() =>
     selection.resourceId ? "library" : "terms",
   );
-  // Costing a route and valuing its netback is the Routes task's own compute; its draft lives here
-  // so the header's action and the panel it acts on read one readiness rule (slice D).
-  const routeCost = useRouteCostWhatIf();
   const deskToday = useDeskToday();
-  // The capacity-billing sandbox is the route-cost task's second, explicitly separate compute. It
-  // owns its form and result lifecycle so a refusal or a draft change cannot leave a route-cost
-  // figure standing in for a capacity calculation.
-  const capacityBilling = useCapacityBilling();
 
   useEffect(() => {
     setTask(portfolioTaskFromLocation(window.location.search));
@@ -271,8 +166,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
   }, [api.upstreamContracts, contractEditor, contractParam]);
   const loadPersistedContractAndLink = (saved: Parameters<typeof contractEditor.loadPersistedContract>[0]) => {
     contractEditor.loadPersistedContract(saved);
-    // The opened contract is the selected resource, so the next step (routes, allocation,
-    // strategy) carries it (#32).
+    // The opened contract is the selected resource, so the next page (review) carries it (#32).
     selection.setResourceId(saved.contract_id);
     openedFromUrl.current = saved.contract_id;
     setContractParam(saved.contract_id);
@@ -283,8 +177,8 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
     navigation.openWorkspace("contracts", next);
   }
 
-  // This page serves two modes (WF-05): Position, Limits and Delivery are Book; Contracts and
-  // Routes are Deals. The header is the row of whichever mode the task belongs to.
+  // This page serves two modes (WF-05): Position, Limits and Delivery are Book; Contracts is
+  // Deals. The header is the row of whichever mode the task belongs to.
   const mode = useModeHeader(navigation.activeWorkspace, task, navigation.openWorkspace, t);
 
   // Action geography (`app/experience/actionGeography.ts`): writing a reviewed contract
@@ -315,17 +209,6 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
         }
       >
         {t("contracts.action.save")}
-      </button>
-    ) : task === "routes" ? (
-      // Costing a route is a `compute` consequence, which the geography permits in the primary
-      // slot: the Routes task owns the run, the panel configures it and reports the result.
-      <button
-        type="button"
-        disabled={!routeCost.readiness.canCompute || routeCost.busy}
-        title={t(routeCost.readiness.firstBlockerKey ?? "portfolio.route_cost.ready")}
-        onClick={() => void routeCost.run()}
-      >
-        {t("portfolio.route_cost.run")}
       </button>
     ) : undefined;
 
@@ -376,31 +259,6 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
         {task === "overview" && <PositionLadderPanel t={t} />}
         {task === "overview" && <PortfolioOverview controller={controller} />}
         {task === "resources" && (
-          <ContractChainStrip
-            t={t}
-            facts={{
-              contractId: contractEditor.contract.contract_id.trim() || null,
-              persisted: api.upstreamContracts.some(
-                (item) => item.contract_id === contractEditor.contract.contract_id.trim(),
-              ),
-              draftDirty: contractEditor.draftDirty,
-              routeCount: api.routeCandidates.length,
-              allocated: (portfolio.currentResourcePoolResult?.allocations ?? []).some(
-                (item) =>
-                  item.resource_id === contractEditor.contract.contract_id.trim() &&
-                  item.allocated_quantity_mwh_per_day > 0,
-              ),
-              allocationStale: portfolio.resultsContextMismatch,
-            }}
-            onOpen={(step) => {
-              // Each step carries the contract: the selection holds it across pages.
-              if (step === "routes") openTask("routes");
-              else if (step === "allocation") navigation.openWorkspace("scenario", "optimize");
-              else if (step === "review") navigation.openWorkspace("review");
-            }}
-          />
-        )}
-        {task === "resources" && (
           <ContractWorkbench
             contract={contractEditor.contract}
             upstreamContracts={api.upstreamContracts}
@@ -416,10 +274,6 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             onTaskViewChange={setContractView}
             viewFacts={contractViewFactsForSelection}
             saveState={contractSaveStateForDraft}
-            onOpenStrategyForResource={(resourceId) => {
-              selection.setResourceId(resourceId);
-              onOpenStrategyForResource(resourceId);
-            }}
             contractImportRef={contractEditor.contractImportRef}
             contractImportMessage={contractEditor.contractImportMessage}
             contractImportBusy={contractEditor.contractImportBusy}
@@ -444,34 +298,6 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
         {task === "delivery" && <DeliveryPerformancePanel t={t} />}
         {task === "delivery" && <DailyBalancePanel t={t} />}
         {task === "delivery" && <SellDownPanel t={t} />}
-        {task === "routes" && (
-          <>
-            <PortfolioRoutes controller={controller} />
-            <RouteCostWhatIfPanel
-              t={t}
-              whatIf={routeCost}
-              route={
-                api.routeCandidates.find((item) => item.route_id === selection.routeId) ?? null
-              }
-              onUseSelectedRoute={() =>
-                routeCost.updateDraft((current) =>
-                  routeCostDraftForRoute(
-                    current,
-                    api.routeCandidates.find((item) => item.route_id === selection.routeId) ?? null,
-                  ),
-                )
-              }
-            />
-            {/* A research-only tariff calculator with eleven required inputs: folded under its
-                name so the route tools above it stay on screen (#69). */}
-            <details className="tool-fold">
-              <summary>{t("portfolio.capacity_billing.fold")}</summary>
-              <CapacityBillingPanel t={t} capacityBilling={capacityBilling} />
-            </details>
-            <LngCargoBidPanel t={t} />
-            <TariffPublicationsPanel t={t} />
-          </>
-        )}
         {task === "exposure" && <RiskLimitsPanel t={t} canMaintainRisk={canMaintainRisk} />}
         {task === "exposure" && <DealHedgeApprovalsPanel t={t} canMaintainRisk={canMaintainRisk} />}
         {task === "exposure" && <TradingBooksPanel t={t} />}

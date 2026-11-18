@@ -257,83 +257,6 @@ test("a catalogue entry resolves its declaration, and a withheld provenance stay
   assert.equal(restrictedFacts.has("experience.inspector.fact.freshness"), false);
 });
 
-test("a governed research run resolves what the run recorded about itself", () => {
-  const run = {
-    agent_run_id: "agent-run-1",
-    principal_id: "analyst-river",
-    user_objective: "Does NBP trade at a premium to TTF?",
-    agent_profile: "STRATEGY_RESEARCHER",
-    model_provider: "DETERMINISTIC",
-    model_id: "rule-based-plan/v1",
-    status: "READY_FOR_HUMAN_REVIEW",
-    current_stage: "READY_FOR_HUMAN_REVIEW",
-    artifacts_created: ["ResearchPlan", "ReviewPack"],
-    created_at: "2026-02-01T09:00:00Z",
-    completed_at: null,
-  };
-
-  const detail = inspectorDetailFor(
-    source({ agentRuns: [run] as never }),
-    { kind: "agent-run", ref: "agent-run-1", label: "x", originPage: "agents" },
-  );
-
-  assert.equal(detail.resolved, true);
-  const facts = new Map(detail.facts.map((fact) => [fact.labelKey, fact.value]));
-  assert.equal(facts.get("experience.inspector.fact.agent_objective"), "Does NBP trade at a premium to TTF?");
-  assert.equal(facts.get("experience.inspector.fact.agent_profile"), "STRATEGY_RESEARCHER");
-  // The provider and model are shown as the run reported them: this surface does not brand a run.
-  assert.equal(facts.get("experience.inspector.fact.model_provider"), "DETERMINISTIC");
-  assert.equal(facts.get("experience.inspector.fact.model_id"), "rule-based-plan/v1");
-  assert.equal(facts.get("experience.inspector.fact.principal"), "analyst-river");
-  assert.equal(facts.get("experience.inspector.fact.agent_artifacts"), "ResearchPlan, ReviewPack");
-  // A run still in flight has no completion instant, which is omitted rather than blank.
-  assert.equal(facts.has("experience.inspector.fact.finished_at"), false);
-});
-
-test("a strategy version resolves what identifies it, and nothing its definition holds", () => {
-  const version = {
-    strategy_version_id: "version-1",
-    strategy_id: "nbp-sap-icis-ocm-window",
-    version_number: 3,
-    schema_version: "strategy/v1",
-    status: "FROZEN",
-    hypothesis: "The window carries a premium",
-    definition_json: { components: [] },
-    parent_version_id: "version-0",
-    created_by: "analyst-river",
-    created_at_utc: "2026-02-01T09:00:00Z",
-    frozen_at_utc: "2026-02-01T10:00:00Z",
-    content_hash: "sha256:abc",
-    research_only: true,
-  };
-
-  const detail = inspectorDetailFor(
-    source({ strategyVersions: [version] as never }),
-    { kind: "strategy-version", ref: "version-1", label: "v3", originPage: "strategy" },
-  );
-
-  assert.equal(detail.resolved, true);
-  const facts = new Map(detail.facts.map((fact) => [fact.labelKey, fact.value]));
-  assert.equal(facts.get("experience.inspector.fact.version_number"), "3");
-  assert.equal(facts.get("experience.inspector.fact.status"), "FROZEN");
-  // The content hash is what makes the version reproducible, so it is shown as the backend's own.
-  assert.equal(facts.get("experience.inspector.fact.content_hash"), "sha256:abc");
-  assert.equal(facts.get("experience.inspector.fact.created_by"), "analyst-river");
-  assert.equal(facts.get("experience.inspector.fact.parent_version"), "version-0");
-  assert.equal(facts.get("experience.inspector.fact.hypothesis"), "The window carries a premium");
-  // The definition is a document, not a fact list, and the Inspector does not restate it.
-  for (const value of facts.values()) {
-    assert.equal(value.includes("components"), false);
-  }
-
-  // A draft has no freeze instant, which is omitted rather than shown as empty.
-  const draft = inspectorDetailFor(
-    source({ strategyVersions: [{ ...version, status: "DRAFT", frozen_at_utc: null }] as never }),
-    { kind: "strategy-version", ref: "version-1", label: "v3", originPage: "strategy" },
-  );
-  assert.equal(new Map(draft.facts.map((f) => [f.labelKey, f.value])).has("experience.inspector.fact.frozen_at"), false);
-});
-
 test("a page declares only subject kinds this build can resolve, or says what is pending", () => {
   // A declaration is a promise: a page listing a kind it could never hand over reads as a
   // capability that exists. Each declared kind must therefore resolve, or be recorded here with
@@ -569,13 +492,6 @@ test("every hand-over goes through one composition-checked builder", () => {
   assert.equal(inspectorSubjectFor("network-node", "node-1", "Zeebrugge", "network")?.kind, "network-node");
   assert.equal(inspectorSubjectFor("network-node", "node-1", "Zeebrugge", "market"), null);
 
-  // The strategy page declares strategy-version and strategy-run.
-  assert.equal(
-    inspectorSubjectFor("strategy-run", "run-1", "TTF carry", "strategy")?.kind,
-    "strategy-run",
-  );
-  assert.equal(inspectorSubjectFor("strategy-run", "run-1", "TTF carry", "market"), null);
-
   // The contract workbench hands a saved contract over rather than growing a third
   // detail pane, and it resolves detail from data the surface already received.
   const workbench = readWebSource("components/ContractWorkbench.tsx");
@@ -622,27 +538,6 @@ test("the network map hands a clicked node over instead of only popup detail", (
     assert.ok(zh[key]?.trim(), `zh ${key}`);
     assert.notEqual(en[key], zh[key], key);
   }
-});
-
-test("the strategy backtest hands the selected run over instead of duplicating it", () => {
-  const backtest = readWebSource("components/strategy/StrategyBacktestWorkspace.tsx");
-
-  assert.match(backtest, /import \{ inspectorSubjectFor \} from "@\/app\/model\/inspectorDetail"/);
-  assert.match(backtest, /const inspector = useInspectorStore\(\);/);
-  assert.match(
-    backtest,
-    /const subject = inspectorSubjectFor\(\s*"strategy-run",\s*run\.run_id,\s*run\.strategy_name \?\? run\.run_id,\s*"strategy",\s*\);/s,
-  );
-  assert.match(backtest, /if \(subject\) inspector\.open\(subject\);/);
-  // The surface keeps its own analysis (KPIs, charts) and fetches nothing for the detail.
-  assert.match(backtest, /strategy-kpi-strip/);
-  assert.equal(backtest.includes("fetch("), false);
-
-  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
-  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
-  assert.ok(en["strategy_lab.inspect_run"]?.trim());
-  assert.ok(zh["strategy_lab.inspect_run"]?.trim());
-  assert.notEqual(en["strategy_lab.inspect_run"], zh["strategy_lab.inspect_run"]);
 });
 
 test("review evidence resolves from the review projection, including what it could not get", () => {

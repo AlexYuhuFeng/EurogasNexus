@@ -52,15 +52,6 @@ test("every storage status has an EN and ZH label", () => {
   }
 });
 
-test("the panel is mounted on the curves task and reads the three backend routes", () => {
-  const cockpit = read("../src/components/MarketCockpit.tsx");
-  assert.match(cockpit, /<TraderDeskPanel t=\{t\} \/>/);
-  const client = read("../src/api/client.ts");
-  for (const path of ["/market/products", "/market/price-conversion", "/storage/target-trajectory"]) {
-    assert.ok(client.includes(`"${path}"`), path);
-  }
-});
-
 test("the converter names the FX fix: ECB, WM/Reuters or BFIX, and an average names its window", () => {
   assert.deepEqual([...FX_SOURCE_OPTIONS], ["ECB", "WMR", "BFIX"]);
   assert.equal(

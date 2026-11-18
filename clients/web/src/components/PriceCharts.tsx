@@ -1,15 +1,15 @@
 /**
  * Prices charts (UX-09, F.3 #1): the term structure of one hub by delivery month, in its
- * quotation, with the prior close and a week ago as grey ghost curves; and
- * the NBP–TTF spread by delivery month in p/th. Both read the normalized rows the board reads,
- * so the charts and the board say the same prices; the preparation is `priceCharts.ts`. The hub
+ * quotation, with the prior close and a week ago as grey ghost curves. It reads the normalized
+ * rows the board reads, so the chart and the board say the same prices; the preparation is
+ * `priceCharts.ts`. The NBP–TTF bar spread left with CP-00 (spreads live in Research → Spreads). The hub
  * of the curve is chosen with the InstrumentPicker at hub level (type `nbp`, `英国`), which scales
  * past the five hubs a segmented control could hold.
  */
 import { useMemo, useState } from "react";
 
 import type { NormalizedMarketObsDTO } from "@/api/client";
-import { curveHubs, forwardCurve, nbpTtfSpread, termStructure, type CurveRow } from "@/app/model/priceCharts";
+import { curveHubs, forwardCurve, termStructure, type CurveRow } from "@/app/model/priceCharts";
 import { InstrumentPicker } from "@/components/ui";
 import { catalogueFromHubs } from "@/app/model/instrumentPicker";
 import { Chart, type ChartData } from "@/components/ui/charts";
@@ -43,7 +43,6 @@ export function PriceCharts({ markets, t }: { markets: readonly NormalizedMarket
     [rows, hubs, front],
   );
   const curve = useMemo(() => (hub ? termStructure(rows, hub, front) : null), [rows, hub, front]);
-  const spread = useMemo(() => nbpTtfSpread(rows, front), [rows, front]);
 
   // The term structure (F.1): today's curve with a marker per delivery month, the prior close
   // and a week ago as grey ghost curves, one unit, labelled at the line ends.
@@ -62,13 +61,6 @@ export function PriceCharts({ markets, t }: { markets: readonly NormalizedMarket
       { id: hub.toLowerCase(), label: hub, values: curve.current, simulated: curve.simulated, decimals: 3 },
     ],
   } : null, [curve, hub, t]);
-  const spreadData = useMemo<ChartData>(() => ({
-    axis: "period",
-    x: spread.months,
-    xTitle: t("chart.delivery_month"),
-    unit: spread.unit,
-    series: [{ id: "nbp-ttf", label: t("prices.chart.spread_series"), values: spread.values, style: "bar", simulated: spread.simulated, colour: 5, decimals: 3 }],
-  }), [spread, t]);
 
   if (hubs.length === 0) return null;
   return (
@@ -94,18 +86,6 @@ export function PriceCharts({ markets, t }: { markets: readonly NormalizedMarket
           ) : undefined}
           subtitle={curve && !curve.priorClose && !curve.weekAgo ? t("prices.chart.no_prior_close") : undefined}
           note={t("prices.chart.curve_note")}
-        />
-      )}
-      {spread.months.length > 0 && (
-        <Chart
-          id="nbp-ttf-spread"
-          title={t("prices.chart.spread_title")}
-          data={spreadData}
-          t={t}
-          height={180}
-          asOf={spread.asOf}
-          simulated={spread.simulated}
-          note={t("prices.chart.spread_note")}
         />
       )}
     </section>

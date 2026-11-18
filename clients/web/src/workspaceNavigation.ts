@@ -4,7 +4,6 @@ export type WorkspacePageId =
   | "market"
   | "scenario"
   | "contracts"
-  | "strategy"
   | "review"
   | "orders"
   | "sources"
@@ -13,8 +12,7 @@ export type WorkspacePageId =
   | "settings"
   | "manual"
   | "access"
-  | "research"
-  | "agents";
+  | "research";
 
 export const workspacePageIds: WorkspacePageId[] = [
   "network",
@@ -22,7 +20,6 @@ export const workspacePageIds: WorkspacePageId[] = [
   "market",
   "scenario",
   "contracts",
-  "strategy",
   "review",
   "orders",
   "sources",
@@ -32,7 +29,6 @@ export const workspacePageIds: WorkspacePageId[] = [
   "manual",
   "access",
   "research",
-  "agents",
 ];
 
 export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "market";
@@ -101,7 +97,8 @@ export function workspaceTaskSearch(
   }
   next.set("workspace", page);
   if (page === "scenario" || page === "review" || task) {
-    next.set("task", task ?? page);
+    // The scenario page with no task opens Review: its Scenario task left with CP-00.
+    next.set("task", task ?? (page === "scenario" ? "review" : page));
   } else {
     next.delete("task");
   }

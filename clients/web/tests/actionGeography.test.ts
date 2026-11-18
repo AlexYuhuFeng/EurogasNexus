@@ -92,42 +92,23 @@ test("a workspace header declares at most one primary action, and only a permitt
   // The inventory is asserted so the slot's use cannot grow silently. A surface that starts
   // passing one belongs in this list *with* a `compute` or `persist` action.
   assert.deepEqual(passing.sort(), [
-    "components/AgentsWorkspace.tsx",
     "components/DecisionWorkspace.tsx",
     "components/PortfolioWorkspace.tsx",
-    "components/ResearchDataWorkspace.tsx",
-    "components/strategy/StrategyLabWorkspace.tsx",
   ]);
 
   const decision = readWebSource("components/DecisionWorkspace.tsx");
-  // Two tasks in this workspace each own a `compute` act, and each is in the slot for its own
-  // task: the optimiser run for Optimize, the route comparison for Scenario.
-  assert.match(decision, /task === "optimize" \? \([\s\S]*?\) : task === "scenario" \? \(/);
-  assert.match(decision, /onClick=\{portfolio\.recommendRouteAllocationForCurrentContext\}/);
-  // The comparison's gate is the model's own rule (declared capability plus ready inputs),
-  // not a second opinion computed in the header.
-  assert.match(decision, /disabled=\{!portfolio\.canCompareRoutes\}/);
-  assert.equal(
-    (decision.match(/t\("economics\.compare"\)/g) ?? []).length,
-    1,
-    "the primary action's label is rendered once",
-  );
+  // Book → Planning owns two `compute` acts, one per view behind its switch: assessing the
+  // nominations and assessing the storage dispatch. Each is in the slot for its own view.
+  assert.match(decision, /const primaryAction =\s*task === "nomination" \? \([\s\S]*?\) : task === "dispatch" \? \(/);
+  assert.match(decision, /onClick=\{\(\) => void nomination\.run\(\)\}/);
+  assert.match(decision, /onClick=\{\(\) => void dispatch\.run\(\)\}/);
   // Exactly one `primaryAction=` binding, so the header cannot end up with two.
   assert.equal((decision.match(/primaryAction=\{/g) ?? []).length, 1);
-  // The action it passes is the optimiser run: a `compute` consequence, which the geography
-  // permits in the primary slot, and the button is disabled while its inputs are blocked.
-  assert.match(decision, /const primaryAction =[\s\S]*?task === "optimize" \? \(/);
-  assert.match(decision, /onClick=\{portfolio\.optimizeResourcePoolForCurrentContext\}/);
-  assert.match(decision, /disabled=\{!portfolio\.canRunPoolOptimizer\}/);
   assert.equal(mayOccupyPrimarySlot("compute"), true);
   assert.equal(mayOccupyPrimarySlot("lifecycle"), false);
-  // The panel reports the run; it no longer starts it.
-  assert.equal(decision.includes('t("home.optimize_pool")'), true);
-  assert.equal(
-    (decision.match(/t\("home\.optimize_pool"\)/g) ?? []).length,
-    1,
-    "the primary action's label is rendered once",
-  );
+  // Scenario and Optimise left with CP-00: neither run is offered from the header any more.
+  assert.equal(decision.includes("optimizeResourcePoolForCurrentContext"), false);
+  assert.equal(decision.includes("recommendRouteAllocationForCurrentContext"), false);
 
   const portfolio = readWebSource("components/PortfolioWorkspace.tsx");
   assert.equal((portfolio.match(/primaryAction=\{/g) ?? []).length, 1);
@@ -142,65 +123,6 @@ test("a workspace header declares at most one primary action, and only a permitt
   assert.equal(readWebSource("components/ContractWorkbench.tsx").includes("contracts.action.save"), false);
   assert.equal(
     (portfolio.match(/contracts\.action\.save/g) ?? []).length,
-    1,
-    "the primary action exists once",
-  );
-
-  const agents = readWebSource("components/AgentsWorkspace.tsx");
-  assert.equal((agents.match(/primaryAction=\{/g) ?? []).length, 1);
-  // The action it passes is starting a governed research run: another `compute` consequence,
-  // permitted in the primary slot, and disabled by the run-readiness rule the panel lists -
-  // the route refuses the run without a runtime database and below its objective bounds, so
-  // the surface must not offer it.
-  assert.match(agents, /const primaryAction =\s*activeView === "research" \? \(/);
-  assert.match(agents, /disabled=\{!readiness\.canRun\}/);
-  assert.match(agents, /onClick=\{\(\) => void runResearch\(\)\}/);
-  assert.equal(mayOccupyPrimarySlot("compute"), true);
-  // The panel configures and reports the run; it no longer starts it.
-  assert.match(agents, /agentRunReadiness\(\{ objective, runtimeDbReady, running \}\)/);
-  assert.equal(
-    (agents.match(/agents\.run_research"/g) ?? []).length,
-    1,
-    "the primary action exists once",
-  );
-
-  const strategy = readWebSource("components/strategy/StrategyLabWorkspace.tsx");
-  assert.equal((strategy.match(/primaryAction=\{/g) ?? []).length, 1);
-  // The action it passes is running a backtest: a `compute` consequence, disabled by the rule
-  // the panel reports and explained by the first blocker.
-  assert.match(strategy, /const primaryAction =\s*controller\.task === "backtest" \? \(/);
-  assert.match(strategy, /disabled=\{!controller\.canManageSelectedStrategy \|\| !backtestReadiness\.canRun\}/);
-  assert.match(strategy, /const request = strategyBacktestRequest\(/);
-  assert.equal(mayOccupyPrimarySlot("compute"), true);
-  // The panel configures the run and reports the verdict; it no longer starts one.
-  assert.match(strategy, /readiness=\{backtestReadiness\}/);
-  assert.equal(
-    readWebSource("components/strategy/StrategyBacktestWorkspace.tsx").includes(
-      'controller.runBacktest',
-    ),
-    false,
-  );
-  assert.equal(
-    (strategy.match(/strategy_lab\.run_backtest"/g) ?? []).length,
-    1,
-    "the primary action exists once",
-  );
-
-  const research = readWebSource("components/ResearchDataWorkspace.tsx");
-  assert.equal((research.match(/primaryAction=\{/g) ?? []).length, 1);
-  // The action it passes is building a dataset snapshot: the research surface's `persist`
-  // consequence, disabled by the build gate the panel reports (a spec that has not been
-  // validated, or that changed after validation, locks it).
-  assert.match(research, /activeView === "datasets" \? \(/);
-  assert.match(research, /disabled=\{buildBusy \|\| !buildGate\.canBuild\}/);
-  assert.match(research, /onClick=\{\(\) => void buildSnapshot\(\)\}/);
-  assert.equal(mayOccupyPrimarySlot("persist"), true);
-  // The panel keeps the specification, the validate step and the sentence that explains the
-  // lock; it no longer renders a second build control.
-  assert.equal(research.includes('className="button primary" onClick={onBuild}'), false);
-  assert.match(research, /researchBuildGateLockKey\(gate\.reason\)/);
-  assert.equal(
-    (research.match(/research\.build_action"/g) ?? []).length,
     1,
     "the primary action exists once",
   );
@@ -233,42 +155,21 @@ test("a primary action is moved into the header, not copied beside it", () => {
   }
 });
 
-test("one compute act has one control, across surfaces and not only inside a file", () => {
-  // The per-file checks above cannot see the failure mode that actually happened: the pool
-  // optimiser run was reachable from three separate buttons - the Decision workspace's primary
-  // action, the Scenario panel and the network panel over the map - so a user had to relearn
-  // where "run" lives depending on which tab they were standing in, which is exactly what the
-  // geography exists to prevent. The same check covers the route comparison, the other compute
-  // act this workspace owns.
+test("no surface starts the retired pool optimiser or route comparison", () => {
+  // Deals → Evaluate and Optimise left with CP-00 (design basis 2, I.1). The engines stay in the
+  // backend for the Opportunities evaluators; no client surface starts either run.
   const acts = {
     optimizeResourcePoolForCurrentContext: "runs the pool optimiser",
     recommendRouteAllocationForCurrentContext: "compares route options",
   };
   const offenders: string[] = [];
   for (const { path, source } of surfaceSources()) {
-    if (path === "components/DecisionWorkspace.tsx") continue;
     for (const [handler, description] of Object.entries(acts)) {
       if (source.includes(handler)) offenders.push(`${path}: ${description}`);
     }
   }
-  assert.deepEqual(
-    offenders,
-    [],
-    "a surface other than the Decision workspace starts a Decision-workspace run",
-  );
-  // The Network page carries no optimiser hand-over any more: the decision rail left the map
-  // with the optimiser pages (design basis 2, CP-21).
+  assert.deepEqual(offenders, [], "a surface starts a retired run");
   assert.equal(readWebSource("components/NetworkWorkspace.tsx").includes("network.optimizer_location"), false);
-  assert.match(
-    readWebSource("components/ScenarioWorkspace.tsx"),
-    /t\("scenario\.optimizer_location"\)/,
-  );
-  // The panels keep the preflight verdict and the result; only the run control moved.
-  assert.match(readWebSource("components/ScenarioWorkspace.tsx"), /poolInputBlockers/);
-  assert.equal(
-    readWebSource("components/NetworkWorkspace.tsx").includes('t("home.optimize_pool")'),
-    false,
-  );
 });
 
 test("shell utilities stay in the shell", () => {

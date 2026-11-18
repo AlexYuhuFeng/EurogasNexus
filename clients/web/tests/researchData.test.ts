@@ -63,30 +63,6 @@ test("research errors are localized and do not expose raw backend details", () =
   assert.doesNotMatch(safeResearchErrorMessage(new Error("API 500: /srv/app/sql/password=secret"), messages), /secret|sql|srv/);
 });
 
-test("research workspace retains explicit loading, empty, error, selection, quality, and artifact states", () => {
-  const workspace = source("components/ResearchDataWorkspace.tsx");
-  assert.match(workspace, /status: \"loading\"/);
-  assert.match(workspace, /research\.no_datasets/);
-  assert.match(workspace, /research\.detail_error/);
-  assert.match(workspace, /researchDatasetQuality/);
-  assert.match(workspace, /request_artifact_reference/);
-  assert.match(workspace, /export_unknown_policy/);
-  assert.match(workspace, /export_restricted_policy/);
-  assert.match(workspace, /aria-selected/);
-  assert.match(workspace, /const exportCoordinator = useRef\(new WorkspaceLoadCoordinator\(\)\)/);
-  assert.match(workspace, /exportResearchDataset\(requestedDatasetId, \{ format: exportFormat \}, options\)/);
-  assert.match(workspace, /retries: 0, timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS/);
-  assert.match(workspace, /selectedDatasetIdRef\.current/);
-  assert.match(workspace, /exportCoordinator\.cancel\(\)/);
-  assert.match(workspace, /isResearchDetailForSelection\(selectedId, detailState\.detail\.dataset_snapshot_id\)/);
-  assert.match(workspace, /error={catalogError}/);
-  assert.match(workspace, /setCatalogIdentityKey\(null\)/);
-  assert.match(workspace, /const liveIdentity = useApiStore\.getState\(\)\.currentUser\?\.principal_id/);
-  assert.match(workspace, /timeZone: "UTC"/);
-  assert.match(workspace, /researchDisplayValue\(dataset\.row_count/);
-  assert.match(workspace, /researchDisplayValue\(dataset\.column_count/);
-});
-
 test("research client uses the existing detail, quality, and artifact-reference contracts", () => {
   const client = source("api/client.ts");
   assert.match(client, /researchDataset: \(datasetSnapshotId: string/);

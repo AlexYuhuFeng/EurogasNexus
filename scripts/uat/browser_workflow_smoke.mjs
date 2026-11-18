@@ -84,7 +84,6 @@ const WORKSPACES = [
   "market",
   "scenario",
   "contracts",
-  "strategy",
   "review",
   "orders",
   "sources",
@@ -94,7 +93,6 @@ const WORKSPACES = [
   "manual",
   "access",
   "research",
-  "agents",
 ];
 
 /**
@@ -185,7 +183,6 @@ const SURFACE_SIGNALS = {
   // overview task, which declares no empty-state row, so an empty read is reported as unmeasured
   // rather than against an empty state this view does not render.
   contracts: { heading: /portfolio|contract/i, apiPath: "/api/route-cost/upstream-contracts", readToRender: [{ label: "upstream contracts", rowsPath: "data", recordIdField: "contract_id", rowSelectors: ['[data-record="portfolio-resource"]', '[data-record="upstream-contract"]'], rowLimit: 25 }] },
-  strategy: { heading: /strategy/i, apiPath: "/api/strategies?limit=5" },
   // Compare the Review workspace's actual projection and its bounded history rows.
   // Unrelated unavailable evidence elsewhere on the page must not turn a rendered decision
   // into a missing-row finding; exact record identity is the authority.
@@ -215,8 +212,8 @@ const SURFACE_SIGNALS = {
   settings: { heading: /settings/i, apiPath: "/api/runtime/release" },
   manual: { heading: /manual/i, apiPath: null },
   access: { heading: /access/i, apiPath: "/api/access/users" },
-  research: { heading: /research/i, apiPath: "/api/capabilities?limit=5" },
-  agents: { heading: /agent/i, apiPath: "/api/capabilities?limit=5" },
+  // Research is Reports since CP-00 (the Strategies, Data and Assistant pages left).
+  research: { heading: /research|report/i, apiPath: "/api/reports/catalogue" },
 };
 
 /**
@@ -235,8 +232,8 @@ const KNOWN_FUNCTIONAL_GAPS = {
   // board's visible joined keys, stated total and read state are now compared with both
   // (`joinedBoard`, `evaluateCapacityBoardJoin`), so a served operating point the board does not
   // render fails by its own `point_id:direction` key.
-  research: "the capability catalogue returns rows while the table renders 'Loading workspace'",
-  agents: "the capability catalogue returns rows while the table renders 'Loading workspace'",
+  // The capability-catalogue gaps of Research → Data and the Assistant left with those pages
+  // (CP-00).
 };
 
 /**
@@ -247,9 +244,7 @@ const KNOWN_FUNCTIONAL_GAPS = {
  * conversation starts from the measured state. A surface that is *not* listed here fails the run.
  */
 const KNOWN_SURFACE_DEFECTS = {
-  agents:
-    "the capability catalogue renders 'Loading workspace' after load while /api/capabilities "
-    + "returns rows (measured 2026-09-19; the surface's own read never completes on a fresh login)",
+  // The Assistant's catalogue defect left with the page (CP-00).
 };
 
 /** Console noise that is a known, declared condition rather than a defect. */
@@ -559,8 +554,8 @@ async function inspectSurfaceFunction(
     // translated heading failed the whole Chinese run for no reason but translation.
     let markedWorkspace = null;
     const known = new Set([
-      "network", "capacity", "market", "scenario", "contracts", "strategy", "review", "orders",
-      "sources", "glossary", "runtime", "settings", "manual", "access", "research", "agents",
+      "network", "capacity", "market", "scenario", "contracts", "review", "orders",
+      "sources", "glossary", "runtime", "settings", "manual", "access", "research",
     ]);
     let node = displayed ?? null;
     while (node && markedWorkspace === null) {
@@ -2707,8 +2702,8 @@ export async function runWorkflowSmoke() {
       + " request (the harness's own induced failure, attributed by the request URL it refused)",
     );
 
-    currentScope = "interaction/agent-research-review";
-    agentResearch = await agentResearchE2E(page, failures);
+    // The governed research run through the Assistant left the UI with CP-00 (design basis 2,
+    // I.3: the agents backend stays dormant); `agentResearch` stays null in the summary.
 
     // The receipt-bound EEX TTF NGP reference index, with a controlled transport fixture for
     // exactly `GET /api/projections/market-context` while the helper is active. The fixture keeps

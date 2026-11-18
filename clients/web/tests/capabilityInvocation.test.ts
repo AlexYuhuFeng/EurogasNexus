@@ -221,27 +221,6 @@ test("an unknown policy is shown as its own code rather than a wrong word", () =
   assert.equal(capabilityPolicyKey("FUTURE_POLICY"), "FUTURE_POLICY");
 });
 
-test("the surface offers invocation and the header runs it", () => {
-  const workspace = readWebSource("components/AgentsWorkspace.tsx");
-  const client = readWebSource("api/client.ts");
-
-  // The transport carries the confirmation the runtime reads.
-  assert.match(client, /invokeCapability: \(\s*capabilityId: string,\s*argumentsBody: Record<string, unknown>,\s*confirmation\?: \{ humanConfirmation: boolean; confirmationNote\?: string \},\s*\)/s);
-  assert.match(client, /human_confirmation: confirmation\?\.humanConfirmation \?\? false,/);
-  assert.match(client, /confirmation_note: confirmation\?\.confirmationNote \?\? "",/);
-
-  // The action is the workspace's primary action for the capabilities view, gated by the rule
-  // the panel lists, and the catalogue no longer just reports postures.
-  assert.match(workspace, /activeView === "capabilities" \? \(/);
-  assert.match(workspace, /disabled=\{!invokeReadiness\.canInvoke\}/);
-  assert.match(workspace, /capabilityInvocationRequest\(\{/);
-  assert.match(workspace, /api\.invokeCapability\(invokeSubject\.capabilityId, request\.arguments,/);
-  // Changing the target clears the confirmation: nobody confirms one capability and runs another.
-  assert.match(workspace, /setInvokeConfirmed\(false\);/);
-  // A blocked result is shown with its code, not rewritten.
-  assert.match(workspace, /\{invokeOutcome\.failureCode && \(/);
-});
-
 test("every capability string exists in both locales, and says something different", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

@@ -5,9 +5,6 @@ import type { ChangeEvent, RefObject } from "react";
 import type { ContractIntakeDTO, PortfolioResourceDTO, RouteCandidateDTO, UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
 import { RetireContractButton, RetiredContractsList, type ContractLifecycleAction } from "@/components/ContractLifecycleControls";
-import { FinancingRateHelper } from "@/components/FinancingRateHelper";
-import { LngEconomicsPanel } from "@/components/LngEconomicsPanel";
-import { useLngEconomicsOnly } from "@/app/model/useLngEconomicsOnly";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import {
   contractValidationIssueKeys,
@@ -128,7 +125,7 @@ export type { ContractDraft };
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 /** The resource-contract sub-views. Owned by the workspace, which also hosts the save action. */
-export type ContractTaskView = "source" | "terms" | "impact" | "lng_economics" | "library";
+export type ContractTaskView = "source" | "terms" | "impact" | "library";
 type ClauseView = "agreement" | "product" | "delivery" | "quantity" | "costs" | "capacity" | "settlement" | "restrictions";
 
 /** Funding segments (#14): one row per lender, each priced at its own rate and day count. */
@@ -209,7 +206,6 @@ interface ContractWorkbenchProps {
   onTaskViewChange: (view: ContractTaskView) => void;
   viewFacts: ContractViewFacts;
   saveState: ContractSaveState;
-  onOpenStrategyForResource: (resourceId: string) => void;
   contractImportRef: RefObject<HTMLInputElement | null>;
   contractImportMessage: string | null;
   contractImportBusy?: boolean;
@@ -259,7 +255,7 @@ export function ContractWorkbench({
   contract, upstreamContracts, portfolioResources, totalPoolVolume,
   firstPoolAllocation, runtimeDbReady, runtimeDbKnown = true, loading, draftDirty, selectedResourceId,
   taskView, onTaskViewChange, viewFacts, saveState,
-  onOpenStrategyForResource, contractImportRef, contractImportMessage, contractImportBusy = false,
+  contractImportRef, contractImportMessage, contractImportBusy = false,
   contractIntake = null, onDismissContractIntake, onContractLifecycle,
   contractSaveMessage, contractSaveConflict, t,
   updateContractText, updateContractNumber, updateContractList, updateContractTranches, routeCandidates = [],
@@ -303,10 +299,6 @@ export function ContractWorkbench({
   const stagedLabel = t(`contracts.doc_status.${stagedCode}`);
   const stagedStatus = stagedLabel === `contracts.doc_status.${stagedCode}` ? stagedCode : stagedLabel;
   const selectedReadOnlyName = selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name ?? selectedResourceId;
-  // The selected term is context for the LNG sandbox, never an authoritative source of its facts.
-  // Changing the selection invalidates a result computed against the previous term while keeping
-  // the operator's typed draft.
-  const lngEconomics = useLngEconomicsOnly(selectedResourceId ?? "");
 
   const validationIssues = useMemo(
     () => contractValidationIssueKeys(contract).map((key) => t(key)),
@@ -318,7 +310,6 @@ export function ContractWorkbench({
   const taskTabs: Array<[ContractTaskView, string]> = [
     ["source", t("contracts.view.source")], ["terms", t("contracts.view.terms")],
     ["impact", t("contracts.view.impact")],
-    ["lng_economics", t("contracts.view.lng_economics")],
     ["library", t("contracts.view.library")],
   ];
   const clauseTabs: Array<[ClauseView, string]> = [
@@ -353,7 +344,7 @@ export function ContractWorkbench({
         <div className="contract-command-actions" tabIndex={0}>
           <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
           <button type="button" className="secondary-button" onClick={resetContractDraft}>{t("contracts.action.new")}</button>
-          <input ref={contractImportRef} className="contract-import-input" type="file" accept=".pdf,.json,.txt,application/pdf,application/json,text/plain" hidden onChange={importContractDraftFile} />
+          <input ref={contractImportRef} className="contract-import-input" type="file" accept=".pdf,application/pdf" hidden onChange={importContractDraftFile} />
         </div>
       </section>
 
@@ -483,7 +474,6 @@ export function ContractWorkbench({
               <label>{t("economics.cash_lag")}<input type="number" min="0" value={contract.screen_sale_cash_lag_days ?? ""} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
               <label>{t("contracts.upstream_payment_lag")}<input type="number" min="0" value={contract.upstream_payment_lag_days ?? ""} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
               <label>{t("economics.finance_rate")}<input type="number" min="0" value={contract.annual_financing_rate_pct ?? ""} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
-              <FinancingRateHelper t={t} onApply={(rate) => updateContractNumber("annual_financing_rate_pct", String(rate))} />
               <label className="span-2">{t("contracts.governing_law")}<ChoiceSelect value={contract.governing_law} options={GOVERNING_LAWS} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} labelFor={pointLabel} onChange={(value) => updateContractText("governing_law", value)} /></label>
             </div>
             {updateContractTranches && (
@@ -514,27 +504,9 @@ export function ContractWorkbench({
           <section className="contract-content-band span-2">
             <div className="section-heading"><span className="eyebrow">{t("contracts.persisted_impact")}</span><strong>{persistedResource ? t("contracts.in_pool") : t("contracts.not_in_pool")}</strong></div>
               {persistedResource ? <div className="contract-impact-grid"><div><span>{t("contracts.resource_id")}</span><strong>{persistedResource.resource_id}</strong></div><div><span>{t("economics.volume")}</span><strong>{formatQuantity(persistedResource.available_quantity_mwh_per_day)}</strong></div><div><span>{t("economics.contract_price")}</span><strong>{formatMoney(persistedResource.contract_cost_gbp_mwh)}</strong></div><div><span>{t("contracts.variable_and_regas")}</span><strong>{formatMoney(persistedResource.variable_cost_gbp_mwh)}</strong></div><div><span>{t("contracts.fuel_loss")}</span><strong>{formatPercentage(persistedResource.fuel_loss_allowance_pct)}</strong></div><div><span>{t("contracts.pricing_method")}</span><strong>{persistedResource.pricing_method || "n/a"}</strong></div></div> : <p className="panel-copy">{t("contracts.impact_pending")}</p>}
-              {persistedResource && (
-                <div className="contract-handoff-row">
-                  <button type="button" className="secondary-button" onClick={() => onOpenStrategyForResource(persistedResource.resource_id)}>
-                    {t("contracts.open_in_strategy")}
-                  </button>
-                </div>
-              )}
             </section>
           <section className="contract-content-band"><div className="section-heading"><span className="eyebrow">{t("portfolio.scope.register")}</span><strong>{portfolioResources.length} {t(portfolioResources.length === 1 ? "contracts.resource_singular" : "home.resources")}</strong></div><div className="contract-definition-list"><div><span>{t("portfolio.scope.quantity")}</span><strong>{formatQuantity(totalPoolVolume)}</strong></div><div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.early_cash_value_gbp_mwh) : "n/a"}</strong></div><div><span>{t("result.net_margin")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.net_margin_gbp_mwh) : "n/a"}</strong></div></div></section>
         </div>
-      )}
-
-      {taskView === "lng_economics" && (
-        <LngEconomicsPanel
-          t={t}
-          lngEconomics={lngEconomics}
-          selectedContractId={selectedResourceId}
-          selectedContractName={
-            selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name ?? null
-          }
-        />
       )}
 
       {taskView === "library" && (
@@ -568,7 +540,6 @@ export function ContractWorkbench({
               away from the values underneath it (`docs/release/acceptance/05_CONTRACT_FLOW_RECHECK.md`, P2). */}
           <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("contracts.contract_price")}</span><span>{t("panel.status")}</span><span>{t("strategy_lab.actions")}</span></div>
           <div className="contract-library-list">{upstreamContracts.map((saved) => {
-            const resourceInPool = portfolioResources.some((resource) => resource.resource_id === saved.contract_id);
             const selected = selectedResourceId === saved.contract_id || saved.contract_id === contract.contract_id;
             return (
               <div
@@ -587,15 +558,6 @@ export function ContractWorkbench({
                   <span><strong>{t("contracts.persisted")}</strong><small>{formatTimestamp(saved.updated_at_utc)}</small></span>
                 </button>
                 <div className="contract-library-row-actions">
-                  <button
-                    type="button"
-                    className="contract-library-handoff"
-                    disabled={!resourceInPool}
-                    title={resourceInPool ? t("contracts.open_in_strategy") : t("contracts.open_in_strategy_unavailable")}
-                    onClick={() => onOpenStrategyForResource(saved.contract_id)}
-                  >
-                    {t("contracts.open_in_strategy")}
-                  </button>
                   <button
                     type="button"
                     className="contract-library-handoff"

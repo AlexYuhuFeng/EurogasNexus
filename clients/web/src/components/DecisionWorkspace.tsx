@@ -2,19 +2,14 @@ import { useModeHeader } from "@/app/navigation/useModeHeader";
 import { PRODUCT_MODES } from "@/app/navigation/modeNavigation";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useState } from "react";
-import { PanelHeader, WorkspaceHeader } from "@/components/ui";
-import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
+import { Segmented, WorkspaceHeader } from "@/components/ui";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import { ReviewContextStrip } from "@/components/ReviewContextStrip";
 import type { AppController } from "@/app/hooks/useAppController";
-import { warningLabel } from "@/app/warningLabel";
-import { CommercialWarningList } from "@/components/CommercialWarningList";
 import { DecisionCasePanel } from "@/components/DecisionCasePanel";
 import { DayBoardPanel } from "@/components/decision/DayBoardPanel";
-import { DecisionActionStatus } from "@/components/decision/DecisionActionStatus";
 import { NominationWindowPanel } from "@/components/decision/NominationWindowPanel";
 import { StorageDispatchPanel } from "@/components/decision/StorageDispatchPanel";
-import { DeskReplayPanel } from "@/components/decision/DeskReplayPanel";
 import {
   useNominationAssessment,
   useOptimizationRunRecord,
@@ -36,108 +31,8 @@ import {
 import "./commercial-workflow.css";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 
-function money(value: number | null | undefined, suffix = ""): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
-  return `GBP ${Math.round(value).toLocaleString()}${suffix}`;
-}
-
-function OptimizeWorkspace({ controller }: { controller: AppController }) {
-  const { portfolio, t, navigation } = controller;
-  // Only a pool result provenanced to the inputs the caller now knows feeds these metrics: a
-  // stale payload is withheld (n/a), never shown as this context's figures and never
-  // substituted with 0. The action status above the panel states the staleness.
-  const result = portfolio.currentResourcePoolResult;
-  const allocations = portfolio.poolAllocations;
-  const blockers = portfolio.poolInputBlockers;
-  const unallocated = result?.total_unallocated_mwh_per_day ?? null;
-  const unallocatedReasons = blockers.length
-    ? blockers
-    : unallocated !== null && unallocated > 0
-      ? ["NO_ECONOMIC_DESTINATION_OR_CONSTRAINT_BOUND"]
-      : [];
-
-  return (
-    <div className="commercial-overview">
-      <section className="commercial-metric-strip" aria-label={t("decision.optimize")}>
-        <span><small>{t("portfolio.allocated")}</small><strong>{result?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
-        <span><small>{t("portfolio.unallocated")}</small><strong>{unallocated === null ? "n/a" : `${unallocated.toLocaleString()} MWh/d`}</strong></span>
-        <span><small>{t("portfolio.net_indicative")}</small><strong>{money(result?.total_net_pnl_gbp_per_day, "/d")}</strong></span>
-        <span><small>{t("portfolio.status")}</small><strong>{result?.status ?? t("home.pending")}</strong></span>
-        <span><small>{t("portfolio.warnings")}</small><strong>{result?.warnings.length ?? 0}</strong></span>
-      </section>
-      <section className="workspace-panel">
-        <PanelHeader
-          title={t("decision.preflight")}
-          meta={blockers.length === 0 ? t("decision.ready") : `${blockers.length} ${t("portfolio.warnings")}`}
-        />
-        <PanelHelp text={t("decision.preflight_help")} label={t("panel.how_to_read")} />
-        {blockers.length === 0 ? (
-          <span className="status-badge status-complete">{t("decision.ready")}</span>
-        ) : (
-          <ul className="commercial-warning-list">
-            {blockers.map((blocker) => <li key={blocker}>{warningLabel(blocker, t)}</li>)}
-          </ul>
-        )}
-      </section>
-      <section className="workspace-panel">
-        <PanelHeader title={t("decision.allocations")} meta={String(allocations.length)} />
-        <div className="data-table">
-          <div className="data-table-row header five">
-            <span>{t("portfolio.resource")}</span><span>{t("portfolio.destination")}</span>
-            <span>{t("portfolio.quantity")}</span><span>{t("portfolio.margin")}</span>
-            <span>{t("portfolio.pnl")}</span>
-          </div>
-          {allocations.map((allocation) => {
-            const option = portfolio.saleOptionById.get(allocation.option_id);
-            return (
-              <div key={`${allocation.resource_id}-${allocation.option_id}`} className="data-table-row five">
-                <strong>{allocation.resource_id}</strong>
-                <span>{option?.label ?? allocation.option_id}</span>
-                <span>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</span>
-                <span>{allocation.net_margin_gbp_mwh.toFixed(2)} GBP/MWh</span>
-                <span>{money(allocation.net_pnl_gbp_per_day)}</span>
-              </div>
-            );
-          })}
-          {allocations.length === 0 && (
-            <div className="data-table-row five"><span>{t("home.pending")}</span><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span></div>
-          )}
-        </div>
-      </section>
-      <section className="workspace-panel">
-        <PanelHeader
-          title={t("decision.binding_constraints")}
-          meta={String(portfolio.commercialDiagnostics.length)}
-        />
-        <CommercialWarningList
-          items={portfolio.commercialDiagnostics}
-          t={t}
-          emptyLabel={t("decision.no_binding")}
-        />
-      </section>
-      <section className="workspace-panel">
-        <PanelHeader title={t("decision.unallocated_reasons")} meta={String(unallocatedReasons.length)} />
-        {unallocatedReasons.length === 0 ? (
-          <p className="muted">{t("decision.fully_allocated")}</p>
-        ) : (
-          <ul className="commercial-warning-list">
-            {unallocatedReasons.map((reason) => <li key={reason}>{reason}</li>)}
-          </ul>
-        )}
-      </section>
-      <section className="workspace-panel">
-        <PanelHeader title={t("decision.handoffs")} />
-        <div className="commercial-handoff-actions">
-          <button type="button" onClick={() => navigation.openWorkspace("review")}>{t("decision.open_review")}</button>
-          <button type="button" onClick={() => navigation.openWorkspace("market")}>{t("decision.inspect_market")}</button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 export function DecisionWorkspace({ controller }: { controller: AppController }) {
-  const { t, api, portfolio, review, selection, i18n, contractEditor, navigation, traderContext } = controller;
+  const { t, api, portfolio, review, selection, i18n, navigation, traderContext } = controller;
   const inspector = useInspectorStore();
   const [task, setTask] = useState<DecisionTask>(() =>
     decisionTaskFromLocation(window.location.search),
@@ -233,36 +128,16 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
     navigation.openWorkspace(next === "review" ? "review" : "scenario", next);
   }
 
-  // Decision Center is no longer an area (WF-05): Evaluate, Optimise and Review are Deals tasks,
-  // Nominations and Storage are Book planning views. The header is the row of the task's mode.
+  // Decision Center is no longer an area (WF-05): Review is a Deals task; Nominations and Storage
+  // are the two views of Book → Planning, behind one switch. The header is the row of the task's
+  // mode. Scenario, Optimise and the desk replay left the product with CP-00.
   const mode = useModeHeader(navigation.activeWorkspace, task, navigation.openWorkspace, t);
 
-  // Action geography (`app/experience/actionGeography.ts`): running the pool optimiser is the
-  // primary act of the Optimize task and comparing route options is the primary act of the
-  // Scenario task - both `compute` consequences - so each occupies the workspace's single
-  // primary slot instead of sitting inside the panel it reports on. The panels keep the
-  // preflight verdicts and the results the runs produced; the actions that start a run are not
-  // panel furniture.
+  // Action geography (`app/experience/actionGeography.ts`): assessing the nominations or the
+  // storage dispatch is the primary act of the Planning view on screen - a `compute`
+  // consequence - so it occupies the workspace's single primary slot.
   const primaryAction =
-    task === "optimize" ? (
-      <button
-        type="button"
-        disabled={!portfolio.canRunPoolOptimizer}
-        title={portfolio.poolOptimizeGate.blockerKey ? t(portfolio.poolOptimizeGate.blockerKey) : undefined}
-        onClick={portfolio.optimizeResourcePoolForCurrentContext}
-      >
-        {t("home.optimize_pool")}
-      </button>
-    ) : task === "scenario" ? (
-      <button
-        type="button"
-        disabled={!portfolio.canCompareRoutes}
-        title={t(portfolio.routeCompareGate.blockerKey ?? "economics.compare_hint")}
-        onClick={portfolio.recommendRouteAllocationForCurrentContext}
-      >
-        {t("economics.compare")}
-      </button>
-    ) : task === "nomination" ? (
+    task === "nomination" ? (
       <button
         type="button"
         disabled={!nomination.readiness.canRun || nomination.busy}
@@ -321,44 +196,18 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
           // The other tasks have no projection line: the controls stand on their own.
           <div className="projection-context">{tradingContextControlsFor(traderContext, t)}</div>
         )}
-        {task === "scenario" && (
-          <DecisionActionStatus
-            t={t}
-            labelKey="economics.compare"
-            state={portfolio.routeCompareAction}
-            blockerKey={portfolio.routeCompareGate.blockerKey}
-            hasResult={api.routeRecommendation !== null}
-            resultCurrent={!portfolio.routeRecommendationContextMismatch}
+        {task !== "review" && (
+          <Segmented
+            label={t("nav.mode.book.planning")}
+            className="planning-switch"
+            options={[
+              { value: "nomination", label: t("nav.mode.book.nominations") },
+              { value: "dispatch", label: t("nav.mode.book.storage") },
+            ]}
+            value={task}
+            onChange={(next) => openTask(next)}
           />
         )}
-        {task === "scenario" && <DeskReplayPanel t={t} />}
-        {task === "scenario" && (
-          <ScenarioWorkspace
-            routeCandidates={api.routeCandidates}
-            routeEconomics={portfolio.scenarioRouteEconomics}
-            routeRecommendation={portfolio.currentRouteRecommendation}
-            contract={contractEditor.contract}
-            poolInputBlockers={portfolio.poolInputBlockers}
-            resourcePoolResult={portfolio.currentResourcePoolResult}
-            saleOptionById={portfolio.saleOptionById}
-            carriedRouteId={selection.routeId}
-            contextMismatch={portfolio.resultsContextMismatch}
-            upstreamContracts={api.upstreamContracts}
-            t={t}
-            updateContractNumber={contractEditor.updateContractNumber}
-          />
-        )}
-        {task === "optimize" && (
-          <DecisionActionStatus
-            t={t}
-            labelKey="home.optimize_pool"
-            state={portfolio.poolOptimizeAction}
-            blockerKey={portfolio.poolOptimizeGate.blockerKey}
-            hasResult={api.resourcePoolResult !== null}
-            resultCurrent={!portfolio.optimizerContextMismatch}
-          />
-        )}
-        {task === "optimize" && <OptimizeWorkspace controller={controller} />}
         {task === "nomination" && (
           <NominationWindowPanel t={t} assessment={nomination} record={optimizationRun} />
         )}

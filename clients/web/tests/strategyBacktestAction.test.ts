@@ -190,30 +190,6 @@ test("the request carries the configured assumptions and nothing invented", () =
   assert.deepEqual([...TRANSACTION_COST_TREATMENTS], ["UNAVAILABLE", "MODELED_COST", "EXCLUDED"]);
 });
 
-test("the workspace hosts the action and the panel only configures and reports", () => {
-  const workspace = readWebSource("components/strategy/StrategyLabWorkspace.tsx");
-  const panel = readWebSource("components/strategy/StrategyBacktestWorkspace.tsx");
-
-  // The draft and the rule are the workspace's, and the header action is derived from them.
-  assert.match(workspace, /const \[backtestDraft, setBacktestDraft\] = useState<StrategyBacktestDraft>/);
-  assert.match(
-    workspace,
-    /const backtestReadiness = strategyBacktestReadiness\(\{[\s\S]*?draft: backtestDraft,[\s\S]*?frozen: controller\.selectedVersion\?\.status === "FROZEN",[\s\S]*?evidenceDeclared: strategyEvidenceDeclarationComplete\([\s\S]*?controller\.selectedVersion\?\.definition_json,[\s\S]*?running: controller\.loading,[\s\S]*?\}\);/,
-  );
-  assert.match(workspace, /primaryAction=\{primaryAction\}/);
-  assert.match(workspace, /onDraftChange=\{setBacktestDraft\}/);
-
-  // The panel no longer decides or starts anything: no run call, no rule evaluation of its
-  // own, and it renders the blockers from the keys it was handed.
-  assert.equal(panel.includes("controller.runBacktest"), false);
-  assert.equal(panel.includes("strategyBacktestReadiness"), false);
-  assert.equal(panel.includes("useState(\"FAIL\")"), false);
-  assert.match(panel, /readiness\.blockerKeys\.map\(\(key\) => <span key=\{key\} className="status-badge status-blocked">\{t\(key\)\}<\/span>\)/);
-  assert.match(panel, /const updateDraft = \(patch: Partial<StrategyBacktestDraft>\) =>/);
-  // The local view switch stays local: it is a read consequence, not the run.
-  assert.match(panel, /const \[mode, setMode\] = useState<"configure" \| "result">\("configure"\)/);
-});
-
 test("every new strategy string exists in both locales, and says something different", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

@@ -15,6 +15,7 @@ import {
   modeLocationFromSearch,
   pageTaskFromLocation,
   redirectSearch,
+  retiredTaskAddresses,
   visibleModes,
 } from "../src/app/navigation/modeNavigation.ts";
 import { workspacePageIds, type WorkspacePageId } from "../src/workspaceNavigation.ts";
@@ -36,9 +37,11 @@ test("the primary row is four modes in the plan's order, each with its tasks", (
   assert.deepEqual(PRODUCT_MODES.map((mode) => mode.id), ["desk", "deals", "book", "research"]);
   assert.deepEqual(PRODUCT_MODES.map((mode) => mode.tasks.map((task) => task.id)), [
     ["today", "prices", "network"],
-    ["evaluate", "optimise", "routes", "contracts", "review"],
-    ["position", "limits", "delivery", "nominations", "storage"],
-    ["spreads", "strategies", "reports", "data", "assistant"],
+    // Opportunities arrives later; Evaluate, Optimise and Routes & netback left with CP-00.
+    ["contracts", "review"],
+    // Nominations and Storage are one Planning task, two views behind a switch (A.4).
+    ["position", "limits", "delivery", "planning"],
+    ["spreads", "reports"],
   ]);
 });
 
@@ -48,13 +51,12 @@ test("every page address keeps working and lands in its mode (no page id redirec
     network: "desk/network",
     // "Outages & capacity" is the Network page's panel now; its page address lands there.
     capacity: "desk/network",
-    scenario: "deals/evaluate",
+    // The scenario page with no task opens Review (Evaluate is gone).
+    scenario: "deals/review",
     review: "deals/review",
     contracts: "book/position",
     orders: "book/limits",
-    strategy: "research/strategies",
-    research: "research/data",
-    agents: "research/assistant",
+    research: "research/spreads",
     sources: "utility/sources",
     runtime: "utility/runtime",
     access: "utility/access",
@@ -80,14 +82,11 @@ test("every old task address lands on its new task; Decision Center's tasks each
     "contracts.exposure": "book/limits",
     "contracts.delivery": "book/delivery",
     "contracts.resources": "deals/contracts",
-    "contracts.routes": "deals/routes",
-    // Decision Center dissolved: scenario and optimisation are Deals → Evaluate and Optimise;
-    // review sits with the deals it approves; nomination and storage planning are Book views.
-    "scenario.scenario": "deals/evaluate",
-    "scenario.optimize": "deals/optimise",
+    // Decision Center dissolved: review sits with the deals it approves; nomination and storage
+    // planning are the two views of Book → Planning.
     "scenario.review": "deals/review",
-    "scenario.nomination": "book/nominations",
-    "scenario.dispatch": "book/storage",
+    "scenario.nomination": "book/planning",
+    "scenario.dispatch": "book/planning",
   };
   for (const [key, where] of Object.entries(expected)) {
     const [page, task] = key.split(".");
@@ -100,33 +99,63 @@ test("every old task address lands on its new task; Decision Center's tasks each
   }
 });
 
+test("a task removed by CP-00 redirects to the nearest surviving task, keeping the context", () => {
+  // Design basis 2, I.1: Evaluate, Optimise and Routes & netback land on Deals → Contracts;
+  // Research → Data's views land on Reports.
+  const expected: Record<string, string> = {
+    "scenario:scenario": "deals/contracts",
+    "scenario:optimize": "deals/contracts",
+    "contracts:routes": "deals/contracts",
+    "research:datasets": "research/reports",
+    "research:products": "research/reports",
+    "research:features": "research/reports",
+    "research:targets": "research/reports",
+  };
+  assert.deepEqual(retiredTaskAddresses().sort(), Object.keys(expected).sort());
+  for (const [key, where] of Object.entries(expected)) {
+    const [page, task] = key.split(":");
+    const param = page === "research" ? "view" : "task";
+    const target = redirectSearch(`?workspace=${page}&${param}=${task}&gasDay=2026-11-15`);
+    assert.ok(target, key);
+    assert.match(target, /gasDay=2026-11-15/, key);
+    assert.equal(redirectSearch(`?${target}`), null, `${key} is stable after one redirect`);
+    assert.equal(lands(`?workspace=${page}&${param}=${task}`), where, key);
+  }
+  // The retired Strategies page lands on its successor, Research → Spreads; the Assistant on
+  // Reports.
+  assert.equal(redirectSearch("?workspace=strategy&task=backtest"), "workspace=research&task=spreads");
+  assert.equal(redirectSearch("?workspace=agents"), "workspace=research&task=reports");
+});
+
 test("old area addresses and mode addresses redirect to a page address, keeping the context", () => {
   const cases: Record<string, string> = {
-    "?workspace=decision": "workspace=scenario&task=scenario",
+    "?workspace=decision": "workspace=scenario&task=review",
     "?workspace=portfolio": "workspace=contracts&task=overview",
     "?workspace=system": "workspace=manual",
     "?workspace=administration": "workspace=sources",
-    "?workspace=optimize": "workspace=scenario&task=optimize",
+    "?workspace=optimize": "workspace=contracts&task=resources",
     "?workspace=nomination": "workspace=scenario&task=nomination",
     "?workspace=dispatch": "workspace=scenario&task=dispatch",
     "?workspace=exposure": "workspace=contracts&task=exposure",
     "?workspace=desk": "workspace=market&task=overview",
-    "?workspace=deals": "workspace=scenario&task=scenario",
+    "?workspace=deals": "workspace=contracts&task=resources",
     "?workspace=book": "workspace=contracts&task=overview",
     "?workspace=research": null as unknown as string,
+    "?workspace=strategy": "workspace=research&task=spreads",
+    "?workspace=agents": "workspace=research&task=reports",
     "?workspace=book&task=limits": "workspace=contracts&task=exposure",
     "?mode=deals&task=review": "workspace=scenario&task=review",
     "?mode=book&task=storage": "workspace=scenario&task=dispatch",
-    "?mode=research&task=assistant": "workspace=agents",
+    "?mode=research&task=assistant": "workspace=research&task=reports",
   };
   for (const [from, to] of Object.entries(cases)) {
-    // `research` is a page id (Research Data) as well as a mode: the page address wins.
+    // `research` is a page id (Research → Reports) as well as a mode: the page address wins.
     assert.equal(redirectSearch(from), to, from);
     if (to) assert.equal(redirectSearch(`?${to}`), null, `${from} is stable after one redirect`);
   }
   for (const address of legacyAddresses()) assert.ok(`?workspace=${address}` in cases, address);
   // Gas day, hub and other context ride along.
-  assert.equal(redirectSearch("?workspace=decision&gasDay=2026-11-15&hub=TTF"), "workspace=scenario&task=scenario&gasDay=2026-11-15&hub=TTF");
+  assert.equal(redirectSearch("?workspace=decision&gasDay=2026-11-15&hub=TTF"), "workspace=scenario&task=review&gasDay=2026-11-15&hub=TTF");
   // An unknown mode is dropped, the page address stands.
   assert.equal(redirectSearch("?mode=zzz&workspace=market&task=curves"), "workspace=market&task=curves");
   assert.equal(redirectSearch("?workspace=unknown"), null);
@@ -153,13 +182,13 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
   // A reviewer reviews and reads, but prepares no nomination or storage plan.
   assert.deepEqual(ids(user(["REVIEWER"], reviewer)), [
     "desk:today,prices,network",
-    "deals:evaluate,optimise,routes,contracts,review",
+    "deals:contracts,review",
     "book:position,limits,delivery",
-    "research:spreads,strategies,reports,data,assistant",
+    "research:spreads,reports",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
-  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 18);
+  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 11);
   // No identity, or an older server without a permission list: what it had before.
   assert.equal(visibleModes(null).length, 4);
   assert.equal(visibleModes(user(["TRADER"], undefined)).length, 4);
@@ -184,7 +213,8 @@ test("every mode and task label exists in English and Chinese, in words", () => 
 
 test("Reports is a task of the Research page, held in the URL (task=reports)", () => {
   assert.equal(pageTaskFromLocation("research", "?workspace=research&task=reports"), "reports");
-  assert.equal(pageTaskFromLocation("research", "?workspace=research&view=features"), undefined);
+  // Spreads is the page's first task: a Research address without a task opens it.
+  assert.equal(pageTaskFromLocation("research", "?workspace=research"), "spreads");
   assert.equal(modeLocationFor("research", "reports")?.task.id, "reports");
-  assert.equal(modeLocationFor("research", undefined)?.task.id, "data");
+  assert.equal(modeLocationFor("research", undefined)?.task.id, "spreads");
 });

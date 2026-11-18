@@ -14,7 +14,6 @@ const WORKSPACE_GUIDE_KEYS = [
   "network",
   "market",
   "contracts",
-  "strategy",
   "review",
   "orders",
   "sources",

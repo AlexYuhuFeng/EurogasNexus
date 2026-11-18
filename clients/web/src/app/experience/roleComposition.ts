@@ -125,10 +125,12 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     todayRows: ["key_figures", "changes", "book", "fundamentals"],
     stripAudience: "trader",
   },
+  // The originator lands on Deals → Opportunities when it exists (design basis 2, A.4); until
+  // then on Contracts, the book the evaluation will read. Evaluate and Routes left with CP-00.
   originator: {
     id: "originator",
-    landing: task("deals", "evaluate"),
-    shortlist: [task("deals", "evaluate"), task("deals", "routes"), task("deals", "contracts"), task("deals", "review")],
+    landing: task("deals", "contracts"),
+    shortlist: [task("deals", "contracts"), task("deals", "review"), task("desk", "prices"), task("desk", "network")],
     panels: {},
     todayRows: ["key_figures", "changes", "book", "fundamentals"],
     stripAudience: "originator",
@@ -136,7 +138,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
   analyst: {
     id: "analyst",
     landing: task("desk", "today"),
-    shortlist: [task("desk", "today"), task("research", "strategies"), task("research", "reports"), task("desk", "network")],
+    shortlist: [task("desk", "today"), task("research", "reports"), task("desk", "network"), task("desk", "prices")],
     panels: {},
     todayRows: ["fundamentals", "key_figures", "changes", "book"],
     stripAudience: "analyst",
@@ -149,12 +151,11 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     todayRows: ["key_figures", "book", "changes", "fundamentals"],
     stripAudience: "risk",
   },
-  // "Planning" (nominations and storage as one task) is another package; until then the
-  // nominations task stands for it.
+  // Planning: nominations and storage as one task, two views behind a switch (A.4).
   operations: {
     id: "operations",
     landing: task("book", "delivery"),
-    shortlist: [task("book", "delivery"), task("book", "nominations"), task("desk", "network"), task("deals", "contracts")],
+    shortlist: [task("book", "delivery"), task("book", "planning"), task("desk", "network"), task("deals", "contracts")],
     panels: {},
     todayRows: ["changes", "key_figures", "book", "fundamentals"],
     stripAudience: "operations",

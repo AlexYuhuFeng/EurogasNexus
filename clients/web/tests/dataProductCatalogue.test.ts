@@ -172,31 +172,6 @@ test("a state this build has no label for is shown as its own code", () => {
   assert.equal(dataProductFreshnessKey("UNRECOGNISED"), "UNRECOGNISED");
 });
 
-test("the surface reads the catalogue and reports a failure instead of an empty one", () => {
-  const client = readWebSource("api/client.ts");
-  const panel = readWebSource("components/DataProductCatalogue.tsx");
-  const research = readWebSource("components/ResearchDataWorkspace.tsx");
-
-  assert.match(
-    client,
-    /dataProducts: \(options\?: ApiRequestOptions\) =>\s*get<DataProductCatalogueDTO>\("\/data-products", undefined, options\)/s,
-  );
-  assert.match(client, /export interface DataProductDTO \{/);
-  assert.match(client, /provenance: \{[\s\S]*?\} \| null;/);
-
-  // The three provenance states are rendered apart, and a failed read is an alert.
-  assert.match(panel, /if \(row\.provenanceState === "restricted"\) return t\("data_product\.provenance\.restricted"\);/);
-  assert.match(panel, /if \(row\.provenanceState === "unmeasured"\) return t\("data_product\.provenance\.unmeasured"\);/);
-  assert.match(panel, /errorText && \(\s*<div className="research-catalog-error" role="alert">/s);
-  assert.match(panel, /const response = await api\.dataProducts\(\);/);
-  assert.equal(panel.includes("fetch("), false);
-
-  // It is a view of the existing research surface, not a new page (V2 04 rule 9).
-  assert.match(research, /type ResearchViewId = "datasets" \| "products" \| "features" \| "targets";/);
-  assert.match(research, /\{activeView === "products" && <DataProductCatalogue t=\{t\} \/>\}/);
-  assert.match(research, /activeView !== "datasets" && activeView !== "products"/);
-});
-
 test("every catalogue string exists in both locales, and says something different", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

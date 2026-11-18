@@ -158,7 +158,6 @@ test("primitives are adopted at real call sites", () => {
     ["components/ReportProblemDialog.tsx", /<Dialog\s/],
     ["components/AlertCenter.tsx", /<IconButton label=/],
     ["components/MarketTerminal.tsx", /<StatusBadge tone="simulated"/],
-    ["components/strategy/StrategyShadowRunSections.tsx", /<StatusBadge tone="stale"/],
     ["components/PositionLadderPanel.tsx", /<KeyFigure label=\{t\("position\.net"\)\}/],
     ["components/TodayScreen.tsx", /<KeyFigure\s/],
     ["components/ui/MetricStrip.tsx", /<KeyFigure /],

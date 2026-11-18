@@ -14,7 +14,6 @@
 import { PAGE_OBJECT_PARAMS, type WorkspacePageId } from "../../workspaceNavigation.ts";
 import { MARKET_TASKS } from "../model/marketCockpitModel.ts";
 import { DECISION_TASKS, PORTFOLIO_TASKS } from "../model/commercialWorkflowModel.ts";
-import { STRATEGY_TASKS } from "../model/strategyLabModel.ts";
 
 export interface PageViews {
   /** The URL parameter carrying the sub-view. */
@@ -30,8 +29,7 @@ export interface PageViews {
 export const PAGE_VIEW_REGISTRY: Partial<Record<WorkspacePageId, PageViews>> = {
   market: { param: "task", views: MARKET_TASKS, defaultView: "curves", objectParams: PAGE_OBJECT_PARAMS.market, labelPrefix: "market.task." },
   contracts: { param: "task", views: PORTFOLIO_TASKS, defaultView: "overview", objectParams: PAGE_OBJECT_PARAMS.contracts, labelPrefix: "portfolio.task." },
-  scenario: { param: "task", views: DECISION_TASKS, defaultView: "scenario", labelPrefix: "decision.task." },
-  strategy: { param: "task", views: STRATEGY_TASKS, defaultView: "spread", labelPrefix: "strategy_lab.task." },
+  scenario: { param: "task", views: DECISION_TASKS, defaultView: "review", labelPrefix: "decision.task." },
   sources: {
     param: "view",
     views: ["attention", "catalog", "access", "infrastructure"],
@@ -41,8 +39,6 @@ export const PAGE_VIEW_REGISTRY: Partial<Record<WorkspacePageId, PageViews>> = {
   },
   runtime: { param: "view", views: ["delivery", "readiness", "governance", "support"], defaultView: "delivery", labelPrefix: "runtime.view." },
   access: { param: "view", views: ["users", "api_keys", "catalogue", "audit", "sso", "setup"], defaultView: "users", labelPrefix: "access.view." },
-  research: { param: "view", views: ["datasets", "products", "features", "targets"], defaultView: "datasets", labelPrefix: "research.tab." },
-  agents: { param: "view", views: ["capabilities", "research", "runs"], defaultView: "capabilities", labelPrefix: "agents.tab." },
   glossary: { param: "view", views: ["terms"], defaultView: "terms", objectParams: PAGE_OBJECT_PARAMS.glossary, labelPrefix: "glossary.view." },
 };
 

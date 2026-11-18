@@ -420,22 +420,6 @@ def test_strategy_freshness_uses_latest_observation_per_basis() -> None:
     assert "staleCount: input.fxRates.filter" not in presentation
 
 
-def test_strategy_performance_chart_uses_persisted_runs_without_fabricated_fallback() -> None:
-    strategy_sections = _read(
-        WEB / "components" / "strategy" / "StrategyShadowRunSections.tsx"
-    )
-
-    assert "runs: StrategyRunDTO[]" in strategy_sections
-    assert "run.cumulative_pnl_gbp !== null" in strategy_sections
-    assert "Date.parse(left.started_at_utc)" in strategy_sections
-    assert ".slice(-30)" in strategy_sections
-    assert "plottedRuns.length > 0" in strategy_sections
-    assert 'className="strategy-performance-empty"' in strategy_sections
-    assert '<polyline className="strategy-chart-line"' in strategy_sections
-    assert 'className="strategy-chart-point"' in strategy_sections
-    assert "Math.random" not in strategy_sections
-
-
 def test_source_credentials_follow_selected_public_source() -> None:
     app = _read_application()
 
@@ -465,7 +449,6 @@ def test_secondary_workspaces_are_extracted_from_app_shell() -> None:
     app = _read_application()
 
     for component in [
-        "ScenarioWorkspace",
         "ReviewWorkspace",
         "MarketPositioningWorkspace",
         "RuntimeWorkspace",
@@ -474,8 +457,9 @@ def test_secondary_workspaces_are_extracted_from_app_shell() -> None:
         assert (WEB / "components" / f"{component}.tsx").is_file()
     portfolio_workspace = _read(WEB / "components" / "PortfolioWorkspace.tsx")
     decision_workspace = _read(WEB / "components" / "DecisionWorkspace.tsx")
-    for component in ["ScenarioWorkspace", "ReviewWorkspace"]:
-        assert f"<{component}" in decision_workspace
+    assert "<ReviewWorkspace" in decision_workspace
+    # Scenario left with CP-00 (design basis 2, I.1).
+    assert not (WEB / "components" / "ScenarioWorkspace.tsx").exists()
     assert "<MarketPositioningWorkspace" in portfolio_workspace
     assert "<RuntimeWorkspace" in app
     assert "<ManualWorkspace" in app

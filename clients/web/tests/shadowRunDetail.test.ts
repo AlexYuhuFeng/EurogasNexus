@@ -340,35 +340,6 @@ test("a warning code reads as prose, in the user's language", () => {
   assert.equal(strategyWarningLabel("SOMETHING_FAILED", t), "SOMETHING FAILED");
 });
 
-test("the detail is mounted in the shadow task and the parallel terminal is retired", () => {
-  const workspace = readWebSource("components/strategy/StrategyLabWorkspace.tsx");
-  const detail = readWebSource("components/strategy/StrategyShadowRunDetail.tsx");
-  const model = readWebSource("app/model/shadowRunPresentation.ts");
-
-  // Mounted inside the task that manages the monitors, so a shadow run's two halves are read
-  // together, and no new page was created for it.
-  assert.match(workspace, /<StrategyShadowRunDetail language=\{language\} t=\{t\} \/>/);
-  assert.match(workspace, /controller\.task === "shadow"/);
-  assert.equal(webSourceExists("components/StrategyShadowRunTerminal.tsx"), false);
-  assert.equal(webSourceExists("components/strategy/StrategyShadowRunSections.tsx"), true);
-
-  // It reads only what the identity already received, and it starts nothing: running a shadow
-  // evaluation stays the workspace's primary action.
-  assert.match(detail, /useApiStore\(\(state\) => state\.normalizedMarkets\)/);
-  assert.match(detail, /useApiStore\(\(state\) => state\.resourcePoolOptions\)/);
-  assert.match(detail, /useApiStore\(\(state\) => state\.strategyRuns\)/);
-  assert.equal(/apiClient\.|api\.[a-zA-Z]+\(/.test(detail), false, "the panel calls no route");
-  assert.equal(/onClick=\{[^}]*run[A-Z]/.test(detail), false, "the panel starts no run");
-
-  // The shared evidence block and the one UTC formatter, not a hand-rolled instant.
-  assert.match(detail, /<EvidenceBlock/);
-  assert.match(detail, /displayTime\(value\)/);
-  assert.equal(/toLocaleTimeString/.test(detail), false);
-
-  // The arithmetic lives in the model, which is where it can be tested without a render.
-  assert.equal(/useState|useMemo|useEffect/.test(model), false, "the model is pure");
-});
-
 test("the shadow detail vocabulary is bilingual", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

@@ -16,12 +16,9 @@
 
 export const PHONE_ROUTES = [
   ...["overview", "curves", "network", "capacity"].map((task) => `?workspace=market&task=${task}`),
-  ...["overview", "resources", "routes", "exposure", "delivery"].map((task) => `?workspace=contracts&task=${task}`),
-  ...["scenario", "optimize", "review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
-  ...["spread", "design", "backtest", "experiments"].map((task) => `?workspace=strategy&task=${task}`),
+  ...["overview", "resources", "exposure", "delivery"].map((task) => `?workspace=contracts&task=${task}`),
+  ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
   "?workspace=research&task=reports",
-  ...["datasets", "products", "features", "targets"].map((view) => `?workspace=research&view=${view}`),
-  ...["capabilities", "research", "runs"].map((view) => `?workspace=agents&view=${view}`),
   ...["attention", "catalog", "access", "infrastructure"].map((view) => `?workspace=sources&view=${view}`),
   ...["delivery", "readiness", "governance", "support"].map((view) => `?workspace=runtime&view=${view}`),
   ...["users", "api_keys", "catalogue", "audit", "sso"].map((view) => `?workspace=access&view=${view}`),

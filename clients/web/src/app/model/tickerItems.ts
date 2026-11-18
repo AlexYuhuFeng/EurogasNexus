@@ -197,7 +197,6 @@ export type SituationKind =
   | "fundamentals"
   | "booked_trade"
   | "source"
-  | "strategy"
   | "job"
   | "problem_report";
 
@@ -232,7 +231,6 @@ export type AudienceRule =
   | "own_case_decided"
   | "price_move"
   | "fundamentals"
-  | "strategy_alert"
   | "shortfall"
   | "window_closing"
   | "source_failing"
@@ -671,32 +669,23 @@ function qualifyCategoryAlerts(inputs: SituationInputs, context: SituationContex
     if (alert.status !== "open") continue;
     const detected = at(alert.detected_at_utc);
     const became = Number.isFinite(detected) ? detected : at(alert.updated_at_utc);
-    let rule: AudienceRule | null = null;
-    let kind: SituationKind = "strategy";
     // Pipeline state is for the platform audience only (§5.5).
-    if (alert.category === "data_source") {
-      if (audience !== "platform" || sourceSystems.has(alert.entity_id.toLowerCase())) continue;
-      rule = "source_alert";
-      kind = "source";
-    } else if (alert.category === "strategy" && audience === "analyst") {
-      rule = "strategy_alert";
-    }
-    if (!rule) continue;
+    if (alert.category !== "data_source") continue;
+    if (audience !== "platform" || sourceSystems.has(alert.entity_id.toLowerCase())) continue;
+    const rule: AudienceRule = "source_alert";
     items.push({
       id: `alert:${alert.alert_id}`,
-      kind,
+      kind: "source",
       severity: alert.severity,
       urgentUntil: urgentUntil(became),
-      headline: kind === "source"
-        ? { key: "strip.headline.source_failing", values: { source: alert.entity_id } }
-        : { key: "strip.headline.strategy", values: { run: alert.entity_id } },
+      headline: { key: "strip.headline.source_failing", values: { source: alert.entity_id } },
       magnitude: null,
       unit: null,
       comparison: null,
       affects: NO_AFFECTS(),
       occurredAt: iso(became),
       source: { name: sourceName(alert), ref: alert.alert_id },
-      target: kind === "source" ? { page: "sources", params: { view: "attention" } } : { page: "strategy", task: "shadow" },
+      target: { page: "sources", params: { view: "attention" } },
       audience: rule,
       simulated: Boolean(alert.simulated),
       alertId: alert.alert_id,

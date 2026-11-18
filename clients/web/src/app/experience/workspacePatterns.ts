@@ -104,22 +104,11 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
     panels: ["metric-strip", "table", "time-series", "warnings"],
   },
   {
-    page: "strategy",
-    primary: "strategy",
-    pattern: "ANALYSE",
-    // The research line has three pages (#30); the shell's page tabs switch between them and
-    // the strategy lifecycle tabs sit under the page title.
-    headerMode: "local-tabs",
-    rationale: "Research-question-led strategy lifecycle: design, backtest, compare, shadow.",
-    inspectorSubjects: ["strategy-version", "strategy-run"],
-    panels: ["context-summary", "time-series", "comparison", "run-result", "evidence", "warnings"],
-  },
-  {
     page: "scenario",
     primary: "decision",
     pattern: "CONFIGURE",
     headerMode: "consolidated",
-    rationale: "Scenario inputs and bounded assumptions for the deterministic engines.",
+    rationale: "Decision review and Book → Planning (nominations and storage dispatch).",
     inspectorSubjects: ["route", "contract", "resource"],
     panels: ["assumptions", "comparison", "run-result", "warnings"],
   },
@@ -192,18 +181,9 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
     primary: "strategy",
     pattern: "EXPLORE",
     headerMode: "local-tabs",
-    rationale: "Research dataset/feature/target catalogue plus the governed build-and-validate flow.",
+    rationale: "Research: market reports assembled from the catalogue's sections.",
     inspectorSubjects: ["data-product"],
     panels: ["table", "context-summary", "evidence", "warnings", "run-result"],
-  },
-  {
-    page: "agents",
-    primary: "strategy",
-    pattern: "REVIEW",
-    headerMode: "local-tabs",
-    rationale: "Governed capability catalogue, research orchestration and observable run replay.",
-    inspectorSubjects: ["agent-run"],
-    panels: ["evidence", "run-result", "decision-history", "ai-explanation", "warnings"],
   },
 ];
 

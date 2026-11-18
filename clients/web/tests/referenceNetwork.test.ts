@@ -227,10 +227,16 @@ test("the panels read the declared calls and state what each read established", 
     assert.match(panel, /presentError\(t, describeFailure\(error\)\)/);
   }
 
-  // They are mounted on tasks that already exist, and the register shares the network task with
-  // the map it is the register for (one line in the panel beside the map until opened).
-  assert.match(readWebSource("components/NetworkWorkspace.tsx"), /<ReferenceNetworkCatalogue t=\{t\} \/>/);
-  assert.match(readWebSource("components/CapacityWorkspace.tsx"), /<CapacityContractBook t=\{t\} \/>/);
+  // Registers, not commercial reading: since CP-00 (design basis 2, I.2) they live under
+  // Admin → Connectors → Infrastructure, each one line until opened, and the map and the
+  // capacity board no longer mount them.
+  const sources = readWebSource("components/SourceCenter.tsx");
+  assert.match(sources, /<ReferenceNetworkCatalogue t=\{t\} \/>/);
+  assert.match(sources, /<CapacityContractBook t=\{t\} \/>/);
+  assert.match(sources, /<NativeCapacityContextPanel t=\{t\} \/>/);
+  assert.match(sources, /<TariffPublicationsPanel t=\{t\} \/>/);
+  assert.equal(readWebSource("components/NetworkWorkspace.tsx").includes("ReferenceNetworkCatalogue"), false);
+  assert.equal(readWebSource("components/CapacityWorkspace.tsx").includes("CapacityContractBook"), false);
 });
 
 test("the reference and contract vocabulary is bilingual", () => {

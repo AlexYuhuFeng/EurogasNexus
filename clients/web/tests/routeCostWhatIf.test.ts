@@ -237,42 +237,6 @@ test("selecting a route prefills its label and nothing that would be a lie", () 
   assert.equal(routeCostDraftForRoute(draft, null), draft);
 });
 
-test("the panel configures and reports; the workspace header runs it", () => {
-  const panel = readWebSource("components/RouteCostWhatIfPanel.tsx");
-  const workspace = readWebSource("components/PortfolioWorkspace.tsx");
-  const hook = readWebSource("app/model/useRouteCostWhatIf.ts");
-  const client = readWebSource("api/client.ts");
-
-  // Both calls, typed, through the loader seam.
-  assert.match(hook, /api\s*\.routeCost\(body\)/);
-  assert.match(hook, /api\s*\.netback\(netbackBody\)/);
-  assert.match(client, /routeCost: \(body: RouteCostRequestDTO\) => post<RouteCostOutcomeDTO>/);
-  assert.match(client, /netback: \(body: NetbackRequestDTO\) => post<NetbackOutcomeDTO>/);
-
-  // The client does no arithmetic: no summation, and the netback body takes the engine's cost.
-  for (const source of [hook, panel]) {
-    assert.equal(/\breduce\(/.test(source), false, "nothing is summed on the client");
-  }
-  assert.match(hook, /netbackRequest\(draft, costResponse\.data\.total_cost_eur_mwh\)/);
-
-  // The compute sits in the Routes task's primary slot, and the panel renders no run control of
-  // its own: one act, one control.
-  assert.match(workspace, /task === "routes" \? \(/);
-  assert.match(workspace, /onClick=\{\(\) => void routeCost\.run\(\)\}/);
-  assert.match(workspace, /disabled=\{!routeCost\.readiness\.canCompute \|\| routeCost\.busy\}/);
-  assert.equal((workspace.match(/primaryAction=\{/g) ?? []).length, 1);
-  assert.equal(panel.includes("api.routeCost"), false);
-  assert.equal(panel.includes("routeCostRequest("), false);
-
-  // A partial result is rendered as partial, with the engine's own statements.
-  assert.match(panel, /outcomeIsPartial\(cost\)/);
-  assert.match(panel, /outcomeIsPartial\(netback\)/);
-  assert.match(panel, /cost\.missing_inputs\.map/);
-  assert.match(panel, /cost\.warnings\.map/);
-  assert.match(panel, /cost\.assumptions\.map/);
-  assert.match(panel, /t\("portfolio\.route_cost\.partial"\)/);
-});
-
 test("the route-cost vocabulary is bilingual", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

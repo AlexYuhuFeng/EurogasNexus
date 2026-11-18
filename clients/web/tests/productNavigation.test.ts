@@ -24,7 +24,8 @@ test("every technical workspace resolves to exactly one primary", () => {
       seen.add(page);
     }
   }
-  assert.equal(seen.size, 16);
+  // Strategy and Assistant pages left with CP-00 (design basis 2, I.1).
+  assert.equal(seen.size, 14);
 });
 
 test("primary workspace defaults match the accepted architecture", () => {
@@ -34,7 +35,7 @@ test("primary workspace defaults match the accepted architecture", () => {
   assert.deepEqual(defaults, {
     market: "market",
     portfolio: "contracts",
-    strategy: "strategy",
+    strategy: "research",
     decision: "scenario",
     system: "manual",
     administration: "sources",
@@ -59,10 +60,8 @@ test("the administration surface is the declared control plane", () => {
     "market",
     "network",
     "contracts",
-    "strategy",
     "review",
     "research",
-    "agents",
     "settings",
     "manual",
     "glossary",
@@ -78,7 +77,6 @@ test("old technical workspace ids continue to resolve", () => {
     capacity: "market",
     contracts: "portfolio",
     orders: "portfolio",
-    strategy: "strategy",
     scenario: "decision",
     review: "decision",
     sources: "administration",
@@ -87,7 +85,6 @@ test("old technical workspace ids continue to resolve", () => {
     manual: "system",
     glossary: "system",
     research: "strategy",
-    agents: "strategy",
   };
   for (const [page, primary] of Object.entries(expected)) {
     assert.equal(primaryWorkspaceForPage(page as keyof typeof expected).id, primary);
@@ -116,7 +113,6 @@ test("technical page guard helpers preserve all old route ids", () => {
     "market",
     "scenario",
     "contracts",
-    "strategy",
     "review",
     "orders",
     "sources",
@@ -125,8 +121,10 @@ test("technical page guard helpers preserve all old route ids", () => {
     "settings",
     "manual",
     "research",
-    "agents",
   ]) {
     assert.equal(isWorkspacePageId(page), true);
   }
+  // The retired Strategies and Assistant pages are no page ids any more: their addresses are
+  // redirected to Research → Reports by the mode navigation (see modeNavigation tests).
+  for (const page of ["strategy", "agents"]) assert.equal(isWorkspacePageId(page), false, page);
 });

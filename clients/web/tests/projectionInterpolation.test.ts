@@ -131,23 +131,6 @@ test("the projection strip renders values in both languages instead of placehold
   }
 });
 
-test("the agents replay strip and the decision case count interpolate their values too", async () => {
-  // Both carried the same single-brace defect. The agents call site used to splice the timestamp
-  // beside the label because the placeholder never resolved, which is why fixing the locale alone
-  // would have printed "{{value}}" there: the label owns its value now.
-  const i18n = await renderer();
-  await i18n.changeLanguage("en");
-  assert.equal(i18n.t("agents.run_as_of", { value: "12:05 UTC" }), "Recorded 12:05 UTC");
-  assert.equal(i18n.t("decision_case.evidence_count", { count: 2 }), "2 evidence items");
-  await i18n.changeLanguage("zh-CN");
-  assert.equal(i18n.t("agents.run_as_of", { value: "12:05 UTC" }), "记录时间 12:05 UTC");
-  assert.equal(i18n.t("decision_case.evidence_count", { count: 2 }), "2 项证据");
-
-  const agents = readWebSource("components/AgentsWorkspace.tsx");
-  assert.match(agents, /t\("agents\.run_as_of", \{\s*value: formatAgentTimestamp\(selectedRun\.created_at\),\s*\}\)/);
-  assert.equal(agents.includes("`${t(\"agents.run_as_of\")}"), false);
-});
-
 test("the component passes every option its locales declare", () => {
   // Both halves are needed: a locale with `{{value}}` and a caller that passes nothing still
   // prints braces, so the call sites are held to the placeholders the entries declare.

@@ -316,25 +316,3 @@ test("a typed backend refusal is read without inventing one from a transport fai
     ],
   });
 });
-
-test("every capacity-billing string is present in both English and Mandarin resources", () => {
-  const readWebSource = (relativePath: string): string =>
-    readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
-  const panelSource = readWebSource("components/CapacityBillingPanel.tsx");
-  const keys = new Set(
-    [...panelSource.matchAll(/t\("([^"]+)"\)/g)].map((match) => match[1]),
-  );
-  for (const key of capacityBillingReadiness(emptyCapacityBillingDraft()).blockerKeys) {
-    keys.add(key);
-  }
-  assert.ok(keys.size > 20);
-
-  const resources = ["i18n/en.json", "i18n/zh.json"].map((path) =>
-    JSON.parse(readWebSource(path)) as Record<string, unknown>,
-  );
-  for (const key of keys) {
-    for (const catalog of resources) {
-      assert.equal(typeof catalog[key], "string", `missing translation: ${key}`);
-    }
-  }
-});

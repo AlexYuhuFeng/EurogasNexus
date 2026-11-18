@@ -36,10 +36,13 @@ test("commercial workspaces use shared panel hierarchy and canonical tokens", ()
   const css = readWebSource("components/commercial-workflow.css");
 
   assert.match(portfolio, /import \{ (DataGrid, )?PanelHeader, WorkspaceHeader \}/);
-  assert.match(decision, /import \{ PanelHeader, WorkspaceHeader \}/);
+  assert.match(decision, /import \{ Segmented, WorkspaceHeader \}/);
   // Hand-off links sit in a link row, not a headed panel (#69).
-  assert.ok((portfolio.match(/<PanelHeader/g) ?? []).length >= 3);
-  assert.ok((decision.match(/<PanelHeader/g) ?? []).length >= 5);
+  assert.ok((portfolio.match(/<PanelHeader/g) ?? []).length >= 2);
+  // The Decision page's own panels left with Scenario and Optimise (CP-00): its tasks are
+  // composed of shared panels, with the Planning switch between Nominations and Storage.
+  assert.equal((decision.match(/<PanelHeader/g) ?? []).length, 0);
+  assert.match(decision, /<Segmented/);
   for (const legacy of [
     "var(--border",
     "var(--text-muted",
@@ -66,34 +69,38 @@ test("network rail does not duplicate shell-owned gas day product hub or source 
   assert.doesNotMatch(network, /className="panel scenario-intro"/);
 });
 
-test("portfolio tasks are overview resources routes exposure delivery", () => {
-  // Delivery (Book → Delivery, WF-05) left the contract terms it used to sit under.
-  assert.deepEqual(PORTFOLIO_TASKS, ["overview", "resources", "routes", "exposure", "delivery"]);
-  // Register C14/D8: the two desk assessments live in the Decision workspace, each as its own task
-  // with its own primary action, rather than on a page of their own (V2 rule 9).
-  assert.deepEqual(DECISION_TASKS, ["scenario", "optimize", "nomination", "dispatch", "review"]);
+test("portfolio tasks are overview resources exposure delivery", () => {
+  // Delivery (Book → Delivery, WF-05) left the contract terms it used to sit under; Routes &
+  // netback left with CP-00.
+  assert.deepEqual(PORTFOLIO_TASKS, ["overview", "resources", "exposure", "delivery"]);
+  // Register C14/D8: the two desk assessments live in the Decision workspace as the two views of
+  // Book → Planning, each with its own primary action; Scenario and Optimise left with CP-00.
+  assert.deepEqual(DECISION_TASKS, ["nomination", "dispatch", "review"]);
 });
 
 test("portfolio and decision task deep links preserve context", () => {
-  assert.equal(portfolioTaskFromLocation("?task=routes"), "routes");
+  assert.equal(portfolioTaskFromLocation("?task=delivery"), "delivery");
+  // A retired task opens the page's default (the redirect table sends its links to Contracts).
+  assert.equal(portfolioTaskFromLocation("?task=routes"), "overview");
   assert.equal(portfolioTaskFromLocation("?task=unknown"), "overview");
   // Conflicting register C10: the legacy `orders` page id names the market-positioning
   // view, so a bare deep link to it opens that view instead of the overview.
   assert.equal(portfolioTaskFromLocation("?workspace=orders"), "exposure");
-  assert.equal(portfolioTaskFromLocation("?workspace=orders&task=routes"), "routes");
+  assert.equal(portfolioTaskFromLocation("?workspace=orders&task=delivery"), "delivery");
   assert.equal(portfolioTaskFromLocation("?workspace=contracts"), "overview");
   assert.equal(decisionTaskFromLocation("?task=review"), "review");
-  assert.equal(decisionTaskFromLocation("?task=unknown"), "scenario");
+  assert.equal(decisionTaskFromLocation("?task=unknown"), "review");
   assert.equal(decisionTaskFromLocation("?workspace=review"), "review");
   assert.equal(decisionTaskFromLocation("?workspace=review&task=optimize"), "review");
-  assert.equal(decisionTaskFromLocation("?workspace=scenario"), "scenario");
+  assert.equal(decisionTaskFromLocation("?workspace=scenario"), "review");
+  assert.equal(decisionTaskFromLocation("?workspace=scenario&task=optimize"), "review");
   assert.equal(
     portfolioTaskToSearch("?gasDay=2026-09-07", "resources"),
     "gasDay=2026-09-07&workspace=contracts&task=resources",
   );
   assert.equal(
-    decisionTaskToSearch("?gasDay=2026-09-07", "optimize"),
-    "gasDay=2026-09-07&workspace=scenario&task=optimize",
+    decisionTaskToSearch("?gasDay=2026-09-07", "dispatch"),
+    "gasDay=2026-09-07&workspace=scenario&task=dispatch",
   );
   assert.equal(
     decisionTaskToSearch("?gasDay=2026-09-07", "review"),
@@ -102,7 +109,7 @@ test("portfolio and decision task deep links preserve context", () => {
 });
 
 test("workspace handoffs normalize local task and preserve trader context", () => {
-  const search = "?gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=optimize";
+  const search = "?gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=dispatch";
   assert.equal(
     workspaceTaskSearch(search, "review"),
     "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=review&workspace=review",
@@ -112,22 +119,22 @@ test("workspace handoffs normalize local task and preserve trader context", () =
     "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&workspace=market",
   );
   assert.equal(
-    workspaceTaskSearch(search, "scenario", "optimize"),
-    "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=optimize&workspace=scenario",
+    workspaceTaskSearch(search, "scenario", "nomination"),
+    "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=nomination&workspace=scenario",
   );
   const samePageScenario = workspaceTaskSearch(search, "scenario");
   assert.equal(
     samePageScenario,
-    "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=scenario&workspace=scenario",
+    "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=review&workspace=scenario",
   );
-  assert.equal(decisionTaskFromLocation(samePageScenario), "scenario");
+  assert.equal(decisionTaskFromLocation(samePageScenario), "review");
 });
 
 test("browser history locations rehydrate matching decision content", () => {
-  const reviewSearch = workspaceTaskSearch("?gasDay=2026-09-07&task=optimize", "review");
-  const optimizeSearch = decisionTaskToSearch(reviewSearch, "optimize");
+  const reviewSearch = workspaceTaskSearch("?gasDay=2026-09-07&task=dispatch", "review");
+  const dispatchSearch = decisionTaskToSearch(reviewSearch, "dispatch");
   assert.equal(decisionTaskFromLocation(reviewSearch), "review");
-  assert.equal(decisionTaskFromLocation(optimizeSearch), "optimize");
+  assert.equal(decisionTaskFromLocation(dispatchSearch), "dispatch");
 });
 
 test("route feasibility is conservative and never treats unknown as feasible", () => {
@@ -535,5 +542,5 @@ test("every decision task round-trips through the URL, including nomination and 
   }
   // Legacy and unknown links keep their documented fallbacks.
   assert.equal(decisionTaskFromLocation("?workspace=review"), "review");
-  assert.equal(decisionTaskFromLocation("?workspace=scenario&task=nonsense"), "scenario");
+  assert.equal(decisionTaskFromLocation("?workspace=scenario&task=nonsense"), "review");
 });

@@ -266,32 +266,6 @@ test("the financing rate is the one consumed draft input, with saved-contract pr
   assert.equal(edited.annual_financing_rate_pct, 9);
 });
 
-test("the Scenario panel offers the consumed input, names the provenance, and drops the rest", () => {
-  const source = readWebSource("components/ScenarioWorkspace.tsx");
-
-  // Exactly one editable draft control remains, rendered from the shared descriptor.
-  assert.equal((source.match(/updateContractNumber\(/g) ?? []).length, 1);
-  assert.match(source, /SCENARIO_EDITABLE_DRAFT_INPUTS/);
-  assert.match(source, /resolvePoolFinancingRate\(contract, upstreamContracts\)/);
-  assert.match(source, /value=\{financingRate\.pct \?\? ""\}/);
-  assert.match(source, /readOnly=\{financingRate\.source === "saved_upstream_contract"\}/);
-  for (const removedField of [
-    "delivery_quantity_mwh_per_day",
-    "contract_price_gbp_mwh",
-    "nbp_sale_price_gbp_mwh",
-    "physical_exit_sale_price_gbp_mwh",
-    "delivery_tolerance_pct",
-    "nomination_tolerance_pct",
-    "screen_sale_cash_lag_days",
-  ]) {
-    assert.equal(source.includes(removedField), false, `${removedField} is still editable here`);
-  }
-  assert.match(source, /t\("scenario\.financing_rate_from_saved_contract"\)/);
-  assert.match(source, /t\("scenario\.financing_rate_from_draft_fallback"\)/);
-  assert.match(source, /t\("scenario\.compare_location"\)/);
-  assert.match(source, /t\("scenario\.optimizer_location"\)/);
-});
-
 test("an unrecorded financing rate is refused, never run as a 0% fallback", () => {
   // A draft whose rate control was cleared (or a stored row that never recorded one) has no
   // rate to send: the resolution is explicit `unknown` and the optimiser request is refused.

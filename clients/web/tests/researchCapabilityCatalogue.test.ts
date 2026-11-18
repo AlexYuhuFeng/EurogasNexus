@@ -96,23 +96,6 @@ test("a declared posture becomes words, and an unknown one stays the deployment'
   assert.equal(sideEffectClassKey("mutates_ledger"), null);
 });
 
-test("the catalogue reads the declared call and invokes nothing", () => {
-  const panel = readWebSource("components/ResearchCapabilityCatalogue.tsx");
-  const workspace = readWebSource("components/ResearchDataWorkspace.tsx");
-
-  assert.match(panel, /\.researchCapabilities\(\)/);
-  assert.match(panel, /researchCapabilityRows\(response\.data\)/);
-  // Invocation is the capability runtime's own surface, under the caller's authority. A catalogue
-  // that could invoke would be a second authority over the same declarations.
-  assert.equal(panel.includes("invokeCapability"), false);
-  assert.equal(/\buseMutation\b/.test(panel), false);
-  // A failed read is stated as a failure, and a still-loading read is not stated as empty.
-  assert.match(panel, /presentError\(t, describeFailure\(error\)\)/);
-  assert.match(panel, /t\("research\.capabilities\.empty"\)/);
-  // It is mounted where the declarations are used, not on a page of its own.
-  assert.match(workspace, /ResearchCapabilityCatalogue/);
-});
-
 test("the research capability vocabulary is bilingual", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

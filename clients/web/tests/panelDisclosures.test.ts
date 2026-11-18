@@ -58,7 +58,7 @@ const PROVIDED_BY_PRIMITIVE: Readonly<Record<string, Partial<Record<DisclosureKi
     provenance: { file: "components/MapDetailPanel.tsx", marker: "map.node_popup_source" },
   },
   "time-series": {
-    units: { file: "components/strategy/StrategyLabCharts.tsx", marker: "unit" },
+    units: { file: "components/ui/charts/Chart.tsx", marker: "unit" },
   },
 };
 
@@ -140,18 +140,4 @@ test("the metric strip carries the disclosures its kind owes", () => {
     readWebSource("components/ui/KeyFigure.tsx"),
     /\{unit \? <small className="metric-strip-unit key-figure-unit">\{unit\}<\/small> : null\}/,
   );
-});
-
-test("the agents replay strip discloses when its numbers were taken", () => {
-  const agents = readWebSource("components/AgentsWorkspace.tsx");
-  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
-  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
-
-  // The strip showed run counts with no instant, which the taxonomy calls out: a figure
-  // without its as-of is not decision evidence.
-  assert.match(agents, /asOf=\{/);
-  assert.match(agents, /formatAgentTimestamp\(selectedRun\.created_at\)/);
-  assert.ok(en["agents.run_as_of"]?.trim());
-  assert.ok(zh["agents.run_as_of"]?.trim());
-  assert.notEqual(en["agents.run_as_of"], zh["agents.run_as_of"]);
 });

@@ -28,7 +28,6 @@ test("evidence-heavy workspaces use the shared block and explicit time basis", (
   const sourceController = readWebSource("app/hooks/useSourceCenterController.ts");
   const sources = readWebSource("components/SourceCenter.tsx");
   const capacity = readWebSource("components/CapacityWorkspace.tsx");
-  const strategy = readWebSource("components/strategy/StrategyShadowRunDetail.tsx");
   const review = readWebSource("components/ReviewWorkspace.tsx");
   const glossary = readWebSource("components/GlossaryWiki.tsx");
   const market = readWebSource("components/MarketTerminal.tsx");
@@ -41,8 +40,6 @@ test("evidence-heavy workspaces use the shared block and explicit time basis", (
   assert.match(capacity, /<EvidenceBlock/);
   assert.match(capacity, /selected\.sourceReference \?\? t\("data\.unavailable"\)/);
   assert.doesNotMatch(capacity, /selected\.sourceReference \?\? "ENTSOG"/);
-  assert.match(strategy, /<EvidenceBlock/);
-  assert.match(strategy, /displayTime\(value\)/);
   assert.match(review, /<EvidenceBlock/);
   assert.match(review, /displayTime\(value, value\)/);
   assert.match(glossary, /t\("evidence\.time_basis"\)/);

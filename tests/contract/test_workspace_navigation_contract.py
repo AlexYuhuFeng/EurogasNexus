@@ -27,7 +27,6 @@ EXPECTED_PAGES = [
     "market",
     "scenario",
     "contracts",
-    "strategy",
     "review",
     "orders",
     "sources",
@@ -37,13 +36,15 @@ EXPECTED_PAGES = [
     "manual",
     "access",
     "research",
-    "agents",
 ]
+
+#: Page ids removed by CP-00 (design basis 2, I.1); their addresses redirect to Research → Reports.
+RETIRED_PAGES = ["strategy", "agents"]
 
 EXPECTED_PRIMARY_CHILDREN = {
     "market": ["market", "network", "capacity"],
     "portfolio": ["contracts", "orders"],
-    "strategy": ["strategy", "research", "agents"],
+    "strategy": ["research"],
     "decision": ["scenario", "review"],
     "system": ["settings", "manual", "glossary"],
     "administration": ["sources", "runtime", "access"],
@@ -52,7 +53,7 @@ EXPECTED_PRIMARY_CHILDREN = {
 EXPECTED_DEFAULTS = {
     "market": "market",
     "portfolio": "contracts",
-    "strategy": "strategy",
+    "strategy": "research",
     "decision": "scenario",
     "system": "manual",
     "administration": "sources",
@@ -87,6 +88,8 @@ def test_technical_page_registry_preserves_all_route_ids() -> None:
     assert "export const workspacePageIds: WorkspacePageId[] = [" in navigation_text
     for page in EXPECTED_PAGES:
         assert f'"{page}"' in navigation_text
+    for page in RETIRED_PAGES:
+        assert f'| "{page}"' not in navigation_text
     assert "workspaceGroups" not in navigation_text
 
 
@@ -242,20 +245,20 @@ def test_four_modes_are_the_primary_row_and_decision_center_is_dissolved() -> No
 
     modes_text = _read(MODE_NAVIGATION_TS)
     assert 'export const MODE_IDS = ["desk", "deals", "book", "research"] as const;' in modes_text
-    # Scenario and optimisation are Deals; review sits with the deals it approves; nomination and
-    # storage planning are Book views. The page addresses stay, so old links keep working.
+    # Review sits with the deals it approves; nomination and storage planning are the two views
+    # of Book → Planning. Scenario and Optimise left with CP-00 and redirect to Deals → Contracts.
+    # The page addresses stay, so old links keep working.
     for task_id, page, page_task in [
-        ("evaluate", "scenario", "scenario"),
-        ("optimise", "scenario", "optimize"),
         ("review", "scenario", "review"),
-        ("nominations", "scenario", "nomination"),
-        ("storage", "scenario", "dispatch"),
+        ("planning", "scenario", "nomination"),
     ]:
         assert re.search(
             rf'id: "{task_id}", labelKey: "[^"]+",(?: shortLabelKey: "[^"]+",)? '
             rf'page: "{page}", pageTask: "{page_task}"',
             modes_text,
         ), task_id
+    assert 'alsoPageTasks: ["dispatch"]' in modes_text
+    assert '"scenario:optimize": { page: "contracts", task: "resources" }' in modes_text
     assert "export function redirectSearch" in modes_text
     en = json.loads(_read(I18N_EN))
     zh = json.loads(_read(I18N_ZH))
