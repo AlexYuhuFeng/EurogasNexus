@@ -19,8 +19,7 @@ import {
   undeclaredScopes,
   type DataScopeCatalogue,
 } from "@/app/model/accessCatalogueModel";
-import { Button, PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
-import { PanelHeader, StatusBadge, WorkspaceTabs, PeriodPicker } from "@/components/ui";
+import { Button, PanelHeader, PeriodPicker, StatusBadge, WorkspaceTabs } from "@/components/ui";
 import { LicenceRegisterPanel } from "@/components/LicenceRegisterPanel";
 import { AccessUsers } from "@/components/AccessUsers";
 import { OPEN_SETUP_EVENT } from "@/components/FirstRunSetup";

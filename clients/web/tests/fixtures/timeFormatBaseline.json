@@ -1,4 +1,7 @@
 {
+  "src/app/answer/forward.ts": {
+    "adhocTime": 1
+  },
   "src/app/answer/instant.ts": {
     "adhocTime": 2
   },
@@ -9,6 +12,9 @@
     "adhocTime": 1
   },
   "src/app/hooks/useGlossaryExplorer.ts": {
+    "browserLocaleNumber": 1
+  },
+  "src/app/mapBookRelevance.ts": {
     "browserLocaleNumber": 1
   },
   "src/app/mapSituation.ts": {
@@ -82,7 +88,7 @@
   },
   "src/components/NetworkWorkspace.tsx": {
     "adhocTime": 2,
-    "browserLocaleNumber": 11
+    "browserLocaleNumber": 2
   },
   "src/components/PortfolioWorkspace.tsx": {
     "browserLocaleNumber": 4
