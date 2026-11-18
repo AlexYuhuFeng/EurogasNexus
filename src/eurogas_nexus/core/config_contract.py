@@ -680,6 +680,17 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         profiles=("development",),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_CATCH_UP_STATUS",
+        scope="OPERATOR",
+        purpose="Demo server: file where the live-data catch-up writes its progress.",
+        default="/tmp/eurogas-nexus-catch-up.json",
+        profiles=("development",),
+        notes=(
+            "Written by scripts/demo/start_public_demo.py and read by GET /api/sources to "
+            "tell administrators how far the catch-up has got.",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DEMO_RESET_TOKEN",
         scope="OPERATOR",
         purpose="Change this value to re-seed the demo desk and tester identities at next start.",

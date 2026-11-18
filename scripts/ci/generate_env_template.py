@@ -85,6 +85,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "EUROGAS_NEXUS_DEMO_LIVE_SOURCES",
             "EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS",
             "EUROGAS_NEXUS_DEMO_REFRESH_HOURS",
+            "EUROGAS_NEXUS_DEMO_CATCH_UP_STATUS",
             "EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS",
         ),
     ),
