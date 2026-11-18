@@ -177,6 +177,29 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   `78 p/th in eur/mwh jan27` to the server; spot stays instant.
 - Demo seed holds daily simulated FX and benchmark fixings; a real fixing replaces the demo one.
 - Surface 258 / 284 (256 / 282 before). Golden cases in `tests/unit/test_fx_forward.py`.
+## 2026-11-18 — CP-09 evaluators I and CP-10 evaluators II; snapshot on forward FX (branch `cp-09-10`, not pushed)
+
+- Snapshot FX is the CP-01 forward-FX service (licensed forward sourced, covered interest
+  parity derived with its tolerance, spot for prompt periods); the D.5 example reproduces.
+- CP-09: L (forward months M+1..M+6 from the book's positions, day-ahead from tomorrow's long
+  residual on executable quotes) over the proven graph with exit/pipeline/entry tariffs, the
+  firm's load factor and short-term multiplier, FX rows; C (held capacity, charges sunk);
+  S (tomorrow's residual against the desk's cash-out discount or premium); E (an outage that
+  names a contract's source, cover cost). Checks: capacity, outage on the path, mandate
+  (traded hubs, net after the move). Golden: TTF -> THE Jan-27 incl. the 80 % load-factor
+  falsifier.
+- CP-10: T (held storage from the facility masters; storage not held from the firm's tariff,
+  indicative; ratchets not assessed) and R (the pool optimiser with and without re-route
+  options; the claim is its delta; single-currency pools only).
+- Snapshot collections: positions, contracts, mandates, held_capacity, residuals,
+  outage_feed, storage, resource_pool. Demo TTF mandate covers THE, ZTP and PEG.
+- Demo run (with ENTSOG tariffs, ECB and fixings ingested): G 37, E 3, C 6 indicative; L 3
+  watch (thin margins), 3 blocked (UK mandate); R 1 watch; S blocked (no day-ahead price or
+  cash-out assumption on the demo); all simulated-marked. Public-data run: nothing until the
+  firm enters marks; then L on real tariffs as indicative, nothing simulated.
+- Open on integrate (not from these packages): the config-contract gate
+  (`EUROGAS_NEXUS_DEMO_CATCH_UP_STATUS` undeclared) and two demo-seed outage-roll tests.
+
 ## 2026-11-18 — CP-07 assumption sets, firm marks, valuation snapshot; CP-08 opportunity core (branch `cp-07-08`, not pushed)
 
 - CP-07: `domain/valuation/` (input classes, weakest-input grade, delivery periods, typed
