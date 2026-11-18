@@ -1,4 +1,4 @@
-import { needsCommercialWorkspaceReads, workspaceReadNeeded } from "./workspaceReadScope";
+import { needsCommercialWorkspaceReads, workspaceReadNeeded, workspaceReadOrder } from "./workspaceReadScope";
 import { create } from "zustand";
 import {
   CLIENT_RELEASE_METADATA,
@@ -1583,8 +1583,14 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // The pass's query and claims are taken here, in the tick that builds its requests: every retry
     // attempt asks this same question, and every answer is held to this claim rather than to
     // whatever the store holds when it returns.
-    const batchLoaders = workspaceLoaders(projectionRequestContext(get().tradingContext))
+    const neededLoaders = workspaceLoaders(projectionRequestContext(get().tradingContext))
       .filter(([key]) => workspaceReadNeeded(key, get().currentUser));
+    // The visible page's reads start first (the batch runs a few at a time).
+    const order = workspaceReadOrder(
+      neededLoaders.map(([key]) => key),
+      typeof window === "undefined" ? "" : window.location.search,
+    );
+    const batchLoaders = order.map((key) => neededLoaders.find(([candidate]) => candidate === key)!);
     const claims = claimProjectionLanes(batchLoaders);
     const libraryClaim = claimContractLibraryFor(batchLoaders);
     const outcomes = await loadWorkspaceEndpoints(batchLoaders, {
@@ -1605,10 +1611,17 @@ export const useApiStore = create<ApiState>((set, get) => ({
     const { endpointErrors } = workspaceCommit;
     const batchMeta: Record<string, ApiMeta> = {};
     const slices: Record<string, unknown> = {};
+    const previous = get();
     for (const { key, outcome } of outcomes) {
       if (outcome.ok) {
         batchMeta[key] = outcome.value.meta;
         slices[key] = deriveWorkspaceSlice(key, outcome.value);
+      } else if (outcome.error.code !== "aborted") {
+        // A read that did not answer keeps the last good answer on screen (its own as-of says how
+        // old it is) and is listed as a problem; it never blanks a panel that had data.
+        const field = WORKSPACE_STATE_KEYS[key];
+        const kept = field ? previous[field] : undefined;
+        if (kept !== undefined && kept !== null && !(Array.isArray(kept) && kept.length === 0)) slices[key] = kept;
       }
     }
     // The portfolio lane is this batch's projection: when a newer request owns it (the context

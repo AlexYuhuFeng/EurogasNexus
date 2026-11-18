@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { readKey, useCachedRead } from "@/app/data/readCache";
 
 import { api, type DeliveryPerformanceDTO, type DeliveryPerformanceRowDTO } from "@/api/client";
 import { ReportExport } from "./ReportExport";
@@ -21,29 +22,17 @@ function qty(value: number | null | undefined): string {
  */
 export function DeliveryPerformancePanel({ t }: { t: Translate }) {
   const [days, setDays] = useState(90);
-  const [data, setData] = useState<DeliveryPerformanceDTO | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [detail, setDetail] = useState<DeliveryPerformanceDTO | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    api.deliveryPerformance(days, undefined, { signal: controller.signal })
-      .then((response) => setData(response.data))
-      .catch(() => setData(null));
-    return () => controller.abort();
-  }, [days]);
-
-  useEffect(() => {
-    if (!selected) {
-      setDetail(null);
-      return;
-    }
-    const controller = new AbortController();
-    api.deliveryPerformance(days, selected, { signal: controller.signal })
-      .then((response) => setDetail(response.data))
-      .catch(() => setDetail(null));
-    return () => controller.abort();
-  }, [days, selected]);
+  // Kept across task switches (app/data/readCache.ts): the last answer shows at once.
+  const read = useCachedRead(readKey("/portfolio/delivery-performance", { days }), (signal) =>
+    api.deliveryPerformance(days, undefined, { signal }).then((response) => response.data),
+  );
+  const detailRead = useCachedRead(
+    selected ? readKey("/portfolio/delivery-performance", { days, contract: selected }) : null,
+    (signal) => api.deliveryPerformance(days, selected ?? undefined, { signal }).then((response) => response.data),
+  );
+  const data: DeliveryPerformanceDTO | null = read.data ?? null;
+  const detail: DeliveryPerformanceDTO | null = selected ? detailRead.data ?? null : null;
 
   const columns = useMemo<DataGridColumn<DeliveryPerformanceRowDTO>[]>(() => [
     {

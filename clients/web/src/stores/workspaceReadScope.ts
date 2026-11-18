@@ -48,3 +48,31 @@ function viewerOnly(user: CurrentUserDTO | null): boolean {
   const roles = Array.isArray(user?.roles) && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : [];
   return roles.length > 0 && roles.every((role) => String(role).toUpperCase() === "VIEWER");
 }
+
+/**
+ * The reads the visible page draws first: they start before the rest of the workspace batch
+ * (which is bounded to a few reads at a time), so the page a reader is looking at fills first.
+ */
+const FIRST_READS: Record<string, readonly string[]> = {
+  market: ["normalizedMarkets", "marketQuotes", "fxRates", "marketSpreads", "monitoringAlerts"],
+  network: ["referenceNodes", "referenceEdges", "flows", "capacity", "storage", "lng", "tsoAccess"],
+  capacity: ["capacity", "flows", "storage", "lng"],
+  contracts: ["portfolioSnapshot", "upstreamContracts", "routes", "routeCandidates", "fxRates"],
+  scenario: ["portfolioSnapshot", "upstreamContracts", "reviewDecisions"],
+  review: ["reviewDecisions", "portfolioSnapshot"],
+  sources: ["sources", "pipelineHealth"],
+  runtime: ["runtimeDb", "runtimeDependencies", "pipelineHealth", "credentialProviders"],
+  glossary: ["glossaryTerms"],
+};
+
+export function workspaceReadOrder(keys: readonly string[], search: string): string[] {
+  const params = new URLSearchParams(search);
+  const page = params.get("workspace") ?? "market";
+  const task = params.get("task");
+  const first = FIRST_READS[page === "market" && task === "network" ? "network" : page === "market" && task === "capacity" ? "capacity" : page] ?? [];
+  const rank = (key: string) => {
+    const index = first.indexOf(key);
+    return index === -1 ? first.length : index;
+  };
+  return [...keys].sort((left, right) => rank(left) - rank(right));
+}

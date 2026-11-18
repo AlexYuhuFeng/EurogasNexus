@@ -44,6 +44,13 @@ import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { useWideContent } from "@/app/shell/useWideContent";
 import { FirstRunSetupGate } from "@/components/FirstRunSetup";
 import { useTimePreferenceStore } from "@/stores/timePreference";
+import { invalidateReads, setReadCacheScope } from "@/app/data/readCache";
+import { onApiWrite } from "@/api/client";
+
+import { scrollMemoryKey, useScrollMemory } from "@/app/shell/useScrollMemory";
+
+// Any write through the API client marks the kept read answers stale.
+onApiWrite(invalidateReads);
 
 interface AppShellProps {
   controller: AppController;
@@ -176,6 +183,11 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
   useEffect(() => {
     if (principalId) void loadRemotePreferences(principalId);
   }, [principalId]);
+  // Back on a page or task, the reader is where they left it.
+  useScrollMemory(scrollMemoryKey(typeof window === "undefined" ? "" : window.location.search));
+
+  // Kept answers belong to one principal: another identity starts from an empty read cache.
+  setReadCacheScope(principalId);
   const chooseLanguage = (language: string) => {
     void changeAppLanguage(language);
     saveRemotePreference("language", language);

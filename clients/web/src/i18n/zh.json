@@ -5704,5 +5704,6 @@
   "why.stage.writing": "撰写解释…",
   "contracts.import_stage.read": "读取文件",
   "contracts.import_stage.terms": "识别合同条款",
-  "contracts.import_stage.fill": "填写草稿"
+  "contracts.import_stage.fill": "填写草稿",
+  "status.updating": "更新中"
 }

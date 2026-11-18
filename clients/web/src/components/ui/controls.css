@@ -674,4 +674,27 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
   }
+
+  /* ------------------------------------------------------------ UpdatingMark */
+  .ds-updating {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-regular);
+  }
+
+  .ds-updating > i {
+    width: var(--ds-space-1);
+    height: var(--ds-space-1);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ds-updating > i {
+      animation: ds-work-pulse 1.2s ease-in-out infinite;
+    }
+  }
 }

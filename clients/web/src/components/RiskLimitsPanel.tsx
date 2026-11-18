@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useCachedRead } from "@/app/data/readCache";
 
 import {
   api,
@@ -11,7 +12,7 @@ import { formatMoney, formatQuantity, splitList } from "@/app/model/riskLimitsMo
 import { ReportExport } from "./ReportExport";
 import { WhyButton } from "./WhyButton";
 import { MethodNote } from "./MethodNote";
-import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone, PeriodPicker } from "@/components/ui";
+import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone, PeriodPicker, UpdatingMark } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -75,24 +76,21 @@ const EMPTY_MANDATE = {
  * the utilisation, so a breach is visible to the trader and the desk head at the same time.
  */
 export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaintainRisk: boolean }) {
-  const [credit, setCredit] = useState<CreditExposureRowDTO[] | null>(null);
-  const [mandates, setMandates] = useState<MandateUsageRowDTO[] | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
+  // Kept across task switches (app/data/readCache.ts): the last answer shows at once.
+  const creditRead = useCachedRead("/portfolio/credit-exposure", () => api.creditExposure());
+  const mandateRead = useCachedRead("/portfolio/mandate-usage", () => api.mandateUsage());
+  const credit: CreditExposureRowDTO[] | null = creditRead.data?.data.rows ?? null;
+  const mandates: MandateUsageRowDTO[] | null = mandateRead.data?.data.rows ?? null;
+  const warnings: string[] = creditRead.data?.meta?.warnings ?? [];
   const [line, setLine] = useState(EMPTY_LINE);
   const [mandate, setMandate] = useState(EMPTY_MANDATE);
   const [editing, setEditing] = useState<"none" | "credit" | "mandate">("none");
   const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    api.creditExposure()
-      .then((response) => {
-        setCredit(response.data.rows);
-        setWarnings(response.meta?.warnings ?? []);
-      })
-      .catch(() => setCredit(null));
-    api.mandateUsage().then((response) => setMandates(response.data.rows)).catch(() => setMandates(null));
-  }, []);
-  useEffect(load, [load]);
+    creditRead.refresh();
+    mandateRead.refresh();
+  }, [creditRead.refresh, mandateRead.refresh]);
 
   const fail = (caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught));
 
@@ -227,6 +225,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       <div className="panel-title-row">
         <h2 id="risk-limits-title">{t("limits.title")}</h2>
         {breaches > 0 && <StatusBadge tone="breach">{t("limits.breaches", { count: breaches })}</StatusBadge>}
+        <UpdatingMark active={creditRead.updating || mandateRead.updating} label={t("status.updating")} />
       </div>
 
       <div className="panel-title-row">

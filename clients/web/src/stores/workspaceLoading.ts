@@ -291,7 +291,7 @@ export async function loadWorkspaceEndpoint<T>(
       if (attempt >= retries || code === "forbidden" || code === "not_found") {
         return { ok: false, error: { code, message: loadErrorMessage(error) } };
       }
-      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt)));
     } finally {
       clearTimeout(timeoutId);
       parentSignal?.removeEventListener("abort", abortRequest);
@@ -299,16 +299,36 @@ export async function loadWorkspaceEndpoint<T>(
   }
 }
 
+/**
+ * At most this many workspace reads are in flight at once. The batch used to fire about 28 reads
+ * together; on a small server they queued behind each other and the last ones passed the 10 s
+ * timeout before they started. The order the caller gives is the order they start (the visible
+ * task's reads first), and each read's timeout starts when it starts, not while it waits.
+ */
+export const WORKSPACE_READ_CONCURRENCY = 6;
+
 export async function loadWorkspaceEndpoints<T>(
   loaders: ReadonlyArray<readonly [string, WorkspaceLoader<T>]>,
-  options: WorkspaceLoadOptions = {},
+  options: WorkspaceLoadOptions & { concurrency?: number } = {},
 ): Promise<Array<{ key: string; outcome: WorkspaceLoaderOutcome<T> }>> {
-  return Promise.all(
-    loaders.map(async ([key, loader]) => ({
-      key,
-      outcome: await loadWorkspaceEndpoint(loader, options),
-    })),
-  );
+  const results: Array<{ key: string; outcome: WorkspaceLoaderOutcome<T> }> = new Array(loaders.length);
+  let next = 0;
+  const width = Math.max(1, Math.min(options.concurrency ?? WORKSPACE_READ_CONCURRENCY, loaders.length));
+  const worker = async () => {
+    while (next < loaders.length) {
+      const index = next;
+      next += 1;
+      const [key, loader] = loaders[index]!;
+      results[index] = { key, outcome: await loadWorkspaceEndpoint(loader, options) };
+    }
+  };
+  await Promise.all(Array.from({ length: width }, worker));
+  return results;
+}
+
+/** Wait before retry `attempt` (0-based): 400 ms, 800 ms, 1.6 s ..., with a little jitter. */
+export function retryDelayMs(attempt: number, random = Math.random): number {
+  return Math.round(400 * 2 ** attempt * (0.85 + 0.3 * random()));
 }
 
 export function commitWorkspaceLoad<T>(

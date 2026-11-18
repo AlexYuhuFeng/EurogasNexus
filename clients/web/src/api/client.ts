@@ -546,7 +546,26 @@ export function downloadReportCsv(path: string, params: Record<string, string> =
   return downloadReport(path, params, "csv");
 }
 
+/**
+ * Told before every write (POST/PUT/PATCH/DELETE): the read cache marks its answers stale
+ * (app/data/readCache.ts, wired by the shell). A listener, so this module imports nothing more.
+ */
+const apiWriteListeners = new Set<() => void>();
+
+export function onApiWrite(listener: () => void): () => void {
+  apiWriteListeners.add(listener);
+  return () => {
+    apiWriteListeners.delete(listener);
+  };
+}
+
+function notifyApiWrite(): void {
+  for (const listener of apiWriteListeners) listener();
+}
+
 async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+  // A write may change what any read answers: kept answers are refreshed on next view.
+  notifyApiWrite();
   const response = await fetch(apiUrl(path), requestInit({
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -556,11 +575,15 @@ async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
 }
 
 async function del<T>(path: string): Promise<ApiResponse<T>> {
+  // A write may change what any read answers: kept answers are refreshed on next view.
+  notifyApiWrite();
   const response = await fetch(apiUrl(path), requestInit({ method: "DELETE" }));
   return parseResponse<ApiResponse<T>>(response);
 }
 
 async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+  // A write may change what any read answers: kept answers are refreshed on next view.
+  notifyApiWrite();
   const response = await fetch(apiUrl(path), requestInit({
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -570,6 +593,8 @@ async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
 }
 
 async function deleteWithBody<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+  // A write may change what any read answers: kept answers are refreshed on next view.
+  notifyApiWrite();
   const response = await fetch(apiUrl(path), requestInit({
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
@@ -579,6 +604,8 @@ async function deleteWithBody<T>(path: string, body: unknown): Promise<ApiRespon
 }
 
 async function post<T, M = ApiMeta>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<ApiResponse<T, M>> {
+  // A write may change what any read answers: kept answers are refreshed on next view.
+  notifyApiWrite();
   const res = await fetch(apiUrl(path), requestInit({
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -65,3 +65,26 @@ test("the cache is bounded", async () => {
   assert.equal(peekRead("/k0").data, undefined, "the least recently used answer is dropped");
   assert.equal(peekRead(`/k${MAX_ENTRIES + 9}`).data, MAX_ENTRIES + 9);
 });
+
+test("the workspace batch runs a few reads at a time, the visible page's first, and backs off", async () => {
+  const { loadWorkspaceEndpoints, retryDelayMs, WORKSPACE_READ_CONCURRENCY } = await import("../src/stores/workspaceLoading.ts");
+  const { workspaceReadOrder } = await import("../src/stores/workspaceReadScope.ts");
+  let inFlight = 0;
+  let peak = 0;
+  const started: string[] = [];
+  const loader = (key: string) => async () => {
+    started.push(key);
+    inFlight += 1;
+    peak = Math.max(peak, inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    inFlight -= 1;
+    return key;
+  };
+  const keys = Array.from({ length: 20 }, (_, index) => `k${index}`);
+  const results = await loadWorkspaceEndpoints(keys.map((key) => [key, loader(key)] as const));
+  assert.equal(peak, WORKSPACE_READ_CONCURRENCY);
+  assert.deepEqual(results.map((result) => result.key), keys, "results keep the caller's order");
+  const order = workspaceReadOrder(["sources", "glossaryTerms", "flows", "referenceNodes"], "?workspace=market&task=network");
+  assert.deepEqual(order.slice(0, 2), ["referenceNodes", "flows"]);
+  assert.ok(retryDelayMs(0, () => 0.5) === 400 && retryDelayMs(2, () => 0.5) === 1600);
+});

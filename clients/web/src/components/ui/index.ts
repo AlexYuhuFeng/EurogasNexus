@@ -44,3 +44,4 @@ export { Instant } from "./Instant";
 export { PeriodPicker } from "./PeriodPicker";
 export type { PeriodPickerProps } from "./PeriodPicker";
 export { WorkProgress } from "./WorkProgress";
+export { UpdatingMark } from "./UpdatingMark";

@@ -67,7 +67,11 @@ export function setReadCacheScope(principalId: string | null | undefined): void 
   scope = next;
   const keys = [...entries.keys()];
   entries.clear();
-  for (const key of keys) emit(key);
+  // Called from the shell's render (so no child reads under the old identity): tell subscribers
+  // after the render, not during it.
+  queueMicrotask(() => {
+    for (const key of keys) emit(key);
+  });
 }
 
 /** Mark every kept answer stale (after a write): the next view reads again, showing it meanwhile. */

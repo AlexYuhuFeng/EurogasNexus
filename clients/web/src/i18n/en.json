@@ -5704,5 +5704,6 @@
   "why.stage.writing": "Writing the explanation…",
   "contracts.import_stage.read": "Reading the file",
   "contracts.import_stage.terms": "Finding the contract terms",
-  "contracts.import_stage.fill": "Filling the draft"
+  "contracts.import_stage.fill": "Filling the draft",
+  "status.updating": "Updating"
 }

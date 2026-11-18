@@ -195,6 +195,14 @@ exact copy, so that presentation can improve without weakening a gate.
     nothing jumps when it arrives. Nothing appears for a wait shorter than 300 ms (no flicker).
     Motion stops under `prefers-reduced-motion`; the words still change. Pages use
     `app/hooks/useWorkProgress.ts` and `components/ui/WorkProgress.tsx` rather than their own.
+19. **Coming back is instant; nothing blanks.** A panel reads through the client read cache
+    (`app/data/readCache.ts`, `useCachedRead`): returning to a page or task shows its last answer
+    at once with a quiet "Updating" mark while a newer one is read; a failed refresh keeps the last
+    good answer and lists the problem in the data-status panel (the answer's own as-of says how
+    old it is, so kept data is never shown as current). The cache belongs to one signed-in
+    principal and any write marks it stale. The workspace batch starts the visible page's reads
+    first and runs six at a time with exponential backoff on retry; a read that fails keeps the
+    last good slice. The window's scroll position is restored per page and task for the session.
 
 ## Implementation note
 
