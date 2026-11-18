@@ -972,8 +972,10 @@ def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() 
     assert "defaultOpen" in overlay
     assert "useState(defaultOpen)" in overlay
     assert ".network-workspace-shell" in css
+    # The rails' and the ladder's styles left with them (CP-21); the shell's grid stays.
     assert 'grid-template-areas: "left map right" "ladder ladder ladder"' in css
-    assert ".network-route-ladder .resource-pool-map-overlay" in css
+    for gone in (".network-route-ladder", ".network-decision-rail", ".network-rail-view"):
+        assert gone not in css
     assert "position: static" in css
     assert "grid-auto-flow: column" in css
     assert ".cockpit-app .workspace-topbar-only.has-map-search" in css
