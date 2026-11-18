@@ -113,3 +113,10 @@ def test_normalized_market_view_converts_fx_and_reports_unconvertible(
     assert pln["is_gas_price"] is True
     assert pln["price_gbp_mwh"] is None
     assert any("PLN->GBP" in warning for warning in body["meta"]["warnings"])
+    window = body["meta"]["window"]
+    assert window["row_limit"] == 500 and window["returned"] == 2
+    assert window["limit_reached"] is False
+    assert window["observed_from_utc"].startswith("2026-07-01")
+
+    bounded = TestClient(create_app()).get("/api/market/normalized?limit=1").json()["meta"]
+    assert bounded["window"]["limit_reached"] is True

@@ -220,13 +220,33 @@ def list_normalized_view(
                 limit=limit,
                 source_filter=source_family_filter(identity),
             )
-        return _env(
+        envelope = _env(
             view["rows"],
             source="runtime-postgresql",
             warnings=view["warnings"],
         )
+        envelope["meta"]["window"] = _row_window(view["rows"], limit)
+        return envelope
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+def _row_window(rows: list[dict], limit: int) -> dict:
+    """The rows a bounded read returned, stated so nothing outside them reads as absent.
+
+    The view is the newest ``limit`` observations with per-source coverage; ``limit_reached``
+    says older rows may exist beyond it, and the observed range says which instants the rows
+    span.
+    """
+
+    observed = sorted(str(row.get("observed_at_utc")) for row in rows if row.get("observed_at_utc"))
+    return {
+        "row_limit": limit,
+        "returned": len(rows),
+        "limit_reached": len(rows) >= limit,
+        "observed_from_utc": observed[0] if observed else None,
+        "observed_to_utc": observed[-1] if observed else None,
+    }
 
 
 @router.get("/api/market/spreads")
