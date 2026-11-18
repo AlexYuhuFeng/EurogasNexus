@@ -21,7 +21,7 @@ confirm each provider's current terms before a production deployment.
 | US EIA open data | Henry Hub daily spot | US government work, public domain; free API key | Public baseline family `EIA`; key held server-side |
 | ICE Endex, EEX, CME, NGX settlements | Gas, carbon (EUA, UKA), API2 coal, power, Henry Hub, AECO | Exchange licence held by the customer; non-display use for analytics must be covered | Licensed families `ICE_ENDEX`, `EEX`, `CME`, `NGX`; granted per user by an administrator |
 | National Gas (GB) | demand; storage and LNG stock, storage withdrawal/injection and LNG send-out (data portal, keyless CSV) | Open data licence; attribution | Certified source (demand); public baseline family `NATIONAL_GAS` (storage, LNG) |
-| EEX public market data (TTF NGP reference) | reference index | Display/internal use only; redistribution and derived products need an EEX licence | Commercial family `EEX`; data-scope grant required |
+| EEX public market data (TTF NGP reference) | reference index | Display/internal use only; redistribution and derived products need an EEX licence. The website terms (see "EEX website terms, checked 2026-11-18" below) permit only a single copy for personal, non-commercial use without EEX's written approval, so **automated retrieval into the product is not covered** until the customer holds an EEX DataSource licence or EEX's written approval | Commercial family `EEX`; data-scope grant required; no bulk or scheduled load from eex.com without that licence |
 | WM/Reuters (LSEG), Bloomberg BFIX | FX fixes | Licensed; the subscriber's own entitlement | Operator import only; families `WMR`/`BFIX` need a grant |
 | Trayport, ICE, ICIS, Platts, Argus, Kpler | prices, assessments | Licensed per subscriber | Commercial families; no data shipped; a connector uses the customer's own credentials |
 | Norwegian Offshore Directorate (Sodir) FactMaps | field, platform and pipeline locations | NLOD 2.0: commercial reuse with attribution | Infrastructure import records licence and attribution per facility |
@@ -36,6 +36,33 @@ confirm each provider's current terms before a production deployment.
 Simulated price sources (`*_Sim`) generate synthetic numbers locally. They carry no
 third-party data, but they must never be shown as market prices. They are disabled in
 `trial` and `release` environments (`simulated_sources_allowed()`).
+
+## EEX website terms, checked 2026-11-18
+
+Checked before a requested 60-day load of EEX gas prices, which was **stopped** on this finding.
+
+- Pages the EEX connector uses: https://www.eex.com/en/markets/natural-gas/gas-market-transparency
+  (links the public NGP CSV files on `gasandregistry.eex.com`: TTF, ETF, FIN, LTU and LVA-EST,
+  each as `*_NGP_15_Mins.csv` and a 60- or 45-day file). These are Neutral Gas Price
+  reference indices, not exchange settlements; the page publishes no settlement or futures
+  curve files for TTF, THE, PEG, ZTP, CEGH VTP, CZ VTP, PVB or NBP.
+- robots.txt: `https://www.eex.com/robots.txt` lists sitemaps and disallows nothing;
+  `gasandregistry.eex.com/robots.txt` does not exist (404).
+- Terms: https://www.eex.com/en/disclaimer ("Copyright"), read 2026-11-18: "Neither this
+  website nor the contents made available therein (including; graphic representations, audio
+  and video clips, html code, buttons and text) may be copied, reprinted, published,
+  transmitted, transferred, disseminated or distributed in any manner without the prior
+  written approval of EEX AG. However, the preparation of a single copy for exclusive
+  personal, non-commercial use by downloading onto an individual personal computer [...] are
+  expressly permitted."
+- End-of-day settlement prices are sold through EEX Group DataSource under its licensing
+  conditions (https://www.eex.com/en/market-data/eex-group-datasource/licensing-conditions).
+
+Consequence: storing EEX website data in a commercial product, even for one customer's
+internal analysis, is outside the personal, non-commercial permission. EEX data enters the
+product only through the customer's own DataSource licence or EEX's written approval (AGENTS.md
+rule 18), under the licensed family `EEX` and its data-scope grant. Nobody accepts terms or
+registers with EEX on the owner's behalf.
 
 ## Reference network bundle (MAP-01, decided 2026-11-14)
 
