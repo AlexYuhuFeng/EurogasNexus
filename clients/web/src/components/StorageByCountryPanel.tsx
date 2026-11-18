@@ -89,7 +89,11 @@ function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: T
           <dd className="storage-figure-note">
             {target.days_to_target_at_7d_rate != null
               ? t("storage_panel.days_to_target", { days: target.days_to_target_at_7d_rate })
-              : t("storage_panel.target_window", { open: target.window_open, deadline: target.deadline })}
+              : t("storage_panel.target_window", {
+                  // "10-01" -> "1 Oct" through the shell's date formatter (any year: no year shown).
+                  open: formatGasDay(`${entity.as_of.slice(0, 4)}-${target.window_open}`, language),
+                  deadline: formatGasDay(`${entity.as_of.slice(0, 4)}-${target.deadline}`, language),
+                })}
           </dd>
         </div>
       )}

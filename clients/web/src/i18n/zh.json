@@ -3488,7 +3488,7 @@
   "storage_panel.target": "较欧盟目标 {{pct}} %",
   "storage_panel.target_rule": "欧盟目标 {{pct}} %",
   "storage_panel.days_to_target": "按 7 日速率 {{days}} 天达标",
-  "storage_panel.target_window": "须在 {{open}} 至 {{deadline}}（月-日）之间达到",
+  "storage_panel.target_window": "须在 {{open}} 至 {{deadline}} 之间达到",
   "storage_panel.last_year": "去年 {{year}}",
   "storage_panel.day_of_gas_year": "燃气年日",
   "storage_panel.compare_mean": "较 {{count}} 年均值",
