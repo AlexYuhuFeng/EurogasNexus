@@ -395,7 +395,7 @@ function todayFixture(): DeskTodayDTO {
         empty: null,
         more: 0,
         quiet: null,
-        items: [{ kind: "outage", id: "u1", title: "Demo Haldor field", hub: "NBP", touches_book: true, size: { value: 563.2, unit: "GWh/d" }, status: "active", simulated: true, as_of: null, why: { subject: "outage", id: "u1" } }],
+        items: [{ kind: "outage", id: "u1", title: "Demo Haldor field", hub: "NBP", touches_book: true, size: { value: 563.2, unit: "GWh/d" }, status: "active", simulated: true, as_of: null, since_utc: "2026-11-15T06:46:00Z", why: { subject: "outage", id: "u1" } }],
       },
     ],
   } as unknown as DeskTodayDTO;
@@ -469,4 +469,28 @@ test("Method note: the reader's language when the build has the key, the server'
   const missing = methodText({ ...METHOD, i18n: { summary: "risk.method.unknown.summary", includes: [], excludes: [] } }, translate);
   assert.equal(missing.summary, "Net MWh per gas day.");
   assert.deepEqual(missing.includes, ["Physical contracts"]);
+});
+
+test("Today: an all-simulated page says it once and drops the per-figure marker; mixed keeps it", async () => {
+  const { load } = await loadApiStore();
+  const { TodayScreen } = await load<typeof import("../src/components/TodayScreen.tsx")>("/src/components/TodayScreen.tsx");
+  const { simulatedScopeOf } = await load<typeof import("../src/components/SimulatedScope.tsx")>("/src/components/SimulatedScope.tsx");
+  assert.equal(simulatedScopeOf([true, true]), "all");
+  assert.equal(simulatedScopeOf([true, false]), "mixed");
+  assert.equal(simulatedScopeOf([]), "none");
+  const props = {
+    loading: false, error: null, t, language: "en", nowMs: Date.parse("2026-11-15T10:00:00Z"),
+    onRefresh: () => undefined, onOpenBrief: () => undefined, onOpenLimits: () => undefined, onOpenOutages: () => undefined,
+  };
+  const all = render(h(TodayScreen, { ...props, today: { ...todayFixture(), all_simulated: true } }));
+  assert.match(all, /data-simulated-scope="all"[^>]*>today\.all_simulated</);
+  assert.doesNotMatch(all, /class="ds-cell-mark"/);
+  const mixed = render(h(TodayScreen, { ...props, today: todayFixture() }));
+  assert.doesNotMatch(mixed, /data-simulated-scope/);
+  assert.match(mixed, /class="ds-cell-mark" data-state="simulated"/);
+  // Units as the desk writes them, and the gas day through the shell's formatter (no ISO date).
+  assert.doesNotMatch(all, /GBp\/th/);
+  assert.match(all, /today\.as_of\(gasDay=15 Nov,front=Dec-26\)/);
+  // The outage says since when it is out; no news age on a standing limit state.
+  assert.match(all, /today\.needs\.since\(when=/);
 });

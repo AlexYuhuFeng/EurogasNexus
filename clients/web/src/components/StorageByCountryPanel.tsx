@@ -14,6 +14,7 @@
  * - Phone (a narrow container): the chart becomes the headline and a sparkline; a tap opens
  *   the chart (F.2: no hover-only information).
  */
+import { useSimulatedPills } from "@/components/SimulatedScope";
 import { useEffect, useMemo, useState } from "react";
 
 import "./storage-panel.css";
@@ -38,6 +39,7 @@ function num(value: number | null | undefined, decimals = 1): string {
 }
 
 function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: Translate; language: string }) {
+  const pills = useSimulatedPills();
   const average = entity.vs_average;
   const target = entity.target;
   return (
@@ -46,7 +48,7 @@ function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: T
         <dt>{t("storage_panel.fill")}</dt>
         <dd data-figure="fill_pct">
           {num(entity.fill_pct)} <small>%</small>
-          {entity.simulated && <StatusBadge tone="simulated" title={t("today.simulated_long")}>{t("today.simulated_short")}</StatusBadge>}
+          {entity.simulated && pills && <StatusBadge tone="simulated" title={t("today.simulated_long")}>{t("today.simulated_short")}</StatusBadge>}
         </dd>
         <dd className="storage-figure-note">{t("storage_panel.gas_day", { day: formatGasDay(entity.as_of, language, true) })}</dd>
       </div>
@@ -101,7 +103,11 @@ function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: T
   );
 }
 
-export function StorageByCountryPanel({ t, language }: { t: Translate; language: string }) {
+/**
+ * `summary` (Today): the headline figures and the country table with its sparklines; the season
+ * chart is one click away and the "not held" list stays on the full view (Today is the summary).
+ */
+export function StorageByCountryPanel({ t, language, summary = false }: { t: Translate; language: string; summary?: boolean }) {
   const [region, setRegion] = useState<Region>("eu");
   const [selected, setSelected] = useState<string | null>(null);
   const [data, setData] = useState<FundamentalsStorageDTO | null>(null);
@@ -153,6 +159,7 @@ export function StorageByCountryPanel({ t, language }: { t: Translate; language:
   }, [shown, t]);
 
   const avgWords = (count: number) => t("storage_panel.vs_avg_short", { count });
+  const pills = useSimulatedPills();
   const columns = useMemo<DataGridColumn<StorageEntityDTO>[]>(() => [
     {
       id: "country",
@@ -164,7 +171,7 @@ export function StorageByCountryPanel({ t, language }: { t: Translate; language:
       render: (row) => (
         <>
           {row.name} <small className="muted">{row.code}</small>
-          {row.simulated && <span className="ds-cell-mark" data-state="simulated" title={t("today.simulated_long")}> {t("today.simulated_short")}</span>}
+          {row.simulated && pills && <span className="ds-cell-mark" data-state="simulated" title={t("today.simulated_long")}> {t("today.simulated_short")}</span>}
         </>
       ),
     },
@@ -194,7 +201,7 @@ export function StorageByCountryPanel({ t, language }: { t: Translate; language:
         );
       },
     },
-  ], [t]);
+  ], [t, pills]);
 
   if (!data) {
     return (
@@ -235,7 +242,7 @@ export function StorageByCountryPanel({ t, language }: { t: Translate; language:
       ) : (
         <EmptyState compact reason={data.warnings[0] ?? t("storage_panel.no_region")} />
       )}
-      {subject && chart && (narrow && !showChart ? (
+      {subject && chart && ((narrow || summary) && !showChart ? (
         <div className="storage-panel-phone">
           <span className="storage-panel-headline">
             <strong>{subject.name}</strong> {headline(subject, avgWords, t("storage_panel.per_day"))}
@@ -281,7 +288,7 @@ export function StorageByCountryPanel({ t, language }: { t: Translate; language:
         rowAttributes={(row) => ({ "data-storage-country": row.code, "data-simulated": row.simulated ? "true" : undefined })}
         caption={t("storage_panel.table_caption")}
       />
-      {data.missing.length > 0 && (
+      {!summary && data.missing.length > 0 && (
         <p className="storage-panel-missing" data-storage-missing={data.missing.length}>
           {t("storage_panel.missing")}{" "}
           {data.missing.map((item, index) => (

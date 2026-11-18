@@ -31,9 +31,11 @@ interface MarketContextStripProps {
   controls?: React.ReactNode;
   /** The page's own freshness line (Today's named stale figures, or "Demo data"). */
   freshness?: React.ReactNode;
+  /** Page actions at the end of the same line (Today: Desk brief, Refresh). */
+  children?: React.ReactNode;
 }
 
-export function MarketContextStrip({ projection, t, controls, freshness }: MarketContextStripProps) {
+export function MarketContextStrip({ projection, t, controls, freshness, children }: MarketContextStripProps) {
   if (!projection) return null;
 
   return (
@@ -48,6 +50,8 @@ export function MarketContextStrip({ projection, t, controls, freshness }: Marke
       t={t}
       controls={controls}
       freshness={freshness}
-    />
+    >
+      {children}
+    </ProjectionContextStrip>
   );
 }

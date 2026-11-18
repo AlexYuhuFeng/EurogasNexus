@@ -7,7 +7,7 @@ import { MarketTerminal } from "@/components/MarketTerminal";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
-import { TodayFreshness, TodayScreen } from "@/components/TodayScreen";
+import { TodayFreshness, TodayHeadActions, TodayHeadline, TodayScreen } from "@/components/TodayScreen";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
 import { useModeHeader } from "@/app/navigation/useModeHeader";
@@ -117,13 +117,30 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           projection={api.marketContext}
           t={t}
           // No filter strip on Today: it is about today, my hubs and my book (design basis 2, E.1).
-          controls={task === "overview" ? undefined : tradingContextControlsFor(traderContext, t)}
+          // Its one header line is this strip: gas day and front month, as of, data feeds, brief.
+          controls={
+            task === "overview"
+              ? <TodayHeadline today={desk.today} language={controller.i18n.language} t={t} />
+              : tradingContextControlsFor(traderContext, t)
+          }
           freshness={
             task === "overview" || desk.today?.simulated ? (
               <TodayFreshness today={desk.today} t={t} nowMs={nowMs} />
             ) : undefined
           }
-        />
+        >
+          {task === "overview" && (
+            <TodayHeadActions
+              t={t}
+              loading={desk.loading}
+              onOpenBrief={() => openDeskBrief(new Date().getHours() < 12 ? "morning" : "eod")}
+              onRefresh={() => {
+                desk.refresh();
+                void api.refreshMarketData();
+              }}
+            />
+          )}
+        </MarketContextStrip>
         {/* A public source the ingestion gate holds back is never a silent gap on the desk. */}
         <SourceApprovalNotice
           sources={api.sources}
@@ -150,6 +167,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               openTask("network");
               window.history.replaceState(window.history.state, "", `?${networkPanelToSearch(window.location.search, "outages")}`);
             }}
+            headInStrip={Boolean(api.marketContext)}
             rows={resolveComposition(api.currentUser).composition.todayRows}
             canSeeBook={!Array.isArray(api.currentUser?.permissions) || api.currentUser.permissions.includes("portfolio.read")}
             onOpenPrices={() => openTask("curves")}

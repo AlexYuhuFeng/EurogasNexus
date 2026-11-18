@@ -205,6 +205,10 @@ def build_today(
         "gas_day": gas_day_label(now),
         "front_month": front_month_label(today),
         "simulated": simulated,
+        # Every market figure on the page simulated (the demo desk): the page says so once and
+        # drops the per-figure marker; mixed classes keep the marker on each figure. Positions
+        # and mandate sizes are book data, never simulated, so they do not decide it.
+        "all_simulated": _all_simulated(read.figures),
         "simulated_notice": "Demo data: simulated figures, not market data." if simulated
         else None,
         "rows": rows,
@@ -213,6 +217,15 @@ def build_today(
         "stale_figures": stale,
         "warnings": read.warnings,
     }
+
+
+#: Figures that are the caller's own book data (never a simulated market value).
+BOOK_DATA_KEYS = ("position.", "limit.mandate.")
+
+
+def _all_simulated(figures: list[dict[str, Any]]) -> bool:
+    market = [item for item in figures if not item["key"].startswith(BOOK_DATA_KEYS)]
+    return bool(market) and all(item["simulated"] for item in market)
 
 
 @dataclass
@@ -1317,6 +1330,8 @@ def _needs_me(
             "status": outage.get("status"),
             "simulated": bool(outage.get("simulated")),
             "as_of": outage.get("as_of"),
+            # Since when it is out (or from when it is planned): the age of the message is noise.
+            "since_utc": outage.get("start_utc"),
             "why": outage.get("why"),
         })
     limit = key_figures.get("tightest_limit")
@@ -1378,6 +1393,7 @@ def _limit_alerts(session, now: datetime) -> list[dict[str, Any]]:
             "status": "breach" if row.severity == "critical" else "watch",
             "simulated": bool(row.simulated),
             "as_of": _iso(row.updated_at_utc or row.detected_at_utc),
+            "since_utc": None,  # a standing limit state has no news age to show
             "why": {"subject": "alert", "id": row.alert_id},
         }
         for row in rows[:NEEDS_ME_ITEMS]

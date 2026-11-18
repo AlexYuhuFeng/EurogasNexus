@@ -44,6 +44,7 @@ class DeskToday(BaseModel):
         gas_day: Gas-day label the read is for.
         front_month: Front-month label (``Dec-26``).
         simulated: True when any figure uses simulated demo data.
+        all_simulated: True when every figure does (the page says so once).
         simulated_notice: The notice to show with simulated figures; None otherwise.
         rows: The rows (``key_figures``, ``changes``, ``book``, ``fundamentals``,
             ``needs_me``); each is a dict whose ``key`` names it. ``key_figures`` carries the
@@ -62,6 +63,7 @@ class DeskToday(BaseModel):
     gas_day: str
     front_month: str
     simulated: bool
+    all_simulated: bool = False
     simulated_notice: str | None = None
     rows: list[dict[str, Any]] = Field(default_factory=list)
     focus_hubs: list[str] = Field(default_factory=list)

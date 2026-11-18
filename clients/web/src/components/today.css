@@ -387,6 +387,27 @@
     gap: var(--ds-space-1);
   }
 
+  /* A price's name opens its provenance in the Inspector: it reads as the label, not a link. */
+  .today-figure-name {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted var(--ds-border-strong);
+    text-underline-offset: 2px;
+  }
+
+  .today-figure-name:focus-visible {
+    border-radius: var(--ds-radius-sm);
+    box-shadow: var(--ds-focus);
+  }
+
+  .projection-context .today-head-actions {
+    margin-left: 0;
+  }
+
   .today-balance-fold > summary {
     color: var(--ds-text-2);
     font-size: var(--ds-text-sm);

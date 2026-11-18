@@ -105,8 +105,9 @@ def test_all_four_rows_are_populated_on_the_demo_desk(desk):
                for hub in book["hubs"])
     assert fundamentals["storage"]["series"] and fundamentals["balance"]["series"]
     assert fundamentals["storage"]["target"]["pct"] == 90.0
-    # Demo prices are said to be simulated, figure by figure and for the page.
-    assert data["simulated"] and data["simulated_notice"]
+    # Demo prices are said to be simulated, figure by figure and for the page; every market
+    # figure is, so the page says it once (positions are book data and do not count).
+    assert data["simulated"] and data["simulated_notice"] and data["all_simulated"]
     assert key["prices"][0]["simulated"] and key["prices"][0]["source"] == "Demo price"
     # Nothing says "Withheld"; every figure has a unit, an as-of time and a contract state.
     assert "withheld" not in json.dumps(data).casefold()

@@ -3546,7 +3546,6 @@
   "lineage.identifiers": "Identifiers",
   "lineage.copy": "Copy identifiers",
   "lineage.copied": "Copied",
-  "today.source": "Source",
   "today.source_of": "Source of {{name}}",
   "experience.inspect.network-node": "Network point",
   "experience.inspect.capacity": "Capacity",
@@ -4649,5 +4648,7 @@
   "prices.board.reporting_plain": "= {{value}} {{unit}}",
   "prices.board.reporting_refused": "Not shown in EUR/MWh: {{reason}}",
   "prices.chart.compare_beyond": "{{count}} months more than 24 months ahead are not converted: a derived forward is refused there without licensed forwards.",
-  "instrument_picker.choose_hub": "Choose a hub"
+  "instrument_picker.choose_hub": "Choose a hub",
+  "today.all_simulated": "Demo data: simulated, not market prices",
+  "today.needs.since": "since {{when}}"
 }

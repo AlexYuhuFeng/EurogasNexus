@@ -2191,6 +2191,8 @@ export interface TodayNeedsMeItemDTO {
   size?: { value: number | null; unit: string | null };
   status?: string | null;
   utilisation_pct?: number | null;
+  /** Since when an outage is out (or from when planned); none for a standing limit state. */
+  since_utc?: string | null;
   why?: TodayWhyDTO | null;
 }
 
@@ -2333,6 +2335,8 @@ export interface DeskTodayDTO {
   gas_day: string;
   front_month: string;
   simulated: boolean;
+  /** Every figure simulated: the page says so once and drops the per-figure marker. */
+  all_simulated?: boolean;
   simulated_notice: string | null;
   rows: [TodayKeyFiguresRowDTO, TodayChangesRowDTO, TodayBookRowDTO, TodayFundamentalsRowDTO, TodayNeedsMeRowDTO?];
   /** My hubs: the user's list, else the book's, then the board's (at most four). */

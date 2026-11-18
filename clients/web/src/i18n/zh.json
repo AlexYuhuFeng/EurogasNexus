@@ -3546,7 +3546,6 @@
   "lineage.identifiers": "标识符",
   "lineage.copy": "复制标识符",
   "lineage.copied": "已复制",
-  "today.source": "来源",
   "today.source_of": "{{name}} 的来源",
   "experience.inspect.network-node": "管网节点",
   "experience.inspect.capacity": "容量",
@@ -4649,5 +4648,7 @@
   "prices.board.reporting_plain": "= {{value}} {{unit}}",
   "prices.board.reporting_refused": "未以 EUR/MWh 显示：{{reason}}",
   "prices.chart.compare_beyond": "{{count}} 个超过 24 个月的交割月未换算：无授权远期时不推导远期汇率。",
-  "instrument_picker.choose_hub": "选择枢纽"
+  "instrument_picker.choose_hub": "选择枢纽",
+  "today.all_simulated": "演示数据：模拟值，并非市场价格",
+  "today.needs.since": "自 {{when}} 起"
 }
