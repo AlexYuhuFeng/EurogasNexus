@@ -1476,7 +1476,14 @@ async function phoneOverflowSweep(page, failures, observations) {
     for (const route of PHONE_ROUTES) {
       const scope = `${language.id}/phone-390/${route}`;
       try {
-        await page.goto(`${BASE}/${route}`, { waitUntil: "domcontentloaded" });
+        // A navigation that does not start (a busy dev server on a shared runner) is retried once
+        // and reported as such; it is not a layout finding. The geometry check itself is not relaxed.
+        try {
+          await page.goto(`${BASE}/${route}`, { waitUntil: "domcontentloaded" });
+        } catch (error) {
+          recordObservation(observations, `${scope}: navigation retried after ${String(error).split("\n")[0].slice(0, 120)}`);
+          await page.goto(`${BASE}/${route}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+        }
         await page
           .waitForFunction(
             () => [...document.querySelectorAll(".workspace-page")].some((element) => element.dataset.workspaceLoadState === "settled"),
