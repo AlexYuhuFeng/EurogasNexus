@@ -166,6 +166,10 @@ TEMPLATES: dict[tuple[str, str], dict[str, str]] = {
         "en": "Exposure to an outage: {claim}",
         "zh": "停运敞口（{period}）：{headline}，补足成本 {value}{q}。",
     },
+    ("opportunity.hedge_gap", "*"): {
+        "en": "{type_label}: {claim}",
+        "zh": "对冲比例超出批准区间（{period}）：缺口 {headline}{q}。",
+    },
     ("opportunity.hedge_gap", "risk"): {
         "en": "Hedge outside its approved band: {claim}",
         "zh": "对冲比例超出批准区间（{period}）：缺口 {headline}{q}。",
@@ -200,7 +204,7 @@ def phrase(finding: Finding, audience: str, language: str = "en") -> str:
     lang = "zh" if str(language).lower().startswith("zh") else "en"
     family = finding.kind.split(".")[0]
     template = None
-    for key in ((finding.kind, audience), (family, audience), (finding.kind, "*"), (family, "*")):
+    for key in ((finding.kind, audience), (finding.kind, "*"), (family, audience), (family, "*")):
         if key in TEMPLATES:
             template = TEMPLATES[key][lang]
             break
