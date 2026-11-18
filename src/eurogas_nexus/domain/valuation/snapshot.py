@@ -187,9 +187,20 @@ HEDGE_COVER_KEY = "book:hedge-cover"
 #: The named collections an evaluator may read through :meth:`SnapshotReader.collection`:
 #: ``positions`` (net MWh per book, hub and month), ``contracts`` (active supply contracts),
 #: ``mandates`` (trader mandates), ``held_capacity`` (capacity the firm holds on a route),
-#: ``residuals`` (tomorrow's balance per hub), ``outage_feed`` (whether a REMIT feed is held).
+#: ``residuals`` (tomorrow's balance per hub), ``outage_feed`` (whether a REMIT feed is held),
+#: ``storage`` (storage the firm holds), ``resource_pool`` (the composed pool: resources and
+#: sale options, as the resource-pool optimiser takes them).
 COLLECTIONS = frozenset(
-    {"positions", "contracts", "mandates", "held_capacity", "residuals", "outage_feed"}
+    {
+        "positions",
+        "contracts",
+        "mandates",
+        "held_capacity",
+        "residuals",
+        "outage_feed",
+        "storage",
+        "resource_pool",
+    }
 )
 
 

@@ -121,7 +121,9 @@ def registered() -> tuple[Evaluator, ...]:
         event_exposure,
         hedge_gap,
         locational,
+        reroute,
         sell_down,
+        storage,
     )
 
     return tuple(_REGISTRY[name] for name in sorted(_REGISTRY))

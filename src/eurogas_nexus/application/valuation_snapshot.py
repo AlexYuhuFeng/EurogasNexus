@@ -796,24 +796,63 @@ class LiveSnapshotReader(RecordingReader):
                 ("route_id",),
                 "capacity_mwh_per_day",
             )
+        elif name == "storage":
+            rows, key, value = (
+                opportunity_reads.storage(self.session),
+                ("facility_id",),
+                "working_gas_mwh",
+            )
+        elif name == "resource_pool":
+            tomorrow = self.as_of_utc.date() + timedelta(days=1)
+            rows, key, value = (
+                opportunity_reads.resource_pool(self.session, self.caller.principal, tomorrow),
+                ("row_kind", "id"),
+                "available_quantity_mwh_per_day",
+            )
         else:  # residuals
             rows, key, value = reads.residuals(self.session), ("book_id", "hub"), "residual_mwh"
         klass = InputClass.SIMULATED if self.demo_desk else InputClass.SOURCED
+
+        def row_class(row) -> InputClass:
+            # A sale option is priced from a market observation: a settlement (indicative)
+            # or a demo price (simulated); a demo storage row is simulated.
+            if row.get("sale_price_simulated") or _is_simulated(row.get("source_system"), None):
+                return InputClass.SIMULATED
+            if row.get("row_kind") == "option":
+                return InputClass.SIMULATED if self.demo_desk else InputClass.INDICATIVE
+            return klass
+
         return [
             SnapshotInput(
                 key=f"{name}:" + ":".join(str(row.get(part) or "-") for part in key),
                 kind=InputKind.BOOK,
-                input_class=klass,
+                input_class=row_class(row),
                 value=None if row.get(value) is None else _dec(row[value]),
                 unit="MWh/d" if value == "mwh_per_day" else "MWh",
                 as_of_utc=self.as_of_utc,
                 source_family=DEMO_FAMILY if self.demo_desk else FIRM_FAMILY,
                 source_ref=f"{name}:{row.get(key[0])}",
                 label=f"{name} " + " ".join(str(row.get(part) or "-") for part in key),
-                detail={k: (str(_dec(v)) if isinstance(v, float) else v) for k, v in row.items()},
+                detail=_json_safe(row),
             )
             for row in rows
         ]
+
+
+def _json_safe(value):
+    """Floats as decimal text, everything else JSON-safe (rows become recorded detail)."""
+
+    if isinstance(value, float):
+        return str(_dec(value))
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    if value is None or isinstance(value, str | int | bool):
+        return value
+    return str(value)
 
 
 def hedge_cover_rows(caller: Caller, today: date) -> list[dict]:

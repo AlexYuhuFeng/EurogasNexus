@@ -271,3 +271,63 @@ def as_datetime(value: str | None) -> datetime | None:
     """An ISO instant or ``None``."""
 
     return None if not value else datetime.fromisoformat(value)
+
+
+def storage(session) -> list[dict[str, Any]]:
+    """Storage the firm holds (the storage facility masters it nominates against)."""
+
+    from eurogas_nexus.db.models import StorageFacilityMasterRecord
+
+    return [
+        {
+            "facility_id": row.facility_id,
+            "name": row.name,
+            "hub": str(row.market_hub).upper(),
+            "working_gas_mwh": row.maximum_inventory_mwh - row.minimum_inventory_mwh,
+            "max_injection_mwh_per_day": row.maximum_injection_mwh,
+            "max_withdrawal_mwh_per_day": row.maximum_withdrawal_mwh,
+            "injection_efficiency": row.injection_efficiency,
+            "withdrawal_efficiency": row.withdrawal_efficiency,
+            # The record's fee columns are named in GBP; their currency is stated, not assumed.
+            "injection_fee": row.injection_cost_gbp_mwh,
+            "withdrawal_fee": row.withdrawal_cost_gbp_mwh,
+            "fee_currency": "GBP",
+            "source_system": row.source_system,
+        }
+        for row in session.query(StorageFacilityMasterRecord)
+        .filter(StorageFacilityMasterRecord.active.is_(True))
+        .order_by(StorageFacilityMasterRecord.facility_id)
+    ]
+
+
+def resource_pool(session, principal, gas_day: date) -> list[dict[str, Any]]:
+    """The composed resource pool (resources and sale options) for one gas day.
+
+    The same composition ``/api/route-cost/resource-pool/options`` serves, narrowed by the
+    caller's entitlement. Rows: one per resource (``row_kind`` = resource), one per sale
+    option (``row_kind`` = option) and one header with the composition's blockers.
+    """
+
+    from eurogas_nexus.application.resource_pool import (
+        compose_resource_pool_options,
+        narrow_resource_pool_inputs,
+        read_resource_pool_inputs,
+    )
+
+    inputs, _entitlement = narrow_resource_pool_inputs(
+        principal, read_resource_pool_inputs(session)
+    )
+    composed = compose_resource_pool_options(**inputs, gas_day=gas_day)
+    rows: list[dict[str, Any]] = [
+        {
+            "row_kind": "header",
+            "id": "pool",
+            "blockers": list(composed.get("blockers") or []),
+            "warnings": list(composed.get("warnings") or [])[:20],
+        }
+    ]
+    for item in composed.get("portfolio_resources") or []:
+        rows.append({"row_kind": "resource", "id": str(item["resource_id"]), **item})
+    for item in composed.get("sale_options") or []:
+        rows.append({"row_kind": "option", "id": str(item["option_id"]), **item})
+    return rows

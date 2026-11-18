@@ -340,3 +340,5 @@ def test_demo_desk_evaluators_i_produce_marked_objects(store) -> None:
         assert total == Decimal(version.payload_json["headline"]["value"])
     assert any(row.type == "locational" for row in rows)
     assert any(row.type == "sell_down" and row.state == "blocked" for row in rows)
+    # CP-10: Kestrel's BBL route makes the pool's re-routing gain a simulated R object.
+    assert any(row.type == "reroute" and row.simulated for row in rows)

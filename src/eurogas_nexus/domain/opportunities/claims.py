@@ -39,6 +39,14 @@ CLAIM_TEMPLATES: dict[str, str] = {
         "Outage at {asset}: {contract} supply -{mwh_d} MWh/d for {days} d ({volume} MWh); "
         "cover at {cover} against the contract's {contract_price}: {value}."
     ),
+    "storage.spread": (
+        "{hub} {first} into {second}, {where}: {margin} after storage costs and financing on "
+        "{volume} MWh; {value}."
+    ),
+    "reroute.pool": (
+        "Gas day {gas_day}: routing {moved} MWh/d of the pool ({resource} to {option}) earns "
+        "{delta} per day over the pool's local sales only ({margin} on the routed volume)."
+    ),
     "blocked.tariff_not_held": "Cannot evaluate: tariff not held at {subject}.",
     "blocked.price_missing": "Cannot evaluate: no price or firm's mark held for {subject}.",
     "blocked.input_missing": "Cannot evaluate: {subject} not held.",
