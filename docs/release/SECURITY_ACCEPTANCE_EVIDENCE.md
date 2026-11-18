@@ -12,6 +12,9 @@ Checks:
 - Public surface is bounded (273 paths / 304 operations as measured on 2026-11-18, after
   `GET /api/market/instruments` (READ: the caller's entitled daily series as hub → product
   kind → tenor; nothing stored); 272 / 303 after the parallel packages below,
+  `GET /api/fundamentals/storage` (CP-04: READ, storage rows filtered by source entitlement
+  and the identity rule, simulated rows never mixed into a provider total, GIE attribution
+  returned); and, before it,
   and, measured on its own branch, after
   and, measured on its own branch, after
   the CP-08 routes under `/api/opportunities` (READ with portfolio read, rows filtered by

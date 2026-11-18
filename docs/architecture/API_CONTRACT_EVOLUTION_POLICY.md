@@ -12,6 +12,16 @@ hub's native unit and currency, the stored unit, a source class (`sourced`, `ind
 `simulated`), its best source and the others, observations held, `thin` under 30 days, the
 delivery window of an absolute tenor and the last as-of. `/api/research/spread-series` is
 unchanged and stays until its last client is gone. Census: 273 paths / 304 operations.
+Additive 2026-11-18 (commercial design basis 2, CP-04: storage fundamentals): one path, one
+operation. `GET /api/fundamentals/storage` (READ; `region` `eu`|`nwe`, `season` and `focus`
+comma-separated codes) returns the region and each of its countries against their own
+history: fill, stock, working capacity, day/week change, the same gas day last year, the
+N-year average and band (N = complete prior gas years held, stated; the band from the last
+five), injection, withdrawal, the 7-day net rate, the EU target where it applies, 30 days for
+a sparkline, the full gas-year series for the codes in `season`; `missing` names countries
+not held with the reason; `reconciliation` compares the EU total with its countries.
+`meta.attribution` names GIE when provider rows are used. Census: 273 paths / 304 operations
+(+1 / +1 on 272 / 303).
 
 Additive 2026-11-18 (commercial design basis 2, CP-08: opportunities): seven paths, nine
 operations. `GET /api/opportunities` (two ranked lanes, the watching and cannot-evaluate
