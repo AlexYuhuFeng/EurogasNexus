@@ -203,7 +203,7 @@ export async function runKeyboardPaths() {
     check(/workspace=contracts&task=overview/.test(page.url()), `ArrowRight again opens Book at Position (${page.url()})`);
     await page.keyboard.press("End");
     await page.waitForTimeout(1500);
-    check(/workspace=research&task=reports/.test(page.url()), `End opens Research at Reports (${page.url()})`);
+    check(/workspace=research&task=spreads/.test(page.url()), `End opens Research at Spreads (${page.url()})`);
     await shot(page, "modes-research");
     await page.locator("body").click({ position: { x: 5, y: 300 } });
     await page.keyboard.press("Control+Shift+Digit3");
@@ -214,7 +214,7 @@ export async function runKeyboardPaths() {
       ["?workspace=decision", /workspace=scenario&task=review/, "Deals"],
       // Pages and tasks removed by CP-00 land on the nearest surviving task.
       ["?workspace=scenario&task=optimize", /workspace=contracts&task=resources/, "Deals"],
-      ["?workspace=strategy&task=backtest", /workspace=research&task=reports/, "Research"],
+      ["?workspace=strategy&task=backtest", /workspace=research&task=spreads/, "Research"],
       ["?workspace=portfolio", /workspace=contracts&task=overview/, "Book"],
       ["?workspace=scenario&task=nomination", /workspace=scenario&task=nomination/, "Book"],
       ["?mode=book&task=limits", /workspace=contracts&task=exposure/, "Book"],
