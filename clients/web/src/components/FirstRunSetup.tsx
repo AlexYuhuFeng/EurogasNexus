@@ -199,7 +199,7 @@ export function FirstRunSetup({
             <Button variant="secondary" size="md" onClick={() => go(index - 1)}>{t("setup.back")}</Button>
           )}
           {!last && index > 0 && items.length > 0 && (
-            <Button variant="quiet" size="md" onClick={() => go(index + 1)} data-action="setup-skip">
+            <Button variant="quiet" size="md" onClick={() => go(index + 1)} data-action="setup-skip" disabled={!view}>
               {t("setup.skip")}
             </Button>
           )}
@@ -208,7 +208,7 @@ export function FirstRunSetup({
               {t("setup.finish")}
             </Button>
           ) : (
-            <Button variant="primary" size="md" onClick={() => go(index + 1)} data-action="setup-next">
+            <Button variant="primary" size="md" onClick={() => go(index + 1)} data-action="setup-next" loading={!view && !loadError}>
               {index === 0 ? t("setup.start") : t("setup.next")}
             </Button>
           )}
