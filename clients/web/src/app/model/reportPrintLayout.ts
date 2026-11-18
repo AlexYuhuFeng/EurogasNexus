@@ -1,7 +1,6 @@
 /**
- * The report's print layout for the in-app Print, which prints a frame where the report's own
- * scripts do not run: the same rule as the report's `beforeprint` script (render.py,
- * PRINT_LAYOUT_JS). A text-and-figure row that would cross a page boundary keeps its text on
+ * The report's print layout for the in-app Print (the document carries no code; render.py
+ * provides the `r-row-split` / `r-row-moved` classes). A text-and-figure row that would cross a page boundary keeps its text on
  * the page and its figure moves to just after the break, so no part-page is left blank.
  * Positions are measured on the body sheet, which has the printed width (174 mm) on screen.
  */

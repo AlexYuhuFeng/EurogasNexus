@@ -227,6 +227,8 @@ h2{font:600 12pt/15pt SERIF;margin:0 0 1.5mm;break-after:avoid}
 .r-cols{display:grid;grid-template-columns:118mm 1fr;gap:0 8mm;margin:0 0 2mm}
 .r-row{display:grid;grid-template-columns:1fr 1fr;gap:0 6mm;margin:0 0 2mm}
 .r-row>*{min-width:0}
+/* Print layout (the in-app Print, app/model/reportPrintLayout.ts): a row whose figure would
+   cross a page keeps its text on the page; the figure follows the page break. */
 .r-row-split{display:block}.r-row-split>.r-text{max-width:118mm}
 .r-row-moved>figure{grid-column:1}
 .r-text p{margin:0 0 2mm;widows:2;orphans:2}
@@ -707,64 +709,6 @@ def _findings(snapshot: dict) -> str:
 
 
 #: Page one, in millimetres (A4 less the 20 mm margins): what the lead exhibit may fill.
-#: Print layout (run on ``beforeprint``, which a browser's print and headless PDF both fire): a
-#: text-and-figure row that would cross a page boundary is not moved whole (that leaves a blank
-#: part-page); its text stays, full width, and its figure moves to just after the page break.
-#: The body sheet has the printed width on screen too (174 mm), so positions are measured in
-#: the screen layout and mapped to pages of 257 mm; anything unexpected leaves the row as it is.
-PRINT_LAYOUT_JS = """(function () {
-function px(mm) {
-  var d = document.createElement('div');
-  d.style.cssText = 'position:absolute;visibility:hidden;height:' + mm + 'mm';
-  document.body.appendChild(d);
-  var h = d.getBoundingClientRect().height;
-  d.remove();
-  return h;
-}
-function flat(body) {
-  var out = [];
-  body.querySelectorAll('.r-section, .r-group').forEach(function (el) {
-    if (el.classList.contains('r-group')) { out.push(el); return; }
-    Array.prototype.forEach.call(el.children, function (c) { out.push(c); });
-  });
-  return out;
-}
-function lay() {
-  var body = document.querySelector('.r-body');
-  if (!body || body.dataset.laid) return;
-  body.dataset.laid = '1';
-  var page = px(257), origin = body.getBoundingClientRect().top + px(20);
-  for (var pass = 0; pass < 40; pass++) {
-    var items = flat(body), shift = 0, moved = false;
-    for (var i = 0; i < items.length && !moved; i++) {
-      var b = items[i], r = b.getBoundingClientRect();
-      var unbreakable = b.matches('.r-row:not(.r-row-split), figure, .r-watch');
-      if (!unbreakable || r.height >= page) continue;
-      var y = r.top - origin + shift, end = Math.ceil((y + 1) / page) * page;
-      if (y + r.height <= end) continue;
-      var fig = b.matches('.r-row:not(.r-row-split)') ? b.querySelector(':scope > figure') : null;
-      if (!fig || !b.querySelector(':scope > .r-text')) { shift += end - y; continue; }
-      b.classList.add('r-row-split');
-      var limit = end - shift, after = b;
-      for (var j = i + 1; j < items.length; j++) {
-        var n = items[j].getBoundingClientRect();
-        if (n.top - origin + n.height > limit || items[j].matches('.r-group')) break;
-        after = items[j];
-      }
-      var holder = document.createElement('div');
-      holder.className = 'r-row r-row-moved';
-      holder.appendChild(fig);
-      after.parentNode.insertBefore(holder, after.nextSibling);
-      moved = true;
-    }
-    if (!moved) break;
-  }
-}
-addEventListener('beforeprint', lay);
-if (matchMedia('print').matches) lay();
-})();"""
-
-
 PAGE_HEIGHT_MM = 257.0
 CONTENT_WIDTH_MM = 174.0
 
@@ -1261,8 +1205,7 @@ def _render_report(snapshot: dict) -> str:
         f'<article class="r-sheet r-front" aria-label="Summary">{"".join(front)}</article>'
         f'<article class="r-sheet r-body" aria-label="Report">{"".join(body)}</article>'
         f'<article class="r-sheet r-back-sheet" aria-label="Methodology and data">{back}'
-        f"</article></main>{_data_block(snapshot)}<script>{PRINT_LAYOUT_JS}</script>"
-        "</body></html>"
+        f"</article></main>{_data_block(snapshot)}</body></html>"
     )
 
 
