@@ -1989,6 +1989,7 @@ _BOARD_CURVE = (
     "S+1", "S+2", "Cal+1", "Cal+2",
 )
 _PROMPT_TENOR = {"WD": "within-day", "DA": "day-ahead", "WE": "weekend", "BOM": "bom"}
+_BOARD_PRODUCT = {**_PROMPT_TENOR, "M+1": "month-ahead"}
 
 
 def _load_demo_market():
@@ -2188,7 +2189,10 @@ def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, d
         venue="Demo",
         instrument_id=f"{hub}:{label}",
         hub=hub,
-        product=label,
+        # The board and the market context match quotes by tenor key (``day-ahead``,
+        # ``month-ahead``); the desk label (DA, Jan-27) travels in the metadata and the
+        # instrument id (``TTF:DA``).
+        product=_BOARD_PRODUCT.get(code, label),
         delivery_start_utc=start,
         delivery_end_utc=end,
         bid_price=round(per_mwh(bid), 4),

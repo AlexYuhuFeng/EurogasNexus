@@ -84,8 +84,11 @@ def test_every_board_quote_is_two_sided_on_the_tick_and_labelled_simulated(store
     hubs = {quote.hub for quote in quotes}
     assert hubs == {hub for hub, _ in SEED.DEMO_PRICE_HUBS}
     for hub in hubs:
-        labels = {quote.product for quote in quotes if quote.hub == hub}
+        labels = {quote.metadata_json["product_label"] for quote in quotes if quote.hub == hub}
         assert {"WD", "DA", "WE", "Q1-27", "Sum-27", "Win-27", "Cal-27"} <= labels, hub
+        products = {quote.product for quote in quotes if quote.hub == hub}
+        assert {"within-day", "day-ahead", "weekend", "month-ahead"} <= products, hub
+        assert all(q.instrument_id.startswith(f"{hub}:") for q in quotes if q.hub == hub)
     for quote in quotes:
         meta = quote.metadata_json
         tick = meta["tick"]
@@ -94,7 +97,7 @@ def test_every_board_quote_is_two_sided_on_the_tick_and_labelled_simulated(store
         for side in ("native_bid", "native_ask"):
             assert abs(meta[side] / tick - round(meta[side] / tick)) < 1e-6, quote.quote_id
         assert quote.bid_price < quote.ask_price
-    nbp = next(q for q in quotes if q.hub == "NBP" and q.product == "DA")
+    nbp = next(q for q in quotes if q.hub == "NBP" and q.product == "day-ahead")
     assert nbp.metadata_json["native_unit"] == "GBp/th"
 
 
@@ -181,7 +184,7 @@ def test_roll_forward_over_a_weekend_and_a_month_turn_is_idempotent():
                     MarketObservationRecord.source_reference == "demo:market")
             }
             assert after == snapshot
-        board = {q.product for q in session.query(MarketQuoteRecord).filter(
+        board = {q.metadata_json["product_label"] for q in session.query(MarketQuoteRecord).filter(
             MarketQuoteRecord.hub == "TTF",
             MarketQuoteRecord.observed_at_utc >= datetime(2026, 12, 2, tzinfo=UTC))}
         assert {"DA", "WD", "BOM", "Jan-27", "Q1-27"} <= board
