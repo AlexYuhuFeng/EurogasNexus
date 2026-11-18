@@ -203,6 +203,13 @@ exact copy, so that presentation can improve without weakening a gate.
     principal and any write marks it stale. The workspace batch starts the visible page's reads
     first and runs six at a time with exponential backoff on retry; a read that fails keeps the
     last good slice. The window's scroll position is restored per page and task for the session.
+20. **One segment language, two levels.** A page's tasks are underline tabs (level 1,
+    `WorkspaceTabs`/`Tabs`). Every in-panel choice and every second-level row under a page's
+    tasks is a Segmented control (level 2): a quiet track, the chosen segment a raised surface
+    chip, no separators (the look of Desk → Network → Capacity operations, which testers liked).
+    On a phone a segmented row scrolls inside itself with its ends fading into the track, never
+    clipped mid-word and never wrapped into a second row. Filter chips (several on at once) and
+    row selections are not segmented controls.
 
 ## Implementation note
 

@@ -79,6 +79,51 @@
       display: none;
     }
 
+    /* A segmented row that scrolls says so: its ends fade into the track. */
+    main .ds-segmented {
+      background:
+        linear-gradient(to right, var(--ds-surface-2), var(--ds-surface-2)) left / var(--ds-space-4) 100% no-repeat local,
+        linear-gradient(to left, var(--ds-surface-2), var(--ds-surface-2)) right / var(--ds-space-4) 100% no-repeat local,
+        radial-gradient(farthest-side at 0 50%, var(--ds-scroll-shadow), transparent) left / var(--ds-space-2) 100% no-repeat scroll,
+        radial-gradient(farthest-side at 100% 50%, var(--ds-scroll-shadow), transparent) right / var(--ds-space-2) 100% no-repeat scroll var(--ds-surface-2);
+    }
+
+    /* Second-level rows under a page's tasks read as segments, not a second underline row
+       (UX_REFERENCE rule 20): the contract editor's clause sections on a phone. */
+    main .contract-clause-nav {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: var(--ds-space-05);
+      max-width: 100%;
+      overflow-x: auto;
+      padding: var(--ds-space-05);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-md);
+      background: var(--ds-surface-2);
+      scrollbar-width: none;
+    }
+
+    main .contract-clause-nav > button {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--ds-space-1);
+      flex: none;
+      height: var(--ds-control);
+      padding: 0 var(--ds-space-3);
+      border: 0;
+      border-radius: var(--ds-radius-sm);
+      background: transparent;
+      color: var(--ds-text-2);
+      white-space: nowrap;
+      box-shadow: none;
+    }
+
+    main .contract-clause-nav > button.active {
+      background: var(--ds-surface);
+      color: var(--ds-text-1);
+      box-shadow: 0 0 0 1px var(--ds-border);
+    }
+
     main [data-wide-box]:focus-visible {
       outline: none;
       box-shadow: var(--ds-focus);

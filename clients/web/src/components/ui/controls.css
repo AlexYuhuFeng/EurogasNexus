@@ -97,34 +97,39 @@
   }
 
   /* -------------------------------------------------------------- Segmented */
-  /* One control: 28 px segments in a bordered group; the chosen one is filled. */
+  /* One look for every in-panel choice (the owner's pick: Capacity operations): a quiet track,
+     the chosen segment a raised surface chip, no separators. Page tasks are underline Tabs. */
   .ds-segmented {
     display: inline-flex;
     flex: none;
-    gap: 0;
-    padding: 0;
-    border: 1px solid var(--ds-border-strong);
-    border-radius: var(--ds-radius-sm);
-    background: var(--ds-surface);
-    overflow: hidden;
+    gap: var(--ds-space-05);
+    max-width: 100%;
+    padding: var(--ds-space-05);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
-  .ds-segmented > button + button {
-    border-left: 1px solid var(--ds-border);
+  .ds-segmented::-webkit-scrollbar {
+    display: none;
   }
 
   .ds-segmented > button {
+    flex: none;
     box-sizing: border-box;
     height: var(--ds-control-sm);
     min-height: var(--ds-control-sm);
-    padding: 0 var(--ds-space-2);
+    padding: 0 var(--ds-space-3);
     border: 0;
-    border-radius: 0;
+    border-radius: var(--ds-radius-sm);
     background: transparent;
     color: var(--ds-text-2);
     font-size: var(--ds-text-sm);
     font-weight: var(--ds-weight-medium);
     line-height: var(--ds-line-sm);
+    white-space: nowrap;
     box-shadow: none;
     cursor: pointer;
   }
@@ -136,12 +141,14 @@
   }
 
   .ds-segmented > button:hover:not(:disabled) {
+    background: var(--ds-surface-3);
     color: var(--ds-text-1);
   }
 
   .ds-segmented > button[aria-pressed="true"] {
-    background: var(--ds-surface-3);
+    background: var(--ds-surface);
     color: var(--ds-text-1);
+    box-shadow: 0 0 0 1px var(--ds-border);
   }
 
   .ds-segmented > button:focus-visible {
