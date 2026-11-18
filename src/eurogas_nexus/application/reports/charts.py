@@ -31,6 +31,7 @@ grey history range and its mean, the range labelled with the years it is drawn f
 from __future__ import annotations
 
 import math
+import re
 from datetime import date
 from html import escape
 from typing import Any
@@ -552,7 +553,10 @@ def _band_shapes(band: dict, sx, sy, labels: list) -> str:
         last = run[-1]
     if last is not None and band.get("label"):
         middle = (high[str(last)] + low[str(last)]) / 2
-        labels.append((sy(middle), str(band["label"]), CONTEXT))
+        # The end label names the range only ("5-yr range"); the years it covers are in the
+        # subtitle and the data annex, so the label is never cut in the middle of a word.
+        short = re.sub(r"\s+\d{4}/\d{2}.*$", "", str(band["label"]))
+        labels.append((sy(middle), short, CONTEXT))
     mean = [(x, y) for x, y in sorted(band.get("mean") or [], key=lambda p: _parse_x(p[0]))]
     segment: list[str] = []
     segments = [segment]
