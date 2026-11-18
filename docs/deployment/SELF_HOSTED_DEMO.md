@@ -86,8 +86,10 @@ has a default.
 
 The image sets the rest: `EUROGAS_NEXUS_ENV=development` (the demo seed refuses trial and
 release), `EUROGAS_NEXUS_API_PROFILE=demo`, the tester user names, demo marks on, AI on only
-with a model key, a small connection pool (3 + 2), and a random deployment API token nobody
-knows, so the SDK token path is closed and browsers sign in instead.
+with a model key, a connection pool of 8 + 4 with up to 15 s to wait for a connection (a
+desk page fires about 28 reads at once; 3 + 2 with a 5 s wait refused them or let them pass
+the browser's 10 s timeout during a catch-up round), and a random deployment API token
+nobody knows, so the SDK token path is closed and browsers sign in instead.
 
 ## Sign in
 
@@ -353,7 +355,7 @@ Set `DEMO_DATABASE_URL` to the provider's URI, for example
 URL-encoded passwords work as given. `sslmode=require` encrypts without checking the
 certificate; `verify-full` checks it against `EUROGAS_NEXUS_DB_SSL_ROOT_CERT` (the provider's
 CA as PEM text, or a file you mount) or the system trust store; `verify-ca` checks the chain
-only. The demo uses at most 5 connections for the server plus 1–3 during start-up steps or
+only. The demo uses at most 12 connections for the server plus 1–3 during start-up steps or
 a catch-up round, and closes them on shutdown, which suits plans limited to about 20. The
 local `postgres` service still starts; it is simply unused.
 

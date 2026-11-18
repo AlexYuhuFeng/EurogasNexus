@@ -69,7 +69,13 @@ def test_platform_uri_and_defaults():
     assert environ["EUROGAS_NEXUS_ENV"] == "development"
     assert environ["EUROGAS_NEXUS_DEV_LOGIN_USERNAME"].split(",") == list(start.TESTER_NAMES)
     assert environ["EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED"] == "false"
-    assert int(environ["EUROGAS_NEXUS_DB_POOL_SIZE"]) <= 5
+    # Enough connections for a page's parallel reads, within a 20-connection managed plan
+    # beside a catch-up step (1-3).
+    pool = int(environ["EUROGAS_NEXUS_DB_POOL_SIZE"]) + int(
+        environ["EUROGAS_NEXUS_DB_MAX_OVERFLOW"]
+    )
+    assert 10 <= pool <= 16
+    assert float(environ["EUROGAS_NEXUS_DB_POOL_TIMEOUT"]) >= 10
     # The deployment-token path is closed by an unknown random value, never a default.
     assert len(environ["EUROGAS_NEXUS_PUBLIC_API_TOKEN"]) >= 32
     other = _required()

@@ -230,9 +230,14 @@ def configure_environment(environ: dict[str, str] | os._Environ) -> list[str]:
         "EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED": "true" if llm_key else "false",
         "EUROGAS_NEXUS_WEB_CLIENT_DIR": str(ROOT / "web"),
         "EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT": "/tmp/eurogas-nexus-snapshots",
-        # Small managed PostgreSQL plans allow a handful of connections.
-        "EUROGAS_NEXUS_DB_POOL_SIZE": "3",
-        "EUROGAS_NEXUS_DB_MAX_OVERFLOW": "2",
+        # A desk page fires some 28 reads at once. With 3 + 2 connections and the default 5 s
+        # pool wait, the reads queued behind them failed ("the request was refused") or passed
+        # the client's 10 s timeout, and panels came up empty, worst during a catch-up round
+        # (2026-11-17). 8 + 4, with up to 15 s to wait for a connection, still fits a managed
+        # plan of 20 connections beside a catch-up step's 1-3.
+        "EUROGAS_NEXUS_DB_POOL_SIZE": "8",
+        "EUROGAS_NEXUS_DB_MAX_OVERFLOW": "4",
+        "EUROGAS_NEXUS_DB_POOL_TIMEOUT": "15",
     }
     for name, value in defaults.items():
         if not (environ.get(name) or "").strip():

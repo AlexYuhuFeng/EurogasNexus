@@ -543,7 +543,7 @@ def _load_capacity_observations(
         from eurogas_nexus.db.models import CapacityObservationRecord
         from eurogas_nexus.db.session import get_session_factory
 
-        def load(session, low, high):
+        def scope(session, low, high):
             query = session.query(CapacityObservationRecord).filter(
                 identity_clause(session, CapacityObservationRecord)
             )
@@ -560,9 +560,41 @@ def _load_capacity_observations(
                         CapacityObservationRecord.native_rate_json.is_not(None),
                     ),
                 )
-            return query.all()
+            return query
+
+        def load(session, low, high):
+            return scope(session, low, high).all()
 
         with get_session_factory()() as session:
+            if quantity_basis != "native":
+                # Volume mode lists only rows with a stored volume. When none exists in scope
+                # the answer is provably empty, whatever the range resolution would decide,
+                # so the whole table is not loaded to learn that (ENTSOG publishes energy:
+                # 2.3 s on 11k energy-only rows, 2026-11-17). The warnings say why.
+                in_scope = scope(session, from_utc, to_utc)
+                volume = CapacityObservationRecord.capacity_mcm_d
+                if not session.query(in_scope.filter(volume.is_not(None)).exists()).scalar():
+                    withheld = in_scope.filter(volume.is_(None))
+                    entsog = (
+                        func.lower(func.trim(CapacityObservationRecord.source_system))
+                        == "entsog"
+                    )
+                    warnings: list[str] = []
+                    if session.query(
+                        withheld.filter(
+                            entsog,
+                            CapacityObservationRecord.normalizer_version.is_(None),
+                            CapacityObservationRecord.native_rate_json.is_(None),
+                        ).exists()
+                    ).scalar():
+                        warnings.append(LEGACY_ENTSOG_EXCLUDED_WARNING)
+                    if session.query(
+                        withheld.filter(
+                            CapacityObservationRecord.normalizer_version.is_not(None)
+                        ).exists()
+                    ).scalar():
+                        warnings.append(NATIVE_ENERGY_WITHHELD_WARNING)
+                    return [], warnings
             raw_rows = load(session, from_utc, to_utc)
             extent = overlap_extent(raw_rows) if from_utc is not None else None
             if extent is not None and (extent[0] < from_utc or extent[1] > to_utc):

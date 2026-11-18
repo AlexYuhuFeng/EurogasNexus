@@ -31,25 +31,35 @@ def runtime_db_status(request: Request) -> dict:
         )
     else:
         try:
-            from eurogas_nexus.db.health import check_db_connectivity, get_alembic_revision
-            from eurogas_nexus.db.session import get_engine
+            from sqlalchemy import inspect, text
 
-            conn = check_db_connectivity(url)
-            report["connectivity"] = {"ok": conn.ok, "error": conn.error}
-            if conn.ok:
-                report["alembic_revision"] = get_alembic_revision(url)
-                engine = get_engine(url)
+            from eurogas_nexus.db.session import get_session_factory
+
+            # One pooled connection (the API's own pool), not three new engines a call: every
+            # workspace load reads this, and under ingestion load opening fresh connections
+            # failed and the page said "Data store not connected" while it was not.
+            with get_session_factory()() as session:
+                session.execute(text("SELECT 1")).scalar_one()
+                report["connectivity"] = {"ok": True, "error": None}
                 try:
-                    from eurogas_nexus.db.registry import list_missing_required_tables
-
-                    missing = list(list_missing_required_tables(engine))
-                    report["missing_tables"] = missing
-                    if missing:
-                        report["warnings"].append(f"Missing tables: {', '.join(missing)}")
-                finally:
-                    engine.dispose()
+                    revision = session.execute(
+                        text("SELECT version_num FROM alembic_version LIMIT 1")
+                    ).scalar_one_or_none()
+                    report["alembic_revision"] = str(revision) if revision else None
+                except Exception:  # noqa: BLE001 - no version table: no revision
+                    session.rollback()
+                present = set(inspect(session.connection()).get_table_names())
+                missing = [table for table in list_required_tables() if table not in present]
+                report["missing_tables"] = missing
+                if missing:
+                    report["warnings"].append(f"Missing tables: {', '.join(missing)}")
         except Exception as exc:
-            report["connectivity"]["error"] = f"{exc.__class__.__name__}: {exc}"
+            from eurogas_nexus.db.health import _safe_error_message
+
+            report["connectivity"] = {
+                "ok": False,
+                "error": _safe_error_message(exc, url, redact_database_url(url)),
+            }
             report["warnings"].append("DB connectivity check failed.")
 
     return {

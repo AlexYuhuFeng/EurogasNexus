@@ -4,6 +4,7 @@ from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.api.routes.public import observation_window
 from eurogas_nexus.domain.market.storage_targets import (
     DEFAULT_TARGET_PCT,
     StorageDay,
@@ -79,13 +80,28 @@ def list_sites(request: Request) -> dict:
 
 
 @router.get("/api/storage/observations")
-def list_observations(request: Request) -> dict:
+def list_observations(
+    request: Request,
+    days: int = Query(
+        observation_window.DEFAULT_DAYS,
+        ge=1,
+        le=observation_window.MAX_DAYS,
+        description=(
+            "Gas days to return, back from the newest observation in the store. The window "
+            "is stated in meta.window; nothing before it is implied absent."
+        ),
+    ),
+) -> dict:
     """List storage observations from the runtime DB.
+
+    Bounded to the newest ``days`` gas days in the store (default 45, stated in
+    ``meta.window``; see ``observation_window``). A longer series asks for it with ``days``.
 
     返回储气库观测列表（按设施名 + 周期倒序）；DB 未配置时降级为空。
 
     Args:
         request: Incoming FastAPI request (unused except wiring).
+        days: Gas days back from the newest observation (1..800).
 
     Returns:
         Enveloped observation rows or an empty enveloped response.
@@ -94,11 +110,14 @@ def list_observations(request: Request) -> dict:
         HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
     """
 
-    observations = _db_storage_observations()
+    window: dict = {}
+    observations = _db_storage_observations(days, window)
     if observations is not None:
         from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
 
-        return _runtime_env(filter_rows(request, observations))
+        envelope = _runtime_env(filter_rows(request, observations))
+        envelope["meta"]["window"] = window
+        return envelope
 
     return _env([], request)
 
@@ -171,7 +190,9 @@ def target_trajectory(
     return _runtime_env(trajectory.as_dict())
 
 
-def _db_storage_observations() -> list[dict] | None:
+def _db_storage_observations(
+    days: int | None = None, window: dict | None = None
+) -> list[dict] | None:
     if not _db_is_configured():
         return None
 
@@ -184,7 +205,14 @@ def _db_storage_observations() -> list[dict] | None:
         with get_session_factory()() as session:
             rows = session.query(StorageObservationRecord).filter(
                 identity_clause(session, StorageObservationRecord)
-            ).order_by(
+            )
+            if days is not None:
+                rows, stated = observation_window.bound(
+                    session, rows, StorageObservationRecord.period_start_utc, days
+                )
+                if window is not None:
+                    window.update(stated)
+            rows = rows.order_by(
                 StorageObservationRecord.facility_name,
                 StorageObservationRecord.period_start_utc.desc(),
             )
