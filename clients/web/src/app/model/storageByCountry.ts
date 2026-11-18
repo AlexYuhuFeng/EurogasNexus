@@ -92,3 +92,12 @@ export function sparkOf(entity: StorageEntityDTO): { values: (number | null)[]; 
 export function seasonCodes(regionCode: string, selected: string | null): string[] {
   return selected && selected !== regionCode ? [regionCode, selected] : [regionCode];
 }
+
+/** The label at least two panels share, the most frequent one; null when none is shared. */
+export function commonLabel(labels: readonly string[]): string | null {
+  const counts = new Map<string, number>();
+  for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1);
+  let best: string | null = null;
+  for (const [label, count] of counts) if (count >= 2 && (best === null || count > (counts.get(best) ?? 0))) best = label;
+  return best;
+}

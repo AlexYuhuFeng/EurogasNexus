@@ -491,9 +491,37 @@ export function Chart({
               ctx.fillText(fit(label.text, (room - 8) * dpr), u.bbox.left + u.bbox.width + 6 * dpr, u.bbox.top + label.placedY * dpr);
             }
             for (const label of labels.filter(early)) {
-              const x = u.valToPos(xs[label.index], "x", true) + 6 * dpr;
-              const y = u.valToPos(label.value, "y", true);
               ctx.font = `${label.ghost ? "" : "600 "}${Math.round(11 * dpr)}px ${palette.ui}`;
+              const x = u.valToPos(xs[label.index], "x", true) + 6 * dpr;
+              // Beside, above or below the last point: whichever is farthest from every other
+              // line across the label's width (the current gas year starts among last year,
+              // the mean and the band edges).
+              const span = ctx.measureText(label.text).width;
+              const others = plotted.filter((item) => (item.source?.id ?? "") !== label.id);
+              const ys: number[] = [];
+              for (let at = label.index; at < xs.length; at += 1) {
+                const px = u.valToPos(xs[at], "x", true);
+                if (px < x - 2 * dpr) continue;
+                if (px > x + span) break;
+                for (const item of others) {
+                  const value = item.values[at];
+                  if (value != null && Number.isFinite(value)) ys.push(u.valToPos(value, "y", true));
+                }
+              }
+              const base = u.valToPos(label.value, "y", true);
+              const step = 12 * dpr;
+              const top = u.bbox.top + 6 * dpr;
+              const bottom = u.bbox.top + u.bbox.height - 6 * dpr;
+              let y = base;
+              let best = -1;
+              for (const candidate of [base, base - step, base + step, base - 2 * step, base + 2 * step]) {
+                if (candidate < top || candidate > bottom) continue;
+                const clearance = ys.length ? Math.min(...ys.map((value) => Math.abs(value - candidate))) : Infinity;
+                if (clearance > best + 2 * dpr) {
+                  best = clearance;
+                  y = candidate;
+                }
+              }
               ctx.strokeStyle = palette.surface;
               ctx.lineWidth = 3 * dpr;
               ctx.strokeText(label.text, x, y);

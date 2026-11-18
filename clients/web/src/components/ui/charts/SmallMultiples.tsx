@@ -39,6 +39,8 @@ export interface SmallMultiplesProps {
   /** Below this container width the panels become a list (px). */
   listBelow?: number;
   note?: ReactNode;
+  /** What every panel shares, said once above the grid ("5-yr range 2021/22–2025/26"). */
+  subtitle?: ReactNode;
 }
 
 /** The container's width, measured (a phone is a narrow container, whatever the screen). */
@@ -71,7 +73,7 @@ function csvOfCells(cells: readonly MultipleCell[]): string {
     .join("\n") + "\n";
 }
 
-export function SmallMultiples({ id, title, cells, t, height = 120, maxCells = 8, listBelow = 560, note }: SmallMultiplesProps) {
+export function SmallMultiples({ id, title, cells, t, height = 120, maxCells = 8, listBelow = 560, note, subtitle }: SmallMultiplesProps) {
   const [shared, setShared] = useState(true);
   const [all, setAll] = useState(false);
   const [ref, width] = useContainerWidth<HTMLElement>();
@@ -102,6 +104,7 @@ export function SmallMultiples({ id, title, cells, t, height = 120, maxCells = 8
             {t("chart.csv")}
           </button>
         </span>
+        {subtitle && <span className="ds-chart-subtitle" data-multiples-subtitle="true">{subtitle}</span>}
       </header>
       {asList ? (
         <ul className="ds-multiples-list">

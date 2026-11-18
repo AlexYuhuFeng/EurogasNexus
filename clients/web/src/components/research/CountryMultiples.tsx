@@ -8,7 +8,7 @@
  */
 import { useMemo } from "react";
 
-import { seasonChart, type SeasonEntity } from "@/app/model/storageByCountry";
+import { commonLabel, seasonChart, type SeasonEntity } from "@/app/model/storageByCountry";
 import { SmallMultiples, type MultipleCell } from "@/components/ui/charts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -39,6 +39,9 @@ export function CountryMultiples<E extends MultipleEntity>({
   selected?: string | null;
   t: Translate;
 }) {
+  // The history most panels share is said once above the grid; a panel names its own only
+  // where it differs ("3 prior years held").
+  const common = useMemo(() => commonLabel(entities.map((entity) => entity.history.label)), [entities]);
   const cells = useMemo<MultipleCell[]>(
     () =>
       entities.flatMap((entity) => {
@@ -59,7 +62,7 @@ export function CountryMultiples<E extends MultipleEntity>({
         return [{
           id: entity.code,
           title: entity.name,
-          headline: `${headline(entity)} · ${entity.history.label}`,
+          headline: entity.history.label === common ? headline(entity) : `${headline(entity)} · ${entity.history.label}`,
           data: chart.data,
           simulated: entity.simulated,
           compare: chart.compare,
@@ -68,8 +71,8 @@ export function CountryMultiples<E extends MultipleEntity>({
           selected: selected === entity.code,
         }];
       }),
-    [entities, headline, onSelect, selected, spark, t, unit],
+    [common, entities, headline, onSelect, selected, spark, t, unit],
   );
   if (cells.length === 0) return null;
-  return <SmallMultiples id={id} title={title} cells={cells} t={t} height={120} />;
+  return <SmallMultiples id={id} title={title} subtitle={common ?? undefined} cells={cells} t={t} height={120} />;
 }

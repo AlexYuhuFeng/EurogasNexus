@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { StorageEntityDTO } from "../src/api/client.ts";
-import { headline, seasonChart, seasonCodes, sparkOf, versusAverage } from "../src/app/model/storageByCountry.ts";
+import { commonLabel, headline, seasonChart, seasonCodes, sparkOf, versusAverage } from "../src/app/model/storageByCountry.ts";
 
 const axis = Array.from({ length: 365 }, (_, index) => `k${index}`);
 const fill = (value: number) => axis.map(() => value);
@@ -98,4 +98,11 @@ test("the headline states the fill, the N-yr comparison with N, and the day chan
   assert.deepEqual(sparkOf(entity()).days, ["2026-11-15", "2026-11-16"]);
   assert.deepEqual(seasonCodes("EU", "DE"), ["EU", "DE"]);
   assert.deepEqual(seasonCodes("EU", null), ["EU"]);
+});
+
+test("small multiples: the history most panels share is said once; none is shared, none is said", () => {
+  const band = "5-yr range 2021/22–2025/26";
+  assert.equal(commonLabel([band, band, "3 prior years held", band]), band);
+  assert.equal(commonLabel(["a", "b"]), null);
+  assert.equal(commonLabel([]), null);
 });
