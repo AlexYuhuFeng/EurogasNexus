@@ -1,4 +1,5 @@
-import { DataGrid, PeriodPicker } from "@/components/ui";
+import { DataGrid, PeriodPicker, WorkProgress } from "@/components/ui";
+import { useStagedProgress } from "@/app/hooks/useWorkProgress";
 import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { ContractIntakeDTO, PortfolioResourceDTO, RouteCandidateDTO, UpstreamContractDTO } from "@/api/client";
@@ -209,6 +210,7 @@ interface ContractWorkbenchProps {
   onOpenStrategyForResource: (resourceId: string) => void;
   contractImportRef: RefObject<HTMLInputElement | null>;
   contractImportMessage: string | null;
+  contractImportBusy?: boolean;
   /** Terms a PDF intake read, each with its page and words, until the reviewer dismisses it. */
   contractIntake?: ContractIntakeDTO | null;
   onDismissContractIntake?: () => void;
@@ -255,7 +257,7 @@ export function ContractWorkbench({
   contract, upstreamContracts, portfolioResources, totalPoolVolume,
   firstPoolAllocation, runtimeDbReady, loading, draftDirty, selectedResourceId,
   taskView, onTaskViewChange, viewFacts, saveState,
-  onOpenStrategyForResource, contractImportRef, contractImportMessage,
+  onOpenStrategyForResource, contractImportRef, contractImportMessage, contractImportBusy = false,
   contractIntake = null, onDismissContractIntake, onContractLifecycle,
   contractSaveMessage, contractSaveConflict, t,
   updateContractText, updateContractNumber, updateContractList, updateContractTranches, routeCandidates = [],
@@ -353,6 +355,7 @@ export function ContractWorkbench({
         </div>
       </section>
 
+      {contractImportBusy && <ContractImportProgress t={t} />}
       <div className="contract-feedback" role="status" aria-live="polite"><strong>{saveStatus}</strong><span>{contractSaveMessage ?? contractImportMessage ?? t("contracts.save_hint")}</span></div>
       {contractIntake && (
         <section className="contract-intake" aria-labelledby="contract-intake-title">
@@ -617,4 +620,11 @@ export function ContractWorkbench({
       <footer className="contract-boundary-note">{t("contracts.boundary_note")}</footer>
     </div>
   );
+}
+
+/** A contract import at work: reading the file, finding the terms, filling the draft. */
+function ContractImportProgress({ t }: { t: (key: string) => string }) {
+  const stages = ["contracts.import_stage.read", "contracts.import_stage.terms", "contracts.import_stage.fill"];
+  const progress = useStagedProgress(true, stages.length, 2000);
+  return <WorkProgress label={t("contracts.import_stage.read")} stages={stages.map((stage) => t(stage))} current={progress.stage} />;
 }

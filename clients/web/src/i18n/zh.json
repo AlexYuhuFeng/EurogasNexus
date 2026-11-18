@@ -5696,5 +5696,13 @@
   "period.hour": "时",
   "period.minute": "分",
   "period.today": "今天",
-  "period.clear": "清除"
+  "period.clear": "清除",
+  "brief.stage.prices": "读取价格与曲线",
+  "brief.stage.outages": "读取停运与流量",
+  "brief.stage.position": "读取持仓与限额",
+  "brief.stage.writing": "撰写草稿",
+  "why.stage.writing": "撰写解释…",
+  "contracts.import_stage.read": "读取文件",
+  "contracts.import_stage.terms": "识别合同条款",
+  "contracts.import_stage.fill": "填写草稿"
 }

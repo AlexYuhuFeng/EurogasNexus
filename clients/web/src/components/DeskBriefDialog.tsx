@@ -8,7 +8,11 @@
  */
 import { useEffect, useState } from "react";
 import { api, type DeskBriefDTO } from "@/api/client";
-import { Button, Dialog, Segmented } from "@/components/ui";
+import { Button, Dialog, Segmented, WorkProgress } from "@/components/ui";
+import { useStagedProgress } from "@/app/hooks/useWorkProgress";
+
+/** What drafting a brief reads, in order: shown while it works (UX_REFERENCE rule 18). */
+const BRIEF_STAGES = ["brief.stage.prices", "brief.stage.outages", "brief.stage.position", "brief.stage.writing"] as const;
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 export type BriefKind = "morning" | "eod";
@@ -56,6 +60,7 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
     };
   }, [kind, language]);
 
+  const progress = useStagedProgress(status === "loading", BRIEF_STAGES.length, 1500);
   const close = () => setKind(null);
 
   const copy = () => {
@@ -100,7 +105,15 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
         ) : undefined
       }
     >
-      {status === "loading" && <p className="muted">{t("brief.loading")}</p>}
+      {status === "loading" && (
+        // The space the draft will take is kept, so the dialog does not jump when it arrives.
+        <WorkProgress
+          label={t("brief.loading")}
+          stages={BRIEF_STAGES.map((stage) => t(stage))}
+          current={progress.stage}
+          reserve="340px"
+        />
+      )}
       {status === "failed" && <p role="alert">{t("brief.failed")}</p>}
       {brief && status === "idle" && (
         <>

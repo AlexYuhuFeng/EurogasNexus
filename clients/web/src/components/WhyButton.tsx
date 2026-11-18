@@ -12,7 +12,8 @@
  */
 import { useEffect, useState } from "react";
 import { api, type ExplainSubject, type ExplanationDTO } from "@/api/client";
-import { Popover } from "@/components/ui";
+import { Popover, WorkProgress } from "@/components/ui";
+import { useStagedProgress } from "@/app/hooks/useWorkProgress";
 import i18n from "@/i18n";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -51,6 +52,7 @@ export function WhyButton({
     };
   }, [open, subject, id, lang]);
 
+  const progress = useStagedProgress(open && state.kind === "loading", 2, 1500);
   const name = t("why.label", { subject: label });
   return (
     <Popover
@@ -64,7 +66,9 @@ export function WhyButton({
         </button>
       )}
     >
-      {state.kind === "loading" && <p className="why-text is-muted">{t("why.loading")}</p>}
+      {state.kind === "loading" && (
+        <WorkProgress label={t("why.loading")} stages={[t("why.loading"), t("why.stage.writing")]} current={progress.stage} reserve="6rem" />
+      )}
       {state.kind === "failed" && <p className="why-text is-muted">{t("why.failed")}</p>}
       {state.kind === "ready" && (
         <>

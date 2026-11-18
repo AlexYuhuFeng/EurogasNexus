@@ -116,3 +116,12 @@ test("a failed read says what happened: not permitted, missing, server failure, 
   assert.equal(requestFailureCode({ status: 422 }), "request");
   assert.equal(requestFailureCode(new TypeError("Failed to fetch")), "network");
 });
+
+test("staged progress walks the named stages and never claims to be done before the answer", async () => {
+  const { stageAt, BUSY_VISIBLE_AFTER_MS } = await import("../src/app/hooks/useWorkProgress.ts");
+  assert.equal(stageAt(0, 4, 1500), 0);
+  assert.equal(stageAt(1600, 4, 1500), 1);
+  assert.equal(stageAt(60_000, 4, 1500), 3); // holds on the last stage until the result arrives
+  assert.equal(stageAt(5000, 1), 0);
+  assert.equal(BUSY_VISIBLE_AFTER_MS, 300);
+});

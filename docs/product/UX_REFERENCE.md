@@ -185,6 +185,16 @@ exact copy, so that presentation can improve without weakening a gate.
     ("00:57 CET", "08:57 GMT+8"), the date only when it is not today, seconds only when a screen
     needs them, the full instant and its UTC form as the tooltip. Gas days are not shifted. Words,
     months and numbers follow the app's language, never the browser's.
+18. **Loading rule: the product never looks frozen.** Anything that waits more than about 300 ms
+    shows that it is working: a data panel shows Skeleton rows where its rows will be; an AI or
+    long action (Desk brief, Why, a contract import, a report, an optimiser run) shows its named
+    stages with a moving bar (`WorkProgress`: "Reading prices and curves", "Reading outages and
+    flows", "Writing the draft"), current stage marked, never complete before the answer arrives;
+    the button that started it shows its busy state and cannot be pressed twice
+    (`Button loading`, `useBusyAction`); the result area keeps the height the result will take, so
+    nothing jumps when it arrives. Nothing appears for a wait shorter than 300 ms (no flicker).
+    Motion stops under `prefers-reduced-motion`; the words still change. Pages use
+    `app/hooks/useWorkProgress.ts` and `components/ui/WorkProgress.tsx` rather than their own.
 
 ## Implementation note
 

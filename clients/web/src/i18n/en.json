@@ -5696,5 +5696,13 @@
   "period.hour": "Hour",
   "period.minute": "Minute",
   "period.today": "Today",
-  "period.clear": "Clear"
+  "period.clear": "Clear",
+  "brief.stage.prices": "Reading prices and curves",
+  "brief.stage.outages": "Reading outages and flows",
+  "brief.stage.position": "Reading the book and limits",
+  "brief.stage.writing": "Writing the draft",
+  "why.stage.writing": "Writing the explanation…",
+  "contracts.import_stage.read": "Reading the file",
+  "contracts.import_stage.terms": "Finding the contract terms",
+  "contracts.import_stage.fill": "Filling the draft"
 }

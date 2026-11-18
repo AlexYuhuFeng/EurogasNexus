@@ -36,6 +36,8 @@ export function useContractEditor(
 ) {
   const contractImportRef = useRef<HTMLInputElement>(null);
   const [contractImportMessage, setContractImportMessage] = useState<string | null>(null);
+  // A PDF intake reads and parses on the server for seconds: say so (UX_REFERENCE rule 18).
+  const [contractImportBusy, setContractImportBusy] = useState(false);
   /** What a PDF intake read, term by term with its page, for the reviewer to check. */
   const [contractIntake, setContractIntake] = useState<ContractIntakeDTO | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
@@ -137,7 +139,8 @@ export function useContractEditor(
 
   async function importContractDraftFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || contractImportBusy) return;
+    setContractImportBusy(true);
     try {
       const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
       let record: Record<string, unknown> | null;
@@ -163,6 +166,7 @@ export function useContractEditor(
     } catch (error) {
       setContractImportMessage(`${t("contracts.import_failed")}: ${String(error)}`);
     } finally {
+      setContractImportBusy(false);
       event.target.value = "";
     }
   }
@@ -220,6 +224,7 @@ export function useContractEditor(
     draftDirty,
     contractImportRef,
     contractImportMessage,
+    contractImportBusy,
     contractIntake,
     dismissContractIntake: () => setContractIntake(null),
     updateContractNumber,

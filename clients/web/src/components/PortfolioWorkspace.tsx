@@ -420,6 +420,7 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
             }}
             contractImportRef={contractEditor.contractImportRef}
             contractImportMessage={contractEditor.contractImportMessage}
+            contractImportBusy={contractEditor.contractImportBusy}
             contractIntake={contractEditor.contractIntake}
             onDismissContractIntake={contractEditor.dismissContractIntake}
             onContractLifecycle={api.setContractLifecycle}

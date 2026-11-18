@@ -580,4 +580,97 @@
       min-height: var(--ds-control-touch);
     }
   }
+
+  /* ------------------------------------------------------------ WorkProgress */
+  .ds-work-progress {
+    display: grid;
+    align-content: start;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-3) 0;
+  }
+
+  .ds-work-bar {
+    position: relative;
+    height: var(--ds-space-1);
+    overflow: hidden;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface-3);
+  }
+
+  .ds-work-bar > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-accent);
+    transition: width var(--ds-duration-slow) var(--ds-ease-out);
+  }
+
+  .ds-work-stages {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  .ds-work-stages li {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .ds-work-stages li[data-state="current"] {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .ds-work-stages li[data-state="done"] {
+    color: var(--ds-text-2);
+  }
+
+  .ds-work-mark {
+    flex: none;
+    width: var(--ds-space-2);
+    height: var(--ds-space-2);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-pill);
+  }
+
+  li[data-state="done"] > .ds-work-mark {
+    border-color: var(--ds-positive);
+    background: var(--ds-positive);
+  }
+
+  li[data-state="current"] > .ds-work-mark {
+    border-color: var(--ds-accent);
+    background: var(--ds-accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ds-work-bar::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: 30%;
+      background: linear-gradient(to right, transparent, var(--ds-surface), transparent);
+      opacity: 0.6;
+      animation: ds-work-sweep 1.4s var(--ds-ease-out) infinite;
+    }
+
+    li[data-state="current"] > .ds-work-mark {
+      animation: ds-work-pulse 1.2s ease-in-out infinite;
+    }
+  }
+
+  @keyframes ds-work-sweep {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(340%); }
+  }
+
+  @keyframes ds-work-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
 }

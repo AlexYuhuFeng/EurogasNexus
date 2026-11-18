@@ -43,3 +43,4 @@ export type { BrandMarkProps, BrandSize, BrandTone, BrandVariant } from "./Brand
 export { Instant } from "./Instant";
 export { PeriodPicker } from "./PeriodPicker";
 export type { PeriodPickerProps } from "./PeriodPicker";
+export { WorkProgress } from "./WorkProgress";
