@@ -89,6 +89,16 @@ from eurogas_nexus.db.models.observation import (
     ProviderCredentialRecord,
     StorageObservationRecord,
 )
+from eurogas_nexus.db.models.opportunities import (
+    OpportunityCheckRecord,
+    OpportunityDependencyRecord,
+    OpportunityEvaluationRecord,
+    OpportunityLegRecord,
+    OpportunityRecord,
+    OpportunitySettingRecord,
+    OpportunityUserStateRecord,
+    OpportunityVersionRecord,
+)
 from eurogas_nexus.db.models.optimization import OptimizationRunRecord
 from eurogas_nexus.db.models.power import PowerObservationRecord
 from eurogas_nexus.db.models.raw_archive import RawPayloadArchiveRecord
@@ -300,6 +310,14 @@ __all__ = [
     "AssumptionSetVersionRecord",
     "AssumptionValueRecord",
     "FirmMarkRecord",
+    "OpportunityCheckRecord",
+    "OpportunityDependencyRecord",
+    "OpportunityEvaluationRecord",
+    "OpportunityLegRecord",
+    "OpportunityRecord",
+    "OpportunitySettingRecord",
+    "OpportunityUserStateRecord",
+    "OpportunityVersionRecord",
     "ValuationSnapshotInputRecord",
     "ValuationSnapshotRecord",
     "EntitlementDecisionRecord",

@@ -41,7 +41,7 @@ def test_chain_and_head() -> None:
     source = MIGRATION_PATH.read_text()
     assert 'down_revision = "0061_audit_keyset_index"' in source
     # 0063 widened its checks for power and re-split capacity ranges; 0062 stays in the chain.
-    assert DB_SCHEMA_REVISION == "0066_commercial_assumptions"
+    assert DB_SCHEMA_REVISION == "0067_opportunities"
 
 
 def test_upgrade_adds_history_table_and_column_and_downgrade_reverses_it() -> None:

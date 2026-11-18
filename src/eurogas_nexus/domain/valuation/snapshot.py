@@ -349,7 +349,13 @@ class RecordingReader:
         return missing(key, InputKind.RATE, f"{currency} overnight rate")
 
     def _load_tariff(self, key, point_id, direction, product, period) -> SnapshotInput:
-        return missing(key, InputKind.TARIFF, f"{point_id} {direction} {product}")
+        return missing(
+            key,
+            InputKind.TARIFF,
+            f"{point_id} {direction} {product}",
+            reason="tariff not held",
+            point_id=point_id,
+        )
 
     def _load_capacity(self, key, point_id, direction, period) -> SnapshotInput:
         return missing(key, InputKind.CAPACITY, f"{point_id} {direction}")

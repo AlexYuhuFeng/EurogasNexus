@@ -254,6 +254,19 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/assumption-sets/{set_id}/versions/{version}/approve", Permission.REVIEW),
     ("/api/market/firm-marks", Permission.READ),
     ("/api/market/valuation-snapshots/{snapshot_id}", Permission.READ),
+    # --- Commercial design basis 2, CP-08: opportunities ---
+    # Reading is a commercial read (portfolio read in the route; book scope and source
+    # entitlement per row). A person's follow or dismissal is their own (READ). Running an
+    # evaluation stores firm-wide records (GOVERNED). Opening a case uses the case
+    # permission (GOVERNED, as POST /api/decision-cases). Thresholds are the risk function's
+    # (REVIEW floor, REVIEWER held itself in the route). Statistics need review read.
+    ("/api/opportunities", Permission.READ),
+    ("/api/opportunities/evaluations", Permission.READ),
+    ("/api/opportunities/settings", Permission.READ),
+    ("/api/opportunities/statistics", Permission.READ),
+    ("/api/opportunities/{opportunity_id}", Permission.READ),
+    ("/api/opportunities/{opportunity_id}/state", Permission.READ),
+    ("/api/opportunities/{opportunity_id}/case", Permission.GOVERNED),
     # --- Architecture V2 application projections ---
     # Projections are read models over the same material as the endpoints they
     # compose, so their floors match: market, portfolio and review reads stay at
@@ -347,6 +360,8 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("PUT", "/api/settings/organisation", Permission.ADMIN),
     ("POST", "/api/assumption-sets", Permission.GOVERNED),
     ("PUT", "/api/market/firm-marks", Permission.GOVERNED),
+    ("POST", "/api/opportunities/evaluations", Permission.GOVERNED),
+    ("PUT", "/api/opportunities/settings", Permission.REVIEW),
     # Book structure and assignment is middle-office configuration, not a market read.
     ("PUT", "/api/portfolio/books/{book_id}", Permission.OPERATOR),
     # Approved limits are the risk function's (reviewer) maintenance, audited.
@@ -423,6 +438,7 @@ COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
     "/api/research/",
     "/api/agent/",
     "/api/assumption-sets/",
+    "/api/opportunities/",
 )
 
 

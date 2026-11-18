@@ -11,6 +11,11 @@ Checks:
 - API import is DB/network safe.
 - Public surface is bounded (264 paths / 292 operations as measured on 2026-11-18, after
   and, measured on its own branch, after
+  and, measured on its own branch, after
+  the CP-08 routes under `/api/opportunities` (READ with portfolio read, rows filtered by
+  book scope and source entitlement; running an evaluation and opening a case GOVERNED;
+  thresholds REVIEW with the REVIEWER role held itself; statistics need review read; no
+  order, nomination or instruction exists); and, before them,
   the CP-07 routes: `/api/assumption-sets` (READ; writing a draft GOVERNED with the
   portfolio-assumption write permission; approving REVIEW with the REVIEWER role held itself
   and four eyes), `PUT /api/market/firm-marks` (GOVERNED, portfolio-assumption write) and

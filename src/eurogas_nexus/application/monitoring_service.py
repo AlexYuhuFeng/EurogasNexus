@@ -68,6 +68,7 @@ def scan_monitoring_conditions(
         *_strategy_candidates(session),
         *_source_failure_candidates(session),
         *_outage_candidates(session, now),
+        *_opportunity_evaluator_candidates(session),
     ]
     limit_candidates, limits_failed = _limit_candidates(session, now, service_authority)
     candidates += limit_candidates
@@ -387,6 +388,60 @@ def _source_failure_candidates(session: Session) -> list[MonitoringCandidate]:
             )
         )
     return candidates
+
+
+def _opportunity_evaluator_candidates(session: Session) -> list[MonitoringCandidate]:
+    """One administrator alert per evaluator that failed in the latest opportunity run.
+
+    Design J.2: an evaluator that fails produces no opportunity and one admin alert; the desk
+    sees only the time of the last evaluation. The alert resolves when a later run succeeds.
+    """
+
+    from eurogas_nexus.db.models import OpportunityEvaluationRecord
+
+    run = (
+        session.query(OpportunityEvaluationRecord)
+        .filter(OpportunityEvaluationRecord.finished_at_utc.is_not(None))
+        .order_by(OpportunityEvaluationRecord.started_at_utc.desc())
+        .first()
+    )
+    if run is None:
+        return []
+    out = []
+    for name, status in sorted((run.evaluators_json or {}).items()):
+        if status.get("status") != "failed":
+            continue
+        out.append(
+            MonitoringCandidate(
+                fingerprint=f"opportunity_evaluator:{name}",
+                category="data_source",
+                alert_type="opportunity_evaluator_failed",
+                severity="warning",
+                title_en=f"Opportunity evaluator {name} failed",
+                title_zh_cn=f"机会评估器 {name} 运行失败",
+                message_en=(
+                    f"The {name} evaluator produced nothing in evaluation {run.evaluation_id} "
+                    f"({status.get('error')}); its earlier records are unchanged."
+                ),
+                message_zh_cn=(
+                    f"评估 {run.evaluation_id} 中 {name} 评估器未产生结果"
+                    f"（{status.get('error')}）；其既有记录保持不变。"
+                ),
+                entity_type="opportunity_evaluator",
+                entity_id=name,
+                event_time_utc=run.started_at_utc,
+                evidence_snapshot={
+                    "evaluation_id": run.evaluation_id,
+                    "evaluator": name,
+                    "version": status.get("version"),
+                    "error": status.get("error"),
+                    "message": status.get("message"),
+                },
+                source_refs=[f"opportunity-evaluation:{run.evaluation_id}"],
+                human_review_required=True,
+            )
+        )
+    return out
 
 
 # An outage worth a trader's attention: most of the asset out, or a large volume either way.

@@ -53,6 +53,7 @@ from eurogas_nexus.db.models import (
     FlowObservationRecord,
     FxObservationRecord,
     InterestRateObservationRecord,
+    HedgeApprovalRecord,
     LngTerminalTermsRecord,
     MarketObservationRecord,
     RemitUmmRecord,
@@ -273,6 +274,9 @@ def _clear(session) -> None:
     session.query(ScreenOrderObservationRecord).filter(
         ScreenOrderObservationRecord.order_observation_id.like("demo-%")
     ).delete(synchronize_session=False)
+    session.query(HedgeApprovalRecord).filter(HedgeApprovalRecord.contract_id.in_(ids)).delete(
+        synchronize_session=False
+    )
     session.query(CreditLineRecord).filter(
         CreditLineRecord.counterparty_id.in_([row[0] for row in COUNTERPARTIES])
     ).delete(synchronize_session=False)
@@ -511,7 +515,8 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
         hour=5
     )
 
-    def trade(oid, provider, account, side, hub, currency, price, mwh, start, days, book):
+    def trade(oid, provider, account, side, hub, currency, price, mwh, start, days, book,
+              linked=None):
         session.add(
             ScreenOrderObservationRecord(
                 order_observation_id=oid,
@@ -537,7 +542,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 source_system=provider,
                 source_reference="demo",
                 linked_strategy_id=None,
-                linked_resource_id=None,
+                linked_resource_id=linked,
                 research_only=True,
                 human_review_required=True,
                 book_id=book,
@@ -582,6 +587,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
         front,
         30,
         "demo-uk-nbp",
+        linked="demo-haldor-24",  # the hedge of Haldor's front month (hedge-gap demo)
     )
     trade(
         "demo-hedge-ttf-1",
@@ -699,6 +705,21 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 updated_at_utc=now,
             )
         )
+    # Risk's approved hedge band for Haldor: 60-80 %. The front month is half covered by the
+    # linked NBP hedge and later months not at all, so the demo desk shows a hedge gap
+    # (opportunity type G, must-act lane) computed from the book alone.
+    session.add(
+        HedgeApprovalRecord(
+            contract_id="demo-haldor-24",
+            min_hedge_ratio_pct=60.0,
+            max_hedge_ratio_pct=80.0,
+            approval_ref="Demo risk committee RC-07",
+            valid_until=date(today.year + 1, 9, 30),
+            notes="Demo approval (fictional).",
+            updated_by="demo-risk",
+            updated_at_utc=now,
+        )
+    )
     # Two fictional outages for the ticker and the map: a large unplanned one and a derate.
     session.add_all(_demo_outages(now))
     # A local-sale route for the TTF contract, so the scenario can allocate. The NBP contracts

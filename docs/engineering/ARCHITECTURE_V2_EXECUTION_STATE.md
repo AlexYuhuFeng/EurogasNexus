@@ -21,6 +21,25 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   `78 p/th in eur/mwh jan27` to the server; spot stays instant.
 - Demo seed holds daily simulated FX and benchmark fixings; a real fixing replaces the demo one.
 - Surface 258 / 284 (256 / 282 before). Golden cases in `tests/unit/test_fx_forward.py`.
+## 2026-11-18 — CP-07 assumption sets, firm marks, valuation snapshot; CP-08 opportunity core (branch `cp-07-08`, not pushed)
+
+- CP-07: `domain/valuation/` (input classes, weakest-input grade, delivery periods, typed
+  assumption catalogue, firm marks that are always class `firm_mark`, the recorded and
+  replayable valuation snapshot); `application/valuation_snapshot.py` (one reader for every
+  evaluator; spot ECB FX behind the `FxSource` adapter until forward FX lands, labelled
+  "FX: spot"); migration `0066_commercial_assumptions`; `/api/assumption-sets`,
+  `/api/market/firm-marks`, `/api/market/valuation-snapshots/{id}`; audit without values.
+- CP-08: `domain/opportunities/` (object, controls, lifecycle, ranking, claims, evaluator
+  contract and harness, reference evaluator type G hedge gap); `application/opportunities/`
+  (service, listing, actions, settings, schedule seams); migration `0067_opportunities`;
+  `/api/opportunities` (7 paths); evaluator failure raises one admin alert through the
+  monitoring scan; demo seed gains Haldor's 60-80 % band and one linked hedge.
+- Surface 269 / 299 (+13 paths / +17 operations on 256 / 282). The intraday engine
+  (`market_intelligence/opportunity_engine.py`) is unchanged; it becomes the type-L intraday
+  evaluator in CP-09 (its three states map to `actionable`/`watch`/`blocked`).
+- Not built here: evaluators L, C, S, E, T, R, D, A; scheduled and outbox triggers (seams
+  only); the workbench `POST /api/opportunities/evaluate` and the `evaluation` table (CP-15).
+
 ## 2026-11-17 — CP-03 chart standard (branch `cp-03-04`, not pushed)
 
 - `components/ui/charts`: history bands from the prior years held (none / grey lines / 5-yr

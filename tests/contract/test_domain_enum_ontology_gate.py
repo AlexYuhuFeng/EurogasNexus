@@ -141,6 +141,15 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.valuation.quality:InputClass",
     "eurogas_nexus.domain.valuation.snapshot:InputKind",
     "eurogas_nexus.domain.valuation.assumptions:ReviewState",
+    # CP-08: the opportunity object's control vocabulary (design B.2/B.3/B.5): its type,
+    # lane, system state, arithmetic row role, check kind and result, dismissal reason.
+    "eurogas_nexus.domain.opportunities.model:OpportunityType",
+    "eurogas_nexus.domain.opportunities.model:Lane",
+    "eurogas_nexus.domain.opportunities.model:OpportunityState",
+    "eurogas_nexus.domain.opportunities.model:LegKind",
+    "eurogas_nexus.domain.opportunities.model:CheckKind",
+    "eurogas_nexus.domain.opportunities.model:CheckResult",
+    "eurogas_nexus.domain.opportunities.model:DismissReason",
     "eurogas_nexus.domain.operations.jobs:JobKind",
     "eurogas_nexus.domain.operations.jobs:JobState",
     # RFC-0003 weather-to-demand research lifecycle and method-assessment states.

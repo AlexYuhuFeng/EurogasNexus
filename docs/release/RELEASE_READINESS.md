@@ -56,6 +56,8 @@ by a CLI flag.
   `/api/market/`; 256 / 282 before)
   (2026-11-17: comparable prices — `GET /api/market/fx-forward` and `POST /api/market/normalise`,
   two READ paths and operations; 256 / 282 before)
+  (2026-11-18: opportunities, CP-08 of the commercial design basis 2: seven paths and nine
+  operations under `/api/opportunities`; 262 / 290 before)
   (2026-11-17: assumption sets, firm marks and valuation snapshots, CP-07 of the commercial
   design basis 2: six paths and eight operations under `/api/assumption-sets` and
   `/api/market/`; 256 / 282 before)

@@ -4,6 +4,19 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-18 (commercial design basis 2, CP-08: opportunities): seven paths, nine
+operations. `GET /api/opportunities` (two ranked lanes, the watching and cannot-evaluate
+groups, counts, the readiness checklist; cursor pagination per bucket, `409 cursor_expired`
+after a newer evaluation), `GET /api/opportunities/{opportunity_id}` (claim, legs that sum to
+the headline, assumptions, falsifiers, sensitivity, checks, data-quality class, snapshot
+record, versions), `PUT /api/opportunities/{opportunity_id}/state` (the caller's own `watch`,
+`unwatch`, `dismiss` with a reason, `restore`), `POST /api/opportunities/{opportunity_id}/case`
+(a decision case through the existing flow, evidence `opportunity:<id>@v<n>` with the
+snapshot id; `409 already_converted`), `GET/POST /api/opportunities/evaluations` (last runs;
+run one now), `GET/PUT /api/opportunities/settings` (thresholds, decision L5 defaults) and
+`GET /api/opportunities/statistics` (dismissal reasons and case precision per type). Figures
+are `{value, unit, currency}` with decimals as text. Census: 269 paths / 299 operations.
+
 Additive 2026-11-17 (commercial design basis 2, CP-07: assumption sets, firm marks, valuation
 snapshots): six paths, eight operations. `GET/POST /api/assumption-sets` (list with the key
 catalogue; create a set for the organisation or one book), `GET /api/assumption-sets/{set_id}`
