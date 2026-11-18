@@ -353,9 +353,21 @@ def readiness(session, principal) -> dict[str, Any]:
         .all()
         if not source.endswith("_Sim") and row_allowed(principal, source)
     ]
+    # Only prices per unit of energy count (FX and other series share the table).
+    from sqlalchemy import func, or_
+
     settlement_sources = [
         source
-        for (source,) in session.query(MarketObservationRecord.source_system).distinct().all()
+        for (source,) in session.query(MarketObservationRecord.source_system)
+        .filter(
+            or_(
+                func.upper(MarketObservationRecord.unit).like("%MWH%"),
+                func.upper(MarketObservationRecord.unit).like("%/TH%"),
+                func.upper(MarketObservationRecord.unit).like("%THERM%"),
+            )
+        )
+        .distinct()
+        .all()
         if not source.endswith("_Sim") and source != "DEMO" and row_allowed(principal, source)
     ]
     marks = session.query(FirmMarkRecord).filter(FirmMarkRecord.superseded_at_utc.is_(None)).count()

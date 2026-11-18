@@ -28,6 +28,7 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     FxObservationRecord,
     HedgeApprovalRecord,
+    MarketObservationRecord,
     OpportunityRecord,
     OpportunityVersionRecord,
     TsoTariffRecord,
@@ -137,6 +138,23 @@ def test_public_data_only_store_is_honest(store) -> None:
                 source_system="ECB",
                 source_reference="ecb",
                 freshness="daily",
+                research_only=True,
+            ),
+            # ECB reference rates are also held as market observations: not a gas price.
+            MarketObservationRecord(
+                observation_id="ecb-gbp-obs",
+                market_venue="ECB",
+                product="EURGBP",
+                price=0.87,
+                unit="GBP per EUR",
+                currency="GBP",
+                period_start_utc=NOW - timedelta(days=1),
+                period_end_utc=NOW,
+                observed_at_utc=NOW - timedelta(hours=20),
+                source_system="ECB",
+                source_reference="ecb",
+                freshness="daily",
+                quality_score=1.0,
                 research_only=True,
             ),
             TsoTariffRecord(
