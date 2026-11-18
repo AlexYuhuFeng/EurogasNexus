@@ -131,10 +131,13 @@
   padding-left: var(--ds-space-4);
 }
 
+/* Laid out at a desktop width off screen, so the report measures its pages before printing. */
 .reports-print-frame {
   position: absolute;
-  width: 0;
-  height: 0;
+  left: -10000px;
+  top: 0;
+  width: 1024px;
+  height: 768px;
   border: 0;
   visibility: hidden;
 }

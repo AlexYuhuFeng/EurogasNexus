@@ -22,6 +22,7 @@ import {
   type ReportSummaryDTO,
 } from "@/api/client";
 import { WorkProgress } from "@/components/ui/WorkProgress";
+import { layOutForPrint } from "@/app/model/reportPrintLayout";
 import { Button, DataGrid, Dialog, EmptyState, Field, Panel, Segmented, Select, StatusBadge, type DataGridColumn } from "@/components/ui";
 import {
   annexByDefault,
@@ -612,7 +613,12 @@ function ReportViewer({ reportId, t, onRemoved, onRenamed }: {
     if (!frame || !html) return;
     // A same-origin frame without scripts: the report prints exactly as it reads, and nothing in it runs.
     frame.srcdoc = summaryOnly ? summaryOnlyHtml(html) : html;
-    frame.onload = () => frame.contentWindow?.print();
+    frame.onload = () => {
+      // The report's own print script does not run here; the same layout rule is applied
+      // from outside before printing.
+      if (frame.contentDocument) layOutForPrint(frame.contentDocument);
+      frame.contentWindow?.print();
+    };
   }
 
   function save(content: string, type: string, extension: string) {

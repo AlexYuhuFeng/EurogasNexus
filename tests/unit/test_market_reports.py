@@ -795,3 +795,12 @@ def test_the_spread_join_states_its_conversion_and_a_border_question_is_not_held
     border = plan_for_question("What are flows at the Belgian border?", now=NOW)
     assert not border["answerable"]
     assert any("border point" in m for m in border["missing"])
+
+
+def test_a_figure_that_would_cross_a_page_moves_while_its_text_stays(daily):
+    """No blank part-page: at print the layout script splits a text-and-figure row that would
+    cross a page boundary (text stays, the figure follows the page break)."""
+
+    html = daily.html
+    assert "addEventListener('beforeprint', lay)" in html
+    assert ".r-row-split{display:block}" in html and "r-row-moved" in html
