@@ -199,8 +199,8 @@ def main(argv: list[str] | None = None) -> int:
                     if held_days(session, window) < window.days:
                         plan.append(window)
 
-    report: dict = {"planned": len(plan), "done": [], "failed": [], "remaining": [],
-                    "stopped": None}
+    report: dict = {"planned": len(plan), "done": [], "empty": [], "failed": [],
+                    "remaining": [], "stopped": None}
     if args.dry_run:
         report["remaining"] = [f"{w.product}:{w.series}:{w.first}..{w.last}" for w in plan]
         print(json.dumps(report, indent=2) if args.json else f"{len(plan)} windows to read")
@@ -227,6 +227,10 @@ def main(argv: list[str] | None = None) -> int:
                       if isinstance(v, dict))
         if completed.returncode == 0 and not codes:
             report["done"].append({"window": label, "records": records})
+        elif codes == ["gie_no_published_values"]:
+            # GIE publishes nothing for the window (an LNG terminal not yet operating): an
+            # answer, not a failure. Nothing is stored; a later run asks again.
+            report["empty"].append({"window": label})
         else:
             tail = (completed.stderr or "").strip().splitlines()[-1:]
             report["failed"].append({"window": label, "codes": codes or ["exit_" + str(
