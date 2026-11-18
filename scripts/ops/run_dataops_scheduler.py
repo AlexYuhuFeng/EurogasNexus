@@ -118,8 +118,12 @@ def run_ingestor_attempt(
     entsog_lookback_gas_days: int | None = None,
     entsog_point_directions: Sequence[str] = (),
     key_check: Callable[[str], bool | None] | None = None,
+    entsog_history: bool = False,
 ) -> Callable[[dict, int], IngestionAttemptResult]:
     """Return an adapter runner bound to the public-source ingestor.
+
+    ``entsog_history`` (the loop passes True): after a successful ``src-entsog`` attempt, run
+    the landing-point history step (``ENTSOG_HISTORY_COMMAND``) behind the same gates.
 
     ``key_check(source_id)`` (the loop passes ``scheduled_source_keys.key_configured``)
     returns False for a keyed source whose key is not configured: the attempt then does not
@@ -414,7 +418,78 @@ def run_ingestor_attempt(
             quality_issues=partial_issues,
         )
 
-    return run
+    if not entsog_history:
+        return run
+
+    def run_with_history(payload: dict, attempt: int) -> IngestionAttemptResult:
+        result = run(payload, attempt)
+        if str(payload.get("source_id") or "") != "src-entsog" or not result.succeeded:
+            return result
+        return _with_entsog_landing_history(runner, result, str(payload.get("run_id") or ""))
+
+    return run_with_history
+
+
+#: After a successful scheduled ENTSOG read, the landing points' history is kept filled for
+#: the flows read (Research → Fundamentals → Flows): at most this many quarter windows a run,
+#: through the same gated ingestor (scripts/ops/backfill_entsog_landings.py).
+ENTSOG_HISTORY_COMMAND = (
+    "backfill_entsog_landings.py", "--years", "5", "--refresh", "--max-windows", "8", "--json",
+)
+
+
+def _with_entsog_landing_history(
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+    result: IngestionAttemptResult,
+    run_id: str,
+) -> IngestionAttemptResult:
+    """Run the landing history step; its outcome adds to the attempt, never fails it.
+
+    The ENTSOG read itself succeeded, so its rows stand. A history step that could not run
+    (refused, timed out, malformed) is recorded as a warning on the attempt and is read
+    again at the next run (the driver resumes from what the store holds).
+    """
+
+    from dataclasses import replace
+
+    script, *script_args = ENTSOG_HISTORY_COMMAND
+    command = [sys.executable, str(INGEST_SCRIPT.with_name(script)), *script_args]
+    completed = runner(command, text=True, capture_output=True)
+    try:
+        report = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError:
+        report = {}
+    sources = report.get("sources") if isinstance(report, dict) else None
+    if completed.returncode == 0 and isinstance(sources, dict):
+        rows = sum(int(d.get("records") or 0) for d in sources.values() if isinstance(d, dict))
+        inserted = sum(int(d.get("inserted") or 0) for d in sources.values() if isinstance(d, dict))
+        emit_event(event="ingestion.history.succeeded", source_id="src-entsog", run_id=run_id,
+                   details={"rows": rows, "windows": len(report.get("done") or [])})
+        return replace(
+            result,
+            rows_received=result.rows_received + rows,
+            rows_accepted=result.rows_accepted + rows,
+            rows_inserted=result.rows_inserted + inserted,
+            lineage_refs=[*result.lineage_refs, "entsog-landing-history"],
+        )
+    codes = sorted({str(f.get("codes")) for f in (report.get("failed") or [])}) if isinstance(
+        report, dict) else []
+    emit_event(event="ingestion.history.failed", level="warning", source_id="src-entsog",
+               run_id=run_id, details={"codes": codes, "returncode": completed.returncode})
+    return replace(
+        result,
+        quality_issues=[
+            *result.quality_issues,
+            QualityIssue(
+                quality_code="entsog_landing_history_incomplete",
+                severity=QualitySeverity.WARNING,
+                message=(
+                    "The landing-point history step did not complete; the ENTSOG read itself "
+                    "succeeded. It resumes at the next run."
+                ),
+            ),
+        ],
+    )
 
 
 def evaluate_opportunities_if_due(session_factory, outcomes, *, now_utc) -> dict:
@@ -496,6 +571,7 @@ def run_loop(
         entsog_lookback_gas_days=entsog_lookback_gas_days,
         entsog_point_directions=point_directions,
         key_check=lambda source_id: key_configured(source_id, session_factory=session_factory),
+        entsog_history=True,
     )
     iteration = 0
     failed_iterations = 0

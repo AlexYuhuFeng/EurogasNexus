@@ -369,3 +369,61 @@ def test_every_schedulable_source_has_a_runner() -> None:
 
     schedulable = {d.source_id for d in source_definitions() if d.schedulable}
     assert schedulable <= set(_SOURCE_ARGS) | set(_SCRIPT_COMMANDS)
+
+
+ENTSOG_OK = json.dumps({"ok": True, "sources": {"ENTSOG": {"records": 5}}})
+
+
+def test_entsog_landing_history_runs_only_after_a_successful_entsog_read():
+    from scripts.ops.run_dataops_scheduler import ENTSOG_HISTORY_COMMAND
+
+    commands = []
+    window = "ENTSOG 2025-10-01..2025-12-31"
+    history_report = {"ok": True, "done": ["2025-10-01..2025-12-31"],
+                      "sources": {window: {"records": 920, "inserted": 920}}}
+
+    def runner(command, **kwargs):
+        commands.append(command)
+        if command[1].endswith(ENTSOG_HISTORY_COMMAND[0]):
+            return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps(history_report))
+        return SimpleNamespace(returncode=0, stderr="",
+                               stdout=ENTSOG_OK)
+
+    attempt = run_ingestor_attempt(runner, entsog_from="2026-10-10", entsog_to="2026-10-11",
+                                   entsog_history=True)
+    result = attempt({"source_id": "src-entsog"}, 1)
+    assert result.succeeded and result.rows_accepted == 925 and result.rows_inserted == 925
+    assert commands[1][1].endswith("backfill_entsog_landings.py")
+    assert "entsog-landing-history" in result.lineage_refs
+    # Another source never runs it; nor does a failed ENTSOG read.
+    commands.clear()
+    attempt({"source_id": "src-ecb"}, 1)
+    assert len(commands) == 1
+
+
+def test_a_failed_landing_history_step_is_a_warning_not_a_failed_attempt():
+    def runner(command, **kwargs):
+        if command[1].endswith("backfill_entsog_landings.py"):
+            return SimpleNamespace(returncode=1, stderr="", stdout=json.dumps(
+                {"ok": False, "failed": [{"codes": ["source_gate_blocked"]}], "sources": {}}))
+        return SimpleNamespace(returncode=0, stderr="",
+                               stdout=ENTSOG_OK)
+
+    attempt = run_ingestor_attempt(runner, entsog_from="2026-10-10", entsog_to="2026-10-11",
+                                   entsog_history=True)
+    result = attempt({"source_id": "src-entsog"}, 1)
+    assert result.succeeded and result.rows_accepted == 5
+    assert [i.quality_code for i in result.quality_issues] == ["entsog_landing_history_incomplete"]
+
+
+def test_without_the_flag_the_entsog_attempt_is_unchanged():
+    commands = []
+
+    def runner(command, **kwargs):
+        commands.append(command)
+        return SimpleNamespace(returncode=0, stderr="",
+                               stdout=ENTSOG_OK)
+
+    run_ingestor_attempt(runner, entsog_from="2026-10-10", entsog_to="2026-10-11")(
+        {"source_id": "src-entsog"}, 1)
+    assert len(commands) == 1
