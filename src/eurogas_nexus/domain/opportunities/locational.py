@@ -261,10 +261,21 @@ class _Route:
                         f"({spec.tso}), {item.detail.get('tariff_status', '').lower()} "
                         f"{item.key.split(':')[3].lower()} tariff: {how}"
                         + (f", x{multiplier.value} short-term" if multiplier.value != 1 else "")
+                        + (
+                            " (annual product for a shorter period: the short-term multiplier"
+                            " is not held, so this leg is indicative)"
+                            if any(x.key.endswith("#short-term") for x in extra)
+                            else ""
+                        )
                         + (f", at {load_pct} % load" if load_pct != HUNDRED else ", full load"),
                         rate=Measure(per_mwh.quantize(Q), UNIT),
                         contribution=Measure(-cost, UNIT),
-                        input_class=item.input_class,
+                        input_class=(
+                            InputClass.INDICATIVE
+                            if any(x.key.endswith("#short-term") for x in extra)
+                            and item.input_class is InputClass.SOURCED
+                            else item.input_class
+                        ),
                         source_family=item.source_family,
                         source_ref=item.source_ref,
                         as_of_utc=item.as_of_utc,
