@@ -543,3 +543,41 @@ def test_a_real_fixing_for_the_same_day_is_not_written_again_as_demo(session):
     }
     assert ("SONIA", datetime(2026, 11, 17).date()) not in pairs
     assert ("ESTR", datetime(2026, 11, 17).date()) in pairs
+
+
+def test_the_real_price_hub_read_runs_on_postgresql() -> None:
+    """The read that keeps simulated prices off a hub a provider prices is DISTINCT over the
+    stated hub text: PostgreSQL has no equality operator for a `json` column, so a DISTINCT on
+    the document itself stopped the demo's start there (SQLite, which these tests use, accepts
+    it)."""
+
+    from sqlalchemy.dialects import postgresql
+
+    seed = _load()
+
+    class _Recorder:
+        def __init__(self) -> None:
+            self.query = None
+
+        def __call__(self, *columns):
+            self.query = Session().query(*columns)
+            return self
+
+        def filter(self, *criteria):
+            self.query = self.query.filter(*criteria)
+            return self
+
+        def distinct(self):
+            self.query = self.query.distinct()
+            return self
+
+        def __iter__(self):
+            return iter([])
+
+    recorder = _Recorder()
+    session = type("S", (), {"query": recorder})()
+    assert seed._real_price_hubs(session) == set()
+    sql = str(recorder.query.statement.compile(dialect=postgresql.dialect()))
+    assert "DISTINCT" in sql
+    assert "metadata_json ->> " in sql
+    assert "DISTINCT market_observations.metadata_json AS" not in sql
