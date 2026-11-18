@@ -1293,7 +1293,32 @@ def _new_rows_only(session, rows: list) -> list:
             chunk = ids[offset : offset + 500]
             existing.update(value for (value,) in session.query(key).filter(key.in_(chunk)))
         kept.extend(item for item in items if getattr(item, key.key) not in existing)
-    return kept
+    return _without_stored_fixings(session, kept)
+
+
+def _without_stored_fixings(session, rows: list) -> list:
+    """Drop demo benchmark fixings for a (benchmark, day) any source has already stored.
+
+    ``interest_rate_observations`` is unique on (benchmark_id, value_date) whatever the source,
+    so a real BoE SONIA fixing stored by the catch-up made the demo's own row for that day
+    fail the whole roll-forward on PostgreSQL, and the demo did not start (2026-11-18).
+    """
+
+    fixings = [row for row in rows if isinstance(row, InterestRateObservationRecord)]
+    if not fixings:
+        return rows
+    days = {row.value_date for row in fixings}
+    stored = {
+        (benchmark, day)
+        for benchmark, day in session.query(
+            InterestRateObservationRecord.benchmark_id, InterestRateObservationRecord.value_date
+        ).filter(InterestRateObservationRecord.value_date.in_(days))
+    }
+    return [
+        row for row in rows
+        if not isinstance(row, InterestRateObservationRecord)
+        or (row.benchmark_id, row.value_date) not in stored
+    ]
 
 
 # ---------------------------------------------------------------------------

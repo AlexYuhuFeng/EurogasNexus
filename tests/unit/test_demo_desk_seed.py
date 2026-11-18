@@ -519,3 +519,27 @@ def test_one_case_awaits_review_and_reseeding_keeps_one_copy(session):
     assert case.created_by == "demo.trader"  # never a reviewer's own case
     assert case.gas_day == "2026-11-08"
     assert any("simulated" in warning.lower() for warning in case.warnings_json)
+
+
+def test_a_real_fixing_for_the_same_day_is_not_written_again_as_demo(session):
+    """interest_rate_observations is unique on (benchmark, day) across sources."""
+
+    from eurogas_nexus.db.models import InterestRateObservationRecord
+
+    seed = _load()
+    now = datetime(2026, 11, 18, 9, tzinfo=UTC)
+    session.add(
+        InterestRateObservationRecord(
+            observation_id="boe-sonia-2026-11-17", benchmark_id="SONIA", currency="GBP",
+            value_date=datetime(2026, 11, 17).date(), rate_pct=3.97, day_count="ACT/365F",
+            source_system="BOE", source_reference="boe:iadb", ingested_at_utc=now,
+        )
+    )
+    session.flush()
+    rows = seed._new_rows_only(session, seed._demo_rate_rows(now, 3))
+    pairs = {
+        (row.benchmark_id, row.value_date)
+        for row in rows if isinstance(row, InterestRateObservationRecord)
+    }
+    assert ("SONIA", datetime(2026, 11, 17).date()) not in pairs
+    assert ("ESTR", datetime(2026, 11, 17).date()) in pairs
