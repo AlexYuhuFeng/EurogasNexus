@@ -387,3 +387,54 @@ def get_fundamentals_lng(
             "warnings": [],
         },
     }
+
+
+@router.get("/api/fundamentals/flows")
+def get_fundamentals_flows(
+    request: Request,
+    season: str | None = Query(
+        None,
+        max_length=200,
+        description="Comma-separated codes (norway, uk_terminal, dornum, emden...) whose full "
+        "gas-year series and history band are returned; default none.",
+    ),
+) -> dict:
+    """Norwegian and UK pipeline gas landed, totals then each landing, against history.
+
+    The 7-day mean of the daily energy landed (GWh/d) and the day's own value, against the
+    same gas day last year and the N-year average and band (N = complete prior gas years
+    held, stated), a 30-day sparkline series and, for the codes in ``season``, the full
+    gas-year series (``application/fundamentals_flows``). Provider and simulated rows are
+    never added together.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` when the store cannot be read.
+    """
+
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+    from eurogas_nexus.application.fundamentals_flows import flows_read
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    codes = [part.strip().lower() for part in (season or "").split(",") if part.strip()][:30]
+    if not resolve_database_url():
+        return _env(None, request)
+    try:
+        with get_session_factory()() as session:
+            data = flows_read(session, current_principal(request), season=codes)
+    except Exception as exc:  # noqa: BLE001 - a store failure is a 503, never a partial read
+        raise HTTPException(status_code=503, detail="runtime_db_unavailable") from exc
+    provider = bool(data["totals"] or data["landings"]) and not data["simulated"]
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["ENTSOG"] if provider else ["runtime-postgresql"],
+            # ENTSOG TP Terms of Use Art. 5: the source and the download date are cited; the
+            # stored rows carry their download date.
+            "attribution": "Source: ENTSOG Transparency Platform https://transparency.entsog.eu/"
+            if provider
+            else None,
+            "warnings": list(data.get("warnings") or []),
+        },
+    }

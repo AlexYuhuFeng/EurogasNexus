@@ -238,6 +238,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/sources/{source_id}",
         "/api/fundamentals/storage",
         "/api/fundamentals/lng",
+        "/api/fundamentals/flows",
         "/api/storage/observations",
         "/api/storage/sites",
         "/api/storage/target-trajectory",

@@ -369,6 +369,9 @@ class PipelineSupply:
     points_reporting: dict[date, int] = field(default_factory=dict)
     #: Days left out of ``by_day`` because fewer landing points reported than usual.
     incomplete_days: list[date] = field(default_factory=list)
+    #: The same complete days per registry landing point (``point_id``), for the reader who
+    #: shows each landing (Research → Fundamentals → Flows).
+    by_point: dict[str, dict[date, float]] = field(default_factory=dict)
 
     @property
     def complete_through(self) -> date | None:
@@ -450,6 +453,7 @@ def landed_supply(session, first: date, *, as_of: datetime | None = None) -> Pip
 
     totals: dict[date, float] = defaultdict(float)
     scopes: dict[str, dict[date, float]] = defaultdict(lambda: defaultdict(float))
+    points: dict[str, dict[date, float]] = defaultdict(lambda: defaultdict(float))
     reporting: dict[date, set[tuple[str, str]]] = defaultdict(set)
     registry_rows = legacy_rows = 0
     for record in records:
@@ -474,6 +478,8 @@ def landed_supply(session, first: date, *, as_of: datetime | None = None) -> Pip
         day = gas_day(record)
         totals[day] += energy
         scopes[scope][day] += energy
+        if point is not None:
+            points[point.point_id][day] += energy
         reporting[day].add((str(record.point_id or record.point_name), operator))
     counts = {day: len(points) for day, points in sorted(reporting.items())}
     incomplete = _incomplete_days(counts)
@@ -488,6 +494,10 @@ def landed_supply(session, first: date, *, as_of: datetime | None = None) -> Pip
         legacy_rows=legacy_rows,
         points_reporting=counts,
         incomplete_days=sorted(incomplete),
+        by_point={
+            point_id: {day: value for day, value in days.items() if day not in incomplete}
+            for point_id, days in points.items()
+        },
     )
 
 

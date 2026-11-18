@@ -12,6 +12,10 @@ Checks:
 - Public surface is bounded (285 paths / 317 operations as measured on 2026-11-18, after
   `GET`/`PUT /api/reports/schedules` (READ; ADMIN to change: scheduled reports run as the
   service principal, for distribution, listed only for their roles, audited); 284 / 315 after
+  and, measured on its own branch, after
+  `GET /api/fundamentals/flows` (CP-17: READ, the landing registry's ENTSOG flows through the
+  identity rule, a derived result shown only when every source is entitled, simulated rows
+  never added to provider rows, ENTSOG citation returned); and, before it,
   `GET /api/lng/freight-routes`, `PUT /api/lng/freight-routes/{route_id}` (GOVERNED: PORTFOLIO_WRITE,
   a new version per change, audited `lng.freight_route`) and `POST /api/lng/cargo-economics`
   (READ: prices cargoes through the valuation snapshot under the caller's entitlement; nothing

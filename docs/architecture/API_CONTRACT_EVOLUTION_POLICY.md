@@ -11,6 +11,15 @@ each schedule validated (422 `bad_kind`, `bad_time`, `bad_weekday`, `bad_roles`,
 the change audited as `report.schedules`. A scheduled report runs as the service principal, is
 for distribution, and is listed only for its roles (and administrators). No field changes
 meaning. Census: 285 paths / 317 operations (+1 / +2 on 284 / 315).
+Additive 2026-11-18 (commercial design basis 2, CP-17: pipeline landings): one path, one
+operation. `GET /api/fundamentals/flows` (READ; `season` comma-separated codes) returns
+Norwegian pipeline gas landed in the EU and the UK terminals as totals, then each landing
+(Dornum, Emden, Zeebrugge, Dunkerque, Nybro, Easington, St Fergus): the 7-day mean of the
+daily energy landed (GWh/d) and the day's value, against the same gas day last year and the
+N-year average and band (N = complete prior gas years held, stated), 30 days for a sparkline
+and the full gas-year series for the codes in `season`. Shown only when every source is
+entitled; part-simulated landings are not added and the read says so. `meta.attribution`
+cites ENTSOG TP. Census: 285 paths / 316 operations (+1 / +1 on 284 / 315).
 
 Additive 2026-11-18 (LNG cargo economics, CP-12): three paths, three operations.
 `GET /api/lng/freight-routes` (READ) lists the latest version of each route (`route_id`,
