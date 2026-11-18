@@ -4238,11 +4238,11 @@
   "setup.how.licensed_none": "您的许可。本产品尚无连接器或导入方式；请先登记许可，以便日后授权访问。",
   "setup.how.register": "由 TSO 发布；运营团队维护登记表。",
   "setup.how.template": "本安装尚未选择供应商。",
-  "setup.how.public_tariffs": "大多数欧洲接收站运营商公开发布；产品在运营商发布价格处读取其文件。",
+  "setup.how.public_tariffs": "大多数欧洲接收站运营商公开发布。其网站限制再利用，因此只有在贵公司登记了该运营商的许可后才会读取文件（管理 → 数据源）。",
   "setup.how.import": "从您自己的系统导入。",
   "setup.how.api_key": "每个系统一个 API 密钥，在 管理 → 访问 → API 密钥 中签发。",
   "setup.how.admin": "每人通过公司单点登录或您创建的密码登录。",
-  "setup.tariffs.held": "已持有 {{held}} 个接收站：{{operator}} 个读自运营商公开文件，{{desk}} 个由交易台录入。",
+  "setup.tariffs.held": "已持有 {{held}} 个接收站：{{operator}} 个来自公开登记（运营商文件），{{desk}} 个来自贵公司自身条款。",
   "setup.tariffs.none": "尚未持有接收站费率。",
   "setup.import_with": "导入方式",
   "setup.record_licence": "登记许可",
@@ -4328,8 +4328,6 @@
   "setup.item.src-icis.purpose": "ICIS Heren 每日评估。",
   "setup.item.src-kpler.name": "Kpler（船舶追踪）",
   "setup.item.src-kpler.purpose": "地图船舶图层上的 LNG 货船位置与预计到港时间。",
-  "setup.item.lng-terminal-tariffs.name": "LNG 接收站费率",
-  "setup.item.lng-terminal-tariffs.purpose": "各接收站的再气化费率与窗口条款：货物到岸成本。",
   "setup.item.src-ecmwf-open-data.name": "ECMWF 开放数据",
   "setup.item.src-ecmwf-open-data.purpose": "需求所用的气温预报与采暖度日。",
   "setup.item.src-weather.name": "气象供应商",
@@ -4564,5 +4562,8 @@
   "spreads.rule.pnl": "规则结果（{{unit}} × MWh）",
   "settings.map_tile_provider_bundled": "内置底图（默认）：Natural Earth（公有领域）的陆地、海岸线、国界和地名，标注使用内置 Inter 字体，全部由本应用自身提供。不向第三方发出任何请求，可离线使用。因绘制国界，中国大陆安装使用离线轮廓底图。",
   "map.tier.dismiss": "隐藏此提示",
-  "nav.mode.book.planning": "计划"
+  "nav.mode.book.planning": "计划",
+  "setup.item.src-lng-terminal-tariffs.name": "LNG 接收站费率",
+  "setup.item.src-lng-terminal-tariffs.purpose": "各接收站的再气化费率与窗口条款：货物到岸成本。",
+  "setup.tariffs.needs_terms": "只有在贵公司登记了各运营商的再利用许可后才会读取其文件：{{operators}}。"
 }

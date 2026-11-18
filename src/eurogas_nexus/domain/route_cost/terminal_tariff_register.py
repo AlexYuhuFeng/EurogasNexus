@@ -83,12 +83,13 @@ def public_charge(rows: list[PublicTariff], cargo_mwh: float) -> float | None:
                 total = totals.get(name)
                 return None if total is None else float(total)
         return None
-    priced = [row for row in rows if row.charge_basis in _PER_CARGO | _PER_MWH and row.amount is not None]
+    priced = [
+        row for row in rows if row.charge_basis in _PER_CARGO | _PER_MWH and row.amount is not None
+    ]
     if not priced:
         return None
     return sum(
-        row.amount if row.charge_basis in _PER_CARGO else row.amount * cargo_mwh
-        for row in priced
+        row.amount if row.charge_basis in _PER_CARGO else row.amount * cargo_mwh for row in priced
     )
 
 
@@ -108,7 +109,11 @@ def resolve_terminal_charge(
         charge = regas_charge(firm_terms, cargo_mwh)
         if charge is not None:
             return TerminalCharge(
-                terminal_id, "firm_terms", charge, firm_terms.currency, False,
+                terminal_id,
+                "firm_terms",
+                charge,
+                firm_terms.currency,
+                False,
                 tariff_ids=(),
             )
     day = _month_start(arrival_month)
@@ -126,8 +131,13 @@ def resolve_terminal_charge(
                 continue
             excludes = tuple(sorted({item for row in chosen for item in row.excludes}))
             return TerminalCharge(
-                terminal_id, basis, charge, chosen[0].currency, indicative,
-                tariff_ids=tuple(row.tariff_id for row in chosen), excludes=excludes,
+                terminal_id,
+                basis,
+                charge,
+                chosen[0].currency,
+                indicative,
+                tariff_ids=tuple(row.tariff_id for row in chosen),
+                excludes=excludes,
             )
     if operator_needs_terms and not rows:
         reason = "needs_firm_terms"

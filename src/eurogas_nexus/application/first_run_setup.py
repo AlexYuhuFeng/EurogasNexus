@@ -66,8 +66,9 @@ SOURCE_STEPS: dict[str, str | None] = {
     "src-argus": "prices",
     "src-platts": "prices",
     "src-icis": "prices",
-    # LNG and shipping.
+    # LNG and shipping: vessel tracking, and the public terminal tariff register (CP-11).
     "src-kpler": "lng_shipping",
+    "src-lng-terminal-tariffs": "lng_shipping",
     # Weather.
     "src-ecmwf-open-data": "weather",
     "src-weather": "weather",
@@ -103,18 +104,6 @@ KEY_REGISTRATION_URLS: dict[str, str] = {
 
 #: Steps that list product capabilities rather than registered sources.
 STATIC_ITEMS: dict[str, tuple[dict[str, str], ...]] = {
-    # Regulated LNG terminal tariffs and slot terms are public at most European terminals.
-    # The product holds them in ``lng_terminal_terms`` (operator documents read by
-    # scripts/ops/refresh_lng_terminal_tariffs.py, or desk-entered); this item reports what is
-    # held. Collecting more terminals is another package's work, not this flow's: when the
-    # public register (CP-11: ``lng_terminal_tariff`` and its ``lng-terminal-tariffs``
-    # connector) lands, its source maps to ``lng_shipping`` in SOURCE_STEPS, this static item
-    # goes, and ``terminal_tariff_facts`` reads reviewed and candidate public rows beside the
-    # firm's own terms.
-    "lng_shipping": (
-        {"item_id": "lng-terminal-tariffs", "connection": "public_tariffs",
-         "tool": "scripts/ops/refresh_lng_terminal_tariffs.py"},
-    ),
     "book": (
         {"item_id": "etrm-trades", "connection": "import",
          "tool": "scripts/ops/import_etrm_trades.py"},
@@ -184,6 +173,10 @@ def _connection(row: dict[str, Any], manifest) -> tuple[str, str | None]:
     from eurogas_nexus.application.scheduled_source_keys import SCHEDULED_SOURCE_KEYS
     from eurogas_nexus.domain.ingestion.source_approval import classify_source
 
+    if row["source_id"] == "src-lng-terminal-tariffs":
+        # Shown as what the product holds (register and the firm's own terms), not as a
+        # register operations keep: the owner asked for held / not held and from which source.
+        return "public_tariffs", None
     kind = classify_source(row)
     specs = [spec for spec in manifest.credentials if spec.implemented]
     provider = SCHEDULED_SOURCE_KEYS.get(row["source_id"]) or (
@@ -260,25 +253,33 @@ def setup_catalogue() -> dict[str, Any]:
 
 
 def terminal_tariff_facts(session) -> dict[str, Any]:
-    """Which LNG terminal tariffs the product holds, and where they came from.
+    """Which LNG terminal tariffs the product holds, and from which source.
 
-    ``from_operator``: read from the terminal operator's published document (it has a source
-    URL); ``desk_entered``: typed by the desk from the firm's own contracts.
+    ``from_operator``: terminals in the public register (operator documents, CP-11);
+    ``desk_entered``: the firm's own terms the desk typed from its contracts. Also the
+    operators whose reuse permission the firm has not recorded.
     """
 
-    from eurogas_nexus.db.models import LngTerminalTermsRecord
+    from eurogas_nexus.application import lng_terminal_tariff_register as register
+    from eurogas_nexus.db.models import LngTerminalTariffRecord, LngTerminalTermsRecord
 
-    rows = session.query(LngTerminalTermsRecord).all()
-    published = [row for row in rows if row.source_url]
-    latest = max(
-        (row.retrieved_at_utc for row in published if row.retrieved_at_utc), default=None
-    )
+    public = {row.terminal_id for row in session.query(LngTerminalTariffRecord.terminal_id)}
+    firm = [
+        row for row in session.query(LngTerminalTermsRecord).all() if row.source_url is None
+    ]
+    latest = session.query(LngTerminalTariffRecord.retrieved_at_utc).order_by(
+        LngTerminalTariffRecord.retrieved_at_utc.desc()
+    ).first()
+    facts = register.held_facts(session)
     return {
-        "held": len(rows),
-        "from_operator": len(published),
-        "desk_entered": len(rows) - len(published),
-        "terminals": sorted(row.name for row in rows),
-        "latest_read_at_utc": latest.isoformat() if latest else None,
+        "held": len(public | {row.terminal_id for row in firm}),
+        "from_operator": len(public),
+        "desk_entered": len(firm),
+        "reviewed": facts["reviewed"],
+        "candidate": facts["candidate"],
+        "operators_needing_terms": facts["operators_needing_terms"],
+        "terminals": sorted(public | {row.name for row in firm}),
+        "latest_read_at_utc": latest[0].isoformat() if latest else None,
     }
 
 

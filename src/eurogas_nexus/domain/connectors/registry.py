@@ -18,6 +18,7 @@ BUILTIN_MODULES: tuple[str, ...] = (
     "entsog",
     "gie",
     "national_gas_nts",
+    "lng_terminal_tariffs",
     "bbl",
     "iuk",
     "gts",

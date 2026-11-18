@@ -188,3 +188,113 @@ def _db_unavailable(exc: Exception) -> HTTPException:
             "error_class": exc.__class__.__name__,
         },
     )
+
+
+# --- the public LNG terminal tariff register (CP-11) -----------------------------------------
+
+
+def _register_error(exc) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"error": exc.code, "code": exc.code, "message": exc.message},
+    )
+
+
+def _actor(request: Request, permission) -> str:
+    from eurogas_nexus.security.authorization import authorize
+
+    principal = getattr(request.state, "identity", None)
+    if principal is None:
+        raise HTTPException(status_code=401, detail={"error": "principal_missing"})
+    if not authorize(principal, permission).allowed:
+        raise HTTPException(status_code=403, detail={"error": "permission_denied"})
+    return principal.principal_id
+
+
+def _register_session():
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    if resolve_database_url() is None:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "runtime_db_required", "message": "The register needs the runtime DB."},
+        )
+    return get_session_factory()()
+
+
+@router.get("/api/lng/terminal-tariffs")
+def terminal_tariff_register(request: Request) -> dict:
+    """The public terminal tariff register: figures with provenance and review state, and each
+    operator's reuse terms (whether the firm recorded permission). Public data; READ."""
+
+    from eurogas_nexus.application import lng_terminal_tariff_register as register
+
+    with _register_session() as session:
+        return _runtime_env(register.register_view(session))
+
+
+@router.get("/api/lng/terminal-tariffs/price")
+def terminal_tariff_price(
+    terminal_id: str = Query(min_length=1, max_length=64),
+    arrival_month: str = Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+    cargo_mwh: float = Query(gt=0, le=3_000_000),
+    product: str = Query(default="spot", pattern="^(spot|term|prompt|annual)$"),
+) -> dict:
+    """What landing one cargo costs and on which basis: the firm's terms, the reviewed public
+    tariff, a candidate (indicative), or left out with the reason (design C.5)."""
+
+    from dataclasses import asdict
+
+    from eurogas_nexus.application import lng_terminal_tariff_register as register
+
+    with _register_session() as session:
+        charge = register.price_terminal(
+            session, terminal_id, arrival_month=arrival_month, cargo_mwh=cargo_mwh, product=product
+        )
+        return _runtime_env(asdict(charge))
+
+
+@router.post("/api/lng/terminal-tariffs/{tariff_id}/review")
+def review_terminal_tariff(tariff_id: str, request: Request) -> dict:
+    """Mark a candidate figure reviewed (OPERATOR; four eyes: never by whoever recorded it)."""
+
+    from eurogas_nexus.application import lng_terminal_tariff_register as register
+    from eurogas_nexus.security.authorization import Permission
+
+    actor = _actor(request, Permission.SOURCE_RUN)
+    with _register_session() as session:
+        try:
+            payload = register.review_tariff(session, tariff_id, reviewer=actor)
+        except register.TariffRegisterError as exc:
+            session.rollback()
+            raise _register_error(exc) from exc
+        session.commit()
+        return _runtime_env(payload)
+
+
+@router.put("/api/lng/terminal-tariffs/operators/{operator}")
+def record_terminal_operator_terms(operator: str, body: dict, request: Request) -> dict:
+    """Record (or withdraw) the firm's permission to reuse an operator's documents (ADMIN).
+
+    Body ``{"permitted": bool, "reference": str}``: the reference names what the firm holds
+    (a letter, a contract clause). The product never records a permission by itself.
+    """
+
+    from eurogas_nexus.application import lng_terminal_tariff_register as register
+    from eurogas_nexus.security.authorization import Permission
+
+    actor = _actor(request, Permission.IDENTITY_MANAGE)
+    permitted = body.get("permitted")
+    reference = body.get("reference") or ""
+    if not isinstance(permitted, bool) or not isinstance(reference, str) or len(reference) > 256:
+        raise HTTPException(status_code=422, detail={"code": "body_invalid"})
+    with _register_session() as session:
+        try:
+            payload = register.record_operator_permission(
+                session, operator, permitted=permitted, reference=reference, actor=actor
+            )
+        except register.TariffRegisterError as exc:
+            session.rollback()
+            raise _register_error(exc) from exc
+        session.commit()
+        return _runtime_env(payload)

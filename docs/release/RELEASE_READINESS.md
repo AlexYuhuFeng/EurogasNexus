@@ -50,7 +50,9 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **276 paths / 307 operations**
+- OpenAPI public surface: **280 paths / 311 operations**
+  (2026-11-18: the LNG terminal tariff register, four paths under `/api/lng/terminal-tariffs`
+  (two READ, review OPERATOR, operator permission ADMIN); 276 / 307 before)
   (2026-11-18: `POST /api/research/spreads/interpret` and `/evaluate`, CP-16/CP-23 backend,
   GOVERNED like the rest of `/api/research/`; 274 / 305 before)
   (2026-11-18: `GET /api/market/instruments`, the instrument catalogue of CP-02, one READ path

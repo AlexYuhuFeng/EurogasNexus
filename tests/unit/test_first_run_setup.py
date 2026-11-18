@@ -60,7 +60,7 @@ def test_the_catalogue_states_how_each_source_connects_today():
     assert by_id["src-icis"]["connection"] == "licensed_none"
     assert by_id["src-icis"]["import_tools"] == []
     assert by_id["src-kpler"]["import_tools"] == ["scripts/ops/import_lng_positions.py"]
-    assert by_id["lng-terminal-tariffs"]["connection"] == "public_tariffs"
+    assert by_id["src-lng-terminal-tariffs"]["connection"] == "public_tariffs"
     assert by_id["src-deepseek"]["connection"] == "model"
     assert {item["connection"] for item in by_id.values()} <= {
         *setup.CONNECTION_ORDER, "import", "api_key", "admin"

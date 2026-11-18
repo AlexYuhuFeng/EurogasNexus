@@ -6290,6 +6290,9 @@ export interface SetupViewDTO {
   /** LNG terminal tariffs the product holds (`lng_terminal_terms`) and where they came from. */
   terminal_tariffs: {
     held: number; from_operator: number; desk_entered: number;
+    reviewed?: number; candidate?: number;
+    /** Operators whose reuse permission the firm has not recorded (their documents are not read). */
+    operators_needing_terms?: string[];
     terminals: string[]; latest_read_at_utc: string | null;
   };
 }

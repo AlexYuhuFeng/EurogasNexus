@@ -4238,11 +4238,11 @@
   "setup.how.licensed_none": "Your licence. No connector or import exists in this product yet; record the licence so access can be granted later.",
   "setup.how.register": "Published by the TSO; your operations team keeps the register.",
   "setup.how.template": "No vendor chosen for this installation.",
-  "setup.how.public_tariffs": "Published by most European terminal operators; the product reads the operators' documents where they publish prices.",
+  "setup.how.public_tariffs": "Published by most European terminal operators. Their sites restrict reuse, so a document is read only once your firm records that operator's permission (Admin → Data sources).",
   "setup.how.import": "Imported from your own systems.",
   "setup.how.api_key": "An API key per system, issued in Admin → Access → API keys.",
   "setup.how.admin": "Each person signs in with company SSO or a password you create.",
-  "setup.tariffs.held": "{{held}} terminals held: {{operator}} read from the operator's published document, {{desk}} entered by the desk.",
+  "setup.tariffs.held": "{{held}} terminals held: {{operator}} from the public register (operator documents), {{desk}} from your own terms.",
   "setup.tariffs.none": "No terminal tariffs held yet.",
   "setup.import_with": "Import with",
   "setup.record_licence": "Record the licence",
@@ -4328,8 +4328,6 @@
   "setup.item.src-icis.purpose": "ICIS Heren daily assessments.",
   "setup.item.src-kpler.name": "Kpler (vessel tracking)",
   "setup.item.src-kpler.purpose": "LNG cargo positions and ETAs for the map's vessel layer.",
-  "setup.item.lng-terminal-tariffs.name": "LNG terminal tariffs",
-  "setup.item.lng-terminal-tariffs.purpose": "Regasification tariffs and slot terms per terminal: the landed cost of a cargo.",
   "setup.item.src-ecmwf-open-data.name": "ECMWF open data",
   "setup.item.src-ecmwf-open-data.purpose": "Temperature forecasts and heating degree days for demand.",
   "setup.item.src-weather.name": "Weather vendor",
@@ -4564,5 +4562,8 @@
   "spreads.rule.pnl": "Rule result ({{unit}} × MWh)",
   "settings.map_tile_provider_bundled": "Bundled basemap (default): land, coastlines, country borders and place names from Natural Earth (public domain), labels in the bundled Inter, all served by this application. No request leaves for a third party; works offline. Draws country borders, so a mainland China installation uses the outline.",
   "map.tier.dismiss": "Hide this hint",
-  "nav.mode.book.planning": "Planning"
+  "nav.mode.book.planning": "Planning",
+  "setup.item.src-lng-terminal-tariffs.name": "LNG terminal tariffs",
+  "setup.item.src-lng-terminal-tariffs.purpose": "Regasification tariffs and slot terms per terminal: the landed cost of a cargo.",
+  "setup.tariffs.needs_terms": "Operator documents are read only after your firm records each operator's reuse permission: {{operators}}."
 }

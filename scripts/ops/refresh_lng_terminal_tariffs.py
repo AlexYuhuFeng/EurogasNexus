@@ -1,23 +1,26 @@
-"""Read each LNG terminal operator's latest published tariff and update the firm's terms.
+"""Read LNG terminal operators' published tariffs into the public tariff register (CP-11).
 
-    python scripts/ops/refresh_lng_terminal_tariffs.py            # fetch, update, notify
-    python scripts/ops/refresh_lng_terminal_tariffs.py --dry-run  # fetch and print only
+    python scripts/ops/refresh_lng_terminal_tariffs.py            # read permitted operators
+    python scripts/ops/refresh_lng_terminal_tariffs.py --dry-run  # read and print, store nothing
     python scripts/ops/refresh_lng_terminal_tariffs.py --det-notice URL
 
-Run daily from the scheduler (Fluxys publishes a new indexed tariff every month):
+**Terms first.** An operator's documents are read only after the firm has recorded that
+operator's permission to reuse them (Admin -> Data sources -> LNG terminal tariffs, or
+``PUT /api/lng/terminal-tariffs/operators/{operator}``). The terms check of 2026-11-18 found
+that Fluxys and Elengy forbid reuse of their site content without written permission and DET
+publishes no reuse terms (docs/legal/DATA_SOURCE_TERMS.md); without the recorded permission the
+operator is skipped and reported ``needs_firm_terms``. The product never accepts terms itself.
 
-* Zeebrugge: the Fluxys LNG tariff page's newest price simulator (indexed slot for the
-  month) and tariff list (gas in kind);
+Run daily from the scheduler once permitted (Fluxys publishes a new indexed tariff monthly):
+
+* Zeebrugge: the Fluxys LNG price simulator (indexed slot for the month) and tariff list;
 * Montoir, Fos Cavaou, Fos Tonkin: Elengy's ATTM tariff brochure, standard and SMART SPOT;
-* Brunsbüttel / Wilhelmshaven: a DET auction notice given with ``--det-notice`` (DET
-  publishes results as news, so the desk passes the notice it wants priced).
+* Brunsbüttel / Wilhelmshaven: a DET auction notice given with ``--det-notice``.
 
-Each terminal product becomes one row of ``lng_terminal_terms`` (``zeebrugge:term``,
-``montoir:spot`` ...) with the operator's figures, the document URL, its SHA-256, the period
-and when it was read. Desk-entered fields (sailing days, entry tariff, port costs, other)
-are kept. When a document's content changes, a "tariff" notification is queued so the desk
-reviews the new prices. Terminals without a public price list (Gate, Dunkerque LNG, Grain,
-Eemshaven, private terminals) stay as the desk entered them from the firm's own contracts.
+Each document becomes candidate rows of ``lng_terminal_tariff`` keyed by its SHA-256: the same
+document again changes nothing, a new one adds rows and queues one attention item ("Fluxys LNG
+tariff changed: review 3 values"). A second person reviews them before they price anything
+actionable. The firm's own terms (``lng_terminal_terms``) are never written here.
 """
 
 from __future__ import annotations
@@ -77,39 +80,52 @@ def _plain(content: bytes) -> str:
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", text)))
 
 
-def collect(det_notice: str | None) -> tuple[list[TerminalCost], list[str]]:
-    costs: list[TerminalCost] = []
+def collect(
+    det_notice: str | None, operators: set[str]
+) -> tuple[dict[str, list[TerminalCost]], list[str]]:
+    """Read the documents of the permitted operators only; one list of figures per operator."""
+
+    costs: dict[str, list[TerminalCost]] = {}
     problems: list[str] = []
-    try:
-        links = fluxys_document_links(_get(FLUXYS_TARIFF_PAGE).decode("utf-8", "ignore"))
-        simulator = _get(links["simulator"])
-        cost = parse_fluxys_simulator(simulator, source_url=links["simulator"])
-        if "tariff_list" in links:
-            gas_in_kind = parse_fluxys_gas_in_kind(_pdf_text(_get(links["tariff_list"])))
-            if gas_in_kind is not None:
-                cost = TerminalCost(**{**cost.__dict__, "fuel_retention_pct": gas_in_kind})
-        costs.append(cost)
-    except (httpx.HTTPError, TerminalTariffError, KeyError) as exc:
-        problems.append(f"Fluxys: {type(exc).__name__}: {exc}"[:300])
-    try:
-        link = elengy_brochure_link(_get(ELENGY_TARIFF_PAGE).decode("utf-8", "ignore"))
-        brochure = _get(link)
-        costs += parse_elengy_brochure(
-            _pdf_text(brochure), source_url=link, digest=sha256(brochure)
-        )
-    except (httpx.HTTPError, TerminalTariffError) as exc:
-        problems.append(f"Elengy: {type(exc).__name__}: {exc}"[:300])
-    if det_notice:
+    if "fluxys_lng" in operators:
+        try:
+            links = fluxys_document_links(_get(FLUXYS_TARIFF_PAGE).decode("utf-8", "ignore"))
+            simulator = _get(links["simulator"])
+            cost = parse_fluxys_simulator(simulator, source_url=links["simulator"])
+            if "tariff_list" in links:
+                gas_in_kind = parse_fluxys_gas_in_kind(_pdf_text(_get(links["tariff_list"])))
+                if gas_in_kind is not None:
+                    cost = TerminalCost(**{**cost.__dict__, "fuel_retention_pct": gas_in_kind})
+            costs["fluxys_lng"] = [cost]
+        except (httpx.HTTPError, TerminalTariffError, KeyError) as exc:
+            problems.append(f"Fluxys: {type(exc).__name__}: {exc}"[:300])
+    if "elengy" in operators:
+        try:
+            link = elengy_brochure_link(_get(ELENGY_TARIFF_PAGE).decode("utf-8", "ignore"))
+            brochure = _get(link)
+            costs["elengy"] = parse_elengy_brochure(
+                _pdf_text(brochure), source_url=link, digest=sha256(brochure)
+            )
+        except (httpx.HTTPError, TerminalTariffError) as exc:
+            problems.append(f"Elengy: {type(exc).__name__}: {exc}"[:300])
+    if det_notice and "det" in operators:
         try:
             notice = _get(det_notice)
-            costs.append(
+            costs["det"] = [
                 parse_det_auction_notice(
                     _plain(notice), source_url=det_notice, digest=sha256(notice)
                 )
-            )
+            ]
         except (httpx.HTTPError, TerminalTariffError) as exc:
             problems.append(f"DET: {type(exc).__name__}: {exc}"[:300])
     return costs, problems
+
+
+_TITLES = {
+    "fluxys_lng": "Fluxys LNG price simulator",
+    "elengy": "Elengy ATTM tariff brochure",
+    "det": "DET auction result notice",
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -117,73 +133,46 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--det-notice", help="URL of a DET auction result notice")
     args = parser.parse_args(argv)
-    costs, problems = collect(args.det_notice)
-    summary = {
-        "read": [
-            {
-                "terminal": c.terminal_id,
-                "regime": c.regime,
-                "period": c.period,
-                "fixed_per_cargo": c.fixed_per_cargo,
-                "per_mwh": c.per_mwh,
-                "by_cargo_class": c.by_cargo_class,
-                "fuel_pct": c.fuel_retention_pct,
-                "sha256": c.source_sha256[:12],
-            }
-            for c in costs
-        ],
+    if resolve_database_url() is None:
+        # The firm's recorded permissions live in the runtime store: without it nothing is read.
+        print(json.dumps({"status": "blocked", "reason": "database_url_missing"}))
+        return 2
+    from eurogas_nexus.application import lng_terminal_tariff_register as register
+
+    with get_session_factory()() as session:
+        states = {op: register.operator_permitted(session, op) for op in register.OPERATOR_TERMS}
+    permitted = {op for op, ok in states.items() if ok}
+    skipped = sorted(op for op, ok in states.items() if not ok)
+    costs, problems = collect(args.det_notice, permitted)
+    summary: dict = {
+        "needs_firm_terms": skipped,
+        "read": {
+            op: [
+                {
+                    "terminal": c.terminal_id,
+                    "regime": c.regime,
+                    "period": c.period,
+                    "fixed_per_cargo": c.fixed_per_cargo,
+                    "per_mwh": c.per_mwh,
+                    "by_cargo_class": c.by_cargo_class,
+                    "fuel_pct": c.fuel_retention_pct,
+                    "sha256": c.source_sha256[:12],
+                }
+                for c in items
+            ]
+            for op, items in costs.items()
+        },
         "problems": problems,
     }
     if args.dry_run:
         print(json.dumps(summary, indent=2))
-        return 0 if costs else 1
-    if resolve_database_url() is None:
-        print(json.dumps({"status": "blocked", "reason": "database_url_missing"}))
-        return 2
-    from eurogas_nexus.db.models import LngTerminalTermsRecord
-
+        return 0
     now = datetime.now(UTC)
-    changed = []
+    results = {}
     with get_session_factory()() as session:
-        for cost in costs:
-            row = session.get(LngTerminalTermsRecord, cost.terminal_id)
-            if row is None:
-                row = LngTerminalTermsRecord(
-                    terminal_id=cost.terminal_id,
-                    entry_tariff_per_mwh=0.0,
-                    port_costs_per_cargo=0.0,
-                    other_per_mwh=0.0,
-                    extra_sailing_days=0.0,
-                    capacity_basis="spot",
-                )
-                session.add(row)
-            if row.source_sha256 and row.source_sha256 != cost.source_sha256:
-                changed.append(cost)
-            label = (
-                "SMART SPOT"
-                if cost.product == "spot" and cost.regime == "regulated"
-                else cost.product
-            )
-            row.name = f"{cost.name} ({label})"
-            row.country, row.hub, row.regime = cost.country, cost.hub, cost.regime
-            row.regas_tariff_per_mwh = cost.per_mwh
-            row.fixed_per_cargo = cost.fixed_per_cargo
-            row.by_cargo_class = cost.by_cargo_class or None
-            if cost.fuel_retention_pct:
-                row.fuel_retention_pct = cost.fuel_retention_pct
-            row.source_url, row.source_sha256 = cost.source_url, cost.source_sha256
-            row.effective_from, row.retrieved_at_utc = cost.effective_from, now
-            row.source_note = cost.note()
-            row.updated_by, row.updated_at_utc = "tariff-refresh", now
-        for cost in changed:
-            queue_notification(
-                session,
-                category="tariff",
-                severity="medium",
-                title=f"LNG tariff changed: {cost.name}",
-                body=f"{cost.period}\nSource: {cost.source_url}",
-                dedupe_key=f"lng-tariff:{cost.terminal_id}:{cost.source_sha256}",
-                now=now,
+        for operator, items in costs.items():
+            results[operator] = register.record_document(
+                session, items, operator=operator, document_title=_TITLES[operator], now_utc=now
             )
         for problem in problems:
             queue_notification(
@@ -197,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         dispatch(session, now=now)
         session.commit()
-    summary["changed"] = [cost.terminal_id for cost in changed]
+    summary["recorded"] = results
     print(json.dumps(summary, indent=2))
     return 0
 

@@ -4,6 +4,18 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-18 (LNG terminal tariff register, CP-11): four paths, four operations.
+`GET /api/lng/terminal-tariffs` (READ) answers `operators[]` (reuse terms as checked, the
+firm's `permission_state` `needs_firm_terms` / `permitted`, reference, who and when),
+`tariffs[]` (figure, basis, unit, validity, exclusions, source URL and SHA-256, review state)
+and `counts`. `GET /api/lng/terminal-tariffs/price?terminal_id&arrival_month&cargo_mwh[&product]`
+(READ) answers `{basis: firm_terms|reviewed_public|candidate_public|missing, charge, currency,
+indicative, reason, tariff_ids, excludes}`. `POST /api/lng/terminal-tariffs/{id}/review`
+(OPERATOR; 403 `four_eyes` for the recorder). `PUT /api/lng/terminal-tariffs/operators/{op}`
+(ADMIN; body `{permitted, reference}`). `GET /api/setup` `terminal_tariffs` gains `reviewed`,
+`candidate` and `operators_needing_terms`; `from_operator` now counts register terminals.
+Census: 280 paths / 311 operations (+4 / +4 on 276 / 307).
+
 Additive 2026-11-18 (commercial design basis 2, CP-16/CP-23 backend: Spreads, "describe a
 strategy"): two paths, two operations, GOVERNED under `/api/research/`. `POST
 /api/research/spreads/interpret` (`text` up to 4000 characters, `language`, `model`) returns a

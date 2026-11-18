@@ -352,6 +352,11 @@ function SetupItem({ item, t, context, keyStorageReady, onChanged, onNavigate }:
             : t("setup.tariffs.none")}
         </p>
       )}
+      {tariffs && (tariffs.operators_needing_terms ?? []).length > 0 && (
+        <p className="setup-item-how">
+          {fill(t("setup.tariffs.needs_terms"), { operators: (tariffs.operators_needing_terms ?? []).join(", ") })}
+        </p>
+      )}
       {item.import_tools && item.import_tools.length > 0 && (
         <p className="setup-item-how">
           {t("setup.import_with")} <code>{item.import_tools.join(" · ")}</code>

@@ -84,20 +84,31 @@ def test_terminal_tariffs_held_and_their_source(tmp_path, monkeypatch):
     engine, bearers = _store(tmp_path, monkeypatch)
     from datetime import UTC, datetime
 
+    from eurogas_nexus.db.models import LngTerminalTariffRecord
+
     with Session(engine) as session:
         now = datetime.now(UTC)
-        for terminal_id, url in (("zeebrugge:term", "https://lng.fluxys.com/x"), ("gate", None)):
-            session.add(LngTerminalTermsRecord(
-                terminal_id=terminal_id, name=terminal_id, hub="TTF", regas_tariff_per_mwh=1.0,
-                source_url=url, retrieved_at_utc=now if url else None, source_note="t",
-                updated_by="t", updated_at_utc=now,
-            ))
+        # The firm's own terms (desk-entered, no source document) ...
+        session.add(LngTerminalTermsRecord(
+            terminal_id="gate", name="Gate", hub="TTF", regas_tariff_per_mwh=1.0,
+            source_note="our contract", updated_by="desk", updated_at_utc=now,
+        ))
+        # ... and one public register figure for another terminal.
+        session.add(LngTerminalTariffRecord(
+            tariff_id="t1", terminal_id="zeebrugge:term", operator="fluxys_lng",
+            terminal_name="Zeebrugge", hub="ZTP", regime="regulated_indexed",
+            service="bundled_slot", product="term", charge_basis="per_cargo", amount=1.0,
+            currency="EUR", unit="EUR/cargo", indexation="cpi_monthly", excludes=[],
+            source_url="https://example.invalid/doc", source_sha256="a" * 64,
+            retrieved_at_utc=now, document_title="doc", review_status="CANDIDATE",
+            recorded_by="tariff-refresh", created_at_utc=now,
+        ))
         session.commit()
     client = TestClient(create_app(Settings(api_profile="release")))
     facts = client.get("/api/setup", headers=_headers(bearers["ADMIN"])).json()["data"]
-    assert facts["terminal_tariffs"]["held"] == 2
-    assert facts["terminal_tariffs"]["from_operator"] == 1
-    assert facts["terminal_tariffs"]["desk_entered"] == 1
+    tariffs = facts["terminal_tariffs"]
+    assert tariffs["held"] == 2 and tariffs["from_operator"] == 1 and tariffs["desk_entered"] == 1
+    assert tariffs["candidate"] == 1 and len(tariffs["operators_needing_terms"]) == 3
 
 
 def test_demo_start_marks_the_flow_configured_and_keeps_an_admin_choice(tmp_path, monkeypatch):

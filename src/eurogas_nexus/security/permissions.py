@@ -136,6 +136,13 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/glossary/{term}", Permission.READ),
     ("/api/glossary/{term}/context", Permission.READ),
     ("/api/lng/", Permission.READ),
+    # The public LNG terminal tariff register (CP-11): reads are public data; reviewing a
+    # candidate figure is source operation (four eyes in the handler); recording an operator's
+    # reuse permission is the firm's decision, ADMIN.
+    ("/api/lng/terminal-tariffs", Permission.READ),
+    ("/api/lng/terminal-tariffs/price", Permission.READ),
+    ("/api/lng/terminal-tariffs/{tariff_id}/review", Permission.OPERATOR),
+    ("/api/lng/terminal-tariffs/operators/{operator}", Permission.ADMIN),
     ("/api/market/", Permission.READ),
     # Comparable prices: forward FX and normalisation (a computation, nothing stored) are
     # market reads like the rest of the family.

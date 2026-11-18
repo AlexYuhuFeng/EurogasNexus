@@ -1,10 +1,26 @@
 # LNG terminal costs: where each figure comes from
 
-The cargo bid sheet prices a cargo at each terminal from what the operator itself
-publishes. Terminals price capacity in different ways, so each one carries its **regime**,
-its **product** (term capacity or a spot slot) and the **document** the figure was read from
-(URL, SHA-256, period, date read). `scripts/ops/refresh_lng_terminal_tariffs.py` reads the
-documents daily, updates the terms and emails the desk when a document changes.
+Two things are kept apart (design C.5, CP-11):
+
+* **the firm's terms** (`lng_terminal_terms`): what the firm pays under its own contracts,
+  entered by the desk;
+* **the public register** (`lng_terminal_tariff`): what each operator publishes, one row per
+  figure, versioned by document (URL, SHA-256, title, date read), never overwritten, and
+  reviewed by a second person before it prices anything actionable.
+
+Pricing a cargo uses, in order: the firm's terms; the reviewed public tariff in force for the
+arrival month and cargo class; a candidate public tariff (shown as *indicative*); otherwise
+the terminal is left out with the reason (`needs_firm_terms`, `no_tariff_in_force`,
+`cargo_class_not_offered`). `GET /api/lng/terminal-tariffs/price` answers it.
+
+**Terms first.** The operators' sites restrict reuse (docs/legal/DATA_SOURCE_TERMS.md): an
+operator's documents are read only after an administrator records the firm's permission for
+that operator (`PUT /api/lng/terminal-tariffs/operators/{operator}` with the reference the firm
+holds). `scripts/ops/refresh_lng_terminal_tariffs.py` then reads them, adds candidate rows for a
+new document and queues one attention item ("Fluxys LNG tariff changed: review 2 values"); the
+same document again changes nothing. An operator without recorded permission is skipped and
+reported `needs_firm_terms`. The evidence below was read on 31 October 2026, before this terms
+check; it is kept as the record of what the documents said, not as a licence to reuse them.
 
 ## Evidence as read on 31 October 2026
 
