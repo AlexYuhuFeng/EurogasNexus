@@ -15,6 +15,7 @@ import { DecisionWorkspace } from "@/components/DecisionWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import { RuntimeWorkspace } from "@/components/RuntimeWorkspace";
 import { ReportsWorkspace } from "@/components/ReportsWorkspace";
+import { FundamentalsWorkbench } from "@/components/research/FundamentalsWorkbench";
 import { SpreadsWorkbench } from "@/components/research/SpreadsWorkbench";
 import { pageTaskFromLocation } from "@/app/navigation/modeNavigation";
 import { SettingsCenter } from "@/components/SettingsCenter";
@@ -47,7 +48,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
   // exactly one owner (docs/engineering/Architecture-V2/W1-02_*.md).
   const usesConsolidatedHeader = headerModeForPage(activeWorkspace) === "consolidated";
   // A page in a mode shows the mode's task row; a utility page (help, settings, administration)
-  // keeps its own pages as tabs. Research's one task today is Reports (`task=reports`).
+  // keeps its own pages as tabs. Research names Reports and Fundamentals in the URL
+  // (`task=reports`, `task=fundamentals`); Spreads is its first task.
   const researchTask =
     activeWorkspace === "research" && typeof window !== "undefined"
       ? pageTaskFromLocation("research", window.location.search)
@@ -234,7 +236,11 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <AccessCenter currentUser={api.currentUser} t={t} />
       )}
 
-      {activeWorkspace === "research" && researchTask !== "reports" && <SpreadsWorkbench />}
+      {activeWorkspace === "research" && researchTask === "fundamentals" && (
+        <FundamentalsWorkbench t={t} language={i18n.language} />
+      )}
+
+      {activeWorkspace === "research" && researchTask !== "reports" && researchTask !== "fundamentals" && <SpreadsWorkbench />}
 
       {activeWorkspace === "research" && researchTask === "reports" && (
         <ReportsWorkspace t={t} language={i18n.language} />

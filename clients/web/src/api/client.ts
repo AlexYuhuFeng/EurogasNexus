@@ -3379,6 +3379,41 @@ export interface StorageEntityDTO {
   definition?: string;
 }
 
+/** One entity of `GET /api/fundamentals/lng`: send-out (GWh/d, 7-day mean) against history. */
+export interface LngEntityDTO {
+  code: string;
+  name: string;
+  simulated: boolean;
+  sources: string[];
+  as_of: string;
+  send_out_7d_gwh_d: number | null;
+  send_out_day_gwh_d: number | null;
+  inventory_twh: number | null;
+  inventory_pct_of_dtmi: number | null;
+  vs_last_year: { day: string; send_out_7d_gwh_d: number | null; diff_gwh_d: number | null };
+  history: StorageEntityDTO["history"];
+  vs_average: {
+    years: number;
+    mean_gwh_d: number | null;
+    low_gwh_d: number | null;
+    high_gwh_d: number | null;
+    diff_gwh_d: number | null;
+    range_position: number | null;
+    outside: "below" | "above" | null;
+  };
+  spark: { day: string; send_out_7d_gwh_d: number | null }[];
+  season?: StorageEntityDTO["season"];
+}
+
+export interface FundamentalsLngDTO {
+  region: LngEntityDTO | null;
+  countries: LngEntityDTO[];
+  missing: { code: string; name: string; reason: string }[];
+  simulated: boolean;
+  unit: string;
+  method: string;
+}
+
 export interface FundamentalsStorageDTO {
   region: StorageEntityDTO | null;
   countries: StorageEntityDTO[];
@@ -5635,6 +5670,8 @@ export const api = {
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
   decisionHandoff: (caseId: string) =>
     get<Record<string, unknown>>(`/decision-cases/${encodeURIComponent(caseId)}/handoff`),
+  fundamentalsLng: (season: string[] = [], options?: ApiRequestOptions) =>
+    get<FundamentalsLngDTO>("/fundamentals/lng", season.length ? { season: season.join(",") } : undefined, options),
   fundamentalsStorage: (
     query: { region?: "eu" | "nwe"; season?: string[]; focus?: string[] } = {},
     options?: ApiRequestOptions,

@@ -29,7 +29,15 @@ export interface SeasonChart {
   compare?: ChartComparison;
 }
 
-export function seasonChart(entity: StorageEntityDTO, labels: SeasonLabels, compareLabel: string): SeasonChart | null {
+/** What the seasonal chart needs of an entity: storage fill or LNG send-out alike. */
+export interface SeasonEntity {
+  simulated: boolean;
+  history: { label: string };
+  target?: { pct: number } | null;
+  season?: StorageEntityDTO["season"];
+}
+
+export function seasonChart(entity: SeasonEntity, labels: SeasonLabels, compareLabel: string, unit = "%"): SeasonChart | null {
   const season = entity.season;
   if (!season) return null;
   const sim = entity.simulated;
@@ -45,7 +53,7 @@ export function seasonChart(entity: StorageEntityDTO, labels: SeasonLabels, comp
     axis: "season",
     x: season.axis,
     xTitle: labels.xTitle,
-    unit: "%",
+    unit,
     series,
     bands: band
       ? [{ id: "range", label: band.label, meanLabel: labels.mean(band.years.length), years: band.years, low: band.low, high: band.high, mean: band.mean }]

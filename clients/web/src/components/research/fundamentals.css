@@ -1,0 +1,15 @@
+@layer legacy {
+/* Research -> Fundamentals (FundamentalsWorkbench.tsx). Tokens only (scripts/cssTokenLint.mjs). */
+
+.fundamentals-workbench {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.fundamentals-panel {
+  display: grid;
+  gap: var(--ds-space-6);
+  min-width: 0;
+}
+}

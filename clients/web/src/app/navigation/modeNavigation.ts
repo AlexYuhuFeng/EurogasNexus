@@ -103,6 +103,8 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
       // Spreads (design basis 2, D.2): relative value on the picker, the normalisation service and
       // the chart standard; a description is interpreted into the same spec the form edits.
       { id: "spreads", labelKey: "nav.mode.research.spreads", page: "research", pageTask: "spreads", permissions: ["market.read"] },
+      // Storage, LNG, the balance and gas for power against their own history, by country (CP-17).
+      { id: "fundamentals", labelKey: "nav.mode.research.fundamentals", page: "research", pageTask: "fundamentals", permissions: ["market.read"] },
       // Market reports: assembled from the catalogue's sections on the server. Strategies, Data
       // and the Assistant were removed (COMMERCIAL_PRODUCT_DESIGN_2.md L1); Fundamentals and
       // Cargo & netback arrive as tasks of this page.
@@ -135,8 +137,9 @@ export function pageTaskFromLocation(page: WorkspacePageId, search: string): str
     return portfolioTaskFromLocation(page === "orders" ? withWorkspace(search, "orders") : search);
   }
   if (page === "research") {
-    // Spreads is the page's first task; Reports is named in the URL.
-    return new URLSearchParams(search).get("task") === "reports" ? "reports" : "spreads";
+    // Spreads is the page's first task; Fundamentals and Reports are named in the URL.
+    const task = new URLSearchParams(search).get("task");
+    return task === "reports" || task === "fundamentals" ? task : "spreads";
   }
   if (page === "scenario" || page === "review") {
     return decisionTaskFromLocation(page === "review" ? withWorkspace(search, "review") : search);
