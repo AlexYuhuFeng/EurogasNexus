@@ -36,12 +36,17 @@ interface MarketContextStripProps {
 }
 
 export function MarketContextStrip({ projection, t, controls, freshness, children }: MarketContextStripProps) {
+  /** `line`: no controls, no box, one quiet as-of line (Today). */
+  variant?: "strip" | "line";
+}
+
+export function MarketContextStrip({ projection, t, controls, freshness, variant = "strip" }: MarketContextStripProps) {
   if (!projection) return null;
 
   return (
     <ProjectionContextStrip
       namespace="market_context"
-      className="market-context-strip"
+      className={variant === "line" ? "market-context-strip is-line" : "market-context-strip"}
       readings={sliceReadings(projection)}
       degraded={degradedSlices(projection)}
       labelKeys={MARK_CONTEXT_SLICE_LABEL_KEYS}

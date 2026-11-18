@@ -254,4 +254,12 @@
     height: var(--ds-control-touch);
     min-height: var(--ds-control-touch);
   }
+
+  /* Today: no filters, the as-of and the freshness as one quiet line under the page's tasks. */
+  .projection-context.is-line {
+    justify-content: flex-end;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
 }

@@ -125,6 +125,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           }
           // On Prices the board's tenor selector is the product choice: no second one here.
           controls={task === "overview" ? undefined : tradingContextControlsFor(traderContext, t, { product: task !== "curves" })}
+          variant={task === "overview" ? "line" : "strip"}
+          controls={task === "overview" ? undefined : tradingContextControlsFor(traderContext, t)}
           freshness={
             task === "overview" || desk.today?.simulated ? (
               <TodayFreshness today={desk.today} t={t} nowMs={nowMs} />
