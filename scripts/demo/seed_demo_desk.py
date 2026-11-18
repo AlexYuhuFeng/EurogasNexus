@@ -1314,10 +1314,22 @@ def _without_stored_fixings(session, rows: list) -> list:
             InterestRateObservationRecord.benchmark_id, InterestRateObservationRecord.value_date
         ).filter(InterestRateObservationRecord.value_date.in_(days))
     }
+    # A benchmark a real source publishes is retired from the demo series by
+    # ``retire_simulated_series``: writing its demo days again only to remove them churns
+    # every start, so they are not written.
+    real = {
+        benchmark
+        for (benchmark,) in session.query(InterestRateObservationRecord.benchmark_id)
+        .filter(InterestRateObservationRecord.source_system != SOURCE)
+        .distinct()
+    }
     return [
         row for row in rows
         if not isinstance(row, InterestRateObservationRecord)
-        or (row.benchmark_id, row.value_date) not in stored
+        or (
+            (row.benchmark_id, row.value_date) not in stored
+            and row.benchmark_id not in real
+        )
     ]
 
 
