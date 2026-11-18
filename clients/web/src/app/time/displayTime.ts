@@ -5,7 +5,7 @@
  */
 import i18n from "i18next";
 import { useTimePreferenceStore } from "../../stores/timePreference.ts";
-import { formatInstant, type FormattedInstant, type InstantFormatOptions } from "./timeFormat.ts";
+import { formatInstant, formattingLocale, type FormattedInstant, type InstantFormatOptions } from "./timeFormat.ts";
 
 type DisplayOptions = Omit<InstantFormatOptions, "language" | "preference">;
 
@@ -27,4 +27,9 @@ export function displayTime(
   options: DisplayOptions = {},
 ): string {
   return displayInstant(value, options)?.text ?? fallback;
+}
+
+/** A number in the app's language ("52,000"), never the browser's locale. */
+export function displayNumber(value: number, options: Intl.NumberFormatOptions = {}): string {
+  return new Intl.NumberFormat(formattingLocale(i18n.language || "en"), options).format(value);
 }

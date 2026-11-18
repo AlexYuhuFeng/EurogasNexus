@@ -11,6 +11,7 @@
  * says: everything else dims.
  */
 import type { BookReachableDTO, BookReasonDTO, BookRelevanceDTO } from "../api/client";
+import { displayNumber } from "./time/displayTime";
 import { bookFlowWidth, compactMwhPerDay, polyline, type BookFlowLine, type LegPath, type LineEndpoint, type LineCoordinate } from "./mapLineGeometry";
 
 export type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -129,7 +130,7 @@ export function reachableLine(path: BookReachableDTO, t: Translate): string {
 }
 
 function num(value: unknown): string {
-  return typeof value === "number" ? Math.round(value).toLocaleString() : "–";
+  return typeof value === "number" ? displayNumber(Math.round(value)) : "–";
 }
 
 function when(value: unknown): string {

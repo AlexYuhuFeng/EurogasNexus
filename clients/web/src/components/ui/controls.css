@@ -438,7 +438,8 @@
     justify-content: space-between;
     gap: var(--ds-space-2);
     box-sizing: border-box;
-    min-width: 9rem;
+    /* Never wider than the box it sits in (a narrow form column on a phone). */
+    min-width: min(9rem, 100%);
     max-width: 100%;
     height: var(--ds-control-sm);
     min-height: var(--ds-control-sm);

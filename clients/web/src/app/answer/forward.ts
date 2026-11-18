@@ -10,15 +10,15 @@ import type { AnswerText, AnswerView } from "./answerModel.ts";
 import type { LookupIntent } from "./intent.ts";
 import { clipboardNumber, formatAnswerNumber } from "./numbers.ts";
 import { deskUnitLabel } from "./units.ts";
+import { formatGasDay } from "../time/timeFormat.ts";
 
 export type ForwardIntent = Extract<LookupIntent, { kind: "convert" }>;
 
 function shortDay(iso: string | null | undefined): string {
   if (!iso) return "";
-  const parsed = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  return Number.isNaN(parsed.getTime())
-    ? iso
-    : parsed.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  // A fixing date is a calendar day, not an instant: the desk's form, never shifted by a zone.
+  const day = iso.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? formatGasDay(day, "en") : iso;
 }
 
 /** The request the bar sends for one typed conversion. */

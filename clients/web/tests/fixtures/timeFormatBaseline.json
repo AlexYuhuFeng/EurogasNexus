@@ -1,7 +1,4 @@
 {
-  "src/app/answer/forward.ts": {
-    "adhocTime": 1
-  },
   "src/app/answer/instant.ts": {
     "adhocTime": 2
   },
@@ -12,9 +9,6 @@
     "adhocTime": 1
   },
   "src/app/hooks/useGlossaryExplorer.ts": {
-    "browserLocaleNumber": 1
-  },
-  "src/app/mapBookRelevance.ts": {
     "browserLocaleNumber": 1
   },
   "src/app/mapSituation.ts": {
