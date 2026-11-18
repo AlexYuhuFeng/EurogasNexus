@@ -15,7 +15,8 @@ const BASELINE = path.join(ROOT, "tests", "fixtures", "timeFormatBaseline.json")
 
 const PATTERNS: Record<string, RegExp> = {
   // A date drawn by hand or in the browser's locale.
-  adhocTime: /toISOString\(\)\.slice\(|toLocaleDateString\(|toLocaleTimeString\(|\bUTC`|\} UTC</g,
+  // (A date key, toISOString().slice(0, 10), is arithmetic, not display, and is not counted.)
+  adhocTime: /toISOString\(\)\.slice\((?:0, (?:1[3-9])|1[1-9])|toLocaleDateString\(|toLocaleTimeString\(|\bUTC`|\} UTC</g,
   // A number in the browser's locale rather than the app's language.
   browserLocaleNumber: /\.toLocaleString\(\s*\)|\.toLocaleString\(undefined|\.toLocaleString\(\[\]/g,
 };

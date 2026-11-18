@@ -1,7 +1,4 @@
 {
-  "src/app/answer/gasDay.ts": {
-    "adhocTime": 4
-  },
   "src/app/answer/instant.ts": {
     "adhocTime": 2
   },
@@ -9,12 +6,6 @@
     "adhocTime": 2
   },
   "src/app/answer/units.ts": {
-    "adhocTime": 1
-  },
-  "src/app/context/traderContext.ts": {
-    "adhocTime": 1
-  },
-  "src/app/hooks/useDeskToday.ts": {
     "adhocTime": 1
   },
   "src/app/hooks/useGlossaryExplorer.ts": {
@@ -46,12 +37,6 @@
   "src/app/model/todayModel.ts": {
     "adhocTime": 3
   },
-  "src/app/model/useStrategyLab.ts": {
-    "adhocTime": 2
-  },
-  "src/app/tradingContext.ts": {
-    "adhocTime": 2
-  },
   "src/components/AccessCenter.tsx": {
     "browserLocaleNumber": 1
   },
@@ -82,11 +67,8 @@
   "src/components/IntradayDecisionFeed.tsx": {
     "browserLocaleNumber": 1
   },
-  "src/components/LicenceRegisterPanel.tsx": {
-    "adhocTime": 1
-  },
   "src/components/MapBookPanel.tsx": {
-    "adhocTime": 3,
+    "adhocTime": 2,
     "browserLocaleNumber": 2
   },
   "src/components/MapDetailPanel.tsx": {
@@ -104,9 +86,6 @@
   },
   "src/components/PortfolioWorkspace.tsx": {
     "browserLocaleNumber": 4
-  },
-  "src/components/PriceCharts.tsx": {
-    "adhocTime": 1
   },
   "src/components/ReferenceNetworkCatalogue.tsx": {
     "browserLocaleNumber": 1
