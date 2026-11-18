@@ -208,7 +208,7 @@ export function SpreadsWorkbench() {
             />
             {spec.legs.map((leg, index) => (
               <div key={`${index}-${leg.hub}`} className="spreads-leg" data-leg={leg.weight > 0 ? "sell" : "buy"}>
-                <span className="spreads-leg-side">{t(leg.weight > 0 ? "spreads.leg.sell" : "spreads.leg.buy")}</span>
+                <span className="spreads-leg-side">{t(leg.weight > 0 ? "spreads.leg.plus" : "spreads.leg.minus")}</span>
                 <InstrumentPicker
                   id={`spreads-leg-${index}`}
                   scope={spec.kind === "history" ? "instrument" : "hub"}
@@ -246,6 +246,7 @@ export function SpreadsWorkbench() {
                 : t("spreads.chip.cost_off")}
             </Button>
           </div>
+          {spec.kind === "history" && <RuleChips spec={spec} onChange={(next) => void evaluate(next)} />}
           <p className="spreads-formula" data-formula="true">
             {t("spreads.formula", { spread: spreadName(spec), unit: spec.unit ?? "EUR/MWh" })}
             {spec.cost ? ` ${t("spreads.formula_cost", { from: spec.cost.from_hub, to: spec.cost.to_hub })}` : ""}
@@ -285,6 +286,91 @@ export function SpreadsWorkbench() {
   );
 }
 
+/** A number chip that commits on Enter or when it loses focus, not on every keystroke. */
+function NumberChip({ label, value, min, max, step, onCommit, id }: {
+  label: string; value: number | null | undefined; min: number; max: number; step: number; id: string;
+  onCommit: (value: number | null) => void;
+}) {
+  const [draft, setDraft] = useState(value === null || value === undefined ? "" : String(value));
+  useEffect(() => setDraft(value === null || value === undefined ? "" : String(value)), [value]);
+  const commit = () => {
+    const parsed = draft.trim() === "" ? null : Number(draft);
+    if (parsed !== null && (!Number.isFinite(parsed) || parsed < min || parsed > max)) {
+      setDraft(value === null || value === undefined ? "" : String(value));
+      return;
+    }
+    if (parsed !== (value ?? null)) onCommit(parsed);
+  };
+  return (
+    <label className="spreads-chip-field" htmlFor={id}>
+      <span>{label}</span>
+      <input
+        id={id}
+        className="spreads-number"
+        type="number"
+        inputMode="decimal"
+        min={min}
+        max={max}
+        step={step}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => { if (event.key === "Enter") commit(); }}
+      />
+    </label>
+  );
+}
+
+/** History only: the entry/exit rule and the sizing, as the spec holds them. */
+function RuleChips({ spec, onChange }: { spec: StrategySpecDTO; onChange: (spec: StrategySpecDTO) => void }) {
+  const { t } = useTranslation();
+  const rule = spec.rule;
+  const kind = rule?.kind ?? "none";
+  const setRule = (patch: Partial<NonNullable<StrategySpecDTO["rule"]>>) =>
+    onChange({ ...spec, rule: { kind: "zscore", lookback: 20, ...(rule ?? {}), ...patch } });
+  return (
+    <div className="spreads-chips" data-rule-chips="true">
+      <Segmented
+        label={t("spreads.rule.label")}
+        options={[
+          { value: "none", label: t("spreads.rule.none") },
+          { value: "zscore", label: t("spreads.rule.zscore") },
+          { value: "threshold", label: t("spreads.rule.threshold") },
+        ]}
+        value={kind}
+        onChange={(next) => onChange({
+          ...spec,
+          rule: next === "none" ? null : { kind: next, lookback: rule?.lookback ?? 20, entry_z: rule?.entry_z ?? 2, exit_z: rule?.exit_z ?? 0.5, low: rule?.low ?? null, high: rule?.high ?? null },
+        })}
+      />
+      {rule && (
+        <NumberChip id="spreads-rule-lookback" label={t("spreads.rule.lookback")} value={rule.lookback} min={5} max={250} step={1}
+          onCommit={(value) => setRule({ lookback: value ?? 20 })} />
+      )}
+      {rule?.kind === "zscore" && (
+        <>
+          <NumberChip id="spreads-rule-entry" label={t("spreads.rule.entry_z")} value={rule.entry_z ?? 2} min={0.1} max={10} step={0.1}
+            onCommit={(value) => setRule({ entry_z: value ?? 2 })} />
+          <NumberChip id="spreads-rule-exit" label={t("spreads.rule.exit_z")} value={rule.exit_z ?? 0.5} min={0} max={10} step={0.1}
+            onCommit={(value) => setRule({ exit_z: value ?? 0.5 })} />
+        </>
+      )}
+      {rule?.kind === "threshold" && (
+        <>
+          <NumberChip id="spreads-rule-low" label={t("spreads.rule.low", { unit: spec.unit ?? "" })} value={rule.low} min={-1000} max={1000} step={0.01}
+            onCommit={(value) => setRule({ low: value })} />
+          <NumberChip id="spreads-rule-high" label={t("spreads.rule.high", { unit: spec.unit ?? "" })} value={rule.high} min={-1000} max={1000} step={0.01}
+            onCommit={(value) => setRule({ high: value })} />
+        </>
+      )}
+      {rule && (
+        <NumberChip id="spreads-volume" label={t("spreads.rule.volume")} value={spec.volume_mwh_per_day ?? 1000} min={1} max={10_000_000} step={100}
+          onCommit={(value) => onChange({ ...spec, volume_mwh_per_day: value })} />
+      )}
+    </div>
+  );
+}
+
 function ClassLine({ classes, result }: { classes: readonly InputClass[]; result: InputClass }) {
   const { t } = useTranslation();
   return (
@@ -299,8 +385,30 @@ function ClassLine({ classes, result }: { classes: readonly InputClass[]; result
   );
 }
 
+/** Months listed before "Show all". */
+const TABLE_ROWS = 12;
+const SHORT_OPERATOR: Record<string, string> = {
+  "National Gas TSO": "NGT",
+  "BBL company": "BBL",
+  Interconnector: "IUK",
+  "Fluxys Belgium": "Fluxys",
+  "Gasunie Deutschland": "GUD",
+};
+
+/** A tariff leg's operator as a desk abbreviates it (the full name stays in the table). */
+function shortOperator(tso: string): string {
+  return SHORT_OPERATOR[tso] ?? tso.split(/[\s/]/)[0];
+}
+
 function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: StrategySpecDTO; classes: InputClass[] }) {
   const { t } = useTranslation();
+  const [showAll, setShowAll] = useState(false);
+  // One class for every month and every leg: said once above the table, not on each row.
+  const rowClasses = new Set(result.rows.map((row) => row.input_class));
+  const legClasses = new Set(result.rows.flatMap((row) => row.legs.map((leg) => leg.price_class)));
+  const uniform = rowClasses.size === 1 && legClasses.size <= 1 && (legClasses.size === 0 || [...legClasses][0] === [...rowClasses][0])
+    ? [...rowClasses][0]
+    : null;
   const chart = curveChart(result);
   const data = useMemo<ChartData>(() => ({
     axis: "period",
@@ -308,16 +416,18 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
     xTitle: t("chart.delivery_month"),
     unit: result.unit,
     series: [
-      ...(chart.hasCost ? [{ id: "gross", label: t("spreads.series.gross"), values: chart.gross, ghost: true, simulated: chart.simulated, decimals: 3 }] : []),
+      // Gross is context (a second colour) but keeps the month markers the net has.
+      ...(chart.hasCost ? [{ id: "gross", label: t("spreads.series.gross"), values: chart.gross, colour: 8, simulated: chart.simulated, decimals: 3 }] : []),
       { id: "net", label: t(chart.hasCost ? "spreads.series.net" : "spreads.series.spread"), values: chart.net, simulated: chart.simulated, decimals: 3 },
     ],
-    rules: [{ id: "zero", value: 0, kind: "zero" as const }],
+    // A labelled zero rule takes part in end-label placement, so no label sits on it.
+    rules: [{ id: "zero", value: 0, label: "0", kind: "zero" as const }],
   }), [chart, result.unit, t]);
   const waterfall = frontWaterfall(result, {
-    gross: t("spreads.series.gross"),
-    net: t("spreads.series.net"),
+    gross: t("spreads.waterfall.gross"),
+    net: t("spreads.waterfall.net"),
     leg: (hub) => hub,
-    tariff: (tso, direction) => `${tso} ${t(`spreads.direction.${direction.toLowerCase()}`)}`,
+    tariff: (tso, direction) => `${shortOperator(tso)} ${t(`spreads.direction.${direction.toLowerCase()}`)}`,
   });
   const firstFx = result.rows.flatMap((row) => row.legs).find((leg) => leg.fx)?.fx ?? null;
   const fxNote = firstFx
@@ -397,6 +507,12 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
           {route.missing.length > 0 && <p className="spreads-missing">{t("spreads.route.missing", { legs: route.missing.join("; ") })}</p>}
         </div>
       )}
+      {uniform && (
+        <p className="spreads-uniform" data-uniform-class={uniform}>
+          {t("spreads.table.uniform", { count: result.rows.length })}{" "}
+          <span className="spreads-class" data-class={uniform}>{t(`spreads.class.${uniform}`)}</span>
+        </p>
+      )}
       <div className="spreads-table-wrap">
         <table className="spreads-table" data-curve-table="true">
           <caption>{t("spreads.table.caption", { unit: result.unit })}</caption>
@@ -408,11 +524,11 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
               <th scope="col" className="num">{t("spreads.series.gross")}</th>
               {spec.cost && <th scope="col" className="num">{t("spreads.table.cost")}</th>}
               <th scope="col" className="num">{t(spec.cost ? "spreads.series.net" : "spreads.series.spread")}</th>
-              <th scope="col">{t("spreads.table.class")}</th>
+              {!uniform && <th scope="col">{t("spreads.table.class")}</th>}
             </tr>
           </thead>
           <tbody>
-            {result.rows.map((row) => {
+            {(showAll ? result.rows : result.rows.slice(0, TABLE_ROWS)).map((row) => {
               const fx = row.legs.find((leg) => leg.fx)?.fx ?? null;
               return (
                 <tr key={row.month} data-month={row.month.slice(0, 7)}>
@@ -425,7 +541,7 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
                           <>
                             <span>{fixed(cell.native_value)} {cell.native_unit}</span>
                             {cell.native_unit !== result.unit && <span className="spreads-converted"> = {fixed(cell.value)}</span>}
-                            {cell.price_class === "simulated" && <span className="spreads-sim">{t("instrument_picker.sim")}</span>}
+                            {!uniform && cell.price_class === "simulated" && <span className="spreads-sim">{t("instrument_picker.sim")}</span>}
                           </>
                         ) : "–"}
                       </td>
@@ -440,12 +556,17 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
                     </td>
                   )}
                   <td className="num" data-figure="net"><strong>{fixed(row.net)}</strong></td>
-                  <td><span className="spreads-class" data-class={row.input_class}>{t(`spreads.class.${row.input_class}`)}</span></td>
+                  {!uniform && <td><span className="spreads-class" data-class={row.input_class}>{t(`spreads.class.${row.input_class}`)}</span></td>}
                 </tr>
               );
             })}
           </tbody>
         </table>
+        {result.rows.length > TABLE_ROWS && (
+          <button type="button" className="spreads-show-all" aria-expanded={showAll} onClick={() => setShowAll((value) => !value)}>
+            {showAll ? t("spreads.table.show_fewer", { count: TABLE_ROWS }) : t("spreads.table.show_all", { count: result.rows.length })}
+          </button>
+        )}
         {result.rows.some((row) => row.tariff_year_differs) && <p className="spreads-footnote">* {t("spreads.tariff_year_note")}</p>}
       </div>
     </section>
@@ -496,6 +617,22 @@ function HistoryResult({ result, spec }: { result: HistoryResultDTO; spec: Strat
             <dd>{key === "days" ? String(stats[key] ?? "–") : fixed(stats[key] as number | null, key === "percentile_last" || key === "half_life_days" ? 1 : 3)}</dd>
           </div>
         ))}
+        {spec.rule && (
+          <>
+            <div>
+              <dt>{t("spreads.rule.trades")}</dt>
+              <dd data-figure="trades">{String(result.analysis.metrics.trades ?? "–")}</dd>
+            </div>
+            <div>
+              <dt>{t("spreads.rule.hit_rate")}</dt>
+              <dd>{result.analysis.metrics.hit_rate === null || result.analysis.metrics.hit_rate === undefined ? "–" : `${fixed((result.analysis.metrics.hit_rate as number) * 100, 0)} %`}</dd>
+            </div>
+            <div>
+              <dt>{t("spreads.rule.pnl", { unit })}</dt>
+              <dd data-figure="pnl">{fixed(result.analysis.metrics.total_pnl as number | null, 0)}</dd>
+            </div>
+          </>
+        )}
       </dl>
     </section>
   );

@@ -19,7 +19,7 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   waterfall, tariff table, per-row FX and input classes, weakest class as the result; simulated
   banner. Ctrl K: a spread study opens Spreads with the description.
 - Demo acceptance: "forward spread net of transport tariff between TTF and NBP" → NBP − TTF in
-  EUR/MWh, BBL route 1.880 EUR/MWh (simulated demo tariffs). Surface 275 / 306.
+  EUR/MWh, BBL route 1.880 EUR/MWh (simulated demo tariffs). Surface 276 / 307.
 
 ## 2026-11-18 — CP-02 instrument catalogue and picker (branch `cp-02`, not pushed)
 
