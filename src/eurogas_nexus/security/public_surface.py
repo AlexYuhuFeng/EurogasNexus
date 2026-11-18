@@ -54,6 +54,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/reports/market/{report_id}",
         "/api/reports/market/{report_id}/html",
         "/api/reports/market/bulk-delete",
+        "/api/reports/schedules",
         "/api/analysis/explain",
         "/api/analysis/ontology",
         "/api/analysis/query",

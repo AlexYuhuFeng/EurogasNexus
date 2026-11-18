@@ -5,7 +5,7 @@ import { DataGrid } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const CATEGORIES = ["alert", "support", "limits", "tariff", "source"];
+const CATEGORIES = ["alert", "support", "limits", "tariff", "source", "report"];
 const EMPTY = { channel_id: "", name: "", recipients: "", categories: [] as string[], min_severity: "high" };
 
 /**

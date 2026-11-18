@@ -21,6 +21,23 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   (book), the firm's terminal terms and a reviewed register figure (tariffs), freight routes.
 - A failing evaluator: no opportunity changes, one administrator alert (the monitoring scan).
   The outbox subscription stays an interface until M4. No new path or operation.
+## 2026-11-18 — market reports round 6: print layout, storage and spread joins, delete, scheduling (branch `reports-round6`, not pushed)
+
+- Print: a text-and-figure row that would cross a page keeps its text on the page and its
+  figure follows the break (`render.PRINT_LAYOUT_JS` on `beforeprint`; the in-app Print applies
+  `app/model/reportPrintLayout.ts` to its script-less frame). No blank part-pages.
+- Joins: storage by country reads `fundamentals_storage.storage_read` (N-year average, five-year
+  range); the hub spread converts contract by contract at delivery-month FX
+  (`market_normalisation`, CIP forward else ECB spot), each rate stated.
+- Delete from the viewer checked after CP-00 (confirmation, audited `report.manage`); the
+  viewer now empties after deleting the shown report.
+- Scheduled reports: `reports/schedule.py`, kept in `organisation_settings`
+  (`report_schedules`), run by the monitoring worker as the service principal, always for
+  distribution; in-app to the distribution roles (`store.reader_may_see`), e-mail through the
+  outbox category `report`; audited `report.schedule` / `report.schedules`. Research →
+  Reports → Scheduled reports (administrators edit). `GET`/`PUT /api/reports/schedules`:
+  Surface 285 / 317 (+1 / +2).
+
 
 ## 2026-11-18 — CP-12 voyage and cargo model (branch `cp-12-cargo-model`, not pushed)
 

@@ -4,6 +4,14 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-18 (scheduled reports): one path, two operations. `GET /api/reports/schedules`
+(READ) answers `{schedules[], last_slots}`; `PUT /api/reports/schedules` (ADMIN; body
+`{schedules[]}`: kind daily|weekly, at_utc, weekday, language, roles, email) replaces the list,
+each schedule validated (422 `bad_kind`, `bad_time`, `bad_weekday`, `bad_roles`, `bad_plan`) and
+the change audited as `report.schedules`. A scheduled report runs as the service principal, is
+for distribution, and is listed only for its roles (and administrators). No field changes
+meaning. Census: 285 paths / 317 operations (+1 / +2 on 284 / 315).
+
 Additive 2026-11-18 (LNG cargo economics, CP-12): three paths, three operations.
 `GET /api/lng/freight-routes` (READ) lists the latest version of each route (`route_id`,
 `version`, ports, `routing` direct|suez|panama|cape, `distance_nm`, `canal`, `source`, who and

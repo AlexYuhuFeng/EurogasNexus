@@ -2057,6 +2057,21 @@ export interface ReportRequestDTO {
   use_model?: boolean;
 }
 
+/** A scheduled report (``/api/reports/schedules``): generated on the worker for its roles. */
+export interface ReportScheduleDTO {
+  schedule_id?: string;
+  name?: string;
+  kind: "daily" | "weekly";
+  variant?: "morning" | "eod" | null;
+  sections?: string[];
+  language: "en" | "zh-CN";
+  at_utc: string;
+  weekday?: number | null;
+  roles: string[];
+  email: boolean;
+  enabled?: boolean;
+}
+
 export interface ReportSummaryDTO {
   report_id: string;
   kind: ReportKind;
@@ -5575,6 +5590,12 @@ export const api = {
   deleteReports: (reportIds: string[]) =>
     post<{ deleted: string[]; refused: { report_id: string; code: string }[] }>(
       "/reports/market/bulk-delete", { report_ids: reportIds }),
+
+  reportSchedules: (options?: ApiRequestOptions) =>
+    get<{ schedules: ReportScheduleDTO[]; last_slots: Record<string, string> }>("/reports/schedules", undefined, options),
+
+  saveReportSchedules: (schedules: ReportScheduleDTO[]) =>
+    put<{ schedules: ReportScheduleDTO[] }>("/reports/schedules", { schedules }),
 
   renameReport: (reportId: string, title: string) =>
     patch<{ renamed: string[]; title: string }>(`/reports/market/${encodeURIComponent(reportId)}`, { title }),

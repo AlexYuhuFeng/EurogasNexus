@@ -24,7 +24,7 @@ from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 
 SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "warning": 2, "high": 3, "critical": 4}
-CATEGORIES = ("alert", "support", "limits", "tariff", "source")
+CATEGORIES = ("alert", "support", "limits", "tariff", "source", "report")
 KINDS = ("email",)
 MAX_ATTEMPTS = 3
 RETRY_AFTER = timedelta(minutes=5)

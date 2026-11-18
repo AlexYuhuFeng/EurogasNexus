@@ -381,3 +381,65 @@ def bulk_delete_market_reports(body: ReportIds, request: Request) -> dict:
     outcome = _manage(request, body.report_ids, "delete")
     return _env({"deleted": outcome["done"], "refused": outcome["refused"]}, request,
                 "runtime-postgresql:market-report", [])
+
+
+class ReportSchedules(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    schedules: list[dict] = Field(default_factory=list, max_length=20)
+
+
+@router.get("/api/reports/schedules")
+def get_report_schedules(request: Request) -> dict:
+    """The scheduled reports: what is generated when, in which language, and for which roles.
+
+    定时报告：生成时间、语言与分发角色。
+    """
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.reports.schedule import load
+
+    try:
+        with _db() as session:
+            value = load(session)
+    except SQLAlchemyError as exc:
+        raise _unavailable(exc) from exc
+    return _env({"schedules": value["schedules"], "last_slots": value["last_slots"]}, request,
+                "runtime-postgresql:organisation-settings", [])
+
+
+@router.put("/api/reports/schedules")
+def put_report_schedules(body: ReportSchedules, request: Request) -> dict:
+    """Replace the scheduled reports (administrators); each is validated and the change audited.
+    A scheduled report is for distribution (no book sections) and runs as the configured
+    service principal.
+
+    更新定时报告（管理员）；逐项校验并审计。定时报告均为对外分发版本，以服务身份运行。
+    """
+
+    from datetime import UTC, datetime
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.reports.schedule import ScheduleError, replace_schedules
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+
+    principal = ai_caller(request)
+    now = datetime.now(UTC)
+    try:
+        with _db() as session:
+            try:
+                schedules = replace_schedules(session, body.schedules,
+                                              actor=principal.principal_id or "admin", now=now)
+            except ScheduleError as exc:
+                raise HTTPException(status_code=422,
+                                    detail={"code": exc.code, "message": str(exc)}) from exc
+            record_audit_event(session, event_type="report.schedules", principal=(
+                principal.principal_id or "admin"), action="replace",
+                resource="report-schedules", now_utc=now,
+                detail=f"{len(schedules)} schedule(s)")
+            session.commit()
+    except SQLAlchemyError as exc:
+        raise _unavailable(exc) from exc
+    return _env({"schedules": schedules}, request, "runtime-postgresql:organisation-settings",
+                [])

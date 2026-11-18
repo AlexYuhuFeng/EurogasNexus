@@ -196,13 +196,29 @@ line.
 
 ## Scheduling
 
-Not part of this release: reports are generated on demand (the Reports task, the API or the SDK
-`eurogas_nexus_sdk.reports`). A scheduled run must use a declared service principal with its own
-data scopes, never an administrator.
+An administrator schedules reports in **Research → Reports → Scheduled reports** (or
+`PUT /api/reports/schedules`): daily or weekly (with the weekday), the time in UTC, the
+language, and the roles the report is for, optionally also announced by e-mail. Everyone sees
+the schedules.
+
+- **Who runs it.** The monitoring worker generates a due report as the configured service
+  principal (its own data scopes), never as an administrator. Without a service principal the
+  run is refused and audited.
+- **What it is.** A scheduled report is always **for distribution**: no position, P&L, limit,
+  counterparty or contract term, so no recipient sees book figures their scope would hide.
+- **Delivery.** In-app first: the report appears in the Reports library of the roles it is for
+  (and administrators), and of no one else. By e-mail when the schedule asks for it and an
+  administrator has a notification channel for **Scheduled reports**
+  (Settings → Notifications): the headline and key findings with where to open it, never the
+  document.
+- **Once per slot.** A slot runs once; a slot missed by more than six hours (the worker was
+  down) is skipped, not generated late. Every run, refusal and skip is audited
+  (`report.schedule`), as is every change to the schedules (`report.schedules`).
+- **Storage.** Schedules are kept in the organisation settings; no new datastore.
 
 ## API
 
-`GET /api/reports/catalogue`, `POST /api/reports/plan`, `POST /api/reports/market`,
+`GET /api/reports/catalogue`, `GET`/`PUT /api/reports/schedules`, `POST /api/reports/plan`, `POST /api/reports/market`,
 `GET /api/reports/market`, `GET /api/reports/market/{report_id}`,
 `GET /api/reports/market/{report_id}/html`, `PATCH` and `DELETE /api/reports/market/{report_id}`
 (rename, delete) and `POST /api/reports/market/bulk-delete`.

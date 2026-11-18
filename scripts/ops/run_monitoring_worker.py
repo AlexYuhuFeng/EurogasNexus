@@ -7,8 +7,10 @@ import json
 import time
 from datetime import UTC, datetime
 
+from eurogas_nexus.api.routes.public.reports import balance_reader as report_balance_reader
 from eurogas_nexus.application.monitoring_service import scan_monitoring_conditions
 from eurogas_nexus.application.notifications import dispatch, mirror_monitoring_alerts
+from eurogas_nexus.application.reports.schedule import run_due as run_due_reports
 from eurogas_nexus.application.service_identity import (
     configured_service_principal_name,
     resolve_service_authority,
@@ -68,10 +70,15 @@ def main() -> int:
                 # the same pass, so a desk hears about a stale source within one cycle.
                 now = datetime.now(UTC)
                 queued = mirror_monitoring_alerts(session, now=now)
+                # Scheduled reports due this pass run as the service principal (never an
+                # administrator); their e-mail rows are dispatched below with the rest.
+                reports = run_due_reports(session, now=now, caller=authority.principal,
+                                          balance_reader=report_balance_reader)
                 sent = dispatch(session, now=now)
                 session.commit()
             print(
-                json.dumps({"status": "ok", **result, "notified": {"queued": queued, **sent}}),
+                json.dumps({"status": "ok", **result, "notified": {"queued": queued, **sent},
+                            "reports": reports}),
                 flush=True,
             )
         except Exception as exc:

@@ -61,6 +61,11 @@ def reader_may_see(session, record, reader: Caller) -> tuple[bool, str]:
     from eurogas_nexus.domain.dataops.entitlement import derived_result_access
     from eurogas_nexus.security import portfolio_scope
 
+    from eurogas_nexus.application.reports.schedule import recipients_allowed
+
+    if not recipients_allowed(record, reader):
+        # A scheduled report is distributed to its roles only (and administrators).
+        return False, "report_not_distributed_to_you"
     decision = derived_result_access(reader.principal, record.source_systems or [])
     if decision.outcome.value != "ALLOWED":
         return False, "report_contains_unlicensed_source"

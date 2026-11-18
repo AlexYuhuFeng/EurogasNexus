@@ -127,6 +127,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # Deleting or renaming stored reports: the generating principal or an administrator,
     # checked per report in the route and audited.
     ("/api/reports/market/bulk-delete", Permission.GOVERNED),
+    # Scheduled reports: anyone may see the schedules; only an administrator keeps them.
+    ("/api/reports/schedules", Permission.READ),
     ("/api/review/decisions", Permission.REVIEW),
     ("/api/ingestion-runs", Permission.READ),
     # --- read families ---
@@ -374,6 +376,7 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/reports/market", Permission.GOVERNED),
     ("DELETE", "/api/reports/market/{report_id}", Permission.GOVERNED),
     ("PATCH", "/api/reports/market/{report_id}", Permission.GOVERNED),
+    ("PUT", "/api/reports/schedules", Permission.ADMIN),
     ("PUT", "/api/settings/organisation", Permission.ADMIN),
     ("POST", "/api/assumption-sets", Permission.GOVERNED),
     ("PUT", "/api/market/firm-marks", Permission.GOVERNED),

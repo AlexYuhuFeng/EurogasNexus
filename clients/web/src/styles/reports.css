@@ -210,3 +210,25 @@
 .reports-elapsed {
   font-variant-numeric: tabular-nums;
 }
+
+.reports-schedule-list {
+  display: grid;
+  gap: var(--ds-space-1);
+  margin: 0 0 var(--ds-space-2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--ds-text-sm);
+}
+
+.reports-schedule-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+}
+
+.reports-schedule-form {
+  display: grid;
+  gap: var(--ds-space-2);
+}
