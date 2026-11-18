@@ -2289,3 +2289,34 @@ test("a page that never displayed cannot pass the badge check for lack of a fixt
     /no displayed \.workspace-page to render the route-state badge fixture inside/,
   );
 });
+
+test("an NBP card shows its GBP/MWh row in pence per therm, the hub's quotation, and is held to it", () => {
+  const nbpQuote = {
+    ...MARKET_QUOTE,
+    quote_id: "sim-eex-nbp-dayahead-20260927T040000",
+    instrument_id: "NBP-DA",
+    hub: "NBP",
+    bid_price: 33.66,
+    ask_price: 33.86,
+    currency: "GBP",
+    unit: "MWh",
+  };
+  const body = marketProjection({
+    quotes: { available: true, rows: [MARKET_QUOTE, nbpQuote] },
+    normalized_quotes: { available: true, rows: [MARKET_OBSERVATION] },
+  });
+  // 33.66 GBP/MWh × 100 / 34.1214163 = 98.648 p/th; 33.86 → 99.234 p/th.
+  const nbpCard = marketCard({
+    recordId: nbpQuote.quote_id,
+    slice: "quotes",
+    hub: "NBP",
+    priceText: "98.648 / 99.234",
+    metaText: "Bid/ask · p/th · Quote age 3s",
+    sourceText: "EEX_Sim",
+  });
+  const ok = compareMarket(body, marketBoard([...MARKET_CARDS, nbpCard]));
+  assert.deepEqual(ok.failures, []);
+  const wrong = compareMarket(body, marketBoard([...MARKET_CARDS, { ...nbpCard, priceText: "33.660 / 33.860" }]));
+  assert.equal(wrong.failures.length, 1);
+  assert.match(wrong.failures[0], /hub card NBP/);
+});

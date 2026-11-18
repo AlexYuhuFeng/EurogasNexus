@@ -191,7 +191,7 @@ export function InstrumentPicker({
     ? `${picked.hub.hub} ${picked.instrument.code}`
     : pickedHub
       ? pickedHub.hub
-      : t("instrument_picker.choose");
+      : t(scope === "hub" ? "instrument_picker.choose_hub" : "instrument_picker.choose");
   const triggerUnit = picked ? unitLabel(picked.instrument.nativeUnit) : pickedHub ? unitLabel(pickedHub.nativeUnit) : null;
   const triggerSimulated = picked ? picked.instrument.simulated : Boolean(pickedHub?.simulated);
 

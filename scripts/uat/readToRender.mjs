@@ -1458,6 +1458,9 @@ export function collectQuotedBoard() {
   };
 }
 
+/** Therms in one MWh (International Table BTU), the units authority's factor. */
+const THERMS_PER_MWH = 34.1214163;
+
 /** The numbers a price line prints, in order; a unit such as `EUR/MWh` carries none. */
 function priceNumbers(text) {
   return (String(text ?? "").match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
@@ -1628,7 +1631,14 @@ export function evaluateQuotedBoard({
       continue;
     }
     const displayed = priceNumbers(cell.priceText);
-    const wanted = row.values.filter((value) => value !== null);
+    // The board prints a price in its hub's quotation (design basis 2, G1): an NBP row stored in
+    // GBP/MWh is shown in p/th. The comparison then holds the shown figure to the stored one
+    // through the same factor (pence per therm from GBP per MWh).
+    const shownInPence = /\bp\/th\b/.test(`${cell.priceText} ${cell.metaText}`)
+      && displayPriceUnit(row.currency, row.unit) === "GBP/MWh";
+    const wanted = row.values
+      .filter((value) => value !== null)
+      .map((value) => (shownInPence ? (value * 100) / THERMS_PER_MWH : value));
     if (row.values.some((value) => value === null) && !/\bn\/a\b/i.test(cell.priceText)) {
       failures.push(
         `${where} shows '${cell.priceText || "(nothing)"}' while row '${row.id}' carries no value for`
@@ -1660,7 +1670,7 @@ export function evaluateQuotedBoard({
       );
       continue;
     }
-    if (!`${cell.priceText} ${cell.metaText}`.includes(unit)) {
+    if (!shownInPence && !`${cell.priceText} ${cell.metaText}`.includes(unit)) {
       failures.push(
         `${where} prices row '${row.id}' without displaying its unit '${unit}'`
         + ` ('${`${cell.priceText} ${cell.metaText}`.trim() || "(nothing)"}')`,

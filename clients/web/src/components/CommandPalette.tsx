@@ -274,6 +274,9 @@ export function CommandPalette({
           className="command-palette-input"
           type="text"
           autoFocus
+          // Reopened, the palette still holds the last query: select it, so typing replaces it
+          // (it was appended to, and a new conversion or question then matched nothing).
+          onFocus={(event) => event.currentTarget.select()}
           value={query}
           placeholder={t("experience.palette.placeholder")}
           aria-label={t("experience.palette.placeholder")}

@@ -38,6 +38,7 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "map.layer.lng": "an acronym",
   "nwe.lng": "an acronym",
   "panel.lng": "an acronym in a vendor's own product name",
+  "prices.board.reporting_plain": "a figure and its unit only, the same in both locales",
   "preferences.time_zone.utc": "the time standard's name, written UTC in both locales",
   "report.format_csv": "a file format's name",
   "tariffs.tso": "an acronym",

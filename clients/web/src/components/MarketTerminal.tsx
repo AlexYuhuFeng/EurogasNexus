@@ -1,4 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
+import "@/styles/prices.css";
+import { api } from "@/api/client";
+import { catalogueFromDTO, type PickerCatalogue } from "@/app/model/instrumentPicker";
+import { inQuoteUnit, quoteUnit } from "@/app/model/priceCharts";
+import {
+  BOARD_DEFAULT_HUBS,
+  boardReportingRequest,
+  readBoardHubs,
+  reportingByHub,
+  withHub,
+  withoutHub,
+  writeBoardHubs,
+  type ReportingValue,
+} from "@/app/model/priceBoard";
 import { displayTime } from "@/app/time/displayTime";
 import { formatSigned, Sparkline } from "@/components/ui/charts";
 import {
@@ -20,11 +34,11 @@ import type {
 } from "@/api/client";
 import { MarketLadder } from "@/components/MarketLadder";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { DataGrid, Segmented, Toolbar, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, InstrumentPicker, Segmented, Toolbar, type DataGridColumn } from "@/components/ui";
 import { sumRecordCounts } from "@/app/workspaceDerivedData";
 import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 interface MarketTerminalProps {
   markets: NormalizedMarketObsDTO[];
@@ -59,6 +73,8 @@ interface HubTerminalRow extends HubDefinition {
 /** One row of the hub board: a hub at the active tenor, with what the board shows of it. */
 interface BoardRow {
   hub: string;
+  /** The bid/offer as printed, in the hub's quotation (NBP in p/th). */
+  bidAskText: string;
   tenor: string;
   quote: MarketQuoteDTO | null;
   latest: NormalizedMarketObsDTO | null;
@@ -88,7 +104,7 @@ interface SourceMatrixRow {
   simulated: boolean;
 }
 
-const marketMajorHubs: HubDefinition[] = [
+const MAJOR_HUBS: HubDefinition[] = [
   { hub: "TTF", region: "Netherlands", label: "TTF" },
   { hub: "NBP", region: "Great Britain", label: "NBP" },
   { hub: "THE", region: "Germany", label: "THE" },
@@ -129,6 +145,21 @@ const compareObservedDesc = (
 const isLaterTimestamp = (candidate: string, current: string | null | undefined): boolean => (
   !current || Date.parse(candidate) > Date.parse(current)
 );
+
+/** "GBp/th" as the desk writes it. */
+const deskUnit = (unit: string): string => unit.replace(/^GBp\/th$/, "p/th");
+
+/**
+ * A price in the hub's own quotation (G1, native first): NBP's stored GBP/MWh is printed in
+ * pence per therm with the authority's factor; a price already in the quotation, or one that
+ * cannot be put in it without FX, keeps its stored unit.
+ */
+const inNative = (hub: string, value: number | null | undefined, currency: string, unit: string): { value: number | null; unit: string } => {
+  const stored = displayPriceUnit(currency, unit);
+  if (value == null || !Number.isFinite(value)) return { value: null, unit: stored };
+  const converted = inQuoteUnit(hub, value, stored);
+  return converted === null ? { value, unit: stored } : { value: converted, unit: deskUnit(quoteUnit(hub)) };
+};
 
 /**
  * The unit string a price is displayed with.
@@ -342,6 +373,26 @@ export function MarketTerminal({
   onRefresh,
   t,
 }: MarketTerminalProps) {
+  // The hubs on the board: the six majors unless this browser chose others with the picker.
+  const [boardHubCodes, setBoardHubCodes] = useState<string[]>(() => readBoardHubs());
+  const marketMajorHubs = useMemo<HubDefinition[]>(
+    () => boardHubCodes.map((code) => MAJOR_HUBS.find((item) => item.hub === code) ?? { hub: code, region: "", label: code }),
+    [boardHubCodes],
+  );
+  const changeBoardHubs = (codes: string[]) => {
+    setBoardHubCodes(codes);
+    writeBoardHubs(codes);
+  };
+  const [catalogue, setCatalogue] = useState<PickerCatalogue | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.marketInstruments().then((response) => { if (live) setCatalogue(catalogueFromDTO(response.data)); }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+  const addableHubs = useMemo<PickerCatalogue | null>(
+    () => (catalogue ? { hubs: catalogue.hubs.filter((hub) => !boardHubCodes.includes(hub.hub)) } : null),
+    [catalogue, boardHubCodes],
+  );
   // The tenor is in the URL once the user chooses one (a link or a refresh keeps it); until then
   // the board opens on the first tenor this desk has prices for.
   const [chosenTenor, setChosenTenor] = useState<string | null>(() =>
@@ -358,7 +409,7 @@ export function MarketTerminal({
     for (const row of markets) if (row.is_gas_price && row.hub && majors.has(row.hub)) priced.add(row.tenor);
     for (const quote of marketQuotes) if (majors.has(quote.hub.toUpperCase())) priced.add(quote.product.toLowerCase());
     return priced;
-  }, [markets, marketQuotes]);
+  }, [markets, marketQuotes, marketMajorHubs]);
   const activeTenor = openingBoardTenor(chosenTenor, pricedTenors);
   const setActiveTenor = (tenor: string) => {
     setChosenTenor(tenor);
@@ -418,7 +469,7 @@ export function MarketTerminal({
         - sourceSystemRank(right.latest.source_system);
       if (sourceDelta !== 0) return sourceDelta;
       return compareObservedDesc(left.latest, right.latest);
-    }), [activeTenor, quoteHistoryByIdentity]);
+    }), [activeTenor, quoteHistoryByIdentity, marketMajorHubs]);
 
   // One resolver for the whole response. It ranks a directly-quoted direction above a
   // value derived by negating the opposite one and breaks ties by a published venue
@@ -475,7 +526,7 @@ export function MarketTerminal({
       }));
     });
     return result;
-  }, [groupedByTenor, resolveHubSpread]);
+  }, [groupedByTenor, resolveHubSpread, marketMajorHubs]);
 
   const marketRows = marketRowsByTenor.get(activeTenor) ?? [];
   const curveLanes = marketMajorHubs.map((definition) => {
@@ -611,16 +662,28 @@ export function MarketTerminal({
     const history = quoteHistoryByHubTenor.get(`${row.hub}:${row.tenor}`) ?? [];
     const priced = quote ?? row.latest;
     const lane = curveLanes.find((item) => item.hub === row.hub);
+    const currency = priced?.currency ?? "";
+    const unit = priced?.unit ?? "";
+    const native = (value: number | null | undefined) => inNative(row.hub, value, currency, unit);
+    const bid = quote ? native(quote.bid_price) : null;
+    const ask = quote ? native(quote.ask_price) : null;
+    const last = row.latest ? inNative(row.hub, row.latest.price, row.latest.currency, row.latest.unit) : null;
+    const nativeUnit = (bid ?? last)?.unit ?? (priced ? displayPriceUnit(currency, unit) : null);
     return {
       hub: row.hub,
+      bidAskText: quote
+        ? `${formatPriceValue(bid?.value)} / ${formatPriceValue(ask?.value)}`
+        : last
+          ? `${last.value === null ? "n/a" : last.value.toFixed(2)} ${last.unit}`
+          : "–",
       tenor: row.tenor,
       quote: quote ?? null,
       latest: row.latest,
       priced: Boolean(priced),
       pricedSlice: quote ? "quotes" : row.latest ? "normalized_quotes" : null,
       recordId: quote?.quote_id ?? row.latest?.observation_id ?? null,
-      unit: priced ? displayPriceUnit(priced.currency, priced.unit) : null,
-      mid: quoteMid(quote) ?? row.latest?.price ?? null,
+      unit: nativeUnit,
+      mid: native(quoteMid(quote) ?? row.latest?.price ?? null).value,
       delta: quoteDelta(history),
       premium: premiumOverTtf(row.hub, row.tenor, row).value,
       simulated: Boolean(quote?.simulated || row.simulated),
@@ -628,10 +691,57 @@ export function MarketTerminal({
       ageSeconds: quoteAgeSeconds(quote),
       lane: marketTenorOrder.map((tenor, index) => {
         const laneQuote = latestQuoteByHubTenor.get(`${row.hub}:${tenor}`);
-        return quoteMid(laneQuote) ?? lane?.tenorRows[index]?.latest?.price ?? null;
+        const laneRow = lane?.tenorRows[index]?.latest ?? null;
+        if (laneQuote) return inNative(row.hub, quoteMid(laneQuote), laneQuote.currency, laneQuote.unit).value;
+        return laneRow ? inNative(row.hub, laneRow.price, laneRow.currency, laneRow.unit).value : null;
       }),
     };
   });
+  // The reporting-unit value of each native price, converted on the server (spot for a prompt
+  // tenor, the forward for a month), read once per set of prices.
+  const reportingKey = JSON.stringify(boardRows.map((row) => [row.hub, row.tenor, row.mid, row.unit]));
+  const [reportingValues, setReportingValues] = useState<Map<string, ReportingValue>>(new Map());
+  useEffect(() => {
+    const { body, hubs } = boardReportingRequest(boardRows.map((row) => ({ hub: row.hub, tenor: row.tenor, value: row.mid, unit: row.unit })));
+    if (body.values.length === 0) {
+      setReportingValues(new Map());
+      return undefined;
+    }
+    let live = true;
+    api.normaliseMarket(body)
+      .then((response) => { if (live) setReportingValues(reportingByHub(hubs, response.data)); })
+      .catch(() => { if (live) setReportingValues(new Map()); });
+    return () => { live = false; };
+    // boardRows is rebuilt each render; the prices it holds are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportingKey]);
+  const reporting = useMemo(() => {
+    const out = new Map<string, { text: string }>();
+    for (const [hub, value] of reportingValues) {
+      out.set(hub, {
+        text: value.value === null
+          ? t("prices.board.reporting_refused", { reason: value.refused ?? "" })
+          : t(value.pair ? "prices.board.reporting" : "prices.board.reporting_plain", {
+              value: value.value.toFixed(3),
+              unit: value.unit,
+              pair: value.pair ?? "",
+              rate: value.rate === null ? "" : value.rate.toFixed(4),
+              method: value.method === "derived: covered interest parity"
+                ? t("spreads.fx.derived")
+                : value.method === "licensed"
+                  ? t("spreads.fx.licensed")
+                  : t("spreads.fx.spot_short"),
+            }) + (value.simulated ? ` · ${t("today.simulated_short")}` : ""),
+      });
+    }
+    return out;
+  }, [reportingValues, t]);
+  const boardHubCatalogue = useMemo<PickerCatalogue>(
+    () => ({ hubs: (catalogue?.hubs ?? []).filter((hub) => boardHubCodes.includes(hub.hub)) }),
+    [catalogue, boardHubCodes],
+  );
+  const boardIsDefault = boardHubCodes.join() === BOARD_DEFAULT_HUBS.join();
+
   const boardColumns: DataGridColumn<BoardRow>[] = [
     {
       id: "hub",
@@ -651,8 +761,7 @@ export function MarketTerminal({
       header: t("market.bid_ask"),
       priority: "primary",
       type: "number",
-      render: (row) =>
-        row.quote ? `${formatPriceValue(row.quote.bid_price)} / ${formatPriceValue(row.quote.ask_price)}` : row.latest ? formatPrice(row.latest) : "–",
+      render: (row) => row.bidAskText,
       cellAttributes: () => ({ "data-price-value": "" }),
     },
     {
@@ -664,6 +773,11 @@ export function MarketTerminal({
       flash: true,
       value: (row) => row.mid,
       format: (value) => (value == null ? "–" : (value as number).toFixed(3)),
+      // The reporting unit on hover (G3): converted on the server, with its rate and method.
+      cellAttributes: (row) => {
+        const found = reporting.get(row.hub);
+        return found ? { title: found.text, "data-reporting": found.text } : {};
+      },
       // A simulated price is marked beside the number itself (AGENTS.md rule 17).
       state: (row) => (row.simulated && row.priced ? { kind: "simulated", label: t("today.simulated_short"), description: t("today.simulated_long") } : null),
     },
@@ -792,6 +906,35 @@ export function MarketTerminal({
             elements the operator sees (`data-board-tenor`, per row `data-price-tenor`), so the
             browser sweep compares the payload's rows for the *displayed* scope instead of assuming
             the board shows every row the projection serves. */}
+        {catalogue && (
+          <div className="market-board-hubs" data-board-hubs={boardHubCodes.join(",")}>
+            {addableHubs && addableHubs.hubs.length > 0 && boardHubCodes.length < 12 && (
+              <InstrumentPicker
+                id="board-add-hub"
+                scope="hub"
+                label={t("prices.board.add_hub")}
+                catalogue={addableHubs}
+                value={null}
+                onChange={(selection) => changeBoardHubs(withHub(boardHubCodes, selection.hub))}
+              />
+            )}
+            {boardHubCodes.length > 1 && (
+              <InstrumentPicker
+                id="board-remove-hub"
+                scope="hub"
+                label={t("prices.board.remove_hub")}
+                catalogue={boardHubCatalogue}
+                value={null}
+                onChange={(selection) => changeBoardHubs(withoutHub(boardHubCodes, selection.hub))}
+              />
+            )}
+            {!boardIsDefault && (
+              <Button variant="secondary" size="sm" onClick={() => changeBoardHubs([...BOARD_DEFAULT_HUBS])}>
+                {t("prices.board.reset_hubs")}
+              </Button>
+            )}
+          </div>
+        )}
         <DataGrid
           id="hub-board"
           className="market-hub-board-table"

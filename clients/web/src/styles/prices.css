@@ -1,0 +1,47 @@
+@layer legacy {
+/* Desk → Prices (CP-20): the term-structure controls, the link into Spreads, the board's hub
+   choice and the reporting value under a native price (tokens only). */
+.price-charts-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: flex-end;
+}
+
+.price-charts-spread-link {
+  margin: var(--ds-space-2) 0 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.market-board-hubs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: flex-end;
+  margin: var(--ds-space-2) 0;
+}
+
+.market-board-hub-remove {
+  min-height: var(--ds-control-sm);
+  padding: 0 var(--ds-space-2);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-surface);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  cursor: pointer;
+}
+
+.market-board-hub-remove:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-focus);
+}
+
+.market-reporting {
+  display: block;
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+}

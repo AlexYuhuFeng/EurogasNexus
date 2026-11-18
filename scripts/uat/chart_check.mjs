@@ -129,7 +129,6 @@ export async function runChartCheck() {
     await signIn(page);
     await go(page, "?workspace=market&task=curves");
     await checkChart(page, "forward-curve");
-    await checkChart(page, "nbp-ttf-spread");
     await go(page, "?workspace=market&task=overview");
     await checkChart(page, "storage-season");
     await checkChart(page, "nwe-balance-chart");

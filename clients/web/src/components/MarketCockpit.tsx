@@ -187,6 +187,9 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             onRefresh={api.refreshMarketData}
             t={t}
           />
+          {/* Term structure and the link into Spreads (CP-20). The price converter is the
+              answer bar ("78 p/th in eur/mwh jan27"); a tenor's delivery window is on its
+              header; the storage-target trajectory belongs to the storage chart. */}
           <PriceCharts markets={api.normalizedMarkets} t={t} />
           </>
         )}
