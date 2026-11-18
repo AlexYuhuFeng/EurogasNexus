@@ -40,9 +40,10 @@ import { pnlClass } from "@/app/model/pnlColor";
 import { GasForPowerPanel } from "@/components/GasForPowerPanel";
 import { MethodNote } from "@/components/MethodNote";
 import { NweBalancePanel } from "@/components/NweBalancePanel";
+import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
 import { ReportLink } from "@/components/ReportLink";
-import { Chart, Sparkline, type ChartData } from "@/components/ui/charts";
+import { Sparkline } from "@/components/ui/charts";
 import {
   Button,
   DataGrid,
@@ -463,45 +464,7 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures }: { row: TodayBookRowD
 
 /* ------------------------------------------------------------------ row 4 */
 
-type StorageEntry = Exclude<TodayFundamentalsRowDTO["storage"], { empty: TodayEmptyDTO }>;
-
-/** NW Europe fill over the season, against the same gas days a year earlier and the EU target. */
-function StorageSeasonChart({ storage, t, nowMs }: { storage: StorageEntry; t: Translate; nowMs: number }) {
-  const data = useMemo<ChartData>(() => {
-    const season = storage.season ?? [];
-    const simulated = storage.latest.simulated;
-    return {
-      axis: "gas-day",
-      x: season.map((point) => point.day),
-      xTitle: t("chart.gas_day"),
-      unit: "%",
-      series: [
-        { id: "fill", label: t("today.storage_chart.this_year"), values: season.map((point) => point.fill_pct), simulated, decimals: 1 },
-        { id: "previous", label: t("today.storage_chart.previous_year"), values: season.map((point) => point.previous_year_fill_pct), simulated, colour: 8, decimals: 1 },
-        ...(storage.target
-          ? [{ id: "target", label: t("today.storage_chart.target", { pct: storage.target.pct }), values: season.map(() => storage.target!.pct), reference: true, decimals: 0 }]
-          : []),
-      ],
-    };
-  }, [storage, t]);
-  return (
-    <section className="workspace-panel today-chart-panel" aria-labelledby="chart-storage-season-title">
-      <Chart
-        id="storage-season"
-        title={t("today.storage_chart.title")}
-        data={data}
-        t={t}
-        height={200}
-        asOf={storage.latest.as_of}
-        state={stateWords(storage.latest, nowMs, t) ?? undefined}
-        simulated={storage.latest.simulated}
-        note={storage.target ? t("today.storage_chart.note", { pct: storage.target.pct, open: storage.target.window_open, deadline: storage.target.deadline }) : undefined}
-      />
-    </section>
-  );
-}
-
-function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: Translate; nowMs: number }) {
+function FundamentalsRow({ row, t, nowMs, language }: { row: TodayFundamentalsRowDTO; t: Translate; nowMs: number; language: string }) {
   const storage = row.storage;
   const balance = row.balance;
   const balanceSimulated = !isEmptyEntry(balance) && balance.latest.simulated;
@@ -511,30 +474,9 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
         <Empty empty={row.empty} id="today-fundamentals" />
       ) : (
         <div className="today-figures today-fundamentals">
-          {isEmptyEntry(storage) ? (
-            <Empty empty={storage.empty} id="today-storage" />
-          ) : (
-            <div className="today-fundamental">
-              <Figure
-                figure={storage.latest}
-                label={t("today.storage_fill")}
-                t={t}
-                nowMs={nowMs}
-                detail={t("today.storage_inventory", { twh: formatValue(storage.inventory_twh, "TWh"), day: shortDay(storage.latest.as_of) })}
-              />
-              <Sparkline
-                values={storage.series.map((point) => point.fill_pct)}
-                days={storage.series.map((point) => point.day)}
-                simulated={storage.latest.simulated}
-                label={t("today.storage_fill")}
-                unit={storage.latest.unit || "%"}
-                decimals={1}
-                t={t}
-                // The full chart of this series is the season chart below.
-                onOpen={() => openChart("chart-storage-season-title")}
-              />
-            </div>
-          )}
+          {/* Storage is the "Storage by country" panel below (CP-04); an empty storage read
+              still says why here. */}
+          {isEmptyEntry(storage) && <Empty empty={storage.empty} id="today-storage" />}
           {isEmptyEntry(balance) ? (
             <Empty empty={balance.empty} id="today-balance" />
           ) : (
@@ -561,8 +503,10 @@ function FundamentalsRow({ row, t, nowMs }: { row: TodayFundamentalsRowDTO; t: T
         </div>
       )}
       <div className="today-fundamentals-detail">
-        {!isEmptyEntry(storage) && storage.season && storage.season.length > 1 && (
-          <StorageSeasonChart storage={storage} t={t} nowMs={nowMs} />
+        {!isEmptyEntry(storage) && (
+          <section className="workspace-panel today-chart-panel" data-today-storage="by-country">
+            <StorageByCountryPanel t={t} language={language} />
+          </section>
         )}
         <NweBalancePanel t={t} simulated={balanceSimulated} />
         <GasForPowerPanel t={t} />
@@ -702,7 +646,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       {keyFigures && <KeyFiguresRow row={keyFigures} t={t} nowMs={nowMs} language={language} onOpenLimits={onOpenLimits} onInspectPrice={onInspectPrice} />}
       {changes && <ChangesRow row={changes} t={t} nowMs={nowMs} language={language} onOpenOutages={onOpenOutages} />}
       {book && <BookRow row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} />}
-      {fundamentals && <FundamentalsRow row={fundamentals} t={t} nowMs={nowMs} />}
+      {fundamentals && <FundamentalsRow row={fundamentals} t={t} nowMs={nowMs} language={language} />}
     </div>
   );
 }

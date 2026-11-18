@@ -1,0 +1,88 @@
+@layer legacy {
+/* Storage by country (StorageByCountryPanel.tsx). Tokens only (scripts/cssTokenLint.mjs). */
+
+.storage-panel {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.storage-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+}
+
+.storage-panel-head h3 {
+  margin: 0;
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-sm);
+  font-weight: var(--ds-weight-semibold);
+}
+
+.storage-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: var(--ds-space-2) var(--ds-space-4);
+  margin: 0;
+}
+
+.storage-figures > div {
+  display: grid;
+  align-content: start;
+  gap: var(--ds-space-05);
+  min-width: 0;
+}
+
+.storage-figures dt {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+}
+
+.storage-figures dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ds-space-1);
+  margin: 0;
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-md);
+  font-weight: var(--ds-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.storage-figures dd small,
+.storage-figures dd.storage-figure-note {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-regular);
+}
+
+.storage-panel.is-narrow .storage-figures {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.storage-panel-phone {
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.storage-panel-headline {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.storage-panel-missing {
+  margin: 0;
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+}
+
+.storage-panel-missing abbr {
+  text-decoration: none;
+  cursor: help;
+}
+}

@@ -393,7 +393,9 @@ export function Chart({
     const values = plotted.map((entry) => entry.values);
     const rules = data.rules ?? [];
     const labels = prepared.labels;
-    const room = prepared.room;
+    // On a narrow chart the label gutter takes at most 30 % of the width; labels are shortened
+    // to fit it (F.2 phone: the plot keeps the room).
+    const room = labelRoom ?? Math.min(prepared.room, Math.round(width * 0.3));
     const opts: uPlot.Options = {
       width,
       height,
@@ -477,10 +479,16 @@ export function Chart({
             ctx.textBaseline = "middle";
             ctx.textAlign = "left";
             ctx.lineJoin = "round";
+            const fit = (text: string, space: number): string => {
+              if (ctx.measureText(text).width <= space) return text;
+              let cut = text;
+              while (cut.length > 1 && ctx.measureText(`${cut}…`).width > space) cut = cut.slice(0, -1);
+              return `${cut}…`;
+            };
             for (const label of placed) {
               ctx.font = `${label.ghost ? "" : "600 "}${Math.round(11 * dpr)}px ${palette.ui}`;
               ctx.fillStyle = label.ghost ? palette.muted : colourFor(label.id);
-              ctx.fillText(label.text, u.bbox.left + u.bbox.width + 6 * dpr, u.bbox.top + label.placedY * dpr);
+              ctx.fillText(fit(label.text, (room - 8) * dpr), u.bbox.left + u.bbox.width + 6 * dpr, u.bbox.top + label.placedY * dpr);
             }
             for (const label of labels.filter(early)) {
               const x = u.valToPos(xs[label.index], "x", true) + 6 * dpr;
@@ -517,7 +525,7 @@ export function Chart({
       plot.destroy();
       plotInstance.current = null;
     };
-  }, [data, prepared, height, hasData, themeKey, view, UPlot, yRange, compact, syncKey, xPad]);
+  }, [data, prepared, height, hasData, themeKey, view, UPlot, yRange, compact, syncKey, xPad, labelRoom]);
 
   /** Move the cursor to a point (keyboard), as a pointer would. */
   function focusPoint(at: number) {

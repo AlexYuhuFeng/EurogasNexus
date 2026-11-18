@@ -3332,6 +3332,71 @@ export interface BookRelevanceDTO {
 }
 
 /** North-west Europe balance: measured history and the component forecast. */
+/** One entity of `GET /api/fundamentals/storage` (a region or a country). */
+export interface StorageEntityDTO {
+  code: string;
+  name: string;
+  simulated: boolean;
+  sources: string[];
+  /** The last gas day held. */
+  as_of: string;
+  received_at_utc: string | null;
+  fill_pct: number | null;
+  stock_twh: number | null;
+  working_capacity_twh: number | null;
+  day_change_pts: number | null;
+  day_change_twh: number | null;
+  week_change_pts: number | null;
+  week_change_twh: number | null;
+  injection_twh_d: number | null;
+  withdrawal_twh_d: number | null;
+  net_withdrawal_7d_twh_d: number | null;
+  vs_last_year: { day: string; fill_pct: number | null; diff_pts: number | null };
+  history: { mode: "none" | "lines" | "band"; years: string[]; label: string; history_from: string };
+  vs_average: {
+    years: number;
+    label: string | null;
+    mean_pct: number | null;
+    low_pct: number | null;
+    high_pct: number | null;
+    diff_pts: number | null;
+    range_position: number | null;
+    outside: "below" | "above" | null;
+  };
+  target: { pct: number; window_open: string; deadline: string; gap_pts: number | null; days_to_target_at_7d_rate: number | null } | null;
+  spark: { day: string; fill_pct: number | null }[];
+  /** Only for the entities asked for in `season`. */
+  season?: {
+    axis: string[];
+    gas_year: string;
+    this_year: (number | null)[];
+    last_year: { gas_year: string; values: (number | null)[] } | null;
+    lines: { gas_year: string; values: (number | null)[] }[];
+    band: { years: string[]; label: string; low: (number | null)[]; high: (number | null)[]; mean: (number | null)[] } | null;
+  };
+  /** The region only: what it is. */
+  definition?: string;
+}
+
+export interface FundamentalsStorageDTO {
+  region: StorageEntityDTO | null;
+  countries: StorageEntityDTO[];
+  missing: { code: string; name: string; reason: string }[];
+  reconciliation: {
+    day: string;
+    region_stock_twh: number;
+    countries_stock_twh: number;
+    countries_counted: number;
+    countries_expected: number;
+    difference_twh: number;
+    complete: boolean;
+  } | null;
+  simulated: boolean;
+  unit: string;
+  method: string;
+  warnings: string[];
+}
+
 export interface NweBalanceDTO {
   region: string[];
   unit: string;
@@ -5569,6 +5634,19 @@ export const api = {
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
   decisionHandoff: (caseId: string) =>
     get<Record<string, unknown>>(`/decision-cases/${encodeURIComponent(caseId)}/handoff`),
+  fundamentalsStorage: (
+    query: { region?: "eu" | "nwe"; season?: string[]; focus?: string[] } = {},
+    options?: ApiRequestOptions,
+  ) =>
+    get<FundamentalsStorageDTO>(
+      "/fundamentals/storage",
+      {
+        region: query.region ?? "eu",
+        ...(query.season?.length ? { season: query.season.join(",") } : {}),
+        ...(query.focus?.length ? { focus: query.focus.join(",") } : {}),
+      },
+      options,
+    ),
   nweBalance: (days = 14, options?: ApiRequestOptions) =>
     get<NweBalanceDTO>("/market/nwe-balance", { days: String(days) }, options),
   gasForPower: (zone = "DE_LU", days = 14, options?: ApiRequestOptions) =>
