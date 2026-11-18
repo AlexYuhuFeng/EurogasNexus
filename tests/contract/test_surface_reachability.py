@@ -63,7 +63,10 @@ def _marker(path: str) -> str:
 
 #: Paths the SDK (or CLI/MCP) call by design, and the product does not need on a screen.
 MACHINE_SURFACE: dict[str, str] = {
-    "/api/lng/terminal-tariffs/price": "one cargo's regas charge and its basis (SDK; cargo economics reads the register server-side)",
+    "/api/lng/terminal-tariffs/price": (
+        "one cargo's regas charge and its basis (SDK; cargo economics reads the register "
+        "server-side)"
+    ),
     "/api/functional-runs": "functional task submission and inventory (SDK/CLI)",
     "/api/functional-runs/{run_id}": "functional run status and evidence (SDK/CLI)",
     "/api/functional-runs/{run_id}/replay": "frozen-input task replay (SDK/CLI)",
