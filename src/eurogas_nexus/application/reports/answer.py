@@ -241,7 +241,7 @@ def build(plan, results: list[dict], raws: dict[str, Any], *, today: date,
         countries = list(plan.countries) or _countries(question)
         join = joins.kind_of(question, list(by_key), list(plan.hubs), countries, today)
         if join == "storage_country":
-            added, cannot = joins.storage_country(by_key, raws, countries)
+            added, cannot = joins.storage_country(by_key, raws, countries, ctx)
         elif join == "lng_country":
             added, cannot = joins.lng_country(by_key, raws, countries)
         elif join == "hub_spread" and ctx is not None:

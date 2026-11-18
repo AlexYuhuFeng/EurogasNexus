@@ -782,6 +782,9 @@ def test_a_question_join_answers_with_an_engine_computed_relation(env, question,
     assert fact["relation"] == relation and fact["question"]
     answer = report.snapshot["answer"]["text"]
     assert all(p in answer for p in phrases), answer
+    if key == "q.storage.NL":
+        # Against its own history too, from the storage fundamentals read.
+        assert "average for the day" in answer
     assert answer.rstrip(".").endswith(("differ", "moved", "spread", "moves"))
     # Honesty: a relation is arithmetic, never a cause.
     assert not re.search(r"\b(because|due to|caused by|driven by|led to)\b", answer)
@@ -790,8 +793,9 @@ def test_a_question_join_answers_with_an_engine_computed_relation(env, question,
 def test_the_spread_join_states_its_conversion_and_a_border_question_is_not_held(env):
     plan = plan_for_question("What is the TTF NBP spread this month?", now=NOW)["plan"]
     report = _generate(env, _caller("DEMO"), plan)
-    assert any("ECB reference rate" in c and "one rate for every day" in c
-               for c in report.snapshot["cannot_tell"])
+    # NBP converts contract by contract at the FX for its delivery month, each rate stated.
+    note = next(c for c in report.snapshot["cannot_tell"] if "converted from GBp/th" in c)
+    assert "the FX for its delivery month" in note and "GBPEUR" in note
     border = plan_for_question("What are flows at the Belgian border?", now=NOW)
     assert not border["answerable"]
     assert any("border point" in m for m in border["missing"])

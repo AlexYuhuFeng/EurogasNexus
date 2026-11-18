@@ -107,12 +107,14 @@ The report answers the question:
   change since a date):
   - **A country's storage against NW Europe** ("How does Dutch storage compare with NW
     Europe?"): the country's fill, inventory and working capacity, the gap to the NW Europe
-    fill and the move over seven days.
+    fill, and against its own history (the N-year average for the day, N the complete gas years
+    held, and whether it is outside its five-year range).
   - **A country's LNG send-out** ("How much LNG did French terminals send out this week?"): the
     latest day, its share of the NW Europe total and the average over the last days held.
   - **The spread between two hubs** ("What is the TTF NBP spread this month?"): the latest
     spread, its average and range over the common close days, in the first hub's unit; a
-    second hub in another unit is converted at one ECB reference rate, which is stated.
+    second hub in another unit is converted contract by contract at the FX for its delivery
+    month (a forward derived from the benchmark rates, else the ECB spot rate), each stated.
   - **What changed since a date** ("What changed since 1 Nov?", "11月1日以来有什么变化？"): TTF,
     NBP, landings, LNG and storage from the last day held on or before the date to the newest.
   - **Flows at a border point** are not a report section: the question says so and points to
