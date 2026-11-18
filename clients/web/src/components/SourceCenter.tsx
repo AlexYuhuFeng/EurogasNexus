@@ -10,6 +10,7 @@ import { TariffPublicationsPanel } from "@/components/TariffPublicationsPanel";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
 import { CapacityContractBook } from "@/components/CapacityContractBook";
+import { LngTariffRegisterPanel } from "@/components/LngTariffRegisterPanel";
 import {
   EvidenceBlock,
   MetricStrip,
@@ -894,6 +895,8 @@ export function SourceCenter({
         {credentialMessage && <p>{credentialMessage}</p>}
       </div>
       )}
+
+      {activeView === "access" && registryRead.hasReading && <LngTariffRegisterPanel t={t} />}
 
       {activeView === "infrastructure" && (
       <div id="source-active-panel" role="tabpanel" aria-labelledby="source-tab-infrastructure" className="workspace-panel span-3 source-runtime-panel">

@@ -16,6 +16,23 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   since a date; border flows are named as not held. Each join fact declares its `relation`.
 - The text-and-side-panel row may break across pages; a text-and-figure row still moves whole.
 - No new path or operation.
+## 2026-11-18 — CP-11 regulated LNG terminal tariff register (branch `cp-11-terminal-tariffs`, not pushed)
+
+- Terms check first (docs/legal/DATA_SOURCE_TERMS.md): the Fluxys LNG and Elengy legal notices
+  forbid reuse without prior written consent; DET states no reuse terms. Every operator starts
+  "needs the firm's terms"; the refresh (`scripts/ops/refresh_lng_terminal_tariffs.py`) reads
+  no document until an administrator records the operator's permission with a reference. No
+  operator document is captured or committed; tests use synthetic figures.
+- Migration `0069_lng_terminal_tariff` (versioned `lng_terminal_tariff`,
+  `lng_terminal_operator_terms`); `domain/route_cost/terminal_tariff_register.py` (firm terms →
+  reviewed → candidate indicative → missing with reason); `application/lng_terminal_tariff_register.py`
+  (dedupe by document digest, one attention item per changed document, four-eyes review, audit).
+- `/api/lng/terminal-tariffs` (+ `/price`, `/{id}/review`, `/operators/{operator}`); Admin →
+  Connectors → Access shows operator terms and the figures to review; the setup guide's LNG step
+  counts held, reviewed and candidate terminals. Surface 280 / 311 (+4 / +4).
+- K.0 gate 4 (captured Fluxys and Elengy documents reproduce the registered values) cannot pass
+  until the firm holds those operators' permission; regulator publications (CREG, CRE) are an
+  unchecked alternative.
 
 ## 2026-11-18 — CP-16 Research → Spreads and CP-23 "Describe a strategy" (branch `cp-16`, not pushed)
 

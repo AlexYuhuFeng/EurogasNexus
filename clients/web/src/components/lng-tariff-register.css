@@ -1,0 +1,45 @@
+@layer legacy {
+/* LNG terminal tariff register on Admin → Connectors → Access: operator terms, then figures. */
+
+.lng-tariff-subhead {
+  margin: var(--ds-space-2) 0 var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-2);
+}
+
+.lng-tariff-operators {
+  display: grid;
+  gap: var(--ds-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lng-tariff-operators li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: center;
+  font-size: var(--ds-text-sm);
+}
+
+.lng-tariff-terms-form {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin-top: var(--ds-space-2);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+}
+
+.lng-tariff-actions {
+  display: flex;
+  gap: var(--ds-space-2);
+}
+
+.lng-tariff-message {
+  margin: var(--ds-space-2) 0 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+}

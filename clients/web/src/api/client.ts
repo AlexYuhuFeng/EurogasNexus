@@ -5700,6 +5700,12 @@ export const api = {
     get<{ rows: LngTerminalTermsDTO[] }>("/portfolio/lng-terminal-terms", undefined, options),
   saveLngTerminalTerms: (terminalId: string, body: LngTerminalTermsInput) =>
     put<{ key: string; created: boolean }>(`/portfolio/lng-terminal-terms/${encodeURIComponent(terminalId)}`, body),
+  lngTerminalTariffRegister: (options?: ApiRequestOptions) =>
+    get<LngTerminalTariffRegisterDTO>("/lng/terminal-tariffs", undefined, options),
+  reviewLngTerminalTariff: (tariffId: string) =>
+    post<LngTerminalTariffDTO>(`/lng/terminal-tariffs/${encodeURIComponent(tariffId)}/review`, {}),
+  recordLngTariffOperatorTerms: (operator: string, body: { permitted: boolean; reference: string }) =>
+    put<LngTariffOperatorDTO>(`/lng/terminal-tariffs/operators/${encodeURIComponent(operator)}`, body),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
   saveTariffPublication: (
@@ -6269,6 +6275,50 @@ export interface SetupItemDTO {
   import_tools?: string[];
   tool?: string;
   datasets?: string[];
+}
+
+/** One operator of the public LNG terminal tariff register and whether the firm may read its documents (CP-11). */
+export interface LngTariffOperatorDTO {
+  operator: string;
+  display_name: string;
+  legal_url: string;
+  finding: string;
+  checked_on: string;
+  permission_state: "needs_firm_terms" | "permitted";
+  reference: string | null;
+  recorded_by: string | null;
+  recorded_at_utc: string | null;
+}
+
+/** One published figure in the register: a candidate until a second person reviews it. */
+export interface LngTerminalTariffDTO {
+  tariff_id: string;
+  terminal_id: string;
+  operator: string;
+  terminal_name: string;
+  product: string;
+  charge_basis: string;
+  amount: number | null;
+  currency: string;
+  unit: string | null;
+  by_cargo_class: Record<string, number> | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  period_label: string | null;
+  excludes: string[];
+  source_url: string | null;
+  document_title: string | null;
+  retrieved_at_utc: string;
+  review_status: "CANDIDATE" | "REVIEWED";
+  recorded_by: string | null;
+  reviewed_by: string | null;
+  reviewed_at_utc: string | null;
+}
+
+export interface LngTerminalTariffRegisterDTO {
+  operators: LngTariffOperatorDTO[];
+  tariffs: LngTerminalTariffDTO[];
+  counts: { reviewed: number; candidate: number; terminals: number };
 }
 
 export interface SetupViewDTO {
