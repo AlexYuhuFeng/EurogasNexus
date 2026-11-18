@@ -1970,8 +1970,6 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
 
 
 # ---------------------------------------------------------------------------
@@ -2342,3 +2340,7 @@ def ensure_demo_fixtures(session, now: datetime) -> dict[str, int]:
     if counts.get("fixture_tariffs"):
         retire_simulated_tariffs(session)
     return counts
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

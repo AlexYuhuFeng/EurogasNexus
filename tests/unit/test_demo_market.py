@@ -216,3 +216,14 @@ def test_the_shared_random_sequence_is_untouched():
     finally:
         SEED.seed_demo_market = original
     assert before == without
+
+
+def test_the_seed_script_runs_main_only_after_every_definition():
+    """The script is run as ``python seed_demo_desk.py``: code after the ``__main__`` guard
+    is not defined when main() runs (the demo market did exactly that once)."""
+
+    import ast
+
+    tree = ast.parse((DEMO / "seed_demo_desk.py").read_text(encoding="utf-8"))
+    last = tree.body[-1]
+    assert isinstance(last, ast.If) and "__main__" in ast.unparse(last.test)
