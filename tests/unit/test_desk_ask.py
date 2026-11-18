@@ -94,3 +94,13 @@ def test_the_route_answers_without_a_provider(desk):
     data = response.json()["data"]
     assert data["ai"] == "off" and data["lines"] and data["topics"] == ["outages"]
     assert client.post("/api/analysis/ask", json={"question": "x"}).status_code == 422
+
+
+def test_ask_fact_dates_follow_the_answer_language():
+    from eurogas_nexus.application.desk_ask import _day
+    from eurogas_nexus.application.reports.lang import writing
+
+    assert _day("2026-11-16") == "16 Nov"
+    with writing("zh-CN"):
+        assert _day("2026-11-16") == "11月16日"
+        assert _day("2026-11-09T06:00:00Z") == "11月9日"

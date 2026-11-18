@@ -189,7 +189,7 @@ def _day(value: str | None) -> str:
     """``15 Nov`` from an ISO date or instant; the input when it is not a date."""
 
     if not value:
-        return "n/a"
+        return T("n/a", "无")
     try:
         parsed = (
             date.fromisoformat(value)
@@ -198,7 +198,7 @@ def _day(value: str | None) -> str:
         )
     except ValueError:
         return value
-    return f"{parsed:%d %b}"
+    return T(f"{parsed:%d %b}", f"{parsed.month}月{parsed.day}日")
 
 
 def _number(value: float, decimals: int) -> str:
