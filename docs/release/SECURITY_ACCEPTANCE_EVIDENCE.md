@@ -14,6 +14,10 @@ Checks:
   a new version per change, audited `lng.freight_route`) and `POST /api/lng/cargo-economics`
   (READ: prices cargoes through the valuation snapshot under the caller's entitlement; nothing
   stored); 280 / 311 after
+  and, measured on its own branch, after
+  `GET /api/fundamentals/lng` (CP-17: READ, LNG rows filtered by source entitlement and the
+  identity rule, simulated rows never mixed with provider rows, GIE attribution returned); and,
+  before it,
   the LNG terminal tariff register: `GET /api/lng/terminal-tariffs` and
   `GET /api/lng/terminal-tariffs/price` (READ, public data), `POST
   /api/lng/terminal-tariffs/{tariff_id}/review` (OPERATOR, four eyes) and `PUT

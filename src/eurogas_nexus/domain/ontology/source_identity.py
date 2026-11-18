@@ -44,10 +44,11 @@ ENTITY_PREFIX: Mapping[str, str] = {
 QUARANTINE_REASONS = ("empty_identifier", "unknown_identifier", "ambiguous_identifier")
 
 #: Countries GIE AGSI+/ALSI publish under (ISO 3166 alpha-2, ``eu`` the Europe total as the
-#: provider spells it), from the platform's country listing.
+#: provider spells it), from the platform's country listing. FI and GR publish LNG only (ALSI,
+#: checked live on 2026-11-18).
 GIE_COUNTRIES = (
-    "AT", "BE", "BG", "CZ", "DE", "DK", "ES", "FR", "GB", "HR", "HU", "IE", "IT", "LT",
-    "LV", "NL", "PL", "PT", "RO", "SE", "SK", "eu",
+    "AT", "BE", "BG", "CZ", "DE", "DK", "ES", "FI", "FR", "GB", "GR", "HR", "HU", "IE", "IT",
+    "LT", "LV", "NL", "PL", "PT", "RO", "SE", "SK", "eu",
 )
 #: Bidding zones the power connectors read (ENTSO-E A44/A65/A75; Elexon is GB).
 ENTSOE_ZONES = ("GB", "NL", "DE_LU", "BE", "FR", "AT", "IT_NORD", "ES")

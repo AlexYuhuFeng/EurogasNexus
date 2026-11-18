@@ -334,3 +334,56 @@ def get_fundamentals_storage(
             "warnings": list(data.get("warnings") or []),
         },
     }
+
+
+@router.get("/api/fundamentals/lng")
+def get_fundamentals_lng(
+    request: Request,
+    season: str | None = Query(
+        None,
+        max_length=200,
+        description="Comma-separated codes (EU, DE...) whose full gas-year series and history "
+        "band are returned; default the EU total only.",
+    ),
+) -> dict:
+    """LNG send-out (7-day mean) for the EU total and each GIE ALSI country against history.
+
+    Send-out today and as a 7-day mean, against the same gas day last year and the N-year
+    average and band (N = complete prior gas years held, stated), inventory and its share of
+    the declared maximum, a 30-day sparkline series and, for the codes in ``season``, the
+    full gas-year series (``application/fundamentals_lng``). Countries with no rows are
+    listed in ``missing``.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` when the store cannot be read.
+    """
+
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+    from eurogas_nexus.application.fundamentals_lng import lng_read
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    codes = [part.strip().upper() for part in (season or "").split(",") if part.strip()][:30]
+    if not resolve_database_url():
+        return _env(None, request)
+    try:
+        with get_session_factory()() as session:
+            data = lng_read(session, current_principal(request), season=codes)
+    except Exception as exc:  # noqa: BLE001 - a store failure is a 503, never a partial read
+        raise HTTPException(status_code=503, detail="runtime_db_unavailable") from exc
+    sources = sorted(
+        {s for entity in [data["region"], *data["countries"]] if entity for s in entity["sources"]}
+    )
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": sources or ["runtime-postgresql"],
+            "attribution": (
+                "Source: GIE (Gas Infrastructure Europe), ALSI transparency platform"
+                if any(not s.endswith("_Sim") for s in sources)
+                else None
+            ),
+            "warnings": [],
+        },
+    }

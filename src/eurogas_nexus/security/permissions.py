@@ -175,6 +175,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/source-certifications/{source_id}/certify", Permission.OPERATOR),
     ("/api/storage/", Permission.READ),
     ("/api/fundamentals/storage", Permission.READ),
+    ("/api/fundamentals/lng", Permission.READ),
     ("/api/stream/", Permission.READ),
     ("/api/weather/", Permission.READ),
     ("/api/strategy-lab/runs", Permission.READ),

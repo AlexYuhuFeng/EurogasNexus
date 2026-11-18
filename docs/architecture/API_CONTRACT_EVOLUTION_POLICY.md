@@ -15,6 +15,14 @@ and answers per cargo the cost legs, `cost_usd_mmbtu` and `lifting_cost_usd_mmbt
 best first (`netback_per_mwh`, `margin_per_mwh`, `margin_usd_mmbtu`, `margin_total`,
 `lifting_margin_per_mwh`, slip range, `regas_basis`, `grade`, `assumptions`, legs) or `blocked`
 with its reason, plus one comparison `table`. Census: 283 paths / 314 operations.
+Additive 2026-11-18 (commercial design basis 2, CP-17: LNG fundamentals): one path, one
+operation. `GET /api/fundamentals/lng` (READ; `season` comma-separated codes) returns the EU
+total and each GIE ALSI country: send-out today and as a 7-day mean (GWh/d), against the same
+gas day last year and the N-year average and band of the 7-day mean (N = complete prior gas
+years held, stated), inventory and its share of the declared maximum (DTMI), 30 days for a
+sparkline and the full gas-year series for the codes in `season`; `missing` names countries
+not held. `meta.attribution` names GIE when provider rows are used. Census: 281 paths / 312
+operations (+1 / +1 on 280 / 311).
 
 Additive 2026-11-18 (LNG terminal tariff register, CP-11): four paths, four operations.
 `GET /api/lng/terminal-tariffs` (READ) answers `operators[]` (reuse terms as checked, the
