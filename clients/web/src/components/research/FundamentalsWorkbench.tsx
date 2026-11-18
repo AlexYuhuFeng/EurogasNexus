@@ -1,14 +1,14 @@
 /**
  * Research → Fundamentals (CP-17; design basis 2, D.2): "Where is the system against normal,
- * by country, and what moved?" Tabs inside the task: Storage · LNG · Balance · Gas for power.
+ * by country, and what moved?" Tabs inside the task: Storage · LNG · Flows · Balance · Gas for
+ * power.
  *
  * - Storage: the Today panel (region first, the season chart with its history, the country
  *   table) and then every country's season as small multiples on one scale.
  * - LNG: send-out by country against history (`LngByCountryPanel`).
+ * - Flows: Norwegian and UK pipeline landings against history, and the supply shares
+ *   (`FlowsPanel`).
  * - Balance and Gas for power: the existing panels, re-homed here from Today.
- *
- * Flows (Norway by landing point against history) is not a tab yet: it needs a per-point read
- * with a year of ENTSOG history, which a public-data store does not hold today.
  */
 import { useEffect, useMemo, useState } from "react";
 
@@ -21,11 +21,12 @@ import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { Tabs } from "@/components/ui";
 import { CountryMultiples } from "./CountryMultiples";
+import { FlowsPanel } from "./FlowsPanel";
 import { LngByCountryPanel } from "./LngByCountryPanel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
-type Tab = "storage" | "lng" | "balance" | "power";
-const TABS: Tab[] = ["storage", "lng", "balance", "power"];
+type Tab = "storage" | "lng" | "flows" | "balance" | "power";
+const TABS: Tab[] = ["storage", "lng", "flows", "balance", "power"];
 
 function tabFromLocation(): Tab {
   if (typeof window === "undefined") return "storage";
@@ -106,6 +107,7 @@ export function FundamentalsWorkbench({ t, language }: { t: Translate; language:
           </>
         )}
         {tab === "lng" && <LngByCountryPanel t={t} language={language} />}
+        {tab === "flows" && <FlowsPanel t={t} language={language} />}
         {tab === "balance" && <BalanceTab t={t} />}
         {tab === "power" && <GasForPowerPanel t={t} />}
       </section>

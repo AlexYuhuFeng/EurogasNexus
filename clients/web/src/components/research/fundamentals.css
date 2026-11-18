@@ -7,6 +7,29 @@
   min-width: 0;
 }
 
+.flows-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--ds-space-4);
+}
+
+.flows-total h4 {
+  margin: 0 0 var(--ds-space-1);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  font-weight: var(--ds-weight-semibold);
+}
+
+.flows-scope-links {
+  display: inline-flex;
+  gap: var(--ds-space-2);
+}
+
+.flows-scope-links [aria-pressed="true"] {
+  color: var(--ds-text-1);
+  font-weight: var(--ds-weight-semibold);
+}
+
 .fundamentals-panel {
   display: grid;
   gap: var(--ds-space-6);

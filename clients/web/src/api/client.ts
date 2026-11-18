@@ -3544,6 +3544,31 @@ export interface FundamentalsLngDTO {
   method: string;
 }
 
+/** One series of `GET /api/fundamentals/flows`: energy landed (GWh/d, 7-day mean) against history. */
+export interface FlowEntityDTO {
+  code: string;
+  name: string;
+  scope: "norway" | "uk_terminal" | null;
+  simulated: boolean;
+  as_of: string;
+  flow_7d_gwh_d: number | null;
+  flow_day_gwh_d: number | null;
+  vs_last_year: { day: string; flow_7d_gwh_d: number | null; diff_gwh_d: number | null };
+  history: StorageEntityDTO["history"];
+  vs_average: LngEntityDTO["vs_average"];
+  spark: { day: string; flow_7d_gwh_d: number | null }[];
+  season?: StorageEntityDTO["season"];
+}
+
+export interface FundamentalsFlowsDTO {
+  totals: FlowEntityDTO[];
+  landings: FlowEntityDTO[];
+  simulated: boolean;
+  unit: string;
+  method?: string;
+  warnings: string[];
+}
+
 export interface FundamentalsStorageDTO {
   region: StorageEntityDTO | null;
   countries: StorageEntityDTO[];
@@ -5806,6 +5831,10 @@ export const api = {
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
   decisionHandoff: (caseId: string) =>
     get<Record<string, unknown>>(`/decision-cases/${encodeURIComponent(caseId)}/handoff`),
+  fundamentalsFlows: (season: string[] = [], options?: ApiRequestOptions) =>
+    get<FundamentalsFlowsDTO>("/fundamentals/flows", season.length ? { season: season.join(",") } : undefined, options),
+  nweBalanceHistory: (historyDays: number, options?: ApiRequestOptions) =>
+    get<NweBalanceDTO>("/market/nwe-balance", { days: "1", history_days: String(historyDays) }, options),
   fundamentalsLng: (season: string[] = [], options?: ApiRequestOptions) =>
     get<FundamentalsLngDTO>("/fundamentals/lng", season.length ? { season: season.join(",") } : undefined, options),
   fundamentalsStorage: (
