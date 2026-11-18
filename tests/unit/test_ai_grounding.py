@@ -100,3 +100,15 @@ def test_the_note_checker_applies_grounding_after_its_own_checks():
     assert checked_note(note(GOOD[0]), evidence_text=EVIDENCE, sources=sources)
     for text, _kind in BAD:
         assert checked_note(note(text), evidence_text=EVIDENCE, sources=sources) is None, text
+
+
+def test_an_outage_note_may_say_supply_fell_in_either_language():
+    """Capacity the evidence gives as unavailable is supply that fell: "reduces" and "减少"
+    pass on outage evidence, and stay refused where the evidence states no fall."""
+
+    outage = json.dumps({"facility": "Demo Haldor field", "hub": "NBP",
+                         "line": "Unavailable 563 GWh/d, unplanned"})
+    for note in ("The outage reduces NBP supply by 563 GWh/d.", "停运使NBP供应减少563 GWh/d。"):
+        assert check_grounding(note, outage).ok, note
+    stock = json.dumps({"hub": "NBP", "storage_fill_pct": 72.3})
+    assert not check_grounding("NBP供应减少。", stock).ok

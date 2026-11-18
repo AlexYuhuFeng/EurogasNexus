@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from eurogas_nexus.application.caller import Caller
-from eurogas_nexus.application.desk_text import money
+from eurogas_nexus.application.desk_text import breaches_text, money
 
 KINDS = ("morning", "eod")
 MAX_LINES = 6
@@ -233,7 +233,10 @@ def _prices(session, caller, now, kind):
         key = (row["hub"], row["tenor"])
         closes.setdefault(key, {})[row["day"]] = row
     lines, sources = [], []
-    for (hub, tenor), series in sorted(closes.items()):
+    # TTF and NBP first: the desk's benchmarks, then the other hubs.
+    for (hub, tenor), series in sorted(closes.items(),
+                                       key=lambda kv: (kv[0][0] != "TTF", kv[0][0] != "NBP",
+                                                       kv[0])):
         if tenor == "day-ahead" and (hub, "month-ahead") in closes:
             continue  # one line per hub: the front month when there is one
         days = sorted(series)
@@ -298,8 +301,9 @@ def _limits(session, caller, now, kind):
             sources.append(f"credit-line:{row['counterparty_id']}")
     for row in sorted(mandates.rows, key=lambda r: rank.get(r["status"], 9)):
         if row["status"] in {"breach", "watch", "expired"}:
-            detail = row["breaches"] or T(f"{row['utilisation_pct']:.0f}% of size limit",
-                                          f"规模上限的{row['utilisation_pct']:.0f}%")
+            detail = breaches_text(row["breaches"], T("en", "zh") == "zh") or T(
+                f"{row['utilisation_pct']:.0f}% of size limit",
+                f"规模上限的{row['utilisation_pct']:.0f}%")
             lines.append(T(f"{row['name']} mandate {row['status']}: {detail}.",
                            f"{row['name']}授权{_STATUS_ZH.get(row['status'], row['status'])}："
                            f"{detail}。"))

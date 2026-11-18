@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 CURRENCY_SIGN = {"EUR": "€", "GBP": "£", "USD": "$"}
 
 #: REMIT balancing-zone names and country codes to the hub that prices them.
@@ -20,6 +22,38 @@ ZONE_HUB = {
     "ES": "PVB",
     "DK": "ETF",
 }
+
+#: A mandate's breach texts (``domain/risk/limits.py``) as the Chinese desk reads them.
+_BREACH_ZH = (
+    (re.compile(r"^(\S+) is outside the mandate \((.+)\)$"), "{0}不在授权范围内（{1}）"),
+    (re.compile(r"^physical supply is not allowed \((.+)\)$"), "不允许实物供应（{0}）"),
+    (re.compile(r"^financial trades are not allowed \((.+)\)$"), "不允许金融交易（{0}）"),
+    (re.compile(r"^(\S+) is not an allowed instrument \((.+)\)$"), "{0}不是允许的工具（{1}）"),
+    (re.compile(r"^delivery to (.+) is beyond (\d+) months \((.+)\)$"),
+     "交付至{0}超出{1}个月期限（{2}）"),
+    (re.compile(r"^net ([\d,]+) MWh in (.+) is over ([\d,]+) MWh$"),
+     "{1}净头寸{0} MWh，超过{2} MWh"),
+    (re.compile(r"^(.+) hedged (\d+)%, above (\d+)%$"), "{0}套保比例{1}%，高于{2}%"),
+    (re.compile(r"^(.+) hedged (\d+)%, below (\d+)%$"), "{0}套保比例{1}%，低于{2}%"),
+)
+
+
+def breaches_text(breaches: str, zh: bool) -> str:
+    """A mandate's "; "-joined breach texts in the reader's language."""
+
+    if not zh or not breaches:
+        return breaches
+    out = []
+    for part in breaches.split("; "):
+        for pattern, template in _BREACH_ZH:
+            match = pattern.match(part)
+            if match:
+                out.append(template.format(*match.groups()))
+                break
+        else:
+            out.append(part)
+    return "；".join(out)
+
 
 
 def money(amount: float | None, currency: str) -> str:
@@ -143,7 +177,8 @@ def mandate_lines(row: dict) -> list[str]:
              f"({pct(row['utilisation_pct'])}).")
         )
     if row.get("breaches"):
-        lines.append(f"超限：{row['breaches']}。" if zh else f"Breaches: {row['breaches']}.")
+        lines.append(f"超限：{breaches_text(row['breaches'], True)}。" if zh else
+                     f"Breaches: {row['breaches']}.")
     if row.get("max_tenor_months") is not None and row.get("furthest_month"):
         lines.append(
             f"最远月份{row['furthest_month']}；期限上限{row['max_tenor_months']}个月。" if zh else

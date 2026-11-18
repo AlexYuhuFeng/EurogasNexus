@@ -148,6 +148,9 @@ def _hubs_in(text: str) -> set[str]:
     return found
 
 
+#: Evidence that states capacity taken out of service.
+_UNAVAILABLE = re.compile(r"\bunavailable\b|不可用", re.I)
+
 #: Spellings of one unit (the registry's ``GBp/th`` is the desk's ``p/th``).
 _UNIT_SAME = {"gbp/th": "p/th"}
 
@@ -258,6 +261,11 @@ def check_grounding(note: str, evidence_text: str) -> Grounding:
             )
 
     evidence_senses = _senses(evidence_text)
+    if _UNAVAILABLE.search(evidence_text):
+        # Capacity the evidence gives as unavailable is supply that fell: "reduces",
+        # "减少", "下降" say what the evidence says (not which way a price or flow moved,
+        # which the clause check still holds to its own figure).
+        evidence_senses.setdefault("move", set()).add("-")
     for number, sides in _signed_moves(evidence_text).items():
         if number:
             evidence_senses.setdefault("move", set()).update(sides)
