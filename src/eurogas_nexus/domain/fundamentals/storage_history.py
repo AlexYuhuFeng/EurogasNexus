@@ -102,7 +102,8 @@ def history_plan(complete_years: Iterable[int], history_from: date | None) -> Hi
 
     years = sorted(set(complete_years))
     if not years:
-        since = history_from.isoformat() if history_from else "n/a"
+        # A date as the desk writes it ("20 Oct 2025"), never an ISO string (display rule G8).
+        since = f"{history_from.day} {history_from:%b %Y}" if history_from else "n/a"
         return HistoryPlan("none", (), f"History from {since}: no complete prior year held")
     if len(years) < BAND_YEARS:
         noun = "prior year" if len(years) == 1 else "prior years"

@@ -56,7 +56,7 @@ def test_gas_year_axis_has_365_days_and_no_leap_day() -> None:
 
 def test_history_rule_never_claims_more_years_than_held() -> None:
     assert history_plan([], date(2026, 3, 1)).mode == "none"
-    assert history_plan([], date(2026, 3, 1)).label.startswith("History from 2026-03-01")
+    assert history_plan([], date(2026, 3, 1)).label.startswith("History from 1 Mar 2026")
     one = history_plan([2025], None)
     assert (one.mode, one.label) == ("lines", "1 prior year held")
     four = history_plan([2022, 2023, 2024, 2025], None)
