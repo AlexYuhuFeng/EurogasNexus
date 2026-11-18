@@ -1084,12 +1084,35 @@ def seed_market_around_the_book(
     days = _closed_gas_days(now, history_days) if history_days > 0 else []
     rows: list = []
 
+    # The long series (storage, LNG, pipeline landings) reach back seven gas years, so the
+    # fundamentals reads draw their five-year ranges from simulated history on the demo desk.
+    if storage_history_days is None:
+        storage_history_days = (
+            STORAGE_HISTORY_DAYS if history_days == HISTORY_DAYS else history_days
+        )
+    storage_days = (
+        _closed_gas_days(now, storage_history_days) if storage_history_days > 0 else []
+    )
+    recent = {day for day, _, _ in days}
+
     # Pipeline landings: every registry point every day, so the coverage rule sees full days.
+    # The days shared with the other series draw from the shared generator exactly as before;
+    # older years from their own, with a slow level drift that eases in beyond that window.
     for point in LANDING_POINTS:
         shape = profiles["landing_points"][point.point_id]["gwh_d_by_month"]
         wobble = _Wobble(rng, 0.025)
-        for day, start, end in days:
-            gwh = _shape(shape, day) * wobble()
+        older = _Wobble(random.Random(f"demo-landing-history-{point.point_id}"), 0.025)
+        phase = sum(ord(letter) for letter in point.point_id)
+        newest = storage_days[-1][0] if storage_days else None
+        for day, start, end in storage_days:
+            is_recent = day in recent
+            age = (newest - day).days if newest else 0
+            ramp = 0.0 if is_recent else min(1.0, max(0.0, (age - len(recent)) / 60))
+            drift = 1 + ramp * (
+                0.08 * math.sin(2 * math.pi * day.toordinal() / (3.1 * 365) + phase)
+                + 0.04 * math.sin(2 * math.pi * day.toordinal() / (1.7 * 365) + phase / 3)
+            )
+            gwh = _shape(shape, day) * (wobble() if is_recent else older()) * drift
             rows.append(
                 _flow_row(point.point_id, point.label, point.operator, "entry", gwh, day, start,
                           end, now)
@@ -1114,14 +1137,6 @@ def seed_market_around_the_book(
     # Storage reaches back further than the other series (``STORAGE_HISTORY_DAYS``), and each
     # country's level drifts slowly from year to year, so the five-year range has a width.
     before = len(rows)
-    if storage_history_days is None:
-        storage_history_days = (
-            STORAGE_HISTORY_DAYS if history_days == HISTORY_DAYS else history_days
-        )
-    storage_days = (
-        _closed_gas_days(now, storage_history_days) if storage_history_days > 0 else []
-    )
-    recent = {day for day, _, _ in days}
     for code, profile in profiles["storage"].items():
         capacity = profile["working_capacity_twh"]
         # The days of the other series draw from the shared generator exactly as before, so
@@ -1210,15 +1225,30 @@ def seed_market_around_the_book(
         for code, profile in profiles["lng"].items()
     ]
     lng_series.append(("GB", "Great Britain LNG (demo)", "NG-SUPPLY", None))
+    # ALSI-shaped series reach back as far as storage (the LNG read's five-year range); the
+    # days shared with the other series draw from the shared generator exactly as before, older
+    # years from their own, with a slow level drift that eases in beyond the shared window.
     for code, name, dataset, profile in lng_series:
         noise = _Wobble(rng, 0.07)
-        for day, start, end in days:
+        older = _Wobble(random.Random(f"demo-lng-history-{code}"), 0.07)
+        phase = sum(ord(letter) for letter in code)
+        series_days = days if profile is None else storage_days
+        newest = series_days[-1][0] if series_days else None
+        for day, start, end in series_days:
+            is_recent = day in recent
+            draw = noise if is_recent else older
+            age = (newest - day).days if newest else 0
+            ramp = 0.0 if is_recent else min(1.0, max(0.0, (age - len(recent)) / 60))
+            drift = 1 + ramp * (
+                0.12 * math.sin(2 * math.pi * day.toordinal() / (2.7 * 365) + phase)
+                + 0.06 * math.sin(2 * math.pi * day.toordinal() / (1.6 * 365) + phase / 3)
+            )
             if profile is None:
-                send_out = _shape(gb["lng_send_out_twh_d_by_month"], day) * noise()
+                send_out = _shape(gb["lng_send_out_twh_d_by_month"], day) * draw()
                 stock = dtmi = None
             else:
-                send_out = _shape(profile["send_out_twh_d_by_month"], day) * noise()
-                stock = round(_shape(profile["inventory_twh_by_month"], day) * noise(), 4)
+                send_out = _shape(profile["send_out_twh_d_by_month"], day) * draw() * drift
+                stock = round(_shape(profile["inventory_twh_by_month"], day) * draw(), 4)
                 dtmi = _shape(profile["dtmi_twh_by_month"], day)
             terminal = "GB-NTS-LNG" if profile is None else code
             rows.append(
