@@ -2138,10 +2138,79 @@ export interface TodayWhyDTO {
   id: string;
 }
 
+/** A close on Today's market row: the hub's own quotation, its day change and 30 closes. */
+export interface TodayMarketFigureDTO extends TodayFigureDTO {
+  hub: string;
+  product: string;
+  tenor: "day-ahead" | "month-ahead";
+  close_day: string;
+  day_change: number | null;
+  series: { day: string; value: number }[];
+}
+
+/** A front-month spread against TTF in EUR/MWh, with the route cost or why it is not given. */
+export interface TodaySpreadDTO extends TodayFigureDTO {
+  pair: string;
+  product: string;
+  fx: { base: string; quote: string; rate: number; [extra: string]: unknown } | null;
+  route_cost: {
+    value: number | null;
+    unit: string;
+    verdict: "in_the_money" | "out_of_the_money" | null;
+    via?: string[];
+    reason?: string;
+  };
+}
+
+/** Design basis 2, E.2 row 1: my market. */
+export interface TodayMarketDTO {
+  hubs: {
+    hub: string;
+    day_ahead: TodayMarketFigureDTO | null;
+    front_month: TodayMarketFigureDTO | null;
+    empty: TodayEmptyDTO | null;
+  }[];
+  spreads: (TodaySpreadDTO | { pair: string; empty: TodayEmptyDTO })[];
+  series_days: number;
+}
+
+/** Design basis 2, E.2 row 3: what needs me, ranked server-side, at most five. */
+export interface TodayNeedsMeItemDTO {
+  kind: "opportunity" | "outage" | "limit";
+  id: string;
+  title: string;
+  title_zh?: string | null;
+  simulated: boolean;
+  as_of: string | null;
+  lane?: "must_act" | "could_act";
+  headline?: { value: string | null; unit: string | null } | null;
+  period?: string | null;
+  target?: { mode: string; task: string; params?: Record<string, string> };
+  hub?: string;
+  touches_book?: boolean;
+  size?: { value: number | null; unit: string | null };
+  status?: string | null;
+  utilisation_pct?: number | null;
+  why?: TodayWhyDTO | null;
+}
+
+export interface TodayNeedsMeRowDTO {
+  key: "needs_me";
+  title: string;
+  populated: boolean;
+  empty: TodayEmptyDTO | null;
+  items: TodayNeedsMeItemDTO[];
+  more: number;
+  /** One sentence when nothing qualifies; the row is then not shown. */
+  quiet: string | null;
+}
+
 export interface TodayKeyFiguresRowDTO {
   key: "key_figures";
   title: string;
   populated: boolean;
+  /** Design basis 2, E.2 row 1 (the focus hubs' DA and front month, the spreads). */
+  market?: TodayMarketDTO;
   prices: (TodayPriceDTO | { key: string; hub: string; empty: TodayEmptyDTO })[];
   prices_empty: TodayEmptyDTO | null;
   position: { today: TodayFigureDTO; front_month: TodayFigureDTO } | null;
@@ -2249,8 +2318,13 @@ export interface TodayFundamentalsRowDTO {
           lng_gwh: number;
           storage_net_withdrawal_gwh: number;
         }[];
+        call_7d_avg_gwh?: number | null;
+        lng_gwh?: number | null;
+        lng_vs_yesterday_gwh?: number | null;
       }
     | { empty: TodayEmptyDTO };
+  /** The storage fundamentals read for the EU (CP-04), as Today shows it. */
+  storage_europe?: { region: unknown; countries: unknown[]; focus_countries: string[]; simulated: boolean } | { empty: TodayEmptyDTO };
 }
 
 /** ``GET /api/desk/today`` (UX-05): the four rows of the Today screen, computed once. */
@@ -2260,7 +2334,9 @@ export interface DeskTodayDTO {
   front_month: string;
   simulated: boolean;
   simulated_notice: string | null;
-  rows: [TodayKeyFiguresRowDTO, TodayChangesRowDTO, TodayBookRowDTO, TodayFundamentalsRowDTO];
+  rows: [TodayKeyFiguresRowDTO, TodayChangesRowDTO, TodayBookRowDTO, TodayFundamentalsRowDTO, TodayNeedsMeRowDTO?];
+  /** My hubs: the user's list, else the book's, then the board's (at most four). */
+  focus_hubs?: string[];
   /** Every late or stale figure by name (FRESH-02), instead of a page-wide "N feeds stale". */
   stale_figures: { key: string; label: string; state: FigureStateDTO; as_of: string | null }[];
   warnings: string[];

@@ -995,7 +995,18 @@ def _balance(session, caller: Caller, now, balance_reader, read: _Read) -> dict[
             source="Demo" if simulated else "ENTSOG, GIE, National Gas",
         )
     )
-    return {"latest": item, "series": history, "unit": "GWh/d"}
+    # E.2 row 4: the call today against its 7-day average, and LNG send-out against yesterday.
+    calls = [float(day["call_gwh"]) for day in history[-7:] if day.get("call_gwh") is not None]
+    lng = [day.get("lng_gwh") for day in history[-2:]]
+    return {
+        "latest": item,
+        "series": history,
+        "unit": "GWh/d",
+        "call_7d_avg_gwh": round(sum(calls) / len(calls), 1) if len(calls) == 7 else None,
+        "lng_gwh": lng[-1],
+        "lng_vs_yesterday_gwh": round(lng[-1] - lng[0], 1)
+        if len(lng) == 2 and None not in lng else None,
+    }
 
 
 # ---------------------------------------------------------------- design basis 2, section E

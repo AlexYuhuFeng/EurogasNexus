@@ -85,8 +85,8 @@ export type StripAudience = (typeof STRIP_AUDIENCES)[number];
 
 export type PanelDefault = "open" | "folded" | "hidden";
 
-/** Today's rows, as `GET /api/desk/today` names them. */
-export const TODAY_ROW_KEYS = ["key_figures", "changes", "book", "fundamentals"] as const;
+/** Today's rows (design basis 2, E.2): my market, my book, what needs me, fundamentals. */
+export const TODAY_ROW_KEYS = ["market", "book", "needs_me", "fundamentals"] as const;
 export type TodayRowKey = (typeof TODAY_ROW_KEYS)[number];
 
 /** A place: a mode task, or a utility page (administration, settings). */
@@ -104,7 +104,10 @@ export interface RoleComposition {
    * a panel without an entry is `open`.
    */
   readonly panels: Readonly<Partial<Record<WorkspacePageId, Readonly<Record<string, PanelDefault>>>>>;
-  /** Placeholder until the Today package composes the page by role. */
+  /**
+   * Today's rows in this role's order (design basis 2, E.3). A row a role does not need is
+   * left out; a row with nothing to say is absent at run time (What needs me when quiet).
+   */
   readonly todayRows: readonly TodayRowKey[];
   readonly stripAudience: StripAudience;
 }
@@ -122,7 +125,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("desk", "today"),
     shortlist: [task("desk", "today"), task("desk", "prices"), task("book", "delivery"), task("book", "limits")],
     panels: {},
-    todayRows: ["key_figures", "changes", "book", "fundamentals"],
+    todayRows: ["market", "book", "needs_me", "fundamentals"],
     stripAudience: "trader",
   },
   // The originator lands on Deals → Opportunities when it exists (design basis 2, A.4); until
@@ -132,7 +135,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("deals", "contracts"),
     shortlist: [task("deals", "contracts"), task("deals", "review"), task("desk", "prices"), task("desk", "network")],
     panels: {},
-    todayRows: ["key_figures", "changes", "book", "fundamentals"],
+    todayRows: ["needs_me", "market", "fundamentals"],
     stripAudience: "originator",
   },
   analyst: {
@@ -140,7 +143,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("desk", "today"),
     shortlist: [task("desk", "today"), task("research", "reports"), task("desk", "network"), task("desk", "prices")],
     panels: {},
-    todayRows: ["fundamentals", "key_figures", "changes", "book"],
+    todayRows: ["fundamentals", "market", "needs_me", "book"],
     stripAudience: "analyst",
   },
   risk: {
@@ -148,7 +151,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("book", "limits"),
     shortlist: [task("book", "limits"), task("deals", "review"), task("book", "position"), task("desk", "today")],
     panels: {},
-    todayRows: ["key_figures", "book", "changes", "fundamentals"],
+    todayRows: ["book", "needs_me", "market"],
     stripAudience: "risk",
   },
   // Planning: nominations and storage as one task, two views behind a switch (A.4).
@@ -157,7 +160,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("book", "delivery"),
     shortlist: [task("book", "delivery"), task("book", "planning"), task("desk", "network"), task("deals", "contracts")],
     panels: {},
-    todayRows: ["changes", "key_figures", "book", "fundamentals"],
+    todayRows: ["needs_me", "book", "market"],
     stripAudience: "operations",
   },
   finance: {
@@ -165,7 +168,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("book", "position"),
     shortlist: [task("book", "position"), task("book", "delivery"), task("deals", "contracts"), task("book", "limits")],
     panels: {},
-    todayRows: ["book", "key_figures", "changes", "fundamentals"],
+    todayRows: ["book", "needs_me", "market"],
     stripAudience: "finance",
   },
   compliance: {
@@ -173,7 +176,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("deals", "review"),
     shortlist: [task("deals", "review"), task("deals", "contracts"), task("research", "reports")],
     panels: {},
-    todayRows: ["changes", "key_figures", "book", "fundamentals"],
+    todayRows: ["needs_me", "market"],
     stripAudience: "compliance",
   },
   // A decision reviewer: the review queue first, then the book it decides about.
@@ -182,7 +185,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("deals", "review"),
     shortlist: [task("deals", "review"), task("book", "limits"), task("book", "position"), task("desk", "today")],
     panels: {},
-    todayRows: ["key_figures", "book", "changes", "fundamentals"],
+    todayRows: ["book", "needs_me", "market", "fundamentals"],
     stripAudience: "desk_head",
   },
   desk_head: {
@@ -190,7 +193,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("desk", "today"),
     shortlist: [task("desk", "today"), task("deals", "review"), task("book", "limits"), task("book", "position")],
     panels: {},
-    todayRows: ["key_figures", "book", "changes", "fundamentals"],
+    todayRows: ["book", "needs_me", "market", "fundamentals"],
     stripAudience: "desk_head",
   },
   platform: {
@@ -198,7 +201,7 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: page("sources"),
     shortlist: [page("sources"), page("runtime"), page("access"), page("settings")],
     panels: {},
-    todayRows: ["key_figures", "changes", "book", "fundamentals"],
+    todayRows: ["needs_me", "market", "fundamentals"],
     stripAudience: "platform",
   },
 };

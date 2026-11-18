@@ -310,10 +310,91 @@
     color: var(--ds-status-watch);
   }
 
-  @media (max-width: 900px) {
-    .today-changes {
-      grid-template-columns: minmax(0, 1fr);
-    }
+
+  /* My market (design basis 2, E.2 row 1): one column per focus hub, DA and front month with
+     the front month's 30 closes; the spreads on one line each under it. */
+  .today-market {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--ds-space-3) var(--ds-space-4);
+    align-items: start;
+  }
+
+  .today-market-hub {
+    display: grid;
+    gap: var(--ds-space-1);
+    min-width: 0;
+  }
+
+  .today-spreads,
+  .today-needs {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .today-spread,
+  .today-needs > li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ds-space-1) var(--ds-space-2);
+    min-width: 0;
+    font-size: var(--ds-text-sm);
+  }
+
+  .today-spread-pair {
+    min-width: 8rem;
+    color: var(--ds-text-2);
+  }
+
+  .today-spread-value {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .today-spread-route[data-verdict="in_the_money"] strong {
+    color: var(--ds-status-ok);
+  }
+
+  .today-need-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  .today-need-detail {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .today-quiet {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .today-fundamentals-grid {
+    display: grid;
+    gap: var(--ds-space-3);
+    min-width: 0;
+  }
+
+  .today-lng {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ds-space-1);
+  }
+
+  .today-balance-fold > summary {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    cursor: pointer;
+  }
+
+  .today-book-figures {
+    margin-bottom: var(--ds-space-2);
   }
 
   @media (max-width: 640px) {
@@ -342,6 +423,20 @@
       flex-basis: 100%;
       order: 2;
       white-space: normal;
+    }
+
+    /* The phone's five elements (E.4): the strip, my market (two hubs), my position and the
+       tightest limit, what needs me (three), storage. The book table and the supply figures
+       stay on the desktop. */
+    .today-market-hub:nth-child(n + 3),
+    .today-needs > li:nth-child(n + 4),
+    .today-row-book [data-grid="today-book"],
+    .today-fundamentals {
+      display: none;
+    }
+
+    .today-market {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 

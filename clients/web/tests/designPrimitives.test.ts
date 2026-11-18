@@ -161,8 +161,8 @@ test("primitives are adopted at real call sites", () => {
     ["components/PositionLadderPanel.tsx", /<KeyFigure label=\{t\("position\.net"\)\}/],
     ["components/TodayScreen.tsx", /<KeyFigure\s/],
     ["components/ui/MetricStrip.tsx", /<KeyFigure /],
-    ["components/TodayScreen.tsx", /<Panel\s+title=\{t\("today\.alerts"\)\}/],
-    ["components/TodayScreen.tsx", /<EmptyState compact reason=\{t\("today\.no_alerts"\)\}/],
+    ["components/TodayScreen.tsx", /<StatusBadge tone=\{tone\}>/],
+    ["components/TodayScreen.tsx", /<EmptyState compact id=\{id\}/],
     ["components/PositionLadderPanel.tsx", /<EmptyState reason=\{t\("position\.empty"\)\}/],
     ["components/PositionLadderPanel.tsx", /<Skeleton label=\{t\("position\.loading"\)\}/],
   ];

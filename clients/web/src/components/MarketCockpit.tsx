@@ -12,6 +12,7 @@ import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
 import { useModeHeader } from "@/app/navigation/useModeHeader";
 import { PRODUCT_MODES } from "@/app/navigation/modeNavigation";
+import { resolveComposition } from "@/app/experience/roleComposition";
 import { marketObservationSubject } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import type { TodayPriceDTO } from "@/api/client";
@@ -115,7 +116,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
         <MarketContextStrip
           projection={api.marketContext}
           t={t}
-          controls={tradingContextControlsFor(traderContext, t)}
+          // No filter strip on Today: it is about today, my hubs and my book (design basis 2, E.1).
+          controls={task === "overview" ? undefined : tradingContextControlsFor(traderContext, t)}
           freshness={
             task === "overview" || desk.today?.simulated ? (
               <TodayFreshness today={desk.today} t={t} nowMs={nowMs} />
@@ -147,6 +149,22 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             onOpenOutages={() => {
               openTask("network");
               window.history.replaceState(window.history.state, "", `?${networkPanelToSearch(window.location.search, "outages")}`);
+            }}
+            rows={resolveComposition(api.currentUser).composition.todayRows}
+            canSeeBook={!Array.isArray(api.currentUser?.permissions) || api.currentUser.permissions.includes("portfolio.read")}
+            onOpenPrices={() => openTask("curves")}
+            onOpenNeed={(item) => {
+              if (item.kind === "outage") {
+                openTask("network");
+                window.history.replaceState(window.history.state, "", `?${networkPanelToSearch(window.location.search, "outages")}`);
+              } else if (item.kind === "limit") {
+                navigation.openWorkspace("contracts", "exposure");
+              } else {
+                // Deals → Opportunities (CP-14) when it exists; until then Deals → Contracts.
+                const task = PRODUCT_MODES.find((mode) => mode.id === "deals")?.tasks.find((entry) => entry.id === "opportunities");
+                if (task?.page) navigation.openWorkspace(task.page, task.pageTask);
+                else navigation.openWorkspace("contracts", "resources");
+              }
             }}
             onInspectPrice={(price) => {
               const ref = priceObservation(price);

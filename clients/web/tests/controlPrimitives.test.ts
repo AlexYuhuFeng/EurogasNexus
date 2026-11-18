@@ -348,6 +348,17 @@ function todayFixture(): DeskTodayDTO {
           { key: "price.PEG", hub: "PEG", empty: { code: "no_close", reason: "No PEG close yet", action: "Import settlements" } },
         ],
         prices_empty: null,
+        market: {
+          series_days: 30,
+          hubs: [
+            { hub: "NBP", day_ahead: null, front_month: { ...figure("market.NBP.front_month", 33.662, "GBP/MWh"), hub: "NBP", product: "Dec-26", tenor: "month-ahead", close_day: "2026-11-14", day_change: -0.082, series: [{ day: "2026-11-13", value: 33.744 }, { day: "2026-11-14", value: 33.662 }] }, empty: null },
+            { hub: "PEG", day_ahead: null, front_month: null, empty: { code: "no_close", reason: "No PEG close yet", action: "Import settlements" } },
+          ],
+          spreads: [
+            { ...figure("spread.THE.TTF", 0.905, "EUR/MWh", { label: "THE–TTF Dec-26" }), pair: "THE–TTF", product: "Dec-26", fx: null, route_cost: { value: 0.3, unit: "EUR/MWh", verdict: "in_the_money", via: ["Oude Statenzijl"] } },
+            { pair: "NBP–TTF", empty: { code: "not_convertible", reason: "NBP in GBP/MWh cannot be put in EUR/MWh: no FX held", action: "Admin → Connectors: FX rates" } },
+          ],
+        },
         position: { today: { ...figure("position.net.today", 46000, "MWh/d", { simulated: false }), method: METHOD }, front_month: figure("position.net.front_month", 28516, "MWh/d", { label: "Net position Dec-26", simulated: false }) },
         position_empty: null,
         tightest_limit: null,
@@ -377,6 +388,15 @@ function todayFixture(): DeskTodayDTO {
         storage: { latest: figure("storage.nwe.fill", 72.61, "%"), inventory_twh: 385.4, unit: "TWh", series: [] },
         balance: { empty: { code: "no_balance", reason: "No flows ingested", action: "Ingest ENTSOG flows" } },
       },
+      {
+        key: "needs_me",
+        title: "What needs me",
+        populated: true,
+        empty: null,
+        more: 0,
+        quiet: null,
+        items: [{ kind: "outage", id: "u1", title: "Demo Haldor field", hub: "NBP", touches_book: true, size: { value: 563.2, unit: "GWh/d" }, status: "active", simulated: true, as_of: null, why: { subject: "outage", id: "u1" } }],
+      },
     ],
   } as unknown as DeskTodayDTO;
 }
@@ -397,11 +417,18 @@ test("Today: four rows, simulated marked beside each value, empty sections give 
     onOpenOutages: () => undefined,
   };
   const html = render(h(TodayScreen, props));
-  for (const row of ["key_figures", "changes", "book", "fundamentals"]) assert.match(html, new RegExp(`data-today-row="${row}"`));
+  // Design basis 2, E.2: my market, my book, what needs me, fundamentals; no "changes" panels.
+  for (const row of ["market", "book", "needs_me", "fundamentals"]) assert.match(html, new RegExp(`data-today-row="${row}"`));
+  assert.doesNotMatch(html, /data-today-row="(key_figures|changes)"/);
+  assert.ok(html.indexOf('data-today-row="market"') < html.indexOf('data-today-row="book"'));
+  // The spread: one unit, the route cost and the verdict in words; a missing one says why.
+  assert.match(html, /data-spread="THE–TTF"/);
+  assert.match(html, /today\.market\.in_the_money/);
+  assert.match(html, /data-spread="NBP–TTF" data-empty-code="not_convertible"/);
   assert.doesNotMatch(html, /Withheld/i);
   // The NBP price carries its unit and the simulated marker inside the value.
   assert.match(html, /<strong[^>]*>33\.662<small class="metric-strip-unit key-figure-unit">GBP\/MWh<\/small><span class="ds-cell-mark" data-state="simulated"/);
-  assert.match(html, /today\.day_change\(change=−0\.082,day=13 Nov\)/);
+  assert.match(html, /−0\.082/);
   // A real (not simulated) figure carries no marker. A position reads by its sign in neutral
   // ink: no long/short (gain-like) colour class on the value.
   assert.match(html, /<strong[^>]*>\+46,000<small class="metric-strip-unit key-figure-unit">MWh\/d<\/small><\/strong>/);
@@ -413,8 +440,9 @@ test("Today: four rows, simulated marked beside each value, empty sections give 
   assert.match(html, /<strong>Limits need every book behind them<\/strong><span> Ask risk for the limits view<\/span>/);
   assert.doesNotMatch(html.replace(/(title|data-empty-code)="[^"]*"/g, ""), /LIMITS_NOT_ENTITLED|NO_POSITIONS/);
   assert.match(html, /No positions in the books you can see/);
-  // Outage: value, unit and the simulated marker beside it, and a Why.
-  assert.match(html, /563<small class="ds-grid-unit">GWh\/d<\/small><span class="ds-cell-mark" data-state="simulated"/);
+  // What needs me: the outage at a hub of the book, its size and unit, simulated, and a Why.
+  assert.match(html, /data-need="outage"/);
+  assert.match(html, /today\.needs\.touches_book\(hub=NBP\) · 563 GWh\/d/);
   assert.match(html, /aria-label="why\.label\(subject=Demo Haldor field\)"/);
   // Risk figures carry a Method affordance.
   assert.match(html, /data-method="net_position"/);

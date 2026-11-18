@@ -258,7 +258,8 @@ test("the market surface renders the coherent context and its vocabulary is bili
   const strip = readWebSource("components/MarketContextStrip.tsx");
 
   assert.match(cockpit, /import \{ MarketContextStrip \} from "@\/components\/MarketContextStrip"/);
-  assert.match(cockpit, /<MarketContextStrip\s+projection=\{api\.marketContext\}\s+t=\{t\}\s+controls=\{tradingContextControlsFor\(traderContext, t\)\}/);
+  // No filter strip on Today (design basis 2, E.1): the controls are the other tasks' only.
+  assert.match(cockpit, /<MarketContextStrip\s+projection=\{api\.marketContext\}\s+t=\{t\}[\s\S]*?controls=\{task === "overview" \? undefined : tradingContextControlsFor\(traderContext, t\)\}/);
 
   // The strip renders the backend's reading; it does not fetch or recompute.
   assert.match(strip, /sliceReadings\(projection\)/);

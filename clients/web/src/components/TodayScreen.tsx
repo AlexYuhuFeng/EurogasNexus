@@ -1,12 +1,17 @@
 /**
- * Today (UX-05, M.6): the first screen. It answers "what changed, and does it touch us?" in four
- * rows, all from one server read (`GET /api/desk/today`), with nothing recomputed here:
+ * Today (UX-05; design basis 2, section E): the first screen, all from one server read
+ * (`GET /api/desk/today`), with nothing recomputed here. Four rows, in the order the person's
+ * role composition gives (`roleComposition.ts` `todayRows`):
  *
- * 1. Key figures: front-month prices with their day change, the net position today and for the
- *    front month, and the headroom on the tightest limit.
- * 2. What changed: open alerts and outages, each with "Why".
- * 3. Our book against the market: position by hub with its mark and day P&L change.
- * 4. Fundamentals: storage fill and the supply call, with the balance table below.
+ * - My market: DA and front month per focus hub with the day change and a 30-day sparkline,
+ *   then the spreads against TTF in one unit with the route cost ("in/out of the money").
+ * - My book: net position today and front month, the tightest limit, the book by hub.
+ * - What needs me: at most five ranked items (opportunities, outages at my hubs, limits); when
+ *   nothing qualifies, one sentence in the next row's header and no row.
+ * - Fundamentals: storage by country against its history, the supply call against its 7-day
+ *   average, LNG send-out against yesterday.
+ *
+ * No filter strip: Today is about today (E.1).
  *
  * Every figure shows its value, unit, and its state in words when it is not current; a simulated
  * figure carries the simulated marker beside the value itself (AGENTS.md rule 17). An empty
@@ -19,13 +24,17 @@ import { useCompactWidth } from "@/app/shell/useShellLayout";
 import type {
   DeskTodayDTO,
   TodayBookRowDTO,
-  TodayChangesRowDTO,
   TodayEmptyDTO,
   TodayFigureDTO,
   TodayFundamentalsRowDTO,
   TodayKeyFiguresRowDTO,
+  TodayMarketDTO,
+  TodayMarketFigureDTO,
+  TodayNeedsMeRowDTO,
   TodayPriceDTO,
+  TodaySpreadDTO,
 } from "@/api/client";
+import type { TodayRowKey } from "@/app/experience/roleComposition";
 import {
   ageText,
   figureAnchorId,
@@ -34,7 +43,6 @@ import {
   isEmptyEntry,
   shortDay,
   stateWords,
-  timeWindow,
 } from "@/app/model/todayModel";
 import { pnlClass } from "@/app/model/pnlColor";
 import { GasForPowerPanel } from "@/components/GasForPowerPanel";
@@ -42,14 +50,12 @@ import { MethodNote } from "@/components/MethodNote";
 import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
-import { ReportLink } from "@/components/ReportLink";
 import { Sparkline } from "@/components/ui/charts";
 import {
   Button,
   DataGrid,
   EmptyState,
   KeyFigure,
-  Panel,
   Popover,
   Skeleton,
   StatusBadge,
@@ -71,6 +77,14 @@ export interface TodayScreenProps {
   onOpenBrief: () => void;
   onOpenLimits: () => void;
   onOpenOutages: () => void;
+  /** The rows in the person's order (design basis 2, E.3); absent rows are not shown. */
+  rows?: readonly TodayRowKey[];
+  /** Whether the person may read the book (`portfolio.read`): My book is absent otherwise. */
+  canSeeBook?: boolean;
+  /** Open Prices, where a market sparkline's full chart is. */
+  onOpenPrices?: () => void;
+  /** Open what a "What needs me" item names. */
+  onOpenNeed?: (item: TodayNeedsMeRowDTO["items"][number]) => void;
   /**
    * The inspector hand-off for a price: returns how to open its observation (source, time,
    * state), or null when this desk holds no observation behind it.
@@ -197,149 +211,134 @@ function PriceFigure({ price, t, nowMs, onInspect }: { price: TodayPriceDTO; t: 
   );
 }
 
-function KeyFiguresRow({ row, t, nowMs, language, onOpenLimits, onInspectPrice }: { row: TodayKeyFiguresRowDTO; t: Translate; nowMs: number; language: string; onOpenLimits: () => void; onInspectPrice?: TodayScreenProps["onInspectPrice"] }) {
-  const limit = row.tightest_limit;
+function MarketFigure({ figure, t, nowMs, onInspect }: { figure: TodayMarketFigureDTO; t: Translate; nowMs: number; onInspect?: (() => void) | null }) {
+  const label = `${figure.hub} ${figure.product}`;
   return (
-    <RowSection id="key_figures" title={t("today.row.key_figures")}>
-      <div className="today-figures">
-        {row.prices.map((price) =>
-          isEmptyEntry(price) ? (
-            <div key={price.key} className="today-figure today-figure-empty">
-              <span className="today-figure-label">{price.hub}</span>
-              <Empty empty={price.empty} id={`today-${price.key}`} />
+    <Figure
+      figure={figure}
+      label={label}
+      t={t}
+      nowMs={nowMs}
+      size="md"
+      notes={
+        onInspect ? (
+          <button type="button" className="ds-inline-link" data-inspect-price={figure.hub} aria-label={t("today.source_of", { name: label })} title={t("today.source_of", { name: label })} onClick={onInspect}>
+            {t("today.source")}
+          </button>
+        ) : undefined
+      }
+      delta={figure.day_change == null ? undefined : { text: formatChange(figure.day_change, figure.unit), value: figure.day_change }}
+      detail={t("today.close_of", { day: shortDay(figure.close_day) })}
+    />
+  );
+}
+
+function SpreadLine({ spread, t }: { spread: TodayMarketDTO["spreads"][number]; t: Translate }) {
+  if (isEmptyEntry(spread)) {
+    return (
+      <li className="today-spread" data-spread={spread.pair} data-empty-code={spread.empty.code}>
+        <span className="today-spread-pair">{spread.pair}</span>
+        <span className="muted">{spread.empty.reason}</span>
+      </li>
+    );
+  }
+  const item = spread as TodaySpreadDTO;
+  const route = item.route_cost;
+  const fx = item.fx ? t("today.market.fx", { base: item.fx.base, quote: item.fx.quote, rate: Number(item.fx.rate).toFixed(4) }) : undefined;
+  return (
+    <li className="today-spread" data-spread={item.pair} id={figureAnchorId(item.key)} tabIndex={-1}>
+      <span className="today-spread-pair">{item.label}</span>
+      <strong className="today-spread-value" title={fx}>
+        {formatValue(item.value, item.unit, true)} <small className="ds-grid-unit">{item.unit}</small>
+      </strong>
+      {item.simulated && <SimulatedMark t={t} />}
+      {route.value != null && route.verdict ? (
+        <span className="today-spread-route" data-verdict={route.verdict} title={(route.via ?? []).join(" · ")}>
+          {t("today.market.route_cost", { value: formatValue(route.value, route.unit), unit: route.unit })}
+          {" · "}
+          <strong>{t(`today.market.${route.verdict}`)}</strong>
+        </span>
+      ) : (
+        <span className="today-spread-route muted" title={route.reason}>{t("today.market.no_route")}</span>
+      )}
+    </li>
+  );
+}
+
+function MarketRow({ market, t, nowMs, onInspectPrice, onOpenPrices }: { market: TodayMarketDTO; t: Translate; nowMs: number; onInspectPrice?: TodayScreenProps["onInspectPrice"]; onOpenPrices?: () => void }) {
+  return (
+    <RowSection id="market" title={t("today.row.market")}>
+      <div className="today-market">
+        {market.hubs.map((hub) => {
+          const front = hub.front_month;
+          return (
+            <div key={hub.hub} className="today-market-hub" data-hub={hub.hub}>
+              {hub.empty ? (
+                <>
+                  <span className="today-figure-label">{hub.hub}</span>
+                  <Empty empty={hub.empty} id={`today-market-${hub.hub}`} />
+                </>
+              ) : (
+                <>
+                  {hub.day_ahead && <MarketFigure figure={hub.day_ahead} t={t} nowMs={nowMs} />}
+                  {front && <MarketFigure figure={front} t={t} nowMs={nowMs} onInspect={onInspectPrice?.(front as unknown as TodayPriceDTO)} />}
+                  {front && front.series.length > 1 && (
+                    <Sparkline
+                      values={front.series.map((point) => point.value)}
+                      days={front.series.map((point) => point.day)}
+                      simulated={front.simulated}
+                      label={t("today.market.series", { name: `${front.hub} ${front.product}`, days: market.series_days })}
+                      unit={front.unit}
+                      decimals={2}
+                      t={t}
+                      onOpen={onOpenPrices}
+                    />
+                  )}
+                </>
+              )}
             </div>
-          ) : (
-            <PriceFigure key={price.key} price={price as TodayPriceDTO} t={t} nowMs={nowMs} onInspect={onInspectPrice?.(price as TodayPriceDTO)} />
-          ),
-        )}
-        {row.prices_empty && <Empty empty={row.prices_empty} id="today-prices" />}
-        {row.position && (
-          <>
-            <Figure
-              figure={row.position.today}
-              label={t("today.net_today")}
-              t={t}
-              nowMs={nowMs}
-              signed
-              notes={<MethodNote method={row.position.today.method} subject={t("today.net_today")} t={t} />}
-            />
-            <Figure
-              figure={row.position.front_month}
-              label={t("today.net_front", { month: row.position.front_month.label.split(" ").pop() })}
-              t={t}
-              nowMs={nowMs}
-              signed
-            />
-          </>
-        )}
-        {row.position_empty && <Empty empty={row.position_empty} id="today-position" />}
-        {limit && (
-          <Figure
-            figure={limit}
-            label={t(`today.tightest_${limit.kind}`)}
-            t={t}
-            nowMs={nowMs}
-            wide
-            detail={
-              <span className="today-limit-detail">
-                <span className="today-limit-name">{limit.name}</span>
-                <span aria-hidden="true">·</span>
-                <span className="today-limit-used" data-status={limit.status}>
-                  {t("today.used", { pct: Math.round(limit.utilisation_pct) })}
-                </span>
-              </span>
-            }
-            notes={
-              <>
-                <WhyButton subject={limit.why.subject} id={limit.why.id} label={limit.name} language={language} t={t} />
-                <MethodNote method={limit.method} subject={t(`today.tightest_${limit.kind}`)} t={t} />
-              </>
-            }
-            action={
-              <button type="button" className="ds-inline-link today-limit-link" onClick={onOpenLimits}>
-                {t("today.limit_counts", { breach: limit.counts.breach, watch: limit.counts.watch })}
-              </button>
-            }
-          />
-        )}
-        {row.limit_empty && <Empty empty={row.limit_empty} id="today-limit" />}
+          );
+        })}
       </div>
+      {market.spreads.length > 0 && (
+        <ul className="today-spreads" aria-label={t("today.market.spreads")}>
+          {market.spreads.map((spread) => <SpreadLine key={spread.pair} spread={spread} t={t} />)}
+        </ul>
+      )}
     </RowSection>
   );
 }
 
-/* ------------------------------------------------------------------ row 2 */
+function needTitle(item: TodayNeedsMeRowDTO["items"][number], zh: boolean): string {
+  return zh && item.title_zh ? item.title_zh : item.title;
+}
 
-function ChangesRow({ row, t, nowMs, language, onOpenOutages }: { row: TodayChangesRowDTO; t: Translate; nowMs: number; language: string; onOpenOutages: () => void }) {
+function NeedsMeRow({ row, t, nowMs, language, onOpen }: { row: TodayNeedsMeRowDTO; t: Translate; nowMs: number; language: string; onOpen?: TodayScreenProps["onOpenNeed"] }) {
   const zh = language.toLowerCase().startsWith("zh");
-  const { alerts, outages } = row;
   return (
-    <RowSection id="changes" title={t("today.row.changes")}>
-      {row.empty ? (
-        <Empty empty={row.empty} id="today-changes" />
-      ) : (
-        <div className="today-changes">
-          <Panel
-            title={t("today.alerts")}
-            level={3}
-            meta={t("today.alert_counts", { open: alerts.counts.open, critical: alerts.counts.critical, warning: alerts.counts.warning })}
-          >
-            {alerts.items.length === 0 ? (
-              <EmptyState compact reason={t("today.no_alerts")} />
-            ) : (
-              <ul className="today-list">
-                {alerts.items.map((alert) => (
-                  <li key={alert.alert_id} data-severity={alert.severity}>
-                    <StatusBadge tone={alert.severity === "critical" ? "breach" : "watch"}>{t(`today.severity.${alert.severity}`)}</StatusBadge>
-                    <span className="today-list-text">{zh && alert.title_zh ? alert.title_zh : alert.title}</span>
-                    {alert.simulated && <SimulatedMark t={t} />}
-                    <span className="today-list-time">{ageText(alert.as_of, nowMs, t)}</span>
-                    <WhyButton subject={alert.why.subject} id={alert.why.id} label={alert.title} language={language} t={t} />
-                    <ReportLink subject={{ kind: "alert", id: alert.alert_id }} label={alert.title} t={t} />
-                  </li>
-                ))}
-              </ul>
-            )}
-            {alerts.more > 0 && <p className="today-more">{t("today.more", { count: alerts.more })}</p>}
-          </Panel>
-          <Panel
-            title={t("today.outages")}
-            level={3}
-            meta={t("today.outage_counts", { active: outages.counts.active, scheduled: outages.counts.scheduled, days: outages.horizon_days })}
-            actions={<Button variant="quiet" onClick={onOpenOutages}>{t("today.open_outages")}</Button>}
-          >
-            {outages.items.length === 0 ? (
-              <EmptyState compact reason={t("today.no_outages", { days: outages.horizon_days })} />
-            ) : (
-              <ul className="today-list">
-                {outages.items.map((outage) => (
-                  <li key={outage.event_id}>
-                    <StatusBadge tone="neutral">{t(`today.outage_status.${outage.status}`, { defaultValue: outage.status })}</StatusBadge>
-                    <span className="today-list-text">
-                      <strong>{outage.facility}</strong>
-                      {outage.zone ? <span className="muted"> {outage.zone}</span> : null}
-                      <span className="muted"> · {timeWindow(outage.start_utc, outage.end_utc, nowMs)}</span>
-                      {(outage.message_count ?? 1) > 1 && (
-                        <span className="muted" title={(outage.operators ?? []).join(" · ")}>
-                          {" · "}{t("outages.messages_count", { count: outage.message_count })}
-                        </span>
-                      )}
-                    </span>
-                    <span className="today-list-figure">
-                      {outage.unavailable == null ? "–" : formatValue(outage.unavailable, outage.unit ?? "")}
-                      {outage.unit ? <small className="ds-grid-unit">{outage.unit}</small> : null}
-                      {outage.simulated && <SimulatedMark t={t} />}
-                    </span>
-                    <WhyButton subject={outage.why.subject} id={outage.why.id} label={outage.facility} language={language} t={t} />
-                    <ReportLink subject={{ kind: "outage", id: String(outage.event_id) }} label={outage.facility} t={t} />
-                  </li>
-                ))}
-              </ul>
-            )}
-            {outages.more > 0 && <p className="today-more">{t("today.more", { count: outages.more })}</p>}
-          </Panel>
-        </div>
-      )}
+    <RowSection id="needs_me" title={t("today.row.needs_me")} meta={row.more > 0 ? t("today.needs.more", { count: row.more }) : undefined}>
+      <ol className="today-needs">
+        {row.items.map((item) => {
+          const tone = item.kind === "limit" ? (item.status === "breach" ? "breach" : "watch") : item.kind === "opportunity" && item.lane === "must_act" ? "breach" : "neutral";
+          return (
+            <li key={`${item.kind}:${item.id}`} data-need={item.kind}>
+              <StatusBadge tone={tone}>{t(`today.needs.kind.${item.kind}${item.kind === "opportunity" && item.lane ? `.${item.lane}` : ""}`)}</StatusBadge>
+              <button type="button" className="ds-inline-link today-need-title" onClick={() => onOpen?.(item)}>
+                {needTitle(item, zh)}
+              </button>
+              <span className="today-need-detail muted">
+                {item.kind === "outage" && item.hub ? t(item.touches_book ? "today.needs.touches_book" : "today.needs.at_hub", { hub: item.hub }) : null}
+                {item.kind === "outage" && item.size?.value != null ? ` · ${formatValue(item.size.value, item.size.unit ?? "")} ${item.size.unit ?? ""}` : null}
+                {item.kind === "opportunity" && item.headline?.value != null ? `${item.headline.value} ${item.headline.unit ?? ""}${item.period ? ` · ${item.period}` : ""}` : null}
+                {item.kind === "limit" && item.utilisation_pct != null ? t("today.used", { pct: Math.round(item.utilisation_pct) }) : null}
+              </span>
+              {item.simulated && <SimulatedMark t={t} />}
+              <span className="today-list-time">{ageText(item.as_of, nowMs, t)}</span>
+              {item.why && <WhyButton subject={item.why.subject} id={item.why.id} label={item.title} language={language} t={t} />}
+            </li>
+          );
+        })}
+      </ol>
     </RowSection>
   );
 }
@@ -374,7 +373,66 @@ function markTitle(mark: NonNullable<BookHub["mark"]>, labels: Record<string, st
   return parts.join(" · ");
 }
 
-function BookRow({ row, frontMonth, t, nowMs, keyFigures }: { row: TodayBookRowDTO; frontMonth: string; t: Translate; nowMs: number; keyFigures?: TodayKeyFiguresRowDTO }) {
+/** My book's headline: net position today and front month, and the tightest limit. */
+function BookFigures({ row, t, nowMs, language, onOpenLimits }: { row: TodayKeyFiguresRowDTO; t: Translate; nowMs: number; language: string; onOpenLimits: () => void }) {
+  const limit = row.tightest_limit;
+  if (!row.position && !limit && !row.limit_empty) return null;
+  return (
+    <div className="today-figures today-book-figures">
+      {row.position && (
+        <>
+          <Figure
+            figure={row.position.today}
+            label={t("today.net_today")}
+            t={t}
+            nowMs={nowMs}
+            signed
+            notes={<MethodNote method={row.position.today.method} subject={t("today.net_today")} t={t} />}
+          />
+          <Figure
+            figure={row.position.front_month}
+            label={t("today.net_front", { month: row.position.front_month.label.split(" ").pop() })}
+            t={t}
+            nowMs={nowMs}
+            signed
+          />
+        </>
+      )}
+      {limit && (
+        <Figure
+          figure={limit}
+          label={t(`today.tightest_${limit.kind}`)}
+          t={t}
+          nowMs={nowMs}
+          wide
+          detail={
+            <span className="today-limit-detail">
+              <span className="today-limit-name">{limit.name}</span>
+              <span aria-hidden="true">·</span>
+              <span className="today-limit-used" data-status={limit.status}>
+                {t("today.used", { pct: Math.round(limit.utilisation_pct) })}
+              </span>
+            </span>
+          }
+          notes={
+            <>
+              <WhyButton subject={limit.why.subject} id={limit.why.id} label={limit.name} language={language} t={t} />
+              <MethodNote method={limit.method} subject={t(`today.tightest_${limit.kind}`)} t={t} />
+            </>
+          }
+          action={
+            <button type="button" className="ds-inline-link today-limit-link" onClick={onOpenLimits}>
+              {t("today.limit_counts", { breach: limit.counts.breach, watch: limit.counts.watch })}
+            </button>
+          }
+        />
+      )}
+      {row.limit_empty && <Empty empty={row.limit_empty} id="today-limit" />}
+    </div>
+  );
+}
+
+function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits }: { row: TodayBookRowDTO; frontMonth: string; t: Translate; nowMs: number; keyFigures?: TodayKeyFiguresRowDTO; language: string; onOpenLimits: () => void }) {
   const labels = useMemo(() => priceLabels(keyFigures), [keyFigures]);
   const pnlMethod = row.hubs.map((hub) => ("method" in hub.day_pnl_change ? hub.day_pnl_change.method : undefined)).find(Boolean);
   const columns = useMemo<DataGridColumn<BookHub>[]>(
@@ -445,6 +503,7 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures }: { row: TodayBookRowD
   );
   return (
     <RowSection id="book" title={t("today.row.book")} actions={pnlMethod ? <MethodNote method={pnlMethod} subject={t("today.book.day_pnl")} t={t} /> : undefined}>
+      {keyFigures && <BookFigures row={keyFigures} t={t} nowMs={nowMs} language={language} onOpenLimits={onOpenLimits} />}
       {row.empty ? (
         <Empty empty={row.empty} id="today-book" />
       ) : (
@@ -464,68 +523,86 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures }: { row: TodayBookRowD
 
 /* ------------------------------------------------------------------ row 4 */
 
-function FundamentalsRow({ row, t, nowMs, language }: { row: TodayFundamentalsRowDTO; t: Translate; nowMs: number; language: string }) {
+function FundamentalsRow({ row, t, nowMs, language, quiet }: { row: TodayFundamentalsRowDTO; t: Translate; nowMs: number; language: string; quiet?: string | null }) {
   const storage = row.storage;
   const balance = row.balance;
-  const balanceSimulated = !isEmptyEntry(balance) && balance.latest.simulated;
   return (
-    <RowSection id="fundamentals" title={t("today.row.fundamentals")}>
+    <RowSection id="fundamentals" title={t("today.row.fundamentals")} meta={quiet ? <span data-today-quiet="">{t("today.needs.quiet")}</span> : undefined}>
       {row.empty ? (
         <Empty empty={row.empty} id="today-fundamentals" />
       ) : (
-        <div className="today-figures today-fundamentals">
-          {/* Storage is the "Storage by country" panel below (CP-04); an empty storage read
-              still says why here. */}
-          {isEmptyEntry(storage) && <Empty empty={storage.empty} id="today-storage" />}
+        <div className="today-fundamentals-grid">
+          {/* Storage by country against its history (CP-04): Europe first, then the countries
+              of my hubs and the largest; an empty storage read still says why here. */}
+          {isEmptyEntry(storage) ? (
+            <Empty empty={storage.empty} id="today-storage" />
+          ) : (
+            <section className="workspace-panel today-chart-panel" data-today-storage="by-country">
+              <StorageByCountryPanel t={t} language={language} />
+            </section>
+          )}
           {isEmptyEntry(balance) ? (
             <Empty empty={balance.empty} id="today-balance" />
           ) : (
-            <div className="today-fundamental">
-              <Figure
-                figure={balance.latest}
-                label={t("today.supply_call")}
-                t={t}
-                nowMs={nowMs}
-                detail={t("today.supply_call_detail", { day: shortDay(balance.latest.as_of) })}
-              />
-              <Sparkline
-                values={balance.series.map((point) => point.call_gwh)}
-                days={balance.series.map((point) => point.day)}
-                simulated={balance.latest.simulated}
-                label={t("today.supply_call")}
-                unit={balance.latest.unit || "GWh/d"}
-                decimals={0}
-                t={t}
-                onOpen={() => openChart("chart-nwe-balance-chart-title")}
-              />
+            <div className="today-figures today-fundamentals">
+              <div className="today-fundamental">
+                <Figure
+                  figure={balance.latest}
+                  label={t("today.supply_call")}
+                  t={t}
+                  nowMs={nowMs}
+                  delta={
+                    balance.call_7d_avg_gwh == null || balance.latest.value == null
+                      ? undefined
+                      : { text: t("today.supply_call_vs_avg", { avg: formatValue(balance.call_7d_avg_gwh, "GWh/d") }), value: null }
+                  }
+                  detail={t("today.supply_call_detail", { day: shortDay(balance.latest.as_of) })}
+                />
+                <Sparkline
+                  values={balance.series.map((point) => point.call_gwh)}
+                  days={balance.series.map((point) => point.day)}
+                  simulated={balance.latest.simulated}
+                  label={t("today.supply_call")}
+                  unit={balance.latest.unit || "GWh/d"}
+                  decimals={0}
+                  t={t}
+                  onOpen={() => openFold("today-balance-fold")}
+                />
+              </div>
+              {balance.lng_gwh != null && (
+                <div className="today-fundamental today-lng" data-today-lng="">
+                  <span className="today-figure-label">{t("today.lng_sendout")}</span>
+                  <strong>
+                    {formatValue(balance.lng_gwh, "GWh/d")} <small className="ds-grid-unit">GWh/d</small>
+                  </strong>
+                  {balance.latest.simulated && <SimulatedMark t={t} />}
+                  {balance.lng_vs_yesterday_gwh != null && (
+                    <span className="muted"> {t("today.lng_vs_yesterday", { change: formatChange(balance.lng_vs_yesterday_gwh, "GWh/d") })}</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
-      <div className="today-fundamentals-detail">
-        {!isEmptyEntry(storage) && (
-          <section className="workspace-panel today-chart-panel" data-today-storage="by-country">
-            <StorageByCountryPanel t={t} language={language} />
-          </section>
-        )}
-        <NweBalancePanel t={t} simulated={balanceSimulated} />
+      {/* The full balance and gas-for-power charts belong to Research → Fundamentals (E.2,
+          CP-17); until that page exists they stay one line below, folded. */}
+      <details className="today-balance-fold" id="today-balance-fold">
+        <summary>{t("today.balance_fold")}</summary>
+        <NweBalancePanel t={t} simulated={!isEmptyEntry(balance) && balance.latest.simulated} />
         <GasForPowerPanel t={t} />
-      </div>
+      </details>
     </RowSection>
   );
 }
 
-/**
- * Bring a chart on this page into view and give it focus: a sparkline's "open the full chart".
- * The chart's own title names it, so focus lands on its panel.
- */
-function openChart(titleId: string): void {
-  const title = document.getElementById(titleId);
-  const target = (title?.closest("section, figure, .ds-chart") as HTMLElement | null) ?? title;
-  if (!target) return;
-  target.scrollIntoView({ block: "start", behavior: "smooth" });
-  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
-  target.focus({ preventScroll: true });
+/** Open a fold on this page and bring it into view: a sparkline's "open the full chart". */
+function openFold(id: string): void {
+  const fold = document.getElementById(id);
+  if (!(fold instanceof HTMLDetailsElement)) return;
+  fold.open = true;
+  fold.scrollIntoView({ block: "start", behavior: "smooth" });
+  fold.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
 }
 
 /* ---------------------------------------------------------- freshness (FRESH-02) */
@@ -619,7 +696,9 @@ export function TodayFreshness({ today, t, nowMs }: { today: DeskTodayDTO | null
 
 /* ------------------------------------------------------------------ screen */
 
-export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onOpenOutages, onInspectPrice }: TodayScreenProps) {
+const DEFAULT_ROWS: readonly TodayRowKey[] = ["market", "book", "needs_me", "fundamentals"];
+
+export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices }: TodayScreenProps) {
   if (!today) {
     return (
       <div className="today" data-today="loading">
@@ -627,7 +706,14 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       </div>
     );
   }
-  const [keyFigures, changes, book, fundamentals] = today.rows;
+  const [keyFigures, , book, fundamentals, needsMe] = today.rows;
+  const quiet = needsMe && needsMe.items.length === 0 ? needsMe.quiet : null;
+  const render: Record<TodayRowKey, () => ReactNode> = {
+    market: () => (keyFigures?.market ? <MarketRow key="market" market={keyFigures.market} t={t} nowMs={nowMs} onInspectPrice={onInspectPrice} onOpenPrices={onOpenPrices} /> : null),
+    book: () => (canSeeBook && book ? <BookRow key="book" row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} language={language} onOpenLimits={onOpenLimits} /> : null),
+    needs_me: () => (needsMe && needsMe.items.length > 0 ? <NeedsMeRow key="needs_me" row={needsMe} t={t} nowMs={nowMs} language={language} onOpen={onOpenNeed} /> : null),
+    fundamentals: () => (fundamentals ? <FundamentalsRow key="fundamentals" row={fundamentals} t={t} nowMs={nowMs} language={language} quiet={quiet} /> : null),
+  };
   return (
     <div className="today" data-today="ready">
       <div className="today-head">
@@ -643,10 +729,8 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       {today.warnings.length > 0 && (
         <ul className="today-warnings">{today.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
       )}
-      {keyFigures && <KeyFiguresRow row={keyFigures} t={t} nowMs={nowMs} language={language} onOpenLimits={onOpenLimits} onInspectPrice={onInspectPrice} />}
-      {changes && <ChangesRow row={changes} t={t} nowMs={nowMs} language={language} onOpenOutages={onOpenOutages} />}
-      {book && <BookRow row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} />}
-      {fundamentals && <FundamentalsRow row={fundamentals} t={t} nowMs={nowMs} language={language} />}
+      {quiet && !rows.includes("fundamentals") && <p className="today-quiet" data-today-quiet="">{t("today.needs.quiet")}</p>}
+      {rows.map((key) => render[key]())}
     </div>
   );
 }
