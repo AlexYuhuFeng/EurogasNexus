@@ -1,0 +1,273 @@
+"""Book and feed rows the valuation snapshot serves as named collections (design J.1, J.2).
+
+Each function returns plain rows; :class:`~eurogas_nexus.application.valuation_snapshot.
+LiveSnapshotReader` turns every row into one recorded snapshot input, so an evaluator reads
+the book only through its snapshot and a replay serves the same rows.
+
+- ``positions``: net MWh per book, hub and month (contracts and filled trades, the position
+  ladder's legs), for the current month and the next six;
+- ``contracts``: active supply contracts with their hub, daily quantity and price in the hub's
+  currency;
+- ``mandates``: trader mandates (books, hubs, monthly net limit);
+- ``held_capacity``: capacity the firm holds on a route (route candidates with booked legs);
+- ``residuals``: tomorrow's balance per book and hub (supply corrected by measured delivery,
+  plus purchases, less sales);
+- ``outage_feed``: whether an outage feed is held at all (so "no outage on the path" can be
+  told apart from "not assessed").
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, datetime, timedelta
+from typing import Any
+
+#: Months of positions read: the current month and the next six (design J.2 candidate set).
+POSITION_MONTHS = 7
+
+
+def _month_start(day: date, offset: int) -> date:
+    month = day.month - 1 + offset
+    return date(day.year + month // 12, month % 12 + 1, 1)
+
+
+class BookReads:
+    """The book as one caller sees it on one day, read once and shared by the collections."""
+
+    def __init__(self, caller, today: date) -> None:
+        self.caller = caller
+        self.today = today
+        self._inputs = None
+
+    @property
+    def inputs(self):
+        """The position ladder's legs and contracts (``application/position_inputs``)."""
+
+        if self._inputs is None:
+            from eurogas_nexus.application.position_inputs import ladder_inputs
+
+            end = _month_start(self.today, POSITION_MONTHS) - timedelta(days=1)
+            self._inputs = ladder_inputs(self.caller, self.today, self.today, end)
+        return self._inputs
+
+    def positions(self) -> list[dict[str, Any]]:
+        """Net MWh per (book, hub, month)."""
+
+        totals: dict[tuple[str, str, str], dict[str, float]] = defaultdict(
+            lambda: {"physical": 0.0, "financial": 0.0}
+        )
+        for leg in self.inputs.legs:
+            for offset in range(POSITION_MONTHS):
+                first = _month_start(self.today, offset)
+                end = _month_start(self.today, offset + 1)
+                start = max(first, leg.first_gas_day, self.today)
+                stop = min(end - timedelta(days=1), leg.last_gas_day)
+                days = (stop - start).days + 1
+                if days <= 0:
+                    continue
+                key = (leg.book_id or "", leg.hub, f"{first:%Y-%m}")
+                totals[key][leg.kind] += leg.mwh_per_day * days
+        return [
+            {
+                "book_id": book or None,
+                "hub": hub,
+                "month": month,
+                "physical_mwh": round(values["physical"], 1),
+                "financial_mwh": round(values["financial"], 1),
+                "net_mwh": round(values["physical"] + values["financial"], 1),
+            }
+            for (book, hub, month), values in sorted(totals.items())
+            if abs(values["physical"] + values["financial"]) > 1e-6
+        ]
+
+    def contracts(self) -> list[dict[str, Any]]:
+        """Active supply contracts in the caller's books."""
+
+        from eurogas_nexus.domain.ontology.markets import quote_currency
+
+        records = {item.contract_id: item for item in self.inputs.contracts}
+        rows = []
+        for leg in self.inputs.legs:
+            if leg.kind != "physical" or leg.reference not in records:
+                continue
+            record = records[leg.reference]
+            rows.append(
+                {
+                    "contract_id": leg.reference,
+                    "contract_name": record.contract_name,
+                    "book_id": leg.book_id or None,
+                    "hub": leg.hub,
+                    "delivery_point": record.delivery_point_name,
+                    "mwh_per_day": leg.mwh_per_day,
+                    "price": leg.price,
+                    "price_currency": quote_currency(leg.hub),
+                    "first_gas_day": leg.first_gas_day.isoformat(),
+                    "last_gas_day": leg.last_gas_day.isoformat(),
+                    "allowed_exit_points": list(record.allowed_exit_points or []),
+                }
+            )
+        return rows
+
+    def residuals(self, session) -> list[dict[str, Any]]:
+        """Tomorrow's residual per (book, hub): supply x measured delivery + bought - sold."""
+
+        from eurogas_nexus.db.models import ContractDeliveryRecord
+        from eurogas_nexus.domain.portfolio.daily_balance import BalanceLeg, daily_balance
+
+        tomorrow = self.today + timedelta(days=1)
+        etrm = {
+            order.order_observation_id
+            for order in self.inputs.orders
+            if str(order.provider_id).upper() == "ETRM"
+        }
+        groups: dict[tuple[str, str], list] = defaultdict(list)
+        for leg in self.inputs.legs:
+            if leg.first_gas_day <= tomorrow <= leg.last_gas_day:
+                groups[(leg.book_id or "", leg.hub)].append(leg)
+        rows = []
+        for (book, hub), legs in sorted(groups.items()):
+            contract_ids = [leg.reference for leg in legs if leg.kind == "physical"]
+            ratio = 1.0
+            if contract_ids:
+                records = (
+                    session.query(ContractDeliveryRecord)
+                    .filter(ContractDeliveryRecord.contract_id.in_(contract_ids))
+                    .filter(ContractDeliveryRecord.gas_day >= self.today - timedelta(days=30))
+                    .all()
+                )
+                nominated = sum(
+                    r.nominated_mwh or 0.0 for r in records if r.allocated_mwh is not None
+                )
+                allocated = sum(
+                    r.allocated_mwh or 0.0 for r in records if r.nominated_mwh is not None
+                )
+                if nominated > 0:
+                    ratio = allocated / nominated
+            (row,) = daily_balance(
+                [tomorrow],
+                [
+                    BalanceLeg(
+                        leg.reference,
+                        leg.first_gas_day,
+                        leg.last_gas_day,
+                        leg.mwh_per_day,
+                        "supply"
+                        if leg.kind == "physical"
+                        else "bilateral"
+                        if leg.reference in etrm
+                        else "exchange",
+                    )
+                    for leg in legs
+                ],
+                delivery_ratio=ratio,
+            )
+            if row["state"] == "balanced":
+                continue
+            rows.append(
+                {
+                    "book_id": book or None,
+                    "hub": hub,
+                    "gas_day": tomorrow.isoformat(),
+                    "residual_mwh": row["residual_mwh"],
+                    "supply_mwh": row["supply"],
+                    "delivery_ratio": round(ratio, 4),
+                    "contracts": contract_ids,
+                }
+            )
+        return rows
+
+
+def mandates(session) -> list[dict[str, Any]]:
+    """Trader mandates (risk's approved limits)."""
+
+    from eurogas_nexus.db.models import TraderMandateRecord
+
+    return [
+        {
+            "mandate_id": row.mandate_id,
+            "trader": row.trader,
+            "book_ids": list(row.book_ids or []),
+            "hubs": [hub.upper() for hub in row.hubs or []],
+            "max_net_mwh_per_month": row.max_net_mwh_per_month,
+            "valid_until": row.valid_until.isoformat() if row.valid_until else None,
+        }
+        for row in session.query(TraderMandateRecord).order_by(TraderMandateRecord.mandate_id)
+    ]
+
+
+def held_capacity(session, contracts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Capacity the firm holds on a route between two market areas.
+
+    A route candidate whose legs state booked capacity is held capacity; it belongs to the
+    book of the contract delivering at its start whose allowed exits include its target.
+    """
+
+    from eurogas_nexus.db.models import RouteCandidateRecord
+    from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
+
+    graph = shipped_market_area_graph()
+    rows = []
+    for route in (
+        session.query(RouteCandidateRecord)
+        .filter(RouteCandidateRecord.active.is_(True))
+        .order_by(RouteCandidateRecord.route_id)
+    ):
+        start = graph.hub_for(route.start_point_name)
+        target = graph.hub_for(route.target_point_name)
+        if start is None or target is None or start == target:
+            continue
+        capacities = [
+            float(leg["available_capacity_mwh_per_day"])
+            for leg in route.route_legs or []
+            if isinstance(leg.get("available_capacity_mwh_per_day"), int | float)
+        ]
+        if not capacities:
+            continue
+        from_hub, to_hub = graph.hub_names[start], graph.hub_names[target]
+        owner = next(
+            (
+                item
+                for item in contracts
+                if item["hub"] == from_hub
+                and to_hub in [str(point).upper() for point in item["allowed_exit_points"]]
+            ),
+            None,
+        )
+        rows.append(
+            {
+                "route_id": route.route_id,
+                "route_name": route.route_name,
+                "from_hub": from_hub,
+                "to_hub": to_hub,
+                "via_points": [
+                    str(leg["point_key"]) for leg in route.route_legs or [] if leg.get("point_key")
+                ],
+                "capacity_mwh_per_day": min(capacities),
+                "book_id": None if owner is None else owner["book_id"],
+                "contract_id": None if owner is None else owner["contract_id"],
+            }
+        )
+    return rows
+
+
+def outage_feed(session, *, demo_desk: bool) -> dict[str, Any]:
+    """How many outage messages are held, from which sources."""
+
+    from sqlalchemy import func
+
+    from eurogas_nexus.db.models import RemitUmmRecord
+
+    counts = dict(
+        session.query(RemitUmmRecord.source_system, func.count())
+        .group_by(RemitUmmRecord.source_system)
+        .all()
+    )
+    if not demo_desk:
+        counts.pop("DEMO", None)
+    return {"messages": int(sum(counts.values())), "sources": sorted(counts)}
+
+
+def as_datetime(value: str | None) -> datetime | None:
+    """An ISO instant or ``None``."""
+
+    return None if not value else datetime.fromisoformat(value)

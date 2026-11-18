@@ -714,7 +714,9 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
             trader="demo.nl.trader",
             display_name="Demo TTF desk trader",
             book_ids=["demo-nl-ttf"],
-            hubs=["TTF"],
+            # The continental desk may place its TTF gas at the neighbouring hubs, so a
+            # locational opportunity out of TTF passes the mandate's hub check.
+            hubs=["TTF", "THE", "ZTP", "PEG"],
             max_net_mwh_per_month=600_000,
             max_tenor_months=12,
             physical_allowed=True,

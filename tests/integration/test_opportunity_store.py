@@ -259,11 +259,12 @@ def test_dedupe_persistence_hysteresis_and_a_failing_evaluator(store) -> None:
     store.query(HedgeApprovalRecord).delete()
     store.commit()
     _run(store, demo=True)
-    states = {row.state for row in store.query(OpportunityRecord)}
-    assert "expired" not in states
+    gaps = store.query(OpportunityRecord).filter(OpportunityRecord.type == "hedge_gap").all()
+    assert "expired" not in {row.state for row in gaps}
     _run(store, demo=True)
-    assert {row.state for row in store.query(OpportunityRecord)} == {"expired"}
-    assert {row.ended_reason for row in store.query(OpportunityRecord)} == {"no_longer_found"}
+    gaps = store.query(OpportunityRecord).filter(OpportunityRecord.type == "hedge_gap").all()
+    assert {row.state for row in gaps} == {"expired"}
+    assert {row.ended_reason for row in gaps} == {"no_longer_found"}
 
 
 def test_book_scope_property_no_cross_book_leak() -> None:
@@ -282,3 +283,42 @@ def test_book_scope_property_no_cross_book_leak() -> None:
             assert set(families) <= entitled_families
         if allowed is not None and not row_books:
             assert not shown  # firm-level rows only for a caller who sees every book
+
+
+def test_demo_desk_evaluators_i_produce_marked_objects(store) -> None:
+    """CP-09 on the seeded demo desk (offline: its simulated BBL tariffs only).
+
+    Event exposure: the two demo outages name the Haldor and Kestrel contracts' sources, so
+    each linked contract carries a cover cost, marked simulated. Locational and held
+    capacity: every pair is either priced (legs reconcile) or a named "cannot evaluate"
+    record (a tariff not held at a real ENTSOG point, a mandate check). Sell-down: the demo
+    holds no day-ahead price and no cash-out assumption, so it is a named record too.
+    """
+
+    from decimal import Decimal
+
+    _seed_demo(store)
+    _run(store, demo=True)
+    summary = _run(store, demo=True)
+    assert {name for name, status in summary["evaluators"].items() if status["status"] == "ok"} >= {
+        "event_exposure",
+        "hedge_gap",
+        "held_capacity",
+        "locational",
+        "sell_down",
+    }
+    rows = store.query(OpportunityRecord).filter(OpportunityRecord.state != "expired").all()
+    events = [row for row in rows if row.type == "event_exposure"]
+    assert events and all(row.simulated and row.state == "indicative" for row in events)
+    assert any("Haldor" in row.claim_text for row in events)
+    for row in rows:
+        assert row.simulated or row.quality_class == "missing"
+        version = store.get(OpportunityVersionRecord, (row.opportunity_id, row.version))
+        if row.state == "blocked":
+            assert row.claim_text.startswith("Cannot evaluate: ")
+            continue
+        terms = [leg for leg in version.payload_json["legs"] if leg["kind"] == "term"]
+        total = sum(Decimal(leg["contribution"]["value"]) for leg in terms)
+        assert total == Decimal(version.payload_json["headline"]["value"])
+    assert any(row.type == "locational" for row in rows)
+    assert any(row.type == "sell_down" and row.state == "blocked" for row in rows)

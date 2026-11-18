@@ -184,6 +184,20 @@ def assumption_key(key: str) -> str:
 
 HEDGE_COVER_KEY = "book:hedge-cover"
 
+#: The named collections an evaluator may read through :meth:`SnapshotReader.collection`:
+#: ``positions`` (net MWh per book, hub and month), ``contracts`` (active supply contracts),
+#: ``mandates`` (trader mandates), ``held_capacity`` (capacity the firm holds on a route),
+#: ``residuals`` (tomorrow's balance per hub), ``outage_feed`` (whether a REMIT feed is held).
+COLLECTIONS = frozenset(
+    {"positions", "contracts", "mandates", "held_capacity", "residuals", "outage_feed"}
+)
+
+
+def collection_key(name: str) -> str:
+    """``collection:<name>``."""
+
+    return f"collection:{name}"
+
 
 def dependency_key(item: SnapshotInput) -> str | None:
     """The invalidation key an opportunity stores for one input (design J.2).
@@ -242,6 +256,9 @@ class SnapshotReader(Protocol):
 
     def hedge_cover(self) -> tuple[SnapshotInput, ...]:
         """Approved hedge bands and the cover held, per contract and month."""
+
+    def collection(self, name: str) -> tuple[SnapshotInput, ...]:
+        """A named set of book or feed rows (:data:`COLLECTIONS`), one input per row."""
 
     def inputs(self) -> tuple[SnapshotInput, ...]:
         """Every input read so far, in reading order."""
@@ -335,6 +352,13 @@ class RecordingReader:
     def hedge_cover(self) -> tuple[SnapshotInput, ...]:
         return self._get_collection(HEDGE_COVER_KEY, InputKind.BOOK, self._load_hedge_cover)
 
+    def collection(self, name: str) -> tuple[SnapshotInput, ...]:
+        if name not in COLLECTIONS:
+            raise ValueError(f"unknown collection {name!r}")
+        return self._get_collection(
+            collection_key(name), InputKind.BOOK, lambda: self._load_collection(name)
+        )
+
     def inputs(self) -> tuple[SnapshotInput, ...]:
         return tuple(self._recorded.values())
 
@@ -368,6 +392,9 @@ class RecordingReader:
         return missing(key, InputKind.ASSUMPTION, catalogue_key)
 
     def _load_hedge_cover(self) -> list[SnapshotInput]:
+        return []
+
+    def _load_collection(self, name: str) -> list[SnapshotInput]:
         return []
 
     # ---- freezing
@@ -514,6 +541,12 @@ class FixtureReader(RecordingReader):
 
     def _load_outages(self, zone, period) -> list[SnapshotInput]:
         members = self._collections.get(outages_key(zone, period), [])
+        return [self._fixture[key] for key in members]
+
+    def _load_collection(self, name: str) -> list[SnapshotInput]:
+        members = self._collections.get(collection_key(name))
+        if members is None:
+            members = [key for key in self._fixture if key.startswith(f"{name}:")]
         return [self._fixture[key] for key in members]
 
     def _load_hedge_cover(self) -> list[SnapshotInput]:

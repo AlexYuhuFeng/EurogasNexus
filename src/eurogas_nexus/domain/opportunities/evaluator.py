@@ -117,6 +117,11 @@ def register(evaluator: Evaluator) -> Evaluator:
 def registered() -> tuple[Evaluator, ...]:
     """Every registered evaluator, in name order (the reference ones are loaded first)."""
 
-    from eurogas_nexus.domain.opportunities import hedge_gap  # noqa: F401 - registers
+    from eurogas_nexus.domain.opportunities import (  # noqa: F401 - registers
+        event_exposure,
+        hedge_gap,
+        locational,
+        sell_down,
+    )
 
     return tuple(_REGISTRY[name] for name in sorted(_REGISTRY))

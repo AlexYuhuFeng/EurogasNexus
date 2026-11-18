@@ -24,6 +24,21 @@ CLAIM_TEMPLATES: dict[str, str] = {
         "{contract} · {period}: cover {cover_pct} % against an approved band of {band}; "
         "{gap_mwh} MWh above the band edge. Band approved by {approved_by}{approval_ref}."
     ),
+    "locational.spread": (
+        "{buy_hub} → {sell_hub} · {period} · {volume}: {margin} after {costs}; {value}."
+    ),
+    "capacity.spread": (
+        "Held capacity {buy_hub} → {sell_hub} · {period} · {volume}: {margin} with the "
+        "{costs}; {value}."
+    ),
+    "sell_down.residual": (
+        "{hub} gas day {gas_day}: {side} residual of {volume} MWh left open; cash-out "
+        "{relation} day-ahead by the desk's {penalty} costs {value}."
+    ),
+    "event.exposure": (
+        "Outage at {asset}: {contract} supply -{mwh_d} MWh/d for {days} d ({volume} MWh); "
+        "cover at {cover} against the contract's {contract_price}: {value}."
+    ),
     "blocked.tariff_not_held": "Cannot evaluate: tariff not held at {subject}.",
     "blocked.price_missing": "Cannot evaluate: no price or firm's mark held for {subject}.",
     "blocked.input_missing": "Cannot evaluate: {subject} not held.",

@@ -174,7 +174,8 @@ def stale_reason(item: SnapshotInput, as_of_utc: datetime, period_kind: str) -> 
     - a day-ahead or within-day price: the same gas day;
     - a forward price, FX or a rate: no older than one business day;
     - a tariff: in force for the delivery period (the reader only returns one that is);
-    - outage and capacity: the publication day, stated;
+    - capacity: the publication day, stated; an outage message is current until revised
+      (the reader serves its latest version), so its age alone is not staleness;
     - an assumption and the book: as approved and recorded (no age rule).
     """
 
@@ -188,7 +189,9 @@ def stale_reason(item: SnapshotInput, as_of_utc: datetime, period_kind: str) -> 
         if _business_days_between(item.as_of_utc, as_of_utc) > 1:
             return f"{item.label or item.key}: as of {item.as_of_utc.date().isoformat()}"
         return None
-    if item.kind in {InputKind.OUTAGE, InputKind.CAPACITY}:
+    # An outage message stands until its publisher revises or withdraws it, so its age is
+    # not staleness (the reader always serves the latest version); capacity is a reading.
+    if item.kind is InputKind.CAPACITY:
         if item.as_of_utc.date() < (as_of_utc - timedelta(days=1)).date():
             return f"{item.label or item.key}: published {item.as_of_utc.date().isoformat()}"
     return None

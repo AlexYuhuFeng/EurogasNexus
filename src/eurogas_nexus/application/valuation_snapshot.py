@@ -277,6 +277,7 @@ class LiveSnapshotReader(RecordingReader):
         fx_source: FxSource,
         assumption: tuple[str, Any] | None,
         hedge_cover_loader: Callable[[], list[dict]] | None = None,
+        book_reads=None,
     ) -> None:
         super().__init__(
             as_of_utc=as_of_utc,
@@ -289,6 +290,7 @@ class LiveSnapshotReader(RecordingReader):
         self.fx_source = fx_source
         self._assumption = assumption
         self._hedge_cover_loader = hedge_cover_loader
+        self._book_reads = book_reads
         self._naive = session.get_bind().dialect.name == "sqlite"
 
     def _bound(self, moment: datetime) -> datetime:
@@ -574,6 +576,14 @@ class LiveSnapshotReader(RecordingReader):
                 "gas_year": row.gas_year,
                 "point_id": row.point_id,
                 "point_name": row.source_point_name,
+                "published": next(
+                    (
+                        str(ref).removeprefix("published:")
+                        for ref in row.source_refs or []
+                        if str(ref).startswith("published:")
+                    ),
+                    None,
+                ),
                 "effective_from": _aware(row.effective_from).isoformat(),
                 "effective_to": (
                     _aware(row.effective_to).isoformat() if row.effective_to else None
@@ -661,6 +671,16 @@ class LiveSnapshotReader(RecordingReader):
                         "message_id": row.message_id,
                         "version": row.version,
                         "asset_eic": row.asset_eic,
+                        "asset_name": row.asset_name,
+                        "balancing_zone": row.balancing_zone,
+                        "unavailability_type": row.unavailability_type,
+                        "technical_capacity": row.technical_capacity,
+                        "unavailable_capacity": row.unavailable_capacity,
+                        "capacity_unit": row.unit,
+                        "event_start_utc": _aware(row.event_start_utc).isoformat(),
+                        "event_stop_utc": (
+                            _aware(row.event_stop_utc).isoformat() if row.event_stop_utc else None
+                        ),
                     },
                 )
             )
@@ -729,6 +749,71 @@ class LiveSnapshotReader(RecordingReader):
                 )
             )
         return out
+
+    def _load_collection(self, name: str) -> list[SnapshotInput]:
+        from eurogas_nexus.application import opportunity_reads
+
+        reads = self._book_reads
+        if name == "outage_feed":
+            feed = opportunity_reads.outage_feed(self.session, demo_desk=self.demo_desk)
+            held = feed["messages"] > 0
+            only_demo = held and feed["sources"] == ["DEMO"]
+            return [
+                SnapshotInput(
+                    key="outage_feed:messages",
+                    kind=InputKind.OUTAGE,
+                    input_class=(
+                        InputClass.SIMULATED
+                        if only_demo
+                        else InputClass.SOURCED
+                        if held
+                        else InputClass.MISSING
+                    ),
+                    value=Decimal(feed["messages"]) if held else None,
+                    unit="messages",
+                    as_of_utc=self.as_of_utc,
+                    source_family=DEMO_FAMILY if only_demo else "REMIT",
+                    source_ref=",".join(feed["sources"]),
+                    label="outage messages held",
+                    detail=feed,
+                )
+            ]
+        if reads is None:
+            return []
+        if name == "positions":
+            rows, key, value = reads.positions(), ("book_id", "hub", "month"), "net_mwh"
+        elif name == "contracts":
+            rows, key, value = reads.contracts(), ("contract_id",), "mwh_per_day"
+        elif name == "mandates":
+            rows, key, value = (
+                opportunity_reads.mandates(self.session),
+                ("mandate_id",),
+                "max_net_mwh_per_month",
+            )
+        elif name == "held_capacity":
+            rows, key, value = (
+                opportunity_reads.held_capacity(self.session, reads.contracts()),
+                ("route_id",),
+                "capacity_mwh_per_day",
+            )
+        else:  # residuals
+            rows, key, value = reads.residuals(self.session), ("book_id", "hub"), "residual_mwh"
+        klass = InputClass.SIMULATED if self.demo_desk else InputClass.SOURCED
+        return [
+            SnapshotInput(
+                key=f"{name}:" + ":".join(str(row.get(part) or "-") for part in key),
+                kind=InputKind.BOOK,
+                input_class=klass,
+                value=None if row.get(value) is None else _dec(row[value]),
+                unit="MWh/d" if value == "mwh_per_day" else "MWh",
+                as_of_utc=self.as_of_utc,
+                source_family=DEMO_FAMILY if self.demo_desk else FIRM_FAMILY,
+                source_ref=f"{name}:{row.get(key[0])}",
+                label=f"{name} " + " ".join(str(row.get(part) or "-") for part in key),
+                detail={k: (str(_dec(v)) if isinstance(v, float) else v) for k, v in row.items()},
+            )
+            for row in rows
+        ]
 
 
 def hedge_cover_rows(caller: Caller, today: date) -> list[dict]:
@@ -841,6 +926,7 @@ def open_valuation_snapshot(
         A recording reader; :func:`freeze_snapshot` persists what it read.
     """
 
+    from eurogas_nexus.application.opportunity_reads import BookReads
     from eurogas_nexus.core.config import demo_marks_allowed
     from eurogas_nexus.db.repositories.commercial_assumptions import resolve_assumption_version
 
@@ -857,6 +943,7 @@ def open_valuation_snapshot(
         fx_source=fx_source or ForwardFx(demo_desk=demo, caller=caller),
         assumption=assumption,
         hedge_cover_loader=lambda: hedge_cover_rows(caller, moment.date()),
+        book_reads=BookReads(caller, moment.date()),
     )
 
 
