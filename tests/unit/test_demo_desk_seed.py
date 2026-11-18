@@ -581,3 +581,23 @@ def test_the_real_price_hub_read_runs_on_postgresql() -> None:
     assert "DISTINCT" in sql
     assert "metadata_json ->> " in sql
     assert "DISTINCT market_observations.metadata_json AS" not in sql
+
+
+def test_an_older_volume_gets_the_newer_fixtures_and_keeps_tester_changes(session):
+    from eurogas_nexus.db.models import TsoTariffRecord
+    from eurogas_nexus.db.models.decision import DecisionCaseRecord
+
+    seed = _load()
+    seeded_at = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    seed.seed(session, seeded_at, history_days=5)
+    session.commit()
+    session.query(TsoTariffRecord).delete()
+    session.query(DecisionCaseRecord).delete()
+    session.get(CreditLineRecord, "RHM").limit_amount = 5_000_000
+    session.commit()
+
+    counts = seed.ensure_demo_fixtures(session, seeded_at)
+    session.commit()
+    assert counts == {"fixture_tariffs": len(seed.SIMULATED_TARIFFS), "fixture_review_case": 1}
+    assert session.get(CreditLineRecord, "RHM").limit_amount == 5_000_000
+    assert seed.ensure_demo_fixtures(session, seeded_at) == {}

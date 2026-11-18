@@ -122,3 +122,41 @@ def test_seed_then_real_rows_then_roll_forward_on_postgresql():
         assert counts["market_close_rows"] > 0 and counts["market_quote_rows"] > 0
         assert again["market_close_rows"] == 0 and again["market_quote_rows"] == 0
         assert session.query(func.count(MarketObservationRecord.observation_id)).scalar() > 0
+
+
+def test_an_older_volume_is_topped_up_with_what_a_newer_seed_adds():
+    """A volume an older build seeded lacks the newer fixtures; the start-up adds them once."""
+
+    from eurogas_nexus.db.models import CreditLineRecord, MarketQuoteRecord, TsoTariffRecord
+    from eurogas_nexus.db.models.decision import DecisionCaseRecord
+
+    seed = _seed_module()
+    seeded_at = datetime(2026, 11, 2, 9, tzinfo=UTC)
+    later = seeded_at + timedelta(days=1)
+    with _session() as session:
+        seed.seed(session, seeded_at, history_days=15)
+        session.commit()
+        # What the previous release's seed did not write, or a tester changed.
+        session.query(TsoTariffRecord).filter(
+            TsoTariffRecord.document_id == seed.SIMULATED_TARIFF_DOCUMENT).delete()
+        session.query(DecisionCaseRecord).filter(
+            DecisionCaseRecord.case_id == seed.DEMO_REVIEW_CASE_ID).delete()
+        session.query(CreditLineRecord).filter(CreditLineRecord.counterparty_id == "ALD").delete()
+        session.get(CreditLineRecord, "RHM").limit_amount = 5_000_000  # a tester's change
+        session.query(MarketObservationRecord).filter(
+            MarketObservationRecord.source_reference == "demo:market").delete()
+        session.query(MarketQuoteRecord).delete()
+        session.commit()
+
+        counts = seed.roll_forward(session, later)
+        session.commit()
+        assert counts["fixture_tariffs"] == len(seed.SIMULATED_TARIFFS)
+        assert counts["fixture_review_case"] == 1
+        assert counts["fixture_credit_lines"] == 1
+        assert counts["market_quote_rows"] > 0
+        assert session.get(CreditLineRecord, "RHM").limit_amount == 5_000_000
+        assert session.get(DecisionCaseRecord, seed.DEMO_REVIEW_CASE_ID) is not None
+
+        again = seed.roll_forward(session, later)
+        session.commit()
+        assert not any(key.startswith("fixture_") for key in again)

@@ -1460,6 +1460,7 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
     today = now.date()
     if session.get(TradingBookRecord, "demo-uk-nbp") is None:
         return {"seeded": 0}
+    counts.update(ensure_demo_fixtures(session, now))
     # The newest simulated gas day of the daily series that are still simulated (real data
     # may have replaced some, see retire_simulated_series); none left: nothing to extend.
     last_flow = max(
@@ -2264,3 +2265,80 @@ def seed_demo_market(session, now: datetime, days: int = HISTORY_DAYS) -> dict[s
     )
     return {"market_close_rows": len(closes), "market_quote_rows": len(quotes),
             "market_quotes_removed": removed}
+
+
+# ---------------------------------------------------------------------------
+# Top up the demo fixtures a newer build adds, on a volume an older build seeded
+# ---------------------------------------------------------------------------
+
+
+def _fixture_scopes():
+    """The demo reference rows a fresh seed writes and an older volume may lack.
+
+    Each is (model, filter on the demo rows): only rows matching the filter are copied, and
+    only when their primary key is absent, so nothing a tester changed or a real source
+    stored is touched. Contracts, trades and books are not topped up: a tester may have
+    removed them on purpose.
+    """
+
+    from eurogas_nexus.db.models.decision import DecisionCaseRecord
+
+    return (
+        ("tariffs", TsoTariffRecord,
+         lambda model: model.document_id == SIMULATED_TARIFF_DOCUMENT),
+        ("review_case", DecisionCaseRecord,
+         lambda model: model.case_id == DEMO_REVIEW_CASE_ID),
+        ("credit_lines", CreditLineRecord,
+         lambda model: model.counterparty_id.in_([row[0] for row in COUNTERPARTIES])),
+        ("mandates", TraderMandateRecord,
+         lambda model: model.mandate_id.like("DEMO-%")),
+        ("routes", RouteCandidateRecord,
+         lambda model: model.route_id.like("demo-%")),
+    )
+
+
+def ensure_demo_fixtures(session, now: datetime) -> dict[str, int]:
+    """Add the demo reference rows a fresh seed would write and this store lacks; idempotent.
+
+    A volume seeded by an older build kept its rows ("testers' changes kept") but never got
+    what a newer seed adds: the simulated BBL tariffs (so "TTF -> NBP net of transport"
+    showed its inputs as missing), the case awaiting review, a new credit line. The fresh
+    seed is written to a throwaway in-memory store with the same ``now`` and its demo rows
+    of those tables are copied where the primary key is absent. Simulated tariffs a published
+    row has replaced are retired again straight after. The all-tenor demo market is written
+    by the roll-forward itself (``seed_demo_market`` from the start of the history).
+    """
+
+    from sqlalchemy import create_engine, inspect
+    from sqlalchemy.orm import Session as OrmSession
+
+    from eurogas_nexus.db.base import Base
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    counts: dict[str, int] = {}
+    with OrmSession(engine) as fresh:
+        # No history: only the reference rows are wanted from it.
+        seed(fresh, now, history_days=0)
+        fresh.flush()
+        for name, model, demo_rows in _fixture_scopes():
+            key = inspect(model).primary_key[0]
+            candidates = fresh.query(model).filter(demo_rows(model)).all()
+            if not candidates:
+                continue
+            ids = [getattr(row, key.key) for row in candidates]
+            stored = {value for (value,) in session.query(key).filter(key.in_(ids))}
+            added = 0
+            columns = [column.key for column in inspect(model).column_attrs]
+            for row in candidates:
+                if getattr(row, key.key) in stored:
+                    continue
+                session.add(model(**{column: getattr(row, column) for column in columns}))
+                added += 1
+            if added:
+                counts[f"fixture_{name}"] = added
+    engine.dispose()
+    session.flush()
+    if counts.get("fixture_tariffs"):
+        retire_simulated_tariffs(session)
+    return counts
