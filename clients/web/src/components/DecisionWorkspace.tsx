@@ -167,6 +167,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         activeId={mode.activeId}
         panelId="decision-task-panel"
         tabLabel={mode.tabLabel}
+        purpose={mode.purpose}
         tabsClassName="commercial-task-tabs"
         primaryAction={primaryAction}
         onActivate={(id) => {

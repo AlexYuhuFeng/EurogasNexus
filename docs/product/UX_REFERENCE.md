@@ -235,6 +235,16 @@ exact copy, so that presentation can improve without weakening a gate.
     `/api/market/fx-forward`); the client formats (`app/time/valueFormat.ts`,
     `app/time/useConversion.ts`, `KeyFigure converted`, `ConvertedValue`). Exports add
     `conversionExportColumns` (pair, rate, rate date, method, source).
+24. **Every task says what it is for.** Under the title and tabs, one muted sentence (at most 110
+    characters) names the decision the task helps with: `purpose.<mode>.<task>` in the locale
+    files, drawn by `useModeHeader().purpose` through `WorkspaceHeader` and the shell header
+    (`PageIntro`, `[data-purpose]`). What a page needs appears only when something is missing, at
+    most three items with the control that fixes each (`ReadinessChecklist`). An empty state is
+    one line with its reason; a missing permission names who grants it (`empty.permission`), a
+    missing licence says the administrator connects it (`empty.licence`), never a prompt to buy.
+    The browser sweep's phone pass fails a commercial task without a purpose line, an empty state
+    without a reason, or a page offering a JSON upload (two pages are listed until their packages
+    remove it).
 
 ## Implementation note
 

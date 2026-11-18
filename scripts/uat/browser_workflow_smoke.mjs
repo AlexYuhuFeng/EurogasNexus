@@ -46,7 +46,7 @@ import {
 import { inspectNativeCapacityInteraction } from "./nativeCapacityInteraction.mjs";
 import { inspectReferenceIndexInteraction } from "./referenceIndexInteraction.mjs";
 import { readStripShape, situationStripInteraction, stripShapeProblems } from "./situationStrip.mjs";
-import { ENUM_RULE_EXEMPT_ROUTES, findVisibleEnums, measurePhoneOverflow, PHONE_ROUTES } from "./phoneOverflow.mjs";
+import { checkPageContract, ENUM_RULE_EXEMPT_ROUTES, findVisibleEnums, JSON_UPLOAD_PENDING_REMOVAL, measurePhoneOverflow, PHONE_ROUTES, PURPOSE_ROUTES } from "./phoneOverflow.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(
@@ -1499,6 +1499,12 @@ async function phoneOverflowSweep(page, failures, observations) {
         if (!ENUM_RULE_EXEMPT_ROUTES.has(route)) {
           const enums = await page.evaluate(findVisibleEnums);
           if (enums.length) recordFailure(failures, scope, `raw enum on screen: ${enums.join(", ")}`);
+          // The page contract (design basis H.1): purpose line, empty states with a reason, no JSON upload.
+          const contract = await page.evaluate(checkPageContract, {
+            needsPurpose: PURPOSE_ROUTES.has(route),
+            jsonUploadAllowed: JSON_UPLOAD_PENDING_REMOVAL.has(route),
+          });
+          for (const problem of contract.problems) recordFailure(failures, scope, `page contract: ${problem}`);
         }
         measured += 1;
       } catch (error) {

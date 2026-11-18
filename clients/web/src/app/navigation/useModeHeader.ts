@@ -4,6 +4,8 @@
  * what the caller's identity can use. A tab that belongs to another page opens that page; one on
  * the same page switches the page's own task. The URL stays the page's address.
  */
+import i18n from "i18next";
+
 import { useApiStore } from "@/stores/api";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 
@@ -19,7 +21,17 @@ export interface ModeHeader {
   activeId: string;
   tabLabel: string;
   activeTask: ModeTask | null;
+  /**
+   * The task's purpose line (design basis H.1, H.2): one sentence naming the decision the page
+   * helps with, from `purpose.<mode>.<task>`; empty when the task has none.
+   */
+  purpose: string;
   onActivate: (id: string) => void;
+}
+
+/** The purpose line of a mode's task, or "" when none is written (a utility page, a new task). */
+export function purposeKey(modeId: string | null, taskId: string | null | undefined): string | null {
+  return modeId && taskId ? `purpose.${modeId}.${taskId}` : null;
 }
 
 export function useModeHeader(
@@ -39,6 +51,10 @@ export function useModeHeader(
     activeId: location?.task.id ?? "",
     tabLabel: mode ? t("nav.mode.tasks", { mode: t(mode.labelKey) }) : "",
     activeTask: location?.task ?? null,
+    purpose: (() => {
+      const key = purposeKey(mode?.id ?? null, location?.task.id);
+      return key && i18n.exists(key) ? t(key) : "";
+    })(),
     onActivate: (id) => {
       const task = tasks.find((item) => item.id === id);
       if (task) openWorkspace(task.page, task.pageTask);

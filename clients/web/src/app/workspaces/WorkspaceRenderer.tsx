@@ -4,7 +4,7 @@ import { AccessCenter } from "@/components/AccessCenter";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
 import { headerModeForPage } from "@/app/experience/workspacePatterns";
 import { sourceRunReadiness, sourceRunReason } from "@/app/model/sourceRunModel";
-import { WorkspaceTabs } from "@/components/ui";
+import { PageIntro, WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
 import { ManualWorkspace } from "@/components/ManualWorkspace";
@@ -104,6 +104,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           )}
         </header>
       )}
+      {!usesConsolidatedHeader && <PageIntro purpose={mode.purpose} id={mode.activeId} />}
 
       {activePrimaryWorkspace.id === "market" && (
         <MarketCockpit controller={controller} />

@@ -222,6 +222,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         activeId={mode.activeId}
         panelId="portfolio-task-panel"
         tabLabel={mode.tabLabel}
+        purpose={mode.purpose}
         tabsClassName="commercial-task-tabs"
         primaryAction={primaryAction}
         onActivate={(id) => {

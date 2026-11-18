@@ -12,6 +12,7 @@ export function EmptyState({
   next,
   action,
   id,
+  need,
   compact = false,
 }: {
   /** Why there is nothing: "No outages on the network now." */
@@ -23,9 +24,15 @@ export function EmptyState({
   /** `data-empty-state` marker, for acceptance checks that tell an empty panel from a broken one. */
   id?: string;
   compact?: boolean;
+  /**
+   * What is missing, when it is not data (design basis H.1, I5): a permission names who grants
+   * it (`empty.permission`); a licence says the administrator connects it (`empty.licence`),
+   * never a prompt to buy.
+   */
+  need?: "data" | "permission" | "licence";
 }) {
   return (
-    <div className={compact ? "empty-state empty-state-compact" : "empty-state"} role="status" data-empty-state={id}>
+    <div className={compact ? "empty-state empty-state-compact" : "empty-state"} role="status" data-empty-state={id} data-empty-need={need}>
       <p>
         <strong>{reason}</strong>
         {next ? <span> {next}</span> : null}

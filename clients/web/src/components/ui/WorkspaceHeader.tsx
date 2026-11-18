@@ -1,4 +1,5 @@
 import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import { PageIntro } from "./PageIntro";
 import { WorkspaceTabs, type WorkspaceTabItem } from "./WorkspaceTabs";
 
 interface WorkspaceHeaderProps<T extends string> {
@@ -11,6 +12,8 @@ interface WorkspaceHeaderProps<T extends string> {
   tabLabel: string;
   tabsClassName?: string;
   primaryAction?: ReactNode;
+  /** The task's purpose line under the header (design basis H.1); `useModeHeader().purpose`. */
+  purpose?: string;
   /**
    * Heading level for the workspace title.
    *
@@ -37,6 +40,7 @@ export function WorkspaceHeader<T extends string>({
   tabLabel,
   tabsClassName,
   primaryAction,
+  purpose = "",
   titleLevel = 1,
   onActivate,
 }: WorkspaceHeaderProps<T>) {
@@ -82,6 +86,7 @@ export function WorkspaceHeader<T extends string>({
     );
 
   return (
+    <>
     <header className="workspace-page-header">
       {/* One 40 px row (UX-04): the title on the left, the task tabs and the primary action on
           the right. The active task is the selected tab, so the eyebrow that repeated it is read
@@ -103,5 +108,7 @@ export function WorkspaceHeader<T extends string>({
         />
       </div>
     </header>
+    <PageIntro purpose={purpose} id={activeId} />
+    </>
   );
 }

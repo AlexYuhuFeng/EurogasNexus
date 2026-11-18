@@ -312,6 +312,62 @@
     margin-top: var(--ds-space-05);
   }
 
+  /* The page's purpose line (design basis H.1): one muted sentence under the title and tabs. */
+  .page-intro {
+    margin: 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+    max-width: 72ch;
+  }
+
+  /* "What it needs": only when something is missing; at most three items with their fix. */
+  .readiness-checklist {
+    display: grid;
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+  }
+
+  .readiness-checklist-title {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .readiness-checklist ul {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .readiness-checklist li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--ds-space-2);
+    min-width: 0;
+    font-size: var(--ds-text-sm);
+  }
+
+  .readiness-checklist li::before {
+    content: "";
+    flex: none;
+    width: var(--ds-space-2);
+    height: var(--ds-space-2);
+    border: 1px solid var(--ds-status-watch);
+    border-radius: var(--ds-radius-pill);
+  }
+
+  .readiness-checklist-state {
+    color: var(--ds-text-3);
+  }
+
   /* The converted value (design basis G3). A line is always shown, muted, under the figure; a
      hover value is a small card under the figure while it is hovered, focused or tapped, so the
      figure keeps its height and its neighbours do not move. */

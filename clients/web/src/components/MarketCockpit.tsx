@@ -101,6 +101,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
         activeId={mode.activeId}
         panelId="market-cockpit-panel"
         tabLabel={mode.tabLabel}
+        purpose={mode.purpose}
         tabsClassName="market-cockpit-tabs"
         onActivate={(id) => {
           // A Desk task on this page also becomes the remembered market view.

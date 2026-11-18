@@ -19,6 +19,8 @@ export const PHONE_ROUTES = [
   ...["overview", "resources", "exposure", "delivery"].map((task) => `?workspace=contracts&task=${task}`),
   ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
   "?workspace=research&task=reports",
+  "?workspace=research&task=spreads",
+  "?workspace=research&task=fundamentals",
   ...["attention", "catalog", "access", "infrastructure"].map((view) => `?workspace=sources&view=${view}`),
   ...["delivery", "readiness", "governance", "support"].map((view) => `?workspace=runtime&view=${view}`),
   ...["users", "api_keys", "catalogue", "audit", "sso"].map((view) => `?workspace=access&view=${view}`),
@@ -128,4 +130,53 @@ export function findVisibleEnums() {
     }
   }
   return [...found.keys()].slice(0, 8);
+}
+
+/** Routes of commercial tasks (design basis H.2): each shows a purpose line. */
+/**
+ * Pages that still offer a JSON upload, removed by their own package (design basis H.3): the
+ * contract import (to PDF, form and CSV). Any other page with a JSON file input fails the page
+ * contract.
+ */
+export const JSON_UPLOAD_PENDING_REMOVAL = new Set(["?workspace=contracts&task=resources"]);
+
+export const PURPOSE_ROUTES = new Set([
+  ...["overview", "curves", "network"].map((task) => `?workspace=market&task=${task}`),
+  ...["overview", "resources", "exposure", "delivery"].map((task) => `?workspace=contracts&task=${task}`),
+  ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
+  "?workspace=research&task=reports",
+  "?workspace=research&task=spreads",
+  "?workspace=research&task=fundamentals",
+]);
+
+/**
+ * Runs in the page: the page contract (design basis H.1; ROLE_FIRST_REDESIGN I5). Returns one
+ * line per breach: no purpose line (when `needsPurpose`), a purpose over 110 characters, an
+ * empty state without a reason, or a file input that accepts JSON.
+ */
+export function checkPageContract({ needsPurpose, jsonUploadAllowed }) {
+  const problems = [];
+  const visible = (element) => {
+    const box = element.getBoundingClientRect();
+    return box.width > 0 && box.height > 0;
+  };
+  const purposes = [...document.querySelectorAll("[data-purpose]")].filter(visible);
+  if (needsPurpose && purposes.length === 0) problems.push("no purpose line ([data-purpose])");
+  for (const purpose of purposes) {
+    const text = (purpose.textContent || "").trim();
+    if (text.length > 110) problems.push(`purpose line is ${text.length} characters: ${text.slice(0, 60)}...`);
+  }
+  for (const empty of document.querySelectorAll("[data-empty-state]")) {
+    if (!visible(empty)) continue;
+    // The reason is the EmptyState's <strong>, or the marked line's own text.
+    if (!((empty.querySelector("strong") ?? empty).textContent || "").trim()) {
+      problems.push(`empty state without a reason: ${empty.getAttribute("data-empty-state") || "(unnamed)"}`);
+    }
+  }
+  for (const input of jsonUploadAllowed ? [] : document.querySelectorAll('input[type="file"]')) {
+    if (/json/i.test(input.getAttribute("accept") || "")) {
+      problems.push(`file input accepts JSON: ${input.id || input.name || "(unnamed)"}`);
+    }
+  }
+  return { problems };
 }
