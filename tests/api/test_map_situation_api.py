@@ -406,6 +406,8 @@ def test_our_book_view_draws_the_callers_opportunity_paths(seeded):
     engine = create_engine(os.environ["RUNTIME_STORE_DATABASE_URL"], future=True)
     now = datetime.now(UTC)
     with Session(engine) as session:
+        # TTF is one of this office's market areas (a contract delivered there).
+        session.add(_contract("nl-ttf", "TTF", "uk-nbp", now))
         session.add_all(
             [
                 _opportunity("o-act", "actionable", "TTF", "THE", "uk-nbp", now),
@@ -429,6 +431,40 @@ def test_our_book_view_draws_the_callers_opportunity_paths(seeded):
     assert act["path_node_ids"][0] != act["path_node_ids"][-1] and len(act["path_node_ids"]) >= 3
     assert act["type_code"] == "L"
     assert paths["o-watch"]["emphasis"] == "outline"
+    # No route stated on these records: drawn along the default proven crossing, said so.
+    assert act["route_stated"] is False
+    # Whether the opportunity starts or ends at one of our hubs.
+    assert paths["o-act"]["relation"] == "on_book"
+    # NBP to ZTP touches none of this office's hubs; NBP is a crossing away from TTF.
+    assert paths["o-watch"]["relation"] == "adjacent"
+    assert book["arrivals"] == []
     # The head office sees both offices' opportunities.
     head = client.get("/api/portfolio/map-situation", headers=headers["head"]).json()["data"]
     assert "o-other" in {item["opportunity_id"] for item in head["book_relevance"]["opportunities"]}
+
+
+def test_an_opportunity_draws_the_crossing_its_evaluator_priced(seeded):
+    """claim_fields route_point_keys (ENTSOG point keys in flow order) fixes the crossing."""
+
+    import os
+
+    client, headers = seeded
+    engine = create_engine(os.environ["RUNTIME_STORE_DATABASE_URL"], future=True)
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        session.add(_contract("nl-ttf", "TTF", "uk-nbp", now))
+        priced = _opportunity("o-bbl", "actionable", "TTF", "NBP", "uk-nbp", now)
+        priced.claim_fields = {
+            "buy_hub": "TTF",
+            "sell_hub": "NBP",
+            "route_point_keys": "ITP-00063,ITP-00207",
+        }
+        session.add(priced)
+        session.commit()
+    book = client.get("/api/portfolio/map-situation", headers=headers["uk"]).json()["data"][
+        "book_relevance"
+    ]
+    (item,) = book["opportunities"]
+    assert item["route_stated"] is True
+    assert item["relation"] == "on_book"
+    assert "Bacton (BBL)" in item["via"]

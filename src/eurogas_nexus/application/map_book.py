@@ -81,7 +81,31 @@ def book_opportunity_paths(
         if emphasis is None or not buy or not sell:
             continue
         start, target = graph.hub_for(str(buy)), graph.hub_for(str(sell))
-        crossings = graph.route(start, target) if start and target else None
+        if not start or not target:
+            continue
+        # The crossing the evaluator priced, when the record states it (claim_fields
+        # ``route_point_keys``: ENTSOG point keys in flow order, comma-separated); else the
+        # default proven crossing, and the card says the route was not stated.
+        stated = fields.get("route_point_keys") or ""
+        via = [
+            str(point).strip()
+            for point in (stated.split(",") if isinstance(stated, str) else stated)
+            if str(point).strip()
+        ]
+        # One key names a crossing; a pipeline's far end, stated after its near end, is the
+        # same crossing (IUK, BBL), so it is not a second one.
+        partner = {a: b for a, b in graph.pipelines.values()} | {
+            b: a for a, b in graph.pipelines.values()
+        }
+        via = [
+            point
+            for index, point in enumerate(via)
+            if index == 0 or partner.get(via[index - 1]) != point
+        ]
+        crossings = graph.route(start, target, via_points=via) if via else None
+        route_stated = crossings is not None
+        if crossings is None:
+            crossings = graph.route(start, target)
         if not crossings:
             continue
         out.append(
@@ -99,6 +123,7 @@ def book_opportunity_paths(
                 "from_hub": graph.hub_names.get(start, str(buy)),
                 "to_hub": graph.hub_names.get(target, str(sell)),
                 "path_node_ids": graph.path_node_ids(crossings),
+                "route_stated": route_stated,
                 "via": [
                     str(graph.points.get(point, {}).get("name") or point)
                     for crossing in crossings
@@ -179,8 +204,8 @@ def build_book_relevance(
     *,
     now: datetime,
     contracts: list[dict[str, Any]],
-    cargoes: Iterable[dict[str, Any]],
-    slots: Iterable[dict[str, Any]],
+    cargoes: list[dict[str, Any]],
+    slots: list[dict[str, Any]],
     outages: Iterable[dict[str, Any]],
     locate: Callable[[str], dict[str, Any] | None],
     entitled: Callable[[list], list],
@@ -352,6 +377,32 @@ def build_book_relevance(
             },
         )
 
+    # The pipelines our capacity sits on: a capacity point at one end of a pipeline (IUK, BBL)
+    # puts the other end on the book too.
+    key_by_node = {info["node_id"]: key for key, info in graph.points.items()}
+    held_keys = {
+        key_by_node[item["ref"]]
+        for item in ours.values()
+        if item["kind"] == "capacity" and item["ref"] in key_by_node
+    }
+    for operator, ends in graph.pipelines.items():
+        for near, far in (ends, ends[::-1]):
+            if near not in held_keys:
+                continue
+            info = graph.points.get(far) or {}
+            node = node_by_id.get(str(info.get("node_id")))
+            ours.add(
+                "point",
+                info.get("node_id"),
+                str(info.get("name") or far),
+                node if node and node.get("located") else None,
+                {
+                    "key": "pipeline_end",
+                    "pipeline": graph.operator_names.get(operator, operator),
+                    "point": str((graph.points.get(near) or {}).get("name") or near),
+                },
+            )
+
     for storage in session.query(StorageFacilityMasterRecord).all():
         if not storage.active:
             continue
@@ -469,6 +520,10 @@ def build_book_relevance(
                     "path_node_ids": adjacency.get("path_node_ids") or [],
                     "crossings": crossings,
                     "contracts": ours_hubs[hub],
+                    # Reachable with capacity we hold on the way (charges then sunk).
+                    "with_held_capacity": any(
+                        crossing["point_key"] in held_keys for crossing in crossings
+                    ),
                     **_indicative_spread(
                         routed,
                         prices.get(hub),
@@ -486,6 +541,39 @@ def build_book_relevance(
     opportunities = book_opportunity_paths(
         session, now=now, book_ids=book_ids, principal=principal, graph=graph
     )
+    # An opportunity that starts or ends at one of our hubs is on the book; one a crossing
+    # away from them is adjacent, drawn as a thin outline whatever its state.
+    ours_codes = set(ours_hubs)
+    neighbours = {
+        graph.hub_names.get(key, key)
+        for code in ours_codes
+        for key in graph.neighbours(graph.hub_for(code) or "")
+    }
+    for item in opportunities:
+        hubs = {item["from_hub"], item["to_hub"]}
+        item["relation"] = (
+            "on_book" if hubs & ours_codes else "adjacent" if hubs & neighbours else "other"
+        )
+        if item["relation"] != "on_book":
+            item["emphasis"] = "outline"
+    # Expected LNG arrivals at terminals where we hold slots (market vessels from the licensed
+    # feed, or the demo's simulated ones, which say so).
+    slot_terminals = {
+        (slot.get("location") or {}).get("ref_id") for slot in slots if slot.get("location")
+    }
+    arrivals = [
+        {
+            "cargo_id": cargo["cargo_id"],
+            "vessel": cargo["vessel_name"],
+            "terminal": cargo.get("destination_terminal"),
+            "eta_utc": cargo.get("eta_utc"),
+            "simulated": str(cargo.get("source_system") or "").endswith("_Sim"),
+        }
+        for cargo in cargoes
+        if not cargo.get("own")
+        and cargo.get("status") != "delivered"
+        and (cargo.get("destination") or {}).get("ref_id") in slot_terminals
+    ]
     touched_refs = (
         {item["ref"] for item in ours_items}
         | {crossing["node_id"] for path in reachable for crossing in path["crossings"]}
@@ -502,6 +590,7 @@ def build_book_relevance(
         "contract_paths": contract_paths,
         "reachable": reachable,
         "opportunities": opportunities,
+        "arrivals": arrivals,
         "outages_touching": touching,
     }
 
