@@ -107,6 +107,10 @@ def _annex_from_series(caption: str, unit: str, series: dict[str, dict[date, flo
 # =========================================================================== prices
 
 
+#: The hubs a NW Europe gas desk reads first.
+BENCHMARKS = frozenset({"TTF", "NBP"})
+
+
 def derive_prices(result, ctx) -> None:
     raw = result.raw
     facts, exhibits, annex = [], [], []
@@ -124,6 +128,13 @@ def derive_prices(result, ctx) -> None:
         score, reason = F.materiality(hub["day_change"], variation)
         if hub["state"] in {"late", "stale"}:
             score, reason = score * 0.5, reason + "; halved: the close is " + hub["state"]
+        if hub["hub"] not in BENCHMARKS:
+            # The desk reads TTF and NBP first: another hub leads only on an unusual move
+            # (at least one standard deviation of its daily changes).
+            unusual = bool(variation) and abs(hub["day_change"] or 0.0) >= variation
+            weight = 0.6 if unusual else 0.3
+            hub["_quiet"] = not unusual and not ctx.plan.hubs
+            score, reason = score * weight, reason + f"; weighted {weight}: not a benchmark hub"
         sim = hub["simulated"]
         f = F.fact(
             f"price.{hub['hub']}", "prices", f"{hub['hub']} {hub['product']}",
@@ -133,6 +144,8 @@ def derive_prices(result, ctx) -> None:
             score=score, reason=reason, spark=F.spark_of(series, last),
             sources=[f"{hub['hub']} closes"], exhibits=[f"fig.prices.{hub['unit']}"],
             sentence="", headline="",
+            # A quiet non-benchmark hub stays in the closes table, not At a glance.
+            indicator=not hub.get("_quiet"),
         )
         clause = _compare_clause(f)
         f["sentence"] = T(
@@ -190,8 +203,10 @@ def derive_prices(result, ctx) -> None:
                     f"{number(lead['close'], unit)}{_sim(lead['simulated'])}"),
             subtitle=T(f"Front-month daily closes, {unit}", f"近月合约每日收盘价，{unit}"),
             unit=unit,
+            # Benchmarks and hubs that moved unusually are drawn (four lines at most); every
+            # hub stays in the closes table and the annex.
             series=[{"name": h["hub"], "points": F.series_points(h["series"], longest, end)}
-                    for h in items],
+                    for h in ([h for h in items if not h.get("_quiet")] or items)[:4]],
             types=("line", "step"), windows=permitted, window=window,
             simulated=any(h["simulated"] for h in items),
             notes=T("The front month rolls at each month end; the line joins the contracts.",
@@ -989,15 +1004,13 @@ def _prose(result, facts: list[dict]) -> None:
                                     in lead["sentence"])]
     for index, f in enumerate(rest[:3]):
         text = f["sentence"]
-        link = _LINKS[index % len(_LINKS)]
+        link = "" if zh() else _LINKS[index % len(_LINKS)]
         # Lower-case the first letter after a link word, but never a code ("NBP Dec-26").
         first = text.split(" ", 1)[0]
         lowered = text if first.isupper() or any(ch.isdigit() for ch in first) else (
             text[0].lower() + text[1:]
         )
         sentences.append(link + lowered if link else text)
-        link = "" if zh() else _LINKS[index % len(_LINKS)]
-        sentences.append(link + (text[0].lower() + text[1:] if link else text))
     implication = next((i for f in ordered for i in f["implications"]), None)
     if implication:
         sentences.insert(0, implication)

@@ -705,6 +705,20 @@ def test_the_form_knows_before_generate_what_each_section_holds(env):
     # The demo raises critical and watch alerts (limits breaches, delivery shortfalls), so the
     # alerts section is held; every section of the demo desk is offered.
     assert offer["sections"]["alerts"] == {"state": "ok", "reason": None}
+    # A section with nothing held is offered as "listed as not held", with its reason.
+    from eurogas_nexus.application.reports import sections as S
+
+    A._CACHE.clear()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setitem(S.BUILDERS, "alerts", lambda ctx: S._empty(
+            S.SectionResult(key="alerts", title="Open alerts", group="Alerts"),
+            "No critical or watch alert is open", "Open Events"))
+        with Session(env) as session:
+            quiet = A.availability(session, _caller("DEMO", "BOOKS:*"), now=NOW)
+    assert quiet["sections"]["alerts"] == {
+        "state": "not_held", "reason": "No critical or watch alert is open",
+        "action": "Open Events"}
+    A._CACHE.clear()
 
 
 def test_availability_reasons_follow_the_interface_language(env):
