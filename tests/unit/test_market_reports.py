@@ -707,8 +707,8 @@ def test_the_form_knows_before_generate_what_each_section_holds(env):
 
 
 def test_availability_reasons_follow_the_interface_language(env):
-    from eurogas_nexus.application.reports import availability as A
     from eurogas_nexus.application.caller import Caller as _C
+    from eurogas_nexus.application.reports import availability as A
 
     viewer = _C(AuthenticatedPrincipal(principal_id="p-viewer", name="viewer",
                                        principal_type="USER", role="VIEWER", status="ACTIVE",
