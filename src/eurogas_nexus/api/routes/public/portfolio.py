@@ -558,6 +558,9 @@ def map_situation(
                 now=datetime.now(UTC),
                 entitled=lambda rows: list(filter_rows(request, rows)),
                 vessel_feed_entitled=principal_allows_source(current_principal(request), "Kpler"),
+                # The "Our book" view's opportunity paths follow the opportunity core's own
+                # visibility for this caller (book scope and entitlement).
+                principal=current_principal(request),
                 outage_horizon_days=outage_horizon_days,
                 history_days=history_days,
             )

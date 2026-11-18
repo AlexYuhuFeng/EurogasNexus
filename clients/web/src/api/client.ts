@@ -3411,6 +3411,23 @@ export interface BookReachableDTO {
   simulated: boolean;
 }
 
+export interface BookOpportunityPathDTO {
+  opportunity_id: string;
+  type: string;
+  type_code: string;
+  state: string;
+  /** "pop": actionable or indicative, drawn emphasised; "outline": watch, a thin outline. */
+  emphasis: "pop" | "outline";
+  claim: string;
+  headline: { value: string | null; unit: string };
+  period: string;
+  simulated: boolean;
+  from_hub: string;
+  to_hub: string;
+  path_node_ids: string[];
+  via: string[];
+}
+
 export interface BookContractPathDTO {
   contract_id: string;
   contract: string;
@@ -3425,8 +3442,8 @@ export interface BookRelevanceDTO {
   ours: BookRelevanceItemDTO[];
   contract_paths: BookContractPathDTO[];
   reachable: BookReachableDTO[];
-  /** Opportunity paths: from the opportunity core when it lands (empty until then). */
-  opportunities: unknown[];
+  /** The caller's live opportunities with a path between two hubs (opportunity core). */
+  opportunities: BookOpportunityPathDTO[];
   outages_touching: string[];
 }
 

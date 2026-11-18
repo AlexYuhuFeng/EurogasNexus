@@ -11,9 +11,10 @@ import {
   bookEmphasis,
   bookReasonLines,
   contractPathLines,
+  opportunityPathLines,
   reachablePathLines,
 } from "@/app/mapBookRelevance";
-import { MapBookRelevance } from "@/components/MapBookRelevance";
+import { MapBookRelevance, OpportunityCard } from "@/components/MapBookRelevance";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
 import { buildSites, topologyIssues, type MapSelection } from "@/app/mapSelection";
@@ -293,6 +294,10 @@ export function NetworkWorkspace({
   // Our contracts' priced paths, width by contract volume, along the drawn legs.
   const bookFlows = useMemo(() => contractPathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
   const reachableLines = useMemo(() => reachablePathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
+  // The opportunity class (CP-21): the core's opportunities with a path, and the one opened.
+  const opportunityLines = useMemo(() => opportunityPathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
+  const [openOpportunityId, setOpenOpportunityId] = useState<string | null>(null);
+  const openOpportunity = relevance?.opportunities?.find((item) => item.opportunity_id === openOpportunityId) ?? null;
   // Our book: the book's own panels, in the panel's fourth tab, only in the "Our book" view
   // and only for a caller who may read the book. They belong to the book, not to the network.
   const currentUser = useApiStore((state) => state.currentUser);
@@ -373,9 +378,16 @@ export function NetworkWorkspace({
   };
   const selectOnMap = (next: MapSelection | null) => {
     setSelection(next);
+    if (next) setOpenOpportunityId(null);
     if (!next) setSelectedRow(null);
   };
-  const detail = selection ? (
+  const detail = openOpportunity && mapView === "book" ? (
+    <OpportunityCard
+      item={openOpportunity}
+      t={t as (key: string, options?: Record<string, unknown>) => string}
+      onClose={() => setOpenOpportunityId(null)}
+    />
+  ) : selection ? (
     <MapDetailPanel
       selection={selection}
       sites={sites}
@@ -425,6 +437,10 @@ export function NetworkWorkspace({
       <MapBookRelevance
         relevance={relevance}
         language={language}
+        onSelectOpportunity={(id) => {
+          setOpenOpportunityId(id);
+          setSelection(null);
+        }}
         t={t as (key: string, options?: Record<string, unknown>) => string}
         onSelectHub={(hubNodeId) => {
           const hub = nodeById.get(hubNodeId);
@@ -673,6 +689,11 @@ export function NetworkWorkspace({
           bookFlows={bookFlows}
           bookEmphasis={emphasis}
           bookReachable={reachableLines}
+          bookOpportunities={opportunityLines}
+          onSelectOpportunity={(id) => {
+            setOpenOpportunityId(id);
+            setSelection(null);
+          }}
           // The page holds the selection: the panel lists what the selected object relates
           // to and shows its card, so the map draws no card of its own.
           selection={selection}

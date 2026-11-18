@@ -13,10 +13,13 @@ tariff b, net c"):
   for the legs and, when both hub prices and every tariff are held, the indicative spread net
   of those tariffs. A simulated price makes the figure simulated; a missing tariff or price is
   named, never estimated. No advice and no order: it is what the network makes reachable;
-- **opportunity**: the legs of actionable opportunities. That model belongs to the opportunity
-  core (``domain/opportunities/``, design basis 2, CP-08/CP-21), which this view does not
-  invent: :func:`book_opportunity_paths` is the seam it plugs into and returns nothing until
-  the core provides them.
+- **opportunity**: the paths of the caller's live opportunities from the opportunity core
+  (``domain/opportunities``, ``application/opportunities/listing.visible_records``: the same
+  book scope and entitlement as ``/api/opportunities``). An opportunity that buys at one hub
+  and sells at another (``claim_fields`` ``buy_hub``/``sell_hub``: locational, held capacity)
+  is drawn along the proven path between them, with its headline as the label on the far hub;
+  actionable and indicative ones pop out, a watch-state one is a thin outline. The view adds
+  no opportunity of its own and computes no margin: the figures are the core's.
 
 Outages located at an "ours" or "reachable" point are listed as touching the book. Every input
 is read from the store (contracts, capacity profiles, storage masters, cargoes, slots, tariffs,
@@ -42,15 +45,69 @@ RULE = (
 )
 
 
-def book_opportunity_paths(session: Any, *, now: datetime, book_ids: set[str] | None) -> list:
-    """The opportunity class: legs of actionable opportunities on the caller's books.
+#: Opportunity states the map draws: popped out, or (watch) as a thin outline.
+DRAWN_OPPORTUNITY_STATES = {"actionable": "pop", "indicative": "pop", "watch": "outline"}
 
-    Seam for the opportunity core (``domain/opportunities/``). Each item it will return is
-    expected to carry ``opportunity_id``, ``state`` ("actionable" or "watch"), ``path_node_ids``,
-    the far hub and its margin label, and ``reasons``. Until the core lands there are none.
+
+def book_opportunity_paths(
+    session: Any,
+    *,
+    now: datetime,
+    book_ids: set[str] | None,
+    principal: Any = None,
+    graph: Any = None,
+) -> list[dict[str, Any]]:
+    """The opportunity class: paths of the caller's live opportunities (see the module doc).
+
+    Reads the core's stored records through its own visibility rule; without a principal (an
+    internal caller) there are none. An opportunity without two hubs (a hedge gap, an event)
+    has no path and is not drawn here; its own page lists it.
     """
 
-    return []
+    if principal is None:
+        return []
+    from eurogas_nexus.application.opportunities.listing import summary, visible_records
+    from eurogas_nexus.domain.opportunities.model import TYPE_CODE, OpportunityType
+
+    if graph is None:
+        from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
+
+        graph = shipped_market_area_graph()
+    out: list[dict[str, Any]] = []
+    for row in visible_records(session, principal):
+        emphasis = DRAWN_OPPORTUNITY_STATES.get(str(row.state))
+        fields = row.claim_fields or {}
+        buy, sell = fields.get("buy_hub"), fields.get("sell_hub")
+        if emphasis is None or not buy or not sell:
+            continue
+        start, target = graph.hub_for(str(buy)), graph.hub_for(str(sell))
+        crossings = graph.route(start, target) if start and target else None
+        if not crossings:
+            continue
+        out.append(
+            {
+                "opportunity_id": row.opportunity_id,
+                "type": row.type,
+                "type_code": TYPE_CODE[OpportunityType(row.type)],
+                "state": row.state,
+                "emphasis": emphasis,
+                "claim": row.claim_text,
+                # The core's own list-row figures (same rounding as /api/opportunities).
+                "headline": summary(row)["headline"],
+                "period": row.period_label,
+                "simulated": bool(row.simulated),
+                "from_hub": graph.hub_names.get(start, str(buy)),
+                "to_hub": graph.hub_names.get(target, str(sell)),
+                "path_node_ids": graph.path_node_ids(crossings),
+                "via": [
+                    str(graph.points.get(point, {}).get("name") or point)
+                    for crossing in crossings
+                    for point in crossing.points
+                ],
+            }
+        )
+    out.sort(key=lambda item: (item["emphasis"] != "pop", item["opportunity_id"]))
+    return out
 
 
 class _Collector:
@@ -128,6 +185,7 @@ def build_book_relevance(
     locate: Callable[[str], dict[str, Any] | None],
     entitled: Callable[[list], list],
     book_ids: set[str] | None,
+    principal: Any = None,
 ) -> dict[str, Any]:
     """The three relevance classes for the caller's books (see the module docstring).
 
@@ -425,9 +483,14 @@ def build_book_relevance(
             )
 
     ours_items = ours.values()
-    touched_refs = {item["ref"] for item in ours_items} | {
-        crossing["node_id"] for path in reachable for crossing in path["crossings"]
-    }
+    opportunities = book_opportunity_paths(
+        session, now=now, book_ids=book_ids, principal=principal, graph=graph
+    )
+    touched_refs = (
+        {item["ref"] for item in ours_items}
+        | {crossing["node_id"] for path in reachable for crossing in path["crossings"]}
+        | {node for item in opportunities for node in item["path_node_ids"]}
+    )
     touching = sorted(
         str(outage.get("event_id"))
         for outage in outages
@@ -438,7 +501,7 @@ def build_book_relevance(
         "ours": ours_items,
         "contract_paths": contract_paths,
         "reachable": reachable,
-        "opportunities": book_opportunity_paths(session, now=now, book_ids=book_ids),
+        "opportunities": opportunities,
         "outages_touching": touching,
     }
 

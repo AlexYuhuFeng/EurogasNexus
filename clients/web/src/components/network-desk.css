@@ -657,4 +657,25 @@
     font-size: var(--ds-text-xs);
     color: var(--ds-text-2);
   }
+
+  /* An opportunity's headline on its far hub (CP-21): actionable pops out, watch is quiet. */
+  .map-opportunity-label {
+    border: 1px solid var(--ds-positive);
+    color: var(--ds-positive);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .map-opportunity-label.is-outline {
+    border-style: dashed;
+    opacity: 0.8;
+  }
+
+  .map-opportunity-headline {
+    margin: var(--ds-space-2) 0;
+    color: var(--ds-positive);
+    font-size: var(--ds-text-xl);
+    font-weight: var(--ds-weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
 }

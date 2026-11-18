@@ -354,3 +354,81 @@ def test_our_book_view_lists_what_relates_to_the_deals_and_why(seeded):
         for item in book["ours"]
         for reason in item["reasons"]
     )
+
+
+def _opportunity(opp_id, state, buy, sell, book, now, opp_type="locational", headline="1.250"):
+    from decimal import Decimal
+
+    from eurogas_nexus.db.models import OpportunityRecord
+
+    return OpportunityRecord(
+        opportunity_id=opp_id,
+        opp_key=f"key-{opp_id}",
+        type=opp_type,
+        lane="could_act",
+        state=state,
+        assessed_state=state,
+        version=1,
+        claim_key="locational.spread",
+        claim_fields={"buy_hub": buy, "sell_hub": sell} if buy else {"subject": "x"},
+        claim_text=f"Buy {buy}, sell {sell}",
+        headline_value=Decimal(headline),
+        headline_unit="EUR/MWh",
+        period_label="2026-12",
+        period_start=now.date(),
+        period_end=(now + timedelta(days=30)).date(),
+        quality_class="sourced",
+        simulated=False,
+        book_ids=[book],
+        source_families=[],
+        reasons=[],
+        first_seen_utc=now,
+        last_evaluated_utc=now,
+        last_changed_utc=now,
+        consecutive_seen=1,
+        consecutive_missed=0,
+        surfaced=True,
+        expires_at_utc=now + timedelta(days=1),
+        snapshot_id="s1",
+        evaluation_id="e1",
+        evaluator="locational",
+        evaluator_version="1",
+    )
+
+
+def test_our_book_view_draws_the_callers_opportunity_paths(seeded):
+    """CP-21: the opportunity class comes from the opportunity core, in the caller's scope:
+    a path between two hubs, the core's headline, actionable popped out and watch outlined."""
+
+    import os
+
+    client, headers = seeded
+    engine = create_engine(os.environ["RUNTIME_STORE_DATABASE_URL"], future=True)
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _opportunity("o-act", "actionable", "TTF", "THE", "uk-nbp", now),
+                _opportunity("o-watch", "watch", "NBP", "ZTP", "uk-nbp", now, headline="0.300"),
+                _opportunity("o-blocked", "blocked", "TTF", "NBP", "uk-nbp", now),
+                _opportunity("o-hedge", "actionable", None, None, "uk-nbp", now, "hedge_gap"),
+                _opportunity("o-other", "actionable", "TTF", "ZTP", "ca-gas", now),
+            ]
+        )
+        session.commit()
+
+    book = client.get("/api/portfolio/map-situation", headers=headers["uk"]).json()["data"][
+        "book_relevance"
+    ]
+    paths = {item["opportunity_id"]: item for item in book["opportunities"]}
+    # Another office's opportunity, a blocked one and one without two hubs are not drawn.
+    assert sorted(paths) == ["o-act", "o-watch"]
+    act = paths["o-act"]
+    assert (act["from_hub"], act["to_hub"], act["emphasis"]) == ("TTF", "THE", "pop")
+    assert act["headline"] == {"value": "1.25", "unit": "EUR/MWh"}
+    assert act["path_node_ids"][0] != act["path_node_ids"][-1] and len(act["path_node_ids"]) >= 3
+    assert act["type_code"] == "L"
+    assert paths["o-watch"]["emphasis"] == "outline"
+    # The head office sees both offices' opportunities.
+    head = client.get("/api/portfolio/map-situation", headers=headers["head"]).json()["data"]
+    assert "o-other" in {item["opportunity_id"] for item in head["book_relevance"]["opportunities"]}

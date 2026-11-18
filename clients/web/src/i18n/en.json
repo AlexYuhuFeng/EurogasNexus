@@ -4876,5 +4876,14 @@
   "purpose.book.delivery": "Whether gas flowed as contracted, and what each shortfall cost.",
   "convert.refused.not_held": "Not converted: the rate for this delivery is not held.",
   "convert.refused.beyond_horizon": "Not converted: beyond the 24-month forward horizon.",
-  "purpose.book.planning": "Nominations and storage plans for the coming days, prepared from the book; you submit them in your own system."
+  "purpose.book.planning": "Nominations and storage plans for the coming days, prepared from the book; you submit them in your own system.",
+  "map.book.opportunity": "Opportunity",
+  "map.book.opportunities_title": "Opportunities on our book",
+  "map.book.opportunities_empty": "No opportunity with a path between two hubs on the books you may see.",
+  "map.book.opportunity_state.actionable": "Actionable",
+  "map.book.opportunity_state.indicative": "Indicative",
+  "map.book.opportunity_state.watch": "Watching",
+  "map.book.opportunity_period": "Period {{period}}",
+  "map.book.opportunity_via": "Via {{via}}",
+  "map.book.opportunity_core": "Figures from the opportunity engine; Deals holds its legs, checks and the case."
 }

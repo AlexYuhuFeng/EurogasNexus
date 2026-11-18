@@ -10,9 +10,9 @@
  * none until it lands). This module turns them into what the map draws and what a selection
  * says: everything else dims.
  */
-import type { BookReachableDTO, BookReasonDTO, BookRelevanceDTO } from "../api/client";
-import { formattingLocale } from "./time/timeFormat";
-import { bookFlowWidth, compactMwhPerDay, polyline, type BookFlowLine, type LegPath, type LineEndpoint, type LineCoordinate } from "./mapLineGeometry";
+import type { BookOpportunityPathDTO, BookReachableDTO, BookReasonDTO, BookRelevanceDTO } from "../api/client";
+import { formattingLocale } from "./time/timeFormat.ts";
+import { bookFlowWidth, compactMwhPerDay, polyline, type BookFlowLine, type LegPath, type LineEndpoint, type LineCoordinate } from "./mapLineGeometry.ts";
 
 export type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -30,6 +30,8 @@ export function bookEmphasis(relevance: BookRelevanceDTO | null | undefined): Bo
   const ours = new Set<string>();
   for (const item of relevance.ours) if (item.kind !== "cargo") ours.add(item.ref);
   for (const path of relevance.contract_paths) path.path_node_ids.forEach((id) => ours.add(id));
+  // An opportunity's path pops out with ours.
+  for (const path of relevance.opportunities ?? []) path.path_node_ids.forEach((id) => ours.add(id));
   const reachable = new Set<string>();
   for (const path of relevance.reachable) {
     for (const id of path.path_node_ids) if (!ours.has(id)) reachable.add(id);
@@ -89,6 +91,46 @@ export function reachablePathLines(
     const points = path.path_node_ids.map((id) => nodes.get(id));
     if (points.length < 2 || points.some((point) => !point || !Number.isFinite(point.lon))) continue;
     out.push({ id: `book-reach-${path.from_hub}-${path.to_hub}`, toHub: path.to_hub, coordinates: polyline(points as LineEndpoint[], legPath) });
+  }
+  return out;
+}
+
+export interface OpportunityPathLine {
+  id: string;
+  opportunityId: string;
+  emphasis: "pop" | "outline";
+  coordinates: LineCoordinate[];
+  /** The far hub, where the headline is labelled. */
+  labelAt: LineCoordinate;
+  label: string;
+}
+
+/** The core's headline as the map labels it: "L +1.25 EUR/MWh", "sim" when simulated. */
+export function opportunityLabel(item: BookOpportunityPathDTO): string {
+  const value = item.headline.value;
+  const signed = value === null ? "–" : value.startsWith("-") ? value : `+${value}`;
+  return `${item.type_code} ${signed} ${item.headline.unit}${item.simulated ? " sim" : ""}`;
+}
+
+/** The opportunities' paths along the drawn legs, labelled on the far hub. */
+export function opportunityPathLines(
+  relevance: BookRelevanceDTO | null | undefined,
+  nodes: ReadonlyMap<string, LineEndpoint>,
+  legPath?: LegPath,
+): OpportunityPathLine[] {
+  const out: OpportunityPathLine[] = [];
+  for (const item of relevance?.opportunities ?? []) {
+    const points = item.path_node_ids.map((id) => nodes.get(id));
+    if (points.length < 2 || points.some((point) => !point || !Number.isFinite(point.lon))) continue;
+    const far = points[points.length - 1]!;
+    out.push({
+      id: `book-opportunity-${item.opportunity_id}`,
+      opportunityId: item.opportunity_id,
+      emphasis: item.emphasis,
+      coordinates: polyline(points as LineEndpoint[], legPath),
+      labelAt: [far.lon, far.lat],
+      label: opportunityLabel(item),
+    });
   }
   return out;
 }

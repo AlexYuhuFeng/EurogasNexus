@@ -51,6 +51,8 @@ export const SITUATION_COLOURS = {
     market: "#71717a",
     flow: "#0f766e",
     facility: "#52525b",
+    // An opportunity's path on the book view (CP-21): margin, apart from our own blue.
+    opportunity: "#15803d",
     halo: "#ffffff",
   },
   dark: {
@@ -60,6 +62,7 @@ export const SITUATION_COLOURS = {
     market: "#a1a1aa",
     flow: "#2dd4bf",
     facility: "#a1a1aa",
+    opportunity: "#4ade80",
     halo: "#0a0a0a",
   },
 } as const;

@@ -4876,5 +4876,14 @@
   "purpose.book.delivery": "天然气是否按合同交付，以及每次短缺的成本。",
   "convert.refused.not_held": "未换算：未持有该交割期的汇率。",
   "convert.refused.beyond_horizon": "未换算：超出 24 个月远期期限。",
-  "purpose.book.planning": "根据头寸为未来几天准备的申报与储气计划；由您在自有系统中提交。"
+  "purpose.book.planning": "根据头寸为未来几天准备的申报与储气计划；由您在自有系统中提交。",
+  "map.book.opportunity": "机会",
+  "map.book.opportunities_title": "我方账簿上的机会",
+  "map.book.opportunities_empty": "您可见的账簿上没有两枢纽之间有路径的机会。",
+  "map.book.opportunity_state.actionable": "可执行",
+  "map.book.opportunity_state.indicative": "参考",
+  "map.book.opportunity_state.watch": "关注中",
+  "map.book.opportunity_period": "期间 {{period}}",
+  "map.book.opportunity_via": "途经 {{via}}",
+  "map.book.opportunity_core": "数值来自机会引擎；交易项目中有其分项、核查与案例。"
 }

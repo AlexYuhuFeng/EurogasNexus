@@ -145,6 +145,20 @@ interface GasNetworkMapProps {
   bookEmphasis?: { ours: ReadonlySet<string>; reachable: ReadonlySet<string> };
   /** Paths to reachable neighbouring market areas, drawn at medium emphasis in the book view. */
   bookReachable?: Array<{ id: string; toHub: string; coordinates: Array<[number, number]> }>;
+  /**
+   * The caller's opportunity paths in the book view (app/mapBookRelevance.ts): actionable ones
+   * pop out with their headline on the far hub, a watch-state one is a thin outline.
+   */
+  bookOpportunities?: Array<{
+    id: string;
+    opportunityId: string;
+    emphasis: "pop" | "outline";
+    coordinates: Array<[number, number]>;
+    labelAt: [number, number];
+    label: string;
+  }>;
+  /** Selecting an opportunity path or its label opens the opportunity. */
+  onSelectOpportunity?: (opportunityId: string) => void;
 }
 
 /**
@@ -322,6 +336,8 @@ export function GasNetworkMap({
   bookFlows = [],
   bookEmphasis,
   bookReachable = [],
+  bookOpportunities = [],
+  onSelectOpportunity,
   selection: selectionProp,
   onSelectionChange,
   detailCard = true,
@@ -1264,6 +1280,83 @@ export function GasNetworkMap({
     map.setLayoutProperty("book-reachable-lines", "visibility", view === "book" ? "visible" : "none");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookReachable, effectiveTheme, mapReady, view]);
+
+  // Our book view: the opportunities' paths. An actionable one pops out (wide, the opportunity
+  // colour) with its headline on the far hub; a watch-state one is a thin outline. Selecting
+  // either opens the opportunity.
+  const opportunityMarkersRef = useRef<Marker[]>([]);
+  const selectOpportunityRef = useRef(onSelectOpportunity);
+  selectOpportunityRef.current = onSelectOpportunity;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const colour = SITUATION_COLOURS[effectiveTheme].opportunity;
+    const data = {
+      type: "FeatureCollection" as const,
+      features: bookOpportunities.map((line) => ({
+        type: "Feature" as const,
+        properties: { id: line.id, opportunity_id: line.opportunityId, emphasis: line.emphasis },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: line.coordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
+        },
+      })),
+    };
+    if (upsertSource(map, "book-opportunity-lines", data)) {
+      map.addLayer({
+        id: "book-opportunity-lines",
+        type: "line",
+        source: "book-opportunity-lines",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": colour,
+          "line-width": ["case", ["==", ["get", "emphasis"], "pop"], 4, 1.4],
+          "line-opacity": ["case", ["==", ["get", "emphasis"], "pop"], 0.95, 0.7],
+        },
+      }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+      map.addLayer({
+        id: "book-opportunity-hit",
+        type: "line",
+        source: "book-opportunity-lines",
+        paint: { "line-color": "rgba(0,0,0,0)", "line-width": 14 },
+      });
+      map.on("click", "book-opportunity-hit", (event) => {
+        const id = event.features?.[0]?.properties?.opportunity_id;
+        if (id) selectOpportunityRef.current?.(String(id));
+      });
+      map.on("mouseenter", "book-opportunity-hit", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "book-opportunity-hit", () => {
+        map.getCanvas().style.cursor = "";
+      });
+    }
+    map.setPaintProperty("book-opportunity-lines", "line-color", colour);
+    const visible = view === "book" ? "visible" : "none";
+    map.setLayoutProperty("book-opportunity-lines", "visibility", visible);
+    map.setLayoutProperty("book-opportunity-hit", "visibility", visible);
+    opportunityMarkersRef.current.forEach((marker) => marker.remove());
+    opportunityMarkersRef.current = view === "book"
+      ? bookOpportunities.map((line) => {
+          const element = document.createElement("button");
+          element.type = "button";
+          element.className = `map-node-label map-opportunity-label is-${line.emphasis}`;
+          element.textContent = line.label;
+          element.addEventListener("click", (event) => {
+            event.stopPropagation();
+            selectOpportunityRef.current?.(line.opportunityId);
+          });
+          return new Marker({ element, anchor: "bottom-left", offset: [10, -10] })
+            .setLngLat(toMapCoordinates(line.labelAt[0], line.labelAt[1]))
+            .addTo(map);
+        })
+      : [];
+    return () => {
+      opportunityMarkersRef.current.forEach((marker) => marker.remove());
+      opportunityMarkersRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookOpportunities, effectiveTheme, mapReady, view]);
 
   // The book's flows: one line per origin and destination, width by volume, the volume at the
   // destination and a single arrowhead for direction. Drawn under the points.

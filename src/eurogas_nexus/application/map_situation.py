@@ -232,6 +232,7 @@ def build_map_situation(
     outage_horizon_days: int = 14,
     history_days: int = 0,
     vessel_feed_entitled: bool | None = None,
+    principal: Any = None,
 ) -> dict[str, Any]:
     """The live map payload. ``entitled`` filters market rows by the caller's data scopes.
 
@@ -663,6 +664,7 @@ def build_map_situation(
             locate=lambda name: locator.find(name=name),
             entitled=entitled,
             book_ids=allowed,
+            principal=principal,
         )
 
     return {

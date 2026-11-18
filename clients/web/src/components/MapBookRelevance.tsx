@@ -1,5 +1,34 @@
-import type { BookRelevanceDTO } from "@/api/client";
-import { reachableLine, reasonLine, type Translate } from "@/app/mapBookRelevance";
+import type { BookOpportunityPathDTO, BookRelevanceDTO } from "@/api/client";
+import { opportunityLabel, reachableLine, reasonLine, type Translate } from "@/app/mapBookRelevance";
+
+/** One opportunity's card: the core's claim and figures, the path it runs along. */
+export function OpportunityCard({
+  item,
+  t,
+  onClose,
+}: {
+  item: BookOpportunityPathDTO;
+  t: Translate;
+  onClose: () => void;
+}) {
+  return (
+    <aside className="map-detail-panel map-opportunity-card" aria-label={t("map.book.opportunity")}>
+      <button type="button" className="map-detail-close link-button" onClick={onClose} aria-label={t("map.detail.close")}>×</button>
+      <header className="map-detail-header">
+        <h3>{item.claim}</h3>
+        <div className="map-detail-roles">
+          <span className="map-role is-own">{t(`map.book.opportunity_state.${item.state}`)}</span>
+          <span className="map-role is-neutral">{item.from_hub} → {item.to_hub}</span>
+          {item.simulated && <span className="map-role is-watch">{t("map.detail.simulated")}</span>}
+        </div>
+      </header>
+      <p className="map-opportunity-headline" data-figure="opportunity-headline">{opportunityLabel(item)}</p>
+      <p className="muted">{t("map.book.opportunity_period", { period: item.period })}</p>
+      <p className="muted">{t("map.book.opportunity_via", { via: item.via.join(", ") })}</p>
+      <footer className="map-detail-footer muted">{t("map.book.opportunity_core")}</footer>
+    </aside>
+  );
+}
 
 /**
  * The "Our book" tab's relevance lists (design basis 2, J.5): what is on the book view and
@@ -11,6 +40,7 @@ export function MapBookRelevance({
   t,
   onSelectHub,
   onSelectPlace,
+  onSelectOpportunity,
   language,
 }: {
   relevance: BookRelevanceDTO | null | undefined;
@@ -20,11 +50,32 @@ export function MapBookRelevance({
   /** A hub, by its node id. */
   onSelectHub: (hubNodeId: string) => void;
   onSelectPlace: (refId: string) => void;
+  onSelectOpportunity: (opportunityId: string) => void;
 }) {
   if (!relevance) return null;
   const places = relevance.ours.filter((item) => item.kind !== "cargo");
   return (
     <div className="map-book-relevance">
+      <section aria-labelledby="map-book-opportunities-title">
+        <h3 id="map-book-opportunities-title">{t("map.book.opportunities_title")}</h3>
+        {(relevance.opportunities ?? []).length === 0 ? (
+          <p className="muted">{t("map.book.opportunities_empty")}</p>
+        ) : (
+          <ul className="map-book-rows">
+            {relevance.opportunities.map((item) => (
+              <li key={item.opportunity_id}>
+                <button type="button" className="map-book-row" onClick={() => onSelectOpportunity(item.opportunity_id)}>
+                  <strong>
+                    {item.from_hub} → {item.to_hub}{" "}
+                    <span className="map-book-net">{opportunityLabel(item)}</span>
+                  </strong>
+                  <small>{t(`map.book.opportunity_state.${item.state}`)} · {item.claim}</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <section aria-labelledby="map-book-ours-title">
         <h3 id="map-book-ours-title">{t("map.book.ours_title")}</h3>
         {places.length === 0 ? (
