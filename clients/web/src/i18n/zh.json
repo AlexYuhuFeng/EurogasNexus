@@ -5675,5 +5675,6 @@
   "setup.item.src-deepseek.name": "模型提供方",
   "setup.item.src-deepseek.purpose": "由公司选择的模型生成“原因”、交易台简报与告警分析。",
   "setup.item.users.name": "人员",
-  "setup.item.users.purpose": "所有使用本产品的人员及其角色。"
+  "setup.item.users.purpose": "所有使用本产品的人员及其角色。",
+  "source_approval.catch_up": "实时数据正在补齐：已完成 {{done}} / {{total}} 个数据源"
 }

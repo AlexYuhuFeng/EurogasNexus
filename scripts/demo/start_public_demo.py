@@ -924,6 +924,28 @@ def certify_public_sources(factory, now: datetime, environ=os.environ) -> None:
             session.commit()
 
 
+#: Where a catch-up round states its progress for the API (same container, the server reads
+#: it and shows administrators "Live data is catching up - N of M sources done").
+CATCH_UP_STATUS_FILE = Path(
+    os.environ.get("EUROGAS_NEXUS_DEMO_CATCH_UP_STATUS") or "/tmp/eurogas-nexus-catch-up.json"
+)
+
+
+def write_catch_up_status(*, running: bool, done: int, total: int, step: str = "") -> None:
+    """Record the round's progress; never fails the round."""
+
+    try:
+        CATCH_UP_STATUS_FILE.write_text(
+            json.dumps({
+                "running": running, "done": done, "total": total, "step": step,
+                "updated_at_utc": datetime.now(UTC).isoformat(),
+            }),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
 def catch_up() -> int:
     """One round of public-source ingestion over the gap since the last successful round."""
 
@@ -946,8 +968,11 @@ def catch_up() -> int:
     certify_public_sources(factory, now)
     ok: list[str] = []
     failed: list[str] = []
-    for step in catch_up_steps(days, now, windows=windows):
+    steps = catch_up_steps(days, now, windows=windows)
+    for index, step in enumerate(steps):
+        write_catch_up_status(running=True, done=index, total=len(steps), step=step.name)
         (ok if run_catch_up_step(step) else failed).append(step.key)
+    write_catch_up_status(running=False, done=len(steps), total=len(steps))
     succeeded = sorted(set(ok) - set(failed))
     failed_keys = sorted(set(failed))
     with factory() as session:

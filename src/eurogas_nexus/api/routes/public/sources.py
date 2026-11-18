@@ -97,13 +97,50 @@ def list_sources(request: Request) -> dict:
     """List registered source systems with runtime DB counts when configured."""
 
     sources, warnings = _sources_with_runtime_status()
-    return _envelope(
+    envelope = _envelope(
         sources,
         request,
         source=_source_label(),
         source_posture_summary=_source_posture_summary(sources),
         warnings=warnings,
     )
+    progress = _demo_catch_up_progress(request)
+    if progress is not None:
+        envelope["meta"]["demo_catch_up"] = progress
+    return envelope
+
+
+def _demo_catch_up_progress(request: Request) -> dict[str, Any] | None:
+    """The demo's live-data catch-up progress, for those who administer sources only.
+
+    Demo profile only (``scripts/demo/start_public_demo.py`` writes it); a trader is never
+    shown it. ``None`` anywhere else, or when no round has run in this container.
+    """
+
+    import json
+    import os
+    from pathlib import Path
+
+    if (os.environ.get("EUROGAS_NEXUS_API_PROFILE") or "").strip().lower() != "demo":
+        return None
+    from eurogas_nexus.security.authorization import Permission, authorize
+
+    principal = getattr(request.state, "identity", None)
+    if principal is None or not any(
+        authorize(principal, permission).allowed
+        for permission in (Permission.IDENTITY_MANAGE, Permission.SOURCE_RUN)
+    ):
+        return None
+    path = Path(
+        os.environ.get("EUROGAS_NEXUS_DEMO_CATCH_UP_STATUS") or "/tmp/eurogas-nexus-catch-up.json"
+    )
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return {key: data.get(key) for key in ("running", "done", "total", "step", "updated_at_utc")}
 
 
 @router.get("/api/sources/{source_id}")

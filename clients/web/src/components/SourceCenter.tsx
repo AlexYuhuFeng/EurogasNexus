@@ -5,7 +5,7 @@ import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import type { SourceRegistryReadSurface } from "@/app/model/sourceRegistryRead";
 import { useInspectorStore } from "@/stores/inspector";
 import { WeatherForecastEvidence } from "@/components/WeatherForecastEvidence";
-import { PublicSourceApprovals } from "@/components/PublicSourceApprovals";
+import { DemoCatchUpLine, PublicSourceApprovals } from "@/components/PublicSourceApprovals";
 import {
   EvidenceBlock,
   MetricStrip,
@@ -402,6 +402,7 @@ export function SourceCenter({
         )}
       </div>
 
+      <DemoCatchUpLine t={t} />
       {registryRead.hasReading && <PublicSourceApprovals sources={sources} t={t} />}
 
       <WorkspaceTabs

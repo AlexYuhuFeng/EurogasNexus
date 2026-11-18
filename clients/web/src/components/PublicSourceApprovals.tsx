@@ -10,7 +10,7 @@
  * and only an ADMIN may approve: the server checks it, the button here only mirrors it.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api, type SourceSystemDTO } from "@/api/client";
 import { Button, PanelHeader, StatusBadge } from "@/components/ui";
@@ -233,6 +233,52 @@ export function SourceApprovalNotice({
       <Button size="sm" variant="quiet" onClick={onOpen}>
         {t("source_approval.open_connectors")}
       </Button>
+    </p>
+  );
+}
+
+interface CatchUpProgress {
+  running?: boolean;
+  done?: number;
+  total?: number;
+  step?: string;
+}
+
+/**
+ * The demo's first live-data catch-up, stated to those who run sources (ADMIN, OPERATOR) and
+ * never to traders: "Live data is catching up - 6 of 16 sources done". The server sends it only
+ * on the demo profile and only to them; this line polls while a round runs.
+ */
+export function DemoCatchUpLine({ t }: { t: Translate }) {
+  const currentUser = useApiStore((state) => state.currentUser);
+  const runsSources = Boolean(currentUser?.roles?.some((role) => role === "ADMIN" || role === "OPERATOR"));
+  const [progress, setProgress] = useState<CatchUpProgress | null>(null);
+  useEffect(() => {
+    if (!runsSources) return undefined;
+    let cancelled = false;
+    let timer: number | undefined;
+    const read = async () => {
+      try {
+        const response = await api.sources();
+        const meta = (response.meta ?? {}) as { demo_catch_up?: CatchUpProgress };
+        if (cancelled) return;
+        setProgress(meta.demo_catch_up ?? null);
+        if (meta.demo_catch_up?.running) timer = window.setTimeout(read, 30_000);
+      } catch {
+        if (!cancelled) timer = window.setTimeout(read, 60_000);
+      }
+    };
+    void read();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [runsSources]);
+  if (!runsSources || !progress?.running) return null;
+  return (
+    <p className="source-approval-notice span-3" role="status" data-record="demo-catch-up">
+      {t("source_approval.catch_up", { done: progress.done ?? 0, total: progress.total ?? 0 })}
+      {progress.step ? ` · ${progress.step}` : ""}
     </p>
   );
 }

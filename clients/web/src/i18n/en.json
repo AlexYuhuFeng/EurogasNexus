@@ -5675,5 +5675,6 @@
   "setup.item.src-deepseek.name": "Model provider",
   "setup.item.src-deepseek.purpose": "Why, the desk brief and alert analysis written by a model of the firm's choice.",
   "setup.item.users.name": "People",
-  "setup.item.users.purpose": "Everyone who will use the product, with their roles."
+  "setup.item.users.purpose": "Everyone who will use the product, with their roles.",
+  "source_approval.catch_up": "Live data is catching up: {{done}} of {{total}} sources done"
 }
