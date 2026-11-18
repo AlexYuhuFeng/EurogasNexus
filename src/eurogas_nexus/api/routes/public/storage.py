@@ -264,3 +264,73 @@ def _db_unavailable(exc: Exception) -> HTTPException:
             "error_class": exc.__class__.__name__,
         },
     )
+
+
+#: GIE's reuse condition (agsi.gie.eu "API data usage", checked 2026-11-17): the source must
+#: be named with the data. Returned with every storage fundamentals read.
+GIE_ATTRIBUTION = "Source: GIE (Gas Infrastructure Europe), AGSI+ transparency platform"
+
+
+@router.get("/api/fundamentals/storage")
+def get_fundamentals_storage(
+    request: Request,
+    region: str = Query("eu", pattern="^(eu|nwe)$", description="eu (GIE EU aggregate) or nwe"),
+    season: str | None = Query(
+        None,
+        max_length=200,
+        description="Comma-separated entity codes (EU, NWE, DE...) whose full gas-year series "
+        "and history band are returned; default the region only.",
+    ),
+    focus: str | None = Query(
+        None, max_length=200, description="Comma-separated country codes listed first."
+    ),
+) -> dict:
+    """Storage fill for a region and each of its countries against their own history.
+
+    Fill, stock, working capacity, day and week change, the same gas day last year, the
+    N-year average and band (N = complete prior gas years held, stated), injection and
+    withdrawal, the EU target where it applies, a 30-day sparkline series and, for the
+    entities in ``season``, the full gas-year series (``application/fundamentals_storage``).
+    Countries of the region with no data are listed in ``missing`` with the reason.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` when the store cannot be read.
+    """
+
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+    from eurogas_nexus.application.fundamentals_storage import storage_read
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    def codes(text: str | None) -> list[str]:
+        return [part.strip().upper() for part in (text or "").split(",") if part.strip()][:30]
+
+    if not resolve_database_url():
+        return _env(None, request)
+    try:
+        with get_session_factory()() as session:
+            data = storage_read(
+                session,
+                current_principal(request),
+                region=region,
+                season=codes(season),
+                focus=codes(focus),
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 - a store failure is a 503, never a partial read
+        raise HTTPException(status_code=503, detail="runtime_db_unavailable") from exc
+    sources = sorted(
+        {s for entity in [data["region"], *data["countries"]] if entity for s in entity["sources"]}
+    )
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": sources or ["runtime-postgresql"],
+            "attribution": (
+                GIE_ATTRIBUTION if any(not s.endswith("_Sim") for s in sources) else None
+            ),
+            "warnings": list(data.get("warnings") or []),
+        },
+    }
