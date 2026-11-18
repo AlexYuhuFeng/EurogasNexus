@@ -5833,7 +5833,10 @@ export const api = {
     cargoes: CargoInput[];
     terminal_ids?: string[];
     terminal_inputs?: Record<string, { entry_per_mwh?: number; gas_in_kind_pct?: number }>;
-  }) => post<CargoEconomicsDTO>("/lng/cargo-economics", body),
+    /** The delivered spread by arrival month for the first FOB cargo (design C.4); 0 for none. */
+    series_months?: number;
+    series_terminal_id?: string;
+  }, options?: ApiRequestOptions) => post<CargoEconomicsDTO>("/lng/cargo-economics", body, options),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
   saveTariffPublication: (
@@ -6493,6 +6496,39 @@ export interface CargoTerminalDTO {
   assumptions: number;
   excludes: string[];
   legs: CargoLegDTO[];
+  /** USD per one unit of the hub currency used on this row, and where it came from. */
+  fx_usd_per_unit?: number | null;
+  fx_source?: string;
+  /** The margin step by step, hub currency per MWh delivered (hub, gas in kind, entry, regas,
+   * netback, FOB or DES, boil-off, freight, margin). */
+  steps?: { key: string; amount: number | null; kind: "total" | "delta" }[];
+  /** Henry Hub versus the hub (design C.4), FOB rows only: the delivered and netback views. */
+  delivered_spread?: CargoDeliveredSpreadDTO | null;
+}
+
+export interface CargoDeliveredSpreadDTO {
+  delivered_per_mwh: number | null;
+  hub_per_mwh: number | null;
+  arb_per_mwh: number | null;
+  arb_total: number | null;
+  sent_out_mwh: number | null;
+  fob_netback_usd_mmbtu: number | null;
+  fob_price_usd_mmbtu: number | null;
+  lifting_price_usd_mmbtu: number | null;
+  netback_margin_usd_mmbtu: number | null;
+  netback_lifting_margin_usd_mmbtu: number | null;
+  netback_total: number | null;
+}
+
+/** How a cargo's voyage was stated: a saved route, or the desk's own distance or days. */
+export interface CargoVoyageDTO {
+  basis: "saved_route" | "entered_distance" | "entered_days" | "none";
+  route_id: string | null;
+  label?: string;
+  source?: string;
+  distance_nm?: number | null;
+  speed_kn?: number | null;
+  ballast?: "round" | "one_way";
 }
 
 export interface CargoResultDTO {
@@ -6515,6 +6551,9 @@ export interface CargoResultDTO {
   no_winner: boolean;
   grade: string;
   assumptions: number;
+  voyage?: CargoVoyageDTO | null;
+  /** Margin change per MWh for one input moved on its own (HH, hire, hub, FX). */
+  sensitivity?: { key: "hh" | "hire" | "hub" | "fx"; bump: number; unit: string; margin_change_per_mwh: number }[];
 }
 
 /** A cargo to price; omitted figures come from the firm's approved assumption set. */
@@ -6531,6 +6570,9 @@ export interface CargoInput {
   des_price?: number;
   des_currency?: "EUR" | "GBP" | "USD";
   route_id?: string;
+  /** The voyage as the desk states it when no saved route is named. */
+  distance_nm?: number;
+  laden_days?: number;
   ballast?: "round" | "one_way";
   speed_kn?: number;
   hire_per_day?: number;
@@ -6562,6 +6604,21 @@ export interface CargoEconomicsDTO {
     assumptions: number;
   }[];
   terminals_considered: string[];
+  delivered_spread_series?: {
+    terminal_id: string;
+    cargo_id: string;
+    points: {
+      arrival_month: string;
+      pricing_month: string;
+      reason: string | null;
+      hh: number | null;
+      hh_class: string | null;
+      hub_per_mwh: number | null;
+      delivered_per_mwh: number | null;
+      arb_per_mwh: number | null;
+      grade: string;
+    }[];
+  } | null;
 }
 
 export interface SetupViewDTO {

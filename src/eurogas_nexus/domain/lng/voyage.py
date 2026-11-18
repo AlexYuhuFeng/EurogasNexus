@@ -13,6 +13,9 @@ Freight, in the cargo's purchase currency (USD for an FOB lift)::
     canal, ports  = as entered (zero only where the route has no canal)
     insurance     = insurance % x cargo value
 
+A voyage the desk states in days (no distance held for the route) carries ``laden_days``; the
+ballast leg of a round voyage is then the same number of days.
+
 Boil-off is energy, not money: ``Q_lost = Q_load x bor %/day x days laden``. Pure, Decimal,
 no rounding of money until the caller displays it.
 """
@@ -40,12 +43,16 @@ class Voyage:
     port_days: Decimal = Decimal(2)
     ballast: str = "round"  # round | one_way
     routing: str = "direct"
+    #: Days laden as the desk states them, in place of distance / speed.
+    laden_days: Decimal | None = None
 
     def __post_init__(self) -> None:
         if self.distance_nm < 0:
             raise VoyageError("distance_nm must not be negative")
         if self.speed_laden_kn <= 0 or self.speed_ballast_kn <= 0:
             raise VoyageError("speed must be positive")
+        if self.laden_days is not None and not Decimal(0) < self.laden_days <= Decimal(90):
+            raise VoyageError("laden_days must be within 0-90")
         if self.port_days < 0:
             raise VoyageError("port_days must not be negative")
         if self.ballast not in {"round", "one_way"}:
@@ -70,6 +77,10 @@ class VoyageDays:
 
 
 def voyage_days(voyage: Voyage) -> VoyageDays:
+    if voyage.laden_days is not None:
+        laden = voyage.laden_days.quantize(_TENTH, rounding=ROUND_HALF_UP)
+        ballast = laden if voyage.ballast == "round" else Decimal(0)
+        return VoyageDays(laden=laden, ballast=ballast, port=voyage.port_days)
     laden = sailing_days(voyage.distance_nm, voyage.speed_laden_kn)
     ballast = (
         sailing_days(voyage.distance_nm, voyage.speed_ballast_kn)

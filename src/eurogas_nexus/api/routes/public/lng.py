@@ -332,6 +332,10 @@ class CargoBody(BaseModel):
     des_price: float | None = Field(default=None, gt=-500, le=1000)
     des_currency: str | None = Field(default=None, pattern="^(EUR|GBP|USD)$")
     route_id: str | None = Field(default=None, max_length=96)
+    # The voyage as the desk states it when no saved route is named: a distance at a speed, or
+    # days laden.
+    distance_nm: float | None = Field(default=None, gt=0, le=30_000)
+    laden_days: float | None = Field(default=None, gt=0, le=90)
     ballast: str | None = Field(default=None, pattern="^(round|one_way)$")
     speed_kn: float | None = Field(default=None, ge=8, le=22)
     hire_per_day: float | None = Field(default=None, ge=0, le=1_000_000)
@@ -359,6 +363,9 @@ class CargoEconomicsBody(BaseModel):
     cargoes: list[CargoBody] = Field(min_length=1, max_length=10)
     terminal_ids: list[str] = Field(default_factory=list, max_length=50)
     terminal_inputs: dict[str, TerminalInputBody] = Field(default_factory=dict, max_length=50)
+    # The delivered spread by arrival month for the first FOB cargo (design C.4), 0 for none.
+    series_months: int = Field(default=0, ge=0, le=24)
+    series_terminal_id: str | None = Field(default=None, max_length=96)
 
 
 def _cargo_error(exc) -> HTTPException:

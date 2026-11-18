@@ -221,3 +221,59 @@ def test_legs_reconcile_to_the_headline_for_random_cargoes():
         assert row.margin_total == pytest.approx(
             row.margin_per_mwh * result.q_del_mwh, abs=D("1e-6")
         )
+
+
+def test_henry_hub_versus_the_hub_two_views_agree():
+    """Design C.4 on the C.3 cargo at Gate.
+
+    Delivered: (20.7107 + 0.95) / 0.995 + 0.45 = 22.2194 EUR/MWh against TTF 30.00, arb 7.7806
+    per MWh sent out (= margin 7.7416 / 0.995; the design's 22.21 / 7.79 divides the cost alone).
+    Netback: 6.525 + 7.7416 x 1,100,306.07 x 1.16 / 3,800,000 = 9.1253 USD/MMBtu FOB (design
+    9.17, which applies boil-off after freight). The two views carry the same total: arb x sent
+    out = netback margin x Q_load / FX = margin total, to the cent.
+    """
+    q_del_mwh = D(3_754_400) / MMBTU_PER_MWH
+    gate = _terminal("gate", "TTF", "30.00", "0.5", "0.45", "0.95", q_del_mwh, "firm_terms")
+    row = evaluate_cargo(_fob(), [gate]).terminals[0]
+    assert round(row.delivered_per_mwh, 4) == D("22.2194")
+    assert round(row.arb_per_mwh, 4) == D("7.7806")
+    assert round(row.fob_netback_usd_mmbtu, 4) == D("9.1253")
+    delivered_total = row.arb_per_mwh * row.sent_out_mwh
+    netback_total = (row.fob_netback_usd_mmbtu - D("6.525")) * D(3_800_000) / D("1.16")
+    assert round(delivered_total, 2) == round(netback_total, 2) == round(row.margin_total, 2)
+    payload = serialise(evaluate_cargo(_fob(), [gate]))["terminals"][0]["delivered_spread"]
+    assert payload["arb_total"] == payload["netback_total"]
+    assert payload["netback_lifting_margin_usd_mmbtu"] == pytest.approx(
+        payload["netback_margin_usd_mmbtu"] + 2.5, abs=1e-4
+    )
+
+
+def test_the_margin_steps_reconcile():
+    """Hub - gas in kind - entry - regas = netback; netback - FOB - boil-off - freight = margin."""
+    q_del_mwh = D(3_754_400) / MMBTU_PER_MWH
+    gate = _terminal("gate", "TTF", "30.00", "0.5", "0.45", "0.95", q_del_mwh, "firm_terms")
+    row = evaluate_cargo(_fob(), [gate]).terminals[0]
+    steps = {key: amount for key, amount, _kind in row.steps}
+    assert [key for key, _a, _k in row.steps] == [
+        "hub", "gas_in_kind", "entry", "regas", "netback", "fob", "boil_off", "freight", "margin",
+    ]  # fmt: skip
+    netback = steps["hub"] + steps["gas_in_kind"] + steps["entry"] + steps["regas"]
+    assert abs(netback - steps["netback"]) < D("1e-20")
+    margin = steps["netback"] + steps["fob"] + steps["boil_off"] + steps["freight"]
+    assert abs(margin - steps["margin"]) < D("1e-20")
+    # FOB at loading: 6.525 x 3.412141633 / 1.16 = 19.1933 EUR/MWh; boil-off lifts it by 0.2331.
+    assert round(-steps["fob"], 4) == D("19.1933")
+    assert round(-steps["boil_off"], 4) == D("0.2331")
+
+
+def test_a_voyage_entered_in_days_is_an_assumption():
+    """No route held: 12 days laden, round voyage, is the same voyage as 4,900 nm at 17 kn."""
+    days = Voyage(distance_nm=D(0), laden_days=D(12))
+    by_days = evaluate_cargo(_fob(voyage=days, voyage_class=A), [])
+    by_distance = evaluate_cargo(_fob(), [])
+    assert by_days.cost_usd_mmbtu == by_distance.cost_usd_mmbtu
+    assert by_days.assumptions == by_distance.assumptions + 1
+    assert "distance" not in {leg.key for leg in by_days.legs}
+    assert next(leg for leg in by_days.legs if leg.key == "days").input_class == A
+    one_way = evaluate_cargo(_fob(voyage=Voyage(D(0), ballast="one_way", laden_days=D(12))), [])
+    assert one_way.days.ballast == 0

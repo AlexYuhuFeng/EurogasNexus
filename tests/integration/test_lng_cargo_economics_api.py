@@ -244,3 +244,45 @@ def test_an_entered_zero_is_a_value_and_a_past_arrival_is_refused(store):
         headers=_h(bearers["c-viewer"]),
     )
     assert past.status_code == 422 and past.json()["detail"]["code"] == "arrival_in_the_past"
+
+
+def test_a_voyage_the_desk_enters_and_the_delivered_spread(store):
+    """No freight route held (the product ships none): the desk states the voyage as a distance
+    at a speed, or as days laden; the study then gets the delivered spread by arrival month and
+    the margin's sensitivities."""
+    _engine, bearers, arrival = store
+    client = TestClient(create_app(Settings(api_profile="release")))
+    assert (
+        client.get("/api/lng/freight-routes", headers=_h(bearers["c-viewer"])).json()["data"] == []
+    )
+    body = {
+        "arrival_month": arrival,
+        "series_months": 3,
+        "cargoes": [
+            {"cargo_id": "nm", "term": "FOB", "distance_nm": 4900, "speed_kn": 17},
+            {"cargo_id": "days", "term": "FOB", "laden_days": 12},
+        ],
+    }
+    response = client.post("/api/lng/cargo-economics", json=body, headers=_h(bearers["c-viewer"]))
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    nm, days = data["cargoes"]
+    assert nm["voyage"]["basis"] == "entered_distance" and days["voyage"]["basis"] == "entered_days"
+    assert nm["cost_usd_mmbtu"] == pytest.approx(7.0408, abs=1e-4)
+    assert days["cost_usd_mmbtu"] == nm["cost_usd_mmbtu"]  # 12.0 days is 4,900 nm at 17 kn
+    distance = next(leg for leg in nm["legs"] if leg["key"] == "distance")
+    assert distance["input_class"] == "assumption" and distance["source"].startswith("entered")
+    gate = nm["terminals"][0]
+    spread = gate["delivered_spread"]
+    assert spread["arb_total"] == pytest.approx(spread["netback_total"], abs=0.01)
+    assert spread["arb_total"] == pytest.approx(gate["margin_total"], abs=0.01)
+    assert {row["key"] for row in nm["sensitivity"]} >= {"hire", "hub", "fx"}
+    series = data["delivered_spread_series"]
+    assert series["cargo_id"] == "nm" and len(series["points"]) == 3
+    assert series["points"][0]["arb_per_mwh"] == pytest.approx(spread["arb_per_mwh"], abs=1e-4)
+    bad = client.post(
+        "/api/lng/cargo-economics",
+        json={**body, "cargoes": [{"cargo_id": "x", "term": "FOB", "laden_days": 0}]},
+        headers=_h(bearers["c-viewer"]),
+    )
+    assert bad.status_code == 422

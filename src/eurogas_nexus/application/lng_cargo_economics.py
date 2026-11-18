@@ -14,7 +14,10 @@ the LNG reference registers, never guesses one, and hands the pure chain
 * assumptions (charter hire, boil-off, speed, ballast fuel, insurance, port costs, the FOB
   formula, cargo size): what the request states (class ``assumption``, "entered"), else the
   firm's approved assumption set, else missing;
-* route distance: ``freight_route`` (latest version);
+* the voyage: a saved ``freight_route`` (latest version, class derived) when one is named;
+  else the voyage the desk enters, as a distance at a speed or as days laden (class
+  ``assumption``, "entered"). No sea-distance table ships with the product, so an entered voyage
+  is the normal case until the firm records its routes;
 * regas charge: the firm's terms, the reviewed public tariff, a candidate (indicative)
   (``application/lng_terminal_tariff_register.py``); gas in kind and entry tariff from the
   firm's terms, the register's in-kind figure, or the request.
@@ -344,18 +347,42 @@ def _offer(session, reader, cargo: dict[str, Any], pricing_month: str) -> CargoO
             des_currency=cargo.get("des_currency") or "EUR",
         )
     voyage = route = None
+    voyage_class = InputClass.DERIVED
+    route_label = route_source = ""
     if cargo.get("route_id"):
         route = current_route(session, cargo["route_id"])
     speed = _assumed(reader, cargo, "speed_kn")
+    kn = speed.value if speed.held else Decimal(17)
+    ballast = cargo.get("ballast") or "round"
     if route is not None:
-        kn = speed.value if speed.held else Decimal(17)
         voyage = Voyage(
             distance_nm=Decimal(str(route.distance_nm)),
             speed_laden_kn=kn,
             speed_ballast_kn=kn,
-            ballast=cargo.get("ballast") or "round",
+            ballast=ballast,
             routing=route.routing,
         )
+        route_label = f"{route.load_port} -> {route.discharge_port} ({route.routing})"
+        route_source = f"{route.source}, v{route.version}"
+    elif cargo.get("distance_nm") is not None:
+        voyage = Voyage(
+            distance_nm=Decimal(str(cargo["distance_nm"])),
+            speed_laden_kn=kn,
+            speed_ballast_kn=kn,
+            ballast=ballast,
+        )
+        voyage_class = InputClass.ASSUMPTION
+        route_label = "Entered voyage"
+        route_source = f"entered: {cargo['distance_nm']:g} nm at {kn:f} kn"
+    elif cargo.get("laden_days") is not None:
+        voyage = Voyage(
+            distance_nm=Decimal(0),
+            ballast=ballast,
+            laden_days=Decimal(str(cargo["laden_days"])),
+        )
+        voyage_class = InputClass.ASSUMPTION
+        route_label = "Entered voyage"
+        route_source = f"entered: {cargo['laden_days']:g} days laden"
     port = _assumed(reader, cargo, "port_cost")
     canal_entered = _entered(cargo.get("canal_cost"), "canal toll")
     if canal_entered is not None:
@@ -372,10 +399,9 @@ def _offer(session, reader, cargo: dict[str, Any], pricing_month: str) -> CargoO
         fee=_assumed(reader, cargo, "fee"),
         fob_price=fob or missing(),
         voyage=voyage,
-        route_label=(
-            f"{route.load_port} -> {route.discharge_port} ({route.routing})" if route else ""
-        ),
-        route_source=(f"{route.source}, v{route.version}" if route else ""),
+        route_label=route_label,
+        route_source=route_source,
+        voyage_class=voyage_class,
         hire_per_day=_assumed(reader, cargo, "hire_per_day"),
         boil_off_pct_per_day=_assumed(reader, cargo, "boil_off_pct_per_day"),
         ballast_fuel_mmbtu_per_day=_assumed(reader, cargo, "ballast_fuel_mmbtu_per_day"),
@@ -386,8 +412,159 @@ def _offer(session, reader, cargo: dict[str, Any], pricing_month: str) -> CargoO
     )
 
 
+def _shift(month: str, months: int) -> str:
+    index = int(month[:4]) * 12 + int(month[5:7]) - 1 + months
+    return f"{index // 12:04d}-{index % 12 + 1:02d}"
+
+
+def _months_between(earlier: str, later: str) -> int:
+    return (int(later[:4]) * 12 + int(later[5:7])) - (int(earlier[:4]) * 12 + int(earlier[5:7]))
+
+
+def _voyage_payload(offer: CargoOffer, cargo: dict[str, Any]) -> dict[str, Any] | None:
+    """How the voyage was stated: a saved route, or the desk's own figures."""
+
+    if offer.term != "FOB":
+        return None
+    if offer.voyage is None:
+        return {"basis": "none", "route_id": cargo.get("route_id")}
+    basis = (
+        "saved_route"
+        if offer.voyage_class == InputClass.DERIVED
+        else "entered_days"
+        if offer.voyage.laden_days is not None
+        else "entered_distance"
+    )
+    return {
+        "basis": basis,
+        "route_id": cargo.get("route_id") if basis == "saved_route" else None,
+        "label": offer.route_label,
+        "source": offer.route_source,
+        "distance_nm": None if basis == "entered_days" else float(offer.voyage.distance_nm),
+        "speed_kn": None if basis == "entered_days" else float(offer.voyage.speed_laden_kn),
+        "ballast": offer.voyage.ballast,
+    }
+
+
+#: The inputs the study moves one at a time, and by how much (design D.2: hire, HH, hub, FX).
+SENSITIVITY_BUMPS = (
+    ("hh", Decimal("0.10"), "USD/MMBtu"),
+    ("hire", Decimal(5000), "USD/day"),
+    ("hub", Decimal(1), "per MWh"),
+    ("fx", Decimal("0.01"), "relative"),
+)
+
+
+def _bumped(value: Valued, delta: Decimal, *, relative: bool = False) -> Valued:
+    if not value.held:
+        return value
+    moved = value.value * (1 + delta) if relative else value.value + delta
+    return Valued(moved, value.input_class, value.source)
+
+
+def _sensitivity(offer: CargoOffer, option: TerminalOption, base: Decimal) -> list[dict[str, Any]]:
+    """Margin change (hub currency per MWh delivered) for each input moved on its own."""
+
+    from dataclasses import replace
+
+    rows = []
+    for key, delta, unit in SENSITIVITY_BUMPS:
+        moved_offer, moved_option = offer, option
+        if key == "hh":
+            if offer.term != "FOB" or offer.fob_price.held or not offer.hh.held:
+                continue
+            moved_offer = replace(offer, hh=_bumped(offer.hh, delta))
+        elif key == "hire":
+            if offer.term != "FOB":
+                continue
+            moved_offer = replace(offer, hire_per_day=_bumped(offer.hire_per_day, delta))
+        elif key == "hub":
+            moved_option = replace(option, hub_price=_bumped(option.hub_price, delta))
+        elif key == "fx":
+            if offer.term != "FOB" or option.currency == "USD":
+                continue
+            moved_option = replace(
+                option, fx_usd_per_unit=_bumped(option.fx_usd_per_unit, delta, relative=True)
+            )
+        moved = evaluate_cargo(moved_offer, [moved_option])
+        row = moved.terminals[0] if moved.terminals else None
+        if row is None or row.margin_per_mwh is None:
+            continue
+        change = row.margin_per_mwh - base
+        rows.append(
+            {
+                "key": key,
+                "bump": float(delta * 100) if key == "fx" else float(delta),
+                "unit": "%" if key == "fx" else unit,
+                "margin_change_per_mwh": float(change.quantize(Decimal("0.0001"))),
+            }
+        )
+    return rows
+
+
+def _price_one(session, reader, request, terminals, cargo, arrival):
+    pricing = cargo.get("pricing_month") or arrival
+    offer = _offer(session, reader, cargo, pricing)
+    # The regas charge is on the energy unloaded: price the voyage first.
+    cost_side = evaluate_cargo(offer, [])
+    q_del_mwh = float(cost_side.q_del_mwh) if cost_side.q_del_mwh else 0.0
+    options = (
+        [
+            _option(
+                session,
+                reader,
+                terminal,
+                request={**request, "arrival_month": arrival},
+                q_del_mwh=q_del_mwh,
+            )
+            for terminal in terminals
+        ]
+        if cost_side.blocked is None and q_del_mwh > 0
+        else []
+    )
+    return offer, options, evaluate_cargo(offer, options)
+
+
+def _series(session, reader, request, terminals, cargo, terminal_id, months):
+    """Design C.4 as a line: the delivered spread by arrival month, the same chain each month,
+    freight and fees held at the request's figures; the pricing month keeps its lag."""
+
+    arrival = request["arrival_month"]
+    lag = _months_between(cargo.get("pricing_month") or arrival, arrival)
+    wanted = [terminal for terminal in terminals if terminal.terminal_id == terminal_id]
+    points = []
+    for step in range(months):
+        month = _shift(arrival, step)
+        moved = {**cargo, "pricing_month": _shift(month, -lag)}
+        _offer_, _options, result = _price_one(session, reader, request, wanted, moved, month)
+        row = result.terminals[0] if result.terminals else None
+        hh = next((leg for leg in result.legs if leg.key == "hh"), None)
+        priced = row is not None and row.reason is None and row.arb_per_mwh is not None
+        points.append(
+            {
+                "arrival_month": month,
+                "pricing_month": moved["pricing_month"],
+                "reason": result.blocked or (row.reason if row is not None else "no_terminal"),
+                "hh": None if hh is None else float(hh.amount),
+                "hh_class": None if hh is None else str(hh.input_class),
+                "hub_per_mwh": float(row.delivered_per_mwh + row.arb_per_mwh) if priced else None,
+                "delivered_per_mwh": float(row.delivered_per_mwh.quantize(Decimal("0.0001")))
+                if priced
+                else None,
+                "arb_per_mwh": float(row.arb_per_mwh.quantize(Decimal("0.0001")))
+                if priced
+                else None,
+                "grade": str(row.grade) if priced else "missing",
+            }
+        )
+        if priced:
+            points[-1]["reason"] = None
+    return {"terminal_id": terminal_id, "cargo_id": cargo["cargo_id"], "points": points}
+
+
 def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, Any]:
-    """One result per cargo, each with its terminals best first; the comparison table."""
+    """One result per cargo, each with its terminals best first; the comparison table; for the
+    first FOB cargo, optionally, the delivered spread by arrival month."""
 
     from eurogas_nexus.application.valuation_snapshot import open_valuation_snapshot
 
@@ -397,21 +574,27 @@ def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, An
     reader = open_valuation_snapshot(session, caller=caller)
     terminals = _terminals(session, list(request.get("terminal_ids") or []))
     results = []
+    series = None
     for cargo in request["cargoes"]:
-        pricing = cargo.get("pricing_month") or arrival
-        offer = _offer(session, reader, cargo, pricing)
-        # The regas charge is on the energy unloaded: price the voyage first.
-        cost_side = evaluate_cargo(offer, [])
-        q_del_mwh = float(cost_side.q_del_mwh) if cost_side.q_del_mwh else 0.0
-        options = (
-            [
-                _option(session, reader, terminal, request=request, q_del_mwh=q_del_mwh)
-                for terminal in terminals
-            ]
-            if cost_side.blocked is None and q_del_mwh > 0
+        offer, options, evaluated = _price_one(session, reader, request, terminals, cargo, arrival)
+        result = serialise(evaluated)
+        result["voyage"] = _voyage_payload(offer, cargo)
+        best = next(
+            (row for row in evaluated.terminals if row.terminal_id == evaluated.best_terminal_id),
+            None,
+        )
+        option = next((o for o in options if best and o.terminal_id == best.terminal_id), None)
+        result["sensitivity"] = (
+            _sensitivity(offer, option, best.margin_per_mwh)
+            if best is not None and option is not None
             else []
         )
-        results.append(serialise(evaluate_cargo(offer, options)))
+        results.append(result)
+        months = int(request.get("series_months") or 0)
+        if series is None and months and offer.term == "FOB" and evaluated.blocked is None:
+            wanted = request.get("series_terminal_id") or evaluated.best_terminal_id
+            if wanted:
+                series = _series(session, reader, request, terminals, cargo, wanted, months)
     table = []
     for result in results:
         best = next(
@@ -446,4 +629,5 @@ def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, An
         "cargoes": results,
         "table": table,
         "terminals_considered": [terminal.terminal_id for terminal in terminals],
+        "delivered_spread_series": series,
     }

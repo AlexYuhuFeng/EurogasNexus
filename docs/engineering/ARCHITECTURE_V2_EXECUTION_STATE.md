@@ -24,6 +24,23 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   factor (the entry tariff is the firm's terms or an entered figure); the design's C.3 "lifting
   basis +10.3" contradicts C.4, the engine gives 15.22 EUR/MWh by the stated arithmetic.
 
+## 2026-11-18 — CP-18 Research → Cargo & netback (branch `cp-18`, not pushed)
+
+- Research gains the task Cargo & netback (`task=cargo`, `components/research/CargoStudy.tsx`):
+  one FOB or DES cargo against the terminals with firm terms or tariffs; headline (cost at the
+  ship's rail, best terminal or "no winner", margin, lifting-cost margin), the terminal table,
+  the margin waterfall, Henry Hub against the hub read two ways (delivered and netback, same
+  total), the delivered spread by arrival month and the margin's sensitivity (HH, hire, hub,
+  FX). Opens on the design's worked example (assumptions, not market values).
+- The voyage: `freight_route` ships empty, so `POST /api/lng/cargo-economics` takes a voyage the
+  desk enters (`distance_nm` at `speed_kn`, or `laden_days`; class assumption, "entered");
+  saved routes are offered when the table has rows. Henry Hub: firm mark or licensed price,
+  else the EIA spot as a labelled proxy, else the page asks for a mark.
+- Engine additions (CP-12 chain, no new route): per-terminal steps, the C.4 delivered/netback
+  views, FX used; `series_months` for the line; sensitivity. Uses the shared `SimulatedScope`.
+- Left: a daily HH–TTF history line (needs EIA HH history held); NBP margins stay per MWh in
+  GBP (the table compares per MWh), the board's p/th is not repeated here.
+
 ## 2026-11-18 — CP-17 Research → Fundamentals (branch `cp-17`, not pushed)
 
 - Research gains the task Fundamentals (`task=fundamentals`, tabs in `view=`): Storage (the

@@ -1,0 +1,221 @@
+@layer legacy {
+/* Research → Cargo & netback (tokens only; see docs/product/DESIGN_TOKENS.md). The tables,
+   class marks and section titles are the Spreads page's (spreads.css). */
+.cargo-page {
+  display: grid;
+  gap: var(--ds-space-4);
+  min-width: 0;
+  padding: var(--ds-space-4);
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-base);
+}
+
+.cargo-form {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.cargo-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-space-2) var(--ds-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--ds-space-2) var(--ds-space-3) var(--ds-space-3);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
+}
+
+.cargo-group > legend {
+  padding: 0 var(--ds-space-1);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.cargo-group-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-space-2) var(--ds-space-3);
+  padding-top: var(--ds-space-2);
+}
+
+.cargo-field {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+
+.cargo-field .spreads-number {
+  width: 7rem;
+}
+
+.cargo-field[data-width="m"] .spreads-number {
+  width: 9rem;
+}
+
+.cargo-field-label {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-field-unit {
+  color: var(--ds-text-3);
+}
+
+.cargo-voyage-note,
+.cargo-example-note,
+.cargo-note,
+.cargo-headline-basis {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.cargo-example-note {
+  flex: 1 1 18rem;
+}
+
+.cargo-more > summary {
+  cursor: pointer;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.cargo-headline {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.cargo-key-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--ds-space-3);
+}
+
+.cargo-key-figures > div {
+  display: grid;
+  gap: var(--ds-space-1);
+  align-content: start;
+}
+
+.cargo-key-figures span,
+.cargo-key-figures small {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-key-figures strong {
+  font-size: var(--ds-text-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.cargo-hh-basis {
+  color: var(--ds-text-2);
+}
+
+.cargo-table tr[data-selected] {
+  background: var(--ds-surface-2);
+}
+
+.cargo-row-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ds-accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cargo-row-button[aria-pressed="true"] {
+  color: var(--ds-text-1);
+  font-weight: 600;
+}
+
+.cargo-unit,
+.cargo-basis,
+.cargo-range,
+.cargo-source {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-left-out {
+  margin: 0;
+  padding-left: var(--ds-space-4);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-spread {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.cargo-spread-views {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--ds-space-3);
+}
+
+.cargo-spread-views > div {
+  display: grid;
+  gap: var(--ds-space-1);
+  align-content: start;
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
+}
+
+.cargo-spread-views h3 {
+  margin: 0;
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.cargo-spread-views p,
+.cargo-spread-views small {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-spread-views strong {
+  font-size: var(--ds-text-md);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .cargo-page {
+    padding: var(--ds-space-3);
+  }
+
+  .cargo-field .spreads-number,
+  .cargo-field[data-width="m"] .spreads-number {
+    width: 100%;
+  }
+
+  .cargo-group > .cargo-field {
+    flex: 1 1 8rem;
+  }
+}
+}

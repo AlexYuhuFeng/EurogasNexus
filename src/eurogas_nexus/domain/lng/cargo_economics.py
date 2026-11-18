@@ -23,6 +23,12 @@ A missing input is never zero: the cargo, or the terminal, is left out with the 
 (``no_charter_hire`` blocks an FOB cargo; ``no_distance`` names the route). The hub price is
 in the terminal hub's currency per MWh (a p/th mark is normalised before it reaches here).
 
+Henry Hub versus the hub at the same delivery point (design C.4) is the same margin read two
+ways, both on every FOB row: **delivered** (what the US cargo costs at the hub, per MWh sent
+out: ``(cost + regas) / (1 - gas in kind) + entry``, against the hub price) and **netback** (what
+the hub is worth FOB, USD/MMBtu loaded: ``FOB price + margin total / Q_load``, against the FOB
+price). Both times their volume give the row's margin total, so they agree to rounding.
+
 Pure, Decimal, deterministic. Money is rounded to the cent and per-unit figures to four
 decimals only in :func:`serialise`.
 """
@@ -48,6 +54,7 @@ from eurogas_nexus.domain.valuation.quality import InputClass, weakest
 MMBTU_PER_MWH = Decimal(str(_convert_units(1.0, "MWh", "MMBtu")))
 _CENT = Decimal("0.01")
 _UNIT = Decimal("0.0001")
+_STEP = Decimal("0.00000001")
 _HUNDRED = Decimal(100)
 #: Two terminals closer than this (hub currency per MWh) are not ranked against each other.
 DEFAULT_TIE_TOLERANCE = Decimal("0.10")
@@ -91,6 +98,8 @@ class CargoOffer:
     voyage: Voyage | None = None
     route_label: str = ""
     route_source: str = ""
+    #: A held route is a fact the firm recorded (derived); a voyage the desk types is an assumption.
+    voyage_class: InputClass = InputClass.DERIVED
     hire_per_day: Valued = field(default_factory=missing)
     boil_off_pct_per_day: Valued = field(default_factory=missing)
     ballast_fuel_mmbtu_per_day: Valued = field(default_factory=missing)
@@ -160,6 +169,17 @@ class TerminalResult:
     grade: InputClass = InputClass.MISSING
     assumptions: int = 0
     excludes: tuple[str, ...] = ()
+    #: USD per one unit of the hub currency used for this row (None for a DES row without FX).
+    fx_usd_per_unit: Decimal | None = None
+    fx_source: str = ""
+    #: The margin step by step, hub currency per MWh delivered: (key, amount, kind).
+    steps: tuple[tuple[str, Decimal, str], ...] = ()
+    #: Design C.4, FOB only: the delivered view (hub currency per MWh sent out) ...
+    delivered_per_mwh: Decimal | None = None
+    arb_per_mwh: Decimal | None = None
+    sent_out_mwh: Decimal | None = None
+    # ... and the netback view (USD/MMBtu loaded).
+    fob_netback_usd_mmbtu: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -264,7 +284,8 @@ def _cost_side(offer: CargoOffer) -> CargoResult:
         insurance_pct=offer.insurance_pct.value,
         cargo_value=fob_cost,
     )
-    voyage_src = Valued(offer.voyage.distance_nm, InputClass.DERIVED, offer.route_source)
+    voyage_src = Valued(offer.voyage.distance_nm, offer.voyage_class, offer.route_source)
+    entered_days = offer.voyage.laden_days is not None
     inputs += [
         voyage_src,
         offer.hire_per_day,
@@ -277,19 +298,25 @@ def _cost_side(offer: CargoOffer) -> CargoResult:
     ]
     legs += [
         _leg("fob_cost", "FOB cost", fob_cost, "USD", offer.q_load_mmbtu),
-        _leg(
-            "distance",
-            offer.route_label or "Route distance",
-            offer.voyage.distance_nm,
-            "nm",
-            voyage_src,
+        *(
+            ()
+            if entered_days
+            else (
+                _leg(
+                    "distance",
+                    offer.route_label or "Route distance",
+                    offer.voyage.distance_nm,
+                    "nm",
+                    voyage_src,
+                ),
+            )
         ),
         Leg(
             "days",
             "Days laden / ballast / port",
             days.total,
             "days",
-            InputClass.DERIVED,
+            offer.voyage_class if entered_days else InputClass.DERIVED,
             f"{days.laden} / {days.ballast} / {days.port}",
         ),
         _leg("boil_off", "Boil-off", lost, "MMBtu", offer.boil_off_pct_per_day),
@@ -408,9 +435,42 @@ def _terminal(cargo: CargoResult, offer: CargoOffer, option: TerminalOption) -> 
         Leg("netback", "Netback at the ship's rail", value, unit, InputClass.DERIVED, ""),
         Leg("margin", "Margin", margin, unit, InputClass.DERIVED, ""),
     )
+    regas_per_mwh = option.regas_total.value / q_del_mwh
+    hub_value = option.hub_price.value
+    netback_steps: list[tuple[str, Decimal, str]] = [
+        ("hub", hub_value, "total"),
+        ("gas_in_kind", -hub_value * (1 - keep), "delta"),
+        ("entry", -option.entry.value * keep, "delta"),
+        ("regas", -regas_per_mwh, "delta"),
+        ("netback", value, "total"),
+    ]
+    delivered = arb = fob_netback = None
+    if offer.term == "FOB":
+        to_hub = MMBTU_PER_MWH / fx
+        fob_at_load = cargo.fob_price * to_hub
+        fob_delivered = cargo.fob_price * cargo.q_load_mmbtu / cargo.q_del_mmbtu * to_hub
+        freight_per = cargo.freight.total / cargo.q_del_mmbtu * to_hub
+        cost_steps = [
+            ("fob", -fob_at_load, "delta"),
+            ("boil_off", -(fob_delivered - fob_at_load), "delta"),
+            ("freight", -freight_per, "delta"),
+        ]
+        delivered = (cost + regas_per_mwh) / keep + option.entry.value
+        arb = hub_value - delivered
+        fob_netback = cargo.fob_price + margin * q_del_mwh * fx / cargo.q_load_mmbtu
+    else:
+        cost_steps = [("des", -cost, "delta")]
+    steps = (*netback_steps, *cost_steps, ("margin", margin, "total"))
     classes = [cargo.grade, *(i.input_class for i in inputs)]
     return TerminalResult(
         **base,
+        fx_usd_per_unit=fx,
+        fx_source=option.fx_usd_per_unit.source if fx is not None else "",
+        steps=steps,
+        delivered_per_mwh=delivered,
+        arb_per_mwh=arb,
+        sent_out_mwh=sent_out,
+        fob_netback_usd_mmbtu=fob_netback,
         cost_per_mwh=cost,
         netback_per_mwh=value,
         margin_per_mwh=margin,
@@ -557,6 +617,34 @@ def serialise(result: CargoResult) -> dict[str, object]:
                 "assumptions": row.assumptions,
                 "excludes": list(row.excludes),
                 "legs": [_leg_payload(leg) for leg in row.legs],
+                "fx_usd_per_unit": _unit(row.fx_usd_per_unit),
+                "fx_source": row.fx_source,
+                "steps": [
+                    # Eight decimals, not four: the steps must add up to their totals.
+                    {"key": key, "amount": float(amount.quantize(_STEP)), "kind": kind}
+                    for key, amount, kind in row.steps
+                ],
+                "delivered_spread": None
+                if row.delivered_per_mwh is None
+                else {
+                    "delivered_per_mwh": _unit(row.delivered_per_mwh),
+                    "hub_per_mwh": _unit(row.delivered_per_mwh + row.arb_per_mwh),
+                    "arb_per_mwh": _unit(row.arb_per_mwh),
+                    "arb_total": _money(row.arb_per_mwh * row.sent_out_mwh),
+                    "sent_out_mwh": _unit(row.sent_out_mwh),
+                    "fob_netback_usd_mmbtu": _unit(row.fob_netback_usd_mmbtu),
+                    "fob_price_usd_mmbtu": _unit(result.fob_price),
+                    "lifting_price_usd_mmbtu": _unit(result.lifting_price),
+                    "netback_margin_usd_mmbtu": _unit(row.fob_netback_usd_mmbtu - result.fob_price),
+                    "netback_lifting_margin_usd_mmbtu": _unit(
+                        row.fob_netback_usd_mmbtu - result.lifting_price
+                    ),
+                    "netback_total": _money(
+                        (row.fob_netback_usd_mmbtu - result.fob_price)
+                        * result.q_load_mmbtu
+                        / row.fx_usd_per_unit
+                    ),
+                },
             }
             for row in result.terminals
         ],

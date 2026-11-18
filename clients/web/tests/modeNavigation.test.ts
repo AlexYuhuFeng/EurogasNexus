@@ -41,7 +41,7 @@ test("the primary row is four modes in the plan's order, each with its tasks", (
     ["contracts", "review"],
     // Nominations and Storage are one Planning task, two views behind a switch (A.4).
     ["position", "limits", "delivery", "planning"],
-    ["spreads", "fundamentals", "reports"],
+    ["spreads", "fundamentals", "cargo", "reports"],
   ]);
 });
 
@@ -184,11 +184,11 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
     "desk:today,prices,network",
     "deals:contracts,review",
     "book:position,limits,delivery",
-    "research:spreads,fundamentals,reports",
+    "research:spreads,fundamentals,cargo,reports",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
-  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 12);
+  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 13);
   // No identity, or an older server without a permission list: what it had before.
   assert.equal(visibleModes(null).length, 4);
   assert.equal(visibleModes(user(["TRADER"], undefined)).length, 4);
@@ -216,6 +216,7 @@ test("Reports is a task of the Research page, held in the URL (task=reports)", (
   // Spreads is the page's first task: a Research address without a task opens it.
   assert.equal(pageTaskFromLocation("research", "?workspace=research"), "spreads");
   assert.equal(pageTaskFromLocation("research", "?workspace=research&task=fundamentals"), "fundamentals");
+  assert.equal(pageTaskFromLocation("research", "?workspace=research&task=cargo"), "cargo");
   assert.equal(modeLocationFor("research", "fundamentals")?.task.id, "fundamentals");
   assert.equal(modeLocationFor("research", "reports")?.task.id, "reports");
   assert.equal(modeLocationFor("research", undefined)?.task.id, "spreads");

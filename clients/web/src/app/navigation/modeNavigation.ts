@@ -105,9 +105,10 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
       { id: "spreads", labelKey: "nav.mode.research.spreads", page: "research", pageTask: "spreads", permissions: ["market.read"] },
       // Storage, LNG, the balance and gas for power against their own history, by country (CP-17).
       { id: "fundamentals", labelKey: "nav.mode.research.fundamentals", page: "research", pageTask: "fundamentals", permissions: ["market.read"] },
+      // What a cargo nets at each terminal, and Henry Hub against the hub (CP-18, design C.1-C.4).
+      { id: "cargo", labelKey: "nav.mode.research.cargo", page: "research", pageTask: "cargo", permissions: ["market.read"] },
       // Market reports: assembled from the catalogue's sections on the server. Strategies, Data
-      // and the Assistant were removed (COMMERCIAL_PRODUCT_DESIGN_2.md L1); Fundamentals and
-      // Cargo & netback arrive as tasks of this page.
+      // and the Assistant were removed (COMMERCIAL_PRODUCT_DESIGN_2.md L1).
       { id: "reports", labelKey: "nav.mode.research.reports", page: "research", pageTask: "reports", permissions: ["market.read"], aliasKeys: ["nav.research"] },
     ],
   },
@@ -137,9 +138,10 @@ export function pageTaskFromLocation(page: WorkspacePageId, search: string): str
     return portfolioTaskFromLocation(page === "orders" ? withWorkspace(search, "orders") : search);
   }
   if (page === "research") {
-    // Spreads is the page's first task; Fundamentals and Reports are named in the URL.
+    // Spreads is the page's first task; Fundamentals, Cargo & netback and Reports are named in
+    // the URL.
     const task = new URLSearchParams(search).get("task");
-    return task === "reports" || task === "fundamentals" ? task : "spreads";
+    return task === "reports" || task === "fundamentals" || task === "cargo" ? task : "spreads";
   }
   if (page === "scenario" || page === "review") {
     return decisionTaskFromLocation(page === "review" ? withWorkspace(search, "review") : search);
