@@ -6,6 +6,19 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-18 — CP-02 instrument catalogue and picker (branch `cp-02`, not pushed)
+
+- `GET /api/market/instruments` (READ; `application/instrument_catalogue.py`): the caller's
+  entitled daily series as hub → product kind (spot, rolling, month, quarter, season, year) →
+  tenor, stable ids (`TTF:M+1`), native unit, source class (sourced / indicative / simulated),
+  best source, observations (`thin` under 30), last as-of. The flat spread-series list stays.
+- `components/ui/InstrumentPicker.tsx` + `app/model/instrumentPicker.ts`: two levels (hub,
+  then kind tabs and tenors), desk shorthand EN/ZH (`ttf jan27`, `nbp m+1`, `the q1-27`,
+  `ztp da`, `英国 次月`), presets, recent picks, ≤ 12 options per level, combobox/listbox
+  keyboard, bottom sheet ≤ 480 px, tokens only, `sim` mark. Hub-only scope adopted for the
+  Prices forward-curve hub. Story page `clients/web/instrument-picker-story.html` (dev only).
+- Surface 273 / 304 (272 / 303 before).
+
 ## 2026-11-17 — CP-01 normalisation and forward FX (branch `cp-01-02`, not pushed)
 
 - `domain/market/fx_forward.py`: forward FX by covered interest parity from the held ECB

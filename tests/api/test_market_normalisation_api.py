@@ -240,6 +240,61 @@ def test_normalise_rejects_unknown_units(tmp_path, monkeypatch):
     assert empty.status_code == 422
 
 
+def test_instrument_catalogue_is_hierarchical_and_entitled(tmp_path, monkeypatch):
+    rows = [
+        *[_price("TTF", day, 30 + day / 100, unit="EUR/MWh", currency="EUR")
+          for day in range(40)],
+        *[_price("NBP", day, 26 + day / 100, unit="GBP/MWh", currency="GBP")
+          for day in range(10)],
+        _price("TTF", 39, 31.0, unit="EUR/MWh", currency="EUR", tenor="jan-27"),
+        _price("TTF", 39, 31.5, unit="EUR/MWh", currency="EUR", tenor="q1-27"),
+        _price("TTF", 39, 29.0, unit="EUR/MWh", currency="EUR", tenor="day-ahead"),
+        _price("THE", 39, 32.0, unit="EUR/MWh", currency="EUR", source="DEMO_Sim",
+               simulated=True),
+        _price("PEG", 39, 30.5, unit="EUR/MWh", currency="EUR", source="ICE_Endex"),
+    ]
+    client = _client(tmp_path, monkeypatch, rows=rows)
+    response = client.get("/api/market/instruments")
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["levels"] == ["hub", "product_kind", "tenor"]
+    hubs = [hub["hub"] for hub in data["hubs"]]
+    assert hubs == ["TTF", "NBP", "THE", "PEG"]
+    ttf = data["hubs"][0]
+    assert ttf["native_unit"] == "EUR/MWh"
+    assert [kind["kind"] for kind in ttf["kinds"]] == ["spot", "rolling", "month", "quarter"]
+    rolling = ttf["kinds"][1]["instruments"][0]
+    assert rolling["id"] == "TTF:M+1" and rolling["tenor"] == "month-ahead"
+    assert rolling["observations"] == 40 and rolling["thin"] is False
+    assert rolling["source_class"] == "indicative"
+    assert rolling["instrument_kind"] == "outright"
+    month = ttf["kinds"][2]["instruments"][0]
+    assert month["id"] == "TTF:Jan-27" and month["delivery"]["first_gas_day"] == "2027-01-01"
+    nbp = data["hubs"][1]
+    assert nbp["native_unit"] == "GBp/th" and nbp["currency"] == "GBP"
+    nbp_m1 = nbp["kinds"][0]["instruments"][0]
+    assert nbp_m1["stored_unit"] == "GBP/MWh" and nbp_m1["thin"] is True
+    the = data["hubs"][2]
+    assert the["simulated"] is True
+    assert the["kinds"][0]["instruments"][0]["source_class"] == "simulated"
+    # Every level is short: no flat month × product list.
+    assert all(len(kind["instruments"]) <= 12 for hub in data["hubs"] for kind in hub["kinds"])
+
+    (tmp_path / "r").mkdir()
+    restricted = _client(tmp_path / "r", monkeypatch, rows=[], scopes=("EIA",))
+    assert restricted.get("/api/market/instruments").json()["data"]["hubs"] == []
+
+
+def test_instrument_catalogue_hides_unentitled_sources(tmp_path, monkeypatch):
+    rows = [
+        _price("PEG", 1, 30.5, unit="EUR/MWh", currency="EUR", source="ICE_Endex"),
+        _price("TTF", 1, 30.0, unit="EUR/MWh", currency="EUR", source="EEX"),
+    ]
+    client = _client(tmp_path, monkeypatch, rows=rows, scopes=("EEX",))
+    hubs = [hub["hub"] for hub in client.get("/api/market/instruments").json()["data"]["hubs"]]
+    assert hubs == ["TTF"]
+
+
 def test_spread_lab_accepts_nbp_against_ttf_in_mixed_units(tmp_path, monkeypatch):
     """NBP (GBP/MWh stored) − TTF (EUR/MWh) in EUR/MWh, each day at that day's forward FX."""
 
@@ -305,8 +360,9 @@ def test_new_reads_are_read_permission(method, path):
     assert permission_for_path(path, method) is Permission.READ
 
 
-def test_a_viewer_may_read_both(tmp_path, monkeypatch):
+def test_a_viewer_may_read_all_three(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch, rows=_rates(), role="VIEWER")
+    assert client.get("/api/market/instruments").status_code == 200
     assert client.get(
         "/api/market/fx-forward", params={"base": "EUR", "quote": "GBP", "as_of": "2026-11-16"}
     ).status_code == 200

@@ -30,6 +30,7 @@
 @import url("../components/ui/controls.css");
 @import url("../components/ui/datagrid.css");
 @import url("../components/ui/charts/charts.css");
+@import url("../components/ui/instrumentPicker.css");
 /* Today (UX-05): the first screen, tokens only. */
 @import url("../components/today.css");
 /* Desk → Network: the page frame, the map panel and the information panel beside it. */

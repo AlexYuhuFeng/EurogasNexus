@@ -1,10 +1,13 @@
-"""/api/market reads for comparable prices: forward FX and normalisation.
+"""/api/market reads for comparable prices: forward FX, normalisation and the instrument catalogue.
 
 - ``GET /api/market/fx-forward``: a pair and a delivery period (a desk product code or a value
   date) → the rate with its method, inputs, dates and tolerance (design basis D.5).
 - ``POST /api/market/normalise``: prices or a series → the requested unit and currency, each
   with its normalisation record (factors, heating value, FX rate, method and date) and tolerance.
-Both are reads (READ permission, like every ``/api/market/`` read): nothing is stored. FX
+- ``GET /api/market/instruments``: the caller's entitled daily series as hub → product kind →
+  tenor (D.2), with native unit, source class and last as-of per instrument.
+
+All three are reads (READ permission, like every ``/api/market/`` read): nothing is stored. FX
 facts and prices are filtered by the caller's data entitlements.
 """
 
@@ -224,3 +227,35 @@ def normalise(body: NormaliseInput, request: Request) -> dict:
         warnings.append("Simulated inputs stay simulated after conversion.")
     return _env({"values": results, "series": series}, source="market-normalisation",
                 warnings=warnings)
+
+
+@router.get("/api/market/instruments")
+def list_instruments(request: Request) -> dict:
+    """The caller's entitled daily price series as hub → product kind → tenor.
+
+    Each instrument has a stable id, native unit and currency, source class (sourced,
+    indicative, simulated), observations held and last as-of. The flat
+    ``/api/research/spread-series`` list stays until its last client is gone.
+    合约目录：枢纽→产品类型→期限，仅含调用者有权访问的序列。
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable``.
+    """
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.instrument_catalogue import build_catalogue
+    from eurogas_nexus.application.projections.daily_closes import (
+        ObservationWindowTooLarge,
+        daily_rows,
+    )
+
+    try:
+        rows = daily_rows(request)
+    except ObservationWindowTooLarge as exc:
+        raise _unprocessable(
+            "catalogue_too_large", "too many observations to build the catalogue"
+        ) from exc
+    except SQLAlchemyError as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(build_catalogue(rows), source="runtime-postgresql")

@@ -141,6 +141,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # market reads like the rest of the family.
     ("/api/market/fx-forward", Permission.READ),
     ("/api/market/normalise", Permission.READ),
+    # The instrument catalogue (hub → product kind → tenor) is a market read too.
+    ("/api/market/instruments", Permission.READ),
     ("/api/monitoring/", Permission.READ),
     ("/api/physical/", Permission.READ),
     ("/api/portfolio/", Permission.READ),

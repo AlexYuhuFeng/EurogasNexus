@@ -1,0 +1,324 @@
+/*
+ * InstrumentPicker (design basis 2, D.2). Tokens only (scripts/cssTokenLint.mjs): colours, type,
+ * radii and control heights are roles from src/styles/tokens.css, so the dark theme follows.
+ * Desktop: a panel under the trigger. Phone (≤ 480 px): a bottom sheet over the page.
+ */
+
+@layer ds-components {
+  .ds-ipicker {
+    position: relative;
+    display: inline-grid;
+    gap: var(--ds-space-1);
+    min-width: 0;
+  }
+
+  .ds-ipicker-label {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-ipicker-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    box-sizing: border-box;
+    min-width: 180px;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-control-pad-sm);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-base);
+    line-height: var(--ds-line-base);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ds-ipicker-trigger:hover:not(:disabled) {
+    border-color: var(--ds-text-3);
+  }
+
+  .ds-ipicker-trigger:focus-visible,
+  .ds-ipicker-search:focus-visible,
+  .ds-ipicker-panel button:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus);
+  }
+
+  .ds-ipicker-trigger:disabled {
+    color: var(--ds-text-disabled);
+    cursor: default;
+  }
+
+  .ds-ipicker-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: var(--ds-weight-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ds-ipicker-unit,
+  .ds-ipicker-meta {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .ds-ipicker-caret {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .ds-ipicker-sim {
+    padding: 0 var(--ds-space-1);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-status-simulated-soft);
+    color: var(--ds-status-simulated);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+    white-space: nowrap;
+  }
+
+  .ds-ipicker-panel {
+    position: absolute;
+    top: calc(100% + var(--ds-space-1));
+    left: 0;
+    z-index: 60;
+    display: grid;
+    gap: var(--ds-space-2);
+    box-sizing: border-box;
+    width: 380px;
+    max-width: calc(100vw - 2 * var(--ds-space-4));
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    box-shadow: var(--ds-shadow-pop);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .ds-ipicker-panel[data-align="end"] {
+    right: 0;
+    left: auto;
+  }
+
+  .ds-ipicker-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-2);
+  }
+
+  .ds-ipicker-title {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .ds-ipicker-crumb {
+    flex: 1 1 100%;
+    order: 3;
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .ds-ipicker-back,
+  .ds-ipicker-close {
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-2);
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-accent);
+    font-size: var(--ds-text-sm);
+    cursor: pointer;
+  }
+
+  .ds-ipicker-close {
+    margin-left: auto;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-md);
+  }
+
+  .ds-ipicker-back:hover,
+  .ds-ipicker-close:hover {
+    background: var(--ds-surface-2);
+  }
+
+  .ds-ipicker-search {
+    box-sizing: border-box;
+    width: 100%;
+    height: var(--ds-control-sm);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-control-pad-sm);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-bg);
+    color: var(--ds-text-1);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-base);
+  }
+
+  .ds-ipicker-search::placeholder {
+    color: var(--ds-text-3);
+  }
+
+  .ds-ipicker-kinds,
+  .ds-ipicker-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1);
+  }
+
+  .ds-ipicker-kinds > button,
+  .ds-ipicker-presets > button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    cursor: pointer;
+  }
+
+  .ds-ipicker-kinds > button[aria-pressed="true"] {
+    border-color: var(--ds-accent);
+    background: var(--ds-accent-soft);
+    color: var(--ds-text-1);
+  }
+
+  .ds-ipicker-presets > button {
+    border-style: dashed;
+  }
+
+  .ds-ipicker-preset-code {
+    color: var(--ds-text-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-ipicker-list {
+    display: grid;
+    gap: 0;
+    max-height: calc(12 * var(--ds-row));
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  .ds-ipicker-option {
+    display: grid;
+    grid-template-columns: minmax(64px, auto) 1fr auto auto auto;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-height: var(--ds-row);
+    padding: 0 var(--ds-space-2);
+    border-radius: var(--ds-radius-sm);
+    cursor: pointer;
+  }
+
+  .ds-ipicker-option:hover {
+    background: var(--ds-surface-2);
+  }
+
+  .ds-ipicker-option[data-active="true"] {
+    background: var(--ds-accent-soft);
+    box-shadow: inset 2px 0 0 var(--ds-accent);
+  }
+
+  .ds-ipicker-option[data-thin="true"] .ds-ipicker-code,
+  .ds-ipicker-option[data-thin="true"] .ds-ipicker-name {
+    color: var(--ds-text-3);
+  }
+
+  .ds-ipicker-code {
+    font-weight: var(--ds-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .ds-ipicker-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ds-text-2);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ds-ipicker-more {
+    color: var(--ds-text-3);
+  }
+
+  .ds-ipicker-empty,
+  .ds-ipicker-hidden,
+  .ds-ipicker-hint {
+    margin: 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .ds-ipicker-empty {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  @media (max-width: 480px) {
+    .ds-ipicker {
+      display: grid;
+    }
+
+    .ds-ipicker-trigger {
+      width: 100%;
+    }
+
+    .ds-ipicker-panel,
+    .ds-ipicker-panel[data-align="end"] {
+      position: fixed;
+      inset: auto 0 0;
+      top: auto;
+      width: 100vw;
+      max-width: 100vw;
+      max-height: 85vh;
+      padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-4);
+      overflow-y: auto;
+      border-width: 1px 0 0;
+      border-radius: var(--ds-radius-md) var(--ds-radius-md) 0 0;
+      box-shadow: var(--ds-shadow-modal);
+    }
+
+    .ds-ipicker-list {
+      max-height: none;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .ds-ipicker-trigger,
+    .ds-ipicker-search,
+    .ds-ipicker-back,
+    .ds-ipicker-close,
+    .ds-ipicker-kinds > button,
+    .ds-ipicker-presets > button,
+    .ds-ipicker-option {
+      min-height: var(--ds-control-touch);
+    }
+  }
+}

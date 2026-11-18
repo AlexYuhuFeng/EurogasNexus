@@ -3,6 +3,7 @@
 import { HOST_COMMANDS, resolveHostKind, tryHostCommand } from "@/app/host/hostCapabilities";
 import type {
   FxForwardDTO,
+  InstrumentCatalogueDTO,
   NormaliseRequestDTO,
   NormaliseResponseDTO,
 } from "./comparablePrices";
@@ -5684,6 +5685,9 @@ export const api = {
     body: { legs: SpreadLegInputDTO[]; date_from?: string | null; date_to?: string | null; rule: SpreadRuleInputDTO },
     options?: ApiRequestOptions,
   ) => post<SpreadAnalysisDTO>("/research/spread-analysis", body, options),
+  /** Hub → product kind → tenor: the caller's entitled daily series (the instrument picker). */
+  marketInstruments: (options?: ApiRequestOptions) =>
+    get<InstrumentCatalogueDTO>("/market/instruments", undefined, options),
   /** A pair's rate for a delivery period: forward by interest parity, licensed, or spot. */
   fxForward: (
     query: { base: string; quote: string; product?: string; value_date?: string; as_of?: string },

@@ -119,6 +119,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/market/spreads",
         "/api/market/fx-forward",
         "/api/market/normalise",
+        "/api/market/instruments",
         "/api/monitoring/alerts",
         "/api/monitoring/alerts/{alert_id}/acknowledge",
         "/api/monitoring/alerts/{alert_id}/analysis",

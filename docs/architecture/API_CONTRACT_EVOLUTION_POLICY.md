@@ -4,6 +4,15 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-18 (commercial design basis 2, CP-02: instrument catalogue): one path, one
+operation. `GET /api/market/instruments` (READ, like every `/api/market/` read) returns the
+caller's entitled daily price series as hub → product kind (spot, rolling, month, quarter,
+season, year, other) → tenor, each instrument with a stable id (`TTF:M+1`, `NBP:Jan-27`), the
+hub's native unit and currency, the stored unit, a source class (`sourced`, `indicative`,
+`simulated`), its best source and the others, observations held, `thin` under 30 days, the
+delivery window of an absolute tenor and the last as-of. `/api/research/spread-series` is
+unchanged and stays until its last client is gone. Census: 273 paths / 304 operations.
+
 Additive 2026-11-18 (commercial design basis 2, CP-08: opportunities): seven paths, nine
 operations. `GET /api/opportunities` (two ranked lanes, the watching and cannot-evaluate
 groups, counts, the readiness checklist; cursor pagination per bucket, `409 cursor_expired`

@@ -45,3 +45,5 @@ export { PeriodPicker } from "./PeriodPicker";
 export type { PeriodPickerProps } from "./PeriodPicker";
 export { WorkProgress } from "./WorkProgress";
 export { UpdatingMark } from "./UpdatingMark";
+export { InstrumentPicker } from "./InstrumentPicker";
+export type { InstrumentPickerProps } from "./InstrumentPicker";

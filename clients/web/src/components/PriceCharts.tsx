@@ -2,13 +2,16 @@
  * Prices charts (UX-09, F.3 #1): the term structure of one hub by delivery month, in its
  * quotation, with the prior close and a week ago as grey ghost curves; and
  * the NBP–TTF spread by delivery month in p/th. Both read the normalized rows the board reads,
- * so the charts and the board say the same prices; the preparation is `priceCharts.ts`.
+ * so the charts and the board say the same prices; the preparation is `priceCharts.ts`. The hub
+ * of the curve is chosen with the InstrumentPicker at hub level (type `nbp`, `英国`), which scales
+ * past the five hubs a segmented control could hold.
  */
 import { useMemo, useState } from "react";
 
 import type { NormalizedMarketObsDTO } from "@/api/client";
-import { curveHubs, nbpTtfSpread, termStructure, type CurveRow } from "@/app/model/priceCharts";
-import { Segmented } from "@/components/ui";
+import { curveHubs, forwardCurve, nbpTtfSpread, termStructure, type CurveRow } from "@/app/model/priceCharts";
+import { InstrumentPicker } from "@/components/ui";
+import { catalogueFromHubs } from "@/app/model/instrumentPicker";
 import { Chart, type ChartData } from "@/components/ui/charts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -31,6 +34,14 @@ export function PriceCharts({ markets, t }: { markets: readonly NormalizedMarket
   const [chosen, setChosen] = useState<string | null>(null);
   const hub = chosen && hubs.includes(chosen) ? chosen : hubs[0] ?? null;
   const front = frontMonth();
+  // The picker lists each hub in its quotation, with `sim` when its curve is simulated.
+  const hubCatalogue = useMemo(
+    () => catalogueFromHubs(hubs.map((code) => {
+      const own = forwardCurve(rows, code, front);
+      return { hub: code, nativeUnit: own.unit, simulated: own.simulated, lastAsOf: own.asOf ?? null };
+    })),
+    [rows, hubs, front],
+  );
   const curve = useMemo(() => (hub ? termStructure(rows, hub, front) : null), [rows, hub, front]);
   const spread = useMemo(() => nbpTtfSpread(rows, front), [rows, front]);
 
@@ -72,11 +83,13 @@ export function PriceCharts({ markets, t }: { markets: readonly NormalizedMarket
           asOf={curve?.asOf}
           simulated={curve?.simulated}
           controls={hubs.length > 1 ? (
-            <Segmented
+            <InstrumentPicker
+              id="forward-curve-hub"
+              scope="hub"
               label={t("prices.chart.hub")}
-              options={hubs.map((value) => ({ value, label: value }))}
-              value={hub ?? ""}
-              onChange={setChosen}
+              catalogue={hubCatalogue}
+              value={hub}
+              onChange={(selection) => setChosen(selection.hub)}
             />
           ) : undefined}
           subtitle={curve && !curve.priorClose && !curve.weekAgo ? t("prices.chart.no_prior_close") : undefined}

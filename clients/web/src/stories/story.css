@@ -1,0 +1,33 @@
+@layer legacy {
+  /* Story pages (development only). Tokens only (scripts/cssTokenLint.mjs). */
+  .ipicker-story {
+    display: grid;
+    align-content: start;
+    gap: var(--ds-space-3);
+    max-width: 720px;
+    min-height: 100vh;
+    padding: var(--ds-space-4);
+    background: var(--ds-bg);
+    color: var(--ds-text-1);
+    font-family: var(--ds-font-ui);
+    font-size: var(--ds-text-base);
+  }
+
+  .ipicker-story h1 {
+    margin: 0;
+    font-size: var(--ds-text-xl);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .ipicker-story p {
+    margin: 0;
+    color: var(--ds-text-2);
+  }
+
+  .ipicker-story-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-4);
+    align-items: end;
+  }
+}

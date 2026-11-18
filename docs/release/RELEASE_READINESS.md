@@ -50,7 +50,9 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **272 paths / 303 operations**
+- OpenAPI public surface: **273 paths / 304 operations**
+  (2026-11-18: `GET /api/market/instruments`, the instrument catalogue of CP-02, one READ path
+  and operation; 272 / 303 before)
   (2026-11-17: assumption sets, firm marks and valuation snapshots, CP-07 of the commercial
   design basis 2: six paths and eight operations under `/api/assumption-sets` and
   `/api/market/`; 256 / 282 before)
