@@ -11,7 +11,7 @@
  * says: everything else dims.
  */
 import type { BookReachableDTO, BookReasonDTO, BookRelevanceDTO } from "../api/client";
-import { displayNumber } from "./time/displayTime";
+import { formattingLocale } from "./time/timeFormat";
 import { bookFlowWidth, compactMwhPerDay, polyline, type BookFlowLine, type LegPath, type LineEndpoint, type LineCoordinate } from "./mapLineGeometry";
 
 export type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -129,8 +129,9 @@ export function reachableLine(path: BookReachableDTO, t: Translate): string {
   });
 }
 
-function num(value: unknown): string {
-  return typeof value === "number" ? displayNumber(Math.round(value)) : "–";
+/** A whole number in the app language's grouping (never the browser's locale). */
+function num(value: unknown, language: string): string {
+  return typeof value === "number" ? Math.round(value).toLocaleString(formattingLocale(language)) : "–";
 }
 
 function when(value: unknown): string {
@@ -138,13 +139,13 @@ function when(value: unknown): string {
 }
 
 /** One reason, as the desk would say it. */
-export function reasonLine(reason: BookReasonDTO, t: Translate): string {
+export function reasonLine(reason: BookReasonDTO, t: Translate, language = "en"): string {
   switch (reason.key) {
     case "delivery_point":
       return t(reason.counterparty ? "map.book.reason.delivery_point_cp" : "map.book.reason.delivery_point", {
         contract: reason.contract,
         counterparty: reason.counterparty,
-        mwh: num(reason.mwh_d),
+        mwh: num(reason.mwh_d, language),
       });
     case "contract_hub":
       return t("map.book.reason.contract_hub", { contract: reason.contract });
@@ -153,11 +154,11 @@ export function reasonLine(reason: BookReasonDTO, t: Translate): string {
     case "held_capacity":
       return t("map.book.reason.held_capacity", {
         contract: reason.contract,
-        mwh: num(reason.mwh_d),
+        mwh: num(reason.mwh_d, language),
         direction: String(reason.direction ?? "").toLowerCase(),
       });
     case "held_storage":
-      return t("map.book.reason.held_storage", { mwh: num(reason.max_inventory_mwh), hub: reason.hub });
+      return t("map.book.reason.held_storage", { mwh: num(reason.max_inventory_mwh, language), hub: reason.hub });
     case "expected_cargo":
       return t("map.book.reason.expected_cargo", { vessel: reason.vessel, eta: when(reason.eta_utc), terminal: reason.terminal ?? "–" });
     case "regas_slot":
@@ -175,6 +176,7 @@ export function bookReasonLines(
   relevance: BookRelevanceDTO | null | undefined,
   selected: { nodeIds: readonly string[]; cargoId?: string | null },
   t: Translate,
+  language = "en",
 ): string[] {
   if (!relevance) return [];
   const ids = new Set(selected.nodeIds);
@@ -183,7 +185,7 @@ export function bookReasonLines(
     const hit = item.kind === "cargo" ? item.ref === selected.cargoId : ids.has(item.ref);
     if (!hit) continue;
     for (const reason of item.reasons) {
-      const line = reasonLine(reason, t);
+      const line = reasonLine(reason, t, language);
       if (!lines.includes(line)) lines.push(line);
     }
   }

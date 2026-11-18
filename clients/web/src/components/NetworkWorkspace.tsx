@@ -400,6 +400,7 @@ export function NetworkWorkspace({
           cargoId: selection.kind === "cargo" ? selection.id : null,
         },
         t as (key: string, options?: Record<string, unknown>) => string,
+        language,
       ) : undefined}
       onSelect={(next) => {
         // A related object (a cargo's destination terminal): select it and bring it into view.
@@ -424,6 +425,7 @@ export function NetworkWorkspace({
       />
       <MapBookRelevance
         relevance={relevance}
+        language={language}
         t={t as (key: string, options?: Record<string, unknown>) => string}
         onSelectHub={(hubNodeId) => {
           const hub = nodeById.get(hubNodeId);

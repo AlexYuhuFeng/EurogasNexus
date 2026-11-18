@@ -11,9 +11,12 @@ export function MapBookRelevance({
   t,
   onSelectHub,
   onSelectPlace,
+  language,
 }: {
   relevance: BookRelevanceDTO | null | undefined;
   t: Translate;
+  /** App language, for number grouping. */
+  language: string;
   /** A hub, by its node id. */
   onSelectHub: (hubNodeId: string) => void;
   onSelectPlace: (refId: string) => void;
@@ -36,7 +39,7 @@ export function MapBookRelevance({
                   onClick={() => (item.kind === "hub" ? onSelectHub(item.ref) : onSelectPlace(item.ref))}
                 >
                   <strong>{item.name}</strong>
-                  <small>{item.reasons.map((reason) => reasonLine(reason, t)).join(" · ")}</small>
+                  <small>{item.reasons.map((reason) => reasonLine(reason, t, language)).join(" · ")}</small>
                 </button>
               </li>
             ))}
