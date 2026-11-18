@@ -1277,41 +1277,44 @@ def _needs_me(
     """Row 3, "What needs me": one ranked list of at most five, each linking to its object.
 
     Order (E.2): must-act opportunities, unplanned outages touching the book or the focus hubs,
-    limit alerts, then the best "could act" opportunity. With nothing to show the row is one
-    sentence, never an empty panel.
+    limit alerts with the credit and mandate findings, then the best "could act" opportunity.
+    Opportunities and credit or mandate findings come from the role-aware discovery read
+    (CP-24, ``application/discovery.py``), ranked for the caller's first job function and
+    phrased in English and Chinese from the same evidence; every read inside it runs under
+    the caller. With nothing to show the row is one sentence, never an empty panel.
     """
 
     from eurogas_nexus.application.desk_text import hub_for_zone
 
     items: list[dict[str, Any]] = []
-    must: list[dict] = []
+    urgent: list[dict] = []
+    later: list[dict] = []
     could: list[dict] = []
     try:
-        from eurogas_nexus.application.opportunities.listing import list_opportunities
+        from eurogas_nexus.application.discovery import discoveries
 
-        listing = list_opportunities(session, caller.principal, limit=NEEDS_ME_ITEMS, now_utc=now)
-        lanes = listing.get("lanes") or {}
-        must = list((lanes.get("must_act") or {}).get("items") or [])
-        could = list((lanes.get("could_act") or {}).get("items") or [])
+        held_functions = [
+            str(item).upper() for item in getattr(caller.principal, "job_functions", ()) or ()
+        ]
+        function = held_functions[0] if held_functions else None
+        found = discoveries(session, caller, function=function, language="en", now=now)
+        found_zh = discoveries(session, caller, function=function, language="zh", now=now)
+        chinese = {item["finding_id"]: item["sentence"] for item in found_zh["items"]}
+        read.warnings.extend(found.get("warnings") or [])
+        for item in found["items"]:
+            entry = _finding_item(item, chinese.get(item["finding_id"]), found.get("as_of_utc"))
+            if entry is None:
+                continue
+            if entry["kind"] != "opportunity":
+                later.append(entry)  # credit and mandate findings sit with the limit alerts
+            elif entry["lane"] == "could_act":
+                could.append(entry)
+            else:
+                urgent.append(entry)
     except Exception as exc:  # noqa: BLE001 - no opportunity store: the other kinds stand
-        read.warnings.append(f"opportunities: not available ({exc.__class__.__name__})")
+        read.warnings.append(f"discoveries: not available ({exc.__class__.__name__})")
 
-    def opportunity(row: dict, lane: str) -> dict[str, Any]:
-        return {
-            "kind": "opportunity",
-            "lane": lane,
-            "id": row["opportunity_id"],
-            "title": row.get("claim") or row.get("type"),
-            "headline": row.get("headline"),
-            "period": row.get("period"),
-            "simulated": bool(row.get("simulated")),
-            "as_of": row.get("last_evaluated_utc"),
-            # Deals → Opportunities (CP-14); until it exists the mode link lands on Deals.
-            "target": {"mode": "deals", "task": "opportunities",
-                       "params": {"opportunity": row["opportunity_id"]}},
-        }
-
-    items += [opportunity(row, "must_act") for row in must]
+    items += urgent
     held = {hub.upper() for hub in book.positions}
     scope = held | {hub.upper() for hub in focus}
     for outage in (changes.get("outages") or {}).get("items") or []:
@@ -1337,6 +1340,7 @@ def _needs_me(
     limit = key_figures.get("tightest_limit")
     for alert in _limit_alerts(session, now):
         items.append(alert)
+    items += later
     if not any(item["kind"] == "limit" for item in items) and limit and limit.get(
             "status") in {"breach", "watch"}:
         items.append({
@@ -1350,7 +1354,7 @@ def _needs_me(
             "why": limit.get("why"),
         })
     if could:
-        items.append(opportunity(could[0], "could_act"))
+        items.append(could[0])
     shown = items[:NEEDS_ME_ITEMS]
     quiet = None
     if not shown:
@@ -1365,6 +1369,50 @@ def _needs_me(
         "populated": bool(shown),
         "empty": None,
     }
+
+
+def _finding_item(
+    item: dict[str, Any], sentence_zh: str | None, as_of: str | None = None
+) -> dict[str, Any] | None:
+    """One discovery finding as a "What needs me" item, or None when it is only watched.
+
+    An opportunity opens on Deals → Opportunities with the opportunity selected; a credit or
+    mandate finding is a limit item (Book → Limits). The sentence is the discovery's own,
+    with its input class stated in it.
+    """
+
+    kind = str(item.get("kind") or "")
+    evidence = (item.get("evidence") or [{}])[0] or {}
+    common = {
+        "title": item["sentence"],
+        "title_zh": sentence_zh,
+        "simulated": bool(item.get("simulated")),
+        "as_of": evidence.get("as_of_utc") or as_of,
+        "quality": item.get("quality"),
+    }
+    if kind.startswith("opportunity."):
+        opportunity_id = (item.get("link") or {}).get("opportunity_id")
+        if not opportunity_id or item["severity"] < 2:
+            return None
+        return {
+            "kind": "opportunity",
+            "lane": "must_act" if item["severity"] >= 3 else "could_act",
+            "id": opportunity_id,
+            "headline": None,
+            "period": None,
+            **common,
+            "target": {"mode": "deals", "task": "opportunities",
+                       "params": {"opportunity": opportunity_id}},
+        }
+    if kind.startswith(("credit.", "mandate.")):
+        return {
+            "kind": "limit",
+            "id": item["finding_id"],
+            "status": "breach" if item["severity"] >= 3 else "watch",
+            "utilisation_pct": None,
+            **common,
+        }
+    return None
 
 
 def _limit_alerts(session, now: datetime) -> list[dict[str, Any]]:

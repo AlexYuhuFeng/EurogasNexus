@@ -182,8 +182,15 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               } else if (item.kind === "limit") {
                 navigation.openWorkspace("contracts", "exposure");
               } else {
-                // Deals → Opportunities (CP-14) when it exists; until then Deals → Contracts.
+                // Deals → Opportunities (CP-14) with the opportunity selected (`opportunity=`, the
+                // item's target); until the page exists, Deals → Contracts.
                 const task = PRODUCT_MODES.find((mode) => mode.id === "deals")?.tasks.find((entry) => entry.id === "opportunities");
+                const opportunityId = item.target?.params?.opportunity;
+                if (task?.page && opportunityId) {
+                  const params = new URLSearchParams(window.location.search);
+                  params.set("opportunity", opportunityId);
+                  window.history.replaceState(window.history.state, "", `?${params.toString()}`);
+                }
                 if (task?.page) navigation.openWorkspace(task.page, task.pageTask);
                 else navigation.openWorkspace("contracts", "resources");
               }

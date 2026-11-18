@@ -269,3 +269,38 @@ def test_the_section_e_rows_my_market_needs_me_and_europe_storage(desk):
     assert europe["focus_countries"][:2] == ["NL", "DE"]
     assert [c["code"] for c in europe["countries"]][:2] == ["NL", "DE"]
     assert len(europe["countries"]) <= 8
+
+
+def test_what_needs_me_reads_the_role_aware_discovery(desk):
+    """CP-24 into CP-19: the opportunities in "What needs me" come from the discovery read (one
+    ranked, phrased list per job function, every read under the caller), not from the list
+    endpoint; each opens on Deals → Opportunities with the opportunity selected, and carries
+    the Chinese sentence built from the same evidence."""
+
+    import inspect
+
+    from eurogas_nexus.application import desk_today
+    from eurogas_nexus.application.opportunities.service import run_evaluation
+
+    assert "list_opportunities" not in inspect.getsource(desk_today._needs_me)
+    caller = _principal("DEMO", "BOOKS:*")
+    with Session(desk) as session:
+        for _ in range(2):  # shown only after two consecutive evaluations
+            run_evaluation(session, trigger="test", triggered_by="test", now_utc=NOW,
+                           caller=caller, demo_desk=True)
+            session.commit()
+    needs_me = _today(desk, caller)["rows"][-1]
+    assert 1 <= len(needs_me["items"]) <= 5
+    opportunities = [item for item in needs_me["items"] if item["kind"] == "opportunity"]
+    assert opportunities
+    for item in opportunities:
+        assert item["lane"] in {"must_act", "could_act"}
+        assert item["target"] == {"mode": "deals", "task": "opportunities",
+                                  "params": {"opportunity": item["id"]}}
+        assert item["title"] and item["title_zh"] and item["title"] != item["title_zh"]
+        assert item["simulated"] and item["as_of"]  # demo desk: marked, with its evaluation time
+    # At most one "could act" item, and it comes after everything that must be acted on.
+    kinds = [(item["kind"], item.get("lane")) for item in needs_me["items"]]
+    assert kinds.count(("opportunity", "could_act")) <= 1
+    if ("opportunity", "could_act") in kinds:
+        assert kinds[-1] == ("opportunity", "could_act")

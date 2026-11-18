@@ -48,6 +48,12 @@ CREDIT_METHOD = (
 )
 
 
+def _aware(moment: datetime) -> datetime:
+    """A stored time as UTC (SQLite returns it naive)."""
+
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+
+
 def _money(value: float | Decimal, currency: str) -> str:
     return f"{currency} {grouped(Decimal(str(value)))}"
 
@@ -103,6 +109,7 @@ def opportunity_findings(session, principal, now: datetime) -> list[Finding]:
                         "state": row.state,
                         "snapshot_id": row.snapshot_id,
                         "reasons": list(row.reasons or []),
+                        "as_of_utc": _aware(row.last_evaluated_utc).isoformat(),
                     },
                 ),
                 book_ids=tuple(row.book_ids or ()),
