@@ -37,9 +37,17 @@ BOOK_HORIZON_MONTHS = 12
 #: The ticker's and the map's outage horizon (``ShellTicker``: ``api.outages(14)``).
 OUTAGE_HORIZON_DAYS = 14
 STORAGE_DAYS = 30
-#: The storage chart's season: about four months, against the same days a year earlier.
-STORAGE_CHART_DAYS = 120
 BALANCE_DAYS = 14
+#: Today's market row (design basis 2, E.2): up to four focus hubs, DA and front month each,
+#: with a 30-day series for the sparkline.
+MARKET_HUBS = 4
+MARKET_SERIES_DAYS = 30
+#: The spreads that matter to a north-west European book, quoted against TTF in EUR/MWh.
+SPREAD_PAIRS: tuple[tuple[str, str], ...] = (("NBP", "TTF"), ("THE", "TTF"))
+#: "What needs me" holds at most five items (E.2 row 3).
+NEEDS_ME_ITEMS = 5
+#: Countries shown as small multiples under the Europe storage chart (E.2 row 4).
+STORAGE_COUNTRIES = 8
 LATE_STATES = frozenset({"late", "stale"})
 
 
@@ -170,11 +178,16 @@ def build_today(
     read = _Read()
     book = _book(caller, today, read)
     prices = _prices(caller, now, book, read)
+    focus = focus_hubs(session, caller, book, prices)
+    key_figures = _key_figures(caller, now, book, prices, read)
+    key_figures["market"] = _market(caller, now, focus, read)
+    changes = _changes(session, caller, now, read)
     rows = [
-        _key_figures(caller, now, book, prices, read),
-        _changes(session, caller, now, read),
+        key_figures,
+        changes,
         _book_row(today, book, prices, read),
-        _fundamentals(session, caller, now, balance_reader, read),
+        _fundamentals(session, caller, now, balance_reader, read, focus),
+        _needs_me(session, caller, now, book, focus, changes, key_figures, read),
     ]
     simulated = any(item["simulated"] for item in read.figures)
     stale = [
@@ -195,6 +208,8 @@ def build_today(
         "simulated_notice": "Demo data: simulated figures, not market data." if simulated
         else None,
         "rows": rows,
+        # The hubs the page is about: the book's, then the board's (or the user's own list).
+        "focus_hubs": focus,
         "stale_figures": stale,
         "warnings": read.warnings,
     }
@@ -591,6 +606,7 @@ def _outages(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
                 "event_id": row["event_id"],
                 "facility": row["facility_name"],
                 "zone": row.get("balancing_zone"),
+                "event_type": row.get("event_type"),
                 "status": row["status"],
                 "start_utc": row["start_utc"],
                 "end_utc": row.get("end_utc"),
@@ -757,14 +773,18 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
 # ---------------------------------------------------------------- row 4: fundamentals
 
 
-def _fundamentals(session, caller, now, balance_reader, read: _Read) -> dict[str, Any]:
+def _fundamentals(
+    session, caller, now, balance_reader, read: _Read, focus: list[str] | None = None
+) -> dict[str, Any]:
     storage = _storage(session, caller, now, read)
     balance = _balance(session, caller, now, balance_reader, read)
-    shown = "empty" not in storage or "empty" not in balance
+    europe = _storage_europe(session, caller, now, focus or [], read)
+    shown = "empty" not in storage or "empty" not in balance or "empty" not in europe
     return {
         "key": "fundamentals",
         "title": "Fundamentals",
         "storage": storage,
+        "storage_europe": europe,
         "balance": balance,
         "populated": shown,
         "empty": None
@@ -844,7 +864,7 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
         capacity = sum(v[1] for v in by_day[day].values())
         return inventory, (round(100 * inventory / capacity, 2) if capacity else None)
 
-    rows, simulated = window(now, STORAGE_CHART_DAYS)
+    rows, simulated = window(now, STORAGE_DAYS)
     by_day, starts, all_days = complete_days(rows)
     if not all_days:
         held = _held_back(session, ("GIE",))
@@ -860,28 +880,6 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
         inventory, fill_pct = fill(by_day, day)
         series.append(
             {"day": day.isoformat(), "inventory_twh": round(inventory, 2), "fill_pct": fill_pct}
-        )
-    # The season for the chart: the same days a year earlier from the same scope and the same
-    # kind of source (provider rows win), so the comparison is like with like.
-    year_ago_rows, _ = window(now - timedelta(days=365), STORAGE_CHART_DAYS)
-    year_ago, _, year_ago_days = complete_days(
-        [r for r in year_ago_rows if str(r.source_system).endswith("_Sim") == simulated]
-    )
-    year_ago_set = set(year_ago_days)
-    season = []
-    for day in all_days[-STORAGE_CHART_DAYS:]:
-        try:
-            previous = day.replace(year=day.year - 1)
-        except ValueError:  # 29 February
-            previous = day - timedelta(days=365)
-        season.append(
-            {
-                "day": day.isoformat(),
-                "fill_pct": fill(by_day, day)[1],
-                "previous_year_fill_pct": fill(year_ago, previous)[1]
-                if previous in year_ago_set
-                else None,
-            }
         )
     last = days[-1]
     latest = series[-1]
@@ -909,7 +907,6 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
         "by_country_week": ({c: tuple(v) for c, v in by_day[week_before].items()}
                             if week_before else {}),
         "series": series,
-        "season": season,
         # The EU filling target (Regulation (EU) 2022/1032 as amended): met at any point in
         # the window; the desk's own version is an input of the storage trajectory.
         "target": {
@@ -999,3 +996,421 @@ def _balance(session, caller: Caller, now, balance_reader, read: _Read) -> dict[
         )
     )
     return {"latest": item, "series": history, "unit": "GWh/d"}
+
+
+# ---------------------------------------------------------------- design basis 2, section E
+
+
+def focus_hubs(session, caller: Caller, book: _Book, prices: dict) -> list[str]:
+    """My hubs: the user's own list (Settings), else the book's hubs, then the board's order.
+
+    At most :data:`MARKET_HUBS`. The list is the page's scope for prices, outages and storage
+    countries; it is derived, never a filter the user has to set (E.1).
+    """
+
+    from eurogas_nexus.domain.ontology.markets import european_gas_hubs
+
+    board = [hub.upper() for hub in european_gas_hubs()]
+    own: list[str] = []
+    principal_id = getattr(caller.principal, "principal_id", None)
+    if principal_id:
+        try:
+            from eurogas_nexus.db.models import OrganisationSettingRecord, PrincipalPreferenceRecord
+            from eurogas_nexus.domain.settings.preferences import effective_preferences
+
+            organisation = {
+                row.setting_key: row.value_json for row in session.query(OrganisationSettingRecord)
+            }
+            row = session.get(PrincipalPreferenceRecord, str(principal_id))
+            personal = dict(row.preferences_json) if row else {}
+            effective = effective_preferences(organisation, personal)
+            own = [
+                part.strip().upper()
+                for part in str(effective.get("strip_focus_hubs") or "").split(",")
+                if part.strip()
+            ]
+        except Exception:  # noqa: BLE001 - no preference store: the derived list stands
+            own = []
+    ordered: list[str] = []
+    for hub in [*own, *sorted(book.positions), *board, *sorted(prices)]:
+        hub = hub.upper()
+        if hub not in ordered and (hub in board or hub in prices):
+            ordered.append(hub)
+    return ordered[:MARKET_HUBS]
+
+
+def _market(caller: Caller, now: datetime, focus: list[str], read: _Read) -> dict[str, Any]:
+    """Row 1, "My market": DA and front month per focus hub, a 30-day series, the spreads.
+
+    Each hub's day-ahead and month-ahead closes come from its best series (a provider's closes
+    win over simulated ones, then the newest), in the hub's own quotation (NBP in p/th). The
+    spreads are front month against TTF in EUR/MWh, converted with the forward FX for the
+    delivery month (CP-01) and compared with the transport cost of the route the tariff
+    register prices (``route_tariff_cost``); a leg or a rate not held is named, never zero.
+    """
+
+    from eurogas_nexus.application.freshness_contract import close_state
+    from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
+    from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS
+
+    today = now.date()
+    series: dict[tuple[str, str, str], dict[date, dict]] = {}
+    start = today - timedelta(days=MARKET_SERIES_DAYS + 15)
+    for row in daily_rows(caller, start, today):
+        if row["tenor"] not in {"month-ahead", "day-ahead"} or not row.get("hub_resolved", True):
+            continue
+        series.setdefault((row["hub"].upper(), row["tenor"], row["source_system"]), {})[
+            row["day"]
+        ] = row
+    best: dict[tuple[str, str], tuple] = {}
+    for (hub, tenor, source), closes in series.items():
+        last = closes[max(closes)]
+        rank = (not last["simulated"], max(closes), len(closes))
+        if (hub, tenor) not in best or rank > best[(hub, tenor)][0]:
+            best[(hub, tenor)] = (rank, source, closes)
+
+    built: dict[tuple[str, str], dict[str, Any] | None] = {}
+
+    def tenor_figure(hub: str, tenor: str) -> dict[str, Any] | None:
+        if (hub, tenor) not in built:
+            built[(hub, tenor)] = _tenor_figure(hub, tenor)
+        return built[(hub, tenor)]
+
+    def _tenor_figure(hub: str, tenor: str) -> dict[str, Any] | None:
+        if (hub, tenor) not in best:
+            return None
+        _, source, closes = best[(hub, tenor)]
+        days = sorted(closes)
+        last = closes[days[-1]]
+        if tenor == "month-ahead":
+            period = last.get("period_start_utc")
+            product = f"{period:%b-%y}" if period else "MA"
+            key = f"market.{hub}.front_month"
+        else:
+            product = "DA"
+            key = f"market.{hub}.day_ahead"
+        shown, unit = in_native_unit(hub, last["price"], last["unit"])
+        change = None
+        if len(days) > 1 and (days[-1] - days[-2]).days <= MAX_VAR_GAP_DAYS:
+            previous, _ = in_native_unit(hub, closes[days[-2]]["price"], closes[days[-2]]["unit"])
+            change = round(shown - previous, 4)
+        points = []
+        for day in days[-MARKET_SERIES_DAYS:]:
+            value, _ = in_native_unit(hub, closes[day]["price"], closes[day]["unit"])
+            points.append({"day": day.isoformat(), "value": round(value, 4)})
+        return (
+            figure(
+                key,
+                f"{hub} {product}",
+                round(shown, 4),
+                unit,
+                _iso(last.get("observed_at_utc")) or days[-1].isoformat(),
+                close_state(days[-1], today),
+                simulated=bool(last["simulated"]),
+                source="Demo price" if last["simulated"] else source,
+                hub=hub,
+                product=product,
+                tenor=tenor,
+                close_day=days[-1].isoformat(),
+                day_change=change,
+                series=points,
+                period_start_utc=_iso(last.get("period_start_utc")),
+                period_end_utc=_iso(last.get("period_end_utc")),
+                price_mwh=last.get("price_mwh"),
+                unit_mwh=last.get("unit_mwh"),
+            )
+        )
+
+    hubs = []
+    for hub in focus:
+        day_ahead = tenor_figure(hub, "day-ahead")
+        front = tenor_figure(hub, "month-ahead")
+        hubs.append(
+            {
+                "hub": hub,
+                "day_ahead": day_ahead,
+                "front_month": front,
+                "empty": None
+                if day_ahead or front
+                else empty("no_licensed_close", f"No licensed {hub} close",
+                           "Import settlements or connect a licensed price feed"),
+            }
+        )
+    # Only the figures on the page enter the freshness list; a spread's legs are its own.
+    for hub in hubs:
+        for item in (hub["day_ahead"], hub["front_month"]):
+            if item is not None:
+                read.add(item)
+    fronts = {
+        hub: fig for hub in sorted({h for pair in SPREAD_PAIRS for h in pair})
+        if (fig := tenor_figure(hub, "month-ahead")) is not None
+    }
+    return {
+        "hubs": hubs,
+        "spreads": _spreads(caller, now, fronts, read),
+        "series_days": MARKET_SERIES_DAYS,
+    }
+
+
+def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[dict[str, Any]]:
+    """Front-month spreads against TTF in EUR/MWh, with the route cost beside them."""
+
+    from eurogas_nexus.application.market_normalisation import (
+        NormalisationError,
+        load_holdings,
+        normalise_value,
+    )
+    from eurogas_nexus.application.route_tariff_cost import load_tariff_rows, route_cost
+    from eurogas_nexus.domain.market.fx_forward import Delivery
+
+    today = now.date()
+    out: list[dict[str, Any]] = []
+    holdings = None
+    tariffs: list | None = None
+    for hub, reference in SPREAD_PAIRS:
+        leg, base = fronts.get(hub), fronts.get(reference)
+        label = f"{hub}–{reference}"
+        if leg is None or base is None:
+            missing = hub if leg is None else reference
+            out.append({"pair": label, "empty": empty(
+                "no_front_month", f"No {missing} front-month close", "Open Prices")})
+            continue
+        if leg["product"] != base["product"]:
+            out.append({"pair": label, "empty": empty(
+                "different_months", f"{hub} and {reference} closes are for different months",
+                "Open Prices")})
+            continue
+        first = date.fromisoformat(str(leg["period_start_utc"])[:10]) if leg.get(
+            "period_start_utc") else _month_start(today, 1)
+        last = _month_start(first, 1) - timedelta(days=1)
+        delivery = Delivery(first, last, "month", leg["product"])
+        if holdings is None:
+            try:
+                holdings = load_holdings(caller)
+            except Exception as exc:  # noqa: BLE001 - the spread says why it is missing
+                read.warnings.append(f"fx: not available ({exc.__class__.__name__})")
+                holdings = False
+        values = {}
+        problem = None
+        for name, item in ((hub, leg), (reference, base)):
+            try:
+                if not holdings:
+                    raise NormalisationError("not_convertible", "no FX held")
+                values[name] = normalise_value(
+                    float(item["value"]), item["unit"], "EUR/MWh", holdings=holdings,
+                    as_of=date.fromisoformat(item["close_day"]), delivery=delivery,
+                    simulated=bool(item["simulated"]),
+                )
+            except NormalisationError as exc:
+                problem = f"{name} in {item['unit']} cannot be put in EUR/MWh: {exc}"
+                break
+        if problem:
+            out.append({"pair": label, "empty": empty("not_convertible", problem,
+                                                      "Admin → Connectors: FX rates")})
+            continue
+        spread = values[hub]["value"] - values[reference]["value"]
+        fx = values[hub]["normalisation"].get("fx") if isinstance(
+            values[hub].get("normalisation"), dict) else None
+        if tariffs is None:
+            try:
+                tariffs = load_tariff_rows()
+            except Exception as exc:  # noqa: BLE001
+                read.warnings.append(f"tariffs: not available ({exc.__class__.__name__})")
+                tariffs = []
+        route = route_cost(reference, hub, delivery, tariffs)
+        cost = route.total if route.currency == "EUR" else None
+        if cost is not None:
+            verdict = "in_the_money" if spread > cost else "out_of_the_money"
+            route_view = {"value": round(cost, 3), "unit": "EUR/MWh", "verdict": verdict,
+                          "via": list(route.via), "input_class": route.input_class}
+        else:
+            reason = ("legs not held: " + ", ".join(route.missing_legs())) if route.legs and not \
+                route.complete else ("legs in more than one currency" if route.legs else
+                                     "; ".join(route.issues) or "no route priced")
+            route_view = {"value": None, "unit": "EUR/MWh", "verdict": None, "reason": reason}
+        simulated = bool(values[hub]["simulated"] or values[reference]["simulated"])
+        out.append(read.add(figure(
+            f"spread.{hub}.{reference}",
+            f"{label} {leg['product']}",
+            round(spread, 3),
+            "EUR/MWh",
+            max(leg["close_day"], base["close_day"]),
+            leg["state"] if leg["state"] != "current" else base["state"],
+            simulated=simulated,
+            source="Demo price" if simulated else None,
+            pair=label,
+            product=leg["product"],
+            fx=fx,
+            route_cost=route_view,
+        )))
+    return out
+
+
+def _needs_me(
+    session, caller: Caller, now: datetime, book: _Book, focus: list[str],
+    changes: dict, key_figures: dict, read: _Read,
+) -> dict[str, Any]:
+    """Row 3, "What needs me": one ranked list of at most five, each linking to its object.
+
+    Order (E.2): must-act opportunities, unplanned outages touching the book or the focus hubs,
+    limit alerts, then the best "could act" opportunity. With nothing to show the row is one
+    sentence, never an empty panel.
+    """
+
+    from eurogas_nexus.application.desk_text import hub_for_zone
+
+    items: list[dict[str, Any]] = []
+    must: list[dict] = []
+    could: list[dict] = []
+    try:
+        from eurogas_nexus.application.opportunities.listing import list_opportunities
+
+        listing = list_opportunities(session, caller.principal, limit=NEEDS_ME_ITEMS, now_utc=now)
+        lanes = listing.get("lanes") or {}
+        must = list((lanes.get("must_act") or {}).get("items") or [])
+        could = list((lanes.get("could_act") or {}).get("items") or [])
+    except Exception as exc:  # noqa: BLE001 - no opportunity store: the other kinds stand
+        read.warnings.append(f"opportunities: not available ({exc.__class__.__name__})")
+
+    def opportunity(row: dict, lane: str) -> dict[str, Any]:
+        return {
+            "kind": "opportunity",
+            "lane": lane,
+            "id": row["opportunity_id"],
+            "title": row.get("claim") or row.get("type"),
+            "headline": row.get("headline"),
+            "period": row.get("period"),
+            "simulated": bool(row.get("simulated")),
+            "as_of": row.get("last_evaluated_utc"),
+            # Deals → Opportunities (CP-14); until it exists the mode link lands on Deals.
+            "target": {"mode": "deals", "task": "opportunities",
+                       "params": {"opportunity": row["opportunity_id"]}},
+        }
+
+    items += [opportunity(row, "must_act") for row in must]
+    held = {hub.upper() for hub in book.positions}
+    scope = held | {hub.upper() for hub in focus}
+    for outage in (changes.get("outages") or {}).get("items") or []:
+        if outage.get("event_type", "unplanned") == "planned":
+            continue
+        hub = hub_for_zone(str(outage.get("zone") or ""))
+        if hub is None or hub.upper() not in scope:
+            continue
+        items.append({
+            "kind": "outage",
+            "id": outage["event_id"],
+            "title": outage["facility"],
+            "hub": hub,
+            "touches_book": hub.upper() in held,
+            "size": {"value": outage.get("unavailable"), "unit": outage.get("unit")},
+            "status": outage.get("status"),
+            "simulated": bool(outage.get("simulated")),
+            "as_of": outage.get("as_of"),
+            "why": outage.get("why"),
+        })
+    limit = key_figures.get("tightest_limit")
+    for alert in _limit_alerts(session, now):
+        items.append(alert)
+    if not any(item["kind"] == "limit" for item in items) and limit and limit.get(
+            "status") in {"breach", "watch"}:
+        items.append({
+            "kind": "limit",
+            "id": limit["key"],
+            "title": limit["label"],
+            "status": limit.get("status"),
+            "utilisation_pct": limit.get("utilisation_pct"),
+            "simulated": bool(limit.get("simulated")),
+            "as_of": limit.get("as_of"),
+            "why": limit.get("why"),
+        })
+    if could:
+        items.append(opportunity(could[0], "could_act"))
+    shown = items[:NEEDS_ME_ITEMS]
+    quiet = None
+    if not shown:
+        quiet = ("Nothing new since the last close: no unplanned outages at your hubs, "
+                 "no alerts, no opportunity to act on.")
+    return {
+        "key": "needs_me",
+        "title": "What needs me",
+        "items": shown,
+        "more": max(0, len(items) - NEEDS_ME_ITEMS),
+        "quiet": quiet,
+        "populated": bool(shown),
+        "empty": None,
+    }
+
+
+def _limit_alerts(session, now: datetime) -> list[dict[str, Any]]:
+    """Open limit alerts the caller may see, most severe first."""
+
+    from eurogas_nexus.application.alert_scope import alert_visibility
+    from eurogas_nexus.db.models import MonitoringAlertRecord
+
+    visible = alert_visibility(session)
+    rows = [
+        row
+        for row in session.query(MonitoringAlertRecord)
+        .filter(MonitoringAlertRecord.status == "open")
+        .filter(MonitoringAlertRecord.category == "limits")
+        .all()
+        if visible(row)
+    ]
+    rows.sort(key=lambda row: (row.severity != "critical",
+                               -(row.updated_at_utc or row.detected_at_utc or now).timestamp()))
+    return [
+        {
+            "kind": "limit",
+            "id": row.alert_id,
+            "title": row.title_en,
+            "title_zh": row.title_zh_cn,
+            "status": "breach" if row.severity == "critical" else "watch",
+            "simulated": bool(row.simulated),
+            "as_of": _iso(row.updated_at_utc or row.detected_at_utc),
+            "why": {"subject": "alert", "id": row.alert_id},
+        }
+        for row in rows[:NEEDS_ME_ITEMS]
+    ]
+
+
+def _storage_europe(
+    session, caller: Caller, now: datetime, focus: list[str], read: _Read
+) -> dict[str, Any]:
+    """Row 4: Europe's storage season (band, mean, last year, target) and the country headlines.
+
+    The storage fundamentals read (CP-04) for the EU region, with the season for the region
+    only; the countries of the focus hubs come first, then the largest, up to
+    :data:`STORAGE_COUNTRIES`.
+    """
+
+    from eurogas_nexus.application.fundamentals_storage import storage_read
+
+    hub_country = {"TTF": "NL", "THE": "DE", "PEG": "FR", "ZTP": "BE", "PSV": "IT",
+                   "CEGH": "AT", "PVB": "ES", "ETF": "DK"}
+    focus_countries = [hub_country[hub] for hub in focus if hub in hub_country]
+    try:
+        data = storage_read(session, caller.principal, region="eu", season=["EU"],
+                            focus=focus_countries, now=now)
+    except Exception as exc:  # noqa: BLE001 - one missing section must not lose the read
+        read.warnings.append(f"storage: not available ({exc.__class__.__name__})")
+        return {"empty": empty("storage_not_connected", "Storage data not connected",
+                               "Connect GIE AGSI in Sources")}
+    region = data.get("region")
+    if not region:
+        return {"empty": empty("storage_not_connected", "Storage data not connected",
+                               "Connect GIE AGSI in Sources")}
+    countries = [
+        {key: country.get(key) for key in (
+            "code", "name", "simulated", "as_of", "fill_pct", "day_change_pts",
+            "vs_average", "net_withdrawal_7d_twh_d", "spark")}
+        for country in data.get("countries", [])[:STORAGE_COUNTRIES]
+    ]
+    return {
+        "region": region,
+        "countries": countries,
+        "focus_countries": focus_countries,
+        "missing": data.get("missing", []),
+        "simulated": bool(data.get("simulated")),
+        "unit": "%",
+    }
+

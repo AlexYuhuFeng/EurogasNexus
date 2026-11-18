@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus_sdk._transport import SdkResult, api_url, get_envelope
 
-RowKey = Literal["key_figures", "changes", "book", "fundamentals"]
+RowKey = Literal["key_figures", "changes", "book", "fundamentals", "needs_me"]
 
 
 class StaleFigure(BaseModel):
@@ -45,9 +45,13 @@ class DeskToday(BaseModel):
         front_month: Front-month label (``Dec-26``).
         simulated: True when any figure uses simulated demo data.
         simulated_notice: The notice to show with simulated figures; None otherwise.
-        rows: The four rows in display order (``key_figures``, ``changes``, ``book``,
-            ``fundamentals``); each is a dict whose ``key`` names it. Their figures keep
-            the server's units; nothing is converted here.
+        rows: The rows (``key_figures``, ``changes``, ``book``, ``fundamentals``,
+            ``needs_me``); each is a dict whose ``key`` names it. ``key_figures`` carries the
+            ``market`` section (DA and front month per focus hub, spreads) and
+            ``fundamentals`` the ``storage_europe`` section. Their figures keep the server's
+            units; nothing is converted here.
+        focus_hubs: The hubs the read is about (the user's list, else the book's, then the
+            board's), at most four.
         stale_figures: Every late or stale figure by name.
         warnings: Non-blocking warnings.
     """
@@ -60,6 +64,7 @@ class DeskToday(BaseModel):
     simulated: bool
     simulated_notice: str | None = None
     rows: list[dict[str, Any]] = Field(default_factory=list)
+    focus_hubs: list[str] = Field(default_factory=list)
     stale_figures: list[StaleFigure] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 

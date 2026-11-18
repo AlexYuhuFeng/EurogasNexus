@@ -89,9 +89,9 @@ def _figures(value):
 def test_all_four_rows_are_populated_on_the_demo_desk(desk):
     data = _today(desk, _principal("DEMO", "BOOKS:*"))
     keys = [row["key"] for row in data["rows"]]
-    assert keys == ["key_figures", "changes", "book", "fundamentals"]
+    assert keys == ["key_figures", "changes", "book", "fundamentals", "needs_me"]
     assert all(row["populated"] for row in data["rows"])
-    key, changes, book, fundamentals = data["rows"]
+    key, changes, book, fundamentals, _ = data["rows"]
     # The book's hubs first, then the other hubs the demo market prices.
     assert [item["hub"] for item in key["prices"]][:2] == ["NBP", "TTF"]
     assert all(item["day_change"] is not None for item in key["prices"])
@@ -104,11 +104,6 @@ def test_all_four_rows_are_populated_on_the_demo_desk(desk):
     assert all(hub["day_pnl_change"]["method"]["key"] == "day_pnl_change"
                for hub in book["hubs"])
     assert fundamentals["storage"]["series"] and fundamentals["balance"]["series"]
-    # The storage chart's season sits against the same days a year earlier and the EU target.
-    season = fundamentals["storage"]["season"]
-    assert len(season) > len(fundamentals["storage"]["series"])
-    assert season[-1]["day"] == fundamentals["storage"]["series"][-1]["day"]
-    assert any(point["previous_year_fill_pct"] is not None for point in season)
     assert fundamentals["storage"]["target"]["pct"] == 90.0
     # Demo prices are said to be simulated, figure by figure and for the page.
     assert data["simulated"] and data["simulated_notice"]
@@ -151,7 +146,7 @@ def test_outage_counts_are_the_ticker_and_map_counts(tmp_path, monkeypatch):
 
 def test_a_user_without_the_data_scope_sees_no_demo_prices_or_marks(desk):
     data = _today(desk, _principal("BOOKS:*"))
-    key, _, book, fundamentals = data["rows"]
+    key, _, book, fundamentals, _ = data["rows"]
     # Positions are book data: still there; prices of an unlicensed family are not.
     assert key["position"] is not None
     assert all("empty" in item for item in key["prices"])
@@ -161,8 +156,12 @@ def test_a_user_without_the_data_scope_sees_no_demo_prices_or_marks(desk):
         assert hub["day_pnl_change"]["empty"]["code"] == "no_mark"
     assert "empty" in fundamentals["storage"]
     assert fundamentals["balance"]["empty"]["code"] == "balance_not_licensed"
+    assert all(hub["empty"] for hub in key["market"]["hubs"])
+    assert all("empty" in spread for spread in key["market"]["spreads"])
+    assert "empty" in fundamentals["storage_europe"]
     priced = [item["key"] for item in _figures(data)
-              if item["key"].startswith(("price.", "mark.", "pnl.", "storage.", "balance."))]
+              if item["key"].startswith(("price.", "mark.", "pnl.", "storage.", "balance.",
+                                         "market.", "spread."))]
     assert priced == []
 
 
@@ -173,7 +172,8 @@ def test_a_user_without_a_book_sees_no_positions_limits_or_book(desk, monkeypatc
         data = _today(desk, _principal("DEMO", "BOOKS:BOOK:SOMEONE-ELSES"))
     finally:
         portfolio_scope._current.set(None)
-    key, changes, book, _ = data["rows"]
+    key, changes, book, _, needs_me = data["rows"]
+    assert all(item["kind"] != "limit" for item in needs_me["items"])
     assert key["position"] is None and key["position_empty"]["code"] == "no_position"
     assert key["tightest_limit"] is None
     assert key["limit_empty"]["code"] == "no_limits"
@@ -231,3 +231,40 @@ def test_nbp_is_shown_in_pence_per_therm_and_the_mark_is_too(desk):
         prices["NBP"]["value"], abs=1e-3
     )
     assert book["TTF"]["mark"]["unit"] == "EUR/MWh"
+
+
+def test_the_section_e_rows_my_market_needs_me_and_europe_storage(desk):
+    """Design basis 2, E.2: my market (DA and front month per focus hub, a 30-day series, the
+    spreads against TTF in EUR/MWh with the route cost or its reason), what needs me (one
+    ranked list of at most five) and Europe's storage against its history."""
+
+    data = _today(desk, _principal("DEMO", "BOOKS:*"))
+    key, _, _, fundamentals, needs_me = data["rows"]
+    # My hubs: the book's (NBP, TTF), then the board's order, at most four.
+    assert data["focus_hubs"] == ["NBP", "TTF", "THE", "PEG"]
+    market = key["market"]
+    assert [hub["hub"] for hub in market["hubs"]] == data["focus_hubs"]
+    nbp = market["hubs"][0]["front_month"]
+    assert nbp["unit"] == "GBp/th" and nbp["simulated"]  # the desk's quotation (rule 17)
+    assert 20 <= len(nbp["series"]) <= 30 and nbp["series"][-1]["day"] == nbp["close_day"]
+    assert nbp["day_change"] is not None
+    spreads = {item["pair"]: item for item in market["spreads"]}
+    assert set(spreads) == {"NBP–TTF", "THE–TTF"}
+    for spread in spreads.values():
+        assert spread["unit"] == "EUR/MWh" and spread["simulated"]
+        route = spread["route_cost"]
+        # A route cost is a figure with a verdict, or no figure and the reason: never zero.
+        assert (route["value"] is not None and route["verdict"]) or route["reason"]
+    assert spreads["NBP–TTF"]["fx"]["base"] == "GBP"  # the forward FX it used is named
+    # What needs me: at most five, each with its kind and an object to open.
+    assert 1 <= len(needs_me["items"]) <= 5 and needs_me["quiet"] is None
+    assert needs_me["items"][0]["kind"] in {"opportunity", "outage"}
+    assert all(item["kind"] in {"opportunity", "outage", "limit"} for item in needs_me["items"])
+    outages = [item for item in needs_me["items"] if item["kind"] == "outage"]
+    assert outages and all(item["hub"] in data["focus_hubs"] for item in outages)
+    # Europe's storage: the season with its history band, the focus countries first.
+    europe = fundamentals["storage_europe"]
+    assert europe["region"]["code"] == "EU" and europe["region"]["season"]["band"]
+    assert europe["focus_countries"][:2] == ["NL", "DE"]
+    assert [c["code"] for c in europe["countries"]][:2] == ["NL", "DE"]
+    assert len(europe["countries"]) <= 8
