@@ -398,8 +398,9 @@ export function DataGrid<R>({
       className={maxHeight ? "ds-grid-wrap ds-grid-scroll" : "ds-grid-wrap"}
       style={maxHeight ? { maxHeight } : undefined}
       // A scrolling region is reachable by keyboard; a grid with focusable rows or sort buttons
-      // already is.
-      tabIndex={interactive || anySortable ? undefined : 0}
+      // already is. An interactive grid with no rows has nothing focusable inside (axe
+      // scrollable-region-focusable on an empty phone fold), so the region takes the stop.
+      tabIndex={(interactive && rows.length > 0) || anySortable ? undefined : 0}
       data-grid={id}
       data-phone-layout={phoneFold ? "folded" : undefined}
     >

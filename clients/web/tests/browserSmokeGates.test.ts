@@ -143,30 +143,30 @@ test("the repaired surfaces compare rendered rows with their own read, not with 
   assert.ok(scopedIndex !== -1 && heuristicIndex > scopedIndex);
 });
 
-test("the unrelated declared defects are still declared, for declared workspaces only", () => {
+test("the declared defects name declared workspaces only, and the retired pages took theirs along", () => {
   const workspaces = [...block("const WORKSPACES = [", "];").matchAll(/"([a-z]+)"/g)].map(
     (match) => match[1],
   );
-  assert.ok(workspaces.length >= 16, "the sweep still declares its workspaces");
+  // The Strategies and Assistant pages left with CP-00 (design basis 2, I.1).
+  assert.ok(workspaces.length >= 14, "the sweep still declares its workspaces");
+  for (const retired of ["strategy", "agents"]) assert.equal(workspaces.includes(retired), false, retired);
 
   for (const constant of ["KNOWN_FUNCTIONAL_GAPS", "KNOWN_SURFACE_DEFECTS"]) {
-    const keys = declaredKeys(constant);
-    assert.ok(keys.length > 0, `${constant} still declares the gaps the run carries`);
-    for (const key of keys) {
+    for (const key of declaredKeys(constant)) {
       assert.ok(workspaces.includes(key), `${constant} names a declared workspace: ${key}`);
       assert.notEqual(key, "network", `${constant} must not exempt the repaired map page`);
     }
   }
 
-  // The measured-and-open gaps this repair does not touch, recorded in
-  // docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md.
+  // The capability-catalogue gaps of Research → Data and the Assistant left with those pages; the
+  // Research page is Reports now and carries no exemption.
   for (const key of ["agents", "research"]) {
-    assert.ok(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes(key), `functional gap kept: ${key}`);
+    assert.equal(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes(key), false, `gap retired with its page: ${key}`);
   }
   // The Users table gap is retired, not moved: Admin -> Users is a DataGrid of every account the
   // read returns (accounts-first-run), and the sweep observed no gap there.
   assert.ok(!declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("access"), "the access gap is retired");
-  assert.deepEqual(declaredKeys("KNOWN_SURFACE_DEFECTS").sort(), ["agents"]);
+  assert.deepEqual(declaredKeys("KNOWN_SURFACE_DEFECTS"), []);
 
   // The capacity board's exemption is retired with its replacement, not moved: its rows are a
   // union of the `flows` and `capacity` reads, and the board's visible joined keys, stated total

@@ -91,7 +91,7 @@ test("narrow scroll regions are explicitly keyboard focusable", () => {
     ["components/CapacityWorkspace.tsx", /className="capacity-operating-table"[\s\S]*?<DataGrid[\s\S]*?onRowAction=/],
     ["components/NetworkInfoPanel.tsx", /id="network-panel-body"[\s\S]*?role="tabpanel"[\s\S]*?tabIndex=\{0\}/],
     // The hub board is an interactive DataGrid: its rows are the Tab stop (one at a time).
-    ["components/ui/DataGrid.tsx", /tabIndex=\{interactive \|\| anySortable \? undefined : 0\}/],
+    ["components/ui/DataGrid.tsx", /tabIndex=\{\(interactive && rows\.length > 0\) \|\| anySortable \? undefined : 0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-command-actions" tabIndex=\{0\}/],
     ["components/ContractWorkbench.tsx", /className="contract-clause-nav"[\s\S]*?tabIndex=\{0\}/],
     ["components/ReviewWorkspace.tsx", /<DataGrid[\s\S]*?id="review-decisions"/],

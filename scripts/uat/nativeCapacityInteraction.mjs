@@ -356,7 +356,9 @@ export async function inspectNativeCapacityInteraction({
     await page.route(isControlledNativePhysicalRead, handler);
     mkdirSync(outputDir, { recursive: true });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`${baseUrl}/?workspace=capacity`, { waitUntil: "domcontentloaded" });
+    // The ENTSOG point query is an analyst's register tool: since CP-00 it lives under
+    // Admin → Connectors → Infrastructure (design basis 2, I.2), not on the capacity board.
+    await page.goto(`${baseUrl}/?workspace=sources&view=infrastructure`, { waitUntil: "domcontentloaded" });
     const settled = await page
       .waitForFunction(
         () => [...document.querySelectorAll(".workspace-page")]
@@ -366,10 +368,10 @@ export async function inspectNativeCapacityInteraction({
       )
       .then(() => true)
       .catch(() => false);
-    if (!settled) fail("the capacity workspace read never settled");
+    if (!settled) fail("the connectors workspace read never settled");
 
-    // The point-id query is folded under its title on the page (#69): open it as a user would.
-    await page.locator("details.capacity-native-fold:not([open]) > summary").first().click().catch(() => {});
+    // The point-id query is folded under its title (#69): open it as a user would.
+    await page.locator("details.source-infrastructure-fold:has([data-native-panel-state]):not([open]) > summary").first().click().catch(() => {});
     const panel = page.locator("[data-native-panel-state]");
     await panel.waitFor({ state: "visible", timeout: 15_000 });
     const input = page.locator("[data-native-point-id]");

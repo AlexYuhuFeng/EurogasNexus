@@ -213,7 +213,9 @@ const SURFACE_SIGNALS = {
   manual: { heading: /manual/i, apiPath: null },
   access: { heading: /access/i, apiPath: "/api/access/users" },
   // Research is Reports since CP-00 (the Strategies, Data and Assistant pages left).
-  research: { heading: /research|report/i, apiPath: "/api/reports/catalogue" },
+  // Its catalogue read is one document (the section menu), not a row set, so the generic
+  // rows-rendered probe does not apply; the page is held by its heading and the axe pass.
+  research: { heading: /research|report/i, apiPath: null },
 };
 
 /**
