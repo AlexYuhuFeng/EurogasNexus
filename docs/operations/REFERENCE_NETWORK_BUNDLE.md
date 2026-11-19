@@ -143,6 +143,42 @@ those rows are refused) and TTF - NBP through BBL also lacks the GTS exit at Bal
 ENTSOG does not publish; those routes report the legs as missing.
 `scripts/ops/tariff_coverage.py` prints, per crossing and direction, which legs are held.
 
+**Widening the graph beyond north-west Europe (assessed 2026-11-19, not started).** CEGH, CZ,
+PSV, PVB, Swiss transit and Ellund are not in the market-area graph, so a route to them cannot be
+priced even though the tariff read already stores their ENTSOG tariffs (corridor points of
+`reference_data/tariff_scope.py`; `scripts/ops/tariff_coverage.py` lists them). What widening
+needs, by part:
+
+- *Reference bundle* (`scripts/ops/build_reference_network_bundle.py`): add AT, CZ, IT, ES, CH
+  (and PL for Mallnow/GCP, SK for Baumgarten if wanted) to `SCOPE_COUNTRIES` and rebuild from a
+  live ENTSOG reference read held in a store (the full build reads `connectionpoints` and
+  `operatorpointdirections` from the runtime tables, not only the API). ENTSOG lists 82 points
+  with a side in the AT, CZ, IT, ES or CH zones (46 interconnection points, 12 LNG, 10 storage, 5
+  trading points; interconnections read 19-11-2026), so the bundle grows from 318 to roughly 400
+  points and its access rows by a similar share. ENTSOG map positions are missing for some; those
+  are counted "not located" as today.
+- *Adjacency* (`reference_data/network_adjacency.py`): add the zones to `BZ_HUB` (AT → CEGH VTP,
+  CZ → CZ VTP, IT → PSV, ES → PVB) and their countries to `HUB_COUNTRY`; Switzerland has no
+  trading point, so Swiss transit (Wallbach/Oltingue → Griespass) needs the same treatment as a
+  two-point pipeline: a transit system joining two market areas, with its own exit/entry legs. That
+  is a new rule (the current two-point rule does not fit FluxSwiss/Swissgas, which ENTSOG lists at
+  more than two points), with its tests. Representative points are re-ranked by capacity.
+- *Hubs and prices*: the graph's hub codes come from the bundle's trading-point nodes
+  (`_market_hub_code`); CEGH ("CEGH VTP"), PSV, PVB and CZ VTP must resolve to the codes the
+  price board uses.
+- *Map*: the bundle drives the map's points and dashed links; the extra points need the
+  presentation geometry rebuilt (`with_presentation`, SciGRID_gas covers these countries), the map's
+  default view checked, and the browser sweep's map checks updated (point counts in
+  `tests/unit/test_reference_network_bundle.py`, the bundle size budget).
+- *Pricing and demo*: no change to `route_tariff_cost`; the cheapest-route search's `max_hops` (4)
+  reaches PSV from TTF through THE and CH or AT. The demo's simulated legs would need the new
+  crossings if the demo should price them.
+
+Size: one bounded task for the bundle and adjacency (build, Swiss transit rule, tests), one for the
+map presentation and its sweep, about two to three days of work, plus a review of ENTSOG's data at
+the new points (the tariff cross-check already refuses Gas Connect Austria's and terranets bw's
+inconsistent rows).
+
 Refresh the adjacency on the shipped bundle (no database; ENTSOG read live, retried on a
 reset, or from saved responses):
 
