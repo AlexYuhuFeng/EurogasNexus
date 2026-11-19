@@ -252,6 +252,10 @@ def test_refusals_name_the_missing_rate():
     with pytest.raises(FxForwardError, match="no SONIA fixing held") as no_sonia:
         conversion_rate(_holdings(sonia=None), "EUR", "GBP", as_of=SPOT_DATE, delivery=JAN_27)
     assert no_sonia.value.code == "no_benchmark_rate"
+    # What the sentence names, for a page that says it in its reader's language.
+    assert no_sonia.value.params["benchmark"] == "SONIA"
+    assert no_sonia.value.params["currency"] == "GBP"
+    assert no_sonia.value.params["as_of"]
     cny = FxHoldings.from_rows(
         [{"pair": "EURCNY", "rate": 7.8, "rate_type": "reference",
           "value_date": SPOT_DATE.isoformat(), "source_system": "ECB"}]

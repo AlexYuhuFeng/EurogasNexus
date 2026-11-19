@@ -60,9 +60,14 @@ EXACT_TOLERANCE = 1e-9
 class NormalisationError(ValueError):
     """The conversion cannot be made; ``code`` says why and the message names what is missing."""
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(
+        self, code: str, message: str, *, cause: str | None = None, params: dict | None = None
+    ) -> None:
         super().__init__(message)
         self.code = code
+        #: The underlying reason (an FX forward's own code) and what it names.
+        self.cause = cause
+        self.params = dict(params or {})
 
 
 def parse_price_unit(text: str) -> PriceUnit:
@@ -222,7 +227,7 @@ def conversion(
             )
         except FxForwardError as exc:
             code = "beyond_horizon" if exc.code == "beyond_horizon" else "not_convertible"
-            raise NormalisationError(code, str(exc)) from exc
+            raise NormalisationError(code, str(exc), cause=exc.code, params=exc.params) from exc
     return Conversion(source, target, unit_factor, heating, fx)
 
 

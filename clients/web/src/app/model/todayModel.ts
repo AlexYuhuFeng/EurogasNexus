@@ -5,6 +5,8 @@
  * is empty.
  */
 import type { FigureStateDTO, TodayEmptyDTO, TodayFigureDTO } from "@/api/client";
+import { formatGasDay } from "../time/timeFormat.ts";
+import { unitLabel } from "./instrumentPicker.ts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -105,4 +107,22 @@ export function timeWindow(startUtc: string, endUtc: string | null, nowMs: numbe
     return long ? day : `${day} ${at.toISOString().slice(11, 16)}`;
   };
   return end ? `${format(start)} – ${format(end)}` : `${format(start)} –`;
+}
+
+/**
+ * Why a spread against TTF is not shown, as a plain sentence in the reader's language: the
+ * cause's code through `today.spread.<code>` (or `today.spread.cause.<cause>`), the date through
+ * the shell's day formatter. The server's own sentence is the detail (the line's tooltip); a
+ * reply without a code falls back to it.
+ */
+export function spreadEmptyText(empty: TodayEmptyDTO, t: Translate, language: string): string {
+  const params = empty.params ?? {};
+  const values: Record<string, unknown> = {
+    ...params,
+    unit: params.unit ? unitLabel(params.unit) : "",
+    date: params.as_of ? formatGasDay(params.as_of, language) : "",
+  };
+  const key = empty.code === "not_convertible" && empty.cause ? `today.spread.cause.${empty.cause}` : `today.spread.${empty.code}`;
+  const fallback = empty.code === "not_convertible" ? t("today.spread.cause.not_convertible", values) : empty.reason;
+  return t(key, { ...values, defaultValue: fallback });
 }

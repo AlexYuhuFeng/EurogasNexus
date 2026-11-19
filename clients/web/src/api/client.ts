@@ -2101,6 +2101,9 @@ export interface TodayEmptyDTO {
   code: string;
   reason: string;
   action: string;
+  /** The underlying cause as a code (an FX forward's own, "no_benchmark_rate") and what it names. */
+  cause?: string;
+  params?: Record<string, string>;
 }
 
 export interface TodayPriceDTO extends TodayFigureDTO {

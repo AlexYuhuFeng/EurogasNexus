@@ -82,9 +82,11 @@ _SIMULATED_SUFFIX = "_sim"
 class FxForwardError(ValueError):
     """A conversion rate cannot be given; ``code`` names why, the message says what is missing."""
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, params: dict[str, str] | None = None) -> None:
         super().__init__(message)
         self.code = code
+        #: What the sentence names, for a reader that says it in its own language.
+        self.params = dict(params or {})
 
 
 def is_simulated_source(source_system: str | None) -> bool:
@@ -539,7 +541,9 @@ def _benchmark_rate(holdings: FxHoldings, currency: str, as_of: date, days: int)
     except InterestRateError as exc:
         name = BENCHMARKS[benchmark_id].label.split(" (")[0]
         raise FxForwardError(
-            "no_benchmark_rate", f"not convertible forward: no {name} fixing held ({exc})"
+            "no_benchmark_rate",
+            f"not convertible forward: no {name} fixing held ({exc})",
+            {"currency": currency, "benchmark": name, "as_of": as_of.isoformat()},
         ) from exc
     return RateUsed(
         BENCHMARKS[benchmark_id],

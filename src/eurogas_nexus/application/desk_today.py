@@ -1227,13 +1227,14 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
         label = f"{hub}–{reference}"
         if leg is None or base is None:
             missing = hub if leg is None else reference
-            out.append({"pair": label, "empty": empty(
-                "no_front_month", f"No {missing} front-month close", "Open Prices")})
+            out.append({"pair": label, "empty": {**empty(
+                "no_front_month", f"No {missing} front-month close", "Open Prices"),
+                "params": {"hub": missing}}})
             continue
         if leg["product"] != base["product"]:
-            out.append({"pair": label, "empty": empty(
+            out.append({"pair": label, "empty": {**empty(
                 "different_months", f"{hub} and {reference} closes are for different months",
-                "Open Prices")})
+                "Open Prices"), "params": {"hub": hub, "reference": reference}}})
             continue
         first = date.fromisoformat(str(leg["period_start_utc"])[:10]) if leg.get(
             "period_start_utc") else _month_start(today, 1)
@@ -1247,6 +1248,7 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
                 holdings = False
         values = {}
         problem = None
+        cause: dict[str, Any] = {}
         for name, item in ((hub, leg), (reference, base)):
             try:
                 if not holdings:
@@ -1258,10 +1260,15 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
                 )
             except NormalisationError as exc:
                 problem = f"{name} in {item['unit']} cannot be put in EUR/MWh: {exc}"
+                # The cause as a code with what it names, so the page says it in the reader's
+                # language (the sentence above is the detail).
+                cause = {"cause": getattr(exc, "cause", None) or exc.code,
+                         "params": {"hub": name, "unit": item["unit"],
+                                    **getattr(exc, "params", {})}}
                 break
         if problem:
-            out.append({"pair": label, "empty": empty("not_convertible", problem,
-                                                      "Admin → Connectors: FX rates")})
+            out.append({"pair": label, "empty": {
+                **empty("not_convertible", problem, "Admin → Connectors: FX rates"), **cause}})
             continue
         spread = values[hub]["value"] - values[reference]["value"]
         fx = values[hub]["normalisation"].get("fx") if isinstance(

@@ -45,6 +45,7 @@ import {
   formatChange,
   formatValue,
   isEmptyEntry,
+  spreadEmptyText,
   shortDay,
   stateWords,
 } from "@/app/model/todayModel";
@@ -245,12 +246,12 @@ function MarketFigure({ figure, t, nowMs, onInspect }: { figure: TodayMarketFigu
   );
 }
 
-function SpreadLine({ spread, t }: { spread: TodayMarketDTO["spreads"][number]; t: Translate }) {
+function SpreadLine({ spread, t, language }: { spread: TodayMarketDTO["spreads"][number]; t: Translate; language: string }) {
   if (isEmptyEntry(spread)) {
     return (
       <li className="today-spread" data-spread={spread.pair} data-empty-code={spread.empty.code}>
         <span className="today-spread-pair">{spread.pair}</span>
-        <span className="muted">{spread.empty.reason}</span>
+        <span className="muted" title={spread.empty.reason}>{spreadEmptyText(spread.empty, t, language)}</span>
       </li>
     );
   }
@@ -277,7 +278,7 @@ function SpreadLine({ spread, t }: { spread: TodayMarketDTO["spreads"][number]; 
   );
 }
 
-function MarketRow({ market, t, nowMs, onInspectPrice, onOpenPrices }: { market: TodayMarketDTO; t: Translate; nowMs: number; onInspectPrice?: TodayScreenProps["onInspectPrice"]; onOpenPrices?: () => void }) {
+function MarketRow({ market, t, nowMs, language, onInspectPrice, onOpenPrices }: { market: TodayMarketDTO; t: Translate; nowMs: number; language: string; onInspectPrice?: TodayScreenProps["onInspectPrice"]; onOpenPrices?: () => void }) {
   return (
     <RowSection id="market" title={t("today.row.market")}>
       <div className="today-market">
@@ -314,7 +315,7 @@ function MarketRow({ market, t, nowMs, onInspectPrice, onOpenPrices }: { market:
       </div>
       {market.spreads.length > 0 && (
         <ul className="today-spreads" aria-label={t("today.market.spreads")}>
-          {market.spreads.map((spread) => <SpreadLine key={spread.pair} spread={spread} t={t} />)}
+          {market.spreads.map((spread) => <SpreadLine key={spread.pair} spread={spread} t={t} language={language} />)}
         </ul>
       )}
     </RowSection>
@@ -736,7 +737,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
   const [keyFigures, , book, fundamentals, needsMe, gasDay] = today.rows;
   const quiet = needsMe && needsMe.items.length === 0 ? needsMe.quiet : null;
   const render: Record<TodayRowKey, () => ReactNode> = {
-    market: () => (keyFigures?.market ? <MarketRow key="market" market={keyFigures.market} t={t} nowMs={nowMs} onInspectPrice={onInspectPrice} onOpenPrices={onOpenPrices} /> : null),
+    market: () => (keyFigures?.market ? <MarketRow key="market" market={keyFigures.market} t={t} nowMs={nowMs} language={language} onInspectPrice={onInspectPrice} onOpenPrices={onOpenPrices} /> : null),
     book: () => (canSeeBook && book ? <BookRow key="book" row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} language={language} onOpenLimits={onOpenLimits} /> : null),
     needs_me: () => (needsMe && needsMe.items.length > 0 ? <NeedsMeRow key="needs_me" row={needsMe} t={t} nowMs={nowMs} language={language} onOpen={onOpenNeed} /> : null),
     gas_day: () => (canSeeBook && gasDay ? <GasDayRow key="gas_day" row={gasDay} t={t} language={language} nowMs={nowMs} onOpen={onOpenGasDay} /> : null),

@@ -91,3 +91,24 @@ test("a board reason is said in the reader's language from its code, months as t
   assert.equal(boardReasonText({ reason: "an older server's sentence" }, translate(zh)), "an older server's sentence");
   for (const key of Object.keys(en).filter((name) => name.startsWith("spreads.reason."))) assert.ok(key in zh, key);
 });
+
+test("Today's spread line says why it is empty in the reader's language, the date through the day formatter", async () => {
+  const { spreadEmptyText } = await import("../src/app/model/todayModel.ts");
+  const en = JSON.parse(readFileSync(new URL("../src/i18n/en.json", import.meta.url), "utf8")) as Record<string, string>;
+  const zh = JSON.parse(readFileSync(new URL("../src/i18n/zh.json", import.meta.url), "utf8")) as Record<string, string>;
+  const translate = (table: Record<string, string>) => (key: string, options: Record<string, unknown> = {}) =>
+    (table[key] ?? String(options.defaultValue ?? key)).replace(/\{\{(\w+)\}\}/g, (_whole, name: string) => String(options[name] ?? ""));
+  const empty = {
+    code: "not_convertible",
+    reason: "NBP in GBp/th cannot be put in EUR/MWh: not convertible forward: no SONIA fixing held (no SONIA fixing on or before 2026-11-16)",
+    action: "Admin → Connectors: FX rates",
+    cause: "no_benchmark_rate",
+    params: { hub: "NBP", unit: "GBp/th", benchmark: "SONIA", as_of: "2026-11-16", currency: "GBP" },
+  };
+  const english = spreadEmptyText(empty, translate(en), "en");
+  assert.equal(english, "NBP cannot be put in EUR/MWh yet: no SONIA rate held up to 16 Nov");
+  const chinese = spreadEmptyText(empty, translate(zh), "zh");
+  assert.ok(chinese.includes("SONIA") && chinese.includes("11月16日") && !/2026-11-16|not convertible/.test(chinese), chinese);
+  assert.equal(spreadEmptyText({ code: "no_front_month", reason: "No NBP front-month close", action: "", params: { hub: "NBP" } }, translate(zh), "zh"), "无 NBP 近月收盘价");
+  assert.equal(spreadEmptyText({ code: "something_new", reason: "the server's sentence", action: "" }, translate(zh), "zh"), "the server's sentence");
+});
