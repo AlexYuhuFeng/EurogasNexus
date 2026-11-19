@@ -27,6 +27,7 @@ import {
   Button,
   DataGrid,
   Field,
+  PeriodPicker,
   PanelHeader,
   RecordPicker,
   Segmented,
@@ -403,10 +404,10 @@ export function TariffEntryPanel({ t }: { t: Translate }) {
             <Select value={draft.unit} options={(ENTRY_UNITS[draft.currency] ?? []).map((value) => ({ value, label: value }))} onChange={(value) => set("unit", value)} />
           </Field>
           <Field label={t("tariff_entry.field.valid_from")} error={tried && missing.includes("validity") ? t("tariff_entry.need.validity") : undefined}>
-            <input type="date" value={draft.valid_from} onChange={(event) => set("valid_from", event.target.value)} />
+            <PeriodPicker label={t("tariff_entry.field.valid_from")} value={draft.valid_from} onChange={(value) => set("valid_from", value)} />
           </Field>
           <Field label={t("tariff_entry.field.valid_to")}>
-            <input type="date" value={draft.valid_to} onChange={(event) => set("valid_to", event.target.value)} />
+            <PeriodPicker label={t("tariff_entry.field.valid_to")} value={draft.valid_to} clearable onChange={(value) => set("valid_to", value)} />
           </Field>
           <div className="ds-field">
             <span className="ds-field-label">{t("tariff_entry.field.status")}</span>
@@ -424,7 +425,7 @@ export function TariffEntryPanel({ t }: { t: Translate }) {
             <input type="url" placeholder="https://" value={draft.source_url} onChange={(event) => set("source_url", event.target.value)} />
           </Field>
           <Field label={t("tariff_entry.field.published_on")} error={tried && missing.includes("published_on") ? t("tariff_entry.need.published_on") : undefined}>
-            <input type="date" value={draft.published_on} onChange={(event) => set("published_on", event.target.value)} />
+            <PeriodPicker label={t("tariff_entry.field.published_on")} value={draft.published_on} onChange={(value) => set("published_on", value)} />
           </Field>
           <Field label={t("tariff_entry.field.location")} hint={t("tariff_entry.location_hint")} error={tried && missing.includes("source_location") ? t("tariff_entry.need.location") : undefined}>
             <input value={draft.source_location} maxLength={256} onChange={(event) => set("source_location", event.target.value)} />

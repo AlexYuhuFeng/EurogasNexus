@@ -37,3 +37,16 @@
   grid-column: 1 / -1;
 }
 }
+
+/* In the components layer: it narrows the form grid that layer defines. Every field starts at the
+   top of its row, so a hint or an error under one field ("Unit as published", "Where on the page")
+   never lifts its control out of line with its neighbours' (the grid's default aligns ends). */
+@layer ds-components {
+  .tariff-entry-form.ds-form-grid {
+    align-items: start;
+  }
+
+  .tariff-entry-form .ds-period {
+    width: 100%;
+  }
+}
