@@ -58,7 +58,8 @@ _NET = re.compile(
 )
 _CURVE = re.compile(r"forward|curve|by tenor|by delivery|term structure|strip|远期|曲线|期限结构",
                     re.IGNORECASE)
-_HISTORY = re.compile(r"history|historical|over time|daily|z-?score|历史|均值回归", re.IGNORECASE)
+_HISTORY = re.compile(r"history|historical|over time|daily|z-?score|历史|均值回归|threshold|阈值",
+                      re.IGNORECASE)
 _ZSCORE = re.compile(r"z-?score|mean[- ]revers|均值回归", re.IGNORECASE)
 _SPOT_FX = re.compile(r"spot fx|at spot|即期汇率", re.IGNORECASE)
 _UNITS = (
@@ -139,6 +140,98 @@ def find_tenor(text: str) -> str | None:
     return None
 
 
+_TENOR_PATTERNS: tuple[tuple[re.Pattern[str], Any], ...] = (
+    (re.compile(r"\bday[- ]ahead\b|\bda\b|日前", re.IGNORECASE), lambda m: "DA"),
+    (re.compile(r"\bwithin[- ]day\b|\bwd\b|日内", re.IGNORECASE), lambda m: "WD"),
+    (re.compile(r"\b(m|q|s|cal|gy)\s*\+\s*(\d{1,2})\b", re.IGNORECASE),
+     lambda m: f"{'Cal' if m.group(1).lower() == 'cal' else m.group(1).upper()}+"
+               f"{int(m.group(2))}"),
+    (re.compile(r"front[- ]month|month[- ]ahead|prompt month|\bm1\b|次月|近月|下月",
+                re.IGNORECASE), lambda m: "M+1"),
+    (re.compile(r"\b(sum|summer|win|winter)[\s-]?(\d{2}|20\d{2})\b", re.IGNORECASE),
+     lambda m: f"{'Sum' if m.group(1).lower().startswith('s') else 'Win'}-{m.group(2)[-2:]}"),
+    (re.compile(r"(\d{2}|20\d{2})年?(冬季|夏季)"),
+     lambda m: f"{'Win' if m.group(2) == '冬季' else 'Sum'}-{m.group(1)[-2:]}"),
+    (re.compile(r"\bq([1-4])[\s-]?(\d{2}|20\d{2})\b", re.IGNORECASE),
+     lambda m: f"Q{m.group(1)}-{m.group(2)[-2:]}"),
+    (re.compile(r"\b(cal|gy)[\s-]?(\d{2}|20\d{2})\b", re.IGNORECASE),
+     lambda m: f"{'Cal' if m.group(1).lower() == 'cal' else 'GY'}-{m.group(2)[-2:]}"),
+    (re.compile(r"\b(" + "|".join(_MONTHS) + r")[a-z]*[\s'-]?(\d{2}|20\d{2})\b",
+                re.IGNORECASE),
+     lambda m: f"{m.group(1).title()}-{m.group(2)[-2:]}"),
+)
+
+
+def find_tenors(text: str) -> list[str]:
+    """Every product code the text names, in the order written, each once."""
+
+    hits: list[tuple[int, str]] = []
+    taken: list[tuple[int, int]] = []
+    for pattern, build in _TENOR_PATTERNS:
+        for match in pattern.finditer(text):
+            span = match.span()
+            if any(start < span[1] and span[0] < end for start, end in taken):
+                continue
+            taken.append(span)
+            hits.append((span[0], build(match)))
+    out: list[str] = []
+    for _, code in sorted(hits):
+        if code not in out:
+            out.append(code)
+    return out
+
+
+_NUMBER = r"(\d+(?:\.\d+)?)"
+_LOOKBACK = re.compile(
+    r"(?:lookback|look[- ]back|over|window|rolling|回看|窗口)\D{0,12}?(\d{1,3})\s*"
+    r"(?:-?\s*days?|d\b|天|日|个交易日)|(\d{1,3})\s*(?:-?\s*days?|天|日)\s*"
+    r"(?:lookback|look[- ]back|window|回看|窗口)",
+    re.IGNORECASE,
+)
+_ENTRY = re.compile(
+    r"(?:enter|entry|open)\D{0,14}?" + _NUMBER + r"|z\s*(?:值)?\s*" + _NUMBER
+    + r"\s*(?:入场|开仓)",
+    re.IGNORECASE,
+)
+_EXIT = re.compile(
+    r"(?:exit|close|flat)\D{0,14}?" + _NUMBER + r"|" + _NUMBER + r"\s*(?:出场|平仓)",
+    re.IGNORECASE,
+)
+_THRESHOLD = re.compile(r"threshold|阈值|storage cost|储气成本|储存成本", re.IGNORECASE)
+_HIGH = re.compile(
+    r"(?:storage cost|储气成本|储存成本|sell above|above|高于|卖出于)\D{0,6}?" + _NUMBER,
+    re.IGNORECASE,
+)
+_LOW = re.compile(r"(?:buy below|below|低于|买入于)\D{0,6}?(-?\d+(?:\.\d+)?)",
+                  re.IGNORECASE)
+
+
+def find_rule(text: str) -> dict[str, Any] | None:
+    """A rule the text states: z-score with its numbers, or a threshold with its levels."""
+
+    threshold = bool(_THRESHOLD.search(text))
+    zscore = bool(_ZSCORE.search(text))
+    if not threshold and not zscore:
+        return None
+    rule: dict[str, Any] = {"kind": "threshold" if threshold and not zscore else "zscore"}
+    lookback = _LOOKBACK.search(text)
+    if lookback:
+        rule["lookback"] = int(lookback.group(1) or lookback.group(2))
+    else:
+        rule["lookback"] = 20
+    if rule["kind"] == "zscore":
+        entry, leave = _ENTRY.search(text), _EXIT.search(text)
+        if entry:
+            rule["entry_z"] = float(entry.group(1) or entry.group(2))
+        if leave:
+            rule["exit_z"] = float(leave.group(1) or leave.group(2))
+    else:
+        high, low = _HIGH.search(text), _LOW.search(text)
+        rule["high"] = float(high.group(1)) if high else None
+        rule["low"] = float(low.group(1)) if low else None
+    return rule
+
+
 def parse_description(text: str, *, held_hubs: set[str] | None = None) -> dict[str, Any] | None:
     """A spec dict (``strategy_spec.spec_from_dict`` shape) for a common statement, or None.
 
@@ -148,6 +241,25 @@ def parse_description(text: str, *, held_hubs: set[str] | None = None) -> dict[s
     clean = " ".join((text or "").split())[:2000]
     hubs = find_hubs(clean, held_hubs)
     unknown = [code[1:] for _, code in hubs if code.startswith("?")]
+    tenors = find_tenors(clean)
+    if len(hubs) == 1 and len(tenors) >= 2:
+        # One hub, two products: a time spread (Win-27 − Sum-27, DA − M+1, M+1 − M+2).
+        hub = hubs[0][1].lstrip("?")
+        between = bool(_BETWEEN.search(clean)) and not _VERSUS.search(clean)
+        later, earlier = (tenors[1], tenors[0]) if between else (tenors[0], tenors[1])
+        return {
+            "version": 1,
+            "kind": "history",
+            "legs": [{"hub": hub, "tenor": later, "weight": 1},
+                     {"hub": hub, "tenor": earlier, "weight": -1}],
+            "unit": next((code for pattern, code in _UNITS if re.search(r"\bin\s+|以|换算", clean)
+                          and pattern.search(clean)), None),
+            "fx": "spot" if _SPOT_FX.search(clean) else "forward",
+            "cost": None,
+            "rule": find_rule(clean),
+            "_first_named": hub,
+            "_unknown_hubs": [code[1:] for _, code in hubs if code.startswith("?")],
+        }
     if len(hubs) < 2:
         return None
     first, second = (code for _, code in hubs[:2])
@@ -176,7 +288,7 @@ def parse_description(text: str, *, held_hubs: set[str] | None = None) -> dict[s
         "cost": {"kind": "route_tariff", "from_hub": buy.lstrip("?"), "to_hub": sell.lstrip("?")}
         if _NET.search(clean)
         else None,
-        "rule": {"kind": "zscore", "lookback": 20} if _ZSCORE.search(clean) else None,
+        "rule": find_rule(clean),
         "_first_named": first.lstrip("?"),
         "_unknown_hubs": unknown,
     }

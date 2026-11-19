@@ -38,17 +38,26 @@ def test_zscore_rule_trades_without_look_ahead():
     values = [1.0 + (0.05 if i % 2 else -0.05) for i in range(40)]
     values[30] = 3.0
     leg = SpreadLeg("A-B", 1.0, _series(values))
-    rule = SpreadRule(lookback=20, entry_z=2.0, exit_z=0.5, volume_mwh_per_day=100, cost_per_mwh=0)
+    rule = SpreadRule(lookback=20, entry_z=2.0, exit_z=0.5, volume_mwh_per_day=100,
+                      cost_per_mwh=0, execution="same_close")
     result = analyse_spread([leg], rule)
     by_day = {point.day: point for point in result.points}
     spike = START + timedelta(days=30)
-    assert by_day[spike].position == -1  # short decided at the spike close
+    assert by_day[spike].position == -1  # short decided and (optimistically) traded at the close
     assert by_day[spike].pnl == 0  # nothing earned on the day the position opens
     after = START + timedelta(days=31)
     # The short earns the fall from 3.0 to ~1.0 on the next day: 100 MWh * ~2.0.
     assert by_day[after].pnl == pytest.approx(100 * (3.0 - values[31]))
     assert result.trades[0].direction == "short"
     assert result.metrics["total_pnl"] > 0
+    # The default trades the signal at the next close: the spike itself is never captured.
+    later = analyse_spread([leg], SpreadRule(lookback=20, entry_z=2.0, exit_z=0.5,
+                                             volume_mwh_per_day=100, cost_per_mwh=0))
+    by_day = {point.day: point for point in later.points}
+    assert by_day[spike].signal == -1 and by_day[spike].position == 0
+    assert by_day[after].position == -1
+    assert later.trades[0].entry_spread == pytest.approx(values[31])
+    assert "next close" in later.assumptions
 
 
 def test_threshold_rule_and_costs():

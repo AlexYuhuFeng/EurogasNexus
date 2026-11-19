@@ -181,8 +181,13 @@ def evaluate_spec(body: EvaluateInput, request: Request) -> dict:
     rule = {key: value for key, value in rule.items() if value is not None}
     if spec.volume_mwh_per_day:
         rule["volume_mwh_per_day"] = spec.volume_mwh_per_day
+    route = (
+        {"from_hub": spec.cost.from_hub, "to_hub": spec.cost.to_hub} if spec.cost else None
+    )
     analysis = run_spread_analysis(
-        SpreadAnalysisInput(legs=legs, rule=rule, unit=spec.unit), request
+        SpreadAnalysisInput(legs=legs, rule=rule, unit=spec.unit, route_cost=route,
+                            fx=spec.fx),
+        request,
     )
     data = analysis["data"]
     result = {

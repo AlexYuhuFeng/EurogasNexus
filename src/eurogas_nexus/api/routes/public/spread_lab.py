@@ -38,7 +38,16 @@ class SpreadRuleInput(BaseModel):
     low: float | None = Field(default=None, allow_inf_nan=False)
     high: float | None = Field(default=None, allow_inf_nan=False)
     volume_mwh_per_day: float = Field(default=1_000.0, allow_inf_nan=False)
-    cost_per_mwh: float = Field(default=0.02, allow_inf_nan=False)
+    #: Cost per MWh per position change in the display unit; when omitted, half the held
+    #: bid/offer of each leg (the newest two-sided quotes), else zero, and the result says which.
+    cost_per_mwh: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    #: ``next_close`` (default) or ``same_close``.
+    execution: str = Field(default="next_close", max_length=16)
+
+
+class RouteCostInput(BaseModel):
+    from_hub: str = Field(min_length=2, max_length=16)
+    to_hub: str = Field(min_length=2, max_length=16)
 
 
 class SpreadAnalysisInput(BaseModel):
@@ -49,6 +58,10 @@ class SpreadAnalysisInput(BaseModel):
     #: Display unit for legs in different units (``EUR/MWh``, ``p/th``, ``USD/MMBtu``); the
     #: first leg's native unit when omitted.
     unit: str | None = Field(default=None, min_length=3, max_length=16)
+    #: The rule reads the spread net of this route's published tariff, per gas year.
+    route_cost: RouteCostInput | None = None
+    #: ``spot`` converts every day at that day's spot; ``forward`` (default) per delivery.
+    fx: str | None = Field(default=None, max_length=8)
 
 
 def _env(data: object, *, warnings: list[str] | None = None) -> dict:
@@ -193,9 +206,24 @@ def run_spread_analysis(body: SpreadAnalysisInput, request: Request) -> dict:
             request, collected, body.unit
         )
         simulated = simulated or converted_simulated
+    from dataclasses import replace
+
+    legs = [
+        replace(leg, deliveries=_deliveries(closes))
+        for leg, (_label, _hub, _weight, closes) in zip(legs, collected, strict=True)
+    ]
+    rule_values = body.rule.model_dump()
+    cost_basis = "stated"
+    if rule_values.get("cost_per_mwh") is None:
+        rule_values["cost_per_mwh"], cost_basis = _quoted_cost(request, collected, legs)
+    offsets, tariff_notes = ({}, [])
+    if body.route_cost is not None:
+        offsets, tariff_notes = _tariff_offsets(request, body, collected, display)
+    fx_note = _fx_note(normalisation)
     try:
         analysis = analyse_spread(
-            legs, SpreadRule(**body.rule.model_dump()), simulated_sources=simulated
+            legs, SpreadRule(**rule_values), simulated_sources=simulated,
+            signal_offsets=offsets or None, cost_basis=cost_basis, fx_note=fx_note,
         )
     except SpreadAnalysisError as exc:
         raise HTTPException(
@@ -205,6 +233,7 @@ def run_spread_analysis(body: SpreadAnalysisInput, request: Request) -> dict:
     payload = analysis.as_dict()
     payload["unit"] = display
     payload["normalisation"] = normalisation
+    payload["tariffs"] = tariff_notes
     return _env(payload, warnings=[*analysis.limitations, *warnings])
 
 
@@ -300,3 +329,116 @@ def _normalised_legs(
             warnings.append(f"{label}: {skipped} day(s) left out ({refused[0]['reason']}).")
         legs.append(SpreadLeg(label, weight, values))
     return display, legs, records, warnings, any_simulated
+
+
+def _deliveries(closes: dict[date, dict[str, Any]]) -> dict[date, tuple[str, int]]:
+    """The contract behind each close: (first gas day, gas days delivered)."""
+
+    out: dict[date, tuple[str, int]] = {}
+    for day, row in closes.items():
+        start, end = row.get("period_start_utc"), row.get("period_end_utc")
+        if start is None or end is None:
+            continue
+        days = max(1, round((end - start).total_seconds() / 86400))
+        out[day] = (start.date().isoformat(), days)
+    return out
+
+
+def _quoted_cost(request: Any, collected, legs) -> tuple[float, str]:
+    """Half the newest held bid/offer of every leg, in the display unit (else zero)."""
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.caller import caller_of
+    from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
+    from eurogas_nexus.db.models import MarketQuoteRecord
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    if resolve_database_url() is None:
+        return 0.0, "none"
+    total = 0.0
+    try:
+        with get_session_factory()() as session:
+            for leg, (_label, hub, weight, closes) in zip(legs, collected, strict=True):
+                tenor = next(iter(closes.values()))["tenor"]
+                rows = (
+                    session.query(MarketQuoteRecord.source_system, MarketQuoteRecord.bid_price,
+                                  MarketQuoteRecord.ask_price)
+                    .filter(MarketQuoteRecord.hub == hub,
+                            MarketQuoteRecord.product.ilike(tenor),
+                            MarketQuoteRecord.bid_price.isnot(None),
+                            MarketQuoteRecord.ask_price.isnot(None))
+                    .order_by(MarketQuoteRecord.observed_at_utc.desc())
+                    .limit(20)
+                    .all()
+                )
+                held = filter_entitled_rows(
+                    caller_of(request).principal,
+                    [{"source_system": r[0], "bid": r[1], "ask": r[2]} for r in rows],
+                )
+                if not held:
+                    return 0.0, "none"
+                last_day = max(closes)
+                raw = float(closes[last_day]["price"])
+                shown = float(leg.closes.get(last_day, raw)) if leg.closes else raw
+                factor = shown / raw if raw else 1.0
+                total += abs(weight) * (held[0]["ask"] - held[0]["bid"]) / 2 * factor
+    except SQLAlchemyError:
+        return 0.0, "none"
+    return round(total, 6), "quotes"
+
+
+def _tariff_offsets(request: Any, body: SpreadAnalysisInput, collected,
+                    display: str) -> tuple[dict[date, float], list[dict[str, Any]]]:
+    """The route tariff per close, by the gas year the first leg's contract delivers in."""
+
+    from eurogas_nexus.application.market_normalisation import (
+        NormalisationError,
+        conversion,
+        load_holdings,
+    )
+    from eurogas_nexus.application.route_tariff_cost import load_tariff_rows, route_cost
+    from eurogas_nexus.domain.market.fx_forward import delivery_from_bounds
+
+    assert body.route_cost is not None
+    tariffs = load_tariff_rows()
+    fx = load_holdings(request)
+    by_year: dict[str, tuple[float | None, dict[str, Any]]] = {}
+    offsets: dict[date, float] = {}
+    for day, row in collected[0][3].items():
+        start, end = row.get("period_start_utc"), row.get("period_end_utc")
+        if start is None or end is None:
+            continue
+        delivery = delivery_from_bounds(start, end)
+        first = delivery.first
+        year = f"{first.year if first.month >= 10 else first.year - 1}"
+        if year not in by_year:
+            route = route_cost(body.route_cost.from_hub.upper(), body.route_cost.to_hub.upper(),
+                               delivery, tariffs)
+            value = None
+            if route.total is not None and route.currency:
+                try:
+                    value = route.total * conversion(
+                        f"{route.currency}/MWh", display, holdings=fx, as_of=day,
+                        delivery=None if body.fx == "spot" else delivery,
+                    ).factor
+                except NormalisationError:
+                    value = None
+            by_year[year] = (value, {
+                "gas_year": f"{year}/{(int(year) + 1) % 100:02d}",
+                "value": None if value is None else round(value, 6),
+                "unit": display,
+                "tariff_gas_years": list(route.gas_years),
+                "input_class": route.input_class,
+            })
+        value = by_year[year][0]
+        if value is not None:
+            offsets[day] = value
+    return offsets, [note for _value, note in by_year.values()]
+
+
+def _fx_note(normalisation: list[dict[str, Any]]) -> str:
+    labels = sorted({label for item in normalisation for label in item.get("fx_labels") or []})
+    if not labels:
+        return ""
+    return "FX per close for its delivery: " + ", ".join(labels[:4])

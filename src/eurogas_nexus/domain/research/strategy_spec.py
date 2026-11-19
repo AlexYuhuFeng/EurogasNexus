@@ -31,6 +31,7 @@ SPEC_VERSION = 1
 KINDS = ("curve", "history")
 FX_MODES = ("forward", "spot")
 RULE_KINDS = ("zscore", "threshold")
+EXECUTIONS = ("next_close", "same_close")
 MAX_LEGS = 4
 
 
@@ -82,10 +83,15 @@ class RuleSpec:
     exit_z: float = 0.5
     low: float | None = None
     high: float | None = None
+    #: Cost per MWh per position change; None: half the held bid/offer, else zero (stated).
+    cost_per_mwh: float | None = None
+    #: ``next_close`` (default) or ``same_close``.
+    execution: str = "next_close"
 
     def as_dict(self) -> dict[str, Any]:
         return {"kind": self.kind, "lookback": self.lookback, "entry_z": self.entry_z,
-                "exit_z": self.exit_z, "low": self.low, "high": self.high}
+                "exit_z": self.exit_z, "low": self.low, "high": self.high,
+                "cost_per_mwh": self.cost_per_mwh, "execution": self.execution}
 
 
 @dataclass(frozen=True)
@@ -216,14 +222,34 @@ def spec_from_dict(data: Any) -> StrategySpec:
         if not 5 <= lookback <= 250:
             issues.append(Issue("rule_lookback", "rule.lookback", "lookback must be 5–250 days"))
             lookback = min(max(lookback, 5), 250)
+        execution = str(raw_rule.get("execution") or "next_close")
+        if execution not in EXECUTIONS:
+            issues.append(Issue("rule_execution", "rule.execution",
+                                f"'{execution}' is not an execution choice", choices=EXECUTIONS))
+            execution = "next_close"
+        rule_cost = _number(raw_rule.get("cost_per_mwh"))
+        if rule_cost is not None and not 0 <= rule_cost <= 100:
+            issues.append(Issue("rule_cost", "rule.cost_per_mwh", "cost must be 0–100 per MWh"))
+            rule_cost = None
+        exit_z = _number(raw_rule.get("exit_z"), 0.5)
         rule = RuleSpec(
             rule_kind,
             lookback,
             _number(raw_rule.get("entry_z"), 2.0) or 2.0,
-            _number(raw_rule.get("exit_z"), 0.5) or 0.5,
+            0.5 if exit_z is None else exit_z,
             _number(raw_rule.get("low")),
             _number(raw_rule.get("high")),
+            rule_cost,
+            execution,
         )
+        if rule_kind == "threshold" and (
+            rule.low is None or rule.high is None or not rule.low < rule.high
+        ):
+            issues.append(Issue(
+                "rule_levels", "rule.low",
+                "a threshold rule needs a level to buy the spread at and a higher one to sell "
+                "it at; which levels?",
+            ))
         if kind == "curve":
             issues.append(Issue("rule_needs_history", "kind",
                                 "a rule runs on a history: study the history instead?",
