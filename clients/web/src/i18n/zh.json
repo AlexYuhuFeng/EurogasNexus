@@ -4756,6 +4756,7 @@
   "spreads.board.time": "时间价差，{{hub}}（{{unit}}）",
   "spreads.board.net_of_carry": "储气持有成本 {{carry}}，净值 {{net}}",
   "spreads.board.carry_not_held": "假设集中没有储气持有成本",
+  "spreads.board.uninformative": "演示数据不具参考意义（两年均为同一形态的模拟值）",
   "spreads.board.cross": "跨商品",
   "spreads.board.cross.hh_ttf": "亨利港 − TTF 到岸",
   "spreads.board.cross.clean_spark": "清洁点火价差",

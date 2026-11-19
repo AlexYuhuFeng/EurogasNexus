@@ -4756,6 +4756,7 @@
   "spreads.board.time": "Time spreads, {{hub}} ({{unit}})",
   "spreads.board.net_of_carry": "storage carry {{carry}}, net {{net}}",
   "spreads.board.carry_not_held": "storage carry not in your assumption set",
+  "spreads.board.uninformative": "not informative on demo data (both years simulated with the same shape)",
   "spreads.board.cross": "Cross-commodity",
   "spreads.board.cross.hh_ttf": "Henry Hub − TTF delivered",
   "spreads.board.cross.clean_spark": "Clean spark",

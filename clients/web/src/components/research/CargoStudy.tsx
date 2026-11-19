@@ -46,6 +46,8 @@ import {
   type VoyageMode,
 } from "@/app/model/cargoStudy";
 import { unitLabel } from "@/app/model/instrumentPicker";
+import { formatGasDay } from "@/app/time/timeFormat";
+import i18n from "@/i18n";
 import { hubFromSearch, reportSearch, spreadsSearch } from "@/app/model/spreadsBoard";
 import { NextSteps } from "./NextSteps";
 import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
@@ -415,8 +417,8 @@ function hhBasisText(t: (key: string, options?: Record<string, unknown>) => stri
   return t(`cargo.hh.${hh.inputClass}`, { defaultValue: hh.source });
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const shortDay = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
+// Days through the shell's formatter, in the interface language (18 Nov, 11月18日).
+const shortDay = (iso: string) => formatGasDay(iso, i18n.language);
 
 function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalDTO | null }) {
   const { t } = useTranslation();

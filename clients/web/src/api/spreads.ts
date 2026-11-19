@@ -173,6 +173,11 @@ export interface BoardTimeRowDTO {
   spec?: Partial<StrategySpecDTO> | null;
   carry?: { total: number | null; reason?: string; parts?: Record<string, number>; missing?: string[] };
   net_of_carry?: number;
+  /** The value in the hub's quotation (NBP in p/th) and in the reporting unit (hover). */
+  native_value?: number;
+  native_net_of_carry?: number;
+  reporting_value?: number | null;
+  uninformative?: boolean;
 }
 
 export interface BoardCrossRowDTO {
@@ -202,7 +207,7 @@ export interface SpreadBoardDTO {
   reference: string;
   hubs: string[];
   locational: { pair: string; hub: string; reference: string; tenors: BoardTenorDTO[]; spec: Partial<StrategySpecDTO> }[];
-  time: { hub: string; unit: string; rows: BoardTimeRowDTO[]; simulated: boolean }[];
+  time: { hub: string; unit: string; native_unit?: string; reporting_unit?: string; rows: BoardTimeRowDTO[]; simulated: boolean }[];
   cross: BoardCrossRowDTO[];
   simulated: boolean;
 }

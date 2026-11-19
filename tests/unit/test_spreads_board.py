@@ -158,3 +158,26 @@ def test_net_of_transport_is_priced_to_the_last_published_gas_year():
         "reason": "tariff not published",
     }
     assert result["input_class"] != "missing"
+
+
+def test_nbp_time_spreads_in_pence_per_therm_and_identical_demo_years_are_not_a_finding():
+    """NBP's time spreads in its own quotation (p/th, the shared unit rule), the EUR/MWh value
+    for hover; two simulated calendar years of the same shape are "not informative"."""
+
+    rows = []
+    first = (TODAY.replace(day=1) + timedelta(days=32)).replace(day=1)
+    for index in range(40):
+        year, month = divmod(first.month - 1 + index, 12)
+        start = date(first.year + year, month + 1, 1)
+        price = 34.0 if start.month in (10, 11, 12, 1, 2, 3) else 30.0  # repeats every year
+        row = _row("NBP", f"{start:%Y-%m}", price, "GBP/MWh", simulated=True)
+        row["price_mwh"], row["unit_mwh"] = price, "GBP/MWh"
+        rows.append(row)
+    hub = time_rows(_holdings(rows, []), "NBP", None)
+    assert hub["unit"] == "GBP/MWh" and hub["native_unit"] in {"GBp/th", "p/th"}
+    season = next(row for row in hub["rows"] if row["key"] == "win_sum")
+    # 4.00 GBP/MWh = 4.00 x 100 / 34.1214 = 11.72 p/th.
+    assert season["native_value"] == pytest.approx(4.0 * 100 / 34.1214163, abs=1e-3)
+    assert season["reporting_value"] == pytest.approx(4.0 / 0.87, rel=0.02)
+    cal = next(row for row in hub["rows"] if row["key"].startswith("cal"))
+    assert cal["available"] is False and cal["uninformative"] is True

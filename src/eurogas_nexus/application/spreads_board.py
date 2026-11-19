@@ -336,25 +336,81 @@ def time_rows(holdings: Holdings, hub: str, carry: Mapping[str, Any] | None) -> 
     cal2 = [date(holdings.today.year + 2, m, 1) for m in range(1, 13)]
     c1, gap1 = _average(curve, cal1)
     c2, gap2 = _average(curve, cal2)
+    cal_extra: dict[str, Any] = {}
+    if c1 is None or c2 is None:
+        cal_extra["reason"] = f"{len(gap1) + len(gap2)} months not held"
+    elif _identical_simulated_years(curve, cal1, cal2):
+        # Two simulated years with the same shape: their difference is the simulator's, not a
+        # finding. Said so instead of a spread of 0.000.
+        c1 = c2 = None
+        cal_extra = {"reason": "not informative on demo data", "uninformative": True}
     add(
         f"cal{cal1[0]:%y}_cal{cal2[0]:%y}",
         f"Cal-{cal1[0]:%y} − Cal-{cal2[0]:%y}",
         c1,
         c2,
-        extra={}
-        if c1 is not None and c2 is not None
-        else {"reason": f"{len(gap1) + len(gap2)} months not held"},
+        extra=cal_extra,
     )
     simulated = any(
         row is not None and row.get("simulated")
         for row in (da, ma, *(curve[m] for m in months[:24]))
     )
+    unit = f"{currency}/MWh" if currency else UNIT
+    native_unit = _native_quote(hub, unit)
+    for row in out:
+        if not row.get("available"):
+            continue
+        # NBP in pence per therm like the Prices board (the shared unit rule); the per-MWh
+        # figure in the reporting currency on hover.
+        row["native_value"] = _in_unit(hub, row["value"], unit)
+        if row.get("net_of_carry") is not None:
+            row["native_net_of_carry"] = _in_unit(hub, row["net_of_carry"], unit)
+        row["reporting_value"] = _reporting(holdings, row["value"], unit)
     return {
         "hub": hub,
-        "unit": f"{currency}/MWh" if currency else UNIT,
+        "unit": unit,
+        "native_unit": native_unit,
+        "reporting_unit": UNIT,
         "rows": out,
         "simulated": simulated,
     }
+
+
+def _native_quote(hub: str, unit: str) -> str:
+    from eurogas_nexus.application.projections.daily_closes import in_native_unit
+
+    return in_native_unit(hub, 1.0, unit)[1]
+
+
+def _in_unit(hub: str, value: float, unit: str) -> float:
+    """A per-MWh difference in the hub's quotation (linear, so a spread converts as a price)."""
+
+    from eurogas_nexus.application.projections.daily_closes import in_native_unit
+
+    return in_native_unit(hub, value, unit)[0]
+
+
+def _reporting(holdings: Holdings, value: float, unit: str) -> float | None:
+    if unit == UNIT:
+        return value
+    try:
+        conv = conversion(unit, UNIT, holdings=holdings.fx, as_of=holdings.today)
+    except NormalisationError:
+        return None
+    return value * conv.factor
+
+
+def _identical_simulated_years(curve, first: Sequence[date], second: Sequence[date]) -> bool:
+    """Both years simulated and month for month the same price (a repeated demo shape)."""
+
+    rows = [curve.get(month.isoformat()) for month in (*first, *second)]
+    if any(row is None or not row.get("simulated") for row in rows):
+        return False
+    a = [_per_mwh(curve[m.isoformat()]) for m in first]
+    b = [_per_mwh(curve[m.isoformat()]) for m in second]
+    return all(
+        x is not None and y is not None and abs(x - y) < 1e-6 for x, y in zip(a, b, strict=True)
+    )
 
 
 #: The firm's assumption keys a storage carry reads.

@@ -128,7 +128,7 @@ export function SpreadsBoard({ board, onOpen }: { board: SpreadBoardDTO; onOpen:
       <div className="board-time" data-board="time">
         {board.time.map((hub) => (
           <div key={hub.hub} className="board-time-hub" id={`board-time-${hub.hub}`}>
-            <h3>{t("spreads.board.time", { hub: hub.hub, unit: hub.unit })} <Sim on={hub.simulated} /></h3>
+            <h3>{t("spreads.board.time", { hub: hub.hub, unit: unitLabel(hub.native_unit ?? hub.unit) })} <Sim on={hub.simulated} /></h3>
             <table className="spreads-table">
               <tbody>
                 {hub.rows.map((row) => (
@@ -138,13 +138,23 @@ export function SpreadsBoard({ board, onOpen }: { board: SpreadBoardDTO; onOpen:
                         <button type="button" className="board-open" onClick={() => onOpen(fullSpec(row.spec!))}>{row.label}</button>
                       ) : row.label}
                     </th>
-                    <td className="num">{row.available ? <strong>{signed(row.value, 3)}</strong> : "–"}</td>
+                    <td
+                      className="num"
+                      data-native-unit={unitLabel(hub.native_unit ?? hub.unit)}
+                      title={row.available && row.reporting_value != null && (hub.native_unit ?? hub.unit) !== hub.reporting_unit
+                        ? `= ${signed(row.reporting_value, 3)} ${hub.reporting_unit ?? "EUR/MWh"}`
+                        : undefined}
+                    >
+                      {row.available ? <strong>{signed(row.native_value ?? row.value, 3)}</strong> : "–"}
+                    </td>
                     <td className="board-muted">
                       {!row.available
-                        ? t("spreads.board.not_held_reason", { reason: row.reason ?? "" })
+                        ? row.uninformative
+                          ? t("spreads.board.uninformative")
+                          : t("spreads.board.not_held_reason", { reason: row.reason ?? "" })
                         : row.carry
                           ? row.carry.total != null
-                            ? t("spreads.board.net_of_carry", { carry: fixed(row.carry.total, 3), net: signed(row.net_of_carry, 3) })
+                            ? t("spreads.board.net_of_carry", { carry: `${fixed(row.carry.total, 3)} ${hub.unit}`, net: signed(row.native_net_of_carry ?? row.net_of_carry, 3) })
                             : t("spreads.board.carry_not_held")
                           : ""}
                     </td>
