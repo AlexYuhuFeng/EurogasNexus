@@ -104,6 +104,9 @@ class BookReads:
                     "first_gas_day": leg.first_gas_day.isoformat(),
                     "last_gas_day": leg.last_gas_day.isoformat(),
                     "allowed_exit_points": list(record.allowed_exit_points or []),
+                    # Contract kinds: what kind of agreement, and its swing where it has one.
+                    "contract_kind": record.contract_kind or "SUPPLY_GSA",
+                    **_kind_inputs(record),
                 }
             )
         return rows
@@ -331,3 +334,17 @@ def resource_pool(session, principal, gas_day: date) -> list[dict[str, Any]]:
     for item in composed.get("sale_options") or []:
         rows.append({"row_kind": "option", "id": str(item["option_id"]), **item})
     return rows
+
+
+def _kind_inputs(record) -> dict[str, Any]:
+    """The flexibility and price basis a typed contract gives the evaluators."""
+
+    from eurogas_nexus.domain.contracts import kinds
+
+    terms = kinds.terms_of(record.contract_kind, record.kind_terms)
+    out: dict[str, Any] = {"price_basis": kinds.price_basis(record.contract_kind, terms)["basis"]}
+    if isinstance(terms, kinds.UpstreamTenderTerms):
+        out["swing_min_mwh_per_day"] = terms.min_dcq_mwh_per_day
+        out["swing_max_mwh_per_day"] = terms.max_dcq_mwh_per_day
+        out["delivery_point"] = terms.delivery_point
+    return out

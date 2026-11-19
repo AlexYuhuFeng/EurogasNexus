@@ -559,6 +559,7 @@ def build_map_situation(
     }
     # Every active contract on the caller's books, placed or not, for the "Our book" view.
     book_contracts: list[dict[str, Any]] = []
+    confirmations: list[Any] = []
     if include_positions:
         allowed = visible_book_ids(session)
         for record in (
@@ -567,6 +568,12 @@ def build_map_situation(
             .all()
         ):
             if not _own(record.book_id, allowed):
+                continue
+            # Contract kinds: a master is not on the map; a cargo confirmation is drawn as an
+            # expected cargo below (DES at its terminal), not as a delivery point.
+            if (record.contract_kind or "SUPPLY_GSA") in {"LNG_MSPA", "LNG_CARGO"}:
+                if record.contract_kind == "LNG_CARGO":
+                    confirmations.append(record)
                 continue
             location = locator.find(name=record.delivery_point_name)
             book_contracts.append(
@@ -659,6 +666,7 @@ def build_map_situation(
                 ],
             }
             (cargoes if own else market_cargoes).append(item)
+        cargoes.extend(_confirmed_cargoes(confirmations, cargoes, locator, now))
         visible_market = entitled(market_cargoes)
         cargoes.extend(visible_market)
         vessel_feed["market_cargoes"] = len(visible_market)
@@ -766,3 +774,57 @@ def build_map_situation(
         "vessel_feed": vessel_feed,
         "book_relevance": book_relevance,
     }
+
+
+def _confirmed_cargoes(
+    confirmations: list[Any], held: list[dict[str, Any]], locator: Any, now: datetime
+) -> list[dict[str, Any]]:
+    """Cargo confirmations (CONTRACT_TYPES.md) the vessel feed does not hold yet, as expected
+    cargoes: the terminal is the destination and the delivery window's first day the ETA.
+
+    A confirmation whose vessel is already in the feed (``lng_cargo_id``) is drawn there, not
+    twice. An FOB cargo has no European destination yet and is not drawn; a window that has
+    passed is history, not an expected arrival.
+    """
+
+    from eurogas_nexus.domain.contracts import kinds
+
+    known = {item["cargo_id"] for item in held}
+    out: list[dict[str, Any]] = []
+    for record in confirmations:
+        terms = kinds.terms_of(record.contract_kind, record.kind_terms)
+        if not isinstance(terms, kinds.LngCargoTerms) or terms.delivery_term != "DES":
+            continue
+        if terms.lng_cargo_id and terms.lng_cargo_id in known:
+            continue
+        first, last = terms.delivery_days()
+        if last < now.date():
+            continue
+        destination = locator.find(name=terms.discharge_terminal)
+        if destination is None:
+            continue
+        out.append(
+            {
+                "cargo_id": f"contract:{record.contract_id}",
+                "vessel_name": terms.vessel_name or record.contract_name,
+                "vessel_imo": None,
+                "status": "contracted",
+                "load_port": terms.load_port or "",
+                "departed_at_utc": None,
+                "destination_terminal": terms.discharge_terminal,
+                "eta_utc": datetime.combine(first, datetime.min.time(), tzinfo=UTC).isoformat(),
+                "position_at_utc": None,
+                "volume_m3": None,
+                "energy_gwh": round(terms.energy_mwh() / 1000, 1),
+                "own": True,
+                "book_id": record.book_id,
+                "source_system": "CONTRACT",
+                "contract_id": record.contract_id,
+                "origin": None,
+                "position": None,
+                "destination": destination,
+                "track": [],
+                "track_times": [],
+            }
+        )
+    return out

@@ -97,10 +97,17 @@ class IntakeResult:
             "document_status": "PDF_EXTRACTED_REVIEW_REQUIRED",
             "source_reference": f"pdf:{self.file_name}",
         }
+        kind_terms: dict[str, object] = {}
         for name, term in self.terms.items():
             if name.startswith("_"):
                 continue
+            if name.startswith("kind."):
+                kind_terms[name.removeprefix("kind.")] = term.value
+                continue
             record[name] = term.value
+        if kind_terms:
+            # A partial proposal: the form shows it in the kind's own fields for review.
+            record["kind_terms"] = kind_terms
         return record
 
     def as_dict(self) -> dict[str, object]:
@@ -509,7 +516,96 @@ def extract_terms(pages: list[str], *, own_names: set[str] | None = None) -> dic
             r"confirmation[^\n]{0,20}EFET[^\n]{0,40})",
         ),
     )
+    for name, term in propose_kind(pages).items():
+        put(name, term)
     return terms
+
+
+# Contract kinds (docs/product/CONTRACT_TYPES.md): the document's own words decide the kind;
+# the first match in this order wins, and nothing is guessed when none is found.
+_KIND_PATTERNS = (
+    ("LNG_CARGO", r"(confirmation notice|cargo confirmation)[^\n]{0,80}"),
+    ("LNG_MSPA", r"(master (?:LNG )?sale and purchase agreement|\bMSPA\b)[^\n]{0,60}"),
+    ("UPSTREAM_TENDER", r"(\btender\b[^\n]{0,60}(?:field|producer|offtake|gas)[^\n]{0,40})"),
+)
+
+
+def propose_kind(pages: list[str]) -> dict[str, Term]:
+    """The contract kind the document reads as, and the typed terms its words state.
+
+    Terms are keyed ``contract_kind`` and ``kind.<field>``; the reviewer checks each.
+    """
+
+    found: dict[str, Term] = {}
+    kind = None
+    for code, pattern in _KIND_PATTERNS:
+        match = _first(pages, pattern)
+        if match:
+            number, text, hit = match
+            kind = code
+            found["contract_kind"] = Term(
+                code, number, _snippet(text, hit.start(), hit.end()), note="proposed kind"
+            )
+            break
+    if kind is None:
+        return found
+
+    def number(name: str, pattern: str, scale: float = 1.0, unit: str = "") -> None:
+        match = _first(pages, pattern)
+        if not match:
+            return
+        page, text, hit = match
+        value = _number(hit.group(1))
+        if value is not None:
+            found[f"kind.{name}"] = Term(
+                round(value * scale, 6), page, _snippet(text, hit.start(), hit.end()), unit=unit
+            )
+
+    if kind == "LNG_CARGO":
+        term = _first(pages, r"\b(DES|DAP|FOB)\b")
+        if term:
+            page, text, hit = term
+            value = "DES" if hit.group(1).upper() in {"DES", "DAP"} else "FOB"
+            found["kind.delivery_term"] = Term(value, page, _snippet(text, hit.start(), hit.end()))
+        number(
+            "quantity_mmbtu",
+            r"(\d[\d.,  ]*\d)\s*(MMBtu|TBtu)",
+            unit="MMBtu",
+        )
+        quantity = found.get("kind.quantity_mmbtu")
+        if quantity is not None and "tbtu" in quantity.evidence.casefold():
+            quantity.value = round(float(quantity.value) * 1_000_000, 3)
+        slope = _first(pages, r"(\d+(?:[.,]\d+)?)\s*(%|x|×)\s*(?:of\s*)?(HH|Henry Hub|Brent)")
+        if slope:
+            page, text, hit = slope
+            value = _number(hit.group(1))
+            if value is not None:
+                ratio = value / 100 if hit.group(2) == "%" else value
+                formula = "brent" if "brent" in hit.group(3).casefold() else "hh"
+                evidence = _snippet(text, hit.start(), hit.end())
+                found["kind.price_formula"] = Term(formula, page, evidence)
+                found["kind.slope"] = Term(round(ratio, 6), page, evidence)
+                number("constant", r"(?:HH|Henry Hub|Brent)\s*\)?\s*\+\s*(\d+(?:[.,]\d+)?)")
+        number("tolerance_pct", r"(?:operational )?tolerance[^\n]{0,30}?(\d+(?:[.,]\d+)?)\s*%")
+    elif kind == "LNG_MSPA":
+        number("laytime_hours", r"laytime[^\n]{0,40}?(\d+(?:[.,]\d+)?)\s*hours", unit="h")
+        number(
+            "demurrage_usd_per_day",
+            r"demurrage[^\n]{0,60}?(?:USD|US\$|\$)\s*(\d[\d.,]*\d)",
+            unit="USD/d",
+        )
+        terms = [code for code in ("FOB", "DES") if _first(pages, rf"\b{code}\b")]
+        if terms:
+            found["kind.delivery_terms"] = Term(terms, 1, ", ".join(terms))
+    elif kind == "UPSTREAM_TENDER":
+        number("dcq_mwh_per_day", r"(?:DCQ|daily contract quantity)" + _LABEL_END + _NUM)
+        number(
+            "min_dcq_mwh_per_day", r"(?:minimum|min\.?) (?:DCQ|daily quantity)" + _LABEL_END + _NUM
+        )
+        number(
+            "max_dcq_mwh_per_day", r"(?:maximum|max\.?) (?:DCQ|daily quantity)" + _LABEL_END + _NUM
+        )
+    return found
 
 
 def intake_pdf(

@@ -179,3 +179,46 @@ def test_older_client_body_still_saves_a_gsa(tmp_path, monkeypatch) -> None:
         row = session.query(UpstreamContractRevisionRecord).one()
         assert row.schema_version == "upstream-contract-revision/v1"
         assert session.get(UpstreamResourceContractRecord, "gsa-1").kind_terms is None
+
+
+def test_tender_and_des_cargo_reach_the_ladder_and_the_master_does_not(
+    tmp_path, monkeypatch
+) -> None:
+    client, headers, _url = _client(tmp_path, monkeypatch)
+    for body in (
+        {
+            "contract_id": "m",
+            "contract_name": "M",
+            "contract_kind": "LNG_MSPA",
+            "kind_terms": mspa_terms(TODAY),
+        },
+        {
+            "contract_id": "m-c1",
+            "contract_name": "C1",
+            "contract_kind": "LNG_CARGO",
+            "kind_terms": cargo_terms(TODAY),
+            "master_contract_id": "m",
+        },
+        {
+            "contract_id": "t",
+            "contract_name": "T",
+            "contract_kind": "UPSTREAM_TENDER",
+            "kind_terms": tender_terms(TODAY),
+        },
+    ):
+        assert client.post(PATH, json=body, headers=headers).status_code == 200
+    response = client.get("/api/portfolio/position-ladder?months=6", headers=headers)
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["legs"]["physical"] == 2
+    tender = tender_terms(TODAY)
+    first_month = tender["period_start"][:7]
+    nbp = next(r for r in data["rows"] if r["hub"] == "NBP" and r["month"] == first_month)
+    assert nbp["physical_mwh"] > 0
+    cargo = cargo_terms(TODAY)
+    ttf = next(
+        r for r in data["rows"] if r["hub"] == "TTF" and r["month"] == cargo["window_start"][:7]
+    )
+    assert round(ttf["physical_mwh"]) == round(3_600_000 * 0.29307107)
+    warnings = " ".join(response.json()["meta"].get("warnings") or [])
+    assert "price floats" in warnings

@@ -291,10 +291,13 @@ def compose_resource_pool_options(
     if not candidates:
         blockers.append("ROUTE_CANDIDATES_MISSING")
 
+    price_by_point = latest_market_price_by_point(market_rows)
+    contracts, index_blockers, index_warnings = contracts_at_index_price(contracts, price_by_point)
+    blockers += index_blockers
+    warnings += index_warnings
     contracts, fx_blockers, fx_warnings = contracts_priced_in_gbp(contracts, fx_rows, gas_day)
     blockers += fx_blockers
     warnings += fx_warnings
-    price_by_point = latest_market_price_by_point(market_rows)
     resources = [
         portfolio_resource_from_contract(
             contract, company_accessible_tsos=company_accessible_tsos
@@ -634,6 +637,10 @@ def portfolio_resource_from_contract(
         "required_tso_access": [],
         "accessible_tsos": list(company_accessible_tsos or []) or None,
         "pricing_method": pricing_method(notes.get("index_basis")),
+        # Contract kinds: the evaluators read the kind; an index cost from a simulated print
+        # is itself simulated.
+        "contract_kind": contract.get("contract_kind") or "SUPPLY_GSA",
+        "contract_cost_simulated": bool(contract.get("contract_cost_simulated")),
         "source_refs": unique(
             [
                 f"upstream_resource_contract:{contract['contract_id']}",
@@ -799,6 +806,62 @@ def candidate_route_cost(
         blockers,
         source_refs,
     )
+
+
+def contracts_at_index_price(
+    contracts: list[dict], price_by_point: dict[str, dict]
+) -> tuple[list[dict], list[str], list[str]]:
+    """Typed contracts priced at an index carry the index's latest price plus their differential.
+
+    Contract kinds (docs/product/CONTRACT_TYPES.md): an upstream tender at "NBP day-ahead less
+    0.40 p/th" costs what the index at its delivery point last printed, less 0.40 p/th. The
+    price is the same market row the sale options read, so a simulated print makes the cost
+    simulated (``contract_cost_simulated``). A slope formula (HH, Brent) has no hub price to
+    stand in for it and is left out with a blocker; nothing is estimated.
+
+    Returns:
+        ``(contracts, blockers, warnings)``; the input dicts are not changed.
+    """
+
+    from eurogas_nexus.application.projections.daily_closes import per_mwh
+    from eurogas_nexus.domain.contracts import kinds
+
+    out: list[dict] = []
+    blockers: list[str] = []
+    warnings: list[str] = []
+    for contract in contracts:
+        kind = contract.get("contract_kind")
+        terms = kinds.terms_of(kind, contract.get("kind_terms"))
+        basis = kinds.price_basis(kind, terms)
+        if basis["basis"] == "formula":
+            blockers.append(f"CONTRACT_FORMULA_PRICED:{contract['contract_id']}")
+            continue
+        if basis["basis"] != "index":
+            out.append(contract)
+            continue
+        point = kinds.position_hub_text(kind, terms, str(contract.get("delivery_point_name")))
+        market = price_by_point.get(point.strip().upper())
+        converted = (
+            per_mwh(float(market["price"]), f"{market['currency']}/{market['unit']}")
+            if market is not None and "/" not in str(market["unit"])
+            else per_mwh(float(market["price"]), str(market["unit"]))
+            if market is not None
+            else None
+        )
+        if converted is None or converted[1] != f"{basis['currency']}/MWh":
+            blockers.append(f"CONTRACT_INDEX_PRICE_MISSING:{contract['contract_id']}")
+            continue
+        warnings.append(f"CONTRACT_INDEX_PRICED:{contract['contract_id']}:{point}")
+        out.append(
+            {
+                **contract,
+                "contract_price_gbp_mwh": round(converted[0] + basis["differential_mwh"], 6),
+                "contract_price_currency": basis["currency"],
+                "contract_cost_simulated": bool(market.get("simulated")),
+                "index_price_reference": market.get("source_reference"),
+            }
+        )
+    return out, blockers, warnings
 
 
 def contracts_priced_in_gbp(

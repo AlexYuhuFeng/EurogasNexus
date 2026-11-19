@@ -356,14 +356,30 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
         identity = load_resolver(session)
         eur_rates = ecb_rates(session)
         orders = screen_orders(session, principal_id=caller.principal_id)
+    from eurogas_nexus.domain.contracts import kinds
+
     for contract in contracts:
-        window = gas_year_window(contract.gas_year, horizon_end)
+        # Contract kinds (CONTRACT_TYPES.md): a master is no position; an FOB cargo is
+        # exposure to its formula, not to a European hub, until it is sold or discharged.
+        terms = kinds.terms_of(contract.contract_kind, contract.kind_terms)
+        if not kinds.feeds_book(contract.contract_kind, terms):
+            if contract.contract_kind == kinds.LNG_CARGO:
+                warnings.append(
+                    f"contract {contract.contract_id}: an FOB cargo is not on a European hub "
+                    "until it is sold or discharged"
+                )
+            continue
+        window = kinds.position_window(contract.contract_kind, terms) or gas_year_window(
+            contract.gas_year, horizon_end
+        )
         if window is None:
             warnings.append(
                 f"contract {contract.contract_id}: gas year {contract.gas_year!r} not understood"
             )
             continue
-        hub = identity.hub(contract.delivery_point_name).hub
+        hub = identity.hub(
+            kinds.position_hub_text(contract.contract_kind, terms, contract.delivery_point_name)
+        ).hub
         if hub is None:
             warnings.append(
                 f"contract {contract.contract_id}: delivery point "
@@ -379,6 +395,15 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
         )
         if price_warning:
             warnings.append(f"contract {contract.contract_id}: {price_warning}")
+        basis = kinds.price_basis(contract.contract_kind, terms)
+        if basis["basis"] in {"index", "formula"}:
+            # A floating price has no fixed figure to mark against: the volume is on the
+            # ladder, its price follows the index (or formula) it names.
+            price = None
+            warnings.append(
+                f"contract {contract.contract_id}: price floats with "
+                f"{basis.get('index') or basis.get('label')}; volume only on the ladder"
+            )
         legs.append(
             PositionLeg(
                 kind="physical",

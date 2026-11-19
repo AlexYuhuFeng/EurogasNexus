@@ -845,7 +845,11 @@ class LiveSnapshotReader(RecordingReader):
         def row_class(row) -> InputClass:
             # A sale option is priced from a market observation: a settlement (indicative)
             # or a demo price (simulated); a demo storage row is simulated.
-            if row.get("sale_price_simulated") or _is_simulated(row.get("source_system"), None):
+            if (
+                row.get("sale_price_simulated")
+                or row.get("contract_cost_simulated")
+                or _is_simulated(row.get("source_system"), None)
+            ):
                 return InputClass.SIMULATED
             if row.get("row_kind") == "option":
                 return InputClass.SIMULATED if self.demo_desk else InputClass.INDICATIVE

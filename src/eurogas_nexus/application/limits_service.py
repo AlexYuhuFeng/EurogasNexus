@@ -92,10 +92,27 @@ def credit_inputs(caller: Caller, today: date) -> CreditInputs:
     def mark(hub: str, month: str) -> float | None:
         return inputs.marks.get((hub, month))
 
+    # Contract kinds: a typed contract names the credit line it faces (a cargo, its master's).
+    from eurogas_nexus.domain.contracts import kinds
+
+    records_by_id = {item.contract_id: item for item in inputs.contracts}
+    typed_by_counterparty: dict[str, list[str]] = {}
+    for item in inputs.contracts:
+        master = records_by_id.get(item.master_contract_id or "")
+        counterparty = kinds.counterparty_id_of(
+            kinds.terms_of(item.contract_kind, item.kind_terms),
+            kinds.terms_of(master.contract_kind, master.kind_terms) if master else None,
+        )
+        if counterparty:
+            typed_by_counterparty.setdefault(counterparty, []).append(item.contract_id)
+
     out = []
     for record in lines:
         names = {record.name, record.counterparty_id, *(record.aliases or [])}
-        references = [*(record.contract_ids or [])]
+        references = [
+            *(record.contract_ids or []),
+            *typed_by_counterparty.get(record.counterparty_id, []),
+        ]
         for name in names:
             references += etrm_by_name.get(str(name).casefold(), [])
         legs, books = [], set()

@@ -95,3 +95,31 @@ def test_refusals():
         intake_pdf(b"hello", file_name="x.pdf")
     with pytest.raises(IntakeError):
         intake_pdf(b"%PDF-1.4 broken", file_name="x.pdf")
+
+
+CARGO_NOTICE = [
+    "CONFIRMATION NOTICE No. CN-07 under the Master LNG Sale and Purchase Agreement",
+    "Seller: Atlantic LNG Marketing Ltd",
+    "Buyer: Example Energy Trading Ltd",
+    "Delivery basis: DES Gate terminal, Rotterdam",
+    "Contract Quantity: 3.6 TBtu, operational tolerance plus or minus 5 %",
+    "Contract Price: 115% of HH plus a constant; price = 1.15 x (HH) + 2.50 USD/MMBtu",
+]
+
+
+def test_a_cargo_confirmation_is_proposed_as_a_cargo_with_its_typed_terms():
+    terms = extract_terms(CARGO_NOTICE, own_names={"example energy"})
+    assert terms["contract_kind"].value == "LNG_CARGO"
+    assert terms["kind.delivery_term"].value == "DES"
+    assert terms["kind.quantity_mmbtu"].value == 3_600_000
+    assert terms["kind.price_formula"].value == "hh"
+    assert terms["kind.slope"].value == 1.15
+    assert terms["kind.tolerance_pct"].value == 5
+    result = intake_pdf(_pdf(CARGO_NOTICE), file_name="cn07.pdf")
+    record = result.record()
+    assert record["contract_kind"] == "LNG_CARGO"
+    assert record["kind_terms"]["delivery_term"] == "DES"
+
+
+def test_an_efet_confirmation_proposes_no_kind():
+    assert "contract_kind" not in extract_terms(CONFIRMATION)
