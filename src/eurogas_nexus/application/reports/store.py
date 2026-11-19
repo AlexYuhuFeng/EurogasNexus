@@ -58,10 +58,9 @@ def store_report(session, report, *, caller: Caller, generated_by_type: str,
 def reader_may_see(session, record, reader: Caller) -> tuple[bool, str]:
     """Whether ``reader`` may open ``record``; the reason when not."""
 
+    from eurogas_nexus.application.reports.schedule import recipients_allowed
     from eurogas_nexus.domain.dataops.entitlement import derived_result_access
     from eurogas_nexus.security import portfolio_scope
-
-    from eurogas_nexus.application.reports.schedule import recipients_allowed
 
     if not recipients_allowed(record, reader):
         # A scheduled report is distributed to its roles only (and administrators).
