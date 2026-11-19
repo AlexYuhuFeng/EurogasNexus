@@ -874,6 +874,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     seed_demo_review_case(session, now)
     seed_demo_storage_and_assumptions(session, now)
     session.flush()
+    seed_demo_gas_day(session, now)
     seed_demo_market(session, now, history_days)
     return sizing
 
@@ -1211,6 +1212,146 @@ def seed_demo_storage_and_assumptions(session, now: datetime) -> dict[str, int]:
                 )
             )
         counts["assumption_set"] = 1
+    session.flush()
+    return counts
+
+
+#: The demo gas day (Today → My gas day): what the schedule holds each day at the demo hubs.
+#: (suffix, book, hub, direction, kind, label, point, MWh). Fictional; marked simulated.
+DEMO_GAS_DAY_SCHEDULE = (
+    ("uk-offtake", "demo-uk-nbp", "NBP", "out", "customer_offtake",
+     "Demo industrial offtake (fictional)", "Teesside", 9_000.0),
+    ("uk-bbl-import", "demo-uk-nbp", "NBP", "in", "import",
+     "BBL import on held capacity", "Bacton (BBL)", 4_000.0),
+    ("uk-bbl-export", "demo-uk-nbp", "TTF", "out", "export",
+     "BBL export to NBP on held capacity", "Julianadorp (BBL)", 4_000.0),
+    ("nl-offtake", "demo-nl-ttf", "TTF", "out", "customer_offtake",
+     "Demo city-gate offtake (fictional)", "Groningen", 14_000.0),
+    ("nl-storage", "demo-nl-ttf", "TTF", "out", "storage_injection",
+     "Demo NL storage (fictional)", None, 7_000.0),
+)
+#: The demo's delegated split: the TTF desk clears the part of the UK book's TTF delivery that
+#: is not exported through BBL (inside its mandate: DEMO-NL-1 holds TTF).
+DEMO_GAS_DAY_SPLIT_MWH = 2_000.0
+#: Cash-out premium (short) and discount (long) against day-ahead per demo book, invented.
+DEMO_CASH_OUT = (
+    ("aset-demo-uk-balancing", "demo-uk-nbp", "GBP", "1.50", "1.20"),
+    ("aset-demo-nl-balancing", "demo-nl-ttf", "EUR", "1.80", "1.40"),
+)
+
+
+def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
+    """Today's and tomorrow's demo gas day: schedule, nominations, a send-out, a split; idempotent.
+
+    Written by fixed id per gas day, only where absent, so a tester's change is kept and a
+    volume an older build seeded gets them on its next roll-forward. Every row is simulated
+    and says so. Nothing here nominates: the nominated quantities are what a scheduling
+    system would have recorded.
+    """
+
+    from decimal import Decimal
+
+    from eurogas_nexus.db.models import (
+        AssumptionSetRecord,
+        AssumptionSetVersionRecord,
+        AssumptionValueRecord,
+        GasDayDelegationRecord,
+        GasDayScheduleLineRecord,
+    )
+    from eurogas_nexus.db.models.lng_positions import RegasSlotRecord
+    from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_for_date
+    from eurogas_nexus.domain.valuation.assumptions import AssumptionValue, values_digest
+
+    counts = {"gas_day_lines": 0, "gas_day_nominations": 0, "gas_day_slots": 0,
+              "gas_day_splits": 0, "cash_out_sets": 0}
+    if session.get(TradingBookRecord, "demo-uk-nbp") is None:
+        return counts
+    today = date.fromisoformat(gas_day_label(now))
+    tomorrow = today + timedelta(days=1)
+    for day in (today, tomorrow):
+        for suffix, book, hub, direction, kind, label, point, mwh in DEMO_GAS_DAY_SCHEDULE:
+            line_id = f"demo-gd-{day:%Y%m%d}-{suffix}"
+            if session.get(GasDayScheduleLineRecord, line_id) is not None:
+                continue
+            session.add(GasDayScheduleLineRecord(
+                line_id=line_id, gas_day=day, hub=hub, book_id=book, direction=direction,
+                kind=kind, label=label, point=point, counterparty=None, contract_id=None,
+                quantity_mwh=mwh, source_system=SOURCE, source_reference="demo:gas-day-schedule",
+                simulated=True, updated_at_utc=now,
+            ))
+            counts["gas_day_lines"] += 1
+    # Today's nominations as the scheduling system recorded them (tomorrow's is not sent yet:
+    # My gas day reads the contract quantity for it, and says so).
+    rng = random.Random(f"demo-gas-day-{today.isoformat()}")
+    for cid, _name, point, _hub, dcq, *_rest in (*CONTRACTS, (CROSS_BORDER_CONTRACT, None,
+                                                              "TTF", "TTF", 6_000.0)):
+        if session.get(UpstreamResourceContractRecord, cid) is None:
+            continue
+        if session.get(ContractDeliveryRecord, (cid, today)) is not None:
+            continue
+        session.add(ContractDeliveryRecord(
+            contract_id=cid, gas_day=today,
+            nominated_mwh=round(dcq * (1 + rng.uniform(-0.03, 0.03)), 1), allocated_mwh=None,
+            tso="Demo TSO", point=point, source_system="DEMO",
+            source_reference="demo:deliveries", updated_at_utc=now,
+        ))
+        counts["gas_day_nominations"] += 1
+    # One LNG send-out day: tomorrow at the demo Rotterdam terminal, for the NL book.
+    slot_id = f"demo-slot-gate-{tomorrow:%Y%m%d}"
+    if session.get(RegasSlotRecord, slot_id) is None:
+        session.add(RegasSlotRecord(
+            slot_id=slot_id, terminal_name="Demo Rotterdam terminal", terminal_country="NL",
+            terminal_lat=None, terminal_lon=None,
+            window_start_utc=gas_day_start_for_date(tomorrow),
+            window_end_utc=gas_day_start_for_date(tomorrow + timedelta(days=1)),
+            send_out_gwh_d=4.8, energy_gwh=4.8, cargo_id=None, book_id="demo-nl-ttf",
+            source_system="DEMO_Sim", source_reference="demo:regas-slot", updated_at_utc=now,
+        ))
+        counts["gas_day_slots"] += 1
+    split_id = f"demo-split-{today:%Y%m%d}"
+    if (session.get(GasDayDelegationRecord, split_id) is None
+            and session.get(UpstreamResourceContractRecord, CROSS_BORDER_CONTRACT) is not None):
+        session.add(GasDayDelegationRecord(
+            delegation_id=split_id, gas_day_from=today, gas_day_to=tomorrow, until_utc=None,
+            book_id="demo-uk-nbp", hub="TTF", line_ref=f"contract:{CROSS_BORDER_CONTRACT}",
+            mwh_per_day=DEMO_GAS_DAY_SPLIT_MWH, trader="demo.nl.trader", mandate_id="DEMO-NL-1",
+            note="Demo split: the TTF desk clears what is not exported through BBL.",
+            assigned_by="demo-seed", assigned_at_utc=now, revoked_by=None, revoked_at_utc=None,
+            source_system=SOURCE,
+        ))
+        counts["gas_day_splits"] += 1
+    for set_id, book, currency, short, long_ in DEMO_CASH_OUT:
+        if session.get(AssumptionSetRecord, set_id) is not None:
+            continue
+        values = [
+            AssumptionValue(key="balancing.short_premium", value=Decimal(short),
+                            unit=f"{currency}/MWh", currency=currency,
+                            note="Demo cash-out premium over day-ahead (fictional)"),
+            AssumptionValue(key="balancing.long_discount", value=Decimal(long_),
+                            unit=f"{currency}/MWh", currency=currency,
+                            note="Demo cash-out discount under day-ahead (fictional)"),
+        ]
+        session.add(AssumptionSetRecord(
+            set_id=set_id, name=f"Demo {book} balancing", book_id=book,
+            description="Fictional cash-out premium and discount for the demo desk.",
+            created_by="demo-seed", created_at_utc=now,
+        ))
+        session.flush()
+        version_id = f"{set_id}-v1"
+        session.add(AssumptionSetVersionRecord(
+            version_id=version_id, set_id=set_id, version=1,
+            effective_from=date(now.year - 1, 10, 1), effective_to=None,
+            review_state="approved", note="Demo values (fictional).",
+            values_sha256=values_digest(values), created_by="demo-seed", created_at_utc=now,
+            approved_by="demo.risk", approved_at_utc=now,
+        ))
+        session.flush()
+        for item in values:
+            session.add(AssumptionValueRecord(
+                version_id=version_id, key=item.key, value=item.value, unit=item.unit,
+                currency=item.currency, range_low=None, range_high=None, note=item.note,
+            ))
+        counts["cash_out_sets"] += 1
     session.flush()
     return counts
 
@@ -2252,9 +2393,11 @@ def _roll_deliveries(session, now: datetime, rng: random.Random) -> int:
     for cid, _name, point, _hub, dcq, *_rest in CONTRACTS:
         if session.get(UpstreamResourceContractRecord, cid) is None:
             continue  # a tester removed it: leave it removed
+        # Up to yesterday: today's row is the nomination the demo gas day records.
         last = (
             session.query(func.max(ContractDeliveryRecord.gas_day))
             .filter(ContractDeliveryRecord.contract_id == cid)
+            .filter(ContractDeliveryRecord.gas_day < today)
             .scalar()
         )
         if last is None:
@@ -2900,6 +3043,9 @@ def ensure_demo_fixtures(session, now: datetime) -> dict[str, int]:
     engine.dispose()
     session.flush()
     for name, added in seed_demo_storage_and_assumptions(session, now).items():
+        if added:
+            counts[f"fixture_{name}"] = added
+    for name, added in seed_demo_gas_day(session, now).items():
         if added:
             counts[f"fixture_{name}"] = added
     if counts.get("fixture_tariffs"):
