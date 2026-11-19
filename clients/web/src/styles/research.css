@@ -16,9 +16,30 @@
 }
 
 .research-next-step {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-1);
+  display: inline;
   min-width: 0;
+  max-width: 100%;
 }
+
+.research-next-lead {
+  margin-inline-end: var(--ds-space-1);
+}
+
+}
+
+/* In the components layer: it narrows the inline link the components layer defines. */
+@layer ds-components {
+  /* A step is a sentence, not a dense control in a line of figures: the link flows as text and
+     wraps (no fixed height, no negative margin), so two steps on separate lines never overlap
+     ("see the Win - Sum spread" over "Price an LNG cargo into the TTF terminals" on
+     Fundamentals). Its padding widens the touch area without moving the line. */
+  .research-next .ds-inline-link {
+    display: inline;
+    height: auto;
+    min-height: 0;
+    margin-block: 0;
+    padding: var(--ds-space-2) 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
