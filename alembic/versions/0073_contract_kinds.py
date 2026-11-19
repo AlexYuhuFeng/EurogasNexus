@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0072_contract_kinds"
-down_revision = "0071_opportunity_pending_inputs"
+revision = "0073_contract_kinds"
+down_revision = "0072_strategy_tracks_and_trades"
 branch_labels = None
 depends_on = None
 

@@ -1,4 +1,4 @@
-"""Migration 0072 on SQLite: contract kinds added to existing rows without loss, and back."""
+"""Migration 0073 on SQLite: contract kinds added to existing rows without loss, and back."""
 
 from __future__ import annotations
 
@@ -27,12 +27,12 @@ def test_existing_rows_become_unreviewed_gsa_and_the_downgrade_drops_only_the_co
     from eurogas_nexus.db.models import UpstreamResourceContractRecord
 
     spec = importlib.util.spec_from_file_location(
-        "tests.migration_0072", VERSIONS / "0072_contract_kinds.py"
+        "tests.migration_0073", VERSIONS / "0073_contract_kinds.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert module.down_revision == "0071_opportunity_pending_inputs"
-    assert DB_SCHEMA_REVISION == "0072_contract_kinds"
+    assert module.down_revision == "0072_strategy_tracks_and_trades"
+    assert DB_SCHEMA_REVISION == "0073_contract_kinds"
     model_columns = set(UpstreamResourceContractRecord.__table__.columns.keys())
     old_columns = model_columns - NEW
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)

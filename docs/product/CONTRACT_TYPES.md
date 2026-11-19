@@ -77,7 +77,7 @@ arrangement whose economics the cargo study already holds as "fee"; no customer 
 - **Revisions v5** record kind, terms, master and unmodelled text in the hashed snapshot,
   produced only when the row has any of them, so migrated rows keep their bytes and hashes.
   Edit token v4 covers the new columns.
-- **Migration 0072** adds the five columns; every existing row becomes `SUPPLY_GSA`,
+- **Migration 0073** adds the five columns; every existing row becomes `SUPPLY_GSA`,
   unreviewed, with its terms untouched: the library shows "kind inferred, confirm". Downgrade
   drops the columns.
 
@@ -101,7 +101,7 @@ per row the kind, counterparty, delivery, period, the figure that matters and th
 row opens the contract read first, Edit where the server permits; a sheet on a phone; New and
 Import PDF are the list's actions; no draft and no validation message before the person
 starts; desk words: Contract, Save contract, Effect on position), the discriminator, typed blocks for UPSTREAM_TENDER, LNG_MSPA and
-LNG_CARGO, migration 0072, revisions v5, the type-first form (cards, then only that kind's
+LNG_CARGO, migration 0073, revisions v5, the type-first form (cards, then only that kind's
 terms grouped as parties and master · quantity · delivery · price · flexibility · credit,
 pickers for counterparties, points, terminals, ports, books, masters), PDF intake proposing a
 kind, the list showing kind, counterparty, period and the figure that matters (DCQ and swing;
