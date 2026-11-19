@@ -158,3 +158,20 @@ export function formatGasDay(gasDay: string | null | undefined, language: string
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   return shortDate(date, "UTC", formattingLocale(language), withYear);
 }
+
+const DESK_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * A delivery month as the desk writes it, in every language: "2027-01" (or "2027-01-15") →
+ * "Jan-27", the product code on Trayport and exchange screens. Anything else comes back as is.
+ */
+export function formatDeliveryMonth(month: string | null | undefined): string {
+  const match = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(String(month ?? "").trim());
+  if (!match || Number(match[2]) < 1 || Number(match[2]) > 12) return String(month ?? "");
+  return `${DESK_MONTHS[Number(match[2]) - 1]}-${match[1].slice(2)}`;
+}
+
+/** Every ISO month inside a text ("TTF 2027-01") written as the desk writes it ("TTF Jan-27"). */
+export function deskMonthsIn(text: string | null | undefined): string {
+  return String(text ?? "").replace(/\b(\d{4})-(0[1-9]|1[0-2])\b(?!-\d)/g, (whole) => formatDeliveryMonth(whole));
+}

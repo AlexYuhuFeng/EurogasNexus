@@ -4,6 +4,7 @@ import { displayTime } from "@/app/time/displayTime";
 import type { CommercialDiagnosticItem } from "@/app/model/commercialWarnings";
 import { lineageNames, resourceName, type LineageLookup } from "@/app/model/lineageNames";
 import { warningLabel } from "@/app/warningLabel";
+import { enumWordsIn } from "@/app/model/enumLabels";
 import { useApiStore } from "@/stores/api";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -47,7 +48,7 @@ function formatUtc(value: string | null): string | null {
 }
 
 function label(item: CommercialDiagnosticItem, t: Translate, lookup: LineageLookup): string {
-  return withNames(item.code ? warningLabel(item.raw, t) : item.detail, lookup);
+  return enumWordsIn(withNames(item.code ? warningLabel(item.raw, t) : item.detail, lookup));
 }
 
 export function CommercialWarningList({

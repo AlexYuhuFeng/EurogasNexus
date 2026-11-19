@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
 import { DataGrid, PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { buttonClass } from "@/components/ui/Button";
+import { SimulatedScope } from "@/components/ui/SimulatedScope";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { PositionLadderPanel } from "@/components/PositionLadderPanel";
@@ -236,28 +237,19 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         }}
       />
       <div id="portfolio-task-panel">
+        {/* The demo desk's book is simulated end to end: said once at the top, not per figure
+            (UX_REFERENCE rule 17; components/ui/SimulatedScope.tsx). */}
+        <SimulatedScope scope={deskToday.today?.simulated ? "all" : "none"} notice={t("today.all_simulated")}>
         <PortfolioContextStrip
           projection={api.portfolioSnapshot}
           t={t}
-          controls={tradingContextControlsFor(controller.traderContext, t)}
+          // Only where the context changes the page (the pool's results on Position and Contracts),
+          // as one quiet summary; Limits & P&L and Delivery read nothing from it (owner: no filters
+          // that change nothing).
+          controls={task === "overview" || task === "resources" ? tradingContextControlsFor(controller.traderContext, t, { summary: true }) : undefined}
           // The demo desk says "Demo data" once instead of counting a static store's feeds as stale.
           freshness={deskToday.today?.simulated ? <TodayFreshness today={deskToday.today} t={t} nowMs={Date.parse(deskToday.today.as_of)} /> : undefined}
         />
-        <section className="workspace-panel" aria-label={t("portfolio.scope.title")}>
-          {/* A standing caveat read once, not every visit: folded to its title (#69). */}
-          <details className="scope-fold">
-            <summary>{t("portfolio.scope.title")}</summary>
-            <p className="panel-copy">{t(task === "exposure" ? "portfolio.scope.observations" : "portfolio.scope.scenario")}</p>
-          </details>
-          {task === "exposure" && (
-            <p className="panel-copy" data-owner-link="position">
-              {t("limits.ladder_on_position")}{" "}
-              <button type="button" className="ds-inline-link" onClick={() => openTask("overview")}>
-                {t("limits.open_position")}
-              </button>
-            </p>
-          )}
-        </section>
         {/* One number, one place: Position owns the ladder, its totals and the exposure by tenor;
             Limits & P&L owns limits, mandates, credit and P&L and links here for the ladder. */}
         {task === "overview" && <PositionLadderPanel t={t} />}
@@ -315,6 +307,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
             t={t}
           />
         )}
+        </SimulatedScope>
       </div>
     </div>
   );

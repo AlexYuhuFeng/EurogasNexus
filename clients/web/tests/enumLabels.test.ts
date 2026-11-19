@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import { enumLabel, humanizeEnum, isEnumToken, sourceSystemLabel } from "../src/app/model/enumLabels.ts";
 
@@ -31,4 +32,24 @@ test("a capitalised status word is a code too, an acronym is not", async () => {
   const { isStatusCode } = await import("../src/app/model/enumLabels.ts");
   assert.ok(isStatusCode("AVAILABLE") && isStatusCode("UNKNOWN") && isStatusCode("NOT_REQUIRED"));
   assert.ok(!isStatusCode("TTF") && !isStatusCode("ENTSOG") && !isStatusCode("Ready"));
+});
+
+test("no '(s)' or '(es)' plural in either locale: counts use the i18n plural forms", () => {
+  const en = JSON.parse(readFileSync(new URL("../src/i18n/en.json", import.meta.url), "utf8")) as Record<string, string>;
+  const zh = JSON.parse(readFileSync(new URL("../src/i18n/zh.json", import.meta.url), "utf8")) as Record<string, string>;
+  const offenders = Object.entries(en).filter(([, value]) => /[a-z]\((s|es)\)/i.test(value)).map(([key]) => key);
+  assert.deepEqual(offenders, []);
+  for (const key of Object.keys(en).filter((item) => item.endsWith("_one") && en[item.slice(0, -4)] !== undefined)) {
+    const base = key.slice(0, -4);
+    assert.ok(en[base], `${key} has a plural base`);
+    assert.ok(zh[key] && zh[base], `zh carries ${key}`);
+  }
+});
+
+test("a code quoted inside a sentence is said in words", async () => {
+  const { enumWordsIn } = await import("../src/app/model/enumLabels.ts");
+  assert.equal(enumWordsIn("route R-2: TARIFF_MISSING"), "route R-2: tariff missing");
+  assert.equal(enumWordsIn("TARIFF_MISSING for PEG"), "Tariff missing for PEG");
+  assert.equal(enumWordsIn("TTF and NBP stay"), "TTF and NBP stay");
+  assert.equal(enumWordsIn("from ENTSOG_UMM"), "from ENTSOG UMM");
 });

@@ -6,6 +6,8 @@ import type {
 import { pnlClass } from "@/app/model/pnlColor";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
 import { WhyButton } from "./WhyButton";
+import { api } from "@/api/client";
+import { useCachedRead } from "@/app/data/readCache";
 
 type Translate = (key: string) => string;
 
@@ -39,6 +41,8 @@ export function MarketPositioningWorkspace({
   formatTimestamp,
   t,
 }: MarketPositioningWorkspaceProps) {
+  const booksRead = useCachedRead("/portfolio/books", () => api.tradingBooks());
+  const bookNames = new Map((booksRead.data?.data.books ?? []).map((book) => [book.book_id, book.name]));
   const orderColumns: DataGridColumn<ScreenOrderObservationDTO>[] = [
     { id: "venue", header: t("orders.col.venue"), rowHeader: true, sortable: true, value: (order) => order.venue },
     { id: "side", header: t("orders.col.side"), sortable: true, value: (order) => order.side },
@@ -59,7 +63,8 @@ export function MarketPositioningWorkspace({
     { id: "status", header: t("orders.col.status"), sortable: true, value: (order) => order.status },
   ];
   const pnlColumns: DataGridColumn<PortfolioPnlSnapshotDTO>[] = [
-    { id: "portfolio", header: t("orders.col.portfolio"), rowHeader: true, value: (snapshot) => snapshot.portfolio_id },
+    // The book by name; its id on hover (owner: no internal ids on screen).
+    { id: "portfolio", header: t("orders.col.portfolio"), rowHeader: true, value: (snapshot) => bookNames.get(snapshot.portfolio_id) ?? snapshot.portfolio_id, cellTitle: (snapshot) => snapshot.portfolio_id },
     { id: "valuation", header: t("orders.col.valuation"), type: "date", value: (snapshot) => snapshot.valuation_time_utc, format: (value) => formatTimestamp(value as string) },
     { id: "quantity", header: t("orders.col.quantity"), unit: "MWh", type: "number", value: (snapshot) => snapshot.quantity_mwh, format: (value) => (value as number).toLocaleString("en-GB") },
     {
@@ -71,7 +76,7 @@ export function MarketPositioningWorkspace({
       render: (snapshot) => (
         <span className="limit-status-cell">
           <span className={pnlClass(snapshot.indicative_pnl_gbp)}>{Math.round(snapshot.indicative_pnl_gbp).toLocaleString("en-GB")}</span>
-          <WhyButton subject="pnl" id={snapshot.pnl_snapshot_id} label={`P&L ${snapshot.portfolio_id}`} t={t} />
+          <WhyButton subject="pnl" id={snapshot.pnl_snapshot_id} label={`P&L ${bookNames.get(snapshot.portfolio_id) ?? snapshot.portfolio_id}`} t={t} />
         </span>
       ),
     },

@@ -83,7 +83,7 @@ const STRIP_OUTPUTS: readonly {
   {
     key: "degraded",
     options: { count: 2 },
-    en: "2 slice(s) stale, missing or unavailable",
+    en: "2 slices stale, missing or unavailable",
     zh: "2 个分片过期、缺失或不可用",
   },
   {
@@ -95,7 +95,7 @@ const STRIP_OUTPUTS: readonly {
   {
     key: "restricted",
     options: { count: 3 },
-    en: "3 row(s) withheld by entitlement",
+    en: "3 rows withheld by entitlement",
     zh: "因授权限制隐藏 3 行",
   },
 ];

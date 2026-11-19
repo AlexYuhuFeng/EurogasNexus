@@ -37,7 +37,7 @@ export function ReviewContextStrip({ projection, t, controls }: ReviewContextStr
   return (
     <ProjectionContextStrip
       namespace="review_context"
-      className="review-context-strip"
+      className="review-context-strip is-line"
       readings={reviewReadings(projection)}
       degraded={degradedReviewSlices(projection)}
       labelKeys={REVIEW_CONTEXT_SLICE_LABEL_KEYS}

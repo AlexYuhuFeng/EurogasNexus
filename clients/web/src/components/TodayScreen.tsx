@@ -38,7 +38,7 @@ import type { TodayRowKey } from "@/app/experience/roleComposition";
 import { unitLabel } from "@/app/model/instrumentPicker";
 import { formatGasDay } from "@/app/time/timeFormat";
 import { useInstantFormatter } from "@/app/time/useInstant";
-import { SimulatedScope, useSimulatedPills } from "@/components/SimulatedScope";
+import { SimulatedScope, useSimulatedPills } from "@/components/ui/SimulatedScope";
 import {
   figureAnchorId,
   formatChange,

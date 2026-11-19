@@ -16,6 +16,9 @@ import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone, PeriodPick
 import { idFromName } from "@/components/ui/recordPickerModel";
 import { bookOptions, contractOptions, counterpartyOptions, hubOptions, personOptions } from "@/app/model/recordOptions";
 import { REPORTING_CURRENCIES } from "@/app/time/valueFormat";
+import { deskMonthsIn, formatDeliveryMonth } from "@/app/time/timeFormat";
+import { useConvertedAmount } from "@/app/time/useConversion";
+import { ConvertedValue } from "@/components/ui/ConvertedValue";
 import { useApiStore } from "@/stores/api";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -45,6 +48,12 @@ function Utilisation({ pct }: { pct: number | null }) {
       <span className="limit-meter-value">{pct.toFixed(0)}%</span>
     </span>
   );
+}
+
+/** An amount in another currency than the reader reports in: the converted figure under it. */
+function InReportingCurrency({ amount, currency }: { amount: number; currency: string }) {
+  const converted = useConvertedAmount({ amount, currency, subject: "limit" });
+  return <ConvertedValue converted={converted} mode="line" compact />;
 }
 
 const EMPTY_LINE = {
@@ -92,7 +101,8 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
   const [message, setMessage] = useState<string | null>(null);
   // The live principle (UX_REFERENCE rule 25): every choice below is a record the firm holds.
   const contracts = useApiStore((state) => state.upstreamContracts);
-  const booksRead = useCachedRead(canMaintainRisk ? "/portfolio/books" : null, () => api.tradingBooks());
+  const booksRead = useCachedRead("/portfolio/books", () => api.tradingBooks());
+  const bookNames = useMemo(() => new Map((booksRead.data?.data.books ?? []).map((book) => [book.book_id, book.name])), [booksRead.data]);
   const counterparties = useMemo(() => counterpartyOptions(credit ?? []), [credit]);
   const contractChoices = useMemo(() => contractOptions(contracts, splitList(line.contract_ids)), [contracts, line.contract_ids]);
   const bookChoices = useMemo(() => bookOptions(booksRead.data?.data.books ?? []), [booksRead.data]);
@@ -228,7 +238,9 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
     { id: "replacement", header: t("limits.replacement"), type: "number", value: (row) => row.replacement_exposure, format: (_, row) => formatMoney(row.replacement_exposure, row.currency) },
     { id: "receivable", header: t("limits.receivable"), type: "number", value: (row) => row.receivable_exposure, format: (_, row) => formatMoney(row.receivable_exposure, row.currency) },
     { id: "collateral", header: t("limits.collateral"), type: "number", value: (row) => row.collateral, format: (_, row) => formatMoney(row.collateral, row.currency) },
-    { id: "net", header: t("limits.net"), type: "number", value: (row) => row.net_exposure, render: (row) => <strong>{formatMoney(row.net_exposure, row.currency)}</strong> },
+    // Tested in the currency the line was approved in (G7); the reporting currency is a second
+    // line when it differs, at the latest held ECB rate, named on hover (G3).
+    { id: "net", header: t("limits.net"), type: "number", value: (row) => row.net_exposure, render: (row) => <><strong>{formatMoney(row.net_exposure, row.currency)}</strong><InReportingCurrency amount={row.net_exposure} currency={row.currency} /></> },
     { id: "used", header: t("limits.used"), type: "number", sortable: true, value: (row) => row.utilisation_pct, render: (row) => <Utilisation pct={row.utilisation_pct} /> },
     {
       id: "status",
@@ -247,14 +259,23 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
   ], [t]);
 
   const mandateColumns = useMemo<DataGridColumn<MandateUsageRowDTO>[]>(() => [
-    { id: "trader", header: t("limits.trader"), rowHeader: true, sortable: true, value: (row) => row.name, render: (row) => <><strong>{row.name}</strong> <small className="muted">{row.trader}</small></> },
-    { id: "scope", header: t("limits.scope"), render: (row) => <small>{row.books} · {row.hubs}</small> },
-    { id: "largest", header: t("limits.largest_net"), type: "number", sortable: true, value: (row) => row.largest_net_mwh, render: (row) => <>{formatQuantity(row.largest_net_mwh)} <small className="muted">{row.largest_at}</small></> },
+    // Names in words; the principal and the book ids are on hover (owner: no internal ids on screen).
+    { id: "trader", header: t("limits.trader"), rowHeader: true, sortable: true, value: (row) => row.name, render: (row) => <strong title={row.trader}>{row.name || row.trader}</strong> },
+    {
+      id: "scope",
+      header: t("limits.scope"),
+      render: (row) => {
+        const ids = splitList(row.books);
+        const names = ids.map((id) => bookNames.get(id) ?? id);
+        return <small title={row.books}>{[names.join(", "), row.hubs].filter(Boolean).join(" · ")}</small>;
+      },
+    },
+    { id: "largest", header: t("limits.largest_net"), type: "number", sortable: true, value: (row) => row.largest_net_mwh, render: (row) => <>{formatQuantity(row.largest_net_mwh)} <small className="muted">{deskMonthsIn(row.largest_at)}</small></> },
     { id: "used", header: t("limits.used"), type: "number", sortable: true, value: (row) => row.utilisation_pct, render: (row) => <Utilisation pct={row.utilisation_pct} /> },
     {
       id: "tenor",
       header: t("limits.tenor"),
-      render: (row) => <>{row.furthest_month || "–"}{row.max_tenor_months !== null && <small className="muted"> / {t("limits.months", { count: row.max_tenor_months })}</small>}</>,
+      render: (row) => <>{row.furthest_month ? formatDeliveryMonth(row.furthest_month) : "–"}{row.max_tenor_months !== null && <small className="muted"> / {t("limits.months", { count: row.max_tenor_months })}</small>}</>,
     },
     {
       id: "hedge",
@@ -279,7 +300,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
         </span>
       ),
     },
-  ], [t]);
+  ], [bookNames, t]);
 
   const breaches = [...(credit ?? []), ...(mandates ?? [])].filter((row) => row.status === "breach" || row.status === "expired").length;
 

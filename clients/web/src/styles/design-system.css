@@ -1700,6 +1700,32 @@
     font-size: var(--ds-text-xs);
   }
 
+  /* The format menu under "Export ▾": three plain rows. */
+  .report-export-list {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: var(--ds-space-1) 0;
+    list-style: none;
+  }
+
+  .report-export-option {
+    width: 100%;
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-3);
+    border: 0;
+    background: transparent;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .report-export-option:hover,
+  .report-export-option:focus-visible {
+    background: var(--ds-surface-2);
+  }
+
   /* ---------------------------------------------------------------- tables */
   .workspace-panel table th,
   .data-table-row.header,

@@ -128,7 +128,7 @@ test("Research has a Cargo & netback task rendered by the study; it uses the sha
   const renderer = readFileSync(new URL("../src/app/workspaces/WorkspaceRenderer.tsx", import.meta.url), "utf8");
   assert.match(renderer, /researchTask === "cargo" && <CargoStudy \/>/);
   const study = readFileSync(new URL("../src/components/research/CargoStudy.tsx", import.meta.url), "utf8");
-  assert.match(study, /from "@\/components\/SimulatedScope"/);
+  assert.match(study, /from "@\/components\/ui\/SimulatedScope"/);
   assert.match(study, /api\.freightRoutes\(\)/);
   assert.match(study, /api\.cargoEconomics\(/);
   // Units through the one desk-unit rule shared with Prices and Today.

@@ -53,3 +53,5 @@ export { ReadinessChecklist } from "./ReadinessChecklist";
 export type { ReadinessItem } from "./readinessModel";
 export { RecordPicker } from "./RecordPicker";
 export type { RecordChoice, RecordOption, RecordPickerProps } from "./RecordPicker";
+export { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "./SimulatedScope";
+export type { SimulatedScopeKind } from "./SimulatedScope";

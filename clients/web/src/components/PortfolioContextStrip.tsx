@@ -36,7 +36,7 @@ export function PortfolioContextStrip({ projection, t, controls, freshness }: Po
   return (
     <ProjectionContextStrip
       namespace="portfolio_context"
-      className="portfolio-context-strip"
+      className="portfolio-context-strip is-line"
       readings={portfolioReadings(projection)}
       degraded={degradedPortfolioSlices(projection)}
       labelKeys={PORTFOLIO_SNAPSHOT_SLICE_LABEL_KEYS}

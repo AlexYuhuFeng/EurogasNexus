@@ -35,7 +35,14 @@ export function TradingContextControls({
   onDeliveryProductChange,
   onHubChange,
   showProduct = true,
+  summaryOnly = false,
 }: {
+  /**
+   * One quiet summary ("19 Nov · All products · All hubs") that opens the fields in a sheet, on
+   * every width: for pages where the context only refines what is shown (Book, Deals), so the page
+   * reads as one line like Today's.
+   */
+  summaryOnly?: boolean;
   /** False where the page has its own product selector (Prices' board tenors). */
   showProduct?: boolean;
   gasDay: string;
@@ -46,7 +53,7 @@ export function TradingContextControls({
   onDeliveryProductChange: (value: string) => void;
   onHubChange: (value: string | null) => void;
 }) {
-  const compact = useCompactWidth();
+  const compact = useCompactWidth() || summaryOnly;
   const [sheetOpen, setSheetOpen] = useState(false);
   const { i18n } = useTranslation();
   const language = i18n.language;
@@ -138,11 +145,12 @@ export function tradingContextControlsFor(
     setHubId: (value: string | null) => void;
   },
   t: Translate,
-  { product = true }: { product?: boolean } = {},
+  { product = true, summary = false }: { product?: boolean; summary?: boolean } = {},
 ) {
   return (
     <TradingContextControls
       showProduct={product}
+      summaryOnly={summary}
       gasDay={traderContext.gasDay}
       deliveryProduct={traderContext.deliveryProduct}
       hubId={traderContext.hubId}

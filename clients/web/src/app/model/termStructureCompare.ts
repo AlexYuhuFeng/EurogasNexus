@@ -6,19 +6,17 @@
  */
 
 import type { NormaliseRequestDTO, NormaliseResponseDTO } from "../../api/comparablePrices.ts";
+import { formatDeliveryMonth } from "../time/timeFormat.ts";
 
 /** At most this many hubs on one term-structure chart (F.3 #1). */
 export const MAX_COMPARED_HUBS = 3;
 /** The unit several hubs are compared in. */
 export const COMPARE_UNIT = "EUR/MWh";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "2027-01" → "Jan-27": the product code the server resolves. */
 export function monthCode(key: string): string | null {
-  const match = /^(\d{4})-(\d{2})$/.exec(key);
-  if (!match) return null;
-  return `${MONTHS[Number(match[2]) - 1]}-${match[1].slice(2)}`;
+  return /^\d{4}-\d{2}$/.test(key) ? formatDeliveryMonth(key) : null;
 }
 
 export interface HubCurve {

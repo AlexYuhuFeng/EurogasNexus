@@ -8,6 +8,7 @@
  * the result says so. Saved routes are offered once the firm has recorded any.
  */
 import { inQuoteUnit, quoteUnit } from "./priceCharts.ts";
+import { formatDeliveryMonth } from "../time/timeFormat.ts";
 import type { CargoEconomicsDTO, CargoInput, CargoResultDTO, CargoTerminalDTO, FreightRouteDTO } from "@/api/client";
 
 export type VoyageMode = "route" | "distance" | "days";
@@ -257,6 +258,5 @@ export function hubQuote(hub: string, perMwh: number | null, currency: string) {
 
 /** Desk shorthand for a delivery month: "2027-01" → "Jan-27". */
 export function monthLabel(month: string): string {
-  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${names[Number(month.slice(5, 7)) - 1]}-${month.slice(2, 4)}`;
+  return formatDeliveryMonth(month);
 }

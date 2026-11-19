@@ -15,7 +15,7 @@ import {
 } from "@/app/model/priceBoard";
 import { displayTime } from "@/app/time/displayTime";
 import { formatSigned, Sparkline } from "@/components/ui/charts";
-import { SimulatedScope, simulatedScopeOf } from "@/components/SimulatedScope";
+import { SimulatedScope, simulatedScopeOf } from "@/components/ui/SimulatedScope";
 import {
   PREFERENCES_APPLIED_EVENT,
   readBoardLayout,
@@ -917,7 +917,7 @@ export function MarketTerminal({
             />
           )}
         </Toolbar>
-        {/* Said once when every priced row is simulated (components/SimulatedScope.tsx, shared
+        {/* Said once when every priced row is simulated (components/ui/SimulatedScope.tsx, shared
             with Today and Spreads); a mixed board keeps the banner and the per-row marks. */}
         {simulatedOnBoard && boardScope !== "all" && (
           <div className="market-simulated-banner" role="alert" data-simulated-board="true">

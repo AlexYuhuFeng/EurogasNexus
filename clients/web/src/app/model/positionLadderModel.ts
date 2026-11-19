@@ -1,4 +1,5 @@
 import type { PositionLadderDTO, PositionLadderRowDTO } from "@/api/client";
+import { formatDeliveryMonth } from "../time/timeFormat.ts";
 
 /** Months in delivery order, each with its hubs, as a trader reads a position ladder. */
 export interface LadderMonth {
@@ -26,9 +27,7 @@ export function overallHedgeRatio(ladder: Pick<PositionLadderDTO, "totals">): nu
 
 /** The trading-screen label for a month key: 2026-11 becomes Nov-26. */
 export function ladderMonthLabel(month: string): string {
-  const [year, number] = month.split("-");
-  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${names[Number(number) - 1] ?? number}-${year.slice(2)}`;
+  return formatDeliveryMonth(month);
 }
 
 /** Width of a net-position bar as a share of the largest absolute net in the ladder. */

@@ -46,7 +46,7 @@ import {
   type VoyageMode,
 } from "@/app/model/cargoStudy";
 import { unitLabel } from "@/app/model/instrumentPicker";
-import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/SimulatedScope";
+import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { Button, Segmented, Select, WorkProgress } from "@/components/ui";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 

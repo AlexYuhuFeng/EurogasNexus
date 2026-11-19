@@ -474,7 +474,7 @@ test("Method note: the reader's language when the build has the key, the server'
 test("Today: an all-simulated page says it once and drops the per-figure marker; mixed keeps it", async () => {
   const { load } = await loadApiStore();
   const { TodayScreen } = await load<typeof import("../src/components/TodayScreen.tsx")>("/src/components/TodayScreen.tsx");
-  const { simulatedScopeOf } = await load<typeof import("../src/components/SimulatedScope.tsx")>("/src/components/SimulatedScope.tsx");
+  const { simulatedScopeOf } = await load<typeof import("../src/components/ui/SimulatedScope.tsx")>("/src/components/ui/SimulatedScope.tsx");
   assert.equal(simulatedScopeOf([true, true]), "all");
   assert.equal(simulatedScopeOf([true, false]), "mixed");
   assert.equal(simulatedScopeOf([]), "none");

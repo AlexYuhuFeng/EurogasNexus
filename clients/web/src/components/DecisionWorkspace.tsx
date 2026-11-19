@@ -201,11 +201,11 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
           <ReviewContextStrip
             projection={api.reviewContext}
             t={t}
-            controls={tradingContextControlsFor(traderContext, t)}
+            controls={tradingContextControlsFor(traderContext, t, { summary: true })}
           />
         ) : (
           // The other tasks have no projection line: the controls stand on their own.
-          <div className="projection-context">{tradingContextControlsFor(traderContext, t)}</div>
+          <div className="projection-context is-line">{tradingContextControlsFor(traderContext, t, { summary: true })}</div>
         )}
         {task !== "review" && (
           <Segmented

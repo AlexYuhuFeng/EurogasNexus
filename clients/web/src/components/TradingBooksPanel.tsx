@@ -88,7 +88,7 @@ export function TradingBooksPanel({ t }: { t: Translate }) {
         value: (book) => book.name,
         render: (book) => (
           <>
-            {book.name} <small className="ds-grid-unit">{book.book_id} · {book.base_currency}</small>
+            <span title={book.book_id}>{book.name}</span> <small className="ds-grid-unit">{book.base_currency}</small>
           </>
         ),
       },

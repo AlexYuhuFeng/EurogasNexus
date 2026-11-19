@@ -352,7 +352,18 @@ export function ReviewWorkspace({
           rowAttributes={(row) => ({ "data-record": "review-decision", "data-record-id": row.decision_id })}
           empty={<p className="muted panel-empty-line" data-empty-state="review-decisions">{t("review.no_decisions")}</p>}
           columns={[
-            { id: "entity", header: t("review.entity_id"), rowHeader: true, value: (row) => `${row.entity_type}:${row.entity_id}` },
+            {
+              id: "entity",
+              header: t("review.entity"),
+              rowHeader: true,
+              value: (row) => `${row.entity_type}:${row.entity_id}`,
+              // The kind in words and the record's name where it is listed; the id on hover.
+              render: (row) => (
+                <span title={row.entity_id}>
+                  {[t(`review.entity_type.${row.entity_type}`), entityOptions?.find((item) => item.id === row.entity_id)?.label].filter(Boolean).join(" · ")}
+                </span>
+              ),
+            },
             {
               id: "decision",
               header: t("review.decision"),

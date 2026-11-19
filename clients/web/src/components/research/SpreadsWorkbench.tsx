@@ -36,7 +36,7 @@ import {
   toggleCost,
   weakestClass,
 } from "@/app/model/spreadsWorkbench";
-import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/SimulatedScope";
+import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { Button, InstrumentPicker, Segmented, Select, WorkProgress } from "@/components/ui";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 

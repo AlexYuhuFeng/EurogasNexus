@@ -61,3 +61,16 @@ const SOURCE_NAMES: Record<string, string> = {
 export function sourceSystemLabel(id: string): string {
   return SOURCE_NAMES[id] ?? (isEnumToken(id) ? humanizeEnum(id) : id);
 }
+
+/**
+ * Every enum code inside a text said in words ("route R-2: TARIFF_MISSING" → "route R-2: tariff
+ * missing"), so a server sentence that quotes a code never shows it bare (UX_REFERENCE rule 21).
+ */
+export function enumWordsIn(text: string | null | undefined): string {
+  return String(text ?? "").replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g, (code, offset: number) => {
+    const words = humanizeEnum(code);
+    // Capitalised only where it opens the text; mid-sentence it reads in lower case.
+    const acronymFirst = /^[A-Z0-9]{2,}\b/.test(words);
+    return offset === 0 || acronymFirst ? words : words.charAt(0).toLowerCase() + words.slice(1);
+  });
+}

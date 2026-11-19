@@ -14,7 +14,7 @@
  * - Phone (a narrow container): the chart becomes the headline and a sparkline; a tap opens
  *   the chart (F.2: no hover-only information).
  */
-import { useSimulatedPills } from "@/components/SimulatedScope";
+import { useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { useEffect, useMemo, useState } from "react";
 
 import "./storage-panel.css";

@@ -411,7 +411,7 @@ export function GasNetworkMap({
       .join("");
     const title = joins.map(nameOfKey).join(" – ");
     return `<div class="node-popup situation-card"><strong>${escapeHtml(title)}</strong>`
-      + `<small>${escapeHtml(t("map.border.points").replace("{{count}}", String(points.size)))}</small>${rows}`
+      + `<small>${escapeHtml(t("map.border.points", { count: points.size }))}</small>${rows}`
       // Drawn along the open reference trunk lines: the general direction, not a surveyed route.
       + (props.geometry_basis === "reference_pipeline_direction"
         ? `<small class="muted">${escapeHtml(t("map.border.drawn_along"))}</small>`
@@ -2249,14 +2249,14 @@ export function GasNetworkMap({
         }
         if (showPositions && row.cargoesInbound) {
           headline.push(`${row.cargoesInbound} ⛴`);
-          details.push(`${row.cargoesInbound} ${t("map.overview.cargoes_inbound")}${row.inboundGwh ? ` · ${Math.round(row.inboundGwh).toLocaleString()} GWh` : ""}`);
+          details.push(`${t("map.overview.cargoes_inbound", { count: row.cargoesInbound })}${row.inboundGwh ? ` · ${Math.round(row.inboundGwh).toLocaleString()} GWh` : ""}`);
         }
-        if (showPositions && row.slots) details.push(`${row.slots} ${t("map.overview.slots")}`);
+        if (showPositions && row.slots) details.push(t("map.overview.slots", { count: row.slots }));
         const alert = showOutages && row.outagesNow > 0;
         if (alert) {
           details.push(`${row.outagesNow} ${t("map.overview.outages_now")}${row.unavailableGwhD ? ` · −${Math.round(row.unavailableGwhD).toLocaleString()} GWh/d` : ""}`);
         }
-        if (showOutages && row.outagesScheduled) details.push(`${row.outagesScheduled} ${t("map.overview.outages_scheduled")}`);
+        if (showOutages && row.outagesScheduled) details.push(t("map.overview.outages_scheduled", { count: row.outagesScheduled }));
         return { row, headline, details, alert };
       })
       .filter((item) => item.details.length > 0);
