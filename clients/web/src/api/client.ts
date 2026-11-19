@@ -2579,6 +2579,21 @@ export interface UpstreamContractDTO {
   /** Display name of the person who retired it (the list with retired contracts). */
   retired_by_name?: string | null;
   retire_reason?: string | null;
+  /**
+   * Contract kind (docs/product/CONTRACT_TYPES.md): SUPPLY_GSA, UPSTREAM_TENDER, LNG_MSPA,
+   * LNG_CARGO (and kinds named but not entered here). Absent from older servers = SUPPLY_GSA.
+   */
+  contract_kind?: string;
+  /** False while a migrated row's kind is inferred and not yet confirmed by a person. */
+  contract_kind_reviewed?: boolean;
+  /** The kind's typed terms (with their `schema` label), or null. */
+  kind_terms?: Record<string, unknown> | null;
+  /** Terms the product does not model yet, kept verbatim. */
+  unmodelled_terms?: string | null;
+  /** A confirmation's master agreement (an LNG cargo's MSPA). */
+  master_contract_id?: string | null;
+  /** The one figure that matters for the kind (native units), from the server. */
+  headline?: { key: string; value: number; min?: number; max?: number; unit: string; term?: string; window?: string[] } | null;
   // Additive write metadata: how the governed upsert classified this write and
   // which captured economic revision is newest afterwards. Capture-time evidence,
   // not a revision history or an edit-conflict protocol.
@@ -2647,6 +2662,8 @@ export type UpstreamContractInputDTO = Omit<
   // declaration (the write route reads presence from `model_fields_set`), so no save builder
   // may set or clear them until an explicit editing workflow is reviewed.
   | "payment_terms"
+  | "headline"
+  | "contract_kind_reviewed"
 > & {
   notes?: string | null;
   /**
@@ -2656,6 +2673,18 @@ export type UpstreamContractInputDTO = Omit<
    */
   expected_edit_token?: string | null;
 };
+
+/** A typed contract's write: the server derives the base columns from `kind_terms`. */
+export interface TypedContractInputDTO {
+  contract_id: string;
+  contract_name: string;
+  contract_kind: string;
+  kind_terms?: Record<string, unknown> | null;
+  master_contract_id?: string | null;
+  unmodelled_terms?: string | null;
+  notes?: string | null;
+  expected_edit_token?: string | null;
+}
 
 /**
  * One captured immutable economic revision of an upstream contract (transport
@@ -4858,7 +4887,7 @@ export const api = {
       { reason, expected_edit_token: editToken },
     ),
 
-  saveUpstreamContract: (body: UpstreamContractInputDTO) =>
+  saveUpstreamContract: (body: UpstreamContractInputDTO | TypedContractInputDTO) =>
     post<UpstreamContractDTO>("/route-cost/upstream-contracts", body),
 
   /**

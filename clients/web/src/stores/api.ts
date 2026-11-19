@@ -107,6 +107,7 @@ import {
   TsoTariffDTO,
   UpstreamContractDTO,
   UpstreamContractInputDTO,
+  TypedContractInputDTO,
   openEventStream,
 } from "@/api/client";
 import { setDeploymentMapDefault } from "@/app/mapTileProviders";
@@ -1035,7 +1036,7 @@ export interface ApiState {
    * saved contract and refreshes the same-identity library, so the editor's own session guard
    * decides whether the result still belongs to the shown draft.
    */
-  saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<UpstreamContractDTO | null>;
+  saveDraftContract: (contract: UpstreamContractInputDTO | TypedContractInputDTO) => Promise<UpstreamContractDTO | null>;
   /** Retire or reinstate a stored contract, then re-read the library. Throws on refusal. */
   setContractLifecycle: (
     contractId: string,

@@ -257,6 +257,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         {task === "resources" && (
           <ContractWorkbench
             saveAction={saveAction}
+            saveTypedContract={api.saveDraftContract}
             contract={contractEditor.contract}
             upstreamContracts={api.upstreamContracts}
             portfolioResources={portfolio.portfolioResources}

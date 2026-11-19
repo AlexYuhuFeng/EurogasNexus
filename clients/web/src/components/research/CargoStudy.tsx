@@ -42,6 +42,7 @@ import {
   rankedTerminals,
   seriesChart,
   withSet,
+  formFromConfirmation,
   type CargoForm,
   type VoyageMode,
 } from "@/app/model/cargoStudy";
@@ -51,7 +52,9 @@ import i18n from "@/i18n";
 import { hubFromSearch, reportSearch, spreadsSearch } from "@/app/model/spreadsBoard";
 import { NextSteps } from "./NextSteps";
 import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
-import { Button, Segmented, Select, WorkProgress } from "@/components/ui";
+import { Button, RecordPicker, Segmented, Select, WorkProgress } from "@/components/ui";
+import { contractOptions } from "@/app/model/recordOptions";
+import type { UpstreamContractDTO } from "@/api/client";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 
 const fixed = (value: number | null | undefined, decimals = 2): string =>
@@ -76,6 +79,8 @@ export function CargoStudy() {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
+  // Cargo confirmations the firm holds (CONTRACT_TYPES.md): one fills the study's inputs.
+  const [confirmations, setConfirmations] = useState<UpstreamContractDTO[]>([]);
   const seq = useRef(0);
 
   const run = useCallback(async (next: CargoForm) => {
@@ -119,6 +124,10 @@ export function CargoStudy() {
       setForm(initial);
       void run(initial);
     });
+    api.upstreamContracts().then(
+      (response) => { if (live) setConfirmations((response.data ?? []).filter((item) => item.contract_kind === "LNG_CARGO")); },
+      () => undefined,
+    );
     return () => { live = false; };
   }, [run]);
 
@@ -155,6 +164,7 @@ export function CargoStudy() {
           routes={routes}
           sets={sets}
           terminals={terminals}
+          confirmations={confirmations}
           busy={busy}
           onChange={update}
           onRun={() => void run(form)}
@@ -205,13 +215,15 @@ function Field({ id, label, value, onChange, unit, step = "any", width = "s", hi
   );
 }
 
-function CargoFormView({ form, routes, sets, terminals, busy, onChange, onRun, heldHh }: {
+function CargoFormView({ form, routes, sets, terminals, confirmations, busy, onChange, onRun, heldHh }: {
   form: CargoForm; routes: FreightRouteDTO[]; sets: AssumptionSetSummaryDTO[];
+  confirmations: UpstreamContractDTO[];
   terminals: { id: string; name: string; hub: string }[]; busy: boolean;
   onChange: (patch: Partial<CargoForm>, now?: boolean) => void; onRun: () => void;
   heldHh: ReturnType<typeof henryHub>;
 }) {
   const { t } = useTranslation();
+  const [pickedCargo, setPickedCargo] = useState<string | null>(null);
   const months = useMemo(() => arrivalMonths(new Date()), []);
   // With a set chosen, an empty figure is the set's: the field says so.
   const setHint = form.assumptionSetId ? t("cargo.form.from_set") : t("cargo.form.desk_standard");
@@ -266,6 +278,22 @@ function CargoFormView({ form, routes, sets, terminals, busy, onChange, onRun, h
                 );
               })}
             </div>
+          </div>
+        )}
+        {confirmations.length > 0 && (
+          <div className="cargo-field" data-width="m" data-confirmed-cargo="true">
+            <RecordPicker
+              id="cargo-confirmed"
+              label={t("cargo.form.confirmed_cargo")}
+              options={contractOptions(confirmations)}
+              value={pickedCargo}
+              recentKey="cargo-confirmation"
+              onChange={(choice) => {
+                setPickedCargo(choice?.id ?? null);
+                const picked = confirmations.find((item) => item.contract_id === choice?.id);
+                if (picked?.kind_terms) onChange(formFromConfirmation(form, picked.kind_terms), true);
+              }}
+            />
           </div>
         )}
         {sets.length === 0 && <p className="cargo-voyage-note">{t("cargo.form.no_sets")}</p>}

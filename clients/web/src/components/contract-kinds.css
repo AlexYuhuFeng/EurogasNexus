@@ -1,0 +1,154 @@
+@layer legacy {
+/* Contract kinds: the type-first chooser and the kind's form (docs/product/CONTRACT_TYPES.md).
+   Tokens only (scripts/cssTokenLint.mjs). */
+
+.contract-kind-chooser h3 {
+  margin: 0 0 var(--ds-space-2);
+  font-size: var(--ds-text-base);
+  font-weight: var(--ds-weight-semibold);
+}
+
+.contract-kind-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+
+.contract-kind-card {
+  display: grid;
+  gap: var(--ds-space-1);
+  width: 100%;
+  min-height: var(--ds-control);
+  padding: var(--ds-space-3);
+  text-align: left;
+  color: var(--ds-text-1);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  cursor: pointer;
+}
+
+.contract-kind-card:hover {
+  border-color: var(--ds-accent);
+}
+
+.contract-kind-card:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.contract-kind-card strong {
+  font-size: var(--ds-text-sm);
+  font-weight: var(--ds-weight-semibold);
+}
+
+.contract-kind-card span {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-line-xs);
+}
+
+.contract-kind-form {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.contract-kind-form-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--ds-space-2);
+}
+
+.contract-kind-form-head strong {
+  display: block;
+  font-size: var(--ds-text-md);
+}
+
+.contract-kind-form-head p {
+  margin: var(--ds-space-1) 0 0;
+  font-size: var(--ds-text-xs);
+}
+
+.contract-kind-group {
+  min-width: 0;
+  margin: 0;
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
+}
+
+.contract-kind-group legend {
+  padding: 0 var(--ds-space-1);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-semibold);
+}
+
+.contract-kind-group textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.contract-kind-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.contract-kind-checks legend {
+  width: 100%;
+  margin-bottom: var(--ds-space-1);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-medium);
+}
+
+.contract-kind-bool {
+  align-self: center;
+}
+
+.contract-kind-invalid :is(input, select, button) {
+  border-color: var(--ds-status-breach);
+}
+
+.contract-kind-reads {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+}
+
+.contract-kind-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.contract-kind-actions p {
+  margin: 0;
+  font-size: var(--ds-text-xs);
+}
+
+.contract-kind-badge {
+  display: inline-block;
+  margin-right: var(--ds-space-1);
+  padding: 0 var(--ds-space-1);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+}
+
+.contract-kind-badge[data-kind-reviewed="false"] {
+  border-style: dashed;
+}
+}

@@ -275,3 +275,27 @@ export function hubQuote(hub: string, perMwh: number | null, currency: string) {
 export function monthLabel(month: string): string {
   return formatDeliveryMonth(month);
 }
+
+/**
+ * A confirmed cargo (an LNG cargo confirmation under an MSPA, CONTRACT_TYPES.md) as the study's
+ * inputs: term, size, arrival and pricing months and, for a Henry Hub formula, its slope and
+ * constant. A Brent, hub or fixed formula fills what it can and leaves the HH terms as they
+ * were, so nothing is priced on a formula the cargo does not have.
+ */
+export function formFromConfirmation(form: CargoForm, terms: Record<string, unknown>): CargoForm {
+  const text = (value: unknown) => (value === null || value === undefined ? "" : String(value));
+  const window = text(terms.narrowed_start) || text(terms.window_start);
+  const next: CargoForm = {
+    ...form,
+    term: terms.delivery_term === "FOB" ? "FOB" : "DES",
+    cargoSize: text(terms.quantity_mmbtu) || form.cargoSize,
+    arrivalMonth: window ? window.slice(0, 7) : form.arrivalMonth,
+    pricingMonth: text(terms.pricing_month) || form.pricingMonth,
+    boilOff: text(terms.boil_off_pct_per_day) || form.boilOff,
+  };
+  if (terms.price_formula === "hh") {
+    next.slope = text(terms.slope);
+    next.fee = text(terms.constant);
+  }
+  return next;
+}

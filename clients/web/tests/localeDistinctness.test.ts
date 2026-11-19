@@ -33,6 +33,7 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "app.title": "the product's own name",
   "capacity.view_lng": "an acronym",
   "chart.csv": "a file format's name",
+  "contracts.kind.slope_price": "a price formula of figures and unit codes, no words",
   "evidence.utc": "a time-basis token, the same in both locales",
   "experience.palette.group.ai": "an acronym",
   "map.layer.lng": "an acronym",

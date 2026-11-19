@@ -4,10 +4,13 @@ import { counterpartyOptions, gasYearOptions } from "@/app/model/recordOptions";
 import { useCachedRead } from "@/app/data/readCache";
 import { useApiStore } from "@/stores/api";
 import { useStagedProgress } from "@/app/hooks/useWorkProgress";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode, RefObject } from "react";
 import { api, type ContractIntakeDTO, type PortfolioResourceDTO, type RouteCandidateDTO, type UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
+import { ContractKindChooser, TypedContractForm } from "@/components/ContractKindForm";
+import { TYPED_KINDS, kindHeadline, type AuthorableKind } from "@/app/model/contractKinds";
+import type { TypedContractInputDTO } from "@/api/client";
 import { RetireContractButton, RetiredContractsList, type ContractLifecycleAction } from "@/components/ContractLifecycleControls";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import {
@@ -191,6 +194,8 @@ interface ContractWorkbenchProps {
   contract: ContractDraft;
   /** Save to pool: the draft's own action, beside Import and New draft (UX_REFERENCE rule 26). */
   saveAction?: ReactNode;
+  /** Save a typed contract (CONTRACT_TYPES.md); absent, the kinds' form is read-only. */
+  saveTypedContract?: (body: TypedContractInputDTO) => Promise<UpstreamContractDTO | null>;
   upstreamContracts: UpstreamContractDTO[];
   portfolioResources: PortfolioResourceDTO[];
   totalPoolVolume: number;
@@ -265,7 +270,7 @@ export function ContractWorkbench({
   contractIntake = null, onDismissContractIntake, onContractLifecycle,
   contractSaveMessage, contractSaveConflict, t,
   updateContractText, updateContractNumber, updateContractList, updateContractTranches, routeCandidates = [],
-  resetContractDraft, importContractDraftFile, loadPersistedContract, saveAction,
+  resetContractDraft, importContractDraftFile, loadPersistedContract, saveAction, saveTypedContract,
 }: ContractWorkbenchProps) {
   // Wave 9: object detail goes to the canonical Inspector instead of growing a third
   // detail pane inside this workbench. The selection stays local; only the detail moves.
@@ -337,8 +342,40 @@ export function ContractWorkbench({
     ["settlement", t("contracts.settlement_cash")], ["restrictions", t("contracts.restrictions")],
   ];
 
+  // Contract kinds, type first (CONTRACT_TYPES.md): a new contract starts from the kind; a
+  // stored typed one opens in its kind's form; a supply agreement keeps the editor below.
+  const [kindChoice, setKindChoice] = useState<AuthorableKind | null>(null);
+  const [typedEditing, setTypedEditing] = useState<UpstreamContractDTO | null>(null);
+  const persistedKind = persistedTerm?.contract_kind ?? "SUPPLY_GSA";
+  const typedStored = typedEditing ?? (persistedTerm && TYPED_KINDS.has(persistedKind) ? persistedTerm : null);
+  const termsMode: "typed" | "legacy" | "choose" = typedStored || (kindChoice && TYPED_KINDS.has(kindChoice) && !persistedTerm)
+    ? "typed"
+    : persistedTerm || draftDirty || kindChoice === "SUPPLY_GSA"
+      ? "legacy"
+      : kindChoice
+        ? "typed"
+        : "choose";
+  const typedKind = (typedStored?.contract_kind ?? kindChoice ?? "SUPPLY_GSA") as AuthorableKind;
+  const proposedKind = typeof contractIntake?.record?.contract_kind === "string" ? contractIntake.record.contract_kind : null;
+  useEffect(() => {
+    // A PDF intake proposes the kind; the reviewer sees that kind's form with the terms read.
+    if (!contractIntake) return;
+    setTypedEditing(null);
+    setKindChoice(proposedKind && TYPED_KINDS.has(proposedKind) ? (proposedKind as AuthorableKind) : "SUPPLY_GSA");
+  }, [contractIntake, proposedKind]);
+  const masterOf = (id: string) => upstreamContracts.find((item) => item.contract_id === id)?.master_contract_id ?? null;
+  function startNewDraft() {
+    setKindChoice(null);
+    setTypedEditing(null);
+    resetContractDraft();
+    onTaskViewChange("terms");
+  }
+
   function loadTerm(saved: UpstreamContractDTO) {
     if (draftDirty && !window.confirm(t("contracts.edit_confirm"))) return;
+    const savedKind = saved.contract_kind ?? "SUPPLY_GSA";
+    setTypedEditing(TYPED_KINDS.has(savedKind) ? saved : null);
+    setKindChoice(savedKind as AuthorableKind);
     loadPersistedContract(saved);
     onTaskViewChange("terms");
     setClauseView("agreement");
@@ -360,9 +397,10 @@ export function ContractWorkbench({
           <div><dt>{t("panel.status")}</dt><dd>{readOnlySelectedResource ? selectedPersistedTerm?.human_review_required === true ? t("settings.human_review") : t("data.unavailable") : t("settings.human_review")}</dd></div>
         </dl>
         <div className="contract-command-actions" tabIndex={0}>
-          {saveAction}
+          {/* The supply editor's save; a typed kind's form carries its own. */}
+          {taskView === "terms" && termsMode === "legacy" ? saveAction : null}
           <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
-          <button type="button" className="secondary-button" onClick={resetContractDraft}>{t("contracts.action.new")}</button>
+          <button type="button" className="secondary-button" onClick={startNewDraft}>{t("contracts.action.new")}</button>
           <input ref={contractImportRef} className="contract-import-input" type="file" accept=".pdf,application/pdf" hidden onChange={importContractDraftFile} />
         </div>
       </section>
@@ -444,7 +482,21 @@ export function ContractWorkbench({
         </div>
       )}
 
-      {taskView === "terms" && (
+      {taskView === "terms" && termsMode === "choose" && <ContractKindChooser t={t} onChoose={setKindChoice} />}
+      {taskView === "terms" && termsMode === "typed" && (
+        <TypedContractForm
+          kind={typedKind}
+          editing={typedStored}
+          upstreamContracts={upstreamContracts}
+          routeCandidates={routeCandidates}
+          intake={contractIntake}
+          save={async (body) => (saveTypedContract ? saveTypedContract(body as unknown as TypedContractInputDTO) : null)}
+          onSaved={(saved) => setTypedEditing(saved)}
+          onChangeKind={() => setKindChoice(null)}
+          t={t}
+        />
+      )}
+      {taskView === "terms" && termsMode === "legacy" && (
         <div className="contract-terms-layout">
           <nav className="contract-clause-nav" aria-label={t("contracts.clause_sections")} tabIndex={0}>
             {clauseTabs.map(([key, label], index) => <button key={key} type="button" className={clauseView === key ? "active" : ""} onClick={() => setClauseView(key)}><span>{String(index + 1).padStart(2, "0")}</span>{label}</button>)}
@@ -591,9 +643,32 @@ export function ContractWorkbench({
                 data-record-id={saved.contract_id}
               >
                 <button type="button" className="contract-library-load" onClick={() => loadTerm(saved)}>
-                  <span><strong>{saved.contract_name}</strong><small>{saved.contract_id} · {saved.delivery_point_name} · {saved.gas_year}</small></span>
-                  <span><strong>{formatQuantity(saved.delivery_quantity_mwh_per_day)}</strong></span>
-                  <span><strong>{formatMoney(saved.contract_price_gbp_mwh)}</strong><small>{saved.contract_price_currency ?? "GBP"}/MWh</small></span>
+                  <span>
+                    <strong>{saved.contract_name}</strong>
+                    <small>
+                      <span className="contract-kind-badge" data-kind-reviewed={saved.contract_kind_reviewed === false ? "false" : "true"} title={saved.contract_kind_reviewed === false ? t("contracts.kind.inferred") : undefined}>
+                        {t(`contracts.kind.${saved.contract_kind ?? "SUPPLY_GSA"}`)}
+                      </span>
+                      {[stringFromRecord({ ...notesRecordFromRecord(saved as unknown as Record<string, unknown>) }, "counterparty", ""), saved.contract_kind === "LNG_MSPA" ? "" : saved.gas_year.replace("..", " – ")].filter(Boolean).join(" · ")}
+                    </small>
+                  </span>
+                  <span>
+                    {(() => {
+                      const head = kindHeadline(saved, upstreamContracts, masterOf);
+                      return head.key === "master"
+                        ? <strong>{t("contracts.kind.confirmations", { count: Number(head.text) })}</strong>
+                        : <strong>{head.text}</strong>;
+                    })()}
+                  </span>
+                  <span>
+                    {saved.contract_kind === "LNG_MSPA" ? (
+                      <small>{t("contracts.kind.price_on_confirmations")}</small>
+                    ) : saved.contract_kind && TYPED_KINDS.has(saved.contract_kind) && typeof saved.kind_terms?.price_unit === "string" ? (
+                      <small>{priceLine(saved.kind_terms, t)}</small>
+                    ) : (
+                      <><strong>{formatMoney(saved.contract_price_gbp_mwh)}</strong><small>{saved.contract_price_currency ?? "GBP"}/MWh</small></>
+                    )}
+                  </span>
                   <span><strong>{t("contracts.persisted")}</strong><small>{formatTimestamp(saved.updated_at_utc)}</small></span>
                 </button>
                 <div className="contract-library-row-actions">
@@ -630,4 +705,21 @@ function ContractImportProgress({ t }: { t: (key: string) => string }) {
   const stages = ["contracts.import_stage.read", "contracts.import_stage.terms", "contracts.import_stage.fill"];
   const progress = useStagedProgress(true, stages.length, 2000);
   return <WorkProgress label={t("contracts.import_stage.read")} stages={stages.map((stage) => t(stage))} current={progress.stage} />;
+}
+
+/** A typed contract's price as signed, in its native unit (never converted). */
+function priceLine(terms: Record<string, unknown>, t: Translate): string {
+  const unit = String(terms.price_unit ?? "");
+  const number = (value: unknown) => (typeof value === "number" ? value : Number(value));
+  if (terms.price_type === "fixed" || terms.price_formula === "fixed") return `${number(terms.fixed_price).toFixed(2)} ${unit}`;
+  if (terms.price_type === "index") {
+    const diff = number(terms.differential ?? 0);
+    return `${String(terms.index)} ${diff < 0 ? "−" : "+"} ${Math.abs(diff).toFixed(2)} ${unit}`;
+  }
+  if (terms.price_formula === "hub") {
+    const constant = number(terms.constant ?? 0);
+    return `${String(terms.hub_index)} ${constant < 0 ? "−" : "+"} ${Math.abs(constant).toFixed(2)} ${unit}`;
+  }
+  const driver = terms.price_formula === "brent" ? "Brent" : "HH";
+  return t("contracts.kind.slope_price", { slope: number(terms.slope).toFixed(2), driver, constant: number(terms.constant).toFixed(2), unit });
 }
