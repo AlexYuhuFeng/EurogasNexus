@@ -54,7 +54,11 @@ from eurogas_nexus.db.models.functional import (
     FunctionalModelRecord,
     FunctionalRunRecord,
 )
-from eurogas_nexus.db.models.gas_day import GasDayDelegationRecord, GasDayScheduleLineRecord
+from eurogas_nexus.db.models.gas_day import (
+    GasDayDelegationRecord,
+    GasDayNominationEventRecord,
+    GasDayScheduleLineRecord,
+)
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
 from eurogas_nexus.db.models.identity import (
     IdentityApiKeyRecord,
@@ -296,6 +300,7 @@ __all__ = [
     "OpportunityPendingInputRecord",
     "FreightRouteRecord",
     "GasDayDelegationRecord",
+    "GasDayNominationEventRecord",
     "GasDayScheduleLineRecord",
     "FunctionalDependencyRecord",
     "FunctionalRunRecord",

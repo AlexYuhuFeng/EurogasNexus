@@ -106,6 +106,14 @@ ASSUMPTION_CATALOGUE: dict[str, AssumptionSpec] = {
             "sell-down",
         ),
         _spec(
+            "balancing.flat_band_pct",
+            "A gas day reads balanced within this share of its larger side",
+            "%",
+            "0",
+            "10",
+            "my gas day",
+        ),
+        _spec(
             "transport.fuel_shrinkage",
             "Fuel and shrinkage (where not published)",
             "%",

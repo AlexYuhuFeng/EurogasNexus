@@ -73,3 +73,34 @@ class GasDayDelegationRecord(Base):
     revoked_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     revoked_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class GasDayNominationEventRecord(Base):
+    """One recorded status of one nomination step of one gas day (append-only).
+
+    The scheduling import writes what the TSO or the nominations agent confirmed; a person
+    may record a status by hand, which is labelled and audited. The current status of a step
+    is its newest row. Recording a status sends nothing: nominations are made elsewhere.
+    """
+
+    __tablename__ = "gas_day_nomination_events"
+    __table_args__ = (Index("ix_gas_day_nomination_events_day_ref", "gas_day", "line_ref"),)
+
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    gas_day: Mapped[date] = mapped_column(Date, nullable=False)
+    #: The line the step belongs to: ``contract:<id>``, ``schedule:<id>``, ``lng:<slot>``.
+    line_ref: Mapped[str] = mapped_column(String(160), nullable=False)
+    hub: Mapped[str] = mapped_column(String(16), nullable=False)
+    book_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: nomination, renomination, lng_unloading, lng_send_out, lng_inventory.
+    step: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: to_send, sent, confirmed, renominated, mismatch_queried, done.
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    quantity_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    agent: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    #: ``import``: the scheduling system or agent confirmation; ``manual``: entered by hand.
+    origin: Mapped[str] = mapped_column(String(16), nullable=False)
+    recorded_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    recorded_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)

@@ -90,7 +90,8 @@ def test_all_four_rows_are_populated_on_the_demo_desk(desk):
     data = _today(desk, _principal("DEMO", "BOOKS:*"))
     keys = [row["key"] for row in data["rows"]]
     # "My gas day" is appended, so every earlier row keeps its position.
-    assert keys == ["key_figures", "changes", "book", "fundamentals", "needs_me", "gas_day"]
+    assert keys == ["key_figures", "changes", "book", "fundamentals", "needs_me", "gas_day",
+                    "checklist"]
     assert all(row["populated"] for row in data["rows"])
     key, changes, book, fundamentals, _ = data["rows"][:5]
     # The book's hubs first, then the other hubs the demo market prices.
@@ -284,7 +285,9 @@ def test_the_section_e_rows_my_market_needs_me_and_europe_storage(desk):
     # What needs me: at most five, each with its kind and an object to open.
     assert 1 <= len(needs_me["items"]) <= 5 and needs_me["quiet"] is None
     assert needs_me["items"][0]["kind"] in {"opportunity", "outage"}
-    assert all(item["kind"] in {"opportunity", "outage", "limit"} for item in needs_me["items"])
+    # A nomination of the gas day checklist (Haldor nominated 12 % under) joins the list.
+    assert all(item["kind"] in {"opportunity", "outage", "limit", "nomination"}
+               for item in needs_me["items"])
     outages = [item for item in needs_me["items"] if item["kind"] == "outage"]
     assert outages and all(item["hub"] in data["focus_hubs"] for item in outages)
     # Europe's storage: the season with its history band, the focus countries first.

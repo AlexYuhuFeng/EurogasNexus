@@ -76,7 +76,8 @@ def test_the_sdk_reads_the_servers_today_payload(tmp_path, monkeypatch) -> None:
     # Every top-level field the server returns is a typed field of the model.
     assert set(data) == set(DeskToday.model_fields)
     assert [row["key"] for row in today.rows] == ["key_figures", "changes", "book",
-                                                  "fundamentals", "needs_me", "gas_day"]
+                                                  "fundamentals", "needs_me", "gas_day",
+                                                  "checklist"]
     assert today.row("book") is today.rows[2] and today.row("nope") is None  # type: ignore[arg-type]
     assert today.simulated and today.simulated_notice
     assert result.meta.source_references == ["runtime-postgresql:desk-today"]

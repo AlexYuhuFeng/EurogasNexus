@@ -259,5 +259,6 @@ def test_today_appends_the_row_without_moving_the_others(desk):
         today = build_today(session, _caller("demo.trader"), now=NOW,
                             balance_reader=lambda: None)
     keys = [row["key"] for row in today["rows"]]
-    assert keys == ["key_figures", "changes", "book", "fundamentals", "needs_me", "gas_day"]
+    assert keys == ["key_figures", "changes", "book", "fundamentals", "needs_me", "gas_day",
+                    "checklist"]
     assert today["rows"][5]["populated"] is True, today["warnings"]

@@ -22,6 +22,13 @@ def main() -> int:
     now = datetime.now(UTC)
     with get_session_factory()() as session:
         queued = mirror_monitoring_alerts(session, now=now)
+        try:
+            from eurogas_nexus.application.gas_day_checklist import queue_deadline_notifications
+
+            queued += queue_deadline_notifications(session, now=now)
+        except Exception as exc:  # noqa: BLE001 - the alerts still go out
+            print(json.dumps({"status": "gas_day_deadlines_failed",
+                              "error_type": exc.__class__.__name__}))
         counts = dispatch(session, now=now)
         session.commit()
     print(json.dumps({"status": "ok", "queued": queued, **counts}))

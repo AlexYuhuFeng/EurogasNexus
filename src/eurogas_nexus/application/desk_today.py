@@ -182,14 +182,17 @@ def build_today(
     key_figures = _key_figures(caller, now, book, prices, read)
     key_figures["market"] = _market(caller, now, focus, read)
     changes = _changes(session, caller, now, read)
+    gas_day, checklist = _gas_day(session, caller, now, book, read)
     rows = [
         key_figures,
         changes,
         _book_row(today, book, prices, read),
         _fundamentals(session, caller, now, balance_reader, read, focus),
-        _needs_me(session, caller, now, book, focus, changes, key_figures, read),
-        # Appended (consumers index rows by position): what to clear today and tomorrow.
-        _gas_day(session, caller, now, book, read),
+        _needs_me(session, caller, now, book, focus, changes, key_figures, read, checklist),
+        # Appended (consumers index rows by position): what to clear today and tomorrow, and
+        # the nominations and terminal steps that clear it.
+        gas_day,
+        checklist,
     ]
     simulated = any(item["simulated"] for item in read.figures)
     stale = [
@@ -221,25 +224,40 @@ def build_today(
     }
 
 
-def _gas_day(session, caller: Caller, now: datetime, book: _Book, read: _Read) -> dict[str, Any]:
-    """Row 6, "My gas day" (``application/gas_day``): IN, OUT and net to clear per hub."""
+def _gas_day(
+    session, caller: Caller, now: datetime, book: _Book, read: _Read
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Rows 6 and 7: "My gas day" (``application/gas_day``) and its checklist
+    (``application/gas_day_checklist``), from one view of the caller's lines."""
 
-    from eurogas_nexus.application.gas_day import my_gas_day
+    from eurogas_nexus.application.gas_day import gas_day_view, my_gas_day
+    from eurogas_nexus.application.gas_day_checklist import checklist
 
-    try:
-        return my_gas_day(session, caller, now=now, inputs=book.inputs)
-    except Exception as exc:  # noqa: BLE001 - the other rows stand without it
-        read.warnings.append(f"gas day: not available ({exc.__class__.__name__})")
+    def unavailable(key: str, title: str) -> dict[str, Any]:
         return {
-            "key": "gas_day",
-            "title": "My gas day",
+            "key": key,
+            "title": title,
             "scope": None,
             "days": [],
             "simulated": False,
             "populated": False,
-            "empty": empty("gas_day_unavailable", "The gas day could not be read",
+            "empty": empty(f"{key}_unavailable", "The gas day could not be read",
                            "Refresh, or open Book → Delivery"),
         }
+
+    try:
+        view = gas_day_view(session, caller, now=now, inputs=book.inputs)
+        row = my_gas_day(session, caller, now=now, view=view)
+    except Exception as exc:  # noqa: BLE001 - the other rows stand without it
+        read.warnings.append(f"gas day: not available ({exc.__class__.__name__})")
+        return (unavailable("gas_day", "My gas day"),
+                unavailable("checklist", "Gas day checklist"))
+    try:
+        steps = checklist(session, caller, now=now, view=view)
+    except Exception as exc:  # noqa: BLE001
+        read.warnings.append(f"gas day checklist: not available ({exc.__class__.__name__})")
+        steps = unavailable("checklist", "Gas day checklist")
+    return row, steps
 
 
 #: Figures that are the caller's own book data (never a simulated market value).
@@ -1310,7 +1328,7 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
 
 def _needs_me(
     session, caller: Caller, now: datetime, book: _Book, focus: list[str],
-    changes: dict, key_figures: dict, read: _Read,
+    changes: dict, key_figures: dict, read: _Read, checklist: dict | None = None,
 ) -> dict[str, Any]:
     """Row 3, "What needs me": one ranked list of at most five, each linking to its object.
 
@@ -1355,6 +1373,13 @@ def _needs_me(
     except Exception as exc:  # noqa: BLE001 - no opportunity store: the other kinds stand
         read.warnings.append(f"discoveries: not available ({exc.__class__.__name__})")
 
+    # A nomination due within three hours (or overdue) is time-critical, so first; one only
+    # nominated beyond its tolerance sits with the limit findings (``needs_me_items``).
+    from eurogas_nexus.application.gas_day_checklist import needs_me_items
+
+    nominations = needs_me_items(checklist or {})
+    items += [item for item in nominations if item["urgency"] in {"due_soon", "overdue"}]
+    later += [item for item in nominations if item["urgency"] not in {"due_soon", "overdue"}]
     items += urgent
     items += signals
     held = {hub.upper() for hub in book.positions}

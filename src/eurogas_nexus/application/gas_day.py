@@ -434,6 +434,7 @@ def cash_out_assumption(session, books: list[str], hub: str, day: date) -> dict[
 
     currency = quote_currency(hub)
     reasons = []
+    found: dict[str, Any] = {}
     for book in [*books, None]:
         try:
             resolved = resolve_assumption_version(session, day=day, book_id=book)
@@ -444,6 +445,10 @@ def cash_out_assumption(session, books: list[str], hub: str, day: date) -> dict[
         _version_id, version = resolved
         short = version.value("balancing.short_premium")
         long_ = version.value("balancing.long_discount")
+        band = version.value("balancing.flat_band_pct")
+        if band is not None and "flat_band_pct" not in found:
+            found["flat_band_pct"] = float(band.value)
+            found["band_set"] = f"{version.name} v{version.version}"
         if short is None and long_ is None:
             continue
         if any(item is not None and (item.currency or currency) != currency
@@ -451,23 +456,50 @@ def cash_out_assumption(session, books: list[str], hub: str, day: date) -> dict[
             reasons.append(f"{version.name} v{version.version} is not in {currency}")
             continue
         return {
+            **found,
             "set": version.name,
             "version": version.version,
             "currency": currency,
             "short_premium": None if short is None else float(short.value),
             "long_discount": None if long_ is None else float(long_.value),
         }
-    return {"reasons": reasons} if reasons else None
+    return {**found, "reasons": reasons} if (reasons or found) else None
 
 
-def cost_of_nothing(net_mwh: float, assumption: dict[str, Any] | None, hub: str) -> dict:
+#: Within this share of the day's larger side a hub reads "balanced" unless the assumption set
+#: says otherwise (``balancing.flat_band_pct``): the usual nomination tolerance of 2 %.
+DEFAULT_FLAT_BAND_PCT = 2.0
+
+
+def balance_band(assumption: dict[str, Any] | None, in_mwh: float, out_mwh: float) -> dict:
+    """The band around zero inside which a net is rounding, not a position, and its basis."""
+
+    pct = (assumption or {}).get("flat_band_pct")
+    basis = "assumption" if pct is not None else "default"
+    pct = DEFAULT_FLAT_BAND_PCT if pct is None else pct
+    return {
+        "pct": pct,
+        "mwh": round(max(in_mwh, out_mwh) * pct / 100.0, 1),
+        "basis": basis,
+        "set": (assumption or {}).get("band_set"),
+    }
+
+
+def state_within(net_mwh: float, band: dict) -> str:
+    if abs(net_mwh) <= max(band["mwh"], 0.5):
+        return "balanced"
+    return "long" if net_mwh > 0 else "short"
+
+
+def cost_of_nothing(net_mwh: float, assumption: dict[str, Any] | None, hub: str,
+                    state: str | None = None) -> dict:
     """The net left open at the assumed cash-out premium (short) or discount (long)."""
 
     from eurogas_nexus.domain.ontology.markets import quote_currency
 
-    if abs(net_mwh) <= 0.5:
+    if state == "balanced" or abs(net_mwh) <= 0.5:
         return {"value": 0.0, "currency": quote_currency(hub), "basis": "balanced"}
-    if not assumption or "reasons" in assumption:
+    if not assumption or "reasons" in assumption or "set" not in assumption:
         return {"value": None, "currency": quote_currency(hub), "basis": "missing",
                 "reason": "; ".join((assumption or {}).get("reasons") or [])
                 or "no cash-out premium in the assumption set in force"}
@@ -532,6 +564,8 @@ def hub_payload(session, balance: HubBalance, day: date, now: datetime,
     books = sorted({line.book_id for line in lines if line.book_id},
                    key=lambda book: -sum(line.mwh for line in lines if line.book_id == book))
     assumption = cash_out_assumption(session, books, hub, day)
+    band = balance_band(assumption, balance.in_mwh, balance.out_mwh)
+    state = state_within(balance.net_mwh, band)
     delegated = [
         {
             "ref": line.ref,
@@ -547,7 +581,8 @@ def hub_payload(session, balance: HubBalance, day: date, now: datetime,
     ]
     return {
         "hub": hub,
-        "state": balance.state,
+        "state": state,
+        "band": band,
         "in": native_quantity(hub, balance.in_mwh, day),
         "out": native_quantity(hub, balance.out_mwh, day),
         "net": native_quantity(hub, balance.net_mwh, day),
@@ -561,15 +596,25 @@ def hub_payload(session, balance: HubBalance, day: date, now: datetime,
         },
         "delegated": delegated,
         "cutoffs": cutoffs_for(session, hub, day, now),
-        "cost_of_nothing": cost_of_nothing(balance.net_mwh, assumption, hub),
+        "cost_of_nothing": cost_of_nothing(balance.net_mwh, assumption, hub, state),
         "books": [book_names.get(book, book) for book in books],
         "simulated": any(line.simulated for line in lines),
     }
 
 
-def my_gas_day(session, caller, *, now: datetime, inputs=None) -> dict[str, Any]:
-    """The "My gas day" row for this caller: today's and tomorrow's gas day per hub."""
+@dataclass
+class GasDayView:
+    """One caller's lines and balances for today and tomorrow (shared by the row and the
+    checklist, so both read the same scope)."""
 
+    scope: Scope
+    days: list[date]
+    balances: dict[date, dict[str, HubBalance]]
+    book_names: dict[str, str]
+    contracts: dict[str, Any]
+
+
+def gas_day_view(session, caller, *, now: datetime, inputs=None) -> GasDayView:
     from eurogas_nexus.domain.market.gas_day import gas_day_label
 
     today = date.fromisoformat(gas_day_label(now))
@@ -586,14 +631,30 @@ def my_gas_day(session, caller, *, now: datetime, inputs=None) -> dict[str, Any]
         *lng_lines(session, days, scope.visible),
         *schedule_lines(session, days, scope.visible),
     ]
-    book_names = {book_id: book.name for book_id, book in (inputs.books or {}).items()}
-    out_days = []
-    for offset, day in enumerate(days):
+    balances = {}
+    for day in days:
         lines = [line for when, line in dated if when == day]
         delegations = delegations_for(session, day, now, scope.visible)
-        balances = balance_for(lines, delegations, trader=scope.trader,
-                               owned_books=scope.owned_books)
-        hubs = [hub_payload(session, balances[hub], day, now, book_names)
+        balances[day] = balance_for(lines, delegations, trader=scope.trader,
+                                    owned_books=scope.owned_books)
+    return GasDayView(
+        scope=scope,
+        days=days,
+        balances=balances,
+        book_names={book_id: book.name for book_id, book in (inputs.books or {}).items()},
+        contracts={row.contract_id: row for row in inputs.contracts},
+    )
+
+
+def my_gas_day(session, caller, *, now: datetime, inputs=None,
+               view: GasDayView | None = None) -> dict[str, Any]:
+    """The "My gas day" row for this caller: today's and tomorrow's gas day per hub."""
+
+    view = view or gas_day_view(session, caller, now=now, inputs=inputs)
+    out_days = []
+    for offset, day in enumerate(view.days):
+        balances = view.balances[day]
+        hubs = [hub_payload(session, balances[hub], day, now, view.book_names)
                 for hub in sorted(balances, key=lambda h: -abs(balances[h].net_mwh))]
         out_days.append({
             "gas_day": day.isoformat(),
@@ -606,7 +667,7 @@ def my_gas_day(session, caller, *, now: datetime, inputs=None) -> dict[str, Any]
     return {
         "key": "gas_day",
         "title": "My gas day",
-        "scope": scope.payload(),
+        "scope": view.scope.payload(),
         "days": out_days,
         "simulated": simulated,
         "populated": populated,

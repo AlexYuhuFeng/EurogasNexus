@@ -70,6 +70,17 @@ def main() -> int:
                 # the same pass, so a desk hears about a stale source within one cycle.
                 now = datetime.now(UTC)
                 queued = mirror_monitoring_alerts(session, now=now)
+                # Gas-day nominations still open within three hours of their cut-off (or past
+                # it), once each (Today's checklist); a failure here never stops the scan.
+                try:
+                    from eurogas_nexus.application.gas_day_checklist import (
+                        queue_deadline_notifications,
+                    )
+
+                    queued += queue_deadline_notifications(session, now=now)
+                except Exception as exc:  # noqa: BLE001
+                    print(json.dumps({"status": "gas_day_deadlines_failed",
+                                      "error_type": exc.__class__.__name__}), flush=True)
                 # Scheduled reports due this pass run as the service principal (never an
                 # administrator); their e-mail rows are dispatched below with the rest.
                 reports = run_due_reports(session, now=now, caller=authority.principal,

@@ -1165,6 +1165,11 @@ DEMO_GAS_DAY_SCHEDULE = (
 #: The demo's delegated split: the TTF desk clears the part of the UK book's TTF delivery that
 #: is not exported through BBL (inside its mandate: DEMO-NL-1 holds TTF).
 DEMO_GAS_DAY_SPLIT_MWH = 2_000.0
+#: Who nominates each demo contract's gas (fictional names; a beach supply through an agent).
+DEMO_NOMINATION_AGENTS = {
+    "demo-haldor-24": "Demo nominations agent (fictional)",
+    "demo-brae-10": "Demo nominations agent (fictional)",
+}
 #: Cash-out premium (short) and discount (long) against day-ahead per demo book, invented.
 DEMO_CASH_OUT = (
     ("aset-demo-uk-balancing", "demo-uk-nbp", "GBP", "1.50", "1.20"),
@@ -1188,6 +1193,7 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
         AssumptionSetVersionRecord,
         AssumptionValueRecord,
         GasDayDelegationRecord,
+        GasDayNominationEventRecord,
         GasDayScheduleLineRecord,
     )
     from eurogas_nexus.db.models.lng_positions import RegasSlotRecord
@@ -1221,13 +1227,62 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
             continue
         if session.get(ContractDeliveryRecord, (cid, today)) is not None:
             continue
+        # Haldor has been under-delivering (see the delivery history): its scheduler nominated
+        # 12 % under the contract quantity today, which the checklist shows as a mismatch.
+        factor = 0.88 if cid == "demo-haldor-24" else 1 + rng.uniform(-0.005, 0.005)
         session.add(ContractDeliveryRecord(
             contract_id=cid, gas_day=today,
-            nominated_mwh=round(dcq * (1 + rng.uniform(-0.03, 0.03)), 1), allocated_mwh=None,
+            nominated_mwh=round(dcq * factor, 1), allocated_mwh=None,
             tso="Demo TSO", point=point, source_system="DEMO",
             source_reference="demo:deliveries", updated_at_utc=now,
         ))
         counts["gas_day_nominations"] += 1
+    # The nominations agent the demo contracts name (fictional), where the record names none.
+    for cid in (*(row[0] for row in CONTRACTS), CROSS_BORDER_CONTRACT):
+        contract = session.get(UpstreamResourceContractRecord, cid)
+        if contract is not None and getattr(contract, "nomination_agent", None) is None:
+            contract.nomination_agent = DEMO_NOMINATION_AGENTS.get(cid, "Demo shipper desk")
+            counts["gas_day_agents"] = counts.get("gas_day_agents", 0) + 1
+    # Statuses as the scheduling import recorded them; tomorrow's Brae North is still to send.
+    for day, ref, hub, book, step, status, suffix in (
+        (today, "contract:demo-haldor-24", "NBP", "demo-uk-nbp", "nomination", "confirmed",
+         "haldor"),
+        (today, f"contract:{CROSS_BORDER_CONTRACT}", "TTF", "demo-uk-nbp", "nomination",
+         "confirmed", "kestrel-uk"),
+        (today, "contract:demo-kestrel-18", "TTF", "demo-nl-ttf", "nomination", "confirmed",
+         "kestrel"),
+        (today, f"schedule:demo-gd-{today:%Y%m%d}-uk-bbl-import", "NBP", "demo-uk-nbp",
+         "nomination", "confirmed", "bbl-in"),
+        (today, f"schedule:demo-gd-{today:%Y%m%d}-uk-bbl-export", "TTF", "demo-uk-nbp",
+         "nomination", "confirmed", "bbl-out"),
+        (today, f"schedule:demo-gd-{today:%Y%m%d}-nl-storage", "TTF", "demo-nl-ttf",
+         "nomination", "sent", "storage"),
+        (tomorrow, "contract:demo-haldor-24", "NBP", "demo-uk-nbp", "nomination", "sent",
+         "haldor"),
+        (tomorrow, f"contract:{CROSS_BORDER_CONTRACT}", "TTF", "demo-uk-nbp", "nomination",
+         "sent", "kestrel-uk"),
+        (tomorrow, "contract:demo-kestrel-18", "TTF", "demo-nl-ttf", "nomination", "sent",
+         "kestrel"),
+        (tomorrow, f"schedule:demo-gd-{tomorrow:%Y%m%d}-uk-bbl-import", "NBP", "demo-uk-nbp",
+         "nomination", "sent", "bbl-in"),
+        (tomorrow, f"schedule:demo-gd-{tomorrow:%Y%m%d}-uk-bbl-export", "TTF", "demo-uk-nbp",
+         "nomination", "sent", "bbl-out"),
+        (tomorrow, f"schedule:demo-gd-{tomorrow:%Y%m%d}-nl-storage", "TTF", "demo-nl-ttf",
+         "nomination", "sent", "storage"),
+    ):
+        event_id = f"demo-nom-{day:%Y%m%d}-{suffix}"
+        if session.get(GasDayNominationEventRecord, event_id) is not None:
+            continue
+        contract = (session.get(UpstreamResourceContractRecord, ref.split(":", 1)[1])
+                    if ref.startswith("contract:") else None)
+        session.add(GasDayNominationEventRecord(
+            event_id=event_id, gas_day=day, line_ref=ref, hub=hub, book_id=book, step=step,
+            status=status, quantity_mwh=None,
+            agent=getattr(contract, "nomination_agent", None), origin="import",
+            recorded_by=getattr(contract, "nomination_agent", None) or "Demo scheduling import",
+            recorded_at_utc=now - timedelta(hours=2), note=None, source_system=SOURCE,
+        ))
+        counts["gas_day_statuses"] = counts.get("gas_day_statuses", 0) + 1
     # One LNG send-out day: tomorrow at the demo Rotterdam terminal, for the NL book.
     slot_id = f"demo-slot-gate-{tomorrow:%Y%m%d}"
     if session.get(RegasSlotRecord, slot_id) is None:

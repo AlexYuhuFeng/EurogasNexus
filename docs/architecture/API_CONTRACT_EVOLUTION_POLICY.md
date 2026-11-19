@@ -184,6 +184,17 @@ evaluation read, with class, source, reference and as-of; unentitled values with
 need portfolio read and sit inside the commercial boundary; writes are audited without values.
 Census: 262 paths / 290 operations.
 
+Additive 2026-11-19 (My gas day): `GET /api/desk/today` appends `rows[5]` (`gas_day`: per hub
+for today and tomorrow, IN and OUT lines, net to clear in the hub's unit, the balancing band,
+cut-offs with their basis, the cost of leaving it open at the assumption set's cash-out
+premium or discount, prompt trades done today, delegated parts) and `rows[6]` (`checklist`:
+per source the nomination status as recorded, agent, expected against nominated with the
+tolerance, LNG terminal steps, each open step's deadline and urgency); earlier rows keep their
+positions. `POST /api/desk/gas-day/status` (WRITE, `portfolio.write`) records a step's status
+by hand for a line of the caller's own gas day (labelled `origin: manual`, audited; 404 for a
+line outside his scope, 422 for an unknown step, status or day). Census: 273 paths /
+306 operations (+1 / +1 on 273 / 305).
+
 Added 2026-11-15: `GET /api/desk/today` returns the Today screen's four rows (key figures,
 what changed, the book against the market, fundamentals) computed once on the server from
 the reads the desk brief uses, with the caller's licences and books applied. It is a READ

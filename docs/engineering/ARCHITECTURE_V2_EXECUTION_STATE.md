@@ -6,6 +6,27 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-19 — Today → My gas day, stage 2: the checklist (branch `today-gas-day`, not pushed)
+
+- Today `rows[6]` `checklist` (`application/gas_day_checklist.py`), same view and scope as
+  `rows[5]`: per contract and scheduled line the nomination status as recorded (newest
+  `gas_day_nomination_events` row, else the delivery record's nominated quantity as "sent",
+  else "to send"), the agent the contract names (`upstream_resource_contracts.nomination_agent`),
+  expected against nominated beyond the contract's nomination tolerance, LNG terminal steps
+  per regas slot (unloading window, send-out nomination, inventory only where recorded) and a
+  DES cargo confirmation whose window covers the day. Each open step's deadline from
+  `hub_cutoffs`; due within 3 h or overdue goes to "What needs me" first and to the outbox
+  once (`queue_deadline_notifications`, monitoring worker and `dispatch_notifications.py`).
+- `POST /api/desk/gas-day/status` (WRITE, portfolio.write in the handler): a status entered by
+  hand, only for a line of the caller's own gas day; labelled `manual`, audited
+  (`gas_day.status.record`). Nothing is nominated. Census 277 / 310.
+- Migration `0076_gas_day_nominations`. Review points: a hub reads "balanced" within
+  `balancing.flat_band_pct` (new assumption key; default 2 % of the day's larger side, stated);
+  Time left turns amber within 2 h and red within 30 min and names its basis on hover.
+- Open: no assumption-set editor exists in the web client, so "not estimated" says who enters
+  the premium and where, without a link; the demo operations identity is read-only by an
+  existing deliberate test (`test_demo_identity_access`), so it sees but cannot record.
+
 ## 2026-11-19 — Today → My gas day, stage 1 (branch `today-gas-day`, not pushed)
 
 - Today row 6 `gas_day` (appended to `GET /api/desk/today`, earlier rows keep their positions;

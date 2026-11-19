@@ -115,6 +115,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # The Today read (UX-05): prices, positions, limits, alerts, outages and fundamentals
     # the caller may already see, assembled once; nothing is written.
     ("/api/desk/today", Permission.READ),
+    # My gas day checklist: a status recorded by hand for a step of the caller's own gas
+    # day (portfolio.write held in the handler, audited); nothing is nominated or sent.
+    ("/api/desk/gas-day/status", Permission.WRITE),
     # Market reports (application/reports): the catalogue is a declaration; reading a stored
     # report is a read of figures the reader is re-checked for (sources and books). Proposing
     # a plan may call the model, and generating one stores a record and may call the model,
@@ -389,6 +392,7 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("PUT", "/api/reports/schedules", Permission.ADMIN),
     ("PUT", "/api/settings/organisation", Permission.ADMIN),
     ("POST", "/api/assumption-sets", Permission.GOVERNED),
+    ("POST", "/api/desk/gas-day/status", Permission.WRITE),
     ("PUT", "/api/market/firm-marks", Permission.GOVERNED),
     ("POST", "/api/opportunities/evaluations", Permission.GOVERNED),
     ("PUT", "/api/opportunities/settings", Permission.REVIEW),

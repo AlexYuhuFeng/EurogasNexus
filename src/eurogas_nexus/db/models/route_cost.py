@@ -119,6 +119,9 @@ class UpstreamResourceContractRecord(Base):
     kind_terms: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     #: Terms the product does not model yet, kept verbatim so nothing entered is lost.
     unmodelled_terms: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    #: Who nominates this contract's gas to the TSO for the firm (a nominations agent or the
+    #: shipper's own desk), as the contract names it; NULL while the record does not say.
+    nomination_agent: Mapped[str | None] = mapped_column(String(128), nullable=True)
     #: The master agreement a confirmation is made under (an LNG cargo under its MSPA).
     master_contract_id: Mapped[str | None] = mapped_column(
         String(128),

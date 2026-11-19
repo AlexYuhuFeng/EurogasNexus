@@ -43,6 +43,8 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/opportunities/{opportunity_id}/case",
         "/api/analysis/brief",
         "/api/desk/today",
+        # My gas day, stage 2: a nomination or terminal step status recorded by hand.
+        "/api/desk/gas-day/status",
         "/api/reports/catalogue",
         "/api/reports/plan",
         "/api/reports/market",

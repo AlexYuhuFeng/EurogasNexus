@@ -15,7 +15,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus_sdk._transport import SdkResult, api_url, get_envelope
 
-RowKey = Literal["key_figures", "changes", "book", "fundamentals", "needs_me", "gas_day"]
+RowKey = Literal[
+    "key_figures", "changes", "book", "fundamentals", "needs_me", "gas_day", "checklist"
+]
 
 
 class StaleFigure(BaseModel):
@@ -47,8 +49,9 @@ class DeskToday(BaseModel):
         all_simulated: True when every figure does (the page says so once).
         simulated_notice: The notice to show with simulated figures; None otherwise.
         rows: The rows (``key_figures``, ``changes``, ``book``, ``fundamentals``,
-            ``needs_me``, ``gas_day``: what to clear per hub today and tomorrow); each is a
-            dict whose ``key`` names it. ``key_figures`` carries the
+            ``needs_me``, ``gas_day``: what to clear per hub today and tomorrow,
+            ``checklist``: its nominations and terminal steps); each is a dict whose ``key``
+            names it. ``key_figures`` carries the
             ``market`` section (DA and front month per focus hub, spreads) and
             ``fundamentals`` the ``storage_europe`` section. Their figures keep the server's
             units; nothing is converted here.
