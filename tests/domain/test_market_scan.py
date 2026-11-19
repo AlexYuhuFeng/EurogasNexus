@@ -60,3 +60,33 @@ def test_prompt_spread_at_one_hub_is_a_market_item() -> None:
 def test_a_prompt_edge_within_the_normal_shape_is_not_an_item() -> None:
     assert D("0.25") < PROMPT_MIN_EDGE
     assert not [c for c in _scan("0.25") if c.type is OpportunityType.PROMPT_ARBITRAGE]
+
+
+def test_the_market_lane_ranks_by_net_edge_and_hides_from_risk() -> None:
+    from eurogas_nexus.domain.discovery.findings import FUNCTION_AUDIENCE, RELEVANCE
+    from eurogas_nexus.domain.opportunities.ranking import RankInput, rank
+
+    def item(oid, edge, value):
+        return RankInput(
+            opportunity_id=oid,
+            lane=Lane.MARKET,
+            quality=InputClass.SOURCED,
+            simulated=False,
+            consecutive_seen=2,
+            expires_at_utc=AS_OF + timedelta(days=1),
+            deadline_utc=None,
+            value_eur=D(value),
+            size=D(value),
+            size_unit="EUR",
+            edge_eur_mwh=D(edge),
+        )
+
+    # A smaller lot with the larger edge ranks first; the value is stated beside it.
+    ranked = rank([item("big", "0.20", "200000"), item("sharp", "1.50", "15000")], AS_OF)
+    assert [r.opportunity_id for r in ranked] == ["sharp", "big"]
+    assert ranked[0].reason.startswith("ranked 1st: 1.500 EUR/MWh net, EUR 15k")
+    # An originator is in the trader audience; risk does not see market kinds.
+    assert FUNCTION_AUDIENCE["ORIGINATOR"] == "trader"
+    assert all(
+        weights["risk"] == 0.0 for k, weights in RELEVANCE.items() if k.startswith("market.")
+    )

@@ -207,6 +207,9 @@ def _rank_input(row) -> RankInput:
         value_eur=None if row.reporting_value is None else Decimal(str(row.reporting_value)),
         size=abs(Decimal(str(size if size is not None else row.headline_value))),
         size_unit=row.volume_unit or row.headline_unit,
+        edge_eur_mwh=Decimal(str(row.headline_value))
+        if row.headline_unit == "EUR/MWh" and row.headline_value is not None
+        else None,
     )
 
 

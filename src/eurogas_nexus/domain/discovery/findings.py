@@ -35,11 +35,12 @@ FUNCTION_AUDIENCE: dict[str, str] = {
 
 #: kind -> audience -> weight (0..1). A kind absent for an audience ranks at 0.1.
 RELEVANCE: dict[str, dict[str, float]] = {
-    # The market lane (no position): first for the people who trade it; risk does not see it
-    # by default (weight 0 is "hidden", not "last").
-    "market.locational": {"trader": 1.0, "originator": 1.0, "management": 0.3, "risk": 0.0},
-    "market.prompt_arbitrage": {"trader": 1.0, "originator": 0.6, "management": 0.3, "risk": 0.0},
-    "market.time_spread": {"trader": 0.9, "originator": 0.9, "management": 0.3, "risk": 0.0},
+    # The market lane (no position): first for the people who trade it (an originator is in
+    # the trader audience, FUNCTION_AUDIENCE); risk does not see it by default (weight 0 is
+    # "hidden", not "last").
+    "market.locational": {"trader": 1.0, "management": 0.3, "risk": 0.0},
+    "market.prompt_arbitrage": {"trader": 1.0, "management": 0.3, "risk": 0.0},
+    "market.time_spread": {"trader": 0.9, "management": 0.3, "risk": 0.0},
     "opportunity.locational": {"trader": 1.0, "management": 0.5, "risk": 0.2},
     "opportunity.unused_capacity": {"trader": 1.0, "operations": 0.5, "management": 0.5},
     "opportunity.time_spread": {"trader": 0.9, "management": 0.4},

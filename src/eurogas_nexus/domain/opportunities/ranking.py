@@ -49,6 +49,8 @@ class RankInput:
     value_eur: Decimal | None
     size: Decimal  # |headline| for must act (volume or money), |value| otherwise
     size_unit: str
+    #: The market lane's order: the edge net of every cost, EUR/MWh (value beside it).
+    edge_eur_mwh: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -114,6 +116,17 @@ def rank(items: Iterable[RankInput], now_utc: datetime) -> list[Ranked]:
                 item.opportunity_id,
             ),
         )
+    elif lane is Lane.MARKET:
+        ordered = sorted(
+            rows,
+            key=lambda item: (
+                item.simulated,
+                -(item.edge_eur_mwh if item.edge_eur_mwh is not None else Decimal(0)),
+                -score(item),
+                item.expires_at_utc,
+                item.opportunity_id,
+            ),
+        )
     else:
         ordered = sorted(
             rows,
@@ -135,8 +148,13 @@ def rank(items: Iterable[RankInput], now_utc: datetime) -> list[Ranked]:
             out.append(Ranked(item.opportunity_id, position, None, reason))
         else:
             value = item.value_eur or Decimal(0)
+            edge = (
+                f"{grouped(item.edge_eur_mwh, 3)} EUR/MWh net, "
+                if lane is Lane.MARKET and item.edge_eur_mwh is not None
+                else ""
+            )
             reason = (
-                f"ranked {_ordinal(position)}: EUR {grouped(value / 1000)}k, "
+                f"ranked {_ordinal(position)}: {edge}EUR {grouped(value / 1000)}k, "
                 f"{_quality_words(item.quality, item.simulated)}, "
                 f"{_when(item.expires_at_utc, now_utc, 'expires')}"
             )
