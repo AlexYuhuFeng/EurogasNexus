@@ -451,7 +451,8 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "poolInputBlockers" in app
     assert "runtimeDbReady" in app
     assert "blocker_runtime_db" in app
-    assert "contract-task-tabs" in app_and_components
+    # Deals -> Contracts is the contract list with the open contract beside it (2026-11-19).
+    assert "contract-list-command" in app_and_components
     assert "contract-terms-layout" in app_and_components
     assert "map-overlay" not in app
     assert "topology-status-panel" not in app
@@ -1233,50 +1234,45 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
     assert "decision_support_only" in contract_payload
     assert "human_review_required" in contract_payload
 
+    # The page is the contract list (owner, 2026-11-19): the list's command row (count, search,
+    # kind filter, New contract, Import PDF), the list, and the open contract beside it; the
+    # supply editor's clause layout is kept for a supply agreement.
     for token in [
         "contract-task-workspace",
-        "contract-command-strip",
-        "contract-task-tabs",
-        "contract-source-view",
+        "contract-list-command",
+        'id="contract-list"',
+        "contract-detail",
         "contract-terms-layout",
         "contract-clause-nav",
         "contract-clause-editor",
         "contract-decision-rail",
-        "contract-impact-view",
-        "contract-library-view",
-        "contract-library-row",
         "contractImportRef",
         "importContractDraftFile",
         "loadTerm",
         # The UI accepts PDF only since CP-00; JSON stays on the API (design basis 2, H).
         'accept=".pdf,application/pdf"',
-        't("contracts.upload_contract")',
+        't("contracts.action.import")',
         't("contracts.beach_delivery_point")',
         't("contracts.title_transfer_point")',
-        't("contracts.document_status")',
     ]:
         assert token in workbench
 
     for token in [
         ".contract-task-workspace",
-        ".contract-command-strip",
-        ".contract-task-tabs",
-        ".contract-source-view",
         ".contract-terms-layout",
         ".contract-clause-nav",
         ".contract-clause-editor",
         ".contract-decision-rail",
-        ".contract-impact-view",
-        ".contract-library-view",
     ]:
         assert token in css
 
-    assert en["contracts.upload_contract"] == "Import Resource Terms"
+    # Desk words, not internal ones (owner, 2026-11-19).
+    assert en["contracts.upload_contract"] == "Import a contract PDF"
     assert en["contracts.beach_delivery"] == "Beach delivery"
     assert en["contracts.counterparty"] == "Counterparty"
     assert en["contracts.title_transfer_point"] == "Title transfer point"
     assert en["contracts.document_status"] == "Document status"
-    assert zh["contracts.upload_contract"] == "\u5bfc\u5165\u8d44\u6e90\u6761\u6b3e"
+    assert zh["contracts.upload_contract"] == "\u5bfc\u5165\u5408\u540c PDF"
     assert zh["contracts.beach_delivery"] == "\u6d77\u5cb8\u4ea4\u4ed8"
     assert zh["contracts.counterparty"] == "\u5bf9\u624b\u65b9"
     assert zh["contracts.title_transfer_point"] == "\u6743\u5c5e\u8f6c\u79fb\u70b9"
@@ -1531,15 +1527,14 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "contractSaveStateForDraft.canSave" in portfolio_workspace_source
     assert "saveDraftContract(contractPayload)" not in app_and_contracts
     assert "contractSaveMessage" in portfolio_workspace_source
-    assert "contract-library-view" in app_and_contracts
-    assert "contract-library-row" in app_and_contracts
+    assert 'data-record": "upstream-contract"' in app_and_contracts
     assert "contract-import-input" in app_and_contracts
     assert "importContractDraftFile" in app_and_contracts
     assert "loadTerm" in app_and_contracts
     assert "contractDraftFromRecord" in app
-    assert en["contracts.library"] == "Resource Terms Library"
+    assert en["contracts.library"] == "Contracts"
     assert en["contracts.import_json"] == "Import JSON"
-    assert zh["contracts.library"] == "\u8d44\u6e90\u6761\u6b3e\u5e93"
+    assert zh["contracts.library"] == "\u5408\u540c"
     assert zh["contracts.import_json"] == "\u5bfc\u5165 JSON"
     assert "nbp-via-bbl" not in app
     assert "cheap-nbp-route" not in app

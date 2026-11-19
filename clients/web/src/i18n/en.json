@@ -5337,7 +5337,7 @@
   "backtest.open": "open",
   "backtest.direction.long": "Long",
   "backtest.direction.short": "Short",
-  "contracts.kind.choose": "What kind of contract is it?",
+  "contracts.kind.choose": "Choose the kind of contract",
   "contracts.kind.label": "Contract kind",
   "contracts.kind.change": "Choose another kind",
   "contracts.kind.SUPPLY_GSA": "Gas supply agreement",

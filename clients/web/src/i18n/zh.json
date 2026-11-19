@@ -5337,7 +5337,7 @@
   "backtest.open": "未平仓",
   "backtest.direction.long": "多头",
   "backtest.direction.short": "空头",
-  "contracts.kind.choose": "这是哪类合同？",
+  "contracts.kind.choose": "选择合同类型",
   "contracts.kind.label": "合同类型",
   "contracts.kind.change": "选择其他类型",
   "contracts.kind.SUPPLY_GSA": "天然气供应协议",

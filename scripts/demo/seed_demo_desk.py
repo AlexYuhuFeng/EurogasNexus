@@ -952,7 +952,7 @@ TYPED_DEMO_CONTRACTS = ("demo-mspa-atlantic", "demo-mspa-atlantic-cn07", "demo-t
 
 
 def seed_typed_contracts(session, now: datetime, today: date) -> None:
-    """An LNG master, a DES cargo under it and an upstream tender (fictional, labelled demo).
+    """An LNG master, an FOB cargo under it and an upstream tender (fictional, labelled demo).
 
     The base columns come from the kinds' own derivation (``domain/contracts/kinds.py``), the
     same one the governed write uses. No credit line is named, so the designed credit states of
@@ -963,7 +963,14 @@ def seed_typed_contracts(session, now: datetime, today: date) -> None:
 
     no_line = {"counterparty_id": None}
     master_terms = kinds.parse_terms("LNG_MSPA", {**examples.mspa_terms(today), **no_line})
-    cargo_terms = kinds.parse_terms("LNG_CARGO", examples.cargo_terms(today))
+    # FOB at the load port: a cargo bought to be placed (the desk's diversion choice), so it is
+    # exposure to its HH formula and no hub position; the demo's mandates keep their designed
+    # headroom (a DES cargo of ~1 TWh would breach the TTF desk's monthly limit).
+    cargo_terms = kinds.parse_terms(
+        "LNG_CARGO",
+        {**examples.cargo_terms(today), "delivery_term": "FOB", "discharge_terminal": None,
+         "terminal_hub": None},
+    )
     tender_terms = kinds.parse_terms(
         "UPSTREAM_TENDER", {**examples.tender_terms(today), **no_line}
     )
