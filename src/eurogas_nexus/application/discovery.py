@@ -282,7 +282,10 @@ def discoveries(
     moment = now or datetime.now(UTC)
     audience = audience_of(function)
     evaluation = latest_evaluation(session)
+    bind = session.get_bind() if hasattr(session, "get_bind") else None
     key = (
+        # The store as well as the caller: one process can hold several stores (tests, tools).
+        str(getattr(bind, "url", "")),
         getattr(principal, "principal_id", None),
         audience,
         language,
