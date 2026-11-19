@@ -38,7 +38,14 @@ operator and infrastructure type.
    Two sides in one market area (two TSOs inside THE) are an internal point: no edge.
 5. **Only located points.** An edge needs both ends in the bundle with a position; a point
    ENTSOG publishes without one is listed with what it would join.
-6. **One drawn line per pair of market areas.** Of the points joining the same two market areas,
+6. **A side ENTSOG leaves blank is named from the operator point directions.** Where every
+   ``interconnections`` row of a point leaves one side's operator blank (Bunde / Oude
+   Statenzijl (H) I (OGE), ITP-00103: the THE side), the operators the bundle's ``access``
+   rows (ENTSOG ``operatorpointdirections``) list at that point in that market area's country
+   name the side (``operators_basis`` says so, with the access ids as evidence). A side no
+   source names stays blank and its legs read "unknown TSO" (VIP France - Germany, ITP-00540:
+   ENTSOG lists only NaTran Deutschland there, read 19-11-2026).
+7. **One drawn line per pair of market areas.** Of the points joining the same two market areas,
    one is marked ``representative`` (the map draws it by default and pricing uses it when a
    route names no point): the largest firm technical capacity ENTSOG publishes for the build's
    gas day (``operationaldatas``, indicator Firm Technical), then a VIP (a point other points
@@ -398,8 +405,53 @@ def apply_to_bundle(
             "folded": result["folded"],
             "unconnected": result["unconnected"],
         },
-        "edges": kept + result["edges"],
+        "edges": kept + fill_blank_sides(bundle, result["edges"]),
     }
+
+
+#: The country whose operators trade in each market area of the bundle (``BZ_HUB``).
+HUB_COUNTRY: dict[str, str] = {
+    "VTP-00002": "NL",
+    "VTP-00045": "DE",
+    "VTP-00039": "FR",
+    "VTP-00006": "UK",
+    "VTP-00001": "DK",
+    "VTP-00005": "IE",
+}
+
+
+def fill_blank_sides(
+    bundle: Mapping[str, Any], edges: Iterable[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    """Market-area links whose side ENTSOG's interconnections leave blank, named (rule 6).
+
+    The operators the bundle's access rows (ENTSOG ``operatorpointdirections``) list at the
+    point whose operator country is the market area's country; ZTP (BE and LU operators) is
+    left as published. A side no access row names stays blank.
+    """
+
+    operators = bundle.get("operators") or {}
+    access: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+    for row in bundle.get("access") or []:
+        operator = str(row.get("operator_key") or "")
+        access[str(row.get("point_key") or "")][operator].append(str(row.get("access_id")))
+    out: list[dict[str, Any]] = []
+    for edge in edges:
+        edge = dict(edge)
+        country = HUB_COUNTRY.get(str(edge.get("hub_point_key") or ""))
+        if edge.get("type") == MARKET_AREA_LINK and not edge.get("operators") and country:
+            named = {
+                operator: ids
+                for operator, ids in access.get(str(edge["point_key"]), {}).items()
+                if str((operators.get(operator) or {}).get("country") or "") == country
+                and "-TSO-" in operator
+            }
+            if named:
+                edge["operators"] = sorted(named)
+                edge["operators_basis"] = "entsog_operator_point_directions"
+                edge["operators_evidence"] = sorted(i for ids in named.values() for i in ids)
+        out.append(edge)
+    return out
 
 
 def _dmy(iso_day: str) -> str:

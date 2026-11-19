@@ -47,7 +47,14 @@ point joins. They are derived from ENTSOG's published `interconnections` and
    on that side and the ENTSOG row ids as evidence. Two sides in one market area are an
    internal point.
 4. A pipeline whose two located ends each join a market area gets one `interconnector` edge.
-5. Of the points joining the same pair, one is marked `representative`: the map draws it
+5. A side every `interconnections` row leaves blank is named from the operator point
+   directions (`operatorpointdirections`, the bundle's `access` rows) at that point in that
+   market area's country (`operators_basis: entsog_operator_point_directions`, with the
+   access ids). Read 19-11-2026: the THE side of Bunde / Oude Statenzijl (H) I (OGE), ITP-00103,
+   is Open Grid Europe ("ENTSOG TP [19-11-2026] https://transparency.entsog.eu/"). The PEG side
+   of VIP France - Germany (ITP-00540) stays blank: ENTSOG lists only NaTran Deutschland there,
+   so its legs read "unknown TSO".
+6. Of the points joining the same pair, one is marked `representative`: the map draws it
    by default and route pricing uses it when a route names no point. It is the point with
    the largest firm technical capacity ENTSOG publishes for the build's gas day
    (`operationaldatas`, indicator Firm Technical, read with the adjacency): VIP TTF-THE-H
