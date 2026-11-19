@@ -683,8 +683,8 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
     ConfigVar(
         name="EUROGAS_NEXUS_DEFERRED_CAPABILITIES",
         scope="OPERATOR",
-        purpose="Serve the deferred capabilities' routes (strategy lifecycle, shadow runtime, "
-        "dataset builder, agents); off by default.",
+        purpose="Serve the deferred capabilities' routes (dataset builder, agents workspace); "
+        "off by default.",
         default="off",
         notes=(
             "Design basis 2, I.3 and decision L4: the backends are kept, dormant, until a desk "

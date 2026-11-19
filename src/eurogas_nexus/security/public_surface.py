@@ -252,39 +252,8 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/weather/hdd-cdd",
         "/api/weather/observations",
         "/api/weather/stations",
-    }
-)
-
-
-#: Paths of the deferred capabilities (design basis 2, I.3 and decision L4): the strategy
-#: lifecycle, the shadow runtime, the dataset builder and the agents workspace. Their backends are
-#: kept, dormant; the routes are served only with ``EUROGAS_NEXUS_DEFERRED_CAPABILITIES`` on
-#: (``api/route_registration.py``), so they are not part of the reviewed public surface.
-DEFERRED_PUBLIC_PATHS: frozenset[str] = frozenset(
-    {
-        "/api/agent/plans/validate",
-        "/api/agent/profiles",
-        "/api/agent/research",
-        "/api/agent/runs",
-        "/api/agent/runs/{agent_run_id}",
-        "/api/agent/runs/{agent_run_id}/replay",
-        "/api/agent/strategy-ir/validate",
         "/api/backtest-experiments",
         "/api/backtest-experiments/{experiment_id}",
-        "/api/capabilities",
-        "/api/capabilities/search",
-        "/api/capabilities/{capability_id}",
-        "/api/capabilities/{capability_id}/invoke",
-        "/api/research/capabilities",
-        "/api/research/datasets",
-        "/api/research/datasets/validate",
-        "/api/research/datasets/{dataset_snapshot_id}",
-        "/api/research/datasets/{dataset_snapshot_id}/export",
-        "/api/research/datasets/{dataset_snapshot_id}/quality",
-        "/api/research/features",
-        "/api/research/features/{feature_id}",
-        "/api/research/targets",
-        "/api/research/targets/{target_id}",
         "/api/shadow-alerts",
         "/api/shadow-alerts/{alert_id}/acknowledge",
         "/api/shadow-evaluations/{evaluation_id}",
@@ -310,5 +279,36 @@ DEFERRED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/strategy-versions/{version_id}/draft",
         "/api/strategy-versions/{version_id}/fork",
         "/api/strategy-versions/{version_id}/freeze",
+    }
+)
+
+
+#: Paths of the deferred capabilities (design basis 2, I.3 and decision L4): the dataset builder
+#: and the agents workspace. Their backends are kept, dormant; the routes are served only with
+#: ``EUROGAS_NEXUS_DEFERRED_CAPABILITIES`` on
+#: (``api/route_registration.py``), so they are not part of the reviewed public surface.
+DEFERRED_PUBLIC_PATHS: frozenset[str] = frozenset(
+    {
+        "/api/agent/plans/validate",
+        "/api/agent/profiles",
+        "/api/agent/research",
+        "/api/agent/runs",
+        "/api/agent/runs/{agent_run_id}",
+        "/api/agent/runs/{agent_run_id}/replay",
+        "/api/agent/strategy-ir/validate",
+        "/api/capabilities",
+        "/api/capabilities/search",
+        "/api/capabilities/{capability_id}",
+        "/api/capabilities/{capability_id}/invoke",
+        "/api/research/capabilities",
+        "/api/research/datasets",
+        "/api/research/datasets/validate",
+        "/api/research/datasets/{dataset_snapshot_id}",
+        "/api/research/datasets/{dataset_snapshot_id}/export",
+        "/api/research/datasets/{dataset_snapshot_id}/quality",
+        "/api/research/features",
+        "/api/research/features/{feature_id}",
+        "/api/research/targets",
+        "/api/research/targets/{target_id}",
     }
 )

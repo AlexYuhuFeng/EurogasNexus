@@ -50,10 +50,10 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **239 paths / 265 operations**
+- OpenAPI public surface: **266 paths / 297 operations**
   (2026-11-19: the deferred capabilities' routes are no longer served by default, design basis
-  2 I.3 and decision L4: strategy lifecycle, shadow runtime, dataset builder and agents, 48
-  paths / 54 operations behind `EUROGAS_NEXUS_DEFERRED_CAPABILITIES`; 287 / 319 before)
+  2 I.3 and decision L4: the dataset builder and the agents workspace, 21 paths / 22 operations
+  behind `EUROGAS_NEXUS_DEFERRED_CAPABILITIES`; 287 / 319 before)
 
   (2026-11-18: `GET`/`PUT /api/reports/schedules`, scheduled reports; 284 / 315 before)
   (2026-11-18: LNG cargo economics, CP-12: `GET`/`PUT /api/lng/freight-routes[/{route_id}]`

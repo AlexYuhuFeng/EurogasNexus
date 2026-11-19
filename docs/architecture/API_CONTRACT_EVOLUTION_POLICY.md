@@ -5,13 +5,12 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 ## Purpose
 
 Removal 2026-11-19 (commercial design basis 2, I.3 and decision L4): the deferred capabilities
-are no longer served by default. The strategy registry (`/api/strategies…`,
-`/api/strategy-versions…`, `/api/strategy-runs…`, `/api/backtest-experiments…`), the shadow
-runtime (`/api/shadow-…`), the dataset builder (`/api/research/features|targets|capabilities|datasets…`)
-and the agents workspace (`/api/capabilities…`, `/api/agent/…`): 48 paths / 54 operations, listed
+are no longer served by default: the dataset builder (`/api/research/features|targets|capabilities|datasets…`)
+and the agents workspace (`/api/capabilities…`, `/api/agent/…`), 21 paths / 22 operations, listed
 in `security/public_surface.py` `DEFERRED_PUBLIC_PATHS`. Their backends and tests are kept; an
-operator serves them again with `EUROGAS_NEXUS_DEFERRED_CAPABILITIES=on`. The Python SDK modules
-for them stay and need that switch. Census: 239 paths / 265 operations (−48 / −54 on 287 / 319).
+operator serves them again with `EUROGAS_NEXUS_DEFERRED_CAPABILITIES=on`. The strategy registry
+and the shadow runtime stay served while the Spreads backtest and shadow tracking are rebuilt.
+Census: 266 paths / 297 operations (−21 / −22 on 287 / 319).
 
 Additive 2026-11-18 (scheduled reports): one path, two operations. `GET /api/reports/schedules`
 (READ) answers `{schedules[], last_slots}`; `PUT /api/reports/schedules` (ADMIN; body
