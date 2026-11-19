@@ -83,9 +83,7 @@ export const INSPECTOR_SUBJECT_KINDS = [
   "strategy-version",
   "strategy-run",
   "decision-evidence",
-  "data-product",
   "provider-connection",
-  "agent-run",
   "job",
 ] as const;
 

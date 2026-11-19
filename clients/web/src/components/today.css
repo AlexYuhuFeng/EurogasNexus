@@ -148,25 +148,8 @@
 
   
 
-  .today-list {
-    display: grid;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
 
-  .today-list > li {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-space-2);
-    min-height: var(--ds-row);
-    border-bottom: 1px solid var(--ds-border-subtle);
-    font-size: var(--ds-text-base);
-  }
 
-  .today-list > li:last-child {
-    border-bottom: 0;
-  }
 
   
 
@@ -402,9 +385,6 @@
       white-space: normal;
     }
 
-    .today-list > li {
-      flex-wrap: wrap;
-    }
 
     
 

@@ -127,7 +127,7 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
     pattern: "MONITOR",
     headerMode: "local-tabs",
     rationale: "Provider/source health, freshness and credential posture - control plane (Wave 3).",
-    inspectorSubjects: ["provider-connection", "data-product"],
+    inspectorSubjects: ["provider-connection"],
     panels: ["metric-strip", "table", "warnings", "evidence"],
   },
   {
@@ -182,7 +182,7 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
     pattern: "EXPLORE",
     headerMode: "local-tabs",
     rationale: "Research: market reports assembled from the catalogue's sections.",
-    inspectorSubjects: ["data-product"],
+    inspectorSubjects: [],
     panels: ["table", "context-summary", "evidence", "warnings", "run-result"],
   },
 ];

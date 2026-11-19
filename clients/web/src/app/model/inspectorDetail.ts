@@ -21,9 +21,7 @@
 
 import { displayTime } from "../time/displayTime.ts";
 import type {
-  AgentRunDTO,
   CapacityObsDTO,
-  DataProductCatalogueDTO,
   IntradayOpportunityDTO,
   JobDTO,
   MarketQuoteDTO,
@@ -62,10 +60,6 @@ export interface InspectorDetailSource {
   readonly jobs?: readonly JobDTO[];
   /** The source registry, for a provider connection's posture. */
   readonly sources?: readonly SourceSystemDTO[];
-  /** The Data Product catalogue the research surface read, for a catalogue entry. */
-  readonly dataProducts?: DataProductCatalogueDTO | null;
-  /** The agent runs the research surface read, for a governed run. */
-  readonly agentRuns?: readonly AgentRunDTO[];
   /** The strategy versions the surface read, for a version's own record. */
   readonly strategyVersions?: readonly StrategyVersionDTO[];
 }
@@ -150,10 +144,6 @@ function candidatesFor(
       return collect([byId(source.jobs ?? [], "job_id")]);
     case "provider-connection":
       return collect([byId(source.sources ?? [], "source_id")]);
-    case "data-product":
-      return collect([byId(source.dataProducts?.products ?? [], "product_id")]);
-    case "agent-run":
-      return collect([byId(source.agentRuns ?? [], "agent_run_id")]);
     case "strategy-version":
       return collect([byId(source.strategyVersions ?? [], "strategy_version_id")]);
     default:
@@ -350,56 +340,6 @@ const PROVIDER_CONNECTION_FIELDS: readonly FieldSpec[] = [
 ];
 
 /**
- * A Data Product catalogue entry's own record.
- *
- * The catalogue is the platform's declared read model, so the Inspector shows the declaration
- * rather than a measurement: what the product is, its time basis, the source families behind it
- * and this identity's entitlement verdict. A product whose provenance the backend withheld carries
- * no measurement here either - the row reports the entitlement reason instead of a zero.
- */
-const DATA_PRODUCT_FIELDS: readonly FieldSpec[] = [
-  { field: "business_name", labelKey: "experience.inspector.fact.business_name" },
-  { field: "domain", labelKey: "experience.inspector.fact.domain" },
-  { field: "availability.state", labelKey: "experience.inspector.fact.availability" },
-  { field: "availability.note", labelKey: "experience.inspector.fact.availability_note" },
-  { field: "time_basis.basis", labelKey: "experience.inspector.fact.time_basis" },
-  { field: "time_basis.gas_day_calendar", labelKey: "experience.inspector.fact.gas_day_calendar" },
-  { field: "source_families", labelKey: "experience.inspector.fact.source_families" },
-  { field: "simulated_families", labelKey: "experience.inspector.fact.simulated_families" },
-  { field: "entitlement.status", labelKey: "experience.inspector.fact.entitlement" },
-  { field: "entitlement.reason", labelKey: "experience.inspector.fact.entitlement_reason" },
-  { field: "provenance.freshness.status", labelKey: "experience.inspector.fact.freshness" },
-  { field: "provenance.row_count", labelKey: "experience.inspector.fact.provenance_rows" },
-  { field: "provenance.confidence", labelKey: "experience.inspector.fact.confidence" },
-  {
-    field: "provenance.as_of_utc",
-    labelKey: "experience.inspector.fact.observed_at",
-    format: "timestamp",
-  },
-];
-
-/**
- * A governed research run's own record.
- *
- * The run row is what the runtime recorded: the objective it ran under, the profile that scoped
- * its job, the provider and model it reported, its stage and status, the artefacts it produced and
- * who it is attributed to. Its findings are separate records - the Inspector shows what the run
- * says about itself, not the research it produced.
- */
-const AGENT_RUN_FIELDS: readonly FieldSpec[] = [
-  { field: "agent_profile", labelKey: "experience.inspector.fact.agent_profile" },
-  { field: "user_objective", labelKey: "experience.inspector.fact.agent_objective" },
-  { field: "status", labelKey: "experience.inspector.fact.status" },
-  { field: "current_stage", labelKey: "experience.inspector.fact.agent_stage" },
-  { field: "principal_id", labelKey: "experience.inspector.fact.principal" },
-  { field: "model_provider", labelKey: "experience.inspector.fact.model_provider" },
-  { field: "model_id", labelKey: "experience.inspector.fact.model_id" },
-  { field: "artifacts_created", labelKey: "experience.inspector.fact.agent_artifacts" },
-  { field: "created_at", labelKey: "experience.inspector.fact.observed_at", format: "timestamp" },
-  { field: "completed_at", labelKey: "experience.inspector.fact.finished_at", format: "timestamp" },
-];
-
-/**
  * A strategy version's own record.
  *
  * A version is the frozen-or-draft artefact a backtest evaluates, so the Inspector shows what
@@ -437,8 +377,6 @@ const FIELDS_BY_ID_FIELD: Readonly<Record<string, readonly FieldSpec[]>> = {
   id: NODE_FIELDS,
   job_id: JOB_FIELDS,
   source_id: PROVIDER_CONNECTION_FIELDS,
-  product_id: DATA_PRODUCT_FIELDS,
-  agent_run_id: AGENT_RUN_FIELDS,
   strategy_version_id: STRATEGY_VERSION_FIELDS,
 };
 
@@ -463,8 +401,6 @@ const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>
   capacity: ["observation_id"],
   job: ["job_id"],
   "provider-connection": ["source_id"],
-  "data-product": ["product_id"],
-  "agent-run": ["agent_run_id"],
   "strategy-version": ["strategy_version_id"],
 };
 

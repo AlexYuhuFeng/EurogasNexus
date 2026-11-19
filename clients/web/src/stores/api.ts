@@ -65,8 +65,6 @@ import {
   FxRateDTO,
   GlossaryTermDTO,
   JobDTO,
-  DataProductCatalogueDTO,
-  AgentRunDTO,
   StrategyVersionDTO,
   GlossaryContextDTO,
   LngObsDTO,
@@ -934,23 +932,6 @@ export interface ApiState {
   jobs: JobDTO[];
   publishJobsRead: (jobs: JobDTO[]) => void;
   /**
-   * The Data Product catalogue the research surface read (Architecture V2 Wave 4).
-   *
-   * The catalogue panel owns that read - it is a bounded, on-demand read rather than a workspace
-   * loader - but the Inspector resolves detail from state the identity already received, so the
-   * entries it fetched are published here for the `data-product` subject. Nothing else reads them.
-   */
-  dataProducts: DataProductCatalogueDTO | null;
-  publishDataProductsRead: (catalogue: DataProductCatalogueDTO | null) => void;
-  /**
-   * The agent runs the research surface read, for the `agent-run` subject.
-   *
-   * Same pattern as the jobs and catalogue reads: the surface owns the read, and the Inspector
-   * resolves detail from what the identity already received rather than fetching.
-   */
-  agentRuns: AgentRunDTO[];
-  publishAgentRunsRead: (runs: AgentRunDTO[]) => void;
-  /**
    * The strategy versions the design task read, for the `strategy-version` subject.
    *
    * Same pattern again: the strategy workspace owns that read, and the Inspector resolves detail
@@ -1392,8 +1373,6 @@ export const useApiStore = create<ApiState>((set, get) => ({
   contractSaveConflict: false,
   sourceRunOutcome: null,
   jobs: [],
-  dataProducts: null,
-  agentRuns: [],
   strategyVersions: [],
   dataStatus: "unknown",
 
@@ -2339,16 +2318,6 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // Publishing a read is not authority: this only lets the Inspector show a job the timeline
     // already fetched, and clearing it (an empty list) removes detail rather than inventing it.
     set({ jobs });
-  },
-
-  publishDataProductsRead: (catalogue) => {
-    // Same rule for the catalogue: a failed read publishes null, so the Inspector says it cannot
-    // show a product rather than showing an empty one.
-    set({ dataProducts: catalogue });
-  },
-
-  publishAgentRunsRead: (agentRuns) => {
-    set({ agentRuns });
   },
 
   publishStrategyVersionsRead: (strategyVersions) => {
