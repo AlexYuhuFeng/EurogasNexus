@@ -74,8 +74,9 @@ def test_reseeding_replaces_the_demo_rows(session):
     seed.seed(session, now)
     session.commit()
     assert session.query(CreditLineRecord).count() == 3
-    # Three supply contracts and the cross-border position (TTF sold at NBP through BBL).
-    assert session.query(UpstreamResourceContractRecord).count() == 4
+    # Three supply contracts, the cross-border position (TTF sold at NBP through BBL) and one
+    # contract of each typed kind (an LNG master, a cargo under it, an upstream tender).
+    assert session.query(UpstreamResourceContractRecord).count() == 7
 
 
 def test_the_seed_refuses_release_and_demo_marks_stay_off_by_default(monkeypatch, capsys):
@@ -593,12 +594,24 @@ def test_an_older_volume_gets_the_newer_fixtures_and_keeps_tester_changes(sessio
     session.commit()
     session.query(TsoTariffRecord).delete()
     session.query(DecisionCaseRecord).delete()
+    # A volume seeded before contract kinds holds none of the typed demo contracts.
+    from eurogas_nexus.db.models import UpstreamResourceContractRecord as Contract
+
+    session.query(Contract).filter(Contract.master_contract_id.isnot(None)).delete()
+    session.query(Contract).filter(Contract.contract_id.in_(seed.TYPED_DEMO_CONTRACTS)).delete()
     session.get(CreditLineRecord, "RHM").limit_amount = 5_000_000
     session.commit()
 
     counts = seed.ensure_demo_fixtures(session, seeded_at)
     session.commit()
-    assert counts == {"fixture_tariffs": len(seed.SIMULATED_TARIFFS), "fixture_review_case": 1}
+    assert counts == {
+        "fixture_tariffs": len(seed.SIMULATED_TARIFFS),
+        "fixture_review_case": 1,
+        "fixture_typed_contracts": 3,
+    }
+    kinds = {row.contract_id: row.contract_kind for row in session.query(Contract).all()}
+    assert kinds["demo-mspa-atlantic-cn07"] == "LNG_CARGO"
+    assert session.get(Contract, "demo-tender-skarv").kind_terms["schema"] == "upstream-tender/v1"
     assert session.get(CreditLineRecord, "RHM").limit_amount == 5_000_000
     assert seed.ensure_demo_fixtures(session, seeded_at) == {}
 

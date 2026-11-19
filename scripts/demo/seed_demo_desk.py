@@ -326,6 +326,13 @@ def _seed_simulated_vessels(session, now: datetime) -> None:
 
 def _clear(session) -> None:
     ids = [row[0] for row in CONTRACTS] + [CROSS_BORDER_CONTRACT]
+    # Confirmations before their master (the master is restricted while one names it).
+    session.query(UpstreamResourceContractRecord).filter(
+        UpstreamResourceContractRecord.master_contract_id.in_(TYPED_DEMO_CONTRACTS)
+    ).delete(synchronize_session=False)
+    session.query(UpstreamResourceContractRecord).filter(
+        UpstreamResourceContractRecord.contract_id.in_(TYPED_DEMO_CONTRACTS)
+    ).delete(synchronize_session=False)
     session.query(LngCargoRecord).filter(
         LngCargoRecord.source_system == SIMULATED_VESSEL_SOURCE
     ).delete(synchronize_session=False)
@@ -860,6 +867,8 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
         )
     )
     _seed_cross_border_position(session, now, today)
+    # Contract kinds (docs/product/CONTRACT_TYPES.md): deterministic, so no random stream moves.
+    seed_typed_contracts(session, now, today)
     _seed_simulated_vessels(session, now)
     seed_market_around_the_book(session, now, rng, history_days=history_days)
     seed_demo_review_case(session, now)
@@ -936,6 +945,64 @@ def seed_demo_review_case(session, now: datetime) -> int:
     )
     session.flush()
     return 1
+
+
+#: One demo contract of each typed kind; the master is first so its confirmation can name it.
+TYPED_DEMO_CONTRACTS = ("demo-mspa-atlantic", "demo-mspa-atlantic-cn07", "demo-tender-skarv")
+
+
+def seed_typed_contracts(session, now: datetime, today: date) -> None:
+    """An LNG master, a DES cargo under it and an upstream tender (fictional, labelled demo).
+
+    The base columns come from the kinds' own derivation (``domain/contracts/kinds.py``), the
+    same one the governed write uses. No credit line is named, so the designed credit states of
+    the demo's counterparties are unchanged.
+    """
+
+    from eurogas_nexus.domain.contracts import examples, kinds
+
+    no_line = {"counterparty_id": None}
+    master_terms = kinds.parse_terms("LNG_MSPA", {**examples.mspa_terms(today), **no_line})
+    cargo_terms = kinds.parse_terms("LNG_CARGO", examples.cargo_terms(today))
+    tender_terms = kinds.parse_terms(
+        "UPSTREAM_TENDER", {**examples.tender_terms(today), **no_line}
+    )
+    demo = "Demo contract (fictional)."
+    rows = (
+        ("demo-mspa-atlantic", "Atlantic LNG MSPA (demo)", "LNG_MSPA", master_terms, None,
+         "demo-nl-ttf", f"Price review: none. Heel: seller retains. {demo}"),
+        ("demo-mspa-atlantic-cn07", "Atlantic cargo CN-07 (demo)", "LNG_CARGO", cargo_terms,
+         "demo-mspa-atlantic", "demo-nl-ttf", demo),
+        ("demo-tender-skarv", "Skarv West tender (demo)", "UPSTREAM_TENDER", tender_terms, None,
+         "demo-uk-nbp", f"Shortfall: seller pays the difference to NBP day-ahead. {demo}"),
+    )
+    for cid, name, kind, terms, master, book, unmodelled in rows:
+        base = kinds.derive_base_fields(kind, terms, master=master_terms if master else None)
+        fields = base.pop("notes_fields")
+        notes = {**{k: v for k, v in fields.items() if v is not None}, "demo": True}
+        variable = base.pop("variable_cost_gbp_mwh", None)
+        if variable is not None:
+            notes["variable_cost_gbp_mwh"] = variable
+        session.add(
+            UpstreamResourceContractRecord(
+                contract_id=cid,
+                contract_name=name,
+                **base,
+                tolerance_risk_allowance_gbp_mwh=None,
+                owned_entry_capacity_mwh_per_day=None,
+                owned_exit_capacity_mwh_per_day=None,
+                notes=json.dumps(notes, sort_keys=True),
+                book_id=book,
+                contract_kind=kind,
+                contract_kind_reviewed=True,
+                kind_terms=kinds.canonical_terms(terms),
+                unmodelled_terms=unmodelled,
+                master_contract_id=master,
+                created_at_utc=now,
+                updated_at_utc=now,
+            )
+        )
+        session.flush()
 
 
 def _seed_cross_border_position(session, now: datetime, today: date) -> None:
@@ -2748,8 +2815,8 @@ def _fixture_scopes():
 
     Each is (model, filter on the demo rows): only rows matching the filter are copied, and
     only when their primary key is absent, so nothing a tester changed or a real source
-    stored is touched. Contracts, trades and books are not topped up: a tester may have
-    removed them on purpose.
+    stored is touched. Contracts, trades and books are not topped up (a tester may have removed
+    them on purpose), except one demo contract of each typed kind, which an older volume lacks.
     """
 
     from eurogas_nexus.db.models.decision import DecisionCaseRecord
@@ -2765,6 +2832,10 @@ def _fixture_scopes():
          lambda model: model.mandate_id.like("DEMO-%")),
         ("routes", RouteCandidateRecord,
          lambda model: model.route_id.like("demo-%")),
+        # One contract of each typed kind, added once to an older demo volume (the master
+        # sorts before its confirmation, so it is inserted first).
+        ("typed_contracts", UpstreamResourceContractRecord,
+         lambda model: model.contract_id.in_(TYPED_DEMO_CONTRACTS)),
         # Approved hedge bands of the demo contracts (a band for a contract a tester removed
         # is not re-added: ``ensure_demo_fixtures`` keeps only contracts still stored).
         ("hedge_approvals", HedgeApprovalRecord,
@@ -2801,7 +2872,7 @@ def ensure_demo_fixtures(session, now: datetime) -> dict[str, int]:
         fresh.flush()
         for name, model, demo_rows in _fixture_scopes():
             key = inspect(model).primary_key[0]
-            candidates = fresh.query(model).filter(demo_rows(model)).all()
+            candidates = fresh.query(model).filter(demo_rows(model)).order_by(key).all()
             if not candidates:
                 continue
             ids = [getattr(row, key.key) for row in candidates]
