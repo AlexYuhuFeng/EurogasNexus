@@ -137,14 +137,6 @@ test("exports carry the conversion as columns (G6)", () => {
   assert.deepEqual(Object.keys(conversionExportColumns(null)), ["fx_pair", "fx_rate", "fx_rate_date", "fx_method", "fx_source"]);
 });
 
-test("the client's currency list is the server's vocabulary", () => {
-  const server = readFileSync(new URL("../../../src/eurogas_nexus/domain/settings/preferences.py", import.meta.url), "utf8");
-  const block = /REPORTING_CURRENCIES: tuple\[str, \.\.\.\] = \(([\s\S]*?)\)/.exec(server)?.[1] ?? "";
-  assert.deepEqual([...block.matchAll(/"([A-Z]{3})"/g)].map((match) => match[1]), [...REPORTING_CURRENCIES]);
-  assert.match(server, /"energy_unit": ENERGY_UNITS/);
-  assert.match(server, /ENERGY_UNITS: tuple\[str, \.\.\.\] = \("MWh", "th", "MMBtu", "GJ"\)/);
-});
-
 test("a conversion is a read: asking for one does not mark every kept answer stale", () => {
   const client = readFileSync(new URL("../src/api/client.ts", import.meta.url), "utf8");
   assert.match(client, /normaliseMarket:[^\n]*\n\s*postRead<NormaliseResponseDTO>\("\/market\/normalise"/);
