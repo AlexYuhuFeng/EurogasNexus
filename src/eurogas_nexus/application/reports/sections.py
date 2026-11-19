@@ -705,14 +705,68 @@ def lng(ctx: Ctx) -> SectionResult:
     return _apply(result, rules.lng(stats))
 
 
-def storage(ctx: Ctx) -> SectionResult:
-    from eurogas_nexus.application.desk_today import _Read
-    from eurogas_nexus.application.desk_today import _storage as storage_read
+def _storage_data(ctx: Ctx) -> dict[str, Any] | None:
+    """NW Europe storage from the storage fundamentals read (``fundamentals_storage``, the
+    reads' one source for storage): the region's daily fill this gas year and last, its stock,
+    sources and countries, and each country's stock and capacity now and a week ago. ``None``
+    when no storage is held."""
 
+    from eurogas_nexus.application.fundamentals_storage import storage_read
+    from eurogas_nexus.domain.fundamentals.storage_history import gas_year_of
+    from eurogas_nexus.domain.market.storage_targets import (
+        DEFAULT_DEADLINE,
+        DEFAULT_TARGET_PCT,
+        DEFAULT_WINDOW_OPEN,
+    )
+
+    read = storage_read(ctx.session, ctx.caller.principal, region="nwe", season=["NWE"],
+                        now=ctx.now)
+    region = read.get("region")
+    if not region or region.get("fill_pct") is None:
+        return None
+    series = region.get("season") or {}
+    first_year = gas_year_of(date.fromisoformat(region["as_of"]))
+    season: list[dict[str, Any]] = []
+    last_year = (series.get("last_year") or {}).get("values") or []
+    for index, key in enumerate(series.get("axis") or []):
+        month, day_of_month = (int(x) for x in key.split("-"))
+        year = first_year if month >= 10 else first_year + 1
+        try:
+            day = date(year, month, day_of_month)
+        except ValueError:
+            continue
+        fill = (series.get("this_year") or [None] * 365)[index]
+        if fill is None:
+            continue
+        season.append({"day": day.isoformat(), "fill_pct": fill,
+                       "previous_year_fill_pct": last_year[index] if index < len(last_year)
+                       else None})
+    by_country = {c["code"]: (c["stock_twh"], c["working_capacity_twh"])
+                  for c in read.get("countries") or []
+                  if c.get("stock_twh") is not None and c.get("working_capacity_twh")}
+    week = {c["code"]: (c["stock_twh"] - (c.get("week_change_twh") or 0.0),
+                        c["working_capacity_twh"])
+            for c in read.get("countries") or []
+            if c.get("stock_twh") is not None and c.get("working_capacity_twh")
+            and c.get("week_change_twh") is not None}
+    return {
+        "season": season,
+        "inventory_twh": region.get("stock_twh"),
+        "latest": {"simulated": bool(region.get("simulated")), "as_of": region["as_of"],
+                   "state": "current", "source": ", ".join(region.get("sources") or []),
+                   "countries": sorted(by_country)},
+        "target": {"pct": DEFAULT_TARGET_PCT,
+                   "window_open": f"{DEFAULT_WINDOW_OPEN[0]:02d}-{DEFAULT_WINDOW_OPEN[1]:02d}",
+                   "deadline": f"{DEFAULT_DEADLINE[0]:02d}-{DEFAULT_DEADLINE[1]:02d}"},
+        "by_country": by_country,
+        "by_country_week": week,
+    }
+
+
+def storage(ctx: Ctx) -> SectionResult:
     result = _new("storage")
-    read = _Read()
-    data = storage_read(ctx.session, ctx.caller, ctx.now, read)
-    if "empty" in data:
+    data = _storage_data(ctx)
+    if data is None:
         return _empty(result, "Storage data not connected", "Connect GIE AGSI in Sources")
     season = [p for p in data["season"] if p["day"] <= ctx.end.isoformat()]
     if not season:
@@ -731,8 +785,8 @@ def storage(ctx: Ctx) -> SectionResult:
                          "(month-day)",
         "period_label": ctx.period_label,
     }
-    inventory = {p["day"]: p["inventory_twh"] for p in data["series"]}
-    stats["inventory_twh"] = inventory.get(latest["day"])
+    stats["inventory_twh"] = (data["inventory_twh"] if latest["day"] == figure["as_of"]
+                              else None)
     by_day = {p["day"]: p["fill_pct"] for p in season}
     if ctx.period_label:
         before = (ctx.start - timedelta(days=1)).isoformat()
@@ -766,7 +820,7 @@ def storage(ctx: Ctx) -> SectionResult:
     ))
     for system in (figure["source"] or "").split(", "):
         result.sources.append(source("Storage inventory and working capacity",
-                                     "DEMO_Sim" if system == "Demo" else system,
+                                     "DEMO_Sim" if system in {"Demo", ""} else system,
                                      latest["day"], stats["state"], dataset="GIE storage (AGSI)"))
     result.methods.append({
         "key": "storage_scope", "title": "Storage scope",
