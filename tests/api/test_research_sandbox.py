@@ -60,8 +60,14 @@ def test_every_research_path_declares_sandbox_meta() -> None:
     }
     # Deferred by default (design basis 2, I.3): served only with the capability switch on.
     assert data_foundation_paths.isdisjoint(research_paths)
+    # Tracked strategies are stored paper records in the data store, not sandbox scenarios;
+    # tests/api/test_strategy_tracks_api.py covers them with a database.
+    stored_record_paths = {
+        "/api/research/strategy-tracks",
+        "/api/research/strategy-tracks/{track_id}/stop",
+    }
     for path in research_paths:
-        if path in data_foundation_paths:
+        if path in data_foundation_paths or path in stored_record_paths:
             continue
         method = "post"
         if method not in app.openapi()["paths"][path]:
