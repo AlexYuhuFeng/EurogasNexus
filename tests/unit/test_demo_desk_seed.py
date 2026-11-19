@@ -649,3 +649,103 @@ def test_a_simulated_henry_hub_series_rolls_forward_and_gives_way_to_eia(session
     assert seed._roll_henry_hub(session, later + timedelta(days=1)) == 0
     left = session.query(MarketObservationRecord).filter_by(product="HH spot").all()
     assert [row.source_system for row in left] == ["EIA"]
+
+
+def test_an_older_volume_gets_bands_storage_and_assumptions_but_not_removed_contracts(session):
+    """Live finding 2026-11-19: a volume seeded by an older build showed "approved hedge
+    bands: 0" and listed no storage spread. The top-up adds the bands of the demo contracts
+    that still exist, the firm storage at CEGH and the demo assumption set; a contract a
+    tester removed is not re-added, nor is its band."""
+
+    from eurogas_nexus.db.models import (
+        AssumptionSetRecord,
+        AssumptionSetVersionRecord,
+        AssumptionValueRecord,
+        HedgeApprovalRecord,
+        StorageFacilityMasterRecord,
+    )
+
+    seed = _load()
+    seeded_at = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    seed.seed(session, seeded_at, history_days=2)
+    session.commit()
+    # What an older build left behind: no bands, no storage, no assumption set.
+    session.query(HedgeApprovalRecord).delete()
+    session.query(AssumptionValueRecord).delete()
+    session.query(AssumptionSetVersionRecord).delete()
+    session.query(AssumptionSetRecord).delete()
+    session.query(StorageFacilityMasterRecord).delete()
+    session.commit()
+
+    counts = seed.ensure_demo_fixtures(session, seeded_at)
+    session.commit()
+    assert counts == {"fixture_hedge_approvals": 1, "fixture_storage": 1,
+                      "fixture_assumption_set": 1}
+    assert session.get(HedgeApprovalRecord, "demo-haldor-24") is not None
+    assert session.get(StorageFacilityMasterRecord, seed.DEMO_STORAGE_ID).market_hub == "CEGH"
+    version = session.get(AssumptionSetVersionRecord, seed.DEMO_ASSUMPTION_VERSION_ID)
+    assert version.review_state == "approved"
+    fees = {
+        row.key: float(row.value)
+        for row in session.query(AssumptionValueRecord).filter(
+            AssumptionValueRecord.version_id == version.version_id)
+    }
+    assert set(fees) == {"storage.capacity_fee", "storage.injection_fee",
+                         "storage.withdrawal_fee"}
+    assert sum(fees.values()) == pytest.approx(3.8)
+    assert seed.ensure_demo_fixtures(session, seeded_at) == {}
+
+    # A tester removed the Haldor contract: its band does not come back.
+    session.query(HedgeApprovalRecord).delete()
+    session.query(UpstreamResourceContractRecord).filter(
+        UpstreamResourceContractRecord.contract_id == "demo-haldor-24").delete()
+    session.commit()
+    assert "fixture_hedge_approvals" not in seed.ensure_demo_fixtures(session, seeded_at)
+    assert session.get(UpstreamResourceContractRecord, "demo-haldor-24") is None
+
+
+def test_the_board_quotes_the_gas_day_the_desk_trades_on(session, monkeypatch):
+    """On gas day D the desk reads D's prompt: WD is gas day D, DA the next quoted day; WD and
+    DA are a running snapshot per roll-forward, with a size and a last inside bid and offer.
+    With the demo exchange feed running, the roll-forward writes no WD or DA of its own."""
+
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    seed = _load()
+    monkeypatch.delenv(seed.EXCHANGE_FEED_SETTING, raising=False)
+    thursday = datetime(2026, 12, 3, 9, tzinfo=UTC)
+    seed.seed(session, thursday, history_days=3)
+    session.commit()
+    quotes = session.query(MarketQuoteRecord).filter(MarketQuoteRecord.hub == "TTF").all()
+    by_code = {q.metadata_json["rolling_code"]: q for q in quotes}
+    wd, da = by_code["WD"], by_code["DA"]
+    assert wd.delivery_start_utc.date().isoformat() == "2026-12-03"
+    assert da.delivery_start_utc.date().isoformat() == "2026-12-04"
+    for quote in (wd, da):
+        assert quote.simulated and quote.bid_price < quote.ask_price
+        assert quote.bid_price <= quote.last_price <= quote.ask_price
+        assert quote.bid_quantity_mwh and quote.ask_quantity_mwh
+        assert quote.metadata_json["trading_day"] == "2026-12-03"
+    # A later roll-forward the same day adds a new WD/DA snapshot, not a second curve.
+    later = thursday + timedelta(hours=1)
+    counts = seed.roll_forward(session, later)
+    session.commit()
+    hubs = {hub for hub, _currency in seed.DEMO_PRICE_HUBS}
+    assert counts["market_quote_rows"] == 2 * len(hubs)
+    monkeypatch.setenv(seed.EXCHANGE_FEED_SETTING, "true")
+    assert seed.roll_forward(session, later + timedelta(hours=1))["market_quote_rows"] == 0
+
+
+def test_a_friday_board_quotes_monday_as_day_ahead(session):
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    seed = _load()
+    friday = datetime(2026, 12, 4, 9, tzinfo=UTC)
+    seed.seed(session, friday, history_days=2)
+    session.commit()
+    codes = {
+        q.metadata_json["rolling_code"]: q.delivery_start_utc.date().isoformat()
+        for q in session.query(MarketQuoteRecord).filter(MarketQuoteRecord.hub == "TTF")
+    }
+    assert codes["WD"] == "2026-12-04" and codes["DA"] == "2026-12-07"
+    assert codes["WE"] == "2026-12-05"

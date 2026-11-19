@@ -210,15 +210,59 @@ def _gas_year_label(kind: str, today: date) -> str:
 #: National Gas entry at Bacton). Fictional, like the rest of the desk.
 CROSS_BORDER_CONTRACT = "demo-kestrel-uk-6"
 CROSS_BORDER_ROUTE = "demo-route-ttf-nbp-bbl"
-#: Simulated tariffs for that crossing, one per leg, for a demo without published tariffs.
-#: SIMULATOR_ONLY (the lowest status: a published row always wins the selection) and removed
-#: by ``retire_simulated_series`` once a published row names the same operator, point and
-#: direction. Magnitudes are of the order the published GTS and BBL rows show; not market data.
+#: Simulated tariffs, one per leg: the BBL crossing (TTF -> NBP, and its reverse flow) and one
+#: crossing of every other main hub pair the demo market quotes (TTF-THE, TTF-ZTP, THE-PEG,
+#: THE-ZTP, PEG-ZTP, ZTP-NBP through IUK), both directions, so a demo without published
+#: tariffs prices every locational spread net of transport. SIMULATOR_ONLY (the lowest status:
+#: a published row always wins the selection) and removed by ``retire_simulated_tariffs`` once
+#: a published row names the same operator, point and direction. Magnitudes are of the order
+#: published capacity tariffs show at 100 % load factor; invented, not market data. The demo
+#: market holds its hubs' prices against the route costs these give (``demo_route_costs``).
 SIMULATED_TARIFF_DOCUMENT = "demo-simulated-tariffs"
 SIMULATED_TARIFFS = (
+    # TTF -> NBP through BBL (forward flow), and NBP -> TTF (reverse flow).
     ("NL", "GTS", "ITP-00063", "Julianadorp (GTS) /Balgzand (BBL)", "EXIT", 0.56),
     ("GB", "BBL company", "ITP-00207", "Bacton (BBL)", "EXIT", 1.20),
     ("GB", "National Gas TSO", "ITP-00207", "Bacton (BBL)", "ENTRY", 0.12),
+    ("GB", "National Gas TSO", "ITP-00207", "Bacton (BBL)", "EXIT", 0.15),
+    ("GB", "BBL company", "ITP-00207", "Bacton (BBL)", "ENTRY", 1.20),
+    ("NL", "GTS", "ITP-00063", "Julianadorp (GTS) /Balgzand (BBL)", "ENTRY", 0.45),
+    # TTF <-> THE at VIP TTF-THE-H.
+    ("NL", "GTS", "ITP-10012", "VIP TTF-THE-H", "EXIT", 0.45),
+    ("DE", "Gasunie Deutschland", "ITP-10012", "VIP TTF-THE-H", "ENTRY", 0.55),
+    ("DE", "Gasunie Deutschland", "ITP-10012", "VIP TTF-THE-H", "EXIT", 0.55),
+    ("NL", "GTS", "ITP-10012", "VIP TTF-THE-H", "ENTRY", 0.45),
+    # TTF <-> ZTP at Zelzate.
+    ("NL", "GTS", "ITP-00101", "Zelzate", "EXIT", 0.45),
+    ("BE", "Fluxys Belgium", "ITP-00101", "Zelzate", "ENTRY", 0.40),
+    ("BE", "Fluxys Belgium", "ITP-00101", "Zelzate", "EXIT", 0.80),
+    ("NL", "GTS", "ITP-00101", "Zelzate", "ENTRY", 0.85),
+    # THE <-> PEG at Obergailbach / Medelsheim.
+    ("DE", "NaTran Deutschland", "ITP-00137", "Obergailbach (FR) / Medelsheim (DE)", "EXIT",
+     0.55),
+    ("FR", "NaTran", "ITP-00137", "Obergailbach (FR) / Medelsheim (DE)", "ENTRY", 0.50),
+    ("FR", "NaTran", "ITP-00137", "Obergailbach (FR) / Medelsheim (DE)", "EXIT", 0.55),
+    ("DE", "NaTran Deutschland", "ITP-00137", "Obergailbach (FR) / Medelsheim (DE)", "ENTRY",
+     0.50),
+    # THE <-> ZTP at VIP THE-ZTP.
+    ("DE", "Open Grid Europe", "ITP-00614", "VIP THE-ZTP", "EXIT", 0.70),
+    ("BE", "Fluxys Belgium", "ITP-00614", "VIP THE-ZTP", "ENTRY", 0.70),
+    ("BE", "Fluxys Belgium", "ITP-00614", "VIP THE-ZTP", "EXIT", 0.70),
+    ("DE", "Open Grid Europe", "ITP-00614", "VIP THE-ZTP", "ENTRY", 0.70),
+    # PEG <-> ZTP at Virtualys.
+    ("FR", "NaTran", "ITP-00526", "VIRTUALYS", "EXIT", 0.50),
+    ("BE", "Fluxys Belgium", "ITP-00526", "VIRTUALYS", "ENTRY", 0.40),
+    ("BE", "Fluxys Belgium", "ITP-00526", "VIRTUALYS", "EXIT", 0.40),
+    ("FR", "NaTran", "ITP-00526", "VIRTUALYS", "ENTRY", 0.50),
+    # ZTP <-> NBP through IUK (Zeebrugge IZT, Bacton IUK).
+    ("BE", "Fluxys Belgium", "ITP-00061", "Zeebrugge IZT", "EXIT", 0.40),
+    ("BE", "Interconnector", "ITP-00061", "Zeebrugge IZT", "ENTRY", 1.60),
+    ("GB", "Interconnector", "ITP-00005", "Bacton (IUK)", "EXIT", 1.60),
+    ("GB", "National Gas TSO", "ITP-00005", "Bacton (IUK)", "ENTRY", 0.12),
+    ("GB", "National Gas TSO", "ITP-00005", "Bacton (IUK)", "EXIT", 0.15),
+    ("GB", "Interconnector", "ITP-00005", "Bacton (IUK)", "ENTRY", 1.60),
+    ("BE", "Interconnector", "ITP-00061", "Zeebrugge IZT", "EXIT", 1.60),
+    ("BE", "Fluxys Belgium", "ITP-00061", "Zeebrugge IZT", "ENTRY", 0.40),
 )
 
 
@@ -331,6 +375,32 @@ def _clear(session) -> None:
     ).delete(synchronize_session=False)
     session.query(RouteCandidateRecord).filter(
         RouteCandidateRecord.route_id.like("demo-%")
+    ).delete(synchronize_session=False)
+    from eurogas_nexus.db.models import (
+        AssumptionSetRecord,
+        AssumptionSetVersionRecord,
+        AssumptionValueRecord,
+        StorageFacilityMasterRecord,
+    )
+
+    session.query(StorageFacilityMasterRecord).filter(
+        StorageFacilityMasterRecord.facility_id == DEMO_STORAGE_ID
+    ).delete(synchronize_session=False)
+    versions = [
+        version_id
+        for (version_id,) in session.query(AssumptionSetVersionRecord.version_id).filter(
+            AssumptionSetVersionRecord.set_id == DEMO_ASSUMPTION_SET_ID
+        )
+    ]
+    if versions:
+        session.query(AssumptionValueRecord).filter(
+            AssumptionValueRecord.version_id.in_(versions)
+        ).delete(synchronize_session=False)
+    session.query(AssumptionSetVersionRecord).filter(
+        AssumptionSetVersionRecord.set_id == DEMO_ASSUMPTION_SET_ID
+    ).delete(synchronize_session=False)
+    session.query(AssumptionSetRecord).filter(
+        AssumptionSetRecord.set_id == DEMO_ASSUMPTION_SET_ID
     ).delete(synchronize_session=False)
     for model in (
         FlowObservationRecord,
@@ -793,6 +863,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     _seed_simulated_vessels(session, now)
     seed_market_around_the_book(session, now, rng, history_days=history_days)
     seed_demo_review_case(session, now)
+    seed_demo_storage_and_assumptions(session, now)
     session.flush()
     seed_demo_market(session, now, history_days)
     return sizing
@@ -957,6 +1028,117 @@ def _seed_cross_border_position(session, now: datetime, today: date) -> None:
                 created_at_utc=now,
             )
         )
+
+
+#: Firm storage the demo desk holds at CEGH (fictional facility; the T1 case is found on it).
+DEMO_STORAGE_ID = "demo-storage-cegh"
+#: The demo's organisation assumption set and its approved version (fixed ids, so a volume an
+#: older build seeded is topped up once and a tester's later version is kept).
+DEMO_ASSUMPTION_SET_ID = "aset-demo-desk"
+DEMO_ASSUMPTION_VERSION_ID = "asv-demo-desk-v1"
+#: The storage cost the time-spread cases are measured against: capacity, injection and
+#: withdrawal, EUR/MWh, summing to demo_market.STORAGE_COST_EUR_MWH (3.80). Invented.
+DEMO_STORAGE_COSTS = (
+    ("storage.capacity_fee", "2.80", "Demo storage capacity fee (fictional)"),
+    ("storage.injection_fee", "0.50", "Demo injection fee (fictional)"),
+    ("storage.withdrawal_fee", "0.50", "Demo withdrawal fee (fictional)"),
+)
+
+
+def seed_demo_storage_and_assumptions(session, now: datetime) -> dict[str, int]:
+    """Firm storage at CEGH and the demo assumption set with the storage costs; idempotent.
+
+    Only what is absent is added (by fixed id): a facility or set a tester changed is kept,
+    and a later version of the set (edited by a tester) stays the one in force.
+    """
+
+    from decimal import Decimal
+
+    from eurogas_nexus.db.models import (
+        AssumptionSetRecord,
+        AssumptionSetVersionRecord,
+        AssumptionValueRecord,
+        StorageFacilityMasterRecord,
+    )
+    from eurogas_nexus.domain.valuation.assumptions import AssumptionValue, values_digest
+
+    counts = {"storage": 0, "assumption_set": 0}
+    if session.get(StorageFacilityMasterRecord, DEMO_STORAGE_ID) is None:
+        session.add(
+            StorageFacilityMasterRecord(
+                facility_id=DEMO_STORAGE_ID,
+                name="Demo storage at CEGH (fictional)",
+                market_hub="CEGH",
+                country="AT",
+                minimum_inventory_mwh=0.0,
+                maximum_inventory_mwh=1_000_000.0,
+                maximum_injection_mwh=10_000.0,
+                maximum_withdrawal_mwh=12_000.0,
+                injection_efficiency=0.995,
+                withdrawal_efficiency=0.995,
+                # The column is named in GBP; the demo states its fees in GBP accordingly.
+                injection_cost_gbp_mwh=0.40,
+                withdrawal_cost_gbp_mwh=0.40,
+                terminal_inventory_mwh=None,
+                valid_from_utc=datetime(now.year - 1, 4, 1, tzinfo=UTC),
+                valid_to_utc=None,
+                source_system=SOURCE,
+                source_reference="demo:storage (fictional firm capacity)",
+                active=True,
+                created_at_utc=now,
+            )
+        )
+        counts["storage"] = 1
+    if session.get(AssumptionSetRecord, DEMO_ASSUMPTION_SET_ID) is None:
+        values = [
+            AssumptionValue(key=key, value=Decimal(value), unit="EUR/MWh", currency="EUR",
+                            note=note)
+            for key, value, note in DEMO_STORAGE_COSTS
+        ]
+        session.add(
+            AssumptionSetRecord(
+                set_id=DEMO_ASSUMPTION_SET_ID,
+                name="Demo desk assumptions",
+                book_id=None,
+                description="Fictional storage costs for the demo desk (not a published tariff).",
+                created_by="demo-seed",
+                created_at_utc=now,
+            )
+        )
+        session.flush()
+        session.add(
+            AssumptionSetVersionRecord(
+                version_id=DEMO_ASSUMPTION_VERSION_ID,
+                set_id=DEMO_ASSUMPTION_SET_ID,
+                version=1,
+                effective_from=date(now.year - 1, 10, 1),
+                effective_to=None,
+                review_state="approved",
+                note="Demo values (fictional).",
+                values_sha256=values_digest(values),
+                created_by="demo-seed",
+                created_at_utc=now,
+                approved_by="demo.risk",
+                approved_at_utc=now,
+            )
+        )
+        session.flush()
+        for item in values:
+            session.add(
+                AssumptionValueRecord(
+                    version_id=DEMO_ASSUMPTION_VERSION_ID,
+                    key=item.key,
+                    value=item.value,
+                    unit=item.unit,
+                    currency=item.currency,
+                    range_low=None,
+                    range_high=None,
+                    note=item.note,
+                )
+            )
+        counts["assumption_set"] = 1
+    session.flush()
+    return counts
 
 
 def retire_simulated_tariffs(session) -> int:
@@ -2036,6 +2218,39 @@ def _roll_deliveries(session, now: datetime, rng: random.Random) -> int:
     return written
 
 
+#: The input classes a seed or roll-forward of the demo desk changes.
+DEMO_INPUT_CLASSES = ("prices", "fx", "rates", "tariffs", "outages", "book", "assumptions")
+
+
+def evaluate_demo_desk(now: datetime, reason: str) -> dict:
+    """Note what the demo seed or roll-forward changed and run the scheduled evaluation.
+
+    The demo image runs no data-operations scheduler (the one that calls ``run_due`` on a
+    customer runtime), so without this the demo was never evaluated after start-up or a
+    roll-forward ("not evaluated yet", 2026-11-19). Its own transactions; a failure is
+    reported, never raised: the demo still starts.
+    """
+
+    from eurogas_nexus.application.opportunities.schedule import note_input_changed, run_due
+
+    try:
+        with get_session_factory()() as session:
+            for input_class in DEMO_INPUT_CLASSES:
+                note_input_changed(session, input_class, reason=f"demo {reason}", at_utc=now)
+            session.commit()
+        with get_session_factory()() as session:
+            result = run_due(session, now_utc=now)
+            session.commit()
+    except Exception as exc:  # noqa: BLE001 - the demo starts even if the evaluation fails
+        return {"status": "failed", "error_type": type(exc).__name__}
+    evaluation = result.get("evaluation") or {}
+    return {
+        "status": result["status"],
+        "evaluation_status": evaluation.get("status"),
+        "counts": evaluation.get("counts"),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -2071,11 +2286,13 @@ def main(argv: list[str] | None = None) -> int:
             counts = roll_forward(session, now)
             session.commit()
         print("Demo desk rolled forward: " + json.dumps(counts, sort_keys=True))
+        print("Opportunity evaluation: " + json.dumps(evaluate_demo_desk(now, "roll-forward")))
         return 0
     with get_session_factory()() as session:
         sizing = seed(session, now)
         removed = retire_simulated_series(session)
         session.commit()
+    print("Opportunity evaluation: " + json.dumps(evaluate_demo_desk(now, "seed")))
     if removed:
         print("Simulated series replaced by stored real data: " + json.dumps(removed))
     for cpty, row in sizing.items():
@@ -2108,7 +2325,13 @@ _PROMPT_TENOR = {"WD": "within-day", "DA": "day-ahead", "WE": "weekend", "BOM": 
 _BOARD_PRODUCT = {**_PROMPT_TENOR, "M+1": "month-ahead"}
 
 
+_DEMO_MARKET_MODULE = None
+
+
 def _load_demo_market():
+    global _DEMO_MARKET_MODULE
+    if _DEMO_MARKET_MODULE is not None:
+        return _DEMO_MARKET_MODULE
     import importlib.util
 
     path = Path(__file__).with_name("demo_market.py")
@@ -2116,6 +2339,7 @@ def _load_demo_market():
     module = importlib.util.module_from_spec(spec)
     sys.modules.setdefault("demo_market", module)
     spec.loader.exec_module(module)
+    _DEMO_MARKET_MODULE = module
     return module
 
 
@@ -2200,43 +2424,93 @@ def _close_row(hub, currency, tenor_key, label, kind, price, observed, start, en
     )
 
 
+def demo_route_costs() -> dict[tuple[str, str], float]:
+    """The cheapest route cost (EUR/MWh) between the demo's graph hubs over the simulated
+    tariffs alone (``SIMULATED_TARIFFS``, the shipped market-area graph, ``cheapest_route``):
+    what the demo market holds its hubs' prices against (``DemoMarket.arbitrage_free``)."""
+
+    global _ROUTE_COSTS
+    if _ROUTE_COSTS is not None:
+        return _ROUTE_COSTS
+    from eurogas_nexus.application.route_tariff_cost import cheapest_route
+    from eurogas_nexus.domain.market.fx_forward import Delivery
+    from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
+
+    graph = shipped_market_area_graph()
+    rows = [
+        {"point_id": point, "direction": direction, "tso": tso, "tariff_value": value,
+         "currency": "EUR", "unit": "EUR/MWh", "effective_from": None, "effective_to": None,
+         "tariff_status": "SIMULATOR_ONLY", "gas_year": "demo", "tariff_id": point,
+         "source_table": "simulated"}
+        for _country, tso, point, _name, direction, value in SIMULATED_TARIFFS
+    ]
+    delivery = Delivery(date(2026, 12, 1), date(2026, 12, 31), "month", "Dec-26")
+    hubs = [hub for hub, _currency in DEMO_PRICE_HUBS if graph.hub_for(hub)]
+    costs: dict[tuple[str, str], float] = {}
+    for buy in hubs:
+        for sell in hubs:
+            if buy == sell:
+                continue
+            choice = cheapest_route(buy, sell, delivery, rows, graph=graph)
+            if choice.chosen.complete and choice.chosen.total is not None:
+                costs[(buy, sell)] = round(float(choice.chosen.total), 6)
+    _ROUTE_COSTS = costs
+    return costs
+
+
+_ROUTE_COSTS: dict[tuple[str, str], float] | None = None
+
+
+def _demo_market(market_module):
+    return market_module.DemoMarket(_curve_price, eur_per_mwh_to_native=_native_price,
+                                    route_costs=demo_route_costs())
+
+
+def _planted(market_module, hub: str, tenor_key: str, day: date) -> str | None:
+    if tenor_key == "day-ahead" and hub == "NBP" and market_module.l1_planted(day):
+        return "L1-nbp-over-ttf-da"
+    if tenor_key == "within-day" and hub == "TTF" and market_module.w1_planted(day):
+        return "W1-ttf-wd-over-da"
+    return None
+
+
 def demo_market_rows(session, now: datetime, days: int) -> tuple[list, list]:
-    """Closes (history) and board quotes of every demo hub's products for the last ``days``.
+    """Closes (history) of every demo hub's products for the last ``days`` and the board of
+    the current gas day.
 
     Derived from the stored month-ahead history (``demo:history``); a hub a provider prices
-    is skipped, as its month-ahead is. Returns (observation rows, quote rows); quotes only for
-    the newest day.
+    is skipped, as its month-ahead is. Each day is priced across all hubs at once (the
+    arbitrage band holds hubs against each other). Returns (observation rows, quote rows):
+    quotes are the board of the current gas day (``demo_board_rows``).
     """
 
     market_module = _load_demo_market()
-    market = market_module.DemoMarket(_curve_price, eur_per_mwh_to_native=_native_price)
+    market = _demo_market(market_module)
     today = now.date()
     since = today - timedelta(days=days + 1)
     real = _real_price_hubs(session)
     outages = _outage_days(session)
     closes: list = []
-    quotes: list = []
-    ttf_da: dict[date, float] = {}
-    ordered = sorted(DEMO_PRICE_HUBS, key=lambda item: item[0] != "TTF")
-    for hub, currency in ordered:
-        if hub in real:
-            continue
-        history = _month_ahead_history(session, hub, since)
-        if not history:
-            continue
-        newest = max(history)
-        for day, (month_ahead, observed) in sorted(history.items()):
-            outage = any(first <= day <= last for first, last in outages)
-            prompt = market.prompt(hub, day, month_ahead, ttf_day_ahead=ttf_da.get(day),
-                                   outage=outage)
-            if hub == "TTF":
-                ttf_da[day] = prompt["day-ahead"]
-            planted = {
-                "day-ahead": "L1-nbp-over-ttf-da" if hub == "NBP"
-                and market_module.l1_planted(day) else None,
-                "within-day": "W1-ttf-wd-over-da" if hub == "TTF"
-                and market_module.w1_planted(day) else None,
-            }
+    histories = {
+        (hub, currency): _month_ahead_history(session, hub, since)
+        for hub, currency in DEMO_PRICE_HUBS
+        if hub not in real
+    }
+    histories = {key: value for key, value in histories.items() if value}
+    if not histories:
+        return [], []
+    newest = max(max(history) for history in histories.values())
+    for day in sorted({day for history in histories.values() for day in history}):
+        anchors = {hub: history[day][0] for (hub, _c), history in histories.items()
+                   if day in history}
+        market.set_anchors(day, anchors)
+        outage = any(first <= day <= last for first, last in outages)
+        prompts = market.prompts(day, anchors, outage=outage)
+        for (hub, currency), history in histories.items():
+            if day not in history:
+                continue
+            month_ahead, observed = history[day]
+            prompt = prompts[hub]
             for code, tenor_key in _PROMPT_TENOR.items():
                 delivery = _delivery(code, day)
                 if delivery is None:
@@ -2244,7 +2518,7 @@ def demo_market_rows(session, now: datetime, days: int) -> tuple[list, list]:
                 period, start, end = delivery
                 closes.append(_close_row(hub, currency, tenor_key, code, period.kind,
                                          prompt[tenor_key], observed, start, end, day,
-                                         planted.get(tenor_key)))
+                                         _planted(market_module, hub, tenor_key, day)))
             for code, tenor_key in (("Q+1", "q+1"), ("S+1", "s+1"), ("Cal+1", "cal+1")):
                 delivery = _delivery(code, day)
                 if delivery is None:
@@ -2267,29 +2541,98 @@ def demo_market_rows(session, now: datetime, days: int) -> tuple[list, list]:
                                              "T1-cegh-winter-over-summer"
                                              if hub == "CEGH" and period.kind == "season"
                                              else None))
-            if day != newest:
+    board_anchors = {
+        (hub, currency): history[max(history)] for (hub, currency), history in histories.items()
+    }
+    return closes, demo_board_rows(market_module, market, board_anchors, now, outages)
+
+
+def _board_day(now: datetime) -> date:
+    """The gas day the desk trades on at ``now`` (a gas day starts at 06:00 CET/CEST)."""
+
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
+
+    return date.fromisoformat(gas_day_label(now))
+
+
+def demo_board_rows(market_module, market, last_closes, now: datetime, outages) -> list:
+    """The board of the gas day the desk trades on at ``now`` (gas day D).
+
+    On D the desk reads D's prompt: WD is gas day D, DA the next product the market quotes
+    (Monday's on a Friday), WE and BOM as the calendar has them, and the curve. Each hub's
+    month-ahead for D is its newest stored close carried forward (the day's move is not
+    known yet). WD and DA are written once per roll-forward (``stamp``, the snapshot's minute),
+    each with a small intraday move from their own stream and a running "last" inside the
+    bid and offer; the curve products once per day. ``last_closes``: (hub, currency) ->
+    (month-ahead, observed) of the newest stored day.
+    """
+
+    board_day = _board_day(now)
+    stamp = f"{now:%Y%m%d%H%M}"
+    anchors: dict[str, float] = {}
+    currencies: dict[str, str] = {}
+    for (hub, currency), (month_ahead, observed) in last_closes.items():
+        stored_day = _aware(observed).date()
+        if stored_day >= board_day:
+            anchors[hub] = month_ahead
+        else:
+            drift = month_ahead - _curve_price(hub, _month_start(stored_day, 1))
+            anchors[hub] = _curve_price(hub, _month_start(board_day, 1)) + drift
+        currencies[hub] = currency
+    market.set_anchors(board_day, anchors)
+    outage = any(first <= board_day <= last for first, last in outages)
+    prompts = market.prompts(board_day, anchors, outage=outage)
+    quotes: list = []
+    feed = demo_exchange_feed_running()
+    for hub, month_ahead in anchors.items():
+        currency = currencies[hub]
+        for code, kind in _BOARD_PROMPT:
+            delivery = _delivery(code, board_day)
+            if delivery is None or (feed and code in RUNNING_PROMPT):
                 continue
-            for code, kind in _BOARD_PROMPT:
-                delivery = _delivery(code, day)
-                if delivery is None:
-                    continue
-                period, start, end = delivery
-                # Prompt products keep their desk code (the dated window is in the delivery).
-                quotes.append(_quote_row(market, hub, currency, code, code, kind,
-                                         prompt[_PROMPT_TENOR[code]], start, end, now, day))
-            for code in _BOARD_CURVE:
-                delivery = _delivery(code, day)
-                if delivery is None:
-                    continue
-                period, start, end = delivery
-                price = market.strip(hub, day, month_ahead, period.first_gas_day,
-                                     period.last_gas_day)
-                quotes.append(_quote_row(market, hub, currency, code, period.label, period.kind,
-                                         price, start, end, now, day))
-    return closes, quotes
+            _period, start, end = delivery
+            mid = prompts[hub][_PROMPT_TENOR[code]]
+            running = code in RUNNING_PROMPT
+            if running:
+                mid += market_module.live_noise(hub, code, board_day, stamp)
+            quotes.append(_quote_row(
+                market, hub, currency, code, code, kind, mid, start, end, now, board_day,
+                stamp=stamp if running else None,
+                planted=_planted(market_module, hub, _PROMPT_TENOR[code], board_day),
+                last=market_module.live_noise(hub, f"{code}-last", board_day, stamp, 0.01, 0.02)
+                if running else None,
+            ))
+        for code in _BOARD_CURVE:
+            delivery = _delivery(code, board_day)
+            if delivery is None:
+                continue
+            period, start, end = delivery
+            price = market.strip(hub, board_day, month_ahead, period.first_gas_day,
+                                 period.last_gas_day)
+            quotes.append(_quote_row(market, hub, currency, code, period.label, period.kind,
+                                     price, start, end, now, board_day))
+    return quotes
 
 
-def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, day):
+#: Prompt products written at every roll-forward (a running snapshot), not once a day.
+RUNNING_PROMPT = frozenset({"WD", "DA"})
+#: The demo start-up setting that says the continuous demo exchange feed writes today's WD
+#: and DA quotes (``scripts/demo/start_public_demo.py``); the roll-forward then writes none.
+EXCHANGE_FEED_SETTING = "EUROGAS_NEXUS_DEMO_EXCHANGE_FEED"
+
+
+def demo_exchange_feed_running() -> bool:
+    """Whether the continuous demo exchange feed owns today's WD and DA quotes."""
+
+    import os
+
+    return (os.environ.get(EXCHANGE_FEED_SETTING) or "").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+
+
+def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, day, *,
+               stamp=None, planted=None, last=None):
     from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT
 
     bid, native_mid, ask = market.quote(hub, mid, kind)
@@ -2297,9 +2640,24 @@ def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, d
     per_mwh = (lambda value: value) if native_unit.endswith("/MWh") else (
         lambda value: value * mid / _native_price(hub, mid)
     )
+    native_last = native_mid
+    if last is not None:
+        # The running "last": a trade inside the bid and offer, on the tick.
+        tick = market_tick(hub)
+        native_last = min(max(market.quote(hub, mid + last, kind)[1], bid), ask)
+        native_last = round(round(native_last / tick) * tick, 3 if tick < 0.01 else 2)
     observed = now - timedelta(minutes=5)
+    suffix = f"{day:%Y%m%d}" if stamp is None else stamp
+    metadata = {
+        "simulated": True, "demo_market": "v1", "product_label": label,
+        "product_kind": kind, "rolling_code": code, "native_unit": native_unit,
+        "native_bid": bid, "native_ask": ask, "native_mid": native_mid,
+        "native_last": native_last, "tick": market_tick(hub), "trading_day": day.isoformat(),
+    }
+    if planted:
+        metadata["demo_planted_case"] = planted
     return dict(
-        quote_id=f"demo-q-{hub}-{label}-{day:%Y%m%d}".replace(" ", "")[:128],
+        quote_id=f"demo-q-{hub}-{label}-{suffix}".replace(" ", "")[:128],
         source_system=SOURCE,
         source_record_id=None,
         venue="Demo",
@@ -2313,9 +2671,9 @@ def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, d
         delivery_end_utc=end,
         bid_price=round(per_mwh(bid), 4),
         ask_price=round(per_mwh(ask), 4),
-        last_price=round(per_mwh(native_mid), 4),
-        bid_quantity_mwh=None,
-        ask_quantity_mwh=None,
+        last_price=round(per_mwh(native_last), 4),
+        bid_quantity_mwh=_load_demo_market().depth_of(hub),
+        ask_quantity_mwh=_load_demo_market().depth_of(hub),
         currency=currency,
         unit="MWh",
         observed_at_utc=observed,
@@ -2324,12 +2682,7 @@ def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, d
         freshness="simulated",
         quality_score=0.0,
         simulated=True,
-        metadata_json={
-            "simulated": True, "demo_market": "v1", "product_label": label,
-            "product_kind": kind, "rolling_code": code, "native_unit": native_unit,
-            "native_bid": bid, "native_ask": ask, "native_mid": native_mid,
-            "tick": market_tick(hub),
-        },
+        metadata_json=metadata,
     )
 
 
@@ -2412,6 +2765,11 @@ def _fixture_scopes():
          lambda model: model.mandate_id.like("DEMO-%")),
         ("routes", RouteCandidateRecord,
          lambda model: model.route_id.like("demo-%")),
+        # Approved hedge bands of the demo contracts (a band for a contract a tester removed
+        # is not re-added: ``ensure_demo_fixtures`` keeps only contracts still stored).
+        ("hedge_approvals", HedgeApprovalRecord,
+         lambda model: model.contract_id.in_([row[0] for row in CONTRACTS]
+                                             + [CROSS_BORDER_CONTRACT])),
     )
 
 
@@ -2419,8 +2777,10 @@ def ensure_demo_fixtures(session, now: datetime) -> dict[str, int]:
     """Add the demo reference rows a fresh seed would write and this store lacks; idempotent.
 
     A volume seeded by an older build kept its rows ("testers' changes kept") but never got
-    what a newer seed adds: the simulated BBL tariffs (so "TTF -> NBP net of transport"
-    showed its inputs as missing), the case awaiting review, a new credit line. The fresh
+    what a newer seed adds: the simulated tariffs (so "TTF -> NBP net of transport"
+    showed its inputs as missing), the case awaiting review, a new credit line, the approved
+    hedge bands of demo contracts that still exist (a removed contract's band is not
+    re-added), the firm storage at CEGH and the demo assumption set (storage costs). The fresh
     seed is written to a throwaway in-memory store with the same ``now`` and its demo rows
     of those tables are copied where the primary key is absent. Simulated tariffs a published
     row has replaced are retired again straight after. The all-tenor demo market is written
@@ -2451,12 +2811,19 @@ def ensure_demo_fixtures(session, now: datetime) -> dict[str, int]:
             for row in candidates:
                 if getattr(row, key.key) in stored:
                     continue
+                if model is HedgeApprovalRecord and session.get(
+                    UpstreamResourceContractRecord, row.contract_id
+                ) is None:
+                    continue  # the contract was removed: its band is not re-added
                 session.add(model(**{column: getattr(row, column) for column in columns}))
                 added += 1
             if added:
                 counts[f"fixture_{name}"] = added
     engine.dispose()
     session.flush()
+    for name, added in seed_demo_storage_and_assumptions(session, now).items():
+        if added:
+            counts[f"fixture_{name}"] = added
     if counts.get("fixture_tariffs"):
         retire_simulated_tariffs(session)
     return counts

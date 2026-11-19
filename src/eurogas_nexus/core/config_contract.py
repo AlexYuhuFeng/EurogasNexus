@@ -600,6 +600,16 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "Every valued response then carries a warning that marks are demo prices.",
         ),
     ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_EXCHANGE_FEED",
+        scope="OPERATOR",
+        purpose="Say the continuous demo exchange feed writes today's WD and DA demo quotes.",
+        default="false (the hourly demo roll-forward writes one WD/DA snapshot)",
+        notes=(
+            "Demo server only (scripts/demo/start_public_demo.py, seed_demo_desk.py).",
+            "true: the roll-forward leaves today's WD and DA quotes to the feed.",
+        ),
+    ),
     # --- Development-only credential login ---------------------------------
     ConfigVar(
         name="EUROGAS_NEXUS_DEV_LOGIN_USERNAME",

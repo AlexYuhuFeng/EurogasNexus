@@ -226,6 +226,10 @@ def configure_environment(environ: dict[str, str] | os._Environ) -> list[str]:
         "EUROGAS_NEXUS_DEV_LOGIN_USERNAME": ",".join(TESTER_NAMES),
         # Demo prices value the demo book; every valued response says they are demo prices.
         "EUROGAS_NEXUS_DEMO_MARKS": "true",
+        # Who writes today's WD/DA quotes: "false" (default) the hourly roll-forward writes
+        # one snapshot; "true" the continuous demo exchange feed does, and the roll-forward
+        # leaves them alone (scripts/demo/seed_demo_desk.py, demo_exchange_feed_running).
+        "EUROGAS_NEXUS_DEMO_EXCHANGE_FEED": "false",
         # AI only when the operator supplied a model key.
         "EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED": "true" if llm_key else "false",
         "EUROGAS_NEXUS_WEB_CLIENT_DIR": str(ROOT / "web"),

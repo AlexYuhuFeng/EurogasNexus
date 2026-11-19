@@ -176,24 +176,60 @@ season and year, so backtests and z-scores have history. Instrument ids follow t
 
 The market is derived from the month-ahead history the demo already keeps, so it is coherent by
 construction: each month is the hub's seasonal curve plus that day's move; a quarter, season or
-year is the day-weighted average of its months (to the tick); DA mean-reverts to the front month;
-WD sits near DA, WE below it. Draws come from a separate named stream
-(`scripts/demo/demo_market.py`), so the other demo series are unchanged. Everything is
-`DEMO_Sim`, marked simulated, and the roll-forward extends it day by day. It exists only in the
-demo image; the customer runtime does not ship `scripts/demo`.
+year is the day-weighted average of its months (to the tick); DA mean-reverts to the front month
+(continental hubs share TTF's prompt move plus a small one of their own); WD sits near DA, and WE
+and BOM each follow DA with a small, bounded process of their own. The hubs of the market-area
+graph (TTF, THE, PEG, ZTP, NBP) are held inside the band no route can arbitrage at the simulated
+transport costs (TTF the reference), so a locational spread nets below its cost unless planted.
+Draws come from separate named streams (`scripts/demo/demo_market.py`), so the other demo
+series are unchanged. Everything is `DEMO_Sim`, marked simulated, and the roll-forward extends it
+day by day. It exists only in the demo image; the customer runtime does not ship `scripts/demo`.
+
+**Today's prompt.** On gas day D the desk reads D's prompt market: the board quotes WD for gas
+day D and DA for the next day the market quotes (Monday's on a Friday; the weekend is WE). Every
+roll-forward (at start-up and hourly) writes one snapshot of WD and DA, two-sided with a size and
+a running "last", and the curve once a day. When the continuous demo exchange feed runs, set
+`EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=true`: the feed then owns today's WD and DA quotes and the
+roll-forward writes none.
+
+**Evaluation on the demo.** The demo image runs no data-operations scheduler, so the seed and
+every roll-forward note the input classes they changed and run the scheduled opportunity
+evaluation themselves (`evaluate_demo_desk`). An item is listed after two consecutive
+evaluations (the persistence rule): after a fresh start, at the second roll-forward.
+
+**What a volume seeded by an older build gets.** The roll-forward tops up what a newer seed adds
+and the store lacks (`ensure_demo_fixtures`): the simulated tariffs, the case awaiting review,
+credit lines, mandates, routes, the approved hedge bands of the demo contracts that still exist
+(a contract a tester removed is not re-added, nor its band), the firm storage at CEGH
+(`demo-storage-cegh`, fictional) and the demo assumption set (`Demo desk assumptions`, approved:
+`storage.capacity_fee` 2.80, `storage.injection_fee` 0.50, `storage.withdrawal_fee` 0.50 EUR/MWh,
+together the 3.80 the time-spread cases are measured against).
+
+**Simulated tariffs.** One crossing of each main hub pair, both directions: TTF-NBP through BBL
+(1.88 EUR/MWh forward, 1.80 reverse), TTF-THE at VIP TTF-THE-H (1.00), TTF-ZTP at Zelzate (0.85;
+1.65 back), THE-PEG at Obergailbach (1.05), THE-ZTP at VIP THE-ZTP (1.40), PEG-ZTP at Virtualys
+(0.90), ZTP-NBP through IUK (3.72; 3.75 back). Invented, `SIMULATOR_ONLY`, read on a demo desk
+only, and retired leg by leg once a published row names the same operator, point and direction.
 
 Planted dislocations (and no others) give the opportunity evaluators something true to find:
 
-| Case | Evaluator | Where | What is planted |
+| Case | Found as | Where | What is planted |
 |---|---|---|---|
-| `L1-nbp-over-ttf-da` | L / A | NBP vs TTF, DA | NBP DA (in EUR at the demo fixing) over TTF DA exceeds the simulated BBL route cost (1.88 EUR/MWh) by 1.20 on days with ordinal % 23 in {0, 1}; on every other day arbitrage through BBL keeps the net at least 0.65 below the cost (NBP DA otherwise follows its own front month), so it flips sign on exactly those days |
-| `W1-ttf-wd-over-da` | A | TTF, WD vs DA | WD 1.50 over DA on days with ordinal % 17 = 5; elsewhere, and at every other hub, \|WD - DA\| <= 0.25 |
-| `T1-cegh-winter-over-summer` | T | CEGH, Sum vs Win | A 1.00 EUR/MWh far-winter premium on winter months 6+ months ahead, so its next winter over the summer before exceeds the storage cost used (3.80 EUR/MWh); every other hub stays below |
-| `O1-nbp-outage-basis` | event exposure | NBP, DA | +0.60 EUR/MWh on NBP DA while the demo's unplanned NBP-zone outage is active, within the L1 arbitrage bound on non-planted days |
+| `L1-nbp-over-ttf-da` | market L (TTF -> NBP via BBL) | NBP vs TTF, DA | NBP DA (in EUR at the demo fixing) over TTF DA exceeds the simulated BBL route cost (1.88 EUR/MWh) by 1.20 on days with ordinal % 23 in {0, 1}; on every other day the band keeps the net at least 0.65 below the cost. Only TTF reaches it: every other hub's route through TTF nets below zero |
+| `W1-ttf-wd-over-da` | market P (TTF WD over DA) | TTF, WD vs DA | WD 1.50 over DA on days with ordinal % 17 = 5; elsewhere, and at every other hub, \|WD - DA\| <= 0.25 |
+| `T1-cegh-winter-over-summer` | market T; book T on the demo storage at CEGH | CEGH, Sum vs Win | A 1.00 EUR/MWh far-winter premium on winter months 6+ months ahead, so its next winter over the summer before exceeds the storage cost (3.80 EUR/MWh); every other hub stays below. Standing: found every day |
+| `O1-nbp-outage-basis` | E (event exposure, must act) | NBP, DA | +0.60 EUR/MWh on NBP DA while the demo's unplanned NBP-zone outage is active, inside the band on non-planted days; the outage's cut to the demo contracts is the E item |
 
-The cases are also in `PLANTED_CASES` in `scripts/demo/demo_market.py`, and the closes they
-touch carry `demo_planted_case` in their metadata; `tests/unit/test_demo_market.py` checks that
-each holds on exactly its days.
+Not planted but true of the demo every day: the hedge gap of the Haldor contract (G), the
+outage exposures (E), and, on most days, the held BBL capacity TTF -> NBP (C: charges sunk, so
+NBP's premium inside the band is worth capturing), plus book T "storage not held" month pairs
+(watching) where a curve's seasonal swing exceeds the stated cost. WE and BOM are not planted.
+
+The cases are also in `PLANTED_CASES` in `scripts/demo/demo_market.py`, and the closes and quotes
+they touch carry `demo_planted_case` in their metadata. `tests/unit/test_demo_market.py` checks
+that each holds on exactly its days; `tests/integration/test_demo_planted_cases.py` seeds a fresh
+store at 09:00 on an L1 day, a W1 day and a quiet day, evaluates twice and asserts the exact set
+listed.
 
 ## Reaching it from other devices
 

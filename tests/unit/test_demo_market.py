@@ -54,7 +54,19 @@ def _closes(session, hub: str, tenor: str) -> dict[date, MarketObservationRecord
 
 
 def _market():
-    return MARKET.DemoMarket(SEED._curve_price, eur_per_mwh_to_native=SEED._native_price)
+    return MARKET.DemoMarket(SEED._curve_price, eur_per_mwh_to_native=SEED._native_price,
+                             route_costs=SEED.demo_route_costs())
+
+
+def _anchors(session, day: date) -> dict[str, float]:
+    """Every hub's stored month-ahead on ``day`` (what the generator priced the day from)."""
+
+    out = {}
+    for hub, _currency in SEED.DEMO_PRICE_HUBS:
+        history = SEED._month_ahead_history(session, hub, day - timedelta(days=1))
+        if day in history:
+            out[hub] = history[day][0]
+    return out
 
 
 @pytest.mark.parametrize("hub", ["TTF", "NBP", "CEGH", "PVB"])
@@ -115,8 +127,9 @@ def test_prompt_products_stay_around_the_front_month(store, hub):
     for day, row in _closes(store, hub, "day-ahead").items():
         if hub == "NBP" and MARKET.l1_planted(day):
             continue  # the planted squeeze is the exception, by design
-        month_ahead = SEED._month_ahead_history(store, hub, day - timedelta(days=1))[day][0]
-        front = market.month_price(hub, day, month_ahead, MARKET.month_start(day))
+        anchors = _anchors(store, day)
+        market.set_anchors(day, anchors)
+        front = market.month_price(hub, day, anchors[hub], MARKET.month_start(day))
         assert abs(row.price - front) < 2.0, (hub, day)
 
 
