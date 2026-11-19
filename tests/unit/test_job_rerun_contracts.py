@@ -77,7 +77,6 @@ def test_every_named_rerun_path_is_a_real_public_path() -> None:
     # A contract that points at a path the deployment does not serve is worse than no contract:
     # the fitness check is against the app's own surface, not against the string's shape.
     from apps.api.main import app
-
     from eurogas_nexus.security.public_surface import DEFERRED_PUBLIC_PATHS
 
     # A deferred capability's path (design basis 2, I.3) is served when an operator turns the

@@ -56,7 +56,6 @@ from eurogas_nexus.api.routes.public.streaming import router as streaming_router
 from eurogas_nexus.api.routes.public.support import router as support_router
 from eurogas_nexus.api.routes.public.weather import router as weather_router
 
-
 #: Design basis 2, I.3 and decision L4: capabilities kept in the backend, dormant, until a desk
 #: use is proven: the dataset builder and the agents workspace. (The strategy registry and the
 #: shadow runtime stay served while the Spreads backtest and shadow tracking are rebuilt on
