@@ -46,9 +46,12 @@ What is stored, per row
   month where a seasonal factor makes months differ). ``effective_to`` is the last gas day
   (ENTSOG's end is exclusive). The gas-year column carries the tariff period's label
   (``2026`` calendar year, ``2026/27`` gas year).
-- **Status**: INDICATIVE when ENTSOG's remarks say so, the period starts after the download
-  date, or ENTSOG's common unit disagrees with the operator's figure (also manual review);
-  FINAL otherwise.
+- **Status**: the operator's own status where ENTSOG carries it (``operator_status``: a remark
+  stating the price final or indicative); otherwise INDICATIVE when the period starts after
+  the download date. Always INDICATIVE when ENTSOG's common unit disagrees with the operator's
+  figure (also manual review); FINAL otherwise. Measured 19-11-2026: none of the 12,670
+  ``tariffsfulls`` rows read for the 108 points carries a status, in any remark field, so a
+  later period is INDICATIVE until it starts (THE's final 2027 prices included).
 - **Provenance**: ``document_id`` ``entsog-tariffsfulls-<download date>``, the ENTSOG TP citation
   its terms require (``docs/legal/DATA_SOURCE_TERMS.md``), the row id and the as-of instant
   (``created_at_utc``, the receipt).
@@ -134,6 +137,27 @@ def read_points(bundle: Mapping[str, Any]) -> list[str]:
     from eurogas_nexus.reference_data.tariff_scope import scope_points
 
     return sorted(set(tariff_points(bundle)) | set(scope_points()))
+
+
+#: ENTSOG's free-text fields an operator may state its price's status in.
+_STATUS_FIELDS = (
+    "applicableTariffRemarks",
+    "remarks",
+    "tariffPeriodRemarks",
+    "generalRemarks",
+    "itemRemarks",
+)
+
+
+def operator_status(record: Mapping[str, Any]) -> str | None:
+    """FINAL or INDICATIVE when the operator states it in the row, else None."""
+
+    text = " ".join(str(record.get(key) or "") for key in _STATUS_FIELDS).lower()
+    if "indicative" in text or "provisional" in text or "preliminary" in text:
+        return "INDICATIVE"
+    if "final" in text:
+        return "FINAL"
+    return None
 
 
 def _period_label(start: date, end_exclusive: date) -> str:
@@ -364,8 +388,11 @@ def entsog_tariff_rows(
             if end <= start:
                 skipped["value_or_period_missing"] += 1
                 continue
+        stated = operator_status(record)
         indicative = (
-            "indicative" in remarks.lower() or tariff_from > downloaded or not common_agrees
+            not common_agrees
+            or stated == "INDICATIVE"
+            or (stated is None and tariff_from > downloaded)
         )
         tariff_id = "-".join(
             ("entsog", operator, point, direction, firmness, product, start.isoformat())

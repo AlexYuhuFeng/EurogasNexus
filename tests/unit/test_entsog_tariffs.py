@@ -500,3 +500,19 @@ def test_simulated_demo_tariffs_step_aside_for_published_ones():
         assert simulated.count() == before - 1
         left = {(row.tso, row.direction) for row in simulated}
         assert {("GTS", "EXIT"), ("National Gas TSO", "ENTRY")} <= left
+
+
+def test_the_operator_status_where_entsog_carries_it_overrides_the_date_rule(bundle):
+    later = record("ITP-10012", "DE-TSO-0005", "entry", 6.5, "2027-01-01", "2028-01-01")
+    final = {**later, "tariffPeriodRemarks": "Final reserve prices (BNetzA decision)"}
+    stated_indicative = {
+        **record("ITP-10012", "NL-TSO-0001", "exit", 4.0, "2026-01-01", "2027-01-01"),
+        "applicableTariffRemarks": "Indicative tariff",
+    }
+    by_id = {
+        row["tso"]: row["tariff_status"] for row in rows_of([final, stated_indicative], bundle)[0]
+    }
+    assert by_id == {"Gasunie Deutschland": "FINAL", "GTS": "INDICATIVE"}
+    # Without a stated status a later period stays indicative.
+    [row], _ = rows_of([later], bundle)
+    assert row["tariff_status"] == "INDICATIVE"
