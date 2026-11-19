@@ -136,6 +136,10 @@ STRATEGY_REBUILD = (
 
 #: Paths that are deliberately not a product surface, each with the reason it is not.
 DELIBERATE: dict[str, str] = {
+    "/api/market/ticks": (
+        "machine ingestion: a licensed feed adapter (or the demo exchange simulator, "
+        "scripts/demo/exchange_feed.py) delivers quote and trade batches; no screen posts ticks"
+    ),
     "/api/access/groups": "ADMIN sharing-group catalogue; direct control-plane API",
     "/api/access/groups/{group_id}": "ADMIN sharing-group lifecycle; direct control-plane API",
     "/api/access/groups/{group_id}/members/{principal_id}": (

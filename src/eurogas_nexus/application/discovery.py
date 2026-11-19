@@ -235,6 +235,79 @@ def mandate_findings(caller, today) -> list[Finding]:
     return out
 
 
+_SIGNAL_WORDS = {
+    "long": ("buy the spread", "买入价差"),
+    "short": ("sell the spread", "卖出价差"),
+    "flat": ("close the position", "平仓"),
+}
+
+
+def strategy_findings(session, principal, now: datetime) -> list[Finding]:
+    """The caller's own tracked strategies (paper) whose signal changed and has not expired."""
+
+    from eurogas_nexus.application.strategy_tracking import signal_findings
+
+    out = []
+    for item in signal_findings(session, principal, now):
+        advice = item["advice"]
+        signal = str(advice.get("signal") or "")
+        if signal not in _SIGNAL_WORDS:
+            continue
+        unit = f"{advice.get('currency')}/MWh" if advice.get("currency") else str(
+            advice.get("unit") or "")
+
+        def number(value, places=3):
+            return "-" if value is None else f"{float(value):.{places}f}"
+
+        expires = advice.get("expires_at")
+        out.append(
+            Finding(
+                finding_id=f"strategy:{item['track_id']}",
+                kind="strategy.close" if signal == "flat" else "strategy.signal",
+                severity=2,
+                facts={
+                    "subject": item["track_id"],
+                    "name": item["name"],
+                    "signal_en": _SIGNAL_WORDS[signal][0],
+                    "signal_zh": _SIGNAL_WORDS[signal][1],
+                    "entry": number(advice.get("entry_level")),
+                    "bid": number(advice.get("spread_bid")),
+                    "offer": number(advice.get("spread_offer")),
+                    "edge": "-" if advice.get("edge_net_per_mwh") is None
+                    else f"{float(advice['edge_net_per_mwh']):+.3f}",
+                    "unit": unit,
+                    "expires": "the next close" if not expires
+                    else datetime.fromisoformat(expires).strftime("%H:%M UTC"),
+                },
+                input_class=InputClass.SIMULATED if advice.get("simulated")
+                else InputClass.INDICATIVE,
+                simulated=bool(advice.get("simulated")),
+                value=None if advice.get("edge_net_per_mwh") is None
+                else Decimal(str(advice["edge_net_per_mwh"])),
+                value_unit=unit,
+                evidence=({"track_id": item["track_id"], "mode": item["mode"],
+                           "as_of_utc": item["changed_at"], "advice": advice, "paper": True},),
+                link={"page": "research/spreads", "track_id": item["track_id"]},
+                due_utc=None if not expires else datetime.fromisoformat(expires),
+                method="Paper signal of a tracked strategy; nothing is sent anywhere.",
+            )
+        )
+    return out
+
+
+def _latest_signal_change(session, principal) -> str | None:
+    """The newest signal change of the caller's tracks (part of the cache key)."""
+
+    from sqlalchemy import func
+
+    from eurogas_nexus.db.models import StrategyTrackRecord
+
+    value = session.query(func.max(StrategyTrackRecord.signal_changed_at_utc)).filter(
+        StrategyTrackRecord.owner_principal_id == getattr(principal, "principal_id", None)
+    ).scalar()
+    return None if value is None else str(value)
+
+
 def _subject(item: Finding) -> tuple:
     """What makes two findings the same story: one contract, or one hub pair, per kind."""
 
@@ -292,6 +365,7 @@ def discoveries(
         limit,
         None if evaluation is None else evaluation.evaluation_id,
         moment.date(),
+        _latest_signal_change(session, principal),
     )
     cached = _CACHE.get(key)
     if cached is not None and time.monotonic() - cached[0] < CACHE_SECONDS:
@@ -299,6 +373,10 @@ def discoveries(
     findings: list[Finding] = []
     warnings: list[str] = []
     findings += opportunity_findings(session, principal, moment)
+    try:
+        findings += strategy_findings(session, principal, moment)
+    except Exception as exc:  # noqa: BLE001 - tracks unavailable hide only themselves
+        warnings.append(f"strategy findings unavailable: {type(exc).__name__}")
     from eurogas_nexus.security.authorization import Permission, authorize
 
     if authorize(principal, Permission.PORTFOLIO_READ).allowed:

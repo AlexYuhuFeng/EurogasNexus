@@ -333,6 +333,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/internal/portfolio/import-observations", Permission.OPERATOR),
     ("/api/internal/shadow-scheduler/tick", Permission.OPERATOR),
     ("/api/internal/sources/certification", Permission.OPERATOR),
+    # A licensed feed adapter (or the demo exchange simulator) delivering quotes and trade
+    # prints: a data-operations act (source.run is held in the handler as well).
+    ("/api/market/ticks", Permission.OPERATOR),
     # Anyone signed in may report a problem and see their own reports; the IT desk works them.
     ("/api/support/reports", Permission.READ),
     ("/api/support/reports/{report_id}", Permission.OPERATOR),

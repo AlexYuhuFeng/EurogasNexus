@@ -192,6 +192,12 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/research/spreads/board",
         "/api/research/spreads/interpret",
         "/api/research/spreads/evaluate",
+        # Tracked strategies (paper shadow run) and the feed tick ingestion that drives them.
+        "/api/research/strategy-tracks",
+        "/api/research/strategy-tracks/{track_id}",
+        "/api/research/strategy-tracks/{track_id}/stop",
+        "/api/market/ticks",
+        "/api/market/prompt",
         "/api/research/cash-valuation",
         "/api/research/capacity-billing",
         "/api/research/lng-economics-only",

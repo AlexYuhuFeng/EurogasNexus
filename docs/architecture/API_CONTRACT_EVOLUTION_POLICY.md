@@ -4,6 +4,31 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-19 (tracked strategies and the intraday feed path): five paths, six
+operations. `GET /api/research/strategy-tracks` (the caller's own tracks) and `POST` (`name`,
+`mode` daily|intraday, `spec` a StrategySpec, `rule` an intraday rule: `kind`
+zscore_window|vwap_reversion|breakout, window, entry/exit z, `size_mw`, liquidity gates
+`min_top_size_mwh`, `max_quote_age_seconds`, `max_no_trade_minutes`, `slippage_per_mwh`,
+`require_positive_edge`, `max_hold_minutes`, `advice_ttl_seconds`, `debounce_seconds`; unknown
+fields refused) return a track (`snapshot` with signal, advice with `computed_at`,
+`quote_age_seconds`, `expires_at`, `cutoff_at`, paper position, realised/unrealised P&L, max
+drawdown, `assumptions`); `GET /api/research/strategy-tracks/{track_id}` adds `intents` (order
+intent records: legs with instrument and side, size, limit, reason, checks, `sent: false`),
+`blotter` (paper fills and refusals), `signals` (signals, gates, `missed`, `superseded`) and
+`equity`; `POST .../{track_id}/stop`. `POST /api/market/ticks` (`source_system`, `quotes`
+with bid/ask, sizes, last, session open/high/low, VWAP, volume, trade count, settlement, prior
+settlement, open interest and the exchange time; `trades` with trade id, price, size, trade
+type screen|block|otc_cleared|auction, aggressor, broker; `replay` for simulated sessions)
+returns counts and the evaluation of the tracks listening. `GET /api/market/prompt` (`hub`)
+returns the live WD/DA screen, the WD − DA spread and today's booked prompt trades against
+VWAP, settlement and the mid at trade time. `market_quotes` gains nullable session fields in
+`GET /api/market/quotes` (additive). The daily rule backtest (`/api/research/spread-analysis`
+and `/spreads/evaluate`) adds `execution`, `assumptions`, `periods`, per-point `signal`,
+`signal_level`, `drawdown`, `roll`, per-trade `pnl_per_mwh` and `holding_days`, metrics
+`pnl_per_mwh`, `worst_trade`, `best_trade`, `average_holding_days`, `roll_days_excluded`,
+`too_few_trades`, and `pnl_currency`; `cost_per_mwh` defaults to the held bid/offer (else
+zero) instead of 0.02 and execution to the next close (behaviour change, documented in
+`docs/product/STRATEGY_TRACKING.md`). Census: 272 paths / 304 operations (+5 / +6 on 267 / 298).
 Removal 2026-11-19 (commercial design basis 2, I.3 and decision L4): the deferred capabilities
 are no longer served by default: the dataset builder (`/api/research/features|targets|capabilities|datasets…`)
 and the agents workspace (`/api/capabilities…`, `/api/agent/…`), 21 paths / 22 operations, listed

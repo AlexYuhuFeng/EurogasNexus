@@ -261,6 +261,8 @@ def analyse_spread(
     signal_offsets: Mapping[date, float] | None = None,
     cost_basis: str = "stated",
     fx_note: str = "",
+    currency_per_unit: float = 1.0,
+    currency: str = "",
 ) -> SpreadAnalysis:
     """Build the spread, its statistics and the rule backtest.
 
@@ -337,6 +339,7 @@ def analyse_spread(
     # close before (next_close: decided at t, traded at t + 1).
     positions = signals if rule.execution == "same_close" else [0, *signals[:-1]]
 
+    volume = rule.volume_mwh_per_day * currency_per_unit
     points: list[SpreadPoint] = []
     trades: list[SpreadTrade] = []
     cumulative = 0.0
@@ -370,15 +373,15 @@ def analyse_spread(
         days_traded = max(
             (contract(leg, day) or ("", 1))[1] for leg in legs
         )
-        cost = change * rule.cost_per_mwh * rule.volume_mwh_per_day * days_traded
-        pnl = held * energy_move * rule.volume_mwh_per_day - cost
+        cost = change * rule.cost_per_mwh * volume * days_traded
+        pnl = held * energy_move * volume - cost
         cumulative += pnl
         peak = max(peak, cumulative)
         daily_pnls.append(pnl)
         daily_per_mwh.append(held * per_mwh - change * rule.cost_per_mwh)
         if open_trade is not None:
             open_trade["pnl"] = float(open_trade["pnl"]) + held * energy_move * (
-                rule.volume_mwh_per_day
+                volume
             )
             open_trade["per_mwh"] = float(open_trade["per_mwh"]) + held * per_mwh
         if positions[index] != previous_position:
@@ -392,7 +395,7 @@ def analyse_spread(
                         entry_spread=float(open_trade["entry"]),
                         exit_spread=round(spread[index], 6),
                         pnl=round(float(open_trade["pnl"]) - float(open_trade["entry_cost"])
-                                  - rule.cost_per_mwh * rule.volume_mwh_per_day * days_traded,
+                                  - rule.cost_per_mwh * volume * days_traded,
                                   2),
                         pnl_per_mwh=round(float(open_trade["per_mwh"])
                                           - 2 * rule.cost_per_mwh, 6),
@@ -407,7 +410,7 @@ def analyse_spread(
                     "entry": round(spread[index], 6),
                     "pnl": 0.0,
                     "per_mwh": 0.0,
-                    "entry_cost": rule.cost_per_mwh * rule.volume_mwh_per_day * days_traded,
+                    "entry_cost": rule.cost_per_mwh * volume * days_traded,
                 }
         previous_position = positions[index]
         points.append(
@@ -527,6 +530,8 @@ def analyse_spread(
         assumptions=assumptions_line(
             rule.identity(), cost_basis=cost_basis, fx_note=fx_note,
             net=bool(signal_offsets), rolls=any(leg.deliveries for leg in legs),
+            money=f"P&L in {currency} ({currency_per_unit:g} {currency}/MWh per unit of the "
+                  "spread)" if currency and currency_per_unit != 1.0 else "",
         ),
         periods=periods,
     )
@@ -551,6 +556,7 @@ def assumptions_line(
     fx_note: str = "",
     net: bool = False,
     rolls: bool = False,
+    money: str = "",
 ) -> str:
     """The compact "Assumptions" line every rule result carries."""
 
@@ -586,6 +592,8 @@ def assumptions_line(
     if net:
         parts.append("the rule reads the spread net of the route tariff of each day's gas "
                      "year; P&L is the gross spread")
+    if money:
+        parts.append(money)
     if fx_note:
         parts.append(fx_note)
     return "; ".join(parts) + "."

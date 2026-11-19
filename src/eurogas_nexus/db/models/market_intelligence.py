@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -54,6 +54,51 @@ class MarketQuoteRecord(Base):
     source_reference: Mapped[str] = mapped_column(String(256), nullable=False)
     freshness: Mapped[str] = mapped_column(String(32), nullable=False)
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
+    simulated: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Session fields a licensed feed may carry with the quote (domain/market/feed.py); each
+    # stays empty where the customer's feed does not deliver it. ``observed_at_utc`` is the
+    # venue's time, ``received_at_utc`` ours.
+    last_quantity_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    session_open: Mapped[float | None] = mapped_column(Float, nullable=True)
+    session_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    session_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vwap: Mapped[float | None] = mapped_column(Float, nullable=True)
+    volume_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trade_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    settlement_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    prior_settlement_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    open_interest_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class MarketTradeRecord(Base):
+    """One executed trade as the customer's licensed feed printed it (or the demo simulator).
+
+    Stored under the source family, so the entitlement filter applies exactly as for quotes.
+    """
+
+    __tablename__ = "market_trades"
+    __table_args__ = (
+        Index("ix_market_trades_lookup", "hub", "product", "source_system", "traded_at_utc"),
+        Index("ix_market_trades_traded_at", "traded_at_utc"),
+    )
+
+    trade_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    venue: Mapped[str] = mapped_column(String(64), nullable=False)
+    instrument_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    hub: Mapped[str] = mapped_column(String(32), nullable=False)
+    product: Mapped[str] = mapped_column(String(64), nullable=False)
+    delivery_start_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    delivery_end_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    quantity_mwh: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    trade_type: Mapped[str] = mapped_column(String(16), nullable=False, default="screen")
+    aggressor: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    broker: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    traded_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     simulated: Mapped[bool] = mapped_column(Boolean, nullable=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 

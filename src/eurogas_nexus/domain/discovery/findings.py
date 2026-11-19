@@ -62,6 +62,9 @@ RELEVANCE: dict[str, dict[str, float]] = {
         "trader": 0.3,
     },
     "credit.projected": {"risk": 0.95, "finance": 0.7, "management": 0.7, "trader": 0.2},
+    # A tracked strategy (paper) whose signal changed: the owner's own research.
+    "strategy.signal": {"trader": 0.9, "analyst": 0.9, "risk": 0.3, "management": 0.2},
+    "strategy.close": {"trader": 0.8, "analyst": 0.8, "risk": 0.3, "management": 0.2},
     "mandate.breach": {"compliance": 1.0, "risk": 0.9, "management": 0.8, "trader": 0.5},
 }
 
@@ -136,6 +139,18 @@ _QUALIFIER = {
 
 #: (kind, audience or "*") -> {language: template}. Fields come from ``Finding.facts``.
 TEMPLATES: dict[tuple[str, str], dict[str, str]] = {
+    ("strategy.close", "*"): {
+        "en": "{name}: the rule closed its paper position; spread bid {bid} / offer {offer} "
+        "{unit}; valid until {expires}. Not an instruction{q}.",
+        "zh": "{name}：规则已平掉纸面头寸；价差买价 {bid} / 卖价 {offer} {unit}；有效至 {expires}。"
+        "并非交易指令{q}。",
+    },
+    ("strategy.signal", "*"): {
+        "en": "{name}: paper signal {signal_en} at {entry}; spread bid {bid} / offer {offer} "
+        "{unit}, edge after crossing {edge}; valid until {expires}. Not an instruction{q}.",
+        "zh": "{name}：纸面信号{signal_zh}，价位 {entry}；价差买价 {bid} / 卖价 {offer} {unit}，"
+        "扣除买卖价差后优势 {edge}；有效至 {expires}。并非交易指令{q}。",
+    },
     ("credit.breach", "*"): {
         "en": "{counterparty} is over its credit line: exposure {exposure} against a limit "
         "of {limit}{q}.",

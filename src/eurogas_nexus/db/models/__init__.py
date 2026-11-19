@@ -74,6 +74,7 @@ from eurogas_nexus.db.models.market_intelligence import (
     CompanyTsoAccessRecord,
     IntradayOpportunityRecord,
     MarketQuoteRecord,
+    MarketTradeRecord,
 )
 from eurogas_nexus.db.models.market_positioning import (
     PortfolioPnlSnapshotRecord,
@@ -178,6 +179,10 @@ from eurogas_nexus.db.models.strategy import (
     StrategyRecord,
     StrategyRunRecord,
     StrategyVersionRecord,
+)
+from eurogas_nexus.db.models.strategy_track import (
+    StrategyTrackEventRecord,
+    StrategyTrackRecord,
 )
 from eurogas_nexus.db.models.support import (
     NotificationChannelRecord,
@@ -385,6 +390,9 @@ __all__ = [
     "LiveMarketMarkRecord",
     "MarketObservationRecord",
     "MarketQuoteRecord",
+    "MarketTradeRecord",
+    "StrategyTrackEventRecord",
+    "StrategyTrackRecord",
     "MonitoringAlertRecord",
     "NodeFacilityMapping",
     "NominationWindowMasterRecord",

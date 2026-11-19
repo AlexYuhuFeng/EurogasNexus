@@ -887,6 +887,17 @@ def _quote_dict(row: MarketQuoteRecord) -> dict:
         "quality_score": row.quality_score,
         "simulated": row.simulated,
         "metadata_json": row.metadata_json or {},
+        # Session fields the source's feed carries (empty where it does not).
+        "last_quantity_mwh": row.last_quantity_mwh,
+        "session_open": row.session_open,
+        "session_high": row.session_high,
+        "session_low": row.session_low,
+        "vwap": row.vwap,
+        "volume_mwh": row.volume_mwh,
+        "trade_count": row.trade_count,
+        "settlement_price": row.settlement_price,
+        "prior_settlement_price": row.prior_settlement_price,
+        "open_interest_mwh": row.open_interest_mwh,
     }
 
 

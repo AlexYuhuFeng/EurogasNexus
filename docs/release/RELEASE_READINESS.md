@@ -50,7 +50,14 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **267 paths / 298 operations**
+- OpenAPI public surface: **272 paths / 304 operations**
+
+  (2026-11-19: tracked strategies and the intraday feed path: `GET`/`POST
+  /api/research/strategy-tracks`, `GET /api/research/strategy-tracks/{track_id}`, `POST
+  /api/research/strategy-tracks/{track_id}/stop` (GOVERNED family; strategy.read /
+  strategy.shadow.manage held in the handler, owner-only), `POST /api/market/ticks` (OPERATOR,
+  source.run) and `GET /api/market/prompt` (READ, market.read); paper only, no order;
+  267 / 298 before)
   (2026-11-19: the deferred capabilities' routes are no longer served by default, design basis
   2 I.3 and decision L4: the dataset builder and the agents workspace, 21 paths / 22 operations
   behind `EUROGAS_NEXUS_DEFERRED_CAPABILITIES`; 287 / 319 before)
