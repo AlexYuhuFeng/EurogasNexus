@@ -30,7 +30,7 @@ from eurogas_nexus.domain.opportunities.model import (
 from eurogas_nexus.domain.opportunities.ranking import RankInput, rank
 from eurogas_nexus.domain.valuation.quality import CLASS_LABEL, InputClass
 
-BUCKETS = ("must_act", "could_act", "watching", "blocked")
+BUCKETS = ("must_act", "could_act", "market", "watching", "blocked")
 MAX_PAGE = 50
 
 
@@ -52,7 +52,13 @@ def visible_to(row, allowed_books: set[str] | None, entitled) -> bool:
     """Book scope and entitlement for one record (``entitled(family) -> bool``)."""
 
     books = list(row.book_ids or [])
-    if allowed_books is not None and (not books or any(b not in allowed_books for b in books)):
+    # A market item carries no book (it needs no position); entitlement still applies.
+    market = getattr(row, "lane", None) == Lane.MARKET.value
+    if (
+        not market
+        and allowed_books is not None
+        and (not books or any(b not in allowed_books for b in books))
+    ):
         return False
     return all(entitled(family) for family in row.source_families or [])
 
@@ -66,6 +72,7 @@ SUBJECT_FIELDS: dict[str, tuple[str, ...]] = {
     "time_spread": ("hub", "where"),
     "sell_down": ("hub", "side"),
     "reroute": ("resource", "option"),
+    "prompt_arbitrage": ("hub", "sell", "buy"),
 }
 
 
@@ -373,9 +380,11 @@ def list_opportunities(
         row
         for row in shown
         if row.state in {OpportunityState.ACTIONABLE.value, OpportunityState.INDICATIVE.value}
+        # A market item always says what the firm would need: it is listed while watched.
+        or (row.lane == Lane.MARKET.value and row.state == OpportunityState.WATCH.value)
     ]
     buckets: dict[str, list[dict]] = {}
-    for lane_name in (Lane.MUST_ACT.value, Lane.COULD_ACT.value):
+    for lane_name in (Lane.MUST_ACT.value, Lane.COULD_ACT.value, Lane.MARKET.value):
         members = [row for row in listed if row.lane == lane_name]
         ranked = {
             item.opportunity_id: item for item in rank([_rank_input(r) for r in members], now)
@@ -392,7 +401,7 @@ def list_opportunities(
         ("blocked", OpportunityState.BLOCKED),
     ):
         members = sorted(
-            (row for row in shown if row.state == state.value),
+            (row for row in shown if row.state == state.value and row.lane != Lane.MARKET.value),
             key=lambda r: (_aware(r.expires_at_utc), r.opportunity_id),
         )
         buckets[group_name] = [
@@ -423,7 +432,9 @@ def list_opportunities(
             "trigger": evaluation.trigger,
             "next": _next_run(session),
         },
-        "lanes": {name: selected[name] for name in ("must_act", "could_act") if name in selected},
+        "lanes": {
+            name: selected[name] for name in ("must_act", "could_act", "market") if name in selected
+        },
         "groups": {name: selected[name] for name in ("watching", "blocked") if name in selected},
         "confirming": len(confirming),
         "hidden_by_you": hidden,

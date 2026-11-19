@@ -5170,5 +5170,9 @@
   "opportunities.input.rates": "rates",
   "opportunities.input.capacity": "capacity",
   "opportunities.input.freight": "freight",
-  "opportunities.detail.months_more": "{{count}} more months"
+  "opportunities.detail.months_more": "{{count}} more months",
+  "opportunities.lane.market": "In the market, not on your book ({{count}})",
+  "opportunities.lane.market.none": "No market dislocation above its costs at the last evaluation.",
+  "opportunities.title.prompt_arbitrage": "Prompt spread · {{subject}}",
+  "opportunities.title.prompt_arbitrage.many": "Prompt spread · {{subject}} · {{count}} days"
 }

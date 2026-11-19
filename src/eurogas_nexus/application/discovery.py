@@ -81,7 +81,7 @@ def opportunity_findings(session, principal, now: datetime) -> list[Finding]:
         out.append(
             Finding(
                 finding_id=f"opportunity:{row.opportunity_id}",
-                kind=f"opportunity.{row.type}",
+                kind=(f"market.{row.type}" if row.lane == "market" else f"opportunity.{row.type}"),
                 severity=severity,
                 facts={
                     "subject": str(

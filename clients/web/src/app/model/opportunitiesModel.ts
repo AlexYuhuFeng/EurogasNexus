@@ -99,22 +99,23 @@ export function timeLeft(iso: string | null | undefined, now: Date): { key: stri
 
 /* ------------------------------------------------------------------ list */
 
-export type OpportunityBucket = "must_act" | "could_act" | "watching" | "blocked";
+export type OpportunityBucket = "must_act" | "could_act" | "market" | "watching" | "blocked";
 
-export const LANES: readonly OpportunityBucket[] = ["must_act", "could_act"];
+/** Must act, could act, then the market lane ("in the market, not on your book"). */
+export const LANES: readonly OpportunityBucket[] = ["must_act", "could_act", "market"];
 export const GROUPS: readonly OpportunityBucket[] = ["watching", "blocked"];
 
 /** The rows of one bucket, as the server ordered them. */
 export function bucketRows(list: OpportunityListDTO | null, bucket: OpportunityBucket): OpportunityRowDTO[] {
   if (!list) return [];
-  const holder = bucket === "must_act" || bucket === "could_act" ? list.lanes[bucket] : list.groups[bucket];
+  const holder = bucket === "must_act" || bucket === "could_act" || bucket === "market" ? list.lanes[bucket] : list.groups[bucket];
   return holder?.items ?? [];
 }
 
 /** The count of a bucket (more than are shown when a lane is capped). */
 export function bucketTotal(list: OpportunityListDTO | null, bucket: OpportunityBucket): number {
   if (!list) return 0;
-  const holder = bucket === "must_act" || bucket === "could_act" ? list.lanes[bucket] : list.groups[bucket];
+  const holder = bucket === "must_act" || bucket === "could_act" || bucket === "market" ? list.lanes[bucket] : list.groups[bucket];
   return holder?.total ?? 0;
 }
 
@@ -145,7 +146,7 @@ export function markerTone(marker: string | null): "simulated" | "watch" | "info
 /** The leading cell of a row: "!" in the must-act lane, the rank in could-act, nothing elsewhere. */
 export function rowLead(row: OpportunityRowDTO, bucket: OpportunityBucket): string {
   if (bucket === "must_act") return "!";
-  if (bucket === "could_act") return row.rank ? String(row.rank.position) : "";
+  if (bucket === "could_act" || bucket === "market") return row.rank ? String(row.rank.position) : "";
   return "";
 }
 

@@ -126,6 +126,7 @@ def registered() -> tuple[Evaluator, ...]:
         event_exposure,
         hedge_gap,
         locational,
+        market_scan,
         reroute,
         sell_down,
         storage,

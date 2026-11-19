@@ -38,6 +38,10 @@ class OpportunityType(StrEnum):
     TERMINAL_CHOICE = "terminal_choice"
     ORIGIN = "origin"
     EVENT_EXPOSURE = "event_exposure"
+    #: Prompt or time arbitrage at one hub (within-day vs day-ahead, day-ahead vs weekend or
+    #: balance of month): a market item, never on the book. Code "P": "A" is the design's
+    #: cargo-origin type.
+    PROMPT_ARBITRAGE = "prompt_arbitrage"
 
 
 #: The letter each type carries in the design (B.3).
@@ -51,14 +55,17 @@ TYPE_CODE: dict[OpportunityType, str] = {
     OpportunityType.TERMINAL_CHOICE: "D",
     OpportunityType.ORIGIN: "A",
     OpportunityType.EVENT_EXPOSURE: "E",
+    OpportunityType.PROMPT_ARBITRAGE: "P",
 }
 
 
 class Lane(StrEnum):
-    """The two lanes, never mixed (B.5)."""
+    """The lanes, never mixed (B.5), and the market lane below them: opportunities that need
+    no existing position ("in the market, not on your book"), never in must act."""
 
     MUST_ACT = "must_act"
     COULD_ACT = "could_act"
+    MARKET = "market"
 
 
 #: Obligation or risk: ordered by deadline, then size. Everything else is margin.
@@ -372,12 +379,15 @@ class Candidate:
     #: Inputs classified ``internal`` (own unpublished facts) never feed a margin type.
     internal_inputs: bool = False
     extra: Mapping[str, Any] = field(default_factory=dict)
+    #: ``book`` (bounded by a position, a contract or capacity held) or ``market`` (a market
+    #: dislocation the firm holds nothing in: the market lane).
+    scope: str = "book"
 
     @property
     def lane(self) -> Lane:
         """Must act or could act."""
 
-        return lane_of(self.type)
+        return Lane.MARKET if self.scope == "market" else lane_of(self.type)
 
     @property
     def key(self) -> str:

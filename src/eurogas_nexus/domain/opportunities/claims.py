@@ -47,6 +47,17 @@ CLAIM_TEMPLATES: dict[str, str] = {
         "Gas day {gas_day}: routing {moved} MWh/d of the pool ({resource} to {option}) earns "
         "{delta} per day over the pool's local sales only ({margin} on the routed volume)."
     ),
+    "market.spread": (
+        "{buy_hub} → {sell_hub} · {period} · {volume}: {margin} after {costs}; {value}. "
+        "Needs {needs}."
+    ),
+    "prompt.spread": (
+        "{hub} {sell} over {buy}: {margin} on {volume} ({basis}); {value}. Needs {needs}."
+    ),
+    "seasonal.market": (
+        "{hub} {second} over {first}: {margin} after the stated storage cost of {cost} on "
+        "{volume}; {value}. Needs {needs}."
+    ),
     "blocked.tariff_not_held": "Cannot evaluate: tariff not held at {subject}.",
     "blocked.price_missing": "Cannot evaluate: no price or firm's mark held for {subject}.",
     "blocked.input_missing": "Cannot evaluate: {subject} not held.",

@@ -2320,7 +2320,7 @@ export interface OpportunityRowDTO {
   key: string;
   type: string;
   type_code: string;
-  lane: "must_act" | "could_act";
+  lane: "must_act" | "could_act" | "market";
   state: "new" | "actionable" | "indicative" | "watch" | "blocked" | "expired" | "converted";
   claim: string;
   headline: { value: string | null; unit: string };
@@ -2399,7 +2399,7 @@ export interface OpportunityListDTO {
     trigger?: string;
     next: { pending_inputs: string[]; last_scheduled_utc: string | null; not_before_utc: string | null } | string;
   } | null;
-  lanes: Partial<Record<"must_act" | "could_act", OpportunityBucketDTO>>;
+  lanes: Partial<Record<"must_act" | "could_act" | "market", OpportunityBucketDTO>>;
   groups: Partial<Record<"watching" | "blocked", OpportunityBucketDTO>>;
   confirming: number;
   hidden_by_you: number;

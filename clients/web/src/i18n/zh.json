@@ -5170,5 +5170,9 @@
   "opportunities.input.rates": "利率",
   "opportunities.input.capacity": "容量",
   "opportunities.input.freight": "运费",
-  "opportunities.detail.months_more": "另外 {{count}} 个月"
+  "opportunities.detail.months_more": "另外 {{count}} 个月",
+  "opportunities.lane.market": "市场机会（不在您的账簿上）（{{count}}）",
+  "opportunities.lane.market.none": "上次评估未发现超过成本的市场价差。",
+  "opportunities.title.prompt_arbitrage": "近月价差 · {{subject}}",
+  "opportunities.title.prompt_arbitrage.many": "近月价差 · {{subject}} · {{count}} 天"
 }

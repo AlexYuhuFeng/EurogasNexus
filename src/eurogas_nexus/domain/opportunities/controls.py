@@ -270,7 +270,7 @@ def assess(
     reasons: list[str] = []
     state = OpportunityState.ACTIONABLE
     # 6. Margin floor, minimum value, FX tolerance, checks not assessed (could act only).
-    if candidate.lane is Lane.COULD_ACT:
+    if candidate.lane in (Lane.COULD_ACT, Lane.MARKET):
         margin = candidate.margin_eur
         floor = thresholds.min_margin.value
         if candidate.half_spread_eur is not None:
