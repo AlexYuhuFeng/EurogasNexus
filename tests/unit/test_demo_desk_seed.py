@@ -622,7 +622,7 @@ def test_an_older_volume_gets_the_newer_fixtures_and_keeps_tester_changes(sessio
     assert json.loads(haldor.notes)["counterparty"] == "Nordvik Petroleum ASA"
     kinds = {row.contract_id: row.contract_kind for row in session.query(Contract).all()}
     assert kinds["demo-mspa-atlantic-cn07"] == "LNG_CARGO"
-    assert session.get(Contract, "demo-tender-skarv").kind_terms["schema"] == "upstream-tender/v1"
+    assert session.get(Contract, "demo-tender-skarv").kind_terms["schema"] == "upstream-tender/v2"
     assert session.get(CreditLineRecord, "RHM").limit_amount == 5_000_000
     assert seed.ensure_demo_fixtures(session, seeded_at) == {}
 
