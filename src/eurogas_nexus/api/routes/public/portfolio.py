@@ -579,6 +579,8 @@ def map_situation(
         warnings.append(
             f"{known} outages are at known facilities with no published position"
         )
+    # A conditional read (api/middleware/conditional.py): a map revalidating an unchanged
+    # situation gets 304 though the picture was computed again (its as_of_utc is not tagged).
     return _env(data, request, source="runtime-postgresql:map-situation", warnings=warnings)
 
 

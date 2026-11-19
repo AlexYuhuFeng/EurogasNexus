@@ -589,3 +589,24 @@ def test_a_reroute_is_drawn_against_the_way_the_volume_goes_now(seeded):
     assert proposal["benefit"]["headline"]["value"] is not None
     (evidence,) = proposal["evidence"]
     assert evidence["source_family"] == "ICE Endex" and evidence["as_of_utc"]
+
+
+def test_an_unchanged_situation_revalidates_as_not_modified(seeded):
+    """The map re-reads on return and on a timer: an unchanged picture is a 304 with no body,
+    though it was computed again (its as_of_utc is not part of the tag)."""
+
+    client, headers = seeded
+    first = client.get("/api/portfolio/map-situation", headers=headers["uk"])
+    assert first.status_code == 200
+    etag = first.headers["etag"]
+    assert first.headers["cache-control"] == "private, no-cache"
+    again = client.get(
+        "/api/portfolio/map-situation", headers={**headers["uk"], "If-None-Match": etag}
+    )
+    assert again.status_code == 304
+    assert again.content == b""
+    # Another caller's picture has its own tag.
+    other = client.get(
+        "/api/portfolio/map-situation", headers={**headers["head"], "If-None-Match": etag}
+    )
+    assert other.status_code == 200

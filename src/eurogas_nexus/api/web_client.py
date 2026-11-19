@@ -32,6 +32,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from starlette.datastructures import Headers
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -42,6 +44,10 @@ WEB_CLIENT_DIR_ENV = "EUROGAS_NEXUS_WEB_CLIENT_DIR"
 # application/octet-stream; name them here so the file arrives as what it is.
 mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("font/woff", ".woff")
+
+#: Built files served compressed when the browser accepts it (text: the bundle, the network and
+#: basemap geometry, glyph ranges).
+_COMPRESSED_SUFFIXES = (".js", ".css", ".html", ".json", ".geojson", ".svg", ".pbf", "/")
 
 #: Paths FastAPI itself serves outside ``/api`` (only when a profile exposes docs).
 _FRAMEWORK_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"})
@@ -115,11 +121,24 @@ class WebClientMiddleware:
         if scope["type"] != "http" or _is_api_path(path) or path in _FRAMEWORK_PATHS:
             await self.app(scope, receive, send)
             return
-        response = self.response_for(str(scope.get("method", "GET")).upper(), path)
+        response = self.response_for(
+            str(scope.get("method", "GET")).upper(),
+            path,
+            if_none_match=Headers(scope=scope).get("if-none-match"),
+        )
+        if path.endswith(_COMPRESSED_SUFFIXES):
+            # Text files (the bundle, the network and basemap geometry) travel compressed.
+            await GZipMiddleware(response, minimum_size=1024, compresslevel=6)(scope, receive, send)
+            return
         await response(scope, receive, send)
 
-    def response_for(self, method: str, path: str) -> Response:
-        """Return the response for one client path (exposed for unit tests)."""
+    def response_for(self, method: str, path: str, if_none_match: str | None = None) -> Response:
+        """Return the response for one client path (exposed for unit tests).
+
+        A file revalidated with the ETag it was last sent (``If-None-Match``) is answered
+        ``304 Not Modified`` with no body: geometry and glyphs are read once and then only
+        checked.
+        """
 
         if method not in {"GET", "HEAD"}:
             return JSONResponse(
@@ -139,9 +158,23 @@ class WebClientMiddleware:
             cache = (
                 "public, max-age=31536000, immutable"
                 if relative.startswith("assets/")
+                # Reference geometry (the bundled basemap, glyphs, context pipelines): read
+                # once in a session, then revalidated by its ETag.
+                else "public, max-age=3600"
+                if relative.startswith(("basemaps/", "map/"))
                 else "no-cache"
             )
-            return FileResponse(candidate, headers={"Cache-Control": cache})
+            served = FileResponse(
+                candidate, headers={"Cache-Control": cache}, stat_result=candidate.stat()
+            )
+            etag = served.headers.get("etag")
+            if (
+                etag
+                and if_none_match
+                and etag in {item.strip() for item in if_none_match.split(",")}
+            ):
+                return Response(status_code=304, headers={"ETag": etag, "Cache-Control": cache})
+            return served
         last_segment = relative.rsplit("/", 1)[-1]
         if not inside or "." in last_segment:
             return JSONResponse(

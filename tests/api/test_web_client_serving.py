@@ -102,3 +102,21 @@ def test_a_configured_directory_without_a_build_refuses_to_start(tmp_path):
     with pytest.raises(RuntimeError, match="index.html"):
         resolve_web_client_dir({WEB_CLIENT_DIR_ENV: str(tmp_path)})
     assert resolve_web_client_dir({}) is None
+
+
+def test_geometry_is_revalidated_not_resent_and_travels_compressed(client, build_dir):
+    """A built file asked again with its ETag answers 304 with no body; text is gzipped."""
+
+    (build_dir / "map").mkdir()
+    (build_dir / "map" / "context-pipelines.geojson").write_text(
+        '{"type":"FeatureCollection","features":[]}' * 200, encoding="utf-8"
+    )
+    first = client.get("/map/context-pipelines.geojson", headers={"Accept-Encoding": "gzip"})
+    assert first.status_code == 200
+    assert first.headers["content-encoding"] == "gzip"
+    assert first.headers["cache-control"] == "public, max-age=3600"
+    again = client.get(
+        "/map/context-pipelines.geojson", headers={"If-None-Match": first.headers["etag"]}
+    )
+    assert again.status_code == 304
+    assert again.content == b""

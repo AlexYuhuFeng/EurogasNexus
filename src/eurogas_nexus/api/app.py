@@ -13,6 +13,7 @@ from eurogas_nexus.api.dependencies.public_auth import require_public_api_auth
 from eurogas_nexus.api.dependencies.route_permission import require_route_permission
 from eurogas_nexus.api.error_handlers import register_error_handlers
 from eurogas_nexus.api.middleware.compression import ApiReadCompressionMiddleware
+from eurogas_nexus.api.middleware.conditional import ConditionalReadMiddleware
 from eurogas_nexus.api.middleware.observability import HttpObservabilityMiddleware
 from eurogas_nexus.api.middleware.origin_csrf import OriginCsrfGuardMiddleware
 from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
@@ -89,6 +90,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # correlation id alongside it.
     register_error_handlers(app)
 
+    # Inside the compression: the ETag is a hash of the uncompressed answer.
+    app.add_middleware(ConditionalReadMiddleware)
     app.add_middleware(ApiReadCompressionMiddleware)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(HttpObservabilityMiddleware)

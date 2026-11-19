@@ -158,3 +158,65 @@ def test_stream_routes_and_pipeline_health_are_registered() -> None:
         "/api/runtime/pipeline-health",
     ]:
         assert path in paths, f"{path} not registered"
+
+
+def test_the_map_stream_names_the_groups_that_changed_after_the_cursor() -> None:
+    """One notice per changed group (group and time, no row), ordered, after the cursor."""
+
+    from datetime import timedelta
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.api.routes.public.streaming import _fetch_map_changes
+    from eurogas_nexus.db.base import Base
+    from eurogas_nexus.db.models import RegasSlotRecord
+    from eurogas_nexus.ingestion.lng_positions import parse_regas_slots
+
+    engine = create_engine("sqlite://", future=True)
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC)
+    csv = (
+        "slot_id,terminal_name,window_start,window_end,send_out_gwh_d,cargo_id,book_id\n"
+        f"S1,Gate terminal,{(now + timedelta(days=3)).isoformat()},"
+        f"{(now + timedelta(days=8)).isoformat()},190,C1,uk-nbp\n"
+    )
+    with Session(engine) as session:
+        for row in parse_regas_slots(csv, source_system="ETRM", source_reference="t", now_utc=now):
+            session.add(RegasSlotRecord(**row))
+        session.commit()
+        (notice,) = _fetch_map_changes(session, (now - timedelta(minutes=1), ""))
+        assert notice["group"] == "slots"
+        assert set(notice) == {"group", "changed_at"}
+        assert _fetch_map_changes(session, (now + timedelta(minutes=1), "")) == []
+
+
+def test_map_notices_ride_on_the_alerts_stream_without_an_id(monkeypatch) -> None:
+    """A notice is an ``event: map`` with no ``id:`` (the alerts' resume point is untouched)."""
+
+    import eurogas_nexus.db.session as db_session
+
+    session = MagicMock()
+    session.__enter__ = MagicMock(return_value=session)
+    session.__exit__ = MagicMock(return_value=False)
+    monkeypatch.setattr(db_session, "get_session_factory", lambda: (lambda: session))
+
+    def notices(_session, _cursor):
+        return [{"group": "outages", "changed_at": TS_2}]
+
+    async def drive() -> str:
+        generator = _event_stream(
+            "alerts",
+            lambda _s, _c: [],
+            "updated_at_utc",
+            "alert_id",
+            None,
+            notices=(("map", notices),),
+        )
+        first = await generator.__anext__()
+        await generator.aclose()
+        return first
+
+    first = asyncio.run(drive())
+    assert first.startswith("event: map\n")
+    assert '"group": "outages"' in first

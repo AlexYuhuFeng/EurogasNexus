@@ -96,6 +96,7 @@ async def _event_stream(
     pk_field: str,
     initial_cursor: Cursor,
     guard: RowGuard | None = None,
+    notices: tuple[tuple[str, FetchRows], ...] = (),
 ) -> AsyncGenerator[str, None]:
     """Poll PostgreSQL for rows after the cursor and yield them as SSE events.
 
@@ -107,16 +108,26 @@ async def _event_stream(
     """
 
     cursor: Cursor = initial_cursor
+    # Change notices ride on the same connection (a browser holds few per host): each from
+    # now, without an id (a reconnecting client re-reads what they announce anyway).
+    notice_cursors: dict[str, Cursor] = {name: (datetime.now(UTC), "") for name, _ in notices}
     last_heartbeat = datetime.now(UTC)
     while True:
         rows: list[dict] = []
         allowed: list[dict] | None = []
+        announced: list[tuple[str, dict]] = []
         try:
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
                 rows = fetch(session, cursor)
                 allowed = rows if guard is None else guard(session, rows)
+                for name, fetch_notices in notices:
+                    for notice in fetch_notices(session, notice_cursors[name]):
+                        announced.append((name, notice))
+                        changed = notice.get("changed_at")
+                        if isinstance(changed, datetime):
+                            notice_cursors[name] = (_as_utc(changed), "")
         except Exception:
             rows, allowed = [], []
             yield _sse(
@@ -128,6 +139,8 @@ async def _event_stream(
             return
         for row in allowed:
             yield _sse(row, event=topic, event_id=_event_id(row.get(ts_field), row.get(pk_field)))
+        for name, notice in announced:
+            yield _sse(notice, event=name)
         for row in rows:
             cursor = _row_cursor(row, ts_field, pk_field) or cursor
         now = datetime.now(UTC)
@@ -232,6 +245,44 @@ def _fetch_new_alerts(session: Session, cursor: Cursor) -> list[dict]:
     return [_columns_payload(row) for row in rows]
 
 
+#: The map's fast inputs, each with the column that says when a row last changed: the map
+#: re-reads (conditionally) when one of them moves. Group names only, never a row.
+MAP_CHANGE_GROUPS: tuple[tuple[str, str, str], ...] = (
+    ("outages", "RemitUmmRecord", "ingested_at_utc"),
+    ("flows", "FlowObservationRecord", "observed_at_utc"),
+    ("cargoes", "LngCargoRecord", "updated_at_utc"),
+    ("slots", "RegasSlotRecord", "updated_at_utc"),
+    ("opportunities", "OpportunityRecord", "last_changed_utc"),
+)
+
+
+def _fetch_map_changes(session: Session, cursor: Cursor) -> list[dict]:
+    """One notice per group whose rows changed after the cursor: the group and when.
+
+    The notice carries no row and no key, so it needs no row entitlement: the client answers
+    it with a conditional read of the map situation, which applies the caller's scope (and is
+    a 304 when nothing the caller sees changed). Its id (``<changed_at>|<group>``) is the
+    stream's sequence: a reconnect resumes after it.
+    """
+
+    from sqlalchemy import func
+
+    from eurogas_nexus.db import models
+
+    since = cursor[0] if cursor is not None else None
+    out: list[dict] = []
+    for group, model_name, column in MAP_CHANGE_GROUPS:
+        model = getattr(models, model_name)
+        stamp = getattr(model, column)
+        query = session.query(func.max(stamp))
+        if since is not None:
+            query = query.filter(stamp > since)
+        latest = query.scalar()
+        if latest is not None:
+            out.append({"group": group, "changed_at": _as_utc(latest)})
+    return sorted(out, key=lambda item: (item["changed_at"], item["group"]))
+
+
 def _columns_payload(row) -> dict:
     return {column.name: getattr(row, column.name) for column in row.__table__.columns}
 
@@ -242,11 +293,18 @@ def _stream_response(
     ts_field: str,
     pk_field: str,
     request: Request,
+    notices: tuple[tuple[str, FetchRows], ...] = (),
 ) -> StreamingResponse:
     initial_cursor = _initial_cursor(request)
     return StreamingResponse(
         _event_stream(
-            topic, fetch, ts_field, pk_field, initial_cursor, guard=_guard_for(topic, request)
+            topic,
+            fetch,
+            ts_field,
+            pk_field,
+            initial_cursor,
+            guard=_guard_for(topic, request),
+            notices=notices,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -351,6 +409,19 @@ async def stream_opportunities(request: Request) -> StreamingResponse:
 
 @router.get("/api/stream/alerts")
 async def stream_alerts(request: Request) -> StreamingResponse:
-    """Push newly created or updated monitoring alerts."""
+    """Push newly created or updated monitoring alerts, and the map's change notices.
 
-    return _stream_response("alerts", _fetch_new_alerts, "updated_at_utc", "alert_id", request)
+    The ``map`` notices (outages, flows, cargoes, slots, opportunities changed; a group and a
+    time, no row) ride on this connection rather than a stream of their own: a browser holds
+    few connections per host and every session already has this one open.
+    """
+
+    return _stream_response(
+        "alerts",
+        _fetch_new_alerts,
+        "updated_at_utc",
+        "alert_id",
+        request,
+        notices=(("map", _fetch_map_changes),),
+    )
+
