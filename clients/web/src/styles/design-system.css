@@ -2474,6 +2474,13 @@
   padding-bottom: max(var(--eg-page-gutter), env(safe-area-inset-bottom));
 }
 
+/* Phone width: the map is the page, edge to edge; its sheet keeps the safe-area inset. */
+@media (max-width: 900px) {
+  .cockpit-app.workspace-network .app-main {
+    padding: 0;
+  }
+}
+
 .gas-map > .maplibre-canvas {
   position: absolute;
   inset: 0;
@@ -3521,75 +3528,8 @@
   }
 }
 
-/* Map layer panel at compact width (#39): one labelled control with the active count; the
-   switches open below it as a wrapping list instead of a row of squeezed pills. */
+/* Phone width: the map toolbar (in the bottom sheet, network-desk.css) and the overlays. */
 @layer ds-components {
-  .map-layers-panel {
-    position: relative;
-  }
-
-  .map-layers-panel > summary {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--ds-space-1);
-    min-height: var(--ds-control-touch);
-    padding: 0 var(--ds-space-3);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-sm);
-    background: var(--ds-surface);
-    cursor: pointer;
-    list-style: none;
-    white-space: nowrap;
-  }
-
-  .map-layers-panel > summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .map-layers-count {
-    color: var(--ds-text-2);
-  }
-
-  .map-layers-panel-body {
-    position: absolute;
-    z-index: 30;
-    top: calc(100% + 4px);
-    left: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--ds-space-2);
-    width: min(320px, calc(100vw - 32px));
-    padding: var(--ds-space-3);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-sm);
-    background: var(--ds-surface);
-    box-shadow: var(--ds-shadow-pop);
-  }
-
-  /* On a phone the layers list opens under the whole toolbar, not from the button's left edge
-     (which pushed it 140 px past the screen). */
-  @media (max-width: 719px) {
-    .network-desk-toolbar .map-layers-panel {
-      position: static;
-    }
-
-    .network-desk-toolbar .map-layers-panel-body {
-      right: 0;
-      left: 0;
-      width: auto;
-    }
-  }
-
-  .map-layers-panel-body .map-toolbar-divider {
-    display: none;
-  }
-
-  .map-layers-panel-body .map-layer-chip {
-    min-height: var(--ds-control-touch);
-    writing-mode: horizontal-tb;
-    white-space: nowrap;
-  }
-
   /* Phone width: the toolbar is one row (view switch, reset, layers, full screen); reset
      and full screen are icons with their names for assistive technology. */
   [data-width-class="compact"] .map-toolbar,
@@ -3617,10 +3557,6 @@
 
   [data-width-class="compact"] .map-toolbar .map-fullscreen-chip {
     margin-left: auto;
-  }
-
-  [data-width-class="compact"] .map-layers-panel > summary {
-    padding: 0 var(--ds-space-2);
   }
 
   /* The status panel and the line key wrap inside the map instead of running off its edge. */

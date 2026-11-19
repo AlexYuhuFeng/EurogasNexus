@@ -377,45 +377,230 @@
 
   /* ---------------------------------------------------------------- phone: map on top, a sheet below */
   @media (max-width: 900px) {
-    /* The page scrolls past the header; then map and sheet fill the screen together. */
+    /* The map is the page: one slim row of page chrome (the Desk tabs, with the context
+       filter at their right), then the map edge to edge. The controls and the panel are
+       one bottom sheet over the map: lowered it shows the view switch, the layer chips
+       and the panel tabs; raised it holds the lists. */
     .cockpit-app.workspace-network {
-      height: auto;
-      min-height: 100dvh;
-      overflow: visible;
+      --network-sheet-peek: 214px;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    .cockpit-app.workspace-network .workspace-page {
+      position: relative;
+    }
+
+    .cockpit-app.workspace-network .workspace-page-heading {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .cockpit-app.workspace-network .workspace-page-header {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0;
+      min-height: var(--ds-control-touch);
+      margin: 0;
+      padding: 0 var(--ds-space-3);
+    }
+
+    .cockpit-app.workspace-network .workspace-page-header-actions {
+      flex: 0 1 auto;
+      flex-direction: row;
+      width: auto;
+      justify-content: flex-start;
+      min-width: 0;
+      margin: 0;
+    }
+
+    .cockpit-app.workspace-network .workspace-page-header [role="tablist"] {
+      flex: 0 1 auto;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border-bottom: 0;
+    }
+
+    .cockpit-app.workspace-network .workspace-page-header [role="tab"] {
+      min-height: var(--ds-control-touch);
+      padding: 0 var(--ds-space-2);
+    }
+
+    /* The context line shares the tab row: the filter summary, short; the as-of time is on
+       the map's status line, and the feeds link shows only when a feed is stale. */
+    .cockpit-app.workspace-network .market-context-strip {
+      position: absolute;
+      z-index: 5;
+      top: 0;
+      right: var(--ds-space-3);
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-1);
+      height: var(--ds-control-touch);
+      max-width: 34%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .cockpit-app.workspace-network .market-context-strip .projection-context-asof,
+    .cockpit-app.workspace-network .market-context-strip .projection-context-trigger.is-ok {
+      display: none;
+    }
+
+    .cockpit-app.workspace-network .market-context-strip .trading-context-summary {
+      min-height: var(--ds-control);
+      max-width: 100%;
+    }
+
+    .cockpit-app.workspace-network .market-context-strip .trading-context-summary-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .cockpit-app.workspace-network .market-cockpit-panel {
-      overflow: visible;
+      overflow: hidden;
     }
 
     .workspace-network .network-workspace-shell.network-desk {
-      flex: 0 0 auto;
-      /* The screen below the sticky top bar. */
-      height: calc(100dvh - var(--ds-space-8) * 2);
-      scroll-margin-top: calc(var(--ds-space-8) * 2);
-      grid-template-areas:
-        "toolbar"
-        "map"
-        "panel";
+      position: relative;
+      flex: 1 1 auto;
+      height: auto;
+      grid-template-areas: "map";
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto minmax(0, 45fr) minmax(0, 55fr);
-      gap: var(--ds-space-2);
+      grid-template-rows: minmax(0, 1fr);
+      gap: 0;
       min-height: 0;
       padding: 0;
-      transition: grid-template-rows var(--ds-duration-slow) ease;
     }
 
-    .workspace-network .network-workspace-shell.network-desk.is-sheet-raised {
-      grid-template-rows: auto minmax(0, 22fr) minmax(0, 78fr);
-    }
-
+    /* Edge to edge: no frame, no gutter, no rounded box around the map. */
+    /* Its own stacking context: the map's overlays stay under the raised sheet. */
     .workspace-network .network-desk > .network-map-column {
+      z-index: 0;
+      grid-area: map;
       min-height: 0;
+      border: 0;
+      border-radius: 0;
+      isolation: isolate;
     }
 
-    .workspace-network .network-desk > .network-panel-column {
+    .workspace-network .network-desk > .network-map-column .network-map-stage {
+      border: 0;
+      border-radius: 0;
+    }
+
+    /* The map's own bottom controls sit above the lowered sheet. */
+    .workspace-network .network-desk:not(.is-fullscreen) .network-map-column {
+      --map-bottom-inset: var(--network-sheet-peek);
+    }
+
+    .workspace-network .network-desk:not(.is-fullscreen) .network-map-column .map-situation-compact,
+    .workspace-network .network-desk:not(.is-fullscreen) .network-map-column .map-info-chip,
+    .workspace-network .network-desk:not(.is-fullscreen) .network-map-column .maplibregl-ctrl-bottom-left,
+    .workspace-network .network-desk:not(.is-fullscreen) .network-map-column .maplibregl-ctrl-bottom-right {
+      bottom: calc(var(--network-sheet-peek) + var(--ds-space-2));
+    }
+
+    .workspace-network .network-desk:not(.is-fullscreen) .network-map-column .map-visual-legend {
+      bottom: calc(var(--network-sheet-peek) + var(--ds-space-3) + var(--ds-control));
+    }
+
+    /* Out of the grid's flow, so the raised height is a share of the page, not of itself. */
+    .workspace-network .network-desk:not(.is-fullscreen) > .network-panel-column {
+      position: absolute;
+      z-index: 40;
+      top: calc(100% - var(--network-sheet-peek));
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding-bottom: env(safe-area-inset-bottom);
+      border-width: 1px 0 0;
       border-radius: var(--ds-radius-md) var(--ds-radius-md) 0 0;
       box-shadow: var(--ds-shadow-pop);
+      transition: top var(--ds-duration-slow) var(--ds-ease-out);
+    }
+
+    .workspace-network .network-desk.is-sheet-raised:not(.is-fullscreen) > .network-panel-column {
+      top: 22%;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .workspace-network .network-desk:not(.is-fullscreen) > .network-panel-column {
+        transition: none;
+      }
+    }
+
+    /* The controls at the top of the sheet: one row, then the chips in one row that scrolls. */
+    .network-desk-toolbar.is-in-sheet {
+      position: static;
+      inset: auto;
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: var(--ds-space-2);
+      margin: 0;
+      padding: 0 var(--ds-space-3) var(--ds-space-2);
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .map-layer-row {
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: var(--ds-space-1);
+      padding: 0 var(--ds-space-3) var(--ds-space-2);
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+      scroll-snap-type: x proximity;
+      scroll-padding-inline: var(--ds-space-3);
+    }
+
+    .map-layer-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .map-layer-row > .map-layer-chip {
+      flex: none;
+      min-height: var(--ds-control-touch);
+      white-space: nowrap;
+      writing-mode: horizontal-tb;
+      scroll-snap-align: start;
+    }
+
+    .map-layer-row > .map-toolbar-divider {
+      flex: none;
+      align-self: stretch;
+      width: 1px;
+      margin: var(--ds-space-2) var(--ds-space-1);
+      background: var(--ds-border);
+    }
+
+    /* Full screen on a phone: the toolbar stays over the map; its chips scroll sideways. */
+    .workspace-network .network-desk.is-fullscreen > .network-desk-toolbar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    /* The handle raises and lowers the sheet; the panel's own collapse is for wide screens. */
+    .network-panel-head .network-panel-toggle {
+      display: none;
     }
 
     .network-sheet-handle {
@@ -567,11 +752,6 @@
 
   /* Phone: collapsed is the sheet lowered to its row of tabs. */
   @media (max-width: 900px) {
-    .workspace-network .network-workspace-shell.network-desk.is-panel-collapsed {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto minmax(0, 1fr) auto;
-    }
-
     .network-panel.is-rail {
       flex-direction: row;
       justify-content: flex-start;

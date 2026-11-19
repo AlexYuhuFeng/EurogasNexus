@@ -527,13 +527,50 @@ export function NetworkWorkspace({
     </>
   );
 
-  return (
-    <div
-      ref={shellRef}
-      className={`network-workspace-shell network-desk${fullscreen.active ? " is-fullscreen" : ""}${fullscreen.expanded ? " is-expanded" : ""}${sheetRaised ? " is-sheet-raised" : ""}${panelCollapsed && !fullscreen.active ? " is-panel-collapsed" : ""}${drawerOpen ? " is-drawer-open" : ""}`}
-      data-map-view={mapView}
-    >
-      <div className="map-toolbar network-desk-toolbar">
+  // Phone width: the map is the page. Its controls live in the bottom sheet (view switch,
+  // reset, full screen, then the layer chips in one row that scrolls sideways), never as
+  // a second row of chrome above the map. Full screen keeps the toolbar over the map.
+  const controlsInSheet = compactLayout && !fullscreen.active;
+  const layerChips = (
+    <>
+        {["routes", "network", "lng", "ips", "hubs"].map((layer) => (
+          <button
+            key={layer}
+            type="button"
+            className={
+              activeLayers.includes(layer)
+                ? `chip map-layer-chip layer-${layer} active`
+                : `chip map-layer-chip layer-${layer}`
+            }
+            aria-pressed={activeLayers.includes(layer)}
+            aria-label={t(`map.layer.${layer}`)}
+            title={t(layer === "routes" ? "map.layer.routes_hint" : `map.layer.${layer}`)}
+            onClick={() => onToggleLayer(layer)}
+          >
+            <span className="layer-label">{t(`map.layer.${layer}`)}</span>
+          </button>
+        ))}
+        <span className="map-toolbar-divider" aria-hidden="true" />
+        {SITUATION_LAYERS.map((layer) => (
+          <button
+            key={layer}
+            type="button"
+            className={
+              activeLayers.includes(layer)
+                ? `chip map-layer-chip situation-chip layer-${layer} active`
+                : `chip map-layer-chip situation-chip layer-${layer}`
+            }
+            aria-pressed={activeLayers.includes(layer)}
+            title={t(`map.layer.${layer}_hint`)}
+            onClick={() => onToggleLayer(layer)}
+          >
+            <span className="layer-label">{t(`map.layer.${layer}`)}</span>
+          </button>
+        ))}
+    </>
+  );
+  const toolbar = (
+      <div className={controlsInSheet ? "map-toolbar network-desk-toolbar is-in-sheet" : "map-toolbar network-desk-toolbar"}>
         <Segmented
           className="map-view-switch"
           label={t("map.view.label")}
@@ -556,88 +593,7 @@ export function NetworkWorkspace({
             </svg>
           ) : t("map.reset")}
         </button>
-        {compactLayout ? (
-          // Phone width (docs/product/ADAPTIVE_CLIENT.md): the layer switches live in one
-          // labelled panel with the active count, so they never cover the map (#39).
-          <details className="map-layers-panel">
-            <summary>
-              {t("map.layers_panel")} <span className="map-layers-count">{activeLayers.length}</span>
-            </summary>
-            <div className="map-layers-panel-body">
-        {["routes", "network", "lng", "ips", "hubs"].map((layer) => (
-          <button
-            key={layer}
-            type="button"
-            className={
-              activeLayers.includes(layer)
-                ? `chip map-layer-chip layer-${layer} active`
-                : `chip map-layer-chip layer-${layer}`
-            }
-            aria-pressed={activeLayers.includes(layer)}
-            aria-label={t(`map.layer.${layer}`)}
-            title={t(layer === "routes" ? "map.layer.routes_hint" : `map.layer.${layer}`)}
-            onClick={() => onToggleLayer(layer)}
-          >
-            <span className="layer-label">{t(`map.layer.${layer}`)}</span>
-          </button>
-        ))}
-        <span className="map-toolbar-divider" aria-hidden="true" />
-        {SITUATION_LAYERS.map((layer) => (
-          <button
-            key={layer}
-            type="button"
-            className={
-              activeLayers.includes(layer)
-                ? `chip map-layer-chip situation-chip layer-${layer} active`
-                : `chip map-layer-chip situation-chip layer-${layer}`
-            }
-            aria-pressed={activeLayers.includes(layer)}
-            title={t(`map.layer.${layer}_hint`)}
-            onClick={() => onToggleLayer(layer)}
-          >
-            <span className="layer-label">{t(`map.layer.${layer}`)}</span>
-          </button>
-        ))}
-            </div>
-          </details>
-        ) : (
-          <>
-        {["routes", "network", "lng", "ips", "hubs"].map((layer) => (
-          <button
-            key={layer}
-            type="button"
-            className={
-              activeLayers.includes(layer)
-                ? `chip map-layer-chip layer-${layer} active`
-                : `chip map-layer-chip layer-${layer}`
-            }
-            aria-pressed={activeLayers.includes(layer)}
-            aria-label={t(`map.layer.${layer}`)}
-            title={t(layer === "routes" ? "map.layer.routes_hint" : `map.layer.${layer}`)}
-            onClick={() => onToggleLayer(layer)}
-          >
-            <span className="layer-label">{t(`map.layer.${layer}`)}</span>
-          </button>
-        ))}
-        <span className="map-toolbar-divider" aria-hidden="true" />
-        {SITUATION_LAYERS.map((layer) => (
-          <button
-            key={layer}
-            type="button"
-            className={
-              activeLayers.includes(layer)
-                ? `chip map-layer-chip situation-chip layer-${layer} active`
-                : `chip map-layer-chip situation-chip layer-${layer}`
-            }
-            aria-pressed={activeLayers.includes(layer)}
-            title={t(`map.layer.${layer}_hint`)}
-            onClick={() => onToggleLayer(layer)}
-          >
-            <span className="layer-label">{t(`map.layer.${layer}`)}</span>
-          </button>
-        ))}
-          </>
-        )}
+        {!controlsInSheet && layerChips}
         <span className="map-toolbar-divider" aria-hidden="true" />
         <button
           type="button"
@@ -669,6 +625,15 @@ export function NetworkWorkspace({
           </button>
         )}
       </div>
+  );
+
+  return (
+    <div
+      ref={shellRef}
+      className={`network-workspace-shell network-desk${fullscreen.active ? " is-fullscreen" : ""}${fullscreen.expanded ? " is-expanded" : ""}${sheetRaised ? " is-sheet-raised" : ""}${panelCollapsed && !fullscreen.active && !compactLayout ? " is-panel-collapsed" : ""}${drawerOpen ? " is-drawer-open" : ""}`}
+      data-map-view={mapView}
+    >
+      {!controlsInSheet && toolbar}
       <section
         ref={mapColumnRef}
         className="network-map-column"
@@ -855,6 +820,12 @@ export function NetworkWorkspace({
         >
           <span aria-hidden="true" />
         </button>
+        {controlsInSheet && toolbar}
+        {controlsInSheet && (
+          <div className="map-layer-row" role="group" aria-label={t("map.layers_panel")}>
+            {layerChips}
+          </div>
+        )}
         <NetworkInfoPanel
           t={t as (key: string, options?: Record<string, unknown>) => string}
           outages={outageEvents}
@@ -876,7 +847,8 @@ export function NetworkWorkspace({
           capacity={capacity}
           book={bookPanels}
           footer={footer}
-          collapsed={panelCollapsed && !fullscreen.active}
+          // A phone lowers the sheet with its handle instead.
+          collapsed={panelCollapsed && !fullscreen.active && !compactLayout}
           onCollapse={fullscreen.active ? () => setDrawerOpen(false) : () => choosePanelCollapsed(true)}
           onExpand={(tab) => {
             setPanelTab(tab);
