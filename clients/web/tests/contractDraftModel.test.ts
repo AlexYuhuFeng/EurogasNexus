@@ -314,7 +314,8 @@ test("the panel consumes the rule instead of restating it, and no longer holds t
     workbench,
     /const validationIssues = useMemo\(\s*\(\) => contractValidationIssueKeys\(contract\)\.map\(\(key\) => t\(key\)\),\s*\[contract, t\],\s*\);/s,
   );
-  assert.match(workbench, /const saveStatus = t\(saveState\.statusKey\);/);
+  // What is still needed shows only once the person has started (owner, 2026-11-19).
+  assert.match(workbench, /\{draftDirty && <section><div className="section-heading"><span className="eyebrow">\{t\("contracts\.validation\.title"\)\}/);
 
   // The gesture that writes the draft is gone from the panel: the panel has no save
   // control, no save-rule evaluation, and not even the payload the action needs.

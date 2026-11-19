@@ -10,6 +10,10 @@ import test from "node:test";
 import {
   CONTRACT_KINDS,
   KIND_FIELDS,
+  contractPeriod,
+  contractStatus,
+  listedContracts,
+  periodText,
   draftFromTerms,
   draftWithProposal,
   kindHeadline,
@@ -100,7 +104,7 @@ test("the list shows the figure that matters for the kind", () => {
     { contract_id: "g", contract_kind: "SUPPLY_GSA", delivery_quantity_mwh_per_day: 1200 },
   ];
   assert.equal(kindHeadline(rows[0]).text, "5,000 MWh/d (4,000–6,000)");
-  assert.equal(kindHeadline(rows[1]).text, "DES 3.60 TBtu · 01-10–01-14");
+  assert.equal(kindHeadline(rows[1]).text, "DES 3.60 TBtu");
   assert.equal(kindHeadline(rows[2], rows, (id) => (id === "c" ? "m" : null)).text, "1");
   assert.equal(kindHeadline(rows[3]).text, "1,200 MWh/d");
 });
@@ -138,6 +142,32 @@ test("the page chooses the kind first, picks records, and the form saves itself"
   assert.match(form, /<RecordPicker/);
   assert.match(form, /type="submit"/);
   assert.match(bench, /termsMode === "choose" && <ContractKindChooser/);
-  // The supply editor's save shows only with the supply editor (a typed form has its own).
-  assert.match(bench, /termsMode === "legacy" \? saveAction : null/);
+  // The page is the list; a row opens the contract; the supply editor's save sits with it.
+  assert.match(bench, /<DataGrid\s+id="contract-list"/);
+  assert.match(bench, /onRowAction=\{openContract\}/);
+  assert.match(bench, /termsMode === "legacy" && \(\s*<>\s*<div className="contract-detail-actions">\{saveAction\}/);
+});
+
+test("the list puts contracts in execution first, finds by name, counterparty or point, filters by kind", () => {
+  const today = "2026-11-19";
+  assert.deepEqual(contractPeriod("2026/27"), { start: "2026-10-01", end: "2027-09-30" });
+  assert.deepEqual(contractPeriod("2026-12..2027-02"), { start: "2026-12-01", end: "2027-02-28" });
+  assert.equal(contractPeriod("2025+")?.end, null);
+  assert.equal(contractStatus({ gas_year: "2024/25" }, today), "expired");
+  assert.equal(contractStatus({ gas_year: "2026-12..2027-02" }, today), "upcoming");
+  assert.equal(contractStatus({ gas_year: "2025+" }, today), "in_execution");
+  assert.equal(contractStatus({ gas_year: "2026/27", retired_at_utc: "2026-11-01" }, today), "retired");
+  const rows = [
+    { contract_id: "a", contract_name: "Old", gas_year: "2024/25", delivery_point_name: "TTF", contract_kind: "SUPPLY_GSA" },
+    { contract_id: "b", contract_name: "Tender", gas_year: "2026-12..2027-02", delivery_point_name: "NBP", contract_kind: "UPSTREAM_TENDER" },
+    { contract_id: "c", contract_name: "Live", gas_year: "2026/27", delivery_point_name: "NBP", contract_kind: "SUPPLY_GSA" },
+  ];
+  const counterpartyOf = (row: { contract_id: string }) => (row.contract_id === "b" ? "Nordvik" : "");
+  assert.deepEqual(listedContracts(rows, { query: "", kind: "", today, counterpartyOf }).map((row) => row.contract_id), ["c", "b", "a"]);
+  assert.deepEqual(listedContracts(rows, { query: "nordvik", kind: "", today, counterpartyOf }).map((row) => row.contract_id), ["b"]);
+  assert.deepEqual(listedContracts(rows, { query: "", kind: "SUPPLY_GSA", today, counterpartyOf }).map((row) => row.contract_id), ["c", "a"]);
+  const month = (iso: string) => iso.slice(0, 7);
+  assert.equal(periodText("2026/27", month), "GY 2026/27");
+  assert.equal(periodText("2026-12..2027-02", month), "2026-12 – 2027-02");
+  assert.equal(periodText("2025+", month), "2025-10 →");
 });

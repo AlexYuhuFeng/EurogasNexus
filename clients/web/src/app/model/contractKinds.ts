@@ -100,7 +100,7 @@ export const KIND_FIELDS: Record<Exclude<AuthorableKind, "SUPPLY_GSA">, readonly
     { key: "tolerance_pct", group: "quantity", input: "number", unit: "%", required: true },
     { key: "delivery_term", group: "delivery", input: "choice", options: ["DES", "FOB"], required: true },
     { key: "load_port", group: "delivery", input: "picker", picker: "port", manual: true, required: true, when: (draft) => !isDes(draft) },
-    { key: "discharge_terminal", group: "delivery", input: "picker", picker: "terminal", required: true, when: isDes },
+    { key: "discharge_terminal", group: "delivery", input: "picker", picker: "terminal", required: true, manual: true, when: isDes },
     { key: "terminal_hub", group: "delivery", input: "picker", picker: "hub", required: true, when: isDes },
     { key: "window_start", group: "delivery", input: "date", required: true },
     { key: "window_end", group: "delivery", input: "date", required: true },
@@ -252,8 +252,7 @@ export function kindHeadline(contract: StoredLike, all: readonly StoredLike[] = 
     return { key: "swing", text: `${figure(head.value)} MWh/d (${figure(head.min ?? 0)}–${figure(head.max ?? 0)})` };
   }
   if (contract.contract_kind === "LNG_CARGO" && head) {
-    const window = head.window ? ` · ${head.window[0].slice(5)}–${head.window[1].slice(5)}` : "";
-    return { key: "cargo", text: `${head.term ?? ""} ${figure(head.value, 2)} TBtu${window}`.trim() };
+    return { key: "cargo", text: `${head.term ?? ""} ${figure(head.value, 2)} TBtu`.trim() };
   }
   if (contract.contract_kind === "LNG_MSPA") {
     const count = all.filter((item) => item.contract_kind === "LNG_CARGO" && masterOf(item.contract_id) === contract.contract_id).length;
@@ -283,4 +282,73 @@ export function typedContractBody(input: {
     notes: input.notes ?? null,
     expected_edit_token: input.editToken ?? null,
   };
+}
+
+/** Where a contract stands today: the list sorts in this order (in execution first). */
+export type ContractStatus = "in_execution" | "upcoming" | "expired" | "retired";
+export const STATUS_ORDER: readonly ContractStatus[] = ["in_execution", "upcoming", "expired", "retired"];
+
+/**
+ * A contract's period from its stored label: a gas year (`2026/27`, `GY-26`, `2026`), an
+ * open-ended one (`2025+`) or a typed contract's months (`2026-12..2027-02`). `end` is null
+ * for an open-ended contract; null altogether when the label is not understood.
+ */
+export function contractPeriod(label: string): { start: string; end: string | null } | null {
+  const text = (label || "").trim();
+  const months = /^(\d{4})-(\d{2})\.\.(\d{4})-(\d{2})$/.exec(text);
+  if (months) {
+    const endYear = Number(months[3]);
+    const endMonth = Number(months[4]);
+    const lastDay = new Date(Date.UTC(endYear, endMonth, 0)).getUTCDate();
+    return { start: `${months[1]}-${months[2]}-01`, end: `${months[3]}-${months[4]}-${String(lastDay).padStart(2, "0")}` };
+  }
+  const year = /(\d{4})|GY-?(\d{2})/i.exec(text);
+  if (!year) return null;
+  const first = year[1] ? Number(year[1]) : 2000 + Number(year[2]);
+  return { start: `${first}-10-01`, end: text.endsWith("+") ? null : `${first + 1}-09-30` };
+}
+
+export function contractStatus(
+  contract: { gas_year: string; retired_at_utc?: string | null },
+  today: string,
+): ContractStatus {
+  if (contract.retired_at_utc) return "retired";
+  const period = contractPeriod(contract.gas_year);
+  if (!period) return "in_execution";
+  if (period.end && period.end < today) return "expired";
+  if (period.start > today) return "upcoming";
+  return "in_execution";
+}
+
+/** The period as the desk writes it: `Dec-26 – Feb-27`, `GY 2026/27`, `from Oct-25`. */
+export function periodText(label: string, monthName: (iso: string) => string): string {
+  const period = contractPeriod(label);
+  if (!period) return label;
+  if (/^\d{4}\/\d{2}$/.test(label.trim())) return `GY ${label.trim()}`;
+  return period.end ? `${monthName(period.start)} – ${monthName(period.end)}` : `${monthName(period.start)} →`;
+}
+
+interface Listable {
+  contract_id: string;
+  contract_name: string;
+  contract_kind?: string;
+  gas_year: string;
+  delivery_point_name: string;
+  retired_at_utc?: string | null;
+  notes?: string | null;
+}
+
+/** The list's search: name, counterparty, point and kind; the type filter; in-execution first. */
+export function listedContracts<T extends Listable>(
+  contracts: readonly T[],
+  input: { query: string; kind: string; today: string; counterpartyOf: (row: T) => string },
+): T[] {
+  const query = input.query.trim().toLowerCase();
+  return contracts
+    .filter((row) => !input.kind || (row.contract_kind ?? "SUPPLY_GSA") === input.kind)
+    .filter((row) => !query || [row.contract_name, row.delivery_point_name, input.counterpartyOf(row), row.contract_id]
+      .some((value) => value.toLowerCase().includes(query)))
+    .map((row) => ({ row, status: STATUS_ORDER.indexOf(contractStatus(row, input.today)) }))
+    .sort((a, b) => a.status - b.status || a.row.contract_name.localeCompare(b.row.contract_name))
+    .map((item) => item.row);
 }

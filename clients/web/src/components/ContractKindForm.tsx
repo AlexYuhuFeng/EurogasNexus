@@ -20,6 +20,7 @@ import {
   draftWithProposal,
   kindTermsFromDraft,
   newKindDraft,
+  periodText,
   typedContractBody,
   visibleFields,
   type AuthorableKind,
@@ -31,6 +32,7 @@ import { contractOptions, counterpartyOptions } from "@/app/model/recordOptions"
 import { PeriodPicker, RecordPicker, type RecordOption } from "@/components/ui";
 import { idFromName } from "@/components/ui/recordPickerModel";
 import { useApiStore } from "@/stores/api";
+import { formatDeliveryMonth } from "@/app/time/timeFormat";
 import "./contract-kinds.css";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -179,7 +181,8 @@ export function TypedContractForm({
   }
 
   function control(field: KindField) {
-    const label = `${t(`contracts.kind_field.${field.key}`)}${field.unit ? ` (${field.unit})` : ""}`;
+    // A required term carries the form's own mark (explained once under the kind's title).
+    const label = `${t(`contracts.kind_field.${field.key}`)}${field.unit ? ` (${field.unit.replace("GBp/th", "p/th")})` : ""}${field.required ? " *" : ""}`;
     const value = draft[field.key];
     const id = `kind-${field.key}`;
     const invalid = tried && result.missing.includes(field.key);
@@ -311,7 +314,7 @@ export function TypedContractForm({
         <div>
           <span className="eyebrow">{t("contracts.kind.label")}</span>
           <strong>{t(`contracts.kind.${kind}`)}</strong>
-          <p className="muted">{t(`contracts.kind.about.${kind}`)}</p>
+          <p className="muted">{t(`contracts.kind.about.${kind}`)} {t("contracts.kind.required_hint")}</p>
         </div>
         {!stored && (
           <button type="button" className="link-button" onClick={onChangeKind}>{t("contracts.kind.change")}</button>
@@ -319,8 +322,8 @@ export function TypedContractForm({
       </div>
       <div className="ds-form-grid">
         <label className="ds-field" htmlFor="kind-contract-name">
-          <span className="ds-field-label">{t("contracts.contract_name")}</span>
-          <input id="kind-contract-name" value={name} aria-invalid={(tried && !name.trim()) || undefined} onChange={(event) => setName(event.target.value)} />
+          <span className="ds-field-label">{t("contracts.contract_name")} *</span>
+          <input id="kind-contract-name" aria-required="true" value={name} aria-invalid={(tried && !name.trim()) || undefined} onChange={(event) => setName(event.target.value)} />
         </label>
       </div>
       {KIND_GROUPS.map((group) => {
@@ -357,7 +360,7 @@ export function TypedContractForm({
             ? t("contracts.kind.reads_master")
             : t("contracts.kind.reads", {
                 point: stored.delivery_point_name,
-                period: stored.gas_year.replace("..", " – "),
+                period: periodText(stored.gas_year, (iso) => formatDeliveryMonth(iso.slice(0, 7))),
                 quantity: Math.round(stored.delivery_quantity_mwh_per_day).toLocaleString("en-GB"),
               })}
         </p>

@@ -1,4 +1,6 @@
-import { DataGrid, PeriodPicker, RecordPicker, WorkProgress } from "@/components/ui";
+import { DataGrid, PeriodPicker, RecordPicker, Sheet, WorkProgress, buttonClass } from "@/components/ui";
+import { useCompactWidth } from "@/app/shell/useShellLayout";
+import { formatDeliveryMonth } from "@/app/time/timeFormat";
 import { idFromName } from "@/components/ui/recordPickerModel";
 import { counterpartyOptions, gasYearOptions } from "@/app/model/recordOptions";
 import { useCachedRead } from "@/app/data/readCache";
@@ -9,7 +11,15 @@ import type { ChangeEvent, ReactNode, RefObject } from "react";
 import { api, type ContractIntakeDTO, type PortfolioResourceDTO, type RouteCandidateDTO, type UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
 import { ContractKindChooser, TypedContractForm } from "@/components/ContractKindForm";
-import { TYPED_KINDS, kindHeadline, type AuthorableKind } from "@/app/model/contractKinds";
+import {
+  STATUS_ORDER,
+  TYPED_KINDS,
+  contractStatus,
+  kindHeadline,
+  listedContracts,
+  periodText,
+  type AuthorableKind,
+} from "@/app/model/contractKinds";
 import type { TypedContractInputDTO } from "@/api/client";
 import { RetireContractButton, RetiredContractsList, type ContractLifecycleAction } from "@/components/ContractLifecycleControls";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
@@ -22,7 +32,6 @@ import {
 import { useInspectorStore } from "@/stores/inspector";
 import {
   notesRecordFromRecord,
-  sourceReferenceFromRecord,
   stringFromRecord,
 } from "@/app/contractImport";
 import {
@@ -196,6 +205,8 @@ interface ContractWorkbenchProps {
   saveAction?: ReactNode;
   /** Save a typed contract (CONTRACT_TYPES.md); absent, the kinds' form is read-only. */
   saveTypedContract?: (body: TypedContractInputDTO) => Promise<UpstreamContractDTO | null>;
+  /** Close the open contract (clears the page's selection). */
+  onCloseDetail?: () => void;
   upstreamContracts: UpstreamContractDTO[];
   portfolioResources: PortfolioResourceDTO[];
   totalPoolVolume: number;
@@ -251,16 +262,6 @@ function formatMoney(value: number | null | undefined): string {
   return value.toFixed(2);
 }
 
-function formatPercentage(value: number | null | undefined): string {
-  const formatted = formatMoney(value);
-  return formatted === "n/a" ? formatted : `${formatted}%`;
-}
-
-function formatTimestamp(value: string | undefined): string {
-  if (!value) return "n/a";
-  const timestamp = new Date(value);
-  return Number.isNaN(timestamp.getTime()) ? value : timestamp.toLocaleString();
-}
 
 export function ContractWorkbench({
   contract, upstreamContracts, portfolioResources, totalPoolVolume,
@@ -270,34 +271,17 @@ export function ContractWorkbench({
   contractIntake = null, onDismissContractIntake, onContractLifecycle,
   contractSaveMessage, contractSaveConflict, t,
   updateContractText, updateContractNumber, updateContractList, updateContractTranches, routeCandidates = [],
-  resetContractDraft, importContractDraftFile, loadPersistedContract, saveAction, saveTypedContract,
+  resetContractDraft, importContractDraftFile, loadPersistedContract, saveAction, saveTypedContract, onCloseDetail,
 }: ContractWorkbenchProps) {
   // Wave 9: object detail goes to the canonical Inspector instead of growing a third
   // detail pane inside this workbench. The selection stays local; only the detail moves.
   const inspector = useInspectorStore();
   const [clauseView, setClauseView] = useState<ClauseView>("agreement");
   const persistedTerm = upstreamContracts.find((item) => item.contract_id === contract.contract_id);
-  const selectedResource = selectedResourceId
-    ? portfolioResources.find((item) => item.resource_id === selectedResourceId) ?? null
-    : null;
   const selectedPersistedTerm = selectedResourceId
     ? upstreamContracts.find((item) => item.contract_id === selectedResourceId) ?? null
     : null;
   const persistedResource = portfolioResources.find((item) => item.resource_id === contract.contract_id);
-  const { readOnlySelectedResource, knownSelectedResource } = viewFacts;
-  const selectedPersistedSourceReference = selectedPersistedTerm
-    ? sourceReferenceFromRecord(selectedPersistedTerm as unknown as Record<string, unknown>)
-    : "";
-  const selectedPersistedNotes = selectedPersistedTerm
-    ? notesRecordFromRecord(selectedPersistedTerm as unknown as Record<string, unknown>)
-    : {};
-  const selectedCounterparty = selectedPersistedTerm
-    ? stringFromRecord(
-        { ...selectedPersistedNotes, ...selectedPersistedTerm },
-        "counterparty",
-        "n/a",
-      )
-    : "n/a";
   // Desk words for where the draft came from; an unknown code is shown as recorded.
   const points = useMemo(() => pointOptions(routeCandidates), [routeCandidates]);
   const pointLabel = (point: string) => {
@@ -318,23 +302,12 @@ export function ContractWorkbench({
   );
   const gasYears = useMemo(() => gasYearOptions(), []);
   const priceCurrency = contractPriceCurrency(contract.contract_price_currency, contract.delivery_point_name);
-  const stagedCode = contract.document_status || "MANUAL_DRAFT";
-  const stagedLabel = t(`contracts.doc_status.${stagedCode}`);
-  const stagedStatus = stagedLabel === `contracts.doc_status.${stagedCode}` ? stagedCode : stagedLabel;
-  const selectedReadOnlyName = selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name ?? selectedResourceId;
 
   const validationIssues = useMemo(
     () => contractValidationIssueKeys(contract).map((key) => t(key)),
     [contract, t],
   );
 
-  // Reported, not decided: the save rule is evaluated where the action lives.
-  const saveStatus = t(saveState.statusKey);
-  const taskTabs: Array<[ContractTaskView, string]> = [
-    ["source", t("contracts.view.source")], ["terms", t("contracts.view.terms")],
-    ["impact", t("contracts.view.impact")],
-    ["library", t("contracts.view.library")],
-  ];
   const clauseTabs: Array<[ClauseView, string]> = [
     ["agreement", t("contracts.agreement")], ["product", t("contracts.product_term")],
     ["delivery", t("contracts.delivery")], ["quantity", t("contracts.quantity_tolerance")],
@@ -363,7 +336,24 @@ export function ContractWorkbench({
     setTypedEditing(null);
     setKindChoice(proposedKind && TYPED_KINDS.has(proposedKind) ? (proposedKind as AuthorableKind) : "SUPPLY_GSA");
   }, [contractIntake, proposedKind]);
-  const masterOf = (id: string) => upstreamContracts.find((item) => item.contract_id === id)?.master_contract_id ?? null;
+  function inspect(saved: UpstreamContractDTO) {
+    const subject = inspectorSubjectFor(
+      "contract",
+      saved.contract_id,
+      saved.contract_name,
+      "contracts",
+    );
+    if (subject) inspector.open(subject);
+  }
+
+  function closeDetail() {
+    if (draftDirty && taskView === "terms" && !window.confirm(t("contracts.edit_confirm"))) return;
+    setKindChoice(null);
+    setTypedEditing(null);
+    onCloseDetail?.();
+    onTaskViewChange("library");
+  }
+
   function startNewDraft() {
     setKindChoice(null);
     setTypedEditing(null);
@@ -381,33 +371,8 @@ export function ContractWorkbench({
     setClauseView("agreement");
   }
 
-  return (
-    <div className="contract-task-workspace">
-      <section className="contract-command-strip" aria-label={t("contracts.command_strip")}>
-        <div className="contract-command-identity">
-          <span className="eyebrow">{readOnlySelectedResource || persistedTerm ? t("contracts.persisted_term") : t("contracts.resource_draft")}</span>
-          <strong>{(readOnlySelectedResource ? selectedReadOnlyName : contract.contract_name) || t("contracts.unnamed_draft")}</strong>
-          <span className={`contract-state ${readOnlySelectedResource ? (knownSelectedResource ? "ready" : "draft") : persistedTerm ? "ready" : "draft"}`}>{readOnlySelectedResource ? (knownSelectedResource ? t("contracts.persisted") : t("status.unknown")) : persistedTerm ? t("contracts.persisted") : stagedStatus}</span>
-          {readOnlySelectedResource && <small>{t("contracts.resource_draft")}: {contract.contract_name || t("contracts.unnamed_draft")}</small>}
-        </div>
-        <dl className="contract-command-facts">
-          <div><dt>{t("contracts.counterparty")}</dt><dd>{readOnlySelectedResource ? selectedCounterparty : contract.counterparty || "n/a"}</dd></div>
-          <div><dt>{t("status.source")}</dt><dd>{readOnlySelectedResource ? selectedResource?.source_refs?.join(", ") || selectedPersistedSourceReference || t("contracts.no_source_reference") : contract.document_name || t("contracts.manual_entry")}</dd></div>
-          <div><dt>{t("status.db")}</dt><dd>{runtimeDbReady ? t("data.ready") : runtimeDbKnown ? t("data.unavailable") : t("status.chip.checking")}</dd></div>
-          <div><dt>{t("panel.status")}</dt><dd>{readOnlySelectedResource ? selectedPersistedTerm?.human_review_required === true ? t("settings.human_review") : t("data.unavailable") : t("settings.human_review")}</dd></div>
-        </dl>
-        <div className="contract-command-actions" tabIndex={0}>
-          {/* The supply editor's save; a typed kind's form carries its own. */}
-          {taskView === "terms" && termsMode === "legacy" ? saveAction : null}
-          <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
-          <button type="button" className="secondary-button" onClick={startNewDraft}>{t("contracts.action.new")}</button>
-          <input ref={contractImportRef} className="contract-import-input" type="file" accept=".pdf,application/pdf" hidden onChange={importContractDraftFile} />
-        </div>
-      </section>
+  const intakeBlock = contractIntake ? (
 
-      {contractImportBusy && <ContractImportProgress t={t} />}
-      <div className="contract-feedback" role="status" aria-live="polite"><strong>{saveStatus}</strong><span>{contractSaveMessage ?? contractImportMessage ?? t("contracts.save_hint")}</span></div>
-      {contractIntake && (
         <section className="contract-intake" aria-labelledby="contract-intake-title">
           <div className="section-heading">
             <strong id="contract-intake-title">
@@ -451,52 +416,42 @@ export function ContractWorkbench({
             ]}
           />
         </section>
-      )}
-      {contractSaveConflict && (
-        <div className="runtime-blocker-list compact" role="alert">
-          <strong>{t("contracts.edit_conflict_title")}</strong>
-          <span>{t("contracts.edit_conflict_detail")}</span>
-        </div>
-      )}
-      <nav className="contract-task-tabs" aria-label={t("contracts.workspace_views")}>
-        {taskTabs.map(([key, label]) => <button key={key} type="button" className={taskView === key ? "active" : ""} onClick={() => onTaskViewChange(key)}>{label}</button>)}
-      </nav>
+  ) : null;
 
-      {taskView === "source" && (
-        <div className="contract-source-view">
-          <section className="contract-content-band">
-            <div className="section-heading"><span className="eyebrow">{t("contracts.source_intake")}</span><strong>{stagedStatus}</strong></div>
-            <p className="panel-copy">{t("contracts.upload_hint")}</p>
-            <button type="button" onClick={() => contractImportRef.current?.click()}>{t("contracts.upload_contract")}</button>
-            <p className="contract-support-note">{t("contracts.supported_formats")}</p>
-          </section>
-          <section className="contract-content-band">
-            <div className="section-heading"><span className="eyebrow">{t("contracts.source_evidence")}</span><strong>{t("settings.human_review")}</strong></div>
-            <div className="contract-definition-list">
-              <div><span>{t("contracts.document_status")}</span><strong>{stagedStatus}</strong></div>
-              <div><span>{t("contracts.source_file")}</span><strong>{contract.document_name || t("contracts.manual_entry")}</strong></div>
-              <div><span>{t("contracts.source_reference")}</span><strong>{contract.source_reference || t("contracts.no_source_reference")}</strong></div>
-              <div><span>{t("contracts.review_state")}</span><strong>{t("settings.human_review")}</strong></div>
-            </div>
-          </section>
-        </div>
-      )}
+  // The page is the contract list (owner, 2026-11-19): the firm's contracts the caller may see,
+  // in execution first, with search and a kind filter; a row opens the contract beside the list
+  // (a sheet on a phone); New and Import are the list's own actions.
+  const today = new Date().toISOString().slice(0, 10);
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
+  const compact = useCompactWidth();
+  const counterpartyOf = (row: UpstreamContractDTO) =>
+    stringFromRecord({ ...notesRecordFromRecord(row as unknown as Record<string, unknown>) }, "counterparty", "");
+  const rows = useMemo(
+    () => listedContracts(upstreamContracts, { query, kind: kindFilter, today, counterpartyOf }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [upstreamContracts, query, kindFilter, today],
+  );
+  const kindsHeld = useMemo(() => [...new Set(upstreamContracts.map((row) => row.contract_kind ?? "SUPPLY_GSA"))], [upstreamContracts]);
+  const shown = selectedPersistedTerm ?? (taskView === "terms" ? persistedTerm ?? null : null);
+  const detailMode: "none" | "view" | "edit" | "new" = taskView === "terms"
+    ? (persistedTerm || typedEditing ? "edit" : "new")
+    : shown ? "view" : "none";
+  const monthName = (iso: string) => formatDeliveryMonth(iso.slice(0, 7));
+  // Say what happened to a save or an import; opening or starting a contract needs no notice.
+  const importNotice = contractImportBusy || contractIntake || (contractImportMessage ?? "").startsWith(t("contracts.import_failed"));
+  const feedback = contractSaveMessage ?? (importNotice ? contractImportMessage : null);
 
-      {taskView === "terms" && termsMode === "choose" && <ContractKindChooser t={t} onChoose={setKindChoice} />}
-      {taskView === "terms" && termsMode === "typed" && (
-        <TypedContractForm
-          kind={typedKind}
-          editing={typedStored}
-          upstreamContracts={upstreamContracts}
-          routeCandidates={routeCandidates}
-          intake={contractIntake}
-          save={async (body) => (saveTypedContract ? saveTypedContract(body as unknown as TypedContractInputDTO) : null)}
-          onSaved={(saved) => setTypedEditing(saved)}
-          onChangeKind={() => setKindChoice(null)}
-          t={t}
-        />
-      )}
-      {taskView === "terms" && termsMode === "legacy" && (
+  function openContract(saved: UpstreamContractDTO) {
+    if (draftDirty && !window.confirm(t("contracts.edit_confirm"))) return;
+    const savedKind = saved.contract_kind ?? "SUPPLY_GSA";
+    setTypedEditing(null);
+    setKindChoice(savedKind as AuthorableKind);
+    loadPersistedContract(saved);
+    onTaskViewChange("library");
+  }
+
+  const legacyEditor = (
         <div className="contract-terms-layout">
           <nav className="contract-clause-nav" aria-label={t("contracts.clause_sections")} tabIndex={0}>
             {clauseTabs.map(([key, label], index) => <button key={key} type="button" className={clauseView === key ? "active" : ""} onClick={() => setClauseView(key)}><span>{String(index + 1).padStart(2, "0")}</span>{label}</button>)}
@@ -583,119 +538,136 @@ export function ContractWorkbench({
           </section>
 
           <aside className="contract-decision-rail" aria-label={t("contracts.validation.title")}>
-            <section><div className="section-heading"><span className="eyebrow">{t("contracts.validation.title")}</span><strong className={validationIssues.length ? "warning-text" : "success-text"}>{validationIssues.length ? t("contracts.validation.not_ready") : t("contracts.validation.ready")}</strong></div>{validationIssues.length > 0 ? <ul>{validationIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : <p>{t("contracts.validation.complete")}</p>}</section>
+            {/* What is still needed shows once the person has started; never on an untouched draft. */}
+            {draftDirty && <section><div className="section-heading"><span className="eyebrow">{t("contracts.validation.title")}</span><strong className={validationIssues.length ? "warning-text" : "success-text"}>{validationIssues.length ? t("contracts.validation.not_ready") : t("contracts.validation.ready")}</strong></div>{validationIssues.length > 0 ? <ul>{validationIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : <p>{t("contracts.validation.complete")}</p>}</section>}
             <section><span className="eyebrow">{t("contracts.source_evidence")}</span><div className="contract-definition-list compact"><div><span>{t("contracts.source_file")}</span><strong>{contract.document_name || t("contracts.manual_entry")}</strong></div><div><span>{t("contracts.source_reference")}</span><strong>{contract.source_reference || t("contracts.no_source_reference")}</strong></div></div></section>
             <section><span className="eyebrow">{t("contracts.persisted_impact")}</span><div className="contract-definition-list compact"><div><span>{t("contracts.pool_state")}</span><strong>{persistedResource ? t("contracts.in_pool") : t("contracts.not_in_pool")}</strong></div><div><span>{t("portfolio.scope.quantity")}</span><strong>{formatQuantity(totalPoolVolume)}</strong></div><div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.early_cash_value_gbp_mwh) : "n/a"}</strong></div></div></section>
           </aside>
         </div>
-      )}
+  );
 
-      {taskView === "impact" && (
-        <div className="contract-impact-view">
-          <section className="contract-content-band span-2">
-            <div className="section-heading"><span className="eyebrow">{t("contracts.persisted_impact")}</span><strong>{persistedResource ? t("contracts.in_pool") : t("contracts.not_in_pool")}</strong></div>
-              {persistedResource ? <div className="contract-impact-grid"><div><span>{t("contracts.resource_id")}</span><strong>{persistedResource.resource_id}</strong></div><div><span>{t("economics.volume")}</span><strong>{formatQuantity(persistedResource.available_quantity_mwh_per_day)}</strong></div><div><span>{t("economics.contract_price")}</span><strong>{formatMoney(persistedResource.contract_cost_gbp_mwh)}</strong></div><div><span>{t("contracts.variable_and_regas")}</span><strong>{formatMoney(persistedResource.variable_cost_gbp_mwh)}</strong></div><div><span>{t("contracts.fuel_loss")}</span><strong>{formatPercentage(persistedResource.fuel_loss_allowance_pct)}</strong></div><div><span>{t("contracts.pricing_method")}</span><strong>{persistedResource.pricing_method || "n/a"}</strong></div></div> : <p className="panel-copy">{t("contracts.impact_pending")}</p>}
-            </section>
-          <section className="contract-content-band"><div className="section-heading"><span className="eyebrow">{t("portfolio.scope.register")}</span><strong>{portfolioResources.length} {t(portfolioResources.length === 1 ? "contracts.resource_singular" : "home.resources")}</strong></div><div className="contract-definition-list"><div><span>{t("portfolio.scope.quantity")}</span><strong>{formatQuantity(totalPoolVolume)}</strong></div><div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.early_cash_value_gbp_mwh) : "n/a"}</strong></div><div><span>{t("result.net_margin")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.net_margin_gbp_mwh) : "n/a"}</strong></div></div></section>
+  const detail = detailMode === "none" ? null : (
+    <div className="contract-detail-body" data-contract-detail={detailMode}>
+      {detailMode === "view" && shown && (
+        <ContractReadView
+          contract={shown}
+          t={t}
+          monthName={monthName}
+          counterparty={counterpartyOf(shown)}
+          confirmations={upstreamContracts.filter((item) => item.master_contract_id === shown.contract_id)}
+          onEdit={() => loadTerm(shown)}
+          onInspect={() => inspect(shown)}
+          retire={onContractLifecycle ? <RetireContractButton contract={shown} onLifecycle={onContractLifecycle} t={t} /> : null}
+        />
+      )}
+      {detailMode !== "view" && contractIntake && intakeBlock}
+      {detailMode !== "view" && termsMode === "choose" && <ContractKindChooser t={t} onChoose={setKindChoice} />}
+      {detailMode !== "view" && termsMode === "typed" && (
+        <TypedContractForm
+          kind={typedKind}
+          editing={typedStored}
+          upstreamContracts={upstreamContracts}
+          routeCandidates={routeCandidates}
+          intake={contractIntake}
+          save={async (body) => (saveTypedContract ? saveTypedContract(body as unknown as TypedContractInputDTO) : null)}
+          onSaved={(saved) => setTypedEditing(saved)}
+          onChangeKind={() => setKindChoice(null)}
+          t={t}
+        />
+      )}
+      {detailMode !== "view" && termsMode === "legacy" && (
+        <>
+          <div className="contract-detail-actions">{saveAction}</div>
+          {legacyEditor}
+        </>
+      )}
+    </div>
+  );
+  const detailTitle = detailMode === "new"
+    ? t("contracts.list.new_title")
+    : (typedEditing?.contract_name ?? shown?.contract_name ?? contract.contract_name) || t("contracts.list.new_title");
+
+  return (
+    <div className="contract-task-workspace contract-list-page">
+      <section className="contract-list-command" aria-label={t("contracts.command_strip")}>
+        <strong className="contract-list-count" data-contract-count={upstreamContracts.length}>
+          {t("contracts.list.count", { count: upstreamContracts.length })}
+        </strong>
+        <input
+          type="search"
+          className="contract-list-search"
+          aria-label={t("contracts.list.search")}
+          placeholder={t("contracts.list.search")}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <select aria-label={t("contracts.list.kind_filter")} value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}>
+          <option value="">{t("contracts.list.all_kinds")}</option>
+          {kindsHeld.map((kind) => <option key={kind} value={kind}>{t(`contracts.kind.${kind}`)}</option>)}
+        </select>
+        <div className="contract-command-actions" tabIndex={0}>
+          <button type="button" className={buttonClass("primary", "md")} data-page-action="contract-new" onClick={startNewDraft}>{t("contracts.action.new")}</button>
+          <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
+          <input ref={contractImportRef} className="contract-import-input" type="file" accept=".pdf,application/pdf" hidden onChange={importContractDraftFile} />
+        </div>
+      </section>
+
+      {contractImportBusy && <ContractImportProgress t={t} />}
+      {feedback && (
+        <div className="contract-feedback" role="status" aria-live="polite"><span>{feedback}</span></div>
+      )}
+      {contractSaveConflict && (
+        <div className="runtime-blocker-list compact" role="alert">
+          <strong>{t("contracts.edit_conflict_title")}</strong>
+          <span>{t("contracts.edit_conflict_detail")}</span>
         </div>
       )}
 
-      {taskView === "library" && (
-        <section className="contract-library-view">
-          <div className="panel-title-row"><h2>{t("contracts.library")}</h2><span>{upstreamContracts.length} {t("panel.records")}</span></div>
-          {(selectedResource || selectedPersistedTerm) && (
-            <section className="contract-content-band">
-              <div className="section-heading"><span className="eyebrow">{t("contracts.persisted_term")}</span><strong>{selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name}</strong></div>
-              <div className="contract-definition-list">
-                <div><span>{t("contracts.resource_id")}</span><strong>{selectedResource?.resource_id ?? selectedPersistedTerm?.contract_id}</strong></div>
-                <div><span>{t("contracts.delivery_point")}</span><strong>{selectedResource?.location_point_name ?? selectedPersistedTerm?.delivery_point_name ?? "n/a"}</strong></div>
-                <div><span>{t("economics.volume")}</span><strong>{formatQuantity(selectedResource?.available_quantity_mwh_per_day ?? selectedPersistedTerm?.delivery_quantity_mwh_per_day)}</strong></div>
-                <div><span>{t("contracts.contract_price")}</span><strong>{selectedPersistedTerm ? `${formatMoney(selectedPersistedTerm.contract_price_gbp_mwh)} ${selectedPersistedTerm.contract_price_currency ?? "GBP"}/MWh` : `${formatMoney(selectedResource?.contract_cost_gbp_mwh)} GBP/MWh`}</strong></div>
-                <div><span>{t("contracts.source_reference")}</span><strong>{selectedResource?.source_refs?.join(", ") || selectedPersistedSourceReference || t("contracts.no_source_reference")}</strong></div>
-              </div>
-              {selectedPersistedTerm && (
-                <div className="contract-handoff-row">
-                  <button type="button" className="secondary-button" onClick={() => loadTerm(selectedPersistedTerm)}>{t("contracts.edit")}</button>
-                </div>
-              )}
-            </section>
-          )}
-          {selectedResourceId && !selectedResource && !selectedPersistedTerm && (
-            <section className="contract-content-band" role="status">
-              <div className="section-heading"><span className="eyebrow">{t("contracts.persisted_term")}</span><strong>{selectedResourceId}</strong></div>
-              <p className="panel-copy">{t("contracts.selected_unavailable")}</p>
-            </section>
-          )}
-          {/* One shared column set for the header and every row: the load control owns the four
-              data cells and the row's last track is the actions cell, so a header can never drift
-              away from the values underneath it (`docs/release/acceptance/05_CONTRACT_FLOW_RECHECK.md`, P2). */}
-          <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("contracts.contract_price")}</span><span>{t("panel.status")}</span><span>{t("strategy_lab.actions")}</span></div>
-          <div className="contract-library-list">{upstreamContracts.map((saved) => {
-            const selected = selectedResourceId === saved.contract_id || saved.contract_id === contract.contract_id;
-            return (
-              <div
-                key={saved.contract_id}
-                className={`contract-library-row ${selected ? "selected" : ""}`}
-                // The row carries the persisted term's own id, so the acceptance sweep compares it
-                // with the upstream-terms read by exact id rather than by page text
-                // (`scripts/uat/readToRender.mjs`).
-                data-record="upstream-contract"
-                data-record-id={saved.contract_id}
-              >
-                <button type="button" className="contract-library-load" onClick={() => loadTerm(saved)}>
-                  <span>
-                    <strong>{saved.contract_name}</strong>
-                    <small>
-                      <span className="contract-kind-badge" data-kind-reviewed={saved.contract_kind_reviewed === false ? "false" : "true"} title={saved.contract_kind_reviewed === false ? t("contracts.kind.inferred") : undefined}>
-                        {t(`contracts.kind.${saved.contract_kind ?? "SUPPLY_GSA"}`)}
-                      </span>
-                      {[stringFromRecord({ ...notesRecordFromRecord(saved as unknown as Record<string, unknown>) }, "counterparty", ""), saved.contract_kind === "LNG_MSPA" ? "" : saved.gas_year.replace("..", " – ")].filter(Boolean).join(" · ")}
-                    </small>
-                  </span>
-                  <span>
-                    {(() => {
-                      const head = kindHeadline(saved, upstreamContracts, masterOf);
-                      return head.key === "master"
-                        ? <strong>{t("contracts.kind.confirmations", { count: Number(head.text) })}</strong>
-                        : <strong>{head.text}</strong>;
-                    })()}
-                  </span>
-                  <span>
-                    {saved.contract_kind === "LNG_MSPA" ? (
-                      <small>{t("contracts.kind.price_on_confirmations")}</small>
-                    ) : saved.contract_kind && TYPED_KINDS.has(saved.contract_kind) && typeof saved.kind_terms?.price_unit === "string" ? (
-                      <small>{priceLine(saved.kind_terms, t)}</small>
-                    ) : (
-                      <><strong>{formatMoney(saved.contract_price_gbp_mwh)}</strong><small>{saved.contract_price_currency ?? "GBP"}/MWh</small></>
-                    )}
-                  </span>
-                  <span><strong>{t("contracts.persisted")}</strong><small>{formatTimestamp(saved.updated_at_utc)}</small></span>
-                </button>
-                <div className="contract-library-row-actions">
-                  <button
-                    type="button"
-                    className="contract-library-handoff"
-                    onClick={() => {
-                      const subject = inspectorSubjectFor(
-                        "contract",
-                        saved.contract_id,
-                        saved.contract_name,
-                        "contracts",
-                      );
-                      if (subject) inspector.open(subject);
-                    }}
-                  >
-                    {t("contracts.inspect")}
-                  </button>
-                  {onContractLifecycle && <RetireContractButton contract={saved} onLifecycle={onContractLifecycle} t={t} />}
-                </div>
-              </div>
-            );
-          })}{upstreamContracts.length === 0 && <p className="panel-copy" data-empty-state="contract-library">{t("contracts.no_saved_contracts")}</p>}</div>
+      <div className={`contract-list-layout${detail && !compact ? " has-detail" : ""}`}>
+        <section className="contract-list" aria-label={t("contracts.list.title")}>
+          <DataGrid
+            id="contract-list"
+            label={t("contracts.list.title")}
+            rows={rows}
+            rowKey={(row) => row.contract_id}
+            density="compact"
+            selectedKey={shown?.contract_id ?? null}
+            onRowAction={openContract}
+            // The row carries the stored contract's own id, so the acceptance sweep compares it
+            // with the upstream-terms read by exact id (`scripts/uat/readToRender.mjs`).
+            rowAttributes={(row) => ({ "data-record": "upstream-contract", "data-record-id": row.contract_id, "data-contract-kind": row.contract_kind ?? "SUPPLY_GSA" })}
+            empty={<span data-empty-state="contract-library">{t(upstreamContracts.length ? "contracts.list.none_match" : "contracts.no_saved_contracts")}</span>}
+            columns={[
+              { id: "name", header: t("contracts.list.name"), rowHeader: true, priority: "primary", value: (row) => row.contract_name },
+              { id: "kind", header: t("contracts.list.kind"), priority: "secondary", value: (row) => t(`contracts.kind.${row.contract_kind ?? "SUPPLY_GSA"}`), render: (row) => (
+                <span className="contract-kind-badge" data-kind-reviewed={row.contract_kind_reviewed === false ? "false" : "true"} title={row.contract_kind_reviewed === false ? t("contracts.kind.inferred") : undefined}>{t(`contracts.kind.${row.contract_kind ?? "SUPPLY_GSA"}`)}</span>
+              ) },
+              { id: "figure", header: t("contracts.list.figure"), priority: "primary", value: (row) => kindFigure(row, upstreamContracts, t) },
+              { id: "status", header: t("contracts.list.status"), priority: "primary", value: (row) => STATUS_ORDER.indexOf(contractStatus(row, today)), render: (row) => (
+                <span className="contract-status" data-contract-status={contractStatus(row, today)}>{t(`contracts.status.${contractStatus(row, today)}`)}</span>
+              ) },
+              { id: "counterparty", header: t("contracts.counterparty"), priority: "secondary", value: (row) => counterpartyOf(row) || "–" },
+              { id: "delivery", header: t("contracts.list.delivery"), priority: "secondary", value: (row) => deliveryText(row, t) },
+              { id: "period", header: t("contracts.list.period"), priority: "secondary", value: (row) => contractPeriodText(row, monthName) },
+            ]}
+          />
           {onContractLifecycle && <RetiredContractsList onLifecycle={onContractLifecycle} refreshKey={upstreamContracts.length} t={t} />}
         </section>
+        {detail && !compact && (
+          <section className="contract-detail" aria-label={detailTitle}>
+            <div className="contract-detail-head">
+              <strong>{detailTitle}</strong>
+              <button type="button" className="link-button" onClick={closeDetail}>{t("contracts.list.close")}</button>
+            </div>
+            {detail}
+          </section>
+        )}
+      </div>
+      {detail && compact && (
+        <Sheet open onClose={closeDetail} title={detailTitle} closeLabel={t("contracts.list.close")} side="bottom">
+          {detail}
+        </Sheet>
       )}
-      <footer className="contract-boundary-note">{t("contracts.boundary_note")}</footer>
     </div>
   );
 }
@@ -709,7 +681,8 @@ function ContractImportProgress({ t }: { t: (key: string) => string }) {
 
 /** A typed contract's price as signed, in its native unit (never converted). */
 function priceLine(terms: Record<string, unknown>, t: Translate): string {
-  const unit = String(terms.price_unit ?? "");
+  // The desk writes pence per therm as p/th.
+  const unit = String(terms.price_unit ?? "").replace("GBp/th", "p/th");
   const number = (value: unknown) => (typeof value === "number" ? value : Number(value));
   if (terms.price_type === "fixed" || terms.price_formula === "fixed") return `${number(terms.fixed_price).toFixed(2)} ${unit}`;
   if (terms.price_type === "index") {
@@ -722,4 +695,91 @@ function priceLine(terms: Record<string, unknown>, t: Translate): string {
   }
   const driver = terms.price_formula === "brent" ? "Brent" : "HH";
   return t("contracts.kind.slope_price", { slope: number(terms.slope).toFixed(2), driver, constant: number(terms.constant).toFixed(2), unit });
+}
+
+/** Where a contract delivers, as the desk says it: the point or terminal; a master's terms. */
+function deliveryText(row: UpstreamContractDTO, t: Translate): string {
+  const terms = row.kind_terms ?? {};
+  if (row.contract_kind === "LNG_MSPA") return Array.isArray(terms.delivery_terms) ? terms.delivery_terms.join(", ") : "–";
+  if (row.contract_kind === "LNG_CARGO") {
+    const term = String(terms.delivery_term ?? "");
+    return term === "DES" ? `DES ${String(terms.discharge_terminal ?? "")} → ${String(terms.terminal_hub ?? "")}` : `FOB ${String(terms.load_port ?? "")}`;
+  }
+  return row.delivery_point_name || t("contracts.no_source_reference");
+}
+
+/** The one figure that matters for the kind, in the contract's own units. */
+function kindFigure(row: UpstreamContractDTO, all: readonly UpstreamContractDTO[], t: Translate): string {
+  const head = kindHeadline(row, all, (id) => all.find((item) => item.contract_id === id)?.master_contract_id ?? null);
+  return head.key === "master" ? t("contracts.kind.confirmations", { count: Number(head.text) }) : head.text;
+}
+
+/** A stored contract, read first: its terms in words, then Edit, Inspect and Retire. */
+function ContractReadView({ contract, counterparty, confirmations, monthName, onEdit, onInspect, retire, t }: {
+  contract: UpstreamContractDTO;
+  counterparty: string;
+  confirmations: readonly UpstreamContractDTO[];
+  monthName: (iso: string) => string;
+  onEdit: () => void;
+  onInspect: () => void;
+  retire: ReactNode;
+  t: Translate;
+}) {
+  const kind = contract.contract_kind ?? "SUPPLY_GSA";
+  const terms = contract.kind_terms ?? null;
+  const facts: Array<[string, string]> = [
+    [t("contracts.list.kind"), t(`contracts.kind.${kind}`)],
+    [t("contracts.counterparty"), counterparty || "–"],
+    [t("contracts.list.delivery"), deliveryText(contract, t)],
+    [t("contracts.list.period"), contractPeriodText(contract, monthName)],
+    [t("contracts.list.figure"), kindFigure(contract, [contract, ...confirmations], t)],
+  ];
+  if (terms && typeof terms.price_unit === "string") facts.push([t("contracts.contract_price"), priceLine(terms, t)]);
+  else if (kind === "SUPPLY_GSA") facts.push([t("contracts.contract_price"), `${formatMoney(contract.contract_price_gbp_mwh)} ${contract.contract_price_currency ?? "GBP"}/MWh`]);
+  if (kind === "UPSTREAM_TENDER" && terms) facts.push([t("contracts.kind_field.nomination"), t(`contracts.kind_option.${String(terms.nomination)}`)]);
+  if (kind === "LNG_MSPA" && terms) {
+    facts.push([t("contracts.kind_field.our_side"), t(`contracts.kind_option.${String(terms.our_side)}`)]);
+    if (terms.demurrage_usd_per_day) facts.push([t("contracts.kind_field.demurrage_usd_per_day"), `${Number(terms.demurrage_usd_per_day).toLocaleString("en-GB")} USD/d`]);
+    facts.push([t("contracts.kind_field.credit_support"), t(`contracts.kind_option.${String(terms.credit_support)}`)]);
+  }
+  return (
+    <div className="contract-read" data-contract-read={contract.contract_id}>
+      {contract.contract_kind_reviewed === false && <p className="muted">{t("contracts.kind.inferred")}</p>}
+      <dl className="contract-definition-list">
+        {facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+      </dl>
+      {contract.unmodelled_terms && (
+        <section>
+          <span className="eyebrow">{t("contracts.kind_field.unmodelled_terms")}</span>
+          <p className="contract-unmodelled">{contract.unmodelled_terms}</p>
+        </section>
+      )}
+      {confirmations.length > 0 && (
+        <section>
+          <span className="eyebrow">{t("contracts.kind.confirmations", { count: confirmations.length })}</span>
+          <ul className="contract-confirmations">
+            {confirmations.map((item) => <li key={item.contract_id}>{item.contract_name} · {kindFigure(item, [], t)}</li>)}
+          </ul>
+        </section>
+      )}
+      <div className="contract-detail-actions">
+        <button type="button" className={buttonClass("primary", "md")} data-page-action="contract-edit" onClick={onEdit}>{t("contracts.edit")}</button>
+        <button type="button" className="secondary-button" onClick={onInspect}>{t("contracts.inspect")}</button>
+        {retire}
+      </div>
+    </div>
+  );
+}
+
+/** The period as signed: a cargo's delivery window by day, a master's term, else the gas year. */
+function contractPeriodText(row: UpstreamContractDTO, monthName: (iso: string) => string): string {
+  const terms = row.kind_terms ?? {};
+  const window = row.headline?.window;
+  if (row.contract_kind === "LNG_CARGO" && window) {
+    return `${Number(window[0].slice(8))}–${Number(window[1].slice(8))} ${monthName(window[1])}`;
+  }
+  if (row.contract_kind === "LNG_MSPA" && typeof terms.term_start === "string") {
+    return typeof terms.term_end === "string" ? `${monthName(terms.term_start)} – ${monthName(terms.term_end)}` : `${monthName(terms.term_start)} →`;
+  }
+  return periodText(row.gas_year, monthName);
 }

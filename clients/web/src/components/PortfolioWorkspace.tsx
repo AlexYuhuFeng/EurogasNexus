@@ -141,9 +141,9 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
   // The resource sub-view is one fact with one owner: this workspace decides it, the panel
   // renders it, and the header's save action is derived from it. Keeping it here is what
   // lets the action and the panel it acts on agree without either re-deriving the other.
-  const [contractView, setContractView] = useState<ContractTaskView>(() =>
-    selection.resourceId ? "library" : "terms",
-  );
+  // Contracts opens on the list (owner, 2026-11-19): "library" is the read view of the list and
+  // the open contract; "terms" is editing or a new contract.
+  const [contractView, setContractView] = useState<ContractTaskView>("library");
   const deskToday = useDeskToday();
 
   useEffect(() => {
@@ -164,7 +164,8 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
     openedFromUrl.current = contractParam;
     if (contractEditor.contract.contract_id !== contractParam) contractEditor.loadPersistedContract(stored);
     setTask("resources");
-    setContractView("terms");
+    selection.setResourceId(contractParam);
+    setContractView("library");
   }, [api.upstreamContracts, contractEditor, contractParam]);
   const loadPersistedContractAndLink = (saved: Parameters<typeof contractEditor.loadPersistedContract>[0]) => {
     contractEditor.loadPersistedContract(saved);
@@ -246,7 +247,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
           // Only where the context changes the page (the pool's results on Position and Contracts),
           // as one quiet summary; Limits & P&L and Delivery read nothing from it (owner: no filters
           // that change nothing).
-          controls={task === "overview" || task === "resources" ? tradingContextControlsFor(controller.traderContext, t, { summary: true }) : undefined}
+          controls={task === "overview" ? tradingContextControlsFor(controller.traderContext, t, { summary: true }) : undefined}
           // The demo desk says "Demo data" once instead of counting a static store's feeds as stale.
           freshness={deskToday.today?.simulated ? <TodayFreshness today={deskToday.today} t={t} nowMs={Date.parse(deskToday.today.as_of)} /> : undefined}
         />
@@ -258,6 +259,11 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
           <ContractWorkbench
             saveAction={saveAction}
             saveTypedContract={api.saveDraftContract}
+            onCloseDetail={() => {
+              selection.setResourceId(null);
+              openedFromUrl.current = null;
+              setContractParam(null);
+            }}
             contract={contractEditor.contract}
             upstreamContracts={api.upstreamContracts}
             portfolioResources={portfolio.portfolioResources}

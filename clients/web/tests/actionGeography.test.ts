@@ -99,9 +99,10 @@ test("the tab row holds tabs only: no page passes an action to the header (UX_RE
   assert.match(portfolio, /disabled=\{!contractSaveStateForDraft\.canSave\}/);
   assert.equal((portfolio.match(/contracts\.action\.save/g) ?? []).length, 1, "the save action exists once");
   assert.equal(readWebSource("components/ContractWorkbench.tsx").includes("contracts.action.save"), false);
-  // The supply editor's save sits first in the command row; a typed kind's form (contract kinds,
-  // docs/product/CONTRACT_TYPES.md) carries its own save, so the row shows this one only then.
-  assert.match(readWebSource("components/ContractWorkbench.tsx"), /<div className="contract-command-actions"[^>]*>\s*(?:\{\/\*[^*]*\*\/\}\s*)?\{taskView === "terms" && termsMode === "legacy" \? saveAction : null\}/);
+  // The supply editor's save sits with the open contract it saves; a typed kind's form (contract
+  // kinds, docs/product/CONTRACT_TYPES.md) carries its own. New and Import are the list's actions.
+  assert.match(readWebSource("components/ContractWorkbench.tsx"), /<div className="contract-detail-actions">\{saveAction\}<\/div>/);
+  assert.match(readWebSource("components/ContractWorkbench.tsx"), /<div className="contract-command-actions"[^>]*>\s*<button[^>]*data-page-action="contract-new"/);
 
   for (const [file, key] of [["components/decision/NominationWindowPanel.tsx", "nomination"], ["components/decision/StorageDispatchPanel.tsx", "dispatch"]]) {
     const panel = readWebSource(file);

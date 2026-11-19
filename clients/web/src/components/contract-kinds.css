@@ -151,4 +151,104 @@
 .contract-kind-badge[data-kind-reviewed="false"] {
   border-style: dashed;
 }
+
+/* The list page: count, search, kind filter and the page's actions in one row; the list, and
+   the open contract beside it (below it when narrow; a sheet on a phone). */
+.contract-list-command {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+
+.contract-list-count {
+  font-size: var(--ds-text-sm);
+  font-weight: var(--ds-weight-semibold);
+}
+
+.contract-list-search {
+  flex: 1 1 14rem;
+  min-width: 0;
+  max-width: 28rem;
+}
+
+.contract-list-command .contract-command-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin-left: auto;
+}
+
+.contract-list-layout {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+@media (min-width: 1200px) {
+  .contract-list-layout.has-detail {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+  }
+}
+
+.contract-list,
+.contract-detail {
+  display: grid;
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+
+.contract-detail {
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+
+.contract-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--ds-space-2);
+}
+
+.contract-detail-head strong {
+  font-size: var(--ds-text-md);
+}
+
+.contract-detail-body,
+.contract-read {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.contract-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
+.contract-unmodelled {
+  margin: var(--ds-space-1) 0 0;
+  white-space: pre-wrap;
+  font-size: var(--ds-text-sm);
+}
+
+.contract-confirmations {
+  margin: var(--ds-space-1) 0 0;
+  padding-left: var(--ds-space-4);
+  font-size: var(--ds-text-sm);
+}
+
+.contract-status[data-contract-status="in_execution"] {
+  color: var(--ds-status-ok);
+}
+
+.contract-status[data-contract-status="expired"],
+.contract-status[data-contract-status="retired"] {
+  color: var(--ds-text-3);
+}
 }
