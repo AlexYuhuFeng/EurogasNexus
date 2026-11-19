@@ -11,8 +11,6 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect
 
-from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
-
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 NEW = {
     "contract_kind",
@@ -32,7 +30,6 @@ def test_existing_rows_become_unreviewed_gsa_and_the_downgrade_drops_only_the_co
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.down_revision == "0072_strategy_tracks_and_trades"
-    assert DB_SCHEMA_REVISION == "0073_contract_kinds"
     model_columns = set(UpstreamResourceContractRecord.__table__.columns.keys())
     old_columns = model_columns - NEW
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)

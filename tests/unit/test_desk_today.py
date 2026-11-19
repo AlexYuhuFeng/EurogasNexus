@@ -89,9 +89,10 @@ def _figures(value):
 def test_all_four_rows_are_populated_on_the_demo_desk(desk):
     data = _today(desk, _principal("DEMO", "BOOKS:*"))
     keys = [row["key"] for row in data["rows"]]
-    assert keys == ["key_figures", "changes", "book", "fundamentals", "needs_me"]
+    # "My gas day" is appended, so every earlier row keeps its position.
+    assert keys == ["key_figures", "changes", "book", "fundamentals", "needs_me", "gas_day"]
     assert all(row["populated"] for row in data["rows"])
-    key, changes, book, fundamentals, _ = data["rows"]
+    key, changes, book, fundamentals, _ = data["rows"][:5]
     # The book's hubs first, then the other hubs the demo market prices.
     assert [item["hub"] for item in key["prices"]][:2] == ["NBP", "TTF"]
     assert all(item["day_change"] is not None for item in key["prices"])
@@ -147,7 +148,7 @@ def test_outage_counts_are_the_ticker_and_map_counts(tmp_path, monkeypatch):
 
 def test_a_user_without_the_data_scope_sees_no_demo_prices_or_marks(desk):
     data = _today(desk, _principal("BOOKS:*"))
-    key, _, book, fundamentals, _ = data["rows"]
+    key, _, book, fundamentals, _ = data["rows"][:5]
     # Positions are book data: still there; prices of an unlicensed family are not.
     assert key["position"] is not None
     assert all("empty" in item for item in key["prices"])
@@ -173,7 +174,7 @@ def test_a_user_without_a_book_sees_no_positions_limits_or_book(desk, monkeypatc
         data = _today(desk, _principal("DEMO", "BOOKS:BOOK:SOMEONE-ELSES"))
     finally:
         portfolio_scope._current.set(None)
-    key, changes, book, _, needs_me = data["rows"]
+    key, changes, book, _, needs_me = data["rows"][:5]
     assert all(item["kind"] != "limit" for item in needs_me["items"])
     assert key["position"] is None and key["position_empty"]["code"] == "no_position"
     assert key["tightest_limit"] is None
@@ -240,7 +241,7 @@ def test_the_section_e_rows_my_market_needs_me_and_europe_storage(desk):
     ranked list of at most five) and Europe's storage against its history."""
 
     data = _today(desk, _principal("DEMO", "BOOKS:*"))
-    key, _, _, fundamentals, needs_me = data["rows"]
+    key, _, _, fundamentals, needs_me = data["rows"][:5]
     # My hubs: the book's (NBP, TTF), then the board's order, at most four.
     assert data["focus_hubs"] == ["NBP", "TTF", "THE", "PEG"]
     market = key["market"]
@@ -289,7 +290,7 @@ def test_what_needs_me_reads_the_role_aware_discovery(desk):
             run_evaluation(session, trigger="test", triggered_by="test", now_utc=NOW,
                            caller=caller, demo_desk=True)
             session.commit()
-    needs_me = _today(desk, caller)["rows"][-1]
+    needs_me = _today(desk, caller)["rows"][4]
     assert 1 <= len(needs_me["items"]) <= 5
     opportunities = [item for item in needs_me["items"] if item["kind"] == "opportunity"]
     assert opportunities

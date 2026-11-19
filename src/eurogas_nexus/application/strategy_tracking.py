@@ -411,23 +411,16 @@ def cutoff_for(legs: list[engine.Leg], book_state: dict[str, Any], now: datetime
     """The latest instant the signal can still be acted on, by the legs' products.
 
     Within-day: the last renomination of the gas day (three hours before its end); day-ahead:
-    the nomination deadline for that gas day (13:00 UTC the day before); others: the end of
-    the current gas day. Network-code defaults, stated with the signal.
+    the nomination deadline for that gas day (13:00 UTC the day before in winter); others: the
+    end of the current gas day. Network-code defaults, stated with the signal; one calendar
+    with Today's gas day (``domain/market/hub_cutoffs``).
     """
 
-    from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_for_date
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
+    from eurogas_nexus.domain.market.hub_cutoffs import gas_day_end, product_cutoff
 
-    today = date.fromisoformat(gas_day_label(now))
-    end_of_today = gas_day_start_for_date(today + timedelta(days=1))
-    cutoffs = []
-    for leg in legs:
-        if leg.product == "within-day":
-            cutoffs.append(end_of_today - timedelta(hours=3))
-        elif leg.product == "day-ahead":
-            nomination = datetime.combine(today, datetime.min.time(), tzinfo=UTC).replace(hour=13)
-            cutoffs.append(nomination if nomination > now else end_of_today)
-        else:
-            cutoffs.append(end_of_today)
+    end_of_today = gas_day_end(date.fromisoformat(gas_day_label(now)))
+    cutoffs = [product_cutoff(leg.product, now) for leg in legs]
     return min(cutoffs) if cutoffs else end_of_today
 
 

@@ -264,8 +264,13 @@ def test_roll_forward_after_a_30_day_pause_ends_at_today_and_keeps_every_stored_
         (row.metadata_json or {}).get("simulated") is True
         for row in session.query(MarketObservationRecord)
     )
-    deliveries = session.query(func.max(ContractDeliveryRecord.gas_day)).scalar()
-    assert deliveries == datetime(2026, 11, 6).date()
+    # Every gas day of the pause is filled up to yesterday; today holds the nomination the
+    # demo gas day records (``seed_demo_gas_day``), its allocation still pending.
+    days = {day for (day,) in session.query(ContractDeliveryRecord.gas_day).filter(
+        ContractDeliveryRecord.contract_id == "demo-haldor-24")}
+    assert max(days) == datetime(2026, 11, 7).date()
+    assert datetime(2026, 11, 6).date() in days and datetime(2026, 10, 20).date() in days
+    assert session.get(ContractDeliveryRecord, ("demo-haldor-24", max(days))).allocated_mwh is None
     assert counts["outage_rows"] == 2  # the demo outages had ended during the pause
     assert session.get(CreditLineRecord, "RHM").limit_amount == 5_000_000
     assert session.get(UpstreamResourceContractRecord, "tester-own-1") is not None
@@ -692,8 +697,9 @@ def test_an_older_volume_gets_bands_storage_and_assumptions_but_not_removed_cont
 
     counts = seed.ensure_demo_fixtures(session, seeded_at)
     session.commit()
+    # The demo gas day's cash-out sets (one per book) were removed with the other sets.
     assert counts == {"fixture_hedge_approvals": 1, "fixture_storage": 1,
-                      "fixture_assumption_set": 1}
+                      "fixture_assumption_set": 1, "fixture_cash_out_sets": 2}
     assert session.get(HedgeApprovalRecord, "demo-haldor-24") is not None
     assert session.get(StorageFacilityMasterRecord, seed.DEMO_STORAGE_ID).market_hub == "CEGH"
     version = session.get(AssumptionSetVersionRecord, seed.DEMO_ASSUMPTION_VERSION_ID)

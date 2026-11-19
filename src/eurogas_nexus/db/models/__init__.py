@@ -54,6 +54,7 @@ from eurogas_nexus.db.models.functional import (
     FunctionalModelRecord,
     FunctionalRunRecord,
 )
+from eurogas_nexus.db.models.gas_day import GasDayDelegationRecord, GasDayScheduleLineRecord
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
 from eurogas_nexus.db.models.identity import (
     IdentityApiKeyRecord,
@@ -293,6 +294,8 @@ class IngestionRunRecord(Base):
 __all__ = [
     "OpportunityPendingInputRecord",
     "FreightRouteRecord",
+    "GasDayDelegationRecord",
+    "GasDayScheduleLineRecord",
     "FunctionalDependencyRecord",
     "FunctionalRunRecord",
     "FunctionalModelRecord",

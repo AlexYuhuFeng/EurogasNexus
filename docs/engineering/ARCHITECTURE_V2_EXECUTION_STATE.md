@@ -6,6 +6,27 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-19 — Today → My gas day, stage 1 (branch `today-gas-day`, not pushed)
+
+- Today row 6 `gas_day` (appended to `GET /api/desk/today`, earlier rows keep their positions;
+  no new route): per hub, today's and tomorrow's gas day, IN (contracts by delivery point,
+  nominated where held else contract quantity; LNG send-out from regas slots; storage
+  withdrawal and imports from the schedule; purchases), OUT (sales, offtake, injection,
+  exports), net to clear (NBP th/d, continental MWh/d with MW), WD/DA trades booked today,
+  cut-offs, and the cost of leaving it open at the approved assumption set's cash-out premium
+  or discount (no imbalance price is read: terms not verified, `docs/legal/DATA_SOURCE_TERMS.md`).
+- Scope from mandates and books (`application/gas_day.scope_of`), never the persona: a mandated
+  trader sees his books less what is delegated away plus what is delegated to him; a caller
+  without a mandate sees every book portfolio isolation lets him see.
+- One calendar: `domain/market/hub_cutoffs.py` (network-code defaults, labelled assumptions;
+  declared `nomination_window_masters` replace them); `strategy_tracking.cutoff_for` reads it.
+- Migration `0074_gas_day_schedule` (after `0073_contract_kinds`):
+  `gas_day_schedule_lines`, `gas_day_delegations`. `DB_SCHEMA_REVISION` pinned to it.
+- Demo: `seed_demo_gas_day` through `ensure_demo_fixtures` (schedule, today's nominations, a
+  send-out day, the TTF split, per-book cash-out sets); simulated, said once on the row.
+- Web: `components/today/GasDayRow.tsx`, first row for trader and operations
+  (`roleComposition.todayRows`); other roles unchanged.
+
 ## 2026-11-18 — CP-13 evaluation scheduling (branch `cp-13-eval-scheduling`, not pushed)
 
 - Migration `0071_opportunity_pending_inputs`: one row per input class changed since the last

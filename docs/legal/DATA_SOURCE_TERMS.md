@@ -23,6 +23,7 @@ confirm each provider's current terms before a production deployment.
 | LNG voyage distances (sea routes, CP-12 `freight_route`) | Nautical miles per load port, discharge port and routing | No openly licensed sea-distance table chosen yet; vendor distance tables are licensed per user | **Shipped empty.** The firm enters each route with where the distance came from (versioned, audited); the product ships no distances of its own until the owner picks a source |
 | ICE Endex, EEX, CME, NGX settlements | Gas, carbon (EUA, UKA), API2 coal, power, Henry Hub, AECO | Exchange licence held by the customer; non-display use for analytics must be covered | Licensed families `ICE_ENDEX`, `EEX`, `CME`, `NGX`; granted per user by an administrator |
 | National Gas (GB) | demand; storage and LNG stock, storage withdrawal/injection and LNG send-out (data portal, keyless CSV) | Open data licence; attribution | Certified source (demand); public baseline family `NATIONAL_GAS` (storage, LNG) |
+| Imbalance (cash-out) prices: National Gas SMP buy/sell (GB, NBP), Trading Hub Europe positive/negative imbalance prices (DE, THE), other zones' neutral or imbalance prices | Today → My gas day: the cost of leaving a hub's net open | **Not verified, not ingested** (see "Imbalance prices, checked 2026-11-19" below) | My gas day values an open net only at the cash-out premium or discount the firm enters in its approved assumption set (`balancing.short_premium`, `balancing.long_discount`), labelled as an assumption with the set and version |
 | EEX public market data (TTF NGP reference) | reference index | Display/internal use only; redistribution and derived products need an EEX licence. The website terms (see "EEX website terms, checked 2026-11-18" below) permit only a single copy for personal, non-commercial use without EEX's written approval, so **automated retrieval into the product is not covered** until the customer holds an EEX DataSource licence or EEX's written approval | Commercial family `EEX`; data-scope grant required; no bulk or scheduled load from eex.com without that licence |
 | WM/Reuters (LSEG), Bloomberg BFIX | FX fixes | Licensed; the subscriber's own entitlement | Operator import only; families `WMR`/`BFIX` need a grant |
 | Trayport, ICE, ICIS, Platts, Argus, Kpler | prices, assessments | Licensed per subscriber | Commercial families; no data shipped; a connector uses the customer's own credentials |
@@ -41,6 +42,30 @@ confirm each provider's current terms before a production deployment.
 Simulated price sources (`*_Sim`) generate synthetic numbers locally. They carry no
 third-party data, but they must never be shown as market prices. They are disabled in
 `trial` and `release` environments (`simulated_sources_allowed()`).
+
+## Imbalance prices, checked 2026-11-19
+
+My gas day (Today) wants the price a TSO cashes out an imbalance at, to say what leaving a hub
+open would cost. No source is used yet, because no publication's reuse terms could be read in
+full from this build environment (the hosts were not reachable: `nationalgas.com`,
+`www.tradinghub.eu`). What was found, by web search only, on 2026-11-19:
+
+- **National Gas (GB), System Marginal Buy and Sell Prices.** National Gas states that it
+  publishes open data through its Gas Data Portal under its system-operator licence: "Under our
+  Gas System Operator (GSO) licence, we must provide open data, which we do via our Gas Data
+  Portal." (search-result text for https://nationalgas.com/our-businesses/operational-data/gas-data-portal;
+  the page itself was not opened). The portal's own licence or terms page was not found, so
+  whether SMP may be reused in a commercial product is **not established**. The existing
+  "National Gas (GB)" row (demand, storage, LNG) does not extend to these prices by assumption.
+- **Trading Hub Europe (DE), imbalance prices.** THE publishes preliminary and final imbalance
+  prices (https://www.tradinghub.eu/en-gb/Publications/Prices/Imbalance-Prices) and portal terms
+  of use with a "Use of data" section (https://www.tradinghub.eu/Portals/0/Portalnutzungbedingungen/2022_portal%20terms%20of%20use.pdf,
+  a 2024 revision is referenced); the text of that section was not read. Not established.
+
+Until a publication's terms are read and recorded here with the quoted sentence, the product
+reads no imbalance price; nobody accepts terms or registers an account on the owner's behalf.
+The firm's own entered premium and discount (assumption set, approved by a second person) are
+the only basis, and the figure says so.
 
 ## EEX website terms, checked 2026-11-18
 

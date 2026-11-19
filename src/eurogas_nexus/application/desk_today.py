@@ -188,6 +188,8 @@ def build_today(
         _book_row(today, book, prices, read),
         _fundamentals(session, caller, now, balance_reader, read, focus),
         _needs_me(session, caller, now, book, focus, changes, key_figures, read),
+        # Appended (consumers index rows by position): what to clear today and tomorrow.
+        _gas_day(session, caller, now, book, read),
     ]
     simulated = any(item["simulated"] for item in read.figures)
     stale = [
@@ -217,6 +219,27 @@ def build_today(
         "stale_figures": stale,
         "warnings": read.warnings,
     }
+
+
+def _gas_day(session, caller: Caller, now: datetime, book: _Book, read: _Read) -> dict[str, Any]:
+    """Row 6, "My gas day" (``application/gas_day``): IN, OUT and net to clear per hub."""
+
+    from eurogas_nexus.application.gas_day import my_gas_day
+
+    try:
+        return my_gas_day(session, caller, now=now, inputs=book.inputs)
+    except Exception as exc:  # noqa: BLE001 - the other rows stand without it
+        read.warnings.append(f"gas day: not available ({exc.__class__.__name__})")
+        return {
+            "key": "gas_day",
+            "title": "My gas day",
+            "scope": None,
+            "days": [],
+            "simulated": False,
+            "populated": False,
+            "empty": empty("gas_day_unavailable", "The gas day could not be read",
+                           "Refresh, or open Book → Delivery"),
+        }
 
 
 #: Figures that are the caller's own book data (never a simulated market value).
