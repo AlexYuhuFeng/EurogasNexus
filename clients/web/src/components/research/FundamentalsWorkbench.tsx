@@ -18,6 +18,7 @@ import { api, type StorageEntityDTO } from "@/api/client";
 import { headline, sparkOf } from "@/app/model/storageByCountry";
 import { GasForPowerPanel } from "@/components/GasForPowerPanel";
 import { NweBalancePanel } from "@/components/NweBalancePanel";
+import { ForwardBalancePanel } from "./ForwardBalancePanel";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { Tabs } from "@/components/ui";
 import { CountryMultiples } from "./CountryMultiples";
@@ -52,7 +53,13 @@ function BalanceTab({ t }: { t: Translate }) {
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
-  return <NweBalancePanel t={t} simulated={simulated} />;
+  // Forward first (CP-25): what the coming days and months need; the measured balance below.
+  return (
+    <>
+      <ForwardBalancePanel t={t} />
+      <NweBalancePanel t={t} simulated={simulated} />
+    </>
+  );
 }
 
 function StorageMultiples({ t }: { t: Translate }) {

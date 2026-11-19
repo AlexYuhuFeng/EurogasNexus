@@ -3764,6 +3764,119 @@ export interface FlowEntityDTO {
   season?: StorageEntityDTO["season"];
 }
 
+/** One forward day of the balance (GET /api/fundamentals/forward-balance), GWh/d. */
+export interface ForwardBalanceDayDTO {
+  day: string;
+  horizon_days: number;
+  demand_gwh_d: number;
+  demand_error_gwh_d: number | null;
+  demand_normal_gwh_d: number | null;
+  hdd_normal: number;
+  hdd_change: number;
+  norway_gwh_d: number;
+  norway_normal_gwh_d: number | null;
+  norway_outage_gwh_d: number;
+  lng_gwh_d: number;
+  lng_normal_gwh_d: number | null;
+  storage_gwh_d: number;
+  storage_normal_gwh_d: number | null;
+  gap_gwh_d: number;
+  inventory_twh: number | null;
+  fill_pct: number | null;
+  band_low_pct: number | null;
+  band_high_pct: number | null;
+  band_mean_pct: number | null;
+  methods: Record<string, string>;
+  flags: string[];
+}
+
+export interface ForwardBalanceMonthDTO {
+  month: string;
+  days: number;
+  demand_gwh_d: number;
+  demand_error_gwh_d: number | null;
+  hdd_normal: number;
+  hdd_normal_std: number;
+  hdd_years: number;
+  hdd_change: number;
+  norway_gwh_d: number;
+  norway_outage_gwh_d: number;
+  lng_gwh_d: number;
+  storage_gwh_d: number;
+  gap_gwh_d: number;
+  inventory_twh_end: number | null;
+  fill_pct_end: number | null;
+  band_low_pct: number | null;
+  band_high_pct: number | null;
+  band_mean_pct: number | null;
+  methods: Record<string, string>;
+}
+
+export interface ForwardBalanceLineDTO {
+  id: "demand" | "norway" | "lng" | "storage" | "weather_normal";
+  source: string;
+  as_of: string | null;
+  /** The weakest input's class: observed, scheduled, forecast, assumption, manual or simulated. */
+  class: string;
+  inputs: string[];
+  note?: string;
+}
+
+export interface ForwardBalanceBacktestRowDTO {
+  horizon_days: number;
+  n: number;
+  mae_gwh_d: number | null;
+  mape_pct: number | null;
+  bias_gwh_d: number | null;
+}
+
+export interface ForwardBalanceDTO {
+  hub: string;
+  unit: string;
+  as_of: string | null;
+  simulated: boolean;
+  headline: {
+    direction: "tighter" | "looser" | "about_normal";
+    gwh_d: number;
+    signed_gwh_d: number;
+    window: { from: string; to: string; days: number };
+    main_driver: "demand" | "norway" | "lng";
+    contributions_gwh_d: Record<"demand" | "norway" | "lng", number>;
+    norway_outage_gwh_d: number;
+  } | null;
+  daily: ForwardBalanceDayDTO[];
+  monthly: ForwardBalanceMonthDTO[];
+  lines: ForwardBalanceLineDTO[];
+  demand_model: { a_gwh_d: number; b_gwh_d_per_hdd: number; r2: number; months: number; residual_std_gwh_d: number; fitted_from: string | null; fitted_to: string | null } | null;
+  backtest: {
+    daily: { origins: number; from: string | null; to: string; horizons: ForwardBalanceBacktestRowDTO[]; method: string };
+    monthly: { n: number; mae_gwh_d: number | null; method: string; months: { month: string; predicted_gwh_d: number; actual_gwh_d: number; error_gwh_d: number }[] };
+  };
+  storage: {
+    fill_pct: number | null;
+    as_of: string | null;
+    band_label: string | null;
+    target: { pct: number; deadline: string; implied_fill_pct: number | null; within_horizon: boolean; gap_pts: number | null } | null;
+  };
+  overridden: string[];
+  what_if: { temperature_shift_c: number; norway_gwh_d: number | null; lng_gwh_d: number | null; added_outage: { line: string; gwh_d: number; from: string; to: string | null } | null };
+  outages_applied: number;
+  forward_curve: { hub: string; for_reference_only: boolean; months: { hub: string; month: string; price: number; method: string; source: string }[] };
+  weather_reference: { attribution: string; licence: string; months: { from: string; to: string } };
+  zone_note: string;
+  not_a_price_forecast: string;
+}
+
+export interface ForwardBalanceQuery {
+  temperature_shift_c?: number;
+  norway_gwh_d?: number;
+  lng_gwh_d?: number;
+  outage_line?: "norway" | "lng";
+  outage_gwh_d?: number;
+  outage_from?: string;
+  outage_to?: string;
+}
+
 export interface FundamentalsFlowsDTO {
   totals: FlowEntityDTO[];
   landings: FlowEntityDTO[];
@@ -5194,6 +5307,12 @@ export const api = {
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
   decisionHandoff: (caseId: string) =>
     get<Record<string, unknown>>(`/decision-cases/${encodeURIComponent(caseId)}/handoff`),
+  fundamentalsForwardBalance: (query: ForwardBalanceQuery = {}, options?: ApiRequestOptions) =>
+    get<ForwardBalanceDTO>(
+      "/fundamentals/forward-balance",
+      Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== "" && v !== 0).map(([k, v]) => [k, String(v)])),
+      options,
+    ),
   fundamentalsFlows: (season: string[] = [], options?: ApiRequestOptions) =>
     get<FundamentalsFlowsDTO>("/fundamentals/flows", season.length ? { season: season.join(",") } : undefined, options),
   nweBalanceHistory: (historyDays: number, options?: ApiRequestOptions) =>
