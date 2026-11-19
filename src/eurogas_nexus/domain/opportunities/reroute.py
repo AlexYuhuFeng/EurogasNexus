@@ -240,6 +240,11 @@ class RerouteEvaluator:
             ),
         )
         first = routed[0]
+        source = {r.resource_id: r.location_point_name for r in pool_resources}
+        target = {o.option_id: o.target_point_name for o in pool_options}
+        route_points = _route_points(
+            source.get(first.resource_id, ""), target.get(first.option_id, "")
+        )
         yield Candidate(
             type=self.type,
             identity=tuple(sorted(f"{a.resource_id}->{a.option_id}" for a in routed)),
@@ -253,6 +258,9 @@ class RerouteEvaluator:
                 "option": names.get(first.option_id, first.option_id),
                 "delta": f"{currency} {grouped(delta, 2)}",
                 "margin": f"{signed(margin, 3)} {currency}/MWh",
+                # The re-routed path for the map: ordered point ids, comma-separated ("" when
+                # the two points are not on the pricing graph).
+                "route_points": ",".join(route_points),
             },
             headline=Measure(delta, unit),
             volume=Measure(Decimal(1), "d"),
@@ -289,3 +297,18 @@ class RerouteEvaluator:
 
 
 REROUTE = register(RerouteEvaluator())
+
+
+def _route_points(from_point: str, to_point: str) -> list[str]:
+    """Ordered point ids of the proven path between two points' market areas, or []."""
+
+    from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
+
+    graph = shipped_market_area_graph()
+    start, target = graph.hub_for(from_point), graph.hub_for(to_point)
+    if not start or not target or start == target:
+        return []
+    crossings = graph.route(start, target)
+    if not crossings:
+        return []
+    return list(dict.fromkeys(point for crossing in crossings for point in crossing.points))

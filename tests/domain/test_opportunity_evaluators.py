@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+from eurogas_nexus.application.route_tariff_cost import route_cost
 from eurogas_nexus.domain.opportunities.event_exposure import EventExposureEvaluator, source_name
 from eurogas_nexus.domain.opportunities.locational import (
     HeldCapacityEvaluator,
@@ -151,7 +152,9 @@ def _run_l(inputs, evaluator=None, demo=False):
             outages_key("THE", JAN27): [],
         },
     )
-    return run(evaluator or LocationalEvaluator(_graph), snapshot, as_of=AS_OF)
+    return run(
+        evaluator or LocationalEvaluator(_graph), snapshot, as_of=AS_OF, route_pricer=route_cost
+    )
 
 
 def test_golden_ttf_to_the_jan27() -> None:
@@ -199,6 +202,24 @@ def test_golden_ttf_to_the_jan27() -> None:
         "TTF → THE · Jan-27 · 10,000 MWh/d: +0.229 EUR/MWh after transport via Oude "
         "Statenzijl; EUR 71,042."
     )
+    # The priced route travels with the record for the map: ordered point ids.
+    assert candidate.claim_fields["route_points"] == "ITP-00005"
+
+
+def test_l_is_priced_only_through_the_route_pricer() -> None:
+    """One route pricer (application/route_tariff_cost.route_cost), injected: without it the
+    evaluator prices nothing rather than carrying a second route implementation."""
+
+    snapshot = fixture_snapshot(_l_inputs(), as_of=AS_OF)
+    assert run(LocationalEvaluator(_graph), snapshot, as_of=AS_OF) == []
+    calls = []
+
+    def spy(*args, **kwargs):
+        calls.append(args[:2])
+        return route_cost(*args, **kwargs)
+
+    assert run(LocationalEvaluator(_graph), snapshot, as_of=AS_OF, route_pricer=spy)
+    assert ("TTF", "THE") in calls
 
 
 def test_l_controls_on_the_golden_route() -> None:

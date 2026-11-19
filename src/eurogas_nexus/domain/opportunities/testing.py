@@ -104,12 +104,20 @@ def run(
     as_of: datetime,
     thresholds: Thresholds | None = None,
     demo_desk: bool | None = None,
+    route_pricer=None,
 ) -> list[tuple[Candidate, Assessment]]:
-    """Evaluate, check the contract and apply the controls, as the service does."""
+    """Evaluate, check the contract and apply the controls, as the service does.
+
+    ``route_pricer`` is the application's route pricer (tests pass
+    ``application.route_tariff_cost.route_cost``; the domain cannot import it).
+    """
 
     demo = snapshot.demo_desk if demo_desk is None else demo_desk
     context = EvaluationContext(
-        as_of_utc=as_of, thresholds=thresholds or Thresholds(), demo_desk=demo
+        as_of_utc=as_of,
+        thresholds=thresholds or Thresholds(),
+        demo_desk=demo,
+        route_pricer=route_pricer,
     )
     out = []
     for candidate in evaluator.evaluate(snapshot, context):

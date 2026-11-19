@@ -345,7 +345,9 @@ def run_evaluation(
             assumption_set_id=thresholds.assumption_set_id,
             demo_desk=demo_desk,
         )
-        context = EvaluationContext(now, thresholds, reader.demo_desk)
+        from eurogas_nexus.application.route_tariff_cost import route_cost
+
+        context = EvaluationContext(now, thresholds, reader.demo_desk, route_pricer=route_cost)
         for evaluator in evaluators if evaluators is not None else registered():
             try:
                 candidates = list(evaluator.evaluate(reader, context))

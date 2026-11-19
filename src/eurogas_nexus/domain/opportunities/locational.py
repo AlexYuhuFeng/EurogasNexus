@@ -6,9 +6,15 @@
     net = P_B(bid) x fx_B - P_A(ask) x fx_A - sum(tariff_leg x product multiplier / load factor)
           - fuel % x P_A
 
-- every crossing contributes its market-area exit, any pipeline charge and the market-area
-  entry, each from the published tariff in force for the period (a missing one is named:
-  "tariff not held at <point>", never zero);
+- the route and its legs come from the one route pricer the product has
+  (``application/route_tariff_cost.route_cost``, injected through the evaluation context so
+  the domain never imports the application): every crossing contributes its market-area
+  exit, any pipeline charge and the market-area entry, each from the published tariff in
+  force for the period, read through the snapshot (a missing one is named: "tariff not held
+  at <point>", never zero). The rows the pricer chooses from are the snapshot's tariff reads
+  for every crossing within two of the buying area, so a replay chooses the same route;
+- the record carries its priced route as ordered point ids (``claim_fields["route_points"]``,
+  comma-separated) for the map;
 - tariffs are capacity charges: the published per-MWh figure assumes the capacity flows every
   hour (100 % load factor, ``ingestion/entsog_tariffs.per_mwh_at_full_load``). The firm's
   load factor, when its assumption set holds one, divides it; the falsifiers always state
@@ -42,6 +48,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
+from eurogas_nexus.domain.market.fx_forward import Delivery
 from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_for_date
 from eurogas_nexus.domain.opportunities.claims import grouped, period_label, signed
 from eurogas_nexus.domain.opportunities.evaluator import EvaluationContext, register
@@ -61,7 +68,13 @@ from eurogas_nexus.domain.opportunities.model import (
 )
 from eurogas_nexus.domain.valuation.periods import DeliveryPeriod
 from eurogas_nexus.domain.valuation.quality import InputClass
-from eurogas_nexus.domain.valuation.snapshot import InputKind, SnapshotInput, SnapshotReader
+from eurogas_nexus.domain.valuation.snapshot import (
+    InputKind,
+    SnapshotInput,
+    SnapshotReader,
+    gas_year_of,
+    tariff_key,
+)
 
 EUR = "EUR"
 UNIT = "EUR/MWh"
@@ -125,6 +138,96 @@ class _Route:
         self.s = snapshot
         self.ctx = context
         self.graph = graph
+        self._rows: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        self._items: dict[str, SnapshotInput] = {}
+
+    # ---- the route, from the one route pricer
+    def _route_rows(self, start: str, product: str, period: DeliveryPeriod) -> list[dict]:
+        """Tariff rows for every crossing within reach of ``start``, read through the snapshot.
+
+        Each row is the per-MWh figure at full load (``tariff_per_mwh``); a tariff whose unit
+        cannot be converted is left out (the leg is then missing and named).
+        """
+
+        cache = (start, product, period.label)
+        if cache in self._rows:
+            return self._rows[cache]
+        reach, frontier = {start}, {start}
+        for _ in range(MAX_CROSSINGS):
+            frontier = {n for k in frontier for n in self.graph.neighbours(k)} - reach
+            reach |= frontier
+        rows: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for area in sorted(reach):
+            for other in sorted(self.graph.neighbours(area)):
+                if other not in reach:
+                    continue
+                for crossing in self.graph.crossings(area, other):
+                    for spec in self.graph.legs(crossing):
+                        # A point is exited by one operator and entered by another: the row
+                        # names the operator of the leg as the pricer matches it.
+                        if (spec.point_key, spec.direction, spec.tso) in seen:
+                            continue
+                        seen.add((spec.point_key, spec.direction, spec.tso))
+                        item = self.s.tariff(spec.point_key, spec.direction, product, period)
+                        self._items[item.key] = item
+                        per_mwh, _how = tariff_per_mwh(item) if item.held else (None, "")
+                        if per_mwh is None:
+                            continue
+                        rows.append(
+                            {
+                                "tariff_id": item.key,
+                                "tso": spec.tso,
+                                "point_id": spec.point_key,
+                                "direction": spec.direction,
+                                "gas_year": gas_year_of(period),
+                                "tariff_value": float(per_mwh),
+                                "currency": item.currency or EUR,
+                                "unit": f"{item.currency or EUR}/MWh",
+                                "effective_from": None,
+                                "effective_to": None,
+                                "tariff_status": item.detail.get("tariff_status") or "",
+                                "source_table": item.source_family,
+                                "capacity_product": product,
+                            }
+                        )
+        self._rows[cache] = rows
+        return rows
+
+    def _priced_route(self, buy_hub: str, sell_hub: str, start: str, period: DeliveryPeriod):
+        """``(route, product)`` from the route pricer, or None when no route is proven.
+
+        The period's own capacity product first; when its route is incomplete, the annual
+        product (with the firm's short-term multiplier, or marked indicative without it).
+        """
+
+        pricer = self.ctx.route_pricer
+        if pricer is None:
+            return None  # no route pricer injected: L is not evaluated (never a second one)
+        delivery = Delivery(
+            first=period.start,
+            last=period.end - timedelta(days=1),
+            kind=period.kind,
+            label=period.label,
+        )
+        product = PRODUCT_FOR_KIND.get(period.kind, "ANNUAL")
+        first = pricer(
+            buy_hub, sell_hub, delivery, self._route_rows(start, product, period), graph=self.graph
+        )
+        if not first.proven:
+            return None
+        if first.complete or product == "ANNUAL":
+            return first, product
+        annual = pricer(
+            buy_hub,
+            sell_hub,
+            delivery,
+            self._route_rows(start, "ANNUAL", period),
+            graph=self.graph,
+        )
+        if annual.proven and annual.complete:
+            return annual, "ANNUAL"
+        return first, product
 
     def _eur(self, price: SnapshotInput, period: DeliveryPeriod):
         currency = price.currency or EUR
@@ -153,9 +256,24 @@ class _Route:
         start, target = self.graph.hub_for(buy_hub), self.graph.hub_for(sell_hub)
         if start is None or target is None or start == target:
             return None
-        crossings = self.graph.route(start, target, via_points=via, max_hops=MAX_CROSSINGS)
-        if crossings is None:
-            return None  # unproven path: never priced directly (route_adjacency rule)
+        sunk = kind is OpportunityType.UNUSED_CAPACITY
+        product = PRODUCT_FOR_KIND.get(period.kind, "ANNUAL")
+        if via or sunk:
+            # Capacity the firm holds fixes the route by its points; its charges are sunk, so
+            # nothing is priced and no route is chosen.
+            crossings = self.graph.route(start, target, via_points=via, max_hops=MAX_CROSSINGS)
+            if crossings is None:
+                return None  # unproven path: never priced directly (route_adjacency rule)
+            specs = [spec for crossing in crossings for spec in self.graph.legs(crossing)]
+            route_via = [crossing.via for crossing in crossings]
+        else:
+            chosen = self._priced_route(buy_hub, sell_hub, start, period)
+            if chosen is None:
+                return None  # unproven path: never priced directly (route_adjacency rule)
+            priced, product = chosen
+            specs = list(priced.legs)
+            route_via = list(priced.via)
+        route_points = list(dict.fromkeys(spec.point_key for spec in specs))
         sell = self.s.price(sell_hub, period, "bid")
         buy = self.s.price(buy_hub, period, "ask")
         if not (sell.held and buy.held):
@@ -213,75 +331,73 @@ class _Route:
         if load.held:
             inputs.append(load)
             assumptions.append(self._assumption_use(load))
-        sunk = kind is OpportunityType.UNUSED_CAPACITY
         transport = Decimal(0)
         points: list[str] = []
-        for crossing in crossings:
-            for spec in self.graph.legs(crossing):
-                points.append(spec.point_name)
-                if sunk:
-                    legs.append(
-                        Leg(
-                            kind=LegKind.CONVERSION,
-                            label_key="capacity.sunk",
-                            label=f"{spec.role.replace('_', ' ')} at {spec.point_name} "
-                            f"({spec.tso}): capacity held, its charge is sunk",
-                            note="variable (commodity) charges: none held for this point",
-                        )
-                    )
-                    continue
-                item, multiplier, extra = self._tariff(spec, period)
-                inputs.extend(extra)
-                if item is None or not item.held:
-                    missing = item if item is not None else None
-                    if missing is not None:
-                        inputs.append(missing)
-                    continue
-                per_mwh, how = tariff_per_mwh(item)
-                if per_mwh is None:
-                    blockers.append(
-                        Blocker("input_missing", spec.point_name, f"Cannot evaluate: {how}.")
-                    )
-                    continue
-                if item.currency and item.currency != EUR:
-                    fx = self.s.fx(item.currency, EUR, period)
-                    inputs.append(fx)
-                    if not fx.held:
-                        continue
-                    per_mwh *= fx.value
-                inputs.append(item)
-                cost = (per_mwh * multiplier.value / (load_pct / HUNDRED)).quantize(Q)
-                transport += cost
-                running -= cost
+        for spec in specs:
+            points.append(spec.point_name)
+            if sunk:
                 legs.append(
                     Leg(
-                        kind=LegKind.TERM,
-                        label_key=f"locational.{spec.role}",
-                        label=f"{spec.role.replace('_', ' ').capitalize()} at {spec.point_name} "
-                        f"({spec.tso}), {item.detail.get('tariff_status', '').lower()} "
-                        f"{item.key.split(':')[3].lower()} tariff: {how}"
-                        + (f", x{multiplier.value} short-term" if multiplier.value != 1 else "")
-                        + (
-                            " (annual product for a shorter period: the short-term multiplier"
-                            " is not held, so this leg is indicative)"
-                            if any(x.key.endswith("#short-term") for x in extra)
-                            else ""
-                        )
-                        + (f", at {load_pct} % load" if load_pct != HUNDRED else ", full load"),
-                        rate=Measure(per_mwh.quantize(Q), UNIT),
-                        contribution=Measure(-cost, UNIT),
-                        input_class=(
-                            InputClass.INDICATIVE
-                            if any(x.key.endswith("#short-term") for x in extra)
-                            and item.input_class is InputClass.SOURCED
-                            else item.input_class
-                        ),
-                        source_family=item.source_family,
-                        source_ref=item.source_ref,
-                        as_of_utc=item.as_of_utc,
-                        input_keys=(item.key,),
+                        kind=LegKind.CONVERSION,
+                        label_key="capacity.sunk",
+                        label=f"{spec.role.replace('_', ' ')} at {spec.point_name} "
+                        f"({spec.tso}): capacity held, its charge is sunk",
+                        note="variable (commodity) charges: none held for this point",
                     )
                 )
+                continue
+            item, multiplier, extra = self._tariff(spec, period, product)
+            inputs.extend(extra)
+            if item is None or not item.held:
+                missing = item if item is not None else None
+                if missing is not None:
+                    inputs.append(missing)
+                continue
+            per_mwh, how = tariff_per_mwh(item)
+            if per_mwh is None:
+                blockers.append(
+                    Blocker("input_missing", spec.point_name, f"Cannot evaluate: {how}.")
+                )
+                continue
+            if item.currency and item.currency != EUR:
+                fx = self.s.fx(item.currency, EUR, period)
+                inputs.append(fx)
+                if not fx.held:
+                    continue
+                per_mwh *= fx.value
+            inputs.append(item)
+            cost = (per_mwh * multiplier.value / (load_pct / HUNDRED)).quantize(Q)
+            transport += cost
+            running -= cost
+            legs.append(
+                Leg(
+                    kind=LegKind.TERM,
+                    label_key=f"locational.{spec.role}",
+                    label=f"{spec.role.replace('_', ' ').capitalize()} at {spec.point_name} "
+                    f"({spec.tso}), {item.detail.get('tariff_status', '').lower()} "
+                    f"{item.key.split(':')[3].lower()} tariff: {how}"
+                    + (f", x{multiplier.value} short-term" if multiplier.value != 1 else "")
+                    + (
+                        " (annual product for a shorter period: the short-term multiplier"
+                        " is not held, so this leg is indicative)"
+                        if any(x.key.endswith("#short-term") for x in extra)
+                        else ""
+                    )
+                    + (f", at {load_pct} % load" if load_pct != HUNDRED else ", full load"),
+                    rate=Measure(per_mwh.quantize(Q), UNIT),
+                    contribution=Measure(-cost, UNIT),
+                    input_class=(
+                        InputClass.INDICATIVE
+                        if any(x.key.endswith("#short-term") for x in extra)
+                        and item.input_class is InputClass.SOURCED
+                        else item.input_class
+                    ),
+                    source_family=item.source_family,
+                    source_ref=item.source_ref,
+                    as_of_utc=item.as_of_utc,
+                    input_keys=(item.key,),
+                )
+            )
         fuel = self.s.assumption("transport.fuel_shrinkage")
         if fuel.held and not sunk:
             inputs.append(fuel)
@@ -309,7 +425,7 @@ class _Route:
         if position is not None:
             inputs.append(position)
         checks, volume_per_day = self._checks(
-            crossings, buy_hub, sell_hub, period, mwh_per_day, book_id, held_capacity, side
+            route_points, buy_hub, sell_hub, period, mwh_per_day, book_id, held_capacity, side
         )
         volume = (volume_per_day * period.days).quantize(Decimal("0.1"))
         legs.append(
@@ -411,6 +527,8 @@ class _Route:
                 "margin": f"{signed(net, 3)} EUR/MWh",
                 "costs": "held capacity (charges sunk)" if sunk else f"transport via {via_text}",
                 "value": f"EUR {grouped(value)}",
+                # The priced route for the map: ordered point ids, comma-separated.
+                "route_points": ",".join(route_points),
             },
             headline=Measure(net, UNIT),
             volume=Measure(volume, "MWh"),
@@ -430,7 +548,7 @@ class _Route:
             inputs=tuple(dict((item.key, item) for item in inputs).values()),
             evaluator="held_capacity" if sunk else "locational",
             evaluator_version="1",
-            extra={"points": points, "crossings": [c.via for c in crossings]},
+            extra={"points": points, "crossings": route_via, "route_points": route_points},
         )
 
     # ---- parts
@@ -489,15 +607,18 @@ class _Route:
             range_high=_dec(item.detail.get("range_high")),
         )
 
-    def _tariff(self, spec, period: DeliveryPeriod):
-        """The tariff for the period's product, else the annual one with the multiplier."""
+    def _tariff(self, spec, period: DeliveryPeriod, product: str):
+        """The leg's tariff in the product the route was priced in; for an annual tariff on a
+        shorter period, the firm's multiplier (or an indicative marker without it)."""
 
-        product = PRODUCT_FOR_KIND.get(period.kind, "ANNUAL")
-        first = self.s.tariff(spec.point_key, spec.direction, product, period)
+        key = tariff_key(spec.point_key, spec.direction, product, period)
+        item = self._items.get(key)
+        if item is None:
+            item = self.s.tariff(spec.point_key, spec.direction, product, period)
         one = Measure(Decimal(1), "x")
-        if first.held or product == "ANNUAL":
-            return first, one, []
-        annual = self.s.tariff(spec.point_key, spec.direction, "ANNUAL", period)
+        if product != "ANNUAL" or PRODUCT_FOR_KIND.get(period.kind, "ANNUAL") == "ANNUAL":
+            return item, one, []
+        annual = item
         if not annual.held:
             return annual, one, []
         multiplier = self.s.assumption("capacity.short_term_multiplier")
@@ -529,10 +650,10 @@ class _Route:
         half = ((sell_ask.value - sell.value) * rate_s + (buy.value - buy_bid.value) * rate_b) / 2
         return Measure(half.quantize(Q), UNIT)
 
-    def _checks(self, crossings, buy_hub, sell_hub, period, mwh_per_day, book_id, held, side):
+    def _checks(self, route_points, buy_hub, sell_hub, period, mwh_per_day, book_id, held, side):
         checks: list[Check] = []
         volume = mwh_per_day
-        first_point = crossings[0].points[0]
+        first_point = route_points[0]
         if held is not None:
             capacity = held.value or Decimal(0)
             volume = min(volume, capacity)
@@ -576,18 +697,17 @@ class _Route:
                         f"capacity at {first_point} not held",
                     )
                 )
-        checks.append(self._outage_check(crossings, buy_hub, sell_hub, period))
+        checks.append(self._outage_check(route_points, buy_hub, sell_hub, period))
         checks.append(self._mandate_check(buy_hub, sell_hub, period, volume, book_id, side))
         return checks, volume
 
-    def _outage_check(self, crossings, buy_hub, sell_hub, period) -> Check:
+    def _outage_check(self, route_points, buy_hub, sell_hub, period) -> Check:
         feed = self.s.collection("outage_feed")
         if not feed or not feed[0].held:
             return Check(CheckKind.OUTAGE, CheckResult.NOT_ASSESSED, "no outage feed held")
         names = {
             str(self.graph.points.get(point, {}).get("name") or point).casefold()
-            for crossing in crossings
-            for point in crossing.points
+            for point in route_points
         }
         hits = []
         for hub in (buy_hub, sell_hub):

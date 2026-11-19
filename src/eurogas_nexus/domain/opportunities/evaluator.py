@@ -30,10 +30,10 @@ Register with :func:`register`; the service runs every registered evaluator per 
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from eurogas_nexus.domain.opportunities.claims import render_claim
 from eurogas_nexus.domain.opportunities.controls import Thresholds
@@ -53,6 +53,10 @@ class EvaluationContext:
     as_of_utc: datetime
     thresholds: Thresholds
     demo_desk: bool
+    #: The product's one route pricer (``application/route_tariff_cost.route_cost``), injected
+    #: by the application: ``(from_hub, to_hub, delivery, tariff_rows, graph=)`` -> a route
+    #: with ``proven``, ``complete``, ``via`` and priced ``legs``. Without it L is not priced.
+    route_pricer: Callable[..., Any] | None = None
 
 
 @runtime_checkable
