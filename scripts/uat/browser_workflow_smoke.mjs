@@ -158,7 +158,9 @@ const SURFACE_SIGNALS = {
   // Context the surfaces are showing, so the probe reads that projection for the *displayed* gas
   // day, product and hub; `quotedBoard` declares the hub scope the board prices and how its cards
   // are compared with the rows they name.
-  market: { heading: /market/i, apiPath: "/api/projections/market-context", displayedContext: "[data-context-gas-day]", quotedBoard: { hubScope: ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"] } },
+  // The board and its context controls are on Prices; Desk opens on Today (decision D1), which
+  // has neither, so the signal names the task it measures.
+  market: { heading: /market/i, task: "curves", apiPath: "/api/projections/market-context", displayedContext: "[data-context-gas-day]", quotedBoard: { hubScope: ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"] } },
   scenario: { heading: /decision/i, apiPath: "/api/decision-cases?limit=5" },
   // Match the client's upstream-terms read; this endpoint has no limit parameter. One persisted
   // contract is rendered in two places - the pool row the Portfolio Overview task draws from the
@@ -527,6 +529,12 @@ async function inspectSurfaceFunction(
       "no surface signal is declared for this workspace: add one, so the link cannot pass unmeasured",
     );
     return null;
+  }
+  if (signal.task && !new URL(page.url()).searchParams.get("task")) {
+    await page.goto(`${BASE}/?workspace=${encodeURIComponent(workspace)}&task=${signal.task}`, { waitUntil: "domcontentloaded" });
+    await page
+      .waitForFunction(() => [...document.querySelectorAll(".workspace-page")].some((element) => element.dataset.workspaceLoadState === "settled"), null, { timeout: 15_000 })
+      .catch(() => undefined);
   }
 
   const state = await page.evaluate(async (probe) => {
