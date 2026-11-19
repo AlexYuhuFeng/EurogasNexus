@@ -5789,5 +5789,9 @@
   "hints.deals.contracts.new": "New contract asks the kind first, then only the terms that kind has.",
   "hints.deals.contracts.import": "Import PDF reads a contract and fills the terms, each with its page.",
   "prompt.no_quotes": "No within-day or day-ahead quote held.",
-  "prompt.no_quotes_next": "Prompt quotes arrive through your Trayport, ICE or EEX entitlement; your administrator connects it."
+  "prompt.no_quotes_next": "Prompt quotes arrive through your Trayport, ICE or EEX entitlement; your administrator connects it.",
+  "example.see": "See an example",
+  "example.banner": "Example — not your data",
+  "example.banner_detail": "Made-up figures showing how this page looks once it is filled. Nothing here is saved.",
+  "example.leave": "Leave the example"
 }

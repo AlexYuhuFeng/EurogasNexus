@@ -35,7 +35,8 @@ import {
   timeLeft,
   type OpportunityBucket,
 } from "@/app/model/opportunitiesModel";
-import { Button, EmptyState, StatusBadge } from "@/components/ui";
+import { Button, EmptyState, ExampleFrame, StatusBadge, useExampleView } from "@/components/ui";
+import { exampleOpportunityList } from "@/app/experience/examples";
 import { Instant } from "@/components/ui/Instant";
 import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { OpportunityDetail } from "./OpportunityDetail";
@@ -64,6 +65,7 @@ export function OpportunitiesPage({
 }: OpportunitiesPageProps) {
   const [list, setList] = useState<OpportunityListDTO | null>(null);
   const [failed, setFailed] = useState(false);
+  const exampleView = useExampleView();
   const [selected, setSelected] = useState<string | null>(initialOpportunityId);
   const [evaluating, setEvaluating] = useState(false);
   const [marksOpen, setMarksOpen] = useState(false);
@@ -105,6 +107,8 @@ export function OpportunitiesPage({
 
   const now = new Date();
   const evaluation = evaluationLine(list);
+  // "See an example" (design H.1): an empty book can look at a bundled example list, inert.
+  const exampleList = exampleView.example ? exampleOpportunityList(now) : null;
   const allRows = [...LANES, ...GROUPS].flatMap((bucket) => bucketRows(list, bucket));
   const scope = simulatedScopeOf(allRows.map((row) => row.simulated));
   const selectedRow = allRows.find(
@@ -166,12 +170,25 @@ export function OpportunitiesPage({
         />
       )}
 
-      {list && !hasAnyOpportunity(list) && (
+      {list && !hasAnyOpportunity(list) && !exampleView.example && (
         <EmptyState
           id="opportunities-empty"
           reason={t(emptyReason(list))}
           next={list.evaluation ? undefined : t("opportunities.empty.next")}
+          onSeeExample={exampleView.show}
         />
+      )}
+
+      {exampleView.example && exampleList && (
+        <ExampleFrame page="opportunities" onLeave={exampleView.leave}>
+          <div className="opportunities-body">
+            <div className="opportunities-list">
+              {LANES.map((lane) => (
+                <Lane key={lane} t={t} list={exampleList} bucket={lane} selected={null} now={now} onSelect={() => undefined} />
+              ))}
+            </div>
+          </div>
+        </ExampleFrame>
       )}
 
       {list && hasAnyOpportunity(list) && (

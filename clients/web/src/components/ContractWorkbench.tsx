@@ -1,4 +1,5 @@
-import { DataGrid, PeriodPicker, RecordPicker, Sheet, WorkProgress, buttonClass } from "@/components/ui";
+import { DataGrid, ExampleWhen, PeriodPicker, RecordPicker, SeeExample, Sheet, WorkProgress, buttonClass, useExampleView } from "@/components/ui";
+import { EXAMPLE_CONTRACTS } from "@/app/experience/examples";
 import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { formatDeliveryMonth } from "@/app/time/timeFormat";
 import { idFromName } from "@/components/ui/recordPickerModel";
@@ -428,12 +429,17 @@ export function ContractWorkbench({
   const compact = useSettled(useCompactWidth(), 300);
   const counterpartyOf = (row: UpstreamContractDTO) =>
     stringFromRecord({ ...notesRecordFromRecord(row as unknown as Record<string, unknown>) }, "counterparty", "");
+  // "See an example" (design H.1): with no contract yet, the list can show a bundled example,
+  // drawn by the same grid, inert and labelled; nothing in it is stored.
+  const exampleView = useExampleView();
+  const example = exampleView.example;
+  const listSource = example ? EXAMPLE_CONTRACTS : upstreamContracts;
   const rows = useMemo(
-    () => listedContracts(upstreamContracts, { query, kind: kindFilter, today, counterpartyOf }),
+    () => listedContracts(listSource, { query, kind: kindFilter, today, counterpartyOf }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [upstreamContracts, query, kindFilter, today],
+    [listSource, query, kindFilter, today],
   );
-  const kindsHeld = useMemo(() => [...new Set(upstreamContracts.map((row) => row.contract_kind ?? "SUPPLY_GSA"))], [upstreamContracts]);
+  const kindsHeld = useMemo(() => [...new Set(listSource.map((row) => row.contract_kind ?? "SUPPLY_GSA"))], [listSource]);
   // The open contract stays open while a refresh of the list is in flight: a library read that
   // has not answered yet (or failed and kept nothing) must not close it and lose what the
   // person was typing in it.
@@ -600,7 +606,7 @@ export function ContractWorkbench({
     <div className="contract-task-workspace contract-list-page">
       <section className="contract-list-command" aria-label={t("contracts.command_strip")}>
         <strong className="contract-list-count" data-contract-count={upstreamContracts.length}>
-          {t("contracts.list.count", { count: upstreamContracts.length })}
+          {t("contracts.list.count", { count: listSource.length })}
         </strong>
         <input
           type="search"
@@ -632,7 +638,8 @@ export function ContractWorkbench({
         </div>
       )}
 
-      <div className={`contract-list-layout${detail && !compact ? " has-detail" : ""}`}>
+      <ExampleWhen on={example} page="contracts" onLeave={exampleView.leave}>
+      <div className={`contract-list-layout${detail && !compact && !example ? " has-detail" : ""}`}>
         <section className="contract-list" aria-label={t("contracts.list.title")}>
           <DataGrid
             id="contract-list"
@@ -644,9 +651,14 @@ export function ContractWorkbench({
             onRowAction={openContract}
             // The row carries the stored contract's own id, so the acceptance sweep compares it
             // with the upstream-terms read by exact id (`scripts/uat/readToRender.mjs`).
-            rowAttributes={(row) => ({ "data-record": "upstream-contract", "data-record-id": row.contract_id, "data-contract-kind": row.contract_kind ?? "SUPPLY_GSA", "data-master": row.master_contract_id ?? undefined })}
+            rowAttributes={(row) => (example ? { "data-example-record": row.contract_id } : { "data-record": "upstream-contract", "data-record-id": row.contract_id, "data-contract-kind": row.contract_kind ?? "SUPPLY_GSA", "data-master": row.master_contract_id ?? undefined })}
             rowClassName={(row) => (row.master_contract_id && rows.some((item) => item.contract_id === row.master_contract_id) ? "contract-row-confirmation" : undefined)}
-            empty={<span data-empty-state="contract-library">{t(upstreamContracts.length ? "contracts.list.none_match" : "contracts.no_saved_contracts")}</span>}
+            empty={(
+              <span data-empty-state="contract-library">
+                {t(listSource.length ? "contracts.list.none_match" : "contracts.no_saved_contracts")}
+                {listSource.length === 0 && <> <SeeExample onShow={exampleView.show} /></>}
+              </span>
+            )}
             columns={[
               { id: "name", header: t("contracts.list.name"), rowHeader: true, priority: "primary", value: (row) => row.contract_name, render: (row) => (
                 row.master_contract_id && rows.some((item) => item.contract_id === row.master_contract_id)
@@ -656,7 +668,7 @@ export function ContractWorkbench({
               { id: "kind", header: t("contracts.list.kind"), priority: "secondary", value: (row) => t(`contracts.kind.${row.contract_kind ?? "SUPPLY_GSA"}`), render: (row) => (
                 <span className="contract-kind-badge" data-kind-reviewed={row.contract_kind_reviewed === false ? "false" : "true"} title={row.contract_kind_reviewed === false ? t("contracts.kind.inferred") : undefined}>{t(`contracts.kind.${row.contract_kind ?? "SUPPLY_GSA"}`)}</span>
               ) },
-              { id: "figure", header: t("contracts.list.figure"), priority: "primary", value: (row) => kindFigure(row, upstreamContracts, t), cellTitle: (row) => t(`contracts.figure.${figureKey(row, upstreamContracts)}`) },
+              { id: "figure", header: t("contracts.list.figure"), priority: "primary", value: (row) => kindFigure(row, listSource, t), cellTitle: (row) => t(`contracts.figure.${figureKey(row, listSource)}`) },
               { id: "status", header: t("contracts.list.status"), priority: "primary", value: (row) => STATUS_ORDER.indexOf(contractStatus(row, today)), render: (row) => (
                 <span className="contract-status" data-contract-status={contractStatus(row, today)}>{t(`contracts.status.${contractStatus(row, today)}`)}</span>
               ) },
@@ -665,9 +677,9 @@ export function ContractWorkbench({
               { id: "period", header: t("contracts.list.period"), priority: "secondary", value: (row) => contractPeriodText(row, monthName) },
             ]}
           />
-          {onContractLifecycle && <RetiredContractsList onLifecycle={onContractLifecycle} refreshKey={upstreamContracts.length} t={t} />}
+          {onContractLifecycle && !example && <RetiredContractsList onLifecycle={onContractLifecycle} refreshKey={upstreamContracts.length} t={t} />}
         </section>
-        {detail && !compact && (
+        {detail && !compact && !example && (
           <section className="contract-detail" aria-label={detailTitle}>
             <div className="contract-detail-head">
               <strong>{detailTitle}</strong>
@@ -677,7 +689,8 @@ export function ContractWorkbench({
           </section>
         )}
       </div>
-      {detail && compact && (
+      </ExampleWhen>
+      {detail && compact && !example && (
         <Sheet open onClose={closeDetail} title={detailTitle} closeLabel={t("contracts.list.close")} side="bottom">
           {detail}
         </Sheet>

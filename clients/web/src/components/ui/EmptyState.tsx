@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { SeeExample } from "./ExampleView";
+
 /**
  * The one way a panel says it has nothing to show (#27, UX-02): one line with the cause and,
  * where there is one, the next step and one action. It replaces grids of "n/a" cards, empty bars
@@ -14,6 +16,7 @@ export function EmptyState({
   id,
   need,
   compact = false,
+  onSeeExample,
 }: {
   /** Why there is nothing: "No outages on the network now." */
   reason: ReactNode;
@@ -30,6 +33,8 @@ export function EmptyState({
    * never a prompt to buy.
    */
   need?: "data" | "permission" | "licence";
+  /** A page empty for a new installation offers its example ("See an example", design H.1). */
+  onSeeExample?: () => void;
 }) {
   return (
     <div className={compact ? "empty-state empty-state-compact" : "empty-state"} role="status" data-empty-state={id} data-empty-need={need}>
@@ -38,6 +43,7 @@ export function EmptyState({
         {next ? <span> {next}</span> : null}
       </p>
       {action}
+      {onSeeExample ? <SeeExample onShow={onSeeExample} /> : null}
     </div>
   );
 }

@@ -193,6 +193,43 @@
     font-weight: var(--ds-weight-regular);
   }
 
+  /* ------------------------------------------------------- Example (H.1) */
+  /* "See an example": the page's own components over a bundled fixture, under one banner,
+     inert (nothing in it can be pressed or saved). */
+  .ds-example {
+    display: grid;
+    gap: var(--ds-space-3);
+    min-width: 0;
+  }
+
+  .ds-example-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2) var(--ds-space-3);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px dashed var(--ds-border-strong);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .ds-example-banner p {
+    margin: 0;
+    min-width: 0;
+  }
+
+  .ds-example-banner strong {
+    color: var(--ds-text-1);
+  }
+
+  .ds-example-body {
+    min-width: 0;
+    opacity: 0.92;
+  }
+
   /* --------------------------------------------------------------- Skeleton */
   .ds-skeleton-group {
     display: grid;

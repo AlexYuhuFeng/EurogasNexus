@@ -12,6 +12,7 @@ export type { WorkspaceTabItem } from "./WorkspaceTabs";
 export { WorkspaceHeader } from "./WorkspaceHeader";
 export { getNextWorkspaceTabIndex, workspaceTabButtonId } from "./tabKeyboard";
 export { EmptyState } from "./EmptyState";
+export { ExampleFrame, ExampleWhen, SeeExample, useExampleView } from "./ExampleView";
 export { Button, IconButton, buttonClass } from "./Button";
 export type { ButtonProps, ButtonVariant, ControlSize, IconButtonProps } from "./Button";
 export type { StatusTone, StatusBadgeProps } from "./StatusBadge";

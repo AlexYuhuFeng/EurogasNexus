@@ -5789,5 +5789,9 @@
   "hints.deals.contracts.new": "新建合同先选类型，再只填写该类型的条款。",
   "hints.deals.contracts.import": "导入 PDF 可读取合同并填写条款，每项注明所在页。",
   "prompt.no_quotes": "暂无日内或日前报价。",
-  "prompt.no_quotes_next": "即期报价通过您的 Trayport、ICE 或 EEX 授权接入；由您的管理员连接。"
+  "prompt.no_quotes_next": "即期报价通过您的 Trayport、ICE 或 EEX 授权接入；由您的管理员连接。",
+  "example.see": "查看示例",
+  "example.banner": "示例 — 并非您的数据",
+  "example.banner_detail": "虚构数据，展示本页填充后的样子。此处不保存任何内容。",
+  "example.leave": "退出示例"
 }

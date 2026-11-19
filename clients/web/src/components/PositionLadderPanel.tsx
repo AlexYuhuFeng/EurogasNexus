@@ -4,7 +4,8 @@ import { api, type LadderRollupDTO, type PositionLadderDTO, type PositionLadderR
 import { hubCurrency } from "@/app/contractChoices";
 import { ReportExport } from "./ReportExport";
 import { MethodNote } from "./MethodNote";
-import { DataGrid, EmptyState, Field, KeyFigure, Select, Skeleton, Toolbar, type DataGridColumn } from "@/components/ui";
+import { DataGrid, EmptyState, ExampleFrame, Field, KeyFigure, Select, Skeleton, Toolbar, useExampleView, type DataGridColumn } from "@/components/ui";
+import { examplePositionLadder } from "@/app/experience/examples";
 import {
   barShare,
   groupLadderByMonth,
@@ -131,7 +132,12 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
   const [months, setMonths] = useState(12);
   const [groupBy, setGroupBy] = useState("hub");
   const [currency, setCurrency] = useState("");
-  const { ladder, error } = useLadder(months, groupBy, currency);
+  const { ladder: held, error } = useLadder(months, groupBy, currency);
+  // "See an example" (design H.1): a book with no position can look at a bundled example ladder,
+  // drawn by the same grid and figures, inert and labelled.
+  const exampleView = useExampleView();
+  const example = useMemo(() => (exampleView.example ? examplePositionLadder() : null), [exampleView.example]);
+  const ladder = example ?? held;
   const rows = useMemo(
     () => groupLadderByMonth(ladder?.rows ?? []).flatMap((month) => month.rows),
     [ladder],
@@ -194,8 +200,21 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
         />
       )}
       {!ladder && !error && <Skeleton label={t("position.loading")} rows={6} />}
-      {ladder && ladder.rows.length === 0 && <EmptyState reason={t("position.empty")} id="position-ladder" />}
-      {ladder && ladder.rows.length > 0 && (
+      {ladder && ladder.rows.length === 0 && <EmptyState reason={t("position.empty")} id="position-ladder" onSeeExample={exampleView.show} />}
+      {example && (
+        <ExampleFrame page="position" onLeave={exampleView.leave}>
+          <SummaryStrip ladder={example} t={t} />
+          <DataGrid
+            id="position-ladder-example"
+            label={t("position.title")}
+            columns={ladderColumns}
+            rows={rows}
+            rowKey={(row) => `${row.month}-${row.hub}`}
+            density="compact"
+          />
+        </ExampleFrame>
+      )}
+      {!example && ladder && ladder.rows.length > 0 && (
         <>
           <SummaryStrip ladder={ladder} t={t} />
           <DataGrid

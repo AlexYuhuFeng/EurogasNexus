@@ -106,3 +106,25 @@ test("first-use hints: at most three a page, once per person, replayable, off fo
   assert.equal(serialiseSeen(replayPage(seen, "desk.today")), "deals.contracts.import");
   assert.equal(serialiseSeen(["b", "a", "b"]), "a,b");
 });
+
+test("see an example: bundled, labelled as examples, never stored records", async () => {
+  const { EXAMPLE_CONTRACTS, exampleOpportunityList, examplePositionLadder, exampleReports } = await import("../src/app/experience/examples.ts");
+  const { readFileSync } = await import("node:fs");
+  const now = new Date("2026-11-19T08:00:00Z");
+  const ids = [
+    ...EXAMPLE_CONTRACTS.map((row) => row.contract_id),
+    ...Object.values(exampleOpportunityList(now).lanes).flatMap((bucket) => bucket?.items.map((row) => row.opportunity_id) ?? []),
+    ...exampleReports(now).map((row) => row.report_id),
+  ];
+  assert.ok(ids.length >= 10);
+  for (const id of ids) assert.match(id, /^example-/);
+  for (const row of EXAMPLE_CONTRACTS) assert.match(row.contract_name, /^Example /);
+  const ladder = examplePositionLadder(now);
+  assert.equal(ladder.totals.net_mwh, ladder.rows.reduce((total, row) => total + row.net_mwh, 0));
+  assert.ok(ladder.rows.every((row) => row.month > "2026-11"));
+  const kit = readFileSync(new URL("../src/components/ui/ExampleView.tsx", import.meta.url), "utf8");
+  assert.match(kit, /inert/);
+  const en = JSON.parse(readFileSync(new URL("../src/i18n/en.json", import.meta.url), "utf8")) as Record<string, string>;
+  const zh = JSON.parse(readFileSync(new URL("../src/i18n/zh.json", import.meta.url), "utf8")) as Record<string, string>;
+  for (const key of ["example.see", "example.banner", "example.banner_detail", "example.leave"]) assert.ok(en[key] && zh[key], key);
+});

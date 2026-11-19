@@ -49,7 +49,8 @@ export function FirstUseHints({ hints }: { hints: readonly FirstUseHint[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending.map((hint) => hint.id).join(",")]);
 
-  // Place the card under its control, inside the viewport; follow scroll and resize.
+  // Place the card beside its control, inside the viewport; follow scroll, resize and the page's
+  // own layout (a read arriving above the control moves it without a scroll or a resize).
   useLayoutEffect(() => {
     if (!anchorFound) return undefined;
     const { element } = anchorFound;
@@ -75,8 +76,12 @@ export function FirstUseHints({ hints }: { hints: readonly FirstUseHint[] }) {
     place();
     window.addEventListener("scroll", schedule, true);
     window.addEventListener("resize", schedule);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+    observer?.observe(document.body);
+    observer?.observe(element);
     return () => {
       element.classList.remove("has-first-use-hint");
+      observer?.disconnect();
       cancelAnimationFrame(frame);
       window.removeEventListener("scroll", schedule, true);
       window.removeEventListener("resize", schedule);

@@ -24,7 +24,8 @@ import {
 import { WorkProgress } from "@/components/ui/WorkProgress";
 import { layOutForPrint } from "@/app/model/reportPrintLayout";
 import { ReportSchedules } from "@/components/ReportSchedules";
-import { Button, DataGrid, Dialog, EmptyState, Field, Panel, Segmented, Select, StatusBadge, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Panel, Segmented, Select, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
+import { exampleReports as exampleReportList } from "@/app/experience/examples";
 import {
   annexByDefault,
   editedByLabel,
@@ -75,6 +76,9 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
   const [busy, setBusy] = useState<"plan" | "generate" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reports, setReports] = useState<ReportSummaryDTO[] | null>(null);
+  // "See an example" (design H.1): with no stored report, the list can show a bundled example.
+  const reportsExample = useExampleView();
+  const exampleReports = useMemo(() => (reportsExample.example ? exampleReportList() : null), [reportsExample.example]);
   const [selected, setSelected] = useState<string | null>(null);
   // Asked reports: the planner decides the scope; the user may open it to adjust.
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -466,7 +470,12 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
               </>
             }
           >
-            <DataGrid
+            {exampleReports && (
+              <ExampleFrame page="reports" onLeave={reportsExample.leave}>
+                <DataGrid label={t("reports.stored")} columns={columns} rows={exampleReports} rowKey={(row) => row.report_id} density="compact" />
+              </ExampleFrame>
+            )}
+            {!exampleReports && <DataGrid
               label={t("reports.stored")}
               columns={columns}
               rows={reports ?? []}
@@ -476,10 +485,10 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
               selectedKey={selected}
               onRowAction={(row) => setSelected(row.report_id)}
               rowAttributes={(row) => ({ "data-record": "market-report", "data-record-id": row.report_id })}
-              empty={<EmptyState compact reason={t("reports.none")} />}
+              empty={<EmptyState compact reason={t("reports.none")} onSeeExample={reportsExample.show} />}
               density="compact"
               maxHeight="320px"
-            />
+            />}
           </Panel>
           <ReportSchedules t={t} />
         </div>
