@@ -366,6 +366,12 @@ class CargoEconomicsBody(BaseModel):
     # The delivered spread by arrival month for the first FOB cargo (design C.4), 0 for none.
     series_months: int = Field(default=0, ge=0, le=24)
     series_terminal_id: str | None = Field(default=None, max_length=96)
+    # Henry Hub against the hub, daily, for the first FOB cargo on a formula (design C.4).
+    history_days: int = Field(default=0, ge=0, le=730)
+    # Terminals in several currencies are ranked in this currency at the arrival month's FX.
+    reporting_currency: str = Field(default="EUR", pattern="^(EUR|GBP|USD)$")
+    # The firm's assumption set to read (its approved version); default the organisation's.
+    assumption_set_id: str | None = Field(default=None, max_length=64)
 
 
 def _cargo_error(exc) -> HTTPException:
@@ -426,6 +432,16 @@ def post_cargo_economics(body: CargoEconomicsBody, request: Request) -> dict:
         for key, value in payload["terminal_inputs"].items()
     }
     with _register_session() as session:
+        if body.assumption_set_id:
+            from eurogas_nexus.db.repositories.commercial_assumptions import (
+                assumption_set_book,
+            )
+            from eurogas_nexus.security.portfolio_scope import visible_book_ids
+
+            exists, book_id = assumption_set_book(session, body.assumption_set_id)
+            allowed = visible_book_ids(session)
+            if not exists or (book_id and allowed is not None and book_id not in allowed):
+                raise HTTPException(status_code=404, detail={"code": "unknown_assumption_set"})
         try:
             result = cargo.cargo_economics(session, payload, caller=caller_of(request))
         except cargo.CargoEconomicsError as exc:

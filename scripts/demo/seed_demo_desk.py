@@ -484,6 +484,10 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     # A daily FX and benchmark-rate history, so a demo price of any day converts at that day's
     # (simulated) rates and a forward month at the derived forward (CP-01); labelled simulated.
     session.add_all(_new_rows_only(session, _demo_rate_rows(now, history_days)))
+    # Henry Hub daily spot, simulated, in the demo market's own stream (CP-18): the cargo
+    # study's Henry Hub proxy and its HH-against-the-hub history on the demo desk. Retired
+    # once EIA rows are held (``_roll_henry_hub``).
+    session.add_all(_henry_hub_rows(today, now, history_days, None))
 
     horizon_end = _month_start(today, CREDIT_HORIZON_MONTHS) - timedelta(days=1)
     legs_by_counterparty: dict[str, list[CounterpartyLeg]] = {row[0]: [] for row in COUNTERPARTIES}
@@ -1542,6 +1546,7 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
     session.flush()
     counts.update(seed_demo_market(session, now, _demo_market_gap(session, now)))
     counts["fx_rows"] = _roll_fx(session, now)
+    counts["henry_hub_rows"] = _roll_henry_hub(session, now)
     rate_rows = _new_rows_only(session, _demo_rate_rows(now, 14))
     session.add_all(rate_rows)
     counts["rate_rows"] = len(rate_rows)
@@ -1703,6 +1708,85 @@ def _roll_month_ahead(session, now: datetime, rng: random.Random) -> int:
                                    **_native(hub, price)},
                 )
             )
+    rows = _new_rows_only(session, rows)
+    session.add_all(rows)
+    return len(rows)
+
+
+#: The demo Henry Hub level (USD/MMBtu) and its winter premium; a walk around it.
+HENRY_HUB_BASE = 3.30
+HENRY_HUB_WINTER = 0.45
+
+
+def _henry_hub_level(day: date) -> float:
+    """Highest in mid-January, lowest in mid-July."""
+
+    season = math.cos(2 * math.pi * (day.timetuple().tm_yday - 15) / 365)
+    return HENRY_HUB_BASE + HENRY_HUB_WINTER * season
+
+
+def _henry_hub_rows(today: date, now: datetime, days: int, last_price: float | None) -> list:
+    """``days`` simulated Henry Hub spot closes up to yesterday, continuing ``last_price``."""
+
+    walk = random.Random(f"demo-hh-{today - timedelta(days=days)}")
+    first = today - timedelta(days=days + 1)
+    drift = 0.0 if last_price is None else last_price - _henry_hub_level(first)
+    rows = []
+    for back in range(days, 0, -1):
+        day = today - timedelta(days=back)
+        drift = 0.96 * drift + walk.gauss(0, 0.06)
+        price = round(max(1.0, _henry_hub_level(day) + drift), 3)
+        start = datetime(day.year, day.month, day.day, tzinfo=UTC)
+        rows.append(
+            MarketObservationRecord(
+                observation_id=f"demo-HH-spot-{day:%Y%m%d}",
+                market_venue="Demo",
+                product="HH spot",
+                price=price,
+                unit="USD/MMBtu",
+                currency="USD",
+                period_start_utc=start,
+                period_end_utc=start + timedelta(days=1),
+                observed_at_utc=min(now, start + timedelta(hours=18)),
+                source_system=SOURCE,
+                source_reference="demo:henry-hub",
+                freshness="end_of_day",
+                quality_score=0.0,
+                research_only=True,
+                metadata_json={"hub": "HH", "tenor": "spot", "simulated": True},
+            )
+        )
+    return rows
+
+
+def _roll_henry_hub(session, now: datetime) -> int:
+    """Append the simulated Henry Hub days a paused server missed; none once EIA is held."""
+
+    real = (
+        session.query(MarketObservationRecord.observation_id)
+        .filter(MarketObservationRecord.source_system == "EIA")
+        .filter(MarketObservationRecord.product == "HH spot")
+        .first()
+    )
+    demo = MarketObservationRecord.source_reference == "demo:henry-hub"
+    if real is not None:
+        session.query(MarketObservationRecord).filter(demo).delete(synchronize_session=False)
+        return 0
+    today = now.date()
+    last = (
+        session.query(MarketObservationRecord)
+        .filter(demo)
+        .order_by(MarketObservationRecord.period_start_utc.desc())
+        .first()
+    )
+    if last is None:
+        gap, price = HISTORY_DAYS, None
+    else:
+        gap = (today - _aware(last.period_start_utc).date()).days - 1
+        price = float(last.price)
+    if gap <= 0:
+        return 0
+    rows = _henry_hub_rows(today, now, min(gap, HISTORY_DAYS), price)
     rows = _new_rows_only(session, rows)
     session.add_all(rows)
     return len(rows)

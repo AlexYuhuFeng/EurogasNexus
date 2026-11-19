@@ -14,8 +14,10 @@
  *   netback at the US Gulf) with the same total, and the delivered spread by arrival month;
  * - the margin's sensitivity to hire, Henry Hub, the hub price and FX.
  *
- * Henry Hub comes from the firm's mark or the customer's licensed data; otherwise the EIA spot
- * is used as a flat proxy and labelled so. The voyage is the desk's own unless the firm has
+ * Henry Hub comes from the firm's mark or the customer's licensed data; otherwise the held EIA
+ * spot is the form's default, a flat proxy labelled with its day (the demo desk has its own
+ * simulated series, labelled); with neither, the page asks for a mark. FX for the arrival month
+ * is the CP-01 forward, stated per month, spot only as the labelled fallback. The voyage is the desk's own unless the firm has
  * saved routes: no sea-distance table ships with the product. Research is hypothetical: no
  * book, no checks, nothing offered or nominated.
  */
@@ -24,18 +26,22 @@ import { useTranslation } from "react-i18next";
 
 import "@/styles/spreads.css";
 import "@/styles/cargo.css";
-import { api, type CargoEconomicsDTO, type CargoResultDTO, type CargoTerminalDTO, type FreightRouteDTO } from "@/api/client";
+import { api, type AssumptionSetSummaryDTO, type CargoEconomicsDTO, type CargoResultDTO, type CargoTerminalDTO, type FreightRouteDTO } from "@/api/client";
 import {
+  HISTORY_DAYS,
   arrivalMonths,
   cargoRequest,
   exampleForm,
   fieldForBlock,
   henryHub,
+  historyChart,
+  hubQuote,
   hubSimulatedFlags,
   marginWaterfall,
   monthLabel,
   rankedTerminals,
   seriesChart,
+  withSet,
   type CargoForm,
   type VoyageMode,
 } from "@/app/model/cargoStudy";
@@ -58,6 +64,9 @@ const perMwh = (currency: string) => unitLabel(`${currency}/MWh`);
 export function CargoStudy() {
   const { t } = useTranslation();
   const [routes, setRoutes] = useState<FreightRouteDTO[]>([]);
+  const [sets, setSets] = useState<AssumptionSetSummaryDTO[]>([]);
+  // Every terminal the register has offered, so the chooser keeps those left out.
+  const [terminals, setTerminals] = useState<{ id: string; name: string; hub: string }[]>([]);
   const [form, setForm] = useState<CargoForm | null>(null);
   const [result, setResult] = useState<CargoEconomicsDTO | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,6 +82,11 @@ export function CargoStudy() {
       const response = await api.cargoEconomics(cargoRequest(next));
       if (mine !== seq.current) return;
       setResult(response.data);
+      setTerminals((held) => {
+        const known = new Map(held.map((item) => [item.id, item]));
+        for (const row of response.data.cargoes[0]?.terminals ?? []) known.set(row.terminal_id, { id: row.terminal_id, name: row.name, hub: row.hub });
+        return [...known.values()];
+      });
     } catch (error) {
       if (mine === seq.current) setFailed(error instanceof Error && error.message ? error.message : t("cargo.failed"));
     } finally {
@@ -80,17 +94,23 @@ export function CargoStudy() {
     }
   }, [t]);
 
-  // Opens populated: the saved routes if the firm has any, then the worked example priced.
+  // Opens populated from what the firm holds: its saved routes and its approved assumption set
+  // (whose figures then apply); without a set, the design's worked example, marked as such.
   useEffect(() => {
     let live = true;
-    const start = (held: FreightRouteDTO[]) => {
+    Promise.all([
+      api.freightRoutes().then((response) => response.data ?? [], () => [] as FreightRouteDTO[]),
+      api.assumptionSets().then((response) => response.data?.sets ?? [], () => [] as AssumptionSetSummaryDTO[]),
+    ]).then(([held, heldSets]) => {
       if (!live) return;
+      const approved = heldSets.filter((set) => set.approved_version !== null);
       setRoutes(held);
-      const initial = exampleForm(new Date(), held);
+      setSets(approved);
+      const firm = approved.find((set) => set.scope === "organisation");
+      const initial = firm ? withSet(exampleForm(new Date(), held), firm.set_id) : exampleForm(new Date(), held);
       setForm(initial);
       void run(initial);
-    };
-    api.freightRoutes().then((response) => start(response.data ?? []), () => start([]));
+    });
     return () => { live = false; };
   }, [run]);
 
@@ -118,7 +138,16 @@ export function CargoStudy() {
     <div className="cargo-page" data-cargo-study="true">
       <p className="spreads-purpose" data-purpose="true">{t("cargo.purpose")}</p>
       <SimulatedScope scope={scope} notice={t("cargo.all_simulated")}>
-        <CargoFormView form={form} routes={routes} busy={busy} onChange={update} onRun={() => void run(form)} />
+        <CargoFormView
+          form={form}
+          routes={routes}
+          sets={sets}
+          terminals={terminals}
+          busy={busy}
+          onChange={update}
+          onRun={() => void run(form)}
+          heldHh={form.hh.trim() === "" ? henryHub(cargo) : null}
+        />
         {failed && <p className="spreads-failed" role="alert">{failed}</p>}
         {busy && !result && <WorkProgress stages={[t("cargo.progress")]} current={0} label={t("cargo.progress")} reserve="16rem" />}
         {cargo && cargo.blocked && (
@@ -127,9 +156,10 @@ export function CargoStudy() {
         {cargo && !cargo.blocked && (
           <>
             <Headline cargo={cargo} best={priced[0] ?? null} />
-            <TerminalTable cargo={cargo} priced={priced} leftOut={leftOut} selected={selected?.terminal_id ?? null} onSelect={setChosen} />
+            <TerminalTable cargo={cargo} priced={priced} leftOut={leftOut} selected={selected?.terminal_id ?? null} onSelect={setChosen} reportingCurrency={result?.reporting_currency ?? "EUR"} />
             {selected && <MarginWaterfall row={selected} />}
             {selected?.delivered_spread && <DeliveredSpread cargo={cargo} row={selected} />}
+            {result?.delivered_spread_history && cargo.term === "FOB" && <HistoryLine result={result} cargo={cargo} />}
             {result?.delivered_spread_series && cargo.term === "FOB" && <SpreadLine result={result} cargo={cargo} />}
             {(cargo.sensitivity?.length ?? 0) > 0 && priced[0] && <Sensitivity cargo={cargo} row={priced[0]} />}
             <InputsFold cargo={cargo} fxMethod={result?.fx_method ?? ""} />
@@ -161,12 +191,16 @@ function Field({ id, label, value, onChange, unit, step = "any", width = "s", hi
   );
 }
 
-function CargoFormView({ form, routes, busy, onChange, onRun }: {
-  form: CargoForm; routes: FreightRouteDTO[]; busy: boolean;
+function CargoFormView({ form, routes, sets, terminals, busy, onChange, onRun, heldHh }: {
+  form: CargoForm; routes: FreightRouteDTO[]; sets: AssumptionSetSummaryDTO[];
+  terminals: { id: string; name: string; hub: string }[]; busy: boolean;
   onChange: (patch: Partial<CargoForm>, now?: boolean) => void; onRun: () => void;
+  heldHh: ReturnType<typeof henryHub>;
 }) {
   const { t } = useTranslation();
   const months = useMemo(() => arrivalMonths(new Date()), []);
+  // With a set chosen, an empty figure is the set's: the field says so.
+  const setHint = form.assumptionSetId ? t("cargo.form.from_set") : undefined;
   const pricingMonths = useMemo(() => arrivalMonths(new Date(), 19).map((m) => m), []);
   const voyageOptions: { value: VoyageMode; label: string }[] = [
     ...(routes.length > 0 ? [{ value: "route" as const, label: t("cargo.voyage.route") }] : []),
@@ -179,6 +213,50 @@ function CargoFormView({ form, routes, busy, onChange, onRun }: {
       aria-label={t("cargo.form.label")}
       onSubmit={(event) => { event.preventDefault(); onRun(); }}
     >
+      <fieldset className="cargo-group" data-sources="true">
+        <legend>{t("cargo.form.from_records")}</legend>
+        <label className="cargo-field" data-width="m">
+          <span className="cargo-field-label">{t("cargo.form.assumption_set")}</span>
+          <Select
+            value={form.assumptionSetId}
+            options={[
+              { value: "", label: t("cargo.form.set_example") },
+              ...sets.map((set) => ({ value: set.set_id, label: `${set.name} · v${set.approved_version}` })),
+            ]}
+            onChange={(setId) => {
+              const next = setId ? withSet(form, setId) : { ...exampleForm(new Date(), routes), term: form.term, arrivalMonth: form.arrivalMonth, pricingMonth: form.pricingMonth, terminalIds: form.terminalIds };
+              onChange(next, true);
+            }}
+          />
+        </label>
+        {terminals.length > 0 && (
+          <div className="cargo-terminal-choice" role="group" aria-label={t("cargo.form.terminals")}>
+            <span className="cargo-field-label">{t("cargo.form.terminals")}</span>
+            <div className="cargo-terminal-list">
+              {terminals.map((terminal) => {
+                const on = form.terminalIds.length === 0 || form.terminalIds.includes(terminal.id);
+                return (
+                  <label key={terminal.id} className="cargo-terminal-option">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => {
+                        const current = form.terminalIds.length === 0 ? terminals.map((item) => item.id) : form.terminalIds;
+                        const next = on ? current.filter((id) => id !== terminal.id) : [...current, terminal.id];
+                        if (next.length === 0) return; // at least one terminal
+                        onChange({ terminalIds: next.length === terminals.length ? [] : next }, true);
+                      }}
+                    />
+                    {terminal.name} → {terminal.hub}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {sets.length === 0 && <p className="cargo-voyage-note">{t("cargo.form.no_sets")}</p>}
+      </fieldset>
+
       <fieldset className="cargo-group">
         <legend>{t("cargo.form.cargo")}</legend>
         <Segmented
@@ -195,7 +273,7 @@ function CargoFormView({ form, routes, busy, onChange, onRun }: {
             onChange={(arrivalMonth) => onChange({ arrivalMonth }, true)}
           />
         </label>
-        <Field id="cargo-size" label={t("cargo.form.size")} unit="MMBtu" value={form.cargoSize} onChange={(cargoSize) => onChange({ cargoSize })} width="m" />
+        <Field id="cargo-size" hint={setHint} label={t("cargo.form.size")} unit="MMBtu" value={form.cargoSize} onChange={(cargoSize) => onChange({ cargoSize })} width="m" />
         {form.term === "DES" && (
           <>
             <Field id="cargo-des-price" label={t("cargo.form.des_price")} unit={perMwh(form.desCurrency)} value={form.desPrice} onChange={(desPrice) => onChange({ desPrice })} />
@@ -220,8 +298,13 @@ function CargoFormView({ form, routes, busy, onChange, onRun }: {
               />
             </label>
             <Field id="cargo-hh" label={t("cargo.form.hh")} unit="USD/MMBtu" value={form.hh} onChange={(hh) => onChange({ hh })} hint={t("cargo.form.hh_held")} width="m" />
-            <Field id="cargo-slope" label={t("cargo.form.slope")} unit="× HH" value={form.slope} onChange={(slope) => onChange({ slope })} />
-            <Field id="cargo-fee" label={t("cargo.form.fee")} unit="USD/MMBtu" value={form.fee} onChange={(fee) => onChange({ fee })} />
+            <Field id="cargo-slope" hint={setHint} label={t("cargo.form.slope")} unit="× HH" value={form.slope} onChange={(slope) => onChange({ slope })} />
+            <Field id="cargo-fee" hint={setHint} label={t("cargo.form.fee")} unit="USD/MMBtu" value={form.fee} onChange={(fee) => onChange({ fee })} />
+            {heldHh && heldHh.inputClass !== "assumption" && (
+              <p className="cargo-voyage-note" data-hh-default={heldHh.proxy ? (heldHh.demo ? "demo" : "eia") : heldHh.inputClass}>
+                {t("cargo.form.hh_using", { value: fixed(heldHh.value, 3), basis: hhBasisText(t, heldHh) })}
+              </p>
+            )}
           </fieldset>
 
           <fieldset className="cargo-group" data-voyage={form.voyageMode}>
@@ -244,7 +327,7 @@ function CargoFormView({ form, routes, busy, onChange, onRun }: {
               <Field id="cargo-distance" label={t("cargo.form.distance")} unit="nm" value={form.distanceNm} onChange={(distanceNm) => onChange({ distanceNm })} />
             )}
             {form.voyageMode !== "days" && (
-              <Field id="cargo-speed" label={t("cargo.form.speed")} unit="kn" value={form.speedKn} onChange={(speedKn) => onChange({ speedKn })} />
+              <Field id="cargo-speed" hint={setHint} label={t("cargo.form.speed")} unit="kn" value={form.speedKn} onChange={(speedKn) => onChange({ speedKn })} />
             )}
             {form.voyageMode === "days" && (
               <Field id="cargo-days" label={t("cargo.form.laden_days")} unit={t("cargo.unit.days")} value={form.ladenDays} onChange={(ladenDays) => onChange({ ladenDays })} />
@@ -255,8 +338,8 @@ function CargoFormView({ form, routes, busy, onChange, onRun }: {
               value={form.ballast}
               onChange={(ballast) => onChange({ ballast }, true)}
             />
-            <Field id="cargo-hire" label={t("cargo.form.hire")} unit="USD/d" value={form.hire} onChange={(hire) => onChange({ hire })} width="m" />
-            <Field id="cargo-bor" label={t("cargo.form.boil_off")} unit="%/d" value={form.boilOff} onChange={(boilOff) => onChange({ boilOff })} />
+            <Field id="cargo-hire" hint={setHint} label={t("cargo.form.hire")} unit="USD/d" value={form.hire} onChange={(hire) => onChange({ hire })} width="m" />
+            <Field id="cargo-bor" hint={setHint} label={t("cargo.form.boil_off")} unit="%/d" value={form.boilOff} onChange={(boilOff) => onChange({ boilOff })} />
             <p className="cargo-voyage-note" data-voyage-note="true">
               {routes.length > 0 ? t("cargo.voyage.note_saved", { count: routes.length }) : t("cargo.voyage.note_none")}
             </p>
@@ -265,9 +348,9 @@ function CargoFormView({ form, routes, busy, onChange, onRun }: {
           <details className="cargo-more">
             <summary>{t("cargo.form.more")}</summary>
             <div className="cargo-group-body">
-              <Field id="cargo-ballast-fuel" label={t("cargo.form.ballast_fuel")} unit="MMBtu/d" value={form.ballastFuel} onChange={(ballastFuel) => onChange({ ballastFuel })} />
-              <Field id="cargo-port" label={t("cargo.form.port")} unit={t("cargo.unit.usd_call")} value={form.portCost} onChange={(portCost) => onChange({ portCost })} width="m" />
-              <Field id="cargo-insurance" label={t("cargo.form.insurance")} unit="%" value={form.insurance} onChange={(insurance) => onChange({ insurance })} />
+              <Field id="cargo-ballast-fuel" hint={setHint} label={t("cargo.form.ballast_fuel")} unit="MMBtu/d" value={form.ballastFuel} onChange={(ballastFuel) => onChange({ ballastFuel })} />
+              <Field id="cargo-port" hint={setHint} label={t("cargo.form.port")} unit={t("cargo.unit.usd_call")} value={form.portCost} onChange={(portCost) => onChange({ portCost })} width="m" />
+              <Field id="cargo-insurance" hint={setHint} label={t("cargo.form.insurance")} unit="%" value={form.insurance} onChange={(insurance) => onChange({ insurance })} />
               <Field id="cargo-canal" label={t("cargo.form.canal")} unit="USD" value={form.canalCost} onChange={(canalCost) => onChange({ canalCost })} width="m" />
             </div>
           </details>
@@ -314,16 +397,31 @@ function ClassMark({ inputClass }: { inputClass: string }) {
   return <span className="spreads-class" data-class={inputClass}>{t(`cargo.class.${inputClass}`, { defaultValue: inputClass })}</span>;
 }
 
+/** How a Henry Hub figure was obtained, in words (the spot proxy names its day). */
+function hhBasisText(t: (key: string, options?: Record<string, unknown>) => string, hh: NonNullable<ReturnType<typeof henryHub>>): string {
+  if (hh.proxy && hh.day) return t(hh.demo ? "cargo.hh.proxy_demo" : "cargo.hh.proxy_day", { day: shortDay(hh.day) });
+  if (hh.proxy) return t("cargo.hh.proxy");
+  return t(`cargo.hh.${hh.inputClass}`, { defaultValue: hh.source });
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const shortDay = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
+
 function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalDTO | null }) {
   const { t } = useTranslation();
   const hh = henryHub(cargo);
+  // The owner's standard: the result says which inputs were typed in by hand.
+  const entered = cargo.legs
+    .filter((leg) => leg.source.startsWith("entered"))
+    // The FOB cost leg carries the cargo size's source: name the input, not the step.
+    .map((leg) => (leg.key === "fob_cost" ? t("cargo.form.size") : t(`cargo.leg.${leg.key}`, { defaultValue: leg.label })).toLowerCase());
   const voyage = cargo.voyage;
   const parts: ReactNode[] = [];
   if (hh) {
     parts.push(
       <span key="hh" data-hh-source={hh.proxy ? "proxy" : hh.inputClass} title={hh.source}>
         {t("cargo.headline.hh", { value: fixed(hh.value, 3) })}{" "}
-        <span className="cargo-hh-basis">{hh.proxy ? t("cargo.hh.proxy") : t(`cargo.hh.${hh.inputClass}`, { defaultValue: hh.source })}</span>
+        <span className="cargo-hh-basis">{hhBasisText(t, hh)}</span>
       </span>,
     );
   }
@@ -363,19 +461,30 @@ function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalD
         )}
       </div>
       {parts.length > 0 && <p className="cargo-headline-basis">{parts.reduce<ReactNode[]>((all, part, index) => (index ? [...all, " · ", part] : [part]), [])}</p>}
-      <p className="cargo-headline-basis">{t("cargo.headline.assumptions", { count: cargo.assumptions })}</p>
+      <p className="cargo-headline-basis">
+        {t("cargo.headline.assumptions", { count: cargo.assumptions })}
+        {entered.length > 0 && <> · <span data-entered="true">{t("cargo.headline.entered", { inputs: entered.join(", ") })}</span></>}
+      </p>
     </section>
   );
 }
 
-function TerminalTable({ cargo, priced, leftOut, selected, onSelect }: {
+function TerminalTable({ cargo, priced, leftOut, selected, onSelect, reportingCurrency }: {
   cargo: CargoResultDTO; priced: CargoTerminalDTO[]; leftOut: CargoTerminalDTO[]; selected: string | null; onSelect: (id: string) => void;
+  reportingCurrency: string;
 }) {
   const { t } = useTranslation();
+  // Several currencies: the server ranked the rows in the reporting currency at the stated FX.
+  const reporting = priced.some((row) => row.margin_reporting_per_mwh != null) ? reportingCurrency : null;
   const leg = (row: CargoTerminalDTO, key: string) => row.legs.find((item) => item.key === key) ?? null;
   return (
     <section className="spreads-result" aria-label={t("cargo.table.title")}>
       <h2 className="spreads-section-title">{t("cargo.table.title")}</h2>
+      {reporting && (
+        <p className="cargo-note" data-ranked-in={reporting}>
+          {t("cargo.table.ranked_in", { currencies: [...new Set(priced.map((row) => row.currency))].join(t("cargo.and")), reporting })}
+        </p>
+      )}
       <div className="spreads-table-wrap">
         <table className="spreads-table cargo-table" data-terminal-table="true">
           <caption>{t("cargo.table.caption")}</caption>
@@ -388,6 +497,7 @@ function TerminalTable({ cargo, priced, leftOut, selected, onSelect }: {
               <th scope="col" className="num">{t("cargo.table.regas")}</th>
               <th scope="col" className="num">{t("cargo.table.netback")}</th>
               <th scope="col" className="num">{t("cargo.table.margin")}</th>
+              {reporting && <th scope="col" className="num">{t("cargo.table.margin_reporting", { unit: perMwh(reporting) })}</th>}
               <th scope="col" className="num">{t("cargo.table.range")}</th>
               {cargo.term === "FOB" && <th scope="col" className="num">USD/MMBtu</th>}
               <th scope="col" className="num">{t("cargo.table.total")}</th>
@@ -405,7 +515,7 @@ function TerminalTable({ cargo, priced, leftOut, selected, onSelect }: {
                     </button>
                   </th>
                   <td className="num" title={hub?.source}>
-                    {fixed(hub?.amount)} <span className="cargo-unit">{perMwh(row.currency)}</span> {hub && <ClassMark inputClass={hub.input_class} />}
+                    <HubPrice row={row} amount={hub?.amount ?? null} /> {hub && <ClassMark inputClass={hub.input_class} />}
                   </td>
                   <td className="num">{fixed(leg(row, "gas_in_kind")?.amount, 1)} %</td>
                   <td className="num" title={leg(row, "entry")?.source}>{fixed(leg(row, "entry")?.amount)}</td>
@@ -413,7 +523,8 @@ function TerminalTable({ cargo, priced, leftOut, selected, onSelect }: {
                     {fixed(regas?.amount)} <span className="cargo-basis">{t(`cargo.regas.${row.regas_basis}`, { defaultValue: row.regas_basis })}</span>
                   </td>
                   <td className="num" data-figure="netback">{fixed(row.netback_per_mwh)}</td>
-                  <td className="num" data-figure="margin"><strong>{signed(row.margin_per_mwh)}</strong></td>
+                  <td className="num" data-figure="margin"><strong>{signed(row.margin_per_mwh)}</strong> <span className="cargo-unit">{row.currency}</span></td>
+                  {reporting && <td className="num" data-figure="margin-reporting">{signed(row.margin_reporting_per_mwh)}</td>}
                   <td className="num cargo-range">{fixed(row.margin_low_per_mwh)} … {fixed(row.margin_high_per_mwh)}</td>
                   {cargo.term === "FOB" && <td className="num">{signed(row.margin_usd_mmbtu, 3)}</td>}
                   <td className="num">{millions(row.margin_total)} {row.currency}</td>
@@ -431,6 +542,57 @@ function TerminalTable({ cargo, priced, leftOut, selected, onSelect }: {
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+/** The hub price as the desk quotes it (NBP in p/th), the per-MWh figure compared beside it. */
+function HubPrice({ row, amount }: { row: CargoTerminalDTO; amount: number | null }) {
+  const quote = hubQuote(row.hub, amount, row.currency);
+  if (!quote.native) return <>{fixed(amount)} <span className="cargo-unit">{perMwh(row.currency)}</span></>;
+  return (
+    <span data-native-unit={unitLabel(quote.unit)}>
+      {fixed(quote.value)} <span className="cargo-unit">{unitLabel(quote.unit)}</span>
+      <span className="cargo-unit"> = {fixed(quote.perMwh)} {perMwh(row.currency)}</span>
+    </span>
+  );
+}
+
+function HistoryLine({ result, cargo }: { result: CargoEconomicsDTO; cargo: CargoResultDTO }) {
+  const { t } = useTranslation();
+  const history = result.delivered_spread_history!;
+  const row = cargo.terminals.find((item) => item.terminal_id === history.terminal_id) ?? null;
+  const chart = historyChart(history);
+  const unit = perMwh(history.currency);
+  const data = useMemo<ChartData>(() => ({
+    axis: "gas-day",
+    x: chart.x,
+    xTitle: t("cargo.history.x"),
+    unit,
+    series: [
+      { id: "hub", label: t("cargo.history.hub", { hub: history.hub }), values: chart.hub, simulated: chart.simulated, decimals: 2 },
+      { id: "delivered", label: t("cargo.series.delivered"), values: chart.delivered, colour: 3, simulated: chart.simulated, decimals: 2 },
+    ],
+  }), [chart, history.hub, t, unit]);
+  if (history.points.length === 0) {
+    return (
+      <p className="cargo-note" data-history="empty">
+        {history.hh_days === 0 ? t("cargo.history.no_hh") : t("cargo.history.no_overlap", { hub: history.hub })}
+      </p>
+    );
+  }
+  const source = history.hh_source === "EIA" ? t("cargo.history.hh_eia") : t("cargo.history.hh_demo");
+  return (
+    <section className="spreads-result" data-history="true">
+      <Chart
+        id="cargo-hh-history"
+        title={t("cargo.history.title", { hub: history.hub, terminal: row?.name ?? "", days: HISTORY_DAYS })}
+        data={data}
+        t={t}
+        height={220}
+        simulated={chart.simulated}
+        note={`${t("cargo.history.note", { arb: signed(chart.last?.arb_per_mwh), unit, day: chart.last ? shortDay(chart.last.day) : "" })} ${source} ${history.fx ? `${history.fx}.` : ""}`}
+      />
     </section>
   );
 }
@@ -505,7 +667,7 @@ function SpreadLine({ result, cargo }: { result: CargoEconomicsDTO; cargo: Cargo
     ],
   }), [chart, hub, t, unit]);
   if (chart.priced === 0) return null;
-  const hhBasis = !hh ? "" : hh.inputClass === "assumption" ? t("cargo.series.hh_entered") : hh.proxy ? t("cargo.series.hh_proxy") : t("cargo.series.hh_held");
+  const hhBasis = !hh ? "" : hh.inputClass === "assumption" ? t("cargo.series.hh_entered") : hh.proxy ? t(hh.demo ? "cargo.series.hh_demo" : "cargo.series.hh_proxy") : t("cargo.series.hh_held");
   return (
     <section className="spreads-result" data-spread-series="true">
       <Chart

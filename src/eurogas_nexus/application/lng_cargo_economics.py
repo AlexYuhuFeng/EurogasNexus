@@ -6,7 +6,9 @@ the LNG reference registers, never guesses one, and hands the pure chain
 
 * hub price for the arrival month: ``reader.price(hub, month)`` (licensed quote, settlement,
   the firm's mark; demo price only on a demo desk);
-* FX for the arrival month: ``reader.fx(hub currency, USD, month)``;
+* FX for the arrival month: ``reader.fx(hub currency, USD, month)``, the snapshot's CP-01
+  forward (licensed, else covered interest parity), the spot reference rate only as its
+  labelled fallback;
 * Henry Hub for the pricing month: ``reader.price("HH", month)``; else the latest EIA daily spot
   as a flat proxy, class ``indicative`` and labelled "spot proxy" (EIA stopped publishing
   futures settlements on 5 April 2024; a forward comes from the customer's entitlement or the
@@ -28,7 +30,7 @@ Nothing is offered, nominated or sent: this prices cargoes for the desk to decid
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -184,29 +186,62 @@ def _month(text: str) -> DeliveryPeriod:
     return DeliveryPeriod.month(int(text[:4]), int(text[5:7]))
 
 
+#: The demo market's own stream (``scripts/demo/seed_demo_desk.py``): read on a demo desk only.
+DEMO_SOURCE = "DEMO_Sim"
+
+
+def _hh_spot_rows(session, *, demo_desk: bool, since: date | None = None) -> list:
+    """Henry Hub daily spot held, one row per day: EIA (public domain, ``ingestion/eia.py``);
+    on a demo desk the demo's simulated series where EIA has no row. Oldest first."""
+
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    sources = ("EIA", DEMO_SOURCE) if demo_desk else ("EIA",)
+    query = (
+        session.query(MarketObservationRecord)
+        .filter(MarketObservationRecord.source_system.in_(sources))
+        .filter(MarketObservationRecord.product == "HH spot")
+    )
+    if since is not None:
+        query = query.filter(
+            MarketObservationRecord.period_start_utc
+            >= datetime.combine(since, datetime.min.time(), tzinfo=UTC)
+        )
+    by_day: dict[date, Any] = {}
+    for row in query.all():
+        day = row.period_start_utc.date()
+        held = by_day.get(day)
+        if held is None or (held.source_system != "EIA" and row.source_system == "EIA"):
+            by_day[day] = row
+    return [by_day[day] for day in sorted(by_day)]
+
+
+def _hh_label(row, pricing_month: str | None = None) -> tuple[InputClass, str]:
+    day = row.period_start_utc.date().isoformat()
+    if row.source_system == "EIA":
+        text = f"Henry Hub spot {day} (EIA)"
+        klass = InputClass.INDICATIVE
+    else:
+        text = f"Henry Hub spot {day} (demo, simulated)"
+        klass = InputClass.SIMULATED
+    return klass, f"{text}, spot proxy for {pricing_month}" if pricing_month else text
+
+
 def _hh(session, reader, pricing_month: str, entered: float | None) -> Valued:
     if entered is not None:
         return Valued(Decimal(str(entered)), InputClass.ASSUMPTION, "entered: Henry Hub")
     forward = reader.price("HH", _month(pricing_month))
     if forward.held:
         return _valued(forward)
-    from eurogas_nexus.db.models import MarketObservationRecord
-
-    row = (
-        session.query(MarketObservationRecord)
-        .filter(MarketObservationRecord.source_system == "EIA")
-        .filter(MarketObservationRecord.product == "HH spot")
-        .order_by(MarketObservationRecord.period_start_utc.desc())
-        .first()
+    rows = _hh_spot_rows(
+        session,
+        demo_desk=reader.demo_desk,
+        since=datetime.now(UTC).date() - timedelta(days=31),
     )
-    if row is None:
+    if not rows:
         return missing("Henry Hub: no forward or spot held")
-    day = row.period_start_utc.date().isoformat()
-    return Valued(
-        Decimal(str(row.price)),
-        InputClass.INDICATIVE,
-        f"Henry Hub spot {day} (EIA), spot proxy for {pricing_month}",
-    )
+    klass, text = _hh_label(rows[-1], pricing_month)
+    return Valued(Decimal(str(rows[-1].price)), klass, text)
 
 
 @dataclass(frozen=True)
@@ -525,7 +560,18 @@ def _price_one(session, reader, request, terminals, cargo, arrival):
         if cost_side.blocked is None and q_del_mwh > 0
         else []
     )
-    return offer, options, evaluate_cargo(offer, options)
+    # Terminals in several currencies rank in the reporting currency at the arrival month's FX.
+    reporting = None
+    code = request.get("reporting_currency") or "EUR"
+    if len({option.currency for option in options}) > 1:
+        rate = (
+            Valued(Decimal(1), InputClass.SOURCED, "USD")
+            if code == "USD"
+            else _valued(reader.fx(code, "USD", _month(arrival)))
+        )
+        if rate.held:
+            reporting = (code, rate.value)
+    return offer, options, evaluate_cargo(offer, options, reporting=reporting)
 
 
 def _series(session, reader, request, terminals, cargo, terminal_id, months):
@@ -565,6 +611,91 @@ def _series(session, reader, request, terminals, cargo, terminal_id, months):
     return {"terminal_id": terminal_id, "cargo_id": cargo["cargo_id"], "points": points}
 
 
+def _hub_closes(
+    caller, hub: str, since: date, *, demo_desk: bool
+) -> dict[date, tuple[float, bool]]:
+    """The hub's front-month close per trade date, per MWh in its currency: a provider's
+    series wins over a simulated one; simulated closes only on a demo desk."""
+
+    from eurogas_nexus.application.projections.daily_closes import daily_rows
+
+    series: dict[tuple[str, bool], dict[date, float]] = {}
+    for row in daily_rows(caller, since, datetime.now(UTC).date()):
+        if row["hub"] != hub or row["tenor"] != "month-ahead" or row.get("price_mwh") is None:
+            continue
+        if row["simulated"] and not demo_desk:
+            continue
+        series.setdefault((row["source_system"], bool(row["simulated"])), {})[row["day"]] = row[
+            "price_mwh"
+        ]
+    if not series:
+        return {}
+    (_source, simulated), closes = max(
+        series.items(), key=lambda item: (not item[0][1], len(item[1]))
+    )
+    return {day: (price, simulated) for day, price in closes.items()}
+
+
+def _history(session, reader, caller, offer: CargoOffer, option: TerminalOption, days: int):
+    """Design C.4 as a daily line: Henry Hub against the hub, the same chain each trade date.
+
+    Henry Hub is that day's spot (EIA; the demo's simulated series on a demo desk), the hub
+    its front-month close that day; freight, fees, regas and FX are held at the request's
+    figures, so the line moves with the two prices only. Days with only one price are skipped.
+    """
+
+    from dataclasses import replace
+
+    since = datetime.now(UTC).date() - timedelta(days=days)
+    hh_rows = {
+        row.period_start_utc.date(): row
+        for row in _hh_spot_rows(session, demo_desk=reader.demo_desk, since=since)
+    }
+    closes = _hub_closes(caller, option.hub, since, demo_desk=reader.demo_desk)
+    points = []
+    for day in sorted(set(hh_rows) & set(closes)):
+        hh_row = hh_rows[day]
+        hub_price, hub_simulated = closes[day]
+        klass, text = _hh_label(hh_row)
+        moved_offer = replace(
+            offer, fob_price=missing(), hh=Valued(Decimal(str(hh_row.price)), klass, text)
+        )
+        moved_option = replace(
+            option,
+            hub_price=Valued(
+                Decimal(str(hub_price)),
+                InputClass.SIMULATED if hub_simulated else InputClass.INDICATIVE,
+                f"{option.hub} front month {day.isoformat()}",
+            ),
+            hub_price_before=None,
+            hub_price_after=None,
+        )
+        result = evaluate_cargo(moved_offer, [moved_option])
+        row = result.terminals[0] if result.terminals else None
+        if row is None or row.arb_per_mwh is None:
+            continue
+        points.append(
+            {
+                "day": day.isoformat(),
+                "hh": float(hh_row.price),
+                "hub_per_mwh": round(hub_price, 4),
+                "delivered_per_mwh": float(row.delivered_per_mwh.quantize(Decimal("0.0001"))),
+                "arb_per_mwh": float(row.arb_per_mwh.quantize(Decimal("0.0001"))),
+                "simulated": klass == InputClass.SIMULATED or hub_simulated,
+            }
+        )
+    hh_sources = {row.source_system for row in hh_rows.values()}
+    return {
+        "terminal_id": option.terminal_id,
+        "hub": option.hub,
+        "currency": option.currency,
+        "fx": option.fx_usd_per_unit.source if option.fx_usd_per_unit.held else "",
+        "hh_source": "EIA" if hh_sources == {"EIA"} else "demo" if hh_sources else None,
+        "hh_days": len(hh_rows),
+        "points": points,
+    }
+
+
 def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, Any]:
     """One result per cargo, each with its terminals best first; the comparison table; for the
     first FOB cargo, optionally, the delivered spread by arrival month."""
@@ -574,10 +705,17 @@ def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, An
     arrival = request["arrival_month"]
     if date(int(arrival[:4]), int(arrival[5:7]), 1) < datetime.now(UTC).date().replace(day=1):
         raise CargoEconomicsError("arrival_in_the_past", "The arrival month has passed.")
-    reader = open_valuation_snapshot(session, caller=caller)
+    # FX for the arrival month: the snapshot's own forward (valuation_snapshot.ForwardFx, CP-01:
+    # licensed, else interest parity), stated per month; the spot rate only as its labelled
+    # fallback.
+    reader = open_valuation_snapshot(
+        session,
+        caller=caller,
+        assumption_set_id=request.get("assumption_set_id") or None,
+    )
     terminals = _terminals(session, list(request.get("terminal_ids") or []))
     results = []
-    series = None
+    series = history = None
     for cargo in request["cargoes"]:
         offer, options, evaluated = _price_one(session, reader, request, terminals, cargo, arrival)
         result = serialise(evaluated)
@@ -593,6 +731,18 @@ def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, An
             else []
         )
         results.append(result)
+        history_days = int(request.get("history_days") or 0)
+        if (
+            history is None
+            and history_days
+            and offer.term == "FOB"
+            and evaluated.blocked is None
+            and not offer.fob_price.held
+        ):
+            wanted = request.get("series_terminal_id") or evaluated.best_terminal_id
+            chosen = next((o for o in options if o.terminal_id == wanted), None)
+            if chosen is not None:
+                history = _history(session, reader, caller, offer, chosen, history_days)
         months = int(request.get("series_months") or 0)
         if series is None and months and offer.term == "FOB" and evaluated.blocked is None:
             wanted = request.get("series_terminal_id") or evaluated.best_terminal_id
@@ -633,4 +783,7 @@ def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, An
         "table": table,
         "terminals_considered": [terminal.terminal_id for terminal in terminals],
         "delivered_spread_series": series,
+        "delivered_spread_history": history,
+        "reporting_currency": request.get("reporting_currency") or "EUR",
+        "assumption_version": reader.assumption_version,
     }

@@ -218,4 +218,23 @@
     flex: 1 1 8rem;
   }
 }
+
+.cargo-terminal-choice {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+
+.cargo-terminal-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-3);
+}
+
+.cargo-terminal-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+}
 }

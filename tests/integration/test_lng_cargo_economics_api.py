@@ -19,6 +19,7 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     AuditEventRecord,
     FxObservationRecord,
+    InterestRateObservationRecord,
     LngTerminalTermsRecord,
     MarketObservationRecord,
 )
@@ -286,3 +287,112 @@ def test_a_voyage_the_desk_enters_and_the_delivered_spread(store):
         headers=_h(bearers["c-viewer"]),
     )
     assert bad.status_code == 422
+
+
+def _henry_hub_days(db, days: int, price: float = 3.4) -> None:
+    today = datetime.now(UTC).date()
+    for back in range(2, days + 2):
+        day = today - timedelta(days=back)
+        start = datetime.combine(day, datetime.min.time(), tzinfo=UTC)
+        db.add(
+            MarketObservationRecord(
+                observation_id=f"eia-rngwhhd-{day.isoformat()}",
+                market_venue="EIA",
+                product="HH spot",
+                price=price + back / 1000,
+                unit="USD/MMBtu",
+                currency="USD",
+                period_start_utc=start,
+                period_end_utc=start + timedelta(days=1),
+                observed_at_utc=start + timedelta(hours=18),
+                source_system="EIA",
+                source_reference="eia",
+                freshness="end_of_day",
+                quality_score=1.0,
+                research_only=True,
+                metadata_json={"hub": "HH", "tenor": "spot"},
+            )
+        )
+
+
+def _ttf_month_ahead_days(db, days: int) -> None:
+    now = datetime.now(UTC)
+    for back in range(2, days + 2):
+        moment = now - timedelta(days=back)
+        front = (moment.date().replace(day=1) + timedelta(days=32)).replace(day=1)
+        start = datetime.combine(front, datetime.min.time(), tzinfo=UTC)
+        db.add(
+            MarketObservationRecord(
+                observation_id=f"ice-ttf-ma-{back}",
+                market_venue="EEX",
+                product="TTF month-ahead",
+                price=31.0,
+                unit="EUR/MWh",
+                currency="EUR",
+                period_start_utc=start,
+                period_end_utc=(start + timedelta(days=32)).replace(day=1),
+                observed_at_utc=moment.replace(hour=17),
+                source_system="EEX",
+                source_reference="ice",
+                freshness="end_of_day",
+                quality_score=1.0,
+                research_only=True,
+                metadata_json={"hub": "TTF", "tenor": "month-ahead", "settlement": True},
+            )
+        )
+
+
+def test_forward_fx_and_the_henry_hub_history(store):
+    """FX for the arrival month: without benchmark fixings no forward can be derived and the
+    ECB spot answers, saying so; with €STR and SOFR it is the interest-parity forward, stated per
+    month. Henry Hub against TTF, daily: the same chain on each day both prices are held."""
+    engine, bearers, arrival = store
+    client = TestClient(create_app(Settings(api_profile="release")))
+    body = {
+        "arrival_month": arrival,
+        "history_days": 60,
+        "cargoes": [{"cargo_id": "us", "term": "FOB", "distance_nm": 4900}],
+    }
+    first = client.post("/api/lng/cargo-economics", json=body, headers=_h(bearers["c-viewer"]))
+    gate = first.json()["data"]["cargoes"][0]["terminals"][0]
+    assert "FX: spot" in gate["fx_source"] and gate["fx_usd_per_unit"] == 1.16
+    with Session(engine) as db:
+        today = datetime.now(UTC).date()
+        for benchmark, currency, rate in (("ESTR", "EUR", 2.0), ("SOFR", "USD", 4.0)):
+            db.add(
+                InterestRateObservationRecord(
+                    observation_id=f"{benchmark}-{today}",
+                    benchmark_id=benchmark,
+                    currency=currency,
+                    value_date=today - timedelta(days=1),
+                    rate_pct=rate,
+                    day_count="ACT/360",
+                    source_system="ECB" if currency == "EUR" else "NYFED",
+                    source_reference="test",
+                    ingested_at_utc=datetime.now(UTC),
+                )
+            )
+        _henry_hub_days(db, 30)
+        _ttf_month_ahead_days(db, 30)
+        # The TTF closes are EEX's: read with a key that holds that entitlement.
+        reader = identity_repository.create_identity_principal(
+            db, name="eex-reader", display_name="eex", role="VIEWER", data_scopes=["EEX"]
+        )
+        _key, eex = identity_repository.create_identity_api_key(
+            db, reader.principal_id, scopes=["EEX"]
+        )
+        db.commit()
+    data = client.post("/api/lng/cargo-economics", json=body, headers=_h(eex)).json()["data"]
+    us = data["cargoes"][0]
+    gate = us["terminals"][0]
+    # USD rates above EUR rates: the EUR/USD forward is above spot, derived, for the month.
+    assert gate["fx_usd_per_unit"] > 1.16
+    assert "derived" in gate["fx_source"] and "value date" in gate["fx_source"]
+    hh = next(leg for leg in us["legs"] if leg["key"] == "hh")
+    assert hh["input_class"] == "indicative" and "(EIA), spot proxy" in hh["source"]
+    history = data["delivered_spread_history"]
+    assert history["hub"] == "TTF" and history["hh_source"] == "EIA"
+    assert len(history["points"]) == 30
+    point = history["points"][-1]
+    assert point["hub_per_mwh"] == 31.0 and point["simulated"] is False
+    assert point["arb_per_mwh"] == pytest.approx(31.0 - point["delivered_per_mwh"], abs=1e-3)

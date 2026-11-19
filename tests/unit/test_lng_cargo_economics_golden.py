@@ -277,3 +277,31 @@ def test_a_voyage_entered_in_days_is_an_assumption():
     assert next(leg for leg in by_days.legs if leg.key == "days").input_class == A
     one_way = evaluate_cargo(_fob(voyage=Voyage(D(0), ballast="one_way", laden_days=D(12))), [])
     assert one_way.days.ballast == 0
+
+
+def test_terminals_in_two_currencies_rank_in_the_reporting_currency():
+    """Gate (TTF, EUR) against a GBP terminal: without a reporting currency the two are not
+    compared (each in its own currency); with ("EUR", 1.16) the GBP row's margin is brought
+    to EUR/MWh through USD/MMBtu at its own FX and the rows rank on that."""
+    q_del_mwh = D(3_754_400) / MMBTU_PER_MWH
+    gate = _terminal("gate", "TTF", "30.00", "0.5", "0.45", "0.95", q_del_mwh, "firm_terms")
+    thames = TerminalOption(
+        **{
+            **_terminal(
+                "thames", "NBP", "27.00", "0.5", "0.30", "0.90", q_del_mwh, "firm_terms"
+            ).__dict__,
+            "currency": "GBP",
+            "fx_usd_per_unit": Valued(D("1.30"), InputClass.DERIVED, "interest parity"),
+        }
+    )
+    plain = evaluate_cargo(_fob(), [gate, thames])
+    assert all(row.margin_reporting_per_mwh is None for row in plain.terminals)
+    ranked = evaluate_cargo(_fob(), [gate, thames], reporting=("EUR", D("1.16")))
+    by_id = {row.terminal_id: row for row in ranked.terminals}
+    assert by_id["gate"].margin_reporting_per_mwh == by_id["gate"].margin_per_mwh
+    thames_eur = by_id["thames"].margin_usd_mmbtu * MMBTU_PER_MWH / D("1.16")
+    assert by_id["thames"].margin_reporting_per_mwh == thames_eur
+    order = sorted(ranked.terminals, key=lambda r: r.margin_reporting_per_mwh, reverse=True)
+    assert [r.terminal_id for r in ranked.terminals] == [r.terminal_id for r in order]
+    payload = serialise(ranked)["terminals"]
+    assert all(row["margin_reporting_per_mwh"] is not None for row in payload)

@@ -7,6 +7,7 @@
  * empty), so the desk states the voyage itself, as a distance at a speed or as days laden, and
  * the result says so. Saved routes are offered once the firm has recorded any.
  */
+import { inQuoteUnit, quoteUnit } from "./priceCharts.ts";
 import type { CargoEconomicsDTO, CargoInput, CargoResultDTO, CargoTerminalDTO, FreightRouteDTO } from "@/api/client";
 
 export type VoyageMode = "route" | "distance" | "days";
@@ -34,6 +35,20 @@ export interface CargoForm {
   canalCost: string;
   desPrice: string;
   desCurrency: "EUR" | "GBP" | "USD";
+  /** The firm's assumption set chosen ("" = the organisation's approved set, if any). */
+  assumptionSetId: string;
+  /** Terminals to compare (empty = every terminal with terms or a tariff). */
+  terminalIds: string[];
+}
+
+/** The figures an assumption set supplies; emptied when the desk picks a set, so the set applies. */
+export const SET_FIELDS = ["cargoSize", "slope", "fee", "speedKn", "hire", "boilOff", "ballastFuel", "portCost", "insurance"] as const;
+
+/** The form with the set's figures left to the set (each can still be typed over). */
+export function withSet(form: CargoForm, setId: string): CargoForm {
+  const next: CargoForm = { ...form, assumptionSetId: setId };
+  if (setId) for (const field of SET_FIELDS) next[field] = "";
+  return next;
 }
 
 /** Months from `month` (YYYY-MM), shifted by `by`. */
@@ -77,6 +92,8 @@ export function exampleForm(today: Date, routes: readonly FreightRouteDTO[] = []
     canalCost: "",
     desPrice: "",
     desCurrency: "EUR",
+    assumptionSetId: "",
+    terminalIds: [],
   };
 }
 
@@ -92,6 +109,9 @@ export function cargoRequest(form: CargoForm, seriesMonths = 12): {
   arrival_month: string;
   cargoes: CargoInput[];
   series_months: number;
+  history_days: number;
+  assumption_set_id?: string;
+  terminal_ids?: string[];
 } {
   const cargo: CargoInput = { cargo_id: "study", term: form.term, q_load_mmbtu: num(form.cargoSize) };
   if (form.term === "DES") {
@@ -122,8 +142,18 @@ export function cargoRequest(form: CargoForm, seriesMonths = 12): {
     }
   }
   const clean = Object.fromEntries(Object.entries(cargo).filter(([, value]) => value !== undefined)) as unknown as CargoInput;
-  return { arrival_month: form.arrivalMonth, cargoes: [clean], series_months: form.term === "FOB" ? seriesMonths : 0 };
+  return {
+    arrival_month: form.arrivalMonth,
+    cargoes: [clean],
+    series_months: form.term === "FOB" ? seriesMonths : 0,
+    history_days: form.term === "FOB" ? HISTORY_DAYS : 0,
+    ...(form.assumptionSetId ? { assumption_set_id: form.assumptionSetId } : {}),
+    ...(form.terminalIds.length > 0 ? { terminal_ids: form.terminalIds } : {}),
+  };
 }
+
+/** Days of Henry Hub against the hub the study asks for. */
+export const HISTORY_DAYS = 365;
 
 /** Which form field answers a blocked cargo (the server's reason). */
 export function fieldForBlock(reason: string | null): keyof CargoForm | null {
@@ -187,7 +217,7 @@ export function seriesChart(series: CargoEconomicsDTO["delivered_spread_series"]
   };
 }
 
-/** Henry Hub as the result states it: value, class and source, or null when not on the path. */
+/** Henry Hub as the result states it: value, class, source and, for a spot proxy, its day. */
 export function henryHub(cargo: CargoResultDTO | null) {
   const leg = cargo?.legs.find((item) => item.key === "hh");
   if (!leg || leg.amount === null) return null;
@@ -196,7 +226,33 @@ export function henryHub(cargo: CargoResultDTO | null) {
     inputClass: leg.input_class,
     source: leg.source,
     proxy: /spot proxy/i.test(leg.source),
+    day: /spot (\d{4}-\d{2}-\d{2})/.exec(leg.source)?.[1] ?? null,
+    demo: /\(demo, simulated\)/.test(leg.source),
   };
+}
+
+/** The daily Henry Hub-against-the-hub line as chart columns (gas days). */
+export function historyChart(history: CargoEconomicsDTO["delivered_spread_history"]) {
+  const points = history?.points ?? [];
+  return {
+    x: points.map((point) => point.day),
+    hub: points.map((point) => point.hub_per_mwh),
+    delivered: points.map((point) => point.delivered_per_mwh),
+    arb: points.map((point) => point.arb_per_mwh),
+    simulated: points.some((point) => point.simulated),
+    last: points.length > 0 ? points[points.length - 1] : null,
+  };
+}
+
+/**
+ * A terminal's hub price as the desk quotes it (NBP in p/th) with the per-MWh figure the
+ * comparison uses; continental hubs are already in their quotation.
+ */
+export function hubQuote(hub: string, perMwh: number | null, currency: string) {
+  if (perMwh === null) return { value: null, unit: `${currency}/MWh`, perMwh: null, native: false };
+  const converted = inQuoteUnit(hub, perMwh, `${currency}/MWh`);
+  if (converted === null || quoteUnit(hub) === `${currency}/MWh`) return { value: perMwh, unit: `${currency}/MWh`, perMwh, native: false };
+  return { value: converted, unit: quoteUnit(hub), perMwh, native: true };
 }
 
 /** Desk shorthand for a delivery month: "2027-01" → "Jan-27". */

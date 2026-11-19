@@ -6089,6 +6089,9 @@ export const api = {
     post<LngTerminalTariffDTO>(`/lng/terminal-tariffs/${encodeURIComponent(tariffId)}/review`, {}),
   recordLngTariffOperatorTerms: (operator: string, body: { permitted: boolean; reference: string }) =>
     put<LngTariffOperatorDTO>(`/lng/terminal-tariffs/operators/${encodeURIComponent(operator)}`, body),
+  /** The firm's assumption sets the caller may read (organisation and visible books). */
+  assumptionSets: (options?: ApiRequestOptions) =>
+    get<{ sets: AssumptionSetSummaryDTO[] }>("/assumption-sets", undefined, options),
   freightRoutes: (options?: ApiRequestOptions) =>
     get<FreightRouteDTO[]>("/lng/freight-routes", undefined, options),
   saveFreightRoute: (routeId: string, body: Omit<FreightRouteDTO, "route_id" | "version" | "recorded_by" | "recorded_at_utc">) =>
@@ -6102,6 +6105,12 @@ export const api = {
     /** The delivered spread by arrival month for the first FOB cargo (design C.4); 0 for none. */
     series_months?: number;
     series_terminal_id?: string;
+    /** Henry Hub against the hub, daily, over this many days (design C.4); 0 for none. */
+    history_days?: number;
+    /** Terminals in several currencies rank in this currency at the arrival month's FX. */
+    reporting_currency?: "EUR" | "GBP" | "USD";
+    /** The assumption set to read; default the organisation's approved one. */
+    assumption_set_id?: string;
   }, options?: ApiRequestOptions) => post<CargoEconomicsDTO>("/lng/cargo-economics", body, options),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
@@ -6718,6 +6727,15 @@ export interface LngTerminalTariffRegisterDTO {
   counts: { reviewed: number; candidate: number; terminals: number };
 }
 
+/** One of the firm's assumption sets, without its values (`GET /api/assumption-sets`). */
+export interface AssumptionSetSummaryDTO {
+  set_id: string;
+  name: string;
+  scope: "organisation" | "book";
+  book_id: string | null;
+  approved_version: number | null;
+}
+
 /** One version of a voyage distance the firm holds (CP-12 `freight_route`). */
 export interface FreightRouteDTO {
   route_id: string;
@@ -6752,6 +6770,8 @@ export interface CargoTerminalDTO {
   cost_per_mwh: number | null;
   netback_per_mwh: number | null;
   margin_per_mwh: number | null;
+  /** The margin in the reporting currency per MWh, when terminals in several currencies rank together. */
+  margin_reporting_per_mwh?: number | null;
   margin_usd_mmbtu: number | null;
   margin_total: number | null;
   lifting_margin_per_mwh: number | null;
@@ -6870,6 +6890,19 @@ export interface CargoEconomicsDTO {
     assumptions: number;
   }[];
   terminals_considered: string[];
+  reporting_currency?: string;
+  /** The assumption-set version the evaluation read, or null when none is approved. */
+  assumption_version?: string | null;
+  /** Henry Hub against the hub, daily: the same chain on each day both prices are held. */
+  delivered_spread_history?: {
+    terminal_id: string;
+    hub: string;
+    currency: string;
+    fx: string;
+    hh_source: "EIA" | "demo" | null;
+    hh_days: number;
+    points: { day: string; hh: number; hub_per_mwh: number; delivered_per_mwh: number; arb_per_mwh: number; simulated: boolean }[];
+  } | null;
   delivered_spread_series?: {
     terminal_id: string;
     cargo_id: string;

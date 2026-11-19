@@ -601,3 +601,51 @@ def test_an_older_volume_gets_the_newer_fixtures_and_keeps_tester_changes(sessio
     assert counts == {"fixture_tariffs": len(seed.SIMULATED_TARIFFS), "fixture_review_case": 1}
     assert session.get(CreditLineRecord, "RHM").limit_amount == 5_000_000
     assert seed.ensure_demo_fixtures(session, seeded_at) == {}
+
+
+def test_a_simulated_henry_hub_series_rolls_forward_and_gives_way_to_eia(session):
+    """CP-18: the demo market's own Henry Hub stream (labelled simulated), 400 days to
+    yesterday; a paused server appends only the missing days; EIA rows retire it."""
+
+    seed = _load()
+    start = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    seed.seed(session, start)
+    session.commit()
+    rows = (
+        session.query(MarketObservationRecord)
+        .filter(MarketObservationRecord.product == "HH spot")
+        .order_by(MarketObservationRecord.period_start_utc)
+        .all()
+    )
+    assert len(rows) == seed.HISTORY_DAYS
+    assert {row.source_system for row in rows} == {"DEMO_Sim"}
+    assert all(row.metadata_json["simulated"] is True for row in rows)
+    assert rows[-1].period_start_utc.date() == start.date() - timedelta(days=1)
+    assert all(1.0 <= row.price <= 6.0 and row.unit == "USD/MMBtu" for row in rows)
+
+    later = start + timedelta(days=5)
+    assert seed._roll_henry_hub(session, later) == 5
+    assert seed._roll_henry_hub(session, later) == 0  # nothing twice
+    session.add(
+        MarketObservationRecord(
+            observation_id="eia-rngwhhd-2026-11-10",
+            market_venue="EIA",
+            product="HH spot",
+            price=3.1,
+            unit="USD/MMBtu",
+            currency="USD",
+            period_start_utc=datetime(2026, 11, 10, tzinfo=UTC),
+            period_end_utc=datetime(2026, 11, 11, tzinfo=UTC),
+            observed_at_utc=datetime(2026, 11, 10, 18, tzinfo=UTC),
+            source_system="EIA",
+            source_reference="eia",
+            freshness="end_of_day",
+            quality_score=1.0,
+            research_only=True,
+            metadata_json={"hub": "HH", "tenor": "spot"},
+        )
+    )
+    session.flush()
+    assert seed._roll_henry_hub(session, later + timedelta(days=1)) == 0
+    left = session.query(MarketObservationRecord).filter_by(product="HH spot").all()
+    assert [row.source_system for row in left] == ["EIA"]

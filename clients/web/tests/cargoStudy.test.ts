@@ -105,7 +105,7 @@ test("Henry Hub states its basis; the simulated scope reads the hub legs", () =>
     legs: [{ key: "hh", label: "Henry Hub", amount: 3.1, unit: "USD/MMBtu", input_class: "indicative", source: "Henry Hub spot 2026-11-16 (EIA), spot proxy for 2026-12" }],
     terminals: [ROW, { ...ROW, terminal_id: "zee", legs: [{ ...ROW.legs[0], input_class: "firm_mark" }] }, { ...ROW, terminal_id: "x", reason: "no_fx" }],
   } as unknown as CargoResultDTO;
-  assert.deepEqual(henryHub(cargo), { value: 3.1, inputClass: "indicative", source: cargo.legs[0].source, proxy: true });
+  assert.deepEqual(henryHub(cargo), { value: 3.1, inputClass: "indicative", source: cargo.legs[0].source, proxy: true, day: "2026-11-16", demo: false });
   assert.deepEqual(hubSimulatedFlags(cargo), [true, false], "left-out rows do not count");
   assert.equal(henryHub({ legs: [] } as unknown as CargoResultDTO), null);
 });
@@ -139,4 +139,40 @@ test("Research has a Cargo & netback task rendered by the study; it uses the sha
     assert.ok(locale["cargo.voyage.note_none"]);
     assert.ok(locale["cargo.hh.proxy"]);
   }
+});
+
+test("NBP's hub price in p/th with the per-MWh figure beside it; Henry Hub's proxy day; the daily line", async () => {
+  const { hubQuote, historyChart, henryHub: hh } = await import("../src/app/model/cargoStudy.ts");
+  const nbp = hubQuote("NBP", 35.7, "GBP");
+  assert.equal(nbp.native, true);
+  assert.equal(nbp.unit, "GBp/th");
+  assert.ok(Math.abs((nbp.value ?? 0) - 104.626) < 0.01, "35.70 GBP/MWh = 104.63 p/th");
+  assert.equal(nbp.perMwh, 35.7);
+  assert.deepEqual(hubQuote("TTF", 40.4, "EUR"), { value: 40.4, unit: "EUR/MWh", perMwh: 40.4, native: false });
+  const cargo = { legs: [{ key: "hh", label: "", amount: 4.07, unit: "USD/MMBtu", input_class: "simulated", source: "Henry Hub spot 2026-11-18 (demo, simulated), spot proxy for 2026-12" }] } as unknown as CargoResultDTO;
+  const held = hh(cargo)!;
+  assert.equal(held.day, "2026-11-18");
+  assert.equal(held.demo, true);
+  const chart = historyChart({
+    terminal_id: "gate", hub: "TTF", currency: "EUR", fx: "FX", hh_source: "EIA", hh_days: 2,
+    points: [
+      { day: "2026-11-16", hh: 3.1, hub_per_mwh: 31, delivered_per_mwh: 21, arb_per_mwh: 10, simulated: false },
+      { day: "2026-11-17", hh: 3.2, hub_per_mwh: 31.5, delivered_per_mwh: 21.4, arb_per_mwh: 10.1, simulated: false },
+    ],
+  });
+  assert.deepEqual(chart.x, ["2026-11-16", "2026-11-17"]);
+  assert.equal(chart.last?.arb_per_mwh, 10.1);
+  assert.equal(chart.simulated, false);
+});
+
+test("an assumption set picked from the firm's records leaves its figures to the set; terminals chosen are sent", async () => {
+  const { withSet, SET_FIELDS } = await import("../src/app/model/cargoStudy.ts");
+  const form = withSet(exampleForm(TODAY), "lng-desk");
+  for (const field of SET_FIELDS) assert.equal(form[field], "", field);
+  assert.equal(form.distanceNm, "4900", "the voyage is not in a set: it stays");
+  const body = cargoRequest({ ...form, terminalIds: ["demo-gate"] });
+  assert.equal(body.assumption_set_id, "lng-desk");
+  assert.deepEqual(body.terminal_ids, ["demo-gate"]);
+  assert.equal(body.cargoes[0].hire_per_day, undefined, "the set's hire applies");
+  assert.equal("assumption_set_id" in cargoRequest(exampleForm(TODAY)), false);
 });

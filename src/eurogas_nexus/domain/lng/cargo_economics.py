@@ -180,6 +180,20 @@ class TerminalResult:
     sent_out_mwh: Decimal | None = None
     # ... and the netback view (USD/MMBtu loaded).
     fob_netback_usd_mmbtu: Decimal | None = None
+    #: The margin in the reporting currency per MWh delivered, when terminals in several
+    #: currencies are ranked together (``evaluate_cargo(..., reporting=...)``).
+    margin_reporting_per_mwh: Decimal | None = None
+
+
+_BASE_KEYS = (
+    "terminal_id",
+    "name",
+    "hub",
+    "currency",
+    "arrival_month",
+    "regas_basis",
+    "excludes",
+)
 
 
 @dataclass(frozen=True)
@@ -490,8 +504,16 @@ def evaluate_cargo(
     terminals: Iterable[TerminalOption],
     *,
     tie_tolerance: Decimal = DEFAULT_TIE_TOLERANCE,
+    reporting: tuple[str, Decimal] | None = None,
 ) -> CargoResult:
-    """Cost, then one row per terminal, best margin first."""
+    """Cost, then one row per terminal, best margin first.
+
+    Terminals priced in one currency rank by their margin per MWh. With ``reporting`` (the
+    reporting currency and USD per one unit of it, e.g. ``("EUR", 1.09)``), terminals in
+    several currencies rank by the margin in the reporting currency at that rate (each row's
+    margin in USD/MMBtu brought to the reporting currency per MWh), and the tie tolerance is
+    read in the reporting currency; without it they rank as before.
+    """
 
     if offer.term not in {"FOB", "DES"}:
         raise ValueError("term is FOB or DES")
@@ -527,17 +549,45 @@ def evaluate_cargo(
             assumptions=sum(c == InputClass.ASSUMPTION for c in classes),
         )
     rows = [_terminal(cargo, offer, option) for option in terminals]
-    priced = sorted(
-        (row for row in rows if row.reason is None),
-        key=lambda row: row.margin_per_mwh,
-        reverse=True,
-    )
+    currencies = {row.currency for row in rows if row.reason is None}
+    if reporting is not None and len(currencies) > 1:
+        code, usd_per_unit = reporting
+        rows = [
+            row
+            if row.reason is not None
+            else TerminalResult(
+                **{
+                    **row.__dict__,
+                    "margin_reporting_per_mwh": row.margin_per_mwh
+                    if row.currency == code
+                    else None
+                    if row.margin_usd_mmbtu is None
+                    else row.margin_usd_mmbtu * MMBTU_PER_MWH / usd_per_unit,
+                }
+            )
+            for row in rows
+        ]
+        rows = [
+            row
+            if row.reason is not None or row.margin_reporting_per_mwh is not None
+            else TerminalResult(
+                **{k: row.__dict__[k] for k in _BASE_KEYS},
+                reason="no_fx",
+            )
+            for row in rows
+        ]
+        key = lambda row: row.margin_reporting_per_mwh  # noqa: E731
+        comparable = True
+    else:
+        key = lambda row: row.margin_per_mwh  # noqa: E731
+        comparable = False
+    priced = sorted((row for row in rows if row.reason is None), key=key, reverse=True)
     left_out = [row for row in rows if row.reason is not None]
     best = priced[0] if priced else None
     no_winner = bool(
         len(priced) > 1
-        and priced[0].currency == priced[1].currency
-        and priced[0].margin_per_mwh - priced[1].margin_per_mwh < tie_tolerance
+        and (comparable or priced[0].currency == priced[1].currency)
+        and key(priced[0]) - key(priced[1]) < tie_tolerance
     )
     return CargoResult(
         **{
@@ -607,6 +657,7 @@ def serialise(result: CargoResult) -> dict[str, object]:
                 "cost_per_mwh": _unit(row.cost_per_mwh),
                 "netback_per_mwh": _unit(row.netback_per_mwh),
                 "margin_per_mwh": _unit(row.margin_per_mwh),
+                "margin_reporting_per_mwh": _unit(row.margin_reporting_per_mwh),
                 "margin_usd_mmbtu": _unit(row.margin_usd_mmbtu),
                 "margin_total": _money(row.margin_total),
                 "lifting_margin_per_mwh": _unit(row.lifting_margin_per_mwh),
