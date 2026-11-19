@@ -50,7 +50,10 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **272 paths / 304 operations**
+- OpenAPI public surface: **273 paths / 305 operations**
+
+  (2026-11-20: a contract's price for a delivery month, `GET
+  /api/contracts/{contract_id}/price`, READ, book scope; +1 path / +1 operation.)
 
   (2026-11-19: tracked strategies and the intraday feed path: `GET`/`POST
   /api/research/strategy-tracks`, `GET /api/research/strategy-tracks/{track_id}`, `POST

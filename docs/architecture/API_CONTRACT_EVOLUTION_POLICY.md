@@ -4,6 +4,19 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-20 (contract kinds and price formulas, docs/product/CONTRACT_TYPES.md): one
+path, one operation. `GET /api/contracts/{contract_id}/price?month=YYYY-MM` (READ, book scope;
+404 `contract_not_found` outside it) returns the contract's `price_terms` (`price-terms/v1`:
+fixed, index ± premium with its averaging rule, or a weighted formula with cap/floor), a `note`
+when the price can only be read as recorded, and `result` (`value` in the contract's own unit,
+`input_class`, `words`, `inputs` each with class, source, window and observations, `missing`
+indices named, `notes` for cap/floor). `POST /api/route-cost/upstream-contracts` gains optional
+`contract_kind`, `kind_terms`, `unmodelled_terms`, `master_contract_id`; its base columns are
+optional for a typed kind (derived from the terms) and required for a supply agreement; reads
+add `contract_kind`, `contract_kind_reviewed`, `kind_terms`, `unmodelled_terms`,
+`master_contract_id`, `headline` (additive). Census: 273 paths / 305 operations (+1 / +1 on
+272 / 304).
+
 Additive 2026-11-19 (tracked strategies and the intraday feed path): five paths, six
 operations. `GET /api/research/strategy-tracks` (the caller's own tracks) and `POST` (`name`,
 `mode` daily|intraday, `spec` a StrategySpec, `rule` an intraday rule: `kind`

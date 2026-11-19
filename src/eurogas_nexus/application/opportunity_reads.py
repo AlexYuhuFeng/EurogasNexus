@@ -344,7 +344,7 @@ def _kind_inputs(record) -> dict[str, Any]:
     terms = kinds.terms_of(record.contract_kind, record.kind_terms)
     out: dict[str, Any] = {"price_basis": kinds.price_basis(record.contract_kind, terms)["basis"]}
     if isinstance(terms, kinds.UpstreamTenderTerms):
-        out["swing_min_mwh_per_day"] = terms.min_dcq_mwh_per_day
-        out["swing_max_mwh_per_day"] = terms.max_dcq_mwh_per_day
+        out["swing_min_mwh_per_day"] = terms.min_mwh()
+        out["swing_max_mwh_per_day"] = terms.max_mwh()
         out["delivery_point"] = terms.delivery_point
     return out

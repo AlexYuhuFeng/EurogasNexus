@@ -153,6 +153,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/portfolio/lng-terminal-terms/{terminal_id}",
         "/api/portfolio/lng-cargo-bid",
         "/api/contracts/delivery-performance",
+        "/api/contracts/{contract_id}/price",
         "/api/contracts/intake",
         "/api/route-cost/upstream-contracts/{contract_id}/retire",
         "/api/route-cost/upstream-contracts/{contract_id}/reinstate",

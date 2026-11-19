@@ -598,12 +598,12 @@ def propose_kind(pages: list[str]) -> dict[str, Term]:
         if terms:
             found["kind.delivery_terms"] = Term(terms, 1, ", ".join(terms))
     elif kind == "UPSTREAM_TENDER":
-        number("dcq_mwh_per_day", r"(?:DCQ|daily contract quantity)" + _LABEL_END + _NUM)
+        number("dcq", r"(?:DCQ|daily contract quantity)" + _LABEL_END + _NUM)
         number(
-            "min_dcq_mwh_per_day", r"(?:minimum|min\.?) (?:DCQ|daily quantity)" + _LABEL_END + _NUM
+            "min_dcq", r"(?:minimum|min\.?) (?:DCQ|daily quantity)" + _LABEL_END + _NUM
         )
         number(
-            "max_dcq_mwh_per_day", r"(?:maximum|max\.?) (?:DCQ|daily quantity)" + _LABEL_END + _NUM
+            "max_dcq", r"(?:maximum|max\.?) (?:DCQ|daily quantity)" + _LABEL_END + _NUM
         )
     return found
 

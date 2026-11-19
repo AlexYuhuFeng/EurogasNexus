@@ -1,7 +1,7 @@
 """Worked examples of each typed contract kind (fictional), for the demo desk and the tests.
 
 Every figure is an example a desk would recognise, not a market value: a UKCS field's gas
-sold by tender at NBP day-ahead less 0.40 p/th with a 20 % swing, an LNG master agreement
+sold by tender at NBP day-ahead less 0.40 p/th (170,000 th/d, a 20 % swing), an LNG master agreement
 with a fictional portfolio seller, and one DES cargo under it into a north-west European
 terminal priced at 115 % Henry Hub plus 2.50 USD/MMBtu.
 """
@@ -22,7 +22,7 @@ def tender_terms(today: date) -> dict:
     start = _month_start(today, 1)
     end = _month_start(today, 4) - timedelta(days=1)
     return {
-        "schema": "upstream-tender/v1",
+        "schema": "upstream-tender/v2",
         "counterparty_id": "DEMO-NORDVIK",
         "seller_name": "Nordvik Energy (fictional)",
         "field_name": "Skarv West (fictional field)",
@@ -32,9 +32,11 @@ def tender_terms(today: date) -> dict:
         "period_end": end.isoformat(),
         "nomination": "day_ahead",
         "allowed_exit_points": ["NBP"],
-        "dcq_mwh_per_day": 5000.0,
-        "min_dcq_mwh_per_day": 4000.0,
-        "max_dcq_mwh_per_day": 6000.0,
+        # As an NBP tender is written: therms per day.
+        "quantity_unit": "th/d",
+        "dcq": 170000.0,
+        "min_dcq": 136000.0,
+        "max_dcq": 204000.0,
         "offtake_obligation_pct": 90.0,
         "field_outage_force_majeure": True,
         "price_type": "index",

@@ -24,6 +24,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from eurogas_nexus.domain.contracts.price_terms import PriceTerms, index_from_label
 from eurogas_nexus.domain.ontology.quantity import convert, convert_price
 
 SUPPLY_GSA = "SUPPLY_GSA"
@@ -83,10 +84,26 @@ class _Terms(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, frozen=True)
 
 
-class UpstreamTenderTerms(_Terms):
-    """Producer offtake sold by tender: what the desk bid for and must lift."""
+#: Daily quantity units a contract may be written in: MWh/d (continental), th/d (NBP), kWh/h.
+QuantityUnit = Literal["MWh/d", "th/d", "kWh/h"]
+_PER_DAY = {"MWh/d": ("MWh", 1.0), "th/d": ("th", 1.0), "kWh/h": ("kWh", 24.0)}
 
-    schema_: Literal["upstream-tender/v1"] = Field("upstream-tender/v1", alias="schema")
+
+def mwh_per_day(value: float, unit: str) -> float:
+    """A daily quantity as written, in MWh/d (the units authority's factors, exact)."""
+
+    energy, per_day = _PER_DAY[unit]
+    return convert(value * per_day, energy, "MWh")
+
+
+class UpstreamTenderTerms(_Terms):
+    """Producer offtake sold by tender: what the desk bid for and must lift.
+
+    ``upstream-tender/v2`` holds the quantities as written, in ``quantity_unit`` (an NBP tender
+    in th/d); a stored ``v1`` block (MWh/d only) is read as v2 in MWh/d.
+    """
+
+    schema_: Literal["upstream-tender/v2"] = Field("upstream-tender/v2", alias="schema")
     # Parties
     counterparty_id: ShortText | None = None
     seller_name: ShortText
@@ -99,9 +116,10 @@ class UpstreamTenderTerms(_Terms):
     nomination: Literal["day_ahead", "within_day"] = "day_ahead"
     allowed_exit_points: list[ShortText] = Field(default_factory=list, max_length=20)
     # Quantity and flexibility
-    dcq_mwh_per_day: float = Field(gt=0, le=1_000_000)
-    min_dcq_mwh_per_day: float = Field(ge=0, le=1_000_000)
-    max_dcq_mwh_per_day: float = Field(gt=0, le=1_000_000)
+    quantity_unit: QuantityUnit = "MWh/d"
+    dcq: float = Field(gt=0, le=100_000_000)
+    min_dcq: float = Field(ge=0, le=100_000_000)
+    max_dcq: float = Field(gt=0, le=100_000_000)
     offtake_obligation_pct: float | None = Field(default=None, ge=0, le=100)
     field_outage_force_majeure: bool = True
     # Price
@@ -115,13 +133,41 @@ class UpstreamTenderTerms(_Terms):
     payment_lag_days: int = Field(default=20, ge=0, le=180)
     financing_rate_pct: float = Field(ge=0, le=50)
 
+    #: The price as a formula (``price-terms/v1``); when absent, read from the fields above.
+    price_terms: PriceTerms | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_v1(cls, data):
+        if isinstance(data, dict) and data.get("schema") == "upstream-tender/v1":
+            data = dict(data)
+            data["schema"] = "upstream-tender/v2"
+            data["quantity_unit"] = "MWh/d"
+            for old, new in (
+                ("dcq_mwh_per_day", "dcq"),
+                ("min_dcq_mwh_per_day", "min_dcq"),
+                ("max_dcq_mwh_per_day", "max_dcq"),
+            ):
+                if old in data:
+                    data[new] = data.pop(old)
+        return data
+
+    def dcq_mwh(self) -> float:
+        return mwh_per_day(self.dcq, self.quantity_unit)
+
+    def min_mwh(self) -> float:
+        return mwh_per_day(self.min_dcq, self.quantity_unit)
+
+    def max_mwh(self) -> float:
+        return mwh_per_day(self.max_dcq, self.quantity_unit)
+
     @model_validator(mode="after")
     def _consistent(self) -> UpstreamTenderTerms:
         if self.period_end < self.period_start:
             raise ValueError("period_end is before period_start")
         if (self.period_end - self.period_start).days > _MAX_TERM_DAYS:
             raise ValueError("the tender period is longer than 25 years")
-        if not self.min_dcq_mwh_per_day <= self.dcq_mwh_per_day <= self.max_dcq_mwh_per_day:
+        if not self.min_dcq <= self.dcq <= self.max_dcq:
             raise ValueError("the swing must read min DCQ <= DCQ <= max DCQ")
         if self.price_type == "index" and not self.index:
             raise ValueError("an index-priced tender names its index")
@@ -199,6 +245,8 @@ class LngCargoTerms(_Terms):
     vessel_name: ShortText | None = None
     #: The own cargo in the vessel feed / ETRM (``lng_cargoes``), once a vessel is named.
     lng_cargo_id: Annotated[str, Field(min_length=1, max_length=96)] | None = None
+    #: The price as a formula (``price-terms/v1``); when absent, read from the fields above.
+    price_terms: PriceTerms | None = None
 
     @model_validator(mode="after")
     def _consistent(self) -> LngCargoTerms:
@@ -235,7 +283,22 @@ class LngCargoTerms(_Terms):
         return convert(self.quantity_mmbtu, "MMBtu", "MWh")
 
 
+class SupplyGsaTerms(_Terms):
+    """A supply agreement's terms beyond the editor's columns (optional): the quantity as
+    written (an NBP contract in th/d) and the price as a formula. When present, the quantity
+    and the fixed price or premium they state replace the editor's own columns."""
+
+    schema_: Literal["supply-gsa/v1"] = Field("supply-gsa/v1", alias="schema")
+    quantity: float | None = Field(default=None, gt=0, le=100_000_000)
+    quantity_unit: QuantityUnit = "MWh/d"
+    price_terms: PriceTerms | None = None
+
+    def dcq_mwh(self) -> float | None:
+        return None if self.quantity is None else mwh_per_day(self.quantity, self.quantity_unit)
+
+
 _TERMS_MODEL: dict[str, type[_Terms]] = {
+    SUPPLY_GSA: SupplyGsaTerms,
     UPSTREAM_TENDER: UpstreamTenderTerms,
     LNG_MSPA: LngMspaTerms,
     LNG_CARGO: LngCargoTerms,
@@ -260,6 +323,8 @@ def parse_terms(kind: str, terms: object) -> _Terms | None:
     """
 
     model = _TERMS_MODEL.get(kind)
+    if kind == SUPPLY_GSA and terms in (None, {}):
+        return None  # a supply agreement's typed block is optional
     if model is None:
         if terms not in (None, {}):
             raise ContractKindError(
@@ -316,6 +381,9 @@ def price_basis(kind: str, terms: _Terms | None) -> dict[str, Any]:
     Brent: no hub price can stand in for it). ``{"basis": "none"}`` for a master.
     """
 
+    explicit = getattr(terms, "price_terms", None)
+    if isinstance(explicit, PriceTerms):
+        return _basis_of(explicit)
     if isinstance(terms, UpstreamTenderTerms):
         if terms.price_type == "fixed" and terms.fixed_price is not None:
             price, currency = price_per_mwh(terms.fixed_price, terms.price_unit)
@@ -348,6 +416,95 @@ def price_basis(kind: str, terms: _Terms | None) -> dict[str, Any]:
     return {"basis": "none"}
 
 
+def _basis_of(price: PriceTerms) -> dict[str, Any]:
+    if price.basis == "fixed":
+        value, currency = price_per_mwh(price.fixed_price, price.unit)
+        return {"basis": "fixed", "price_mwh": value, "currency": currency}
+    if price.basis == "index" and price.unit in _UNIT_CURRENCY:
+        diff, currency = price_per_mwh(price.premium, price.unit)
+        return {
+            "basis": "index",
+            "index": f"{price.index.index} {price.index.product.replace('_', '-')}",
+            "differential_mwh": diff,
+            "currency": currency,
+        }
+    return {"basis": "formula", "label": price.words(), "currency": price.currency}
+
+
+def _fixed(unit: str, price: float) -> PriceTerms:
+    return PriceTerms(basis="fixed", unit=unit, fixed_price=price)
+
+
+def price_terms_for(
+    kind: str | None,
+    terms: _Terms | None,
+    *,
+    contract_price: float | None = None,
+    currency: str | None = None,
+    index_basis: str | None = None,
+) -> tuple[PriceTerms | None, str | None]:
+    """A contract's price as a formula, and a note when it can only be read as recorded.
+
+    The explicit ``price_terms`` of a kind's block first; else the kind's own price fields; a
+    supply agreement without a block is a fixed price per MWh unless its notes name an index,
+    in which case the recorded figure cannot be told apart from a premium and is not priced.
+    """
+
+    explicit = getattr(terms, "price_terms", None)
+    if isinstance(explicit, PriceTerms):
+        return explicit, None
+    if isinstance(terms, UpstreamTenderTerms):
+        if terms.price_type == "fixed" and terms.fixed_price is not None:
+            return _fixed(terms.price_unit, terms.fixed_price), None
+        index = index_from_label(terms.index or "")
+        if index is None:
+            return None, f"index {terms.index!r} is not one the product reads"
+        return PriceTerms(
+            basis="index", unit=terms.price_unit, index=index, premium=terms.differential
+        ), None
+    if isinstance(terms, LngCargoTerms):
+        if terms.price_formula == "fixed" and terms.fixed_price is not None:
+            return _fixed(terms.price_unit, terms.fixed_price), None
+        if terms.price_formula == "hub":
+            index = index_from_label(terms.hub_index or "")
+            if index is None:
+                return None, f"index {terms.hub_index!r} is not one the product reads"
+            return PriceTerms(
+                basis="index", unit=terms.price_unit, index=index, premium=terms.constant or 0.0
+            ), None
+        driver = "HH" if terms.price_formula == "hh" else "BRENT"
+        return PriceTerms(
+            basis="formula",
+            unit=terms.price_unit,
+            components=[
+                {
+                    "index": {
+                        "index": driver,
+                        "product": "pricing_month",
+                        "averaging": "pricing_month",
+                    },
+                    "weight": terms.slope or 0.0,
+                }
+            ],
+            constant=terms.constant or 0.0,
+            pricing_month=terms.pricing_month,
+        ), None
+    if kind in MASTER_KINDS:
+        return None, "a master agreement is priced on its confirmations"
+    if contract_price is None:
+        return None, "no price recorded"
+    named = (index_basis or "").strip()
+    if named and named.lower() not in {"fixed", "fixed price"}:
+        return None, (
+            f"the index {named!r} is named but the formula is not recorded; add the price "
+            "terms (index, averaging, premium) to price it"
+        )
+    unit = f"{(currency or 'GBP').upper()}/MWh"
+    if unit not in _UNIT_CURRENCY:
+        return None, f"price unit {unit} is not one the product reads"
+    return PriceTerms(basis="fixed", unit=unit, fixed_price=contract_price), None
+
+
 def period_label(start: date, end: date) -> str:
     """``2026-12..2027-02`` (16 characters, the base ``gas_year`` column's width)."""
 
@@ -366,15 +523,15 @@ def derive_base_fields(
 
     if isinstance(terms, UpstreamTenderTerms):
         basis = price_basis(kind, terms)
-        dcq = terms.dcq_mwh_per_day
-        up = (terms.max_dcq_mwh_per_day - dcq) / dcq * 100
-        down = (dcq - terms.min_dcq_mwh_per_day) / dcq * 100
+        dcq = terms.dcq_mwh()
+        up = (terms.max_dcq - terms.dcq) / terms.dcq * 100
+        down = (terms.dcq - terms.min_dcq) / terms.dcq * 100
         price = basis.get("price_mwh", basis.get("differential_mwh", 0.0))
         return {
             "resource_type": "BEACH_DELIVERY",
             "delivery_point_name": terms.delivery_point,
             "gas_year": period_label(terms.period_start, terms.period_end),
-            "delivery_quantity_mwh_per_day": dcq,
+            "delivery_quantity_mwh_per_day": round(dcq, 6),
             "contract_price_gbp_mwh": round(price, 6),
             "contract_price_currency": basis["currency"],
             "settlement_frequency": "monthly",
@@ -450,6 +607,32 @@ def derive_base_fields(
             },
         }
     return {}
+
+
+def gsa_overrides(terms: _Terms | None) -> dict[str, Any]:
+    """The editor's columns a supply agreement's typed block replaces (quantity, price)."""
+
+    if not isinstance(terms, SupplyGsaTerms):
+        return {}
+    out: dict[str, Any] = {}
+    if terms.quantity is not None:
+        out["delivery_quantity_mwh_per_day"] = round(terms.dcq_mwh(), 6)
+    if terms.price_terms is not None:
+        basis = _basis_of(terms.price_terms)
+        if basis["basis"] == "fixed":
+            out["contract_price_gbp_mwh"] = round(basis["price_mwh"], 6)
+            out["contract_price_currency"] = basis["currency"]
+            out["notes_fields"] = {"index_basis": "fixed", "price_basis": "fixed"}
+        elif basis["basis"] == "index":
+            out["contract_price_gbp_mwh"] = round(basis["differential_mwh"], 6)
+            out["contract_price_currency"] = basis["currency"]
+            out["notes_fields"] = {
+                "index_basis": terms.price_terms.index.words(),
+                "price_basis": "index",
+            }
+        else:
+            out["notes_fields"] = {"price_basis": "formula"}
+    return out
 
 
 # --------------------------------------------------------------------------- consumers
@@ -541,10 +724,10 @@ def headline(kind: str | None, terms: _Terms | None) -> dict[str, Any] | None:
     if isinstance(terms, UpstreamTenderTerms):
         return {
             "key": "swing",
-            "value": terms.dcq_mwh_per_day,
-            "min": terms.min_dcq_mwh_per_day,
-            "max": terms.max_dcq_mwh_per_day,
-            "unit": "MWh/d",
+            "value": terms.dcq,
+            "min": terms.min_dcq,
+            "max": terms.max_dcq,
+            "unit": terms.quantity_unit,
         }
     if isinstance(terms, LngCargoTerms):
         first, last = terms.delivery_days()

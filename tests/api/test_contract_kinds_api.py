@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -36,9 +37,11 @@ def _client(tmp_path, monkeypatch) -> tuple[TestClient, dict, str]:
             name="lng-trader",
             display_name="LNG Trader",
             role="ANALYST",
-            data_scopes=["TTF"],
+            data_scopes=["*"],
         )
-        _key, bearer = create_identity_api_key(session, row.principal_id, display_name="kinds")
+        _key, bearer = create_identity_api_key(
+            session, row.principal_id, display_name="kinds", scopes=["*"]
+        )
         session.commit()
     headers = {"X-Eurogas-Api-Key": TOKEN, "X-Eurogas-Identity": bearer}
     return TestClient(create_app(Settings(api_profile="release"))), headers, url
@@ -94,7 +97,7 @@ def test_master_cargo_and_tender_are_saved_with_derived_columns(tmp_path, monkey
     )
     assert tender.status_code == 200, tender.text
     tender_data = tender.json()["data"]
-    assert tender_data["delivery_quantity_mwh_per_day"] == 5000.0
+    assert tender_data["delivery_quantity_mwh_per_day"] == pytest.approx(4982.208, abs=1e-3)
     assert tender_data["nomination_tolerance_pct"] == 20.0
 
     with Session(create_engine(url, future=True)) as session:
@@ -222,3 +225,66 @@ def test_tender_and_des_cargo_reach_the_ladder_and_the_master_does_not(
     assert round(ttf["physical_mwh"]) == round(3_600_000 * 0.29307107)
     warnings = " ".join(response.json()["meta"].get("warnings") or [])
     assert "price floats" in warnings
+
+
+def test_a_contract_is_priced_for_a_month_from_its_formula_and_the_held_index(
+    tmp_path, monkeypatch
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    client, headers, url = _client(tmp_path, monkeypatch)
+    first = (date.today().replace(day=1) - timedelta(days=1)).replace(day=1)
+    last = date.today().replace(day=1) - timedelta(days=1)
+    terms = {
+        **tender_terms(TODAY),
+        "period_start": first.isoformat(),
+        "period_end": last.isoformat(),
+    }
+    assert (
+        _post(
+            client,
+            headers,
+            contract_id="t-past",
+            contract_name="T past",
+            contract_kind="UPSTREAM_TENDER",
+            kind_terms=terms,
+        ).status_code
+        == 200
+    )
+    with Session(create_engine(url, future=True)) as session:
+        for offset in range(3):
+            day = first + timedelta(days=offset)
+            session.add(
+                MarketObservationRecord(
+                    observation_id=f"nbp-da-{offset}",
+                    market_venue="ICE",
+                    product="NBP day-ahead",
+                    price=84.0 + offset,  # p/th, as NBP is quoted
+                    unit="p/th",
+                    currency="GBP",
+                    period_start_utc=datetime.combine(day, datetime.min.time(), tzinfo=UTC),
+                    period_end_utc=datetime.combine(day, datetime.min.time(), tzinfo=UTC),
+                    observed_at_utc=datetime.combine(day, datetime.min.time(), tzinfo=UTC),
+                    source_system="ICE_ENDEX",
+                    source_reference=f"nbp:{offset}",
+                    freshness="end_of_day",
+                    quality_score=0.9,
+                    research_only=True,
+                    metadata_json={"hub": "NBP", "tenor": "day-ahead", "settlement": True},
+                )
+            )
+        session.commit()
+    response = client.get(f"/api/contracts/t-past/price?month={first:%Y-%m}", headers=headers)
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    result = data["result"]
+    # Average of 84, 85, 86 p/th = 85.00 p/th, less the 0.40 p/th discount.
+    assert result["unit"] == "GBp/th"
+    assert result["value"] == pytest.approx(84.60, abs=1e-6)
+    assert result["input_class"] == "settlement"
+    assert result["inputs"][0]["observations"] == 3
+    assert "NBP day-ahead" in result["words"]
+    missing = client.get("/api/contracts/nope/price?month=2027-01", headers=headers)
+    assert missing.status_code == 404

@@ -254,6 +254,48 @@ def get_delivery_performance(
     )
 
 
+@router.get("/api/contracts/{contract_id}/price")
+def get_contract_price(
+    contract_id: str,
+    request: Request,
+    month: str = Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+) -> dict:
+    """One contract's price for a delivery month, from its own formula and the held indices.
+
+    The formula in words, the price in the contract's own unit, each index input with its
+    class, source and averaging window, and the indices not held (named, never guessed). A
+    future window reads the forward curve's mark as an estimate, labelled as one. A contract
+    outside the caller's books is 404. Decision support: nothing is settled or invoiced.
+    """
+
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.application.caller import caller_of
+        from eurogas_nexus.application.contract_pricing import contract_price
+        from eurogas_nexus.db.models import UpstreamResourceContractRecord
+        from eurogas_nexus.db.session import get_session_factory
+        from eurogas_nexus.security.portfolio_scope import restrict
+
+        with get_session_factory()() as session:
+            record = (
+                restrict(
+                    session.query(UpstreamResourceContractRecord),
+                    UpstreamResourceContractRecord,
+                    session,
+                )
+                .filter(UpstreamResourceContractRecord.contract_id == contract_id)
+                .one_or_none()
+            )
+            if record is None:
+                raise HTTPException(status_code=404, detail={"code": "contract_not_found"})
+            data = contract_price(session, caller_of(request), record, month)
+            return _env(data, request, source="runtime-postgresql")
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
 @router.post("/api/contracts/intake")
 async def post_contract_intake(
     request: Request,

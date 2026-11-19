@@ -32,7 +32,8 @@ def test_tender_golden_case_derives_the_base_columns() -> None:
     base = kinds.derive_base_fields("UPSTREAM_TENDER", terms)
     assert base["delivery_point_name"] == "NBP"
     assert base["gas_year"] == "2026-12..2027-02"
-    assert base["delivery_quantity_mwh_per_day"] == 5000.0
+    # Written in th/d as an NBP tender is: 170,000 th/d is 4,982.21 MWh/d (exact factors).
+    assert base["delivery_quantity_mwh_per_day"] == pytest.approx(170000 * 0.0293071, rel=1e-6)
     # Swing 4,000-6,000 around 5,000: 20 % up, 20 % down.
     assert base["nomination_tolerance_pct"] == 20.0
     assert base["delivery_tolerance_pct"] == 20.0
@@ -46,7 +47,7 @@ def test_tender_golden_case_derives_the_base_columns() -> None:
         date(2027, 2, 28),
     )
     assert kinds.headline("UPSTREAM_TENDER", terms) == {
-        "key": "swing", "value": 5000.0, "min": 4000.0, "max": 6000.0, "unit": "MWh/d",
+        "key": "swing", "value": 170000.0, "min": 136000.0, "max": 204000.0, "unit": "th/d",
     }
     assert kinds.counterparty_id_of(terms) == "DEMO-NORDVIK"
 
@@ -54,7 +55,7 @@ def test_tender_golden_case_derives_the_base_columns() -> None:
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        ({"min_dcq_mwh_per_day": 5500.0}, "min DCQ <= DCQ <= max DCQ"),
+        ({"min_dcq": 180000.0}, "min DCQ <= DCQ <= max DCQ"),
         ({"period_end": "2026-11-01"}, "before period_start"),
         ({"index": None}, "names its index"),
         ({"price_type": "fixed"}, "states its price"),
@@ -135,8 +136,12 @@ def test_confirmation_needs_an_mspa_that_allows_its_term() -> None:
 
 def test_gsa_has_no_typed_block_and_migrated_rows_stay_gsa() -> None:
     assert kinds.parse_terms("SUPPLY_GSA", None) is None
+    # A supply agreement's block is optional and strict.
     with pytest.raises(kinds.ContractKindError) as refused:
-        kinds.parse_terms("SUPPLY_GSA", {"anything": 1})
+        kinds.parse_terms("SUPPLY_GSA", {"schema": "supply-gsa/v1", "anything": 1})
+    assert refused.value.code == "contract_kind_terms_invalid"
+    with pytest.raises(kinds.ContractKindError) as refused:
+        kinds.parse_terms("HUB_TRADE", {"anything": 1})
     assert refused.value.code == "contract_kind_terms_unexpected"
     assert kinds.infer_kind("LNG_REGAS", {"contract_type": "LNG MSPA"}) == "SUPPLY_GSA"
     assert kinds.derive_base_fields("SUPPLY_GSA", None) == {}
@@ -184,3 +189,54 @@ def test_revision_v5_records_the_kind_and_round_trips() -> None:
         )
     ).economic_snapshot
     assert changed.content_hash() != typed.content_hash()
+
+
+def test_a_stored_v1_tender_reads_as_v2_in_mwh():
+    v1 = {**tender_terms(TODAY), "schema": "upstream-tender/v1"}
+    for key in ("quantity_unit", "dcq", "min_dcq", "max_dcq"):
+        v1.pop(key)
+    v1.update(dcq_mwh_per_day=5000.0, min_dcq_mwh_per_day=4000.0, max_dcq_mwh_per_day=6000.0)
+    terms = kinds.parse_terms("UPSTREAM_TENDER", v1)
+    assert terms.quantity_unit == "MWh/d" and terms.dcq_mwh() == 5000.0
+    assert kinds.canonical_terms(terms)["schema"] == "upstream-tender/v2"
+
+
+def test_a_supply_agreement_block_states_its_quantity_and_price_as_written():
+    terms = kinds.parse_terms(
+        "SUPPLY_GSA",
+        {
+            "schema": "supply-gsa/v1",
+            "quantity": 800000,
+            "quantity_unit": "th/d",
+            "price_terms": {
+                "basis": "index",
+                "unit": "GBp/th",
+                "index": {"index": "NBP", "product": "month_ahead"},
+                "premium": 1.5,
+            },
+        },
+    )
+    out = kinds.gsa_overrides(terms)
+    assert out["delivery_quantity_mwh_per_day"] == pytest.approx(800000 * 0.0293071, rel=1e-6)
+    assert out["contract_price_currency"] == "GBP"
+    assert out["notes_fields"]["price_basis"] == "index"
+    price, note = kinds.price_terms_for("SUPPLY_GSA", terms)
+    assert price.premium == 1.5 and note is None
+    # Without a block: fixed per MWh, unless an index is named and the formula is missing.
+    fixed, _ = kinds.price_terms_for("SUPPLY_GSA", None, contract_price=30.0, currency="EUR")
+    assert fixed.words() == "fixed 30 EUR/MWh"
+    none, note = kinds.price_terms_for(
+        "SUPPLY_GSA", None, contract_price=30.0, currency="EUR", index_basis="TTF month-ahead"
+    )
+    assert none is None and "formula is not recorded" in note
+
+
+def test_each_kind_reads_as_price_terms():
+    tender = kinds.parse_terms("UPSTREAM_TENDER", tender_terms(TODAY))
+    price, _ = kinds.price_terms_for("UPSTREAM_TENDER", tender)
+    assert price.basis == "index" and price.index.index == "NBP" and price.premium == -0.4
+    cargo = kinds.parse_terms("LNG_CARGO", cargo_terms(TODAY))
+    price, _ = kinds.price_terms_for("LNG_CARGO", cargo)
+    assert price.words() == "1.15 × Henry Hub settlement of the pricing month + 2.5 USD/MMBtu"
+    master = kinds.parse_terms("LNG_MSPA", mspa_terms(TODAY))
+    assert kinds.price_terms_for("LNG_MSPA", master)[0] is None

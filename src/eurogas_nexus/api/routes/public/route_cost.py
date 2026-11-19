@@ -512,6 +512,22 @@ def _kind_refused(code: str, message: str, status: int = 422) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "message": message})
 
 
+def _notes_with(raw: str | None, fields: dict) -> str:
+    """The notes JSON with ``fields`` set (plain-text notes are kept as operator notes)."""
+
+    import json as _json
+
+    notes: dict = {}
+    if raw:
+        try:
+            parsed = _json.loads(raw)
+            notes = parsed if isinstance(parsed, dict) else {"operator_notes": raw}
+        except ValueError:
+            notes = {"operator_notes": raw}
+    notes.update({key: value for key, value in fields.items() if value is not None})
+    return _json.dumps(notes, sort_keys=True)
+
+
 def _apply_contract_kind(session, body: UpstreamContractUpsertRequest, data: dict) -> None:
     """Validate the contract kind and its terms; derive a typed kind's base columns.
 
@@ -521,7 +537,6 @@ def _apply_contract_kind(session, body: UpstreamContractUpsertRequest, data: dic
     with confirmations would change kind.
     """
 
-    import json as _json
 
     from eurogas_nexus.db.models import UpstreamResourceContractRecord
     from eurogas_nexus.domain.contracts import kinds
@@ -587,16 +602,8 @@ def _apply_contract_kind(session, body: UpstreamContractUpsertRequest, data: dic
             raise _kind_refused(exc.code, exc.detail) from exc
         derived = kinds.derive_base_fields(kind, terms, master=master_terms)
         notes_fields = derived.pop("notes_fields", {})
-        notes = {}
-        if data.get("notes"):
-            try:
-                parsed = _json.loads(data["notes"])
-                notes = parsed if isinstance(parsed, dict) else {"operator_notes": data["notes"]}
-            except ValueError:
-                notes = {"operator_notes": data["notes"]}
-        notes.update({key: value for key, value in notes_fields.items() if value is not None})
         data.update(derived)
-        data["notes"] = _json.dumps(notes, sort_keys=True)
+        data["notes"] = _notes_with(data.get("notes"), notes_fields)
         if derived.get("variable_cost_gbp_mwh") is None:
             data.pop("variable_cost_gbp_mwh", None)
         data["kind_terms"] = kinds.canonical_terms(terms)
@@ -607,15 +614,22 @@ def _apply_contract_kind(session, body: UpstreamContractUpsertRequest, data: dic
                 "contract_field_missing",
                 f"a {kind} states {', '.join(missing)}",
             )
-        if body.kind_terms:
-            raise _kind_refused(
-                "contract_kind_terms_unexpected", f"{kind} has no typed terms in this release"
-            )
+        try:
+            terms = kinds.parse_terms(kind, body.kind_terms)
+        except kinds.ContractKindError as exc:
+            raise _kind_refused(exc.code, exc.detail) from exc
         if body.master_contract_id:
             raise _kind_refused(
                 "contract_master_unexpected", f"a {kind} is not confirmed under a master"
             )
-        data["kind_terms"] = None
+        # A supply agreement's optional block (quantity as written, price as a formula)
+        # replaces the editor's quantity and price columns it states.
+        overrides = kinds.gsa_overrides(terms)
+        notes_fields = overrides.pop("notes_fields", {})
+        data.update(overrides)
+        if notes_fields:
+            data["notes"] = _notes_with(data.get("notes"), notes_fields)
+        data["kind_terms"] = kinds.canonical_terms(terms)
     if stated:
         data["contract_kind"] = kind
         data["contract_kind_reviewed"] = True
