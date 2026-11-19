@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  boardReasonText,
   cargoHubOf,
   cargoSearch,
   focusHubs,
@@ -72,4 +73,21 @@ test("Research opens on Fundamentals; Spreads opens on the board; each page carr
   assert.match(cargo, /<CargoNextSteps/);
   const fundamentals = readFileSync(new URL("../src/components/research/FundamentalsWorkbench.tsx", import.meta.url), "utf8");
   assert.match(fundamentals, /<FundamentalsNextSteps/);
+});
+
+test("a board reason is said in the reader's language from its code, months as the desk writes them", () => {
+  const en = JSON.parse(readFileSync(new URL("../src/i18n/en.json", import.meta.url), "utf8")) as Record<string, string>;
+  const zh = JSON.parse(readFileSync(new URL("../src/i18n/zh.json", import.meta.url), "utf8")) as Record<string, string>;
+  const translate = (table: Record<string, string>) => (key: string, options: Record<string, unknown> = {}) => {
+    const count = options.count;
+    const text = table[count === undefined ? key : `${key}_${count === 1 ? "one" : "other"}`] ?? table[key] ?? String(options.defaultValue ?? key);
+    return text.replace(/\{\{(\w+)\}\}/g, (_whole, name: string) => String(options[name] ?? ""));
+  };
+  const spark = { reason: "no power price held; no carbon (EUA) price held", reasons: [{ code: "no_power_price" }, { code: "no_carbon_price" }] };
+  assert.equal(boardReasonText(spark, translate(en)), "no power price held; no carbon (EUA) price held");
+  assert.equal(boardReasonText(spark, translate(zh)), "未持有电力价格；未持有碳（EUA）价格");
+  assert.equal(boardReasonText({ reasons: [{ code: "months_not_held", params: { months: ["2027-04", "2027-05"] } }] }, translate(zh)), "未持有的月份：Apr-27, May-27");
+  assert.equal(boardReasonText({ reasons: [{ code: "cargo.no_hh_price" }] }, translate(en)), "no HH price");
+  assert.equal(boardReasonText({ reason: "an older server's sentence" }, translate(zh)), "an older server's sentence");
+  for (const key of Object.keys(en).filter((name) => name.startsWith("spreads.reason."))) assert.ok(key in zh, key);
 });

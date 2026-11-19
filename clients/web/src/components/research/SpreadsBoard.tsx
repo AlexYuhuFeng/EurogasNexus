@@ -7,10 +7,9 @@
  * figure is the server's; a row opens the full workbench with its spec filled.
  */
 import { useTranslation } from "react-i18next";
-import { humanizeEnum } from "@/app/model/enumLabels";
 
 import type { BoardTenorDTO, SpreadBoardDTO, StrategySpecDTO } from "@/api/spreads";
-import { cargoSearch, fullSpec, rangePosition, routeGap } from "@/app/model/spreadsBoard";
+import { boardReasonText, cargoSearch, fullSpec, rangePosition, routeGap } from "@/app/model/spreadsBoard";
 import { unitLabel } from "@/app/model/instrumentPicker";
 import { useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { PercentileStrip, Sparkline } from "@/components/ui/charts";
@@ -27,20 +26,12 @@ function Sim({ on }: { on: boolean | undefined }) {
   return on && pills ? <span className="spreads-sim">{t("instrument_picker.sim")}</span> : null;
 }
 
-/** A reason the server sends as a code ("no_hh_price") said in words ("no HH price"). */
-function reasonWords(reason: string | null | undefined): string {
-  const text = String(reason ?? "");
-  if (!/^[a-z0-9]+(?:_[a-z0-9]+)+$/.test(text)) return text;
-  const words = humanizeEnum(text);
-  return words.charAt(0).toLowerCase() + words.slice(1);
-}
-
 function TenorCells({ tenor, unit }: { tenor: BoardTenorDTO; unit: string }) {
   const { t } = useTranslation();
   if (!tenor.available) {
     return (
       <>
-        <td className="num board-muted" colSpan={tenor.tenor === "MA" ? 4 : 2}>{t("spreads.board.not_held")}</td>
+        <td className="num board-muted" colSpan={tenor.tenor === "MA" ? 4 : 2} title={boardReasonText(tenor, t) || undefined}>{t("spreads.board.not_held")}</td>
       </>
     );
   }
@@ -160,7 +151,7 @@ export function SpreadsBoard({ board, onOpen }: { board: SpreadBoardDTO; onOpen:
                       {!row.available
                         ? row.uninformative
                           ? t("spreads.board.uninformative")
-                          : t("spreads.board.not_held_reason", { reason: reasonWords(row.reason) })
+                          : t("spreads.board.not_held_reason", { reason: boardReasonText(row, t) })
                         : row.carry
                           ? row.carry.total != null
                             ? t("spreads.board.net_of_carry", { carry: `${fixed(row.carry.total, 3)} ${hub.unit}`, net: signed(row.native_net_of_carry ?? row.net_of_carry, 3) })
@@ -207,7 +198,7 @@ export function SpreadsBoard({ board, onOpen }: { board: SpreadBoardDTO; onOpen:
                   </a>
                 </>
               ) : (
-                <span className="board-muted">{t("spreads.board.not_held_reason", { reason: reasonWords(row.reason) })}</span>
+                <span className="board-muted">{t("spreads.board.not_held_reason", { reason: boardReasonText(row, t) })}</span>
               )}
             </li>
           ))}

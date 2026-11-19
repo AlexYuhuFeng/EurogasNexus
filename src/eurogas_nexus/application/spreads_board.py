@@ -116,6 +116,13 @@ def _route_cost_eur(holdings: Holdings, route: Any, delivery: Delivery) -> float
         return None
 
 
+def _why(code: str, text: str, **params: Any) -> dict[str, Any]:
+    """A reason the board cannot show a figure: the English sentence (exports, the API's own
+    readers) and the code with its parameters, which the client says in the reader's language."""
+
+    return {"reason": text, "reasons": [{"code": code, "params": params}]}
+
+
 # ----------------------------------------------------------------------------- locational
 
 
@@ -127,7 +134,15 @@ def _pair(holdings: Holdings, hub: str, tenor: str) -> dict[str, Any]:
     days = sorted(set(mine) & set(ref))
     out: dict[str, Any] = {"tenor": code, "available": False}
     if not days:
-        out["reason"] = f"no {code} close held for both {hub} and {REFERENCE_HUB}"
+        out.update(
+            _why(
+                "no_close_both",
+                f"no {code} close held for both {hub} and {REFERENCE_HUB}",
+                tenor=code,
+                hub=hub,
+                reference=REFERENCE_HUB,
+            )
+        )
         return out
     since = holdings.today - timedelta(days=HISTORY_DAYS)
     series: list[tuple[date, float]] = []
@@ -152,7 +167,7 @@ def _pair(holdings: Holdings, hub: str, tenor: str) -> dict[str, Any]:
     a, fx_a = _eur(holdings, last, delivery=delivery if code == "MA" else None)
     b, _ = _eur(holdings, last_ref, delivery=delivery if code == "MA" else None)
     if a is None or b is None:
-        out["reason"] = "FX for the delivery period not held"
+        out.update(_why("no_fx_delivery", "FX for the delivery period not held"))
         return out
     gross = a - b
     start_hub, end_hub = (REFERENCE_HUB, hub) if gross >= 0 else (hub, REFERENCE_HUB)
@@ -253,9 +268,7 @@ def _season_months(today: date) -> tuple[list[date], list[date]]:
 def _average(curve: Mapping[str, Mapping[str, Any]], months: Sequence[date]):
     rows = [curve.get(month.isoformat()) for month in months]
     if any(row is None or _per_mwh(row) is None for row in rows):
-        return None, [
-            m.strftime("%b-%y") for m, row in zip(months, rows, strict=True) if row is None
-        ]
+        return None, [m for m, row in zip(months, rows, strict=True) if row is None]
     return sum(_per_mwh(row) for row in rows) / len(rows), []  # type: ignore[misc]
 
 
@@ -304,7 +317,7 @@ def time_rows(holdings: Holdings, hub: str, carry: Mapping[str, Any] | None) -> 
         _per_mwh(da) if da else None,
         _per_mwh(ma) if ma else None,
         spec=history("DA", "MA"),
-        extra={} if da and ma else {"reason": "DA or MA close not held"},
+        extra={} if da and ma else _why("no_da_or_ma", "DA or MA close not held"),
     )
     if len(months) >= 2:
         m1, m2 = curve[months[0]], curve[months[1]]
@@ -316,21 +329,37 @@ def time_rows(holdings: Holdings, hub: str, carry: Mapping[str, Any] | None) -> 
             spec=history("M+1", "M+2"),
         )
     else:
-        add("m1_m2", "M+1 − M+2", None, None, extra={"reason": "two forward months not held"})
+        add(
+            "m1_m2",
+            "M+1 − M+2",
+            None,
+            None,
+            extra=_why("no_two_months", "two forward months not held"),
+        )
     summer, winter = _season_months(holdings.today)
     sum_avg, sum_gap = _average(curve, summer)
     win_avg, win_gap = _average(curve, winter)
     season = f"Win-{winter[0]:%y} − Sum-{summer[0]:%y}"
     extra: dict[str, Any] = {}
     if sum_avg is None or win_avg is None:
-        extra["reason"] = "months not held: " + ", ".join(sum_gap + win_gap)
+        gap = sum_gap + win_gap
+        extra.update(
+            _why(
+                "months_not_held",
+                "months not held: " + ", ".join(f"{m:%b-%y}" for m in gap),
+                months=[f"{m:%Y-%m}" for m in gap],
+            )
+        )
     elif carry is not None:
         cost = carry_cost(carry, sum_avg)
         extra["carry"] = cost
         if cost.get("total") is not None:
             extra["net_of_carry"] = win_avg - sum_avg - cost["total"]
     else:
-        extra["carry"] = {"total": None, "reason": "storage costs not in the firm's assumption set"}
+        extra["carry"] = {
+            "total": None,
+            **_why("no_carry", "storage costs not in the firm's assumption set"),
+        }
     add("win_sum", season, win_avg, sum_avg, extra=extra)
     cal1 = [date(holdings.today.year + 1, m, 1) for m in range(1, 13)]
     cal2 = [date(holdings.today.year + 2, m, 1) for m in range(1, 13)]
@@ -338,12 +367,18 @@ def time_rows(holdings: Holdings, hub: str, carry: Mapping[str, Any] | None) -> 
     c2, gap2 = _average(curve, cal2)
     cal_extra: dict[str, Any] = {}
     if c1 is None or c2 is None:
-        cal_extra["reason"] = f"{len(gap1) + len(gap2)} months not held"
+        cal_extra.update(
+            _why(
+                "months_count_not_held",
+                f"{len(gap1) + len(gap2)} months not held",
+                count=len(gap1) + len(gap2),
+            )
+        )
     elif _identical_simulated_years(curve, cal1, cal2):
         # Two simulated years with the same shape: their difference is the simulator's, not a
         # finding. Said so instead of a spread of 0.000.
         c1 = c2 = None
-        cal_extra = {"reason": "not informative on demo data", "uninformative": True}
+        cal_extra = {**_why("uninformative", "not informative on demo data"), "uninformative": True}
     add(
         f"cal{cal1[0]:%y}_cal{cal2[0]:%y}",
         f"Cal-{cal1[0]:%y} − Cal-{cal2[0]:%y}",
@@ -436,7 +471,7 @@ def carry_cost(carry: Mapping[str, Any], summer_price: float) -> dict[str, Any]:
     if carry.get("financing.rate") is not None:
         parts["financing.rate"] = float(carry["financing.rate"]) / 100 * 0.5 * summer_price
     if not parts:
-        return {"total": None, "reason": "storage costs not in the firm's assumption set"}
+        return {"total": None, **_why("no_carry", "storage costs not in the firm's assumption set")}
     return {
         "total": sum(parts.values()),
         "parts": parts,
@@ -508,6 +543,7 @@ def cross_rows(session, caller, today: date) -> list[dict[str, Any]]:
 
     arrival = _month_after(today, 2)
     rows: list[dict[str, Any]] = []
+    failed = _why("no_cargo_priced", "no cargo priced")
     try:
         result = cargo_economics(
             session,
@@ -526,7 +562,7 @@ def cross_rows(session, caller, today: date) -> list[dict[str, Any]]:
         )
     except CargoEconomicsError as exc:
         result = None
-        reason = exc.message
+        failed = _why(f"cargo.{exc.code}", exc.message)
     cargo = (result or {}).get("cargoes", [None])[0] if result else None
     row: dict[str, Any] = {
         "key": "hh_ttf",
@@ -535,9 +571,9 @@ def cross_rows(session, caller, today: date) -> list[dict[str, Any]]:
         "arrival": arrival,
     }
     if cargo is None:
-        row["reason"] = reason if result is None else "no cargo priced"
+        row.update(failed if result is None else _why("no_cargo_priced", "no cargo priced"))
     elif cargo.get("blocked"):
-        row["reason"] = cargo["blocked"]
+        row.update(_why(f"cargo.{cargo['blocked']}", cargo["blocked"]))
     else:
         priced = [
             t for t in cargo["terminals"] if t.get("reason") is None and t.get("delivered_spread")
@@ -545,7 +581,7 @@ def cross_rows(session, caller, today: date) -> list[dict[str, Any]]:
         first = priced[0] if priced else None
         chosen = next((t for t in priced if t["hub"] == REFERENCE_HUB), first)
         if chosen is None:
-            row["reason"] = "no terminal priced"
+            row.update(_why("no_terminal_priced", "no terminal priced"))
         else:
             spread = chosen["delivered_spread"]
             hh = next((leg for leg in cargo["legs"] if leg["key"] == "hh"), None)
@@ -589,14 +625,18 @@ def _clean_spark(session) -> dict[str, Any]:
         .first()
         is not None
     )
-    reasons = []
-    if not power:
-        reasons.append("no power price held")
-    if not carbon:
-        reasons.append("no carbon (EUA) price held")
+    missing = [
+        _why(code, text)
+        for code, text, held in (
+            ("no_power_price", "no power price held", power),
+            ("no_carbon_price", "no carbon (EUA) price held", carbon),
+        )
+        if not held
+    ] or [_why("not_computed", "not computed yet")]
     return {
         "key": "clean_spark",
         "label": "Clean spark",
         "available": False,
-        "reason": "; ".join(reasons) or "not computed yet",
+        "reason": "; ".join(item["reason"] for item in missing),
+        "reasons": [reason for item in missing for reason in item["reasons"]],
     }

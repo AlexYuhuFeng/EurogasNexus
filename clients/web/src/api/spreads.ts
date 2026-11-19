@@ -142,11 +142,18 @@ export interface EvaluationDTO {
   result: CurveResultDTO | HistoryResultDTO | null;
 }
 
+/** Why the board cannot show a figure, as a code with its parameters (said per language). */
+export interface BoardReasonDTO {
+  code: string;
+  params?: Record<string, string | number | string[]>;
+}
+
 /** One tenor of a locational row on the spread board (`GET /api/research/spreads/board`). */
 export interface BoardTenorDTO {
   tenor: "MA" | "DA";
   available: boolean;
   reason?: string;
+  reasons?: BoardReasonDTO[];
   close_day?: string;
   delivery?: string;
   legs?: { hub: string; native_value: number; native_unit: string; value: number }[];
@@ -170,8 +177,9 @@ export interface BoardTimeRowDTO {
   near?: number;
   far?: number;
   reason?: string;
+  reasons?: BoardReasonDTO[];
   spec?: Partial<StrategySpecDTO> | null;
-  carry?: { total: number | null; reason?: string; parts?: Record<string, number>; missing?: string[] };
+  carry?: { total: number | null; reason?: string; reasons?: BoardReasonDTO[]; parts?: Record<string, number>; missing?: string[] };
   net_of_carry?: number;
   /** The value in the hub's quotation (NBP in p/th) and in the reporting unit (hover). */
   native_value?: number;
@@ -185,6 +193,7 @@ export interface BoardCrossRowDTO {
   label: string;
   available: boolean;
   reason?: string;
+  reasons?: BoardReasonDTO[];
   arrival?: string;
   terminal?: string;
   hub?: string;

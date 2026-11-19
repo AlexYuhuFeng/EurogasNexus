@@ -112,10 +112,13 @@ def test_time_spreads_and_the_storage_carry(holdings):
     hub = time_rows(holdings, "TTF", None)
     by_key = {row["key"]: row for row in hub["rows"]}
     assert by_key["da_ma"]["available"] is False
+    # Said as a code with its parameters, so the client says it in the reader's language.
+    assert by_key["da_ma"]["reasons"] == [{"code": "no_da_or_ma", "params": {}}]
     assert by_key["m1_m2"]["available"] and by_key["m1_m2"]["spec"]["kind"] == "history"
     season = by_key["win_sum"]
     assert season["available"] and season["value"] == pytest.approx(3.0, abs=0.1)
     assert season["carry"]["total"] is None  # nothing in the assumption set
+    assert season["carry"]["reasons"][0]["code"] == "no_carry"
     carry = {"storage.capacity_fee": 2.0, "storage.fuel": 1.0, "financing.rate": 4.0}
     held = {row["key"]: row for row in time_rows(holdings, "TTF", carry)["rows"]}["win_sum"]
     summer = held["far"]
@@ -181,3 +184,12 @@ def test_nbp_time_spreads_in_pence_per_therm_and_identical_demo_years_are_not_a_
     assert season["reporting_value"] == pytest.approx(4.0 / 0.87, rel=0.02)
     cal = next(row for row in hub["rows"] if row["key"].startswith("cal"))
     assert cal["available"] is False and cal["uninformative"] is True
+
+
+def test_a_pair_without_closes_gives_its_reason_as_a_code(holdings):
+    rows = _month_ahead("TTF", 30.0)
+    month = locational_rows(_holdings(rows, []), ["PEG"])[0]["tenors"][0]
+    assert month["available"] is False
+    assert month["reasons"] == [
+        {"code": "no_close_both", "params": {"tenor": "MA", "hub": "PEG", "reference": "TTF"}}
+    ]

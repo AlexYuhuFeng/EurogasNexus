@@ -7,7 +7,9 @@
  * StrategySpec travels in the address (`spec=`, JSON), so the page a link opens starts from
  * the same object, not from a re-typed description.
  */
-import type { BoardTenorDTO, StrategySpecDTO } from "../../api/spreads.ts";
+import type { BoardReasonDTO, BoardTenorDTO, StrategySpecDTO } from "../../api/spreads.ts";
+import { formatDeliveryMonth } from "../time/timeFormat.ts";
+import { humanizeEnum } from "./enumLabels.ts";
 
 /** A row's spec, completed with the defaults the workbench needs. */
 export function fullSpec(partial: Partial<StrategySpecDTO>): StrategySpecDTO {
@@ -102,4 +104,36 @@ export function storageStep(diffPts: number | null | undefined): { tone: "below"
   if (diffPts == null || !Number.isFinite(diffPts)) return null;
   const pts = Math.round(diffPts * 10) / 10;
   return { tone: pts <= -1 ? "below" : pts >= 1 ? "above" : "near", pts: Math.abs(pts) };
+}
+
+type ReasonTranslate = (key: string, options?: Record<string, unknown>) => string;
+
+/** A code the server sends ("no_hh_price") in words ("no HH price"): the fallback. */
+function codeWords(code: string): string {
+  const words = humanizeEnum(code);
+  return words.charAt(0).toLowerCase() + words.slice(1);
+}
+
+/**
+ * Why a board figure is not shown, in the reader's language: each reason code through
+ * `spreads.reason.<code>` (a cargo's own reasons through `cargo.reason.<code>`), months as the
+ * desk writes them ("Apr-27"). A reply without codes falls back to the server's sentence.
+ */
+export function boardReasonText(
+  row: { reason?: string | null; reasons?: BoardReasonDTO[] },
+  t: ReasonTranslate,
+): string {
+  const reasons = row.reasons ?? [];
+  if (reasons.length === 0) return String(row.reason ?? "");
+  return reasons
+    .map(({ code, params = {} }) => {
+      const values: Record<string, unknown> = { ...params };
+      if (Array.isArray(params.months)) values.months = params.months.map((month) => formatDeliveryMonth(String(month))).join(", ");
+      if (code.startsWith("cargo.")) {
+        const cargoCode = code.slice("cargo.".length);
+        return t(`cargo.reason.${cargoCode}`, { defaultValue: codeWords(cargoCode) });
+      }
+      return t(`spreads.reason.${code}`, { ...values, defaultValue: codeWords(code) });
+    })
+    .join(t("spreads.reason.separator"));
 }
