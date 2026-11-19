@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 
 import "@/styles/spreads.css";
 import { api } from "@/api/client";
-import type { CurveResultDTO, EvaluationDTO, HistoryResultDTO, InputClass, SpecIssueDTO, StrategySpecDTO } from "@/api/spreads";
+import type { CurveResultDTO, EvaluationDTO, HistoryResultDTO, InputClass, RouteDTO, SpecIssueDTO, StrategySpecDTO } from "@/api/spreads";
 import { catalogueFromDTO, type PickerCatalogue } from "@/app/model/instrumentPicker";
 import {
   DISPLAY_UNITS,
@@ -26,6 +26,8 @@ import {
   describeFromSearch,
   frontWaterfall,
   historyChart,
+  pickRoute,
+  routeVia,
   setKind,
   setLegHub,
   setLegTenor,
@@ -41,7 +43,8 @@ import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 const fixed = (value: number | null | undefined, decimals = 3): string =>
   value === null || value === undefined || !Number.isFinite(value) ? "–" : value.toFixed(decimals).replace("-", "−");
 
-const EXAMPLES = ["spreads.example.ttf_nbp", "spreads.example.nbp_m1", "spreads.example.zh"] as const;
+// Examples in the interface's language only (each locale holds its own three).
+const EXAMPLES = ["spreads.example.ttf_nbp", "spreads.example.nbp_m1", "spreads.example.third"] as const;
 
 export function SpreadsWorkbench() {
   const { t, i18n } = useTranslation();
@@ -56,6 +59,8 @@ export function SpreadsWorkbench() {
   const [failed, setFailed] = useState<string | null>(null);
   const [catalogue, setCatalogue] = useState<PickerCatalogue | null>(null);
   const evaluateSeq = useRef(0);
+  // Set once the desk asks for something: the default study then never replaces it.
+  const asked = useRef(false);
 
   const evaluate = useCallback(async (next: StrategySpecDTO) => {
     const seq = ++evaluateSeq.current;
@@ -77,6 +82,7 @@ export function SpreadsWorkbench() {
   const interpret = useCallback(async (description: string) => {
     const clean = description.trim();
     if (clean.length < 3) return;
+    asked.current = true;
     setStage(0);
     setFailed(null);
     // The stages move while the server reads; the bar never fills before the answer.
@@ -109,7 +115,8 @@ export function SpreadsWorkbench() {
       if (linked) {
         setText(linked);
         void interpret(linked);
-      } else {
+      } else if (!asked.current) {
+        // A description typed or an example pressed while the catalogue loaded wins.
         void evaluate(defaultSpec(loaded.hubs.map((hub) => hub.hub)));
       }
     }).catch(() => {
@@ -139,6 +146,7 @@ export function SpreadsWorkbench() {
   };
 
   const result = evaluation?.result ?? null;
+  const curveRoute = result && result.kind === "curve" ? result.route : null;
   const classes = useMemo(() => (result && result.kind === "curve" ? curveClasses(result) : []), [result]);
   const hubCatalogue = catalogue;
 
@@ -245,7 +253,11 @@ export function SpreadsWorkbench() {
               {spec.cost
                 ? t("spreads.chip.cost_on", { from: spec.cost.from_hub, to: spec.cost.to_hub })
                 : t("spreads.chip.cost_off")}
+              {spec.cost && routeVia(curveRoute?.hubs).length > 0 && ` ${t("spreads.route.via", { hubs: routeVia(curveRoute?.hubs).join(", ") })}`}
             </Button>
+            {spec.cost && curveRoute && (
+              <RoutePicker route={curveRoute} unit={spec.unit ?? "EUR/MWh"} onPick={(through) => void evaluate(pickRoute(spec, through))} />
+            )}
           </div>
           {spec.kind === "history" && <RuleChips spec={spec} onChange={(next) => void evaluate(next)} />}
           <p className="spreads-formula" data-formula="true">
@@ -284,6 +296,45 @@ export function SpreadsWorkbench() {
       {result && result.kind === "curve" && spec && <CurveResult result={result} spec={spec} classes={classes} />}
       {result && result.kind === "history" && spec && <HistoryResult result={result} spec={spec} />}
     </div>
+  );
+}
+
+/** The transport route chosen, the other routes with their extra cost, those unavailable. */
+function RoutePicker({ route, unit, onPick }: { route: RouteDTO; unit: string; onPick: (through: string[] | null) => void }) {
+  const { t } = useTranslation();
+  const alternatives = route.alternatives ?? [];
+  const unavailable = route.unavailable ?? [];
+  const count = 1 + alternatives.length + unavailable.length;
+  const name = (hubs: string[] | undefined) => {
+    const via = routeVia(hubs);
+    return via.length > 0 ? t("spreads.route.via", { hubs: via.join(", ") }) : t("spreads.route.direct");
+  };
+  return (
+    <details className="spreads-routes" data-route-picker="true">
+      <summary>{t("spreads.route.routes", { count })}</summary>
+      <ul role="list">
+        <li data-route-option="chosen" aria-current="true">
+          <strong>{name(route.hubs)}</strong>{" "}
+          {route.in_display_unit != null ? `${fixed(route.in_display_unit)} ${unit}` : t("spreads.route.not_priced")}
+          {" · "}{route.picked ? t("spreads.route.your_pick") : route.complete ? t("spreads.route.cheapest") : t("spreads.route.none_complete")}
+          {route.picked && (
+            <button type="button" className="spreads-choice" onClick={() => onPick(null)}>{t("spreads.route.use_cheapest")}</button>
+          )}
+        </li>
+        {alternatives.map((option) => (
+          <li key={(option.hubs ?? []).join(">")} data-route-option="alternative">
+            <button type="button" className="spreads-choice" onClick={() => onPick(routeVia(option.hubs))}>{name(option.hubs)}</button>{" "}
+            {option.in_display_unit != null ? `${fixed(option.in_display_unit)} ${unit}` : "–"}
+            {option.extra_cost != null && <span className="spreads-converted"> ({t("spreads.route.extra", { value: `${option.extra_cost >= 0 ? "+" : ""}${fixed(option.extra_cost)}`, unit })})</span>}
+          </li>
+        ))}
+        {unavailable.map((option) => (
+          <li key={option.hubs.join(">")} data-route-option="unavailable">
+            {name(option.hubs)}: {t("spreads.route.unavailable", { legs: option.missing.join("; ") })}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

@@ -15,7 +15,8 @@ export interface StrategySpecDTO {
   legs: Array<{ hub: string; tenor: string | null; weight: number }>;
   unit: string | null;
   fx: "forward" | "spot";
-  cost: { kind: "route_tariff"; from_hub: string; to_hub: string } | null;
+  /** `through`: market areas the desk picked the route through (empty: the cheapest). */
+  cost: { kind: "route_tariff"; from_hub: string; to_hub: string; through?: string[] } | null;
   rule: { kind: "zscore" | "threshold"; lookback: number; entry_z?: number; exit_z?: number; low?: number | null; high?: number | null } | null;
   lookback_days: number;
   volume_mwh_per_day: number | null;
@@ -65,6 +66,15 @@ export interface RouteDTO {
   load_factor: string;
   in_display_unit?: number | null;
   value?: number | null;
+  /** Market areas in flow order (NBP, ZTP, PEG) and those between the two hubs. */
+  hubs?: string[];
+  through?: string[];
+  /** The other complete routes, cheapest first, with their extra cost in the display unit. */
+  alternatives?: (RouteDTO & { extra_cost: number | null })[];
+  /** Routes that cannot be priced, each with the legs the register does not hold. */
+  unavailable?: { hubs: string[]; via: string[]; missing: string[] }[];
+  /** The desk's pick (market areas between), or null for the cheapest. */
+  picked?: string[] | null;
 }
 
 export interface CurveLegDTO {

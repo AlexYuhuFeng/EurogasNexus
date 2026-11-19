@@ -12,6 +12,14 @@ Each leg carries its tariff's gas year, status and data class: a ``FINAL`` publi
 ``sourced``; ``INDICATIVE``, ``PROVISIONAL`` and ``DRAFT`` are ``indicative``; the demo's
 ``SIMULATOR_ONLY`` rows are ``simulated``. The route's class is its weakest leg's.
 
+**The cheapest route** (:func:`cheapest_route`, the one implementation Spreads, Today and the
+opportunity evaluators call): every simple sequence of market areas up to ``max_hops`` crossings
+is priced, each crossing at its cheapest complete way across (exit, pipeline charges, entry, for
+the delivery period, firm annual capacity per MWh at 100 % load factor), legs in another
+currency brought to one at the stated FX. The cheapest complete route is chosen; the next-best
+is returned with its extra cost; a route with a leg the register does not hold is unavailable
+and names the leg; with no complete route the result says exactly which legs are missing.
+
 本模块按已证实的路径（出口、管道、入口）从费率登记表计算枢纽间运输成本；缺失的费率明确
 标为缺失，绝不按零计算；每段都带气体年、状态与数据类别。
 """
@@ -27,7 +35,13 @@ from eurogas_nexus.domain.market.fx_forward import Delivery
 
 #: Data classes from weakest to strongest (design basis 2, B.2).
 CLASS_ORDER: tuple[str, ...] = (
-    "missing", "simulated", "assumption", "indicative", "derived", "converted", "reference",
+    "missing",
+    "simulated",
+    "assumption",
+    "indicative",
+    "derived",
+    "converted",
+    "reference",
     "sourced",
 )
 _STATUS_CLASS = {
@@ -100,11 +114,23 @@ class RouteCost:
     legs: tuple[RouteLeg, ...] = ()
     delivery: Delivery | None = None
     issues: tuple[str, ...] = field(default_factory=tuple)
+    #: Market-area codes in flow order (NBP, ZTP, PEG).
+    hubs: tuple[str, ...] = ()
+    #: The currency the total is stated in when legs are in several, and the factor taking one
+    #: unit of each leg currency into it (the stated FX).
+    reporting_currency: str | None = None
+    fx_factors: tuple[tuple[str, float], ...] = ()
 
     @property
     def currency(self) -> str | None:
         currencies = {leg.currency for leg in self.legs if leg.currency}
-        return next(iter(currencies)) if len(currencies) == 1 else None
+        if len(currencies) == 1:
+            return next(iter(currencies))
+        if self.reporting_currency and currencies <= {self.reporting_currency} | {
+            code for code, _ in self.fx_factors
+        }:
+            return self.reporting_currency
+        return None
 
     @property
     def complete(self) -> bool:
@@ -116,7 +142,12 @@ class RouteCost:
 
         if not self.complete or self.currency is None:
             return None
-        return sum(leg.value for leg in self.legs if leg.value is not None)
+        factors = dict(self.fx_factors)
+        return sum(
+            leg.value * (1.0 if leg.currency == self.currency else factors[leg.currency])
+            for leg in self.legs
+            if leg.value is not None and leg.currency is not None
+        )
 
     @property
     def input_class(self) -> str:
@@ -142,6 +173,9 @@ class RouteCost:
             "direction": f"{self.from_hub} → {self.to_hub}",
             "proven": self.proven,
             "via": list(self.via),
+            "hubs": list(self.hubs),
+            "through": list(self.hubs[1:-1]),
+            "fx": [{"currency": code, "factor": factor} for code, factor in self.fx_factors],
             "legs": [leg.as_dict() for leg in self.legs],
             "total": self.total,
             "currency": self.currency,
@@ -219,15 +253,77 @@ def price_leg(spec: Any, rows: Iterable[Mapping[str, Any]], on: date) -> RouteLe
     )
 
 
-def route_cost(
+@dataclass(frozen=True)
+class RouteChoice:
+    """The cheapest complete route, the next-best ones and the routes that cannot be priced."""
+
+    from_hub: str
+    to_hub: str
+    chosen: RouteCost
+    alternatives: tuple[RouteCost, ...] = ()
+    unavailable: tuple[RouteCost, ...] = ()
+    issues: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict[str, Any]:
+        best = self.chosen.total
+        return {
+            "chosen": self.chosen.as_dict(),
+            "alternatives": [
+                {
+                    **route.as_dict(),
+                    "extra_cost": None
+                    if best is None or route.total is None
+                    else round(route.total - best, 6),
+                }
+                for route in self.alternatives
+            ],
+            "unavailable": [
+                {"hubs": list(route.hubs), "via": list(route.via), "missing": route.missing_legs()}
+                for route in self.unavailable
+            ],
+            "missing": [] if self.chosen.complete else self.chosen.missing_legs(),
+            "issues": list(self.issues),
+        }
+
+
+#: Crossings a route may chain (NBP -> ZTP -> PEG is two; four reaches across the continent).
+MAX_ROUTE_HOPS = 4
+
+
+def cheapest_route(
     from_hub: str,
     to_hub: str,
     delivery: Delivery,
     tariff_rows: Iterable[Mapping[str, Any]],
     *,
     graph: Any = None,
-) -> RouteCost:
-    """The priced route from ``from_hub`` to ``to_hub`` for ``delivery``."""
+    through: Iterable[str] | None = None,
+    fx: Mapping[str, float] | None = None,
+    reporting_currency: str = "EUR",
+    max_hops: int = MAX_ROUTE_HOPS,
+    alternatives: int = 3,
+) -> RouteChoice:
+    """Price every proven route from ``from_hub`` to ``to_hub`` and choose the cheapest.
+
+    Args:
+        from_hub, to_hub: Market codes (TTF, NBP) or VTP point keys; gas moves from -> to.
+        delivery: The delivery period; each leg is the tariff in force on its first gas day.
+        tariff_rows: The register's rows (:func:`load_tariff_rows`).
+        graph: The market-area graph (default the shipped one).
+        through: Market codes the route must pass through, in order (a route the desk picked,
+            e.g. ``("ZTP",)``); default any.
+        fx: Units of ``reporting_currency`` per one unit of each other leg currency, for
+            routes whose legs are in several currencies (the stated FX). A currency without a
+            factor leaves such a route without a total (named in ``issues``).
+        reporting_currency: The currency a mixed-currency route is totalled in.
+        max_hops: The most crossings a route may chain.
+        alternatives: How many next-best complete routes to return.
+
+    Returns:
+        A :class:`RouteChoice`. ``chosen`` is the cheapest complete route; when none is
+        complete it is the shortest route with the fewest missing legs (``complete`` false,
+        its missing legs named, never priced at zero).
+    """
 
     if graph is None:
         from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
@@ -235,23 +331,149 @@ def route_cost(
         graph = shipped_market_area_graph()
     start, target = graph.hub_for(from_hub), graph.hub_for(to_hub)
     if not start or not target:
-        return RouteCost(from_hub, to_hub, False, delivery=delivery,
-                         issues=(f"no market area held for {from_hub if not start else to_hub}",))
-    crossings = graph.route(start, target)
-    if not crossings:
-        return RouteCost(from_hub, to_hub, False, delivery=delivery,
-                         issues=(f"no proven route from {from_hub} to {to_hub}",))
+        issue = f"no market area held for {from_hub if not start else to_hub}"
+        empty = RouteCost(from_hub, to_hub, False, delivery=delivery, issues=(issue,))
+        return RouteChoice(from_hub, to_hub, empty, issues=(issue,))
     rows = list(tariff_rows)
-    legs = tuple(
-        price_leg(spec, rows, delivery.first)
-        for crossing in crossings
-        for spec in graph.legs(crossing)
+    factors = {code.upper(): float(value) for code, value in (fx or {}).items()}
+    wanted = [graph.hub_for(code) for code in (through or ()) if code]
+    code_of = getattr(graph, "hub_names", {})
+    priced_pairs: dict[tuple[str, str], list[tuple[Any, tuple[RouteLeg, ...]]]] = {}
+
+    def crossing_options(a: str, b: str):
+        if (a, b) not in priced_pairs:
+            options = []
+            for crossing in graph.crossings(a, b):
+                legs = tuple(price_leg(spec, rows, delivery.first) for spec in graph.legs(crossing))
+                options.append((crossing, legs))
+            priced_pairs[(a, b)] = options
+        return priced_pairs[(a, b)]
+
+    def leg_cost(legs: tuple[RouteLeg, ...]) -> float | None:
+        total = 0.0
+        for leg in legs:
+            if leg.value is None or leg.currency is None:
+                return None
+            if leg.currency == reporting_currency:
+                total += leg.value
+            elif leg.currency in factors:
+                total += leg.value * factors[leg.currency]
+            else:
+                return None
+        return total
+
+    complete: list[RouteCost] = []
+    partial: list[tuple[int, int, RouteCost]] = []
+    missing_fx: set[str] = set()
+    for hubs in graph.all_hub_paths(start, target, max_hops=max_hops):
+        if wanted and hubs[1:-1] != wanted:
+            continue
+        chosen: list[tuple[Any, tuple[RouteLeg, ...]]] = []
+        ok = True
+        for a, b in zip(hubs, hubs[1:], strict=False):
+            options = crossing_options(a, b)
+            if not options:
+                ok = False
+                break
+            costed = [(leg_cost(legs), crossing, legs) for crossing, legs in options]
+            usable = [item for item in costed if item[0] is not None]
+            if usable:
+                _cost, crossing, legs = min(usable, key=lambda item: item[0])
+            else:
+                # Not priceable this way: keep the representative crossing, its gaps named.
+                crossing, legs = options[0]
+                ok = False
+                missing_fx |= {
+                    leg.currency
+                    for leg in legs
+                    if leg.value is not None
+                    and leg.currency
+                    and leg.currency != reporting_currency
+                    and leg.currency not in factors
+                }
+            chosen.append((crossing, legs))
+        if not chosen or len(chosen) != len(hubs) - 1:
+            continue
+        currencies = {leg.currency for _c, legs in chosen for leg in legs if leg.currency}
+        route = RouteCost(
+            from_hub,
+            to_hub,
+            True,
+            via=tuple(
+                " / ".join(
+                    str(graph.points.get(point, {}).get("name") or point) for point in c.points
+                )
+                for c, _legs in chosen
+            ),
+            legs=tuple(leg for _c, legs in chosen for leg in legs),
+            delivery=delivery,
+            hubs=tuple(code_of.get(hub, hub) for hub in hubs),
+            reporting_currency=reporting_currency if len(currencies) > 1 else None,
+            fx_factors=tuple(sorted((c, factors[c]) for c in currencies if c in factors)),
+        )
+        if ok and route.total is not None:
+            complete.append(route)
+        else:
+            partial.append((len(route.missing_legs()), len(hubs), route))
+    issues = tuple(
+        f"no FX held for {code} legs" for code in sorted(missing_fx if missing_fx else ())
     )
-    via = tuple(
-        " / ".join(str(graph.points.get(point, {}).get("name") or point) for point in c.points)
-        for c in crossings
+    if complete:
+        ordered = sorted(complete, key=lambda route: (route.total, len(route.hubs)))
+        unavailable = tuple(route for *_rank, route in sorted(partial, key=lambda x: (x[1], x[0])))[
+            :3
+        ]
+        return RouteChoice(
+            from_hub,
+            to_hub,
+            ordered[0],
+            tuple(ordered[1 : 1 + alternatives]),
+            unavailable,
+            issues,
+        )
+    if partial:
+        best = min(partial, key=lambda item: (item[1], item[0]))[2]
+        others = tuple(
+            route
+            for *_rank, route in sorted(partial, key=lambda x: (x[1], x[0]))
+            if route is not best
+        )[:3]
+        return RouteChoice(from_hub, to_hub, best, (), others, issues)
+    issue = f"no proven route from {from_hub} to {to_hub}" + (
+        f" through {', '.join(through or ())}" if through else ""
     )
-    return RouteCost(from_hub, to_hub, True, via=via, legs=legs, delivery=delivery)
+    return RouteChoice(
+        from_hub,
+        to_hub,
+        RouteCost(from_hub, to_hub, False, delivery=delivery, issues=(issue,)),
+        issues=(issue,),
+    )
+
+
+def route_cost(
+    from_hub: str,
+    to_hub: str,
+    delivery: Delivery,
+    tariff_rows: Iterable[Mapping[str, Any]],
+    *,
+    graph: Any = None,
+    through: Iterable[str] | None = None,
+    fx: Mapping[str, float] | None = None,
+    reporting_currency: str = "EUR",
+) -> RouteCost:
+    """The chosen route of :func:`cheapest_route` (the cheapest complete one, else the
+    shortest with its missing legs named)."""
+
+    return cheapest_route(
+        from_hub,
+        to_hub,
+        delivery,
+        tariff_rows,
+        graph=graph,
+        through=through,
+        fx=fx,
+        reporting_currency=reporting_currency,
+    ).chosen
 
 
 def load_tariff_rows() -> list[dict[str, Any]]:

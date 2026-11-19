@@ -39,7 +39,7 @@ from eurogas_nexus.application.market_normalisation import (
     display_unit,
     parse_price_unit,
 )
-from eurogas_nexus.application.route_tariff_cost import route_cost, weakest
+from eurogas_nexus.application.route_tariff_cost import cheapest_route, weakest
 from eurogas_nexus.domain.market.fx_forward import Delivery, FxHoldings
 from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT
 from eurogas_nexus.domain.research.strategy_spec import (
@@ -247,11 +247,15 @@ def check(spec: StrategySpec, holdings: Holdings) -> list[Issue]:
                                 f"'{spec.unit}' is not a price unit; which one?",
                                 choices=DISPLAY_UNITS))
     if spec.cost is not None:
+        from eurogas_nexus.application.route_tariff_cost import MAX_ROUTE_HOPS
         from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
 
         graph = shipped_market_area_graph()
         start, target = graph.hub_for(spec.cost.from_hub), graph.hub_for(spec.cost.to_hub)
-        if not start or not target or not graph.route(start, target):
+        # Any chain of market areas counts (NBP -> ZTP -> PEG), not only neighbours.
+        if not start or not target or not graph.all_hub_paths(
+            start, target, max_hops=MAX_ROUTE_HOPS
+        ):
             issues.append(Issue(
                 "route_unproven", "cost",
                 f"no proven pipeline route from {spec.cost.from_hub} to {spec.cost.to_hub} is "
@@ -360,7 +364,9 @@ def evaluate_curve(spec: StrategySpec, holdings: Holdings) -> dict[str, Any]:
             "refused": refused,
         }
         if not refused and spec.cost is not None:
-            route = route_cost(spec.cost.from_hub, spec.cost.to_hub, delivery, holdings.tariffs)
+            choice = _route_choice(spec, spec.cost.from_hub, spec.cost.to_hub, delivery, holdings,
+                                   unit, fx_delivery)
+            route = choice.chosen
             cost_value = None
             cost_fx = None
             if route.total is not None and route.currency:
@@ -387,7 +393,11 @@ def evaluate_curve(spec: StrategySpec, holdings: Holdings) -> dict[str, Any]:
             row["net"] = gross - cost_value if cost_value is not None else None
             classes.append(row["cost_class"])
             if route_front is None:
-                route_front = {**route.as_dict(), "in_display_unit": cost_value}
+                every = choice if not spec.cost.through else _route_choice(
+                    spec, spec.cost.from_hub, spec.cost.to_hub, delivery, holdings, unit,
+                    fx_delivery, honour_through=False)
+                route_front = _route_payload(choice, every, cost_value, unit, holdings,
+                                             fx_delivery)
         elif not refused:
             row["net"] = gross
         row["input_class"] = "missing" if refused else weakest(classes)
@@ -429,6 +439,75 @@ def _native(hub: str, point: Mapping[str, Any]) -> tuple[float, str]:
     return value, display_unit(parse_price_unit(unit)) if "/" in unit else unit
 
 
+def _fx_factors(holdings: Holdings, currencies: set[str], into: str,
+                delivery: Delivery | None) -> dict[str, float]:
+    """Units of ``into`` per one unit of each currency, at the stated FX (forward or spot)."""
+
+    from eurogas_nexus.domain.market.fx_forward import FxForwardError, conversion_rate
+
+    out: dict[str, float] = {}
+    for code in sorted(currencies - {into}):
+        try:
+            out[code] = conversion_rate(holdings.fx, code, into, as_of=holdings.today,
+                                        delivery=delivery).rate
+        except FxForwardError:
+            continue
+    return out
+
+
+def _route_choice(spec: StrategySpec, start: str, end: str, delivery: Delivery,
+                  holdings: Holdings, unit: str, fx_delivery: Delivery | None,
+                  *, honour_through: bool = True):
+    """The cheapest route (``route_tariff_cost.cheapest_route``), legs in another currency at
+    the stated FX; the spec's ``through`` only for the direction the desk picked."""
+
+    into = parse_price_unit(unit).currency
+    currencies = {str(row.get("currency") or "").upper() for row in holdings.tariffs} - {""}
+    picked = spec.cost is not None and (start, end) == (spec.cost.from_hub, spec.cost.to_hub)
+    return cheapest_route(
+        start, end, delivery, holdings.tariffs,
+        through=spec.cost.through if honour_through and picked and spec.cost else None,
+        fx=_fx_factors(holdings, currencies, into, fx_delivery),
+        reporting_currency=into,
+    )
+
+
+def _route_payload(choice: Any, every: Any, cost_value: float | None, unit: str,
+                   holdings: Holdings, fx_delivery: Delivery | None) -> dict[str, Any]:
+    """The chosen route for the front month, the other complete routes with their extra cost
+    against it in the display unit (cheapest first), and the routes that cannot be priced
+    with their missing legs. ``every`` is the choice without the desk's pick."""
+
+    def in_unit(route: Any) -> float | None:
+        if route.total is None or not route.currency:
+            return None
+        try:
+            return route.total * conversion(f"{route.currency}/MWh", unit, holdings=holdings.fx,
+                                            as_of=holdings.today, delivery=fx_delivery).factor
+        except NormalisationError:
+            return None
+
+    alternatives = []
+    others = [route for route in (every.chosen, *every.alternatives)
+              if route.complete and route.hubs != choice.chosen.hubs]
+    for route in others:
+        value = in_unit(route)
+        alternatives.append({
+            **route.as_dict(),
+            "in_display_unit": value,
+            "extra_cost": None if value is None or cost_value is None else value - cost_value,
+        })
+    payload = choice.as_dict()
+    return {
+        **payload["chosen"],
+        "in_display_unit": cost_value,
+        "alternatives": alternatives,
+        "unavailable": every.as_dict()["unavailable"],
+        "missing": payload["missing"],
+        "picked": list(choice.chosen.hubs[1:-1]) if every is not choice else None,
+    }
+
+
 def route_lines(spec: StrategySpec, holdings: Holdings, unit: str) -> dict[str, Any] | None:
     """For a history: the route cost both ways for the front month, as horizontal lines (D.2).
 
@@ -444,7 +523,8 @@ def route_lines(spec: StrategySpec, holdings: Holdings, unit: str) -> dict[str, 
     out: dict[str, Any] = {"delivery": delivery.as_dict(), "lines": []}
     for start, end, sign in ((spec.cost.from_hub, spec.cost.to_hub, 1),
                              (spec.cost.to_hub, spec.cost.from_hub, -1)):
-        route = route_cost(start, end, delivery, holdings.tariffs)
+        route = _route_choice(spec, start, end, delivery, holdings, unit,
+                              None if spec.fx == "spot" else delivery).chosen
         value = None
         if route.total is not None and route.currency:
             try:

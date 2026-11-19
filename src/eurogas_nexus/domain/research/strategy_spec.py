@@ -63,9 +63,15 @@ class RouteCostSpec:
     from_hub: str
     to_hub: str
     kind: str = "route_tariff"
+    #: Market areas the route must pass through, in order (a route the desk picked from the
+    #: alternatives); empty = the cheapest complete route.
+    through: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
-        return {"kind": self.kind, "from_hub": self.from_hub, "to_hub": self.to_hub}
+        out: dict[str, Any] = {"kind": self.kind, "from_hub": self.from_hub, "to_hub": self.to_hub}
+        if self.through:
+            out["through"] = list(self.through)
+        return out
 
 
 @dataclass(frozen=True)
@@ -191,7 +197,13 @@ def spec_from_dict(data: Any) -> StrategySpec:
                                 f"the route {from_hub} → {to_hub} is not between the legs",
                                 choices=tuple(sorted(hubs))))
         else:
-            cost = RouteCostSpec(from_hub, to_hub)
+            raw_through = raw_cost.get("through") or ()
+            through = tuple(
+                str(code).strip().upper()
+                for code in (raw_through if isinstance(raw_through, list | tuple) else ())
+                if str(code).strip()
+            )[:4]
+            cost = RouteCostSpec(from_hub, to_hub, through=through)
     rule = None
     raw_rule = data.get("rule")
     if isinstance(raw_rule, dict) and raw_rule:

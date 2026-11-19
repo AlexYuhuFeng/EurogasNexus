@@ -276,3 +276,42 @@ def test_translation_prompt_lists_only_the_held_instruments():
     messages = translation_messages("NBP vs TTF", _holdings(), "en")
     held = messages[0]["content"]
     assert "Jan-27" in held and "M+1" in held and "PEG" not in held.split("list")[-1]
+
+
+def test_nbp_to_peg_two_borders_apart_is_priced_over_the_cheapest_route():
+    """NBP → PEG has no common border: the route runs through ZTP (or TTF and THE). With
+    tariffs held for NBP → ZTP → PEG only (fixture rows, 0.10 EUR/MWh a leg), that route is
+    chosen, its legs listed; picking a route the register cannot price names its gaps."""
+
+    from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
+
+    graph = shipped_market_area_graph()
+    tariffs = []
+    for a, b in (("NBP", "ZTP"), ("ZTP", "PEG")):
+        crossing = graph.crossings(graph.hub_for(a), graph.hub_for(b))[0]
+        for leg in graph.legs(crossing):
+            tariffs.append(_tariff(leg.point_key, leg.tso.split(" / ")[0], leg.direction, 0.10))
+    rows = [
+        _row("NBP", "jan-27", 26.6147047, "GBP/MWh"),
+        _row("PEG", "jan-27", 31.00, "EUR/MWh"),
+    ]
+    holdings = _holdings(rows, tariffs)
+    spec = spec_from_dict({
+        "kind": "curve", "legs": [{"hub": "PEG", "weight": 1}, {"hub": "NBP", "weight": -1}],
+        "unit": "EUR/MWh", "fx": "forward", "cost": {"from_hub": "NBP", "to_hub": "PEG"},
+    })
+    assert not [issue for issue in check(spec, holdings) if issue.code == "route_unproven"]
+    result = evaluate_curve(spec, holdings)
+    route = result["route"]
+    assert route["hubs"] == ["NBP", "ZTP", "PEG"] and route["complete"]
+    assert len(route["legs"]) >= 4 and all(leg["value"] == 0.10 for leg in route["legs"])
+    row = next(item for item in result["rows"] if item["label"] == "Jan-27")
+    assert row["cost"] == pytest.approx(0.10 * len(route["legs"]))
+    assert route["unavailable"], "the routes through TTF hold no tariffs: named, not priced"
+    picked = spec_from_dict({**spec.as_dict(), "cost": {"from_hub": "NBP", "to_hub": "PEG",
+                                                        "through": ["TTF", "THE"]}})
+    assert picked.cost.through == ("TTF", "THE")
+    forced = evaluate_curve(picked, holdings)
+    assert forced["route"]["complete"] is False and forced["route"]["missing"]
+    assert forced["route"]["alternatives"][0]["hubs"] == ["NBP", "ZTP", "PEG"]
+    assert next(r for r in forced["rows"] if r["label"] == "Jan-27")["net"] is None

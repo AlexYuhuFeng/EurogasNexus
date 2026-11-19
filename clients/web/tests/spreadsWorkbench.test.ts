@@ -126,3 +126,22 @@ test("answer bar: a spread study opens Research → Spreads with the text, EN an
   assert.equal(routeQuery("TTF Dec-26", context).kind, "lookup");
   assert.deepEqual(hubsNamed("the THE vs TTF"), ["THE", "TTF"]);
 });
+
+test("examples follow the interface language; the route the desk picks goes into the spec", async () => {
+  const { pickRoute, routeVia } = await import("../src/app/model/spreadsWorkbench.ts");
+  const source = readFileSync(new URL("../src/components/research/SpreadsWorkbench.tsx", import.meta.url), "utf8");
+  const keys = [...(/const EXAMPLES = \[([^\]]*)\]/.exec(source)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(keys.length, 3);
+  for (const name of ["en", "zh"] as const) {
+    const locale = JSON.parse(readFileSync(new URL(`../src/i18n/${name}.json`, import.meta.url), "utf8")) as Record<string, string>;
+    for (const key of keys) {
+      const cjk = /[一-鿿]/.test(locale[key]);
+      assert.equal(cjk, name === "zh", `${name} ${key}: ${locale[key]}`);
+    }
+  }
+  const spec = { ...defaultSpec(["NBP", "PEG"]), cost: { kind: "route_tariff" as const, from_hub: "NBP", to_hub: "PEG" } };
+  assert.deepEqual(pickRoute(spec, ["TTF", "THE"]).cost?.through, ["TTF", "THE"]);
+  assert.equal("through" in (pickRoute(pickRoute(spec, ["ZTP"]), null).cost ?? {}), false);
+  assert.deepEqual(routeVia(["NBP", "ZTP", "PEG"]), ["ZTP"]);
+  assert.deepEqual(routeVia(["TTF", "NBP"]), []);
+});

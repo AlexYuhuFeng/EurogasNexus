@@ -81,6 +81,18 @@ export function toggleCost(spec: StrategySpecDTO): StrategySpecDTO {
   return { ...spec, cost: { kind: "route_tariff", from_hub: buy.hub, to_hub: sell.hub } };
 }
 
+/** The spec with the transport priced through the market areas the desk picked (none = cheapest). */
+export function pickRoute(spec: StrategySpecDTO, through: readonly string[] | null): StrategySpecDTO {
+  if (!spec.cost) return spec;
+  const { through: _old, ...cost } = spec.cost;
+  return { ...spec, cost: through && through.length > 0 ? { ...cost, through: [...through] } : cost };
+}
+
+/** "via ZTP", "via TTF, THE", or "" for neighbours. */
+export function routeVia(hubs: readonly string[] | undefined): string[] {
+  return hubs && hubs.length > 2 ? hubs.slice(1, -1) : [];
+}
+
 /** The spec after the user answers one of the server's questions with one of its choices. */
 export function applyChoice(spec: StrategySpecDTO, issue: SpecIssueDTO, choice: string): StrategySpecDTO {
   const leg = /^legs\[(\d+)\]/.exec(issue.field);
