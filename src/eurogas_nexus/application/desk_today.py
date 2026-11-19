@@ -223,9 +223,17 @@ def build_today(
 BOOK_DATA_KEYS = ("position.", "limit.mandate.")
 
 
+#: Prices and the book's marks: what "simulated" is said about (AGENTS.md rule 17). A real input
+#: beside them (a published tariff, an ECB rate, a public storage figure) does not make simulated
+#: prices "mixed", so it does not bring back a pill on every figure.
+PRICE_KEYS = ("price.", "market.", "spread.", "mark.")
+
+
 def _all_simulated(figures: list[dict[str, Any]]) -> bool:
-    market = [item for item in figures if not item["key"].startswith(BOOK_DATA_KEYS)]
-    return bool(market) and all(item["simulated"] for item in market)
+    """Every price and mark on the page is simulated: the page says it once (no per-figure pill)."""
+
+    prices = [item for item in figures if item["key"].startswith(PRICE_KEYS)]
+    return bool(prices) and all(item["simulated"] for item in prices)
 
 
 @dataclass

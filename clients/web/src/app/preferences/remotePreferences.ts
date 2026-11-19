@@ -4,7 +4,6 @@ import { LANGUAGE_STORAGE_KEY, normalizeLanguage } from "@/i18n/language";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
 import {
   normalizeMarketViewPreference,
-  readMarketViewPreference,
   writeMarketViewPreference,
 } from "@/app/context/viewPreference";
 import { resolveSignInPreferences } from "./preferenceResolution";
@@ -99,8 +98,8 @@ function locallyChosen(principalId: string): Partial<Record<PreferenceKey, strin
   } catch {
     // Storage unavailable: nothing was chosen on this device.
   }
-  const view = readMarketViewPreference(principalId);
-  if (view) chosen.market_view = view;
+  // The local market view only mirrors the server's (applyEffectivePreferences writes it), so it
+  // is never an explicit choice made on this device (decision D1).
   return chosen;
 }
 

@@ -22,12 +22,10 @@ test("market cockpit has three linked tasks; the retired capacity task lands on 
   assert.equal(marketTaskFromSearch("?task=capacity"), "network");
 });
 
-test("the numeric and map views are the two separate persisted market views", () => {
+test("Desk opens on Today; Prices and Network are the views a person may choose instead", () => {
   assert.deepEqual(MARKET_VIEW_TASKS, ["curves", "network"]);
-  assert.equal(DEFAULT_MARKET_TASK, "curves");
-  assert.equal(MARKET_VIEW_TASKS.includes(DEFAULT_MARKET_TASK), true);
-  // The fused overview dashboard is an explicit opt-in, never the default.
-  assert.equal(DEFAULT_MARKET_TASK === "overview", false);
+  // Decision D1: a desk role lands on Today unless they chose otherwise.
+  assert.equal(DEFAULT_MARKET_TASK, "overview");
 });
 
 test("legacy technical deep links map to cockpit tasks", () => {
@@ -35,9 +33,9 @@ test("legacy technical deep links map to cockpit tasks", () => {
   assert.equal(marketTaskFromLocation("?workspace=capacity", "capacity"), "network");
   assert.equal(marketTaskFromLocation("?workspace=market&task=capacity", "market"), "network");
   assert.equal(marketTaskFromLocation("?workspace=market&task=curves", "market"), "curves");
-  // The numeric view is the landing task; the fused overview needs `?task=`.
-  assert.equal(marketTaskFromLocation("?workspace=market", "market"), "curves");
-  assert.equal(marketTaskFromLocation("", "market"), "curves");
+  // Today is the landing task (decision D1); Prices needs `?task=curves`.
+  assert.equal(marketTaskFromLocation("?workspace=market", "market"), "overview");
+  assert.equal(marketTaskFromLocation("", "market"), "overview");
   assert.equal(marketTaskFromLocation("?workspace=market&task=overview", "market"), "overview");
   assert.equal(marketTaskFromSearch("?task=overview"), "overview");
   assert.equal(marketTaskFromSearch("?task=network"), "network");

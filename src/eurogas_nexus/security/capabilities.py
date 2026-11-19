@@ -271,8 +271,9 @@ ASSIGNMENT_CAPABILITIES: dict[FunctionalAssignment, frozenset[Capability]] = {
 #: Where each job function lands and what it reads first (client workspace page id and
 #: task). Composition only: the landing page is re-authorised like every other page.
 ASSIGNMENT_HOME: dict[FunctionalAssignment, tuple[str, str]] = {
-    FunctionalAssignment.TRADER: ("market", "curves"),
-    FunctionalAssignment.HQ_BUSINESS_ANALYST: ("market", "curves"),
+    # Decision D1: a desk role lands on Desk -> Today unless the person chose otherwise.
+    FunctionalAssignment.TRADER: ("market", "overview"),
+    FunctionalAssignment.HQ_BUSINESS_ANALYST: ("market", "overview"),
     FunctionalAssignment.QUANT_RESEARCHER: ("strategy", "design"),
     FunctionalAssignment.RISK_MANAGER: ("contracts", "exposure"),
     FunctionalAssignment.FINANCE_SETTLEMENT: ("contracts", "exposure"),

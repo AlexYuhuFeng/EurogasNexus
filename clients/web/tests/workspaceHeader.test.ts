@@ -31,9 +31,9 @@ test("consolidated headers expose the mode and actual task labels (WF-05)", () =
 });
 
 test("initial, deep-link, and history task locations resolve the labels used by headers", () => {
-  // The market primary lands on the numeric view; `overview` needs `?task=`.
-  assert.equal(marketTaskFromLocation("", "market"), "curves");
-  assert.equal(marketTaskFromLocation("?workspace=market", "market"), "curves");
+  // The market primary lands on Today (decision D1); Prices needs `?task=curves`.
+  assert.equal(marketTaskFromLocation("", "market"), "overview");
+  assert.equal(marketTaskFromLocation("?workspace=market", "market"), "overview");
   assert.equal(marketTaskFromLocation("?workspace=market&task=overview", "market"), "overview");
   assert.equal(marketTaskFromLocation("?workspace=market&task=network", "market"), "network");
   assert.equal(marketTaskFromLocation("?workspace=network", "network"), "network");

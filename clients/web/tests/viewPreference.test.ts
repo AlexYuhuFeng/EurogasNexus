@@ -46,15 +46,14 @@ function storageWith(raw: string) {
   return storage;
 }
 
-test("the persisted market view is one of the two separate task views", () => {
+test("Desk opens on Today unless the person chose Prices or Network (decision D1)", () => {
   assert.deepEqual(MARKET_VIEW_TASKS, ["curves", "network"]);
-  assert.deepEqual(MARKET_VIEW_PREFERENCE_IDS, MARKET_VIEW_TASKS);
-  assert.equal(DEFAULT_MARKET_VIEW_PREFERENCE, "curves");
-  assert.equal(DEFAULT_MARKET_TASK, "curves");
-  assert.equal(DEFAULT_MARKET_TASK === "overview", false);
+  assert.deepEqual(MARKET_VIEW_PREFERENCE_IDS, ["overview", "curves", "network"]);
+  assert.equal(DEFAULT_MARKET_VIEW_PREFERENCE, "overview");
+  assert.equal(DEFAULT_MARKET_TASK, "overview");
 });
 
-test("only the numeric and map views are persistable", () => {
+test("the landing is chosen in Preferences: Today, Prices or Network", () => {
   assert.equal(marketViewPreferenceForTask("curves"), "curves");
   assert.equal(marketViewPreferenceForTask("network"), "network");
   assert.equal(marketViewPreferenceForTask("overview"), null);
@@ -62,16 +61,17 @@ test("only the numeric and map views are persistable", () => {
 
   assert.equal(isMarketViewPreferenceId("curves"), true);
   assert.equal(isMarketViewPreferenceId("network"), true);
-  assert.equal(isMarketViewPreferenceId("overview"), false);
+  assert.equal(isMarketViewPreferenceId("overview"), true);
   assert.equal(isMarketViewPreferenceId("capacity"), false);
   assert.equal(isMarketViewPreferenceId(""), false);
   assert.equal(isMarketViewPreferenceId(null), false);
 
   assert.equal(normalizeMarketViewPreference("network"), "network");
-  for (const rejected of ["overview", "capacity", "grid", "", null, undefined, "NETWORK"]) {
-    assert.equal(normalizeMarketViewPreference(rejected), "curves", String(rejected));
+  assert.equal(normalizeMarketViewPreference("overview"), "overview");
+  for (const rejected of ["capacity", "grid", "", null, undefined, "NETWORK"]) {
+    assert.equal(normalizeMarketViewPreference(rejected), "overview", String(rejected));
   }
-  assert.equal(normalizeMarketViewPreference("overview", "network"), "network");
+  assert.equal(normalizeMarketViewPreference("capacity", "network"), "network");
 });
 
 test("the preference is scoped per principal and never shared between users", () => {
@@ -122,17 +122,17 @@ test("unknown and legacy stored values fall back safely", () => {
   assert.equal(readMarketViewPreference("anonymous", storageWith("not json at all")), null);
   assert.equal(readMarketViewPreference("anonymous", storageWith("null")), null);
   assert.equal(readMarketViewPreference("anonymous", storageWith("[]")), null);
-  assert.equal(readMarketViewPreference("anonymous", storageWith('{"anonymous":"overview"}')), null);
+  assert.equal(readMarketViewPreference("anonymous", storageWith('{"anonymous":"overview"}')), "overview");
   assert.equal(readMarketViewPreference("anonymous", storageWith('{"anonymous":"grid"}')), null);
   assert.equal(readMarketViewPreference("anonymous", storageWith('{"other-user":"network"}')), null);
   assert.equal(
-    readMarketViewPreference("anonymous", storageWith('{"anonymous":{"view":"overview"}}')),
+    readMarketViewPreference("anonymous", storageWith('{"anonymous":{"view":"capacity"}}')),
     null,
   );
 
   // Legacy single-value and object shapes are accepted only when supported.
   assert.equal(readMarketViewPreference("anonymous", storageWith('"network"')), "network");
-  assert.equal(readMarketViewPreference("anonymous", storageWith('"overview"')), null);
+  assert.equal(readMarketViewPreference("anonymous", storageWith('"capacity"')), null);
   assert.equal(
     readMarketViewPreference("anonymous", storageWith('{"anonymous":{"view":"network"}}')),
     "network",
@@ -150,19 +150,19 @@ test("unknown and legacy stored values fall back safely", () => {
   assert.doesNotThrow(() => writeMarketViewPreference("anonymous", "network", throwing));
 });
 
-test("an unknown or legacy stored view cannot override the numeric default", () => {
-  const persisted = readMarketViewPreference("anonymous", storageWith('{"anonymous":"overview"}'));
+test("an unknown or legacy stored view cannot override the Today default", () => {
+  const persisted = readMarketViewPreference("anonymous", storageWith('{"anonymous":"grid"}'));
   assert.deepEqual(
     resolveMarketViewTask({ search: "", activeWorkspace: "market", persisted }),
-    { task: "curves", source: "default" },
+    { task: "overview", source: "default" },
   );
   assert.deepEqual(
     resolveMarketViewTask({ search: "?workspace=market", activeWorkspace: "market", persisted }),
-    { task: "curves", source: "default" },
+    { task: "overview", source: "default" },
   );
 });
 
-test("resolution precedence is URL task, then persisted view, then numeric default", () => {
+test("resolution precedence is URL task, then the chosen view, then Today", () => {
   assert.deepEqual(
     resolveMarketViewTask({
       search: "?workspace=market&task=network",
@@ -193,11 +193,11 @@ test("resolution precedence is URL task, then persisted view, then numeric defau
   );
   assert.deepEqual(
     resolveMarketViewTask({ search: "", activeWorkspace: "market", persisted: null }),
-    { task: "curves", source: "default" },
+    { task: "overview", source: "default" },
   );
   assert.deepEqual(
     resolveMarketViewTask({ search: "", activeWorkspace: "market", persisted: undefined }),
-    { task: "curves", source: "default" },
+    { task: "overview", source: "default" },
   );
 });
 
@@ -222,7 +222,7 @@ test("the network deep link keeps its task; the retired capacity links open Netw
   assert.equal(marketTaskFromLocation("?workspace=capacity", "capacity"), "network");
 });
 
-test("the fused overview task stays reachable and is never implicit", () => {
+test("Today is reachable by address and is the implicit landing (decision D1)", () => {
   assert.deepEqual(
     resolveMarketViewTask({
       search: "?workspace=market&task=overview",
@@ -232,10 +232,9 @@ test("the fused overview task stays reachable and is never implicit", () => {
     { task: "overview", source: "url" },
   );
   assert.equal(marketTaskFromLocation("?workspace=market&task=overview", "market"), "overview");
-  assert.equal(marketTaskFromLocation("", "market"), "curves");
-  assert.equal(marketTaskFromLocation("?workspace=market", "market"), "curves");
-  assert.equal(marketTaskFromLocation("?workspace=market&task=legacy-unknown", "market"), "curves");
-  assert.notEqual(marketTaskFromLocation("", "market"), "overview");
+  assert.equal(marketTaskFromLocation("", "market"), "overview");
+  assert.equal(marketTaskFromLocation("?workspace=market", "market"), "overview");
+  assert.equal(marketTaskFromLocation("?workspace=market&task=legacy-unknown", "market"), "overview");
 });
 
 test("the persisted view also chooses which market child page opens", () => {
@@ -285,7 +284,7 @@ test("a stored view survives a write/read/resolve round trip for its principal",
       activeWorkspace: "market",
       persisted: readMarketViewPreference("operator-b", storage),
     }),
-    { task: "curves", source: "default" },
+    { task: "overview", source: "default" },
   );
 });
 

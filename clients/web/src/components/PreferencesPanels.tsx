@@ -25,6 +25,7 @@ const CHOICES: Record<ChoiceKey, { value: string; labelKey?: string; label?: str
     { value: "dark", labelKey: "theme.dark" },
   ],
   market_view: [
+    { value: "overview", labelKey: "nav.mode.desk.today" },
     { value: "curves", labelKey: "market.view.numeric" },
     { value: "network", labelKey: "market.view.map" },
   ],
@@ -79,7 +80,7 @@ const KEYS: ChoiceKey[] = [...GENERAL_KEYS, ...DISPLAY_KEYS, ...STRIP_KEYS];
 const BUILT_IN: Record<ChoiceKey, string> = {
   language: "en",
   theme: "system",
-  market_view: "curves",
+  market_view: "overview",
   market_board_layout: "board",
   pnl_colors: "green_up",
   time_zone: "device",

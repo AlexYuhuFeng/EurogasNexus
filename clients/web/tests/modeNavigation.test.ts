@@ -47,7 +47,7 @@ test("the primary row is four modes in the plan's order, each with its tasks", (
 
 test("every page address keeps working and lands in its mode (no page id redirects)", () => {
   const expected: Record<WorkspacePageId, string> = {
-    market: "desk/prices",
+    market: "desk/today",
     network: "desk/network",
     // "Outages & capacity" is the Network page's panel now; its page address lands there.
     capacity: "desk/network",

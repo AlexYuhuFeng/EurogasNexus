@@ -21,15 +21,16 @@ import type { WorkspacePageId } from "../../workspaceNavigation.ts";
  */
 export const MARKET_VIEW_PREFERENCE_STORAGE_KEY = "eurogas.marketView.v1";
 
-export type MarketViewPreferenceId = "curves" | "network";
+export type MarketViewPreferenceId = "overview" | "curves" | "network";
 
 export const MARKET_VIEW_PREFERENCE_IDS: MarketViewPreferenceId[] = [
+  "overview",
   "curves",
   "network",
 ];
 
-/** With nothing persisted the landing view is the numeric market analysis. */
-export const DEFAULT_MARKET_VIEW_PREFERENCE: MarketViewPreferenceId = "curves";
+/** Decision D1: with nothing chosen, Desk opens on Today. */
+export const DEFAULT_MARKET_VIEW_PREFERENCE: MarketViewPreferenceId = "overview";
 
 /** Principal key used when identity is unknown; never a shared user identity. */
 export const MARKET_VIEW_PREFERENCE_ANONYMOUS_PRINCIPAL = "anonymous";

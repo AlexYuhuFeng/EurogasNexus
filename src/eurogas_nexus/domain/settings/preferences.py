@@ -40,8 +40,8 @@ ENERGY_UNITS: tuple[str, ...] = ("MWh", "th", "MMBtu", "GJ")
 PREFERENCE_VOCABULARY: dict[str, tuple[str, ...]] = {
     "language": SUPPORTED_LANGUAGES,
     "theme": ("system", "light", "dark"),
-    # Market page: numeric curves board or the network map first.
-    "market_view": ("curves", "network"),
+    # Where Desk opens: Today (decision D1), the curves board or the network map.
+    "market_view": ("overview", "curves", "network"),
     # Quote layout: hub board (hubs down) or execution-screen ladder (products down).
     "market_board_layout": ("board", "ladder"),
     # Profit colour: green (Europe, Americas) or red (China and much of Asia).
@@ -103,7 +103,7 @@ PERSONAL_ONLY_KEYS: frozenset[str] = frozenset({"strip_hidden"})
 BUILT_IN_DEFAULTS: dict[str, str] = {
     "language": "en",
     "theme": "system",
-    "market_view": "curves",
+    "market_view": "overview",
     "market_board_layout": "board",
     "pnl_colors": "green_up",
     "time_zone": "device",

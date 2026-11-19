@@ -3,7 +3,6 @@ import type { MarketTask } from "@/app/model/marketCockpitModel";
 import {
   readMarketViewPreference,
   resolveMarketViewTask,
-  writeMarketViewPreference,
   marketViewPreferenceForTask,
   type MarketViewPreferenceId,
   type MarketViewTaskResolution,
@@ -36,15 +35,11 @@ export function useMarketViewPreference(input: {
     setPersistedView(readMarketViewPreference(principalId));
   }, [principalId]);
 
+  // Opening a Desk task is not a choice of landing page (decision D1): the landing changes only
+  // in Account -> Preferences. The current task lives in the URL.
   const rememberTask = useCallback(
-    (task: MarketTask): MarketViewPreferenceId | null => {
-      const view = marketViewPreferenceForTask(task);
-      if (!view) return null;
-      writeMarketViewPreference(principalId, view);
-      setPersistedView(view);
-      return view;
-    },
-    [principalId],
+    (task: MarketTask): MarketViewPreferenceId | null => marketViewPreferenceForTask(task),
+    [],
   );
 
   const resolution = resolveMarketViewTask({ search, activeWorkspace, persisted: persistedView });

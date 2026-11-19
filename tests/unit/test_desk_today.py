@@ -304,3 +304,19 @@ def test_what_needs_me_reads_the_role_aware_discovery(desk):
     assert kinds.count(("opportunity", "could_act")) <= 1
     if ("opportunity", "could_act") in kinds:
         assert kinds[-1] == ("opportunity", "could_act")
+
+
+def test_simulated_is_said_once_when_every_price_and_mark_is_simulated():
+    """A real ECB rate, tariff or public storage figure beside simulated prices is not 'mixed'."""
+
+    from eurogas_nexus.application.desk_today import _all_simulated
+
+    def item(key: str, simulated: bool) -> dict:
+        return {"key": key, "simulated": simulated}
+
+    prices = [item("price.TTF", True), item("market.NBP.day_ahead", True), item("mark.TTF", True)]
+    real_inputs = [item("storage.nwe.fill", False), item("outages.active", False),
+                   item("position.net.today", False), item("limit.credit.cp-1", False)]
+    assert _all_simulated(prices + real_inputs)
+    assert not _all_simulated([*prices, item("spread.NBP.TTF", False)])  # genuinely mixed prices
+    assert not _all_simulated(real_inputs)  # no prices at all: nothing to say

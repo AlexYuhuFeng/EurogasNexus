@@ -18,7 +18,7 @@ export const RETIRED_MARKET_TASKS: Readonly<Record<string, MarketTask>> = { capa
 export const MARKET_VIEW_TASKS: MarketTask[] = ["curves", "network"];
 
 /** Landing task when no URL task and no persisted preference exist. */
-export const DEFAULT_MARKET_TASK: MarketTask = "curves";
+export const DEFAULT_MARKET_TASK: MarketTask = "overview";
 
 export const MAJOR_MARKET_HUBS = ["TTF", "NBP", "ZTP", "THE", "PEG", "PSV"];
 

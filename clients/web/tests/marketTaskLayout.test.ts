@@ -63,7 +63,7 @@ function layoutFor(input: {
 
 test("every market task composes on a market page that resolves the same task back", () => {
   assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network"]);
-  assert.equal(DEFAULT_MARKET_TASK, "curves");
+  assert.equal(DEFAULT_MARKET_TASK, "overview");
 
   for (const task of MARKET_TASKS) {
     const page = marketTaskWorkspacePage(task);
@@ -117,7 +117,7 @@ test("the direct deep link, the task URL, the tab switch and the persisted view 
     page: "market",
   });
 
-  // 4. The persisted per-user view, with no task in the URL, and the numeric fallback.
+  // 4. The chosen view, with no task in the URL, and the Today fallback (decision D1).
   assert.deepEqual(
     layoutFor({ activeWorkspace: "market", search: "?workspace=market", persisted: "network" }),
     { task: "network", page: "network" },
@@ -128,10 +128,10 @@ test("the direct deep link, the task URL, the tab switch and the persisted view 
   );
   assert.deepEqual(
     layoutFor({ activeWorkspace: "market", search: "?workspace=market", persisted: null }),
-    { task: "curves", page: "market" },
+    { task: "overview", page: "market" },
   );
   assert.deepEqual(layoutFor({ activeWorkspace: "market", search: "" }), {
-    task: "curves",
+    task: "overview",
     page: "market",
   });
 });
