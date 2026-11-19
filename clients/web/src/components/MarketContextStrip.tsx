@@ -33,14 +33,18 @@ interface MarketContextStripProps {
   freshness?: React.ReactNode;
   /** Page actions at the end of the same line (Today: Desk brief, Refresh). */
   children?: React.ReactNode;
-}
-
-export function MarketContextStrip({ projection, t, controls, freshness, children }: MarketContextStripProps) {
   /** `line`: no controls, no box, one quiet as-of line (Today). */
   variant?: "strip" | "line";
 }
 
-export function MarketContextStrip({ projection, t, controls, freshness, variant = "strip" }: MarketContextStripProps) {
+export function MarketContextStrip({
+  projection,
+  t,
+  controls,
+  freshness,
+  children,
+  variant = "strip",
+}: MarketContextStripProps) {
   if (!projection) return null;
 
   return (
