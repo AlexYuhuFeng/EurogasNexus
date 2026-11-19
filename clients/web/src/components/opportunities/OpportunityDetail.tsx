@@ -26,7 +26,7 @@ import {
   qualityMarker,
 } from "@/app/model/opportunitiesModel";
 import { Button, EmptyState, Select, StatusBadge } from "@/components/ui";
-import { useSimulatedPills } from "@/components/SimulatedScope";
+import { useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { Instant } from "@/components/ui/Instant";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;

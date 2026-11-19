@@ -37,7 +37,7 @@ import {
 } from "@/app/model/opportunitiesModel";
 import { Button, EmptyState, StatusBadge } from "@/components/ui";
 import { Instant } from "@/components/ui/Instant";
-import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/SimulatedScope";
+import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { OpportunityDetail } from "./OpportunityDetail";
 import { FirmMarksGrid } from "./FirmMarksGrid";
 
