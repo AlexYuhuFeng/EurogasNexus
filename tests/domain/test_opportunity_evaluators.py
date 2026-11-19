@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from eurogas_nexus.application.route_tariff_cost import route_cost
+from eurogas_nexus.application.route_tariff_cost import cheapest_route
 from eurogas_nexus.domain.opportunities.event_exposure import EventExposureEvaluator, source_name
 from eurogas_nexus.domain.opportunities.locational import (
     HeldCapacityEvaluator,
@@ -153,7 +153,7 @@ def _run_l(inputs, evaluator=None, demo=False):
         },
     )
     return run(
-        evaluator or LocationalEvaluator(_graph), snapshot, as_of=AS_OF, route_pricer=route_cost
+        evaluator or LocationalEvaluator(_graph), snapshot, as_of=AS_OF, route_pricer=cheapest_route
     )
 
 
@@ -207,7 +207,7 @@ def test_golden_ttf_to_the_jan27() -> None:
 
 
 def test_l_is_priced_only_through_the_route_pricer() -> None:
-    """One route pricer (application/route_tariff_cost.route_cost), injected: without it the
+    """One route pricer (application/route_tariff_cost.cheapest_route), injected: without it the
     evaluator prices nothing rather than carrying a second route implementation."""
 
     snapshot = fixture_snapshot(_l_inputs(), as_of=AS_OF)
@@ -216,7 +216,7 @@ def test_l_is_priced_only_through_the_route_pricer() -> None:
 
     def spy(*args, **kwargs):
         calls.append(args[:2])
-        return route_cost(*args, **kwargs)
+        return cheapest_route(*args, **kwargs)
 
     assert run(LocationalEvaluator(_graph), snapshot, as_of=AS_OF, route_pricer=spy)
     assert ("TTF", "THE") in calls

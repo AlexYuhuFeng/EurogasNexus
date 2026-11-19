@@ -109,7 +109,7 @@ def run(
     """Evaluate, check the contract and apply the controls, as the service does.
 
     ``route_pricer`` is the application's route pricer (tests pass
-    ``application.route_tariff_cost.route_cost``; the domain cannot import it).
+    ``application.route_tariff_cost.cheapest_route``; the domain cannot import it).
     """
 
     demo = snapshot.demo_desk if demo_desk is None else demo_desk

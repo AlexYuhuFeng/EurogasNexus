@@ -53,9 +53,10 @@ class EvaluationContext:
     as_of_utc: datetime
     thresholds: Thresholds
     demo_desk: bool
-    #: The product's one route pricer (``application/route_tariff_cost.route_cost``), injected
-    #: by the application: ``(from_hub, to_hub, delivery, tariff_rows, graph=)`` -> a route
-    #: with ``proven``, ``complete``, ``via`` and priced ``legs``. Without it L is not priced.
+    #: The product's one route pricer (``application/route_tariff_cost.cheapest_route``),
+    #: injected by the application: ``(from_hub, to_hub, delivery, tariff_rows, graph=, fx=,
+    #: reporting_currency=)`` -> a choice whose ``chosen`` route has ``proven``, ``complete``,
+    #: ``via`` and priced ``legs``. Without it L is not priced.
     route_pricer: Callable[..., Any] | None = None
 
 

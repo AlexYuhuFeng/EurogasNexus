@@ -7,7 +7,7 @@
           - fuel % x P_A
 
 - the route and its legs come from the one route pricer the product has
-  (``application/route_tariff_cost.route_cost``, injected through the evaluation context so
+  (``application/route_tariff_cost.cheapest_route``, injected through the evaluation context so
   the domain never imports the application): every crossing contributes its market-area
   exit, any pipeline charge and the market-area entry, each from the published tariff in
   force for the period, read through the snapshot (a missing one is named: "tariff not held
@@ -85,6 +85,8 @@ HUNDRED = Decimal(100)
 MWH_PER_MCM = Decimal("11000")
 FORWARD_MONTHS = 6
 MAX_CROSSINGS = 2
+#: The most crossings a priced route may chain (the route pricer's own limit).
+MAX_ROUTE_HOPS = 4
 PRODUCT_FOR_KIND = {"day": "DAILY", "month": "MONTHLY", "quarter": "QUARTERLY"}
 
 
@@ -153,7 +155,7 @@ class _Route:
         if cache in self._rows:
             return self._rows[cache]
         reach, frontier = {start}, {start}
-        for _ in range(MAX_CROSSINGS):
+        for _ in range(MAX_ROUTE_HOPS):
             frontier = {n for k in frontier for n in self.graph.neighbours(k)} - reach
             reach |= frontier
         rows: list[dict[str, Any]] = []
@@ -197,8 +199,12 @@ class _Route:
     def _priced_route(self, buy_hub: str, sell_hub: str, start: str, period: DeliveryPeriod):
         """``(route, product)`` from the route pricer, or None when no route is proven.
 
-        The period's own capacity product first; when its route is incomplete, the annual
-        product (with the firm's short-term multiplier, or marked indicative without it).
+        The pricer is ``application/route_tariff_cost.cheapest_route``: every proven route up
+        to four crossings, the cheapest complete one chosen; when none is complete, the
+        shortest with its missing legs named (a cannot-evaluate reason, never a zero cost).
+        Legs in another currency are ranked at the snapshot's FX for the period. The period's
+        own capacity product first; when its route is incomplete, the annual product (with
+        the firm's short-term multiplier, or marked indicative without it).
         """
 
         pricer = self.ctx.route_pricer
@@ -211,20 +217,23 @@ class _Route:
             label=period.label,
         )
         product = PRODUCT_FOR_KIND.get(period.kind, "ANNUAL")
-        first = pricer(
-            buy_hub, sell_hub, delivery, self._route_rows(start, product, period), graph=self.graph
-        )
+
+        def choose(rows):
+            fx = {}
+            for currency in sorted({row["currency"] for row in rows} - {EUR}):
+                rate = self.s.fx(currency, EUR, period)
+                if rate.held and rate.value is not None:
+                    fx[currency] = float(rate.value)
+            return pricer(
+                buy_hub, sell_hub, delivery, rows, graph=self.graph, fx=fx, reporting_currency=EUR
+            ).chosen
+
+        first = choose(self._route_rows(start, product, period))
         if not first.proven:
             return None
         if first.complete or product == "ANNUAL":
             return first, product
-        annual = pricer(
-            buy_hub,
-            sell_hub,
-            delivery,
-            self._route_rows(start, "ANNUAL", period),
-            graph=self.graph,
-        )
+        annual = choose(self._route_rows(start, "ANNUAL", period))
         if annual.proven and annual.complete:
             return annual, "ANNUAL"
         return first, product
