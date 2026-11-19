@@ -1,7 +1,12 @@
-# Contract types: one book, several kinds of agreement
+# Contract types and contract management
 
-Status: design note and first slice (2026-11-19). Owner request: "Contracts could be of
-different types, LNG MSPA, upstream tender and so on. Consider this."
+Status: design note; slice 1 built (2026-11-19). Owner requests: "Contracts could be of
+different types, LNG MSPA, upstream tender and so on"; "LNG, terminal slot, capacity,
+storage… all kinds of contracts. Their prices can affect whether an opportunity is valid";
+"short term, prompt buying, individual contracts under an MSPA… too simple right now";
+"prices fixed / benchmark + premium…, no detail on the execution of a contract, NBP
+contracts show in MWh. What information people care about, how to manage them, what to
+display, track and notify."
 
 ## 1. What the model holds today
 
@@ -90,7 +95,12 @@ arrangement whose economics the cargo study already holds as "fee"; no customer 
 
 ## 5. Built now and later
 
-Built in this slice: the discriminator, typed blocks for UPSTREAM_TENDER, LNG_MSPA and
+Built in this slice: **the page is the contract list** (Deals → Contracts opens on the firm's
+contracts the caller may see, in execution first, with search, a kind filter, the count, and
+per row the kind, counterparty, delivery, period, the figure that matters and the status; a
+row opens the contract read first, Edit where the server permits; a sheet on a phone; New and
+Import PDF are the list's actions; no draft and no validation message before the person
+starts; desk words: Contract, Save contract, Effect on position), the discriminator, typed blocks for UPSTREAM_TENDER, LNG_MSPA and
 LNG_CARGO, migration 0072, revisions v5, the type-first form (cards, then only that kind's
 terms grouped as parties and master · quantity · delivery · price · flexibility · credit,
 pickers for counterparties, points, terminals, ports, books, masters), PDF intake proposing a
@@ -102,3 +112,74 @@ box.
 Later, in order: LNG term SPA with ADP (confirmations hang under it as under an MSPA); take-or-pay
 and make-up accounting for GSA and SPA; window-narrowing schedule as dated steps; typed editors
 for transport, terminal and storage capacity over the existing registers; price review events.
+
+## 6. Contract management: what a desk manages, and the plan
+
+How practice works (European gas and LNG desks, contract managers in commercial operations):
+
+- **Hierarchy is first-class.** A relationship is a master (EFET General Agreement with its
+  TTF/PEG/THE appendices, NBP 2015 terms, an LNG MSPA, a framework GSA) and the individual
+  transactions under it: a prompt or day-ahead purchase, a month deal, a cargo confirmation.
+  Each inherits the master's general terms (credit support, payment, force majeure, governing
+  law, netting) and adds its own commercial terms. Term contracts (GSA, LNG term SPA) carry an
+  annual programme (ACQ nomination, ADP). Short-term and prompt deals arrive from the ETRM as
+  trades; they are shown under their master and counterparty, read-only. `master_contract_id`
+  (built) is the hook; a trade gets the same link through its counterparty and master
+  reference in the ETRM import.
+- **Every cost or right is a contract in this register**, with its price terms: transport
+  capacity (entry/exit, product, firm/interruptible, reserve price + auction premium, commodity
+  charge), LNG terminal capacity (slot, regas/send-out, storage in tank; fixed vs per-unit
+  fees), storage (space, injection and withdrawal rights, fees), supply and sales. The
+  existing capacity book, regas slots and terminal terms become these kinds' typed terms
+  (migrated, not duplicated).
+- **Price terms are a formula, not a number** (owner A): fixed; index ± premium (hub and
+  product, the publication read, the averaging rule: MA average of the month before delivery,
+  DA of the delivery day, last N trading days, BOM; rounding); slope × oil/HH + constant and
+  weighted baskets; caps, floors, collars; volume bands; ToP vs excess-gas price; review and
+  re-opener dates; currency, unit and the FX rule. The product shows the formula in words,
+  computes the price of a delivery period from the indices it holds ("index not held", never a
+  guess, each input's class stated), and values the contract against the curve (the position
+  ladder's MtM is the existing valuation; a formula leg replaces today's "price floats").
+- **Native units are a term** (owner B): an NBP contract is in th/d and p/th (kWh for GB
+  capacity), continental in MWh/d and EUR/MWh, LNG in MMBtu/TBtu and USD/MMBtu. Today the form
+  and the row store MWh/d only (`delivery_quantity_mwh_per_day`), so NBP contracts read in MWh
+  however entered: the fix is a stored quantity unit and price unit per contract (the typed
+  kinds already store the price unit), the MWh column kept as the derived value consumers read,
+  and conversions only as the reader's secondary figure through `/api/market/normalise`.
+- **Execution tracking** (owner C), per contract and gas day, month and contract year:
+  contracted vs nominated vs allocated vs invoiced; ACQ taken and pace; take-or-pay (minimum
+  bill, shortfall so far, make-up bank and expiry); swing used and remaining; for LNG the
+  programme (each cargo: scheduled, nominated, loaded, arrived, discharged, quantity or quality
+  variance); deficiency, FM and maintenance days; formula price per period and running value;
+  credit exposure under the line. Sources by the live principle: `contract_deliveries`
+  (nominations and allocations, held), the ETRM import (trades, invoices), cargo and terminal
+  records; manual status only where no source exists, labelled. Tracking, never nomination or
+  settlement (AGENTS.md rule 8).
+- **Key dates and obligations** (owner D): start and end, notice periods, ACQ and ADP
+  nomination deadlines, price review windows, credit support renewal, ToP settlement, make-up
+  expiry, option exercise; each with an owner role and a lead time, raised on Today's "What
+  needs me" and the strip by role (trader/originator: volume and options; operations:
+  nominations and programme; finance: invoices and ToP; risk: credit and concentration).
+- **Visuals** (owner E, the chart standard): a portfolio timeline (lanes by kind, bars by
+  status, key-date markers, a today line); per contract a pace chart (taken vs contracted with
+  the ToP floor and the max as bands), a swing gauge, an LNG programme strip, formula price vs
+  hub; small pace bars and the next key date inline in the list. Each with table/CSV and hover.
+- **Documents and versions** (owner F): the signed PDF and amendments attached to the contract
+  (intake exists), the revision history (v1-v5 exist) as a readable timeline (what changed,
+  when, who), four-eyes on terms that move value.
+- **Counterparty view**: per counterparty its masters, live transactions and confirmations,
+  exposure against the credit line, and key dates.
+
+**Costs for the opportunity evaluators** come from the firm's contracts first (a held
+capacity's charge is sunk; only variable charges count), public tariffs second, assumptions
+last. One read per cost kind, in `application/contract_costs.py` (names proposed to the
+opportunity worker): `transport_leg_cost(session, caller, *, from_point, to_point, gas_day)`,
+`regas_cost(session, caller, *, terminal, month)`, `storage_cost(session, caller, *, facility,
+period)`, `supply_price(session, caller, *, contract_id, period)`. Each answers
+`{value, unit, currency, basis: contract_sunk | contract_variable | public_tariff | assumption
+| missing, source_ref, as_of, input_class}`.
+
+**Slices, in order** (each handed back with commits and screenshots): (1) the page is the
+contract list, type-first form (built); (2) price formulas and native units, with golden-case
+formula evaluation; (3) execution, key dates, notifications; (4) visuals, documents,
+counterparty view, capacity/terminal/storage kinds and the cost reads.
