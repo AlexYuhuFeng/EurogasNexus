@@ -34,7 +34,9 @@ def test_every_registered_source_has_a_step_or_a_stated_exclusion():
     for source_id, step in setup.SOURCE_STEPS.items():
         assert step is None or step in setup.STEPS, source_id
         if step is None:
-            assert source_id.endswith("-sim") and setup.EXCLUDED_REASONS[source_id]
+            # Only simulated demo sources are left out of a customer's set-up.
+            assert source_id.endswith("-sim") or source_id.startswith("src-demo-"), source_id
+            assert setup.EXCLUDED_REASONS[source_id]
 
 
 def test_a_source_without_a_step_is_refused(monkeypatch):
@@ -65,7 +67,7 @@ def test_the_catalogue_states_how_each_source_connects_today():
     assert {item["connection"] for item in by_id.values()} <= {
         *setup.CONNECTION_ORDER, "import", "api_key", "admin"
     }
-    assert not any(item_id.endswith("-sim") for item_id in by_id)
+    assert not any(item_id.endswith("-sim") or item_id.startswith("src-demo-") for item_id in by_id)
     # Every import tool the flow names exists.
     for item in by_id.values():
         for tool in item.get("import_tools", []):
