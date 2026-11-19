@@ -349,6 +349,7 @@ def discoveries(
 
     from eurogas_nexus.application.caller import caller_of
     from eurogas_nexus.application.opportunities.listing import latest_evaluation
+    from eurogas_nexus.security.portfolio_scope import current_scope
 
     caller = caller_of(request_or_caller)
     principal = caller.principal
@@ -360,6 +361,11 @@ def discoveries(
         # The store as well as the caller: one process can hold several stores (tests, tools).
         str(getattr(bind, "url", "")),
         getattr(principal, "principal_id", None),
+        # The books the caller may see: credit and mandate findings are book data, so one
+        # principal under another book scope (scopes changed, isolation switched on, a test
+        # reading as a regional user) must not be served another scope's findings.
+        tuple(sorted(str(scope) for scope in getattr(principal, "data_scopes", ()) or ())),
+        current_scope(),
         audience,
         language,
         limit,

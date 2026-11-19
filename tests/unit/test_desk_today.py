@@ -186,6 +186,29 @@ def test_a_user_without_a_book_sees_no_positions_limits_or_book(desk, monkeypatc
     assert changes["outages"]["counts"]["active"] >= 1
 
 
+def test_one_principal_under_another_book_scope_is_not_served_the_first_scopes_findings(
+    desk, monkeypatch
+):
+    """The discovery read is cached for a minute; the same principal on the same store, read
+    first head-office-wide and then as a regional user, must not see head office's limits."""
+
+    monkeypatch.setenv(portfolio_scope.ISOLATION_ENV, "true")
+    wide = _principal("DEMO", "BOOKS:*")
+    portfolio_scope.set_request_scope(("DEMO", "BOOKS:*"))
+    try:
+        first = _today(desk, wide)
+    finally:
+        portfolio_scope._current.set(None)
+    assert any(item["kind"] == "limit" for item in first["rows"][4]["items"])
+    narrow = _principal("DEMO", "BOOKS:BOOK:SOMEONE-ELSES")
+    portfolio_scope.set_request_scope(("DEMO", "BOOKS:BOOK:SOMEONE-ELSES"))
+    try:
+        second = _today(desk, narrow)
+    finally:
+        portfolio_scope._current.set(None)
+    assert all(item["kind"] != "limit" for item in second["rows"][4]["items"])
+
+
 def test_late_and_stale_figures_are_named(desk):
     later = NOW + timedelta(days=6)  # no new closes or storage since the seed
     data = _today(desk, _principal("DEMO", "BOOKS:*"), now=later)
