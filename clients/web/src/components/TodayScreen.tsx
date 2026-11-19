@@ -204,39 +204,6 @@ function RowSection({ id, title, meta, actions, children }: { id: string; title:
 
 /* ------------------------------------------------------------------ row 1 */
 
-function MarketFigure({ figure, t, nowMs, onInspect }: { figure: TodayMarketFigureDTO; t: Translate; nowMs: number; onInspect?: (() => void) | null }) {
-  const name = `${figure.hub} ${figure.product}`;
-  // Provenance on demand: the name opens the Inspector (source, time, state); no "Source" link.
-  const label = onInspect ? (
-    <button type="button" className="today-figure-name" data-inspect-price={figure.hub} title={t("today.source_of", { name })} onClick={onInspect}>
-      {name}
-    </button>
-  ) : name;
-function PriceFigure({ price, t, nowMs, onInspect }: { price: TodayPriceDTO; t: Translate; nowMs: number; onInspect?: (() => void) | null }) {
-  const label = `${price.hub} ${price.product}`;
-  return (
-    <Figure
-      figure={price}
-      label={label}
-      t={t}
-      nowMs={nowMs}
-      notes={
-        onInspect ? (
-          <button type="button" className="ds-inline-link" data-inspect-price={price.hub} aria-label={t("today.source_of", { name: label })} title={t("today.source_of", { name: label })} onClick={onInspect}>
-            {t("today.source")}
-          </button>
-        ) : undefined
-      }
-      delta={
-        price.day_change == null
-          ? undefined
-          : { text: t("today.day_change", { change: formatChange(price.day_change, price.unit), day: shortDay(price.day_change_vs) }), value: price.day_change }
-      }
-      detail={t("today.close_of", { day: shortDay(price.close_day) })}
-    />
-  );
-}
-
 /** A day P&L in another currency than the reader reports in: the converted figure under it, at
  * the rate of the P&L's own day (G3, G5), its rate and method in the title. */
 function PnlInReportingCurrency({ change }: { change: TodayFigureDTO }) {
@@ -245,7 +212,13 @@ function PnlInReportingCurrency({ change }: { change: TodayFigureDTO }) {
 }
 
 function MarketFigure({ figure, t, nowMs, onInspect }: { figure: TodayMarketFigureDTO; t: Translate; nowMs: number; onInspect?: (() => void) | null }) {
-  const label = `${figure.hub} ${figure.product}`;
+  const name = `${figure.hub} ${figure.product}`;
+  // Provenance on demand: the name opens the Inspector (source, time, state); no "Source" link.
+  const label = onInspect ? (
+    <button type="button" className="today-figure-name" data-inspect-price={figure.hub} title={t("today.source_of", { name })} onClick={onInspect}>
+      {name}
+    </button>
+  ) : name;
   // Native first (G1); the reader's currency and unit on hover, with the rate that made it.
   const converted = useConvertedPrice({ value: figure.value, unit: figure.unit, product: figure.product, simulated: figure.simulated });
   return (

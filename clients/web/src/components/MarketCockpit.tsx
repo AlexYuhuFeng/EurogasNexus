@@ -122,12 +122,10 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           controls={
             task === "overview"
               ? <TodayHeadline today={desk.today} language={controller.i18n.language} t={t} />
-              : tradingContextControlsFor(traderContext, t)
+              : // On Prices the board's tenor selector is the product choice: no second one here.
+                tradingContextControlsFor(traderContext, t, { product: task !== "curves" })
           }
-          // On Prices the board's tenor selector is the product choice: no second one here.
-          controls={task === "overview" ? undefined : tradingContextControlsFor(traderContext, t, { product: task !== "curves" })}
           variant={task === "overview" ? "line" : "strip"}
-          controls={task === "overview" ? undefined : tradingContextControlsFor(traderContext, t)}
           freshness={
             task === "overview" || desk.today?.simulated ? (
               <TodayFreshness today={desk.today} t={t} nowMs={nowMs} />
@@ -146,9 +144,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             />
           )}
         </MarketContextStrip>
-        {/* A public source the ingestion gate holds back is never a silent gap on the desk. */}
-        <SourceApprovalNotice
-        />
         {/* A public source the ingestion gate holds back is operator information: an
             administrator sees it here and in Data feeds; a desk user does not. */}
         {api.currentUser?.permissions.includes("identity.manage") && <SourceApprovalNotice
