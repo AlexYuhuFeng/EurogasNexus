@@ -29,17 +29,19 @@
 
 /* In the components layer: it narrows the inline link the components layer defines. */
 @layer ds-components {
-  /* A step is a sentence, not a dense control in a line of figures: the link flows as text and
-     wraps (no fixed height, no negative margin), so two steps on separate lines never overlap
-     ("see the Win - Sum spread" over "Price an LNG cargo into the TTF terminals" on
-     Fundamentals). Its padding widens the touch area without moving the line. */
+  /* A step is a sentence, not a dense control in a line of figures: the link is its own box
+     (no fixed height, no negative margin) that moves to the next line whole and wraps its label
+     inside itself, so two steps never overlap ("see the Win - Sum spread" over "Price an LNG
+     cargo into the TTF terminals" on Fundamentals). */
   .research-next .ds-inline-link {
-    display: inline;
+    display: inline-block;
+    max-width: 100%;
     height: auto;
     min-height: 0;
     margin-block: 0;
-    padding: var(--ds-space-2) 0;
+    padding: 0;
     white-space: normal;
-    overflow-wrap: anywhere;
+    text-align: start;
+    vertical-align: baseline;
   }
 }
