@@ -6,13 +6,14 @@ import { applyEffectivePreferences } from "@/app/preferences/remotePreferences";
 import { FOCUS_HUB_CHOICES, MAX_FOCUS_HUBS, STRIP_BUILT_IN, STRIP_CHOICES } from "@/app/preferences/stripPreferences";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { useTranslation } from "react-i18next";
+import { useHintsSeenStore } from "@/stores/hintsSeen";
 import { formatInstant, TIME_ZONE_PREFERENCES } from "@/app/time/timeFormat";
 import { ENERGY_UNITS, REPORTING_CURRENCIES } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /** Keys chosen from a closed list (the focus hubs and the hide list are edited differently). */
-type ChoiceKey = Exclude<PreferenceKey, "strip_focus_hubs" | "strip_hidden">;
+type ChoiceKey = Exclude<PreferenceKey, "strip_focus_hubs" | "strip_hidden" | "hints_seen">;
 
 const stripChoices = (key: keyof typeof STRIP_CHOICES, labelKey: string) =>
   STRIP_CHOICES[key].map((value) => ({ value, labelKey, labelValue: value }));
@@ -256,6 +257,12 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
           onChange={(next) => void save("strip_focus_hubs", next)}
         />
       )}
+      <p className="settings-preference-row" data-preference="hints_seen">
+        <span>{t("hints.title")}</span>
+        <button type="button" className="secondary-button" onClick={() => useHintsSeenStore.getState().replay()}>
+          {t("hints.replay")}
+        </button>
+      </p>
       <small className="muted">{t("preferences.follows_you")}</small>
     </section>
   );

@@ -312,6 +312,44 @@
     margin-top: var(--ds-space-05);
   }
 
+  /* A first-use hint (design basis H.1): a small card under its control, the control ringed. */
+  .first-use-hint {
+    position: fixed;
+    z-index: 40;
+    display: grid;
+    gap: var(--ds-space-2);
+    max-width: min(20rem, calc(100vw - 1rem));
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-pop);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .first-use-hint p {
+    margin: 0;
+  }
+
+  .first-use-hint-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-3);
+  }
+
+  .first-use-hint-step {
+    margin-right: auto;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .has-first-use-hint {
+    outline: 2px solid var(--ds-focus);
+    outline-offset: 2px;
+  }
+
   /* The page's purpose line (design basis H.1): one muted sentence under the title and tabs. */
   .page-intro {
     margin: 0;

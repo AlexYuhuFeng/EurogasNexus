@@ -5755,5 +5755,16 @@
   "tariff_entry.error.operator_not_at_point": "This operator is not at this point in the reference network.",
   "tariff_entry.more_missing": "{{count}} more legs at points the market books through a virtual point or that ENTSOG names no tariff for",
   "tariff_entry.supply_blocks.LNG": "LNG entry into {{into}}",
-  "tariff_entry.supply_blocks.Norway": "Norwegian landing into {{into}}"
+  "tariff_entry.supply_blocks.Norway": "Norwegian landing into {{into}}",
+  "hints.step": "{{n}} of {{total}}",
+  "hints.skip": "Skip tips",
+  "hints.got_it": "Got it",
+  "hints.title": "First-use tips",
+  "hints.replay": "Show the tips again",
+  "hints.desk.today.name": "A price's name opens where it came from: source, time and state.",
+  "hints.desk.today.feeds": "Figures that are late or stale are listed here by name.",
+  "hints.desk.today.brief": "The desk brief writes today's changes as a short note you can share.",
+  "hints.deals.contracts.find": "Find a contract by name or narrow the list to one kind.",
+  "hints.deals.contracts.new": "New contract asks the kind first, then only the terms that kind has.",
+  "hints.deals.contracts.import": "Import PDF reads a contract and fills the terms, each with its page."
 }

@@ -55,3 +55,5 @@ export { RecordPicker } from "./RecordPicker";
 export type { RecordChoice, RecordOption, RecordPickerProps } from "./RecordPicker";
 export { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "./SimulatedScope";
 export type { SimulatedScopeKind } from "./SimulatedScope";
+export { FirstUseHints } from "./FirstUseHints";
+export type { FirstUseHint } from "./firstUseHintsModel";

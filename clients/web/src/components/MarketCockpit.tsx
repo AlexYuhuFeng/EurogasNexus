@@ -7,6 +7,8 @@ import { DESK_NETWORK_KEPT } from "@/components/DeskNetworkTask";
 import { KeptSlot } from "@/app/data/keepAlive";
 import { warmMapAssets } from "@/app/mapAssetWarmup";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
+import { FirstUseHints } from "@/components/ui/FirstUseHints";
+import { FIRST_USE_HINTS } from "@/app/experience/firstUseHints";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
 import { TodayFreshness, TodayHeadActions, TodayHeadline, TodayScreen } from "@/components/TodayScreen";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
@@ -116,6 +118,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           (app.css `.workspace-network`) expects the viewport height to arrive through the page,
           the cockpit and this element. */}
       <div id="market-cockpit-panel" className="market-cockpit-panel">
+        {task === "overview" && <FirstUseHints hints={FIRST_USE_HINTS["desk.today"]} />}
         <MarketContextStrip
           projection={api.marketContext}
           t={t}

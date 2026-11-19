@@ -6,6 +6,8 @@ import { useUrlObject } from "@/app/navigation/useUrlView";
 import { DataGrid, PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { buttonClass } from "@/components/ui/Button";
 import { SimulatedScope } from "@/components/ui/SimulatedScope";
+import { FirstUseHints } from "@/components/ui/FirstUseHints";
+import { FIRST_USE_HINTS } from "@/app/experience/firstUseHints";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { PositionLadderPanel } from "@/components/PositionLadderPanel";
@@ -256,6 +258,8 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         {task === "overview" && <PositionLadderPanel t={t} />}
         {task === "overview" && <PortfolioOverview controller={controller} />}
         {task === "resources" && (
+          <>
+          <FirstUseHints hints={FIRST_USE_HINTS["deals.contracts"]} />
           <ContractWorkbench
             saveAction={saveAction}
             saveTypedContract={api.saveDraftContract}
@@ -296,6 +300,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
             importContractDraftFile={contractEditor.importContractDraftFile}
             loadPersistedContract={loadPersistedContractAndLink}
           />
+          </>
         )}
         {/* Book → Delivery (WF-05): what was delivered against what was nominated, the day's
             balance and the sell-down plan, apart from the contract terms they used to sit under. */}

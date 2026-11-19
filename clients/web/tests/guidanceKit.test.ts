@@ -86,3 +86,23 @@ test("one purpose line per page: no page draws its own beside the shell's", asyn
   assert.deepEqual(offenders, []);
   assert.equal(en["purpose.research.spreads"], "How one price trades against another, and whether moving gas between them pays.");
 });
+
+test("first-use hints: at most three a page, once per person, replayable, off for the sweep", async () => {
+  const { hintsToShow, parseSeen, serialiseSeen, replayPage, MAX_HINTS_PER_PAGE } = await import("../src/components/ui/firstUseHintsModel.ts");
+  const { FIRST_USE_HINTS } = await import("../src/app/experience/firstUseHints.ts");
+  for (const [page, hints] of Object.entries(FIRST_USE_HINTS)) {
+    assert.ok(hints.length <= MAX_HINTS_PER_PAGE, page);
+    for (const hint of hints) {
+      assert.ok(hint.id.startsWith(`${page}.`), hint.id);
+      assert.ok(en[hint.textKey] && zh[hint.textKey], hint.textKey);
+      assert.ok(en[hint.textKey].length <= 110, hint.textKey);
+    }
+  }
+  const today = FIRST_USE_HINTS["desk.today"];
+  assert.deepEqual(hintsToShow(today, parseSeen("")).map((hint) => hint.id), today.map((hint) => hint.id));
+  assert.deepEqual(hintsToShow(today, parseSeen("desk.today.name")).map((hint) => hint.id), ["desk.today.feeds", "desk.today.brief"]);
+  assert.deepEqual(hintsToShow(today, parseSeen(""), { off: true }), []);
+  const seen = parseSeen("desk.today.name,deals.contracts.import");
+  assert.equal(serialiseSeen(replayPage(seen, "desk.today")), "deals.contracts.import");
+  assert.equal(serialiseSeen(["b", "a", "b"]), "a,b");
+});

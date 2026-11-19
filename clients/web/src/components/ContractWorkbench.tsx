@@ -610,13 +610,13 @@ export function ContractWorkbench({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <select aria-label={t("contracts.list.kind_filter")} value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}>
+        <select aria-label={t("contracts.list.kind_filter")} data-hint-anchor="contract-kind-filter" value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}>
           <option value="">{t("contracts.list.all_kinds")}</option>
           {kindsHeld.map((kind) => <option key={kind} value={kind}>{t(`contracts.kind.${kind}`)}</option>)}
         </select>
         <div className="contract-command-actions" tabIndex={0}>
           <button type="button" className={buttonClass("primary", "md")} data-page-action="contract-new" onClick={startNewDraft}>{t("contracts.action.new")}</button>
-          <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
+          <button type="button" className="secondary-button" data-hint-anchor="contract-import" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
           <input ref={contractImportRef} className="contract-import-input" type="file" accept=".pdf,application/pdf" hidden onChange={importContractDraftFile} />
         </div>
       </section>

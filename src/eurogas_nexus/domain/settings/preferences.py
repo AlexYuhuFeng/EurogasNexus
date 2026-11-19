@@ -89,16 +89,32 @@ def _hidden_items(value: str) -> bool:
     return len(entries) <= MAX_HIDDEN_ITEMS and all(_HIDE_ENTRY.match(entry) for entry in entries)
 
 
+_HINT_ID = re.compile(r"^[a-z][a-z0-9_.\-]{1,63}$")
+MAX_HINTS_SEEN = 120
+
+
+def _hints_seen(value: str) -> bool:
+    """First-use hints the person dismissed (design basis H.1): comma-separated hint ids."""
+
+    if value == "":
+        return True
+    ids = value.split(",")
+    return len(ids) <= MAX_HINTS_SEEN and len(set(ids)) == len(ids) and all(
+        _HINT_ID.match(item) for item in ids
+    )
+
+
 PREFERENCE_PATTERNS: dict[str, tuple[Callable[[str], bool], str]] = {
     "strip_focus_hubs": (
         _focus_hubs,
         f"comma-separated hub codes ({', '.join(_HUBS)}), at most {MAX_FOCUS_HUBS}, or empty",
     ),
     "strip_hidden": (_hidden_items, f"at most {MAX_HIDDEN_ITEMS} id@signature lines"),
+    "hints_seen": (_hints_seen, f"at most {MAX_HINTS_SEEN} comma-separated hint ids"),
 }
 
 #: A person's own record, never an organisation default (which items they hid).
-PERSONAL_ONLY_KEYS: frozenset[str] = frozenset({"strip_hidden"})
+PERSONAL_ONLY_KEYS: frozenset[str] = frozenset({"strip_hidden", "hints_seen"})
 
 BUILT_IN_DEFAULTS: dict[str, str] = {
     "language": "en",
@@ -115,6 +131,7 @@ BUILT_IN_DEFAULTS: dict[str, str] = {
     "strip_quiet_line": "on",
     "strip_focus_hubs": "",
     "strip_hidden": "",
+    "hints_seen": "",
 }
 
 #: Every key a client may store.

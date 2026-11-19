@@ -11,6 +11,7 @@ import { applyPnlColorConvention } from "@/app/model/pnlColor";
 import { TIME_ZONE_STORAGE_KEY, useTimePreferenceStore } from "@/stores/timePreference";
 import { isTimeZonePreference } from "@/app/time/timeFormat";
 import { useDisplayPreferenceStore } from "@/stores/displayPreference";
+import { useHintsSeenStore } from "@/stores/hintsSeen";
 import { applyStripPreferences, setLocalHidden } from "./stripPreferences";
 
 /**
@@ -78,6 +79,7 @@ export async function applyEffectivePreferences(
     energyUnit: effective.energy_unit as never,
   });
   applyStripPreferences(effective);
+  useHintsSeenStore.getState().apply(effective.hints_seen);
   window.dispatchEvent(new Event(PREFERENCES_APPLIED_EVENT));
 }
 

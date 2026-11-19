@@ -333,6 +333,49 @@ function recordObservation(observations, detail) {
  * React's internal errors arrive as a bare console.error with no component name and no stack;
  * wrapping console.error before the app loads takes a real stack at the moment React reports.
  */
+/**
+ * First-use hints (UX_REFERENCE rule 24) are off for this run, as a person who has seen them:
+ * a fresh test identity would otherwise meet a hint over the controls the sweep clicks.
+ * `firstUseHintCheck` turns them back on for the one step that tests them.
+ */
+async function installSweepSettings(page) {
+  await page.addInitScript(() => {
+    try {
+      if (window.sessionStorage.getItem("egn.hints.test") !== "1") window.localStorage.setItem("egn.hints.off", "1");
+      else window.localStorage.removeItem("egn.hints.off");
+    } catch {
+      // storage unavailable: hints follow the person's own record
+    }
+  });
+}
+
+/** A first-use hint shows once on Today after "Show the tips again", and "Got it" moves on. */
+async function firstUseHintCheck(page, failures) {
+  const scope = "interaction/first-use-hints";
+  try {
+    await setLanguage(page, "en");
+    await page.goto(`${BASE}/?workspace=settings`, { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => window.sessionStorage.setItem("egn.hints.test", "1"));
+    const replay = page.locator('[data-preference="hints_seen"] button');
+    await replay.waitFor({ state: "visible", timeout: 15_000 });
+    await replay.click();
+    await page.goto(`${BASE}/?workspace=market&task=overview`, { waitUntil: "domcontentloaded" });
+    const hint = page.locator("[data-first-use-hint]");
+    await hint.waitFor({ state: "visible", timeout: 20_000 });
+    const first = await hint.getAttribute("data-first-use-hint");
+    await page.locator(".first-use-hint-ok").click();
+    await page.waitForTimeout(1_200);
+    const next = (await hint.count()) ? await hint.getAttribute("data-first-use-hint") : null;
+    if (next === first) recordFailure(failures, scope, `"Got it" did not move past ${first}`);
+    // Leave the identity as the rest of the run found it: hints seen.
+    await page.locator(".ds-inline-link", { hasText: "Skip tips" }).click().catch(() => undefined);
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  } finally {
+    await page.evaluate(() => window.sessionStorage.removeItem("egn.hints.test")).catch(() => undefined);
+  }
+}
+
 async function installReactErrorStackCapture(page) {
   await page.addInitScript(() => {
     const previous = console.error;
@@ -2334,12 +2377,14 @@ export async function runWorkflowSmoke() {
       page = await context.newPage();
     }
     attachPageListeners(page);
+    await installSweepSettings(page);
     await installReactErrorStackCapture(page);
     await ensureAuthenticated(page);
     if (languageId) await setLanguage(page, languageId);
   };
 
   try {
+    await installSweepSettings(page);
     await installReactErrorStackCapture(page);
     await ensureAuthenticated(page);
 
@@ -2376,6 +2421,9 @@ export async function runWorkflowSmoke() {
     currentScope = "phone-overflow";
     await recoverPage(null);
     await phoneOverflowSweep(page, failures, observations);
+
+    currentScope = "first-use-hints";
+    await firstUseHintCheck(page, failures);
 
     currentScope = "interaction-checks";
     await interactionChecks(page, failures);

@@ -719,7 +719,7 @@ export function TodayHeadline({ today, language, t }: { today: DeskTodayDTO | nu
 export function TodayHeadActions({ t, loading, onOpenBrief, onRefresh }: { t: Translate; loading: boolean; onOpenBrief: () => void; onRefresh: () => void }) {
   return (
     <span className="today-head-actions">
-      <Button variant="quiet" onClick={onOpenBrief}>{t("brief.open")}</Button>
+      <Button variant="quiet" data-hint-anchor="desk-brief" onClick={onOpenBrief}>{t("brief.open")}</Button>
       <Button variant="quiet" onClick={onRefresh} loading={loading}>{t("market.refresh")}</Button>
     </span>
   );

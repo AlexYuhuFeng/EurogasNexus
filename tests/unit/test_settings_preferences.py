@@ -105,3 +105,15 @@ def test_display_preferences_are_closed_vocabularies_with_defaults():
     for values in ({"reporting_currency": "BTC"}, {"energy_unit": "Sm3"}, {"energy_unit": "mwh"}):
         with pytest.raises(SettingsError):
             validate_preferences(values)
+
+
+def test_seen_hints_are_a_personal_bounded_list():
+    assert BUILT_IN_DEFAULTS["hints_seen"] == ""
+    assert validate_preferences({"hints_seen": "desk.today.brief,deals.contracts.import"}) == {
+        "hints_seen": "desk.today.brief,deals.contracts.import"
+    }
+    for value in ("Bad Id", "a,a", ",".join(f"h{i:03d}" for i in range(121))):
+        with pytest.raises(SettingsError):
+            validate_preferences({"hints_seen": value})
+    with pytest.raises(SettingsError):
+        validate_organisation_defaults({"hints_seen": "desk.today.brief"})

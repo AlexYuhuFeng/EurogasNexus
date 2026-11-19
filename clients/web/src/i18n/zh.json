@@ -5755,5 +5755,16 @@
   "tariff_entry.error.operator_not_at_point": "参考网络中该运营商不在此点位。",
   "tariff_entry.more_missing": "另有 {{count}} 段：位于经虚拟点预订或 ENTSOG 未列费率的点位",
   "tariff_entry.supply_blocks.LNG": "LNG 入口进入 {{into}}",
-  "tariff_entry.supply_blocks.Norway": "挪威登陆进入 {{into}}"
+  "tariff_entry.supply_blocks.Norway": "挪威登陆进入 {{into}}",
+  "hints.step": "{{n}} / {{total}}",
+  "hints.skip": "跳过提示",
+  "hints.got_it": "知道了",
+  "hints.title": "首次使用提示",
+  "hints.replay": "再次显示提示",
+  "hints.desk.today.name": "点击价格名称可查看来源、时间与状态。",
+  "hints.desk.today.feeds": "延迟或过期的数据会在此按名称列出。",
+  "hints.desk.today.brief": "交易台简报将今日变化写成可分享的短文。",
+  "hints.deals.contracts.find": "按名称查找合同，或只看某一类合同。",
+  "hints.deals.contracts.new": "新建合同先选类型，再只填写该类型的条款。",
+  "hints.deals.contracts.import": "导入 PDF 可读取合同并填写条款，每项注明所在页。"
 }

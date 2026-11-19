@@ -3245,7 +3245,9 @@ export type PreferenceKey =
   | "strip_price_move_pct"
   | "strip_quiet_line"
   | "strip_focus_hubs"
-  | "strip_hidden";
+  | "strip_hidden"
+  // First-use hints this person dismissed (personal only; components/ui/FirstUseHints.tsx).
+  | "hints_seen";
 
 export interface PreferencesDTO {
   personal: Partial<Record<PreferenceKey, string>>;
