@@ -56,3 +56,12 @@ export function kindKey(kind: string): string {
 export function hasHubs(day: { hubs: readonly GasDayHubDTO[] } | undefined): boolean {
   return Boolean(day && day.hubs.length > 0);
 }
+
+/** How close a cut-off is: amber within two hours, red within thirty minutes (design tokens). */
+export function cutoffUrgency(atUtc: string, nowMs: number): "open" | "soon" | "imminent" | "none" {
+  const minutes = (Date.parse(atUtc) - nowMs) / 60_000;
+  if (!Number.isFinite(minutes) || minutes <= 0) return "none";
+  if (minutes <= 30) return "imminent";
+  if (minutes <= 120) return "soon";
+  return "open";
+}

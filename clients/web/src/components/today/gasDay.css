@@ -72,6 +72,21 @@
     font-variant-numeric: var(--ds-numeric);
   }
 
+  .gasday-fact[data-urgency="soon"] > dd {
+    color: var(--ds-status-watch);
+  }
+
+  .gasday-fact[data-urgency="imminent"] > dd {
+    color: var(--ds-status-breach);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .gasday-hint {
+    display: block;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
   .gasday-assumed {
     color: var(--ds-text-3);
   }
@@ -183,6 +198,122 @@
 
   @media (pointer: coarse) {
     .gasday-link {
+      min-height: var(--ds-control-touch);
+    }
+  }
+}
+
+/* Today → Gas day checklist: one line per step, status and deadline on the right. */
+@layer ds-components {
+  .checklist-items {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .checklist-item {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    min-width: 0;
+    padding: var(--ds-space-2) 0;
+    border-bottom: 1px solid var(--ds-border-subtle);
+  }
+
+  .checklist-item[data-urgency="overdue"],
+  .checklist-item[data-urgency="due_soon"] {
+    padding-left: var(--ds-space-2);
+    border-left: 3px solid var(--ds-status-watch);
+  }
+
+  .checklist-item[data-urgency="overdue"] {
+    border-left-color: var(--ds-status-breach);
+  }
+
+  .checklist-main,
+  .checklist-side {
+    display: grid;
+    gap: var(--ds-space-05);
+    min-width: 0;
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .checklist-main {
+    flex: 1 1 280px;
+  }
+
+  .checklist-side {
+    flex: 0 1 auto;
+    justify-items: end;
+    text-align: right;
+  }
+
+  .checklist-name {
+    overflow-wrap: anywhere;
+  }
+
+  .checklist-meta {
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    font-variant-numeric: var(--ds-numeric);
+    overflow-wrap: anywhere;
+  }
+
+  .checklist-mismatch,
+  .checklist-error {
+    color: var(--ds-status-breach);
+  }
+
+  .checklist-deadline {
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    font-variant-numeric: var(--ds-numeric);
+  }
+
+  .checklist-deadline[data-urgency="soon"] {
+    color: var(--ds-status-watch);
+  }
+
+  .checklist-deadline[data-urgency="imminent"] {
+    color: var(--ds-status-breach);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .checklist-record {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ds-space-1);
+  }
+
+  .checklist-select {
+    min-height: var(--ds-control-sm);
+    max-width: 100%;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  @media (max-width: 640px) {
+    .checklist-side {
+      justify-items: start;
+      text-align: left;
+    }
+
+    .checklist-record {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .checklist-select {
       min-height: var(--ds-control-touch);
     }
   }

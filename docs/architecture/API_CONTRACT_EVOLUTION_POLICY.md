@@ -192,7 +192,7 @@ per source the nomination status as recorded, agent, expected against nominated 
 tolerance, LNG terminal steps, each open step's deadline and urgency); earlier rows keep their
 positions. `POST /api/desk/gas-day/status` (WRITE, `portfolio.write`) records a step's status
 by hand for a line of the caller's own gas day (labelled `origin: manual`, audited; 404 for a
-line outside his scope, 422 for an unknown step, status or day). Census: 273 paths /
+line outside his scope, 422 for an unknown step, status or day). Census: 274 paths /
 306 operations (+1 / +1 on 273 / 305).
 
 Added 2026-11-15: `GET /api/desk/today` returns the Today screen's four rows (key figures,

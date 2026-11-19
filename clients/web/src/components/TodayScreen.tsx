@@ -53,6 +53,7 @@ import { pnlClass } from "@/app/model/pnlColor";
 import { MethodNote } from "@/components/MethodNote";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
+import { ChecklistRow } from "@/components/today/ChecklistRow";
 import { GasDayRow } from "@/components/today/GasDayRow";
 import { useConvertedAmount, useConvertedPrice, useConvertedQuantity } from "@/app/time/useConversion";
 import type { ConvertedText } from "@/app/time/valueFormat";
@@ -96,6 +97,8 @@ export interface TodayScreenProps {
   onOpenPrices?: () => void;
   /** Open where a "My gas day" line is acted on or evidenced (Book, Prices → prompt). */
   onOpenGasDay?: (target: GasDayTargetDTO) => void;
+  /** Whether the reader may record a checklist status (`portfolio.write`; the server checks). */
+  canRecordGasDay?: boolean;
   /** Open what a "What needs me" item names. */
   onOpenNeed?: (item: TodayNeedsMeRowDTO["items"][number]) => void;
   /**
@@ -333,7 +336,7 @@ function NeedsMeRow({ row, t, language, onOpen }: { row: TodayNeedsMeRowDTO; t: 
     <RowSection id="needs_me" title={t("today.row.needs_me")} meta={row.more > 0 ? t("today.needs.more", { count: row.more }) : undefined}>
       <ol className="today-needs">
         {row.items.map((item) => {
-          const tone = item.kind === "limit" ? (item.status === "breach" ? "breach" : "watch") : item.kind === "opportunity" && item.lane === "must_act" ? "breach" : "neutral";
+          const tone = item.kind === "limit" ? (item.status === "breach" ? "breach" : "watch") : item.kind === "opportunity" && item.lane === "must_act" ? "breach" : item.kind === "nomination" ? (item.urgency === "overdue" ? "breach" : "watch") : "neutral";
           return (
             <li key={`${item.kind}:${item.id}`} data-need={item.kind}>
               <StatusBadge tone={tone}>{t(`today.needs.kind.${item.kind}${item.kind === "opportunity" && item.lane ? `.${item.lane}` : ""}`)}</StatusBadge>
@@ -345,6 +348,7 @@ function NeedsMeRow({ row, t, language, onOpen }: { row: TodayNeedsMeRowDTO; t: 
                 {item.kind === "outage" && item.size?.value != null ? ` · ${formatValue(item.size.value, item.size.unit ?? "")} ${item.size.unit ?? ""}` : null}
                 {item.kind === "opportunity" && item.headline?.value != null ? `${item.headline.value} ${item.headline.unit ?? ""}${item.period ? ` · ${item.period}` : ""}` : null}
                 {item.kind === "limit" && item.utilisation_pct != null ? t("today.used", { pct: Math.round(item.utilisation_pct) }) : null}
+                {item.kind === "nomination" ? [item.hub, item.step ? t(`today.checklist.step.${item.step}`) : null, item.status ? t(`today.checklist.status.${item.status}`) : null].filter(Boolean).join(" · ") : null}
               </span>
               {item.simulated && <SimulatedMark t={t} />}
               {/* An outage says since when it is out; a standing limit state has no news age. */}
@@ -726,7 +730,7 @@ export function TodayHeadActions({ t, loading, onOpenBrief, onRefresh }: { t: Tr
   );
 }
 
-export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices, headInStrip = false, onOpenFundamentals, onOpenGasDay }: TodayScreenProps) {
+export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices, headInStrip = false, onOpenFundamentals, onOpenGasDay, canRecordGasDay = false }: TodayScreenProps) {
   if (!today) {
     return (
       <div className="today" data-today="loading">
@@ -734,12 +738,13 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       </div>
     );
   }
-  const [keyFigures, , book, fundamentals, needsMe, gasDay] = today.rows;
+  const [keyFigures, , book, fundamentals, needsMe, gasDay, checklist] = today.rows;
   const quiet = needsMe && needsMe.items.length === 0 ? needsMe.quiet : null;
   const render: Record<TodayRowKey, () => ReactNode> = {
     market: () => (keyFigures?.market ? <MarketRow key="market" market={keyFigures.market} t={t} nowMs={nowMs} language={language} onInspectPrice={onInspectPrice} onOpenPrices={onOpenPrices} /> : null),
     book: () => (canSeeBook && book ? <BookRow key="book" row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} language={language} onOpenLimits={onOpenLimits} /> : null),
     needs_me: () => (needsMe && needsMe.items.length > 0 ? <NeedsMeRow key="needs_me" row={needsMe} t={t} nowMs={nowMs} language={language} onOpen={onOpenNeed} /> : null),
+    checklist: () => (canSeeBook && checklist ? <ChecklistRow key="checklist" row={checklist} t={t} language={language} nowMs={nowMs} canRecord={canRecordGasDay} onOpen={onOpenGasDay} onRecorded={onRefresh} /> : null),
     gas_day: () => (canSeeBook && gasDay ? <GasDayRow key="gas_day" row={gasDay} t={t} language={language} nowMs={nowMs} onOpen={onOpenGasDay} /> : null),
     fundamentals: () => (fundamentals ? <FundamentalsRow key="fundamentals" row={fundamentals} t={t} nowMs={nowMs} language={language} quiet={quiet} onOpenFundamentals={onOpenFundamentals} /> : null),
   };

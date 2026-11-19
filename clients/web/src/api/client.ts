@@ -2159,7 +2159,7 @@ export interface TodayMarketDTO {
 /** Design basis 2, E.2 row 3: what needs me, ranked server-side, at most five. */
 export interface TodayNeedsMeItemDTO {
   /** "strategy": a tracked strategy's changed, still actionable paper signal. */
-  kind: "opportunity" | "outage" | "limit" | "strategy";
+  kind: "opportunity" | "outage" | "limit" | "strategy" | "nomination";
   id: string;
   title: string;
   title_zh?: string | null;
@@ -2177,6 +2177,11 @@ export interface TodayNeedsMeItemDTO {
   /** Since when an outage is out (or from when planned); none for a standing limit state. */
   since_utc?: string | null;
   why?: TodayWhyDTO | null;
+  /** A nomination step due soon or overdue, or nominated beyond tolerance (gas day checklist). */
+  step?: string;
+  urgency?: "overdue" | "due_soon" | "open" | "none";
+  deadline_utc?: string | null;
+  gas_day?: string;
 }
 
 /** A day's quantity in the hub's desk unit (NBP th/d; continental MWh/d with its MW). */
@@ -2233,6 +2238,8 @@ export interface GasDayCostDTO {
 export interface GasDayHubDTO {
   hub: string;
   state: "long" | "short" | "balanced";
+  /** Within this band around zero the net is rounding, not a position (assumption or default). */
+  band?: { pct: number; mwh: number; basis: "assumption" | "default"; set: string | null };
   in: GasDayQuantityDTO;
   out: GasDayQuantityDTO;
   net: GasDayQuantityDTO;
@@ -2252,6 +2259,46 @@ export interface TodayGasDayRowDTO {
   scope: { kind: "mandate" | "all_books"; mandates: { id: string; name: string; hubs: string[] }[]; books: string[] | null } | null;
   days: { gas_day: string; which: "today" | "tomorrow"; hours: number; hubs: GasDayHubDTO[] }[];
   simulated: boolean;
+  populated: boolean;
+  empty: TodayEmptyDTO | null;
+}
+
+export interface GasDayStepStatusDTO {
+  status: string;
+  /** import: the scheduling system; manual: entered by hand; delivery_record, slot, contract, none. */
+  origin: string;
+  by: string | null;
+  at_utc: string | null;
+  note: string | null;
+}
+
+export interface GasDayChecklistItemDTO {
+  ref: string;
+  hub: string;
+  book_id: string | null;
+  step: "nomination" | "renomination" | "lng_unloading" | "lng_send_out" | "lng_inventory" | "lng_cargo_window";
+  kind: string;
+  label: string;
+  point: string | null;
+  agent: string | null;
+  expected: GasDayQuantityDTO | { value: number; unit: string; mwh: number } | null;
+  nominated: GasDayQuantityDTO | null;
+  mismatch: { quantity: GasDayQuantityDTO; pct: number; tolerance_pct: number; over_tolerance: boolean } | null;
+  status: GasDayStepStatusDTO;
+  deadline: GasDayCutoffDTO | { key: string; name: string | null; at_utc: string; basis: string; source: string; passed: boolean } | null;
+  window?: { start_utc?: string; end_utc?: string; start?: string; end?: string };
+  urgency: "overdue" | "due_soon" | "open" | "none";
+  simulated: boolean;
+  target: GasDayTargetDTO;
+}
+
+/** Today row 7, the gas day checklist (`application/gas_day_checklist.py`): status tracking only. */
+export interface TodayChecklistRowDTO {
+  key: "checklist";
+  title: string;
+  scope: TodayGasDayRowDTO["scope"];
+  days: { gas_day: string; which: "today" | "tomorrow"; items: GasDayChecklistItemDTO[] }[];
+  statuses?: string[];
   populated: boolean;
   empty: TodayEmptyDTO | null;
 }
@@ -2588,7 +2635,7 @@ export interface DeskTodayDTO {
   /** Every figure simulated: the page says so once and drops the per-figure marker. */
   all_simulated?: boolean;
   simulated_notice: string | null;
-  rows: [TodayKeyFiguresRowDTO, TodayChangesRowDTO, TodayBookRowDTO, TodayFundamentalsRowDTO, TodayNeedsMeRowDTO?, TodayGasDayRowDTO?];
+  rows: [TodayKeyFiguresRowDTO, TodayChangesRowDTO, TodayBookRowDTO, TodayFundamentalsRowDTO, TodayNeedsMeRowDTO?, TodayGasDayRowDTO?, TodayChecklistRowDTO?];
   /** My hubs: the user's list, else the book's, then the board's (at most four). */
   focus_hubs?: string[];
   /** Every late or stale figure by name (FRESH-02), instead of a page-wide "N feeds stale". */
@@ -4983,6 +5030,10 @@ export const api = {
     post<DeskBriefDTO>("/analysis/brief", { kind, language }),
 
   deskToday: (options?: ApiRequestOptions) => get<DeskTodayDTO>("/desk/today", undefined, options),
+
+  /** Record a gas-day step's status by hand (labelled and audited; nothing is nominated). */
+  recordGasDayStatus: (body: { gas_day: string; line_ref: string; step: string; status: string; quantity_mwh?: number | null; note?: string | null }) =>
+    post<{ event_id: string; status: string; origin: string; recorded_by: string; recorded_at_utc: string }>("/desk/gas-day/status", body),
 
   opportunities: (options?: ApiRequestOptions) => get<OpportunityListDTO>("/opportunities", undefined, options),
 

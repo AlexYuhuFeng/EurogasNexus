@@ -190,6 +190,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             }}
             // My gas day: each line opens where it is acted on or evidenced (Book → Delivery,
             // Planning or Position; a prompt trade on Prices with its hub chosen).
+            canRecordGasDay={Array.isArray(api.currentUser?.permissions) && api.currentUser.permissions.includes("portfolio.write")}
             onOpenGasDay={(target) => {
               if (target.mode === "desk") {
                 if (target.params.hub) traderContext.setHubId(target.params.hub);
@@ -205,6 +206,10 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
                 window.history.replaceState(window.history.state, "", `?${networkPanelToSearch(window.location.search, "outages")}`);
               } else if (item.kind === "limit") {
                 navigation.openWorkspace("contracts", "exposure");
+              } else if (item.kind === "nomination") {
+                // The checklist step: where it is evidenced (Book → Delivery or Planning).
+                const entry = PRODUCT_MODES.find((mode) => mode.id === item.target?.mode)?.tasks.find((task) => task.id === item.target?.task);
+                if (entry?.page) navigation.openWorkspace(entry.page, entry.pageTask);
               } else if (item.kind === "strategy") {
                 // Research → Spreads, where the tracked strategy and its paper book are shown.
                 navigation.openWorkspace("research", "spreads");

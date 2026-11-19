@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { GasDayCutoffDTO } from "../src/api/client.ts";
-import { formatQuantity, mwText, nextCutoff, timeLeft } from "../src/app/model/gasDayModel.ts";
+import { cutoffUrgency, formatQuantity, mwText, nextCutoff, timeLeft } from "../src/app/model/gasDayModel.ts";
 
 const cut = (key: GasDayCutoffDTO["key"], at: string): GasDayCutoffDTO => ({
   key, name: null, at_utc: at, basis: "assumption", source: "default", passed: false,
@@ -28,4 +28,12 @@ test("quantities read in desk format, signed for the net, MW beside a continenta
   assert.equal(formatQuantity({ value: 0.2, unit: "MWh/d", mwh: 0.2 }, true), "0");
   assert.equal(mwText({ value: -503.3, unit: "MWh/d", mwh: -503.3, mw: -21 }, true), "−21");
   assert.equal(mwText({ value: 781264, unit: "th/d", mwh: 22896.6 }), null);
+});
+
+test("time left turns amber within two hours and red within thirty minutes", () => {
+  const at = "2026-11-19T13:00:00Z";
+  assert.equal(cutoffUrgency(at, Date.parse("2026-11-19T09:00:00Z")), "open");
+  assert.equal(cutoffUrgency(at, Date.parse("2026-11-19T11:30:00Z")), "soon");
+  assert.equal(cutoffUrgency(at, Date.parse("2026-11-19T12:45:00Z")), "imminent");
+  assert.equal(cutoffUrgency(at, Date.parse("2026-11-19T13:05:00Z")), "none");
 });

@@ -14,6 +14,7 @@ import {
   formatQuantity,
   kindKey,
   mwText,
+  cutoffUrgency,
   nextCutoff,
   sides,
   timeLeft,
@@ -71,6 +72,8 @@ function HubCard({ hub, t, nowMs, onOpen }: { hub: GasDayHubDTO; t: Translate; n
   const left = next ? timeLeft(next.at_utc, nowMs) : null;
   const at = next ? formatInstant(next.at_utc, { nowMs }) : null;
   const cost = hub.cost_of_nothing;
+  const urgency = next ? cutoffUrgency(next.at_utc, nowMs) : "none";
+  const band = hub.band;
   const mw = mwText(hub.net, true);
   const unit = hub.net.unit;
   const done = hub.done_today;
@@ -85,16 +88,18 @@ function HubCard({ hub, t, nowMs, onOpen }: { hub: GasDayHubDTO; t: Translate; n
         value={formatQuantity(hub.net, true)}
         unit={unit}
         size="lg"
-        detail={mw ? t("today.gas_day.mw", { value: mw }) : undefined}
+        detail={[mw ? t("today.gas_day.mw", { value: mw }) : null,
+          hub.state === "balanced" && band ? t(band.basis === "assumption" ? "today.gas_day.band_set" : "today.gas_day.band_default", { pct: band.pct, set: band.set ?? "" }) : null]
+          .filter(Boolean).join(" · ") || undefined}
         converted={converted}
         convertedMode="hover"
       />
       <dl className="gasday-facts">
-        <div className="gasday-fact" data-gasday-fact="time_left">
+        <div className="gasday-fact" data-gasday-fact="time_left" data-urgency={urgency}>
           <dt>{t("today.gas_day.time_left")}</dt>
           <dd>
             {next && at && left ? (
-              <span title={`${at.title} · ${next.source}`}>
+              <span title={`${at.title} · ${t(`today.gas_day.basis_of.${next.basis}`, { source: next.source })}`}>
                 {t("today.gas_day.until", { name: cutoffName(next, t), time: at.text })}
                 {" · "}
                 <strong>{t("today.gas_day.left", { hours: left.hours, minutes: left.minutes })}</strong>
@@ -111,7 +116,10 @@ function HubCard({ hub, t, nowMs, onOpen }: { hub: GasDayHubDTO; t: Translate; n
             {cost.basis === "balanced" ? (
               t("today.gas_day.cost_none")
             ) : cost.value === null ? (
-              <span className="muted" title={cost.reason}>{t("today.gas_day.cost_missing")}</span>
+              <span className="muted" title={cost.reason}>
+                {t("today.gas_day.cost_missing")}
+                <span className="gasday-hint"> {t("today.gas_day.cost_where")}</span>
+              </span>
             ) : (
               <span
                 title={t(cost.side === "short_premium" ? "today.gas_day.cost_basis_short" : "today.gas_day.cost_basis_long", {
