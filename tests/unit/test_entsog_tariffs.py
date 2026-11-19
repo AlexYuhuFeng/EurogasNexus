@@ -484,7 +484,9 @@ def test_simulated_demo_tariffs_step_aside_for_published_ones():
             TsoTariffRecord.document_id == seed.SIMULATED_TARIFF_DOCUMENT
         )
         assert {row.tariff_status for row in simulated} == {"SIMULATOR_ONLY"}
-        assert simulated.count() == 3
+        # The three BBL legs plus one crossing of every main hub pair (the demo market's routes).
+        before = simulated.count()
+        assert before >= 3
         rows, _ = entsog_tariff_rows(
             [record("ITP-00207", "UK-TSO-0004", "exit", 8.0, "2026-10-01", "2027-10-01")],
             bundle=load_bundle(),
@@ -494,5 +496,7 @@ def test_simulated_demo_tariffs_step_aside_for_published_ones():
         session.add_all(TsoTariffRecord(**row) for row in rows)
         session.flush()
         assert seed.retire_simulated_tariffs(session) == 1
+        # Only the leg the published row replaces steps aside; the other BBL legs stay.
+        assert simulated.count() == before - 1
         left = {(row.tso, row.direction) for row in simulated}
-        assert left == {("GTS", "EXIT"), ("National Gas TSO", "ENTRY")}
+        assert {("GTS", "EXIT"), ("National Gas TSO", "ENTRY")} <= left
