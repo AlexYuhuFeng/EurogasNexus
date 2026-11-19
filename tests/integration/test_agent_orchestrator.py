@@ -25,6 +25,9 @@ from eurogas_nexus.db.repositories import agents
 from eurogas_nexus.db.repositories.identity import create_identity_api_key
 from eurogas_nexus.domain.agents.contracts import AgentInvocationContext
 
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
+
 
 @pytest.fixture()
 def database_url(tmp_path) -> str:

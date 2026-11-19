@@ -681,6 +681,17 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         profiles=("development",),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_DEFERRED_CAPABILITIES",
+        scope="OPERATOR",
+        purpose="Serve the deferred capabilities' routes (strategy lifecycle, shadow runtime, "
+        "dataset builder, agents); off by default.",
+        default="off",
+        notes=(
+            "Design basis 2, I.3 and decision L4: the backends are kept, dormant, until a desk "
+            "use is proven; read by api/route_registration.py.",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DEMO_CATCH_UP_STATUS",
         scope="OPERATOR",
         purpose="Demo server: file where the live-data catch-up writes its progress.",

@@ -22,6 +22,9 @@ from eurogas_nexus.api.app import create_app
 from eurogas_nexus.application.agents.research_orchestrator import OrchestrationOutcome
 from eurogas_nexus.domain.agents.contracts import PROFILES_BY_ID, OrchestrationStage
 
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
+
 
 def test_the_declared_profiles_are_the_ones_the_route_publishes() -> None:
     # One catalogue: the refusal and the published list cannot disagree.

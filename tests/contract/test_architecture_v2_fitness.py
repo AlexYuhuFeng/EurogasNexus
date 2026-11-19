@@ -593,12 +593,12 @@ _ENGINE_FILE_PATTERN = re.compile(
 
 # Compute families the client must reach through the backend API instead of
 # computing locally.
+#: The compute the web client still requests (backtests and the netback sandbox left the client
+#: with their pages, design basis 2, I.1 and I.3; the engines stay in the backend).
 BACKEND_COMPUTE_ENDPOINTS = (
     "/route-cost/recommend",
     "/route-cost/resource-pool/optimize",
     "/strategy-lab/evaluate",
-    "/backtest-experiments",
-    "/research/netback",
 )
 
 _IMPORT_SPECIFIER = re.compile(r"""(?:from\s+|import\()\s*["']([^"']+)["']""")

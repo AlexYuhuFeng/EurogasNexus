@@ -34,6 +34,9 @@ from eurogas_nexus.domain.agents.contracts import (
     DeterminismClass,
 )
 
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
+
 
 def _definition(capability_id: str, policy: ActionPolicy) -> CapabilityDefinition:
     return CapabilityDefinition(

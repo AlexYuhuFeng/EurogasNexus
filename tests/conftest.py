@@ -107,6 +107,25 @@ def _development_clients_present_the_deployment_token(
     monkeypatch.setattr(TestClient, "__init__", patched_init)
 
 
+def pytest_configure(config) -> None:  # type: ignore[no-untyped-def]
+    config.addinivalue_line(
+        "markers",
+        "deferred_capabilities: serve the deferred capabilities' routes (design basis 2, I.3) "
+        "for this test; they are off by default (EUROGAS_NEXUS_DEFERRED_CAPABILITIES).",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _deferred_capabilities_when_marked(request, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Tests of the dormant backends (strategy lifecycle, shadow runtime, dataset builder,
+    agents) build an app that serves them; every other test sees the default surface."""
+
+    if request.node.get_closest_marker("deferred_capabilities"):
+        monkeypatch.setenv("EUROGAS_NEXUS_DEFERRED_CAPABILITIES", "on")
+    else:
+        monkeypatch.delenv("EUROGAS_NEXUS_DEFERRED_CAPABILITIES", raising=False)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _pythonpath_for_subprocesses() -> None:
     """Make ``src`` importable by scripts spawned as subprocesses."""

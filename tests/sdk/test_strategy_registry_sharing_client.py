@@ -4,6 +4,9 @@ import httpx
 import pytest
 from eurogas_nexus_sdk import strategy_registry
 
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
+
 
 def _strategy(**sharing):
     return {

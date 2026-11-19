@@ -112,6 +112,7 @@ def store(tmp_path, monkeypatch):
     return engine
 
 
+@pytest.mark.deferred_capabilities  # reads a dormant capability's route (design basis 2, I.3)
 def test_itp_00106_from_provider_record_to_api_response(store) -> None:
     # 1. Provider identifier -> normalised row: the key and the unit as published.
     (row,) = native_entsog_flow_observations_from_json(PROVIDER_PAYLOAD, observed_at_utc=RECEIPT)

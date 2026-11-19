@@ -25,6 +25,9 @@ from eurogas_nexus.domain.research.temporal import DatasetMode, TemporalIntegrit
 from eurogas_nexus.security.permissions import Permission, permission_for_path
 from eurogas_nexus.security.public_api import PUBLIC_API_TOKEN_ENV
 
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
+
 
 def _dt(hour: int) -> datetime:
     return datetime(2026, 1, 1, hour, tzinfo=UTC)

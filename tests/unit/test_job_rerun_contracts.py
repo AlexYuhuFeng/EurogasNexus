@@ -78,7 +78,11 @@ def test_every_named_rerun_path_is_a_real_public_path() -> None:
     # the fitness check is against the app's own surface, not against the string's shape.
     from apps.api.main import app
 
-    served = set(app.openapi()["paths"])
+    from eurogas_nexus.security.public_surface import DEFERRED_PUBLIC_PATHS
+
+    # A deferred capability's path (design basis 2, I.3) is served when an operator turns the
+    # capability back on; its rerun contract stays valid for that deployment.
+    served = set(app.openapi()["paths"]) | DEFERRED_PUBLIC_PATHS
     missing = [
         f"{contract.kind}: {contract.new_run_path}"
         for contract in JOB_RERUN_CONTRACTS

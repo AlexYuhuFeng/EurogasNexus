@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -17,6 +18,9 @@ from eurogas_nexus.db.repositories.identity import (
     create_identity_principal,
 )
 from eurogas_nexus.db.repositories.strategy_registry import create_strategy
+
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
 
 
 def _fixture(tmp_path, monkeypatch):

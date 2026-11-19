@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -29,6 +30,9 @@ from eurogas_nexus.domain.strategy_lab.registry import (
     StrategyComponentSpec,
     StrategyVersionDefinition,
 )
+
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
 
 PUBLIC_TOKEN = "test-public-api-token"
 

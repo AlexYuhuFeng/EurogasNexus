@@ -57,6 +57,22 @@ from eurogas_nexus.api.routes.public.support import router as support_router
 from eurogas_nexus.api.routes.public.weather import router as weather_router
 
 
+#: Design basis 2, I.3 and decision L4: capabilities kept in the backend, dormant, until a desk
+#: use is proven (the strategy lifecycle, the shadow runtime, the dataset builder and the agents
+#: workspace). Their routes are not served unless an operator turns them back on, so the attack
+#: and maintenance surface shrinks with the UI. The domain and application code stay, with tests.
+DEFERRED_CAPABILITIES_ENV = "EUROGAS_NEXUS_DEFERRED_CAPABILITIES"
+
+
+def deferred_capabilities_enabled() -> bool:
+    """Whether the deferred capabilities' routes are served (off unless turned on)."""
+
+    import os
+
+    value = os.environ.get(DEFERRED_CAPABILITIES_ENV, "")
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def register_routes(
     app: FastAPI,
     profile: str | ApiRouteProfile = "development",
@@ -65,8 +81,10 @@ def register_routes(
 
     route_profile = profile if isinstance(profile, ApiRouteProfile) else get_route_profile(profile)
 
+    deferred = deferred_capabilities_enabled()
     if route_profile.include_public:
-        app.include_router(agents_router)
+        if deferred:
+            app.include_router(agents_router)
         app.include_router(health_router)
         app.include_router(jobs_router)
         app.include_router(functional_router)
@@ -105,15 +123,18 @@ def register_routes(
         app.include_router(spreads_router)
         app.include_router(preferences_router)
         app.include_router(setup_router)
-        app.include_router(research_data_router)
+        if deferred:
+            app.include_router(research_data_router)
         app.include_router(review_router)
         app.include_router(route_cost_router)
         app.include_router(optimization_router)
         app.include_router(strategy_lab_router)
-        app.include_router(strategy_registry_router)
+        if deferred:
+            app.include_router(strategy_registry_router)
         app.include_router(streaming_router)
         app.include_router(runtime_router)
-        app.include_router(shadow_router)
+        if deferred:
+            app.include_router(shadow_router)
 
     if route_profile.include_internal:
         app.include_router(internal_router)

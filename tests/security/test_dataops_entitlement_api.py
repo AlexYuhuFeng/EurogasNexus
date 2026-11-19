@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -160,6 +161,7 @@ def test_route_candidate_derived_results_cannot_bypass_scope(
     assert [row["route_id"] for row in body["route_candidates"]] == ["route-entsog"]
 
 
+@pytest.mark.deferred_capabilities  # reads a dormant capability's route (design basis 2, I.3)
 def test_strategy_run_evidence_respects_principal_scope(tmp_path, monkeypatch) -> None:
     db_path = tmp_path / "strategy-entitlement.sqlite"
     database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"

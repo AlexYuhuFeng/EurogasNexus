@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -115,6 +116,7 @@ def test_commercial_surface_declaration_matches_the_intended_boundary() -> None:
         assert not serves_commercial_data(prefix.rstrip("/") + "-unrelated")
 
 
+@pytest.mark.deferred_capabilities  # reads a dormant capability's route (design basis 2, I.3)
 def test_platform_admin_cannot_read_commercial_data(tmp_path, monkeypatch) -> None:
     """ADMIN alone is refused commercial data and keeps the control plane."""
 

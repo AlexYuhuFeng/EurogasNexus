@@ -20,6 +20,9 @@ from eurogas_nexus.db.repositories import agents
 from eurogas_nexus.domain.agents.challenge import ChallengeResult
 from eurogas_nexus.security.permissions import Permission, permission_for_path
 
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
+
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch: pytest.MonkeyPatch):

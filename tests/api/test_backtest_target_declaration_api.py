@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -27,6 +28,9 @@ from tests.api.test_backtest_api import (
     _definition_body,
     _seed_observations,
 )
+
+#: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
+pytestmark = pytest.mark.deferred_capabilities
 
 
 def _create_undeclared_frozen_version(client: TestClient) -> str:

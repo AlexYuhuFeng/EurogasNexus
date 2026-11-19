@@ -141,8 +141,16 @@ DELIBERATE: dict[str, str] = {
     "/api/runtime/metrics": "operational metrics, read by monitoring",
     "/api/runtime/source-operations": "source-operations posture for operators",
     "/api/auth/oidc/callback": "the identity provider's redirect target, not a call",
-    "/api/agent/plans/validate": "validated inside the agent run flow, never called on its own",
-    "/api/agent/strategy-ir/validate": "validated inside the agent run flow, never on its own",
+    # Design basis 2, I.1: the pages that called these left the client (CP-00); the backends
+    # stay for the engines Deals → Opportunities will reuse, or as support APIs.
+    "/api/data-products": "Research → Data left the client (CP-00); the catalogue stays an API",
+    "/api/market/financing-rate": "the financing-rate helper left the contract form (CP-00)",
+    "/api/me/groups": "sharing groups served the deferred strategy sharing; API only",
+    "/api/portfolio/desk-replay": "desk replay left the UI (CP-00, H); the JSON entry stays an API",
+    "/api/portfolio/lng-cargo-bid": "superseded by the cargo chain (CP-12); kept for one release",
+    "/api/research/netback": "the route what-if left the client (CP-00); engine kept for CP-09",
+    "/api/research/route-cost": "the route what-if left the client (CP-00); engine kept for CP-09",
+    "/api/research/lng-economics-only": "the LNG sandbox left the UI (CP-00); superseded by CP-12",
     "/api/source-certifications": "control-plane administration, outside the business workspaces",
     "/api/source-certifications/{source_id}/certify": "control-plane administration act",
     "/api/projections/scenario-context": (
