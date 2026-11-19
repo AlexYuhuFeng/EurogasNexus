@@ -21,7 +21,14 @@ tariff b, net c"):
   actionable and indicative ones pop out, a watch-state one is a thin outline. The view adds
   no opportunity of its own and computes no margin: the figures are the core's.
 
-Outages located at an "ours" or "reachable" point are listed as touching the book. Every input
+A record that also states the way the volume goes now (``PROPOSAL_FIELDS``: a re-route through
+the pool, or a locational alternative) carries a ``proposal``: the current path against the
+proposed one, the evaluator's own figures per side and the inputs it rests on.
+
+Outages located at an "ours" or "reachable" point are listed as touching the book; the
+``disruptions`` list says how much of ours each touches (contracts, their delivery), placing an
+outage no source positions at its balancing zone's hub when we hold contracts there. Contracts
+carry their gas-year window and the days delivered (``contract_periods``). Every input
 is read from the store (contracts, capacity profiles, storage masters, cargoes, slots, tariffs,
 market prices, FX) and the shipped reference bundle; nothing is a hand list.
 """
@@ -86,28 +93,12 @@ def book_opportunity_paths(
         # The crossing the evaluator priced, when the record states it (claim_fields
         # ``route_point_keys``: ENTSOG point keys in flow order, comma-separated); else the
         # default proven crossing, and the card says the route was not stated.
-        stated = fields.get("route_point_keys") or ""
-        via = [
-            str(point).strip()
-            for point in (stated.split(",") if isinstance(stated, str) else stated)
-            if str(point).strip()
-        ]
-        # One key names a crossing; a pipeline's far end, stated after its near end, is the
-        # same crossing (IUK, BBL), so it is not a second one.
-        partner = {a: b for a, b in graph.pipelines.values()} | {
-            b: a for a, b in graph.pipelines.values()
-        }
-        via = [
-            point
-            for index, point in enumerate(via)
-            if index == 0 or partner.get(via[index - 1]) != point
-        ]
-        crossings = graph.route(start, target, via_points=via) if via else None
-        route_stated = crossings is not None
-        if crossings is None:
-            crossings = graph.route(start, target)
+        crossings, route_stated = _priced_route(
+            graph, start, target, fields.get("route_point_keys")
+        )
         if not crossings:
             continue
+        listed = summary(row)
         out.append(
             {
                 "opportunity_id": row.opportunity_id,
@@ -117,22 +108,166 @@ def book_opportunity_paths(
                 "emphasis": emphasis,
                 "claim": row.claim_text,
                 # The core's own list-row figures (same rounding as /api/opportunities).
-                "headline": summary(row)["headline"],
+                "headline": listed["headline"],
                 "period": row.period_label,
                 "simulated": bool(row.simulated),
                 "from_hub": graph.hub_names.get(start, str(buy)),
                 "to_hub": graph.hub_names.get(target, str(sell)),
                 "path_node_ids": graph.path_node_ids(crossings),
                 "route_stated": route_stated,
-                "via": [
-                    str(graph.points.get(point, {}).get("name") or point)
-                    for crossing in crossings
-                    for point in crossing.points
-                ],
+                "via": _via_names(graph, crossings),
+                "proposal": _proposal(session, row, fields, graph, listed, crossings),
             }
         )
     out.sort(key=lambda item: (item["emphasis"] != "pop", item["opportunity_id"]))
     return out
+
+
+def _priced_route(graph: Any, start: str, target: str, stated: Any) -> tuple[Any, bool]:
+    """The crossings an evaluator priced (``route_point_keys``), else the default proven ones.
+
+    Returns ``(crossings, stated)``; ``stated`` is False when the record named no route or one
+    the graph cannot walk, and the default route is returned instead.
+    """
+
+    text = stated or ""
+    via = [
+        str(point).strip()
+        for point in (text.split(",") if isinstance(text, str) else text)
+        if str(point).strip()
+    ]
+    # One key names a crossing; a pipeline's far end, stated after its near end, is the
+    # same crossing (IUK, BBL), so it is not a second one.
+    partner = {a: b for a, b in graph.pipelines.values()} | {
+        b: a for a, b in graph.pipelines.values()
+    }
+    via = [
+        point
+        for index, point in enumerate(via)
+        if index == 0 or partner.get(via[index - 1]) != point
+    ]
+    crossings = graph.route(start, target, via_points=via) if via else None
+    if crossings is not None:
+        return crossings, True
+    return graph.route(start, target), False
+
+
+def _via_names(graph: Any, crossings: Any) -> list[str]:
+    return [
+        str(graph.points.get(point, {}).get("name") or point)
+        for crossing in crossings
+        for point in crossing.points
+    ]
+
+
+#: Claim fields a re-route (R) or locational (L) record may carry to be drawn against the way
+#: the volume goes now (the seam agreed with the evaluators): ``current_sell_hub`` (and
+#: ``current_buy_hub``, default the record's ``buy_hub``) with ``current_route_point_keys``;
+#: and, per side, ``tariff``/``current_tariff``, ``capacity``/``current_capacity``,
+#: ``margin``/``current_margin`` as the evaluator's own texts with units; ``avoids_outage``
+#: (an outage event id) when the alternative's point is that it avoids one.
+PROPOSAL_FIELDS = (
+    "current_sell_hub",
+    "current_buy_hub",
+    "current_route_point_keys",
+    "tariff",
+    "current_tariff",
+    "capacity",
+    "current_capacity",
+    "current_margin",
+    "avoids_outage",
+)
+
+
+def _proposal(
+    session: Any, row: Any, fields: dict, graph: Any, listed: dict, crossings: Any
+) -> dict[str, Any] | None:
+    """Now against proposed for a record that states the current way (see PROPOSAL_FIELDS).
+
+    Every figure is the record's own (claim fields, capacity check, legs); a figure the record
+    does not state is ``None`` and reads "not stated". No figure is computed here.
+    """
+
+    current_sell = fields.get("current_sell_hub")
+    if not current_sell and not fields.get("current_route_point_keys"):
+        return None
+    start = graph.hub_for(str(fields.get("current_buy_hub") or fields.get("buy_hub") or ""))
+    target = graph.hub_for(str(current_sell or fields.get("sell_hub") or ""))
+    if not start or not target:
+        return None
+    if start == target:
+        # Sold where it is delivered: the current way is the hub itself.
+        current_nodes = [str((graph.points.get(start) or {}).get("node_id") or "")]
+        current_via: list[str] = []
+        current_stated = True
+    else:
+        current, current_stated = _priced_route(
+            graph, start, target, fields.get("current_route_point_keys")
+        )
+        if not current:
+            return None
+        current_nodes = graph.path_node_ids(current)
+        current_via = _via_names(graph, current)
+
+    from eurogas_nexus.db.models.opportunities import (
+        OpportunityCheckRecord,
+        OpportunityLegRecord,
+    )
+
+    capacity_check = (
+        session.query(OpportunityCheckRecord)
+        .filter_by(opportunity_id=row.opportunity_id, kind="capacity")
+        .order_by(OpportunityCheckRecord.seq)
+        .first()
+    )
+    legs = (
+        session.query(OpportunityLegRecord)
+        .filter_by(opportunity_id=row.opportunity_id)
+        .order_by(OpportunityLegRecord.seq)
+        .all()
+    )
+    evidence = [
+        {
+            "label": leg.label,
+            "source_family": leg.source_family,
+            "source_ref": leg.source_ref or None,
+            "as_of_utc": _iso(leg.as_of_utc),
+            "input_class": leg.input_class,
+        }
+        for leg in legs
+        if leg.source_ref or leg.source_family
+    ][:4]
+    quality = listed["quality"]
+    proposed_via = _via_names(graph, crossings)
+    return {
+        "current_path_node_ids": [node for node in current_nodes if node],
+        "current_route_stated": current_stated,
+        "now": {
+            "to_hub": graph.hub_names.get(target, str(current_sell)),
+            "via": current_via,
+            "tariff": fields.get("current_tariff"),
+            "capacity": fields.get("current_capacity"),
+            "margin": fields.get("current_margin"),
+            "period": row.period_label,
+            "input_class": quality,
+        },
+        "proposed": {
+            "to_hub": fields.get("sell_hub"),
+            "via": proposed_via,
+            "tariff": fields.get("tariff"),
+            "capacity": fields.get("capacity")
+            or (capacity_check.figure if capacity_check else None),
+            "margin": fields.get("margin"),
+            "period": row.period_label,
+            "input_class": quality,
+        },
+        "benefit": {
+            "via": next((name for name in proposed_via), None),
+            "headline": listed["headline"],
+            "avoids_outage": fields.get("avoids_outage"),
+        },
+        "evidence": evidence,
+    }
 
 
 class _Collector:
@@ -211,6 +346,7 @@ def build_book_relevance(
     entitled: Callable[[list], list],
     book_ids: set[str] | None,
     principal: Any = None,
+    unlocated_outages: Iterable[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     """The three relevance classes for the caller's books (see the module docstring).
 
@@ -335,6 +471,7 @@ def build_book_relevance(
                     "to_hub": target,
                     "mwh_d": item.get("delivery_mwh_d"),
                     "path_node_ids": adjacency.get("path_node_ids") or [],
+                    "period": contract_period(item.get("gas_year"), now),
                 }
             )
             for crossing in adjacency.get("crossings") or []:
@@ -579,10 +716,26 @@ def build_book_relevance(
         | {crossing["node_id"] for path in reachable for crossing in path["crossings"]}
         | {node for item in opportunities for node in item["path_node_ids"]}
     )
+    outages = list(outages)
     touching = sorted(
         str(outage.get("event_id"))
         for outage in outages
         if (outage.get("location") or {}).get("ref_id") in touched_refs
+    )
+    disruptions = _disruptions(
+        outages,
+        unlocated_outages,
+        ours_items=ours_items,
+        contract_paths=contract_paths,
+        reachable_refs={
+            crossing["node_id"] for path in reachable for crossing in path["crossings"]
+        },
+        opportunity_refs={node for item in opportunities for node in item["path_node_ids"]},
+        ours_hubs=ours_hubs,
+        hub_location=hub_location,
+        mwh_by_contract={
+            item["contract_name"]: float(item.get("delivery_mwh_d") or 0) for item in contracts
+        },
     )
     return {
         "rule": RULE,
@@ -592,7 +745,128 @@ def build_book_relevance(
         "opportunities": opportunities,
         "arrivals": arrivals,
         "outages_touching": touching,
+        "disruptions": disruptions,
+        "contract_periods": {
+            item["contract_id"]: contract_period(item.get("gas_year"), now) for item in contracts
+        },
     }
+
+
+def contract_period(gas_year: str | None, now: datetime) -> dict[str, Any] | None:
+    """The delivery window of a gas-year contract and how much of it has been delivered.
+
+    A gas year runs from 1 October to the next 1 October (gas days, 06:00 CET); the elapsed
+    days are whole calendar days since the start, clamped to the window.
+    """
+
+    from eurogas_nexus.domain.route_cost.tariff_calendar import gas_year_start
+
+    if not gas_year:
+        return None
+    try:
+        start = gas_year_start(str(gas_year))
+    except ValueError:
+        return None
+    end = date(start.year + 1, 10, 1)
+    total = (end - start).days
+    elapsed = min(max((now.date() - start).days, 0), total)
+    return {
+        "label": str(gas_year),
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "elapsed_days": elapsed,
+        "total_days": total,
+    }
+
+
+def _disruptions(
+    outages: list[dict[str, Any]],
+    unlocated_outages: Iterable[dict[str, Any]],
+    *,
+    ours_items: list[dict[str, Any]],
+    contract_paths: list[dict[str, Any]],
+    reachable_refs: set[str],
+    opportunity_refs: set[str],
+    ours_hubs: dict[str, list[str]],
+    hub_location: Callable[[str], dict[str, Any] | None],
+    mwh_by_contract: dict[str, float],
+) -> list[dict[str, Any]]:
+    """Outages and restrictions that touch the book, with how much of ours each touches.
+
+    A located outage touches what sits at its point: our contracts there or priced through it
+    (``ours``), a reachable crossing, or an opportunity's path. An outage no source positions
+    is placed at its balancing zone's hub when we hold contracts there (``placement`` "zone":
+    the callout says it is zone-wide, not at a point). ``affected_mwh_d`` is the delivery of
+    the contracts touched (what is exposed, not a forecast of lost volume). Only an active one
+    touching our own contracts ``pulse``-s on the map; the rest are quiet marks.
+    """
+
+    from eurogas_nexus.application.desk_text import hub_for_zone
+    from eurogas_nexus.application.reports.sections import is_simulated_source
+
+    contracts_at: dict[str, set[str]] = {}
+    for item in ours_items:
+        for reason in item["reasons"]:
+            if reason.get("contract"):
+                contracts_at.setdefault(item["ref"], set()).add(str(reason["contract"]))
+    for path in contract_paths:
+        for node in path["path_node_ids"]:
+            contracts_at.setdefault(node, set()).add(str(path["contract"]))
+    ours_refs = {item["ref"] for item in ours_items}
+
+    def entry(outage, location, placement, hub, touches, names) -> dict[str, Any]:
+        active = outage.get("status") == "active"
+        return {
+            "event_id": str(outage.get("event_id")),
+            "facility_name": outage.get("facility_name"),
+            "status": outage.get("status"),
+            "start_utc": _iso(outage.get("start_utc")),
+            "end_utc": _iso(outage.get("end_utc")),
+            "unavailable_gwh_d": outage.get("unavailable_gwh_d"),
+            "simulated": is_simulated_source(outage.get("source_system")),
+            "placement": placement,
+            "hub": hub,
+            "location": location,
+            "touches": touches,
+            "contracts": sorted(names),
+            "affected_mwh_d": round(sum(mwh_by_contract.get(name, 0.0) for name in names), 1),
+            "pulse": active and touches == "ours" and bool(names),
+        }
+
+    out: list[dict[str, Any]] = []
+    for outage in outages:
+        location = outage.get("location") or {}
+        ref = location.get("ref_id")
+        names = contracts_at.get(ref or "", set())
+        touches = (
+            "ours"
+            if names or ref in ours_refs
+            else "reachable"
+            if ref in reachable_refs
+            else "opportunity"
+            if ref in opportunity_refs
+            else None
+        )
+        if touches is None or location.get("lon") is None:
+            continue
+        point = {"lon": location["lon"], "lat": location["lat"]}
+        out.append(entry(outage, point, "point", None, touches, names))
+    for outage in unlocated_outages:
+        hub = hub_for_zone(str(outage.get("balancing_zone") or ""))
+        if not hub or hub not in ours_hubs:
+            continue
+        point = hub_location(hub)
+        if point is None:
+            continue
+        out.append(entry(outage, point, "zone", hub, "ours", set(ours_hubs[hub])))
+    out.sort(key=lambda item: (not item["pulse"], item["status"] != "active", item["event_id"]))
+    return out
+
+
+def _iso(value: Any) -> str | None:
+    if value is None:
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
 
 
 def _indicative_spread(

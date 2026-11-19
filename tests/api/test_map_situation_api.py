@@ -468,3 +468,124 @@ def test_an_opportunity_draws_the_crossing_its_evaluator_priced(seeded):
     assert item["route_stated"] is True
     assert item["relation"] == "on_book"
     assert "Bacton (BBL)" in item["via"]
+
+
+def test_book_view_says_how_much_of_ours_each_disruption_touches(seeded):
+    """An active outage at a contract's delivery point pulses, with the contracts and their
+    delivery it touches; the contract's gas-year window says how much has been delivered."""
+
+    client, headers = seeded
+    book = client.get("/api/portfolio/map-situation", headers=headers["uk"]).json()["data"][
+        "book_relevance"
+    ]
+    (easington,) = [item for item in book["disruptions"] if item["event_id"] == "UMM-1"]
+    assert easington["placement"] == "point"
+    assert easington["touches"] == "ours"
+    assert easington["contracts"] == ["uk-norway supply"]
+    assert easington["affected_mwh_d"] == 12000.0
+    assert easington["pulse"] is True
+    assert easington["end_utc"]
+    period = book["contract_periods"]["uk-norway"]
+    assert period["start"] == "2026-10-01" and period["end"] == "2027-10-01"
+    assert 0 <= period["elapsed_days"] <= period["total_days"] == 365
+
+
+def test_an_outage_no_source_positions_is_placed_at_its_zone_hub_when_we_hold_it():
+    from eurogas_nexus.application.map_book import _disruptions
+
+    out = _disruptions(
+        [],
+        [
+            {
+                "event_id": "Z1",
+                "facility_name": "A field",
+                "balancing_zone": "TTF",
+                "status": "scheduled",
+                "source_system": "DEMO",
+            },
+            {"event_id": "Z2", "facility_name": "Elsewhere", "balancing_zone": "PEG"},
+        ],
+        ours_items=[],
+        contract_paths=[],
+        reachable_refs=set(),
+        opportunity_refs=set(),
+        ours_hubs={"TTF": ["A supply", "B supply"]},
+        hub_location=lambda hub: {"lon": 4.9, "lat": 52.1},
+        mwh_by_contract={"A supply": 18000.0, "B supply": 6000.0},
+    )
+    (item,) = out
+    assert item["placement"] == "zone" and item["hub"] == "TTF"
+    assert item["affected_mwh_d"] == 24000.0
+    assert item["simulated"] is True
+    # Scheduled, not yet out: a quiet mark, no pulse.
+    assert item["pulse"] is False
+
+
+def test_a_reroute_is_drawn_against_the_way_the_volume_goes_now(seeded):
+    """claim_fields current_sell_hub (and the per-side texts) give a now-against-proposed
+    reading; every figure is the record's own, the rest reads as not stated."""
+
+    import os
+    from decimal import Decimal
+
+    from eurogas_nexus.db.models.opportunities import (
+        OpportunityCheckRecord,
+        OpportunityLegRecord,
+    )
+
+    client, headers = seeded
+    engine = create_engine(os.environ["RUNTIME_STORE_DATABASE_URL"], future=True)
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        session.add(_contract("nl-ttf", "TTF", "uk-nbp", now))
+        reroute = _opportunity("o-r", "actionable", "TTF", "NBP", "uk-nbp", now, opp_type="reroute")
+        reroute.claim_fields = {
+            "buy_hub": "TTF",
+            "sell_hub": "NBP",
+            "current_sell_hub": "TTF",
+            "route_point_keys": "ITP-00063,ITP-00207",
+            "tariff": "0.92 EUR/MWh",
+            "margin": "+0.35 EUR/MWh",
+            "current_margin": "+0.00 EUR/MWh",
+        }
+        session.add(reroute)
+        session.flush()
+        session.add(
+            OpportunityLegRecord(
+                opportunity_id="o-r",
+                seq=1,
+                kind="term",
+                label_key="reroute.with_routes",
+                label="NBP day-ahead",
+                rate_value=Decimal("31.2"),
+                rate_unit="GBP/MWh",
+                input_class="sourced",
+                source_family="ICE Endex",
+                source_ref="NBP DA settlement",
+                as_of_utc=now,
+            )
+        )
+        session.add(
+            OpportunityCheckRecord(
+                opportunity_id="o-r",
+                seq=1,
+                kind="capacity",
+                result="pass",
+                figure="route capacity 6,000 MWh/d",
+            )
+        )
+        session.commit()
+    book = client.get("/api/portfolio/map-situation", headers=headers["uk"]).json()["data"][
+        "book_relevance"
+    ]
+    (item,) = book["opportunities"]
+    proposal = item["proposal"]
+    assert proposal["now"]["via"] == [] and proposal["now"]["to_hub"] == "TTF"
+    assert len(proposal["current_path_node_ids"]) == 1
+    assert "Bacton (BBL)" in proposal["proposed"]["via"]
+    assert proposal["proposed"]["tariff"] == "0.92 EUR/MWh"
+    assert proposal["proposed"]["capacity"] == "route capacity 6,000 MWh/d"
+    assert proposal["now"]["tariff"] is None
+    assert proposal["benefit"]["headline"]["value"] is not None
+    (evidence,) = proposal["evidence"]
+    assert evidence["source_family"] == "ICE Endex" and evidence["as_of_utc"]

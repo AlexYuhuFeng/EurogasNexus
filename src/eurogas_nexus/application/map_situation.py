@@ -427,6 +427,13 @@ def build_map_situation(
                     "facility_id": row["facility_id"],
                     "market_participant": row.get("market_participant"),
                     "reason": how,
+                    # Enough for the book view to place it at its zone's hub, said as such.
+                    "balancing_zone": row.get("balancing_zone"),
+                    "status": row.get("status"),
+                    "start_utc": row.get("start_utc"),
+                    "end_utc": row.get("end_utc"),
+                    "unavailable_gwh_d": row.get("unavailable_gwh_d"),
+                    "source_system": row.get("source_system"),
                 }
             )
             continue
@@ -584,6 +591,7 @@ def build_map_situation(
                     "delivery_mwh_d": record.delivery_quantity_mwh_per_day,
                     "entry_capacity_mwh_d": record.owned_entry_capacity_mwh_per_day,
                     "allowed_exit_points": list(record.allowed_exit_points or []),
+                    "gas_year": record.gas_year,
                     "location": location,
                 }
             )
@@ -731,6 +739,7 @@ def build_map_situation(
             cargoes=cargoes,
             slots=slots,
             outages=outages,
+            unlocated_outages=unlocated_outages,
             locate=lambda name: locator.find(name=name),
             entitled=entitled,
             book_ids=allowed,
