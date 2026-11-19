@@ -562,13 +562,37 @@ class LiveSnapshotReader(RecordingReader):
             "FINAL": InputClass.SOURCED,
             "SIMULATOR_ONLY": InputClass.SIMULATED,
         }.get(row.tariff_status, InputClass.INDICATIVE)
+        # The register holds what the operator published; a capacity price per period is
+        # read as a cost per MWh at 100 % load factor for the delivery period's first day
+        # (domain/route_cost/tariff_units.py). An energy unit passes unchanged.
+        from eurogas_nexus.domain.route_cost.tariff_units import parse_unit, per_mwh
+
+        value, unit, currency = row.tariff_value, row.unit, row.currency
+        parsed = parse_unit(row.unit)
+        if parsed is not None and parsed.is_capacity:
+            read = per_mwh(
+                row.tariff_value,
+                row.unit,
+                on=period.start,
+                anniversary=_aware(row.effective_from).date(),
+                currency=row.currency,
+            )
+            if read is None:
+                return missing(
+                    key,
+                    InputKind.TARIFF,
+                    f"{point_id} {direction} {product}",
+                    reason=f"tariff unit not understood: {row.unit}",
+                    point_id=point_id,
+                )
+            value, unit, currency = read.value, read.unit, read.currency
         return SnapshotInput(
             key=key,
             kind=InputKind.TARIFF,
             input_class=klass,
-            value=_dec(row.tariff_value),
-            unit=row.unit,
-            currency=row.currency,
+            value=_dec(value),
+            unit=unit,
+            currency=currency,
             as_of_utc=_aware(row.created_at_utc),
             source_family=DEMO_FAMILY if klass is InputClass.SIMULATED else "ENTSOG",
             source_ref=row.tariff_id,
@@ -579,18 +603,12 @@ class LiveSnapshotReader(RecordingReader):
                 "gas_year": row.gas_year,
                 "point_id": row.point_id,
                 "point_name": row.source_point_name,
-                "published": next(
-                    (
-                        str(ref).removeprefix("published:")
-                        for ref in row.source_refs or []
-                        if str(ref).startswith("published:")
-                    ),
-                    None,
-                ),
                 "effective_from": _aware(row.effective_from).isoformat(),
                 "effective_to": (
                     _aware(row.effective_to).isoformat() if row.effective_to else None
                 ),
+                # The figure the register holds, as the operator published it.
+                "published": f"{row.tariff_value:g} {row.unit}",
             },
         )
 

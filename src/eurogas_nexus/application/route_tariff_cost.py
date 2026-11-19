@@ -3,10 +3,13 @@
 The route is the proven one (``MarketAreaGraph``: exit from the first market area, any
 pipeline charge, entry to the second; TTF → NBP runs through BBL: GTS exit at Julianadorp, the
 BBL charge at Bacton, National Gas entry at Bacton). Each leg is priced from the tariff
-register (``tso_tariffs``) by point, direction and operator, the row in force on the first gas
-day of the delivery period; the per-MWh figure is the register's (ENTSOG capacity tariffs are
-stored per MWh at 100 % load factor, ``ingestion/entsog_tariffs.per_mwh_at_full_load``). A leg
-the register does not hold is **missing**, named, and the total is not given: never zero.
+register (``tso_tariffs``) by point, direction, operator and capacity product, the row in force
+on the first gas day of the delivery period. The register holds what the operator published
+(a price per unit of capacity per period, ``ingestion/entsog_tariffs.py``); the per-MWh cost is
+worked out here, for the stated product (yearly firm by default) and load factor (100 % by
+default), by ``domain/route_cost/tariff_units.per_mwh``, and each leg says how. A leg the
+register does not hold, or whose unit is not understood, is **missing**, named, and the total
+is not given: never zero.
 
 Each leg carries its tariff's gas year, status and data class: a ``FINAL`` publication is
 ``sourced``; ``INDICATIVE``, ``PROVISIONAL`` and ``DRAFT`` are ``indicative``; the demo's
@@ -15,7 +18,8 @@ Each leg carries its tariff's gas year, status and data class: a ``FINAL`` publi
 **The cheapest route** (:func:`cheapest_route`, the one implementation Spreads, Today and the
 opportunity evaluators call): every simple sequence of market areas up to ``max_hops`` crossings
 is priced, each crossing at its cheapest complete way across (exit, pipeline charges, entry, for
-the delivery period, firm annual capacity per MWh at 100 % load factor), legs in another
+the delivery period, firm annual capacity per MWh at 100 % load factor unless the caller
+states another product or load factor), legs in another
 currency brought to one at the stated FX. The cheapest complete route is chosen; the next-best
 is returned with its extra cost; a route with a leg the register does not hold is unavailable
 and names the leg; with no complete route the result says exactly which legs are missing.
@@ -32,6 +36,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from eurogas_nexus.domain.market.fx_forward import Delivery
+from eurogas_nexus.domain.route_cost.tariff_units import per_mwh
 
 #: Data classes from weakest to strongest (design basis 2, B.2).
 CLASS_ORDER: tuple[str, ...] = (
@@ -51,6 +56,8 @@ _STATUS_CLASS = {
     "DRAFT": "indicative",
     "SIMULATOR_ONLY": "simulated",
 }
+#: Which of two rows covering the same day a leg takes: the firmer publication first.
+_STATUS_RANK = {"FINAL": 0, "INDICATIVE": 1, "PROVISIONAL": 2, "DRAFT": 3, "SIMULATOR_ONLY": 4}
 
 
 def weakest(classes: Iterable[str]) -> str:
@@ -78,6 +85,12 @@ class RouteLeg:
     status: str | None = None
     tariff_id: str | None = None
     source: str | None = None
+    #: The figure the operator published, as stored ("7.06 EUR/(kWh/h)/y").
+    published: str | None = None
+    #: How the per-MWh value was read from it (period days, capacity unit, load factor).
+    basis: str | None = None
+    #: Why a leg the register names is still missing (a unit not understood).
+    note: str | None = None
 
     @property
     def input_class(self) -> str:
@@ -99,6 +112,9 @@ class RouteLeg:
             "status": self.status,
             "tariff_id": self.tariff_id,
             "source": self.source,
+            "published": self.published,
+            "basis": self.basis,
+            "note": self.note,
             "input_class": self.input_class,
         }
 
@@ -120,6 +136,8 @@ class RouteCost:
     #: unit of each leg currency into it (the stated FX).
     reporting_currency: str | None = None
     fx_factors: tuple[tuple[str, float], ...] = ()
+    product: str = "ANNUAL"
+    load_factor: float = 1.0
 
     @property
     def currency(self) -> str | None:
@@ -184,7 +202,9 @@ class RouteCost:
             "gas_years": self.gas_years,
             "input_class": self.input_class,
             "missing": self.missing_legs(),
-            "load_factor": "100 % (capacity tariff per MWh at full load)",
+            "product": self.product,
+            "load_factor": f"{self.load_factor:.0%} (capacity tariff per MWh at this load)",
+            "load_factor_value": self.load_factor,
             "delivery": self.delivery.as_dict() if self.delivery else None,
             "issues": list(self.issues),
         }
@@ -207,11 +227,25 @@ def _tso_matches(row_tso: str, leg_tso: str) -> bool:
     )
 
 
-def price_leg(spec: Any, rows: Iterable[Mapping[str, Any]], on: date) -> RouteLeg:
-    """The leg priced from the tariff row in force on ``on``, or missing."""
+def price_leg(
+    spec: Any,
+    rows: Iterable[Mapping[str, Any]],
+    on: date,
+    *,
+    product: str = "ANNUAL",
+    firmness: str = "FIRM",
+    load_factor: float = 1.0,
+) -> RouteLeg:
+    """The leg priced from the tariff row in force on ``on``, or missing.
+
+    Only rows of the stated capacity ``product`` and ``firmness`` count (a row that names
+    neither, as an older register row may not, counts for any). Of the rows in force, the
+    firmest publication wins (FINAL before INDICATIVE before simulated), then the latest.
+    """
 
     moment = datetime(on.year, on.month, on.day, tzinfo=UTC)
     best: Mapping[str, Any] | None = None
+    best_key: tuple[int, datetime] | None = None
     for row in rows:
         if row.get("point_id") != spec.point_key:
             continue
@@ -219,15 +253,23 @@ def price_leg(spec: Any, rows: Iterable[Mapping[str, Any]], on: date) -> RouteLe
             continue
         if not _tso_matches(str(row.get("tso") or ""), spec.tso):
             continue
+        row_product = str(row.get("capacity_product") or "").upper()
+        if row_product and row_product != product.upper():
+            continue
+        row_firmness = str(row.get("firmness") or "").upper()
+        if row_firmness and row_firmness != firmness.upper():
+            continue
         start, end = _aware(row.get("effective_from")), _aware(row.get("effective_to"))
         if start is not None and start > moment:
             continue
         if end is not None and end < moment:  # effective_to is the last day in force
             continue
-        if best is None or (_aware(row.get("effective_from")) or moment) > (
-            _aware(best.get("effective_from")) or moment
-        ):
-            best = row
+        key = (
+            -_STATUS_RANK.get(str(row.get("tariff_status") or "").upper(), 9),
+            start or moment,
+        )
+        if best_key is None or key > best_key:
+            best, best_key = row, key
     base = {
         "point_key": spec.point_key,
         "point_name": spec.point_name,
@@ -239,17 +281,31 @@ def price_leg(spec: Any, rows: Iterable[Mapping[str, Any]], on: date) -> RouteLe
         return RouteLeg(**base)
     unit = str(best.get("unit") or "")
     currency = str(best.get("currency") or "")
-    if unit and "MWH" not in unit.upper():
-        return RouteLeg(**base)  # not a per-MWh figure: not summable here, stated missing
+    raw = float(best["tariff_value"])
+    anniversary = _aware(best.get("effective_from"))
+    read = per_mwh(
+        raw,
+        unit,
+        on=on,
+        load_factor=load_factor,
+        anniversary=anniversary.date() if anniversary else None,
+        currency=currency or None,
+    )
+    published = f"{raw:g} {unit}".strip()
+    if read is None:
+        # Not a unit this reading understands: not summable, stated missing with the reason.
+        return RouteLeg(**base, published=published, note=f"unit not understood: {unit}")
     return RouteLeg(
         **base,
-        value=float(best["tariff_value"]),
-        currency=currency or unit.split("/")[0],
-        unit=f"{currency}/MWh" if currency else unit,
+        value=read.value,
+        currency=read.currency,
+        unit=read.unit,
         gas_year=str(best.get("gas_year") or "") or None,
         status=str(best.get("tariff_status") or "") or None,
         tariff_id=str(best.get("tariff_id") or "") or None,
         source=str(best.get("source_table") or "") or None,
+        published=published,
+        basis=read.basis,
     )
 
 
@@ -302,6 +358,9 @@ def cheapest_route(
     reporting_currency: str = "EUR",
     max_hops: int = MAX_ROUTE_HOPS,
     alternatives: int = 3,
+    product: str = "ANNUAL",
+    firmness: str = "FIRM",
+    load_factor: float = 1.0,
 ) -> RouteChoice:
     """Price every proven route from ``from_hub`` to ``to_hub`` and choose the cheapest.
 
@@ -318,6 +377,9 @@ def cheapest_route(
         reporting_currency: The currency a mixed-currency route is totalled in.
         max_hops: The most crossings a route may chain.
         alternatives: How many next-best complete routes to return.
+        product, firmness: The capacity booked on every leg (firm yearly by default); only
+            register rows of that product count, never another product's price.
+        load_factor: The share of the booked capacity used (100 % by default).
 
     Returns:
         A :class:`RouteChoice`. ``chosen`` is the cheapest complete route; when none is
@@ -332,7 +394,15 @@ def cheapest_route(
     start, target = graph.hub_for(from_hub), graph.hub_for(to_hub)
     if not start or not target:
         issue = f"no market area held for {from_hub if not start else to_hub}"
-        empty = RouteCost(from_hub, to_hub, False, delivery=delivery, issues=(issue,))
+        empty = RouteCost(
+            from_hub,
+            to_hub,
+            False,
+            delivery=delivery,
+            issues=(issue,),
+            product=product,
+            load_factor=load_factor,
+        )
         return RouteChoice(from_hub, to_hub, empty, issues=(issue,))
     rows = list(tariff_rows)
     factors = {code.upper(): float(value) for code, value in (fx or {}).items()}
@@ -344,7 +414,17 @@ def cheapest_route(
         if (a, b) not in priced_pairs:
             options = []
             for crossing in graph.crossings(a, b):
-                legs = tuple(price_leg(spec, rows, delivery.first) for spec in graph.legs(crossing))
+                legs = tuple(
+                    price_leg(
+                        spec,
+                        rows,
+                        delivery.first,
+                        product=product,
+                        firmness=firmness,
+                        load_factor=load_factor,
+                    )
+                    for spec in graph.legs(crossing)
+                )
                 options.append((crossing, legs))
             priced_pairs[(a, b)] = options
         return priced_pairs[(a, b)]
@@ -410,6 +490,8 @@ def cheapest_route(
             hubs=tuple(code_of.get(hub, hub) for hub in hubs),
             reporting_currency=reporting_currency if len(currencies) > 1 else None,
             fx_factors=tuple(sorted((c, factors[c]) for c in currencies if c in factors)),
+            product=product,
+            load_factor=load_factor,
         )
         if ok and route.total is not None:
             complete.append(route)
@@ -445,7 +527,15 @@ def cheapest_route(
     return RouteChoice(
         from_hub,
         to_hub,
-        RouteCost(from_hub, to_hub, False, delivery=delivery, issues=(issue,)),
+        RouteCost(
+            from_hub,
+            to_hub,
+            False,
+            delivery=delivery,
+            issues=(issue,),
+            product=product,
+            load_factor=load_factor,
+        ),
         issues=(issue,),
     )
 
@@ -460,6 +550,9 @@ def route_cost(
     through: Iterable[str] | None = None,
     fx: Mapping[str, float] | None = None,
     reporting_currency: str = "EUR",
+    product: str = "ANNUAL",
+    firmness: str = "FIRM",
+    load_factor: float = 1.0,
 ) -> RouteCost:
     """The chosen route of :func:`cheapest_route` (the cheapest complete one, else the
     shortest with its missing legs named)."""
@@ -473,11 +566,18 @@ def route_cost(
         through=through,
         fx=fx,
         reporting_currency=reporting_currency,
+        product=product,
+        firmness=firmness,
+        load_factor=load_factor,
     ).chosen
 
 
-def load_tariff_rows() -> list[dict[str, Any]]:
-    """Every tariff register row, as mappings (tariffs are public reference data)."""
+def load_tariff_rows(*, product: str = "ANNUAL", firmness: str = "FIRM") -> list[dict[str, Any]]:
+    """Tariff register rows of one capacity product and firmness, as mappings.
+
+    Tariffs are public reference data. The default, firm yearly capacity, is the product a
+    route cost is quoted on unless the reader names another.
+    """
 
     from eurogas_nexus.db.models import TsoTariffRecord
     from eurogas_nexus.db.session import get_session_factory, resolve_database_url
@@ -485,6 +585,10 @@ def load_tariff_rows() -> list[dict[str, Any]]:
     if resolve_database_url() is None:
         return []
     with get_session_factory()() as session:
+        query = session.query(TsoTariffRecord).filter(
+            TsoTariffRecord.capacity_product == product.upper(),
+            TsoTariffRecord.firmness == firmness.upper(),
+        )
         return [
             {
                 "tariff_id": row.tariff_id,
@@ -500,9 +604,7 @@ def load_tariff_rows() -> list[dict[str, Any]]:
                 "tariff_status": row.tariff_status,
                 "source_table": row.source_table,
                 "capacity_product": row.capacity_product,
+                "firmness": row.firmness,
             }
-            for row in session.query(TsoTariffRecord).all()
-            # Firm annual capacity: the product a route cost is quoted on.
-            if str(row.capacity_product or "").upper() == "ANNUAL"
-            and str(row.firmness or "").upper() == "FIRM"
+            for row in query.all()
         ]

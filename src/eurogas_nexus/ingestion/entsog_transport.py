@@ -526,7 +526,9 @@ def fetch_entsog_dataset(
                         0,
                         f"{ENTSOG_BASE_URL}/{dataset}?" + urlencode(params),
                         clock(),
-                        json.dumps({"meta": {"total": 0, "count": 0}, dataset: []}).encode(),
+                        json.dumps(
+                            {"meta": {"total": 0, "count": 0, "query": query}, dataset: []}
+                        ).encode(),
                     )
                 )
                 complete = True

@@ -1165,6 +1165,28 @@ def list_capacity_profiles(session: Session, contract_id: str) -> list[dict]:
 
 
 def _tariff_from_record(row: TsoTariffRecord) -> CapacityTariff:
+    """A register row as the route engine's tariff.
+
+    The register stores what the operator published. A capacity price per unit of capacity
+    per period (ENTSOG's ``EUR/(kWh/h)/y`` and the like) is read here as a cost per MWh at a
+    100 % load factor for the period it is in force from (``tariff_units.per_mwh``), the unit
+    the route engine sums; the published figure stays in ``source_refs``. Any other unit is
+    passed on unchanged (the engine refuses to sum unlike units).
+    """
+
+    from eurogas_nexus.domain.route_cost.tariff_units import parse_unit, per_mwh
+
+    value, currency, unit = row.tariff_value, row.currency, row.unit
+    refs = list(row.source_refs or [])
+    parsed = parse_unit(row.unit)
+    if parsed is not None and parsed.is_capacity and "(" in (row.unit or ""):
+        start = row.effective_from.date()
+        read = per_mwh(
+            row.tariff_value, row.unit, on=start, anniversary=start, currency=row.currency
+        )
+        if read is not None:
+            value, currency, unit = read.value, read.currency, read.unit
+            refs.append(f"read as {read.unit} at 100% load factor from {read.basis}")
     return CapacityTariff(
         tariff_id=row.tariff_id,
         document_id=row.document_id,
@@ -1177,15 +1199,15 @@ def _tariff_from_record(row: TsoTariffRecord) -> CapacityTariff:
         direction=TariffDirection(row.direction),
         capacity_product=CapacityProduct(row.capacity_product),
         firmness=Firmness(row.firmness),
-        tariff_value=row.tariff_value,
-        currency=row.currency,
-        unit=row.unit,
+        tariff_value=value,
+        currency=currency,
+        unit=unit,
         effective_from=row.effective_from.date(),
         effective_to=row.effective_to.date() if row.effective_to else None,
         tariff_status=TariffStatus(row.tariff_status),
         source_table=row.source_table,
         source_page=row.source_page,
-        source_refs=row.source_refs,
+        source_refs=refs,
         manual_review_required=row.manual_review_required,
     )
 

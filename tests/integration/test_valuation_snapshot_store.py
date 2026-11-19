@@ -261,7 +261,13 @@ def test_reading_rules_on_a_real_desk(session) -> None:
     assert spot_only.input_class is InputClass.INDICATIVE and "FX: spot" in spot_only.label
     assert reader.rate("EUR").value == Decimal("1.9")
     tariff = reader.tariff("ITP-00063", "EXIT", "MONTHLY", JAN27)
-    assert tariff.input_class is InputClass.SOURCED and tariff.value == Decimal("0.0101")
+    assert tariff.input_class is InputClass.SOURCED
+    # The register keeps the published 0.0101 EUR/(kWh/h)/d; the reader states it per MWh at
+    # 100 % load factor (x 1000 / 24), with the published figure beside it.
+    assert tariff.unit == "EUR/MWh" and tariff.value.quantize(Decimal("0.000001")) == Decimal(
+        "0.420833"
+    )
+    assert tariff.detail["published"] == "0.0101 EUR/(kWh/h)/d"
     assert reader.tariff("ITP-00207", "EXIT", "MONTHLY", JAN27).input_class is (InputClass.MISSING)
     load = reader.assumption("capacity.load_factor")
     assert load.input_class is InputClass.ASSUMPTION and load.detail["approved_by"] == "risk"
