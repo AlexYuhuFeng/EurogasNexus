@@ -57,6 +57,98 @@ def visible_to(row, allowed_books: set[str] | None, entitled) -> bool:
     return all(entitled(family) for family in row.source_families or [])
 
 
+#: The claim fields that name what an opportunity is about, per type (the grouping subject).
+SUBJECT_FIELDS: dict[str, tuple[str, ...]] = {
+    "hedge_gap": ("contract",),
+    "event_exposure": ("asset", "contract"),
+    "locational": ("buy_hub", "sell_hub"),
+    "unused_capacity": ("buy_hub", "sell_hub"),
+    "time_spread": ("hub", "where"),
+    "sell_down": ("hub", "side"),
+    "reroute": ("resource", "option"),
+}
+
+
+def subject_of(row) -> str:
+    """What the record is about, in words: "Haldor supply (Easington)", "TTF → THE"."""
+
+    fields = dict(row.claim_fields or {})
+    names = SUBJECT_FIELDS.get(row.type, ())
+    parts = [str(fields.get(name) or "").strip() for name in names]
+    parts = [part for part in parts if part]
+    if row.type in {"locational", "unused_capacity"} and len(parts) == 2:
+        return f"{parts[0]} → {parts[1]}"
+    return " · ".join(parts) or str(fields.get("subject") or row.type)
+
+
+def grouped(items: list[dict]) -> list[dict]:
+    """One item per (type, subject), in the order of its best-ranked member (design polish:
+    one opportunity per subject, not per month). Each keeps its lead's fields and gains
+    ``group``: the members largest first, their count and totals."""
+
+    order: list[tuple[str, str]] = []
+    members: dict[tuple[str, str], list[dict]] = {}
+    for item in items:
+        key = (item["type"], item["subject"])
+        if key not in members:
+            order.append(key)
+            members[key] = []
+        members[key].append(item)
+
+    def size(item: dict) -> Decimal:
+        value = (item.get("value") or {}).get("amount")
+        volume = (item.get("volume") or {}).get("value")
+        headline = (item.get("headline") or {}).get("value")
+        return abs(Decimal(value or volume or headline or "0"))
+
+    out = []
+    for key in order:
+        rows = members[key]
+        lead = rows[0]
+        largest = sorted(rows, key=size, reverse=True)
+        currencies = {(r.get("value") or {}).get("currency") for r in rows if r.get("value")}
+        volume_units = {(r.get("volume") or {}).get("unit") for r in rows if r.get("volume")}
+        total_value = (
+            sum(Decimal((r.get("value") or {}).get("amount") or "0") for r in rows)
+            if len(currencies) == 1
+            else None
+        )
+        total_volume = (
+            sum(Decimal((r.get("volume") or {}).get("value") or "0") for r in rows)
+            if len(volume_units) == 1
+            else None
+        )
+        out.append(
+            {
+                **lead,
+                "group": {
+                    "count": len(rows),
+                    "members": [
+                        {
+                            "opportunity_id": r["opportunity_id"],
+                            "period": r["period"],
+                            "period_start": r["period_start"],
+                            "headline": r["headline"],
+                            "value": r["value"],
+                            "volume": r["volume"],
+                            "state": r["state"],
+                            "deadline_utc": r["deadline_utc"],
+                            "expires_at_utc": r["expires_at_utc"],
+                        }
+                        for r in largest
+                    ],
+                    "total_value": None
+                    if total_value is None
+                    else {"amount": decimal_text(total_value), "currency": next(iter(currencies))},
+                    "total_volume": None
+                    if total_volume is None
+                    else {"value": decimal_text(total_volume), "unit": next(iter(volume_units))},
+                },
+            }
+        )
+    return out
+
+
 def summary(row, *, user_state: dict | None = None, ranked=None) -> dict[str, Any]:
     """One record as a list row."""
 
@@ -89,6 +181,9 @@ def summary(row, *, user_state: dict | None = None, ranked=None) -> dict[str, An
         "blocked": row.blocker_json,
         "rank": None if ranked is None else {"position": ranked.position, "reason": ranked.reason},
         "user_state": user_state,
+        "subject": subject_of(row),
+        "period_start": row.period_start.isoformat() if row.period_start else None,
+        "period_end": row.period_end.isoformat() if getattr(row, "period_end", None) else None,
     }
 
 
@@ -142,6 +237,24 @@ def _page(rows: list, bucket: str, offset: int, limit: int, evaluation_id: str |
         "offset": offset,
         "items": page,
         "next_cursor": encode_cursor(bucket, end, evaluation_id) if end < len(rows) else None,
+    }
+
+
+def _next_run(session) -> dict[str, Any]:
+    """When the next scheduled evaluation runs: on the next scheduler tick when inputs are
+    pending (after the debounce), else when an input changes."""
+
+    from eurogas_nexus.application.opportunities.schedule import DEBOUNCE, last_scheduled_start
+    from eurogas_nexus.db.models import OpportunityPendingInputRecord
+
+    pending = sorted(row.input_class for row in session.query(OpportunityPendingInputRecord))
+    last = last_scheduled_start(session)
+    return {
+        "pending_inputs": pending,
+        "last_scheduled_utc": None if last is None else _aware(last).isoformat(),
+        "not_before_utc": None
+        if not pending or last is None
+        else (_aware(last) + DEBOUNCE).isoformat(),
     }
 
 
@@ -285,6 +398,8 @@ def list_opportunities(
         buckets[group_name] = [
             summary(r, user_state=_user_view(mine.get(r.opp_key), r)) for r in members
         ]
+    # One item per subject: the lane shows at most seven subjects and counts subjects.
+    buckets = {name: grouped(items) for name, items in buckets.items()}
     page_size = max(1, min(limit or settings.max_per_lane, MAX_PAGE))
     if cursor:
         bucket, offset = decode_cursor(cursor, evaluation_id)
@@ -304,7 +419,9 @@ def list_opportunities(
             "status": evaluation.status,
             "finished_at_utc": _aware(evaluation.finished_at_utc).isoformat(),
             "demo_desk": evaluation.demo_desk,
-            "next": "on request (scheduled evaluation is a later package)",
+            # What started it: "schedule" (inputs changed, CP-13) or "on_demand" (a person).
+            "trigger": evaluation.trigger,
+            "next": _next_run(session),
         },
         "lanes": {name: selected[name] for name in ("must_act", "could_act") if name in selected},
         "groups": {name: selected[name] for name in ("watching", "blocked") if name in selected},

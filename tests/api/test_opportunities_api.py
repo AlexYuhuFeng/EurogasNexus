@@ -118,8 +118,18 @@ def test_the_opportunity_flow(tmp_path, monkeypatch) -> None:
 
     full = client.get("/api/opportunities", headers=who["viewer"]).json()["data"]
     must = full["lanes"]["must_act"]
-    assert must["total"] > 2 and len(must["items"]) == 7  # at most 7 per lane, rest counted
-    assert must["next_cursor"] and full["simulated"] is False
+    # One item per subject (contract), its months inside: two contracts, many months each.
+    assert must["total"] == 2 and len(must["items"]) == 2 and not must["next_cursor"]
+    assert all(item["group"]["count"] > 1 for item in must["items"])
+    for item in must["items"]:
+        members = item["group"]["members"]
+        sizes = [float(m["volume"]["value"]) for m in members]
+        assert sizes == sorted(sizes, reverse=True)  # largest first
+        assert float(item["group"]["total_volume"]["value"]) == sum(sizes)
+        assert item["subject"] and item["period_start"]
+    assert full["simulated"] is False
+    assert full["evaluation"]["trigger"] == "on_demand"
+    assert full["evaluation"]["next"]["pending_inputs"] == []
     books = {book for item in must["items"] for book in item["book_ids"]}
     assert books == {"uk-nbp", "nl-ttf"} or books <= {"uk-nbp", "nl-ttf"}
 
@@ -133,7 +143,7 @@ def test_the_opportunity_flow(tmp_path, monkeypatch) -> None:
     # Cursors: every row exactly once; a newer evaluation expires the cursor.
     seen, cursor = [], None
     while True:
-        params = {"lane": "must_act", "limit": 3, **({"cursor": cursor} if cursor else {})}
+        params = {"lane": "must_act", "limit": 1, **({"cursor": cursor} if cursor else {})}
         page = client.get("/api/opportunities", headers=who["viewer"], params=params).json()
         bucket = page["data"]["lanes"]["must_act"]
         seen += [item["opportunity_id"] for item in bucket["items"]]
@@ -142,7 +152,7 @@ def test_the_opportunity_flow(tmp_path, monkeypatch) -> None:
             break
     assert len(seen) == len(set(seen)) == must["total"]
     stale = client.get(
-        "/api/opportunities", headers=who["viewer"], params={"lane": "must_act", "limit": 3}
+        "/api/opportunities", headers=who["viewer"], params={"lane": "must_act", "limit": 1}
     ).json()["data"]["lanes"]["must_act"]
     client.post("/api/opportunities/evaluations", headers=who["trader"])
     expired = client.get(
@@ -204,7 +214,9 @@ def test_the_opportunity_flow(tmp_path, monkeypatch) -> None:
             == 1
         )
     gone = client.get("/api/opportunities", headers=who["viewer"]).json()["data"]
-    assert gone["lanes"]["must_act"]["total"] == must["total"] - 1  # converted leaves the list
+    # A converted month leaves its subject's months (the subject stays while others remain).
+    months = lambda data: sum(i["group"]["count"] for i in data["lanes"]["must_act"]["items"])  # noqa: E731
+    assert months(gone) == months(full) - 1
 
 
 def test_threshold_settings_are_the_risk_functions(tmp_path, monkeypatch) -> None:

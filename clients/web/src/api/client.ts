@@ -2339,6 +2339,31 @@ export interface OpportunityRowDTO {
   blocked: { code: string; subject: string; text: string; fix: string } | null;
   rank: { position: number; reason: string } | null;
   user_state: { state: string; reason: string | null; at_version: number; changed_since: boolean } | Record<string, never> | null;
+  /** What it is about, in words ("Haldor supply (Easington)", "TTF → THE"). */
+  subject: string;
+  period_start: string | null;
+  period_end: string | null;
+  /** One item per subject: its months (largest first) and their totals. */
+  group?: OpportunityGroupDTO;
+}
+
+export interface OpportunityGroupMemberDTO {
+  opportunity_id: string;
+  period: string;
+  period_start: string | null;
+  headline: { value: string | null; unit: string };
+  value: { amount: string | null; currency: string } | null;
+  volume: { value: string | null; unit: string } | null;
+  state: OpportunityRowDTO["state"];
+  deadline_utc: string | null;
+  expires_at_utc: string;
+}
+
+export interface OpportunityGroupDTO {
+  count: number;
+  members: OpportunityGroupMemberDTO[];
+  total_value: { amount: string | null; currency: string } | null;
+  total_volume: { value: string | null; unit: string } | null;
 }
 
 export interface OpportunityBucketDTO {
@@ -2370,7 +2395,9 @@ export interface OpportunityListDTO {
     status: string;
     finished_at_utc: string;
     demo_desk: boolean;
-    next: string;
+    /** "schedule" (inputs changed) or "on_demand" (a person asked). */
+    trigger?: string;
+    next: { pending_inputs: string[]; last_scheduled_utc: string | null; not_before_utc: string | null } | string;
   } | null;
   lanes: Partial<Record<"must_act" | "could_act", OpportunityBucketDTO>>;
   groups: Partial<Record<"watching" | "blocked", OpportunityBucketDTO>>;

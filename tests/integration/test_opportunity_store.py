@@ -233,7 +233,9 @@ def test_public_data_only_store_is_honest(store) -> None:
     items = listed["lanes"]["must_act"]["items"]
     assert items and all(item["simulated"] is False for item in items)
     assert {item["quality"]["class"] for item in items} == {"sourced"}
-    jan = next(item for item in items if item["period"] == "2027-01")
+    # One item per contract; its months inside, largest first.
+    months = [member for item in items for member in item["group"]["members"]]
+    jan = next(member for member in months if member["period"] == "2027-01")
     # 10,000 MWh/d x 31 d = 310,000 MWh; 60 % = 186,000 MWh; no cover -> gap 186,000 MWh.
     assert jan["headline"] == {"value": "186000", "unit": "MWh"}
     assert jan["state"] == "actionable"

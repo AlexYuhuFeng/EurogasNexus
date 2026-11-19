@@ -7,6 +7,7 @@
  */
 import type {
   OpportunityDetailDTO,
+  OpportunityGroupMemberDTO,
   OpportunityLegDTO,
   OpportunityListDTO,
   OpportunityMeasureDTO,
@@ -260,4 +261,104 @@ export function withOpportunity(search: string, opportunityId: string | null): s
   if (opportunityId) next.set("opportunity", opportunityId);
   else next.delete("opportunity");
   return next.toString();
+}
+
+/* ------------------------------------------------------------------ one item per subject */
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A period as the desk writes it: "2026-11" → "Nov-26"; anything else unchanged. */
+export function periodLabel(period: string | null | undefined): string {
+  const month = /^(\d{4})-(\d{2})$/.exec(period ?? "");
+  if (month) return `${MONTHS[Number(month[2]) - 1]}-${month[1].slice(2)}`;
+  // A gas day, or a run of days from one ("2026-11-19+3d"): "19 Nov", "19 Nov, 3 d".
+  const day = /^(\d{4})-(\d{2})-(\d{2})(?:\+(\d+)d)?$/.exec(period ?? "");
+  if (day) return `${Number(day[3])} ${MONTHS[Number(day[2]) - 1]}${day[4] ? `, ${day[4]} d` : ""}`;
+  return period ?? "";
+}
+
+/** An energy quantity at a readable scale: "1.12 TWh", "187,200 MWh". */
+export function formatEnergy(measure: { value: string | null; unit: string } | null | undefined): string {
+  const value = num(measure?.value);
+  if (!measure || value === null) return "–";
+  if (measure.unit === "MWh" && Math.abs(value) >= 1_000_000) {
+    return `${grouped(value / 1_000_000, 2)} TWh`;
+  }
+  return formatMeasure(measure);
+}
+
+/** How many months (members) the item stands for. */
+export function memberCount(row: Pick<OpportunityRowDTO, "group">): number {
+  return row.group?.count ?? 1;
+}
+
+/** The title of a row: type, subject, and for several months their count and total. */
+export function rowTitle(row: OpportunityRowDTO): { key: string; values: Record<string, string | number> } {
+  const count = memberCount(row);
+  const total = row.group?.total_volume
+    ? formatEnergy(row.group.total_volume)
+    : row.volume
+      ? formatEnergy(row.volume)
+      : "";
+  return {
+    key: `opportunities.title.${row.type}${count > 1 ? ".many" : ""}`,
+    values: { subject: row.subject || row.claim, count, total, period: periodLabel(row.period) },
+  };
+}
+
+/** The row's figure: the subject's total value when the months share a currency, else the
+ * lead's headline (a hedge gap: its total volume). */
+export function rowFigure(row: OpportunityRowDTO): string {
+  if (row.type === "hedge_gap") return formatEnergy(row.group?.total_volume ?? row.volume);
+  if (row.group?.total_value) return formatValue(row.group.total_value);
+  return formatValue(row.value) !== "–" ? formatValue(row.value) : formatMeasure(row.headline, { signed: true });
+}
+
+/** The months of an item, largest first (the server's order). */
+export function groupMembers(row: OpportunityRowDTO): OpportunityGroupMemberDTO[] {
+  if (row.group?.members?.length) return row.group.members;
+  return [
+    {
+      opportunity_id: row.opportunity_id,
+      period: row.period,
+      period_start: row.period_start,
+      headline: row.headline,
+      value: row.value,
+      volume: row.volume,
+      state: row.state,
+      deadline_utc: row.deadline_utc,
+      expires_at_utc: row.expires_at_utc,
+    },
+  ];
+}
+
+/**
+ * When the item is due, said truthfully: the earliest deadline (or expiry) of its months; a
+ * deadline that has passed while the delivery month is under way says so, never "past due".
+ */
+export function dueOf(row: OpportunityRowDTO, now: Date): { key: string; values: Record<string, string | number> } | null {
+  const members = groupMembers(row);
+  const times = members
+    .map((member) => ({ member, at: Date.parse(member.deadline_utc ?? member.expires_at_utc) }))
+    .filter((item) => Number.isFinite(item.at))
+    .sort((a, b) => a.at - b.at);
+  const upcoming = times.find((item) => item.at > now.getTime());
+  const passed = times.find((item) => item.at <= now.getTime());
+  if (passed && passed.member.period_start && Date.parse(passed.member.period_start) <= now.getTime()) {
+    return { key: "opportunities.under_way", values: { period: periodLabel(passed.member.period) } };
+  }
+  if (!upcoming) return passed ? { key: row.deadline_utc ? "opportunities.overdue" : "opportunities.lapsed", values: {} } : null;
+  const left = timeLeft(new Date(upcoming.at).toISOString(), now);
+  if (!left) return null;
+  return {
+    key: upcoming.member.deadline_utc ? "opportunities.due" : "opportunities.expires",
+    values: { whenKey: left.key, count: left.count },
+  };
+}
+
+/** The evaluation line: when it last ran and what started it; what is pending next. */
+export function evaluationLine(list: OpportunityListDTO | null): { trigger: string | null; pending: string[] } {
+  const evaluation = list?.evaluation;
+  const next = evaluation && typeof evaluation.next === "object" ? evaluation.next : null;
+  return { trigger: evaluation?.trigger ?? null, pending: next?.pending_inputs ?? [] };
 }

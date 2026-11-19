@@ -15,7 +15,13 @@ import { api, type OpportunityListDTO, type OpportunityRowDTO } from "@/api/clie
 import {
   bucketRows,
   bucketTotal,
+  dueOf,
   emptyReason,
+  evaluationLine,
+  groupMembers,
+  memberCount,
+  rowFigure,
+  rowTitle,
   formatMeasure,
   formatValue,
   GROUPS,
@@ -31,6 +37,7 @@ import {
 } from "@/app/model/opportunitiesModel";
 import { Button, EmptyState, StatusBadge } from "@/components/ui";
 import { Instant } from "@/components/ui/Instant";
+import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/SimulatedScope";
 import { OpportunityDetail } from "./OpportunityDetail";
 import { FirmMarksGrid } from "./FirmMarksGrid";
 
@@ -97,20 +104,26 @@ export function OpportunitiesPage({
   };
 
   const now = new Date();
+  const evaluation = evaluationLine(list);
+  const allRows = [...LANES, ...GROUPS].flatMap((bucket) => bucketRows(list, bucket));
+  const scope = simulatedScopeOf(allRows.map((row) => row.simulated));
+  const selectedRow = allRows.find(
+    (row) => row.opportunity_id === selected || groupMembers(row).some((m) => m.opportunity_id === selected),
+  );
 
   return (
-    <section className="opportunities-page" aria-labelledby="opportunities-title" data-opportunities-page="true">
+    <section className="opportunities-page" aria-label={t("opportunities.title")} data-opportunities-page="true">
+      {/* The task's name and purpose line are the Deals header's (PageIntro, design H.1). */}
       <header className="opportunities-head">
-        <div>
-          <h2 id="opportunities-title">{t("opportunities.title")}</h2>
-          <p className="opportunities-purpose" data-purpose="true">
-            {t("opportunities.purpose")}
-          </p>
-        </div>
         <div className="opportunities-head-side">
-          <span className="opportunities-asof">
+          <span className="opportunities-asof" data-evaluation-trigger={evaluation.trigger ?? undefined}>
             {list?.as_of_utc ? (
-              <Instant value={list.as_of_utc} prefix={t("opportunities.as_of")} />
+              <>
+                <Instant value={list.as_of_utc} prefix={t("opportunities.as_of")} />
+                {evaluation.trigger && ` · ${t(`opportunities.trigger.${evaluation.trigger === "schedule" ? "schedule" : "on_demand"}`)}`}
+                {evaluation.pending.length > 0 &&
+                  ` · ${t("opportunities.pending", { inputs: evaluation.pending.map((item) => t(`opportunities.input.${item}`)).join(", ") })}`}
+              </>
             ) : (
               t("opportunities.not_evaluated")
             )}
@@ -121,17 +134,17 @@ export function OpportunitiesPage({
         </div>
       </header>
 
-      {list?.simulated && (
-        <p className="opportunities-banner" role="note" data-simulated="true">
-          <StatusBadge tone="simulated">{t("opportunities.class.simulated")}</StatusBadge>{" "}
-          {t("opportunities.banner.simulated")}
-        </p>
-      )}
+      <SimulatedScope scope={scope} notice={t("opportunities.banner.simulated")}>
 
       {failed && !list && (
         <EmptyState id="opportunities-unavailable" reason={t("opportunities.unavailable")} next={t("opportunities.unavailable_next")} />
       )}
 
+      {list && !showReadiness(list) && list.evaluation && (
+        <p className="opportunities-muted" data-readiness="ready">
+          {t("opportunities.ready.all")}
+        </p>
+      )}
       {list && showReadiness(list) && (
         <Readiness
           t={t}
@@ -188,6 +201,8 @@ export function OpportunitiesPage({
               key={selected}
               t={t}
               opportunityId={selected}
+              group={selectedRow}
+              onSelectMember={select}
               onClose={() => select(null)}
               onChanged={reload}
               onOpenCase={onOpenCase}
@@ -195,6 +210,7 @@ export function OpportunitiesPage({
           )}
         </div>
       )}
+      </SimulatedScope>
     </section>
   );
 }
@@ -244,36 +260,36 @@ function Rows({
   now: Date;
   onSelect: (id: string) => void;
 }) {
+  const pills = useSimulatedPills();
   return (
     <ol className="opportunities-rows">
       {rows.map((row) => {
         const marker = qualityMarker(row);
         const tone = markerTone(marker);
-        const due = timeLeft(row.deadline_utc ?? row.expires_at_utc, now);
+        const shownMarker = marker === "simulated" && !pills ? null : marker;
+        const due = dueOf(row, now);
+        const title = rowTitle(row);
+        const active = selected === row.opportunity_id || groupMembers(row).some((m) => m.opportunity_id === selected);
         return (
-          <li key={row.opportunity_id} data-state={row.state} data-type={row.type_code}>
+          <li key={row.opportunity_id} data-state={row.state} data-type={row.type_code} data-months={memberCount(row)}>
             <button
               type="button"
               className="opportunities-row"
-              aria-pressed={selected === row.opportunity_id}
+              aria-pressed={active}
               onClick={() => onSelect(row.opportunity_id)}
               title={row.rank?.reason ?? undefined}
             >
               <span className="opportunities-lead" aria-hidden={bucket === "must_act" ? true : undefined}>
                 {rowLead(row, bucket)}
               </span>
-              <span className="opportunities-claim">{row.claim}</span>
-              <span className="opportunities-figure">{formatMeasure(row.headline, { signed: true })}</span>
-              <span className="opportunities-figure opportunities-value">{formatValue(row.value)}</span>
+              <span className="opportunities-claim">{t(title.key, title.values)}</span>
+              <span className="opportunities-figure opportunities-value">{rowFigure(row)}</span>
               <span className="opportunities-quality">
-                {marker && tone && <StatusBadge tone={tone}>{t(`opportunities.class.${marker}`)}</StatusBadge>}
+                {shownMarker && tone && <StatusBadge tone={tone}>{t(`opportunities.class.${shownMarker}`)}</StatusBadge>}
                 {bucket === "blocked" && row.blocked && <span className="opportunities-blocker">{row.blocked.text}</span>}
               </span>
               <span className="opportunities-due">
-                {due &&
-                  (due.key === "opportunities.time.passed"
-                    ? t(row.deadline_utc ? "opportunities.overdue" : "opportunities.lapsed")
-                    : t(row.deadline_utc ? "opportunities.due" : "opportunities.expires", { when: t(due.key, { count: due.count }) }))}
+                {due && t(due.key, { ...due.values, when: due.values.whenKey ? t(String(due.values.whenKey), { count: due.values.count }) : "" })}
               </span>
             </button>
           </li>

@@ -875,6 +875,15 @@ def hedge_cover_rows(caller: Caller, today: date) -> list[dict]:
         approvals = (
             session.query(HedgeApprovalRecord).order_by(HedgeApprovalRecord.contract_id).all()
         )
+        # The approver in words (display name), never a login id.
+        from eurogas_nexus.db.models import IdentityPrincipalRecord
+
+        approvers = {
+            row.name: row.display_name
+            for row in session.query(IdentityPrincipalRecord).filter(
+                IdentityPrincipalRecord.name.in_({a.updated_by for a in approvals if a.updated_by})
+            )
+        }
         session.expunge_all()
     if not approvals:
         return []
@@ -924,7 +933,7 @@ def hedge_cover_rows(caller: Caller, today: date) -> list[dict]:
                     "band_low_pct": approval.min_hedge_ratio_pct,
                     "band_high_pct": approval.max_hedge_ratio_pct,
                     "approval_ref": approval.approval_ref,
-                    "approved_by": approval.updated_by,
+                    "approved_by": approvers.get(approval.updated_by, approval.updated_by),
                     "approved_at_utc": (
                         _aware(approval.updated_at_utc).isoformat()
                         if approval.updated_at_utc

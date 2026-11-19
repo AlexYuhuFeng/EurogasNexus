@@ -6,9 +6,14 @@
  */
 import { useEffect, useState } from "react";
 
-import { api, type OpportunityDetailDTO } from "@/api/client";
+import { api, type OpportunityDetailDTO, type OpportunityRowDTO } from "@/api/client";
 import {
   canOpenCase,
+  formatEnergy,
+  groupMembers,
+  memberCount,
+  periodLabel,
+  rowFigure,
   checkTone,
   DISMISS_REASONS,
   formatMeasure,
@@ -21,6 +26,7 @@ import {
   qualityMarker,
 } from "@/app/model/opportunitiesModel";
 import { Button, EmptyState, Select, StatusBadge } from "@/components/ui";
+import { useSimulatedPills } from "@/components/SimulatedScope";
 import { Instant } from "@/components/ui/Instant";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -31,6 +37,9 @@ export interface OpportunityDetailProps {
   onClose: () => void;
   onChanged: () => void;
   onOpenCase: (caseId: string) => void;
+  /** The list item this opportunity belongs to (one per subject, its months inside). */
+  group?: OpportunityRowDTO;
+  onSelectMember?: (opportunityId: string) => void;
 }
 
 function errorCode(error: unknown): string | null {
@@ -38,13 +47,14 @@ function errorCode(error: unknown): string | null {
   return detail?.code ?? null;
 }
 
-export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpenCase }: OpportunityDetailProps) {
+export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpenCase, group, onSelectMember }: OpportunityDetailProps) {
   const [detail, setDetail] = useState<OpportunityDetailDTO | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [reason, setReason] = useState<(typeof DISMISS_REASONS)[number]>("not_relevant");
   const [revision, setRevision] = useState(0);
+  const pills = useSimulatedPills();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -76,7 +86,8 @@ export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpen
   if (!detail) return <aside className="opportunity-detail" aria-busy="true" aria-label={t("opportunities.detail")} />;
 
   const object = detail.object;
-  const marker = qualityMarker(detail);
+  const rawMarker = qualityMarker(detail);
+  const marker = rawMarker === "simulated" && !pills ? null : rawMarker;
   const tone = markerTone(marker);
 
   const openCase = () => {
@@ -126,13 +137,16 @@ export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpen
         <strong>{formatMeasure(detail.headline, { signed: true })}</strong>
         {detail.value && <span>{formatValue(detail.value)}</span>}
         {detail.volume && formatMeasure(detail.volume) !== formatMeasure(detail.headline) && <span>{formatMeasure(detail.volume)}</span>}
-        <span>{detail.period}</span>
+        <span>{periodLabel(detail.period)}</span>
         {marker && tone && <StatusBadge tone={tone}>{t(`opportunities.class.${marker}`)}</StatusBadge>}
         <StatusBadge tone={detail.state === "blocked" ? "breach" : detail.state === "actionable" ? "ok" : "neutral"}>
           {t(`opportunities.state.${detail.state}`)}
         </StatusBadge>
       </p>
       {detail.rank && <p className="opportunities-muted">{detail.rank.reason}</p>}
+      {group && memberCount(group) > 1 && (
+        <MonthsTable t={t} group={group} current={opportunityId} onSelect={onSelectMember} />
+      )}
       {detail.blocked && (
         <p className="opportunity-blocked" role="note">
           <strong>{detail.blocked.text}</strong> {detail.blocked.fix}
@@ -281,5 +295,52 @@ export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpen
         </>
       )}
     </aside>
+  );
+}
+
+const MONTHS_SHOWN = 6;
+
+function MonthsTable({
+  t,
+  group,
+  current,
+  onSelect,
+}: {
+  t: Translate;
+  group: OpportunityRowDTO;
+  current: string;
+  onSelect?: (opportunityId: string) => void;
+}) {
+  const members = groupMembers(group);
+  const gap = group.type === "hedge_gap";
+  const row = (member: (typeof members)[number]) => (
+    <tr key={member.opportunity_id} aria-selected={member.opportunity_id === current} data-state={member.state}>
+      <th scope="row">
+        <button type="button" className="ds-inline-link" onClick={() => onSelect?.(member.opportunity_id)}>
+          {periodLabel(member.period)}
+        </button>
+      </th>
+      <td className="opportunity-num">{gap ? formatEnergy(member.volume) : formatValue(member.value)}</td>
+      {!gap && <td className="opportunity-num">{formatMeasure(member.headline, { signed: true })}</td>}
+      <td className="opportunity-source">{t(`opportunities.state.${member.state}`)}</td>
+    </tr>
+  );
+  return (
+    <div className="opportunity-months" aria-label={t("opportunities.detail.months")}>
+      <p className="opportunities-muted">
+        {t("opportunities.detail.months_total", { count: members.length, total: rowFigure(group) })}
+      </p>
+      <table className="opportunity-arithmetic">
+        <tbody>{members.slice(0, MONTHS_SHOWN).map(row)}</tbody>
+      </table>
+      {members.length > MONTHS_SHOWN && (
+        <details>
+          <summary>{t("opportunities.detail.months_more", { count: members.length - MONTHS_SHOWN })}</summary>
+          <table className="opportunity-arithmetic">
+            <tbody>{members.slice(MONTHS_SHOWN).map(row)}</tbody>
+          </table>
+        </details>
+      )}
+    </div>
   );
 }

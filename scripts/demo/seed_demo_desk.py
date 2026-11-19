@@ -764,7 +764,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
             approval_ref="Demo risk committee RC-07",
             valid_until=date(today.year + 1, 9, 30),
             notes="Demo approval (fictional).",
-            updated_by="demo-risk",
+            updated_by="demo.risk",
             updated_at_utc=now,
         )
     )

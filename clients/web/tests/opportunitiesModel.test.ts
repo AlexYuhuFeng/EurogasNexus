@@ -47,6 +47,9 @@ function row(overrides: Partial<OpportunityRowDTO> = {}): OpportunityRowDTO {
     blocked: null,
     rank: { position: 1, reason: "ranked 1st: EUR 71k, all inputs sourced, expires in 9 days" },
     user_state: null,
+    subject: "TTF → THE",
+    period_start: "2027-01-01",
+    period_end: "2027-02-01",
     ...overrides,
   };
 }
@@ -207,4 +210,29 @@ test("the page offers no order, nomination or instruction; one primary action", 
     assert.doesNotMatch(en[key], /\b(buy now|sell now|place an order|execute|nominate)\b/i, key);
   }
   assert.ok(en["opportunities.purpose"].length <= 110); // H.1
+});
+
+test("one item per subject: title, figure, months and a truthful due line", async () => {
+  const { dueOf, periodLabel, rowFigure, rowTitle } = await import("../src/app/model/opportunitiesModel.ts");
+  assert.equal(periodLabel("2026-11"), "Nov-26");
+  assert.equal(periodLabel("2026-11-19+3d"), "19 Nov, 3 d");
+  assert.equal(periodLabel("Jan-27"), "Jan-27");
+  const members = [
+    { opportunity_id: "a", period: "2026-11", period_start: "2026-11-01", headline: { value: "172800", unit: "MWh" }, value: null, volume: { value: "172800", unit: "MWh" }, state: "indicative" as const, deadline_utc: "2026-11-01T05:00:00+00:00", expires_at_utc: "2026-12-01T05:00:00+00:00" },
+    { opportunity_id: "b", period: "2027-01", period_start: "2027-01-01", headline: { value: "1000000", unit: "MWh" }, value: null, volume: { value: "1000000", unit: "MWh" }, state: "indicative" as const, deadline_utc: "2027-01-01T05:00:00+00:00", expires_at_utc: "2027-02-01T05:00:00+00:00" },
+  ];
+  const gap = row({
+    type: "hedge_gap", lane: "must_act", subject: "Haldor supply (Easington)", period: "2026-11", period_start: "2026-11-01", period_end: "2026-12-01",
+    group: { count: 2, members, total_value: null, total_volume: { value: "1172800", unit: "MWh" } },
+  });
+  assert.deepEqual(rowTitle(gap), {
+    key: "opportunities.title.hedge_gap.many",
+    values: { subject: "Haldor supply (Easington)", count: 2, total: "1.17 TWh", period: "Nov-26" },
+  });
+  assert.equal(rowFigure(gap), "1.17 TWh");
+  // Mid-November: the November deadline has passed while its delivery is under way.
+  assert.deepEqual(dueOf(gap, new Date("2026-11-19T12:00:00Z")), { key: "opportunities.under_way", values: { period: "Nov-26" } });
+  const spread = row({ subject: "TTF → THE", group: { count: 1, members: [members[1]], total_value: { amount: "71300", currency: "EUR" }, total_volume: null } });
+  assert.equal(rowFigure(spread), "EUR 71k");
+  assert.equal(rowTitle(spread).key, "opportunities.title.locational");
 });
