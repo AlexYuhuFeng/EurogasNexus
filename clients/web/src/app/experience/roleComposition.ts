@@ -277,6 +277,63 @@ export function resolveComposition(
   return { composition: ROLE_COMPOSITIONS[id], jobFunction: chosen, declared, grantsAuthority: false };
 }
 
+/* ------------------------------------------------------------------ what a person is called */
+
+/**
+ * The function a person is called by, from the role registry: what the account menu, Settings,
+ * Access review and bylines show. The backend authority roles (ANALYST, REVIEWER, ...) are
+ * permissions, shown only in Admin → Access; nobody calls themselves an "Analyst" because their
+ * authority is ANALYST.
+ */
+export const PERSON_FUNCTIONS = [
+  "trader", "risk", "originator", "operations", "desk_head", "analyst", "finance", "compliance", "administrator",
+] as const;
+export type PersonFunction = (typeof PERSON_FUNCTIONS)[number];
+
+const JOB_FUNCTION_PERSON: Readonly<Record<JobFunctionId, PersonFunction>> = {
+  TRADER: "trader",
+  HQ_BUSINESS_ANALYST: "analyst",
+  QUANT_RESEARCHER: "analyst",
+  RISK_MANAGER: "risk",
+  FINANCE_SETTLEMENT: "finance",
+  LEGAL_COMPLIANCE: "compliance",
+  MANAGEMENT: "desk_head",
+  REVIEWER_MANAGEMENT: "desk_head",
+  DATA_OPERATOR: "administrator",
+  PLATFORM_ADMINISTRATOR: "administrator",
+  ORIGINATOR: "originator",
+  OPERATIONS: "operations",
+};
+
+const COMPOSITION_PERSON: Readonly<Record<CompositionId, PersonFunction>> = {
+  trader: "trader",
+  originator: "originator",
+  analyst: "analyst",
+  risk: "risk",
+  operations: "operations",
+  finance: "finance",
+  compliance: "compliance",
+  reviewer: "desk_head",
+  desk_head: "desk_head",
+  platform: "administrator",
+};
+
+/** A job function code (`TRADER`) as the function a person is called by, or null. */
+export function personFunctionOfJob(code: string | null | undefined): PersonFunction | null {
+  return isJobFunctionId(code) ? JOB_FUNCTION_PERSON[code] : null;
+}
+
+/**
+ * The function to show for a person: their first declared job function, else the function their
+ * permissions compose to (a person with no declared function is still not "ANALYST").
+ */
+export function personFunction(user: CurrentUserDTO | null | undefined): PersonFunction | null {
+  if (!user) return null;
+  const declared = user.experience?.declared_job_functions?.find(isJobFunctionId);
+  if (declared) return JOB_FUNCTION_PERSON[declared];
+  return COMPOSITION_PERSON[fallbackComposition(user)];
+}
+
 /* ------------------------------------------------------------------ registry AND permission */
 
 function modeTaskFor(ref: PlaceRef): ModeTask | null {

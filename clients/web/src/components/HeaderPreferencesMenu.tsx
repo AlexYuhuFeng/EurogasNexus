@@ -1,3 +1,4 @@
+import { personFunction } from "@/app/experience/roleComposition";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { CurrentUserDTO } from "@/api/client";
 import type { ThemeMode } from "@/stores/theme";
@@ -171,7 +172,9 @@ export function HeaderPreferencesMenu({
           <div className="topbar-menu-identity">
             <strong>{displayName}</strong>
             <span>
-              {currentUser.role}
+              {/* What the person is called (the role registry's function), never the authority
+                  role: the permissions are shown in Admin → Access only. */}
+              {personFunction(currentUser) ? t(`person.function.${personFunction(currentUser)}`) : ""}
               {currentUser.experience?.office ? ` · ${currentUser.experience.office}` : ""}
             </span>
             {demoMode ? <span className="topbar-menu-demo" data-demo-mode="true">{t("topbar.demo_mode")}</span> : null}

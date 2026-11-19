@@ -1,3 +1,4 @@
+import { personFunction } from "@/app/experience/roleComposition";
 import { localDeadlineToUtc } from "@/app/model/decisionDeadline";
 import { sourceSystemLabel } from "@/app/model/enumLabels";
 import { tabLabels } from "@/components/ui/tabLabels";
@@ -201,7 +202,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
       {/* The page header names the page; this line adds only who is signed in (#69). */}
       <div className="span-3 access-admin-strip access-admin-line">
         <PanelHelp text={t("access.subtitle")} label={t("panel.how_to_read")} />
-        {currentUser && <span className="muted">{`${currentUser.display_name ?? currentUser.name} · ${currentUser.role}`}</span>}
+        {currentUser && <span className="muted">{`${currentUser.display_name ?? currentUser.name}${personFunction(currentUser) ? ` · ${t(`person.function.${personFunction(currentUser)}`)}` : ""}`}</span>}
       </div>
       <WorkspaceTabs
         idPrefix="access-tab"

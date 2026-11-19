@@ -1,3 +1,4 @@
+import { personFunctionOfJob } from "@/app/experience/roleComposition";
 /**
  * Admin -> Users: everyone who can sign in, how they sign in, their one state, and the
  * administrator's actions (add, edit access, disable/enable, reset password, delete).
@@ -43,6 +44,12 @@ export const OFFICES = ["UK", "CA", "SG", "CN", "NL", "DE", "CH"] as const;
 const ROLE_ORDER = ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"];
 const byRank = (a: string, b: string) =>
   (ROLE_ORDER.indexOf(a) + 1 || 99) - (ROLE_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b);
+
+/** A person's functions as they are called (Trader, Risk manager), from their job functions. */
+function functionsOf(user: AccessUserDTO, t: (key: string) => string): string {
+  const names = (user.job_functions ?? []).map(personFunctionOfJob).filter((item): item is NonNullable<typeof item> => item !== null);
+  return [...new Set(names)].map((item) => t(`person.function.${item}`)).join(", ");
+}
 
 const STATE_TONE: Record<string, StatusTone> = {
   ACTIVE: "ok",
@@ -160,10 +167,19 @@ export function AccessUsers({ users, accountOptions, roles, scopeCatalogue, curr
       ),
     },
     {
+      // What the person is called (the role registry's function); the authority roles beside it
+      // are permissions, and this page is the only one that shows them.
+      id: "function",
+      header: t("access.users.function"),
+      value: (user) => functionsOf(user, t),
+      sortable: true,
+      render: (user) => <span className="access-function">{functionsOf(user, t) || "–"}</span>,
+    },
+    {
       id: "roles",
-      header: t("access.roles"),
+      header: t("access.users.permissions"),
       value: (user) => (user.roles ?? []).join(", "),
-      render: (user) => <span className="access-roles">{(user.roles ?? []).map((role) => t(`access.role.${role}`)).join(", ")}</span>,
+      render: (user) => <span className="access-roles">{(user.roles ?? []).map((role) => t(`access.role.${role}`).toLocaleLowerCase()).join(", ")}</span>,
     },
     {
       id: "last",

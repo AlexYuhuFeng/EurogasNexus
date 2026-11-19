@@ -5051,5 +5051,16 @@
   "opportunities.marks.error.duplicate_hub": "{{cell}} 重复列出。",
   "opportunities.marks.error.rejected": "标记价未保存，请检查数值。",
   "opportunities.overdue": "已逾期",
-  "opportunities.lapsed": "已失效，下次评估时移除"
+  "opportunities.lapsed": "已失效，下次评估时移除",
+  "person.function.trader": "交易员",
+  "person.function.risk": "风险经理",
+  "person.function.originator": "发起人",
+  "person.function.operations": "运营",
+  "person.function.desk_head": "交易台主管",
+  "person.function.analyst": "分析师",
+  "person.function.finance": "财务",
+  "person.function.compliance": "合规",
+  "person.function.administrator": "管理员",
+  "access.users.function": "职能",
+  "access.users.permissions": "权限"
 }

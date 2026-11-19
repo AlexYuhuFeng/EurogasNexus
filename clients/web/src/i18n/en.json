@@ -5051,5 +5051,16 @@
   "opportunities.marks.error.duplicate_hub": "{{cell}} is listed twice.",
   "opportunities.marks.error.rejected": "The marks were not stored; check the values.",
   "opportunities.overdue": "past due",
-  "opportunities.lapsed": "lapsed; ends at the next evaluation"
+  "opportunities.lapsed": "lapsed; ends at the next evaluation",
+  "person.function.trader": "Trader",
+  "person.function.risk": "Risk manager",
+  "person.function.originator": "Originator",
+  "person.function.operations": "Operations",
+  "person.function.desk_head": "Desk head",
+  "person.function.analyst": "Analyst",
+  "person.function.finance": "Finance",
+  "person.function.compliance": "Compliance",
+  "person.function.administrator": "Administrator",
+  "access.users.function": "Function",
+  "access.users.permissions": "Permissions"
 }
