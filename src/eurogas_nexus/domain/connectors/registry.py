@@ -28,6 +28,7 @@ BUILTIN_MODULES: tuple[str, ...] = (
     "cnmc_enagas",
     "eex",
     "eex_sim",
+    "demo_exchange_feed",
     "ice_ocm",
     "ice_ocm_sim",
     "trayport",

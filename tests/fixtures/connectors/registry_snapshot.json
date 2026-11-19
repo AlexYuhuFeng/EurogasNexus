@@ -706,6 +706,47 @@
    "connectivity_status": "registered",
    "credential_last_test_status": null,
    "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "prompt-quotes",
+    "trade-prints",
+    "session-statistics",
+    "simulated"
+   ],
+   "description": "Demo exchange feed (simulated): bursty two-sided WD/DA quotes with size, trade prints, VWAP and volume for TTF and NBP, with planted prompt cases on a schedule. Demo only; never a market price.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "DEMO_Sim",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-demo-exchange-feed",
+   "source_system": "DEMO_Sim",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
    "credential_provider_id": "ICE_OCM",
    "credential_requirements": [
     "api_key"
@@ -2665,6 +2706,67 @@
    },
    "source_class": "simulated",
    "source_id": "src-eex-sim"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "prompt-quotes",
+   "datasets": [
+    "prompt-quotes",
+    "trade-prints",
+    "session-statistics",
+    "simulated"
+   ],
+   "description": "Demo exchange feed (simulated): bursty two-sided WD/DA quotes with size, trade prints, VWAP and volume for TTF and NBP, with planted prompt cases on a schedule. Demo only; never a market price.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 60,
+    "normal_max_age_minutes": 1,
+    "stale_after_minutes": 720
+   },
+   "integration": "api",
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "DEMO_Sim",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-demo-exchange-feed"
   },
   {
    "access_mode": "keyed_http",

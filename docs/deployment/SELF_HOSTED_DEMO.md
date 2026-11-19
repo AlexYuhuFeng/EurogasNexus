@@ -65,6 +65,34 @@ refuses a tester password shorter than 12 characters
 (`[demo-start] FATAL: refusing to start: …`). Nothing is generated for you and no credential
 has a default.
 
+### The demo exchange feed (intraday, simulated)
+
+While the demo is up, `scripts/demo/exchange_feed.py --continuous` (started by the demo start-up)
+streams two-sided quotes with size, trade prints (screen and the odd block) and session
+statistics (open/high/low, VWAP, volume, trade count, prior settlement) for **TTF and NBP, WD and
+DA**, bursty and seconds apart (about one message a second, bursts of several a second, at most
+four a second), on the demo market's own prices. It writes as `DEMO_Sim` through the same tick
+ingestion a licensed feed adapter uses (`POST /api/market/ticks` / `application/market_ticks`:
+validation, the source family's entitlement, the inputs-changed hook that evaluates tracked
+strategies), and a simulated prompt trade is booked into the demo books every 15 minutes, so the
+prompt market's performance figures move. Admin → Data feeds lists it as **Demo exchange feed
+(simulated)** with its last message, rate and status, one status line a minute.
+
+- **Hours**: 07:00-19:00 CET/CEST every day; outside them it pauses (and says so in its status).
+- **Restart**: started again by every demo start; an advisory lock keeps one running.
+- **Retention**: its quotes, prints, status lines and the booked simulated trades are kept for
+  48 hours, pruned every ten minutes.
+- **Who writes today's WD/DA**: the feed, while it runs. With it off the roll-forward's daily
+  board snapshot stands alone.
+- Every row is simulated and labelled; the customer image does not ship `scripts/demo`.
+
+Planted prompt cases (CET/CEST, during trading hours), so a test session of any length finds them:
+
+| Case | Where | Schedule | What is planted |
+|---|---|---|---|
+| `P1-ttf-wd-da` | TTF, WD vs DA | minutes 10-12, 30-32 and 50-52 of every trading hour | WD 0.60 EUR/MWh over DA (even hours) or under it (odd hours), on top of the usual drift |
+| `P2-nbp-ttf-da` | NBP vs TTF, DA | 10:00-10:09 and 15:00-15:09 | NBP DA in EUR at the demo fixing 0.80 EUR/MWh above TTF DA plus the simulated BBL route cost (1.88); at all other times at least 0.30 below it |
+
 ## Settings
 
 | Name | Purpose | Required |
@@ -82,6 +110,7 @@ has a default.
 | `GIE_API_KEY`, `EIA_API_KEY`, `ENTSOE_SECURITY_TOKEN` | Public-source keys; any one turns live refresh on | no |
 | `EUROGAS_NEXUS_DEMO_LIVE_SOURCES` | `auto` (on when a key is set), `on`, `off` | no |
 | `EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS`, `EUROGAS_NEXUS_DEMO_REFRESH_HOURS` | Catch-up bound (45 days) and refresh interval (6 h) | no |
+| `EUROGAS_NEXUS_DEMO_EXCHANGE_FEED` | `on` (default) or `off`: the simulated intraday exchange feed | no |
 | `EUROGAS_NEXUS_CORS_ORIGINS` | Only if saving fails with `origin_not_allowed` | no |
 
 The image sets the rest: `EUROGAS_NEXUS_ENV=development` (the demo seed refuses trial and

@@ -677,6 +677,18 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_EXCHANGE_FEED",
+        scope="OPERATOR",
+        purpose="The demo server's simulated intraday exchange feed: on or off.",
+        default="on",
+        profiles=("development",),
+        notes=(
+            "Demo image only (scripts/demo/exchange_feed.py --continuous). Every row is "
+            "simulated; 48 hours are kept. With it off the roll-forward's daily prompt snapshot "
+            "stands alone.",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS",
         scope="OPERATOR",
         purpose="Longest gap, in days, one catch-up round reads after a pause.",

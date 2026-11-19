@@ -23,12 +23,15 @@ See ``docs/deployment/SELF_HOSTED_DEMO.md`` for the operator guide.
    demo test accounts ``EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS`` lists (local accounts with their
    own, possibly weak, password; created through the product's local-account code path,
    re-applied on a reset, disabled when no longer listed; logged loudly);
-7. when live public sources are on (``EUROGAS_NEXUS_DEMO_LIVE_SOURCES``: ``auto`` turns them
+7. start the demo exchange feed (``scripts/demo/exchange_feed.py --continuous``: simulated
+   WD/DA quotes, prints and session statistics through the tick ingestion; off with
+   ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off``);
+8. when live public sources are on (``EUROGAS_NEXUS_DEMO_LIVE_SOURCES``: ``auto`` turns them
    on when a public-source key is set), start a low-priority background process that waits
    until the server answers, catches up the gap since the last successful round (at most
    ``EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS``, default 45) and then repeats every
    ``EUROGAS_NEXUS_DEMO_REFRESH_HOURS`` (default 6). It never blocks the health check;
-8. exec ``uvicorn`` with one worker on ``$PORT`` (default 8080).
+9. exec ``uvicorn`` with one worker on ``$PORT`` (default 8080).
 
 ``run -- <command>`` runs an operator tool (``docker compose exec demo python
 scripts/demo/start_public_demo.py run -- python scripts/ops/...``) with the same database-URL
@@ -542,6 +545,27 @@ def start_demo_events() -> None:
     log("demo events: rolled forward and scanned for alerts every hour")
 
 
+def start_exchange_feed() -> None:
+    """Spawn the demo exchange feed (simulated WD/DA quotes, prints and session statistics).
+
+    It writes through the tick ingestion a licensed feed adapter uses, during simulated trading
+    hours (07:00-19:00 CET), keeps 48 hours of its own rows and holds an advisory lock so a
+    second start never runs two. ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off`` disables it (the
+    roll-forward then writes the day's prompt snapshot). Demo image only.
+    """
+
+    if (os.environ.get("EUROGAS_NEXUS_DEMO_EXCHANGE_FEED") or "on").strip().lower() in {
+        "off", "false", "0", "no"}:
+        log("demo exchange feed: off (EUROGAS_NEXUS_DEMO_EXCHANGE_FEED)")
+        return
+    subprocess.Popen(  # noqa: S603 - fixed command, this interpreter and this script
+        [sys.executable, "scripts/demo/exchange_feed.py", "--continuous"],
+        cwd=ROOT,
+        start_new_session=True,
+    )
+    log("demo exchange feed: simulated WD/DA quotes and prints, 07:00-19:00 CET, 48 h kept")
+
+
 def demo_events_loop() -> int:
     """Background: keep the demo's events current so a demo opened any day shows live items."""
 
@@ -569,6 +593,7 @@ def serve() -> int:
     prepare_database()
     scan_alerts()
     start_demo_events()
+    start_exchange_feed()
     port = (os.environ.get("PORT") or "8080").strip()
     if live_sources_enabled():
         start_background_refresh()

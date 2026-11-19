@@ -161,9 +161,65 @@ def login(api: str, user: str, password: str) -> str:
         return json.load(response)["data"]["session_token"]
 
 
+#: Planted prompt cases (UTC is not used: the schedule is in CET/CEST, the desk's clock).
+#: P1: TTF WD over DA by P1_PREMIUM for P1_MINUTES from minute 10, 30 and 50 of each trading
+#: hour (the sign alternates by hour); P2: NBP DA over TTF DA net of the simulated BBL route
+#: (1.88 EUR/MWh) by P2_EXCESS for P2_MINUTES from 10:00 and 15:00.
+P1_MINUTES_PAST = (10, 30, 50)
+P1_MINUTES = 3
+P1_PREMIUM = 0.60
+P2_STARTS = ((10, 0), (15, 0))
+P2_MINUTES = 10
+P2_EXCESS = 0.80
+P2_OUTSIDE_MARGIN = 0.30
+BBL_ROUTE_COST = 1.88
+DEMO_EURGBP = 0.853
+THERM_MWH = 0.0293071
+TRADING_HOURS = (7, 19)  # CET/CEST, every day
+
+
+def _local(at: datetime) -> datetime:
+    from zoneinfo import ZoneInfo
+
+    return at.astimezone(ZoneInfo("Europe/Amsterdam"))
+
+
+def planted_p1(at: datetime) -> float:
+    """The planted TTF WD − DA premium at ``at`` (0 outside a P1 window)."""
+
+    local = _local(at)
+    for minute in P1_MINUTES_PAST:
+        if minute <= local.minute < minute + P1_MINUTES:
+            return P1_PREMIUM * (1 if local.hour % 2 == 0 else -1)
+    return 0.0
+
+
+def planted_p2(at: datetime) -> bool:
+    local = _local(at)
+    return any(
+        0 <= (local.hour * 60 + local.minute) - (hour * 60 + minute) < P2_MINUTES
+        for hour, minute in P2_STARTS
+    )
+
+
+def in_trading_hours(at: datetime) -> bool:
+    return TRADING_HOURS[0] <= _local(at).hour < TRADING_HOURS[1]
+
+
+def _eur_to_pth(eur_mwh: float) -> float:
+    return eur_mwh * DEMO_EURGBP * 100 * THERM_MWH
+
+
+def _pth_to_eur(pth: float) -> float:
+    return pth / 100 / THERM_MWH / DEMO_EURGBP
+
+
 def session_events(rng: random.Random, books: dict, start: datetime, minutes: float,
-                   dislocations_per_hour: float):
-    """Yield (time, quotes, trades) events for ``minutes`` of session time."""
+                   dislocations_per_hour: float, planted: bool = False):
+    """Yield (time, quotes, trades) events for ``minutes`` of session time.
+
+    With ``planted`` the P1 and P2 cases are laid on the path on their schedule.
+    """
 
     now = start
     end = start + timedelta(minutes=minutes)
@@ -193,6 +249,15 @@ def session_events(rng: random.Random, books: dict, start: datetime, minutes: fl
             premium[hub] += WD_PREMIUM_KAPPA * (premium_anchor[hub] - premium[hub]) * dt + (
                 rng.gauss(0.0, WD_PREMIUM_SIGMA * scale * math.sqrt(dt)))
             books[(hub, "WD")].mid = books[(hub, "DA")].mid + premium[hub] + shock[hub]
+        if planted:
+            books[("TTF", "WD")].mid += planted_p1(now)
+            ttf_da = books[("TTF", "DA")].mid
+            nbp_da_eur = _pth_to_eur(books[("NBP", "DA")].mid)
+            if planted_p2(now):
+                nbp_da_eur = ttf_da + BBL_ROUTE_COST + P2_EXCESS
+            else:
+                nbp_da_eur = min(nbp_da_eur, ttf_da + BBL_ROUTE_COST - P2_OUTSIDE_MARGIN)
+            books[("NBP", "DA")].mid = _eur_to_pth(nbp_da_eur)
         key = rng.choice(list(books))
         sequence += 1
         quotes, trades = [], []
@@ -268,6 +333,177 @@ class TradeBooker:
             session.commit()
 
 
+FEED_SOURCE = "DEMO_Sim"
+FEED_SOURCE_ID = "src-demo-exchange-feed"
+#: How long the continuous feed keeps its own rows (quotes, prints, status runs, booked
+#: simulated trades): the demo's small PostgreSQL must not fill.
+RETENTION = timedelta(hours=48)
+STATUS_EVERY = timedelta(seconds=60)
+PRUNE_EVERY = timedelta(minutes=10)
+BOOK_EVERY_SECONDS = 900.0
+#: One advisory lock: two feeds never run against one demo database.
+ADVISORY_LOCK = 0x45474E46  # "EGNF"
+
+
+def feed_enabled(environ=os.environ) -> bool:
+    """The demo exchange feed runs unless ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED`` is off.
+
+    The demo roll-forward writes today's prompt quotes itself only when this is false.
+    """
+
+    return (environ.get("EUROGAS_NEXUS_DEMO_EXCHANGE_FEED") or "on").strip().lower() not in {
+        "off", "false", "0", "no"}
+
+
+def _db_anchors(session) -> dict:
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    out = {}
+    rows = (session.query(MarketQuoteRecord)
+            .filter(MarketQuoteRecord.source_system == FEED_SOURCE,
+                    MarketQuoteRecord.source_reference == "demo:market")
+            .order_by(MarketQuoteRecord.observed_at_utc.desc()).limit(400).all())
+    for row in rows:
+        meta = row.metadata_json or {}
+        key = (row.hub, meta.get("product_label"))
+        if key in INSTRUMENTS and key not in out and meta.get("native_mid"):
+            out[key] = float(meta["native_mid"])
+    return out
+
+
+def _status(session, at: datetime, since: datetime, counts: dict, note: str) -> None:
+    from eurogas_nexus.db.models import IngestionRunRecord
+
+    seconds = max(1.0, (at - since).total_seconds())
+    rows = counts["quotes"] + counts["trades"]
+    session.merge(IngestionRunRecord(
+        run_id=f"demo-feed-{at:%Y%m%d%H%M}", source_name=FEED_SOURCE, source_id=FEED_SOURCE_ID,
+        dataset="prompt-quotes", trigger_type="SCHEDULED", status="succeeded",
+        started_at_utc=since, finished_at_utc=at, completed_at_utc=at,
+        window_start_utc=since, window_end_utc=at, rows_received=rows, rows_accepted=rows,
+        rows_inserted=rows,
+        notes=(f"Demo exchange feed (simulated): {rows / seconds:.2f} messages/s; last message "
+               f"{counts['last'] or '-'}; quotes {counts['quotes']}, trades {counts['trades']}; "
+               f"{note}")[:2000],
+    ))
+
+
+def _prune(session, now: datetime) -> dict:
+    from eurogas_nexus.db.models import (
+        IngestionRunRecord,
+        MarketQuoteRecord,
+        MarketTradeRecord,
+        ScreenOrderObservationRecord,
+    )
+
+    cutoff = now - RETENTION
+    return {
+        "quotes": session.query(MarketQuoteRecord).filter(
+            MarketQuoteRecord.source_system == FEED_SOURCE,
+            MarketQuoteRecord.source_reference == "feed:simulated-exchange",
+            MarketQuoteRecord.observed_at_utc < cutoff).delete(synchronize_session=False),
+        "trades": session.query(MarketTradeRecord).filter(
+            MarketTradeRecord.source_system == FEED_SOURCE,
+            MarketTradeRecord.traded_at_utc < cutoff).delete(synchronize_session=False),
+        "runs": session.query(IngestionRunRecord).filter(
+            IngestionRunRecord.source_id == FEED_SOURCE_ID,
+            IngestionRunRecord.started_at_utc < cutoff).delete(synchronize_session=False),
+        "booked": session.query(ScreenOrderObservationRecord).filter(
+            ScreenOrderObservationRecord.source_system == "ETRM_Sim",
+            ScreenOrderObservationRecord.observed_at_utc < cutoff,
+        ).delete(synchronize_session=False),
+    }
+
+
+def run_continuous(dislocations: float, *, max_rate: float = 4.0,
+                   clock=lambda: datetime.now(UTC), sleeper=time.sleep,
+                   stop_after: float | None = None) -> int:
+    """The demo server's feed: through the tick ingestion, during simulated trading hours.
+
+    Writes as ``DEMO_Sim`` through ``application.market_ticks.ingest_ticks`` (the path a
+    licensed connector's batches take: validation, entitlement family, the inputs-changed
+    hook), a status run a minute for Admin → Data feeds, and prunes its own rows after
+    :data:`RETENTION`. One advisory lock keeps it single. Returns when ``stop_after`` seconds
+    have passed (tests), else never.
+    """
+
+    from sqlalchemy import text
+
+    from eurogas_nexus.application.market_ticks import ingest_ticks
+    from eurogas_nexus.db.session import get_session_factory
+
+    factory = get_session_factory()
+    with factory() as probe:
+        engine = probe.get_bind()
+    lock_connection = None
+    if engine.dialect.name == "postgresql":
+        # A session-level lock on a connection of its own, in autocommit: no open transaction.
+        lock_connection = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+        held = lock_connection.execute(text("select pg_try_advisory_lock(:k)"),
+                                       {"k": ADVISORY_LOCK})
+        if not held.scalar():
+            lock_connection.close()
+            print(json.dumps({"feed": "another demo exchange feed holds the lock; exiting"}))
+            return 0
+    started = clock()
+    rng = random.Random(f"{STREAM}:live:{started:%Y%m%d%H%M%S}")
+    booker = TradeBooker(BOOK_EVERY_SECONDS, random.Random(f"{STREAM}:book:live"))
+    books: dict | None = None
+    events = None
+    gas_day = None
+    counts = {"quotes": 0, "trades": 0, "last": None}
+    status_since = last_prune = started
+    minimum_gap = 1.0 / max_rate
+    while True:
+        now = clock()
+        if stop_after is not None and (now - started).total_seconds() >= stop_after:
+            return 0
+        if now - last_prune >= PRUNE_EVERY:
+            with factory() as session:
+                removed = _prune(session, now)
+                session.commit()
+            print(json.dumps({"feed": "pruned", **removed}), flush=True)
+            last_prune = now
+        if not in_trading_hours(now):
+            if now - status_since >= STATUS_EVERY * 5:
+                with factory() as session:
+                    _status(session, now, status_since, counts,
+                            "paused outside simulated trading hours 07:00-19:00 CET")
+                    session.commit()
+                status_since, counts = now, {"quotes": 0, "trades": 0, "last": counts["last"]}
+            books = events = None
+            sleeper(30)
+            continue
+        day = _local(now).date()
+        if books is None or day != gas_day:
+            with factory() as session:
+                held_anchors = _db_anchors(session)
+            books = {}
+            for (hub, product), (tick, half) in INSTRUMENTS.items():
+                anchor = held_anchors.get((hub, product), FALLBACK[(hub, product)])
+                books[(hub, product)] = Book(hub, product, anchor, anchor, tick, half,
+                                             prior_settlement=round(anchor, 3))
+            events = session_events(rng, books, now, 24 * 60, dislocations, planted=True)
+            gas_day = day
+        at, quotes, trades = next(events)
+        wait = max((at - clock()).total_seconds(), minimum_gap)
+        sleeper(wait)
+        with factory() as session:
+            ingest_ticks(session, source_system=FEED_SOURCE, quotes=quotes, trades=trades,
+                         simulated_allowed=True)
+            session.commit()
+        booker.maybe_book(at, books)
+        counts["quotes"] += len(quotes)
+        counts["trades"] += len(trades)
+        counts["last"] = at.isoformat(timespec="seconds")
+        if clock() - status_since >= STATUS_EVERY:
+            with factory() as session:
+                _status(session, clock(), status_since, counts,
+                        "running; planted P1/P2 on schedule")
+                session.commit()
+            status_since, counts = clock(), {"quotes": 0, "trades": 0, "last": counts["last"]}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--api", default=os.environ.get("API", "http://127.0.0.1:8080"))
@@ -286,7 +522,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--book-every", type=float, default=0.0,
                         help="book a simulated prompt trade every N session seconds (demo "
                              "database access needed); 0: none")
+    parser.add_argument("--continuous", action="store_true",
+                        help="the demo server's feed: straight through the tick ingestion "
+                             "into the demo database, during simulated trading hours, forever")
     args = parser.parse_args(argv)
+    if args.continuous:
+        if not feed_enabled():
+            print(json.dumps({"feed": "disabled by EUROGAS_NEXUS_DEMO_EXCHANGE_FEED"}))
+            return 0
+        return run_continuous(args.dislocations)
     password = os.environ.get("EUROGAS_NEXUS_DEV_LOGIN_PASSWORD") or ""
     if not password:
         print("EUROGAS_NEXUS_DEV_LOGIN_PASSWORD is not set", file=sys.stderr)
