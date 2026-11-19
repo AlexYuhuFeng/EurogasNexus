@@ -2,9 +2,10 @@ import { PriceCharts } from "@/components/PriceCharts";
 import { openDeskBrief } from "@/components/DeskBriefDialog";
 import { useEffect, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
-import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
 import { MarketTerminal } from "@/components/MarketTerminal";
-import { NetworkWorkspace } from "@/components/NetworkWorkspace";
+import { DESK_NETWORK_KEPT } from "@/components/DeskNetworkTask";
+import { KeptSlot } from "@/app/data/keepAlive";
+import { warmMapAssets } from "@/app/mapAssetWarmup";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
 import { TodayFreshness, TodayHeadActions, TodayHeadline, TodayScreen } from "@/components/TodayScreen";
@@ -57,11 +58,12 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
   // other query keys. The resolution is owned by `useAppController`, so the
   // task rendered here and the shell's layout class cannot disagree.
   const { task, rememberTask } = marketView;
-  // The map stays mounted once the Network task was opened (see the network block below).
-  const [networkKept, setNetworkKept] = useState(task === "network");
+
+  // The Desk's map is one tab away: its own files load when the browser is idle.
   useEffect(() => {
-    if (task === "network") setNetworkKept(true);
-  }, [task]);
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 2000));
+    idle(() => warmMapAssets());
+  }, []);
 
   const openTask = (next: MarketTask) => {
     rememberTask(next);
@@ -232,61 +234,11 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           <PriceCharts markets={api.normalizedMarkets} t={t} />
           </>
         )}
-        {(task === "network" || networkKept) && (
-          // Kept mounted once visited and hidden while another task shows, so returning to
-          // the map finds it as it was (camera, selection, layers, data): no reload, no blank
-          // frame. `display: contents` keeps the page layout as if the wrapper were absent.
-          <div style={{ display: task === "network" ? "contents" : "none" }} data-kept-task="network">
-          <NetworkWorkspace
-            t={t}
-            nodes={api.nodes}
-            edges={api.edges}
-            routes={api.routes}
-            mode={theme.mode}
-            activeLayers={controls.activeLayers}
-            searchTerm={controls.searchTerm}
-            networkGeometryState={portfolio.networkGeometryState}
-            onResetSearch={() => controls.setSearchTerm("")}
-            onToggleLayer={controls.toggleLayer}
-            // Hidden while another Desk task shows: nothing it opened stays above that page.
-            active={task === "network"}
-            language={controller.i18n.language}
-            // The Capacity tab beside the map: the operating board joins the `flows` and
-            // `capacity` reads, so it states which of them answered from the store's own facts
-            // (`app/model/capacityOperatingBoardRead.ts`), as the Source Center does.
-            capacity={{
-              flows: api.flows,
-              capacity: api.capacity,
-              tsoAccess: api.tsoAccess,
-              tsoTariffs: api.tsoTariffs,
-              storage: api.storage,
-              lng: api.lng,
-              boardRead: capacityOperatingBoardRead(
-                {
-                  flows: {
-                    rows: api.flows.length,
-                    error: api.endpointErrors.flows,
-                    errorCode: api.endpointErrorCodes.flows,
-                  },
-                  capacity: {
-                    rows: api.capacity.length,
-                    error: api.endpointErrors.capacity,
-                    errorCode: api.endpointErrorCodes.capacity,
-                  },
-                  loading: api.workspaceLoading,
-                  committedPasses: api.workspaceLoadsCommitted,
-                  retry: {
-                    busy: api.endpointRetryBusy,
-                    attempts: api.endpointRetryAttempts,
-                    lastAttemptAtUtc: api.endpointRetryLastAttemptAtUtc,
-                  },
-                },
-                t,
-              ),
-              onRetryBoardRead: () => void api.retryFailedWorkspaceEndpoints(),
-            }}
-          />
-          </div>
+        {task === "network" && (
+          // The map is rendered once at the shell and kept (app/data/keepAlive.tsx): this slot
+          // shows it; leaving parks it, hidden, so returning finds it as it was (camera,
+          // selection, layers, data) with no reload and no blank frame, from any page.
+          <KeptSlot id={DESK_NETWORK_KEPT} />
         )}
       </div>
     </div>

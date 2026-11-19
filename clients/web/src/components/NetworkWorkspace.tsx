@@ -152,7 +152,9 @@ export function NetworkWorkspace({
     }
   };
   // The book view also reads 120 days of completed deals for its history.
-  const { situation: rawSituation, facilities, error: situationError, readAt } = useMapSituation(true, mapView === "book" ? 120 : 0);
+  // Cache-first; kept current while on screen, paused while parked (app/hooks/useMapSituation.ts).
+  const { situation: rawSituation, facilities, error: situationError, readAt, updating: situationUpdating } =
+    useMapSituation(true, mapView === "book" ? 120 : 0, active);
   const nowMs = readAt?.getTime() ?? Date.now();
   const situation = useMemo(
     () => (mapView === "book" ? bookSituation(rawSituation, nowMs) : liveSituation(rawSituation, nowMs)),
@@ -744,6 +746,8 @@ export function NetworkWorkspace({
               </span>
             )}
             {situationStale && <span className="is-alert">{t("map.situation.stale")}</span>}
+            {/* A newer picture is being read behind this one: said quietly, never a spinner. */}
+            {situationUpdating && <span className="map-situation-updating">{t("map.situation.updating")}</span>}
             <small>
               {t("map.situation.as_of")} {summary.asOf.slice(11, 16)} UTC
               {readAt ? ` · ${t("map.situation.read_at")} ${readAt.toISOString().slice(11, 16)} UTC` : ""}

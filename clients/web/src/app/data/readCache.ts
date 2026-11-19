@@ -60,11 +60,28 @@ function touch(fullKey: string, entry: Entry): void {
   }
 }
 
+const scopeListeners = new Set<(previous: string, next: string) => void>();
+
+/**
+ * Called when the signed-in principal changes (or signs out): what else is kept for the last
+ * one goes too (a kept page, app/data/keepAlive.tsx).
+ */
+export function onReadCacheScopeChange(listener: (previous: string, next: string) => void): () => void {
+  scopeListeners.add(listener);
+  return () => {
+    scopeListeners.delete(listener);
+  };
+}
+
 /** The signed-in principal: a different one starts from an empty cache. */
 export function setReadCacheScope(principalId: string | null | undefined): void {
   const next = principalId ?? "anonymous";
   if (next === scope) return;
+  const previous = scope;
   scope = next;
+  queueMicrotask(() => {
+    for (const listener of scopeListeners) listener(previous, next);
+  });
   const keys = [...entries.keys()];
   entries.clear();
   // Called from the shell's render (so no child reads under the old identity): tell subscribers
@@ -77,6 +94,15 @@ export function setReadCacheScope(principalId: string | null | undefined): void 
 /** Mark every kept answer stale (after a write): the next view reads again, showing it meanwhile. */
 export function invalidateReads(): void {
   for (const entry of entries.values()) entry.stale = true;
+}
+
+function sameAnswer(shown: unknown, next: unknown): boolean {
+  if (shown === next) return true;
+  try {
+    return JSON.stringify(shown) === JSON.stringify(next);
+  } catch {
+    return false;
+  }
 }
 
 /** A stable key from an endpoint and its parameters. */
@@ -108,7 +134,10 @@ export function loadRead<T>(
   const request = fetcher(controller.signal)
     .then((data) => {
       if (entry.generation !== mine) return;
-      entry.snapshot = { data, error: null, loading: false, updating: false, at: Date.now() };
+      // An answer equal to the one shown (a revalidation that found nothing new, often a 304)
+      // keeps the shown object: nothing downstream re-renders or redraws for it.
+      const same = entry.snapshot.data !== undefined && sameAnswer(entry.snapshot.data, data);
+      entry.snapshot = { data: same ? entry.snapshot.data : data, error: null, loading: false, updating: false, at: Date.now() };
       entry.stale = false;
     })
     .catch((error: unknown) => {

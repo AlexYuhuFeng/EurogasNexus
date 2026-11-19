@@ -77,6 +77,7 @@
   "map.situation.entry_flow": "Entry flow",
   "map.situation.read_at": "read",
   "map.situation.stale": "Not refreshed: showing the last good read",
+  "map.situation.updating": "Updating…",
   "contracts.contract_price": "Contract price",
   "contracts.price_per_mwh": "Contract price {{currency}}/MWh",
   "contracts.price_currency": "Price currency",

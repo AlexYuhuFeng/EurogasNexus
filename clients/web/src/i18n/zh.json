@@ -77,6 +77,7 @@
   "map.situation.entry_flow": "入口流量",
   "map.situation.read_at": "读取于",
   "map.situation.stale": "未刷新：显示上次成功读取的数据",
+  "map.situation.updating": "更新中…",
   "contracts.contract_price": "合同价格",
   "contracts.price_per_mwh": "合同价格 {{currency}}/MWh",
   "contracts.price_currency": "计价币种",

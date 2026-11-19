@@ -93,7 +93,8 @@ test("the direct map-first Network route is composed, not intercepted", () => {
   // The route still lands on the map: the task resolves from the page id itself, so no
   // URL change is needed for the map-first entry to keep working.
   assert.match(model, /if \(activeWorkspace === "network" \|\| activeWorkspace === "capacity"\) return "network";/);
-  assert.match(cockpit, /\{\(task === "network" \|\| networkKept\) && \(/);
+  assert.match(cockpit, /\{task === "network" && \(/);
+  assert.match(cockpit, /<KeptSlot id=\{DESK_NETWORK_KEPT\} \/>/);
 
   // The scenario hand-off left with the decision rail (design basis 2, CP-21): the map
   // opens no optimiser page.

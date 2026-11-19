@@ -37,6 +37,7 @@ import {
   type NetworkHighlightedRoute,
 } from "@/app/networkMapLines";
 import { lineMatters, NO_ROUTES_MATTER, type RoutesThatMatter } from "@/app/routeEmphasis";
+import { warmMapAssets } from "@/app/mapAssetWarmup";
 import {
   type BookFlowLine,
   compactMwhPerDay,
@@ -77,6 +78,10 @@ import { useShellLayout } from "@/app/shell/useShellLayout";
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
 setWorkerUrl(mapLibreWorkerUrl);
+
+
+// Landing on the map itself: its own files start at once (app/mapAssetWarmup.ts).
+if (typeof window !== "undefined" && /[?&]task=network(&|$)/.test(window.location.search)) warmMapAssets();
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -218,6 +223,9 @@ const SITUATION_HOVER_LAYERS = [
 ] as const;
 
 /** Fly to a point (or jump, under reduced motion), never past the map's own zoom limit. */
+/** MapLibre instances created in this page's life (see `data-map-instance`). */
+let MAP_INSTANCES = 0;
+
 function focusOn(map: MapLibreMap, center: [number, number], zoom: number): void {
   const target = { center, zoom: Math.min(zoom, map.getMaxZoom()) };
   if (prefersReducedMotion()) map.jumpTo(target);
@@ -231,13 +239,26 @@ function prefersReducedMotion(): boolean {
 
 type FeatureCollectionData = Parameters<GeoJSONSource["setData"]>[0];
 
+/** What each source last drew, so an update that changes nothing sends nothing to the map. */
+const drawnSources = new WeakMap<MapLibreMap, Map<string, string>>();
+
+/**
+ * Add a source, or update it in place: a diff applied to the existing source (no layer
+ * teardown, so selection, camera and open cards stay). A source whose data did not change is
+ * not touched: a revalidation that found nothing new redraws nothing.
+ */
 function upsertSource(map: MapLibreMap, id: string, data: FeatureCollectionData): boolean {
+  const drawn = drawnSources.get(map) ?? new Map<string, string>();
+  drawnSources.set(map, drawn);
+  const text = typeof data === "string" ? data : JSON.stringify(data);
   const source = map.getSource(id) as GeoJSONSource | undefined;
   if (source) {
-    source.setData(data);
+    if (drawn.get(id) !== text) source.setData(data);
+    drawn.set(id, text);
     return false;
   }
   map.addSource(id, { type: "geojson", data });
+  drawn.set(id, text);
   return true;
 }
 
@@ -659,6 +680,9 @@ export function GasNetworkMap({
 
     const mapTileToken = configuredMapTileToken();
     const view = lastViewRef.current;
+    // Each MapLibre instance is numbered, so a measurement can tell a kept map from a rebuilt one.
+    MAP_INSTANCES += 1;
+    containerRef.current.dataset.mapInstance = String(MAP_INSTANCES);
     const map = new MapLibreMap({
       container: containerRef.current,
       // North-west Europe with the Norwegian shelf below the toolbar.
@@ -2435,7 +2459,13 @@ export function GasNetworkMap({
   }
 
   return (
-    <div className="gas-map" aria-label={t("map.gas_network_map")}>
+    <div
+      className="gas-map"
+      aria-label={t("map.gas_network_map")}
+      // Read by scripts/uat/map_sync_measure.mjs: when the map drew, and the situation it shows.
+      data-map-ready={mapReady ? "true" : undefined}
+      data-map-situation-as-of={situation?.as_of_utc ?? undefined}
+    >
       <div ref={containerRef} className="maplibre-canvas" />
       {mapReady && !compact && (
         <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} collapsible={phoneWidth} />

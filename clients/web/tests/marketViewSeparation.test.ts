@@ -15,9 +15,9 @@ function block(source: string, startMarker: string, endMarker: string): string {
 }
 
 const NUMERIC_TASK = '{task === "curves" && (';
-// The network task stays mounted once opened (hidden while another task shows), so the map
-// keeps its camera, selection and data across task switches.
-const MAP_TASK = '{(task === "network" || networkKept) && (';
+// The network task is kept once opened (app/data/keepAlive.tsx): the page shows its slot, and the
+// map keeps its camera, selection and data across task and page switches.
+const MAP_TASK = '{task === "network" && (';
 // The map task is the page's last task: its block runs to the end of the panel.
 const MAP_TASK_END = '      </div>\n    </div>\n  );';
 
@@ -28,7 +28,9 @@ test("the numeric task mounts no map while the map task mounts the map", () => {
 
   assert.match(numeric, /<MarketTerminal/);
   assert.equal(numeric.includes("GasNetworkMap"), false);
-  assert.match(mapView, /<NetworkWorkspace/);
+  assert.match(mapView, /<KeptSlot id=\{DESK_NETWORK_KEPT\} \/>/);
+  // The kept page renders the map task's workspace.
+  assert.match(readWebSource("components/DeskNetworkTask.tsx"), /<NetworkWorkspace/);
 
   // The map lives on the network task only: the overview no longer repeats a smaller copy
   // of it (#69), so the market shell itself mounts no map.

@@ -474,7 +474,8 @@ test("losing the identity leaves the board unread, not failed and not empty", as
 
 test("the board renders the state it was given, and its retry is the store's own path", () => {
   const component = readWebSource("components/CapacityWorkspace.tsx");
-  const cockpit = readWebSource("components/MarketCockpit.tsx");
+  // The Network task's props are built by its kept page (components/DeskNetworkTask.tsx).
+  const cockpit = readWebSource("components/DeskNetworkTask.tsx");
   const harness = readFileSync(
     new URL("../../../scripts/uat/browser_workflow_smoke.mjs", import.meta.url),
     "utf8",

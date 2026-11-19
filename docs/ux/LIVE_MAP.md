@@ -252,7 +252,7 @@ instrument edge to edge on the display:
 
 - The toolbar, the map with its place finder, live strip and line key, and the panel with the
   selected object's card come along. The page header and the rest of the shell do not.
-- It keeps refreshing on the same five-minute cycle as the page. The strip says when the
+- It stays current the same way as the page (see "How the map stays current"). The strip says when the
   situation is as of and when this screen last read it; when reads keep failing it says
   so ("Not refreshed: showing the last good read") instead of showing an old picture as
   live.
@@ -289,9 +289,65 @@ It is a view, not a mode: it holds no state of its own and grants nothing.
   port → destination terminal, ETA, departed, cargo in GWh and m³ LNG, "Simulated" for a
   simulated feed) with a "Send-out at <terminal>" link to the terminal's own card.
   They are removed once a real vessel feed delivers.
-- **Leaving and coming back keeps the map.** Switching Desk tabs hides the Network page
-  instead of unmounting it (`MarketCockpit`), so the map, its data, camera, selection and
-  layers are as they were; a mode switch remounts it at the remembered camera and selection.
+- **Leaving and coming back keeps the map**, from any page: see "How the map stays current".
+
+## How the map stays current
+
+The owner asked whether the Network page reloads everything each time the tab is opened, or
+loads once and syncs the difference. The answer, measured with `scripts/uat/map_sync_measure.mjs`
+(demo desk, `demo.trader`, the built client served by the API from one origin as the hosted
+demo is; before = integrate `2148adc`, after = this change):
+
+| | Before | After |
+| --- | --- | --- |
+| First visit: map drawn / all layers | 2.5 s / 5.5–6.1 s | 1.6–2.2 s / 3.1–3.3 s |
+| First visit: transferred | 4.5 MB (static files uncompressed) | 1.5 MB |
+| Back from another Desk tab | 26–28 ms, nothing read (already kept) | 27–40 ms, nothing read |
+| Back from another mode (Deals) | 1.6–1.7 s / 1.7–2.0 s, map rebuilt, 11 reads, 432 KB | 31–39 ms, map kept, nothing read |
+| Left open on the map for 65 s | 18 reads, 374 KB | 25 reads, 32 KB (24 "not modified") |
+| A cargo, outage, flow, slot or opportunity changes | seen at the next 5-minute re-read | re-read about 4 s later |
+
+**Before.** Within Desk the page was kept (hidden, not unmounted); leaving the mode unmounted it,
+and the return rebuilt the WebGL map, re-read the situation and infrastructure and re-downloaded
+the basemap. The situation was re-read every 5 minutes even while hidden; the shell re-read the
+market context, FX and sources every 10 s (62 KB each time) whether or not anything had changed.
+No read carried an ETag, so nothing could be answered "not modified"; the bundle and the
+geometry files were served uncompressed. The map's points waited for the whole workspace batch,
+which commits when its slowest read answers (about 5.5 s).
+
+**Now: kept alive, cache-first, changes pushed.**
+
+1. **Kept, not rebuilt.** Desk → Network is rendered once at the shell and shown by the Desk
+   page's slot (`app/data/keepAlive.tsx`, `<Kept>` / `<KeptSlot>`); on any other page it is
+   parked, hidden, with its timers paused. Returning shows the same map, sources, camera,
+   selection and open card at once. It is released on sign-out or a change of principal, and
+   after 30 minutes parked (the stand-in for memory pressure, which browsers do not signal).
+2. **Cache-first reads.** The situation and the located infrastructure read through the shell's
+   read cache (`app/data/readCache.ts`): the last answer shows at once and a newer one is read
+   behind it; an answer equal to the one shown keeps the shown object, so nothing redraws.
+   Reference geometry (network nodes and edges, infrastructure) is read once a session; the
+   basemap, glyphs and context pipelines are cached by the browser for the session (an hour,
+   then revalidated by ETag) and started before the map asks for them.
+3. **Conditional requests.** Every JSON read carries an ETag of its content (the moments it was
+   computed, such as `as_of_utc` or `evaluated_at_utc`, are left out) with
+   `Cache-Control: private, no-cache`; an unchanged read is a `304` with no body
+   (`api/middleware/conditional.py`). Static files get the same, and travel compressed.
+4. **Changes pushed, polling as the fallback.** The session's existing alerts stream also carries
+   `map` notices (a group and a time, no row) when outages, flows, cargoes, slots or
+   opportunities change; the map answers with a conditional read of its situation. A safety
+   re-check runs every 5 minutes, every minute while the stream is down, and only while the map
+   is on screen and the browser tab is visible; a return re-checks a picture older than 30 s.
+5. **Diffs, not teardown.** An update calls `setData` only on the sources whose data changed; no
+   layer is removed, so selection, camera and the open card stay.
+6. **Trust.** The status line says when the situation was computed and when it was last
+   confirmed, "Updating…" while a newer picture is read behind the one shown (never a
+   full-page spinner after the first load), and "Not refreshed: showing the last good read"
+   when a refresh failed.
+
+No `since` parameter was added: the situation is 9 KB compressed and the 304 already removes the
+unchanged case; a delta would cost more than it saves at this size. Other heavy pages use the same
+two pieces: `<Kept>` / `<KeptSlot>` to stay alive, `useCachedRead` with conditional reads to stay
+current.
 
 ## Topology over geometry
 

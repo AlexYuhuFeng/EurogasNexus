@@ -99,6 +99,16 @@ function ownAssetUrl(relative: string): string {
   return `${origin}${prefix.startsWith("/") ? prefix : `/${prefix}`}${relative}`;
 }
 
+/** The bundled basemap's own files (land, borders, places, the first glyph range), to warm early. */
+export function bundledBasemapAssetUrls(): string[] {
+  return [
+    OUTLINE_BASEMAP_PATH,
+    BUNDLED_BORDERS_PATH,
+    BUNDLED_PLACES_PATH,
+    BUNDLED_GLYPHS_PATH.replace("{fontstack}", encodeURIComponent("Inter Regular")).replace("{range}", "0-255"),
+  ].map(ownAssetUrl);
+}
+
 export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
   {
     id: "bundled",

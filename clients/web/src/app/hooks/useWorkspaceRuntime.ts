@@ -51,6 +51,9 @@ export function useWorkspaceRuntime({
     if (!LIVE_MARKET_WORKSPACES.has(activeWorkspace)) return;
     void refreshMarketData();
     const intervalId = window.setInterval(() => {
+      // Only while the browser tab is visible: a background tab reads nothing (its reads are
+      // conditional, a 304 when unchanged, but an unseen page needs none at all).
+      if (document.visibilityState !== "visible") return;
       void refreshMarketData();
     }, MARKET_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(intervalId);

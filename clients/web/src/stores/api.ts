@@ -111,6 +111,7 @@ import {
   openEventStream,
 } from "@/api/client";
 import { setDeploymentMapDefault } from "@/app/mapTileProviders";
+import { publishChangeNotice, setChangeStreamOpen } from "@/app/data/changeNotices";
 import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
   DEFAULT_LOGOUT_TIMEOUT_MS,
@@ -228,6 +229,7 @@ function connectionTestMessage(
 function closeDecisionStreams() {
   decisionStreamClosers.forEach((close) => close());
   decisionStreamClosers = [];
+  setChangeStreamOpen(false);
 }
 
 /**
@@ -1979,19 +1981,29 @@ export const useApiStore = create<ApiState>((set, get) => ({
     );
 
     decisionStreamClosers.push(
-      openEventStream("/stream/alerts", {
-        alerts: (payload) => {
-          if (!streamIsCurrent()) return;
-          const alert = payload as MonitoringAlertDTO;
-          if (!alert || typeof alert !== "object" || !("alert_id" in alert)) return;
-          set((state) => ({
-            monitoringAlerts: [
-              alert,
-              ...state.monitoringAlerts.filter((item) => item.alert_id !== alert.alert_id),
-            ],
-          }));
+      openEventStream(
+        "/stream/alerts",
+        {
+          alerts: (payload) => {
+            if (!streamIsCurrent()) return;
+            const alert = payload as MonitoringAlertDTO;
+            if (!alert || typeof alert !== "object" || !("alert_id" in alert)) return;
+            set((state) => ({
+              monitoringAlerts: [
+                alert,
+                ...state.monitoringAlerts.filter((item) => item.alert_id !== alert.alert_id),
+              ],
+            }));
+          },
+          // The map's change notices share this connection (app/data/changeNotices.ts).
+          map: (payload) => {
+            if (streamIsCurrent()) publishChangeNotice("map", payload);
+          },
         },
-      }).close,
+        (status) => {
+          if (streamIsCurrent()) setChangeStreamOpen(status === "open");
+        },
+      ).close,
     );
   },
 

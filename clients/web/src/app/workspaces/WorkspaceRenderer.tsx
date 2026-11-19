@@ -10,6 +10,8 @@ import { GlossaryWiki } from "@/components/GlossaryWiki";
 import { ManualWorkspace } from "@/components/ManualWorkspace";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { MarketCockpit } from "@/components/MarketCockpit";
+import { DESK_NETWORK_KEPT, DeskNetworkTask } from "@/components/DeskNetworkTask";
+import { Kept } from "@/app/data/keepAlive";
 import { PortfolioWorkspace } from "@/components/PortfolioWorkspace";
 import { DecisionWorkspace } from "@/components/DecisionWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
@@ -109,6 +111,9 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       {activePrimaryWorkspace.id === "market" && (
         <MarketCockpit controller={controller} />
       )}
+
+      {/* Desk → Network, kept once visited: shown by the Desk page's slot, parked elsewhere. */}
+      <Kept id={DESK_NETWORK_KEPT}>{(active) => <DeskNetworkTask controller={controller} active={active} />}</Kept>
 
       {activePrimaryWorkspace.id === "portfolio" && (
         <PortfolioWorkspace controller={controller} />
