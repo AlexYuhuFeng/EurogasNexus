@@ -920,9 +920,8 @@ def test_the_live_capture_runner_reads_the_market_route_the_app_serves() -> None
     assert '"market"' in navigation, "the workspace the runner navigates is a declared page id"
     cockpit_model = MARKET_COCKPIT_MODEL.read_text(encoding="utf-8")
     assert '"overview", "curves", "network"' in cockpit_model
-    assert 'DEFAULT_MARKET_TASK: MarketTask = "curves"' in cockpit_model, (
-        "the runner navigates the declared numeric landing task"
-    )
+    # The Desk lands on Today (decision D1); the runner names the numeric task in its route.
+    assert 'DEFAULT_MARKET_TASK: MarketTask = "overview"' in cockpit_model
     cockpit = MARKET_COCKPIT.read_text(encoding="utf-8")
     assert '{task === "curves" && (' in cockpit and "<MarketTerminal" in cockpit, (
         "the hub board the runner collects is mounted for the task it navigates"
