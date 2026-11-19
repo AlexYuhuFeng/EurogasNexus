@@ -42,7 +42,14 @@ from eurogas_nexus.domain.market.units import (
     UnitConversionError,
     canonical_price_unit,
 )
-from eurogas_nexus.domain.ontology.quantity import Dimension, PriceUnit, UnitError, price_unit
+from eurogas_nexus.domain.ontology.quantity import (
+    Dimension,
+    PriceUnit,
+    Unit,
+    UnitError,
+    price_unit,
+    unit,
+)
 
 #: Price dimensions a gas price may be quoted per.
 _PRICE_DIMENSIONS = (Dimension.ENERGY, Dimension.VOLUME)
@@ -266,6 +273,107 @@ def normalise_value(
         "delivery": delivery.as_dict() if delivery else None,
         "normalisation": conv.record(),
         "tolerance": _tolerance(converted, conv),
+    }
+
+
+# --------------------------------------------------------------------------- quantities
+
+#: Time bases a quantity may be per: a day (a nomination, a position) or an hour (a flow).
+_QUANTITY_PER = ("d", "h")
+_QUANTITY_DIMENSIONS = (Dimension.ENERGY, Dimension.VOLUME)
+
+
+@dataclass(frozen=True)
+class QuantityUnit:
+    """An amount of gas (``MWh``, ``th``, ``mcm``), optionally per day or hour (``MWh/d``)."""
+
+    amount: Unit
+    per: str | None
+
+    @property
+    def text(self) -> str:
+        return f"{self.amount.code}/{self.per}" if self.per else self.amount.code
+
+
+def parse_quantity_unit(text: str) -> QuantityUnit:
+    """A quantity unit through the units authority: ``MWh/d``, ``th/d``, ``GWh/d``, ``mcm/d``.
+
+    Raises:
+        NormalisationError: ``unsupported_quantity_unit``.
+    """
+
+    raw = (text or "").strip()
+    amount_text, _, per = raw.partition("/")
+    per = per.strip().lower() or None
+    if per in ("day",):
+        per = "d"
+    if per not in (None, *_QUANTITY_PER):
+        raise NormalisationError("unsupported_quantity_unit", f"{raw} is not per day or per hour")
+    try:
+        amount = unit(amount_text.strip())
+    except UnitError as exc:
+        raise NormalisationError("unsupported_quantity_unit", str(exc)) from exc
+    if amount.dimension not in _QUANTITY_DIMENSIONS:
+        raise NormalisationError(
+            "unsupported_quantity_unit", f"{raw} is not an amount of energy or volume"
+        )
+    return QuantityUnit(amount, per)
+
+
+def normalise_quantity(
+    value: float,
+    from_unit: str,
+    to_unit: str,
+    *,
+    simulated: bool = False,
+    gcv_kwh_per_m3: float | None = None,
+) -> dict[str, Any]:
+    """A quantity in ``to_unit`` (``MWh/d`` → ``th/d``): fixed physical factors from the units
+    authority, a heating value only between energy and volume, never FX.
+
+    Raises:
+        NormalisationError: an unknown unit, a different time basis (``MWh/d`` to ``MWh``), or an
+            implausible heating value.
+    """
+
+    source = parse_quantity_unit(from_unit)
+    target = parse_quantity_unit(to_unit)
+    if source.per != target.per:
+        raise NormalisationError(
+            "time_basis_differs",
+            f"{source.text} and {target.text} are not over the same time; nothing is assumed",
+        )
+    factor = source.amount.in_base
+    heating: HeatingValue | None = None
+    if source.amount.dimension is not target.amount.dimension:
+        heating = _heating_value(gcv_kwh_per_m3)
+        mwh_per_m3 = heating.kwh_per_m3 / 1000.0
+        # in_base is MWh for energy and m3 for volume.
+        if source.amount.dimension is Dimension.VOLUME:
+            factor *= mwh_per_m3
+        else:
+            factor /= mwh_per_m3
+    elif gcv_kwh_per_m3 is not None:
+        _heating_value(gcv_kwh_per_m3)
+    factor = factor / target.amount.in_base
+    return {
+        "value": value * factor,
+        "unit": target.text,
+        "native": {"value": value, "unit": source.text},
+        "simulated": bool(simulated),
+        "normalisation": {
+            "from_unit": source.text,
+            "to_unit": target.text,
+            "factor": factor,
+            "heating_value": heating.as_dict() if heating else None,
+            "fx": None,
+            "units_authority": "domain.ontology.quantity",
+        },
+        "tolerance": (
+            {"absolute": 0.0, "relative_pct": 0.0, "basis": "exact factors"}
+            if heating is None or heating.stated
+            else {"absolute": None, "relative_pct": None, "basis": "assumed heating value"}
+        ),
     }
 
 

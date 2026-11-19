@@ -12,7 +12,7 @@
  * - A total over mixed currencies is shown only converted, with the conversion line; a total that
  *   would mix simulated and non-simulated figures is refused.
  */
-import type { FxForwardDTO, NormalisedValueDTO } from "../../api/comparablePrices.ts";
+import type { FxForwardDTO, NormalisedQuantityDTO, NormalisedValueDTO } from "../../api/comparablePrices.ts";
 import { formatGasDay, formattingLocale } from "./timeFormat.ts";
 
 export type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -93,6 +93,33 @@ export function targetPriceUnit(nativeUnit: string, preference: DisplayPreferenc
   if (!currency || !energy) return null;
   if (currency === preference.reportingCurrency && energy === preference.energyUnit) return null;
   return `${preference.reportingCurrency}/${preference.energyUnit}`;
+}
+
+/**
+ * The unit a quantity reads in for this reader ("th/d" for "MWh/d" and therms), or null when it
+ * already is, or when it is not an energy amount (a volume needs a stated heating value).
+ */
+export function targetQuantityUnit(nativeUnit: string, preference: DisplayPreference): string | null {
+  const match = /^\s*(MWh|GWh|TWh|kWh|th|therm|MMBtu|GJ)\s*(?:\/\s*(d|h))?\s*$/i.exec(nativeUnit);
+  if (!match) return null;
+  const amount = /^therm$/i.test(match[1]) ? "th" : match[1];
+  if (amount === preference.energyUnit) return null;
+  return match[2] ? `${preference.energyUnit}/${match[2].toLowerCase()}` : preference.energyUnit;
+}
+
+/** A converted quantity: the figure, and that it is the units authority's exact factor. */
+export function convertedQuantityText(result: NormalisedQuantityDTO, language: string, t: Translate): ConvertedText {
+  const digits = Math.abs(result.value) >= 100 ? 0 : 2;
+  const figure = `${formatAmount(result.value, language, digits)} ${result.unit}`;
+  const heating = result.normalisation.heating_value;
+  return {
+    text: heating
+      ? t("convert.quantity_heating", { figure, gcv: formatAmount(heating.gcv_kwh_per_m3, language, 2) })
+      : t("convert.quantity", { figure }),
+    figure,
+    simulated: result.simulated,
+    refused: false,
+  };
 }
 
 /** The reporting currency for an amount in `currency`, or null when no conversion is due. */

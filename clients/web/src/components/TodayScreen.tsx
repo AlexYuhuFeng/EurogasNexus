@@ -51,7 +51,7 @@ import { pnlClass } from "@/app/model/pnlColor";
 import { MethodNote } from "@/components/MethodNote";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
-import { useConvertedAmount, useConvertedPrice } from "@/app/time/useConversion";
+import { useConvertedAmount, useConvertedPrice, useConvertedQuantity } from "@/app/time/useConversion";
 import type { ConvertedText } from "@/app/time/valueFormat";
 import { ConvertedValue } from "@/components/ui/ConvertedValue";
 import { Sparkline } from "@/components/ui/charts";
@@ -203,6 +203,12 @@ function RowSection({ id, title, meta, actions, children }: { id: string; title:
 }
 
 /* ------------------------------------------------------------------ row 1 */
+
+/** A net position: signed, native MWh/d first, the reader's energy unit on hover (G10). */
+function PositionFigure(props: { figure: TodayFigureDTO; label: ReactNode; t: Translate; nowMs: number; notes?: ReactNode }) {
+  const converted = useConvertedQuantity({ value: props.figure.value, unit: props.figure.unit, simulated: props.figure.simulated });
+  return <Figure {...props} signed converted={converted} />;
+}
 
 /** A day P&L in another currency than the reader reports in: the converted figure under it, at
  * the rate of the P&L's own day (G3, G5), its rate and method in the title. */
@@ -391,20 +397,18 @@ function BookFigures({ row, t, nowMs, language, onOpenLimits }: { row: TodayKeyF
     <div className="today-figures today-book-figures">
       {row.position && (
         <>
-          <Figure
+          <PositionFigure
             figure={row.position.today}
             label={t("today.net_today")}
             t={t}
             nowMs={nowMs}
-            signed
             notes={<MethodNote method={row.position.today.method} subject={t("today.net_today")} t={t} />}
           />
-          <Figure
+          <PositionFigure
             figure={row.position.front_month}
             label={t("today.net_front", { month: row.position.front_month.label.split(" ").pop() })}
             t={t}
             nowMs={nowMs}
-            signed
           />
         </>
       )}

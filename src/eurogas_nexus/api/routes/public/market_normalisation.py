@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from eurogas_nexus.application.market_normalisation import (
     NormalisationError,
     load_holdings,
+    normalise_quantity,
     normalise_series,
     normalise_value,
     points_from_closes,
@@ -147,16 +148,29 @@ class NormaliseSeriesInput(BaseModel):
     points: list[SeriesPointInput] = Field(min_length=1, max_length=MAX_SERIES_POINTS)
 
 
+class QuantityValueInput(BaseModel):
+    value: float = Field(allow_inf_nan=False)
+    unit: str = Field(min_length=2, max_length=16)
+    simulated: bool = False
+    label: str | None = Field(default=None, max_length=64)
+
+
 class NormaliseInput(BaseModel):
-    to_unit: str = Field(min_length=3, max_length=16)
+    #: The price unit values and the series are put into (``EUR/MWh``).
+    to_unit: str | None = Field(default=None, min_length=3, max_length=16)
     values: list[NormaliseValueInput] = Field(default_factory=list, max_length=MAX_VALUES)
+    #: Quantities (``MWh/d``, ``th/d``) and the unit they are put into: physical factors only.
+    quantities: list[QuantityValueInput] = Field(default_factory=list, max_length=MAX_VALUES)
+    to_quantity_unit: str | None = Field(default=None, min_length=2, max_length=16)
     series: NormaliseSeriesInput | None = None
     gcv_kwh_per_m3: float | None = Field(default=None, allow_inf_nan=False)
 
 
 @router.post("/api/market/normalise")
 def normalise(body: NormaliseInput, request: Request) -> dict:
-    """Prices or one series in ``to_unit``, each with its normalisation record and tolerance.
+    """Prices or one series in ``to_unit``, and quantities in ``to_quantity_unit``, each with its
+    normalisation record and tolerance. A quantity (``MWh/d`` → ``th/d``) converts with the units
+    authority's fixed factors only (a heating value between energy and volume), never FX.
 
     A value's delivery period (``product`` or ``value_date``) decides the FX: spot for none or a
     prompt product, the forward for a future period. A value that cannot be converted carries
@@ -169,10 +183,16 @@ def normalise(body: NormaliseInput, request: Request) -> dict:
             implausible heating value, unknown product code).
     """
 
-    if not body.values and body.series is None:
-        raise _unprocessable("normalise_invalid", "give values or a series to normalise")
+    if not body.values and body.series is None and not body.quantities:
+        raise _unprocessable(
+            "normalise_invalid", "give values, a series or quantities to normalise"
+        )
+    if (body.values or body.series is not None) and not body.to_unit:
+        raise _unprocessable("normalise_invalid", "give to_unit for prices")
+    if body.quantities and not body.to_quantity_unit:
+        raise _unprocessable("normalise_invalid", "give to_quantity_unit for quantities")
     today = datetime.now(UTC).date()
-    holdings = _holdings(request)
+    holdings = _holdings(request) if (body.values or body.series is not None) else None
     results: list[dict[str, Any]] = []
     try:
         for item in body.values:
@@ -218,6 +238,18 @@ def normalise(body: NormaliseInput, request: Request) -> dict:
             )
             if body.series.label:
                 series["label"] = body.series.label
+        quantities: list[dict[str, Any]] = []
+        for item in body.quantities:
+            converted = normalise_quantity(
+                item.value,
+                item.unit,
+                body.to_quantity_unit or "",
+                simulated=item.simulated,
+                gcv_kwh_per_m3=body.gcv_kwh_per_m3,
+            )
+            if item.label:
+                converted["label"] = item.label
+            quantities.append(converted)
     except NormalisationError as exc:
         raise _unprocessable("normalise_invalid", str(exc)) from exc
     warnings = []
@@ -225,8 +257,13 @@ def normalise(body: NormaliseInput, request: Request) -> dict:
         warnings.append("Some prices could not be converted; each says why.")
     if any(item.get("simulated") for item in results) or (series and series["simulated"]):
         warnings.append("Simulated inputs stay simulated after conversion.")
-    return _env({"values": results, "series": series}, source="market-normalisation",
-                warnings=warnings)
+    if any(item["simulated"] for item in quantities):
+        warnings.append("Simulated inputs stay simulated after conversion.")
+    return _env(
+        {"values": results, "series": series, "quantities": quantities},
+        source="market-normalisation",
+        warnings=sorted(set(warnings), key=warnings.index),
+    )
 
 
 @router.get("/api/market/instruments")

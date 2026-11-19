@@ -69,14 +69,34 @@ export interface NormalisedValueDTO {
 }
 
 export interface NormaliseRequestDTO {
-  to_unit: string;
+  /** The price unit values and the series are put into; required with either. */
+  to_unit?: string;
+  /** Quantities ("MWh/d") into `to_quantity_unit` ("th/d"): physical factors only, never FX. */
+  quantities?: Array<{ value: number; unit: string; simulated?: boolean; label?: string }>;
+  to_quantity_unit?: string;
   values: Array<{ value: number; unit: string; product?: string; value_date?: string; as_of?: string; simulated?: boolean; label?: string }>;
   gcv_kwh_per_m3?: number;
+}
+
+export interface NormalisedQuantityDTO {
+  value: number;
+  unit: string;
+  native: { value: number; unit: string };
+  simulated: boolean;
+  normalisation: {
+    from_unit: string;
+    to_unit: string;
+    factor: number;
+    heating_value: { gcv_kwh_per_m3: number; reference_conditions: string; basis: "stated" | "assumption" } | null;
+    fx: null;
+  };
+  label?: string;
 }
 
 export interface NormaliseResponseDTO {
   values: NormalisedValueDTO[];
   series: unknown;
+  quantities?: NormalisedQuantityDTO[];
 }
 
 export type InstrumentSourceClass = "sourced" | "indicative" | "simulated";

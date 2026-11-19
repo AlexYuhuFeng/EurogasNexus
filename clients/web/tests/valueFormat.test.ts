@@ -143,3 +143,22 @@ test("a conversion is a read: asking for one does not mark every kept answer sta
   const postRead = /async function postRead[\s\S]*?\n}\n/.exec(client)?.[0] ?? "";
   assert.ok(postRead && !postRead.includes("notifyApiWrite"));
 });
+
+test("a position reads in the reader's energy unit on hover; the server converts, exactly", async () => {
+  const { targetQuantityUnit, convertedQuantityText } = await import("../src/app/time/valueFormat.ts");
+  const therms = { reportingCurrency: "EUR", energyUnit: "th" as const };
+  assert.equal(targetQuantityUnit("MWh/d", therms), "th/d");
+  assert.equal(targetQuantityUnit("MWh", therms), "th");
+  assert.equal(targetQuantityUnit("th/d", therms), null);
+  assert.equal(targetQuantityUnit("MWh/d", { reportingCurrency: "EUR", energyUnit: "MWh" }), null);
+  assert.equal(targetQuantityUnit("mcm/d", therms), null, "a volume needs a stated heating value");
+  assert.equal(targetQuantityUnit("EUR", therms), null);
+  const text = convertedQuantityText(
+    { value: 1569585.15, unit: "th/d", native: { value: 46000, unit: "MWh/d" }, simulated: false, normalisation: { from_unit: "MWh/d", to_unit: "th/d", factor: 34.12, heating_value: null, fx: null } },
+    "en",
+    t,
+  );
+  assert.equal(text.text, "1,569,585 th/d (unit factors, exact)");
+  const client = readFileSync(new URL("../src/app/time/useConversion.ts", import.meta.url), "utf8");
+  assert.match(client, /to_quantity_unit: target!/);
+});

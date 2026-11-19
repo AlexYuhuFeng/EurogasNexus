@@ -13,8 +13,10 @@ import {
   conversionAllowed,
   convertedAmountText,
   convertedPriceText,
+  convertedQuantityText,
   targetCurrency,
   targetPriceUnit,
+  targetQuantityUnit,
   type ConvertedText,
   type FigureSubject,
 } from "./valueFormat.ts";
@@ -85,4 +87,25 @@ export function useConvertedAmount({ amount, currency, product, valueDate, subje
   );
   if (!key || !read.data) return null;
   return convertedAmountText(amount as number, read.data, i18n.language || "en", t, digits, simulated);
+}
+
+/** A quantity (a position in MWh/d) in the reader's energy unit: physical factors, server-side. */
+export function useConvertedQuantity({ value, unit, simulated = false }: { value: number | null | undefined; unit: string; simulated?: boolean }): ConvertedText | null {
+  const { t, i18n } = useTranslation();
+  const preference = useDisplayPreferenceStore();
+  const target = typeof value === "number" && Number.isFinite(value) ? targetQuantityUnit(unit, preference) : null;
+  const key = target ? readKey("/market/normalise#quantity", { value, unit, to: target, simulated: simulated ? 1 : 0 }) : null;
+  const read = useCachedRead(
+    key,
+    async (signal) => {
+      const response = await api.normaliseMarket(
+        { to_quantity_unit: target!, values: [], quantities: [{ value: value as number, unit, simulated }] },
+        { signal },
+      );
+      return response.data.quantities?.[0] ?? null;
+    },
+    { freshMs: 60 * 60_000 },
+  );
+  if (!key || !read.data) return null;
+  return convertedQuantityText(read.data, i18n.language || "en", t);
 }

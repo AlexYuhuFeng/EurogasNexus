@@ -186,3 +186,43 @@ def test_conversion_record_states_factors_and_fx():
     assert [step["step"] for step in record["steps"]] == ["unit", "fx"]
     assert record["fx"]["method"] == "derived: covered interest parity"
     assert record["units_authority"] == "domain.ontology.quantity"
+
+
+def test_quantities_convert_with_fixed_physical_factors_and_never_fx():
+    from eurogas_nexus.application.market_normalisation import normalise_quantity
+
+    therms = normalise_quantity(46_000, "MWh/d", "th/d")
+    assert therms["value"] == pytest.approx(46_000 * 34.12141633, rel=1e-9)
+    assert therms["unit"] == "th/d" and therms["native"] == {"value": 46_000, "unit": "MWh/d"}
+    assert therms["normalisation"]["fx"] is None
+    assert therms["tolerance"]["basis"] == "exact factors"
+    assert normalise_quantity(1, "GWh/d", "MWh/d")["value"] == pytest.approx(1000)
+    assert normalise_quantity(10, "MMBtu", "GJ")["value"] == pytest.approx(10.5505585262)
+    # Between volume and energy only with a heating value: the desk's assumption, said as such.
+    volume = normalise_quantity(1, "mcm/d", "GWh/d")
+    assert volume["value"] == pytest.approx(DESK_ASSUMED_GCV_KWH_PER_M3)
+    assert volume["normalisation"]["heating_value"]["basis"] == "assumption"
+    stated = normalise_quantity(1, "mcm/d", "GWh/d", gcv_kwh_per_m3=11.5)
+    assert stated["value"] == pytest.approx(11.5)
+    assert normalise_quantity(5, "MWh/d", "th/d", simulated=True)["simulated"] is True
+
+
+@pytest.mark.parametrize(
+    ("from_unit", "to_unit", "code"),
+    [
+        ("MWh/d", "MWh", "time_basis_differs"),
+        ("MWh/w", "MWh/d", "unsupported_quantity_unit"),
+        ("EUR/MWh", "MWh", "unsupported_quantity_unit"),
+        ("MW", "MWh", "unsupported_quantity_unit"),
+        ("t", "MWh", "unsupported_quantity_unit"),
+    ],
+)
+def test_quantities_refuse_what_they_cannot_convert(from_unit, to_unit, code):
+    from eurogas_nexus.application.market_normalisation import (
+        NormalisationError,
+        normalise_quantity,
+    )
+
+    with pytest.raises(NormalisationError) as raised:
+        normalise_quantity(1, from_unit, to_unit)
+    assert raised.value.code == code

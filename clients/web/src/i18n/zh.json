@@ -5219,5 +5219,7 @@
   "opportunities.title.prompt_arbitrage": "近月价差 · {{subject}}",
   "opportunities.title.prompt_arbitrage.many": "近月价差 · {{subject}} · {{count}} 天",
   "opportunities.ready.prices.simulated": "演示的模拟市场（并非市场价格）",
-  "opportunities.ready.costs.simulated": "模拟演示费率：{{simulated}} 条（非公布费率）· 接收站条款：{{terminals}}"
+  "opportunities.ready.costs.simulated": "模拟演示费率：{{simulated}} 条（非公布费率）· 接收站条款：{{terminals}}",
+  "convert.quantity": "{{figure}}（单位换算，精确）",
+  "convert.quantity_heating": "{{figure}}，按 {{gcv}} kWh/m³（假设热值）"
 }

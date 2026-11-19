@@ -230,6 +230,41 @@ def test_normalise_values_and_series(tmp_path, monkeypatch):
     assert response.json()["meta"]["warnings"]
 
 
+def test_normalise_quantities_without_prices(tmp_path, monkeypatch):
+    """A position in the reader's energy unit: physical factors, no FX, no holdings needed."""
+
+    client = _client(tmp_path, monkeypatch, rows=_rates())
+    response = client.post(
+        "/api/market/normalise",
+        json={
+            "to_quantity_unit": "th/d",
+            "quantities": [
+                {"value": 46000, "unit": "MWh/d", "label": "Net position today"},
+                {"value": 1000, "unit": "MWh/d", "simulated": True},
+            ],
+        },
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["values"] == [] and data["series"] is None
+    first, second = data["quantities"]
+    assert round(first["value"]) == 1_569_585 and first["unit"] == "th/d"
+    assert first["label"] == "Net position today"
+    assert first["normalisation"]["fx"] is None
+    assert second["simulated"] is True
+    bad = client.post(
+        "/api/market/normalise",
+        json={"to_quantity_unit": "MWh", "quantities": [{"value": 1, "unit": "MWh/d"}]},
+    )
+    assert bad.status_code == 422
+    one = {"value": 1, "unit": "MWh/d"}
+    missing = client.post("/api/market/normalise", json={"quantities": [one]})
+    assert missing.status_code == 422
+    price = {"value": 1, "unit": "EUR/MWh"}
+    no_price_unit = client.post("/api/market/normalise", json={"values": [price]})
+    assert no_price_unit.status_code == 422
+
+
 def test_normalise_rejects_unknown_units(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch, rows=_rates())
     bad = client.post("/api/market/normalise",
