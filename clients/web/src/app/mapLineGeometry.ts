@@ -213,6 +213,8 @@ export interface BookFlowLine {
    */
   geometryBasis: "priced_path" | "surveyed" | "segment";
   coordinates: LineCoordinate[];
+  /** A contract path's delivery window (the book view splits it into done and to go). */
+  period?: { label: string; start: string; end: string; elapsed_days: number; total_days: number } | null;
 }
 
 interface BuildBookFlowsParams {

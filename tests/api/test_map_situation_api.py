@@ -423,8 +423,10 @@ def test_our_book_view_draws_the_callers_opportunity_paths(seeded):
         "book_relevance"
     ]
     paths = {item["opportunity_id"]: item for item in book["opportunities"]}
-    # Another office's opportunity, a blocked one and one without two hubs are not drawn.
-    assert sorted(paths) == ["o-act", "o-watch"]
+    # Another office's opportunity and one without two hubs are not drawn; a blocked one is an
+    # outline (it says why on its card).
+    assert sorted(paths) == ["o-act", "o-blocked", "o-watch"]
+    assert paths["o-blocked"]["emphasis"] == "outline"
     act = paths["o-act"]
     assert (act["from_hub"], act["to_hub"], act["emphasis"]) == ("TTF", "THE", "pop")
     assert act["headline"] == {"value": "1.25", "unit": "EUR/MWh"}
@@ -632,3 +634,25 @@ def test_a_reroute_that_names_no_hubs_is_drawn_along_its_stated_route(seeded):
     (item,) = book["opportunities"]
     assert (item["from_hub"], item["to_hub"]) == ("TTF", "NBP")
     assert item["route_stated"] is True
+
+
+def test_an_opportunity_carries_its_window_and_a_closed_one_is_not_drawn(seeded):
+    import os
+
+    client, headers = seeded
+    engine = create_engine(os.environ["RUNTIME_STORE_DATABASE_URL"], future=True)
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        session.add(_contract("nl-ttf", "TTF", "uk-nbp", now))
+        open_one = _opportunity("o-open", "actionable", "TTF", "NBP", "uk-nbp", now)
+        open_one.deadline_utc = now + timedelta(hours=2)
+        closed = _opportunity("o-closed", "actionable", "TTF", "NBP", "uk-nbp", now)
+        closed.deadline_utc = now - timedelta(minutes=5)
+        session.add_all([open_one, closed])
+        session.commit()
+    book = client.get("/api/portfolio/map-situation", headers=headers["uk"]).json()["data"][
+        "book_relevance"
+    ]
+    (item,) = book["opportunities"]
+    assert item["opportunity_id"] == "o-open"
+    assert item["window_closes_utc"].startswith(str((now + timedelta(hours=2)).date()))

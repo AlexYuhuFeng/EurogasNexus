@@ -242,6 +242,37 @@ the date and time; under reduced motion it opens on the finished voyage and the 
 still works. Only reported, timed positions are replayed; the path between untimed
 points is not invented. The map asks for 120 days of completed deals in the book view.
 
+### Routes, re-routes and disruptions in the book view
+
+Decision support only: nothing is nominated, booked or executed; acting on a proposal means
+opening a Review case. These show in the Our book view and on selection, never as permanent
+decoration.
+
+- **Disruptions.** An outage or restriction touching the book is a mark at its point (or, when
+  no source positions it, at its balancing zone's hub, said as "zone-wide"). One that is active
+  and touches our contracts pulses and carries a callout: what, until when, and how much of ours
+  ("Out until 28 Nov · 2 of our contracts, 18,000 MWh/d affected"). The rest are quiet dots that
+  open the same callout when selected (`book_relevance.disruptions`).
+- **Done and to go.** A contract's priced path is split at the share of its gas year delivered:
+  solid behind, dashed ahead; selecting it opens "Delivered 49 of 365 days · 1 Oct – 1 Oct" with a
+  progress bar. Our cargo's callout gives the ETA against its regas slot ("ETA 14 Jan, 1 day late
+  for the slot").
+- **Re-route proposals.** When the R (re-route through the pool) or L evaluator states the way the
+  volume goes now as well as the proposed one, the current path is drawn dimmed and the proposed
+  one highlighted, labelled with the benefit in our terms ("via Bacton (BBL), +0.35 EUR/MWh after
+  tariffs", or "avoids the outage"). Its card is **Now vs Proposed**: route, tariff cost, capacity
+  available, margin, period and input class side by side, the inputs it rests on with source and
+  time, the window left to act, and three actions: Open in Deals → Opportunities, Open a Review
+  case, Dismiss for me. A figure the record does not state reads "not stated"; a closed window
+  takes the opportunity off the map.
+- **Opportunities on a path.** Actionable and indicative ones pop out; watched, confirming (seen
+  once) and blocked ones are outlines, a blocked one saying why on its card ("Cannot evaluate:
+  tariff not held at ITP-10012 …" and the fix). The periods on one path are one line labelled with
+  the strongest ("L +0.355 EUR/MWh ×14"); its list row names each period once.
+- **Needs you.** Today's "What needs me" items that have a place (an outage touching us, an
+  opportunity with a path, a limit with a hub) head the Our book list; selecting one flies the map
+  there and opens its card, selecting on the map highlights its row.
+
 ## Full screen: the wall view
 
 The map normally sits on the Network page beside its information panel: a cockpit, where the
@@ -415,10 +446,12 @@ with the details on hover.
 3. **Colour carries meaning, nothing else.** Red is capacity out now, amber is scheduled,
    the accent colour is the firm's own positions, grey is market information, teal is
    flow. The base map stays muted so these read first.
-4. **Motion only where something is moving.** Dashes move along pipelines that report a
-   flow and along our laden cargoes' remaining leg; live outages pulse slowly. Nothing
-   else animates. Under the operating system's *reduce motion* setting the same layers are
-   static.
+4. **Motion carries meaning, once.** Nothing loops except the slow pulse of a disruption
+   that is active and touches our contracts (book view); every other disruption is a quiet
+   dot, flows and voyages are drawn still. A re-route's proposed line draws in once (at most
+   600 ms); the camera flies with the design system's map motion (`--ds-duration-map`,
+   `--ds-ease-out`; `app/mapMotion.ts`). Under the operating system's *reduce motion* setting
+   nothing moves: the pulse is a still ring, lines appear drawn, the camera jumps.
 5. **Same access as the tables.** Contracts, cargoes and slots in books follow portfolio
    isolation (a regional head sees only their books); market cargoes and outages follow
    the caller's data scopes. The map is never a side door.

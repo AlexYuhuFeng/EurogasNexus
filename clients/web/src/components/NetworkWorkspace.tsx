@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { useApiStore } from "@/stores/api";
 import { useShellLayout } from "@/app/shell/useShellLayout";
-import type { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
+import { api, type EdgeDTO, type NodeDTO, type RouteEligibilityDTO, type TodayNeedsMeItemDTO } from "@/api/client";
 import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
 import { legPaths, zoneMemberIds } from "@/app/mapLineGeometry";
 import { normalizePointName } from "@/app/routeMetadata";
@@ -10,12 +10,21 @@ import { isMapEligibleNode, type NetworkGeometryState } from "@/app/workspaceDer
 import {
   bookEmphasis,
   bookReasonLines,
+  cargoProgress,
   contractPathLines,
+  disruptionCallout,
+  disruptionMarks,
   opportunityPathLines,
+  periodFraction,
+  periodLine,
+  pointAtFraction,
+  proposalLines,
   reachablePathLines,
+  windowClosed,
+  windowLeft,
 } from "@/app/mapBookRelevance";
-import { MapBookRelevance, OpportunityCard } from "@/components/MapBookRelevance";
-import { GasNetworkMap } from "@/components/GasNetworkMap";
+import { MapBookRelevance, OpportunityCard, type NeedsYouRow } from "@/components/MapBookRelevance";
+import { GasNetworkMap, type MapCallout } from "@/components/GasNetworkMap";
 import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
 import { buildSites, topologyIssues, type MapSelection } from "@/app/mapSelection";
 import { MAP_SITUATION_REFRESH_MS, useMapSituation } from "@/app/hooks/useMapSituation";
@@ -62,6 +71,11 @@ interface NetworkWorkspaceProps {
    * Inspector it opened, the panel drawer, open popovers).
    */
   active?: boolean;
+  /**
+   * Today's "What needs me" (CP-19). Those with a place on the map (an outage touching us, an
+   * opportunity with a path, a limit with a hub) are listed beside the map in the Our book tab.
+   */
+  needsMe?: TodayNeedsMeItemDTO[];
 }
 
 /** The panel's tab, held in the URL (`panel=`), following Back and Forward. */
@@ -125,6 +139,7 @@ export function NetworkWorkspace({
   capacity,
   language,
   active = true,
+  needsMe = [],
 }: NetworkWorkspaceProps) {
   const compactLayout = useShellLayout().widthClass === "compact";
   const [statusOpen, setStatusOpen] = useState(false);
@@ -296,10 +311,70 @@ export function NetworkWorkspace({
   // Our contracts' priced paths, width by contract volume, along the drawn legs.
   const bookFlows = useMemo(() => contractPathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
   const reachableLines = useMemo(() => reachablePathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
-  // The opportunity class (CP-21): the core's opportunities with a path, and the one opened.
-  const opportunityLines = useMemo(() => opportunityPathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
+  const tr = t as (key: string, options?: Record<string, unknown>) => string;
+  // A clock for the windows to act: an opportunity whose window closed leaves the map.
+  const [clockMs, setClockMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return undefined;
+    setClockMs(Date.now());
+    const id = window.setInterval(() => setClockMs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [active]);
+  // Opportunities dismissed here leave the map at once (the server hides them on its next read),
+  // and so do those whose window closed.
+  const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(new Set());
+  const hiddenIds = useMemo(() => {
+    const out = new Set(dismissedIds);
+    for (const item of relevance?.opportunities ?? []) if (windowClosed(item, clockMs)) out.add(item.opportunity_id);
+    return out;
+  }, [clockMs, dismissedIds, relevance]);
+  // Re-route and locational alternatives: the current way against the proposed one.
+  const proposals = useMemo(
+    () => proposalLines(relevance, nodeById, tr, legPath).filter((line) => !hiddenIds.has(line.opportunityId)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hiddenIds, legPath, nodeById, relevance, language],
+  );
+  // The opportunity class (CP-21): the core's opportunities with a path, and the one opened. One
+  // drawn as a proposal is not drawn twice.
+  const opportunityLines = useMemo(() => {
+    const proposed = new Set(proposals.map((line) => line.opportunityId));
+    return opportunityPathLines(relevance, nodeById, legPath, new Set([...hiddenIds, ...proposed]));
+  }, [hiddenIds, legPath, nodeById, proposals, relevance]);
   const [openOpportunityId, setOpenOpportunityId] = useState<string | null>(null);
   const openOpportunity = relevance?.opportunities?.find((item) => item.opportunity_id === openOpportunityId) ?? null;
+  // Disruptions touching the book, and the mark the trader opened (a disruption or a contract's
+  // window): its callout shows on the map and its row is highlighted in "Needs you".
+  const disruptions = useMemo(() => relevance?.disruptions ?? [], [relevance]);
+  const disruptionPlaces = useMemo(() => disruptionMarks(relevance), [relevance]);
+  const [openMark, setOpenMark] = useState<{ kind: "disruption" | "contract"; id: string } | null>(null);
+  const pathOf = (opportunityId: string) => {
+    const proposed = proposals.find((line) => line.opportunityId === opportunityId)?.proposed;
+    if (proposed) return proposed;
+    // A member of a grouped line shares its lead's path.
+    const item = relevance?.opportunities?.find((entry) => entry.opportunity_id === opportunityId);
+    const lead = item
+      ? relevance?.opportunities?.find(
+          (entry) => opportunityLines.some((line) => line.opportunityId === entry.opportunity_id)
+            && entry.path_node_ids.join(">") === item.path_node_ids.join(">"),
+        )
+      : null;
+    return opportunityLines.find((line) => line.opportunityId === (lead?.opportunity_id ?? opportunityId))?.coordinates ?? null;
+  };
+  const openOpportunityOnMap = (id: string) => {
+    setOpenOpportunityId(id);
+    setOpenMark(null);
+    setSelection(null);
+    const path = pathOf(id);
+    if (path) setFocus({ path, nonce: Date.now() });
+    if (compactLayout) setSheetRaised(false);
+  };
+  const openDisruption = (id: string, fly = true) => {
+    setOpenMark({ kind: "disruption", id });
+    setOpenOpportunityId(null);
+    const item = disruptions.find((entry) => entry.event_id === id);
+    if (fly && item) setFocus({ at: [item.location.lon, item.location.lat], nonce: Date.now() });
+    if (compactLayout) setSheetRaised(false);
+  };
   // Our book: the book's own panels, in the panel's fourth tab, only in the "Our book" view
   // and only for a caller who may read the book. They belong to the book, not to the network.
   const currentUser = useApiStore((state) => state.currentUser);
@@ -381,13 +456,25 @@ export function NetworkWorkspace({
   const selectOnMap = (next: MapSelection | null) => {
     setSelection(next);
     if (next) setOpenOpportunityId(null);
+    if (next) setOpenMark(null);
     if (!next) setSelectedRow(null);
   };
   const detail = openOpportunity && mapView === "book" ? (
     <OpportunityCard
       item={openOpportunity}
-      t={t as (key: string, options?: Record<string, unknown>) => string}
+      t={tr}
+      language={language}
+      windowLeft={windowLeft(openOpportunity.window_closes_utc, clockMs)}
       onClose={() => setOpenOpportunityId(null)}
+      onOpenCase={async () => {
+        const response = await api.openOpportunityCase(openOpportunity.opportunity_id);
+        return response.data?.case?.case_id ?? null;
+      }}
+      onDismiss={async (reason) => {
+        await api.setOpportunityState(openOpportunity.opportunity_id, { action: "dismiss", reason });
+        setDismissedIds((held) => new Set([...held, openOpportunity.opportunity_id]));
+        setOpenOpportunityId(null);
+      }}
     />
   ) : selection ? (
     <MapDetailPanel
@@ -427,6 +514,80 @@ export function NetworkWorkspace({
   const [sheetRaised, setSheetRaised] = useState(false);
   const dragRef = useRef<{ startY: number; raised: boolean } | null>(null);
 
+  // "Needs you" beside the map: Today's items that have a place on it.
+  const needsYou = useMemo<NeedsYouRow[]>(() => {
+    const rows: NeedsYouRow[] = [];
+    for (const item of needsMe) {
+      const title = language.startsWith("zh") && item.title_zh ? item.title_zh : item.title;
+      if (item.kind === "outage") {
+        const place = disruptions.find((entry) => entry.event_id === item.id);
+        if (!place) continue;
+        rows.push({ key: `outage:${item.id}`, kind: "outage", id: item.id, title, line: disruptionCallout(place, tr, language).lines.join(" · "), simulated: item.simulated });
+      } else if (item.kind === "opportunity") {
+        if (!pathOf(item.id)) continue;
+        const opportunity = relevance?.opportunities?.find((entry) => entry.opportunity_id === item.id);
+        rows.push({ key: `opportunity:${item.id}`, kind: "opportunity", id: item.id, title, line: opportunity ? `${opportunity.from_hub} → ${opportunity.to_hub} · ${opportunity.period}` : item.period ?? "", simulated: item.simulated });
+      } else if (item.kind === "limit" && item.hub) {
+        const hub = nodes.find((node) => node.node_type === "hub" && node.name.toUpperCase() === item.hub!.toUpperCase());
+        if (!hub) continue;
+        rows.push({ key: `limit:${item.id}`, kind: "limit", id: item.id, title, line: item.hub, simulated: item.simulated, refId: hub.id });
+      }
+    }
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disruptions, language, needsMe, nodes, opportunityLines, proposals, relevance]);
+  const activeNeed = openMark?.kind === "disruption"
+    ? `outage:${openMark.id}`
+    : openOpportunityId ? `opportunity:${openOpportunityId}` : null;
+  const selectNeed = (row: NeedsYouRow) => {
+    if (row.kind === "outage") openDisruption(row.id);
+    else if (row.kind === "opportunity") openOpportunityOnMap(row.id);
+    else if (row.refId) {
+      const hub = nodeById.get(row.refId);
+      if (hub) selectOnMap({ kind: "hub", id: hub.name.toUpperCase() });
+      setFocus({ refId: row.refId, nonce: Date.now() });
+      if (compactLayout) setSheetRaised(false);
+    }
+  };
+  // The callouts on the map. Calm by default: in the book view, one per disruption that pulses;
+  // otherwise only for what is opened (a disruption, a contract's window, our cargo's voyage).
+  const callouts = useMemo<MapCallout[]>(() => {
+    const out: MapCallout[] = [];
+    if (mapView === "book") {
+      for (const item of disruptions) {
+        if (!item.pulse && !(openMark?.kind === "disruption" && openMark.id === item.event_id)) continue;
+        const { title, lines } = disruptionCallout(item, tr, language);
+        out.push({ id: `disruption:${item.event_id}`, at: [item.location.lon, item.location.lat], title, lines, tone: "alert" });
+      }
+    }
+    if (openMark?.kind === "contract") {
+      const line = bookFlows.find((entry) => entry.id === openMark.id);
+      const at = line ? pointAtFraction(line.coordinates, 0.5) : null;
+      if (line && at) {
+        const names = (relevance?.contract_paths ?? []).filter((path) => line.routeIds.includes(path.contract_id)).map((path) => path.contract);
+        const period = line.period ?? null;
+        out.push({
+          id: `contract:${line.id}`,
+          at,
+          title: names.join(" · ") || line.label,
+          lines: period ? [periodLine(period, tr, language)] : [tr("map.book.progress_no_window")],
+          progress: periodFraction(period),
+          tone: "own",
+        });
+      }
+    }
+    if (selection?.kind === "cargo") {
+      const cargo = situation?.cargoes.find((item) => item.cargo_id === selection.id);
+      const at = cargo?.position ?? cargo?.destination;
+      if (cargo?.own && at) {
+        const voyage = cargoProgress(cargo, situation?.regas_slots ?? [], nowMs, tr, language);
+        out.push({ id: `cargo:${cargo.cargo_id}`, at: [at.lon, at.lat], title: cargo.vessel_name, lines: [voyage.line], progress: voyage.fraction, tone: "own" });
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookFlows, disruptions, language, mapView, nowMs, openMark, relevance, selection, situation]);
+
   const bookPanels = (
     <section className="network-book-tab" aria-label={t("network.panel.tab.book")}>
       <MapBookPanel
@@ -439,13 +600,12 @@ export function NetworkWorkspace({
       <MapBookRelevance
         relevance={relevance}
         language={language}
-        onSelectOpportunity={(id) => {
-          setOpenOpportunityId(id);
-          setSelection(null);
-          // Fly the map to the opportunity's path.
-          const line = opportunityLines.find((item) => item.opportunityId === id);
-          if (line) setFocus({ path: line.coordinates, nonce: Date.now() });
-        }}
+        needsYou={needsYou}
+        activeNeed={activeNeed}
+        activeOpportunity={openOpportunityId}
+        onSelectNeed={selectNeed}
+        // Fly the map to the opportunity's path and open its card.
+        onSelectOpportunity={openOpportunityOnMap}
         t={t as (key: string, options?: Record<string, unknown>) => string}
         onSelectHub={(hubNodeId) => {
           const hub = nodeById.get(hubNodeId);
@@ -662,8 +822,19 @@ export function NetworkWorkspace({
           bookOpportunities={opportunityLines}
           onSelectOpportunity={(id) => {
             setOpenOpportunityId(id);
+            setOpenMark(null);
             setSelection(null);
           }}
+          bookDisruptions={disruptionPlaces}
+          onSelectDisruption={(id) => openDisruption(id, false)}
+          bookProposals={proposals}
+          // The proposed line draws in when it first shows and again when it is opened.
+          drawInKey={openOpportunityId ?? "shown"}
+          onSelectContractLine={(id) => {
+            setOpenMark({ kind: "contract", id });
+            setOpenOpportunityId(null);
+          }}
+          callouts={callouts}
           // The page holds the selection: the panel lists what the selected object relates
           // to and shows its card, so the map draws no card of its own.
           selection={selection}

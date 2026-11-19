@@ -3425,6 +3425,64 @@ export interface BookOpportunityPathDTO {
   route_stated?: boolean;
   /** on_book: starts or ends at one of our hubs; adjacent: a crossing away; other. */
   relation?: "on_book" | "adjacent" | "other";
+  /** The record also states the way the volume goes now (re-route, locational alternative). */
+  proposal?: BookProposalDTO | null;
+  /** When the window to act closes (the record's deadline, else its expiry). */
+  window_closes_utc?: string | null;
+  /** Why the core holds it back (a blocked record): the blocker's own words and its fix. */
+  blocked?: { code: string; subject: string; text: string; fix?: string } | null;
+}
+
+/** One side of a now-against-proposed reading: the record's own texts, null = not stated. */
+export interface BookProposalSideDTO {
+  to_hub: string | null;
+  via: string[];
+  tariff: string | null;
+  capacity: string | null;
+  margin: string | null;
+  period: string;
+  input_class: { class: string; label: string };
+}
+
+export interface BookProposalDTO {
+  /** The current path's nodes; one node when the volume is sold where it is delivered. */
+  current_path_node_ids: string[];
+  current_route_stated: boolean;
+  now: BookProposalSideDTO;
+  proposed: BookProposalSideDTO;
+  benefit: { via: string | null; headline: { value: string | null; unit: string }; avoids_outage: string | null };
+  /** The inputs it rests on: label, source family and reference, as-of time, input class. */
+  evidence: Array<{ label: string; source_family: string | null; source_ref: string | null; as_of_utc: string | null; input_class: string | null }>;
+}
+
+/** The gas-year window of a contract and the days delivered. */
+export interface BookContractPeriodDTO {
+  label: string;
+  start: string;
+  end: string;
+  elapsed_days: number;
+  total_days: number;
+}
+
+/** An outage or restriction touching the book, with how much of ours it touches. */
+export interface BookDisruptionDTO {
+  event_id: string;
+  facility_name: string | null;
+  status: "active" | "scheduled" | string | null;
+  start_utc: string | null;
+  end_utc: string | null;
+  unavailable_gwh_d: number | null;
+  simulated: boolean;
+  /** "point": at its located point; "zone": no source positions it, placed at its zone's hub. */
+  placement: "point" | "zone";
+  hub: string | null;
+  location: { lon: number; lat: number };
+  touches: "ours" | "reachable" | "opportunity";
+  contracts: string[];
+  /** Delivery of the contracts touched (what is exposed), MWh/d. */
+  affected_mwh_d: number;
+  /** Active and touching our own contracts: the one mark on the map that pulses. */
+  pulse: boolean;
 }
 
 export interface BookArrivalDTO {
@@ -3442,6 +3500,7 @@ export interface BookContractPathDTO {
   to_hub: string;
   mwh_d: number | null;
   path_node_ids: string[];
+  period?: BookContractPeriodDTO | null;
 }
 
 export interface BookRelevanceDTO {
@@ -3454,6 +3513,10 @@ export interface BookRelevanceDTO {
   /** Expected LNG arrivals at terminals where we hold slots (newer servers). */
   arrivals?: BookArrivalDTO[];
   outages_touching: string[];
+  /** Outages touching the book with what of ours they touch (newer servers). */
+  disruptions?: BookDisruptionDTO[];
+  /** Contract id -> its gas-year window and days delivered (newer servers). */
+  contract_periods?: Record<string, BookContractPeriodDTO | null>;
 }
 
 /** North-west Europe balance: measured history and the component forecast. */

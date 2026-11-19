@@ -434,6 +434,7 @@ def build_map_situation(
                     "end_utc": row.get("end_utc"),
                     "unavailable_gwh_d": row.get("unavailable_gwh_d"),
                     "source_system": row.get("source_system"),
+                    "source_reference": row.get("source_reference"),
                 }
             )
             continue
@@ -462,6 +463,8 @@ def build_map_situation(
                         "source_system",
                     )
                 },
+                # A demo message says so here (its platform field is "REMIT").
+                "source_reference": row.get("source_reference"),
                 # The platform and the credit its terms ask for (ENTSOG: with the date).
                 "platform": row.get("platform", ""),
                 "attribution": row.get("attribution", ""),

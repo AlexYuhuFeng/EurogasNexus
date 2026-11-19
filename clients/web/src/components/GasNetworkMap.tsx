@@ -38,6 +38,8 @@ import {
 } from "@/app/networkMapLines";
 import { lineMatters, NO_ROUTES_MATTER, type RoutesThatMatter } from "@/app/routeEmphasis";
 import { warmMapAssets } from "@/app/mapAssetWarmup";
+import { periodFraction, splitAtFraction, type DisruptionMark, type ProposalLine } from "@/app/mapBookRelevance";
+import { cameraMotion, drawInDuration, easeOut, prefersReducedMotion } from "@/app/mapMotion";
 import {
   type BookFlowLine,
   compactMwhPerDay,
@@ -171,6 +173,32 @@ interface GasNetworkMapProps {
   }>;
   /** Selecting an opportunity path or its label opens the opportunity. */
   onSelectOpportunity?: (opportunityId: string) => void;
+  /**
+   * Disruptions touching the book (book view): a quiet mark each; one active and touching our
+   * contracts pulses slowly (a ring, no pulse, under reduced motion). Selecting opens it.
+   */
+  bookDisruptions?: DisruptionMark[];
+  onSelectDisruption?: (eventId: string) => void;
+  /**
+   * Re-route and locational alternatives (book view): the current way dimmed, the proposed
+   * one highlighted with its benefit on the line, drawn in once when `drawInKey` changes.
+   */
+  bookProposals?: ProposalLine[];
+  drawInKey?: string | number | null;
+  /** Selecting a contract's path (its done or to-go part) opens its window. */
+  onSelectContractLine?: (lineId: string) => void;
+  /** Callouts anchored on the map: what, until when, how much of ours, progress. */
+  callouts?: MapCallout[];
+}
+
+/** A callout on the map: a title, short lines and an optional progress bar (0..1). */
+export interface MapCallout {
+  id: string;
+  at: [number, number];
+  title: string;
+  lines: string[];
+  progress?: number | null;
+  tone: "alert" | "own" | "opportunity";
 }
 
 /**
@@ -229,12 +257,8 @@ let MAP_INSTANCES = 0;
 function focusOn(map: MapLibreMap, center: [number, number], zoom: number): void {
   const target = { center, zoom: Math.min(zoom, map.getMaxZoom()) };
   if (prefersReducedMotion()) map.jumpTo(target);
-  else map.flyTo({ ...target, speed: 1.4, curve: 1.42, essential: false });
-}
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function"
-    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The design system's map motion (--ds-duration-map, --ds-ease-out).
+  else map.flyTo({ ...target, ...cameraMotion(), essential: false });
 }
 
 type FeatureCollectionData = Parameters<GeoJSONSource["setData"]>[0];
@@ -366,6 +390,12 @@ export function GasNetworkMap({
   bookReachable = [],
   bookOpportunities = [],
   onSelectOpportunity,
+  bookDisruptions = [],
+  onSelectDisruption,
+  bookProposals = [],
+  drawInKey = null,
+  onSelectContractLine,
+  callouts = [],
   selection: selectionProp,
   onSelectionChange,
   detailCard = true,
@@ -1392,13 +1422,26 @@ export function GasNetworkMap({
   // The book's flows: one line per origin and destination, width by volume, the volume at the
   // destination and a single arrowhead for direction. Drawn under the points.
   const bookFlowMarkersRef = useRef<Marker[]>([]);
+  const selectContractLineRef = useRef(onSelectContractLine);
+  selectContractLineRef.current = onSelectContractLine;
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
     const accent = SITUATION_COLOURS[effectiveTheme].own;
+    // In the book view a contract's path reads as its delivery window: the part delivered
+    // solid, the part to go dashed (split along the line at the share of days delivered).
+    const parts = bookFlows.flatMap((flow) => {
+      const fraction = view === "book" ? periodFraction(flow.period) : null;
+      if (fraction === null || fraction >= 1) return [{ flow, part: "done", coordinates: flow.coordinates }];
+      const { done, toGo } = splitAtFraction(flow.coordinates, fraction);
+      return [
+        ...(done.length > 1 ? [{ flow, part: "done", coordinates: done }] : []),
+        ...(toGo.length > 1 ? [{ flow, part: "to_go", coordinates: toGo }] : []),
+      ];
+    });
     const data = {
       type: "FeatureCollection" as const,
-      features: bookFlows.map((flow) => ({
+      features: parts.map(({ flow, part, coordinates }) => ({
         type: "Feature" as const,
         properties: {
           id: flow.id,
@@ -1407,10 +1450,11 @@ export function GasNetworkMap({
           width: flow.width,
           mwh_d: flow.mwhPerDay,
           geometry_basis: flow.geometryBasis,
+          part,
         },
         geometry: {
           type: "LineString" as const,
-          coordinates: flow.coordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
+          coordinates: coordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
         },
       })),
     };
@@ -1419,6 +1463,7 @@ export function GasNetworkMap({
         id: "book-flow-lines",
         type: "line",
         source: "book-flow-lines",
+        filter: ["!=", ["get", "part"], "to_go"],
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": accent,
@@ -1426,9 +1471,30 @@ export function GasNetworkMap({
           "line-opacity": VIEW_EMPHASIS[view]["book-flow-lines"] as number,
         },
       }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+      map.addLayer({
+        id: "book-flow-ahead",
+        type: "line",
+        source: "book-flow-lines",
+        filter: ["==", ["get", "part"], "to_go"],
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": accent,
+          "line-width": ["max", 1.5, ["*", 0.6, ["get", "width"]]],
+          "line-opacity": 0.8,
+          "line-dasharray": [1.6, 1.2],
+        },
+      }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+      for (const layerId of ["book-flow-lines", "book-flow-ahead"]) {
+        map.on("click", layerId, (event) => {
+          const id = event.features?.[0]?.properties?.id;
+          if (id) selectContractLineRef.current?.(String(id));
+        });
+      }
     }
     map.setPaintProperty("book-flow-lines", "line-color", accent);
+    map.setPaintProperty("book-flow-ahead", "line-color", accent);
     map.setLayoutProperty("book-flow-lines", "visibility", activeLayers.includes("positions") ? "visible" : "none");
+    map.setLayoutProperty("book-flow-ahead", "visibility", activeLayers.includes("positions") ? "visible" : "none");
     const clear = () => {
       bookFlowMarkersRef.current.forEach((marker) => marker.remove());
       bookFlowMarkersRef.current = [];
@@ -1493,6 +1559,163 @@ export function GasNetworkMap({
     };
   }, [activeLayers, bookFlows, effectiveTheme, mapReady, situation, view]);
 
+
+  // Disruptions touching the book (book view only): a quiet mark each; the ones active and
+  // touching our contracts pulse slowly (the map's only loop; a still ring under reduced
+  // motion, in CSS). Selecting one opens its callout.
+  const selectDisruptionRef = useRef(onSelectDisruption);
+  selectDisruptionRef.current = onSelectDisruption;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || view !== "book") return;
+    const markers = bookDisruptions.map((mark) => {
+      const element = document.createElement("button");
+      element.type = "button";
+      element.className = `map-disruption${mark.pulse ? " is-pulse" : ""}${mark.active ? " is-active" : " is-scheduled"}`;
+      element.setAttribute("aria-label", t("map.book.disruption_mark"));
+      element.dataset.eventId = mark.id;
+      element.innerHTML = '<span class="map-disruption-ring" aria-hidden="true"></span><span class="map-disruption-dot" aria-hidden="true"></span>';
+      element.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectDisruptionRef.current?.(mark.id);
+      });
+      return new Marker({ element, anchor: "center" }).setLngLat(toMapCoordinates(mark.at[0], mark.at[1])).addTo(map);
+    });
+    return () => markers.forEach((marker) => marker.remove());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookDisruptions, mapReady, view]);
+
+  // Re-route and locational alternatives (book view): the current way dimmed, the proposed
+  // one highlighted, with its benefit on the line. The proposed line draws in once (at most
+  // 600 ms, the map's motion tokens) when it first shows or is selected; at once under
+  // reduced motion.
+  const proposalMarkersRef = useRef<Marker[]>([]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const colour = SITUATION_COLOURS[effectiveTheme].opportunity;
+    const muted = effectiveTheme === "dark" ? "#a1a1aa" : "#71717a";
+    const shown = view === "book" ? bookProposals : [];
+    const lineData = (share: number) => ({
+      type: "FeatureCollection" as const,
+      features: shown.flatMap((line) => {
+        const proposed = share >= 1 ? line.proposed : splitAtFraction(line.proposed, share).done;
+        return [
+          ...(line.current.length > 1
+            ? [{
+                type: "Feature" as const,
+                properties: { id: line.id, opportunity_id: line.opportunityId, part: "current" },
+                geometry: { type: "LineString" as const, coordinates: line.current.map(([lon, lat]) => toMapCoordinates(lon, lat)) },
+              }]
+            : []),
+          ...(proposed.length > 1
+            ? [{
+                type: "Feature" as const,
+                properties: { id: line.id, opportunity_id: line.opportunityId, part: "proposed" },
+                geometry: { type: "LineString" as const, coordinates: proposed.map(([lon, lat]) => toMapCoordinates(lon, lat)) },
+              }]
+            : []),
+        ];
+      }),
+    });
+    if (upsertSource(map, "book-proposals", lineData(1))) {
+      map.addLayer({
+        id: "book-proposal-current",
+        type: "line",
+        source: "book-proposals",
+        filter: ["==", ["get", "part"], "current"],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": muted, "line-width": 3, "line-opacity": 0.45 },
+      }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+      map.addLayer({
+        id: "book-proposal-lines",
+        type: "line",
+        source: "book-proposals",
+        filter: ["==", ["get", "part"], "proposed"],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": colour, "line-width": 4.5, "line-opacity": 0.95 },
+      }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+      map.on("click", "book-proposal-lines", (event) => {
+        const id = event.features?.[0]?.properties?.opportunity_id;
+        if (id) selectOpportunityRef.current?.(String(id));
+      });
+    }
+    map.setPaintProperty("book-proposal-current", "line-color", muted);
+    map.setPaintProperty("book-proposal-lines", "line-color", colour);
+    const source = map.getSource("book-proposals") as GeoJSONSource;
+    const duration = drawInDuration();
+    let frame = 0;
+    if (duration > 0 && shown.length) {
+      const started = performance.now();
+      const step = (time: number) => {
+        const share = Math.min(1, (time - started) / duration);
+        source.setData(lineData(easeOut(share)));
+        if (share < 1) frame = requestAnimationFrame(step);
+      };
+      source.setData(lineData(0));
+      frame = requestAnimationFrame(step);
+    } else {
+      source.setData(lineData(1));
+    }
+    proposalMarkersRef.current.forEach((marker) => marker.remove());
+    proposalMarkersRef.current = shown.map((line) => {
+      const element = document.createElement("button");
+      element.type = "button";
+      element.className = "map-node-label map-proposal-label";
+      element.textContent = line.label;
+      element.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectOpportunityRef.current?.(line.opportunityId);
+      });
+      return new Marker({ element, anchor: "bottom", offset: [0, -8] })
+        .setLngLat(toMapCoordinates(line.labelAt[0], line.labelAt[1]))
+        .addTo(map);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      proposalMarkersRef.current.forEach((marker) => marker.remove());
+      proposalMarkersRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookProposals, drawInKey, effectiveTheme, mapReady, view]);
+
+  // Callouts: what, until when, how much of ours, and a progress bar for a window or voyage.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !callouts.length) return;
+    const markers = callouts.map((callout) => {
+      const element = document.createElement("div");
+      element.className = `map-callout is-${callout.tone}`;
+      element.dataset.callout = callout.id;
+      const title = document.createElement("strong");
+      title.textContent = callout.title;
+      element.appendChild(title);
+      for (const line of callout.lines) {
+        const row = document.createElement("span");
+        row.textContent = line;
+        element.appendChild(row);
+      }
+      if (typeof callout.progress === "number") {
+        const bar = document.createElement("span");
+        bar.className = "map-callout-progress";
+        bar.setAttribute("role", "progressbar");
+        bar.setAttribute("aria-valuemin", "0");
+        bar.setAttribute("aria-valuemax", "100");
+        bar.setAttribute("aria-valuenow", String(Math.round(callout.progress * 100)));
+        const fill = document.createElement("span");
+        fill.style.width = `${Math.round(callout.progress * 100)}%`;
+        bar.appendChild(fill);
+        element.appendChild(bar);
+      }
+      const marker = new Marker({ element, anchor: "bottom", offset: [0, -16] })
+        .setLngLat(toMapCoordinates(callout.at[0], callout.at[1]))
+        .addTo(map);
+      // A callout reads above the point labels it sits among.
+      marker.getElement().style.zIndex = "6";
+      return marker;
+    });
+    return () => markers.forEach((marker) => marker.remove());
+  }, [callouts, mapReady]);
 
   // Live situation layers. Added once, then fed with setData; visibility follows the
   // layer chips. Hover shows a compact card; nothing here opens a second detail pane.
@@ -2035,7 +2258,7 @@ export function GasNetworkMap({
       const lats = projected.map((point) => point[1]);
       map.fitBounds(
         [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
-        { padding: 80, maxZoom: 7, duration: prefersReducedMotion() ? 0 : 900 },
+        { padding: 80, maxZoom: 7, ...cameraMotion() },
       );
       return;
     }
@@ -2091,36 +2314,8 @@ export function GasNetworkMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hoverAt?.[0], hoverAt?.[1], mapReady]);
 
-  // Motion that carries meaning only: gas moving along flowing pipelines, the firm's laden
-  // cargoes heading in, and a slow pulse on capacity that is out now. Off under
-  // prefers-reduced-motion, where the same layers stay static.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || prefersReducedMotion()) return;
-    const dashSteps: number[][] = [
-      [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0],
-      [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5],
-      [0, 3, 3, 1], [0, 3.5, 3, 0.5],
-    ];
-    let frame = 0;
-    let step = -1;
-    const tick = (time: number) => {
-      const next = Math.floor(time / 70) % dashSteps.length;
-      if (next !== step) {
-        step = next;
-        for (const layerId of ["situation-pipeline-flow", "situation-cargo-ahead"]) {
-          if (map.getLayer(layerId)) map.setPaintProperty(layerId, "line-dasharray", dashSteps[step]);
-        }
-      }
-      if (map.getLayer("situation-outage-halo")) {
-        const phase = (Math.sin(time / 650) + 1) / 2;
-        map.setPaintProperty("situation-outage-halo", "circle-opacity", 0.06 + phase * 0.16);
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [mapReady]);
+  // Motion rules (design system): nothing on the map loops except the pulse of a disruption
+  // touching the book (CSS, `.map-disruption.is-pulse`). Flows and voyages are drawn still.
 
   useEffect(() => {
     const map = mapRef.current;

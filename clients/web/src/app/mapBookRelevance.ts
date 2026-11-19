@@ -10,8 +10,17 @@
  * none until it lands). This module turns them into what the map draws and what a selection
  * says: everything else dims.
  */
-import type { BookOpportunityPathDTO, BookReachableDTO, BookReasonDTO, BookRelevanceDTO } from "../api/client";
-import { formattingLocale } from "./time/timeFormat.ts";
+import type {
+  BookContractPeriodDTO,
+  BookDisruptionDTO,
+  BookOpportunityPathDTO,
+  BookReachableDTO,
+  BookReasonDTO,
+  BookRelevanceDTO,
+  MapCargoDTO,
+  MapRegasSlotDTO,
+} from "../api/client";
+import { formatGasDay, formattingLocale } from "./time/timeFormat.ts";
 import { bookFlowWidth, compactMwhPerDay, polyline, type BookFlowLine, type LegPath, type LineEndpoint, type LineCoordinate } from "./mapLineGeometry.ts";
 
 export type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -58,6 +67,8 @@ export function contractPathLines(
       existing.mwhPerDay += volume;
       existing.pathCount += 1;
       existing.routeIds.push(path.contract_id);
+      // Contracts sharing a line split it only when they share the window.
+      if (!samePeriod(existing.period ?? null, path.period ?? null)) existing.period = null;
       continue;
     }
     byPair.set(key, {
@@ -71,6 +82,7 @@ export function contractPathLines(
       pathCount: 1,
       geometryBasis: "priced_path",
       coordinates: polyline(points as LineEndpoint[], legPath),
+      period: path.period ?? null,
     });
   }
   return [...byPair.values()].map((line) => ({
@@ -112,14 +124,53 @@ export function opportunityLabel(item: BookOpportunityPathDTO): string {
   return `${item.type_code} ${signed} ${item.headline.unit}${item.simulated ? " sim" : ""}`;
 }
 
+/** Time left to act, "2 h 10 min" / "12 min" / "3 d 4 h"; null when closed or not stated. */
+export function windowLeft(closesUtc: string | null | undefined, nowMs: number): string | null {
+  if (!closesUtc) return null;
+  const left = Date.parse(closesUtc) - nowMs;
+  if (!Number.isFinite(left) || left <= 0) return null;
+  const minutes = Math.ceil(left / 60_000);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+  if (days > 0) return `${days} d ${hours} h`;
+  if (hours > 0) return `${hours} h ${rest} min`;
+  return `${rest} min`;
+}
+
+/** Whether an opportunity's window to act has closed (it is then not drawn). */
+export function windowClosed(item: Pick<BookOpportunityPathDTO, "window_closes_utc">, nowMs: number): boolean {
+  return Boolean(item.window_closes_utc) && Date.parse(item.window_closes_utc!) <= nowMs;
+}
+
 /** The opportunities' paths along the drawn legs, labelled on the far hub. */
+/**
+ * Opportunities on the same path (one per delivery month, say) are one line: the strongest
+ * stands for the others ("L +0.355 EUR/MWh ×14"); the list and the card name them all.
+ */
+export function groupOpportunities(items: readonly BookOpportunityPathDTO[]): Array<{ lead: BookOpportunityPathDTO; members: BookOpportunityPathDTO[] }> {
+  const groups = new Map<string, BookOpportunityPathDTO[]>();
+  for (const item of items) {
+    const key = `${item.type_code}|${item.path_node_ids.join(">")}`;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  const strength = (item: BookOpportunityPathDTO) =>
+    (item.emphasis === "pop" ? 1e9 : 0) + Number(item.headline.value ?? Number.NEGATIVE_INFINITY);
+  return [...groups.values()].map((members) => ({
+    lead: [...members].sort((a, b) => strength(b) - strength(a))[0],
+    members,
+  }));
+}
+
 export function opportunityPathLines(
   relevance: BookRelevanceDTO | null | undefined,
   nodes: ReadonlyMap<string, LineEndpoint>,
   legPath?: LegPath,
+  hidden: ReadonlySet<string> = new Set(),
 ): OpportunityPathLine[] {
   const out: OpportunityPathLine[] = [];
-  for (const item of relevance?.opportunities ?? []) {
+  const shown = (relevance?.opportunities ?? []).filter((item) => !hidden.has(item.opportunity_id));
+  for (const { lead: item, members } of groupOpportunities(shown)) {
     const points = item.path_node_ids.map((id) => nodes.get(id));
     if (points.length < 2 || points.some((point) => !point || !Number.isFinite(point.lon))) continue;
     const far = points[points.length - 1]!;
@@ -129,7 +180,7 @@ export function opportunityPathLines(
       emphasis: item.emphasis,
       coordinates: polyline(points as LineEndpoint[], legPath),
       labelAt: [far.lon, far.lat],
-      label: opportunityLabel(item),
+      label: `${opportunityLabel(item)}${members.length > 1 ? ` ×${members.length}` : ""}`,
     });
   }
   return out;
@@ -245,4 +296,199 @@ export function bookReasonLines(
   // One line for the reachable paths that pass here, not one per path.
   if (passing.length) lines.push(t("map.book.reason.on_reachable_path", { paths: passing.join(", ") }));
   return lines;
+}
+
+function samePeriod(a: BookContractPeriodDTO | null, b: BookContractPeriodDTO | null): boolean {
+  return !!a && !!b && a.start === b.start && a.end === b.end;
+}
+
+/* ------------------------------------------------------------------ done and to go */
+
+/** The share of a window elapsed, 0..1, or null without one. */
+export function periodFraction(period: BookContractPeriodDTO | null | undefined): number | null {
+  if (!period || !(period.total_days > 0)) return null;
+  return Math.min(1, Math.max(0, period.elapsed_days / period.total_days));
+}
+
+function segmentLength(a: LineCoordinate, b: LineCoordinate): number {
+  // Degrees scaled by the latitude: enough to place a split along a drawn line.
+  const kx = Math.cos((((a[1] + b[1]) / 2) * Math.PI) / 180);
+  return Math.hypot((b[0] - a[0]) * kx, b[1] - a[1]);
+}
+
+/**
+ * A line cut at a share of its length: the part done (solid) and the part to go (dashed).
+ * The cut point is on both halves, so they meet.
+ */
+export function splitAtFraction(coordinates: readonly LineCoordinate[], fraction: number): { done: LineCoordinate[]; toGo: LineCoordinate[] } {
+  if (coordinates.length < 2) return { done: [...coordinates], toGo: [] };
+  const share = Math.min(1, Math.max(0, fraction));
+  const lengths = coordinates.slice(1).map((point, index) => segmentLength(coordinates[index], point));
+  const total = lengths.reduce((sum, value) => sum + value, 0);
+  if (total === 0 || share >= 1) return { done: [...coordinates], toGo: [] };
+  if (share <= 0) return { done: [], toGo: [...coordinates] };
+  let left = share * total;
+  for (let index = 0; index < lengths.length; index += 1) {
+    if (left <= lengths[index]) {
+      const a = coordinates[index];
+      const b = coordinates[index + 1];
+      const r = lengths[index] === 0 ? 0 : left / lengths[index];
+      const cut: LineCoordinate = [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r];
+      return { done: [...coordinates.slice(0, index + 1), cut], toGo: [cut, ...coordinates.slice(index + 1)] };
+    }
+    left -= lengths[index];
+  }
+  return { done: [...coordinates], toGo: [] };
+}
+
+/** The point at a share of a line's length (a label's anchor). */
+export function pointAtFraction(coordinates: readonly LineCoordinate[], fraction: number): LineCoordinate | null {
+  if (!coordinates.length) return null;
+  const { done } = splitAtFraction(coordinates, fraction);
+  return done.length ? done[done.length - 1] : coordinates[0];
+}
+
+function shortDate(iso: string | null | undefined, language: string): string {
+  // A day as the desk writes it ("28 Nov", "11月28日"), from the instant's UTC date.
+  return iso ? formatGasDay(iso.slice(0, 10), language) : "–";
+}
+
+/** "Delivered 49 of 365 days · 1 Oct – 1 Oct (2026/27)". */
+export function periodLine(period: BookContractPeriodDTO, t: Translate, language = "en"): string {
+  return t("map.book.progress_delivered", {
+    elapsed: period.elapsed_days,
+    total: period.total_days,
+    start: shortDate(period.start, language),
+    end: shortDate(period.end, language),
+    label: period.label,
+  });
+}
+
+/**
+ * An own cargo's voyage: the share sailed, the ETA and how it sits against its regas slot
+ * ("ETA 14 Jan, 1 day late for the slot").
+ */
+export function cargoProgress(
+  cargo: Pick<MapCargoDTO, "cargo_id" | "departed_at_utc" | "eta_utc">,
+  slots: readonly Pick<MapRegasSlotDTO, "cargo_id" | "window_start_utc" | "window_end_utc">[],
+  nowMs: number,
+  t: Translate,
+  language = "en",
+): { fraction: number | null; line: string } {
+  const departed = cargo.departed_at_utc ? Date.parse(cargo.departed_at_utc) : Number.NaN;
+  const eta = cargo.eta_utc ? Date.parse(cargo.eta_utc) : Number.NaN;
+  const fraction = Number.isFinite(departed) && Number.isFinite(eta) && eta > departed
+    ? Math.min(1, Math.max(0, (nowMs - departed) / (eta - departed)))
+    : null;
+  const etaText = shortDate(cargo.eta_utc, language);
+  const slot = slots.find((item) => item.cargo_id === cargo.cargo_id);
+  if (!slot || !Number.isFinite(eta)) return { fraction, line: t("map.book.cargo_eta", { eta: etaText }) };
+  const day = 86_400_000;
+  const opens = Date.parse(slot.window_start_utc);
+  const closes = Date.parse(slot.window_end_utc);
+  if (eta > opens + day / 2) {
+    const late = Math.max(1, Math.round((eta - opens) / day));
+    const key = eta > closes ? "map.book.cargo_after_slot" : "map.book.cargo_late";
+    return { fraction, line: t(key, { eta: etaText, count: late }) };
+  }
+  if (eta < opens - day / 2) {
+    return { fraction, line: t("map.book.cargo_early", { eta: etaText, count: Math.round((opens - eta) / day) }) };
+  }
+  return { fraction, line: t("map.book.cargo_on_slot", { eta: etaText }) };
+}
+
+/* ------------------------------------------------------------------ disruptions */
+
+/** A disruption's place on the map; only one touching our contracts and active pulses. */
+export interface DisruptionMark {
+  id: string;
+  at: LineCoordinate;
+  pulse: boolean;
+  active: boolean;
+}
+
+export function disruptionMarks(relevance: BookRelevanceDTO | null | undefined): DisruptionMark[] {
+  return (relevance?.disruptions ?? [])
+    .filter((item) => Number.isFinite(item.location?.lon) && Number.isFinite(item.location?.lat))
+    .map((item) => ({ id: item.event_id, at: [item.location.lon, item.location.lat], pulse: item.pulse, active: item.status === "active" }));
+}
+
+/**
+ * What a disruption callout says: what, until when, and how much of ours it touches
+ * ("Out until 28 Nov · 2 of our contracts, 18,000 MWh/d affected").
+ */
+export function disruptionCallout(item: BookDisruptionDTO, t: Translate, language = "en"): { title: string; lines: string[] } {
+  const lines: string[] = [];
+  const until = shortDate(item.end_utc, language);
+  lines.push(
+    item.status === "active"
+      ? item.end_utc ? t("map.book.disruption_out_until", { until }) : t("map.book.disruption_out")
+      : t("map.book.disruption_planned", { from: shortDate(item.start_utc, language), until }),
+  );
+  if (item.contracts.length) {
+    lines.push(t("map.book.disruption_touches", {
+      count: item.contracts.length,
+      mwh: Math.round(item.affected_mwh_d).toLocaleString(formattingLocale(language)),
+    }));
+  } else {
+    lines.push(t(`map.book.disruption_touches_${item.touches}`));
+  }
+  if (item.placement === "zone") lines.push(t("map.book.disruption_zone", { hub: item.hub ?? "–" }));
+  const title = `${item.facility_name ?? item.event_id}${item.simulated ? " · sim" : ""}`;
+  return { title, lines };
+}
+
+/* ------------------------------------------------------------------ re-route proposals */
+
+export interface ProposalLine {
+  id: string;
+  opportunityId: string;
+  /** The way the volume goes now (one point when it is sold where it is delivered). */
+  current: LineCoordinate[];
+  proposed: LineCoordinate[];
+  /** The benefit in our terms, on the proposed line. */
+  label: string;
+  labelAt: LineCoordinate;
+}
+
+/** "via Zeebrugge, +0.35 EUR/MWh after tariffs", or "avoids the outage". */
+export function benefitLabel(item: BookOpportunityPathDTO, t: Translate): string {
+  const benefit = item.proposal?.benefit;
+  if (!benefit) return opportunityLabel(item);
+  if (benefit.avoids_outage) return t("map.book.benefit_avoids_outage");
+  const value = benefit.headline.value;
+  const signed = value === null ? "–" : value.startsWith("-") ? value : `+${value}`;
+  const figure = `${signed} ${benefit.headline.unit}${item.simulated ? " sim" : ""}`;
+  return benefit.via ? t("map.book.benefit_via", { via: benefit.via, figure }) : t("map.book.benefit", { figure });
+}
+
+/** The opportunities that state the current way, as a current and a proposed line. */
+export function proposalLines(
+  relevance: BookRelevanceDTO | null | undefined,
+  nodes: ReadonlyMap<string, LineEndpoint>,
+  t: Translate,
+  legPath?: LegPath,
+): ProposalLine[] {
+  const out: ProposalLine[] = [];
+  for (const item of relevance?.opportunities ?? []) {
+    const proposal = item.proposal;
+    if (!proposal) continue;
+    const proposedPoints = item.path_node_ids.map((id) => nodes.get(id));
+    const currentPoints = proposal.current_path_node_ids.map((id) => nodes.get(id));
+    if (proposedPoints.length < 2 || proposedPoints.some((point) => !point || !Number.isFinite(point.lon))) continue;
+    if (currentPoints.some((point) => !point || !Number.isFinite(point.lon))) continue;
+    const proposed = polyline(proposedPoints as LineEndpoint[], legPath);
+    const current = currentPoints.length >= 2
+      ? polyline(currentPoints as LineEndpoint[], legPath)
+      : currentPoints.map((point) => [point!.lon, point!.lat] as LineCoordinate);
+    out.push({
+      id: `book-proposal-${item.opportunity_id}`,
+      opportunityId: item.opportunity_id,
+      current,
+      proposed,
+      label: benefitLabel(item, t),
+      labelAt: pointAtFraction(proposed, 0.5) ?? proposed[0],
+    });
+  }
+  return out;
 }

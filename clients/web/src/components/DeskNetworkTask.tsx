@@ -1,4 +1,5 @@
-import { api as apiClient, type EdgeDTO, type NodeDTO } from "@/api/client";
+import { api as apiClient, type EdgeDTO, type NodeDTO, type TodayNeedsMeItemDTO } from "@/api/client";
+import { useDeskToday } from "@/app/hooks/useDeskToday";
 import { readKey, useCachedRead } from "@/app/data/readCache";
 import type { AppController } from "@/app/hooks/useAppController";
 import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
@@ -14,6 +15,10 @@ export const DESK_NETWORK_KEPT = "desk-network";
  */
 export function DeskNetworkTask({ controller, active }: { controller: AppController; active: boolean }) {
   const { t, api, theme, portfolio, controls } = controller;
+  // Today's "What needs me" (CP-19): the items with a place are listed beside the map. The read
+  // is Today's own (one shared cache entry, app/hooks/useDeskToday.ts).
+  const desk = useDeskToday();
+  const needsMe = (desk.today?.rows.find((row) => row?.key === "needs_me") as { items?: TodayNeedsMeItemDTO[] } | undefined)?.items;
   // Reference geometry, read by the map itself until the workspace batch has it (the batch
   // commits when its slowest read answers): cached for the session, never re-read.
   const waiting = api.nodes.length === 0;
@@ -43,6 +48,7 @@ export function DeskNetworkTask({ controller, active }: { controller: AppControl
       // timers and map rendering pause.
       active={active}
       language={controller.i18n.language}
+      needsMe={needsMe}
       // The Capacity tab beside the map: the operating board joins the `flows` and
       // `capacity` reads, so it states which of them answered from the store's own facts
       // (`app/model/capacityOperatingBoardRead.ts`), as the Source Center does.

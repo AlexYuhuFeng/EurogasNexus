@@ -53,7 +53,15 @@ RULE = (
 
 
 #: Opportunity states the map draws: popped out, or (watch) as a thin outline.
-DRAWN_OPPORTUNITY_STATES = {"actionable": "pop", "indicative": "pop", "watch": "outline"}
+DRAWN_OPPORTUNITY_STATES = {
+    "actionable": "pop",
+    "indicative": "pop",
+    "watch": "outline",
+    # Seen once, confirming on the next evaluation: an outline until it is.
+    "new": "outline",
+    # Held back by a named blocker (capacity not held, an input missing): an outline that says why.
+    "blocked": "outline",
+}
 
 
 def book_opportunity_paths(
@@ -102,6 +110,10 @@ def book_opportunity_paths(
         if not crossings:
             continue
         listed = summary(row)
+        # The window to act in: the record's deadline, else its expiry. A closed one is gone.
+        closes = listed.get("deadline_utc") or listed.get("expires_at_utc")
+        if closes and datetime.fromisoformat(closes) <= now:
+            continue
         out.append(
             {
                 "opportunity_id": row.opportunity_id,
@@ -118,6 +130,8 @@ def book_opportunity_paths(
                 "to_hub": graph.hub_names.get(target, str(sell)),
                 "path_node_ids": graph.path_node_ids(crossings),
                 "route_stated": route_stated,
+                "window_closes_utc": closes,
+                "blocked": listed.get("blocked"),
                 "via": _via_names(graph, crossings),
                 "proposal": _proposal(session, row, fields, graph, listed, crossings),
             }
@@ -845,7 +859,9 @@ def _disruptions(
             "start_utc": _iso(outage.get("start_utc")),
             "end_utc": _iso(outage.get("end_utc")),
             "unavailable_gwh_d": outage.get("unavailable_gwh_d"),
-            "simulated": is_simulated_source(outage.get("source_system")),
+            # A demo message says so in its reference (the platform field is "REMIT").
+            "simulated": is_simulated_source(outage.get("source_system"))
+            or str(outage.get("source_reference") or "").lower().startswith("demo"),
             "placement": placement,
             "hub": hub,
             "location": location,

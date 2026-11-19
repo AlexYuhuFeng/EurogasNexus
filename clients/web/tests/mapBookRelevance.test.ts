@@ -56,3 +56,45 @@ test("a selection on the book view says why it is there", () => {
   const lines = bookReasonLines(relevance, { nodeIds: ["ttf"] }, t);
   assert.ok(lines.some((line) => line.startsWith("map.book.reason.contract_hub")));
 });
+
+test("a route splits into done and to go at the share delivered, meeting at the cut", async () => {
+  const { periodFraction, splitAtFraction } = await import("../src/app/mapBookRelevance.ts");
+  const fraction = periodFraction({ label: "2026/27", start: "2026-10-01", end: "2027-10-01", elapsed_days: 73, total_days: 365 });
+  assert.equal(fraction, 0.2);
+  const { done, toGo } = splitAtFraction([[0, 0], [10, 0]], 0.25);
+  assert.deepEqual(done, [[0, 0], [2.5, 0]]);
+  assert.deepEqual(toGo, [[2.5, 0], [10, 0]]);
+  assert.deepEqual(splitAtFraction([[0, 0], [1, 0]], 1).toGo, []);
+  assert.equal(periodFraction(null), null);
+});
+
+test("a disruption's callout says what, until when and how much of ours", async () => {
+  const { disruptionCallout } = await import("../src/app/mapBookRelevance.ts");
+  const callout = disruptionCallout(
+    {
+      event_id: "u1", facility_name: "VIP THE-ZTP", status: "active", start_utc: "2026-11-18T06:00:00Z",
+      end_utc: "2026-11-28T06:00:00Z", unavailable_gwh_d: 120, simulated: false, placement: "point", hub: null,
+      location: { lon: 6, lat: 51 }, touches: "ours", contracts: ["A", "B"], affected_mwh_d: 18000, pulse: true,
+    },
+    t,
+  );
+  assert.equal(callout.title, "VIP THE-ZTP");
+  assert.match(callout.lines[0], /map\.book\.disruption_out_until .*28 Nov/);
+  assert.match(callout.lines[1], /map\.book\.disruption_touches .*"count":2.*"mwh":"18,000"/);
+});
+
+test("a cargo's ETA is read against its slot, and the window to act counts down", async () => {
+  const { cargoProgress, windowLeft, windowClosed } = await import("../src/app/mapBookRelevance.ts");
+  const now = Date.parse("2026-11-19T00:00:00Z");
+  const voyage = cargoProgress(
+    { cargo_id: "C1", departed_at_utc: "2026-11-09T00:00:00Z", eta_utc: "2026-11-29T00:00:00Z" },
+    [{ cargo_id: "C1", window_start_utc: "2026-11-28T00:00:00Z", window_end_utc: "2026-12-03T00:00:00Z" }],
+    now,
+    t,
+  );
+  assert.equal(voyage.fraction, 0.5);
+  assert.match(voyage.line, /map\.book\.cargo_late .*"count":1/);
+  assert.equal(windowLeft("2026-11-19T02:10:00Z", now), "2 h 10 min");
+  assert.equal(windowLeft("2026-11-18T23:00:00Z", now), null);
+  assert.equal(windowClosed({ window_closes_utc: "2026-11-18T23:00:00Z" }, now), true);
+});

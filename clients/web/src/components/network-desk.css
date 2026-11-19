@@ -434,6 +434,11 @@
       padding: 0 var(--ds-space-2);
     }
 
+    /* The page's purpose line is for a wide screen; on a phone the map is the page. */
+    .cockpit-app.workspace-network .page-intro {
+      display: none;
+    }
+
     /* The context line shares the tab row: the filter summary, short; the as-of time is on
        the map's status line, and the feeds link shows only when a feed is stale. */
     .cockpit-app.workspace-network .market-context-strip {
@@ -842,6 +847,7 @@
 
   /* An opportunity's headline on its far hub (CP-21): actionable pops out, watch is quiet. */
   .map-opportunity-label {
+    max-width: none;
     border: 1px solid var(--ds-positive);
     color: var(--ds-positive);
     font-variant-numeric: tabular-nums;
@@ -859,5 +865,227 @@
     font-size: var(--ds-text-xl);
     font-weight: var(--ds-weight-semibold);
     font-variant-numeric: tabular-nums;
+  }
+  /* ------------------------------------------------------------ disruptions on the book */
+  /* A disruption touching the book: a quiet dot; one active and touching our contracts has a
+     slow pulsing radius, the map's only loop. Under reduced motion: a still ring. */
+  .map-disruption {
+    position: relative;
+    width: var(--ds-control-sm);
+    height: var(--ds-control-sm);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .map-disruption-dot {
+    position: absolute;
+    inset: 9px;
+    border: 2px solid var(--ds-surface);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-status-watch);
+  }
+
+  .map-disruption.is-active .map-disruption-dot {
+    background: var(--ds-status-breach);
+  }
+
+  .map-disruption-ring {
+    position: absolute;
+    inset: 4px;
+    border: 2px solid var(--ds-status-breach);
+    border-radius: var(--ds-radius-pill);
+    opacity: 0;
+  }
+
+  .map-disruption.is-pulse .map-disruption-ring {
+    opacity: 0.6;
+    animation: map-disruption-pulse calc(var(--ds-duration-slow) * 10) var(--ds-ease-in-out) infinite;
+  }
+
+  @keyframes map-disruption-pulse {
+    0% { transform: scale(0.6); opacity: 0.7; }
+    70% { transform: scale(1.6); opacity: 0; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .map-disruption.is-pulse .map-disruption-ring {
+      animation: none;
+      transform: none;
+      opacity: 0.9;
+    }
+  }
+
+  /* ------------------------------------------------------------ callouts */
+  .map-callout {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 260px;
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-left: 3px solid var(--ds-accent);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-pop);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-xs);
+    line-height: 1.35;
+    pointer-events: none;
+  }
+
+  .map-callout.is-alert {
+    border-left-color: var(--ds-status-breach);
+  }
+
+  .map-callout.is-opportunity {
+    border-left-color: var(--ds-positive);
+  }
+
+  .map-callout strong {
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-callout span {
+    color: var(--ds-text-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-callout-progress {
+    display: block;
+    height: 4px;
+    margin-top: 2px;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-border);
+    overflow: hidden;
+  }
+
+  .map-callout-progress > span {
+    display: block;
+    height: 100%;
+    background: var(--ds-accent);
+  }
+
+  /* ------------------------------------------------------------ re-route proposals */
+  .map-proposal-label {
+    border: 1px solid var(--ds-positive);
+    color: var(--ds-positive);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .map-proposal-table {
+    width: 100%;
+    margin: var(--ds-space-2) 0;
+    border-collapse: collapse;
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-proposal-table th,
+  .map-proposal-table td {
+    padding: 3px var(--ds-space-1);
+    border-bottom: 1px solid var(--ds-border);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .map-proposal-table thead th {
+    color: var(--ds-text-3);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .map-proposal-table tbody th {
+    color: var(--ds-text-2);
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  .map-proposal-table td:last-child {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .map-proposal-evidence {
+    margin: 0 0 var(--ds-space-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .map-opportunity-blocked {
+    margin: 0 0 var(--ds-space-2);
+    color: var(--ds-status-watch);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-opportunity-blocked small {
+    display: block;
+    color: var(--ds-text-3);
+  }
+
+  .map-opportunity-window {
+    margin: 0 0 var(--ds-space-2);
+    color: var(--ds-status-watch);
+    font-size: var(--ds-text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-opportunity-window.is-closed {
+    color: var(--ds-text-3);
+  }
+
+  .map-opportunity-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1);
+    margin: var(--ds-space-2) 0;
+  }
+
+  .map-opportunity-dismiss {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--ds-space-2);
+    margin-bottom: var(--ds-space-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-opportunity-dismiss label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .map-opportunity-message {
+    color: var(--ds-status-breach);
+    font-size: var(--ds-text-sm);
+  }
+
+  /* ------------------------------------------------------------ needs you */
+  .map-book-row.is-active {
+    border-color: var(--ds-accent);
+    background: var(--ds-accent-soft);
+  }
+
+  .map-need-kind {
+    margin-right: var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .map-need-kind.is-outage {
+    color: var(--ds-status-breach);
+  }
+
+  .map-need-kind.is-opportunity {
+    color: var(--ds-positive);
+  }
+
+  .map-situation-updating {
+    color: var(--ds-text-3);
   }
 }
