@@ -33,9 +33,9 @@ const tender = {
   delivery_point: "NBP",
   period_start: "2026-12-01",
   period_end: "2027-02-28",
-  dcq_mwh_per_day: "5000",
-  min_dcq_mwh_per_day: "4000",
-  max_dcq_mwh_per_day: "6000",
+  dcq: "170000",
+  min_dcq: "136000",
+  max_dcq: "204000",
   index: "NBP day-ahead",
   differential: "-0.4",
   financing_rate_pct: "5",
@@ -52,8 +52,10 @@ test("the four authorable kinds start from cards; the typed three have their own
 test("a tender draft becomes typed terms with numbers, the credit line and its schema", () => {
   const { terms, missing } = kindTermsFromDraft("UPSTREAM_TENDER", tender);
   assert.deepEqual(missing, []);
-  assert.equal(terms?.schema, "upstream-tender/v1");
-  assert.equal(terms?.dcq_mwh_per_day, 5000);
+
+  assert.equal(terms?.dcq, 170000);
+  assert.equal(terms?.quantity_unit, "th/d");
+  assert.equal(terms?.schema, "upstream-tender/v2");
   assert.equal(terms?.differential, -0.4);
   assert.equal(terms?.payment_lag_days, 20);
   assert.equal(terms?.counterparty_id, "DEMO-NORDVIK");
@@ -62,9 +64,9 @@ test("a tender draft becomes typed terms with numbers, the credit line and its s
 });
 
 test("required terms block the save and are named; a fixed price swaps the index fields", () => {
-  const { terms, missing } = kindTermsFromDraft("UPSTREAM_TENDER", { ...tender, dcq_mwh_per_day: "", index: "" });
+  const { terms, missing } = kindTermsFromDraft("UPSTREAM_TENDER", { ...tender, dcq: "", index: "" });
   assert.equal(terms, null);
-  assert.deepEqual(missing.sort(), ["dcq_mwh_per_day", "index"]);
+  assert.deepEqual(missing.sort(), ["dcq", "index"]);
   const fixed = visibleFields("UPSTREAM_TENDER", { ...tender, price_type: "fixed" }).map((field) => field.key);
   assert.ok(fixed.includes("fixed_price") && !fixed.includes("index"));
 });
@@ -81,7 +83,11 @@ test("a DES cargo asks for its terminal and hub, an FOB cargo for its load port"
 test("stored terms read back into the form, and an intake proposal fills only known fields", () => {
   const { terms } = kindTermsFromDraft("UPSTREAM_TENDER", tender);
   const draft = draftFromTerms("UPSTREAM_TENDER", terms);
-  assert.equal(draft.dcq_mwh_per_day, "5000");
+  assert.equal(draft.dcq, "170000");
+  // A tender stored before units were written reads in MWh/d.
+  const old = draftFromTerms("UPSTREAM_TENDER", { schema: "upstream-tender/v1", dcq_mwh_per_day: 5000, min_dcq_mwh_per_day: 4000, max_dcq_mwh_per_day: 6000 });
+  assert.equal(old.quantity_unit, "MWh/d");
+  assert.equal(old.dcq, "5000");
   assert.equal(draft.counterparty_id, "DEMO-NORDVIK");
   const proposed = draftWithProposal("LNG_CARGO", newKindDraft("LNG_CARGO"), { quantity_mmbtu: 3600000, surprise: 1 });
   assert.equal(proposed.quantity_mmbtu, "3600000");
@@ -183,4 +189,56 @@ test("a confirmation is listed under its master, whatever its own status", () =>
   // A cargo found alone (its master filtered out) is still listed.
   const alone = listedContracts(rows, { query: "", kind: "LNG_CARGO", today: "2026-11-19", counterpartyOf: () => "" }).map((row) => row.contract_id);
   assert.deepEqual(alone, ["cargo"]);
+});
+
+test("an NBP contract reads in therms per day; a written unit is kept", () => {
+  assert.equal(kindHeadline({ contract_id: "h", contract_kind: "SUPPLY_GSA", delivery_point_name: "NBP Easington", delivery_quantity_mwh_per_day: 24000 }).text, "818,914 th/d");
+  assert.equal(kindHeadline({ contract_id: "k", contract_kind: "SUPPLY_GSA", delivery_point_name: "TTF", delivery_quantity_mwh_per_day: 18000 }).text, "18,000 MWh/d");
+  assert.equal(kindHeadline({ contract_id: "w", contract_kind: "SUPPLY_GSA", delivery_point_name: "NBP", delivery_quantity_mwh_per_day: 1, headline: { key: "dcq", value: 800000, unit: "th/d" } }).text, "800,000 th/d");
+});
+
+test("a supply agreement's price terms and quantity as written become its block and its request", async () => {
+  const { gsaBlockFromDraft, gsaPriceBody, monthsBetween, newPriceDraft, priceDraftFrom } = await import("../src/app/model/priceTerms.ts");
+  const draft = { ...newPriceDraft(true), basis: "index" as const, premium: "1.5", quantity: "800000" };
+  assert.equal(draft.unit, "GBp/th");
+  assert.equal(draft.quantity_unit, "th/d");
+  const { block, missing } = gsaBlockFromDraft(draft);
+  assert.deepEqual(missing, []);
+  assert.deepEqual(block?.price_terms, {
+    schema: "price-terms/v1", basis: "index", unit: "GBp/th",
+    index: { index: "NBP", product: "month_ahead", averaging: "month_before_delivery", n_days: null, publication: null },
+    premium: 1.5, cap: null, floor: null,
+  });
+  assert.equal(block?.quantity, 800000);
+  assert.deepEqual(gsaBlockFromDraft({ ...draft, basis: "fixed" }).missing, ["fixed_price"]);
+  const stored = { contract_id: "h", contract_name: "Haldor", delivery_point_name: "NBP", notes: "{}", edit_token: "sha256:x", variable_cost_gbp_mwh: 0.4, headline: { key: "dcq" } };
+  const body = gsaPriceBody(stored, block!);
+  assert.equal(body.contract_kind, "SUPPLY_GSA");
+  assert.equal(body.expected_edit_token, "sha256:x");
+  assert.equal(body.variable_cost_gbp_mwh, 0.4, "a stored cost is sent back, never reset");
+  assert.equal("headline" in body, false);
+  const back = priceDraftFrom(block, true);
+  assert.equal(back.basis, "index");
+  assert.equal(back.premium, "1.5");
+  assert.deepEqual(monthsBetween("2026-11-01", "2027-02-28"), ["2026-11", "2026-12", "2027-01", "2027-02"]);
+  assert.equal(monthsBetween("2025-10-01", null, 3).length, 3);
+});
+
+test("price terms read in words in the reader's language", async () => {
+  const { priceWords } = await import("../src/app/model/priceTerms.ts");
+  const t = (key: string, options?: Record<string, unknown>) =>
+    ({
+      "contracts.price.words.index": `${options?.name} ${options?.product} (${options?.averaging})`,
+      "contracts.price.words.fixed": `Fixed ${options?.price} ${options?.unit}`,
+      "contracts.price.words.collar": `, within ${options?.floor}–${options?.cap} ${options?.unit}`,
+      "contracts.price.product_name.month_ahead": "month-ahead",
+      "contracts.price.product_name.pricing_month": "settlement",
+      "contracts.price.averaging_name.month_before_delivery": "month before delivery",
+      "contracts.price.averaging_name.pricing_month": "the pricing month",
+      "contracts.price.index_name.HH": "Henry Hub",
+    })[key] ?? key;
+  assert.equal(priceWords({ basis: "index", unit: "GBp/th", index: { index: "NBP", product: "month_ahead", averaging: "month_before_delivery" }, premium: -1.5 }, t), "NBP month-ahead (month before delivery) − 1.5 p/th");
+  assert.equal(priceWords({ basis: "formula", unit: "USD/MMBtu", components: [{ index: { index: "HH", product: "pricing_month", averaging: "pricing_month" }, weight: 1.15 }], constant: 2.5, floor: 4, cap: 8 }, t), "1.15 × Henry Hub settlement (the pricing month) + 2.5 USD/MMBtu, within 4–8 USD/MMBtu");
+  assert.equal(priceWords({ basis: "fixed", unit: "EUR/MWh", fixed_price: 31.5 }, t), "Fixed 31.5 EUR/MWh");
+  assert.equal(priceWords(null, t), null);
 });

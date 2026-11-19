@@ -197,7 +197,8 @@ export function TypedContractForm({
 
   function control(field: KindField) {
     // A required term carries the form's own mark (explained once under the kind's title).
-    const label = `${t(`contracts.kind_field.${field.key}`)}${field.unit ? ` (${field.unit.replace("GBp/th", "p/th")})` : ""}${field.required ? " *" : ""}`;
+    const unit = field.unitFrom ? String(draft[field.unitFrom] ?? "") : field.unit;
+    const label = `${t(`contracts.kind_field.${field.key}`)}${unit ? ` (${unit.replace("GBp/th", "p/th")})` : ""}${field.required ? " *" : ""}`;
     const value = draft[field.key];
     const id = `kind-${field.key}`;
     const invalid = tried && result.missing.includes(field.key);

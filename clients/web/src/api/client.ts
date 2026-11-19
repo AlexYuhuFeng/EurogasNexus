@@ -2751,6 +2751,24 @@ export type UpstreamContractInputDTO = Omit<
   expected_edit_token?: string | null;
 };
 
+/** A contract's price for one delivery month (`GET /api/contracts/{id}/price`). */
+export interface ContractPriceDTO {
+  contract_id: string;
+  month: string;
+  price_terms: Record<string, unknown> | null;
+  note: string | null;
+  result: {
+    value: number | null;
+    unit: string;
+    currency: string | null;
+    input_class: string;
+    words: string;
+    inputs: Array<{ index: string; weight: number; value: number; unit: string; read_value: number; read_unit: string; input_class: string; source_ref: string; as_of: string | null; window: [string, string]; observations: number }>;
+    missing: string[];
+    notes: string[];
+  } | null;
+}
+
 /** A typed contract's write: the server derives the base columns from `kind_terms`. */
 export interface TypedContractInputDTO {
   contract_id: string;
@@ -5043,6 +5061,8 @@ export const api = {
       { reason, expected_edit_token: editToken },
     ),
 
+  contractPrice: (contractId: string, month: string, options?: ApiRequestOptions) =>
+    get<ContractPriceDTO>(`/contracts/${encodeURIComponent(contractId)}/price`, { month }, options),
   saveUpstreamContract: (body: UpstreamContractInputDTO | TypedContractInputDTO) =>
     post<UpstreamContractDTO>("/route-cost/upstream-contracts", body),
 

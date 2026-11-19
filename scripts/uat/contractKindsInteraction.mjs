@@ -36,7 +36,9 @@ async function saveAndCheck(page, record, name, expectKind) {
   await page.locator(".contract-kind-actions button[type=submit]").click();
   // The write and the library refresh that follows it.
   await page.waitForResponse((response) => response.url().includes("/api/route-cost/upstream-contracts") && response.request().method() === "POST", { timeout: 20000 }).catch(() => null);
-  await page.waitForTimeout(2500);
+  // The save stays busy until the library and the book are read again after the write.
+  await page.locator('.contract-kind-actions button[type=submit]:not([aria-busy="true"])').waitFor({ timeout: 30000 }).catch(() => null);
+  await page.waitForTimeout(500);
   const form = page.locator(`[data-contract-kind-form="${expectKind}"]`);
   if (!(await form.count())) {
     record(`after saving '${name}' the ${expectKind} form is no longer open`);
@@ -84,6 +86,17 @@ export async function contractKindsInteraction(page, base, record, axe = null) {
   await page.fill("#kind-constant", "2.5");
   await page.locator("#kind-pricing_month").click();
   await page.locator(".ds-period-months button").nth(11).click();
+  // A width that flips for a moment (a full-page capture, a window snapping) must not move the
+  // open form between the side panel and the phone sheet and lose what was typed.
+  const size = page.viewportSize();
+  if (size) {
+    await page.setViewportSize({ width: 700, height: size.height });
+    await page.waitForTimeout(60);
+    await page.setViewportSize(size);
+    await page.waitForTimeout(400);
+    const kept = await page.inputValue("#kind-quantity_mmbtu").catch(() => "");
+    if (kept !== "3400000") record(`a brief width change cleared the cargo form (size now '${kept}')`);
+  }
   await saveAndCheck(page, record, cargo, "LNG_CARGO");
 
   // The list shows the cargo under its master.

@@ -180,6 +180,15 @@ period)`, `supply_price(session, caller, *, contract_id, period)`. Each answers
 | missing, source_ref, as_of, input_class}`.
 
 **Slices, in order** (each handed back with commits and screenshots): (1) the page is the
-contract list, type-first form (built); (2) price formulas and native units, with golden-case
-formula evaluation; (3) execution, key dates, notifications; (4) visuals, documents,
-counterparty view, capacity/terminal/storage kinds and the cost reads.
+contract list, type-first form (built); (2) price formulas, native units and thin cost reads
+(built: `price-terms/v1` with golden cases, the price read `GET /api/contracts/{id}/price`, a
+supply agreement's price and quantity as written, tenders in th/d, NBP contracts in th/d, and
+`application/contract_costs.py`); (3) execution, key dates, notifications; (4) visuals,
+documents, counterparty view, capacity/terminal/storage kinds.
+
+Slice 2 limits, stated: the contract's FX rule is not modelled (an index in another currency
+is named as not priced); a future window reads the forward curve's mark, labelled as an
+estimate; Brent and JKM price only where the store holds them; volume bands, ToP vs excess
+prices and price review dates are not typed yet (unmodelled terms); a transport cost from held
+capacity reads as sunk (nil variable cost) and the published route at firm yearly capacity at
+full load; storage reads the assumption set only.

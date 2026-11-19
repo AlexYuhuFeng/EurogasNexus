@@ -255,4 +255,59 @@
 .contract-confirmation-name {
   padding-left: var(--ds-space-3);
 }
+
+.contract-price,
+.contract-price-editor {
+  display: grid;
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+
+.contract-price-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.contract-price-month {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-2);
+}
+
+.contract-price-words,
+.contract-price-value {
+  margin: 0;
+  font-size: var(--ds-text-sm);
+}
+
+.contract-price-value strong {
+  font-variant-numeric: var(--ds-numeric);
+  font-size: var(--ds-text-md);
+}
+
+.contract-price-class {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+}
+
+.contract-price-class[data-input-class="simulated"] {
+  color: var(--ds-status-simulated);
+}
+
+.contract-price-missing,
+.contract-price-inputs ul {
+  margin: 0;
+  padding-left: var(--ds-space-4);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-2);
+}
+
+.contract-price-component {
+  grid-column: 1 / -1;
+}
 }

@@ -34,6 +34,8 @@ export interface KindField {
   picker?: PickerSource;
   /** Native unit shown beside a number. */
   unit?: string;
+  /** The unit is another field's value (a quantity in the contract's own unit). */
+  unitFrom?: string;
   required?: boolean;
   /** Shown only when the draft matches (another field's value). */
   when?: (draft: KindDraft) => boolean;
@@ -55,7 +57,8 @@ export const KIND_FIELDS: Record<Exclude<AuthorableKind, "SUPPLY_GSA">, readonly
     { key: "seller_name", group: "parties", input: "picker", picker: "counterparty", required: true, manual: true },
     { key: "field_name", group: "parties", input: "text" },
     { key: "tender_reference", group: "parties", input: "text" },
-    { key: "dcq_mwh_per_day", group: "quantity", input: "number", unit: "MWh/d", required: true },
+    { key: "quantity_unit", group: "quantity", input: "choice", options: ["th/d", "MWh/d", "kWh/h"], required: true },
+    { key: "dcq", group: "quantity", input: "number", unitFrom: "quantity_unit", required: true },
     { key: "offtake_obligation_pct", group: "quantity", input: "number", unit: "%" },
     { key: "delivery_point", group: "delivery", input: "picker", picker: "point", required: true },
     { key: "period_start", group: "delivery", input: "date", required: true },
@@ -68,8 +71,8 @@ export const KIND_FIELDS: Record<Exclude<AuthorableKind, "SUPPLY_GSA">, readonly
     { key: "fixed_price", group: "price", input: "number", required: true, when: isFixed },
     { key: "price_unit", group: "price", input: "choice", options: PRICE_UNITS, required: true },
     { key: "entry_cost_per_mwh", group: "price", input: "number" },
-    { key: "min_dcq_mwh_per_day", group: "flexibility", input: "number", unit: "MWh/d", required: true },
-    { key: "max_dcq_mwh_per_day", group: "flexibility", input: "number", unit: "MWh/d", required: true },
+    { key: "min_dcq", group: "flexibility", input: "number", unitFrom: "quantity_unit", required: true },
+    { key: "max_dcq", group: "flexibility", input: "number", unitFrom: "quantity_unit", required: true },
     { key: "field_outage_force_majeure", group: "flexibility", input: "bool" },
     { key: "payment_lag_days", group: "credit", input: "number", unit: "d", required: true },
     { key: "financing_rate_pct", group: "credit", input: "number", unit: "%", required: true },
@@ -128,7 +131,8 @@ export function visibleFields(kind: AuthorableKind, draft: KindDraft): KindField
 export function newKindDraft(kind: AuthorableKind): KindDraft {
   switch (kind) {
     case "UPSTREAM_TENDER":
-      return { nomination: "day_ahead", price_type: "index", price_unit: "GBp/th", differential: "0", payment_lag_days: "20", field_outage_force_majeure: true, allowed_exit_points: [] };
+      // An NBP tender is written in therms per day and pence per therm.
+      return { nomination: "day_ahead", price_type: "index", price_unit: "GBp/th", quantity_unit: "th/d", differential: "0", payment_lag_days: "20", field_outage_force_majeure: true, allowed_exit_points: [] };
     case "LNG_MSPA":
       return { our_side: "buyer", delivery_terms: ["DES"], credit_support: "none", payment_lag_days: "20", diversion_allowed: false };
     case "LNG_CARGO":
@@ -162,7 +166,7 @@ export function kindTermsFromDraft(kind: AuthorableKind, draft: KindDraft): Kind
   const fields = visibleFields(kind, draft);
   const missing: string[] = [];
   const terms: Record<string, unknown> = {
-    schema: kind === "UPSTREAM_TENDER" ? "upstream-tender/v1" : kind === "LNG_MSPA" ? "lng-mspa/v1" : "lng-cargo/v1",
+    schema: kind === "UPSTREAM_TENDER" ? "upstream-tender/v2" : kind === "LNG_MSPA" ? "lng-mspa/v1" : "lng-cargo/v1",
   };
   for (const field of fields) {
     if (field.key === "master_contract_id") {
@@ -205,6 +209,16 @@ export function kindTermsFromDraft(kind: AuthorableKind, draft: KindDraft): Kind
 export function draftFromTerms(kind: AuthorableKind, terms: Record<string, unknown> | null | undefined, masterId?: string | null): KindDraft {
   const draft: KindDraft = newKindDraft(kind);
   if (kind === "SUPPLY_GSA" || !terms) return draft;
+  if (terms.schema === "upstream-tender/v1") {
+    // A tender stored before quantities were written in their own unit: MWh/d.
+    terms = {
+      ...terms,
+      quantity_unit: "MWh/d",
+      dcq: terms.dcq_mwh_per_day,
+      min_dcq: terms.min_dcq_mwh_per_day,
+      max_dcq: terms.max_dcq_mwh_per_day,
+    };
+  }
   for (const field of KIND_FIELDS[kind]) {
     const value = terms[field.key];
     if (value === null || value === undefined) continue;
@@ -238,6 +252,7 @@ export interface KindHeadline {
 interface StoredLike {
   contract_id: string;
   contract_kind?: string;
+  delivery_point_name?: string;
   delivery_quantity_mwh_per_day: number;
   headline?: { key: string; value: number; min?: number; max?: number; unit: string; term?: string; window?: string[] } | null;
 }
@@ -258,8 +273,16 @@ export function kindHeadline(contract: StoredLike, all: readonly StoredLike[] = 
     const count = all.filter((item) => item.contract_kind === "LNG_CARGO" && masterOf(item.contract_id) === contract.contract_id).length;
     return { key: "master", text: String(count) };
   }
+  if (head && head.key === "dcq") return { key: "dcq", text: `${figure(head.value)} ${head.unit}` };
+  // An NBP contract reads in therms per day (exact unit factor from the recorded MWh/d).
+  if (/\bNBP\b/i.test(contract.delivery_point_name ?? "")) {
+    return { key: "dcq", text: `${figure(contract.delivery_quantity_mwh_per_day / MWH_PER_THERM)} th/d` };
+  }
   return { key: "dcq", text: `${figure(contract.delivery_quantity_mwh_per_day)} MWh/d` };
 }
+
+/** One therm in MWh (100,000 BTU of 1,055.05585262 J: the units authority's factor). */
+export const MWH_PER_THERM = (100_000 * 1055.05585262) / 3.6e9;
 
 /** The request the governed write takes for a typed kind (base columns are derived there). */
 export function typedContractBody(input: {

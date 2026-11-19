@@ -729,6 +729,8 @@ def headline(kind: str | None, terms: _Terms | None) -> dict[str, Any] | None:
             "max": terms.max_dcq,
             "unit": terms.quantity_unit,
         }
+    if isinstance(terms, SupplyGsaTerms) and terms.quantity is not None:
+        return {"key": "dcq", "value": terms.quantity, "unit": terms.quantity_unit}
     if isinstance(terms, LngCargoTerms):
         first, last = terms.delivery_days()
         return {

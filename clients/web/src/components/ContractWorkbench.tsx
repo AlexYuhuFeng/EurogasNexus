@@ -6,11 +6,12 @@ import { counterpartyOptions, gasYearOptions } from "@/app/model/recordOptions";
 import { useCachedRead } from "@/app/data/readCache";
 import { useApiStore } from "@/stores/api";
 import { useStagedProgress } from "@/app/hooks/useWorkProgress";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode, RefObject } from "react";
 import { api, type ContractIntakeDTO, type PortfolioResourceDTO, type RouteCandidateDTO, type UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
 import { ContractKindChooser, TypedContractForm } from "@/components/ContractKindForm";
+import { ContractPricePanel } from "@/components/ContractPricePanel";
 import {
   STATUS_ORDER,
   TYPED_KINDS,
@@ -424,7 +425,7 @@ export function ContractWorkbench({
   const today = new Date().toISOString().slice(0, 10);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState("");
-  const compact = useCompactWidth();
+  const compact = useSettled(useCompactWidth(), 300);
   const counterpartyOf = (row: UpstreamContractDTO) =>
     stringFromRecord({ ...notesRecordFromRecord(row as unknown as Record<string, unknown>) }, "counterparty", "");
   const rows = useMemo(
@@ -433,7 +434,14 @@ export function ContractWorkbench({
     [upstreamContracts, query, kindFilter, today],
   );
   const kindsHeld = useMemo(() => [...new Set(upstreamContracts.map((row) => row.contract_kind ?? "SUPPLY_GSA"))], [upstreamContracts]);
-  const shown = selectedPersistedTerm ?? (taskView === "terms" ? persistedTerm ?? null : null);
+  // The open contract stays open while a refresh of the list is in flight: a library read that
+  // has not answered yet (or failed and kept nothing) must not close it and lose what the
+  // person was typing in it.
+  const lastShown = useRef<UpstreamContractDTO | null>(null);
+  const found = selectedPersistedTerm ?? (taskView === "terms" ? persistedTerm ?? null : null);
+  const kept = !found && selectedResourceId && lastShown.current?.contract_id === selectedResourceId ? lastShown.current : null;
+  const shown = found ?? kept;
+  lastShown.current = shown;
   const detailMode: "none" | "view" | "edit" | "new" = taskView === "terms"
     ? (persistedTerm || typedEditing ? "edit" : "new")
     : shown ? "view" : "none";
@@ -558,6 +566,7 @@ export function ContractWorkbench({
           onEdit={() => loadTerm(shown)}
           onInspect={() => inspect(shown)}
           retire={onContractLifecycle ? <RetireContractButton contract={shown} onLifecycle={onContractLifecycle} t={t} /> : null}
+          price={<ContractPricePanel contract={shown} save={saveTypedContract ? (body) => saveTypedContract(body as unknown as TypedContractInputDTO) : undefined} t={t} />}
         />
       )}
       {detailMode !== "view" && contractIntake && intakeBlock}
@@ -684,23 +693,6 @@ function ContractImportProgress({ t }: { t: (key: string) => string }) {
   return <WorkProgress label={t("contracts.import_stage.read")} stages={stages.map((stage) => t(stage))} current={progress.stage} />;
 }
 
-/** A typed contract's price as signed, in its native unit (never converted). */
-function priceLine(terms: Record<string, unknown>, t: Translate): string {
-  // The desk writes pence per therm as p/th.
-  const unit = String(terms.price_unit ?? "").replace("GBp/th", "p/th");
-  const number = (value: unknown) => (typeof value === "number" ? value : Number(value));
-  if (terms.price_type === "fixed" || terms.price_formula === "fixed") return `${number(terms.fixed_price).toFixed(2)} ${unit}`;
-  if (terms.price_type === "index") {
-    const diff = number(terms.differential ?? 0);
-    return `${String(terms.index)} ${diff < 0 ? "−" : "+"} ${Math.abs(diff).toFixed(2)} ${unit}`;
-  }
-  if (terms.price_formula === "hub") {
-    const constant = number(terms.constant ?? 0);
-    return `${String(terms.hub_index)} ${constant < 0 ? "−" : "+"} ${Math.abs(constant).toFixed(2)} ${unit}`;
-  }
-  const driver = terms.price_formula === "brent" ? "Brent" : "HH";
-  return t("contracts.kind.slope_price", { slope: number(terms.slope).toFixed(2), driver, constant: number(terms.constant).toFixed(2), unit });
-}
 
 /** Where a contract delivers, as the desk says it: the point or terminal; a master's terms. */
 function deliveryText(row: UpstreamContractDTO, t: Translate): string {
@@ -720,7 +712,7 @@ function kindFigure(row: UpstreamContractDTO, all: readonly UpstreamContractDTO[
 }
 
 /** A stored contract, read first: its terms in words, then Edit, Inspect and Retire. */
-function ContractReadView({ contract, counterparty, confirmations, monthName, onEdit, onInspect, retire, t }: {
+function ContractReadView({ contract, counterparty, confirmations, monthName, onEdit, onInspect, retire, price, t }: {
   contract: UpstreamContractDTO;
   counterparty: string;
   confirmations: readonly UpstreamContractDTO[];
@@ -728,6 +720,7 @@ function ContractReadView({ contract, counterparty, confirmations, monthName, on
   onEdit: () => void;
   onInspect: () => void;
   retire: ReactNode;
+  price: ReactNode;
   t: Translate;
 }) {
   const kind = contract.contract_kind ?? "SUPPLY_GSA";
@@ -739,8 +732,7 @@ function ContractReadView({ contract, counterparty, confirmations, monthName, on
     [t("contracts.list.period"), contractPeriodText(contract, monthName)],
     [t("contracts.list.figure"), kindFigure(contract, [contract, ...confirmations], t)],
   ];
-  if (terms && typeof terms.price_unit === "string") facts.push([t("contracts.contract_price"), priceLine(terms, t)]);
-  else if (kind === "SUPPLY_GSA") facts.push([t("contracts.contract_price"), `${formatMoney(contract.contract_price_gbp_mwh)} ${contract.contract_price_currency ?? "GBP"}/MWh`]);
+  // The price is the Price panel's (one number, one place).
   if (kind === "UPSTREAM_TENDER" && terms) facts.push([t("contracts.kind_field.nomination"), t(`contracts.kind_option.${String(terms.nomination)}`)]);
   if (kind === "LNG_MSPA" && terms) {
     facts.push([t("contracts.kind_field.our_side"), t(`contracts.kind_option.${String(terms.our_side)}`)]);
@@ -753,6 +745,7 @@ function ContractReadView({ contract, counterparty, confirmations, monthName, on
       <dl className="contract-definition-list">
         {facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       </dl>
+      {price}
       {contract.unmodelled_terms && (
         <section>
           <span className="eyebrow">{t("contracts.kind_field.unmodelled_terms")}</span>
@@ -791,4 +784,20 @@ function contractPeriodText(row: UpstreamContractDTO, monthName: (iso: string) =
 
 function figureKey(row: UpstreamContractDTO, all: readonly UpstreamContractDTO[]): string {
   return kindHeadline(row, all, (id) => all.find((item) => item.contract_id === id)?.master_contract_id ?? null).key;
+}
+
+/**
+ * A value that follows ``value`` once it has held for ``ms``. The open contract moves between
+ * the side panel and a phone sheet with the window's width; a width that flips for a moment
+ * (a print, a full-page capture, a window snapping) must not move it, because moving it
+ * remounts it and loses what the person was typing.
+ */
+function useSettled<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    if (value === settled) return undefined;
+    const timer = window.setTimeout(() => setSettled(value), ms);
+    return () => window.clearTimeout(timer);
+  }, [value, settled, ms]);
+  return settled;
 }
