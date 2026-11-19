@@ -70,3 +70,19 @@ test("an empty state for a permission names who grants it; a licence is connecte
   assert.match(read("../src/components/ui/EmptyState.tsx"), /data-empty-need=\{need\}/);
 });
 
+
+test("one purpose line per page: no page draws its own beside the shell's", async () => {
+  const { readdirSync, statSync } = await import("node:fs");
+  const root = new URL("../src/components/", import.meta.url);
+  const offenders: string[] = [];
+  const walk = (dir: URL) => {
+    for (const name of readdirSync(dir)) {
+      const path = new URL(name, dir);
+      if (statSync(path).isDirectory()) walk(new URL(`${name}/`, dir));
+      else if (name.endsWith(".tsx") && name !== "PageIntro.tsx" && /data-purpose=/.test(read(path.href.replace(/^.*\/src\//, "../src/")))) offenders.push(name);
+    }
+  };
+  walk(root);
+  assert.deepEqual(offenders, []);
+  assert.equal(en["purpose.research.spreads"], "How one price trades against another, and whether moving gas between them pays.");
+});

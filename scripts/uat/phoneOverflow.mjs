@@ -21,6 +21,8 @@ export const PHONE_ROUTES = [
   "?workspace=research&task=reports",
   "?workspace=research&task=spreads",
   "?workspace=research&task=fundamentals",
+  "?workspace=research&task=cargo",
+  "?workspace=scenario&task=opportunities",
   ...["attention", "catalog", "access", "infrastructure"].map((view) => `?workspace=sources&view=${view}`),
   ...["delivery", "readiness", "governance", "support"].map((view) => `?workspace=runtime&view=${view}`),
   ...["users", "api_keys", "catalogue", "audit", "sso"].map((view) => `?workspace=access&view=${view}`),
@@ -147,6 +149,8 @@ export const PURPOSE_ROUTES = new Set([
   "?workspace=research&task=reports",
   "?workspace=research&task=spreads",
   "?workspace=research&task=fundamentals",
+  "?workspace=research&task=cargo",
+  "?workspace=scenario&task=opportunities",
 ]);
 
 /**
@@ -172,6 +176,26 @@ export function checkPageContract({ needsPurpose, jsonUploadAllowed }) {
     if (!((empty.querySelector("strong") ?? empty).textContent || "").trim()) {
       problems.push(`empty state without a reason: ${empty.getAttribute("data-empty-state") || "(unnamed)"}`);
     }
+  }
+  // One purpose line per page (UX_REFERENCE rule 24): no sentence said twice in the first screen,
+  // word for word or nearly (the shell's purpose line and a page's own copy of it).
+  const sentences = [];
+  for (const element of document.querySelectorAll("main p, main h1, main h2, main h3, main [data-purpose]")) {
+    const box = element.getBoundingClientRect();
+    if (box.top > window.innerHeight || box.bottom < 0 || !visible(element)) continue;
+    const text = (element.textContent || "").replace(/\s+/g, " ").trim();
+    if (text.length < (/\p{Script=Han}/u.test(text) ? 12 : 30) || element.querySelector("p, h1, h2, h3")) continue;
+    const plain = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ");
+    // Chinese has no spaces: compare character pairs instead of words.
+    const words = /\p{Script=Han}/u.test(plain)
+      ? new Set([...plain.replace(/\s+/g, "")].map((char, index, chars) => char + (chars[index + 1] ?? "")))
+      : new Set(plain.split(/\s+/).filter(Boolean));
+    for (const other of sentences) {
+      const shared = [...words].filter((word) => other.words.has(word)).length;
+      const similarity = shared / Math.max(words.size, other.words.size);
+      if (similarity >= 0.75) problems.push(`said twice in the first screen: "${text.slice(0, 60)}"`);
+    }
+    sentences.push({ words });
   }
   // The tab row holds tabs only (UX_REFERENCE rule 26): a page's actions live in the page.
   for (const header of document.querySelectorAll(".workspace-page-header")) {

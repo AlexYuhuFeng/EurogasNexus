@@ -181,7 +181,6 @@ export function SpreadsWorkbench() {
 
   return (
     <div className="spreads-page" data-spreads-workbench="true">
-      {/* The page's purpose is the shell's line under the title (purpose.research.*). */}
 
       <form className="spreads-describe" onSubmit={onSubmit} aria-label={t("spreads.describe.label")}>
         <label className="spreads-describe-label" htmlFor="spreads-describe-input">{t("spreads.describe.label")}</label>

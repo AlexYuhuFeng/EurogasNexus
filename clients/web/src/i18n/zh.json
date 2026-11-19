@@ -3583,7 +3583,6 @@
   "nav.mode.research.assistant.short": "助手",
   "nav.mode.research.reports": "报告",
   "nav.mode.research.fundamentals": "基本面",
-  "fundamentals.purpose": "按国家查看储气、液化天然气与供需平衡，并与其自身历史比较。",
   "fundamentals.tabs": "基本面",
   "fundamentals.tab.storage": "储气",
   "fundamentals.tab.lng": "液化天然气",
@@ -4452,7 +4451,6 @@
   "instrument_picker.story.none": "尚未选择",
   "instrument_picker.story.hub_scope": "仅枢纽",
   "nav.mode.research.spreads": "价差",
-  "spreads.purpose": "一个价格相对另一个价格如何交易，以及在两者之间输气是否划算。",
   "spreads.describe.label": "描述",
   "spreads.describe.placeholder": "例如：荷兰和英国之间扣除运输费的远期价差",
   "spreads.describe.run": "解析",
@@ -4503,7 +4501,6 @@
   "spreads.choice.curve": "远期曲线",
   "spreads.simulated_banner": "模拟价格：该价差不是市场价格。",
   "nav.mode.research.cargo": "货物与净回值",
-  "cargo.purpose": "一船货在各接收站能净得多少，以及同一交付点的亨利港对比枢纽价格。仅为研究假设：不涉及账簿、不做检查，不报价、不申报。",
   "cargo.all_simulated": "演示数据：枢纽价格为模拟值，并非市场价格",
   "cargo.progress": "正在为货物定价",
   "cargo.failed": "无法为该货物定价，请重试。",
@@ -4943,9 +4940,9 @@
   "purpose.deals.opportunities": "利用您的头寸赚钱或节省成本的机会，附完整计算。",
   "purpose.deals.contracts": "您的供应、销售、容量与储气合同：其他一切都以此为准。",
   "purpose.deals.review": "等待审批的决策，以及已做决策的记录。",
-  "purpose.research.spreads": "一个价格相对另一个价格的走势，以及今天是否异常。",
+  "purpose.research.spreads": "一个价格相对另一个价格如何交易，以及在两者之间输气是否划算。",
   "purpose.research.fundamentals": "按国家对比储气、LNG、流量与供需平衡的历史水平。",
-  "purpose.research.cargo": "任一产地的货物在各接收站的价值。",
+  "purpose.research.cargo": "一船货在各接收站能净得多少，以及同一交付点的亨利港对比枢纽价格。",
   "purpose.research.reports": "基于已有数据撰写的市场报告。",
   "readiness.title": "本页面需要以下条件：",
   "empty.permission": "需要“{{what}}”权限；由{{who}}授予。",
@@ -5221,5 +5218,6 @@
   "opportunities.ready.prices.simulated": "演示的模拟市场（并非市场价格）",
   "opportunities.ready.costs.simulated": "模拟演示费率：{{simulated}} 条（非公布费率）· 接收站条款：{{terminals}}",
   "convert.quantity": "{{figure}}（单位换算，精确）",
-  "convert.quantity_heating": "{{figure}}，按 {{gcv}} kWh/m³（假设热值）"
+  "convert.quantity_heating": "{{figure}}，按 {{gcv}} kWh/m³（假设热值）",
+  "cargo.hypothetical": "仅为研究假设：不涉及账簿、不做检查，不报价、不申报。"
 }

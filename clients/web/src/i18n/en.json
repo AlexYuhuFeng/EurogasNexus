@@ -3583,7 +3583,6 @@
   "nav.mode.research.assistant.short": "Assistant",
   "nav.mode.research.reports": "Reports",
   "nav.mode.research.fundamentals": "Fundamentals",
-  "fundamentals.purpose": "Storage, LNG and the balance against their own history, by country.",
   "fundamentals.tabs": "Fundamentals",
   "fundamentals.tab.storage": "Storage",
   "fundamentals.tab.lng": "LNG",
@@ -4452,7 +4451,6 @@
   "instrument_picker.story.none": "Nothing picked yet",
   "instrument_picker.story.hub_scope": "Hub only",
   "nav.mode.research.spreads": "Spreads",
-  "spreads.purpose": "How one price trades against another, and whether moving gas between them pays.",
   "spreads.describe.label": "Describe it",
   "spreads.describe.placeholder": "e.g. forward spread net of transport tariff between TTF and NBP",
   "spreads.describe.run": "Interpret",
@@ -4503,7 +4501,6 @@
   "spreads.choice.curve": "Forward curve",
   "spreads.simulated_banner": "Simulated prices: this spread is not a market price.",
   "nav.mode.research.cargo": "Cargo & netback",
-  "cargo.purpose": "What a cargo nets at each terminal, and Henry Hub against the hub at the same delivery point. Hypothetical: no book, no checks, nothing offered or nominated.",
   "cargo.all_simulated": "Demo data: hub prices are simulated, not market prices",
   "cargo.progress": "Pricing the cargo",
   "cargo.failed": "The cargo could not be priced. Try again.",
@@ -4943,9 +4940,9 @@
   "purpose.deals.opportunities": "Ways to earn or save money with your book, with the arithmetic shown.",
   "purpose.deals.contracts": "Your supply, sales, capacity and storage contracts: the book everything else reads.",
   "purpose.deals.review": "Decisions waiting for approval, and the record of those taken.",
-  "purpose.research.spreads": "How one price trades against another, and whether today is unusual.",
+  "purpose.research.spreads": "How one price trades against another, and whether moving gas between them pays.",
   "purpose.research.fundamentals": "Storage, LNG, flows and the balance against their own history, by country.",
-  "purpose.research.cargo": "What a cargo from any origin is worth at each terminal.",
+  "purpose.research.cargo": "What a cargo nets at each terminal, and Henry Hub against the hub at the same delivery point.",
   "purpose.research.reports": "Market reports written from the data held.",
   "readiness.title": "Before this page can answer:",
   "empty.permission": "Needs the {{what}} permission; {{who}} grants it.",
@@ -5221,5 +5218,6 @@
   "opportunities.ready.prices.simulated": "the demo's simulated market (not market prices)",
   "opportunities.ready.costs.simulated": "simulated demo tariffs: {{simulated}} (not published) · terminal terms: {{terminals}}",
   "convert.quantity": "{{figure}} (unit factors, exact)",
-  "convert.quantity_heating": "{{figure}} at {{gcv}} kWh/m³ (assumed heating value)"
+  "convert.quantity_heating": "{{figure}} at {{gcv}} kWh/m³ (assumed heating value)",
+  "cargo.hypothetical": "Hypothetical: no book, no checks, nothing offered or nominated."
 }

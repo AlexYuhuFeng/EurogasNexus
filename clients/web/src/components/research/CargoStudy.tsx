@@ -144,7 +144,8 @@ export function CargoStudy() {
 
   return (
     <div className="cargo-page" data-cargo-study="true">
-      {/* The page's purpose is the shell's line under the title (purpose.research.*). */}
+      {/* The purpose is the shell's line (UX_REFERENCE rule 24); what remains is the caveat. */}
+      <p className="muted cargo-hypothetical">{t("cargo.hypothetical")}</p>
       <SimulatedScope scope={scope} notice={t("cargo.all_simulated")}>
         {/* Opens priced: the inputs fold above the answer, each one an override of what is held. */}
         <details className="cargo-inputs-fold" data-inputs-fold="true">
