@@ -165,10 +165,15 @@ pricing until a reviewed figure is entered by an administrator; nothing is estim
 | Swiss transit (FluxSwiss, Swissgas) | the Swiss side at Wallbach, Oltingue, Griespass, VIP Germany-CH | fluxswiss.com tariff pages | Not automated: terms not reviewed. Administrator entry |
 | LNG terminal regasification | terminal tariffs are not TSO tariffs | see the LNG terminal row above | Unchanged: the LNG terminal tariff register (CP-11) |
 
-The tariff register has no administrator entry screen for transmission tariffs yet (the
-four-eyes admin path exists for LNG terminal terms and for the TSO publication watch list,
-`/api/route-cost/tariff-publications`, not for `tso_tariffs` rows); until it does, these legs
-stay missing.
+**Administrator entry (2026-11-19).** Admin → Connectors → Access, "Transmission tariffs ENTSOG
+does not publish" (`/api/route-cost/tariff-entries`, `application/tso_tariff_entries.py`): a
+person reads the operator's published charge and enters it with the source URL, publication date
+and the place in the document; a second person reviews it (four eyes). This is a person reading a
+public document, not automated retrieval, so the site terms above are not engaged; the firm
+decides whether its staff may read a site whose terms it has not reviewed. The figure is stored
+as published and cited; a candidate prices as indicative, a reviewed entry as a reviewed public
+tariff, and an ENTSOG row for the same leg and period retires it. The product enters nothing by
+itself.
 
 **Lines.** ENTSOG's API publishes no route geometry, and its map drawings are ENTSOG
 property; no OpenStreetMap or other share-alike geometry is used. The bundle's edges are

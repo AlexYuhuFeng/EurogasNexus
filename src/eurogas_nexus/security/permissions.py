@@ -218,6 +218,10 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # keeps the READ floor - a trader must be able to see the deadline being traded against.
     ("/api/optimization/nomination-windows", Permission.READ),
     ("/api/route-cost/tso-tariffs", Permission.READ),
+    # Reviewed public transmission tariffs: an operator records, a second one reviews.
+    ("/api/route-cost/tariff-entries", Permission.OPERATOR),
+    ("/api/route-cost/tariff-entries/{entry_id}/review", Permission.OPERATOR),
+    ("/api/route-cost/tariff-entries/{entry_id}/withdraw", Permission.OPERATOR),
     ("/api/route-cost/route-candidates", Permission.READ),
     # GET lists + POST upserts contracts: policy-gated write surface.
     ("/api/route-cost/upstream-contracts", Permission.GOVERNED),
@@ -399,6 +403,7 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/contracts/intake", Permission.GOVERNED),
     # The tariff publication register is reference data everyone reads; the desk maintains it.
     ("GET", "/api/route-cost/tariff-publications", Permission.READ),
+    ("GET", "/api/route-cost/tariff-entries", Permission.READ),
 )
 
 PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {

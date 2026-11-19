@@ -5213,6 +5213,13 @@ export const api = {
     get<LngTerminalTariffRegisterDTO>("/lng/terminal-tariffs", undefined, options),
   reviewLngTerminalTariff: (tariffId: string) =>
     post<LngTerminalTariffDTO>(`/lng/terminal-tariffs/${encodeURIComponent(tariffId)}/review`, {}),
+  tariffEntries: (options?: ApiRequestOptions) =>
+    get<TariffEntriesViewDTO>("/route-cost/tariff-entries", undefined, options),
+  recordTariffEntry: (body: TariffEntryRequestDTO) => post<TariffEntryDTO>("/route-cost/tariff-entries", body),
+  reviewTariffEntry: (entryId: string) =>
+    post<TariffEntryDTO>(`/route-cost/tariff-entries/${encodeURIComponent(entryId)}/review`, {}),
+  withdrawTariffEntry: (entryId: string, reason: string) =>
+    post<TariffEntryDTO>(`/route-cost/tariff-entries/${encodeURIComponent(entryId)}/withdraw`, { reason }),
   recordLngTariffOperatorTerms: (operator: string, body: { permitted: boolean; reference: string }) =>
     put<LngTariffOperatorDTO>(`/lng/terminal-tariffs/operators/${encodeURIComponent(operator)}`, body),
   /** The firm's assumption sets the caller may read (organisation and visible books). */
@@ -5749,6 +5756,92 @@ export interface LngTerminalTariffDTO {
   recorded_by: string | null;
   reviewed_by: string | null;
   reviewed_at_utc: string | null;
+}
+
+/** A transmission leg the tariff register cannot price this gas year (`GET /api/route-cost/tariff-entries`). */
+export interface TariffMissingLegDTO {
+  kind: "crossing" | "LNG" | "Norway";
+  point_key: string;
+  point_name: string;
+  tso: string | null;
+  direction: "ENTRY" | "EXIT";
+  role: string;
+  can_be_entered: boolean;
+  why_not: string | null;
+  blocks: string[];
+  /** Supply entries: the market areas the point feeds. */
+  into?: string[];
+  drawn: boolean;
+  gas_year: string;
+}
+
+/** An operator-published transmission charge an administrator entered (four eyes). */
+export interface TariffEntryDTO {
+  entry_id: string;
+  state: "CANDIDATE" | "REVIEWED" | "RETIRED" | "WITHDRAWN";
+  operator_key: string | null;
+  tso: string;
+  point_id: string;
+  point_name: string;
+  direction: "ENTRY" | "EXIT";
+  capacity_product: string;
+  firmness: string;
+  tariff_value: number;
+  unit: string;
+  currency: string;
+  valid_from: string;
+  valid_to: string;
+  gas_year: string;
+  published_status: "FINAL" | "INDICATIVE";
+  source_url: string;
+  published_on: string;
+  source_location: string;
+  note: string | null;
+  recorded_by: string;
+  recorded_at_utc: string;
+  reviewed_by: string | null;
+  reviewed_at_utc: string | null;
+  closed_by: string | null;
+  closed_at_utc: string | null;
+  closed_reason: string | null;
+}
+
+export interface TariffEntryChoicesDTO {
+  operators: { operator_key: string; name: string; country: string }[];
+  points: {
+    point_key: string;
+    name: string;
+    country: string;
+    kind: string;
+    operators: { operator_key: string; directions: ("ENTRY" | "EXIT")[] }[];
+  }[];
+  products: string[];
+  firmness: string[];
+}
+
+export interface TariffEntriesViewDTO {
+  missing: TariffMissingLegDTO[];
+  entries: TariffEntryDTO[];
+  counts: { candidate: number; reviewed: number; retired: number };
+  choices: TariffEntryChoicesDTO;
+}
+
+export interface TariffEntryRequestDTO {
+  operator_key: string;
+  point_key: string;
+  direction: "ENTRY" | "EXIT";
+  capacity_product: string;
+  firmness: string;
+  tariff_value: number;
+  unit: string;
+  currency: string;
+  valid_from: string;
+  valid_to: string;
+  published_status: "FINAL" | "INDICATIVE";
+  source_url: string;
+  published_on: string;
+  source_location: string;
+  note?: string | null;
 }
 
 export interface LngTerminalTariffRegisterDTO {

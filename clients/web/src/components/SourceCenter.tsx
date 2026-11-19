@@ -12,6 +12,7 @@ import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogu
 import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
 import { CapacityContractBook } from "@/components/CapacityContractBook";
 import { LngTariffRegisterPanel } from "@/components/LngTariffRegisterPanel";
+import { TariffEntryPanel } from "@/components/TariffEntryPanel";
 import {
   EvidenceBlock,
   MetricStrip,
@@ -897,6 +898,7 @@ export function SourceCenter({
       </div>
       )}
 
+      {activeView === "access" && registryRead.hasReading && <TariffEntryPanel t={t} />}
       {activeView === "access" && registryRead.hasReading && <LngTariffRegisterPanel t={t} />}
 
       {activeView === "infrastructure" && (

@@ -50,7 +50,11 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **273 paths / 305 operations**
+- OpenAPI public surface: **276 paths / 309 operations**
+
+  (2026-11-19: reviewed public transmission tariffs: `GET`/`POST /api/route-cost/tariff-entries`
+  (READ; recording OPERATOR) and `POST .../{entry_id}/review` and `.../{entry_id}/withdraw`
+  (OPERATOR, four eyes on review, audited); 273 / 305 before)
 
   (2026-11-20: a contract's price for a delivery month, `GET
   /api/contracts/{contract_id}/price`, READ, book scope; +1 path / +1 operation.)

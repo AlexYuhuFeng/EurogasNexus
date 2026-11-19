@@ -87,6 +87,20 @@ sparkline and the full gas-year series for the codes in `season`; `missing` name
 not held. `meta.attribution` names GIE when provider rows are used. Census: 281 paths / 312
 operations (+1 / +1 on 280 / 311).
 
+Additive 2026-11-19 (reviewed public transmission tariffs): three paths, four operations.
+`GET /api/route-cost/tariff-entries` (READ) answers `missing[]` (the legs the register cannot
+price this gas year, those blocking drawn crossings and enterable first: point, operator,
+direction, crossings blocked, `can_be_entered`, `why_not`), `entries[]` (operator, point,
+direction, product, firmness, value, unit, currency, validity, the operator's status, source
+URL, publication date and location, state `CANDIDATE`/`REVIEWED`/`RETIRED`/`WITHDRAWN`, who
+and when), `counts` and `choices` (operators and points from the reference network). `POST
+/api/route-cost/tariff-entries` (OPERATOR; 422 with a stable `code` such as
+`unit_not_understood`, `currency_mismatch`, `operator_not_at_point`; 409 `published_row_held`
+or `entry_exists`). `POST /api/route-cost/tariff-entries/{entry_id}/review` (OPERATOR; 403
+`four_eyes` for the recorder). `POST /api/route-cost/tariff-entries/{entry_id}/withdraw`
+(OPERATOR; body `{reason}`). Route legs gain `source_kind` (published, reviewed public tariff,
+awaiting review, simulated). Census: 276 paths / 309 operations (+3 / +4 on 273 / 305).
+
 Additive 2026-11-18 (LNG terminal tariff register, CP-11): four paths, four operations.
 `GET /api/lng/terminal-tariffs` (READ) answers `operators[]` (reuse terms as checked, the
 firm's `permission_state` `needs_firm_terms` / `permitted`, reference, who and when),

@@ -618,6 +618,7 @@ def missing_legs(rows: list[dict], *, today: date, graph=None) -> list[dict[str,
             "can_be_entered": bool(supply["can_be_entered"]),
             "why_not": None if supply["can_be_entered"] else "point not in the reference network",
             "blocks": [f"{supply['kind']} entry into {', '.join(supply['into'])}"],
+            "into": list(supply["into"]),
             "drawn": False,
         }
     ordered = sorted(

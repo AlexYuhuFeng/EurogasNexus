@@ -1,0 +1,39 @@
+@layer legacy {
+/* Reviewed public transmission tariffs on Admin → Connectors → Access. */
+
+.tariff-entry-intro {
+  margin: 0 0 var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+}
+
+.tariff-entry-form {
+  margin-top: var(--ds-space-2);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+}
+
+.tariff-entry-actions {
+  display: inline-flex;
+  gap: var(--ds-space-1);
+}
+
+.tariff-entry-four-eyes {
+  grid-column: 1 / -1;
+  font-size: var(--ds-text-sm);
+}
+}
+
+@layer legacy {
+.tariff-entry-more > summary {
+  margin: var(--ds-space-2) 0 var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  cursor: pointer;
+}
+}
+
+@layer legacy {
+.tariff-entry-form > h3,
+.tariff-entry-form > .lng-tariff-actions {
+  grid-column: 1 / -1;
+}
+}

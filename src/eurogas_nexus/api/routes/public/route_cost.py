@@ -1468,3 +1468,148 @@ def put_tariff_publication(
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
     return _env(payload, request, source="runtime-postgresql")
+
+
+# ---------------------------------------------------- reviewed public transmission tariffs
+
+
+class TariffEntryRequest(BaseModel):
+    """An operator-published transmission charge, as an administrator read it.
+
+    Operator, point and direction are chosen from the reference network (the view's
+    ``choices``); the value is in the unit and currency the operator published.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    operator_key: str = Field(min_length=3, max_length=32)
+    point_key: str = Field(min_length=3, max_length=128)
+    direction: Literal["ENTRY", "EXIT"]
+    capacity_product: Literal["ANNUAL", "QUARTERLY", "MONTHLY", "DAILY", "WITHIN_DAY"] = "ANNUAL"
+    firmness: Literal["FIRM", "INTERRUPTIBLE"] = "FIRM"
+    tariff_value: float = Field(ge=0, le=1_000_000)
+    unit: str = Field(min_length=3, max_length=32)
+    currency: str = Field(min_length=3, max_length=3)
+    valid_from: date
+    valid_to: date
+    published_status: Literal["FINAL", "INDICATIVE"]
+    source_url: str = Field(min_length=9, max_length=500)
+    published_on: date
+    source_location: str = Field(min_length=1, max_length=256)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class TariffEntryWithdrawRequest(BaseModel):
+    """Why an entered tariff is withdrawn (recorded in the audit trail)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    reason: str = Field(min_length=1, max_length=256)
+
+
+def _entry_actor(request: Request) -> str:
+    from eurogas_nexus.security.authorization import Permission, authorize
+
+    principal = getattr(request.state, "identity", None)
+    if principal is None:
+        raise HTTPException(status_code=401, detail={"error": "principal_missing"})
+    if not authorize(principal, Permission.SOURCE_RUN).allowed:
+        raise HTTPException(status_code=403, detail={"error": "permission_denied"})
+    return principal.principal_id
+
+
+def _entry_session():
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    from eurogas_nexus.db.session import get_session_factory
+
+    return get_session_factory()()
+
+
+def _entry_error(exc) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}
+    )
+
+
+@router.get("/api/route-cost/tariff-entries")
+def list_tariff_entries(request: Request) -> dict:
+    """Reviewed public transmission tariffs: the legs that block routes (those an operator can
+    enter first), the entries with their review state, and the reference-network choices.
+    Public reference data; READ."""
+
+    from eurogas_nexus.application import tso_tariff_entries as entries
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with _entry_session() as session:
+            payload = entries.entries_view(session)
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(payload, request, source="runtime-postgresql")
+
+
+@router.post("/api/route-cost/tariff-entries")
+def record_tariff_entry(body: TariffEntryRequest, request: Request) -> dict:
+    """Record an operator-published charge as a candidate (OPERATOR; prices as indicative until
+    a second person reviews it; audited)."""
+
+    from eurogas_nexus.application import tso_tariff_entries as entries
+
+    actor = _entry_actor(request)
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with _entry_session() as session:
+            try:
+                payload = entries.record_entry(session, body.model_dump(mode="json"), actor=actor)
+            except entries.TariffEntryError as exc:
+                session.rollback()
+                raise _entry_error(exc) from exc
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(payload, request, source="runtime-postgresql")
+
+
+@router.post("/api/route-cost/tariff-entries/{entry_id}/review")
+def review_tariff_entry(entry_id: str, request: Request) -> dict:
+    """Mark a candidate reviewed (OPERATOR; four eyes: never by whoever recorded it)."""
+
+    from eurogas_nexus.application import tso_tariff_entries as entries
+
+    actor = _entry_actor(request)
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with _entry_session() as session:
+            try:
+                payload = entries.review_entry(session, entry_id, reviewer=actor)
+            except entries.TariffEntryError as exc:
+                session.rollback()
+                raise _entry_error(exc) from exc
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(payload, request, source="runtime-postgresql")
+
+
+@router.post("/api/route-cost/tariff-entries/{entry_id}/withdraw")
+def withdraw_tariff_entry(
+    entry_id: str, body: TariffEntryWithdrawRequest, request: Request
+) -> dict:
+    """Withdraw an entry with the reason (OPERATOR; it stops pricing at once; audited)."""
+
+    from eurogas_nexus.application import tso_tariff_entries as entries
+
+    actor = _entry_actor(request)
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with _entry_session() as session:
+            try:
+                payload = entries.withdraw_entry(
+                    session, entry_id, actor=actor, reason=body.reason
+                )
+            except entries.TariffEntryError as exc:
+                session.rollback()
+                raise _entry_error(exc) from exc
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(payload, request, source="runtime-postgresql")
