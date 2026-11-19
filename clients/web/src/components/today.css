@@ -379,11 +379,6 @@
     margin-left: 0;
   }
 
-  .today-balance-fold > summary {
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-sm);
-    cursor: pointer;
-  }
 
   .today-book-figures {
     margin-bottom: var(--ds-space-2);

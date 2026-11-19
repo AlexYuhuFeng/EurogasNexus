@@ -107,7 +107,7 @@ function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: T
  * `summary` (Today): the headline figures and the country table with its sparklines; the season
  * chart is one click away and the "not held" list stays on the full view (Today is the summary).
  */
-export function StorageByCountryPanel({ t, language, summary = false }: { t: Translate; language: string; summary?: boolean }) {
+export function StorageByCountryPanel({ t, language, summary = false, onOpenFull }: { t: Translate; language: string; summary?: boolean; onOpenFull?: () => void }) {
   const [region, setRegion] = useState<Region>("eu");
   const [selected, setSelected] = useState<string | null>(null);
   const [data, setData] = useState<FundamentalsStorageDTO | null>(null);
@@ -247,8 +247,13 @@ export function StorageByCountryPanel({ t, language, summary = false }: { t: Tra
           <span className="storage-panel-headline">
             <strong>{subject.name}</strong> {headline(subject, avgWords, t("storage_panel.per_day"))}
           </span>
-          <Sparkline {...sparkOf(subject)} label={t("storage_panel.spark_label", { name: subject.name })} unit="%" decimals={1} simulated={subject.simulated} t={t} onOpen={() => setShowChart(true)} />
-          <Button variant="quiet" onClick={() => setShowChart(true)}>{t("storage_panel.open_chart")}</Button>
+          <Sparkline {...sparkOf(subject)} label={t("storage_panel.spark_label", { name: subject.name })} unit="%" decimals={1} simulated={subject.simulated} t={t} onOpen={() => (summary && onOpenFull ? onOpenFull() : setShowChart(true))} />
+          {/* Today is the summary: the season chart is Research → Fundamentals, one click away. */}
+          {summary && onOpenFull ? (
+            <Button variant="quiet" onClick={onOpenFull} data-open-fundamentals="storage">{t("storage_panel.open_fundamentals")}</Button>
+          ) : (
+            <Button variant="quiet" onClick={() => setShowChart(true)}>{t("storage_panel.open_chart")}</Button>
+          )}
         </div>
       ) : (
         <Chart

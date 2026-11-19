@@ -48,9 +48,7 @@ import {
   stateWords,
 } from "@/app/model/todayModel";
 import { pnlClass } from "@/app/model/pnlColor";
-import { GasForPowerPanel } from "@/components/GasForPowerPanel";
 import { MethodNote } from "@/components/MethodNote";
-import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
 import { useConvertedAmount, useConvertedPrice } from "@/app/time/useConversion";
@@ -89,6 +87,8 @@ export interface TodayScreenProps {
   canSeeBook?: boolean;
   /** The header line is drawn by the page's context strip (the cockpit), not by Today. */
   headInStrip?: boolean;
+  /** Open Research → Fundamentals on a view (storage, balance), where the full charts are. */
+  onOpenFundamentals?: (view: "storage" | "balance") => void;
   /** Open Prices, where a market sparkline's full chart is. */
   onOpenPrices?: () => void;
   /** Open what a "What needs me" item names. */
@@ -537,7 +537,7 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
 
 /* ------------------------------------------------------------------ row 4 */
 
-function FundamentalsRow({ row, t, nowMs, language, quiet }: { row: TodayFundamentalsRowDTO; t: Translate; nowMs: number; language: string; quiet?: string | null }) {
+function FundamentalsRow({ row, t, nowMs, language, quiet, onOpenFundamentals }: { row: TodayFundamentalsRowDTO; t: Translate; nowMs: number; language: string; quiet?: string | null; onOpenFundamentals?: TodayScreenProps["onOpenFundamentals"] }) {
   const storage = row.storage;
   const balance = row.balance;
   return (
@@ -552,7 +552,7 @@ function FundamentalsRow({ row, t, nowMs, language, quiet }: { row: TodayFundame
             <Empty empty={storage.empty} id="today-storage" />
           ) : (
             <section className="workspace-panel today-chart-panel" data-today-storage="by-country">
-              <StorageByCountryPanel t={t} language={language} summary />
+              <StorageByCountryPanel t={t} language={language} summary onOpenFull={onOpenFundamentals ? () => onOpenFundamentals("storage") : undefined} />
             </section>
           )}
           {isEmptyEntry(balance) ? (
@@ -580,7 +580,7 @@ function FundamentalsRow({ row, t, nowMs, language, quiet }: { row: TodayFundame
                   unit={balance.latest.unit || "GWh/d"}
                   decimals={0}
                   t={t}
-                  onOpen={() => openFold("today-balance-fold")}
+                  onOpen={onOpenFundamentals ? () => onOpenFundamentals("balance") : undefined}
                 />
               </div>
               {balance.lng_gwh != null && (
@@ -599,25 +599,10 @@ function FundamentalsRow({ row, t, nowMs, language, quiet }: { row: TodayFundame
           )}
         </div>
       )}
-      {/* The full balance and gas-for-power charts belong to Research → Fundamentals (E.2,
-          CP-17); until that page exists they stay one line below, folded. */}
-      <details className="today-balance-fold" id="today-balance-fold">
-        <summary>{t("today.balance_fold")}</summary>
-        <NweBalancePanel t={t} simulated={!isEmptyEntry(balance) && balance.latest.simulated} />
-        <GasForPowerPanel t={t} />
-      </details>
     </RowSection>
   );
 }
 
-/** Open a fold on this page and bring it into view: a sparkline's "open the full chart". */
-function openFold(id: string): void {
-  const fold = document.getElementById(id);
-  if (!(fold instanceof HTMLDetailsElement)) return;
-  fold.open = true;
-  fold.scrollIntoView({ block: "start", behavior: "smooth" });
-  fold.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
-}
 
 /* ---------------------------------------------------------- freshness (FRESH-02) */
 
@@ -732,7 +717,7 @@ export function TodayHeadActions({ t, loading, onOpenBrief, onRefresh }: { t: Tr
   );
 }
 
-export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices, headInStrip = false }: TodayScreenProps) {
+export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices, headInStrip = false, onOpenFundamentals }: TodayScreenProps) {
   if (!today) {
     return (
       <div className="today" data-today="loading">
@@ -746,7 +731,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
     market: () => (keyFigures?.market ? <MarketRow key="market" market={keyFigures.market} t={t} nowMs={nowMs} onInspectPrice={onInspectPrice} onOpenPrices={onOpenPrices} /> : null),
     book: () => (canSeeBook && book ? <BookRow key="book" row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} language={language} onOpenLimits={onOpenLimits} /> : null),
     needs_me: () => (needsMe && needsMe.items.length > 0 ? <NeedsMeRow key="needs_me" row={needsMe} t={t} nowMs={nowMs} language={language} onOpen={onOpenNeed} /> : null),
-    fundamentals: () => (fundamentals ? <FundamentalsRow key="fundamentals" row={fundamentals} t={t} nowMs={nowMs} language={language} quiet={quiet} /> : null),
+    fundamentals: () => (fundamentals ? <FundamentalsRow key="fundamentals" row={fundamentals} t={t} nowMs={nowMs} language={language} quiet={quiet} onOpenFundamentals={onOpenFundamentals} /> : null),
   };
   const scope = today.all_simulated ? "all" : today.simulated ? "mixed" : "none";
   return (

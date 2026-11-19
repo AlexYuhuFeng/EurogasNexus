@@ -175,6 +175,13 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             rows={resolveComposition(api.currentUser).composition.todayRows}
             canSeeBook={!Array.isArray(api.currentUser?.permissions) || api.currentUser.permissions.includes("portfolio.read")}
             onOpenPrices={() => openTask("curves")}
+            // The full storage and balance charts are Research → Fundamentals (CP-17).
+            onOpenFundamentals={(view) => {
+              navigation.openWorkspace("research", "fundamentals");
+              const next = new URLSearchParams(window.location.search);
+              next.set("view", view);
+              window.history.replaceState(window.history.state, "", `?${next.toString()}`);
+            }}
             onOpenNeed={(item) => {
               if (item.kind === "outage") {
                 openTask("network");

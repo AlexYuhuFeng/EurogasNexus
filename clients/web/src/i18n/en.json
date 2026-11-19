@@ -4868,7 +4868,6 @@
   "today.supply_call_vs_avg": "7-day average {{avg}} GWh/d",
   "today.lng_sendout": "LNG send-out",
   "today.lng_vs_yesterday": "{{change}} vs yesterday",
-  "today.balance_fold": "NW Europe balance and gas for power",
   "prices.chart.compare": "Compare with",
   "prices.chart.compare_clear": "One hub",
   "prices.chart.compare_title": "Forward curves: {{hubs}}",
@@ -5124,5 +5123,6 @@
   "decision.dispatch.period": "Period",
   "decision.dispatch.period_n": "Period {{n}}",
   "decision.dispatch.facility": "Storage facility",
-  "decision.dispatch.no_storage_contracts": "No storage contracts in the book; add one under Deals → Contracts, or type the facility."
+  "decision.dispatch.no_storage_contracts": "No storage contracts in the book; add one under Deals → Contracts, or type the facility.",
+  "storage_panel.open_fundamentals": "Open in Fundamentals"
 }

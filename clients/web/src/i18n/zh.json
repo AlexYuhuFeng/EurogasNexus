@@ -4868,7 +4868,6 @@
   "today.supply_call_vs_avg": "7 日平均 {{avg}} GWh/d",
   "today.lng_sendout": "LNG 外输",
   "today.lng_vs_yesterday": "较昨日 {{change}}",
-  "today.balance_fold": "西北欧供需平衡与燃气发电",
   "prices.chart.compare": "对比",
   "prices.chart.compare_clear": "仅一个枢纽",
   "prices.chart.compare_title": "远期曲线：{{hubs}}",
@@ -5124,5 +5123,6 @@
   "decision.dispatch.period": "时段",
   "decision.dispatch.period_n": "时段 {{n}}",
   "decision.dispatch.facility": "储气设施",
-  "decision.dispatch.no_storage_contracts": "头寸中没有储气合同；可在 交易项目 → 合同 中添加，或手动输入设施。"
+  "decision.dispatch.no_storage_contracts": "头寸中没有储气合同；可在 交易项目 → 合同 中添加，或手动输入设施。",
+  "storage_panel.open_fundamentals": "在基本面中打开"
 }
