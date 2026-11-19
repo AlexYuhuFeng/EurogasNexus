@@ -514,11 +514,17 @@ def persist_entsog_tariffs(
     rows, counts = entsog_tariff_rows(
         records, bundle=bundle, downloaded=day, received_at=received, points=points
     )
+    from eurogas_nexus.application.tso_tariff_entries import retire_superseded_entries
+
     with session.begin_nested():
         for row in rows:
             session.merge(TsoTariffRecord(**row))
+        session.flush()
+        # An administrator's entry for a leg ENTSOG now publishes steps aside.
+        retired = retire_superseded_entries(session) if rows else 0
     return {
         "records": len(rows),
+        "entries_retired": retired,
         "received_records": len(records),
         # Not stored by design (other products, archived rows) is not a data problem.
         "skipped_records": sum(

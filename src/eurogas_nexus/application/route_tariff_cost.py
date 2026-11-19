@@ -98,6 +98,23 @@ class RouteLeg:
             return "missing"
         return _STATUS_CLASS.get((self.status or "").upper(), "indicative")
 
+    @property
+    def source_kind(self) -> str | None:
+        """Where the leg's tariff comes from, in desk words (None when missing)."""
+
+        if self.value is None:
+            return None
+        tariff_id = self.tariff_id or ""
+        if (self.status or "").upper() == "SIMULATOR_ONLY":
+            return "simulated"
+        if tariff_id.startswith("entsog-"):
+            return "published (ENTSOG TP)"
+        if tariff_id.startswith("entry-"):
+            if "awaiting review" in (self.source or ""):
+                return "public tariff, awaiting review"
+            return "reviewed public tariff"
+        return "tariff register"
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "point_key": self.point_key,
@@ -115,6 +132,7 @@ class RouteLeg:
             "published": self.published,
             "basis": self.basis,
             "note": self.note,
+            "source_kind": self.source_kind,
             "input_class": self.input_class,
         }
 
@@ -307,6 +325,43 @@ def price_leg(
         published=published,
         basis=read.basis,
     )
+
+
+@dataclass(frozen=True)
+class _LegSpec:
+    point_key: str
+    point_name: str
+    tso: str
+    direction: str
+    role: str
+
+
+def public_tariff_for_leg(
+    point_key: str,
+    direction: str,
+    tso: str,
+    on: date,
+    *,
+    rows: Iterable[Mapping[str, Any]] | None = None,
+    product: str = "ANNUAL",
+    firmness: str = "FIRM",
+    load_factor: float = 1.0,
+    point_name: str | None = None,
+    role: str = "leg",
+) -> RouteLeg:
+    """The public tariff for one transmission leg on gas day ``on``, per MWh, or missing.
+
+    The single per-leg read of the public tariff register for callers that price a leg the
+    firm has no contract for (``application/contract_costs`` reads the firm's own transport
+    contracts first, then this). Rows default to the register (:func:`load_tariff_rows` for
+    the product and firmness); the leg names its source (``source_kind``: published, reviewed
+    public tariff, awaiting review, simulated) and is missing, never zero, when none is held.
+    """
+
+    if rows is None:
+        rows = load_tariff_rows(product=product, firmness=firmness)
+    spec = _LegSpec(point_key, point_name or point_key, tso, direction.upper(), role)
+    return price_leg(spec, rows, on, product=product, firmness=firmness, load_factor=load_factor)
 
 
 @dataclass(frozen=True)

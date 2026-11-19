@@ -191,6 +191,7 @@ from eurogas_nexus.db.models.support import (
     NotificationOutboxRecord,
     SupportReportRecord,
 )
+from eurogas_nexus.db.models.tso_tariff_entry import TsoTariffEntryRecord
 
 IngestionRunStatus = Literal[
     "queued",
@@ -356,6 +357,7 @@ __all__ = [
     "CreditLineRecord",
     "LngTerminalOperatorTermsRecord",
     "LngTerminalTariffRecord",
+    "TsoTariffEntryRecord",
     "LngTerminalTermsRecord",
     "HedgeApprovalRecord",
     "TraderMandateRecord",

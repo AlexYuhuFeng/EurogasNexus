@@ -44,6 +44,7 @@ import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+from eurogas_nexus.application import simulated_tariffs as _simulated_tariffs
 from eurogas_nexus.application.pipeline_supply import LANDING_POINTS
 from eurogas_nexus.application.position_inputs import gas_year_window
 from eurogas_nexus.core.config import simulated_sources_allowed
@@ -212,60 +213,11 @@ CROSS_BORDER_CONTRACT = "demo-kestrel-uk-6"
 #: The Kestrel UK leg is bought from the same seller as Kestrel supply (TTF).
 CROSS_BORDER_COUNTERPARTY = "RHM"
 CROSS_BORDER_ROUTE = "demo-route-ttf-nbp-bbl"
-#: Simulated tariffs, one per leg: the BBL crossing (TTF -> NBP, and its reverse flow) and one
-#: crossing of every other main hub pair the demo market quotes (TTF-THE, TTF-ZTP, THE-PEG,
-#: THE-ZTP, PEG-ZTP, ZTP-NBP through IUK), both directions, so a demo without published
-#: tariffs prices every locational spread net of transport. SIMULATOR_ONLY (the lowest status:
-#: a published row always wins the selection) and removed by ``retire_simulated_tariffs`` once
-#: a published row names the same operator, point and direction. Magnitudes are of the order
-#: published capacity tariffs show at 100 % load factor; invented, not market data. The demo
-#: market holds its hubs' prices against the route costs these give (``demo_route_costs``).
-SIMULATED_TARIFF_DOCUMENT = "demo-simulated-tariffs"
-SIMULATED_TARIFFS = (
-    # TTF -> NBP through BBL (forward flow), and NBP -> TTF (reverse flow).
-    ("NL", "GTS", "ITP-00063", "Julianadorp (GTS) /Balgzand (BBL)", "EXIT", 0.56),
-    ("GB", "BBL company", "ITP-00207", "Bacton (BBL)", "EXIT", 1.20),
-    ("GB", "National Gas TSO", "ITP-00207", "Bacton (BBL)", "ENTRY", 0.12),
-    ("GB", "National Gas TSO", "ITP-00207", "Bacton (BBL)", "EXIT", 0.15),
-    ("GB", "BBL company", "ITP-00207", "Bacton (BBL)", "ENTRY", 1.20),
-    ("NL", "GTS", "ITP-00063", "Julianadorp (GTS) /Balgzand (BBL)", "ENTRY", 0.45),
-    # TTF <-> THE at VIP TTF-THE-H.
-    ("NL", "GTS", "ITP-10012", "VIP TTF-THE-H", "EXIT", 0.45),
-    ("DE", "Gasunie Deutschland", "ITP-10012", "VIP TTF-THE-H", "ENTRY", 0.55),
-    ("DE", "Gasunie Deutschland", "ITP-10012", "VIP TTF-THE-H", "EXIT", 0.55),
-    ("NL", "GTS", "ITP-10012", "VIP TTF-THE-H", "ENTRY", 0.45),
-    # TTF <-> ZTP at Zelzate.
-    ("NL", "GTS", "ITP-00101", "Zelzate", "EXIT", 0.45),
-    ("BE", "Fluxys Belgium", "ITP-00101", "Zelzate", "ENTRY", 0.40),
-    ("BE", "Fluxys Belgium", "ITP-00101", "Zelzate", "EXIT", 0.80),
-    ("NL", "GTS", "ITP-00101", "Zelzate", "ENTRY", 0.85),
-    # THE <-> PEG at Obergailbach / Medelsheim.
-    ("DE", "NaTran Deutschland", "ITP-00137", "Obergailbach (FR) / Medelsheim (DE)", "EXIT",
-     0.55),
-    ("FR", "NaTran", "ITP-00137", "Obergailbach (FR) / Medelsheim (DE)", "ENTRY", 0.50),
-    ("FR", "NaTran", "ITP-00137", "Obergailbach (FR) / Medelsheim (DE)", "EXIT", 0.55),
-    ("DE", "NaTran Deutschland", "ITP-00137", "Obergailbach (FR) / Medelsheim (DE)", "ENTRY",
-     0.50),
-    # THE <-> ZTP at VIP THE-ZTP.
-    ("DE", "Open Grid Europe", "ITP-00614", "VIP THE-ZTP", "EXIT", 0.70),
-    ("BE", "Fluxys Belgium", "ITP-00614", "VIP THE-ZTP", "ENTRY", 0.70),
-    ("BE", "Fluxys Belgium", "ITP-00614", "VIP THE-ZTP", "EXIT", 0.70),
-    ("DE", "Open Grid Europe", "ITP-00614", "VIP THE-ZTP", "ENTRY", 0.70),
-    # PEG <-> ZTP at Virtualys.
-    ("FR", "NaTran", "ITP-00526", "VIRTUALYS", "EXIT", 0.50),
-    ("BE", "Fluxys Belgium", "ITP-00526", "VIRTUALYS", "ENTRY", 0.40),
-    ("BE", "Fluxys Belgium", "ITP-00526", "VIRTUALYS", "EXIT", 0.40),
-    ("FR", "NaTran", "ITP-00526", "VIRTUALYS", "ENTRY", 0.50),
-    # ZTP <-> NBP through IUK (Zeebrugge IZT, Bacton IUK).
-    ("BE", "Fluxys Belgium", "ITP-00061", "Zeebrugge IZT", "EXIT", 0.40),
-    ("BE", "Interconnector", "ITP-00061", "Zeebrugge IZT", "ENTRY", 1.60),
-    ("GB", "Interconnector", "ITP-00005", "Bacton (IUK)", "EXIT", 1.60),
-    ("GB", "National Gas TSO", "ITP-00005", "Bacton (IUK)", "ENTRY", 0.12),
-    ("GB", "National Gas TSO", "ITP-00005", "Bacton (IUK)", "EXIT", 0.15),
-    ("GB", "Interconnector", "ITP-00005", "Bacton (IUK)", "ENTRY", 1.60),
-    ("BE", "Interconnector", "ITP-00061", "Zeebrugge IZT", "EXIT", 1.60),
-    ("BE", "Fluxys Belgium", "ITP-00061", "Zeebrugge IZT", "ENTRY", 0.40),
-)
+#: Simulated tariffs: one list and one retirement rule, owned by
+#: ``application/simulated_tariffs.py`` (labelled SIMULATOR_ONLY, retired once a published or
+#: reviewed row names the same leg).
+SIMULATED_TARIFF_DOCUMENT = _simulated_tariffs.SIMULATED_TARIFF_DOCUMENT
+SIMULATED_TARIFFS = _simulated_tariffs.SIMULATED_TARIFF_LEGS
 
 
 #: Simulated market LNG vessels, so the vessel layer and its link to terminal send-out can be
@@ -1079,34 +1031,10 @@ def _seed_cross_border_position(session, now: datetime, today: date) -> None:
             created_at_utc=now,
         )
     )
-    start = date(today.year if today.month >= 10 else today.year - 1, 10, 1)
-    for country, tso, point, name, direction, value in SIMULATED_TARIFFS:
-        session.add(
-            TsoTariffRecord(
-                tariff_id=f"demo-sim-{tso}-{point}-{direction}".lower().replace(" ", "-"),
-                document_id=SIMULATED_TARIFF_DOCUMENT,
-                country=country,
-                tso=tso,
-                market_area="DEMO",
-                gas_year=label,
-                point_id=point,
-                source_point_name=name,
-                direction=direction,
-                capacity_product="ANNUAL",
-                firmness="FIRM",
-                tariff_value=value,
-                currency="EUR",
-                unit="EUR/MWh",
-                effective_from=datetime.combine(start, datetime.min.time(), tzinfo=UTC),
-                effective_to=None,
-                tariff_status="SIMULATOR_ONLY",
-                source_table="Simulated demo tariff: not a published tariff",
-                source_page=None,
-                source_refs=[f"{SOURCE}:simulated-tariff"],
-                manual_review_required=True,
-                created_at_utc=now,
-            )
-        )
+    for row in _simulated_tariffs.simulated_tariff_records(
+        today=today, now=now, gas_year=label, source_ref=f"{SOURCE}:simulated-tariff"
+    ):
+        session.add(TsoTariffRecord(**row))
 
 
 #: Firm storage the demo desk holds at CEGH (fictional facility; the T1 case is found on it).
@@ -1361,22 +1289,10 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
 
 
 def retire_simulated_tariffs(session) -> int:
-    """Delete simulated demo tariffs whose leg a published row now names; idempotent."""
+    """Delete simulated demo tariffs a published or reviewed row now names (the rule of
+    ``application/simulated_tariffs.retire_simulated_tariffs``); idempotent."""
 
-    published = {
-        (row.tso.strip().lower(), row.point_id, row.direction.upper())
-        for row in session.query(TsoTariffRecord).filter(
-            TsoTariffRecord.document_id != SIMULATED_TARIFF_DOCUMENT
-        )
-    }
-    retired = 0
-    for row in session.query(TsoTariffRecord).filter(
-        TsoTariffRecord.document_id == SIMULATED_TARIFF_DOCUMENT
-    ):
-        if (row.tso.strip().lower(), row.point_id, row.direction.upper()) in published:
-            session.delete(row)
-            retired += 1
-    return retired
+    return _simulated_tariffs.retire_simulated_tariffs(session)
 
 
 # ---------------------------------------------------------------------------
@@ -2658,13 +2574,7 @@ def demo_route_costs() -> dict[tuple[str, str], float]:
     from eurogas_nexus.reference_data.network_adjacency import shipped_market_area_graph
 
     graph = shipped_market_area_graph()
-    rows = [
-        {"point_id": point, "direction": direction, "tso": tso, "tariff_value": value,
-         "currency": "EUR", "unit": "EUR/MWh", "effective_from": None, "effective_to": None,
-         "tariff_status": "SIMULATOR_ONLY", "gas_year": "demo", "tariff_id": point,
-         "source_table": "simulated"}
-        for _country, tso, point, _name, direction, value in SIMULATED_TARIFFS
-    ]
+    rows = _simulated_tariffs.route_cost_rows()
     delivery = Delivery(date(2026, 12, 1), date(2026, 12, 31), "month", "Dec-26")
     hubs = [hub for hub, _currency in DEMO_PRICE_HUBS if graph.hub_for(hub)]
     costs: dict[tuple[str, str], float] = {}

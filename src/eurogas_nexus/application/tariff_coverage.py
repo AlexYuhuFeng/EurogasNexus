@@ -66,7 +66,19 @@ def leg_source(leg: Any) -> str | None:
         return "simulated (demo)"
     if tariff_id.startswith("entsog-"):
         return "ENTSOG TP"
+    if tariff_id.startswith("entry-"):
+        # A reviewed entry carries the operator's status; a candidate is filed indicative
+        # with "awaiting review" in its source.
+        if "awaiting review" in str(leg.source or ""):
+            return "public tariff, awaiting review"
+        return "reviewed public tariff"
     return "register (administrator)"
+
+
+def can_be_entered(leg: Any) -> bool:
+    """A missing leg an administrator can enter: the reference network names its operator."""
+
+    return leg.value is None and bool(leg.tso) and leg.tso != "unknown TSO"
 
 
 def graph_coverage(
@@ -115,6 +127,7 @@ def graph_coverage(
                         if held
                         else ("nothing held at point" if silent else "missing"),
                         "class": weakest(leg.input_class for leg in legs),
+                        "can_be_entered": _crossing_enterable(legs),
                         "legs": [
                             {
                                 "role": leg.role,
@@ -127,12 +140,22 @@ def graph_coverage(
                                 "source": leg_source(leg),
                                 "gas_year": leg.gas_year,
                                 "status": leg.status,
+                                "can_be_entered": can_be_entered(leg),
                             }
                             for leg in legs
                         ],
                     }
                 )
     return out
+
+
+def _crossing_enterable(legs: list[Any]) -> str:
+    """ "-" when priced, "yes" when every missing leg names its operator, else "no"."""
+
+    missing = [leg for leg in legs if leg.value is None]
+    if not missing:
+        return "-"
+    return "yes" if all(can_be_entered(leg) for leg in missing) else "no (no operator named)"
 
 
 def _in_force(row: Mapping[str, Any], moment: datetime) -> bool:
@@ -229,6 +252,7 @@ def supply_coverage(
 
     rows = list(rows)
     moment = datetime(on.year, on.month, on.day, tzinfo=UTC)
+    named = _points_with_operators()
     out = []
     for kind, table in (("LNG", LNG_ENTRY_POINTS), ("Norway", NORWAY_LANDING_POINTS)):
         for point, (label, areas) in sorted(table.items()):
@@ -242,9 +266,28 @@ def supply_coverage(
                     "entry": _row_class(entry_rows),
                     "tso": sorted({str(row.get("tso")) for row in entry_rows}),
                     "status": "held" if entry_rows else "missing",
+                    # Enterable when the reference network names an operator at the point.
+                    "can_be_entered": not entry_rows and point in named,
                 }
             )
     return out
+
+
+def _points_with_operators() -> set[str]:
+    from eurogas_nexus.reference_data.network_bundle import load_bundle
+
+    bundle = load_bundle()
+    points = {
+        str(row.get("point_key"))
+        for row in bundle.get("access") or []
+        if "-TSO-" in str(row.get("operator_key") or "")
+    }
+    points |= {
+        str(node["point_key"])
+        for node in bundle.get("nodes") or []
+        if any("-TSO-" in str(op) for op in node.get("operators") or [])
+    }
+    return points
 
 
 def coverage_report(
@@ -290,6 +333,12 @@ def coverage_report(
     return report
 
 
+def _yes_no(row: Mapping[str, Any]) -> str:
+    if row["status"] == "held":
+        return "-"
+    return "yes" if row["can_be_entered"] else "no (point not in the reference network)"
+
+
 def _leg_cell(leg: Mapping[str, Any]) -> str:
     if not leg["held"]:
         return f"{leg['direction'].lower()} {leg['point']} {leg['tso']}: MISSING"
@@ -314,32 +363,39 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"supply entry {summary['supply_held']}/{summary['supply_points']} held"
         )
         lines.append("")
-        lines.append("| Edge | Direction | Via | Held/missing | Source | Class | Legs |")
-        lines.append("|---|---|---|---|---|---|---|")
+        lines.append(
+            "| Edge | Direction | Via | Held/missing | Source | Class | Can be entered | Legs |"
+        )
+        lines.append("|---|---|---|---|---|---|---|---|")
         for row in year["graph"]:
             sources = sorted({leg["source"] for leg in row["legs"] if leg["source"]})
             lines.append(
                 f"| {'-'.join(sorted((row['from'], row['to'])))} | {row['from']} → {row['to']} "
                 f"| {row['via']}{' (drawn)' if row['representative'] else ''} "
                 f"| {row['status']} | {', '.join(sources) or '-'} | {row['class']} "
+                f"| {row['can_be_entered']} "
                 f"| {'; '.join(_leg_cell(leg) for leg in row['legs'])} |"
             )
         lines.append("")
-        lines.append("| Corridor (not in graph) | Direction | Via | Exit | Entry | Held/missing |")
-        lines.append("|---|---|---|---|---|---|")
+        lines.append(
+            "| Corridor (not in graph) | Direction | Via | Exit | Entry | Held/missing "
+            "| Can be entered |"
+        )
+        lines.append("|---|---|---|---|---|---|---|")
         for row in year["corridors"]:
             lines.append(
                 f"| {'-'.join(sorted((row['from'], row['to'])))} | {row['from']} → {row['to']} "
                 f"| {row['via']} ({row['points'][0]}) | {row['exit']} | {row['entry']} "
-                f"| {row['status']} |"
+                f"| {row['status']} | {'-' if row['status'] == 'priced' else 'yes'} |"
             )
         lines.append("")
-        lines.append("| Supply entry | Point | Into | Entry | TSO |")
-        lines.append("|---|---|---|---|---|")
+        lines.append("| Supply entry | Point | Into | Entry | TSO | Can be entered |")
+        lines.append("|---|---|---|---|---|---|")
         for row in year["supply"]:
             lines.append(
                 f"| {row['kind']} | {row['via']} ({row['point']}) | {', '.join(row['into'])} "
-                f"| {row['entry']} | {', '.join(row['tso']) or '-'} |"
+                f"| {row['entry']} | {', '.join(row['tso']) or '-'} "
+                f"| {_yes_no(row)} |"
             )
         lines.append("")
     return "\n".join(lines)

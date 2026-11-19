@@ -165,5 +165,55 @@ def test_the_report_covers_the_current_and_next_gas_year_and_renders(graph):
     assert current["summary"]["graph_priced"] >= 1
     assert following["summary"]["graph_priced"] == 0  # the 2026 rows end in December
     text = render_markdown(report)
-    assert "| Edge | Direction | Via | Held/missing | Source | Class | Legs |" in text
+    assert (
+        "| Edge | Direction | Via | Held/missing | Source | Class | Can be entered | Legs |" in text
+    )
     assert "TTF → THE" in text and "VIP TTF-THE-H (drawn)" in text
+
+
+def test_a_missing_leg_can_be_entered_when_the_network_names_its_operator(graph):
+    entries = graph_coverage(graph, [], on=ON)
+    ttf_the = by_crossing(entries, "TTF", "THE", "ITP-10012")
+    assert ttf_the["can_be_entered"] == "yes"
+    assert all(leg["can_be_entered"] for leg in ttf_the["legs"])
+    # VIP France - Germany: ENTSOG names no operator on the PEG side.
+    the_peg = by_crossing(entries, "THE", "PEG", "ITP-00540")
+    assert the_peg["can_be_entered"] == "no (no operator named)"
+    assert [leg["can_be_entered"] for leg in the_peg["legs"]] == [True, False]
+    held = graph_coverage(
+        graph,
+        [row("ITP-10012", "GTS", "EXIT"), row("ITP-10012", "Gasunie Deutschland", "ENTRY")],
+        on=ON,
+    )
+    assert by_crossing(held, "TTF", "THE", "ITP-10012")["can_be_entered"] == "-"
+
+
+def test_reviewed_and_awaiting_entries_say_where_they_come_from(graph):
+    rows = [
+        {
+            **row("ITP-10012", "GTS", "EXIT", tariff_id="entry-tte-1"),
+            "source_table": "Reviewed public tariff, entered by an administrator",
+        },
+        {
+            **row(
+                "ITP-10012",
+                "Gasunie Deutschland",
+                "ENTRY",
+                tariff_id="entry-tte-2",
+                status="INDICATIVE",
+            ),
+            "source_table": "Public tariff entered by an administrator, awaiting review",
+        },
+    ]
+    ttf_the = by_crossing(graph_coverage(graph, rows, on=ON), "TTF", "THE", "ITP-10012")
+    assert [leg["source"] for leg in ttf_the["legs"]] == [
+        "reviewed public tariff",
+        "public tariff, awaiting review",
+    ]
+    assert ttf_the["class"] == "indicative"
+
+
+def test_supply_entry_outside_the_reference_network_cannot_be_entered():
+    entries = {e["point"]: e for e in supply_coverage([], on=ON)}
+    assert entries["LNG-00027"]["can_be_entered"] is True  # Gate, GTS in the network
+    assert entries["LNG-00012"]["can_be_entered"] is False  # Barcelona, outside NWE
