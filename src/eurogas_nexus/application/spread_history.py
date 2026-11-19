@@ -379,6 +379,7 @@ def _tariff_offsets(request: Any, body: SpreadAnalysisInput, collected,
     fx = load_holdings(request)
     by_year: dict[str, tuple[float | None, dict[str, Any]]] = {}
     offsets: dict[date, float] = {}
+    day_years: list[tuple[date, str]] = []
     for day, row in collected[0][3].items():
         start, end = row.get("period_start_utc"), row.get("period_end_utc")
         if start is None or end is None:
@@ -405,6 +406,18 @@ def _tariff_offsets(request: Any, body: SpreadAnalysisInput, collected,
                 "tariff_gas_years": list(route.gas_years),
                 "input_class": route.input_class,
             })
+        day_years.append((day, year))
+    # A gas year with no published tariff takes the nearest year that has one, stated as an
+    # assumption: a window mixing gross and net closes would move the z-score by the tariff.
+    known = sorted(year for year, (value, _) in by_year.items() if value is not None)
+    for year, (value, note) in by_year.items():
+        if value is None and known:
+            nearest = min(known, key=lambda other: abs(int(other) - int(year)))
+            by_year[year] = (by_year[nearest][0], {
+                **note, "value": by_year[nearest][1]["value"], "input_class": "assumption",
+                "assumed_from": by_year[nearest][1]["gas_year"],
+            })
+    for day, year in day_years:
         value = by_year[year][0]
         if value is not None:
             offsets[day] = value
