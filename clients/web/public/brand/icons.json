@@ -1,0 +1,27 @@
+{
+  "about": "Written by scripts/ui/build_brand_assets.py; do not edit by hand.",
+  "source": "src/eurogas_nexus/application/brand.py",
+  "mark_sha256": "1cba90deb14333dbed1a64c8c161cb97ccf687586f44fcaf40d80b366603d689",
+  "version": "1cba90deb1",
+  "files": {
+    "clients/web/public/favicon.svg": "1cba90deb14333dbed1a64c8c161cb97ccf687586f44fcaf40d80b366603d689",
+    "clients/web/public/favicon.ico": "3d2c2c42887799f7c5c9d6f0664329152d725c8a5b7fdc71c44375b8f7012fdb",
+    "clients/web/public/apple-touch-icon.png": "f8c131b12bb93fa9bb97d94ad688dc98fffb355c552bceed2189ad0367e71f35",
+    "clients/web/public/icons/icon-192.png": "30d4b4783e3d473999cc4610c4107a739e82cc35c9db46875dbb937468df4c7f",
+    "clients/web/public/icons/icon-512.png": "82d9854b9bf954beade9933062f7bbf1d220e40952b736463c1d5fc6b906aef2",
+    "clients/web/public/icons/icon-maskable-512.png": "987714ce44338952008b1e3e6a5ba77cc693139211588859cafefcb7651a11df",
+    "clients/web/public/manifest.webmanifest": "633616d89124c97bef5bfc1841e77907209835408aa978244a734b631e5ed9fb",
+    "clients/web/public/brand/eurogas-nexus-mark.svg": "ad52236c700d3fe57141a7069d5beef7a487dbf9bd8477bc904d85460442f474",
+    "clients/web/public/brand/eurogas-nexus-mark-reverse.svg": "0c78c04a495634b6c65272ddb8c4ea6d168ac86bb6764adfbe89cd217b927b97",
+    "clients/web/public/brand/eurogas-nexus-mark-mono.svg": "0bc7566c3b24735430477add05c6fbef45eff3b5045b4ebd574bd6fec5e83fa1",
+    "clients/web/public/brand/eurogas-nexus-lockup.svg": "fca1d684c6b07a1c4eb85c4670f6b846d735fc673489f065f7444b776bc91946",
+    "clients/web/public/brand/eurogas-nexus-lockup-reverse.svg": "89e97081ef5860a51df48dfd522c0a4d839887a76deedf7c500e1ebe14fb04bc",
+    "clients/desktop/src-tauri/icons/32x32.png": "774a439b459a5038ef262fda7a195d8ecc708c78979400508526bb53f8b7186c",
+    "clients/desktop/src-tauri/icons/128x128.png": "47f614149e6b189ca37d2b9bf843a8668f12a71b9d0c994e996902f222543bfb",
+    "clients/desktop/src-tauri/icons/128x128@2x.png": "46e7d92b559c82713dc9f33435715a7de63823ef9ed8e678a1b008189d834e62",
+    "clients/desktop/src-tauri/icons/icon.png": "82d9854b9bf954beade9933062f7bbf1d220e40952b736463c1d5fc6b906aef2",
+    "clients/desktop/src-tauri/icons/icon.ico": "6cd6a5be25403c0ac617e21e20f726b4b3b7da3877bdb0e36db43107c1b181e3",
+    "clients/desktop/src-tauri/installer/nsis-sidebar.bmp": "e5465182094f0cb0d3d4265fdaf24a865857cdf2b9a245877e2086e5f1160981",
+    "clients/desktop/src-tauri/installer/nsis-header.bmp": "ba5c1cca47308a15a21ae1b2caf798d1ea61ef2fb202cbb9db2ef35213b4daf9"
+  }
+}

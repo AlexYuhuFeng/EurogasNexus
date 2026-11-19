@@ -81,6 +81,7 @@ surface and reverse never on a light one; mono works on both.
 | Sign-in card below 760 px (panel folded) | wordmark, auto, lg | `SignInScreen.tsx` |
 | Top bar, top-left | wordmark at wide widths, mark at medium and compact; mono, md (24 px) | `WorkspaceTopBar.tsx` |
 | Browser tab | mark, colour; reverse on a dark tab bar (`prefers-color-scheme` inside the SVG) | `clients/web/public/favicon.svg` |
+| Browser fallback, phone home screen, installed web app | reverse mark on the navy tile (`favicon.ico` 16/32/48 px), full navy square (`apple-touch-icon.png`, 180 px), 192/512 px and a maskable 512 px in `manifest.webmanifest` | `clients/web/public/` (from `scripts/ui/build_brand_assets.py`); `index.html` links each with `?v=<version>` so a cached old icon is replaced; `brand/icons.json` holds the mark's hash and every derived file's hash (`tests/unit/test_brand_icons.py`) |
 | Desktop splash | mark, reverse | `clients/web/public/splash.html` |
 | Desktop icons, installer | reverse mark on the navy tile; installer sidebar with the name | `clients/desktop/src-tauri/icons/`, `installer/` (from `scripts/ui/build_brand_assets.py`) |
 | Standalone files | mark (colour, reverse, mono), lock-up (colour, reverse) | `clients/web/public/brand/` |

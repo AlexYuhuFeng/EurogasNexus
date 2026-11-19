@@ -10,6 +10,17 @@ mark. Run from the repository root after changing either; the outputs are commit
 Writes:
 
 * ``clients/web/public/favicon.svg``: colour mark, reverse on a dark browser tab bar;
+* ``clients/web/public/favicon.ico`` (16, 32, 48 px), ``apple-touch-icon.png`` (180 px, full
+  navy square: iOS rounds it), ``icons/icon-192.png``, ``icons/icon-512.png`` and
+  ``icons/icon-maskable-512.png`` (the mark inside the 80% safe zone), and
+  ``manifest.webmanifest``: what a browser asks for besides the SVG (``/favicon.ico`` by
+  default, the home-screen icon, an installed web app);
+* the icon links in ``clients/web/index.html`` (between the ``brand-icons`` markers), each with
+  ``?v=<version>`` so a browser that cached an older mark under the same address fetches the new
+  one: the version is the first 10 hex digits of the SHA-256 of ``favicon.svg``;
+* ``clients/web/public/brand/icons.json``: that version, the hash of the mark it was drawn from
+  and the SHA-256 of every file listed here; ``tests/unit/test_brand_icons.py`` fails when the
+  mark changes and the files were not rewritten, or when a file was changed by hand;
 * ``clients/web/public/brand/*.svg``: the mark (colour, reverse, mono) and the horizontal
   lock-up (colour, reverse) as standalone files;
 * under ``clients/desktop/src-tauri/``: ``icons/32x32.png``, ``128x128.png``,
@@ -24,6 +35,8 @@ images for commercial use.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import re
 import sys
@@ -35,6 +48,9 @@ sys.path.insert(0, str(ROOT / "src"))
 from eurogas_nexus.application import brand  # noqa: E402
 
 WEB_PUBLIC = ROOT / "clients" / "web" / "public"
+WEB_INDEX = ROOT / "clients" / "web" / "index.html"
+ICON_MANIFEST = WEB_PUBLIC / "brand" / "icons.json"
+ICONS_START, ICONS_END = "<!-- brand-icons:start -->", "<!-- brand-icons:end -->"
 TAURI = ROOT / "clients" / "desktop" / "src-tauri"
 FONT_DIR = Path("/usr/share/fonts/opentype/inter")
 
@@ -102,9 +118,10 @@ def _gradient(size: tuple[int, int], top, bottom):
     return image
 
 
-def mark(size: int, *, tile: bool = True):
+def mark(size: int, *, tile: bool = True, square: bool = False, span_share: float | None = None):
     """The mark at ``size`` px in reverse colours, on the navy tile by default; drawn at 8x and
-    reduced for clean anti-aliasing."""
+    reduced for clean anti-aliasing. ``square`` fills the whole image (no rounded corners: the
+    platform rounds or masks it); ``span_share`` overrides how much of the side the mark spans."""
 
     from PIL import Image, ImageDraw
 
@@ -114,12 +131,13 @@ def mark(size: int, *, tile: bool = True):
     if tile:
         mask = Image.new("L", (s, s), 0)
         ImageDraw.Draw(mask).rounded_rectangle(
-            [0, 0, s - 1, s - 1], radius=round(s * 13 / 64), fill=255
+            [0, 0, s - 1, s - 1], radius=0 if square else round(s * 13 / 64), fill=255
         )
         image.paste(_gradient((s, s), NAVY_TOP, NAVY_BOTTOM), (0, 0), mask)
     # On the tile the mark spans 68% of it, centred (78% at taskbar sizes, where every pixel
     # of stroke counts); without a tile it fills the square.
-    span = s * ((0.78 if size <= 32 else 0.68) if tile else 1.0)
+    share = span_share if span_share is not None else (0.78 if size <= 32 else 0.68)
+    span = s * (share if tile else 1.0)
     unit = span / brand.GRID
     offset = (s - span) / 2
     width = max(1, round(brand.STROKE * unit))
@@ -203,10 +221,121 @@ def write_rasters() -> None:
     header().save(out / "nsis-header.bmp")
 
 
+def icon_version() -> str:
+    """The cache-busting version: the first 10 hex digits of the favicon's SHA-256."""
+
+    return hashlib.sha256(brand.favicon_svg().encode("utf-8")).hexdigest()[:10]
+
+
+def web_manifest(version: str) -> str:
+    icons = [
+        {"src": f"/icons/icon-192.png?v={version}", "sizes": "192x192", "type": "image/png"},
+        {"src": f"/icons/icon-512.png?v={version}", "sizes": "512x512", "type": "image/png"},
+        {
+            "src": f"/icons/icon-maskable-512.png?v={version}",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable",
+        },
+    ]
+    manifest = {
+        "name": "Eurogas Nexus",
+        "short_name": "Eurogas Nexus",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": brand.NAVY,
+        "theme_color": brand.NAVY,
+        "icons": icons,
+    }
+    return json.dumps(manifest, indent=2) + "\n"
+
+
+def icon_links(version: str) -> str:
+    return "\n".join(
+        [
+            ICONS_START,
+            # The ICO first with a size, the SVG after: browsers that read SVG icons take it.
+            f'  <link rel="icon" href="/favicon.ico?v={version}" sizes="32x32" />',
+            f'  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v={version}" />',
+            f'  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v={version}" />',
+            f'  <link rel="manifest" href="/manifest.webmanifest?v={version}" />',
+            f'  <meta name="theme-color" content="{brand.NAVY}" />',
+            f"  {ICONS_END}",
+        ]
+    )
+
+
+def write_web_icons() -> None:
+    """The web client's icons, its manifest and the versioned links in ``index.html``."""
+
+    version = icon_version()
+    sizes = (16, 32, 48)
+    mark(48).save(
+        WEB_PUBLIC / "favicon.ico",
+        sizes=[(n, n) for n in sizes],
+        append_images=[mark(n) for n in sizes[:-1]],
+    )
+    mark(180, square=True).save(WEB_PUBLIC / "apple-touch-icon.png")
+    icons = WEB_PUBLIC / "icons"
+    icons.mkdir(exist_ok=True)
+    mark(192).save(icons / "icon-192.png")
+    mark(512).save(icons / "icon-512.png")
+    # A maskable icon may be cut to a circle: the mark stays inside the central 80%.
+    mark(512, square=True, span_share=0.56).save(icons / "icon-maskable-512.png")
+    (WEB_PUBLIC / "manifest.webmanifest").write_text(web_manifest(version), encoding="utf-8")
+    html = WEB_INDEX.read_text(encoding="utf-8")
+    block = re.compile(re.escape(ICONS_START) + r".*?" + re.escape(ICONS_END), re.S)
+    if block.search(html):
+        html = block.sub(lambda _: icon_links(version), html)
+    else:
+        html = re.sub(
+            r'  <link rel="icon"[^>]*/>', lambda _: "  " + icon_links(version), html, count=1
+        )
+    WEB_INDEX.write_text(html, encoding="utf-8")
+
+
+#: Every file drawn from the mark, relative to the repository root (icons.json lists them all).
+DERIVED_FILES = (
+    "clients/web/public/favicon.svg",
+    "clients/web/public/favicon.ico",
+    "clients/web/public/apple-touch-icon.png",
+    "clients/web/public/icons/icon-192.png",
+    "clients/web/public/icons/icon-512.png",
+    "clients/web/public/icons/icon-maskable-512.png",
+    "clients/web/public/manifest.webmanifest",
+    "clients/web/public/brand/eurogas-nexus-mark.svg",
+    "clients/web/public/brand/eurogas-nexus-mark-reverse.svg",
+    "clients/web/public/brand/eurogas-nexus-mark-mono.svg",
+    "clients/web/public/brand/eurogas-nexus-lockup.svg",
+    "clients/web/public/brand/eurogas-nexus-lockup-reverse.svg",
+    "clients/desktop/src-tauri/icons/32x32.png",
+    "clients/desktop/src-tauri/icons/128x128.png",
+    "clients/desktop/src-tauri/icons/128x128@2x.png",
+    "clients/desktop/src-tauri/icons/icon.png",
+    "clients/desktop/src-tauri/icons/icon.ico",
+    "clients/desktop/src-tauri/installer/nsis-sidebar.bmp",
+    "clients/desktop/src-tauri/installer/nsis-header.bmp",
+)
+
+
+def write_manifest() -> None:
+    files = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in DERIVED_FILES}
+    manifest = {
+        "about": "Written by scripts/ui/build_brand_assets.py; do not edit by hand.",
+        "source": "src/eurogas_nexus/application/brand.py",
+        "mark_sha256": hashlib.sha256(brand.favicon_svg().encode("utf-8")).hexdigest(),
+        "version": icon_version(),
+        "files": files,
+    }
+    ICON_MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str]) -> int:
     write_svgs()
     if "--svg-only" not in argv:
         write_rasters()
+        write_web_icons()
+        write_manifest()
     print("brand assets written")
     return 0
 
