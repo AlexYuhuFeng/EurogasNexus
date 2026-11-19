@@ -1,0 +1,70 @@
+{
+  "schema": "eurogas-nexus/outage-asset-aliases/1",
+  "version": "2026-11-19",
+  "rule": "Each entry ties an asset named in a REMIT/ENTSOG unavailability message to a published identity the product already holds: a GIE facility (by its EIC) or an ENTSOG reference point (by its point key). An entry is added only with evidence from the two publishers' own records (names, EIC codes, operator, country) and is reviewed by hand; no entry carries a position of its own, and none is derived from a name by similarity. An asset that is not listed, or whose target is not in the store, stays unlocated with its reason.",
+  "entries": [
+    {
+      "match": {"asset_eic": "53ZPL0000602319I"},
+      "gie_facility_eic": "21Z000000000383D",
+      "evidence": "REMIT asset 'CUGS Mogilno' (Gas Storage Poland sp. z o.o.); GIE AGSI facility 21Z000000000383D 'VGS GIM Kawerna (Kosakowo, Mogilno)', operator Gas Storage Poland sp. z o.o., PL. The site is one of the two the GIE group names.",
+      "site": "Mogilno",
+      "reviewed": "2026-11-19"
+    },
+    {
+      "match": {"asset_eic": "53ZPL0000602320X"},
+      "gie_facility_eic": "21Z000000000383D",
+      "evidence": "REMIT asset 'CUGS Kosakowo' (Gas Storage Poland sp. z o.o.); GIE AGSI facility 21Z000000000383D 'VGS GIM Kawerna (Kosakowo, Mogilno)', operator Gas Storage Poland sp. z o.o., PL. The site is one of the two the GIE group names.",
+      "site": "Kosakowo",
+      "reviewed": "2026-11-19"
+    },
+    {
+      "match": {"asset_eic": "53ZPL0000402310D"},
+      "gie_facility_eic": "21Z000000000382F",
+      "evidence": "REMIT asset 'UGS Swarzów' (Gas Storage Poland sp. z o.o.); GIE AGSI facility 21Z000000000382F 'VGS GIM Sanok (Brzeznica, Husow, Strachocina, Swarzow)', operator Gas Storage Poland sp. z o.o., PL. The site is one of the four the GIE group names.",
+      "site": "Swarzów",
+      "reviewed": "2026-11-19"
+    },
+    {
+      "match": {"asset_eic": "53ZPL0000402311B"},
+      "gie_facility_eic": "21Z000000000382F",
+      "evidence": "REMIT asset 'UGS Brzeźnica' (Gas Storage Poland sp. z o.o.); GIE AGSI facility 21Z000000000382F 'VGS GIM Sanok (Brzeznica, Husow, Strachocina, Swarzow)', operator Gas Storage Poland sp. z o.o., PL. The site is one of the four the GIE group names.",
+      "site": "Brzeźnica",
+      "reviewed": "2026-11-19"
+    },
+    {
+      "match": {"asset_eic": "53ZPL00004023137"},
+      "gie_facility_eic": "21Z000000000382F",
+      "evidence": "REMIT assets 'UGS Strachocina' and 'GSF GIM Sanok - UGS PMG Strachocina' (same asset EIC, Gas Storage Poland); GIE AGSI facility 21Z000000000382F 'VGS GIM Sanok (Brzeznica, Husow, Strachocina, Swarzow)', operator Gas Storage Poland sp. z o.o., PL. The site is one of the four the GIE group names.",
+      "site": "Strachocina",
+      "reviewed": "2026-11-19"
+    },
+    {
+      "match": {"asset_eic": "53ZPL00004023145"},
+      "gie_facility_eic": "21Z000000000382F",
+      "evidence": "REMIT asset 'UGS Husów' (Gas Storage Poland sp. z o.o.); GIE AGSI facility 21Z000000000382F 'VGS GIM Sanok (Brzeznica, Husow, Strachocina, Swarzow)', operator Gas Storage Poland sp. z o.o., PL. The site is one of the four the GIE group names.",
+      "site": "Husów",
+      "reviewed": "2026-11-19"
+    },
+    {
+      "match": {"asset_eic": "53ZPL0000702318D"},
+      "gie_facility_eic": "21Z000000000381H",
+      "evidence": "REMIT asset 'GSF GIM Wierzchowice - UGS PMG Wierzchowice' (Gas Storage Poland); GIE AGSI facility 21Z000000000381H 'UGS Wierzchowice', operator Gas Storage Poland sp. z o.o., PL. The same message family also names the site under the GIE EIC directly.",
+      "site": "Wierzchowice",
+      "reviewed": "2026-11-19"
+    },
+    {
+      "match": {"asset_name": "Brunsbuettel LNG Terminal 1 (FSRU)"},
+      "gie_facility_eic": "37W000000000107A",
+      "evidence": "REMIT asset 'Brunsbuettel LNG Terminal 1 (FSRU)' without an asset EIC, published by Deutsche Energy Terminal GmbH in zone THE (37Y005053MH0000R); the same publisher names the asset 'Brunsbuettel LNG Terminal 1 (FSRU Hoegh Gannet)' elsewhere, which is GIE ALSI facility 37W000000000107A (operator Deutsche Energy Terminal GmbH, DE), the operator's only Brunsbüttel terminal.",
+      "site": "Brunsbüttel",
+      "reviewed": "2026-11-19"
+    },
+    {
+      "match": {"gie_facility_eic": "37W000000000107A"},
+      "reference_point_key": "LNG-00060",
+      "evidence": "GIE ALSI facility 37W000000000107A 'Brunsbuettel LNG Terminal 1 (FSRU Hoegh Gannet)', DE; ENTSOG Transparency Platform point LNG-00060 'BRUNSBUETTEL HAFEN (FSRU) (DE)', point type 'LNG Entry point', point EIC 37Z000000008198A: the entry point of that FSRU into the German grid. The position is ENTSOG's own map position (display approximation).",
+      "site": "Brunsbüttel",
+      "reviewed": "2026-11-19"
+    }
+  ]
+}

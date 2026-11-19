@@ -245,6 +245,7 @@ export function NetworkInfoPanel({
             {row.placement !== "placed" && (
               <small className="network-panel-placement" data-outage-placement={row.placement}>
                 {t(`outages.placement.${row.placement}`)}
+                {row.placementNote && <> · {t(row.placementNote.key, row.placementNote.values)}</>}
               </small>
             )}
           </span>

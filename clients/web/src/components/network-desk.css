@@ -202,6 +202,8 @@
   .network-panel-cell-stack .network-panel-placement {
     color: var(--ds-text-2);
     font-style: italic;
+    /* Why a row is not on the map is read in full, also on a phone card. */
+    white-space: normal;
   }
 
   .network-panel-actions {

@@ -13,6 +13,7 @@ import {
   networkPanelFromSearch,
   networkPanelToSearch,
   outageListRows,
+  unlocatedReasonKey,
   panelFilter,
   selectionScope,
   type OutageListRow,
@@ -175,8 +176,36 @@ test("every outage is listed with where the map stands on it", () => {
   assert.equal(rows[0].refId, "vip-fr-de");
   assert.deepEqual(rows[0].operators, ["GRTgaz Deutschland"]);
   assert.equal(rows[0].messages.length, 4);
+  // An unplaced row says what it was identified as, or why it could not be.
+  assert.deepEqual(rows[1].placementNote, { key: "outages.known.no_position", values: { facility: "Store", country: "DE" } });
+  assert.deepEqual(rows[2].placementNote, { key: "outages.unresolved.no_match", values: {} });
+  assert.equal(rows[0].placementNote, null);
   // No situation read yet: nothing is claimed placed.
   assert.equal(outageListRows([event("A")], null)[0].placement, "not_located");
+});
+
+test("a site of a storage group outside the loaded network names the group, its sites and why", () => {
+  const situation = {
+    outages: [],
+    known_facility_outages: [{
+      facility_eic: "21Z000000000383D", facility_name: "VGS GIM Kawerna (Kosakowo, Mogilno)", country: "PL",
+      operator: "Gas Storage Poland sp. z o.o.", reason: "outside_reference_network", outages: 1, event_ids: ["M1"], sites: ["Mogilno"],
+    }],
+    unlocated_outages: [{ event_id: "A1", facility_name: "Epe", facility_id: "", reason: "ambiguous_facility_name:2_places:Epe (DE)" }],
+  } as unknown as MapSituationDTO;
+  const rows = outageListRows([event("M1", { facility_name: "CUGS Mogilno" }), event("A1", { facility_name: "Epe" })], situation);
+  assert.deepEqual(rows[0].placementNote, {
+    key: "outages.known.outside_network",
+    values: { facility: "VGS GIM Kawerna (Kosakowo, Mogilno)", country: "PL" },
+  });
+  // A site the group's name does not list is named after it (accents ignored when comparing).
+  const sanok = outageListRows([event("S1", { facility_name: "UGS Brzeźnica" })], {
+    outages: [],
+    known_facility_outages: [{ facility_eic: "21Z000000000382F", facility_name: "VGS GIM Sanok (Brzeznica, Husow)", country: "PL", operator: null, reason: "outside_reference_network", outages: 1, event_ids: ["S1"], sites: ["Brzeźnica", "Strachocina"] }],
+  } as unknown as MapSituationDTO);
+  assert.equal(sanok[0].placementNote?.values.facility, "VGS GIM Sanok (Brzeznica, Husow) (Strachocina)");
+  assert.equal(unlocatedReasonKey(situation.unlocated_outages![0].reason), "outages.unresolved.ambiguous");
+  assert.deepEqual(rows[1].placementNote, { key: "outages.unresolved.ambiguous", values: {} });
 });
 
 test("outages order: out now, planned, ended; within each, the largest offline first", () => {

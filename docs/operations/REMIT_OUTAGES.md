@@ -161,7 +161,7 @@ punctuation ignored) when it names one facility. If the facility's EIC is also a
 point EIC (29 of 159 are), the outage is placed at that point (`gie_facility_eic`/`_name`);
 otherwise it is listed in `known_facility_outages` (facility, EIC, country as GIE lists it,
 operator, how identified, its outages) and counted in `outage_placement.known_facility_no_position`,
-not in `unlocated`. No coordinate is derived from a name and no alias is added.
+not in `unlocated`. No coordinate is derived from a name.
 Not done: linking a GIE facility to ENTSOG storage points through the operator (ENTSOG names
 the storage operator by its ENTSOG key, e.g. `DE-SSO-0001`, at the adjacent side of a storage
 point; matching that to GIE's operator EIC needs ENTSOG's operator list, which the product does
@@ -181,6 +181,47 @@ name: the message has no EIC), UGS Nüttermoor H-4 (GIE lists it under NL, 1), V
 GIE's listing; GIE and ENTSOG carry only the group GIM Kawerna, which the message does not
 name) and six transmission points whose EIC ENTSOG's reference does not carry (Värska Entry,
 NaTran SPNS2U, Thyssengas Emden EMS/EPT, OGE Speicher Gronau-Epe H1/H4 and Epe H Entry).
+
+**Reviewed aliases and the operator rule (2026-11-19).** Two further steps run after the GIE
+EIC and name match, both before an outage is called unlocated:
+
+- *Operator EIC*: some publishers put their own operator EIC in the asset field (Terminale GNL
+  Adriatico names `21X000000001360B`). When that EIC is GIE's operator EIC for exactly one
+  current facility of the message's asset type, the outage is that facility
+  (`identified_by = operator_eic`); an operator with two or more such facilities (Deutsche
+  Energy Terminal) identifies none.
+- *Reviewed alias table* (`src/eurogas_nexus/reference_data/outage_asset_aliases.json`,
+  checked by `outage_aliases.validate_aliases`): one hand-reviewed entry per tie, each citing
+  both publishers' records. A message asset (EIC or exact name) maps to a GIE facility; a
+  site of a virtual storage group maps to the group (CUGS Mogilno and Kosakowo → VGS GIM
+  Kawerna; Swarzów, Brzeźnica, Strachocina, Husów → VGS GIM Sanok; GSF GIM Wierzchowice →
+  UGS Wierzchowice), and the known-facility row names the sites (`sites`). A GIE facility may
+  map to the ENTSOG reference point that is its grid connection (Brunsbüttel FSRU,
+  `37W000000000107A` → `LNG-00060`), and is then placed at that point's own position
+  (`match = gie_facility_<how>_alias_point`). No entry carries a coordinate; an asset not in
+  the table, or whose target is not in the store, stays unlocated with its reason.
+
+A known facility in a country where the reference network holds no point at all is reported
+as `outside_reference_network` rather than `no_published_position`: the shipped bundle covers
+NW Europe, and a full ENTSOG reference read places every GIE facility whose EIC ENTSOG also
+publishes. The outage list shows the facility (and its sites) beside "Known facility, no
+published position", and an unresolved row shows why ("no matching asset", "name matches
+several sites", "no asset EIC or name").
+
+Measured on GIE IIP messages (30 days to 2026-11-18, every open event, NWE reference bundle,
+GIE listing of 159 facilities), the map's own placement at 2026-11-18 21:40 UTC:
+
+| | Events | Placed | Known facility, no position | Unresolved |
+|---|---|---|---|---|
+| Before | 114 | 68 (59.6 %) | 12 (10.5 %) | 34 (29.8 %) |
+| After | 114 | 69 (60.5 %) | 45 (39.5 %) | 0 |
+
+The placed share moves little on this store because the Polish, Italian, Danish, Hungarian
+and Lithuanian sites have no point in the NW Europe bundle: they are now identified (facility,
+country, operator, sites) and say so, and are placed once a full ENTSOG reference read holds
+their points. Not aliased, for want of evidence: the transmission messages whose EIC ENTSOG's
+reference does not carry (Värska, NaTran SPNS2U, Thyssengas Emden, OGE Speicher Gronau-Epe):
+"Epe" names several storage points, and no record ties those messages to one of them.
 
 ## Import
 

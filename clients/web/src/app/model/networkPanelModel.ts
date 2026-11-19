@@ -104,6 +104,11 @@ export interface OutageListRow {
   endUtc: string | null;
   reason: string;
   placement: OutagePlacement;
+  /**
+   * Why an unplaced row is where it is, as an i18n key and its values: the GIE facility the
+   * outage was identified as, or the server's reason it could not be resolved.
+   */
+  placementNote: { key: string; values: Record<string, string> } | null;
   at: LonLat | null;
   refId: string | null;
   country: string | null;
@@ -112,6 +117,31 @@ export interface OutageListRow {
 
 function normalizeName(value: string | null | undefined): string {
   return String(value ?? "").toLowerCase().replace(/[^0-9a-z]/g, "");
+}
+
+/** The server's unresolved-outage reason (`map_situation._Locator.explain`) as an i18n key. */
+export function unlocatedReasonKey(reason: string): string {
+  const code = reason.split(":")[0];
+  if (code === "ambiguous_name" || code === "ambiguous_facility_name") return "outages.unresolved.ambiguous";
+  if (code === "no_eic_match_and_no_name") return "outages.unresolved.no_identity";
+  return "outages.unresolved.no_match";
+}
+
+function knownFacilityNote(
+  facility: NonNullable<MapSituationDTO["known_facility_outages"]>[number],
+): { key: string; values: Record<string, string> } {
+  // A group's site is named only when the group's own name does not already list it.
+  const fold = (text: string) => text.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const name = facility.facility_name ?? facility.facility_eic;
+  const unnamed = (facility.sites ?? []).filter((site) => !fold(name).includes(fold(site)));
+  const sites = unnamed.length ? ` (${unnamed.join(", ")})` : "";
+  const values = {
+    facility: `${name}${sites}`,
+    country: facility.country ?? "",
+  };
+  return facility.reason === "outside_reference_network"
+    ? { key: "outages.known.outside_network", values }
+    : { key: "outages.known.no_position", values };
 }
 
 function stateOf(status: string): OutageState {
@@ -132,17 +162,28 @@ export function outageListRows(events: readonly OutageEventDTO[], situation: Map
     placed.set(outage.event_id, outage);
     placedByAsset.set(normalizeName(outage.facility_name), outage);
   }
-  const known = new Set((situation?.known_facility_outages ?? []).flatMap((item) => item.event_ids.map(String)));
-  const unlocated = new Set((situation?.unlocated_outages ?? []).map((item) => String(item.event_id)));
+  const knownByEvent = new Map<string, NonNullable<MapSituationDTO["known_facility_outages"]>[number]>();
+  for (const item of situation?.known_facility_outages ?? []) {
+    for (const id of item.event_ids) knownByEvent.set(String(id), item);
+  }
+  const unlocatedByEvent = new Map((situation?.unlocated_outages ?? []).map((item) => [String(item.event_id), item.reason] as const));
   return events.map((event) => {
     const members = event.messages?.length ? event.messages : [event.event_id];
     const direct = members.map((id) => placed.get(id)).find(Boolean) ?? null;
     const sameAsset = direct ?? placedByAsset.get(normalizeName(event.facility_name)) ?? null;
     let placement: OutagePlacement;
     if (sameAsset) placement = "placed";
-    else if (members.some((id) => known.has(id))) placement = "known_no_position";
-    else if (members.some((id) => unlocated.has(id)) || !situation) placement = "not_located";
+    else if (members.some((id) => knownByEvent.has(id))) placement = "known_no_position";
+    else if (members.some((id) => unlocatedByEvent.has(id)) || !situation) placement = "not_located";
     else placement = "later";
+    let placementNote: OutageListRow["placementNote"] = null;
+    if (placement === "known_no_position") {
+      const facility = members.map((id) => knownByEvent.get(id)).find(Boolean);
+      if (facility) placementNote = knownFacilityNote(facility);
+    } else if (placement === "not_located") {
+      const reason = members.map((id) => unlocatedByEvent.get(id)).find(Boolean);
+      if (reason) placementNote = { key: unlocatedReasonKey(reason), values: {} };
+    }
     const location = sameAsset?.location ?? null;
     const unit = event.unit ?? "";
     return {
@@ -161,6 +202,7 @@ export function outageListRows(events: readonly OutageEventDTO[], situation: Map
       endUtc: event.end_utc,
       reason: event.description,
       placement,
+      placementNote,
       at: location ? [location.lon, location.lat] : null,
       refId: location?.ref_id ?? null,
       country: location?.country ?? null,

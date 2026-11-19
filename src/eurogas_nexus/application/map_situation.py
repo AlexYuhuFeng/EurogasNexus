@@ -185,10 +185,13 @@ class _Locator:
 KNOWN_FACILITY_RULE = (
     "An outage the reference network cannot place is matched to GIE's facility listing by "
     "EIC, else by the exact facility name (case, accents and punctuation ignored) when it "
-    "names one facility. A facility whose EIC is an ENTSOG point EIC is placed at that "
-    "point; otherwise it is a known facility with no published position (name, EIC, "
-    "country, operator), counted apart from unlocated outages. GIE publishes no "
-    "coordinates, and no position is derived from a name."
+    "names one facility, else when its asset EIC is the GIE operator EIC of exactly one "
+    "current facility of that kind, else through the reviewed alias table (a site of a "
+    "virtual storage group maps to the group; each entry cites both publishers' records). "
+    "A facility whose EIC is an ENTSOG point EIC, or that the alias table ties to an ENTSOG "
+    "point, is placed at that point; otherwise it is a known facility with no published "
+    "position (name, EIC, country, operator), counted apart from unlocated outages. GIE "
+    "publishes no coordinates, and no position is derived from a name."
 )
 
 
@@ -197,24 +200,59 @@ def _ascii_key(text: str | None) -> str:
     return _key(folded)
 
 
-class _KnownFacilities:
-    """GIE facility identity (``db/repositories/gie_facilities``) by EIC and exact name."""
+def _current_facility(facility: dict[str, Any], today: str) -> bool:
+    """Not a GIE 'historical data prior to …' entry, and not past its operational end."""
 
-    def __init__(self, facilities: list[dict[str, Any]]) -> None:
+    if "historical data" in str(facility.get("name") or "").casefold():
+        return False
+    end = str(facility.get("operational_end_date") or "")
+    return not end or end >= today
+
+
+class _KnownFacilities:
+    """GIE facility identity (``db/repositories/gie_facilities``) by EIC, exact name and
+    operator EIC, and the reviewed alias table (``reference_data/outage_aliases``)."""
+
+    def __init__(
+        self, facilities: list[dict[str, Any]], *, today: str = "", aliases: Any = None
+    ) -> None:
         self.by_eic = {str(f.get("eic") or "").upper(): f for f in facilities if f.get("eic")}
         self.by_name: dict[str, list[dict[str, Any]]] = {}
+        self.by_operator: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for facility in facilities:
             self.by_name.setdefault(_ascii_key(facility.get("name")), []).append(facility)
+            if facility.get("operator_eic") and _current_facility(facility, today):
+                key = (str(facility["operator_eic"]).upper(), str(facility.get("kind") or ""))
+                self.by_operator.setdefault(key, []).append(facility)
+        self.aliases = aliases
 
     def find(
-        self, *, eic: str | None, name: str | None
+        self, *, eic: str | None, name: str | None, kind: str | None = None
     ) -> tuple[dict[str, Any] | None, str]:
         if eic and (hit := self.by_eic.get(eic.strip().upper())):
             return hit, "eic"
         named = self.by_name.get(_ascii_key(name), []) if name else []
         if len(named) == 1:
             return named[0], "name"
+        # A message that names its operator's EIC as the asset: unambiguous only when that
+        # operator runs one current facility of the asset's kind (Adriatic LNG → Rovigo).
+        if eic and kind:
+            operated = self.by_operator.get((eic.strip().upper(), kind.casefold()), [])
+            if len(operated) == 1:
+                return operated[0], "operator_eic"
+        if self.aliases is not None:
+            entry = self.aliases.facility_for(eic=eic, name=name)
+            if entry and (hit := self.by_eic.get(str(entry["gie_facility_eic"]).upper())):
+                return {**hit, "alias_site": entry.get("site")}, "alias"
         return None, ""
+
+    def point_key(self, facility_eic: str | None) -> str | None:
+        """The ENTSOG point the alias table ties this facility to, if any."""
+
+        if self.aliases is None:
+            return None
+        entry = self.aliases.point_for(facility_eic)
+        return str(entry["reference_point_key"]) if entry else None
 
 
 def _own(book_id: str | None, allowed: set[str] | None) -> bool:
@@ -267,9 +305,17 @@ def build_map_situation(
         if node.data_quality != REFERENCE_RETIRED_QUALITY
     ]
     locator = _Locator(reference_nodes, session.query(ReferenceFacility).all())
+    reference_countries = {
+        str(node.country).upper()
+        for node in reference_nodes
+        if node.country and node.lat is not None and node.lon is not None
+    }
     from eurogas_nexus.db.repositories.gie_facilities import load_gie_facilities
+    from eurogas_nexus.reference_data.outage_aliases import shipped_aliases
 
-    known_facilities = _KnownFacilities(load_gie_facilities(session))
+    known_facilities = _KnownFacilities(
+        load_gie_facilities(session), today=now.date().isoformat(), aliases=shipped_aliases()
+    )
     known_outages: dict[str, dict[str, Any]] = {}
     unlocated = {
         "outages": 0,
@@ -329,12 +375,18 @@ def build_map_situation(
         )
         if location is None:
             facility, identified_by = known_facilities.find(
-                eic=str(row["facility_id"]), name=str(row["facility_name"])
+                eic=str(row["facility_id"]),
+                name=str(row["facility_name"]),
+                kind=str(row.get("asset_type") or "") or None,
             )
             if facility is not None:
                 at_point = locator.by_eic.get(str(facility["eic"]).upper())
+                match = f"gie_facility_{identified_by}"
+                if at_point is None and (key := known_facilities.point_key(facility["eic"])):
+                    at_point = locator.by_node_id.get(key)
+                    match = f"{match}_alias_point"
                 if at_point is not None:
-                    location = {**at_point, "match": f"gie_facility_{identified_by}"}
+                    location = {**at_point, "match": match}
                 else:
                     held = known_outages.setdefault(
                         str(facility["eic"]),
@@ -345,13 +397,23 @@ def build_map_situation(
                             "operator": facility.get("operator_name"),
                             "kind": facility.get("kind"),
                             "identified_by": identified_by,
-                            "reason": "no_published_position",
+                            # The reference network holds no point at all in that country (the
+                            # shipped bundle covers NW Europe until ENTSOG's reference is read).
+                            "reason": (
+                                "no_published_position"
+                                if str(facility.get("country") or "").upper() in reference_countries
+                                else "outside_reference_network"
+                            ),
                             "outages": 0,
                             "event_ids": [],
                             "message_names": [],
+                            "sites": [],
                         },
                     )
                     held["outages"] += 1
+                    site = facility.get("alias_site")
+                    if site and site not in held["sites"]:
+                        held["sites"].append(site)
                     held["event_ids"].append(row["event_id"])
                     if row["facility_name"] not in held["message_names"]:
                         held["message_names"].append(row["facility_name"])

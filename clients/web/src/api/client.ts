@@ -3521,9 +3521,12 @@ export interface MapSituationDTO {
     facility_name: string | null;
     country: string | null;
     operator: string | null;
+    /** `no_published_position`, or `outside_reference_network` (no reference point in that country). */
     reason: string;
     outages: number;
     event_ids: string[];
+    /** Sites of a virtual storage group the reviewed alias table tied to it (newer servers). */
+    sites?: string[];
   }>;
   /** Counts of everything the caller may see, placed on the map or not. */
   totals?: Record<"outages_active" | "outages_scheduled" | "contracts" | "cargoes" | "regas_slots", number> &
