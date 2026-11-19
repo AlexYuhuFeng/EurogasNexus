@@ -312,9 +312,12 @@ class LiveSnapshotReader(RecordingReader):
             if found is not None:
                 return found
         if self.demo_desk:
-            found = self._settlement(key, hub, period, side, label, simulated=True)
-            if found is not None:
-                return found
+            # The demo market: its two-sided board first (bid and offer, as a screen), then its
+            # closes; class ``simulated`` either way, and never read on a customer desk.
+            for loader in (self._quote, self._settlement):
+                found = loader(key, hub, period, side, label, simulated=True)
+                if found is not None:
+                    return found
         return missing(key, InputKind.PRICE, f"{label} {side}", reason="no price held")
 
     def _period_rows(self, rows, period, start_attr, end_attr):
@@ -350,6 +353,8 @@ class LiveSnapshotReader(RecordingReader):
             else:
                 price = None if bid is None or ask is None else (bid + ask) / 2
                 klass = InputClass.INDICATIVE  # a mid is not executable
+            if simulated:
+                klass = InputClass.SIMULATED
             if price is None:
                 continue
             return self._price_input(
@@ -360,7 +365,7 @@ class LiveSnapshotReader(RecordingReader):
                 row.observed_at_utc,
                 row.source_system,
                 row.quote_id,
-                f"{label} {side} ({row.venue})",
+                f"{label} {side} ({row.venue}{', demo' if simulated else ''})",
                 klass,
                 {
                     "basis": "quote",
@@ -524,9 +529,10 @@ class LiveSnapshotReader(RecordingReader):
         )
 
     # ---- network
-    def _load_tariff(self, key, point_id, direction, product, period) -> SnapshotInput:
+    def _load_tariff(self, key, point_id, direction, product, period, tso=None) -> SnapshotInput:
         from sqlalchemy import func, or_
 
+        from eurogas_nexus.application.route_tariff_cost import _tso_matches
         from eurogas_nexus.db.models import TsoTariffRecord
 
         start = self._bound(datetime.combine(period.start, datetime.min.time(), tzinfo=UTC))
@@ -546,6 +552,8 @@ class LiveSnapshotReader(RecordingReader):
             simulated = row.tariff_status == "SIMULATOR_ONLY"
             if simulated and not self.demo_desk:
                 continue
+            if tso and not _tso_matches(str(row.tso or ""), tso):
+                continue  # another operator's charge at the same point
             usable.append(row)
         if not usable:
             return missing(

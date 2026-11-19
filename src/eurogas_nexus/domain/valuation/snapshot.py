@@ -20,7 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -158,10 +158,20 @@ def gas_year_of(period: DeliveryPeriod) -> str:
     return f"{year}/{(year + 1) % 100:02d}"
 
 
-def tariff_key(point_id: str, direction: str, product: str, period: DeliveryPeriod) -> str:
-    """``tariff:<point>:<ENTRY|EXIT>:<capacity product>:<gas year>``."""
+def tariff_key(
+    point_id: str, direction: str, product: str, period: DeliveryPeriod, tso: str | None = None
+) -> str:
+    """``tariff:<point>:<ENTRY|EXIT>:<capacity product>:<gas year>[:<operator>]``.
 
-    return f"tariff:{point_id}:{direction.upper()}:{product.upper()}:{gas_year_of(period)}"
+    The operator is part of the key when the reader is asked for one: at a point two
+    operators may charge in the same direction (Bacton BBL: the BBL pipeline's exit and
+    National Gas's exit), and each leg is the tariff of its own operator.
+    """
+
+    key = f"tariff:{point_id}:{direction.upper()}:{product.upper()}:{gas_year_of(period)}"
+    if tso:
+        key += ":" + "-".join(tso.lower().replace("/", " ").split())
+    return key
 
 
 def capacity_key(point_id: str, direction: str, period: DeliveryPeriod) -> str:
@@ -252,9 +262,14 @@ class SnapshotReader(Protocol):
         """The currency's latest overnight benchmark fixing, percent per year."""
 
     def tariff(
-        self, point_id: str, direction: str, product: str, period: DeliveryPeriod
+        self,
+        point_id: str,
+        direction: str,
+        product: str,
+        period: DeliveryPeriod,
+        tso: str | None = None,
     ) -> SnapshotInput:
-        """A published capacity tariff in force for the period."""
+        """A published capacity tariff in force for the period (of ``tso`` when named)."""
 
     def capacity(self, point_id: str, direction: str, period: DeliveryPeriod) -> SnapshotInput:
         """Firm technical capacity offered at a point for the period."""
@@ -339,11 +354,17 @@ class RecordingReader:
         return self._get(key, lambda: self._load_rate(key, currency.upper()))
 
     def tariff(
-        self, point_id: str, direction: str, product: str, period: DeliveryPeriod
+        self,
+        point_id: str,
+        direction: str,
+        product: str,
+        period: DeliveryPeriod,
+        tso: str | None = None,
     ) -> SnapshotInput:
-        key = tariff_key(point_id, direction, product, period)
+        key = tariff_key(point_id, direction, product, period, tso)
         return self._get(
-            key, lambda: self._load_tariff(key, point_id, direction.upper(), product, period)
+            key,
+            lambda: self._load_tariff(key, point_id, direction.upper(), product, period, tso),
         )
 
     def capacity(self, point_id: str, direction: str, period: DeliveryPeriod) -> SnapshotInput:
@@ -383,7 +404,7 @@ class RecordingReader:
     def _load_rate(self, key, currency) -> SnapshotInput:
         return missing(key, InputKind.RATE, f"{currency} overnight rate")
 
-    def _load_tariff(self, key, point_id, direction, product, period) -> SnapshotInput:
+    def _load_tariff(self, key, point_id, direction, product, period, tso=None) -> SnapshotInput:
         return missing(
             key,
             InputKind.TARIFF,
@@ -549,6 +570,13 @@ class FixtureReader(RecordingReader):
         if held is not None:
             return held
         return self._record(self._fixture.get(key) or loader())
+
+    def _load_tariff(self, key, point_id, direction, product, period, tso=None) -> SnapshotInput:
+        # A fixture tariff keyed without its operator serves every operator's leg there.
+        base = self._fixture.get(tariff_key(point_id, direction, product, period))
+        if tso and base is not None:
+            return replace(base, key=key)
+        return super()._load_tariff(key, point_id, direction, product, period, tso)
 
     def _load_outages(self, zone, period) -> list[SnapshotInput]:
         members = self._collections.get(outages_key(zone, period), [])

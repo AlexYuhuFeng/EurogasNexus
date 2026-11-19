@@ -64,6 +64,32 @@ PROMPT_MIN_EDGE = Decimal("0.50")
 STORAGE_COSTS = ("storage.capacity_fee", "storage.injection_fee", "storage.withdrawal_fee")
 
 
+def day_ahead(today: date) -> DeliveryPeriod:
+    """The day-ahead product the market quotes on gas day ``today`` (Monday's on a Friday or
+    a weekend day, as ``resolve_product`` has it), as a delivery period."""
+
+    from eurogas_nexus.domain.market.products import resolve_product
+
+    period = resolve_product("DA", today)
+    return DeliveryPeriod.gas_day(period.first_gas_day)
+
+
+def balance_of_month(today: date) -> DeliveryPeriod | None:
+    """The balance-of-month product quoted on ``today``; ``None`` on a month's last day."""
+
+    from eurogas_nexus.domain.market.products import ProductCodeError, resolve_product
+
+    try:
+        period = resolve_product("BOM", today)
+    except ProductCodeError:
+        return None
+    return DeliveryPeriod(
+        period.first_gas_day,
+        period.last_gas_day + timedelta(days=1),
+        f"BOM {period.first_gas_day.isoformat()}",
+    )
+
+
 def _basis(item: SnapshotInput) -> str:
     return "executable quotes" if item.detail.get("basis") == "quote" else "closes"
 
@@ -82,21 +108,19 @@ class MarketScanEvaluator:
         """Market L, P and T candidates."""
 
         graph = self.graph_provider()
-        hubs = [hub for hub in SCAN_HUBS if graph.hub_for(hub) is not None]
+        # L needs a proven path between market areas; P and T are at one hub.
+        graph_hubs = [hub for hub in SCAN_HUBS if graph.hub_for(hub) is not None]
         today = DeliveryPeriod.parse(gas_day_label(context.as_of_utc)).start
-        yield from self._locational(snapshot, context, graph, hubs, today)
-        yield from self._prompt(snapshot, context, hubs, today)
-        yield from self._seasonal(snapshot, context, hubs, today)
+        yield from self._locational(snapshot, context, graph, graph_hubs, today)
+        yield from self._prompt(snapshot, context, SCAN_HUBS, today)
+        yield from self._seasonal(snapshot, context, SCAN_HUBS, today)
 
     # ------------------------------------------------------------------ L
     def _locational(self, s, ctx, graph, hubs, today):
         route = _Route(s, ctx, graph)
         month = today.month % 12 + 1
         year = today.year + (1 if month == 1 else 0)
-        periods = (
-            DeliveryPeriod.gas_day(today + timedelta(days=1)),
-            DeliveryPeriod.month(year, month),
-        )
+        periods = (day_ahead(today), DeliveryPeriod.month(year, month))
         for period in periods:
             for buy in hubs:
                 for sell in hubs:
@@ -133,12 +157,10 @@ class MarketScanEvaluator:
     # ------------------------------------------------------------------ P
     def _prompt(self, s, ctx, hubs, today):
         wd = DeliveryPeriod.gas_day(today)
-        da = DeliveryPeriod.gas_day(today + timedelta(days=1))
-        start = today + timedelta(days=2)
-        first_next = date(today.year + (today.month == 12), today.month % 12 + 1, 1)
+        da = day_ahead(today)
         pairs = [("within-day", wd, "day-ahead", da)]
-        if start < first_next:
-            bom = DeliveryPeriod(start, first_next, f"BOM {start.isoformat()}")
+        bom = balance_of_month(today)
+        if bom is not None:
             pairs.append(("day-ahead", da, "balance of month", bom))
         for hub in hubs:
             for name_a, period_a, name_b, period_b in pairs:
@@ -287,8 +309,15 @@ class MarketScanEvaluator:
             yield from self._seasonal_hub(s, ctx, hub, summer, winter, costs, cost, holdings)
 
     def _seasonal_hub(self, s, ctx, hub, summer, winter, costs, cost, holdings):
-        buys = [s.price(hub, p, "ask") for p in summer]
-        sells = [s.price(hub, p, "bid") for p in winter]
+        # The season products as quoted (Sum-27 offer, Win-27 bid), else the month averages.
+        year = summer[0].start.year % 100
+        season_buy = s.price(hub, DeliveryPeriod.season("SUM", year), "ask")
+        season_sell = s.price(hub, DeliveryPeriod.season("WIN", year), "bid")
+        if season_buy.held and season_sell.held:
+            buys, sells = [season_buy], [season_sell]
+        else:
+            buys = [s.price(hub, p, "ask") for p in summer]
+            sells = [s.price(hub, p, "bid") for p in winter]
         if not all(item.held for item in buys + sells):
             return
         if any((item.currency or EUR) != EUR for item in buys + sells):
@@ -308,7 +337,8 @@ class MarketScanEvaluator:
             Leg(
                 LegKind.TERM,
                 "seasonal.sell",
-                f"Sell {hub} {second} months at the bid, average ({basis})",
+                f"Sell {hub} {second} at the bid"
+                + (f", month average ({basis})" if len(sells) > 1 else f" ({basis})"),
                 rate=Measure(sell, UNIT),
                 contribution=Measure(sell, UNIT),
                 input_class=sells[0].input_class,
@@ -318,7 +348,8 @@ class MarketScanEvaluator:
             Leg(
                 LegKind.TERM,
                 "seasonal.buy",
-                f"Buy {hub} {first} months at the offer, average ({basis})",
+                f"Buy {hub} {first} at the offer"
+                + (f", month average ({basis})" if len(buys) > 1 else f" ({basis})"),
                 rate=Measure(buy, UNIT),
                 contribution=Measure(-buy, UNIT),
                 input_class=buys[0].input_class,

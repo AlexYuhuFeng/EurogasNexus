@@ -5174,5 +5174,7 @@
   "opportunities.lane.market": "In the market, not on your book ({{count}})",
   "opportunities.lane.market.none": "No market dislocation above its costs at the last evaluation.",
   "opportunities.title.prompt_arbitrage": "Prompt spread · {{subject}}",
-  "opportunities.title.prompt_arbitrage.many": "Prompt spread · {{subject}} · {{count}} days"
+  "opportunities.title.prompt_arbitrage.many": "Prompt spread · {{subject}} · {{count}} days",
+  "opportunities.ready.prices.simulated": "the demo's simulated market (not market prices)",
+  "opportunities.ready.costs.simulated": "simulated demo tariffs: {{simulated}} (not published) · terminal terms: {{terminals}}"
 }

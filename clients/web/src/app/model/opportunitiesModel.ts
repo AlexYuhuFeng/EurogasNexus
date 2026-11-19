@@ -165,6 +165,7 @@ export interface ReadinessLine {
 /** The three things the engine needs (B.7), each with its state and its fix. */
 export function readinessLines(readiness: OpportunityReadinessDTO | null | undefined): ReadinessLine[] {
   if (!readiness) return [];
+  const simulated = readiness.prices.simulated_sources?.length ?? 0;
   const sources = readiness.prices.licensed_quote_sources.length + readiness.prices.settlement_sources.length;
   return [
     {
@@ -177,16 +178,25 @@ export function readinessLines(readiness: OpportunityReadinessDTO | null | undef
     {
       key: "prices",
       ready: readiness.prices.ready,
-      stateKey: readiness.prices.ready ? "opportunities.ready.prices.state" : "opportunities.ready.prices.none",
-      values: { sources, marks: readiness.prices.firm_marks },
+      stateKey: !readiness.prices.ready
+        ? "opportunities.ready.prices.none"
+        : sources === 0 && readiness.prices.firm_marks === 0 && simulated > 0
+          ? "opportunities.ready.prices.simulated"
+          : "opportunities.ready.prices.state",
+      values: { sources, marks: readiness.prices.firm_marks, simulated },
       fix: readiness.prices.ready ? null : "enter_marks",
     },
     {
       key: "published_costs",
       ready: readiness.published_costs.ready,
-      stateKey: "opportunities.ready.costs.state",
+      stateKey:
+        readiness.published_costs.transport_tariffs === 0 &&
+        (readiness.published_costs.simulated_transport_tariffs ?? 0) > 0
+          ? "opportunities.ready.costs.simulated"
+          : "opportunities.ready.costs.state",
       values: {
         tariffs: readiness.published_costs.transport_tariffs,
+        simulated: readiness.published_costs.simulated_transport_tariffs ?? 0,
         terminals: readiness.published_costs.terminal_terms,
       },
       fix: null,

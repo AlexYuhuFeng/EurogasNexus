@@ -2381,9 +2381,18 @@ export interface OpportunityReadinessDTO {
     licensed_quote_sources: string[];
     settlement_sources: string[];
     firm_marks: number;
+    /** On a demo desk: the simulated market it may read (labelled simulated). */
+    simulated_sources?: string[];
     missing: string | null;
   };
-  published_costs: { ready: boolean; transport_tariffs: number; terminal_terms: number; missing: string | null };
+  published_costs: {
+    ready: boolean;
+    transport_tariffs: number;
+    /** On a demo desk: the demo's simulated tariffs (labelled simulated). */
+    simulated_transport_tariffs?: number;
+    terminal_terms: number;
+    missing: string | null;
+  };
   assumptions: { ready: boolean; approved_versions: number; missing: string | null };
   types_now: string[];
 }

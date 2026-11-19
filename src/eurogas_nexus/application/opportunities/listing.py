@@ -82,7 +82,8 @@ def subject_of(row) -> str:
     fields = dict(row.claim_fields or {})
     names = SUBJECT_FIELDS.get(row.type, ())
     parts = [str(fields.get(name) or "").strip() for name in names]
-    parts = [part for part in parts if part]
+    # A market item's "where" is the market itself: the lane already says so.
+    parts = [part for part in parts if part and part != "market"]
     if row.type in {"locational", "unused_capacity"} and len(parts) == 2:
         return f"{parts[0]} → {parts[1]}"
     return " · ".join(parts) or str(fields.get("subject") or row.type)
@@ -513,7 +514,47 @@ def readiness(session, principal) -> dict[str, Any]:
         .filter(AssumptionSetVersionRecord.review_state == "approved")
         .count()
     )
-    prices_ready = bool(quote_sources or settlement_sources or marks)
+    # A demo desk may read the simulated market (labelled simulated, never on a customer desk):
+    # it counts, so the demo is not told it has no prices.
+    from eurogas_nexus.core.config import demo_marks_allowed
+
+    simulated_sources: list[str] = []
+    if demo_marks_allowed():
+        simulated_sources = sorted(
+            {
+                source
+                for (source,) in session.query(MarketObservationRecord.source_system).distinct()
+                if source and (source.endswith("_Sim") or source == "DEMO")
+            }
+            | {
+                source
+                for (source,) in session.query(MarketQuoteRecord.source_system)
+                .filter(MarketQuoteRecord.simulated.is_(True))
+                .distinct()
+                if source
+            }
+        )
+    prices_ready = bool(quote_sources or settlement_sources or marks or simulated_sources)
+    # The demo's simulated tariffs count on a demo desk only (labelled simulated).
+    simulated_tariffs = (
+        session.query(TsoTariffRecord)
+        .filter(TsoTariffRecord.tariff_status == "SIMULATOR_ONLY")
+        .count()
+        if demo_marks_allowed()
+        else 0
+    )
+    costs_ready = bool(tariffs or simulated_tariffs)
+    types_now: list[str] = []
+    if contracts and bands:
+        types_now.append("hedge_gap")
+    if contracts:
+        types_now.append("event_exposure")
+    if prices_ready:
+        types_now.append("prompt_arbitrage")
+        if costs_ready:
+            types_now.append("locational")
+        if approved:
+            types_now.append("time_spread")
     return {
         "book": {
             "ready": contracts > 0,
@@ -526,22 +567,24 @@ def readiness(session, principal) -> dict[str, Any]:
             "licensed_quote_sources": sorted(quote_sources),
             "settlement_sources": sorted(settlement_sources),
             "firm_marks": marks,
+            "simulated_sources": simulated_sources,
             "missing": None
             if prices_ready
             else "no licensed quotes or marks: needs a price entitlement or the firm's marks",
         },
         "published_costs": {
-            "ready": tariffs > 0,
+            "ready": costs_ready,
             "transport_tariffs": tariffs,
+            "simulated_transport_tariffs": simulated_tariffs,
             "terminal_terms": terminals,
-            "missing": None if tariffs else "no published transport tariffs held",
+            "missing": None if costs_ready else "no published transport tariffs held",
         },
         "assumptions": {
             "ready": approved > 0,
             "approved_versions": approved,
             "missing": None if approved else "no approved assumption set",
         },
-        "types_now": ["hedge_gap"] if contracts and bands else [],
+        "types_now": types_now,
     }
 
 

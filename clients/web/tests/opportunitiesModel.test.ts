@@ -146,7 +146,15 @@ test("day one: the page says why it is empty and what it needs, each with its on
     ["prices", false, "enter_marks"],
     ["published_costs", true, null],
   ]);
-  assert.deepEqual(lines[2].values, { tariffs: 412, terminals: 4 });
+  assert.deepEqual(lines[2].values, { tariffs: 412, simulated: 0, terminals: 4 });
+  // A demo desk: the simulated market and the simulated tariffs count, and say so.
+  const demo = readinessLines({
+    ...READY,
+    prices: { ...READY.prices, licensed_quote_sources: [], settlement_sources: [], firm_marks: 0, simulated_sources: ["DEMO_Sim"] },
+    published_costs: { ...READY.published_costs, transport_tariffs: 0, simulated_transport_tariffs: 34 },
+  });
+  assert.equal(demo[1].stateKey, "opportunities.ready.prices.simulated");
+  assert.equal(demo[2].stateKey, "opportunities.ready.costs.simulated");
   // Everything present: "What it needs" is absent (H.1).
   assert.equal(showReadiness(list()), false);
   assert.equal(emptyReason(list({ lanes: {}, confirming: 2 })), "opportunities.empty.confirming");

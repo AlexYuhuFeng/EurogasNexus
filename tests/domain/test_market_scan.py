@@ -6,7 +6,11 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal as D
 
-from eurogas_nexus.domain.opportunities.market_scan import PROMPT_MIN_EDGE, MarketScanEvaluator
+from eurogas_nexus.domain.opportunities.market_scan import (
+    PROMPT_MIN_EDGE,
+    MarketScanEvaluator,
+    day_ahead,
+)
 from eurogas_nexus.domain.opportunities.model import Lane, OpportunityType
 from eurogas_nexus.domain.opportunities.testing import assert_reconciles, fixture_snapshot, run
 from eurogas_nexus.domain.valuation.periods import DeliveryPeriod
@@ -34,7 +38,8 @@ def _price(hub, period, side, value):
 
 
 def _scan(wd_gap: str):
-    wd, da = DeliveryPeriod.gas_day(TODAY), DeliveryPeriod.gas_day(TODAY + timedelta(days=1))
+    # TODAY is a Friday: the day-ahead the market quotes is Monday's.
+    wd, da = DeliveryPeriod.gas_day(TODAY), day_ahead(TODAY)
     inputs = [
         _price("TTF", wd, "bid", D("40.00") + D(wd_gap)),
         _price("TTF", wd, "ask", D("40.00") + D(wd_gap)),

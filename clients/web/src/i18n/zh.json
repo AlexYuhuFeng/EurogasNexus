@@ -5174,5 +5174,7 @@
   "opportunities.lane.market": "市场机会（不在您的账簿上）（{{count}}）",
   "opportunities.lane.market.none": "上次评估未发现超过成本的市场价差。",
   "opportunities.title.prompt_arbitrage": "近月价差 · {{subject}}",
-  "opportunities.title.prompt_arbitrage.many": "近月价差 · {{subject}} · {{count}} 天"
+  "opportunities.title.prompt_arbitrage.many": "近月价差 · {{subject}} · {{count}} 天",
+  "opportunities.ready.prices.simulated": "演示的模拟市场（并非市场价格）",
+  "opportunities.ready.costs.simulated": "模拟演示费率：{{simulated}} 条（非公布费率）· 接收站条款：{{terminals}}"
 }

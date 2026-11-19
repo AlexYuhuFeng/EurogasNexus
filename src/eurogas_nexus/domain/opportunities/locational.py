@@ -171,7 +171,9 @@ class _Route:
                         if (spec.point_key, spec.direction, spec.tso) in seen:
                             continue
                         seen.add((spec.point_key, spec.direction, spec.tso))
-                        item = self.s.tariff(spec.point_key, spec.direction, product, period)
+                        item = self.s.tariff(
+                            spec.point_key, spec.direction, product, period, spec.tso
+                        )
                         self._items[item.key] = item
                         per_mwh, _how = tariff_per_mwh(item) if item.held else (None, "")
                         if per_mwh is None:
@@ -620,10 +622,10 @@ class _Route:
         """The leg's tariff in the product the route was priced in; for an annual tariff on a
         shorter period, the firm's multiplier (or an indicative marker without it)."""
 
-        key = tariff_key(spec.point_key, spec.direction, product, period)
+        key = tariff_key(spec.point_key, spec.direction, product, period, spec.tso)
         item = self._items.get(key)
         if item is None:
-            item = self.s.tariff(spec.point_key, spec.direction, product, period)
+            item = self.s.tariff(spec.point_key, spec.direction, product, period, spec.tso)
         one = Measure(Decimal(1), "x")
         if product != "ANNUAL" or PRODUCT_FOR_KIND.get(period.kind, "ANNUAL") == "ANNUAL":
             return item, one, []
