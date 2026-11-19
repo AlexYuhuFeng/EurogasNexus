@@ -7,7 +7,7 @@ import type {
   NormaliseRequestDTO,
   NormaliseResponseDTO,
 } from "./comparablePrices";
-import type { EvaluationDTO, InterpretationDTO, StrategySpecDTO } from "./spreads";
+import type { EvaluationDTO, InterpretationDTO, SpreadBoardDTO, StrategySpecDTO } from "./spreads";
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -5097,6 +5097,9 @@ export const api = {
   spreadsInterpret: (body: { text: string; language: "en" | "zh-CN" }, options?: ApiRequestOptions) =>
     post<InterpretationDTO>("/research/spreads/interpret", body, options),
   /** Research → Spreads: a spec's checks and its result, every figure from the engine. */
+  /** Research → Spreads: the desk's spread board (focus hubs first, then the majors). */
+  spreadsBoard: (hubs: readonly string[] = [], options?: ApiRequestOptions) =>
+    get<SpreadBoardDTO>("/research/spreads/board", hubs.length ? { hubs: hubs.join(",") } : undefined, options),
   spreadsEvaluate: (spec: StrategySpecDTO, options?: ApiRequestOptions) =>
     post<EvaluationDTO>("/research/spreads/evaluate", { spec }, options),
   /** Hub → product kind → tenor: the caller's entitled daily series (the instrument picker). */
@@ -5614,7 +5617,7 @@ export interface CargoDeliveredSpreadDTO {
 
 /** How a cargo's voyage was stated: a saved route, or the desk's own distance or days. */
 export interface CargoVoyageDTO {
-  basis: "saved_route" | "entered_distance" | "entered_days" | "none";
+  basis: "saved_route" | "entered_distance" | "entered_days" | "standard" | "none";
   route_id: string | null;
   label?: string;
   source?: string;
@@ -5662,6 +5665,8 @@ export interface CargoInput {
   des_price?: number;
   des_currency?: "EUR" | "GBP" | "USD";
   route_id?: string;
+  /** Fill what neither the request nor the assumption set holds with the desk standard (labelled). */
+  standard?: boolean;
   /** The voyage as the desk states it when no saved route is named. */
   distance_nm?: number;
   laden_days?: number;

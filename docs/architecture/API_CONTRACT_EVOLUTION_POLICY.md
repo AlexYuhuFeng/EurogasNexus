@@ -78,7 +78,14 @@ forward|spot, `cost` route_tariff from/to hub, `rule`, `lookback_days`, `volume_
 `as_of`) returns the issues or the result: a curve by delivery month (each leg native and
 converted with its FX record, gross, route cost with legs, gas years and classes, net, the
 weakest input class) or a history through the spread lab with the route cost both ways as
-lines. Census: 276 paths / 307 operations.
+lines. Census: 276 paths / 307 operations. `GET /api/research/spreads/board` (`hubs` comma list, `as_of`; added
+2026-11-19) returns the board Research → Spreads opens on: locational rows against TTF (front
+month and day-ahead: legs native and in EUR/MWh, gross, the cheapest route's cost and net in the
+direction gas would move or the missing legs named, the one-year percentile and the last 30
+closes), time spreads per hub (DA − MA, M+1 − M+2, Win − Sum with the storage carry where the
+assumption set holds it, Cal − Cal) and cross-commodity rows (Henry Hub against TTF delivered
+through the cargo chain on the desk's standard cargo; the clean spark or why it is not held),
+each with the spec that opens it.
 
 Additive 2026-11-18 (commercial design basis 2, CP-02: instrument catalogue): one path, one
 operation. `GET /api/market/instruments` (READ, like every `/api/market/` read) returns the

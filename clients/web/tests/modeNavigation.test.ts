@@ -41,7 +41,7 @@ test("the primary row is four modes in the plan's order, each with its tasks", (
     ["opportunities", "contracts", "review"],
     // Nominations and Storage are one Planning task, two views behind a switch (A.4).
     ["position", "limits", "delivery", "planning"],
-    ["spreads", "fundamentals", "cargo", "reports"],
+    ["fundamentals", "spreads", "cargo", "reports"],
   ]);
 });
 
@@ -56,7 +56,7 @@ test("every page address keeps working and lands in its mode (no page id redirec
     review: "deals/review",
     contracts: "book/position",
     orders: "book/limits",
-    research: "research/spreads",
+    research: "research/fundamentals",
     sources: "utility/sources",
     runtime: "utility/runtime",
     access: "utility/access",
@@ -186,7 +186,7 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
     "desk:today,prices,network",
     "deals:opportunities,contracts,review",
     "book:position,limits,delivery",
-    "research:spreads,fundamentals,cargo,reports",
+    "research:fundamentals,spreads,cargo,reports",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
@@ -216,12 +216,13 @@ test("every mode and task label exists in English and Chinese, in words", () => 
 test("Reports is a task of the Research page, held in the URL (task=reports)", () => {
   assert.equal(pageTaskFromLocation("research", "?workspace=research&task=reports"), "reports");
   // Spreads is the page's first task: a Research address without a task opens it.
-  assert.equal(pageTaskFromLocation("research", "?workspace=research"), "spreads");
+  assert.equal(pageTaskFromLocation("research", "?workspace=research"), "fundamentals");
+  assert.equal(pageTaskFromLocation("research", "?workspace=research&task=spreads"), "spreads");
   assert.equal(pageTaskFromLocation("research", "?workspace=research&task=fundamentals"), "fundamentals");
   assert.equal(pageTaskFromLocation("research", "?workspace=research&task=cargo"), "cargo");
   assert.equal(modeLocationFor("research", "fundamentals")?.task.id, "fundamentals");
   assert.equal(modeLocationFor("research", "reports")?.task.id, "reports");
-  assert.equal(modeLocationFor("research", undefined)?.task.id, "spreads");
+  assert.equal(modeLocationFor("research", undefined)?.task.id, "fundamentals");
 });
 
 test("a link from Today opens one opportunity on Deals → Opportunities (CP-14)", () => {

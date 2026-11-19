@@ -49,8 +49,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
   // exactly one owner (docs/engineering/Architecture-V2/W1-02_*.md).
   const usesConsolidatedHeader = headerModeForPage(activeWorkspace) === "consolidated";
   // A page in a mode shows the mode's task row; a utility page (help, settings, administration)
-  // keeps its own pages as tabs. Research names Reports, Fundamentals and Cargo & netback in the
-  // URL (`task=reports`, `task=fundamentals`, `task=cargo`); Spreads is its first task.
+  // keeps its own pages as tabs. Research names Spreads, Cargo & netback and Reports in the URL
+  // (`task=spreads`, `task=cargo`, `task=reports`); Fundamentals is its first task.
   const researchTask =
     activeWorkspace === "research" && typeof window !== "undefined"
       ? pageTaskFromLocation("research", window.location.search)
@@ -238,12 +238,12 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <AccessCenter currentUser={api.currentUser} t={t} />
       )}
 
-      {activeWorkspace === "research" && researchTask === "fundamentals" && (
+      {activeWorkspace === "research" && researchTask !== "reports" && researchTask !== "spreads" && researchTask !== "cargo" && (
         <FundamentalsWorkbench t={t} language={i18n.language} />
       )}
 
       {activeWorkspace === "research" && researchTask === "cargo" && <CargoStudy />}
-      {activeWorkspace === "research" && researchTask !== "reports" && researchTask !== "fundamentals" && researchTask !== "cargo" && <SpreadsWorkbench />}
+      {activeWorkspace === "research" && researchTask === "spreads" && <SpreadsWorkbench />}
 
       {activeWorkspace === "research" && researchTask === "reports" && (
         <ReportsWorkspace t={t} language={i18n.language} />

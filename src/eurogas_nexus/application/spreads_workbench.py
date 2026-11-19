@@ -407,6 +407,20 @@ def evaluate_curve(spec: StrategySpec, holdings: Holdings) -> dict[str, Any]:
         ) or row.get("cost_class") == "simulated"
         out_rows.append(row)
     usable = [row for row in out_rows if row["net"] is not None or row["gross"] is not None]
+    # Tariffs are published per gas year: with the cost asked for, the months a published
+    # tariff covers are priced and the later ones are not. The result says where pricing stops
+    # and takes its class from the priced months, not from the unpublished ones.
+    coverage = None
+    if spec.cost is not None:
+        priced = [row for row in out_rows if row["net"] is not None]
+        unpriced = [row for row in out_rows if row["net"] is None and row["gross"] is not None]
+        if priced and unpriced:
+            coverage = {
+                "priced_to": priced[-1]["label"],
+                "unpriced_from": unpriced[0]["label"],
+                "months_priced": len(priced),
+                "reason": "tariff not published",
+            }
     fx_labels = sorted({
         leg["fx"]["label"] for row in out_rows for leg in row["legs"] if leg.get("fx")
     })
@@ -418,7 +432,12 @@ def evaluate_curve(spec: StrategySpec, holdings: Holdings) -> dict[str, Any]:
         "rows": out_rows,
         "route": route_front,
         "months": len(out_rows),
-        "input_class": weakest(row["input_class"] for row in out_rows) if out_rows else "missing",
+        "input_class": (
+            weakest(row["input_class"] for row in out_rows if row["net"] is not None)
+            if coverage else
+            weakest(row["input_class"] for row in out_rows) if out_rows else "missing"
+        ),
+        "coverage": coverage,
         "simulated": any(row["simulated"] for row in out_rows),
         "empty": None if usable else "no delivery month is held for every leg",
         "spread": " ".join(

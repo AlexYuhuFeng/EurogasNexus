@@ -22,7 +22,6 @@ import {
   applyChoice,
   curveChart,
   curveClasses,
-  defaultSpec,
   describeFromSearch,
   frontWaterfall,
   historyChart,
@@ -38,6 +37,10 @@ import {
 } from "@/app/model/spreadsWorkbench";
 import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { Button, InstrumentPicker, Segmented, Select, WorkProgress } from "@/components/ui";
+import type { SpreadBoardDTO } from "@/api/spreads";
+import { cargoHubOf, cargoSearch, focusHubs, reportSearch, specFromSearch, specName } from "@/app/model/spreadsBoard";
+import { NextSteps } from "./NextSteps";
+import { SpreadsBoard } from "./SpreadsBoard";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 
 const fixed = (value: number | null | undefined, decimals = 3): string =>
@@ -59,6 +62,8 @@ export function SpreadsWorkbench() {
   const [failed, setFailed] = useState<string | null>(null);
   const [catalogue, setCatalogue] = useState<PickerCatalogue | null>(null);
   const evaluateSeq = useRef(0);
+  const [board, setBoard] = useState<SpreadBoardDTO | null>(null);
+  const [boardFailed, setBoardFailed] = useState(false);
   // Set once the desk asks for something: the default study then never replaces it.
   const asked = useRef(false);
 
@@ -103,33 +108,51 @@ export function SpreadsWorkbench() {
     }
   }, [evaluate, zh]);
 
-  // The catalogue the pickers list; the page opens populated (a link's description, or the
-  // default NBP − TTF curve net of transport).
+  // The page opens on the desk's spread board, computed from what is held (rule 19): focus
+  // hubs first, then the majors. A link's study (a spec, or a description) opens on top of it.
   useEffect(() => {
     let live = true;
-    const linked = typeof window === "undefined" ? null : describeFromSearch(window.location.search);
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    const linked = describeFromSearch(search);
+    const linkedSpec = specFromSearch(search);
+    api.myPreferences()
+      .then((response) => focusHubs(response.data?.effective?.strip_focus_hubs), () => [] as string[])
+      .then((hubs) => api.spreadsBoard(hubs))
+      .then((response) => {
+        if (!live) return;
+        setBoard(response.data);
+        // A link to one part of the board (Fundamentals → "the Win − Sum spread").
+        const anchor = window.location.hash.slice(1);
+        if (anchor) window.setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ block: "start" }), 50);
+      })
+      .catch(() => { if (live) setBoardFailed(true); });
     api.marketInstruments().then((response) => {
       if (!live) return;
-      const loaded = catalogueFromDTO(response.data);
-      setCatalogue(loaded);
-      if (linked) {
+      setCatalogue(catalogueFromDTO(response.data));
+      if (linkedSpec) {
+        asked.current = true;
+        void evaluate(linkedSpec);
+      } else if (linked) {
         setText(linked);
         void interpret(linked);
-      } else if (!asked.current) {
-        // A description typed or an example pressed while the catalogue loaded wins.
-        void evaluate(defaultSpec(loaded.hubs.map((hub) => hub.hub)));
       }
     }).catch(() => {
       if (live) setFailed("spreads.failed.catalogue");
     });
     return () => { live = false; };
-    // Once per mount: later changes go through the chips or the describe box.
+    // Once per mount: later changes go through the board, the chips or the describe box.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The answer bar opens Spreads with a description in the URL while the page may be open.
+  // The answer bar or another Research page opens Spreads with a study in the URL while the
+  // page may be open.
   useEffect(() => {
     const onPop = () => {
+      const linkedSpec = specFromSearch(window.location.search);
+      if (linkedSpec) {
+        void evaluate(linkedSpec);
+        return;
+      }
       const linked = describeFromSearch(window.location.search);
       if (linked && linked !== text) {
         setText(linked);
@@ -146,13 +169,19 @@ export function SpreadsWorkbench() {
   };
 
   const result = evaluation?.result ?? null;
+  const openStudy = (next: StrategySpecDTO) => {
+    asked.current = true;
+    void evaluate(next);
+    window.setTimeout(() => document.querySelector("[data-understood]")?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
+  };
+  const studyOpen = Boolean(spec);
   const curveRoute = result && result.kind === "curve" ? result.route : null;
   const classes = useMemo(() => (result && result.kind === "curve" ? curveClasses(result) : []), [result]);
   const hubCatalogue = catalogue;
 
   return (
     <div className="spreads-page" data-spreads-workbench="true">
-      <p className="spreads-purpose" data-purpose="true">{t("spreads.purpose")}</p>
+      {/* The page's purpose is the shell's line under the title (purpose.research.*). */}
 
       <form className="spreads-describe" onSubmit={onSubmit} aria-label={t("spreads.describe.label")}>
         <label className="spreads-describe-label" htmlFor="spreads-describe-input">{t("spreads.describe.label")}</label>
@@ -196,6 +225,24 @@ export function SpreadsWorkbench() {
       )}
 
       {failed && <p className="spreads-failed" role="alert">{t(failed)}</p>}
+
+      {/* The board is the page's default view; with a study open it folds above it. */}
+      {board ? (
+        studyOpen ? (
+          <details className="spreads-board-fold">
+            <summary>{t("spreads.board.title")}</summary>
+            <SpreadsBoard board={board} onOpen={openStudy} />
+          </details>
+        ) : (
+          <SimulatedScope scope={board.simulated ? "all" : "none"} notice={t("spreads.simulated_banner")}>
+            <SpreadsBoard board={board} onOpen={openStudy} />
+          </SimulatedScope>
+        )
+      ) : boardFailed ? (
+        <p className="spreads-failed" role="alert">{t("spreads.board.failed")}</p>
+      ) : (
+        <WorkProgress stages={[t("spreads.board.loading")]} current={0} label={t("spreads.board.loading")} reserve="20rem" />
+      )}
 
       {spec && (
         <section className="spreads-understood" aria-label={t("spreads.understood.title")} data-understood="true">
@@ -295,7 +342,29 @@ export function SpreadsWorkbench() {
 
       {result && result.kind === "curve" && spec && <CurveResult result={result} spec={spec} classes={classes} />}
       {result && result.kind === "history" && spec && <HistoryResult result={result} spec={spec} />}
+      {result && spec && <SpreadNextSteps spec={spec} />}
     </div>
+  );
+}
+
+/** From a spread to a cargo priced against it, and to a report about it. */
+function SpreadNextSteps({ spec }: { spec: StrategySpecDTO }) {
+  const { t } = useTranslation();
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  const name = specName(spec);
+  const hub = cargoHubOf(spec);
+  return (
+    <NextSteps
+      label={t("research.next.label")}
+      steps={[
+        { id: "cargo", label: t("research.next.price_cargo", { hub }), href: cargoSearch(search, hub) },
+        {
+          id: "report",
+          label: t("research.next.add_report"),
+          href: reportSearch(search, t("research.next.spread_question", { spread: name })),
+        },
+      ]}
+    />
   );
 }
 
@@ -506,6 +575,11 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
       <SimulatedScope scope={scope} notice={t("spreads.simulated_banner")}>
       {result.simulated && scope !== "all" && <p className="spreads-simulated" role="note">{t("spreads.simulated_banner")}</p>}
       <ClassLine classes={classes} result={result.input_class} />
+      {result.coverage && (
+        <p className="spreads-coverage" role="note" data-coverage={result.coverage.priced_to}>
+          {t("spreads.coverage", { to: result.coverage.priced_to, from: result.coverage.unpriced_from })}
+        </p>
+      )}
       {result.empty ? (
         <p className="spreads-empty">{t("spreads.empty_curve")}</p>
       ) : (

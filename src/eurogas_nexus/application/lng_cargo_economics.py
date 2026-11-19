@@ -175,11 +175,34 @@ def _entered(value: float | None, label: str) -> Valued | None:
     return Valued(Decimal(str(value)), InputClass.ASSUMPTION, f"entered: {label}")
 
 
+#: The desk's standard US Gulf FOB cargo (design C.3): what a figure is when neither the request
+#: nor the firm's approved assumption set holds it and the caller asks for the standard cargo.
+#: Each is an assumption, labelled "desk standard" (never a market value).
+STANDARD_CARGO: dict[str, float] = {
+    "q_load_mmbtu": 3_800_000,
+    "slope": 1.15,
+    "fee": 2.50,
+    "speed_kn": 17,
+    "hire_per_day": 45_000,
+    "boil_off_pct_per_day": 0.10,
+    "ballast_fuel_mmbtu_per_day": 2_000,
+    "port_cost": 150_000,
+    "insurance_pct": 0.05,
+}
+#: The standard voyage, US Gulf to north-west Europe, when no route is saved or entered.
+STANDARD_DISTANCE_NM = 4_900
+
+
 def _assumed(reader, cargo: dict[str, Any], field: str) -> Valued:
     entered = _entered(cargo.get(field), field)
     if entered is not None:
         return entered
-    return _valued(reader.assumption(ASSUMPTION_KEYS[field]))
+    held = _valued(reader.assumption(ASSUMPTION_KEYS[field]))
+    if not held.held and cargo.get("standard") and field in STANDARD_CARGO:
+        return Valued(
+            Decimal(str(STANDARD_CARGO[field])), InputClass.ASSUMPTION, f"desk standard: {field}"
+        )
+    return held
 
 
 def _month(text: str) -> DeliveryPeriod:
@@ -421,6 +444,16 @@ def _offer(session, reader, cargo: dict[str, Any], pricing_month: str) -> CargoO
         voyage_class = InputClass.ASSUMPTION
         route_label = "Entered voyage"
         route_source = f"entered: {cargo['laden_days']:g} days laden"
+    elif cargo.get("standard"):
+        voyage = Voyage(
+            distance_nm=Decimal(STANDARD_DISTANCE_NM),
+            speed_laden_kn=kn,
+            speed_ballast_kn=kn,
+            ballast=ballast,
+        )
+        voyage_class = InputClass.ASSUMPTION
+        route_label = "Standard voyage, US Gulf to NW Europe"
+        route_source = f"desk standard: {STANDARD_DISTANCE_NM} nm at {kn:f} kn"
     port = _assumed(reader, cargo, "port_cost")
     canal_entered = _entered(cargo.get("canal_cost"), "canal toll")
     if canal_entered is not None:
@@ -471,6 +504,8 @@ def _voyage_payload(offer: CargoOffer, cargo: dict[str, Any]) -> dict[str, Any] 
         if offer.voyage_class == InputClass.DERIVED
         else "entered_days"
         if offer.voyage.laden_days is not None
+        else "standard"
+        if offer.route_source.startswith("desk standard")
         else "entered_distance"
     )
     return {

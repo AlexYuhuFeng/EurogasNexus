@@ -31,7 +31,7 @@ import {
   HISTORY_DAYS,
   arrivalMonths,
   cargoRequest,
-  exampleForm,
+  standardForm,
   fieldForBlock,
   henryHub,
   historyChart,
@@ -46,6 +46,8 @@ import {
   type VoyageMode,
 } from "@/app/model/cargoStudy";
 import { unitLabel } from "@/app/model/instrumentPicker";
+import { hubFromSearch, reportSearch, spreadsSearch } from "@/app/model/spreadsBoard";
+import { NextSteps } from "./NextSteps";
 import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { Button, Segmented, Select, WorkProgress } from "@/components/ui";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
@@ -82,6 +84,10 @@ export function CargoStudy() {
       const response = await api.cargoEconomics(cargoRequest(next));
       if (mine !== seq.current) return;
       setResult(response.data);
+      // Opened from a spread ("price a cargo against this spread"): its hub's terminal first.
+      const linkedHub = typeof window === "undefined" ? null : hubFromSearch(window.location.search);
+      const atHub = linkedHub ? response.data.cargoes[0]?.terminals.find((row) => row.hub === linkedHub && row.reason === null) : undefined;
+      if (atHub) setChosen(atHub.terminal_id);
       setTerminals((held) => {
         const known = new Map(held.map((item) => [item.id, item]));
         for (const row of response.data.cargoes[0]?.terminals ?? []) known.set(row.terminal_id, { id: row.terminal_id, name: row.name, hub: row.hub });
@@ -95,7 +101,7 @@ export function CargoStudy() {
   }, [t]);
 
   // Opens populated from what the firm holds: its saved routes and its approved assumption set
-  // (whose figures then apply); without a set, the design's worked example, marked as such.
+  // (whose figures then apply); what they do not hold is the desk standard, labelled.
   useEffect(() => {
     let live = true;
     Promise.all([
@@ -107,7 +113,7 @@ export function CargoStudy() {
       setRoutes(held);
       setSets(approved);
       const firm = approved.find((set) => set.scope === "organisation");
-      const initial = firm ? withSet(exampleForm(new Date(), held), firm.set_id) : exampleForm(new Date(), held);
+      const initial = withSet(standardForm(new Date(), held), firm?.set_id ?? "");
       setForm(initial);
       void run(initial);
     });
@@ -136,8 +142,11 @@ export function CargoStudy() {
 
   return (
     <div className="cargo-page" data-cargo-study="true">
-      <p className="spreads-purpose" data-purpose="true">{t("cargo.purpose")}</p>
+      {/* The page's purpose is the shell's line under the title (purpose.research.*). */}
       <SimulatedScope scope={scope} notice={t("cargo.all_simulated")}>
+        {/* Opens priced: the inputs fold above the answer, each one an override of what is held. */}
+        <details className="cargo-inputs-fold" data-inputs-fold="true">
+          <summary>{t("cargo.form.change", { term: form.term === "FOB" ? t("cargo.term.fob") : t("cargo.term.des"), month: monthLabel(form.arrivalMonth) })}</summary>
         <CargoFormView
           form={form}
           routes={routes}
@@ -148,6 +157,7 @@ export function CargoStudy() {
           onRun={() => void run(form)}
           heldHh={form.hh.trim() === "" ? henryHub(cargo) : null}
         />
+        </details>
         {failed && <p className="spreads-failed" role="alert">{failed}</p>}
         {busy && !result && <WorkProgress stages={[t("cargo.progress")]} current={0} label={t("cargo.progress")} reserve="16rem" />}
         {cargo && cargo.blocked && (
@@ -163,6 +173,7 @@ export function CargoStudy() {
             {result?.delivered_spread_series && cargo.term === "FOB" && <SpreadLine result={result} cargo={cargo} />}
             {(cargo.sensitivity?.length ?? 0) > 0 && priced[0] && <Sensitivity cargo={cargo} row={priced[0]} />}
             <InputsFold cargo={cargo} fxMethod={result?.fx_method ?? ""} />
+            <CargoNextSteps cargo={cargo} row={selected} arrival={form.arrivalMonth} />
           </>
         )}
       </SimulatedScope>
@@ -200,7 +211,7 @@ function CargoFormView({ form, routes, sets, terminals, busy, onChange, onRun, h
   const { t } = useTranslation();
   const months = useMemo(() => arrivalMonths(new Date()), []);
   // With a set chosen, an empty figure is the set's: the field says so.
-  const setHint = form.assumptionSetId ? t("cargo.form.from_set") : undefined;
+  const setHint = form.assumptionSetId ? t("cargo.form.from_set") : t("cargo.form.desk_standard");
   const pricingMonths = useMemo(() => arrivalMonths(new Date(), 19).map((m) => m), []);
   const voyageOptions: { value: VoyageMode; label: string }[] = [
     ...(routes.length > 0 ? [{ value: "route" as const, label: t("cargo.voyage.route") }] : []),
@@ -224,7 +235,7 @@ function CargoFormView({ form, routes, sets, terminals, busy, onChange, onRun, h
               ...sets.map((set) => ({ value: set.set_id, label: `${set.name} · v${set.approved_version}` })),
             ]}
             onChange={(setId) => {
-              const next = setId ? withSet(form, setId) : { ...exampleForm(new Date(), routes), term: form.term, arrivalMonth: form.arrivalMonth, pricingMonth: form.pricingMonth, terminalIds: form.terminalIds };
+              const next = withSet(form, setId);
               onChange(next, true);
             }}
           />
@@ -324,7 +335,7 @@ function CargoFormView({ form, routes, sets, terminals, busy, onChange, onRun, h
               </label>
             )}
             {form.voyageMode === "distance" && (
-              <Field id="cargo-distance" label={t("cargo.form.distance")} unit="nm" value={form.distanceNm} onChange={(distanceNm) => onChange({ distanceNm })} />
+              <Field id="cargo-distance" hint={t("cargo.form.desk_standard")} label={t("cargo.form.distance")} unit="nm" value={form.distanceNm} onChange={(distanceNm) => onChange({ distanceNm })} />
             )}
             {form.voyageMode !== "days" && (
               <Field id="cargo-speed" hint={setHint} label={t("cargo.form.speed")} unit="kn" value={form.speedKn} onChange={(speedKn) => onChange({ speedKn })} />
@@ -411,10 +422,12 @@ function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalD
   const { t } = useTranslation();
   const hh = henryHub(cargo);
   // The owner's standard: the result says which inputs were typed in by hand.
-  const entered = cargo.legs
-    .filter((leg) => leg.source.startsWith("entered"))
-    // The FOB cost leg carries the cargo size's source: name the input, not the step.
-    .map((leg) => (leg.key === "fob_cost" ? t("cargo.form.size") : t(`cargo.leg.${leg.key}`, { defaultValue: leg.label })).toLowerCase());
+  // The FOB cost leg carries the cargo size's source: name the input, not the step.
+  const nameOf = (leg: { key: string; label: string }) =>
+    (leg.key === "fob_cost" ? t("cargo.form.size") : t(`cargo.leg.${leg.key}`, { defaultValue: leg.label })).toLowerCase();
+  const entered = cargo.legs.filter((leg) => leg.source.startsWith("entered")).map(nameOf);
+  // What the firm's records did not hold and the desk standard filled (assumptions, labelled).
+  const standard = cargo.legs.filter((leg) => leg.source.startsWith("desk standard")).map(nameOf);
   const voyage = cargo.voyage;
   const parts: ReactNode[] = [];
   if (hh) {
@@ -429,8 +442,8 @@ function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalD
     const days = t("cargo.headline.days", { laden: fixed(cargo.days.laden, 1), ballast: fixed(cargo.days.ballast, 1), port: fixed(cargo.days.port, 0) });
     parts.push(
       <span key="voyage" data-voyage-basis={voyage?.basis ?? ""} title={voyage?.source ?? ""}>
-        {voyage?.basis === "saved_route" ? `${voyage.label} · ` : voyage?.basis === "entered_distance" ? `${Math.round(voyage.distance_nm ?? 0).toLocaleString("en-GB")} nm · ` : ""}
-        {days} · {t(voyage?.basis === "saved_route" ? "cargo.voyage.basis_saved" : "cargo.voyage.basis_entered")}
+        {voyage?.basis === "saved_route" ? `${voyage.label} · ` : voyage?.basis === "entered_distance" || voyage?.basis === "standard" ? `${Math.round(voyage.distance_nm ?? 0).toLocaleString("en-GB")} nm · ` : ""}
+        {days} · {t(voyage?.basis === "saved_route" ? "cargo.voyage.basis_saved" : voyage?.basis === "standard" ? "cargo.voyage.basis_standard" : "cargo.voyage.basis_entered")}
       </span>,
     );
   }
@@ -464,6 +477,7 @@ function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalD
       <p className="cargo-headline-basis">
         {t("cargo.headline.assumptions", { count: cargo.assumptions })}
         {entered.length > 0 && <> · <span data-entered="true">{t("cargo.headline.entered", { inputs: entered.join(", ") })}</span></>}
+        {standard.length > 0 && <> · <span data-standard="true">{t("cargo.headline.standard", { inputs: standard.join(", ") })}</span></>}
       </p>
     </section>
   );
@@ -711,6 +725,40 @@ function Sensitivity({ cargo, row }: { cargo: CargoResultDTO; row: CargoTerminal
       </div>
     </section>
   );
+}
+
+/** From the cargo to the spread it trades against, and to a report about it. */
+function CargoNextSteps({ cargo, row, arrival }: { cargo: CargoResultDTO; row: CargoTerminalDTO | null; arrival: string }) {
+  const { t } = useTranslation();
+  if (!row) return null;
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  const hub = row.hub;
+  const steps = [
+    ...(hub !== "TTF"
+      ? [{
+          id: "spread",
+          label: t("research.next.see_spread", { spread: `${hub} − TTF` }),
+          href: spreadsSearch(search, {
+            kind: "curve",
+            legs: [{ hub, tenor: null, weight: 1 }, { hub: "TTF", tenor: null, weight: -1 }],
+            unit: "EUR/MWh",
+            fx: "forward",
+            cost: { kind: "route_tariff", from_hub: "TTF", to_hub: hub },
+          }),
+        }]
+      : []),
+    {
+      id: "report",
+      label: t("research.next.add_report"),
+      href: reportSearch(search, t("research.next.cargo_question", {
+        term: cargo.term,
+        terminal: row.name,
+        hub,
+        month: monthLabel(arrival),
+      })),
+    },
+  ];
+  return <NextSteps label={t("research.next.label")} steps={steps} />;
 }
 
 function InputsFold({ cargo, fxMethod }: { cargo: CargoResultDTO; fxMethod: string }) {

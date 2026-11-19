@@ -103,11 +103,13 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     descriptionKey: "nav.mode.research.description",
     aliasKeys: ["nav.primary.strategy"],
     tasks: [
-      // Spreads (design basis 2, D.2): relative value on the picker, the normalisation service and
-      // the chart standard; a description is interpreted into the same spec the form edits.
-      { id: "spreads", labelKey: "nav.mode.research.spreads", page: "research", pageTask: "spreads", permissions: ["market.read"] },
+      // The analyst's path, in order (owner, 2026-11-19): the physical picture, what the price
+      // structure says, what it means for a cargo or a flow, then the write-up.
       // Storage, LNG, the balance and gas for power against their own history, by country (CP-17).
       { id: "fundamentals", labelKey: "nav.mode.research.fundamentals", page: "research", pageTask: "fundamentals", permissions: ["market.read"] },
+      // Spreads (design basis 2, D.2): opens on the desk's spread board; a description is
+      // interpreted into the same spec the board's rows open with.
+      { id: "spreads", labelKey: "nav.mode.research.spreads", page: "research", pageTask: "spreads", permissions: ["market.read"] },
       // What a cargo nets at each terminal, and Henry Hub against the hub (CP-18, design C.1-C.4).
       { id: "cargo", labelKey: "nav.mode.research.cargo", page: "research", pageTask: "cargo", permissions: ["market.read"] },
       // Market reports: assembled from the catalogue's sections on the server. Strategies, Data
@@ -141,10 +143,10 @@ export function pageTaskFromLocation(page: WorkspacePageId, search: string): str
     return portfolioTaskFromLocation(page === "orders" ? withWorkspace(search, "orders") : search);
   }
   if (page === "research") {
-    // Spreads is the page's first task; Fundamentals, Cargo & netback and Reports are named in
+    // Fundamentals is the page's first task; Spreads, Cargo & netback and Reports are named in
     // the URL.
     const task = new URLSearchParams(search).get("task");
-    return task === "reports" || task === "fundamentals" || task === "cargo" ? task : "spreads";
+    return task === "reports" || task === "spreads" || task === "cargo" ? task : "fundamentals";
   }
   if (page === "scenario" || page === "review") {
     return decisionTaskFromLocation(page === "review" ? withWorkspace(search, "review") : search);

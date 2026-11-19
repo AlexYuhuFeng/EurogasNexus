@@ -50,7 +50,7 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **266 paths / 297 operations**
+- OpenAPI public surface: **267 paths / 298 operations**
   (2026-11-19: the deferred capabilities' routes are no longer served by default, design basis
   2 I.3 and decision L4: the dataset builder and the agents workspace, 21 paths / 22 operations
   behind `EUROGAS_NEXUS_DEFERRED_CAPABILITIES`; 287 / 319 before)

@@ -118,6 +118,8 @@ export interface CurveResultDTO {
   simulated: boolean;
   empty: string | null;
   spread: string;
+  /** Net of transport: priced to the last month a published tariff covers, the later months not. */
+  coverage?: { priced_to: string; unpriced_from: string; months_priced: number; reason: string } | null;
 }
 
 export interface HistoryResultDTO {
@@ -138,4 +140,69 @@ export interface EvaluationDTO {
   spec: StrategySpecDTO;
   issues: SpecIssueDTO[];
   result: CurveResultDTO | HistoryResultDTO | null;
+}
+
+/** One tenor of a locational row on the spread board (`GET /api/research/spreads/board`). */
+export interface BoardTenorDTO {
+  tenor: "MA" | "DA";
+  available: boolean;
+  reason?: string;
+  close_day?: string;
+  delivery?: string;
+  legs?: { hub: string; native_value: number; native_unit: string; value: number }[];
+  gross?: number;
+  direction?: string;
+  cost?: number | null;
+  net?: number | null;
+  route?: { hubs: string[]; through: string[]; complete: boolean; missing: string[]; product: string; gas_years: string[]; issues: string[] };
+  percentile?: number | null;
+  range?: { low: number; high: number; days: number } | null;
+  spark?: { days: string[]; values: number[] };
+  input_class?: InputClass;
+  simulated?: boolean;
+}
+
+export interface BoardTimeRowDTO {
+  key: string;
+  label: string;
+  available: boolean;
+  value?: number;
+  near?: number;
+  far?: number;
+  reason?: string;
+  spec?: Partial<StrategySpecDTO> | null;
+  carry?: { total: number | null; reason?: string; parts?: Record<string, number>; missing?: string[] };
+  net_of_carry?: number;
+}
+
+export interface BoardCrossRowDTO {
+  key: "hh_ttf" | "clean_spark" | string;
+  label: string;
+  available: boolean;
+  reason?: string;
+  arrival?: string;
+  terminal?: string;
+  hub?: string;
+  currency?: string;
+  hh?: number | null;
+  hh_source?: string | null;
+  hub_price?: number | null;
+  delivered?: number | null;
+  value?: number | null;
+  netback_usd_mmbtu?: number | null;
+  assumptions?: number;
+  input_class?: string;
+  simulated?: boolean;
+}
+
+/** Research → Spreads opens on this: computed from what is held, no typing (rule 19). */
+export interface SpreadBoardDTO {
+  as_of: string;
+  unit: string;
+  reference: string;
+  hubs: string[];
+  locational: { pair: string; hub: string; reference: string; tenors: BoardTenorDTO[]; spec: Partial<StrategySpecDTO> }[];
+  time: { hub: string; unit: string; rows: BoardTimeRowDTO[]; simulated: boolean }[];
+  cross: BoardCrossRowDTO[];
+  simulated: boolean;
 }

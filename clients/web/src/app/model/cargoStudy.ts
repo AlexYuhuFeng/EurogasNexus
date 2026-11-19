@@ -98,6 +98,20 @@ export function exampleForm(today: Date, routes: readonly FreightRouteDTO[] = []
   };
 }
 
+/**
+ * What the page opens on (owner, 2026-11-19): the desk's standard cargo, US Gulf FOB arriving
+ * M+2, priced from what is held. Every figure is left to the firm's records (a saved route, the
+ * approved assumption set, the held Henry Hub); what they do not hold the server fills with the
+ * desk standard, labelled as such. A figure typed in overrides it and is labelled "entered".
+ */
+export function standardForm(today: Date, routes: readonly FreightRouteDTO[] = []): CargoForm {
+  const form = exampleForm(today, routes);
+  for (const field of SET_FIELDS) form[field] = "";
+  form.distanceNm = "";
+  form.ladenDays = "";
+  return form;
+}
+
 const num = (text: string): number | undefined => {
   const clean = text.trim().replace(/,/g, "");
   if (clean === "") return undefined;
@@ -114,7 +128,8 @@ export function cargoRequest(form: CargoForm, seriesMonths = 12): {
   assumption_set_id?: string;
   terminal_ids?: string[];
 } {
-  const cargo: CargoInput = { cargo_id: "study", term: form.term, q_load_mmbtu: num(form.cargoSize) };
+  // `standard`: what neither the form nor the firm's records hold is the desk standard (labelled).
+  const cargo: CargoInput = { cargo_id: "study", term: form.term, q_load_mmbtu: num(form.cargoSize), standard: true };
   if (form.term === "DES") {
     cargo.des_price = num(form.desPrice);
     cargo.des_currency = form.desCurrency;

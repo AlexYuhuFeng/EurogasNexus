@@ -64,6 +64,42 @@ class InterpretInput(BaseModel):
     model: bool = True
 
 
+@router.get("/api/research/spreads/board")
+def spreads_board(
+    request: Request, hubs: str | None = None, as_of: date | None = None
+) -> dict:
+    """The desk's spread board: locational, time and cross-commodity spreads from what is held.
+
+    价差看板：按持有数据计算的地点价差、时间价差与跨商品价差，无需输入。
+    """
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.caller import caller_of
+    from eurogas_nexus.application.spreads_board import board, carry_inputs, cross_rows
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    holdings = _holdings(request, as_of)
+    wanted = [code.strip().upper() for code in (hubs or "").split(",") if code.strip()][:8]
+    carry = None
+    cross: list[dict] = []
+    if resolve_database_url() is not None:
+        try:
+            with get_session_factory()() as session:
+                carry = carry_inputs(session, caller_of(request))
+                cross = cross_rows(session, caller_of(request), holdings.today)
+        except SQLAlchemyError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "runtime_db_unavailable", "error_class": exc.__class__.__name__},
+            ) from exc
+    data = board(holdings, wanted, carry=carry, cross=cross)
+    warnings = (
+        ["Simulated inputs: these spreads are not market prices."] if data["simulated"] else []
+    )
+    return _env(data, warnings=warnings)
+
+
 @router.post("/api/research/spreads/interpret")
 def interpret_description(body: InterpretInput, request: Request) -> dict:
     """A description → StrategySpec, with questions for what is unclear or not held.

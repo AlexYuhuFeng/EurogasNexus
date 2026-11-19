@@ -189,6 +189,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/setup",
         "/api/research/spread-analysis",
         "/api/research/spread-series",
+        "/api/research/spreads/board",
         "/api/research/spreads/interpret",
         "/api/research/spreads/evaluate",
         "/api/research/cash-valuation",

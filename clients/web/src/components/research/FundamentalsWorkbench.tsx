@@ -21,6 +21,7 @@ import { NweBalancePanel } from "@/components/NweBalancePanel";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { Tabs } from "@/components/ui";
 import { CountryMultiples } from "./CountryMultiples";
+import { FundamentalsNextSteps } from "./FundamentalsNextSteps";
 import { FlowsPanel } from "./FlowsPanel";
 import { LngByCountryPanel } from "./LngByCountryPanel";
 
@@ -91,6 +92,7 @@ export function FundamentalsWorkbench({ t, language }: { t: Translate; language:
   return (
     <div className="fundamentals-workbench" data-fundamentals={tab}>
       <p className="panel-meaning" data-purpose="research.fundamentals">{t("fundamentals.purpose")}</p>
+      <FundamentalsNextSteps t={t} />
       <Tabs
         idPrefix="fundamentals-tab"
         label={t("fundamentals.tabs")}

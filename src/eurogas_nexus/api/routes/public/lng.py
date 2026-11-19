@@ -334,6 +334,9 @@ class CargoBody(BaseModel):
     route_id: str | None = Field(default=None, max_length=96)
     # The voyage as the desk states it when no saved route is named: a distance at a speed, or
     # days laden.
+    # The desk's standard cargo fills what neither the request nor the assumption set holds
+    # (each figure an assumption labelled "desk standard").
+    standard: bool = False
     distance_nm: float | None = Field(default=None, gt=0, le=30_000)
     laden_days: float | None = Field(default=None, gt=0, le=90)
     ballast: str | None = Field(default=None, pattern="^(round|one_way)$")

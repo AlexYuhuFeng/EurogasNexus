@@ -396,3 +396,30 @@ def test_forward_fx_and_the_henry_hub_history(store):
     point = history["points"][-1]
     assert point["hub_per_mwh"] == 31.0 and point["simulated"] is False
     assert point["arb_per_mwh"] == pytest.approx(31.0 - point["delivered_per_mwh"], abs=1e-3)
+
+
+def test_the_standard_cargo_opens_priced_and_labels_what_is_not_held(store):
+    """Research → Cargo & netback opens on the desk's standard cargo: what the request and the
+    assumption set do not hold is the desk standard, each figure labelled; the set's own
+    figures still win."""
+    _engine, bearers, arrival = store
+    client = TestClient(create_app(Settings(api_profile="release")))
+    body = {
+        "arrival_month": arrival,
+        "cargoes": [{"cargo_id": "s", "term": "FOB", "standard": True}],
+    }
+    data = client.post(
+        "/api/lng/cargo-economics", json=body, headers=_h(bearers["c-viewer"])
+    ).json()["data"]
+    cargo = data["cargoes"][0]
+    assert cargo["blocked"] is None and cargo["voyage"]["basis"] == "standard"
+    distance = next(leg for leg in cargo["legs"] if leg["key"] == "distance")
+    assert distance["source"].startswith("desk standard") and distance["amount"] == 4900
+    hire = next(leg for leg in cargo["legs"] if leg["key"] == "hire")
+    assert not hire["source"].startswith("desk standard")  # the approved set holds it
+    without = client.post(
+        "/api/lng/cargo-economics",
+        json={**body, "cargoes": [{"cargo_id": "s", "term": "FOB"}]},
+        headers=_h(bearers["c-viewer"]),
+    ).json()["data"]["cargoes"][0]
+    assert without["blocked"] == "no_distance"  # never a guessed voyage unless asked

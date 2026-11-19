@@ -1,0 +1,24 @@
+@layer legacy {
+/* The analyst's path across Research (components/research/NextSteps.tsx); tokens only. */
+.research-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ds-space-1) var(--ds-space-3);
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.research-next-label {
+  color: var(--ds-text-3);
+  font-weight: 600;
+}
+
+.research-next-step {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+}

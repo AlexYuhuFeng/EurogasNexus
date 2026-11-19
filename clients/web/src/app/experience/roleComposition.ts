@@ -141,8 +141,9 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
   },
   analyst: {
     id: "analyst",
-    landing: task("desk", "today"),
-    shortlist: [task("desk", "today"), task("research", "reports"), task("desk", "network"), task("desk", "prices")],
+    // The analyst starts from the physical picture (owner, 2026-11-19): Research → Fundamentals.
+    landing: task("research", "fundamentals"),
+    shortlist: [task("research", "fundamentals"), task("research", "spreads"), task("research", "reports"), task("desk", "today")],
     panels: {},
     todayRows: ["fundamentals", "market", "needs_me", "book"],
     stripAudience: "analyst",
