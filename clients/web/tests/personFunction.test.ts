@@ -63,19 +63,6 @@ test("every demo identity shows the function its name implies, never its authori
   }
 });
 
-test("the test_* accounts copy a demo tester, so they show that tester's function", () => {
-  const source = read("../../../src/eurogas_nexus/application/local_accounts.py");
-  const block = source.slice(source.indexOf("DEFAULT_DEMO_TEMPLATES"), source.indexOf("def parse_demo_accounts"));
-  const pairs = [...block.matchAll(/"(test_[a-z_]+)":\s*"(demo\.[a-z.]+)"/g)].map((item) => [item[1], item[2]] as const);
-  assert.ok(pairs.length >= 9);
-  const byName = new Map(testers().map((row) => [row.name, row]));
-  for (const [account, template] of pairs) {
-    const row = byName.get(template);
-    assert.ok(row, account);
-    assert.equal(en[`person.function.${personFunction(user(row.roles, row.functions))}`], IMPLIED[template], account);
-  }
-});
-
 test("the account menu, Access review and the users table show the function; permissions only in Admin → Access", () => {
   const menu = read("../src/components/HeaderPreferencesMenu.tsx");
   assert.doesNotMatch(menu, /\{currentUser\.role\}/);

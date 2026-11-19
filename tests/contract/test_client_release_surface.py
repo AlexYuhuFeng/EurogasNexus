@@ -1204,11 +1204,14 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
     assert "import { ContractWorkbench" in portfolio_workspace
     assert 'from "@/components/ContractWorkbench";' in portfolio_workspace
     assert "<ContractWorkbench" in portfolio_workspace
-    # Wave 9 action geography: writing the reviewed draft is a `persist` consequence, so the
-    # workspace header owns the action and the panel only renders and reports it.
-    assert "primaryAction={primaryAction}" in portfolio_workspace
-    assert 'const primaryAction =\n    task === "resources" ? (' in portfolio_workspace
-    # The header performs the save through the shared rule; the hook owns the request so it
+    # Writing the reviewed draft is a `persist` consequence: the workspace owns the action and
+    # the panel only renders and reports it.
+    # The tab row holds tabs only (UX_REFERENCE rule 26): the save is the draft's own action,
+    # built by the workspace and rendered in the workbench's command row.
+    assert "saveAction={saveAction}" in portfolio_workspace
+    assert 'const saveAction =\n    task === "resources" ? (' in portfolio_workspace
+    assert "primaryAction=" not in portfolio_workspace
+    # The action performs the save through the shared rule; the hook owns the request so it
     # can fold the server's refreshed edit lease back into the draft (S1e precondition).
     assert (
         "contractSaveStateForDraft.canSave && void contractEditor.saveContract()"
