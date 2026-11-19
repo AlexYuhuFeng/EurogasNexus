@@ -49,8 +49,9 @@ from datetime import UTC, datetime
 #: covered field set or the canonicalization requires a new version, so a token
 #: from an older shape can never compare equal to a newer one. ``v2`` added
 #: ``payment_terms_json`` to the covered columns (S2b); ``v3`` added ``book_id``
-#: (trading books), so moving a contract to another book makes an open draft stale.
-CONTRACT_EDIT_TOKEN_SCHEMA = "upstream-contract-edit-token/v3"
+#: (trading books), so moving a contract to another book makes an open draft stale; ``v4``
+#: added the contract kind, its review flag, typed terms, unmodelled terms and the master.
+CONTRACT_EDIT_TOKEN_SCHEMA = "upstream-contract-edit-token/v4"
 
 #: Token text prefix; the digest is lowercase hex SHA-256.
 CONTRACT_EDIT_TOKEN_PREFIX = "sha256:"
@@ -97,6 +98,11 @@ CONTRACT_EDIT_TOKEN_FIELDS = (
     "retired_at_utc",
     "retired_by",
     "retire_reason",
+    "contract_kind",
+    "contract_kind_reviewed",
+    "kind_terms",
+    "unmodelled_terms",
+    "master_contract_id",
 )
 
 _HEX_DIGITS = frozenset("0123456789abcdef")

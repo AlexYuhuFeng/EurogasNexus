@@ -1,0 +1,181 @@
+"""Contract kinds through the governed write: MSPA, a cargo under it, a tender."""
+
+from __future__ import annotations
+
+from datetime import date
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+from eurogas_nexus.api.app import create_app
+from eurogas_nexus.core.config import Settings
+from eurogas_nexus.db.base import Base
+from eurogas_nexus.db.models import UpstreamContractRevisionRecord, UpstreamResourceContractRecord
+from eurogas_nexus.db.repositories.identity import (
+    create_identity_api_key,
+    create_identity_principal,
+)
+from eurogas_nexus.db.repositories.route_cost import list_upstream_contracts
+from eurogas_nexus.domain.contracts.examples import cargo_terms, mspa_terms, tender_terms
+
+PATH = "/api/route-cost/upstream-contracts"
+TOKEN = "test-public-api-token"
+TODAY = date.today()
+
+
+def _client(tmp_path, monkeypatch) -> tuple[TestClient, dict, str]:
+    url = f"sqlite+pysqlite:///{(tmp_path / 'kinds.sqlite').as_posix()}"
+    Base.metadata.create_all(create_engine(url, future=True))
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    with Session(create_engine(url, future=True)) as session:
+        row = create_identity_principal(
+            session,
+            name="lng-trader",
+            display_name="LNG Trader",
+            role="ANALYST",
+            data_scopes=["TTF"],
+        )
+        _key, bearer = create_identity_api_key(session, row.principal_id, display_name="kinds")
+        session.commit()
+    headers = {"X-Eurogas-Api-Key": TOKEN, "X-Eurogas-Identity": bearer}
+    return TestClient(create_app(Settings(api_profile="release"))), headers, url
+
+
+def _post(client, headers, **body):
+    return client.post(PATH, json=body, headers=headers)
+
+
+def test_master_cargo_and_tender_are_saved_with_derived_columns(tmp_path, monkeypatch) -> None:
+    client, headers, url = _client(tmp_path, monkeypatch)
+    master = _post(
+        client,
+        headers,
+        contract_id="mspa-atlantic",
+        contract_name="Atlantic MSPA",
+        contract_kind="LNG_MSPA",
+        kind_terms=mspa_terms(TODAY),
+        unmodelled_terms="Price review: none. Heel: seller retains.",
+    )
+    assert master.status_code == 200, master.text
+    data = master.json()["data"]
+    assert data["contract_kind"] == "LNG_MSPA"
+    assert data["contract_kind_reviewed"] is True
+    assert data["delivery_quantity_mwh_per_day"] == 0.0
+    assert data["unmodelled_terms"].startswith("Price review")
+    assert data["boundary_issues"] == []
+
+    cargo = _post(
+        client,
+        headers,
+        contract_id="mspa-atlantic-cn07",
+        contract_name="Atlantic CN-07",
+        contract_kind="LNG_CARGO",
+        kind_terms=cargo_terms(TODAY),
+        master_contract_id="mspa-atlantic",
+    )
+    assert cargo.status_code == 200, cargo.text
+    cargo_data = cargo.json()["data"]
+    assert cargo_data["master_contract_id"] == "mspa-atlantic"
+    assert cargo_data["delivery_point_name"] == "Gate terminal"
+    assert cargo_data["headline"]["unit"] == "TBtu"
+
+    tender = _post(
+        client,
+        headers,
+        contract_id="tender-skarv-q1",
+        contract_name="Skarv West tender Q1",
+        contract_kind="UPSTREAM_TENDER",
+        kind_terms=tender_terms(TODAY),
+        # A base column sent for a typed kind is replaced by the derived one.
+        delivery_quantity_mwh_per_day=1.0,
+    )
+    assert tender.status_code == 200, tender.text
+    tender_data = tender.json()["data"]
+    assert tender_data["delivery_quantity_mwh_per_day"] == 5000.0
+    assert tender_data["nomination_tolerance_pct"] == 20.0
+
+    with Session(create_engine(url, future=True)) as session:
+        revisions = {
+            row.contract_id: row.schema_version
+            for row in session.query(UpstreamContractRevisionRecord).all()
+        }
+        assert set(revisions.values()) == {"upstream-contract-revision/v5"}
+        # The book's consumers see the cargo and the tender, never the master.
+        book = {row["contract_id"] for row in list_upstream_contracts(session)}
+        assert book == {"mspa-atlantic-cn07", "tender-skarv-q1"}
+
+    listed = client.get(PATH, headers=headers).json()["data"]
+    assert {row["contract_kind"] for row in listed} == {"LNG_MSPA", "LNG_CARGO", "UPSTREAM_TENDER"}
+
+    # The master cannot be retired while the cargo under it is active.
+    token = next(row for row in listed if row["contract_id"] == "mspa-atlantic")["edit_token"]
+    retired = client.post(
+        f"{PATH}/mspa-atlantic/retire",
+        json={"reason": "terminated", "expected_edit_token": token},
+        headers=headers,
+    )
+    assert retired.status_code == 409
+    assert retired.json()["detail"]["code"] == "contract_has_active_confirmations"
+
+
+def test_refusals_name_the_problem(tmp_path, monkeypatch) -> None:
+    client, headers, _url = _client(tmp_path, monkeypatch)
+    cases = [
+        ({"contract_kind": "SPOT"}, "contract_kind_unknown"),
+        ({"contract_kind": "HUB_TRADE"}, "contract_kind_not_authorable"),
+        (
+            {
+                "contract_kind": "UPSTREAM_TENDER",
+                "kind_terms": {**tender_terms(TODAY), "max_dcq_mwh_per_day": 1},
+            },
+            "contract_kind_terms_invalid",
+        ),
+        (
+            {"contract_kind": "LNG_CARGO", "kind_terms": cargo_terms(TODAY)},
+            "contract_master_required",
+        ),
+        (
+            {
+                "contract_kind": "LNG_CARGO",
+                "kind_terms": cargo_terms(TODAY),
+                "master_contract_id": "nope",
+            },
+            "contract_master_not_found",
+        ),
+        ({"contract_kind": "SUPPLY_GSA"}, "contract_field_missing"),
+    ]
+    for extra, code in cases:
+        response = _post(client, headers, contract_id="x-1", contract_name="X", **extra)
+        assert response.status_code == 422, (code, response.text)
+        assert response.json()["detail"]["code"] == code
+
+
+def test_older_client_body_still_saves_a_gsa(tmp_path, monkeypatch) -> None:
+    client, headers, url = _client(tmp_path, monkeypatch)
+    body = {
+        "contract_id": "gsa-1",
+        "contract_name": "GSA",
+        "resource_type": "PIPELINE_IMPORT",
+        "delivery_point_name": "TTF",
+        "gas_year": "2026/27",
+        "delivery_quantity_mwh_per_day": 100,
+        "contract_price_gbp_mwh": 30,
+        "settlement_frequency": "monthly",
+        "upstream_payment_lag_days": 20,
+        "screen_sale_cash_lag_days": 1,
+        "delivery_tolerance_pct": 2,
+        "nomination_tolerance_pct": 1,
+        "annual_financing_rate_pct": 6,
+    }
+    response = client.post(PATH, json=body, headers=headers)
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["contract_kind"] == "SUPPLY_GSA"
+    assert data["contract_kind_reviewed"] is False
+    with Session(create_engine(url, future=True)) as session:
+        row = session.query(UpstreamContractRevisionRecord).one()
+        assert row.schema_version == "upstream-contract-revision/v1"
+        assert session.get(UpstreamResourceContractRecord, "gsa-1").kind_terms is None

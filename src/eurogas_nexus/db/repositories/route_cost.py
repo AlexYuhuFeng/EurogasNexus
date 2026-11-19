@@ -208,7 +208,11 @@ def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
 
 
 def list_upstream_contracts(
-    session: Session, *, include_edit_token: bool = False, include_retired: bool = False
+    session: Session,
+    *,
+    include_edit_token: bool = False,
+    include_retired: bool = False,
+    include_non_book: bool = False,
 ) -> list[dict]:
     """List upstream resource contracts, newest update first.
 
@@ -221,6 +225,9 @@ def list_upstream_contracts(
             agent context) keep the previous payload shape.
         include_retired: Retired contracts are left out unless asked for; positions,
             optimisation and agent context only ever see active contracts.
+        include_non_book: Master agreements and FOB cargoes are not positions at a
+            European hub (``domain/contracts/kinds.feeds_book``): they are left out unless
+            asked for. The contract library asks; the book's consumers do not.
 
     Returns:
         List of contract payload dicts.
@@ -233,7 +240,16 @@ def list_upstream_contracts(
     ).order_by(UpstreamResourceContractRecord.updated_at_utc.desc())
     if not include_retired:
         rows = rows.filter(UpstreamResourceContractRecord.retired_at_utc.is_(None))
-    return [_contract_payload(row, include_edit_token=include_edit_token) for row in rows.all()]
+    records = rows.all()
+    if not include_non_book:
+        from eurogas_nexus.domain.contracts.kinds import feeds_book, terms_of
+
+        records = [
+            row
+            for row in records
+            if feeds_book(row.contract_kind, terms_of(row.contract_kind, row.kind_terms))
+        ]
+    return [_contract_payload(row, include_edit_token=include_edit_token) for row in records]
 
 
 class ContractLifecycleRefusal(ValueError):
@@ -280,10 +296,25 @@ def set_upstream_contract_lifecycle(
     if action == "retire":
         if row.retired_at_utc is not None:
             raise ContractLifecycleRefusal("contract_already_retired", 409)
+        # A master stays while a confirmation under it is active (CONTRACT_TYPES.md).
+        if (
+            session.query(UpstreamResourceContractRecord.contract_id)
+            .filter(
+                UpstreamResourceContractRecord.master_contract_id == row.contract_id,
+                UpstreamResourceContractRecord.retired_at_utc.is_(None),
+            )
+            .first()
+            is not None
+        ):
+            raise ContractLifecycleRefusal("contract_has_active_confirmations", 409)
         row.retired_at_utc, row.retired_by, row.retire_reason = now_utc, actor, reason
     elif action == "reinstate":
         if row.retired_at_utc is None:
             raise ContractLifecycleRefusal("contract_not_retired", 409)
+        if row.master_contract_id:
+            master = session.get(UpstreamResourceContractRecord, row.master_contract_id)
+            if master is not None and master.retired_at_utc is not None:
+                raise ContractLifecycleRefusal("contract_master_retired", 409)
         row.retired_at_utc = row.retired_by = row.retire_reason = None
     else:  # pragma: no cover - the route validates the action
         raise ContractLifecycleRefusal("lifecycle_action_invalid", 422)
@@ -419,6 +450,14 @@ def _normalized_contract_values(data: Mapping[str, object]) -> dict[str, object]
         "eligible_sale_modes": _string_list(data.get("eligible_sale_modes")),
         "notes": _merged_contract_notes(data),
     }
+    if "contract_kind" in data and data["contract_kind"] is not None:
+        # Kinds (CONTRACT_TYPES.md): present only when the caller states them; the route has
+        # validated the terms and derived the base columns already.
+        values["contract_kind"] = str(data["contract_kind"])
+        values["contract_kind_reviewed"] = bool(data.get("contract_kind_reviewed", True))
+        values["kind_terms"] = data.get("kind_terms")
+        values["unmodelled_terms"] = _optional_string(data.get("unmodelled_terms")) or None
+        values["master_contract_id"] = _optional_string(data.get("master_contract_id")) or None
     if "payment_terms" in data:
         values["payment_terms_json"] = _encoded_payment_terms(data["payment_terms"])
     if "financing_tranches" in data:
@@ -1237,9 +1276,16 @@ def contract_edit_token(row: UpstreamResourceContractRecord) -> str:
     limits (integrity/identity check, not a signature or lifecycle counter).
     """
 
-    return canonical_contract_edit_token(
-        {field: getattr(row, field) for field in CONTRACT_EDIT_TOKEN_FIELDS}
+    values = {field: getattr(row, field) for field in CONTRACT_EDIT_TOKEN_FIELDS}
+    # Token v4: the review flag and the typed terms are covered as canonical text (the token
+    # document holds scalars, string lists and flat records only).
+    values["contract_kind_reviewed"] = "true" if row.contract_kind_reviewed else "false"
+    values["kind_terms"] = (
+        None
+        if row.kind_terms is None
+        else json.dumps(row.kind_terms, sort_keys=True, separators=(",", ":"))
     )
+    return canonical_contract_edit_token(values)
 
 
 def _contract_edit_conflict_result(detail: str) -> GovernedContractUpsertResult:
@@ -1304,7 +1350,13 @@ def _contract_payload(
         "retired_at_utc": row.retired_at_utc.isoformat() if row.retired_at_utc else None,
         "retired_by": row.retired_by,
         "retire_reason": row.retire_reason,
+        "contract_kind": row.contract_kind or "SUPPLY_GSA",
+        "contract_kind_reviewed": bool(row.contract_kind_reviewed),
+        "kind_terms": row.kind_terms,
+        "unmodelled_terms": row.unmodelled_terms,
+        "master_contract_id": row.master_contract_id,
     }
+    payload["headline"] = _kind_headline(row)
     if include_edit_token:
         payload["edit_token"] = contract_edit_token(row)
     return payload
@@ -1315,6 +1367,12 @@ _STRUCTURED_NOTE_FIELDS = (
     "regas_fee_gbp_mwh",
     "fuel_loss_allowance_pct",
 )
+
+
+def _kind_headline(row: UpstreamResourceContractRecord) -> dict | None:
+    from eurogas_nexus.domain.contracts.kinds import headline, terms_of
+
+    return headline(row.contract_kind, terms_of(row.contract_kind, row.kind_terms))
 
 
 def _contract_notes(value: object) -> dict:

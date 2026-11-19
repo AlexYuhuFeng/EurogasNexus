@@ -106,6 +106,26 @@ class UpstreamResourceContractRecord(Base):
     retired_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     retired_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     retire_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    #: Contract kinds (docs/product/CONTRACT_TYPES.md, migration 0072): which kind of agreement
+    #: this is (``domain/contracts/kinds.py``); a row written before kinds is ``SUPPLY_GSA``.
+    contract_kind: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="SUPPLY_GSA", server_default="SUPPLY_GSA"
+    )
+    #: False until a person confirmed the kind (a migrated row's kind is inferred).
+    contract_kind_reviewed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    #: The kind's typed terms, validated per kind, with their schema label inside.
+    kind_terms: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    #: Terms the product does not model yet, kept verbatim so nothing entered is lost.
+    unmodelled_terms: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    #: The master agreement a confirmation is made under (an LNG cargo under its MSPA).
+    master_contract_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("upstream_resource_contracts.contract_id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
 
 
 class UpstreamContractRevisionRecord(Base):

@@ -153,6 +153,11 @@ def test_snapshot_field_set_is_the_reviewed_payload_contract() -> None:
         "contract_price_currency",
         # v4 (#14): funding segments.
         "financing_tranches",
+        # v5 (contract kinds): the kind, its typed terms, unmodelled terms and the master.
+        "contract_kind",
+        "kind_terms_json",
+        "unmodelled_terms",
+        "master_contract_id",
     ]
 
 

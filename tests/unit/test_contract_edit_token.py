@@ -72,6 +72,11 @@ def _state(**overrides: object) -> dict[str, object]:
         "retired_at_utc": None,
         "retired_by": None,
         "retire_reason": None,
+        "contract_kind": "SUPPLY_GSA",
+        "contract_kind_reviewed": "false",
+        "kind_terms": None,
+        "unmodelled_terms": None,
+        "master_contract_id": None,
     }
     state.update(overrides)
     return state
@@ -95,7 +100,7 @@ def test_equal_states_hash_to_one_token_and_the_schema_is_discriminated() -> Non
     # S2b added the payment-terms carrier to the covered field set, so the
     # schema discriminator is v2 and a pre-upgrade token is stale by
     # construction (there is no v1 fallback comparison).
-    assert CONTRACT_EDIT_TOKEN_SCHEMA == "upstream-contract-edit-token/v3"
+    assert CONTRACT_EDIT_TOKEN_SCHEMA == "upstream-contract-edit-token/v4"
 
 
 @pytest.mark.parametrize(
@@ -139,6 +144,11 @@ def test_equal_states_hash_to_one_token_and_the_schema_is_discriminated() -> Non
         ("retired_at_utc", _NOW + timedelta(days=1)),
         ("retired_by", "risk.lead"),
         ("retire_reason", "terminated"),
+        ("contract_kind", "UPSTREAM_TENDER"),
+        ("contract_kind_reviewed", "true"),
+        ("kind_terms", '{"schema":"upstream-tender/v1"}'),
+        ("unmodelled_terms", "price review every three years"),
+        ("master_contract_id", "mspa-1"),
     ],
 )
 def test_every_persisted_field_changes_the_token(field: str, changed: object) -> None:

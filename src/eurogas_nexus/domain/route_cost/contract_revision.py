@@ -130,6 +130,13 @@ CONTRACT_REVISION_SCHEMA_VERSION_V3 = "upstream-contract-revision/v3"
 #: every v1-v3 revision keeps its bytes and hash.
 CONTRACT_REVISION_SCHEMA_VERSION_V4 = "upstream-contract-revision/v4"
 
+#: Schema version that records the contract kind (docs/product/CONTRACT_TYPES.md): v4 plus
+#: ``contract_kind``, the validated ``kind_terms``, ``unmodelled_terms`` and the
+#: ``master_contract_id``; funding segments may be empty. Produced only for a row that has a
+#: kind other than ``SUPPLY_GSA`` or any of the other three, so every row written before
+#: kinds keeps its v1-v4 bytes and hash.
+CONTRACT_REVISION_SCHEMA_VERSION_V5 = "upstream-contract-revision/v5"
+
 #: Every version this module accepts. v1 and v2 declare the same complete field
 #: set; v3 adds ``contract_price_currency``.
 _REVIEWED_REVISION_SCHEMA_VERSIONS = frozenset(
@@ -138,13 +145,24 @@ _REVIEWED_REVISION_SCHEMA_VERSIONS = frozenset(
         CONTRACT_REVISION_SCHEMA_VERSION_V2,
         CONTRACT_REVISION_SCHEMA_VERSION_V3,
         CONTRACT_REVISION_SCHEMA_VERSION_V4,
+        CONTRACT_REVISION_SCHEMA_VERSION_V5,
     }
 )
 
 #: Versions that record the price currency (v4 is a superset of v3).
 _CURRENCY_SCHEMA_VERSIONS = frozenset(
-    {CONTRACT_REVISION_SCHEMA_VERSION_V3, CONTRACT_REVISION_SCHEMA_VERSION_V4}
+    {
+        CONTRACT_REVISION_SCHEMA_VERSION_V3,
+        CONTRACT_REVISION_SCHEMA_VERSION_V4,
+        CONTRACT_REVISION_SCHEMA_VERSION_V5,
+    }
 )
+#: Versions that record funding segments (v5 may record none).
+_TRANCHE_SCHEMA_VERSIONS = frozenset(
+    {CONTRACT_REVISION_SCHEMA_VERSION_V4, CONTRACT_REVISION_SCHEMA_VERSION_V5}
+)
+_KIND_FIELDS = ("contract_kind", "kind_terms", "unmodelled_terms", "master_contract_id")
+_DEFAULT_KIND = "SUPPLY_GSA"
 _TRANCHES_FIELD = "financing_tranches"
 _TRANCHE_DAY_COUNTS = frozenset({"ACT/365F", "ACT/360"})
 _TRANCHE_FIELDS = frozenset({"lender", "principal", "annual_rate_pct", "day_count"})
@@ -244,6 +262,7 @@ _CANONICAL_DOCUMENT_FIELDS = frozenset(
 )
 _CANONICAL_DOCUMENT_FIELDS_V3 = _CANONICAL_DOCUMENT_FIELDS | {_PRICE_CURRENCY_FIELD}
 _CANONICAL_DOCUMENT_FIELDS_V4 = _CANONICAL_DOCUMENT_FIELDS_V3 | {_TRANCHES_FIELD}
+_CANONICAL_DOCUMENT_FIELDS_V5 = _CANONICAL_DOCUMENT_FIELDS_V4 | set(_KIND_FIELDS)
 
 
 @dataclass(frozen=True)
@@ -683,8 +702,14 @@ class UpstreamContractEconomicSnapshot:
     #: ISO currency of ``contract_price_gbp_mwh`` (the field name predates it).
     #: Only v3 may record a currency other than GBP.
     contract_price_currency: str = field(default="GBP", kw_only=True)
-    #: Funding segments; non-empty only in v4.
+    #: Funding segments; non-empty only in v4 and v5.
     financing_tranches: tuple[FinancingTrancheRecord, ...] = field(default=(), kw_only=True)
+    #: Contract kind and its typed terms (v5 only; see ``domain/contracts/kinds.py``).
+    contract_kind: str = field(default=_DEFAULT_KIND, kw_only=True)
+    #: The validated typed terms as canonical JSON text (sorted keys), or ``None``.
+    kind_terms_json: str | None = field(default=None, kw_only=True)
+    unmodelled_terms: str | None = field(default=None, kw_only=True)
+    master_contract_id: str | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         """Validate every field and deep-freeze the sequence fields.
@@ -746,12 +771,21 @@ class UpstreamContractEconomicSnapshot:
                 "tranches_not_typed", "financing_tranches must be FinancingTrancheRecord values"
             )
         object.__setattr__(self, "financing_tranches", tranches)
-        if (version == CONTRACT_REVISION_SCHEMA_VERSION_V4) != bool(tranches):
+        if (tranches and version not in _TRANCHE_SCHEMA_VERSIONS) or (
+            version == CONTRACT_REVISION_SCHEMA_VERSION_V4 and not tranches
+        ):
             raise ContractRevisionPayloadError(
                 "tranches_need_v4",
-                f"financing segments are recorded in {CONTRACT_REVISION_SCHEMA_VERSION_V4},"
-                " and that version requires at least one",
+                f"financing segments are recorded in {CONTRACT_REVISION_SCHEMA_VERSION_V4}"
+                f" (which requires at least one) or {CONTRACT_REVISION_SCHEMA_VERSION_V5}",
             )
+        if version != CONTRACT_REVISION_SCHEMA_VERSION_V5 and _has_kind_content(self):
+            raise ContractRevisionPayloadError(
+                "kind_needs_v5",
+                f"a contract kind and its terms are recorded only in"
+                f" {CONTRACT_REVISION_SCHEMA_VERSION_V5}",
+            )
+        _required_text(self.contract_kind, "contract_kind")
         if currency != "GBP" and version not in _CURRENCY_SCHEMA_VERSIONS:
             raise ContractRevisionPayloadError(
                 "price_currency_needs_v3",
@@ -812,10 +846,17 @@ class UpstreamContractEconomicSnapshot:
             document[name] = _decimal_text(getattr(self, name), name)
         if self.schema_version in _CURRENCY_SCHEMA_VERSIONS:
             document[_PRICE_CURRENCY_FIELD] = self.contract_price_currency
-        if self.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V4:
+        if self.schema_version in _TRANCHE_SCHEMA_VERSIONS:
             document[_TRANCHES_FIELD] = [
                 tranche.canonical_document() for tranche in self.financing_tranches
             ]
+        if self.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V5:
+            document["contract_kind"] = self.contract_kind
+            document["kind_terms"] = (
+                None if self.kind_terms_json is None else json.loads(self.kind_terms_json)
+            )
+            document["unmodelled_terms"] = self.unmodelled_terms
+            document["master_contract_id"] = self.master_contract_id
         return document
 
     def canonical_json(self) -> str:
@@ -878,6 +919,7 @@ class UpstreamContractEconomicSnapshot:
         expected = {
             CONTRACT_REVISION_SCHEMA_VERSION_V3: _CANONICAL_DOCUMENT_FIELDS_V3,
             CONTRACT_REVISION_SCHEMA_VERSION_V4: _CANONICAL_DOCUMENT_FIELDS_V4,
+            CONTRACT_REVISION_SCHEMA_VERSION_V5: _CANONICAL_DOCUMENT_FIELDS_V5,
         }.get(document.get("schema_version"), _CANONICAL_DOCUMENT_FIELDS)
         if keys != expected:
             missing = sorted(str(key) for key in expected - keys)
@@ -952,11 +994,66 @@ class UpstreamContractEconomicSnapshot:
             financing_tranches=(
                 _canonical_tranches(document[_TRANCHES_FIELD])
                 if version == CONTRACT_REVISION_SCHEMA_VERSION_V4
+                or (version == CONTRACT_REVISION_SCHEMA_VERSION_V5 and document[_TRANCHES_FIELD])
                 else ()
             ),
+            **_canonical_kind_fields(document, version),
             **numbers,
             **lags,
         )
+
+
+def _has_kind_content(snapshot: UpstreamContractEconomicSnapshot) -> bool:
+    return (
+        snapshot.contract_kind != _DEFAULT_KIND
+        or snapshot.kind_terms_json is not None
+        or snapshot.unmodelled_terms is not None
+        or snapshot.master_contract_id is not None
+    )
+
+
+def kind_terms_text(value: object) -> str | None:
+    """Canonical JSON text of a typed-terms mapping (sorted keys), or ``None``."""
+
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ContractRevisionPayloadError(
+            "kind_terms_not_mapping", "kind_terms must be a JSON object or null"
+        )
+    try:
+        return json.dumps(
+            dict(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        )
+    except (TypeError, ValueError) as exc:
+        raise ContractRevisionPayloadError(
+            "kind_terms_not_json", "kind_terms is not plain JSON"
+        ) from exc
+
+
+def _optional_text_value(value: object, name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ContractRevisionPayloadError(
+            "canonical_text_invalid", f"{name} must be a string or null"
+        )
+    return value
+
+
+def _canonical_kind_fields(document: Mapping[str, object], version: str) -> dict[str, object]:
+    """Decode the v5 kind fields; defaults for an older version."""
+
+    if version != CONTRACT_REVISION_SCHEMA_VERSION_V5:
+        return {}
+    return {
+        "contract_kind": _required_text(document["contract_kind"], "contract_kind"),
+        "kind_terms_json": kind_terms_text(document["kind_terms"]),
+        "unmodelled_terms": _optional_text_value(document["unmodelled_terms"], "unmodelled_terms"),
+        "master_contract_id": _optional_text_value(
+            document["master_contract_id"], "master_contract_id"
+        ),
+    }
 
 
 def _canonical_decimal(value: object, name: str) -> Decimal | None:
@@ -1230,6 +1327,23 @@ def map_legacy_contract_payload(contract: Mapping[str, object]) -> LegacyContrac
     raw_currency = contract.get(_PRICE_CURRENCY_FIELD)
     currency = "GBP" if raw_currency is None else raw_currency
     tranches = financing_tranches_from_payload(contract.get(_TRANCHES_FIELD))
+    kind = contract.get("contract_kind") or _DEFAULT_KIND
+    kind_fields = {
+        "contract_kind": kind,
+        "kind_terms_json": kind_terms_text(contract.get("kind_terms")),
+        "unmodelled_terms": _optional_text_value(
+            contract.get("unmodelled_terms") or None, "unmodelled_terms"
+        ),
+        "master_contract_id": _optional_text_value(
+            contract.get("master_contract_id") or None, "master_contract_id"
+        ),
+    }
+    has_kind = (
+        kind != _DEFAULT_KIND
+        or kind_fields["kind_terms_json"] is not None
+        or kind_fields["unmodelled_terms"] is not None
+        or kind_fields["master_contract_id"] is not None
+    )
 
     economic_snapshot = UpstreamContractEconomicSnapshot(
         contract_id=_required_text(contract.get("contract_id"), "contract_id"),
@@ -1258,7 +1372,9 @@ def map_legacy_contract_payload(contract: Mapping[str, object]) -> LegacyContrac
         # A GBP contract maps exactly as before (v1); another currency needs v3, and
         # funding segments need v4.
         schema_version=(
-            CONTRACT_REVISION_SCHEMA_VERSION_V4
+            CONTRACT_REVISION_SCHEMA_VERSION_V5
+            if has_kind
+            else CONTRACT_REVISION_SCHEMA_VERSION_V4
             if tranches
             else CONTRACT_REVISION_SCHEMA_VERSION
             if currency == "GBP"
@@ -1266,6 +1382,7 @@ def map_legacy_contract_payload(contract: Mapping[str, object]) -> LegacyContrac
         ),
         contract_price_currency=currency,
         financing_tranches=tranches,
+        **(kind_fields if has_kind else {}),
         **numbers,
     )
     return LegacyContractSnapshot(

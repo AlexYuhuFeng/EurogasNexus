@@ -110,19 +110,22 @@ class UpstreamContractUpsertRequest(BaseModel):
 
     contract_id: str = Field(min_length=1, max_length=128)
     contract_name: str = Field(min_length=1, max_length=256)
-    resource_type: SourceResourceType
-    delivery_point_name: str = Field(min_length=1, max_length=256)
-    gas_year: str = Field(min_length=1, max_length=16)
-    delivery_quantity_mwh_per_day: float = Field(gt=0)
-    contract_price_gbp_mwh: float = Field(ge=0)
+    # The base columns. Required for a SUPPLY_GSA (today's shape); for a typed kind
+    # (UPSTREAM_TENDER, LNG_MSPA, LNG_CARGO) the server derives them from ``kind_terms`` and
+    # any value sent is replaced (docs/product/CONTRACT_TYPES.md).
+    resource_type: SourceResourceType | None = None
+    delivery_point_name: str | None = Field(default=None, min_length=1, max_length=256)
+    gas_year: str | None = Field(default=None, min_length=1, max_length=16)
+    delivery_quantity_mwh_per_day: float | None = Field(default=None, gt=0)
+    contract_price_gbp_mwh: float | None = Field(default=None, ge=0)
     contract_price_currency: Literal["GBP", "EUR", "USD"] | None = None
-    settlement_frequency: str = Field(min_length=1, max_length=32)
-    upstream_payment_lag_days: int = Field(ge=0)
-    screen_sale_cash_lag_days: int = Field(ge=0)
-    delivery_tolerance_pct: float = Field(ge=0)
-    nomination_tolerance_pct: float = Field(ge=0)
+    settlement_frequency: str | None = Field(default=None, min_length=1, max_length=32)
+    upstream_payment_lag_days: int | None = Field(default=None, ge=0)
+    screen_sale_cash_lag_days: int | None = Field(default=None, ge=0)
+    delivery_tolerance_pct: float | None = Field(default=None, ge=0)
+    nomination_tolerance_pct: float | None = Field(default=None, ge=0)
     tolerance_risk_allowance_gbp_mwh: float | None = Field(default=None, ge=0)
-    annual_financing_rate_pct: float = Field(ge=0)
+    annual_financing_rate_pct: float | None = Field(default=None, ge=0)
     owned_entry_capacity_mwh_per_day: float | None = Field(default=None, ge=0)
     owned_exit_capacity_mwh_per_day: float | None = Field(default=None, ge=0)
     allowed_exit_points: list[str] = Field(default_factory=list)
@@ -135,6 +138,15 @@ class UpstreamContractUpsertRequest(BaseModel):
     #: Funding segments (#14): [{lender, principal, annual_rate_pct, day_count}], the
     #: principal in the contract's currency. Omitted keeps the stored segments; [] clears.
     financing_tranches: list[dict[str, Any]] | None = Field(default=None, max_length=32)
+    #: Contract kind (CONTRACT_TYPES.md). Omitted keeps the stored kind (a new contract is a
+    #: SUPPLY_GSA), so an older client never changes it. Stating it marks the kind reviewed.
+    contract_kind: str | None = Field(default=None, max_length=32)
+    #: The kind's typed terms; validated per kind (``domain/contracts/kinds.py``).
+    kind_terms: dict[str, Any] | None = None
+    #: Terms the product does not model yet, kept verbatim.
+    unmodelled_terms: str | None = Field(default=None, max_length=20_000)
+    #: A confirmation's master agreement (an LNG cargo's MSPA), picked from the library.
+    master_contract_id: str | None = Field(default=None, max_length=128)
     expected_edit_token: str | None = None
 
 
@@ -242,7 +254,10 @@ def list_upstream_contracts(request: Request, include_retired: bool = Query(Fals
 
         with get_session_factory()() as session:
             rows = list_upstream_contracts(
-                session, include_edit_token=True, include_retired=include_retired
+                session,
+                include_edit_token=True,
+                include_retired=include_retired,
+                include_non_book=True,
             )
             if include_retired:
                 _name_retirers(session, rows)
@@ -422,6 +437,7 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
                             detail={"code": "financing_tranches_invalid", "message": str(exc)},
                         ) from exc
                 expected_edit_token = data.pop("expected_edit_token", None)
+                _apply_contract_kind(session, body, data)
                 result = upsert_upstream_contract_governed(
                     session,
                     data,
@@ -448,11 +464,14 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
             from eurogas_nexus.domain.ontology.boundary import check_contract
 
             boundary = check_contract(
-                delivery_point_name=body.delivery_point_name,
-                gas_year=body.gas_year,
-                price_currency=getattr(body, "contract_price_currency", None),
+                delivery_point_name=data["delivery_point_name"],
+                gas_year=data["gas_year"],
+                price_currency=data.get("contract_price_currency"),
                 hub_points=load_resolver(session).points,
             )
+            if result.contract and result.contract.get("contract_kind") in _NOT_HUB_CHECKED:
+                # A master has no delivery point; a cargo is placed by its terminal's hub.
+                boundary = type(boundary)(market=None, hub=None, issues=())
             data = {
                 **result.contract,
                 "human_review_required": True,
@@ -470,6 +489,138 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
             )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+#: Base columns a SUPPLY_GSA states itself (a typed kind's are derived from its terms).
+_BASE_REQUIRED = (
+    "resource_type",
+    "delivery_point_name",
+    "gas_year",
+    "delivery_quantity_mwh_per_day",
+    "contract_price_gbp_mwh",
+    "settlement_frequency",
+    "upstream_payment_lag_days",
+    "screen_sale_cash_lag_days",
+    "delivery_tolerance_pct",
+    "nomination_tolerance_pct",
+    "annual_financing_rate_pct",
+)
+_NOT_HUB_CHECKED = frozenset({"LNG_MSPA", "LNG_CARGO"})
+
+
+def _kind_refused(code: str, message: str, status: int = 422) -> HTTPException:
+    return HTTPException(status_code=status, detail={"code": code, "message": message})
+
+
+def _apply_contract_kind(session, body: UpstreamContractUpsertRequest, data: dict) -> None:
+    """Validate the contract kind and its terms; derive a typed kind's base columns.
+
+    Mutates ``data`` (the write's field set). An omitted kind keeps the stored one: the stored
+    kind's fields are then not written at all, and the base columns must be present (today's
+    shape). Raises a 422 with a stable code and the problem in words, or 409 when a master
+    with confirmations would change kind.
+    """
+
+    import json as _json
+
+    from eurogas_nexus.db.models import UpstreamResourceContractRecord
+    from eurogas_nexus.domain.contracts import kinds
+
+    for key in ("contract_kind", "kind_terms", "unmodelled_terms", "master_contract_id"):
+        data.pop(key, None)
+    stated = "contract_kind" in body.model_fields_set and body.contract_kind is not None
+    stored = session.get(UpstreamResourceContractRecord, body.contract_id)
+    kind = (
+        body.contract_kind
+        if stated
+        else (stored.contract_kind if stored is not None else kinds.DEFAULT_KIND)
+    )
+    try:
+        kind = kinds.validate_kind(kind)
+    except kinds.ContractKindError as exc:
+        raise _kind_refused(exc.code, exc.detail) from exc
+    if stated and kind not in kinds.AUTHORABLE_KINDS:
+        raise _kind_refused(
+            "contract_kind_not_authorable",
+            f"{kind} contracts arrive from their own source and are not entered here",
+        )
+    if (
+        stated
+        and stored is not None
+        and stored.contract_kind in kinds.MASTER_KINDS
+        and kind != stored.contract_kind
+        and session.query(UpstreamResourceContractRecord.contract_id)
+        .filter(UpstreamResourceContractRecord.master_contract_id == body.contract_id)
+        .first()
+        is not None
+    ):
+        raise _kind_refused(
+            "contract_has_confirmations",
+            "this master agreement has confirmations under it; it stays a master",
+            409,
+        )
+    if kind in kinds.TYPED_KINDS:
+        if not stated:
+            raise _kind_refused(
+                "contract_kind_terms_required",
+                f"a {kind} is saved with its kind and terms",
+            )
+        try:
+            terms = kinds.parse_terms(kind, body.kind_terms)
+            master_terms = None
+            master_kind = None
+            if body.master_contract_id:
+                master = session.get(UpstreamResourceContractRecord, body.master_contract_id)
+                if master is None or master.retired_at_utc is not None:
+                    raise kinds.ContractKindError(
+                        "contract_master_not_found",
+                        "the master agreement is not an active contract in the library",
+                    )
+                if master.contract_id == body.contract_id:
+                    raise kinds.ContractKindError(
+                        "contract_master_kind", "a contract is not its own master"
+                    )
+                master_kind = master.contract_kind
+                master_terms = kinds.terms_of(master.contract_kind, master.kind_terms)
+            kinds.check_confirmation(kind, terms, master_kind, master_terms)
+        except kinds.ContractKindError as exc:
+            raise _kind_refused(exc.code, exc.detail) from exc
+        derived = kinds.derive_base_fields(kind, terms, master=master_terms)
+        notes_fields = derived.pop("notes_fields", {})
+        notes = {}
+        if data.get("notes"):
+            try:
+                parsed = _json.loads(data["notes"])
+                notes = parsed if isinstance(parsed, dict) else {"operator_notes": data["notes"]}
+            except ValueError:
+                notes = {"operator_notes": data["notes"]}
+        notes.update({key: value for key, value in notes_fields.items() if value is not None})
+        data.update(derived)
+        data["notes"] = _json.dumps(notes, sort_keys=True)
+        if derived.get("variable_cost_gbp_mwh") is None:
+            data.pop("variable_cost_gbp_mwh", None)
+        data["kind_terms"] = kinds.canonical_terms(terms)
+    else:
+        missing = [field for field in _BASE_REQUIRED if data.get(field) is None]
+        if missing:
+            raise _kind_refused(
+                "contract_field_missing",
+                f"a {kind} states {', '.join(missing)}",
+            )
+        if body.kind_terms:
+            raise _kind_refused(
+                "contract_kind_terms_unexpected", f"{kind} has no typed terms in this release"
+            )
+        if body.master_contract_id:
+            raise _kind_refused(
+                "contract_master_unexpected", f"a {kind} is not confirmed under a master"
+            )
+        data["kind_terms"] = None
+    if stated:
+        data["contract_kind"] = kind
+        data["contract_kind_reviewed"] = True
+        data["unmodelled_terms"] = body.unmodelled_terms
+        data["master_contract_id"] = body.master_contract_id or None
 
 
 class ContractLifecycleRequest(BaseModel):
