@@ -389,6 +389,49 @@ def get_fundamentals_lng(
     }
 
 
+@router.get("/api/fundamentals/forward-balance")
+def get_fundamentals_forward_balance(
+    request: Request,
+    hub: str = Query("nwe", max_length=16, description="Balance region; nwe is held."),
+    period: str = Query("all", pattern="^(all|daily|monthly)$"),
+    temperature_shift_c: float = Query(
+        0.0, ge=-10, le=10, description="What-if: degrees warmer (+) or colder (-) than normal."
+    ),
+    norway_gwh_d: float | None = Query(None, ge=0, le=20000, description="Typed Norway rate."),
+    lng_gwh_d: float | None = Query(None, ge=0, le=20000, description="Typed LNG send-out."),
+    outage_line: str | None = Query(None, pattern="^(norway|lng)$"),
+    outage_gwh_d: float | None = Query(None, ge=0, le=20000),
+    outage_from: date | None = Query(None),
+    outage_to: date | None = Query(None),
+) -> dict:
+    """Supply and demand dated forward, storage as the balancing item (CP-25).
+
+    D+1..D+14 by day and the next three months, each line with its source, as-of and
+    class, every figure with its error, the implied storage path against the 5-year band
+    and the EU target date, and the forward curve for the same months for reference only
+    (``api/forward_balance``). Any input can be set by hand; the result names those in
+    ``overridden``. A volume balance, not a price forecast.
+
+    Raises:
+        HTTPException: 422 for a hub whose balance is not held; 503 when the store fails.
+    """
+
+    from eurogas_nexus.api.forward_balance import forward_balance_read
+
+    try:
+        return forward_balance_read(
+            request, hub=hub, period=period, temperature_shift_c=temperature_shift_c,
+            norway_gwh_d=norway_gwh_d, lng_gwh_d=lng_gwh_d, outage_line=outage_line,
+            outage_gwh_d=outage_gwh_d, outage_from=outage_from, outage_to=outage_to,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 - a store failure is a 503, never a partial read
+        raise HTTPException(status_code=503, detail="runtime_db_unavailable") from exc
+
+
 @router.get("/api/fundamentals/flows")
 def get_fundamentals_flows(
     request: Request,

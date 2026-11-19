@@ -4,6 +4,17 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-20 (forward balance, CP-25): one path, one operation.
+`GET /api/fundamentals/forward-balance` (READ) answers `headline` (tighter/looser/about normal
+by GWh/d over D+1..D+14, `main_driver`, `contributions_gwh_d`), `daily[]` and `monthly[]`
+(demand, Norway, LNG, storage, gap, each with its normal or error, the inventory and fill path
+against the 5-year band), `lines[]` (source, as-of, class: observed, scheduled, forecast,
+assumption, manual or simulated), `demand_model`, `backtest`, `storage.target`, `overridden`,
+`what_if`, `forward_curve` (for reference only) and `weather_reference` (Eurostat HDD). Query:
+`hub` (`nwe`; another hub is 422), `period`, `temperature_shift_c`, `norway_gwh_d`,
+`lng_gwh_d`, `outage_line`/`outage_gwh_d`/`outage_from`/`outage_to`. Census: 278 paths /
+311 operations (+1 / +1 on 277 / 310).
+
 Additive 2026-11-20 (contract kinds and price formulas, docs/product/CONTRACT_TYPES.md): one
 path, one operation. `GET /api/contracts/{contract_id}/price?month=YYYY-MM` (READ, book scope;
 404 `contract_not_found` outside it) returns the contract's `price_terms` (`price-terms/v1`:

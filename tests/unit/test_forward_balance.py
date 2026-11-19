@@ -165,3 +165,46 @@ def test_the_shipped_eurostat_reference_is_whole_and_weighted():
     july = reference.normal(7)[0]
     assert years == 30 and january > 10 > july and spread > 0
     assert "Eurostat" in table["attribution"] and table["licence"] == "CC BY 4.0"
+
+
+def _fake_nwe(history, start):
+    base = _base(history, start)
+    return {
+        "data": {
+            "region": ["GB", "NL", "BE", "DE", "FR", "DK", "LU"],
+            "history": [
+                {"day": h.day.isoformat(), "call_gwh": h.call_gwh, "norway_gwh": h.norway_gwh,
+                 "lng_gwh": h.lng_gwh,
+                 "storage_net_withdrawal_gwh": h.storage_net_withdrawal_gwh}
+                for h in history
+            ],
+            "forecast": base,
+            "assumptions": {},
+        },
+        "meta": {"warnings": []},
+    }
+
+
+def test_the_read_names_overrides_classes_and_refuses_an_unheld_zone(monkeypatch):
+    from eurogas_nexus.api import forward_balance as read
+    from eurogas_nexus.api.routes.public import fundamentals
+
+    history = _history(LAST)
+    monkeypatch.setattr(fundamentals, "get_nwe_balance",
+                        lambda *a, **k: _fake_nwe(history, LAST + timedelta(days=1)))
+    monkeypatch.setattr(fundamentals, "_session_or_none", lambda: None)
+    monkeypatch.setattr(read, "_curve", lambda *a, **k: [])
+    envelope = read.forward_balance_read(object(), hub="NWE", lng_gwh_d=800.0,
+                                         temperature_shift_c=1.5)
+    data = envelope["data"]
+    assert data["overridden"] == ["temperature_shift_c", "lng_gwh_d"]
+    classes = {line["id"]: line["class"] for line in data["lines"]}
+    assert classes["lng"] == "manual" and classes["demand"] == "manual"
+    assert classes["norway"] == "forecast" and classes["weather_normal"] == "observed"
+    assert data["forward_curve"]["for_reference_only"] is True
+    assert "not a price forecast" in data["not_a_price_forecast"]
+    assert len(data["daily"]) == 14 and len(data["monthly"]) == 3
+    monthly_only = read.forward_balance_read(object(), period="monthly")["data"]
+    assert monthly_only["daily"] == [] and len(monthly_only["monthly"]) == 3
+    with pytest.raises(ValueError, match="not held"):
+        read.forward_balance_read(object(), hub="ttf")
