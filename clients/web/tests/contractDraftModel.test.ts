@@ -96,6 +96,10 @@ test("each missing term reports its own issue, in the workbench's reporting orde
   assert.deepEqual(contractValidationIssueKeys(draft({ contract_id: "  " })), [
     "contracts.validation.contract_id",
   ]);
+  // The id is made from the name: with no name, the name is the one issue, not the id too.
+  assert.deepEqual(contractValidationIssueKeys(draft({ contract_id: "", contract_name: "" })), [
+    "contracts.validation.contract_name",
+  ]);
   assert.deepEqual(contractValidationIssueKeys(draft({ contract_name: "" })), [
     "contracts.validation.contract_name",
   ]);
@@ -122,7 +126,7 @@ test("each missing term reports its own issue, in the workbench's reporting orde
       }),
     ),
     [
-      "contracts.validation.contract_id",
+      // No id issue: the id is made from the name, and the name is missing.
       "contracts.validation.contract_name",
       "contracts.validation.counterparty",
       "contracts.validation.delivery_point",
@@ -337,7 +341,7 @@ test("the panel consumes the rule instead of restating it, and no longer holds t
   );
 });
 
-test("the workspace header owns the save action, and the panel is the only surface it acts on", () => {
+test("the contract draft owns its save action, beside Import and New draft", () => {
   const workspace = readWebSource("components/PortfolioWorkspace.tsx");
 
   // The action is derived from the shared rule and the workspace-owned sub-view.
@@ -356,12 +360,12 @@ test("the workspace header owns the save action, and the panel is the only surfa
     workspace,
     /onClick=\{\(\) =>\s*contractSaveStateForDraft\.canSave && void contractEditor\.saveContract\(\),?\s*\}/,
   );
-  assert.match(workspace, /primaryAction=\{primaryAction\}/);
+  assert.match(workspace, /saveAction=\{saveAction\}/);
   // The panel receives the facts and the state rather than computing them again.
   assert.match(workspace, /viewFacts=\{contractViewFactsForSelection\}/);
   assert.match(workspace, /saveState=\{contractSaveStateForDraft\}/);
 
-  // An unknown sub-view cannot become saveable: the header's button only exists for the
-  // task that owns the draft.
-  assert.match(workspace, /const primaryAction =\s*task === "resources" \? \(/);
+  // An unknown sub-view cannot become saveable: the button only exists for the task that owns
+  // the draft, and it sits in the draft's own command row, never in the tab row.
+  assert.match(workspace, /const saveAction =\s*task === "resources" \? \(/);
 });

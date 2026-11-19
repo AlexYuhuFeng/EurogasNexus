@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { PageIntro } from "./PageIntro";
 import { WorkspaceTabs, type WorkspaceTabItem } from "./WorkspaceTabs";
 
@@ -11,7 +11,6 @@ interface WorkspaceHeaderProps<T extends string> {
   panelId: string;
   tabLabel: string;
   tabsClassName?: string;
-  primaryAction?: ReactNode;
   /** The task's purpose line under the header (design basis H.1); `useModeHeader().purpose`. */
   purpose?: string;
   /**
@@ -39,24 +38,12 @@ export function WorkspaceHeader<T extends string>({
   panelId,
   tabLabel,
   tabsClassName,
-  primaryAction,
   purpose = "",
   titleLevel = 1,
   onActivate,
 }: WorkspaceHeaderProps<T>) {
-  // The one primary slot marks what it renders, so "where is this workspace's primary action"
-  // has a stable answer. Wave 9 moved six surfaces' primary actions out of their panels and into
-  // this slot, and the whole-product browser sweep kept looking for the button where it used to
-  // live (`button.button.primary` inside the view, a class these buttons never had) - so the run
-  // action could not be started at all and the sweep timed out instead of reporting why. The mark
-  // belongs to the slot rather than to each call site, because the slot is what makes the action
-  // the workspace's primary one.
-  const markedPrimaryAction = isValidElement(primaryAction)
-    ? cloneElement(primaryAction as ReactElement<Record<string, unknown>>, {
-        "data-primary-action": "",
-      })
-    : primaryAction;
-
+  // The tab row holds tabs only (UX_REFERENCE rule 26): a page's actions live in the page,
+  // beside what they act on, so every page's tab bar looks the same.
   if (titleLevel === 2) {
     // Under the shell's page title (local-tabs pages) a second visible title repeats it
     // ("Research Data" twice, #30): keep the heading for assistive technology only and let
@@ -73,7 +60,6 @@ export function WorkspaceHeader<T extends string>({
           className={tabsClassName}
           onActivate={onActivate}
         />
-        <div className="workspace-page-header-actions">{markedPrimaryAction}</div>
       </header>
     );
   }
@@ -96,7 +82,6 @@ export function WorkspaceHeader<T extends string>({
         {heading}
       </div>
       <div className="workspace-page-header-actions">
-        {markedPrimaryAction}
         <WorkspaceTabs
           idPrefix={idPrefix}
           label={tabLabel}

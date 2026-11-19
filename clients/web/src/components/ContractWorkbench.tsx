@@ -5,7 +5,7 @@ import { useCachedRead } from "@/app/data/readCache";
 import { useApiStore } from "@/stores/api";
 import { useStagedProgress } from "@/app/hooks/useWorkProgress";
 import { useMemo, useState } from "react";
-import type { ChangeEvent, RefObject } from "react";
+import type { ChangeEvent, ReactNode, RefObject } from "react";
 import { api, type ContractIntakeDTO, type PortfolioResourceDTO, type RouteCandidateDTO, type UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
 import { RetireContractButton, RetiredContractsList, type ContractLifecycleAction } from "@/components/ContractLifecycleControls";
@@ -189,6 +189,8 @@ function FundingSegments({
 
 interface ContractWorkbenchProps {
   contract: ContractDraft;
+  /** Save to pool: the draft's own action, beside Import and New draft (UX_REFERENCE rule 26). */
+  saveAction?: ReactNode;
   upstreamContracts: UpstreamContractDTO[];
   portfolioResources: PortfolioResourceDTO[];
   totalPoolVolume: number;
@@ -263,7 +265,7 @@ export function ContractWorkbench({
   contractIntake = null, onDismissContractIntake, onContractLifecycle,
   contractSaveMessage, contractSaveConflict, t,
   updateContractText, updateContractNumber, updateContractList, updateContractTranches, routeCandidates = [],
-  resetContractDraft, importContractDraftFile, loadPersistedContract,
+  resetContractDraft, importContractDraftFile, loadPersistedContract, saveAction,
 }: ContractWorkbenchProps) {
   // Wave 9: object detail goes to the canonical Inspector instead of growing a third
   // detail pane inside this workbench. The selection stays local; only the detail moves.
@@ -358,6 +360,7 @@ export function ContractWorkbench({
           <div><dt>{t("panel.status")}</dt><dd>{readOnlySelectedResource ? selectedPersistedTerm?.human_review_required === true ? t("settings.human_review") : t("data.unavailable") : t("settings.human_review")}</dd></div>
         </dl>
         <div className="contract-command-actions" tabIndex={0}>
+          {saveAction}
           <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
           <button type="button" className="secondary-button" onClick={resetContractDraft}>{t("contracts.action.new")}</button>
           <input ref={contractImportRef} className="contract-import-input" type="file" accept=".pdf,application/pdf" hidden onChange={importContractDraftFile} />

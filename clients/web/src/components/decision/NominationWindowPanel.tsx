@@ -1,4 +1,4 @@
-import { DataGrid, EvidenceBlock, PanelHeader, PeriodPicker } from "@/components/ui";
+import { Button, DataGrid, EvidenceBlock, PanelHeader, PeriodPicker } from "@/components/ui";
 import { displayTime } from "@/app/time/displayTime";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
@@ -201,6 +201,18 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
           </button>
         </div>
 
+        {/* The page's action lives with the fields it uses, never in the tab row (UX_REFERENCE rule 26). */}
+        <div className="decision-assessment-actions decision-assessment-run">
+          <Button
+            variant="primary"
+            data-page-action="nomination-assess"
+            disabled={!readiness.canRun || busy}
+            title={t(readiness.firstBlockerKey ?? "decision.nomination.ready")}
+            onClick={() => void assessment.run()}
+          >
+            {t("decision.nomination.assess")}
+          </Button>
+        </div>
         {readiness.firstBlockerKey && (
           <p className="strategy-error">{t(readiness.firstBlockerKey)}</p>
         )}

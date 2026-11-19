@@ -261,7 +261,7 @@ test("decision rows keep the window and the engine's own reason", () => {
   assert.deepEqual(dispatchDecisionRows(null), []);
 });
 
-test("the panels are assessments, and their runs come from the header", () => {
+test("the panels are assessments, and each starts its own run beside its inputs", () => {
   const nominationPanel = readWebSource("components/decision/NominationWindowPanel.tsx");
   const dispatchPanel = readWebSource("components/decision/StorageDispatchPanel.tsx");
   const workspace = readWebSource("components/DecisionWorkspace.tsx");
@@ -276,18 +276,18 @@ test("the panels are assessments, and their runs come from the header", () => {
   assert.match(hook, /api\.optimizeStorageDispatch as never/);
   assert.match(hook, /api\.optimizationRun\(runId\.trim\(\)\)/);
 
-  // The panels configure and report; the workspace header starts the run, one act per task.
+  // The panels configure, start and report; the tab row holds tabs only (UX_REFERENCE rule 26).
   for (const panel of [nominationPanel, dispatchPanel]) {
     assert.equal(/api\.optimize|api\.optimizationRun/.test(panel), false, "the panel calls nothing");
     assert.match(panel, /presentError\(t, describeFailure\(error\)\)/);
     assert.match(panel, /t\("decision\.assessment\.run_record"\)/);
     assert.match(panel, /t\("decision\.assessment\.no_run_record"\)/);
   }
-  assert.match(workspace, /task === "nomination" \? \(/);
-  assert.match(workspace, /task === "dispatch" \? \(/);
-  assert.match(workspace, /onClick=\{\(\) => void nomination\.run\(\)\}/);
-  assert.match(workspace, /onClick=\{\(\) => void dispatch\.run\(\)\}/);
-  assert.equal((workspace.match(/primaryAction=\{/g) ?? []).length, 1);
+  for (const panel of [nominationPanel, dispatchPanel]) {
+    assert.match(panel, /onClick=\{\(\) => void assessment\.run\(\)\}/);
+  }
+  assert.equal(workspace.includes("primaryAction"), false);
+  assert.equal(workspace.includes("primaryAction="), false);
   assert.match(workspace, /<NominationWindowPanel t=\{t\} assessment=\{nomination\} record=\{optimizationRun\} \/>/);
   assert.match(workspace, /<StorageDispatchPanel t=\{t\} assessment=\{dispatch\} record=\{optimizationRun\} \/>/);
 

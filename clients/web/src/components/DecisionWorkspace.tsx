@@ -150,30 +150,8 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
   // CP-00; Opportunities (CP-14) is where their links land.
   const mode = useModeHeader(navigation.activeWorkspace, task, navigation.openWorkspace, t);
 
-  // Action geography (`app/experience/actionGeography.ts`): assessing the nominations or the
-  // storage dispatch is the primary act of the Planning view on screen - a `compute`
-  // consequence - so it occupies the workspace's single primary slot.
-  const primaryAction =
-    task === "nomination" ? (
-      <button
-        type="button"
-        disabled={!nomination.readiness.canRun || nomination.busy}
-        title={t(nomination.readiness.firstBlockerKey ?? "decision.nomination.ready")}
-        onClick={() => void nomination.run()}
-      >
-        {t("decision.nomination.assess")}
-      </button>
-    ) : task === "dispatch" ? (
-      <button
-        type="button"
-        disabled={!dispatch.readiness.canRun || dispatch.busy}
-        title={t(dispatch.readiness.firstBlockerKey ?? "decision.dispatch.ready")}
-        onClick={() => void dispatch.run()}
-      >
-        {t("decision.dispatch.assess")}
-      </button>
-    ) : undefined;
-
+  // The tab row holds tabs only (UX_REFERENCE rule 26): assessing the nominations or the storage
+  // dispatch is the Planning panels' own action, beside the inputs it reads.
   return (
     <div className="commercial-workspace">
       <WorkspaceHeader
@@ -186,7 +164,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         tabLabel={mode.tabLabel}
         purpose={mode.purpose}
         tabsClassName="commercial-task-tabs"
-        primaryAction={primaryAction}
         onActivate={(id) => {
           // A task on this page switches in place; one on another page opens it.
           const target = PRODUCT_MODES.flatMap((item) => item.tasks).find((item) => item.id === id && item.page === "scenario");

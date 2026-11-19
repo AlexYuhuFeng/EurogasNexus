@@ -182,7 +182,8 @@ export function contractDraftAfterIdentityChange(contract: ContractDraft): Contr
  */
 export function contractValidationIssueKeys(contract: ContractDraft): string[] {
   const issues: string[] = [];
-  if (!contract.contract_id.trim()) issues.push("contracts.validation.contract_id");
+  // The id is made from the name (UX_REFERENCE rule 25): a missing name is the one issue to fix.
+  if (!contract.contract_id.trim() && contract.contract_name.trim()) issues.push("contracts.validation.contract_id");
   if (!contract.contract_name.trim()) issues.push("contracts.validation.contract_name");
   if (!contract.counterparty.trim()) issues.push("contracts.validation.counterparty");
   if (!contract.delivery_point_name.trim()) issues.push("contracts.validation.delivery_point");

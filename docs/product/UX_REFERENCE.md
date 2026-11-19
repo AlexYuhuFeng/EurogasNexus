@@ -259,6 +259,12 @@ exact copy, so that presentation can improve without weakening a gate.
     changes accuracy, not the calculation. The browser sweep's phone pass fails an input whose
     label asks for an "ID" or "identifier" outside the admin pages, where an operator types an
     external system's identifier.
+26. **The tab row holds tabs only.** A page's title row carries its title and its task tabs and
+    nothing else, so every page's tab bar looks the same. A page's actions live in the page,
+    beside the fields they act on: Save to pool is in the contract draft's own command row
+    (with Import and New draft), Assess in each Planning panel's action row. `WorkspaceHeader`
+    has no action slot; the browser sweep's page contract fails a button or link in a page
+    header that is not a tab.
 
 ## Implementation note
 

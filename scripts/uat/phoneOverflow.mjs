@@ -173,6 +173,13 @@ export function checkPageContract({ needsPurpose, jsonUploadAllowed }) {
       problems.push(`empty state without a reason: ${empty.getAttribute("data-empty-state") || "(unnamed)"}`);
     }
   }
+  // The tab row holds tabs only (UX_REFERENCE rule 26): a page's actions live in the page.
+  for (const header of document.querySelectorAll(".workspace-page-header")) {
+    for (const control of header.querySelectorAll("button, a[href], [role=button]")) {
+      if (control.getAttribute("role") === "tab" || control.closest("[role=tablist]") || !visible(control)) continue;
+      problems.push(`an action in the tab row: ${(control.textContent || control.getAttribute("aria-label") || "").trim().slice(0, 40)}`);
+    }
+  }
   for (const input of jsonUploadAllowed ? [] : document.querySelectorAll('input[type="file"]')) {
     if (/json/i.test(input.getAttribute("accept") || "")) {
       problems.push(`file input accepts JSON: ${input.id || input.name || "(unnamed)"}`);

@@ -4,6 +4,7 @@ import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
 import { DataGrid, PanelHeader, WorkspaceHeader } from "@/components/ui";
+import { buttonClass } from "@/components/ui/Button";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { PositionLadderPanel } from "@/components/PositionLadderPanel";
@@ -198,10 +199,13 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
     loading: api.loading,
     viewFacts: contractViewFactsForSelection,
   });
-  const primaryAction =
+  // The draft's own action, in its command row: the tab row holds tabs only (UX_REFERENCE rule 26).
+  const saveAction =
     task === "resources" ? (
       <button
         type="button"
+        className={buttonClass("primary", "md")}
+        data-page-action="contract-save"
         disabled={!contractSaveStateForDraft.canSave}
         title={t(contractSaveStateForDraft.statusKey)}
         onClick={() =>
@@ -224,7 +228,6 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         tabLabel={mode.tabLabel}
         purpose={mode.purpose}
         tabsClassName="commercial-task-tabs"
-        primaryAction={primaryAction}
         onActivate={(id) => {
           // A task on this page switches in place; one on another page opens it.
           const target = PRODUCT_MODES.flatMap((item) => item.tasks).find((item) => item.id === id && item.page === "contracts");
@@ -261,6 +264,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         {task === "overview" && <PortfolioOverview controller={controller} />}
         {task === "resources" && (
           <ContractWorkbench
+            saveAction={saveAction}
             contract={contractEditor.contract}
             upstreamContracts={api.upstreamContracts}
             portfolioResources={portfolio.portfolioResources}

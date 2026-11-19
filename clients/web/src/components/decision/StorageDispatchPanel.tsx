@@ -1,4 +1,4 @@
-import { DataGrid, EvidenceBlock, PanelHeader, RecordPicker } from "@/components/ui";
+import { Button, DataGrid, EvidenceBlock, PanelHeader, RecordPicker } from "@/components/ui";
 import { contractOptions } from "@/app/model/recordOptions";
 import { useApiStore } from "@/stores/api";
 import { displayTime } from "@/app/time/displayTime";
@@ -171,6 +171,18 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
           </button>
         </div>
 
+        {/* The page's action lives with the fields it uses, never in the tab row (UX_REFERENCE rule 26). */}
+        <div className="decision-assessment-actions decision-assessment-run">
+          <Button
+            variant="primary"
+            data-page-action="dispatch-assess"
+            disabled={!readiness.canRun || busy}
+            title={t(readiness.firstBlockerKey ?? "decision.dispatch.ready")}
+            onClick={() => void assessment.run()}
+          >
+            {t("decision.dispatch.assess")}
+          </Button>
+        </div>
         {readiness.firstBlockerKey && (
           <p className="strategy-error">{t(readiness.firstBlockerKey)}</p>
         )}

@@ -794,7 +794,7 @@ test("the board adds no primary action and renders no alert list", () => {
 
   // The board navigates; the workspace's single primary slot stays the task's own act.
   assert.equal(panel.includes("primaryAction="), false);
-  assert.equal((workspace.match(/primaryAction=\{/g) ?? []).length, 1);
+  assert.equal(workspace.includes("primaryAction="), false, "the tab row holds tabs only");
   assert.match(panel, /<button\s+type="button"\s+className="day-board-row"/);
   assert.match(panel, /onClick=\{\(\) => onOpenTask\("nomination"\)\}/);
   assert.match(panel, /onClick=\{\(\) => onOpenTask\("review"\)\}/);
