@@ -1,3 +1,4 @@
+import { PromptDeskPanel } from "@/components/market/PromptDeskPanel";
 import { useEffect, useMemo, useState } from "react";
 import "@/styles/prices.css";
 import { api } from "@/api/client";
@@ -356,7 +357,7 @@ const formatDelta = (value: number | null): string => {
   return `${value > 0 ? "+" : ""}${value.toFixed(3)}`;
 };
 
-type BoardView = "board" | "ladder";
+type BoardView = "board" | "ladder" | "prompt";
 function readBoardView(): BoardView {
   return readBoardLayout();
 }
@@ -417,7 +418,8 @@ export function MarketTerminal({
   const [boardView, setBoardView] = useState<BoardView>(readBoardView);
   const chooseBoardView = (view: BoardView) => {
     setBoardView(view);
-    writeLocalBoardLayout(view);
+    // The prompt desk is a view of this session, not a saved board layout.
+    if (view !== "prompt") writeLocalBoardLayout(view);
   };
   // The server copy of the preference can arrive after the board mounted.
   useEffect(() => {
@@ -897,7 +899,7 @@ export function MarketTerminal({
           <Segmented
             className="market-view-switch"
             label={t("ladder.view")}
-            options={(["board", "ladder"] as const).map((view) => ({ value: view, label: t(`ladder.view.${view}`) }))}
+            options={(["board", "ladder", "prompt"] as const).map((view) => ({ value: view, label: t(`ladder.view.${view}`) }))}
             value={boardView}
             onChange={chooseBoardView}
           />
@@ -926,7 +928,9 @@ export function MarketTerminal({
           </div>
         )}
         <SimulatedScope scope={boardScope} notice={t("market.all_simulated")}>
-        {boardView === "ladder" ? (
+        {boardView === "prompt" ? (
+          <PromptDeskPanel hub={focusedHub && ["TTF", "NBP"].includes(focusedHub) ? focusedHub : "TTF"} />
+        ) : boardView === "ladder" ? (
           <MarketLadder
             quotes={marketQuotes}
             hubs={marketMajorHubs.map((definition) => definition.hub)}

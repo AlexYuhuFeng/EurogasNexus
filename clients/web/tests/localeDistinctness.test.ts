@@ -58,6 +58,7 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "setup.item.src-platts.name": "a provider's own name",
   "setup.item.src-trayport.name": "a provider's own name",
   "setup.step.ai.title": "an acronym",
+  "prompt.col.mwh": "a unit symbol",
 };
 
 test("the two locales declare exactly the same keys", () => {

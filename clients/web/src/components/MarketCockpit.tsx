@@ -188,6 +188,9 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
                 window.history.replaceState(window.history.state, "", `?${networkPanelToSearch(window.location.search, "outages")}`);
               } else if (item.kind === "limit") {
                 navigation.openWorkspace("contracts", "exposure");
+              } else if (item.kind === "strategy") {
+                // Research → Spreads, where the tracked strategy and its paper book are shown.
+                navigation.openWorkspace("research", "spreads");
               } else {
                 // Deals → Opportunities (CP-14) with the opportunity selected (`opportunity=`, the
                 // item's target); until the page exists, Deals → Contracts.

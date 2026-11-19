@@ -42,6 +42,8 @@ import { cargoHubOf, cargoSearch, focusHubs, reportSearch, specFromSearch, specN
 import { NextSteps } from "./NextSteps";
 import { SpreadsBoard } from "./SpreadsBoard";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
+import { BacktestDetails, type BacktestAnalysis } from "@/components/research/BacktestDetails";
+import { StrategyTrackPanel } from "@/components/research/StrategyTrackPanel";
 
 const fixed = (value: number | null | undefined, decimals = 3): string =>
   value === null || value === undefined || !Number.isFinite(value) ? "–" : value.toFixed(decimals).replace("-", "−");
@@ -342,6 +344,8 @@ export function SpreadsWorkbench() {
       {result && result.kind === "curve" && spec && <CurveResult result={result} spec={spec} classes={classes} />}
       {result && result.kind === "history" && spec && <HistoryResult result={result} spec={spec} />}
       {result && spec && <SpreadNextSteps spec={spec} />}
+      {/* Track this strategy: a paper shadow run on the same spec (StrategyTrackPanel). */}
+      <StrategyTrackPanel spec={spec ?? null} />
     </div>
   );
 }
@@ -763,12 +767,20 @@ function HistoryResult({ result, spec }: { result: HistoryResultDTO; spec: Strat
               <dd>{result.analysis.metrics.hit_rate === null || result.analysis.metrics.hit_rate === undefined ? "–" : `${fixed((result.analysis.metrics.hit_rate as number) * 100, 0)} %`}</dd>
             </div>
             <div>
-              <dt>{t("spreads.rule.pnl", { unit })}</dt>
+              <dt>{t("spreads.rule.pnl", { unit: (result.analysis as { pnl_currency?: string }).pnl_currency || unit.split("/")[0] })}</dt>
               <dd data-figure="pnl">{fixed(result.analysis.metrics.total_pnl as number | null, 0)}</dd>
             </div>
           </>
         )}
       </dl>
+      {spec.rule && (
+        <BacktestDetails
+          analysis={result.analysis as unknown as BacktestAnalysis}
+          unit={unit}
+          currency={(result.analysis as { pnl_currency?: string }).pnl_currency || unit.split("/")[0]}
+          simulated={result.simulated}
+        />
+      )}
       </SimulatedScope>
     </section>
   );

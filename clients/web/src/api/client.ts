@@ -8,6 +8,7 @@ import type {
   NormaliseResponseDTO,
 } from "./comparablePrices";
 import type { EvaluationDTO, InterpretationDTO, SpreadBoardDTO, StrategySpecDTO } from "./spreads";
+import type { PromptMarketDTO, StrategyTrackDTO } from "./strategyTracks";
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -2154,7 +2155,8 @@ export interface TodayMarketDTO {
 
 /** Design basis 2, E.2 row 3: what needs me, ranked server-side, at most five. */
 export interface TodayNeedsMeItemDTO {
-  kind: "opportunity" | "outage" | "limit";
+  /** "strategy": a tracked strategy's changed, still actionable paper signal. */
+  kind: "opportunity" | "outage" | "limit" | "strategy";
   id: string;
   title: string;
   title_zh?: string | null;
@@ -5102,6 +5104,20 @@ export const api = {
     get<SpreadBoardDTO>("/research/spreads/board", hubs.length ? { hubs: hubs.join(",") } : undefined, options),
   spreadsEvaluate: (spec: StrategySpecDTO, options?: ApiRequestOptions) =>
     post<EvaluationDTO>("/research/spreads/evaluate", { spec }, options),
+  /** Tracked strategies (paper shadow run): the caller's own. */
+  strategyTracks: (options?: ApiRequestOptions) =>
+    get<StrategyTrackDTO[]>("/research/strategy-tracks", undefined, options),
+  strategyTrack: (trackId: string, options?: ApiRequestOptions) =>
+    get<StrategyTrackDTO>(`/research/strategy-tracks/${encodeURIComponent(trackId)}`, undefined, options),
+  createStrategyTrack: (
+    body: { name: string; mode: "daily" | "intraday"; spec: StrategySpecDTO; rule?: Record<string, unknown> | null },
+    options?: ApiRequestOptions,
+  ) => post<StrategyTrackDTO>("/research/strategy-tracks", body, options),
+  stopStrategyTrack: (trackId: string, options?: ApiRequestOptions) =>
+    post<StrategyTrackDTO>(`/research/strategy-tracks/${encodeURIComponent(trackId)}/stop`, {}, options),
+  /** Prices → Prompt: live WD/DA for one hub and today's post-trade performance. */
+  promptMarket: (hub: string, options?: ApiRequestOptions) =>
+    get<PromptMarketDTO>("/market/prompt", { hub }, options),
   /** Hub → product kind → tenor: the caller's entitled daily series (the instrument picker). */
   marketInstruments: (options?: ApiRequestOptions) =>
     get<InstrumentCatalogueDTO>("/market/instruments", undefined, options),
