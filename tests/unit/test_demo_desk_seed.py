@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -605,6 +606,7 @@ def test_an_older_volume_gets_the_newer_fixtures_and_keeps_tester_changes(sessio
     session.query(Contract).filter(Contract.master_contract_id.isnot(None)).delete()
     session.query(Contract).filter(Contract.contract_id.in_(seed.TYPED_DEMO_CONTRACTS)).delete()
     session.get(CreditLineRecord, "RHM").limit_amount = 5_000_000
+    session.get(Contract, "demo-haldor-24").notes = "Demo contract (fictional)."
     session.commit()
 
     counts = seed.ensure_demo_fixtures(session, seeded_at)
@@ -613,7 +615,11 @@ def test_an_older_volume_gets_the_newer_fixtures_and_keeps_tester_changes(sessio
         "fixture_tariffs": len(seed.SIMULATED_TARIFFS),
         "fixture_review_case": 1,
         "fixture_typed_contracts": 3,
+        "contract_counterparties": 1,
     }
+    # A demo contract still holding the seed's plain notes gets its counterparty named once.
+    haldor = session.get(Contract, "demo-haldor-24")
+    assert json.loads(haldor.notes)["counterparty"] == "Nordvik Petroleum ASA"
     kinds = {row.contract_id: row.contract_kind for row in session.query(Contract).all()}
     assert kinds["demo-mspa-atlantic-cn07"] == "LNG_CARGO"
     assert session.get(Contract, "demo-tender-skarv").kind_terms["schema"] == "upstream-tender/v1"

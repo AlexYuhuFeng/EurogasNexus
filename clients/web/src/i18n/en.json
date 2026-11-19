@@ -5607,5 +5607,12 @@
   "today.gas_day.kind.export": "Export on held capacity",
   "today.gas_day.kind.purchase": "Purchase booked",
   "today.gas_day.kind.sale": "Sale booked",
-  "today.gas_day.kind.customer_offtake": "Customer offtake"
+  "today.gas_day.kind.customer_offtake": "Customer offtake",
+  "contracts.list.under_master": "A confirmation under the master agreement above",
+  "contracts.list.not_recorded": "Not recorded",
+  "contracts.list.not_recorded_edit": "Not recorded: add it with Edit",
+  "contracts.figure.dcq": "Daily contract quantity, MWh/d",
+  "contracts.figure.swing": "DCQ with its swing (minimum–maximum), MWh/d",
+  "contracts.figure.cargo": "Delivery term and cargo size, TBtu",
+  "contracts.figure.master": "Cargo confirmations held under this master"
 }

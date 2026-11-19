@@ -209,6 +209,8 @@ def _gas_year_label(kind: str, today: date) -> str:
 #: at NBP through BBL, the one TTF -> NBP crossing (GTS exit at Balgzand, BBL forward flow,
 #: National Gas entry at Bacton). Fictional, like the rest of the desk.
 CROSS_BORDER_CONTRACT = "demo-kestrel-uk-6"
+#: The Kestrel UK leg is bought from the same seller as Kestrel supply (TTF).
+CROSS_BORDER_COUNTERPARTY = "RHM"
 CROSS_BORDER_ROUTE = "demo-route-ttf-nbp-bbl"
 #: Simulated tariffs, one per leg: the BBL crossing (TTF -> NBP, and its reverse flow) and one
 #: crossing of every other main hub pair the demo market quotes (TTF-THE, TTF-ZTP, THE-PEG,
@@ -591,7 +593,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 owned_exit_capacity_mwh_per_day=None,
                 allowed_exit_points=[hub],
                 eligible_sale_modes=["LOCAL_MARKET_SALE"],
-                notes="Demo contract (fictional).",
+                notes=demo_contract_notes("Demo contract (fictional).", cpty),
                 book_id=book,
                 created_at_utc=now,
                 updated_at_utc=now,
@@ -1039,7 +1041,9 @@ def _seed_cross_border_position(session, now: datetime, today: date) -> None:
             allowed_exit_points=["NBP"],
             # Bought to be sold at NBP: no local sale at TTF, so the optimiser routes it.
             eligible_sale_modes=["TARGET_MARKET_SALE"],
-            notes="Demo contract (fictional): sold at NBP through BBL.",
+            notes=demo_contract_notes(
+                "Demo contract (fictional): sold at NBP through BBL.", CROSS_BORDER_COUNTERPARTY
+            ),
             # The UK book sells it at NBP; inside its mandate (the NL book is near its own).
             book_id="demo-uk-nbp",
             created_at_utc=now,
@@ -2960,6 +2964,35 @@ def seed_demo_market(session, now: datetime, days: int = HISTORY_DAYS) -> dict[s
 # ---------------------------------------------------------------------------
 
 
+def demo_contract_notes(text: str, counterparty_id: str) -> str:
+    """A demo contract's notes: its counterparty by name (as the contract editor records it)."""
+
+    name = next(row[1] for row in COUNTERPARTIES if row[0] == counterparty_id)
+    return json.dumps({"counterparty": name, "operator_notes": text}, sort_keys=True)
+
+
+def _demo_contract_counterparties(session) -> int:
+    """Name the counterparty on demo contracts an older volume holds without one.
+
+    Only a demo contract whose notes are still the seed's own plain text (or empty) is
+    changed; a contract a tester edited keeps what they wrote.
+    """
+
+    owners = {row[0]: row[9] for row in CONTRACTS}
+    owners[CROSS_BORDER_CONTRACT] = CROSS_BORDER_COUNTERPARTY
+    changed = 0
+    for contract_id, counterparty_id in owners.items():
+        row = session.get(UpstreamResourceContractRecord, contract_id)
+        if row is None:
+            continue
+        notes = (row.notes or "").strip()
+        if notes and not notes.startswith("Demo contract (fictional)"):
+            continue
+        row.notes = demo_contract_notes(notes or "Demo contract (fictional).", counterparty_id)
+        changed += 1
+    return changed
+
+
 def _fixture_scopes():
     """The demo reference rows a fresh seed writes and an older volume may lack.
 
@@ -3042,6 +3075,10 @@ def ensure_demo_fixtures(session, now: datetime) -> dict[str, int]:
                 counts[f"fixture_{name}"] = added
     engine.dispose()
     session.flush()
+    named = _demo_contract_counterparties(session)
+    if named:
+        counts["contract_counterparties"] = named
+        session.flush()
     for name, added in seed_demo_storage_and_assumptions(session, now).items():
         if added:
             counts[f"fixture_{name}"] = added

@@ -350,5 +350,16 @@ export function listedContracts<T extends Listable>(
       .some((value) => value.toLowerCase().includes(query)))
     .map((row) => ({ row, status: STATUS_ORDER.indexOf(contractStatus(row, input.today)) }))
     .sort((a, b) => a.status - b.status || a.row.contract_name.localeCompare(b.row.contract_name))
-    .map((item) => item.row);
+    .map((item) => item.row)
+    .reduce<T[]>((out, row, _index, all) => {
+      // The hierarchy is visible in the list: each confirmation sits under its master (when the
+      // master is listed), in the master's place, whatever the confirmation's own status.
+      const master = (row as Listable & { master_contract_id?: string | null }).master_contract_id;
+      if (master && all.some((item) => item.contract_id === master)) return out;
+      out.push(row);
+      for (const child of all) {
+        if ((child as Listable & { master_contract_id?: string | null }).master_contract_id === row.contract_id) out.push(child);
+      }
+      return out;
+    }, []);
 }

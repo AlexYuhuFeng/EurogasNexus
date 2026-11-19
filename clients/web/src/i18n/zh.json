@@ -5607,5 +5607,12 @@
   "today.gas_day.kind.export": "持有容量出口",
   "today.gas_day.kind.purchase": "已入账买入",
   "today.gas_day.kind.sale": "已入账卖出",
-  "today.gas_day.kind.customer_offtake": "客户提取"
+  "today.gas_day.kind.customer_offtake": "客户提取",
+  "contracts.list.under_master": "上方主协议下的确认",
+  "contracts.list.not_recorded": "未记录",
+  "contracts.list.not_recorded_edit": "未记录：请通过“编辑”补充",
+  "contracts.figure.dcq": "日合同量，MWh/d",
+  "contracts.figure.swing": "日合同量及摆幅（最小–最大），MWh/d",
+  "contracts.figure.cargo": "交付条款与船货量，TBtu",
+  "contracts.figure.master": "本主协议下已确认的船货"
 }

@@ -635,18 +635,23 @@ export function ContractWorkbench({
             onRowAction={openContract}
             // The row carries the stored contract's own id, so the acceptance sweep compares it
             // with the upstream-terms read by exact id (`scripts/uat/readToRender.mjs`).
-            rowAttributes={(row) => ({ "data-record": "upstream-contract", "data-record-id": row.contract_id, "data-contract-kind": row.contract_kind ?? "SUPPLY_GSA" })}
+            rowAttributes={(row) => ({ "data-record": "upstream-contract", "data-record-id": row.contract_id, "data-contract-kind": row.contract_kind ?? "SUPPLY_GSA", "data-master": row.master_contract_id ?? undefined })}
+            rowClassName={(row) => (row.master_contract_id && rows.some((item) => item.contract_id === row.master_contract_id) ? "contract-row-confirmation" : undefined)}
             empty={<span data-empty-state="contract-library">{t(upstreamContracts.length ? "contracts.list.none_match" : "contracts.no_saved_contracts")}</span>}
             columns={[
-              { id: "name", header: t("contracts.list.name"), rowHeader: true, priority: "primary", value: (row) => row.contract_name },
+              { id: "name", header: t("contracts.list.name"), rowHeader: true, priority: "primary", value: (row) => row.contract_name, render: (row) => (
+                row.master_contract_id && rows.some((item) => item.contract_id === row.master_contract_id)
+                  ? <span className="contract-confirmation-name" title={t("contracts.list.under_master")}><span aria-hidden="true">↳ </span>{row.contract_name}</span>
+                  : row.contract_name
+              ) },
               { id: "kind", header: t("contracts.list.kind"), priority: "secondary", value: (row) => t(`contracts.kind.${row.contract_kind ?? "SUPPLY_GSA"}`), render: (row) => (
                 <span className="contract-kind-badge" data-kind-reviewed={row.contract_kind_reviewed === false ? "false" : "true"} title={row.contract_kind_reviewed === false ? t("contracts.kind.inferred") : undefined}>{t(`contracts.kind.${row.contract_kind ?? "SUPPLY_GSA"}`)}</span>
               ) },
-              { id: "figure", header: t("contracts.list.figure"), priority: "primary", value: (row) => kindFigure(row, upstreamContracts, t) },
+              { id: "figure", header: t("contracts.list.figure"), priority: "primary", value: (row) => kindFigure(row, upstreamContracts, t), cellTitle: (row) => t(`contracts.figure.${figureKey(row, upstreamContracts)}`) },
               { id: "status", header: t("contracts.list.status"), priority: "primary", value: (row) => STATUS_ORDER.indexOf(contractStatus(row, today)), render: (row) => (
                 <span className="contract-status" data-contract-status={contractStatus(row, today)}>{t(`contracts.status.${contractStatus(row, today)}`)}</span>
               ) },
-              { id: "counterparty", header: t("contracts.counterparty"), priority: "secondary", value: (row) => counterpartyOf(row) || "–" },
+              { id: "counterparty", header: t("contracts.counterparty"), priority: "secondary", value: (row) => counterpartyOf(row) || t("contracts.list.not_recorded"), cellClassName: (row) => (counterpartyOf(row) ? undefined : "muted") },
               { id: "delivery", header: t("contracts.list.delivery"), priority: "secondary", value: (row) => deliveryText(row, t) },
               { id: "period", header: t("contracts.list.period"), priority: "secondary", value: (row) => contractPeriodText(row, monthName) },
             ]}
@@ -729,7 +734,7 @@ function ContractReadView({ contract, counterparty, confirmations, monthName, on
   const terms = contract.kind_terms ?? null;
   const facts: Array<[string, string]> = [
     [t("contracts.list.kind"), t(`contracts.kind.${kind}`)],
-    [t("contracts.counterparty"), counterparty || "–"],
+    [t("contracts.counterparty"), counterparty || t("contracts.list.not_recorded_edit")],
     [t("contracts.list.delivery"), deliveryText(contract, t)],
     [t("contracts.list.period"), contractPeriodText(contract, monthName)],
     [t("contracts.list.figure"), kindFigure(contract, [contract, ...confirmations], t)],
@@ -782,4 +787,8 @@ function contractPeriodText(row: UpstreamContractDTO, monthName: (iso: string) =
     return typeof terms.term_end === "string" ? `${monthName(terms.term_start)} – ${monthName(terms.term_end)}` : `${monthName(terms.term_start)} →`;
   }
   return periodText(row.gas_year, monthName);
+}
+
+function figureKey(row: UpstreamContractDTO, all: readonly UpstreamContractDTO[]): string {
+  return kindHeadline(row, all, (id) => all.find((item) => item.contract_id === id)?.master_contract_id ?? null).key;
 }

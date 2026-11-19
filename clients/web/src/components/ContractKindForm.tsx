@@ -76,6 +76,16 @@ function optionLabel(t: Translate, value: string): string {
   return label === key ? value : label;
 }
 
+/** The stored contract with this id, read fresh; null when there is none or the read fails. */
+async function readBack(contractId: string): Promise<UpstreamContractDTO | null> {
+  try {
+    const response = await api.upstreamContracts();
+    return (response.data ?? []).find((item) => item.contract_id === contractId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function TypedContractForm({
   kind, editing, upstreamContracts, routeCandidates, intake = null, save, onSaved, onChangeKind, t,
 }: TypedContractFormProps) {
@@ -171,9 +181,14 @@ export function TypedContractForm({
           editToken: stored?.edit_token ?? null,
         }),
       );
-      if (saved) {
-        setStored(saved);
-        onSaved?.(saved);
+      // A write can commit while its answer is dropped (the store refuses a late answer when the
+      // signed-in session's reads moved on, as right after sign-in). Read the contract back by
+      // its id before reporting nothing, so the form adopts what was saved and a second press
+      // does not create a duplicate under the next free id.
+      const adopted = saved ?? (await readBack(contractId));
+      if (adopted) {
+        setStored(adopted);
+        onSaved?.(adopted);
       }
     } finally {
       setBusy(false);

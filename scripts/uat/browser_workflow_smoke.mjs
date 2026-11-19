@@ -40,6 +40,7 @@ import {
 import { inspectNativeCapacityInteraction } from "./nativeCapacityInteraction.mjs";
 import { inspectReferenceIndexInteraction } from "./referenceIndexInteraction.mjs";
 import { readStripShape, situationStripInteraction, stripShapeProblems } from "./situationStrip.mjs";
+import { contractKindsInteraction } from "./contractKindsInteraction.mjs";
 import { checkPageContract, ENUM_RULE_EXEMPT_ROUTES, findIdInputs, findVisibleEnums, ID_INPUT_EXEMPT_ROUTES, JSON_UPLOAD_PENDING_REMOVAL, measurePhoneOverflow, PHONE_ROUTES, PURPOSE_ROUTES } from "./phoneOverflow.mjs";
 
 const require = createRequire(import.meta.url);
@@ -2462,6 +2463,17 @@ export async function runWorkflowSmoke() {
     }
     // Leave the shared page in the language the later interactions assume.
     await setLanguage(page, "en");
+
+    // Contract kinds (docs/product/CONTRACT_TYPES.md): an LNG master and a cargo under it are
+    // saved through the type-first form; each stays on screen as saved and the cargo is listed
+    // under its master. A save that appears to lose the form is a failure.
+    currentScope = "interaction/contract-kinds";
+    await contractKindsInteraction(
+      page,
+      BASE,
+      (message) => recordFailure(failures, currentScope, message),
+      async (selector) => (await axeViolations(page, selector)).map((violation) => violation.id),
+    );
 
     // The native capacity context panel, with its own controlled transport fixture for exactly
     // one explicit point id. It runs last so no fixture can reach a later workspace check, and

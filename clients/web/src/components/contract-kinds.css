@@ -251,4 +251,8 @@
 .contract-status[data-contract-status="retired"] {
   color: var(--ds-text-3);
 }
+
+.contract-confirmation-name {
+  padding-left: var(--ds-space-3);
+}
 }

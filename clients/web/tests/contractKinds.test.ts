@@ -171,3 +171,16 @@ test("the list puts contracts in execution first, finds by name, counterparty or
   assert.equal(periodText("2026-12..2027-02", month), "2026-12 – 2027-02");
   assert.equal(periodText("2025+", month), "2025-10 →");
 });
+
+test("a confirmation is listed under its master, whatever its own status", () => {
+  const rows = [
+    { contract_id: "cargo", contract_name: "A cargo", gas_year: "2027-01..2027-01", delivery_point_name: "Gate", contract_kind: "LNG_CARGO", master_contract_id: "mspa" },
+    { contract_id: "gsa", contract_name: "B supply", gas_year: "2026/27", delivery_point_name: "TTF", contract_kind: "SUPPLY_GSA" },
+    { contract_id: "mspa", contract_name: "Z master", gas_year: "2025+", delivery_point_name: "LNG master agreement", contract_kind: "LNG_MSPA" },
+  ];
+  const ids = listedContracts(rows, { query: "", kind: "", today: "2026-11-19", counterpartyOf: () => "" }).map((row) => row.contract_id);
+  assert.deepEqual(ids, ["gsa", "mspa", "cargo"]);
+  // A cargo found alone (its master filtered out) is still listed.
+  const alone = listedContracts(rows, { query: "", kind: "LNG_CARGO", today: "2026-11-19", counterpartyOf: () => "" }).map((row) => row.contract_id);
+  assert.deepEqual(alone, ["cargo"]);
+});
