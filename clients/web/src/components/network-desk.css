@@ -434,9 +434,18 @@
       padding: 0 var(--ds-space-2);
     }
 
-    /* The page's purpose line is for a wide screen; on a phone the map is the page. */
+    /* On a phone the map is the page, but the task still says what it is for (UX rule 24): the
+       purpose is one quiet line under the tab row, cut with an ellipsis, never more. */
     .cockpit-app.workspace-network .page-intro {
-      display: none;
+      display: block;
+      overflow: hidden;
+      margin: 0;
+      padding: 0 var(--ds-space-3);
+      color: var(--ds-text-3);
+      font-size: var(--ds-text-xs);
+      line-height: var(--ds-line-xs);
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     /* The context line shares the tab row: the filter summary, short; the as-of time is on

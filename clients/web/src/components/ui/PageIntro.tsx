@@ -10,7 +10,8 @@ export const PURPOSE_MAX_CHARS = 110;
 export function PageIntro({ purpose, id, children }: { purpose: string; id?: string; children?: ReactNode }) {
   if (!purpose) return null;
   return (
-    <p className="page-intro" data-purpose={id ?? ""}>
+    // The title keeps the whole sentence where a narrow layout cuts it to one line (the phone map).
+    <p className="page-intro" data-purpose={id ?? ""} title={purpose}>
       {purpose}
       {children}
     </p>
