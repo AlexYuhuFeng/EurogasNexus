@@ -224,7 +224,10 @@ class ForwardFx:
                 self._holdings, base, quote, as_of=as_of_utc.date(), delivery=delivery
             )
         except FxForwardError:
-            return None
+            # No forward can be derived (no overnight benchmark held, or beyond the horizon):
+            # the spot reference rate still converts the figure, as "indicative, FX: spot" for
+            # a forward period. Only no rate at all leaves the conversion missing.
+            return SpotEcbFx(demo_desk=self.demo_desk)(session, base, quote, period, as_of_utc)
         klass = {
             "simulated": InputClass.SIMULATED,
             "derived": InputClass.DERIVED,
