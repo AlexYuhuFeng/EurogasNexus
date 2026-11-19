@@ -83,6 +83,8 @@ SOURCE_STEPS: dict[str, str | None] = {
     "src-deepseek": "ai",
     # Simulated demo price sources: never part of a customer's set-up.
     "src-eex-sim": None,
+    # The demo profile's simulated exchange feed: started by the demo, nothing to set up.
+    "src-demo-exchange-feed": None,
     "src-ice-ocm-sim": None,
     "src-trayport-sim": None,
     "src-icis-sim": None,
