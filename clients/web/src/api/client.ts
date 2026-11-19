@@ -2176,6 +2176,83 @@ export interface TodayNeedsMeItemDTO {
   why?: TodayWhyDTO | null;
 }
 
+/** A day's quantity in the hub's desk unit (NBP th/d; continental MWh/d with its MW). */
+export interface GasDayQuantityDTO {
+  value: number;
+  unit: "th/d" | "MWh/d";
+  mwh: number;
+  mw?: number;
+}
+
+export interface GasDayTargetDTO {
+  mode: string;
+  task: string;
+  params: Record<string, string>;
+}
+
+export interface GasDayLineDTO {
+  ref: string;
+  direction: "in" | "out";
+  kind: string;
+  label: string;
+  point: string | null;
+  /** nominated, contract_quantity, booked, booked_today, scheduled, slot. */
+  basis: string;
+  book_id: string;
+  quantity: GasDayQuantityDTO;
+  simulated: boolean;
+  prompt_trade: boolean;
+  target: GasDayTargetDTO;
+}
+
+export interface GasDayCutoffDTO {
+  key: "nomination" | "last_renomination" | "gas_day_end" | "window";
+  name: string | null;
+  at_utc: string;
+  /** held: a declared window; assumption: the network-code default; calendar: the gas day. */
+  basis: "held" | "assumption" | "calendar";
+  source: string;
+  passed: boolean;
+}
+
+export interface GasDayCostDTO {
+  value: number | null;
+  currency: string;
+  basis: "balanced" | "assumption" | "missing";
+  reason?: string;
+  rate?: number;
+  rate_unit?: string;
+  side?: "long_discount" | "short_premium";
+  assumption_set?: string;
+  assumption_version?: number;
+}
+
+export interface GasDayHubDTO {
+  hub: string;
+  state: "long" | "short" | "balanced";
+  in: GasDayQuantityDTO;
+  out: GasDayQuantityDTO;
+  net: GasDayQuantityDTO;
+  lines: GasDayLineDTO[];
+  done_today: { trades: number; bought: GasDayQuantityDTO; sold: GasDayQuantityDTO; target: GasDayTargetDTO };
+  delegated: { ref: string; label: string; direction: "in" | "out"; quantity: GasDayQuantityDTO; trader: string; trader_name: string; delegation_id: string | null; book: string }[];
+  cutoffs: GasDayCutoffDTO[];
+  cost_of_nothing: GasDayCostDTO;
+  books: string[];
+  simulated: boolean;
+}
+
+/** Today row 6, "My gas day" (`application/gas_day.py`): appended, so rows keep their positions. */
+export interface TodayGasDayRowDTO {
+  key: "gas_day";
+  title: string;
+  scope: { kind: "mandate" | "all_books"; mandates: { id: string; name: string; hubs: string[] }[]; books: string[] | null } | null;
+  days: { gas_day: string; which: "today" | "tomorrow"; hours: number; hubs: GasDayHubDTO[] }[];
+  simulated: boolean;
+  populated: boolean;
+  empty: TodayEmptyDTO | null;
+}
+
 export interface TodayNeedsMeRowDTO {
   key: "needs_me";
   title: string;
@@ -2508,7 +2585,7 @@ export interface DeskTodayDTO {
   /** Every figure simulated: the page says so once and drops the per-figure marker. */
   all_simulated?: boolean;
   simulated_notice: string | null;
-  rows: [TodayKeyFiguresRowDTO, TodayChangesRowDTO, TodayBookRowDTO, TodayFundamentalsRowDTO, TodayNeedsMeRowDTO?];
+  rows: [TodayKeyFiguresRowDTO, TodayChangesRowDTO, TodayBookRowDTO, TodayFundamentalsRowDTO, TodayNeedsMeRowDTO?, TodayGasDayRowDTO?];
   /** My hubs: the user's list, else the book's, then the board's (at most four). */
   focus_hubs?: string[];
   /** Every late or stale figure by name (FRESH-02), instead of a page-wide "N feeds stale". */

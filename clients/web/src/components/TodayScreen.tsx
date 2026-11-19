@@ -23,6 +23,7 @@ import { useCompactWidth } from "@/app/shell/useShellLayout";
 
 import type {
   DeskTodayDTO,
+  GasDayTargetDTO,
   TodayBookRowDTO,
   TodayEmptyDTO,
   TodayFigureDTO,
@@ -51,6 +52,7 @@ import { pnlClass } from "@/app/model/pnlColor";
 import { MethodNote } from "@/components/MethodNote";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
+import { GasDayRow } from "@/components/today/GasDayRow";
 import { useConvertedAmount, useConvertedPrice, useConvertedQuantity } from "@/app/time/useConversion";
 import type { ConvertedText } from "@/app/time/valueFormat";
 import { ConvertedValue } from "@/components/ui/ConvertedValue";
@@ -91,6 +93,8 @@ export interface TodayScreenProps {
   onOpenFundamentals?: (view: "storage" | "balance") => void;
   /** Open Prices, where a market sparkline's full chart is. */
   onOpenPrices?: () => void;
+  /** Open where a "My gas day" line is acted on or evidenced (Book, Prices → prompt). */
+  onOpenGasDay?: (target: GasDayTargetDTO) => void;
   /** Open what a "What needs me" item names. */
   onOpenNeed?: (item: TodayNeedsMeRowDTO["items"][number]) => void;
   /**
@@ -721,7 +725,7 @@ export function TodayHeadActions({ t, loading, onOpenBrief, onRefresh }: { t: Tr
   );
 }
 
-export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices, headInStrip = false, onOpenFundamentals }: TodayScreenProps) {
+export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices, headInStrip = false, onOpenFundamentals, onOpenGasDay }: TodayScreenProps) {
   if (!today) {
     return (
       <div className="today" data-today="loading">
@@ -729,12 +733,13 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       </div>
     );
   }
-  const [keyFigures, , book, fundamentals, needsMe] = today.rows;
+  const [keyFigures, , book, fundamentals, needsMe, gasDay] = today.rows;
   const quiet = needsMe && needsMe.items.length === 0 ? needsMe.quiet : null;
   const render: Record<TodayRowKey, () => ReactNode> = {
     market: () => (keyFigures?.market ? <MarketRow key="market" market={keyFigures.market} t={t} nowMs={nowMs} onInspectPrice={onInspectPrice} onOpenPrices={onOpenPrices} /> : null),
     book: () => (canSeeBook && book ? <BookRow key="book" row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} language={language} onOpenLimits={onOpenLimits} /> : null),
     needs_me: () => (needsMe && needsMe.items.length > 0 ? <NeedsMeRow key="needs_me" row={needsMe} t={t} nowMs={nowMs} language={language} onOpen={onOpenNeed} /> : null),
+    gas_day: () => (canSeeBook && gasDay ? <GasDayRow key="gas_day" row={gasDay} t={t} language={language} nowMs={nowMs} onOpen={onOpenGasDay} /> : null),
     fundamentals: () => (fundamentals ? <FundamentalsRow key="fundamentals" row={fundamentals} t={t} nowMs={nowMs} language={language} quiet={quiet} onOpenFundamentals={onOpenFundamentals} /> : null),
   };
   const scope = today.all_simulated ? "all" : today.simulated ? "mixed" : "none";

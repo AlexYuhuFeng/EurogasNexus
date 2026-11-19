@@ -43,6 +43,8 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "preferences.time_zone.utc": "the time standard's name, written UTC in both locales",
   "report.format_csv": "a file format's name",
   "tariffs.tso": "an acronym",
+  "today.gas_day.mw": "a number and the unit MW",
+  "today.gas_day.until": "a cut-off name and a time, both translated before",
   "report.format_pdf": "a file format's name",
   "report.format_xlsx": "a product's own name",
   "settings.chinese": "a language named in its own language",

@@ -1,0 +1,189 @@
+/*
+ * Today → My gas day: one card per hub, net to clear first, IN and OUT beside each other on a
+ * desktop and stacked on a phone. Tokens only (scripts/cssTokenLint.mjs).
+ */
+
+@layer ds-components {
+  .gasday-hubs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+    gap: var(--ds-space-3);
+    min-width: 0;
+  }
+
+  .gasday-hub {
+    display: grid;
+    align-content: start;
+    gap: var(--ds-space-2);
+    min-width: 0;
+    max-width: 760px;
+    padding: var(--ds-space-3);
+    border: 1px solid var(--ds-border-subtle);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+  }
+
+  .gasday-hub[data-gasday-state="short"] {
+    border-left: 3px solid var(--ds-status-watch);
+  }
+
+  .gasday-hub[data-gasday-state="long"] {
+    border-left: 3px solid var(--ds-status-info);
+  }
+
+  .gasday-hub-head {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .gasday-hub-name {
+    margin: 0;
+    font-size: var(--ds-text-md);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-md);
+  }
+
+  .gasday-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+    gap: var(--ds-space-1) var(--ds-space-3);
+    margin: 0;
+  }
+
+  .gasday-fact {
+    display: grid;
+    gap: var(--ds-space-05);
+    min-width: 0;
+  }
+
+  .gasday-fact > dt {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .gasday-fact > dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+    font-variant-numeric: var(--ds-numeric);
+  }
+
+  .gasday-assumed {
+    color: var(--ds-text-3);
+  }
+
+  .gasday-sides {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ds-space-3);
+    min-width: 0;
+  }
+
+  .gasday-side {
+    display: grid;
+    align-content: start;
+    gap: var(--ds-space-1);
+    min-width: 0;
+  }
+
+  .gasday-side-head {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+    margin: 0;
+    padding-bottom: var(--ds-space-05);
+    border-bottom: 1px solid var(--ds-border-subtle);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-xs);
+  }
+
+  .gasday-lines,
+  .gasday-delegated {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .gasday-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .gasday-line-name {
+    display: grid;
+    min-width: 0;
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .gasday-line-name > :first-child {
+    overflow-wrap: anywhere;
+  }
+
+  .gasday-line-meta {
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .gasday-line-qty {
+    flex: none;
+    font-size: var(--ds-text-sm);
+    font-variant-numeric: var(--ds-numeric);
+    white-space: nowrap;
+  }
+
+  .gasday-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ds-accent);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .gasday-link:hover {
+    text-decoration: underline;
+  }
+
+  .gasday-link.muted {
+    color: var(--ds-text-2);
+  }
+
+  .gasday-none {
+    margin: 0;
+    font-size: var(--ds-text-sm);
+  }
+
+  .gasday-delegated {
+    padding-top: var(--ds-space-1);
+    border-top: 1px solid var(--ds-border-subtle);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  @media (max-width: 640px) {
+    .gasday-sides {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (pointer: coarse) {
+    .gasday-link {
+      min-height: var(--ds-control-touch);
+    }
+  }
+}

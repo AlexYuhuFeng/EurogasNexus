@@ -79,9 +79,9 @@ test("every job function has a composition, and every composition is well formed
     assert.ok(composition.shortlist.length <= MAX_SHORTLIST, id);
     assert.equal(placeKey(composition.shortlist[0]), placeKey(composition.landing), `${id}: landing first`);
     assert.ok(STRIP_AUDIENCES.includes(composition.stripAudience), id);
-    // Today's rows (design basis 2, E.3): two to four of the four, none twice.
+    // Today's rows (design basis 2, E.3): two to five of the five, none twice.
     assert.equal(new Set(composition.todayRows).size, composition.todayRows.length, id);
-    assert.ok(composition.todayRows.length >= 2 && composition.todayRows.length <= 4, id);
+    assert.ok(composition.todayRows.length >= 2 && composition.todayRows.length <= 5, id);
     // Every task named is a real task of a real mode.
     for (const ref of composition.shortlist) {
       if (ref.kind === "task") {
@@ -177,12 +177,17 @@ test("a panel the role may not read is hidden whatever the registry says; the re
 
 test("Today's row order keeps only the rows the read returned", () => {
   assert.deepEqual(composedTodayRows(ROLE_COMPOSITIONS.analyst, ["market", "book", "fundamentals"]), ["fundamentals", "market", "book"]);
-  // E.3: the trader leads with the market, risk with the book, the analyst with fundamentals,
-  // operations and the originator with what needs them.
-  assert.equal(ROLE_COMPOSITIONS.trader.todayRows[0], "market");
+  // E.3: the trader and operations lead with the gas day to clear (owner, 2026-11-19), risk
+  // with the book, the analyst with fundamentals, the originator with what needs them; every
+  // other role keeps its order and has no gas-day row.
+  assert.equal(ROLE_COMPOSITIONS.trader.todayRows[0], "gas_day");
+  assert.equal(ROLE_COMPOSITIONS.trader.todayRows[1], "market");
   assert.equal(ROLE_COMPOSITIONS.risk.todayRows[0], "book");
   assert.equal(ROLE_COMPOSITIONS.analyst.todayRows[0], "fundamentals");
-  assert.equal(ROLE_COMPOSITIONS.operations.todayRows[0], "needs_me");
+  assert.equal(ROLE_COMPOSITIONS.operations.todayRows[0], "gas_day");
+  for (const id of ["analyst", "risk", "finance", "compliance", "originator", "reviewer", "desk_head"] as const) {
+    assert.ok(!ROLE_COMPOSITIONS[id].todayRows.includes("gas_day"), id);
+  }
   assert.equal(ROLE_COMPOSITIONS.originator.todayRows[0], "needs_me");
 });
 

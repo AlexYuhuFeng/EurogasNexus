@@ -85,8 +85,11 @@ export type StripAudience = (typeof STRIP_AUDIENCES)[number];
 
 export type PanelDefault = "open" | "folded" | "hidden";
 
-/** Today's rows (design basis 2, E.2): my market, my book, what needs me, fundamentals. */
-export const TODAY_ROW_KEYS = ["market", "book", "needs_me", "fundamentals"] as const;
+/**
+ * Today's rows (design basis 2, E.2): my market, my book, what needs me, fundamentals, and
+ * "My gas day" (what to clear today and tomorrow per hub; first for the trader and operations).
+ */
+export const TODAY_ROW_KEYS = ["market", "book", "needs_me", "fundamentals", "gas_day"] as const;
 export type TodayRowKey = (typeof TODAY_ROW_KEYS)[number];
 
 /** A place: a mode task, or a utility page (administration, settings). */
@@ -126,7 +129,8 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("desk", "today"),
     shortlist: [task("desk", "today"), task("desk", "prices"), task("deals", "opportunities"), task("book", "limits")],
     panels: {},
-    todayRows: ["market", "book", "needs_me", "fundamentals"],
+    // The trader's day is the gas he has to clear (owner, 2026-11-19): "My gas day" first.
+    todayRows: ["gas_day", "market", "book", "needs_me", "fundamentals"],
     stripAudience: "trader",
   },
   // The originator lands on Deals → Opportunities (design basis 2, A.4 and B.8), then the book
@@ -162,7 +166,8 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("book", "delivery"),
     shortlist: [task("book", "delivery"), task("book", "planning"), task("desk", "network"), task("deals", "contracts")],
     panels: {},
-    todayRows: ["needs_me", "book", "market"],
+    // Operations schedules what the desk clears: "My gas day" first, every book it may see.
+    todayRows: ["gas_day", "needs_me", "book", "market"],
     stripAudience: "operations",
   },
   finance: {

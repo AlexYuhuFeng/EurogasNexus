@@ -33,6 +33,7 @@
 @import url("../components/ui/instrumentPicker.css");
 /* Today (UX-05): the first screen, tokens only. */
 @import url("../components/today.css");
+@import url("../components/today/gasDay.css");
 /* Desk → Network: the page frame, the map panel and the information panel beside it. */
 @import url("../components/network-desk.css");
 /* Deals → Opportunities (CP-14): lanes, folded groups, the detail beside the list. */

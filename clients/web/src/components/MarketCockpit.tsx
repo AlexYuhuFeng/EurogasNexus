@@ -184,6 +184,17 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               next.set("view", view);
               window.history.replaceState(window.history.state, "", `?${next.toString()}`);
             }}
+            // My gas day: each line opens where it is acted on or evidenced (Book → Delivery,
+            // Planning or Position; a prompt trade on Prices with its hub chosen).
+            onOpenGasDay={(target) => {
+              if (target.mode === "desk") {
+                if (target.params.hub) traderContext.setHubId(target.params.hub);
+                openTask("curves");
+                return;
+              }
+              const entry = PRODUCT_MODES.find((mode) => mode.id === target.mode)?.tasks.find((item) => item.id === target.task);
+              if (entry?.page) navigation.openWorkspace(entry.page, entry.pageTask);
+            }}
             onOpenNeed={(item) => {
               if (item.kind === "outage") {
                 openTask("network");
