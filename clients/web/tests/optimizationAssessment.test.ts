@@ -85,7 +85,8 @@ test("the nomination rule mirrors the engine and refuses only what it cannot rea
         windows: [{ windowId: "", opensAt: "05:00", closesAt: "05:30", maximumChange: "" }],
       }),
     ),
-    ["decision.nomination.blocker.window_id_required"],
+    [],
+    "a window without an id is numbered, never blocked (design basis H.3)",
   );
   assert.deepEqual(
     blockersOf(
@@ -341,7 +342,6 @@ test("the assessment vocabulary is bilingual", () => {
     "decision.nomination.no_instructions",
     "decision.nomination.blocker.initial_required",
     "decision.nomination.blocker.window_required",
-    "decision.nomination.blocker.window_id_required",
     "decision.nomination.blocker.window_id_duplicate",
     "decision.nomination.blocker.window_time_invalid",
     "decision.nomination.blocker.window_cap_invalid",
@@ -362,7 +362,7 @@ test("the assessment vocabulary is bilingual", () => {
     "decision.dispatch.withdrawal_cost",
     "decision.dispatch.terminal_inventory",
     "decision.dispatch.periods",
-    "decision.dispatch.period_id",
+    "decision.dispatch.period",
     "decision.dispatch.market_price",
     "decision.dispatch.add_period",
     "decision.dispatch.remove_period",
@@ -381,7 +381,6 @@ test("the assessment vocabulary is bilingual", () => {
     "decision.dispatch.blocker.initial_outside_band",
     "decision.dispatch.blocker.terminal_invalid",
     "decision.dispatch.blocker.period_required",
-    "decision.dispatch.blocker.period_id_required",
     "decision.dispatch.blocker.period_price_required",
     "strategy.warnings",
   ];

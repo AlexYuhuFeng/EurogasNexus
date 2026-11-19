@@ -180,3 +180,49 @@ export function checkPageContract({ needsPurpose, jsonUploadAllowed }) {
   }
   return { problems };
 }
+
+/** Admin pages, where an operator legitimately types an external identifier (a source's series
+ * id, a licence reference, a TSO publication id). */
+export const ID_INPUT_EXEMPT_ROUTES = new Set(
+  [
+    ...["attention", "catalog", "access", "infrastructure"].map((view) => `?workspace=sources&view=${view}`),
+    ...["delivery", "readiness", "governance", "support"].map((view) => `?workspace=runtime&view=${view}`),
+    ...["users", "api_keys", "catalogue", "audit", "sso"].map((view) => `?workspace=access&view=${view}`),
+  ],
+);
+
+/**
+ * Runs in the page (UX_REFERENCE rule 25, the live principle): an input a person types into
+ * whose label asks for an id ("Counterparty ID", "Point identifier", "合同编号") means a record
+ * should be chosen from what exists instead. Returns the offending labels.
+ */
+export function findIdInputs() {
+  const ID_WORD = /(^|[^a-z])(id|ids|identifier|identifiers)([^a-z]|$)|编号|标识/i;
+  const visible = (element) => {
+    const box = element.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && getComputedStyle(element).visibility !== "hidden";
+  };
+  const labelOf = (element) => {
+    const parts = [];
+    if (element.id) {
+      for (const label of document.querySelectorAll(`label[for="${CSS.escape(element.id)}"]`)) parts.push(label.textContent || "");
+    }
+    const wrapping = element.closest("label");
+    if (wrapping) parts.push(wrapping.textContent || "");
+    parts.push(element.getAttribute("aria-label") || "");
+    for (const id of (element.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean)) {
+      parts.push(document.getElementById(id)?.textContent || "");
+    }
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  };
+  const found = [];
+  for (const element of document.querySelectorAll("input, textarea")) {
+    const type = (element.getAttribute("type") || "text").toLowerCase();
+    if (!["text", "search", ""].includes(type) && element.tagName === "INPUT") continue;
+    if (element.getAttribute("role") === "combobox") continue; // a picker's own search box
+    if (element.readOnly || element.disabled || !visible(element)) continue;
+    const label = labelOf(element);
+    if (ID_WORD.test(label)) found.push(label.slice(0, 80));
+  }
+  return [...new Set(found)];
+}

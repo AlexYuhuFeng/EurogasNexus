@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, type NotificationChannelDTO } from "@/api/client";
 import { DataGrid } from "@/components/ui";
+import { idFromName } from "@/components/ui/recordPickerModel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -25,7 +26,11 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
 
   const fail = (caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught));
   const save = () => {
-    api.saveNotificationChannel(draft.channel_id.trim(), {
+    // A channel is named; its id is made from the name (UX_REFERENCE rule 25). Saving a name
+    // that matches a channel updates that channel.
+    const existing = rows.find((row) => row.name.trim().toLowerCase() === draft.name.trim().toLowerCase());
+    const channelId = existing?.channel_id ?? idFromName(draft.name, rows.map((row) => row.channel_id));
+    api.saveNotificationChannel(channelId, {
       name: draft.name.trim(),
       kind: "email",
       recipients: draft.recipients,
@@ -76,7 +81,6 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
       <details className="scope-fold">
         <summary>{t("notify.add")}</summary>
       <div className="licence-form">
-        <label><span>{t("notify.channel_id")}</span><input value={draft.channel_id} onChange={(event) => setDraft({ ...draft, channel_id: event.target.value })} /></label>
         <label><span>{t("notify.name")}</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
         <label><span>{t("notify.emails")}</span><input value={draft.recipients} placeholder="it-desk@example.com, risk@example.com" onChange={(event) => setDraft({ ...draft, recipients: event.target.value })} /></label>
         <label>
@@ -94,7 +98,7 @@ export function NotificationChannelsPanel({ t }: { t: Translate }) {
             </label>
           ))}
         </fieldset>
-        <button type="button" disabled={!draft.channel_id.trim() || !draft.name.trim() || !draft.recipients.includes("@")} onClick={save}>{t("notify.save")}</button>
+        <button type="button" disabled={!draft.name.trim() || !draft.recipients.includes("@")} onClick={save}>{t("notify.save")}</button>
       </div>
       </details>
       {message && <p role="status">{message}</p>}

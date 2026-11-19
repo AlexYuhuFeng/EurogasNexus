@@ -1,8 +1,12 @@
-import { DataGrid, PeriodPicker, WorkProgress } from "@/components/ui";
+import { DataGrid, PeriodPicker, RecordPicker, WorkProgress } from "@/components/ui";
+import { idFromName } from "@/components/ui/recordPickerModel";
+import { counterpartyOptions, gasYearOptions } from "@/app/model/recordOptions";
+import { useCachedRead } from "@/app/data/readCache";
+import { useApiStore } from "@/stores/api";
 import { useStagedProgress } from "@/app/hooks/useWorkProgress";
 import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
-import type { ContractIntakeDTO, PortfolioResourceDTO, RouteCandidateDTO, UpstreamContractDTO } from "@/api/client";
+import { api, type ContractIntakeDTO, type PortfolioResourceDTO, type RouteCandidateDTO, type UpstreamContractDTO } from "@/api/client";
 import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
 import { RetireContractButton, RetiredContractsList, type ContractLifecycleAction } from "@/components/ContractLifecycleControls";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
@@ -294,6 +298,18 @@ export function ContractWorkbench({
     return key ? t(key) : point;
   };
   const deliveryHub = hubOfPoint(contract.delivery_point_name);
+  const creditRead = useCachedRead("/portfolio/credit-exposure", () => api.creditExposure());
+  const lngTerminals = useApiStore((state) => state.lng);
+  // Counterparties the firm holds a credit line for, by name (a contract records the name).
+  const counterpartyChoices = useMemo(
+    () => counterpartyOptions(creditRead.data?.data.rows ?? []).map((item) => ({ ...item, id: item.label })),
+    [creditRead.data],
+  );
+  const terminalChoices = useMemo(
+    () => [...new Map(lngTerminals.map((row) => [row.terminal_name, { id: row.terminal_name, label: row.terminal_name, detail: row.country }])).values()],
+    [lngTerminals],
+  );
+  const gasYears = useMemo(() => gasYearOptions(), []);
   const priceCurrency = contractPriceCurrency(contract.contract_price_currency, contract.delivery_point_name);
   const stagedCode = contract.document_status || "MANUAL_DRAFT";
   const stagedLabel = t(`contracts.doc_status.${stagedCode}`);
@@ -432,14 +448,26 @@ export function ContractWorkbench({
           </nav>
           <section className="contract-clause-editor">
             {clauseView === "agreement" && <fieldset><legend>{t("contracts.agreement")}</legend><p>{t("contracts.section_help.agreement")}</p><div className="contract-field-grid">
-              <label>{t("contracts.contract_id")}<input value={contract.contract_id} onChange={(event) => updateContractText("contract_id", event.target.value)} /></label>
-              <label>{t("contracts.contract_name")}<input value={contract.contract_name} onChange={(event) => updateContractText("contract_name", event.target.value)} /></label>
-              <label>{t("contracts.counterparty")}<input value={contract.counterparty} onChange={(event) => updateContractText("counterparty", event.target.value)} /></label>
+              {/* The live principle (UX_REFERENCE rule 25): a new contract's reference is made from
+                  its name, never typed; a saved one's never changes. */}
+              <label>{t("contracts.contract_name")}<input value={contract.contract_name} onChange={(event) => {
+                updateContractText("contract_name", event.target.value);
+                if (!persistedTerm) updateContractText("contract_id", idFromName(event.target.value, upstreamContracts.map((item) => item.contract_id)));
+              }} /></label>
+              <RecordPicker
+                id="contract-counterparty"
+                label={t("contracts.counterparty")}
+                options={counterpartyChoices}
+                value={contract.counterparty || null}
+                recentKey="contract-counterparty"
+                allowManual
+                onChange={(choice) => updateContractText("counterparty", choice ? (counterpartyChoices.find((item) => item.id === choice.id)?.label ?? choice.id) : "")}
+              />
               <label>{t("contracts.resource_type")}<select value={contract.resource_type} onChange={(event) => updateContractText("resource_type", event.target.value)}>{RESOURCE_TYPES.map((value) => <option key={value} value={value}>{t(`contracts.resource_type.${value}`)}</option>)}</select></label>
               <label className="span-2">{t("contracts.contract_type")}<input value={contract.contract_type} onChange={(event) => updateContractText("contract_type", event.target.value)} /></label>
             </div></fieldset>}
             {clauseView === "product" && <fieldset><legend>{t("contracts.product_term")}</legend><p>{t("contracts.section_help.product")}</p><div className="contract-field-grid">
-              <label>{t("contracts.gas_year")}<input value={contract.gas_year} onChange={(event) => updateContractText("gas_year", event.target.value)} /></label>
+              <label>{t("contracts.gas_year")}<ChoiceSelect value={contract.gas_year} options={gasYears} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} onChange={(value) => updateContractText("gas_year", value)} /></label>
               <label>{t("contracts.index_basis")}<ChoiceSelect value={contract.index_basis} options={indexOptions(deliveryHub)} blank={t("contracts.choose")} recordedLabel={t("contracts.as_recorded")} labelFor={pointLabel} onChange={(value) => updateContractText("index_basis", value)} /></label>
             </div></fieldset>}
             {clauseView === "delivery" && <fieldset><legend>{t("contracts.delivery")}</legend><p>{t("contracts.section_help.delivery")}</p><div className="contract-field-grid">
@@ -464,7 +492,15 @@ export function ContractWorkbench({
               <label>{t("contracts.regas_fee")}<input type="number" min="0" value={contract.regas_fee_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("regas_fee_gbp_mwh", event.target.value)} /></label>
             </div>{deliveryHub && hubCurrency(deliveryHub) !== priceCurrency && <div className="contract-model-boundary">{t("contracts.currency_translated", { currency: priceCurrency, hub: deliveryHub, hubCurrency: hubCurrency(deliveryHub) })}</div>}</fieldset>}
             {clauseView === "capacity" && <fieldset><legend>{t("contracts.capacity_rights")}</legend><p>{t("contracts.section_help.capacity")}</p><div className="contract-field-grid">
-              <label>{t("contracts.terminal_access")}<input value={contract.terminal_access} onChange={(event) => updateContractText("terminal_access", event.target.value)} /></label>
+              <RecordPicker
+                id="contract-terminal"
+                label={t("contracts.terminal_access")}
+                options={terminalChoices}
+                value={contract.terminal_access || null}
+                allowManual
+                emptyText={t("contracts.no_terminals")}
+                onChange={(choice) => updateContractText("terminal_access", choice?.id ?? "")}
+              />
               <label>{t("contracts.capacity_expiry")}{/^\d{4}-\d{2}-\d{2}$/.test(contract.capacity_expiry) || !contract.capacity_expiry ? <PeriodPicker label={t("contracts.capacity_expiry")} value={contract.capacity_expiry} clearable onChange={(value) => updateContractText("capacity_expiry", value)} /> : <input value={contract.capacity_expiry} onChange={(event) => updateContractText("capacity_expiry", event.target.value)} />}</label>
               <label>{t("contracts.entry_capacity")}<input type="number" min="0" value={contract.owned_entry_capacity_mwh_per_day ?? ""} onChange={(event) => updateContractNumber("owned_entry_capacity_mwh_per_day", event.target.value)} /></label>
               <label>{t("contracts.exit_capacity")}<input type="number" min="0" value={contract.owned_exit_capacity_mwh_per_day ?? ""} onChange={(event) => updateContractNumber("owned_exit_capacity_mwh_per_day", event.target.value)} /></label>

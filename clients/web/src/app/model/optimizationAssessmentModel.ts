@@ -39,6 +39,18 @@ export interface NominationWindowDraft {
   readonly maximumChange: string;
 }
 
+/**
+ * The id a window or period is sent with: the one it carries (a window read from the network
+ * code), else its position ("window-1"). Never typed (design basis H.3; UX_REFERENCE rule 25).
+ */
+export function windowIdOf(window: NominationWindowDraft, index: number): string {
+  return window.windowId.trim() || `window-${index + 1}`;
+}
+
+export function periodIdOf(period: StoragePeriodDraft, index: number): string {
+  return period.periodId.trim() || `period-${index + 1}`;
+}
+
 export interface NominationDraft {
   readonly initialQuantity: string;
   readonly instructions: readonly NominationInstructionDraft[];
@@ -147,12 +159,8 @@ export function nominationReadiness(draft: NominationDraft): AssessmentReadiness
     blockerKeys.push("decision.nomination.blocker.window_required");
   }
   const seen = new Set<string>();
-  for (const window of draft.windows) {
-    const id = window.windowId.trim();
-    if (!id) {
-      blockerKeys.push("decision.nomination.blocker.window_id_required");
-      break;
-    }
+  for (const [index, window] of draft.windows.entries()) {
+    const id = windowIdOf(window, index);
     if (seen.has(id)) {
       blockerKeys.push("decision.nomination.blocker.window_id_duplicate");
       break;
@@ -187,8 +195,8 @@ export function nominationReadiness(draft: NominationDraft): AssessmentReadiness
 /** The nomination body, or null when the rule blocks it: a partial body would invent a time. */
 export function nominationRequest(draft: NominationDraft): NominationWindowRequestDTO | null {
   if (!nominationReadiness(draft).canRun) return null;
-  const windows: NominationWindowInputDTO[] = draft.windows.map((window) => ({
-    window_id: window.windowId.trim(),
+  const windows: NominationWindowInputDTO[] = draft.windows.map((window, index) => ({
+    window_id: windowIdOf(window, index),
     opens_at: `${parsedTime(window.opensAt) ?? "00:00"}:00`,
     closes_at: `${parsedTime(window.closesAt) ?? "00:00"}:00`,
     maximum_change_mwh: window.maximumChange.trim() ? parsedNumber(window.maximumChange) : null,
@@ -239,10 +247,6 @@ export function storageDispatchReadiness(draft: StorageDispatchDraft): Assessmen
     blockerKeys.push("decision.dispatch.blocker.period_required");
   }
   for (const period of draft.periods) {
-    if (!period.periodId.trim()) {
-      blockerKeys.push("decision.dispatch.blocker.period_id_required");
-      break;
-    }
     if (parsedNumber(period.marketPrice) === null) {
       blockerKeys.push("decision.dispatch.blocker.period_price_required");
       break;
@@ -274,8 +278,8 @@ export function storageDispatchRequest(
       ? parsedNumber(facility.terminalInventory)
       : null,
   };
-  const periods: StoragePeriodInputDTO[] = draft.periods.map((period) => ({
-    period_id: period.periodId.trim(),
+  const periods: StoragePeriodInputDTO[] = draft.periods.map((period, index) => ({
+    period_id: periodIdOf(period, index),
     market_price_gbp_mwh: parsedNumber(period.marketPrice) ?? 0,
   }));
   return {

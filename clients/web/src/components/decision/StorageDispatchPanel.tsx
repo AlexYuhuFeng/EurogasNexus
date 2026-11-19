@@ -1,4 +1,6 @@
-import { DataGrid, EvidenceBlock, PanelHeader } from "@/components/ui";
+import { DataGrid, EvidenceBlock, PanelHeader, RecordPicker } from "@/components/ui";
+import { contractOptions } from "@/app/model/recordOptions";
+import { useApiStore } from "@/stores/api";
 import { displayTime } from "@/app/time/displayTime";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
@@ -15,7 +17,7 @@ import type {
 import type { StorageDispatchResultDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 interface StorageDispatchPanelProps {
   readonly t: Translate;
@@ -51,6 +53,8 @@ function formatMoney(value: number | null | undefined): string {
  * `operator-input` rather than implying market data.
  */
 export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchPanelProps) {
+  const contracts = useApiStore((state) => state.upstreamContracts);
+  const storageChoices = contractOptions(contracts.filter((contract) => contract.resource_type === "STORAGE"));
   const { draft, updateDraft, readiness, result, busy, error, runId, recorded } = assessment;
   const failure = error ? presentError(t, describeFailure(error)) : null;
 
@@ -88,18 +92,17 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
         <PanelHelp text={t("decision.dispatch.note")} label={t("panel.how_to_read")} />
 
         <div className="decision-assessment-grid">
+          {/* The live principle (UX_REFERENCE rule 25): the facility is one of the book's storage
+              contracts; a facility outside the book can still be typed, and is marked so. */}
           <span className="decision-assessment-field">
-            <label className="field-label" htmlFor="dispatch-facility">
-              {t("decision.dispatch.facility_id")}
-            </label>
-            <input
+            <RecordPicker
               id="dispatch-facility"
-              type="text"
-              maxLength={128}
-              value={draft.facilityId}
-              onChange={(event) =>
-                updateDraft((current) => ({ ...current, facilityId: event.target.value }))
-              }
+              label={t("decision.dispatch.facility")}
+              options={storageChoices}
+              value={draft.facilityId || null}
+              allowManual
+              emptyText={t("decision.dispatch.no_storage_contracts")}
+              onChange={(choice) => updateDraft((current) => ({ ...current, facilityId: choice?.id.slice(0, 128) ?? "" }))}
             />
           </span>
           {facilityFields.map((field) => (
@@ -135,9 +138,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
           rowKey={(index) => `period-${index}`}
           density="compact"
           columns={[
-            { id: "period", header: t("decision.dispatch.period_id"), render: (index) => (
-              <input aria-label={t("decision.dispatch.period_id")} type="text" value={draft.periods[index].periodId} onChange={(event) => updatePeriod(index, { periodId: event.target.value })} />
-            ) },
+            { id: "period", header: t("decision.dispatch.period"), rowHeader: true, value: (index) => t("decision.dispatch.period_n", { n: index + 1 }) },
             { id: "price", header: t("decision.dispatch.market_price"), render: (index) => (
               <input aria-label={t("decision.dispatch.market_price")} type="text" inputMode="decimal" value={draft.periods[index].marketPrice} onChange={(event) => updatePeriod(index, { marketPrice: event.target.value })} />
             ) },

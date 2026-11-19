@@ -7,7 +7,7 @@ import { copilotOffers } from "@/app/model/copilotModel";
 import { useCopilotSources } from "@/app/hooks/useCopilot";
 import { CopilotHost } from "@/components/CopilotPanel";
 import type { AiActionKind } from "@/app/experience/vocabulary";
-import { DataGrid, EvidenceBlock } from "@/components/ui";
+import { DataGrid, EvidenceBlock, RecordPicker, type RecordOption } from "@/components/ui";
 import type {
   AnalysisResultDTO,
   AnalysisSnapshotDTO,
@@ -17,6 +17,8 @@ import type {
   ReviewDecisionDTO,
   ReviewDecisionInputDTO,
 } from "@/api/client";
+import { api } from "@/api/client";
+import { useCachedRead } from "@/app/data/readCache";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string) => string;
@@ -110,6 +112,34 @@ export function ReviewWorkspace({
   const poolResult = poolResultContextMismatch ? null : resourcePoolResult;
   const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>("strategy_run");
   const [entityId, setEntityId] = useState(carriedStrategyRunId ?? latestStrategyRunId ?? "");
+  const entityRead = useCachedRead<RecordOption[]>(`/review/entities/${entityType}`, async (signal) => {
+    if (entityType === "strategy_run") {
+      const runs = (await api.strategyRuns({ limit: 50 })).data;
+      return runs.map((run) => ({
+        id: run.run_id,
+        label: run.strategy_name || run.strategy_id,
+        detail: [run.run_mode, displayTime(run.finished_at_utc ?? run.started_at_utc, "")].filter(Boolean).join(" · "),
+        keywords: [run.strategy_id],
+      }));
+    }
+    if (entityType === "intraday_opportunity") {
+      const items = (await api.intradayOpportunities({ signal })).data;
+      return items.map((item) => ({
+        id: item.opportunity_id,
+        label: `${item.buy_hub} → ${item.sell_hub} ${item.product}`,
+        detail: [item.route_name, displayTime(item.detected_at_utc, "")].filter(Boolean).join(" · "),
+        keywords: [item.route_name, item.buy_venue, item.sell_venue],
+      }));
+    }
+    const reports = (await api.marketReports({ signal })).data;
+    return reports.map((report) => ({
+      id: report.report_id,
+      label: report.title,
+      detail: displayTime(report.created_at, "") || undefined,
+      keywords: [report.headline],
+    }));
+  });
+  const entityOptions = entityRead.error ? [] : entityRead.data ?? null;
   const [note, setNote] = useState("");
   // The Copilot reads the canonical sources the shell and the palette use, so an action
   // offered here carries the context and evidence a run would actually use.
@@ -272,18 +302,20 @@ export function ReviewWorkspace({
               onChange={(event) => setEntityType(event.target.value as ReviewDecisionInputDTO["entity_type"])}
             >
               {REVIEW_ENTITY_TYPES.map((type) => (
-                <option key={`review-entity-type-${type}`} value={type}>{type}</option>
+                <option key={`review-entity-type-${type}`} value={type}>{t(`review.entity_type.${type}`)}</option>
               ))}
             </select>
           </label>
-          <label>
-            <span>{t("review.entity_id")}</span>
-            <input
-              value={entityId}
-              placeholder={t("review.entity_id_placeholder")}
-              onChange={(event) => setEntityId(event.target.value)}
-            />
-          </label>
+          {/* The live principle (UX_REFERENCE rule 25): decide on a record that exists, by name. */}
+          <RecordPicker
+            id="review-entity"
+            label={t(`review.entity_type.${entityType}`)}
+            options={entityOptions}
+            value={entityId || null}
+            recentKey={`review-${entityType}`}
+            emptyText={t(`review.entity_none.${entityType}`)}
+            onChange={(choice) => setEntityId(choice?.id ?? "")}
+          />
         </div>
         <div className="review-decision-actions">
           {REVIEW_DECISIONS.map((decision) => (

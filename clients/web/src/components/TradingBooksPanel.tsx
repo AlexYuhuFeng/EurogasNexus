@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, type TradingBookInput, type TradingBooksDTO } from "@/api/client";
-import { DataGrid, type DataGridColumn } from "@/components/ui";
+import { DataGrid, RecordPicker, type DataGridColumn, type RecordOption } from "@/components/ui";
+import { idFromName } from "@/components/ui/recordPickerModel";
+import { contractOptions } from "@/app/model/recordOptions";
+import { REPORTING_CURRENCIES } from "@/app/time/valueFormat";
+import { useApiStore } from "@/stores/api";
 
 type BookRow = TradingBooksDTO["books"][number];
 
@@ -26,6 +30,28 @@ export function TradingBooksPanel({ t }: { t: Translate }) {
   const [books, setBooks] = useState<TradingBooksDTO | null>(null);
   const [draft, setDraft] = useState(EMPTY);
   const [message, setMessage] = useState<string | null>(null);
+  // The live principle (UX_REFERENCE rule 25): books, entities and contracts are chosen from
+  // what exists; a new book's id is made from its name.
+  const contracts = useApiStore((state) => state.upstreamContracts);
+  const bookChoices = useMemo<RecordOption[]>(
+    () => (books?.books ?? []).map((book) => ({ id: book.book_id, label: book.name, detail: [book.legal_entity, book.business].filter(Boolean).join(" · ") })),
+    [books],
+  );
+  const distinct = (values: string[]): RecordOption[] => [...new Set(values.filter(Boolean))].map((value) => ({ id: value, label: value }));
+  const entityChoices = useMemo(() => distinct((books?.books ?? []).map((book) => book.legal_entity)), [books]);
+  const businessChoices = useMemo(() => distinct((books?.books ?? []).map((book) => book.business)), [books]);
+  const contractChoices = useMemo(() => contractOptions(contracts), [contracts]);
+  const pickBook = (choice: { id: string; manual: boolean } | null) => {
+    if (!choice) return;
+    if (choice.manual) {
+      setDraft({ ...EMPTY, book_id: idFromName(choice.id, bookChoices.map((item) => item.id)), name: choice.id });
+      return;
+    }
+    const book = books?.books.find((item) => item.book_id === choice.id);
+    if (book) {
+      setDraft({ ...EMPTY, book_id: book.book_id, name: book.name, legal_entity: book.legal_entity, region: book.region, business: book.business, base_currency: book.base_currency });
+    }
+  };
   const load = useCallback(() => {
     api.tradingBooks().then((response) => setBooks(response.data)).catch(() => setBooks(null));
   }, []);
@@ -95,18 +121,43 @@ export function TradingBooksPanel({ t }: { t: Translate }) {
       <details className="scope-fold">
         <summary>{t("books.add")}</summary>
       <div className="licence-form">
-        <label><span>{t("books.book_id")}</span><input value={draft.book_id} onChange={field("book_id")} /></label>
+        <RecordPicker id="book" label={t("books.book")} options={books ? bookChoices : null} value={draft.book_id || null} allowManual onChange={pickBook} />
         <label><span>{t("books.name")}</span><input value={draft.name} onChange={field("name")} /></label>
-        <label><span>{t("books.legal_entity")}</span><input value={draft.legal_entity} onChange={field("legal_entity")} /></label>
+        <RecordPicker
+          id="book-entity"
+          label={t("books.legal_entity")}
+          options={books ? entityChoices : null}
+          value={draft.legal_entity || null}
+          allowManual
+          onChange={(choice) => setDraft({ ...draft, legal_entity: choice?.id ?? "" })}
+        />
         <label>
           <span>{t("books.region")}</span>
           <select value={draft.region} onChange={field("region")}>
             {REGIONS.map((region) => <option key={region} value={region}>{t(`books.region_${region}`)}</option>)}
           </select>
         </label>
-        <label><span>{t("books.business")}</span><input value={draft.business} onChange={field("business")} /></label>
-        <label><span>{t("books.base_currency")}</span><input value={draft.base_currency} onChange={field("base_currency")} maxLength={3} /></label>
-        <label><span>{t("books.members")}</span><input value={draft.members} onChange={field("members")} /></label>
+        <RecordPicker
+          id="book-business"
+          label={t("books.business")}
+          options={books ? businessChoices : null}
+          value={draft.business || null}
+          allowManual
+          onChange={(choice) => setDraft({ ...draft, business: choice?.id ?? "" })}
+        />
+        <label><span>{t("books.base_currency")}</span>
+          <select value={draft.base_currency} onChange={field("base_currency")}>
+            {REPORTING_CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}
+          </select>
+        </label>
+        <RecordPicker
+          id="book-contracts"
+          label={t("books.members")}
+          multiple
+          options={contractChoices}
+          value={draft.members.split(/[\s,]+/).filter(Boolean)}
+          onChange={(ids) => setDraft({ ...draft, members: ids.join(",") })}
+        />
         <button
           type="button"
           disabled={!draft.book_id.trim() || !draft.name.trim() || !draft.legal_entity.trim() || !draft.business.trim()}

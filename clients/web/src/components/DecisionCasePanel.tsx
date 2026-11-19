@@ -21,6 +21,9 @@ import { deadlineStateKey, formatDeadlineUtc, localDeadlineToUtc } from "@/app/m
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api } from "@/api/client";
+import { useCachedRead } from "@/app/data/readCache";
+import { displayTime } from "@/app/time/displayTime";
+import type { RecordOption } from "@/components/ui/recordPickerModel";
 import type {
   DecisionCaseDTO,
   DecisionCaseDecisionInputDTO,
@@ -45,7 +48,7 @@ import {
 import { decisionPackPresentation } from "@/app/model/decisionPackModel";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { DecisionPackPanel } from "@/components/decision/DecisionPackPanel";
-import { MetricStrip, PanelHeader, WorkspaceTabs, PeriodPicker } from "@/components/ui";
+import { MetricStrip, PanelHeader, WorkspaceTabs, PeriodPicker, RecordPicker } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -100,6 +103,26 @@ export function DecisionCasePanel({
   const [evidenceKind, setEvidenceKind] =
     useState<DecisionCaseEvidenceInputDTO["kind"]>("MARKET_CONTEXT");
   const [evidenceRef, setEvidenceRef] = useState("");
+  // The live principle (UX_REFERENCE rule 25): evidence is a record that exists, chosen by name;
+  // what the page already carries is offered first, a typed reference is marked as typed.
+  const runsRead = useCachedRead(
+    evidenceKind === "STRATEGY_RUN" || evidenceKind === "BACKTEST" ? "/strategy-lab/runs?limit=50" : null,
+    async () => (await api.strategyRuns({ limit: 50 })).data,
+  );
+  const evidenceOptions = useMemo<RecordOption[]>(() => {
+    const options: RecordOption[] = [];
+    const carried = suggestedEvidenceRef(evidenceKind, { routeId, strategyRunId, analysisId });
+    if (carried) options.push({ id: carried, label: t("decision_case.evidence_carried"), detail: carried });
+    for (const run of runsRead.data ?? []) {
+      if (run.run_id === carried) continue;
+      options.push({
+        id: run.run_id,
+        label: run.strategy_name || run.strategy_id,
+        detail: [run.run_mode, displayTime(run.finished_at_utc ?? run.started_at_utc, "")].filter(Boolean).join(" · "),
+      });
+    }
+    return options;
+  }, [analysisId, evidenceKind, routeId, runsRead.data, strategyRunId, t]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -428,16 +451,15 @@ export function DecisionCasePanel({
                 ))}
               </select>
             </label>
-            <label>
-              <span>{t("decision_case.evidence_ref")}</span>
-              <input
-                type="text"
-                value={evidenceRef}
-                maxLength={128}
-                placeholder={routeId ?? strategyRunId ?? t("decision_case.evidence_ref_placeholder")}
-                onChange={(event) => setEvidenceRef(event.target.value)}
-              />
-            </label>
+            <RecordPicker
+              id="decision-case-evidence"
+              label={t("decision_case.evidence_ref")}
+              options={evidenceOptions}
+              value={evidenceRef || null}
+              allowManual
+              emptyText={t("decision_case.evidence_none")}
+              onChange={(choice) => setEvidenceRef(choice ? choice.id.slice(0, 128) : "")}
+            />
             <button
               type="button"
               disabled={busy || !evidenceRef.trim()}

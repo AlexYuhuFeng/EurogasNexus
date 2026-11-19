@@ -16,7 +16,7 @@ import type {
 import type { NominationScheduleResultDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 interface NominationWindowPanelProps {
   readonly t: Translate;
@@ -108,9 +108,8 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
           rowKey={(index) => `window-${index}`}
           density="compact"
           columns={[
-            { id: "window", header: t("decision.nomination.window_id"), render: (index) => (
-              <input aria-label={t("decision.nomination.window_id")} type="text" maxLength={128} value={draft.windows[index].windowId} onChange={(event) => updateWindow(index, { windowId: event.target.value })} />
-            ) },
+            // Windows are numbered, not named by hand (design basis H.3; UX_REFERENCE rule 25).
+            { id: "window", header: t("decision.nomination.window"), rowHeader: true, value: (index) => t("decision.nomination.window_n", { n: index + 1 }) },
             { id: "opens", header: t("decision.nomination.opens_at"), render: (index) => (
               <input aria-label={t("decision.nomination.opens_at")} type="text" inputMode="numeric" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" maxLength={5} value={draft.windows[index].opensAt} onChange={(event) => updateWindow(index, { opensAt: event.target.value })} />
             ) },

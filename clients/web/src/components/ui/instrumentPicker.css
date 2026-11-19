@@ -291,6 +291,20 @@
     font-size: var(--ds-text-sm);
   }
 
+  /* RecordPicker: a manual entry reads as an exception; a multiple choice closes with Done. */
+  .ds-rpicker .ds-ipicker-option[data-manual] .ds-ipicker-code {
+    font-style: italic;
+  }
+
+  .ds-rpicker .ds-ipicker-option[aria-disabled="true"] {
+    color: var(--ds-text-3);
+    cursor: default;
+  }
+
+  .ds-rpicker-done {
+    justify-self: end;
+  }
+
   @media (max-width: 480px) {
     .ds-ipicker {
       display: grid;

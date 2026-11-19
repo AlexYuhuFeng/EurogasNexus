@@ -243,8 +243,22 @@ exact copy, so that presentation can improve without weakening a gate.
     one line with its reason; a missing permission names who grants it (`empty.permission`), a
     missing licence says the administrator connects it (`empty.licence`), never a prompt to buy.
     The browser sweep's phone pass fails a commercial task without a purpose line, an empty state
-    without a reason, or a page offering a JSON upload (two pages are listed until their packages
-    remove it).
+    without a reason, or a page offering a JSON upload (one page is listed until its package
+    removes it).
+25. **The live principle (owner's working standard).** A calculation takes its inputs from the
+    connected live and public sources and the firm's own records by default. The user chooses
+    from what exists instead of typing identifiers: optimising a contract offers the contracts in
+    execution, never a contract-id box; a counterparty, book, trader, hub, point, terminal,
+    storage facility or evidence record is picked by name (`RecordPicker`, the InstrumentPicker
+    pattern: search, recent picks, keyboard, a sheet on a phone; options built in
+    `app/model/recordOptions.ts`), its id searchable and on hover. A new record's id is made from
+    its name (`idFromName`); windows and periods are numbered. Manual entry stays where it is
+    needed (a counterparty not yet in any record, a facility outside the book) as an explicit
+    "Use 'X', entered by hand" choice, and the result states which inputs were entered by hand.
+    Swapping a data source (a licensed AIS feed for public AIS, a vendor curve for an ECB rate)
+    changes accuracy, not the calculation. The browser sweep's phone pass fails an input whose
+    label asks for an "ID" or "identifier" outside the admin pages, where an operator types an
+    external system's identifier.
 
 ## Implementation note
 

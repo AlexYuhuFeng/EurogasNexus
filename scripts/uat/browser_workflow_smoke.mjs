@@ -46,7 +46,7 @@ import {
 import { inspectNativeCapacityInteraction } from "./nativeCapacityInteraction.mjs";
 import { inspectReferenceIndexInteraction } from "./referenceIndexInteraction.mjs";
 import { readStripShape, situationStripInteraction, stripShapeProblems } from "./situationStrip.mjs";
-import { checkPageContract, ENUM_RULE_EXEMPT_ROUTES, findVisibleEnums, JSON_UPLOAD_PENDING_REMOVAL, measurePhoneOverflow, PHONE_ROUTES, PURPOSE_ROUTES } from "./phoneOverflow.mjs";
+import { checkPageContract, ENUM_RULE_EXEMPT_ROUTES, findIdInputs, findVisibleEnums, ID_INPUT_EXEMPT_ROUTES, JSON_UPLOAD_PENDING_REMOVAL, measurePhoneOverflow, PHONE_ROUTES, PURPOSE_ROUTES } from "./phoneOverflow.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(
@@ -1505,6 +1505,11 @@ async function phoneOverflowSweep(page, failures, observations) {
             jsonUploadAllowed: JSON_UPLOAD_PENDING_REMOVAL.has(route),
           });
           for (const problem of contract.problems) recordFailure(failures, scope, `page contract: ${problem}`);
+        }
+        // The live principle (UX_REFERENCE rule 25): choose records, never type their ids.
+        if (!ID_INPUT_EXEMPT_ROUTES.has(route)) {
+          const typedIds = await page.evaluate(findIdInputs);
+          if (typedIds.length) recordFailure(failures, scope, `typed identifier: ${typedIds.join("; ")}`);
         }
         measured += 1;
       } catch (error) {

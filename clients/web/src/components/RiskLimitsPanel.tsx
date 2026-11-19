@@ -12,7 +12,11 @@ import { formatMoney, formatQuantity, splitList } from "@/app/model/riskLimitsMo
 import { ReportExport } from "./ReportExport";
 import { WhyButton } from "./WhyButton";
 import { MethodNote } from "./MethodNote";
-import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone, PeriodPicker, UpdatingMark } from "@/components/ui";
+import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone, PeriodPicker, RecordPicker, UpdatingMark } from "@/components/ui";
+import { idFromName } from "@/components/ui/recordPickerModel";
+import { bookOptions, contractOptions, counterpartyOptions, hubOptions, personOptions } from "@/app/model/recordOptions";
+import { REPORTING_CURRENCIES } from "@/app/time/valueFormat";
+import { useApiStore } from "@/stores/api";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -86,6 +90,65 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
   const [mandate, setMandate] = useState(EMPTY_MANDATE);
   const [editing, setEditing] = useState<"none" | "credit" | "mandate">("none");
   const [message, setMessage] = useState<string | null>(null);
+  // The live principle (UX_REFERENCE rule 25): every choice below is a record the firm holds.
+  const contracts = useApiStore((state) => state.upstreamContracts);
+  const booksRead = useCachedRead(canMaintainRisk ? "/portfolio/books" : null, () => api.tradingBooks());
+  const counterparties = useMemo(() => counterpartyOptions(credit ?? []), [credit]);
+  const contractChoices = useMemo(() => contractOptions(contracts, splitList(line.contract_ids)), [contracts, line.contract_ids]);
+  const bookChoices = useMemo(() => bookOptions(booksRead.data?.data.books ?? []), [booksRead.data]);
+  const hubChoices = useMemo(() => hubOptions(), []);
+  const mandateChoices = useMemo(
+    () => (mandates ?? []).map((row) => ({ id: row.mandate_id, label: row.name || row.mandate_id, detail: row.trader })),
+    [mandates],
+  );
+  const traderChoices = useMemo(() => personOptions((mandates ?? []).map((row) => ({ id: row.trader }))), [mandates]);
+  const instrumentChoices = useMemo(
+    () => ["physical", "future", "forward", "swap", "option"].map((id) => ({ id, label: t(`limits.instrument.${id}`) })),
+    [t],
+  );
+  const listOf = (value: string) => splitList(value);
+  const joined = (ids: readonly string[]) => ids.join(", ");
+  const pickCounterparty = (choice: { id: string; manual: boolean } | null) => {
+    if (!choice) return;
+    if (choice.manual) {
+      // A counterparty not yet in any record: its id is made from the name, never typed.
+      const id = idFromName(choice.id, counterparties.map((item) => item.id));
+      setLine((current) => ({ ...current, counterparty_id: id, name: choice.id }));
+      return;
+    }
+    const row = credit?.find((item) => item.counterparty_id === choice.id);
+    setLine((current) => ({
+      ...current,
+      counterparty_id: choice.id,
+      name: row?.counterparty ?? current.name,
+      limit_amount: row ? String(row.limit) : current.limit_amount,
+      currency: row?.currency ?? current.currency,
+      collateral_amount: row ? String(row.collateral) : current.collateral_amount,
+      rating: row?.rating ?? current.rating,
+      valid_until: row?.valid_until ?? current.valid_until,
+    }));
+  };
+  const pickMandate = (choice: { id: string; manual: boolean } | null) => {
+    if (!choice) return;
+    if (choice.manual) {
+      const id = idFromName(choice.id, mandateChoices.map((item) => item.id));
+      setMandate((current) => ({ ...current, mandate_id: id, display_name: choice.id }));
+      return;
+    }
+    const row = mandates?.find((item) => item.mandate_id === choice.id);
+    setMandate((current) => ({
+      ...current,
+      mandate_id: choice.id,
+      trader: row?.trader ?? current.trader,
+      display_name: row?.name ?? current.display_name,
+      book_ids: row?.books ?? current.book_ids,
+      hubs: row?.hubs ?? current.hubs,
+      max_net_mwh_per_month: row?.max_net_mwh_per_month != null ? String(row.max_net_mwh_per_month) : current.max_net_mwh_per_month,
+      max_tenor_months: row?.max_tenor_months != null ? String(row.max_tenor_months) : current.max_tenor_months,
+      instruments: row?.instruments ?? current.instruments,
+      valid_until: row?.valid_until ?? current.valid_until,
+    }));
+  };
 
   const load = useCallback(() => {
     creditRead.refresh();
@@ -285,14 +348,34 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       </div>
       {canMaintainRisk && editing === "credit" && (
         <div className="licence-form">
-          <label><span>{t("limits.counterparty_id")}</span><input value={line.counterparty_id} onChange={lineField("counterparty_id")} /></label>
-          <label><span>{t("limits.counterparty")}</span><input value={line.name} onChange={lineField("name")} /></label>
+          <RecordPicker
+            id="credit-counterparty"
+            label={t("limits.counterparty")}
+            options={credit ? counterparties : null}
+            value={line.counterparty_id || null}
+            recentKey="counterparty"
+            allowManual
+            onChange={pickCounterparty}
+          />
+          <label><span>{t("limits.display_name")}</span><input value={line.name} onChange={lineField("name")} /></label>
           <label><span>{t("limits.aliases")}</span><input value={line.aliases} onChange={lineField("aliases")} /></label>
           <label><span>{t("limits.limit")}</span><input inputMode="decimal" value={line.limit_amount} onChange={lineField("limit_amount")} /></label>
-          <label><span>{t("limits.currency")}</span><input value={line.currency} maxLength={3} onChange={lineField("currency")} /></label>
+          <label><span>{t("limits.currency")}</span>
+            <select value={line.currency} onChange={lineField("currency")}>
+              {REPORTING_CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}
+            </select>
+          </label>
           <label><span>{t("limits.collateral")}</span><input inputMode="decimal" value={line.collateral_amount} onChange={lineField("collateral_amount")} /></label>
           <label><span>{t("limits.rating")}</span><input value={line.rating} onChange={lineField("rating")} /></label>
-          <label><span>{t("limits.contracts")}</span><input value={line.contract_ids} onChange={lineField("contract_ids")} /></label>
+          <RecordPicker
+            id="credit-contracts"
+            label={t("limits.contracts")}
+            multiple
+            options={contractChoices}
+            value={listOf(line.contract_ids)}
+            emptyText={t("limits.no_contracts")}
+            onChange={(ids) => setLine((current) => ({ ...current, contract_ids: joined(ids) }))}
+          />
           <label><span>{t("limits.receivable_days")}</span><input inputMode="numeric" value={line.receivable_days} onChange={lineField("receivable_days")} /></label>
           <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={line.valid_until} clearable onChange={(value) => lineField("valid_until")({ target: { value } } as never)} /></label>
           <button
@@ -306,16 +389,53 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       )}
       {canMaintainRisk && editing === "mandate" && (
         <div className="licence-form">
-          <label><span>{t("limits.mandate_id")}</span><input value={mandate.mandate_id} onChange={mandateField("mandate_id")} /></label>
-          <label><span>{t("limits.trader")}</span><input value={mandate.trader} onChange={mandateField("trader")} /></label>
+          <RecordPicker
+            id="mandate"
+            label={t("limits.mandate")}
+            options={mandates ? mandateChoices : null}
+            value={mandate.mandate_id || null}
+            allowManual
+            onChange={pickMandate}
+          />
+          <RecordPicker
+            id="mandate-trader"
+            label={t("limits.trader")}
+            options={mandates ? traderChoices : null}
+            value={mandate.trader || null}
+            recentKey="trader"
+            allowManual
+            onChange={(choice) => choice && setMandate((current) => ({ ...current, trader: choice.id }))}
+          />
           <label><span>{t("limits.display_name")}</span><input value={mandate.display_name} onChange={mandateField("display_name")} /></label>
-          <label><span>{t("limits.books")}</span><input value={mandate.book_ids} onChange={mandateField("book_ids")} /></label>
-          <label><span>{t("limits.hubs")}</span><input value={mandate.hubs} onChange={mandateField("hubs")} /></label>
+          <RecordPicker
+            id="mandate-books"
+            label={t("limits.books")}
+            multiple
+            options={booksRead.data ? bookChoices : null}
+            value={listOf(mandate.book_ids)}
+            onChange={(ids) => setMandate((current) => ({ ...current, book_ids: joined(ids) }))}
+          />
+          <RecordPicker
+            id="mandate-hubs"
+            label={t("limits.hubs")}
+            multiple
+            options={hubChoices}
+            value={listOf(mandate.hubs)}
+            placeholder={t("limits.any_hub")}
+            onChange={(ids) => setMandate((current) => ({ ...current, hubs: joined(ids) }))}
+          />
           <label><span>{t("limits.max_net")}</span><input inputMode="decimal" value={mandate.max_net_mwh_per_month} onChange={mandateField("max_net_mwh_per_month")} /></label>
           <label><span>{t("limits.max_tenor")}</span><input inputMode="numeric" value={mandate.max_tenor_months} onChange={mandateField("max_tenor_months")} /></label>
           <label><span>{t("limits.min_hedge")}</span><input inputMode="decimal" value={mandate.min_hedge} onChange={mandateField("min_hedge")} /></label>
           <label><span>{t("limits.max_hedge")}</span><input inputMode="decimal" value={mandate.max_hedge} onChange={mandateField("max_hedge")} /></label>
-          <label><span>{t("limits.instruments")}</span><input value={mandate.instruments} placeholder="physical, future, forward, swap" onChange={mandateField("instruments")} /></label>
+          <RecordPicker
+            id="mandate-instruments"
+            label={t("limits.instruments")}
+            multiple
+            options={instrumentChoices}
+            value={listOf(mandate.instruments)}
+            onChange={(ids) => setMandate((current) => ({ ...current, instruments: joined(ids) }))}
+          />
           <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={mandate.valid_until} clearable onChange={(value) => mandateField("valid_until")({ target: { value } } as never)} /></label>
           <button
             type="button"
