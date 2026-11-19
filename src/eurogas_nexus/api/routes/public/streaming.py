@@ -96,7 +96,7 @@ async def _event_stream(
     pk_field: str,
     initial_cursor: Cursor,
     guard: RowGuard | None = None,
-    notices: tuple[tuple[str, FetchRows], ...] = (),
+    notices: tuple[tuple[str, FetchNotices], ...] = (),
 ) -> AsyncGenerator[str, None]:
     """Poll PostgreSQL for rows after the cursor and yield them as SSE events.
 
@@ -122,12 +122,22 @@ async def _event_stream(
             with get_session_factory()() as session:
                 rows = fetch(session, cursor)
                 allowed = rows if guard is None else guard(session, rows)
+                caller = getattr(guard, "principal", None)
                 for name, fetch_notices in notices:
-                    for notice in fetch_notices(session, notice_cursors[name]):
-                        announced.append((name, notice))
-                        changed = notice.get("changed_at")
-                        if isinstance(changed, datetime):
-                            notice_cursors[name] = (_as_utc(changed), "")
+                    for notice in fetch_notices(session, notice_cursors[name], caller):
+                        moved = notice.get("cursor") or notice.get("changed_at")
+                        if isinstance(moved, datetime):
+                            current = notice_cursors[name]
+                            if current is None or _as_utc(moved) > current[0]:
+                                notice_cursors[name] = (_as_utc(moved), "")
+                        # What the caller may not see moves the cursor and is not announced.
+                        if notice.get("visible", True):
+                            announced.append(
+                                (
+                                    name,
+                                    {"group": notice["group"], "changed_at": notice["changed_at"]},
+                                )
+                            )
         except Exception:
             rows, allowed = [], []
             yield _sse(
@@ -247,39 +257,132 @@ def _fetch_new_alerts(session: Session, cursor: Cursor) -> list[dict]:
 
 #: The map's fast inputs, each with the column that says when a row last changed: the map
 #: re-reads (conditionally) when one of them moves. Group names only, never a row.
-MAP_CHANGE_GROUPS: tuple[tuple[str, str, str], ...] = (
-    ("outages", "RemitUmmRecord", "ingested_at_utc"),
-    ("flows", "FlowObservationRecord", "observed_at_utc"),
-    ("cargoes", "LngCargoRecord", "updated_at_utc"),
-    ("slots", "RegasSlotRecord", "updated_at_utc"),
-    ("opportunities", "OpportunityRecord", "last_changed_utc"),
-)
+MAP_CHANGE_GROUPS = ("outages", "flows", "cargoes", "slots", "opportunities")
+
+#: Rows looked at per group and poll (the newest first): enough to find one the caller sees.
+NOTICE_PAGE = 200
+
+#: A change notice source: the session, the group cursor and the caller -> changes, each
+#: ``{"group", "changed_at", "visible"}``; only the visible ones are announced, every one
+#: moves the cursor.
+FetchNotices = Callable[[object, Cursor, object], list[dict]]
 
 
-def _fetch_map_changes(session: Session, cursor: Cursor) -> list[dict]:
-    """One notice per group whose rows changed after the cursor: the group and when.
+def _fetch_map_changes(session: Session, cursor: Cursor, principal=None) -> list[dict]:
+    """The map's fast inputs that changed after the cursor, as the caller may see them.
 
-    The notice carries no row and no key, so it needs no row entitlement: the client answers
-    it with a conditional read of the map situation, which applies the caller's scope (and is
-    a 304 when nothing the caller sees changed). Its id (``<changed_at>|<group>``) is the
-    stream's sequence: a reconnect resumes after it.
+    A notice names a group and a time, no row; the client answers it with a conditional read
+    of the map situation. Still, a notice must not reveal that something changed in data the
+    caller may not read: each group's changed rows pass the same rules as the map's own read
+    before they count. Flows are read under the identity rule (``identity_clause``: a
+    withheld row is not news); flows and outages by the caller's data scopes on their source;
+    the firm's cargoes and slots by its books (an unbooked slot is head office's); market
+    cargoes by the vessel feed's entitlement; opportunities by the opportunity core's own
+    visibility. Without a principal (an internal caller) every change counts.
     """
 
-    from sqlalchemy import func
-
-    from eurogas_nexus.db import models
+    from eurogas_nexus.application.identity_resolution import identity_clause
+    from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
+    from eurogas_nexus.db.models import (
+        FlowObservationRecord,
+        LngCargoRecord,
+        OpportunityRecord,
+        RegasSlotRecord,
+        RemitUmmRecord,
+    )
+    from eurogas_nexus.security.portfolio_scope import scope_for_principal, visible_book_ids
 
     since = cursor[0] if cursor is not None else None
-    out: list[dict] = []
-    for group, model_name, column in MAP_CHANGE_GROUPS:
-        model = getattr(models, model_name)
-        stamp = getattr(model, column)
-        query = session.query(func.max(stamp))
+
+    def changed(query, stamp):
         if since is not None:
             query = query.filter(stamp > since)
-        latest = query.scalar()
-        if latest is not None:
-            out.append({"group": group, "changed_at": _as_utc(latest)})
+        return query.order_by(stamp.desc()).limit(NOTICE_PAGE).all()
+
+    def entitled(rows: list[dict]) -> list[dict]:
+        if principal is None:
+            return rows
+        return filter_entitled_rows(principal, rows, source_key="source_system")
+
+    books = (
+        None
+        if principal is None
+        else visible_book_ids(session, scope_for_principal(principal.data_scopes))
+    )
+
+    def own_book(book_id) -> bool:
+        return books is None or (book_id is not None and book_id in books)
+
+    found: dict[str, list[tuple[datetime, bool]]] = {group: [] for group in MAP_CHANGE_GROUPS}
+    flows = [
+        {"changed_at": at, "source_system": source}
+        for at, source in changed(
+            session.query(
+                FlowObservationRecord.observed_at_utc, FlowObservationRecord.source_system
+            ).filter(identity_clause(session, FlowObservationRecord)),
+            FlowObservationRecord.observed_at_utc,
+        )
+    ]
+    seen = {id(row) for row in entitled(flows)}
+    found["flows"] = [(row["changed_at"], id(row) in seen) for row in flows]
+    outages = [
+        {"changed_at": at, "source_system": source}
+        for at, source in changed(
+            session.query(RemitUmmRecord.ingested_at_utc, RemitUmmRecord.source_system),
+            RemitUmmRecord.ingested_at_utc,
+        )
+    ]
+    seen = {id(row) for row in entitled(outages)}
+    found["outages"] = [(row["changed_at"], id(row) in seen) for row in outages]
+    cargoes = [
+        {"changed_at": at, "book_id": book, "source_system": source}
+        for at, book, source in changed(
+            session.query(
+                LngCargoRecord.updated_at_utc, LngCargoRecord.book_id, LngCargoRecord.source_system
+            ),
+            LngCargoRecord.updated_at_utc,
+        )
+    ]
+    market = {id(row) for row in entitled([row for row in cargoes if row["book_id"] is None])}
+    found["cargoes"] = [
+        (row["changed_at"], own_book(row["book_id"]) if row["book_id"] else id(row) in market)
+        for row in cargoes
+    ]
+    found["slots"] = [
+        (at, own_book(book) if book else books is None)
+        for at, book in changed(
+            session.query(RegasSlotRecord.updated_at_utc, RegasSlotRecord.book_id),
+            RegasSlotRecord.updated_at_utc,
+        )
+    ]
+    opportunities = changed(
+        session.query(OpportunityRecord.last_changed_utc, OpportunityRecord.opportunity_id),
+        OpportunityRecord.last_changed_utc,
+    )
+    if opportunities and principal is not None:
+        from eurogas_nexus.application.opportunities.listing import visible_records
+
+        mine = {row.opportunity_id for row in visible_records(session, principal)}
+    else:
+        mine = None
+    found["opportunities"] = [
+        (at, mine is None or opportunity_id in mine) for at, opportunity_id in opportunities
+    ]
+
+    out: list[dict] = []
+    for group, rows in found.items():
+        if not rows:
+            continue
+        latest = max(_as_utc(at) for at, _ in rows)
+        visible = [_as_utc(at) for at, ok in rows if ok]
+        out.append(
+            {
+                "group": group,
+                "changed_at": max(visible) if visible else latest,
+                "visible": bool(visible),
+                "cursor": latest,
+            }
+        )
     return sorted(out, key=lambda item: (item["changed_at"], item["group"]))
 
 
@@ -293,7 +396,7 @@ def _stream_response(
     ts_field: str,
     pk_field: str,
     request: Request,
-    notices: tuple[tuple[str, FetchRows], ...] = (),
+    notices: tuple[tuple[str, FetchNotices], ...] = (),
 ) -> StreamingResponse:
     initial_cursor = _initial_cursor(request)
     return StreamingResponse(
@@ -424,4 +527,3 @@ async def stream_alerts(request: Request) -> StreamingResponse:
         request,
         notices=(("map", _fetch_map_changes),),
     )
-

@@ -129,6 +129,8 @@ CAPACITY_BOARD_MODEL = (
     ROOT / "clients" / "web" / "src" / "app" / "model" / "capacityOperatingBoardRead.ts"
 )
 MARKET_COCKPIT = WEB_SRC / "MarketCockpit.tsx"
+#: The Network task's kept page (app/data/keepAlive.tsx) builds the capacity board's props.
+DESK_NETWORK_TASK = WEB_SRC / "DeskNetworkTask.tsx"
 I18N = ROOT / "clients" / "web" / "src" / "i18n"
 
 
@@ -840,7 +842,7 @@ def test_the_capacity_probe_compares_the_board_with_both_of_its_reads() -> None:
 
     # The cockpit derives the surface from the store's own facts and offers the store's existing
     # bounded retry: no new fetch machinery, and no calculation moved into the component.
-    cockpit = MARKET_COCKPIT.read_text(encoding="utf-8")
+    cockpit = DESK_NETWORK_TASK.read_text(encoding="utf-8")
     assert "capacityOperatingBoardRead(" in cockpit
     assert "retryFailedWorkspaceEndpoints" in cockpit
     assert "api.endpointErrors.capacity" in cockpit

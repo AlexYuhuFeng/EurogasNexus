@@ -84,18 +84,21 @@ def book_opportunity_paths(
     for row in visible_records(session, principal):
         emphasis = DRAWN_OPPORTUNITY_STATES.get(str(row.state))
         fields = row.claim_fields or {}
-        buy, sell = fields.get("buy_hub"), fields.get("sell_hub")
-        if emphasis is None or not buy or not sell:
+        if emphasis is None:
             continue
-        start, target = graph.hub_for(str(buy)), graph.hub_for(str(sell))
+        buy, sell = fields.get("buy_hub"), fields.get("sell_hub")
+        if buy and sell:
+            start, target = graph.hub_for(str(buy)), graph.hub_for(str(sell))
+        else:
+            # A record that names no hubs (a re-route through the pool) but states its route:
+            # the market areas its first and last crossing leave and reach.
+            start, target = _route_ends(graph, fields.get("route_points"))
         if not start or not target:
             continue
         # The crossing the evaluator priced, when the record states it (claim_fields
-        # ``route_point_keys``: ENTSOG point keys in flow order, comma-separated); else the
+        # ``route_points``: ENTSOG point keys in flow order, comma-separated); else the
         # default proven crossing, and the card says the route was not stated.
-        crossings, route_stated = _priced_route(
-            graph, start, target, fields.get("route_point_keys")
-        )
+        crossings, route_stated = _priced_route(graph, start, target, fields.get("route_points"))
         if not crossings:
             continue
         listed = summary(row)
@@ -124,7 +127,7 @@ def book_opportunity_paths(
 
 
 def _priced_route(graph: Any, start: str, target: str, stated: Any) -> tuple[Any, bool]:
-    """The crossings an evaluator priced (``route_point_keys``), else the default proven ones.
+    """The crossings an evaluator priced (``route_points``), else the default proven ones.
 
     Returns ``(crossings, stated)``; ``stated`` is False when the record named no route or one
     the graph cannot walk, and the default route is returned instead.
@@ -152,6 +155,25 @@ def _priced_route(graph: Any, start: str, target: str, stated: Any) -> tuple[Any
     return graph.route(start, target), False
 
 
+def _route_ends(graph: Any, stated: Any) -> tuple[str | None, str | None]:
+    """The hubs a stated route (``route_points``) leaves and reaches, or ``(None, None)``."""
+
+    text = stated or ""
+    points = [str(p).strip() for p in (text.split(",") if isinstance(text, str) else text)]
+    points = [p for p in points if p]
+    if not points:
+        return None, None
+    start = target = None
+    for hub in graph.hub_names:
+        for other in graph.neighbours(hub):
+            for crossing in graph.crossings(hub, other):
+                if start is None and crossing.points[0] == points[0]:
+                    start = hub
+                if crossing.points[-1] == points[-1]:
+                    target = other
+    return start, target
+
+
 def _via_names(graph: Any, crossings: Any) -> list[str]:
     return [
         str(graph.points.get(point, {}).get("name") or point)
@@ -162,14 +184,14 @@ def _via_names(graph: Any, crossings: Any) -> list[str]:
 
 #: Claim fields a re-route (R) or locational (L) record may carry to be drawn against the way
 #: the volume goes now (the seam agreed with the evaluators): ``current_sell_hub`` (and
-#: ``current_buy_hub``, default the record's ``buy_hub``) with ``current_route_point_keys``;
+#: ``current_buy_hub``, default the record's ``buy_hub``) with ``current_route_points``;
 #: and, per side, ``tariff``/``current_tariff``, ``capacity``/``current_capacity``,
 #: ``margin``/``current_margin`` as the evaluator's own texts with units; ``avoids_outage``
 #: (an outage event id) when the alternative's point is that it avoids one.
 PROPOSAL_FIELDS = (
     "current_sell_hub",
     "current_buy_hub",
-    "current_route_point_keys",
+    "current_route_points",
     "tariff",
     "current_tariff",
     "capacity",
@@ -189,7 +211,7 @@ def _proposal(
     """
 
     current_sell = fields.get("current_sell_hub")
-    if not current_sell and not fields.get("current_route_point_keys"):
+    if not current_sell and not fields.get("current_route_points"):
         return None
     start = graph.hub_for(str(fields.get("current_buy_hub") or fields.get("buy_hub") or ""))
     target = graph.hub_for(str(current_sell or fields.get("sell_hub") or ""))
@@ -202,7 +224,7 @@ def _proposal(
         current_stated = True
     else:
         current, current_stated = _priced_route(
-            graph, start, target, fields.get("current_route_point_keys")
+            graph, start, target, fields.get("current_route_points")
         )
         if not current:
             return None

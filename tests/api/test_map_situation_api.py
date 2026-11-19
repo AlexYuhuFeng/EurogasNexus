@@ -444,7 +444,7 @@ def test_our_book_view_draws_the_callers_opportunity_paths(seeded):
 
 
 def test_an_opportunity_draws_the_crossing_its_evaluator_priced(seeded):
-    """claim_fields route_point_keys (ENTSOG point keys in flow order) fixes the crossing."""
+    """claim_fields route_points (ENTSOG point keys in flow order) fixes the crossing."""
 
     import os
 
@@ -457,7 +457,7 @@ def test_an_opportunity_draws_the_crossing_its_evaluator_priced(seeded):
         priced.claim_fields = {
             "buy_hub": "TTF",
             "sell_hub": "NBP",
-            "route_point_keys": "ITP-00063,ITP-00207",
+            "route_points": "ITP-00063,ITP-00207",
         }
         session.add(priced)
         session.commit()
@@ -543,7 +543,7 @@ def test_a_reroute_is_drawn_against_the_way_the_volume_goes_now(seeded):
             "buy_hub": "TTF",
             "sell_hub": "NBP",
             "current_sell_hub": "TTF",
-            "route_point_keys": "ITP-00063,ITP-00207",
+            "route_points": "ITP-00063,ITP-00207",
             "tariff": "0.92 EUR/MWh",
             "margin": "+0.35 EUR/MWh",
             "current_margin": "+0.00 EUR/MWh",
@@ -610,3 +610,25 @@ def test_an_unchanged_situation_revalidates_as_not_modified(seeded):
         "/api/portfolio/map-situation", headers={**headers["head"], "If-None-Match": etag}
     )
     assert other.status_code == 200
+
+
+def test_a_reroute_that_names_no_hubs_is_drawn_along_its_stated_route(seeded):
+    """The R evaluator states the re-routed path (route_points) and no buy/sell hubs."""
+
+    import os
+
+    client, headers = seeded
+    engine = create_engine(os.environ["RUNTIME_STORE_DATABASE_URL"], future=True)
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        session.add(_contract("nl-ttf", "TTF", "uk-nbp", now))
+        reroute = _opportunity("o-r2", "actionable", None, None, "uk-nbp", now, opp_type="reroute")
+        reroute.claim_fields = {"resource": "r1", "route_points": "ITP-00063,ITP-00207"}
+        session.add(reroute)
+        session.commit()
+    book = client.get("/api/portfolio/map-situation", headers=headers["uk"]).json()["data"][
+        "book_relevance"
+    ]
+    (item,) = book["opportunities"]
+    assert (item["from_hub"], item["to_hub"]) == ("TTF", "NBP")
+    assert item["route_stated"] is True

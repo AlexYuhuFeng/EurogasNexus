@@ -418,8 +418,13 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     portfolio_workspace_for_contract = (
         ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
     ).read_text(encoding="utf-8")
-    # Outages and capacity are the Network task's panel beside the map (one task, not a page).
-    assert "capacity={{" in market_cockpit_for_contract
+    # Outages and capacity are the Network task's panel beside the map (one task, not a page):
+    # the Desk page shows the task's kept page (DeskNetworkTask), which builds that panel.
+    network_task_for_contract = (
+        ROOT / "clients" / "web" / "src" / "components" / "DeskNetworkTask.tsx"
+    ).read_text(encoding="utf-8")
+    assert "<KeptSlot id={DESK_NETWORK_KEPT} />" in market_cockpit_for_contract
+    assert "capacity={{" in network_task_for_contract
     assert '"exposure"' in portfolio_workspace_for_contract
     assert '"manual"' in app
     assert 'activePrimaryWorkspace.id === "market"' in app

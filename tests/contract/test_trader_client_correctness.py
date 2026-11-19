@@ -386,8 +386,9 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     assert 't("map.unmatched_route_legs_warning", { count })' in resource_pool_paths
     assert 't("map.source_derived_leg_sequence_warning")' in resource_pool_paths
     # The network surface is composed by the market primary rather than mounted by the
-    # shell (conflicting register C9).
-    assert "<NetworkWorkspace" in _read(WEB / "components" / "MarketCockpit.tsx")
+    # shell (conflicting register C9): the Desk page shows the task's kept page.
+    assert "<KeptSlot id={DESK_NETWORK_KEPT} />" in _read(WEB / "components" / "MarketCockpit.tsx")
+    assert "<NetworkWorkspace" in _read(WEB / "components" / "DeskNetworkTask.tsx")
     assert "MAJOR_HUB_PRIORITY" in map_component
     assert "map-node-label" in map_component
     assert "cluster: true" in map_component
@@ -417,12 +418,19 @@ def test_source_credentials_follow_selected_public_source() -> None:
 def test_network_workspace_is_extracted_from_app_shell() -> None:
     app = _read_application()
     market_cockpit = _read(WEB / "components" / "MarketCockpit.tsx")
+    network_task = _read(WEB / "components" / "DeskNetworkTask.tsx")
+    renderer = _read(WEB / "app" / "workspaces" / "WorkspaceRenderer.tsx")
     network_workspace = _read(WEB / "components" / "NetworkWorkspace.tsx")
 
     # The shell mounts no page of its own: the map-first network route is composed by the
-    # market primary, which is one step further than extracting the component (C9).
+    # market primary, which is one step further than extracting the component (C9). The task
+    # is kept alive across pages (app/data/keepAlive.tsx): the workspace renderer renders it
+    # once, the Desk page's slot shows it.
     assert "<NetworkWorkspace" not in app
-    assert "<NetworkWorkspace" in market_cockpit
+    assert "<NetworkWorkspace" in network_task
+    assert "<KeptSlot id={DESK_NETWORK_KEPT} />" in market_cockpit
+    assert "<Kept id={DESK_NETWORK_KEPT}>" in renderer
+    assert "<Kept" not in _read(WEB / "app" / "shell" / "AppShell.tsx")
     assert "scenario-rail" not in app
     assert "decision-rail" not in app
     # The rails left the Network page with the optimiser pages (design basis 2, CP-21).

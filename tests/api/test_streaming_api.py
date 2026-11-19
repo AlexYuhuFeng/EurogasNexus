@@ -160,35 +160,127 @@ def test_stream_routes_and_pipeline_health_are_registered() -> None:
         assert path in paths, f"{path} not registered"
 
 
-def test_the_map_stream_names_the_groups_that_changed_after_the_cursor() -> None:
-    """One notice per changed group (group and time, no row), ordered, after the cursor."""
-
-    from datetime import timedelta
-
+def _map_store():
     from sqlalchemy import create_engine
-    from sqlalchemy.orm import Session
 
-    from eurogas_nexus.api.routes.public.streaming import _fetch_map_changes
     from eurogas_nexus.db.base import Base
-    from eurogas_nexus.db.models import RegasSlotRecord
-    from eurogas_nexus.ingestion.lng_positions import parse_regas_slots
 
     engine = create_engine("sqlite://", future=True)
     Base.metadata.create_all(engine)
+    return engine
+
+
+def _principal(scopes: tuple[str, ...]):
+    from eurogas_nexus.security.identity import AuthenticatedPrincipal
+
+    return AuthenticatedPrincipal(
+        principal_id="p1",
+        name="trader",
+        principal_type="USER",
+        role="TRADER",
+        status="ACTIVE",
+        data_scopes=scopes,
+    )
+
+
+def test_the_map_stream_names_the_groups_that_changed_after_the_cursor() -> None:
+    """One change per group (group and time, no row), ordered, after the cursor."""
+
+    from datetime import timedelta
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.api.routes.public.streaming import _fetch_map_changes
+    from eurogas_nexus.db.models import RegasSlotRecord
+    from eurogas_nexus.ingestion.lng_positions import parse_regas_slots
+
+    engine = _map_store()
     now = datetime.now(UTC)
     csv = (
         "slot_id,terminal_name,window_start,window_end,send_out_gwh_d,cargo_id,book_id\n"
         f"S1,Gate terminal,{(now + timedelta(days=3)).isoformat()},"
-        f"{(now + timedelta(days=8)).isoformat()},190,C1,uk-nbp\n"
+        f"{(now + timedelta(days=8)).isoformat()},190,C1,\n"
     )
     with Session(engine) as session:
         for row in parse_regas_slots(csv, source_system="ETRM", source_reference="t", now_utc=now):
             session.add(RegasSlotRecord(**row))
         session.commit()
         (notice,) = _fetch_map_changes(session, (now - timedelta(minutes=1), ""))
-        assert notice["group"] == "slots"
-        assert set(notice) == {"group", "changed_at"}
+        assert notice["group"] == "slots" and notice["visible"] is True
         assert _fetch_map_changes(session, (now + timedelta(minutes=1), "")) == []
+
+
+def test_a_caller_without_the_scope_gets_no_notice_for_that_family(monkeypatch) -> None:
+    """A notice must not reveal a change in data the caller may not read: a licensed vessel
+    feed's cargo moves the cursor for everyone and is announced only to a caller holding it."""
+
+    from datetime import timedelta
+
+    from sqlalchemy.orm import Session
+
+    import eurogas_nexus.security.portfolio_scope as portfolio_scope
+    from eurogas_nexus.api.routes.public.streaming import _fetch_map_changes
+    from eurogas_nexus.db.models import LngCargoRecord
+    from eurogas_nexus.ingestion.lng_positions import parse_lng_cargoes
+
+    monkeypatch.setattr(portfolio_scope, "isolation_enabled", lambda: True)
+    engine = _map_store()
+    now = datetime.now(UTC)
+    csv = (
+        "cargo_id,vessel_name,status,load_port,load_lat,load_lon,destination_terminal,"
+        "eta,position_lat,position_lon,position_at,track,energy_gwh,book_id\n"
+        f"M1,Market Voyager,laden,Hammerfest,70.68,23.6,Gate terminal,"
+        f"{(now + timedelta(days=3)).isoformat()},62.0,4.5,{now.isoformat()},,950,\n"
+    )
+    with Session(engine) as session:
+        for row in parse_lng_cargoes(csv, source_system="Kpler", source_reference="t", now_utc=now):
+            session.add(LngCargoRecord(**row))
+        session.commit()
+        since = (now - timedelta(minutes=1), "")
+        (withheld,) = _fetch_map_changes(session, since, _principal(("BOOKS:*",)))
+        assert withheld["group"] == "cargoes" and withheld["visible"] is False
+        assert withheld["cursor"] >= since[0]
+        (held,) = _fetch_map_changes(session, since, _principal(("BOOKS:*", "Kpler")))
+        assert held["visible"] is True
+
+
+def test_withheld_changes_move_the_cursor_and_are_not_announced(monkeypatch) -> None:
+    import eurogas_nexus.api.routes.public.streaming as streaming
+    import eurogas_nexus.db.session as db_session
+
+    session = MagicMock()
+    session.__enter__ = MagicMock(return_value=session)
+    session.__exit__ = MagicMock(return_value=False)
+    monkeypatch.setattr(db_session, "get_session_factory", lambda: (lambda: session))
+    monkeypatch.setattr(streaming, "POLL_SECONDS", 0)
+    cursors = []
+    from datetime import timedelta
+
+    later = datetime.now(UTC) + timedelta(hours=1)
+
+    def notices(_session, cursor, _principal):
+        cursors.append(cursor)
+        if len(cursors) == 1:
+            return [{"group": "flows", "changed_at": later, "visible": False, "cursor": later}]
+        return [{"group": "outages", "changed_at": TS_2, "visible": True, "cursor": TS_2}]
+
+    async def drive() -> str:
+        generator = _event_stream(
+            "alerts",
+            lambda _s, _c: [],
+            "updated_at_utc",
+            "alert_id",
+            None,
+            notices=(("map", notices),),
+        )
+        first = await generator.__anext__()
+        await generator.aclose()
+        return first
+
+    first = asyncio.run(drive())
+    # The withheld flows change was not announced; it moved the cursor the next poll used.
+    assert '"group": "outages"' in first and "flows" not in first
+    assert cursors[1][0] == later
 
 
 def test_map_notices_ride_on_the_alerts_stream_without_an_id(monkeypatch) -> None:
@@ -201,8 +293,8 @@ def test_map_notices_ride_on_the_alerts_stream_without_an_id(monkeypatch) -> Non
     session.__exit__ = MagicMock(return_value=False)
     monkeypatch.setattr(db_session, "get_session_factory", lambda: (lambda: session))
 
-    def notices(_session, _cursor):
-        return [{"group": "outages", "changed_at": TS_2}]
+    def notices(_session, _cursor, _principal):
+        return [{"group": "outages", "changed_at": TS_2, "visible": True, "cursor": TS_2}]
 
     async def drive() -> str:
         generator = _event_stream(
