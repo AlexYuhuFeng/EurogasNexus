@@ -513,8 +513,10 @@ export async function inspectReferenceIndexInteraction({
     const hubApplied = await page
       .waitForFunction(
         () => {
+          // The hub's own label: the cell also carries the price's source for assistive
+          // technology (visually hidden when every price has one source class).
           const button = [...document.querySelectorAll(".market-hub-focus-button")]
-            .find((element) => element.textContent?.trim() === "TTF");
+            .find((element) => (element.querySelector("[data-price-hub-label]")?.textContent ?? element.textContent)?.trim() === "TTF");
           return button?.getAttribute("data-focused") === "true";
         },
         null,
