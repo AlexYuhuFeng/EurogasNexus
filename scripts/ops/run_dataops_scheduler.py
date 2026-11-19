@@ -63,8 +63,11 @@ _SOURCE_BOUNDS: dict[str, tuple[tuple[str, str], ...]] = {
         ("--entsog-page-size", "1000"),
         ("--entsog-max-pages", "50"),
         ("--entsog-reference-max-age-hours", "24"),
-        # Published tariffs change once a tariff period: read at most daily.
+        # Published tariffs change once a tariff period: each point is read at most daily, for
+        # the current and the next gas year, one point every 2 s; a point read within the day
+        # is skipped, so a retried or restarted run resumes where it stopped.
         ("--entsog-tariffs-max-age-hours", "24"),
+        ("--entsog-pace-seconds", "2"),
     ),
 }
 

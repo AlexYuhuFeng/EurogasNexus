@@ -103,7 +103,7 @@ from eurogas_nexus.ingestion.entsog_ingestion import (
     persist_entsog_reference,
 )
 from eurogas_nexus.ingestion.entsog_scope import validate_entsog_point_directions
-from eurogas_nexus.ingestion.entsog_tariffs import persist_entsog_tariffs, tariff_points
+from eurogas_nexus.ingestion.entsog_tariffs import persist_entsog_tariffs, read_points
 from eurogas_nexus.ingestion.entsog_transport import (
     ENTSOG_DATASET_MAX_PAGE_SIZE,
     EntsogFetchResult,
@@ -243,8 +243,23 @@ def main() -> int:
         "--entsog-tariffs-max-age-hours",
         type=float,
         default=None,
-        help="Skip the ENTSOG tariff read when one succeeded within this many hours "
-        "(tariffs change once a period; a scheduler refreshes them at most daily).",
+        help="Skip each point whose ENTSOG tariff read is archived within this many hours "
+        "(tariffs change once a period; a scheduler refreshes them at most daily, and a "
+        "stopped run resumes at the first point it had not read).",
+    )
+    parser.add_argument(
+        "--entsog-tariff-point",
+        action="append",
+        default=None,
+        metavar="POINT_KEY",
+        help="Read ENTSOG tariffs for this point only (repeatable); default: every point the "
+        "tariff register covers (entsog_tariffs.read_points).",
+    )
+    parser.add_argument(
+        "--entsog-pace-seconds",
+        type=float,
+        default=ENTSOG_TARIFF_MIN_PACE_SECONDS,
+        help="Seconds between two ENTSOG tariff queries (at least 2).",
     )
     parser.add_argument(
         "--entsog-reference-max-age-hours",
@@ -1151,6 +1166,9 @@ def _ingest_entsog_source(
     point_directions: tuple[str, ...] | None = None,
 ) -> None:
     """Execute one ENTSOG route while keeping other source transactions usable."""
+    if route == "entsog-tariffs":
+        _ingest_entsog_tariffs(client, session, args=args, started=started, report=report)
+        return
     if point_directions is None:
         point_directions = getattr(args, "entsog_point_direction", ())
     point_directions = _validate_entsog_point_directions(point_directions)
@@ -1172,16 +1190,10 @@ def _ingest_entsog_source(
         "snapshot_consistent": False,
     }
     report["sources"][source_name] = detail
-    if route in {"entsog-reference", "entsog-tariffs"}:
+    if route == "entsog-reference":
         refreshed_at = _recent_reference_refresh(
             session,
-            getattr(
-                args,
-                "entsog_reference_max_age_hours"
-                if route == "entsog-reference"
-                else "entsog_tariffs_max_age_hours",
-                None,
-            ),
+            getattr(args, "entsog_reference_max_age_hours", None),
             now=started,
             source_name=source_name,
         )
@@ -1201,16 +1213,6 @@ def _ingest_entsog_source(
             queries = (
                 ("connectionpoints", {"extended": "1"}),
                 ("operatorpointdirections", {"hasData": "1"}),
-            )
-        elif route == "entsog-tariffs":
-            # The points route pricing crosses, over the tariff periods around the run: the
-            # gas year before the current one through the one after it.
-            year = started.year if started.month >= 10 else started.year - 1
-            window = {"from": f"{year - 1}-10-01", "to": f"{year + 2}-09-30"}
-            detail["window"] = window
-            queries = tuple(
-                ("tariffsfulls", {"pointKey": point, **window})
-                for point in tariff_points(load_bundle())
             )
         else:
             policy = EntsogWindowPolicy(
@@ -1274,8 +1276,6 @@ def _ingest_entsog_source(
                 run_id=run_id,
                 replace_network=_replace_reference_network,
             )
-        elif route == "entsog-tariffs":
-            counts = persist_entsog_tariffs(session, results=results, run_id=run_id)
         else:
             counts = persist_entsog_observations(
                 session,
@@ -1349,6 +1349,173 @@ def _ingest_entsog_source(
         report["warnings"].append(
             f"{source_name} refused canonical writes ({code}); existing rows kept."
         )
+
+
+#: The polite floor between two ENTSOG tariff queries (seconds).
+ENTSOG_TARIFF_MIN_PACE_SECONDS = 2.0
+
+
+def entsog_tariff_window(started: datetime) -> dict[str, str]:
+    """The current gas year and the next, as an ENTSOG query window."""
+
+    year = started.year if started.month >= 10 else started.year - 1
+    return {"from": f"{year}-10-01", "to": f"{year + 2}-09-30"}
+
+
+def _recent_tariff_points(
+    session, *, window: dict[str, str], max_age_hours, now: datetime
+) -> set[str]:
+    """Points whose tariff read for ``window`` is archived complete within ``max_age_hours``.
+
+    The raw archive is the resume marker: a point is read, archived and normalised in one
+    committed step, so a run stopped part-way (a refusal, a restart, the scheduler's retry)
+    resumes at the first point it had not finished.
+    """
+
+    from eurogas_nexus.db.models import RawPayloadArchiveRecord
+
+    if max_age_hours is None:
+        return set()
+    if not 0 < float(max_age_hours) <= 24 * 7:
+        raise ValueError("the ENTSOG-tariffs max age must be within (0, 168] hours.")
+    cutoff = now - timedelta(hours=float(max_age_hours))
+    done: set[str] = set()
+    for (payload,) in session.query(RawPayloadArchiveRecord.payload_json).filter(
+        RawPayloadArchiveRecord.source_system == "ENTSOG",
+        RawPayloadArchiveRecord.dataset == "tariffsfulls",
+        RawPayloadArchiveRecord.received_at_utc >= cutoff,
+    ):
+        meta = (payload or {}).get("meta") or {}
+        query = meta.get("query") or {}
+        if query.get("from") != window["from"] or query.get("to") != window["to"]:
+            continue
+        total, limit = meta.get("total"), meta.get("limit")
+        complete = total == 0 or (
+            isinstance(total, int) and isinstance(limit, int) and 0 <= limit and total <= limit
+        )
+        if complete and query.get("pointKey"):
+            done.add(str(query["pointKey"]))
+    return done
+
+
+def _ingest_entsog_tariffs(client, session, *, args, started: datetime, report) -> None:
+    """Read ENTSOG tariffs point by point: paced, each point committed, resumable.
+
+    Scope: every point of ``entsog_tariffs.read_points`` (or ``--entsog-tariff-point``), for
+    the current and the next gas year. One query per point, at least
+    ``ENTSOG_TARIFF_MIN_PACE_SECONDS`` apart; each point's pages are archived and its rows
+    upserted and committed before the next point is read, so a stopped run keeps what it read.
+    With ``--entsog-tariffs-max-age-hours`` a point read within that age is skipped, which is
+    how a scheduled retry resumes. Revisions follow the register's rule: a re-read upserts by
+    tariff id, the receipt instant and download date say which publication is held.
+    """
+
+    source_name = "ENTSOG-tariffs"
+    run_id = _new_run_id(source_name)
+    # Earlier routes of this run are durable before points are committed or rolled back one
+    # by one.
+    session.commit()
+    bundle = load_bundle()
+    points = list(getattr(args, "entsog_tariff_point", None) or read_points(bundle))
+    window = entsog_tariff_window(started)
+    pace = max(
+        ENTSOG_TARIFF_MIN_PACE_SECONDS,
+        float(getattr(args, "entsog_pace_seconds", None) or ENTSOG_TARIFF_MIN_PACE_SECONDS),
+    )
+    detail: dict[str, Any] = {
+        "records": 0,
+        "dataset": "entsog-tariffs",
+        "window": window,
+        "points_planned": len(points),
+        "points_read": 0,
+        "points_resumed": 0,
+        "points_incomplete": [],
+        "points_failed": [],
+        "pace_seconds": pace,
+        "skipped_by_reason": {},
+        "complete": False,
+    }
+    report["sources"][source_name] = detail
+    try:
+        done = _recent_tariff_points(
+            session,
+            window=window,
+            max_age_hours=getattr(args, "entsog_tariffs_max_age_hours", None),
+            now=started,
+        )
+    except ValueError as exc:
+        detail["status"] = "failed"
+        report["failures"].append({"source": source_name, "code": "entsog_tariffs_max_age"})
+        report["warnings"].append(str(exc))
+        return
+    reasons: dict[str, int] = {}
+    first = True
+    stop_code = None
+    for point in points:
+        if point in done:
+            detail["points_resumed"] += 1
+            continue
+        if not first:
+            time.sleep(pace)
+        first = False
+        try:
+            result = fetch_entsog_dataset(
+                client,
+                "tariffsfulls",
+                filters={"pointKey": point, **window},
+                max_records=args.limit,
+                page_size=min(
+                    args.entsog_page_size,
+                    ENTSOG_DATASET_MAX_PAGE_SIZE.get("tariffsfulls", args.entsog_page_size),
+                ),
+                max_pages=args.entsog_max_pages,
+            )
+            counts = persist_entsog_tariffs(
+                session, results=[result], run_id=run_id, bundle=bundle, points=[point]
+            )
+            session.commit()
+        except (EntsogTransportError, EntsogIngestionError, SQLAlchemyError) as exc:
+            session.rollback()
+            code = getattr(exc, "code", "entsog_tariffs_point_failed")
+            detail["points_failed"].append({"point": point, "code": code})
+            if getattr(exc, "status_code", None) == 429:
+                stop_code = "entsog_rate_limited"
+                break
+            continue
+        detail["points_read"] += 1
+        detail["records"] += counts["records"]
+        if not result.complete:
+            detail["points_incomplete"].append(point)
+        for key, value in counts["skipped_by_reason"].items():
+            reasons[key] = reasons.get(key, 0) + value
+    detail["skipped_by_reason"] = reasons
+    detail["complete"] = not detail["points_failed"] and not detail["points_incomplete"]
+    if stop_code:
+        detail["stop"] = stop_code
+    status = (
+        "failed"
+        if detail["points_failed"] and not detail["points_read"] and not detail["points_resumed"]
+        else ("succeeded" if detail["complete"] else "SUCCEEDED_WITH_WARNINGS")
+    )
+    detail["status"] = status
+    _record_run(
+        session,
+        source_name,
+        status,
+        started,
+        detail["records"],
+        f"entsog-tariffsfulls;window={window['from']}..{window['to']};"
+        f"points={detail['points_read']}/{len(points)};resumed={detail['points_resumed']};"
+        f"failed={len(detail['points_failed'])}",
+        run_id=run_id,
+    )
+    if status != "succeeded":
+        report["warnings"].append(
+            f"{source_name}: {len(detail['points_failed'])} point(s) failed, "
+            f"{len(detail['points_incomplete'])} incomplete; the next run resumes them."
+        )
+    if status == "failed":
+        report["failures"].append({"source": source_name, "code": stop_code or "entsog_tariffs"})
 
 
 #: Run statuses that mean the ENTSOG reference network was brought to a complete read.
