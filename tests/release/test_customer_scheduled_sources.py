@@ -28,7 +28,12 @@ from eurogas_nexus.application.scheduled_source_keys import SCHEDULED_SOURCE_KEY
 from eurogas_nexus.domain.dataops.registry import schedulable_definitions
 from eurogas_nexus.domain.ingestion.source_approval import classify_source
 from eurogas_nexus.domain.ingestion.source_registry import registered_sources
-from scripts.ops.run_dataops_scheduler import _SCRIPT_COMMANDS, _SOURCE_ARGS, INGEST_SCRIPT
+from scripts.ops.run_dataops_scheduler import (
+    _SCRIPT_COMMANDS,
+    _SOURCE_ARGS,
+    ENTSOG_HISTORY_COMMAND,
+    INGEST_SCRIPT,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = json.loads((ROOT / "scripts/release/runtime_artifact_policy.json").read_text())
@@ -38,6 +43,8 @@ DOCKERFILE = (ROOT / "deploy/runtime/Dockerfile.api").read_text(encoding="utf-8"
 def _scheduler_scripts() -> set[str]:
     scripts = {f"scripts/ops/{INGEST_SCRIPT.name}"} if _SOURCE_ARGS else set()
     scripts |= {f"scripts/ops/{command[0]}" for command in _SCRIPT_COMMANDS.values()}
+    # Started after a successful scheduled ENTSOG read, not as a source of its own.
+    scripts.add(f"scripts/ops/{ENTSOG_HISTORY_COMMAND[0]}")
     return scripts
 
 
