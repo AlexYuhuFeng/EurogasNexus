@@ -87,7 +87,9 @@ test("a board reason is said in the reader's language from its code, months as t
   assert.equal(boardReasonText(spark, translate(en)), "no power price held; no carbon (EUA) price held");
   assert.equal(boardReasonText(spark, translate(zh)), "未持有电力价格；未持有碳（EUA）价格");
   assert.equal(boardReasonText({ reasons: [{ code: "months_not_held", params: { months: ["2027-04", "2027-05"] } }] }, translate(zh)), "未持有的月份：Apr-27, May-27");
-  assert.equal(boardReasonText({ reasons: [{ code: "cargo.no_hh_price" }] }, translate(en)), "no HH price");
+  assert.equal(boardReasonText({ reasons: [{ code: "cargo.no_hh_price" }] }, translate(en)), "no Henry Hub price held");
+  assert.equal(boardReasonText({ reasons: [{ code: "cargo.no_hh_price" }] }, translate(zh)), "未持有亨利港价格");
+  assert.equal(boardReasonText({ reasons: [{ code: "cargo.no_new_code" }] }, translate(en)), "no new code");
   assert.equal(boardReasonText({ reason: "an older server's sentence" }, translate(zh)), "an older server's sentence");
   for (const key of Object.keys(en).filter((name) => name.startsWith("spreads.reason."))) assert.ok(key in zh, key);
 });
