@@ -41,9 +41,14 @@ category's next action is "update the register when the TSO publishes".
 
 **Published TSO tariffs from ENTSOG** (`src-entsog`, route `entsog-tariffs`, dataset
 "TSO tariffs (ENTSOG)") are read, not kept by hand: the reserve prices ENTSOG's
-`tariffsfulls` dataset publishes for every interconnection point route pricing crosses
-(`ingestion/entsog_tariffs.py`), at most daily (`--entsog-tariffs-max-age-hours 24`, the
-scheduler, the reference worker of `deploy/runtime/compose.yaml` and the demo start-up). A
+`tariffsfulls` dataset publishes for every interconnection point route pricing crosses and the
+corridor, LNG and Norwegian landing points of `reference_data/tariff_scope.py`
+(`ingestion/entsog_tariffs.py`), for the current and next gas year and every standard product,
+one point per query 2 s apart, each point committed as it is read. A point read within
+`--entsog-tariffs-max-age-hours` (24 in the scheduler, the reference worker of
+`deploy/runtime/compose.yaml` and the demo start-up) is skipped, so each point is re-read at
+most daily and a stopped or retried run resumes at the first point it had not finished. What
+the register holds per crossing is printed by `scripts/ops/tariff_coverage.py`. A
 tariff period opens once a year, so the newest period is late after 13 months and stale after
 25 (`DatasetFreshness` in the ENTSOG manifest).
 

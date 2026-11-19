@@ -127,10 +127,14 @@ any stored bundle edges: a store seeded from the bundle and a store holding a li
 
 **Tariffs for the crossings.** Each leg is named as ENTSOG publishes the tariff (operator,
 point, direction); `scripts/ops/ingest_public_sources.py --source entsog-tariffs` reads
-`tariffsfulls` for every adjacency point into the tariff register (EUR/MWh at full load,
-period, FINAL or INDICATIVE, citation per row; `ingestion/entsog_tariffs.py`). Read
-2026-11-17, NBP - ZTP through IUK is fully published; TTF - NBP through BBL lacks the GTS exit
-at Balgzand, which ENTSOG does not publish, so that route reports the leg as missing.
+`tariffsfulls` for every adjacency point into the tariff register (the figure as the operator
+published it, every standard product, period, FINAL or INDICATIVE, citation per row;
+`ingestion/entsog_tariffs.py`); route pricing reads it per MWh for the stated product and load
+factor (`domain/route_cost/tariff_units.py`). Read 2026-11-19: every route to or from NBP lacks
+the National Gas leg (ENTSOG files National Gas's per-day prices under a per-year unit, so
+those rows are refused) and TTF - NBP through BBL also lacks the GTS exit at Balgzand, which
+ENTSOG does not publish; those routes report the legs as missing.
+`scripts/ops/tariff_coverage.py` prints, per crossing and direction, which legs are held.
 
 Refresh the adjacency on the shipped bundle (no database; ENTSOG read live, retried on a
 reset, or from saved responses):

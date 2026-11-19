@@ -7,7 +7,7 @@ confirm each provider's current terms before a production deployment.
 
 | Source | Use in product | Commercial-use position | How the product enforces it |
 |---|---|---|---|
-| ENTSOG Transparency Platform | flows, capacity, tariffs (`tariffsfulls`: the reserve prices TSOs publish per interconnection point, stored in the tariff register for route pricing) | Free public data; TP Terms of Use Art. 5 (see "Reference network bundle" below): store and use with the source and download date cited | Live ingest gated by a provider certification record; every tariff row cites "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/" and its ENTSOG row id. Fair use: the TP API manual (v2.1, read 2026-11-18) asks that queries be filtered by dates, points and indicators to stay within its 60-second timeout and share the platform fairly; it states no other rate limit. The landing-point history (`scripts/ops/backfill_entsog_landings.py`, run after a successful scheduled ENTSOG read) reads one quarter of physical flow at the ten landing point-directions per query, at most 8 queries a run, 3 s apart, through the same approval and certification gate; `GET /api/fundamentals/flows` returns the citation |
+| ENTSOG Transparency Platform | flows, capacity, tariffs (`tariffsfulls`: the reserve prices TSOs publish per interconnection point, stored in the tariff register for route pricing) | Free public data; TP Terms of Use Art. 5 (see "Reference network bundle" below): store and use with the source and download date cited | Live ingest gated by a provider certification record; every tariff row cites "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/" and its ENTSOG row id, and keeps the figure as the operator published it (read per MWh only when priced). Tariffs are read one point per query, 2 s apart (`--entsog-pace-seconds`). Fair use: the TP API manual (v2.1, read 2026-11-18) asks that queries be filtered by dates, points and indicators to stay within its 60-second timeout and share the platform fairly; it states no other rate limit. The landing-point history (`scripts/ops/backfill_entsog_landings.py`, run after a successful scheduled ENTSOG read) reads one quarter of physical flow at the ten landing point-directions per query, at most 8 queries a run, 3 s apart, through the same approval and certification gate; `GET /api/fundamentals/flows` returns the citation |
 | ENTSOG Transparency Platform, shipped reference bundle | NWE network points, operators and approximate positions on a fresh or offline installation | TP Terms of Use (Rev. 3, 10 Nov 2026) Art. 5: download, store and use in good faith with the source and download date cited; no clause excludes commercial use or redistribution (see "Reference network bundle" below) | `src/eurogas_nexus/reference_data/nwe_reference_network.json` carries the citation; positions marked approximate; links marked schematic |
 | ENTSOG Transparency Platform, urgent market messages | transmission outages (REMIT UMMs TSOs publish to ENTSOG) | Same TP Terms of Use (Rev. 3) Art. 5 as the rows above: download, store and use, citing "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/" | `src-entsog-umm`, `scripts/ops/ingest_remit_entsog.py`; the download date is in every stored message's source reference and the citation is returned with each outage row (`attribution`) |
 | GIE AGSI+/ALSI | storage, LNG (daily, by country and the EU total, history included); facility listing (EIC, name, country, operator) as facility identity | Free with a registered API key. Reuse, commercial included, with GIE named as the source: "All data published on AGSI & ALSI can be used or repackaged in any way you see fit but a clear indication on GIE as data source is mandatory. A mention of GIE, AGSI or ALSI (as applicable) as data source is a minimum requirement." (https://agsi.gie.eu/account, "API data usage", read 2026-11-17; no clause limits history or commercial use). The API documentation is available only after registration; GIE publishes no rate limit | Key held server-side; certification gate; the listing is loaded by `scripts/ops/ingest_gie_facilities.py` into the identity tables (no position: GIE publishes none). History is backfilled one gas year per read at a 2-second pace by `scripts/ops/backfill_gie_history.py` through the same gated path; `GET /api/fundamentals/storage` returns the attribution with every read |
@@ -116,6 +116,34 @@ reviewed. A leg no published row covers (the GTS exit at Balgzand, for one: ENTS
 tariff there) stays "tariff not held"; nothing is estimated. The demo desk's simulated
 tariffs for such legs are marked `SIMULATOR_ONLY` and removed once a published row covers the
 same leg.
+
+**Tariff sources beyond ENTSOG (checked 2026-11-19).** The tariff read covers every point of
+the market-area graph plus the corridor (CEGH, CZ, PSV, PVB, Swiss transit), LNG and Norwegian
+landing points listed in `reference_data/tariff_scope.py`, for the current and next gas year
+and every standard product (`ingestion/entsog_tariffs.py`). ENTSOG TP answered with no tariff
+at all for 42 of those 108 points (read 19-11-2026), and its National Gas figures are refused
+(filed per year, published per day: see `OPERATOR_REFUSALS`). For the operators below the
+product does **not** read the operator's own site: their terms could not be read from the
+build environment (the hosts were outside its network allowance on 2026-11-19), so no terms
+were reviewed, none accepted and no account registered. Each stays "tariff not held" in route
+pricing until a reviewed figure is entered by an administrator; nothing is estimated.
+
+| Operator / source | What ENTSOG lacks | Operator's own publication | Position |
+|---|---|---|---|
+| National Gas (GB NTS) | every National Gas row is refused (Bacton IUK, Bacton BBL, Moffat entry/exit; St Fergus, Easington, Isle of Grain, Milford Haven, Teesside entry) | IP reserve price notices and charging statements on nationalgas.com (p/kWh/d) | Not automated: site terms not reviewed (nationalgas.com unreachable from the build environment). Administrator entry |
+| Interconnector (IUK) | nothing: IUK's entry and exit at Bacton and Zeebrugge are on ENTSOG | charging statement on fluxys.com / interconnector.com | ENTSOG only; site not read |
+| BBL company | nothing for BBL itself (both directions at Bacton BBL on ENTSOG) | tariffs on bblcompany.com | ENTSOG only; site not read |
+| GTS (Gasunie Transport Services) | exit to BBL at Julianadorp/Balgzand; entry from Gate and Eems LNG; Emden landings | tariff decisions and tables on gasunietransportservices.nl | Not automated: site terms not reviewed (host unreachable). Administrator entry |
+| Fluxys Belgium | entry from Zeebrugge LNG, Zeebrugge ZPT (Norway), Dunkerque LNG / Alveringem | tariff lists on fluxys.com (Fluxys legal notice forbids download without consent, see the LNG row above) | Not automated: the notice above excludes it. Administrator entry with the firm's permission |
+| NaTran (FR), Enagás (ES) | entry from French and Spanish LNG terminals; Larrau, Biriatou (VIP PIRINEOS is on ENTSOG) | tariff documents on natran.fr, enagas.es | Not automated: terms not reviewed. Administrator entry |
+| Gassco / Gassled (Norway) | the Gassled area tariffs upstream of the landing points (regulated by the Norwegian ministry) | gassco.no tariff pages | Not automated: terms not reviewed; ENTSOG holds no Gassled tariff. Administrator entry |
+| Swiss transit (FluxSwiss, Swissgas) | the Swiss side at Wallbach, Oltingue, Griespass, VIP Germany-CH | fluxswiss.com tariff pages | Not automated: terms not reviewed. Administrator entry |
+| LNG terminal regasification | terminal tariffs are not TSO tariffs | see the LNG terminal row above | Unchanged: the LNG terminal tariff register (CP-11) |
+
+The tariff register has no administrator entry screen for transmission tariffs yet (the
+four-eyes admin path exists for LNG terminal terms and for the TSO publication watch list,
+`/api/route-cost/tariff-publications`, not for `tso_tariffs` rows); until it does, these legs
+stay missing.
 
 **Lines.** ENTSOG's API publishes no route geometry, and its map drawings are ENTSOG
 property; no OpenStreetMap or other share-alike geometry is used. The bundle's edges are
