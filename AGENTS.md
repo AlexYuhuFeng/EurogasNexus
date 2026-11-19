@@ -30,3 +30,9 @@
 18. The product is sold commercially: no dependency, dataset, tile service or API whose
     terms exclude commercial use (see `docs/legal/`). Licensed market data comes only
     through the customer's own entitlement.
+19. Live by default (owner, 2026-11-19). A calculation takes its inputs from connected live or
+    public sources and from the firm's own records; the user chooses from what exists (a picker
+    of valid contracts in execution, not a typed contract id). Manual entry stays possible where
+    it is needed, and the result then states which inputs were entered by hand. Changing a data
+    source (a licensed vessel feed instead of public AIS) changes accuracy, never the
+    calculation. See `docs/product/UX_REFERENCE.md`.
