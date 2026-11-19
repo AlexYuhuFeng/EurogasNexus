@@ -59,8 +59,9 @@ from eurogas_nexus.api.routes.public.weather import router as weather_router
 #: Design basis 2, I.3 and decision L4: capabilities kept in the backend, dormant, until a desk
 #: use is proven: the dataset builder and the agents workspace. (The strategy registry and the
 #: shadow runtime stay served while the Spreads backtest and shadow tracking are rebuilt on
-#: StrategySpec; whether they are deferred is decided by that work.) Their routes are not served unless an operator turns them back on, so the attack
-#: and maintenance surface shrinks with the UI. The domain and application code stay, with tests.
+#: StrategySpec; whether they are deferred is decided by that work.) Their routes are not served
+#: unless an operator turns them back on, so the attack and maintenance surface shrinks with the
+#: UI. The domain and application code stay, with tests.
 DEFERRED_CAPABILITIES_ENV = "EUROGAS_NEXUS_DEFERRED_CAPABILITIES"
 
 
