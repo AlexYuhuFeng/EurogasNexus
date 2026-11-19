@@ -5766,5 +5766,7 @@
   "hints.desk.today.brief": "交易台简报将今日变化写成可分享的短文。",
   "hints.deals.contracts.find": "按名称查找合同，或只看某一类合同。",
   "hints.deals.contracts.new": "新建合同先选类型，再只填写该类型的条款。",
-  "hints.deals.contracts.import": "导入 PDF 可读取合同并填写条款，每项注明所在页。"
+  "hints.deals.contracts.import": "导入 PDF 可读取合同并填写条款，每项注明所在页。",
+  "prompt.no_quotes": "暂无日内或日前报价。",
+  "prompt.no_quotes_next": "即期报价通过您的 Trayport、ICE 或 EEX 授权接入；由您的管理员连接。"
 }

@@ -8,7 +8,7 @@
 /** An identifier written as an enum: two or more upper-case words joined by underscores. */
 export const ENUM_TOKEN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
 
-const ACRONYMS = new Set(["API", "CET", "DA", "ECB", "EEX", "ENTSOG", "ETRM", "FX", "GIE", "ICE", "LNG", "NBP", "OCM", "OIDC", "PDF", "PEG", "SSE", "SSO", "TSO", "TTF", "UMM", "UTC", "WD", "ZTP"]);
+const ACRONYMS = new Set(["API", "CET", "DA", "ECB", "EEX", "ENTSOG", "ETRM", "FX", "GIE", "HH", "ICE", "LNG", "NBP", "OCM", "OIDC", "PDF", "PEG", "SSE", "SSO", "TSO", "TTF", "UMM", "UTC", "WD", "ZTP"]);
 
 /** "SUCCEEDED_WITH_WARNINGS" -> "Succeeded with warnings"; acronyms stay upper case. */
 export function humanizeEnum(value: string): string {

@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import "@/styles/promptDesk.css";
 import { api } from "@/api/client";
 import type { PromptMarketDTO, PromptQuoteDTO } from "@/api/strategyTracks";
-import { Instant, Segmented, Skeleton } from "@/components/ui";
+import { EmptyState, Instant, Segmented, Skeleton } from "@/components/ui";
 
 const POLL_MS = 2_000;
 const HUBS = ["TTF", "NBP"] as const;
@@ -80,6 +80,10 @@ export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {
       {!error && !data && <Skeleton label={t("prompt.loading")} rows={4} />}
       {data && (
         <>
+          {/* No quote on either product: one line with where quotes come from, not a row of dashes. */}
+          {!data.market.within_day.quote && !data.market.day_ahead.quote ? (
+            <EmptyState compact id="prompt-quotes" need="licence" reason={t("prompt.no_quotes")} next={t("prompt.no_quotes_next")} />
+          ) : (
           <div className="prompt-table-wrap" tabIndex={0} role="region" aria-label={t("prompt.screen")}>
             <table className="prompt-table">
               <caption>{t("prompt.screen_caption", { unit: `${unit}/MWh`, as_of: "" })}<Instant value={data.as_of_utc} seconds /></caption>
@@ -103,6 +107,7 @@ export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {
               </tbody>
             </table>
           </div>
+          )}
           <dl className="prompt-figures">
             <div data-figure="wd-da">
               <dt>{t("prompt.spread")}</dt>
@@ -110,7 +115,8 @@ export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {
             </div>
             <div data-figure="day-pnl">
               <dt>{t("prompt.day_pnl", { currency: data.performance.currency ?? unit })}</dt>
-              <dd>{signed(data.performance.day_pnl, 0)}</dd>
+              {/* No prompt trade booked: the P&L is unknown, never shown as zero. */}
+              <dd>{data.performance.trades.length ? signed(data.performance.day_pnl, 0) : "–"}</dd>
             </div>
           </dl>
           <h3 className="prompt-subtitle">{t("prompt.performance")}</h3>

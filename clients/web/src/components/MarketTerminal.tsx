@@ -1,4 +1,5 @@
 import { PromptDeskPanel } from "@/components/market/PromptDeskPanel";
+import { sourceSystemLabel } from "@/app/model/enumLabels";
 import { useEffect, useMemo, useState } from "react";
 import "@/styles/prices.css";
 import { api } from "@/api/client";
@@ -1007,7 +1008,7 @@ export function MarketTerminal({
             ? <strong>{t("data.unavailable")}</strong>
             : latestFxPerPair(fxRates).slice(0, 4).map((rate) => (
               <strong key={`fx-${rate.pair}-${rate.observed_at_utc}`} title={formatTimestamp(rate.observed_at_utc)}>
-                {rate.pair} {rate.rate.toFixed(4)} <small>{rate.source_system ?? t("market.ecb_source")}</small>
+                {rate.pair} {rate.rate.toFixed(4)} <small>{rate.source_system ? sourceSystemLabel(rate.source_system) : t("market.ecb_source")}</small>
               </strong>
             ))}
         </div>

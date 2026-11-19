@@ -29,6 +29,7 @@ import { seasonTicks } from "./seasonModel";
 
 import { DataGrid, type DataGridColumn } from "../DataGrid";
 import { StatusBadge } from "../StatusBadge";
+import { useSimulatedPills } from "../SimulatedScope";
 import {
   axisTickLabels,
   bandAt,
@@ -275,6 +276,9 @@ export function Chart({
   const titleId = `chart-${id}-title`;
   const hasData = data.x.length > 0 && data.series.some((item) => !item.reference && !item.ghost && item.values.some((value) => value != null));
   const anySimulated = simulated || data.series.some((item) => item.simulated);
+  // A page that says once that every figure is simulated (SimulatedScope) drops the head badge;
+  // the dashed line and the tooltip still say it.
+  const pills = useSimulatedPills();
   const allSimulated = simulated || data.series.filter((item) => !item.reference).every((item) => item.simulated);
   const asOfLabel = asOfText(asOf);
   const endLabelled = usesEndLabels(data);
@@ -684,7 +688,7 @@ export function Chart({
       <figcaption className="ds-chart-head">
         <span className="ds-chart-title" id={titleId}>{title}</span>
         <span className="ds-chart-unit">{data.unit}</span>
-        {anySimulated && (
+        {anySimulated && pills && (
           <StatusBadge tone="simulated" title={t("chart.simulated_long")}>{t("chart.simulated")}</StatusBadge>
         )}
         {asOfLabel && !compact && (

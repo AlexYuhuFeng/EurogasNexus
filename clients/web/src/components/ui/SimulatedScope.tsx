@@ -36,13 +36,16 @@ export function SimulatedScope({
   children,
 }: {
   scope: SimulatedScopeKind;
-  /** The one line said when every figure is simulated. */
-  notice: string;
+  /**
+   * The one line said when every figure is simulated; omitted for a part of the page whose
+   * notice is already shown elsewhere on it (the scope then only drops the pills).
+   */
+  notice?: string;
   children: ReactNode;
 }) {
   return (
     <ScopeContext.Provider value={scope}>
-      {scope === "all" && (
+      {scope === "all" && notice && (
         <p className="simulated-scope-notice" role="note" data-simulated-scope="all">
           {notice}
         </p>

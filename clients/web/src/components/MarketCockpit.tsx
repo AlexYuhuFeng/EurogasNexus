@@ -7,6 +7,7 @@ import { DESK_NETWORK_KEPT } from "@/components/DeskNetworkTask";
 import { KeptSlot } from "@/app/data/keepAlive";
 import { warmMapAssets } from "@/app/mapAssetWarmup";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
+import { SimulatedScope, simulatedScopeOf } from "@/components/ui/SimulatedScope";
 import { FirstUseHints } from "@/components/ui/FirstUseHints";
 import { FIRST_USE_HINTS } from "@/app/experience/firstUseHints";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
@@ -245,7 +246,10 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           {/* Term structure and the link into Spreads (CP-20). The price converter is the
               answer bar ("78 p/th in eur/mwh jan27"); a tenor's delivery window is on its
               header; the storage-target trajectory belongs to the storage chart. */}
-          <PriceCharts markets={api.normalizedMarkets} t={t} />
+          {/* The board above says once that every price is simulated; the curve card shares it. */}
+          <SimulatedScope scope={simulatedScopeOf(api.normalizedMarkets.map((row) => /_sim/i.test(row.source_system ?? "")))}>
+            <PriceCharts markets={api.normalizedMarkets} t={t} />
+          </SimulatedScope>
           </>
         )}
         {task === "network" && (

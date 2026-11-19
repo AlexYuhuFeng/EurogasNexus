@@ -5766,5 +5766,7 @@
   "hints.desk.today.brief": "The desk brief writes today's changes as a short note you can share.",
   "hints.deals.contracts.find": "Find a contract by name or narrow the list to one kind.",
   "hints.deals.contracts.new": "New contract asks the kind first, then only the terms that kind has.",
-  "hints.deals.contracts.import": "Import PDF reads a contract and fills the terms, each with its page."
+  "hints.deals.contracts.import": "Import PDF reads a contract and fills the terms, each with its page.",
+  "prompt.no_quotes": "No within-day or day-ahead quote held.",
+  "prompt.no_quotes_next": "Prompt quotes arrive through your Trayport, ICE or EEX entitlement; your administrator connects it."
 }
