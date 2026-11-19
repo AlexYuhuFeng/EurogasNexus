@@ -175,11 +175,15 @@ def test_aliases_identify_sites_and_place_only_at_a_reference_point():
     assert kawerna["reason"] == "outside_reference_network"
     assert known["21W000000000082W"]["identified_by"] == "operator_eic"
     assert known["21Z000000000382F"]["sites"] == ["Husów"]
-    assert situation["unlocated_outages"] == [{
-        "event_id": situation["unlocated_outages"][0]["event_id"],
+    assert len(situation["unlocated_outages"]) == 1
+    unlocated = situation["unlocated_outages"][0]
+    assert {key: unlocated[key] for key in
+            ("facility_name", "facility_id", "market_participant", "reason")} == {
         "facility_name": "UGS Nowhere", "facility_id": "53ZPL0000000000Z",
         "market_participant": "", "reason": "no_reference_match",
-    }]
+    }
+    # The window and size travel with it, so the map can still say what is out and until when.
+    assert unlocated["unavailable_gwh_d"] == 10.0 and unlocated["end_utc"]
 
 
 def test_without_the_reference_point_or_the_listing_nothing_is_guessed():
