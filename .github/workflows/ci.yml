@@ -29,7 +29,7 @@ env:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
@@ -114,7 +114,7 @@ jobs:
 
   dependency-audit:
     name: Dependency license & CVE audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
@@ -179,7 +179,7 @@ jobs:
     # it into that gate is a deliberate release-policy edit (add the job name to
     # required_jobs and drop this condition), never an automatic consequence.
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
@@ -227,7 +227,7 @@ jobs:
 
   integration-postgres:
     name: PostgreSQL integration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       postgres:
@@ -275,7 +275,7 @@ jobs:
         run: bash scripts/ci/run_postgres_ci.sh
 
   web-client-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
@@ -309,7 +309,7 @@ jobs:
 
   browser-acceptance:
     name: Browser acceptance (EN/ZH, 3 viewports)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       postgres:

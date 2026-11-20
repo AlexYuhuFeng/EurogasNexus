@@ -759,7 +759,7 @@ def test_ci_python_license_text_job_is_independent_and_reuses_pinned_actions() -
     assert EVIDENCE_JOB in payload["jobs"]
     job = payload["jobs"][EVIDENCE_JOB]
 
-    assert job["runs-on"] == "ubuntu-latest"
+    assert job["runs-on"] == "ubuntu-24.04"
     # Independent evidence job: it runs on its own and cannot mask another job's
     # failure (or be masked by one) through needs/continue-on-error.
     assert "needs" not in job

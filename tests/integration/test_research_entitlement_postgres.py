@@ -496,6 +496,8 @@ def test_snapshot_reads_are_filtered_by_source_grants(route_engine: Engine) -> N
 # ---------------------------------------------------------------------------
 
 
+# The dataset routes are a deferred capability (off by default); this test serves them.
+@pytest.mark.deferred_capabilities
 def test_export_denial_ignores_forged_export_allowed_envelopes(
     route_engine: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
